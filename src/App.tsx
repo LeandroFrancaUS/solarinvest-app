@@ -238,9 +238,9 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   const [consumoMensal, setConsumoMensal] = useState(1200)
-  const [tarifaBase, setTarifaBase] = useState(0.92)
+  const [tarifaBase, setTarifaBase] = useState(0.964)
   const [descontoPct, setDescontoPct] = useState(20)
-  const [taxaMinima, setTaxaMinima] = useState(35)
+  const [taxaMinima, setTaxaMinima] = useState(95)
   const [encargos, setEncargos] = useState(0)
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(5)
   const [potenciaPlaca, setPotenciaPlaca] = useState(550)
@@ -258,8 +258,8 @@ export default function App() {
   })
 
   const [precoPorKwp, setPrecoPorKwp] = useState(2470)
-  const [irradiacao, setIrradiacao] = useState(5.0)
-  const [eficiencia, setEficiencia] = useState(0.75)
+  const [irradiacao, setIrradiacao] = useState(5.51)
+  const [eficiencia, setEficiencia] = useState(8)
   const [inflEnergia, setInflEnergia] = useState(8)
 
   const [jurosFinAA, setJurosFinAA] = useState(15)
@@ -353,12 +353,16 @@ export default function App() {
     return Array.from({ length: anosAnalise }, (_, i) => {
       const ano = i + 1
       const economia = 12 * consumoMensal * tarifaAno(ano)
+      const custoSemSistemaMensal = Math.max(consumoMensal * tarifaAno(ano), taxaMinima)
+      const economiaBrutaAnual = 12 * (custoSemSistemaMensal - taxaMinima)
       const inicioAno = (ano - 1) * 12
       const mesesRestantes = Math.max(0, prazoFinMeses - inicioAno)
       const mesesPagos = Math.min(12, mesesRestantes)
       const custoParcela = mesesPagos * Math.abs(pmt)
       const custoTotal = custoParcela + custoOeM(ano) + custoSeguro(ano) + 12 * taxaMinima
       return economia - custoTotal
+      const custoSistema = custoParcela + custoOeM(ano) + custoSeguro(ano)
+      return economiaBrutaAnual - custoSistema
     })
   }, [consumoMensal, inflEnergia, jurosFinAA, oemBase, oemInflacao, pmt, prazoFinMeses, seguroModo, seguroPercentualB, seguroReajuste, seguroValorA, tarifaBase, taxaMinima, valorMercado, potenciaTotalKwp])
 
