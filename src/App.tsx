@@ -352,6 +352,7 @@ export default function App() {
   const financiamentoFluxo = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
       const ano = i + 1
+      const economia = 12 * consumoMensal * tarifaAno(ano)
       const custoSemSistemaMensal = Math.max(consumoMensal * tarifaAno(ano), taxaMinima)
       const economiaAnual = 12 * Math.max(custoSemSistemaMensal - taxaMinima, 0)
       const inicioAno = (ano - 1) * 12
