@@ -357,7 +357,7 @@ export default function App() {
       const mesesRestantes = Math.max(0, prazoFinMeses - inicioAno)
       const mesesPagos = Math.min(12, mesesRestantes)
       const custoParcela = mesesPagos * Math.abs(pmt)
-      const custoTotal = custoParcela + 12 * taxaMinima + custoOeM(ano) + custoSeguro(ano)
+      const custoTotal = custoParcela + custoOeM(ano) + custoSeguro(ano)
       return economia - custoTotal
     })
   }, [consumoMensal, inflEnergia, jurosFinAA, oemBase, oemInflacao, pmt, prazoFinMeses, seguroModo, seguroPercentualB, seguroReajuste, seguroValorA, tarifaBase, taxaMinima, valorMercado, potenciaTotalKwp])
