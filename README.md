@@ -1,1 +1,0 @@
-# solarinvest-app
