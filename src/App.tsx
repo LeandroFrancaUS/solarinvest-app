@@ -354,13 +354,13 @@ export default function App() {
       const ano = i + 1
       const custoMinimoAnual = 12 * taxaMinima
       const economiaBrutaAnual = 12 * consumoMensal * tarifaAno(ano)
-      const custoSemSistema = Math.max(economiaBrutaAnual, custoMinimoAnual)
+      const economiaLiquidaAnual = Math.max(economiaBrutaAnual - custoMinimoAnual, 0)
       const inicioAno = (ano - 1) * 12
       const mesesRestantes = Math.max(0, prazoFinMeses - inicioAno)
       const mesesPagos = Math.min(12, mesesRestantes)
       const custoParcela = mesesPagos * Math.abs(pmt)
-      const custoSistema = custoMinimoAnual + custoParcela + custoOeM(ano) + custoSeguro(ano)
-      return custoSemSistema - custoSistema
+      const despesasSistema = custoParcela + custoOeM(ano) + custoSeguro(ano)
+      return economiaLiquidaAnual - despesasSistema
     })
   }, [consumoMensal, inflEnergia, jurosFinAA, oemBase, oemInflacao, pmt, prazoFinMeses, seguroModo, seguroPercentualB, seguroReajuste, seguroValorA, tarifaBase, taxaMinima, valorMercado, potenciaTotalKwp])
 
