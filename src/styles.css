@@ -470,10 +470,11 @@ table tbody tr:hover {
   border-radius: 20px;
   border: 1px solid rgba(59, 76, 107, 0.5);
   background: rgba(7, 13, 23, 0.98);
-  padding: 24px 28px 32px;
+  padding: 32px 32px 36px;
   box-shadow: 0 28px 64px rgba(0, 0, 0, 0.55);
   display: flex;
   flex-direction: column;
+  scroll-padding-top: 28px;
 }
 
 .modal-header {
@@ -484,8 +485,8 @@ table tbody tr:hover {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin: -24px -28px 24px;
-  padding: 24px 28px 12px;
+  margin: -32px -32px 24px;
+  padding: 28px 32px 16px;
   border-bottom: 1px solid rgba(59, 76, 107, 0.6);
   border-radius: 20px 20px 0 0;
   background: rgba(7, 13, 23, 0.98);
@@ -500,7 +501,8 @@ table tbody tr:hover {
 .modal-body {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
+  padding-top: 8px;
 }
 
 .modal-body h4 {
