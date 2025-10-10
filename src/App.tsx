@@ -503,19 +503,15 @@ export default function App() {
       const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
       const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
 
-      let base: number
-      if (entradaModoNormalizado === 'REDUZ') {
-        base = consumoAjustado * tarifaDescontada
-      } else {
-        base = consumoMensal * tarifaDescontada
-      }
+      const baseEnergia =
+        entradaModoNormalizado === 'REDUZ' ? consumoAjustado * tarifaDescontada : consumoMensal * tarifaDescontada
 
-      let mensalidadeCalculada = base + encargosFixos
+      let mensalidadeLiquida = baseEnergia + taxaMinimaNormalizada + encargosFixos
       if (entradaModoNormalizado === 'CREDITO') {
-        mensalidadeCalculada -= creditoMensal
+        mensalidadeLiquida -= creditoMensal
       }
 
-      const mensalidadeLiquida = Math.max(taxaMinimaNormalizada, mensalidadeCalculada)
+      mensalidadeLiquida = Math.max(0, mensalidadeLiquida)
       mensalidades.push(Number(mensalidadeLiquida.toFixed(2)))
     }
 
@@ -556,11 +552,8 @@ export default function App() {
     const meses = Math.max(0, Math.floor(prazoContratoMeses))
     const tarifaDescontadaBase = tarifaBase * (1 - descontoDecimal)
     const encargosFixos = Math.max(0, bandeiraValor + cipValor + encargos)
-
-    const mensalidadeSemEntradaBruta = consumoMensal * tarifaDescontadaBase + encargosFixos
-    const mensalidadeSemEntrada = Math.max(taxaMinima, mensalidadeSemEntradaBruta)
-    const mensalidadeTotalSemEntrada = mensalidadeSemEntradaBruta
-    const margemMinima = taxaMinima
+    const taxaMinimaNormalizada = Math.max(0, taxaMinima)
+    const margemMinima = taxaMinimaNormalizada + encargosFixos
 
     const denominadorReducao = consumoMensal * tarifaBase * (1 - descontoDecimal) * meses
     const fracReducao =
@@ -577,16 +570,15 @@ export default function App() {
         const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
         const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
 
-        let mensalidadeCalculada: number
-        if (entradaModoNormalizado === 'REDUZ') {
-          mensalidadeCalculada = kcAjustado * tarifaDescontada + encargosFixos
-        } else if (entradaModoNormalizado === 'CREDITO') {
-          mensalidadeCalculada = consumoMensal * tarifaDescontada + encargosFixos - creditoMensal
-        } else {
-          mensalidadeCalculada = consumoMensal * tarifaDescontada + encargosFixos
+        const baseEnergia =
+          entradaModoNormalizado === 'REDUZ' ? kcAjustado * tarifaDescontada : consumoMensal * tarifaDescontada
+
+        let mensalidadeLiquida = baseEnergia + taxaMinimaNormalizada + encargosFixos
+        if (entradaModoNormalizado === 'CREDITO') {
+          mensalidadeLiquida -= creditoMensal
         }
 
-        const mensalidadeLiquida = Math.max(taxaMinima, mensalidadeCalculada)
+        mensalidadeLiquida = Math.max(0, mensalidadeLiquida)
         totalAcumulado += mensalidadeLiquida
         lista.push({
           mes,
@@ -603,8 +595,6 @@ export default function App() {
     return {
       lista,
       tarifaDescontadaBase,
-      mensalidadeSemEntrada,
-      mensalidadeTotalSemEntrada,
       kcAjustado,
       creditoMensal,
       margemMinima,
@@ -901,12 +891,6 @@ export default function App() {
               <div className="info-inline">
                 <span className="pill">
                   Tarifa c/ desconto: <strong>{currency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
-                </span>
-                <span className="pill">
-                  Mensalidade sem entrada: <strong>{currency(parcelasSolarInvest.mensalidadeSemEntrada)}</strong>
-                </span>
-                <span className="pill">
-                  Mensalidade total sem entrada: <strong>{currency(parcelasSolarInvest.mensalidadeTotalSemEntrada)}</strong>
                 </span>
                 {entradaModoNormalizado === 'REDUZ' ? (
                   <span className="pill">
