@@ -434,18 +434,6 @@ export default function App() {
     return 'NONE'
   }, [entradaModo, entradaRs])
 
-  const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
-
-  const vm0 = useMemo(() => {
-    // O Valor de Mercado usado no buyout deve seguir exatamente a mesma lógica da tela principal
-    // (Valor de Mercado Estimado calculado automaticamente), evitando discrepâncias entre campos
-    // e mantendo o alinhamento com a planilha de referência.
-    // Ao centralizar o cálculo aqui, asseguramos que tanto os resumos exibidos na UI quanto
-    // componentes derivados (como o seguro indexado a esse valor) sejam atualizados em conjunto
-    // sempre que o CAPEX base se alterar.
-    return capex
-  }, [capex])
-
   const simulationState = useMemo<SimulationState>(() => {
     const descontoDecimal = Math.max(0, Math.min(desconto / 100, 1))
     const inflacaoAnual = Math.max(-0.99, inflacaoAa / 100)
@@ -504,6 +492,18 @@ export default function App() {
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
+
+  const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
+
+  const vm0 = useMemo(() => {
+    // O Valor de Mercado usado no buyout deve seguir exatamente a mesma lógica da tela principal
+    // (Valor de Mercado Estimado calculado automaticamente), evitando discrepâncias entre campos
+    // e mantendo o alinhamento com a planilha de referência.
+    // Ao centralizar o cálculo aqui, asseguramos que tanto os resumos exibidos na UI quanto
+    // componentes derivados (como o seguro indexado a esse valor) sejam atualizados em conjunto
+    // sempre que o CAPEX base se alterar.
+    return capex
+  }, [capex])
 
   const tarifaAno = (ano: number) => tarifaCheia * Math.pow(1 + inflacaoAa / 100, ano - 1)
   const tarifaDescontadaAno = (ano: number) => tarifaAno(ano) * (1 - desconto / 100)
