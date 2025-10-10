@@ -476,12 +476,15 @@ table tbody tr:hover {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(59, 76, 107, 0.6);
 }
 
 .modal-header h3 {
   margin: 0;
   color: var(--title);
+  flex: 1;
 }
 
 .modal-body {
@@ -496,6 +499,8 @@ table tbody tr:hover {
   font-size: 14px;
   letter-spacing: 0.4px;
   text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(59, 76, 107, 0.6);
 }
 
 .print-layout {

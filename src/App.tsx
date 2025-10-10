@@ -286,6 +286,7 @@ export default function App() {
   const [entradaValor, setEntradaValor] = useState(0)
   const [entradaModo, setEntradaModo] = useState<EntradaModo>('credito_linear')
   const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(false)
+  const [mostrarTabelaBuyout, setMostrarTabelaBuyout] = useState(false)
 
   const [oemBase, setOemBase] = useState(35)
   const [oemInflacao, setOemInflacao] = useState(4)
@@ -691,6 +692,52 @@ export default function App() {
         {activeTab === 'principal' ? (
           <>
             <section className="card">
+              <h2>Usina fotovoltaica</h2>
+              <div className="grid g4">
+                <Field label="Potência da placa (Wp)">
+                  <select value={potenciaPlaca} onChange={(e) => setPotenciaPlaca(Number(e.target.value))}>
+                    {painelOpcoes.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Nº de placas informado (opcional)">
+                  <input
+                    type="number"
+                    min={1}
+                    value={numeroPlacasManual === '' ? '' : numeroPlacasManual}
+                    onChange={(e) => {
+                      const { value } = e.target
+                      if (value === '') {
+                        setNumeroPlacasManual('')
+                        return
+                      }
+                      const parsed = Number(value)
+                      if (!Number.isFinite(parsed) || parsed <= 0) {
+                        setNumeroPlacasManual('')
+                        return
+                      }
+                      setNumeroPlacasManual(parsed)
+                    }}
+                  />
+                </Field>
+                <Field label="Nº de placas (calculado)">
+                  <input readOnly value={numeroPlacasCalculado} />
+                </Field>
+                <Field label="Potência instalada (kWp)">
+                  <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
+                </Field>
+                <Field label="Geração estimada (kWh/mês)">
+                  <input readOnly value={geracaoMensalKwh.toFixed(0)} />
+                </Field>
+              </div>
+              <div className="info-inline">
+                <span className="pill">Valor de Mercado Estimado: <strong>{currency(capex)}</strong></span>
+                <span className="pill">Consumo diário: <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong></span>
+              </div>
+            </section>
+
+            <section className="card">
               <h2>Parâmetros principais</h2>
               <div className="grid g3">
                 <Field label="Consumo (kWh/mês)">
@@ -849,52 +896,6 @@ export default function App() {
               ) : null}
             </section>
 
-            <section className="card">
-              <h2>Usina fotovoltaica</h2>
-              <div className="grid g4">
-                <Field label="Potência da placa (Wp)">
-                  <select value={potenciaPlaca} onChange={(e) => setPotenciaPlaca(Number(e.target.value))}>
-                    {painelOpcoes.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Nº de placas informado (opcional)">
-                  <input
-                    type="number"
-                    min={1}
-                    value={numeroPlacasManual === '' ? '' : numeroPlacasManual}
-                    onChange={(e) => {
-                      const { value } = e.target
-                      if (value === '') {
-                        setNumeroPlacasManual('')
-                        return
-                      }
-                      const parsed = Number(value)
-                      if (!Number.isFinite(parsed) || parsed <= 0) {
-                        setNumeroPlacasManual('')
-                        return
-                      }
-                      setNumeroPlacasManual(parsed)
-                    }}
-                  />
-                </Field>
-                <Field label="Nº de placas (calculado)">
-                  <input readOnly value={numeroPlacasCalculado} />
-                </Field>
-                <Field label="Potência instalada (kWp)">
-                  <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
-                </Field>
-                <Field label="Geração estimada (kWh/mês)">
-                  <input readOnly value={geracaoMensalKwh.toFixed(0)} />
-                </Field>
-              </div>
-              <div className="info-inline">
-                <span className="pill">Valor de Mercado Estimado: <strong>{currency(capex)}</strong></span>
-                <span className="pill">Consumo diário: <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong></span>
-              </div>
-            </section>
-
             <div className="grid g2">
               <section className="card">
                 <h2>Leasing — Mensalidade</h2>
@@ -982,32 +983,45 @@ export default function App() {
                 <h2>Compra antecipada (Buyout)</h2>
                 <span className="muted">Valores entre o mês 6 e o mês 60.</span>
               </div>
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Mês</th>
-                      <th>Tarifa projetada</th>
-                      <th>Prestação efetiva</th>
-                      <th>Cashback</th>
-                      <th>Valor de compra</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tabelaBuyout
-                      .filter((row) => row.mes >= 6 && row.mes <= 60)
-                      .map((row) => (
-                        <tr key={row.mes}>
-                          <td>{row.mes}</td>
-                          <td>{currency(row.tarifa)}</td>
-                          <td>{currency(row.prestacaoEfetiva)}</td>
-                          <td>{currency(row.cashback)}</td>
-                          <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+              <div className="table-controls">
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  onClick={() => setMostrarTabelaBuyout((prev) => !prev)}
+                  aria-expanded={mostrarTabelaBuyout}
+                  aria-controls="compra-antecipada-tabela"
+                >
+                  {mostrarTabelaBuyout ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
+                </button>
               </div>
+              {mostrarTabelaBuyout ? (
+                <div className="table-wrapper">
+                  <table id="compra-antecipada-tabela">
+                    <thead>
+                      <tr>
+                        <th>Mês</th>
+                        <th>Tarifa projetada</th>
+                        <th>Prestação efetiva</th>
+                        <th>Cashback</th>
+                        <th>Valor de compra</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tabelaBuyout
+                        .filter((row) => row.mes >= 6 && row.mes <= 60)
+                        .map((row) => (
+                          <tr key={row.mes}>
+                            <td>{row.mes}</td>
+                            <td>{currency(row.tarifa)}</td>
+                            <td>{currency(row.prestacaoEfetiva)}</td>
+                            <td>{currency(row.cashback)}</td>
+                            <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
             </section>
           </>
         ) : (
