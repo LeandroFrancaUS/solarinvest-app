@@ -548,7 +548,7 @@ export default function App() {
       const mesesPorAno = 12
       const anos = Math.ceil(lista.length / mesesPorAno)
       return Array.from({ length: anos }, (_, index) => {
-        const mesReferencia = Math.min(index * mesesPorAno, lista.length - 1)
+        const mesReferencia = Math.min((index + 1) * mesesPorAno - 1, lista.length - 1)
         const referencia = lista[mesReferencia]
         return Number((referencia?.mensalidade ?? 0).toFixed(2))
       })
