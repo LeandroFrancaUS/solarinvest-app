@@ -589,7 +589,7 @@ export default function App() {
                 </Field>
               </div>
               <div className="info-inline">
-                <span className="pill">CAPEX estimado: <strong>{currency(capex)}</strong></span>
+                <span className="pill">Valor de Mercado Estimado: <strong>{currency(capex)}</strong></span>
                 <span className="pill">Consumo diário: <strong>{consumoDiario.toFixed(1)} kWh</strong></span>
               </div>
             </section>
