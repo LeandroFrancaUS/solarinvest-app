@@ -481,66 +481,6 @@ export default function App() {
     return valores
   }, [entradaFin, financiamentoFluxo])
 
-  const leasingMensalidades = useMemo(() => {
-    const descontoDecimal = Math.max(0, Math.min(descontoPct / 100, 1))
-    const inflacaoMensal = Math.pow(1 + inflEnergia / 100, 1 / 12) - 1
-    const meses = Math.max(0, Math.floor(prazoContratoMeses))
-    if (meses === 0) return []
-
-    const encargosFixos = Math.max(0, bandeiraValor + cipValor + encargos)
-    const taxaMinimaNormalizada = Math.max(0, taxaMinima)
-
-    const denominadorReducao = consumoMensal * tarifaBase * (1 - descontoDecimal) * meses
-    const fracReducao =
-      entradaModoNormalizado === 'REDUZ' && denominadorReducao > 0
-        ? Math.min(1, Math.max(0, entradaValor / denominadorReducao))
-        : 0
-    const consumoAjustado = Math.max(0, consumoMensal * (1 - fracReducao))
-    const creditoMensal = entradaModoNormalizado === 'CREDITO' && meses > 0 ? entradaValor / meses : 0
-
-    const mensalidades: number[] = []
-    for (let mes = 1; mes <= meses; mes += 1) {
-      const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
-      const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
-
-      const baseEnergia =
-        entradaModoNormalizado === 'REDUZ' ? consumoAjustado * tarifaDescontada : consumoMensal * tarifaDescontada
-
-      let mensalidadeLiquida = baseEnergia + taxaMinimaNormalizada + encargosFixos
-      if (entradaModoNormalizado === 'CREDITO') {
-        mensalidadeLiquida -= creditoMensal
-      }
-
-      mensalidadeLiquida = Math.max(0, mensalidadeLiquida)
-      mensalidades.push(Number(mensalidadeLiquida.toFixed(2)))
-    }
-
-    const anos = Math.ceil(meses / 12)
-    const valoresPorAno: number[] = []
-    for (let ano = 0; ano < anos; ano += 1) {
-      const inicio = ano * 12
-      const fim = Math.min((ano + 1) * 12, mensalidades.length)
-      const chunk = mensalidades.slice(inicio, fim)
-      if (chunk.length === 0) continue
-      const media = chunk.reduce((acc, valor) => acc + valor, 0) / chunk.length
-      valoresPorAno.push(Number(media.toFixed(2)))
-    }
-
-    return valoresPorAno
-  }, [
-    bandeiraValor,
-    cipValor,
-    consumoMensal,
-    descontoPct,
-    encargos,
-    entradaModoNormalizado,
-    entradaValor,
-    inflEnergia,
-    prazoContratoMeses,
-    tarifaBase,
-    taxaMinima,
-  ])
-
   const financiamentoMensalidades = useMemo(() => {
     const anos = Math.ceil(prazoFinMeses / 12)
     return Array.from({ length: anos }, () => Math.abs(pmt))
@@ -548,7 +488,7 @@ export default function App() {
 
   const parcelasSolarInvest = useMemo(() => {
     const descontoDecimal = Math.max(0, Math.min(descontoPct / 100, 1))
-    const inflacaoMensal = Math.pow(1 + inflEnergia / 100, 1 / 12) - 1
+    const inflacaoAnual = Math.max(0, inflEnergia / 100)
     const meses = Math.max(0, Math.floor(prazoContratoMeses))
     const tarifaDescontadaBase = tarifaBase * (1 - descontoDecimal)
     const encargosFixos = Math.max(0, bandeiraValor + cipValor + encargos)
@@ -567,11 +507,13 @@ export default function App() {
     if (meses > 0) {
       let totalAcumulado = 0
       for (let mes = 1; mes <= meses; mes += 1) {
-        const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
-        const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
+        const anoIndex = Math.floor((mes - 1) / 12)
+        const fatorInflacao = Math.pow(1 + inflacaoAnual, anoIndex)
+        const tarifaCheia = tarifaBase * fatorInflacao
+        const tarifaDescontada = tarifaDescontadaBase * fatorInflacao
 
-        const baseEnergia =
-          entradaModoNormalizado === 'REDUZ' ? kcAjustado * tarifaDescontada : consumoMensal * tarifaDescontada
+        const consumoContratado = entradaModoNormalizado === 'REDUZ' ? kcAjustado : consumoMensal
+        const baseEnergia = consumoContratado * tarifaDescontada
 
         let mensalidadeLiquida = baseEnergia + taxaMinimaNormalizada + encargosFixos
         if (entradaModoNormalizado === 'CREDITO') {
@@ -600,7 +542,7 @@ export default function App() {
       margemMinima,
       prazoEfetivo: meses,
       totalPago,
-      inflacaoMensal,
+      inflacaoMensal: Math.pow(1 + inflacaoAnual, 1 / 12) - 1,
     }
   }, [
     bandeiraValor,
@@ -615,6 +557,25 @@ export default function App() {
     tarifaBase,
     taxaMinima,
   ])
+
+  const leasingMensalidades = useMemo(() => {
+    if (parcelasSolarInvest.lista.length === 0) return []
+
+    const meses = parcelasSolarInvest.prazoEfetivo
+    const anos = Math.ceil(meses / 12)
+    const valoresPorAno: number[] = []
+
+    for (let ano = 0; ano < anos; ano += 1) {
+      const inicio = ano * 12
+      const fim = Math.min((ano + 1) * 12, parcelasSolarInvest.lista.length)
+      const chunk = parcelasSolarInvest.lista.slice(inicio, fim)
+      if (chunk.length === 0) continue
+      const soma = chunk.reduce((acc, row) => acc + row.mensalidade, 0)
+      valoresPorAno.push(Number((soma / chunk.length).toFixed(2)))
+    }
+
+    return valoresPorAno
+  }, [parcelasSolarInvest])
 
   const chartData = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
