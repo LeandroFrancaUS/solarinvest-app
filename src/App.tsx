@@ -16,6 +16,8 @@ type TabKey = 'principal' | 'cliente'
 
 type SeguroModo = 'A' | 'B'
 
+type EntradaModo = 'reduz_kc' | 'credito_linear'
+
 type ClienteDados = {
   nome: string
   documento: string
@@ -62,6 +64,15 @@ type PrintableProps = {
   tabelaBuyout: BuyoutRow[]
   buyoutResumo: BuyoutResumo
   capex: number
+}
+
+type MensalidadeRow = {
+  mes: number
+  tarifaCheia: number
+  tarifaDescontada: number
+  mensalidadeBruta: number
+  mensalidadeLiquida: number
+  totalAcumulado: number
 }
 
 const Field: React.FC<{ label: string; children: React.ReactNode; hint?: string }> = ({ label, children, hint }) => (
@@ -270,6 +281,12 @@ export default function App() {
   const [mostrarFinanciamento, setMostrarFinanciamento] = useState(true)
   const [mostrarGrafico, setMostrarGrafico] = useState(true)
 
+  const [prazoContratoMeses, setPrazoContratoMeses] = useState(60)
+  const [bandeiraValor, setBandeiraValor] = useState(0)
+  const [cipValor, setCipValor] = useState(0)
+  const [entradaValor, setEntradaValor] = useState(0)
+  const [entradaModo, setEntradaModo] = useState<EntradaModo>('credito_linear')
+
   const [oemBase, setOemBase] = useState(35)
   const [oemInflacao, setOemInflacao] = useState(4)
   const [seguroModo, setSeguroModo] = useState<SeguroModo>('A')
@@ -428,6 +445,78 @@ export default function App() {
     const anos = Math.ceil(prazoFinMeses / 12)
     return Array.from({ length: anos }, () => Math.abs(pmt))
   }, [pmt, prazoFinMeses])
+
+  const parcelasSolarInvest = useMemo(() => {
+    const descontoDecimal = Math.max(0, Math.min(descontoPct / 100, 1))
+    const inflacaoMensal = Math.pow(1 + inflEnergia / 100, 1 / 12) - 1
+    const meses = Math.max(0, Math.floor(prazoContratoMeses))
+    const tarifaDescontadaBase = tarifaBase * (1 - descontoDecimal)
+    const mensalidadeSemEntrada = consumoMensal * tarifaDescontadaBase
+    const mensalidadeTotalSemEntrada = mensalidadeSemEntrada + bandeiraValor + cipValor
+    const margemMinima = 0.15 * (consumoMensal * tarifaBase)
+
+    let fatorReducao = 1
+    if (entradaModo === 'reduz_kc' && entradaValor > 0 && consumoMensal > 0 && tarifaDescontadaBase > 0 && meses > 0) {
+      const denominador = consumoMensal * tarifaDescontadaBase * meses
+      if (denominador > 0) {
+        const bruto = 1 - entradaValor / denominador
+        if (Number.isFinite(bruto)) {
+          fatorReducao = Math.min(1, Math.max(0, bruto))
+        }
+      }
+    }
+
+    const kcAjustado = consumoMensal * fatorReducao
+    const creditoMensal = entradaModo === 'credito_linear' && meses > 0 ? entradaValor / meses : 0
+
+    const lista: MensalidadeRow[] = []
+    if (meses > 0) {
+      let totalAcumulado = 0
+      for (let mes = 1; mes <= meses; mes += 1) {
+        const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
+        const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
+        const mensalidadeBruta = consumoMensal * tarifaDescontada
+        const kcReferencia = entradaModo === 'reduz_kc' ? kcAjustado : consumoMensal
+        const baseComEncargos = kcReferencia * tarifaDescontada + bandeiraValor + cipValor
+        const comEntrada = Math.max(0, baseComEncargos - creditoMensal)
+        const mensalidadeLiquida = Math.max(comEntrada, margemMinima)
+        totalAcumulado += mensalidadeLiquida
+        lista.push({
+          mes,
+          tarifaCheia,
+          tarifaDescontada,
+          mensalidadeBruta,
+          mensalidadeLiquida,
+          totalAcumulado,
+        })
+      }
+    }
+
+    const totalPago = lista.length > 0 ? lista[lista.length - 1].totalAcumulado : 0
+
+    return {
+      lista,
+      tarifaDescontadaBase,
+      mensalidadeSemEntrada,
+      mensalidadeTotalSemEntrada,
+      kcAjustado,
+      creditoMensal,
+      margemMinima,
+      prazoEfetivo: meses,
+      totalPago,
+      inflacaoMensal,
+    }
+  }, [
+    bandeiraValor,
+    cipValor,
+    consumoMensal,
+    descontoPct,
+    entradaModo,
+    entradaValor,
+    inflEnergia,
+    prazoContratoMeses,
+    tarifaBase,
+  ])
 
   const chartData = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
@@ -624,6 +713,136 @@ export default function App() {
                     <option value={10}>10 anos</option>
                   </select>
                 </Field>
+              </div>
+            </section>
+
+            <section className="card">
+              <div className="card-header">
+                <h2>Parcelas SolarInvest</h2>
+                <span className="toggle-label">
+                  Inflação mensal equivalente: {(parcelasSolarInvest.inflacaoMensal * 100).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}%
+                </span>
+              </div>
+              <div className="grid g4">
+                <Field label="Prazo contratual (meses)">
+                  <input
+                    type="number"
+                    min={1}
+                    value={prazoContratoMeses}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setPrazoContratoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                    }}
+                  />
+                </Field>
+                <Field label="Bandeira tarifária (R$)">
+                  <input
+                    type="number"
+                    value={bandeiraValor}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setBandeiraValor(Number.isFinite(parsed) ? parsed : 0)
+                    }}
+                  />
+                </Field>
+                <Field label="Contribuição CIP (R$)">
+                  <input
+                    type="number"
+                    value={cipValor}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setCipValor(Number.isFinite(parsed) ? parsed : 0)
+                    }}
+                  />
+                </Field>
+                <Field label="Entrada (R$)">
+                  <input
+                    type="number"
+                    value={entradaValor}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setEntradaValor(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                    }}
+                  />
+                </Field>
+                <Field label="Uso da entrada">
+                  <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModo)}>
+                    <option value="credito_linear">Crédito mensal linear</option>
+                    <option value="reduz_kc">Reduz piso contratado</option>
+                  </select>
+                </Field>
+              </div>
+
+              <div className="info-inline">
+                <span className="pill">
+                  Tarifa c/ desconto: <strong>{currency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
+                </span>
+                <span className="pill">
+                  Mensalidade sem entrada: <strong>{currency(parcelasSolarInvest.mensalidadeSemEntrada)}</strong>
+                </span>
+                <span className="pill">
+                  Mensalidade total sem entrada: <strong>{currency(parcelasSolarInvest.mensalidadeTotalSemEntrada)}</strong>
+                </span>
+                <span className="pill">
+                  Margem mínima: <strong>{currency(parcelasSolarInvest.margemMinima)}</strong>
+                </span>
+                {entradaModo === 'reduz_kc' ? (
+                  <span className="pill">
+                    Piso contratado ajustado:{' '}
+                    <strong>
+                      {`${parcelasSolarInvest.kcAjustado.toLocaleString('pt-BR', {
+                        maximumFractionDigits: 0,
+                        minimumFractionDigits: 0,
+                      })} kWh`}
+                    </strong>
+                  </span>
+                ) : null}
+                {entradaModo === 'credito_linear' && entradaValor > 0 ? (
+                  <span className="pill">
+                    Crédito mensal da entrada: <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
+                  </span>
+                ) : null}
+                {parcelasSolarInvest.prazoEfetivo > 0 ? (
+                  <span className="pill">
+                    Total pago no prazo: <strong>{currency(parcelasSolarInvest.totalPago)}</strong>
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Mês</th>
+                      <th>Tarifa projetada (R$/kWh)</th>
+                      <th>Tarifa c/ desconto (R$/kWh)</th>
+                      <th>Mensalidade bruta</th>
+                      <th>Mensalidade líquida</th>
+                      <th>Total pago acumulado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parcelasSolarInvest.lista.length > 0 ? (
+                      parcelasSolarInvest.lista.map((row) => (
+                        <tr key={row.mes}>
+                          <td>{row.mes}</td>
+                          <td>{currency(row.tarifaCheia)}</td>
+                          <td>{currency(row.tarifaDescontada)}</td>
+                          <td>{currency(row.mensalidadeBruta)}</td>
+                          <td>{currency(row.mensalidadeLiquida)}</td>
+                          <td>{currency(row.totalAcumulado)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </section>
 
