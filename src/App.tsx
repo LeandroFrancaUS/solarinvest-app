@@ -96,6 +96,8 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   { cliente, anos, leasingBeneficios, leasingROI, financiamentoFluxo, financiamentoROI, mostrarFinanciamento, tabelaBuyout, buyoutResumo, capex },
   ref,
 ) {
+  const duracaoContrato = Math.max(0, Math.floor(buyoutResumo.duracao || 0))
+  const mesAceiteFinal = duracaoContrato + 1
   return (
     <div ref={ref} className="print-layout">
       <header className="print-header">
@@ -186,7 +188,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           </thead>
           <tbody>
             {tabelaBuyout
-              .filter((row) => row.mes >= 6 && row.mes <= 60)
+              .filter((row) => row.mes >= 7 && row.mes <= duracaoContrato)
               .map((row) => (
                 <tr key={row.mes}>
                   <td>{row.mes}</td>
@@ -197,8 +199,8 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                   <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
                 </tr>
               ))}
-            <tr key="61">
-              <td>61</td>
+            <tr key={mesAceiteFinal}>
+              <td>{mesAceiteFinal}</td>
               <td colSpan={4}>Aceite final</td>
               <td>{currency(0)}</td>
             </tr>
@@ -310,7 +312,6 @@ export default function App() {
   const [exibirLeasingLinha, setExibirLeasingLinha] = useState(true)
   const [exibirFinLinha, setExibirFinLinha] = useState(false)
 
-  const [buyoutValorMercado, setBuyoutValorMercado] = useState(0)
   const [buyoutCashbackPct, setBuyoutCashbackPct] = useState(10)
   const [buyoutDepreciacaoPct, setBuyoutDepreciacaoPct] = useState(12)
   const [buyoutInadimplenciaPct, setBuyoutInadimplenciaPct] = useState(2)
@@ -320,6 +321,8 @@ export default function App() {
   const [buyoutOpex, setBuyoutOpex] = useState(0)
   const [buyoutSeguro, setBuyoutSeguro] = useState(0)
   const [buyoutDuracao, setBuyoutDuracao] = useState(60)
+  // Valor informado (ou calculado) de parcelas efetivamente pagas até o mês analisado, usado no crédito de cashback
+  const [buyoutPagosAcumulados, setBuyoutPagosAcumulados] = useState(0)
 
   useEffect(() => {
     const updateHeaderHeight = () => {
@@ -407,13 +410,15 @@ export default function App() {
 
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
 
-  useEffect(() => {
-    if (buyoutValorMercado === 0) {
-      setBuyoutValorMercado(Math.round(capex))
-    }
-  }, [capex, buyoutValorMercado])
-
-  const valorMercado = useMemo(() => (buyoutValorMercado > 0 ? buyoutValorMercado : capex), [buyoutValorMercado, capex])
+  const valorMercado = useMemo(() => {
+    // O Valor de Mercado usado no buyout deve seguir exatamente a mesma lógica da tela principal
+    // (Valor de Mercado Estimado calculado automaticamente), evitando discrepâncias entre campos
+    // e mantendo o alinhamento com a planilha de referência.
+    // Ao centralizar o cálculo aqui, asseguramos que tanto os resumos exibidos na UI quanto
+    // componentes derivados (como o seguro indexado a esse valor) sejam atualizados em conjunto
+    // sempre que o CAPEX base se alterar.
+    return capex
+  }, [capex])
 
   const tarifaAno = (ano: number) => tarifaBase * Math.pow(1 + inflEnergia / 100, ano - 1)
   const tarifaDescontadaAno = (ano: number) => tarifaAno(ano) * (1 - descontoPct / 100)
@@ -608,21 +613,41 @@ export default function App() {
 
   const tabelaBuyout = useMemo<BuyoutRow[]>(() => {
     const rows: BuyoutRow[] = []
+
+    // Guardamos as tarifas de leasing conhecidas por mês para reaproveitar a mesma lógica de projeção já utilizada anteriormente
     const tarifasLeasingPorMes = new Map<number, number>()
     parcelasSolarInvest.lista.forEach((row) => {
       tarifasLeasingPorMes.set(row.mes, row.tarifaCheia)
     })
 
+    // Número total de meses contratados, usado em diversos cálculos de horizonte
+    const duracaoContrato = Math.max(0, Math.floor(buyoutDuracao))
+
+    // Conversões de taxas anuais em equivalentes mensais usando capitalização composta
+    const taxaDepreciacaoMensal = Math.pow(1 + buyoutDepreciacaoPct / 100, 1 / 12) - 1
+    const taxaIpcaMensal = Math.pow(1 + buyoutIpca / 100, 1 / 12) - 1
+    const taxaInadMensal = Math.pow(1 + buyoutInadimplenciaPct / 100, 1 / 12) - 1
+    const taxaTribMensal = Math.pow(1 + buyoutTributosPct / 100, 1 / 12) - 1
+    const taxaCashback = buyoutCashbackPct / 100
+
+    // Valor mensal fixo de custos operacionais remanescentes (custos fixos + OPEX + seguro)
+    const custosUnitarios = buyoutCustosFixos + buyoutOpex + buyoutSeguro
+
+    // Fator de gross-up: divide pelo líquido para manter a margem frente a inadimplência e tributos mensais
+    const denominadorGross = (1 - taxaInadMensal) * (1 - taxaTribMensal)
+    const fatorGrossUp = denominadorGross !== 0 ? 1 / denominadorGross : 1
+
+    // Utilizado para projetar os reajustes distintos (leasing x buyout) na tarifa
     const ciclosInflacaoLeasing = (mes: number) => {
       if (mes <= 0) return 0
       return Math.floor((mes - 1) / 12)
     }
-
     const ciclosInflacaoBuyout = (mes: number) => {
       if (mes <= 0) return 0
       return Math.floor(mes / 12)
     }
 
+    // Ajusta a tarifa projetada caso o contrato de leasing tenha menos reajustes do que o período de análise de buyout
     const ajustarTarifaParaBuyout = (tarifa: number, mes: number) => {
       const inflacaoLeasing = ciclosInflacaoLeasing(mes)
       const inflacaoBuyout = ciclosInflacaoBuyout(mes)
@@ -633,6 +658,7 @@ export default function App() {
       return tarifa * fatorAjuste
     }
 
+    // Recupera a tarifa projetada para o mês de referência, preservando o histórico da simulação de leasing
     const obterTarifaProjetada = (mes: number) => {
       if (mes <= 0) {
         if (parcelasSolarInvest.lista.length > 0) {
@@ -650,33 +676,64 @@ export default function App() {
       return tarifaBase * Math.pow(1 + inflEnergia / 100, ciclosBuyout)
     }
 
+    // Acumulador das prestações efetivas (líquidas) utilizadas também como base para os pagamentos já realizados
     let prestAcum = 0
+
     buyoutMeses.forEach((mes) => {
       const tarifa = obterTarifaProjetada(mes)
-      const prestBruta = geracaoMensalKwh * tarifa * (1 - descontoPct / 100) + taxaMinima + buyoutCustosFixos + buyoutOpex + buyoutSeguro
+
+      // Projeção da prestação efetiva (receita líquida após inadimplência e tributos mensais)
+      const prestBruta =
+        geracaoMensalKwh * tarifa * (1 - descontoPct / 100) + taxaMinima + buyoutCustosFixos + buyoutOpex + buyoutSeguro
       const receitaEfetiva = prestBruta * (1 - buyoutInadimplenciaPct / 100)
       const tributos = receitaEfetiva * (buyoutTributosPct / 100)
       const prestEfetiva = receitaEfetiva - tributos
       prestAcum += prestEfetiva
-      const cashback = (buyoutCashbackPct / 100) * prestAcum
+
+      // Pagamentos efetivos usados na base de cashback: usa o acumulado da simulação, limitado por eventual valor informado manualmente
+      const pagosEfetivos = buyoutPagosAcumulados > 0 ? Math.min(buyoutPagosAcumulados, prestAcum) : prestAcum
+      // Etapa 5: aplica o crédito de cashback respeitando o piso zero
+      const creditoCashback = Math.max(0, taxaCashback * pagosEfetivos)
+      const cashback = creditoCashback
+
       let valorResidual: number | null = null
-      if (mes >= 6 && mes <= 60) {
-        const baseLinear = Math.max(
-          valorMercado * (1 - (buyoutDepreciacaoPct / 100) * ((mes - 6) / (60 - 6))),
-          valorMercado * 0.3,
-        )
-        valorResidual = Math.max(baseLinear, valorMercado - cashback)
+      if (mes >= 7 && mes <= duracaoContrato) {
+        // Etapa 2: calcula o valor de reposição depreciado para o mês m (zera explicitamente no último mês)
+        const fatorSobrevivencia = Math.max(0, 1 - taxaDepreciacaoMensal)
+        const valorReposicao = mes === duracaoContrato ? 0 : valorMercado * Math.pow(fatorSobrevivencia, mes)
+
+        // Etapa 3: projeta todos os custos remanescentes (custos fixos + OPEX + seguro) reajustados pelo IPCA composto
+        let custosRestantes = 0
+        if (custosUnitarios > 0 && mes <= duracaoContrato) {
+          const fatorIpca = 1 + taxaIpcaMensal
+          for (let k = mes; k <= duracaoContrato; k += 1) {
+            const mesesIndice = k - mes
+            custosRestantes += custosUnitarios * Math.pow(fatorIpca, mesesIndice)
+          }
+        }
+
+        // Etapa 6: valor base calculado com gross-up de risco/tributos e abatimento de cashback
+        const valorBase = (valorReposicao + custosRestantes) * fatorGrossUp - creditoCashback
+
+        // Etapa 7: amarra as regras contratuais — valor não pode ser negativo e deve ser zero no último mês
+        valorResidual = mes === duracaoContrato ? 0 : Math.max(0, valorBase)
       }
+
       rows.push({ mes, tarifa, prestacaoEfetiva: prestEfetiva, prestacaoAcum: prestAcum, cashback, valorResidual })
     })
+
+    // Linha adicional para o aceite final pós-contrato, com valor de compra zerado
+    const mesAceiteFinal = duracaoContrato + 1
+    const totalPagosEfetivos = buyoutPagosAcumulados > 0 ? Math.min(buyoutPagosAcumulados, prestAcum) : prestAcum
     rows.push({
-      mes: 61,
-      tarifa: obterTarifaProjetada(61),
+      mes: mesAceiteFinal,
+      tarifa: obterTarifaProjetada(mesAceiteFinal),
       prestacaoEfetiva: 0,
       prestacaoAcum: prestAcum,
-      cashback: (buyoutCashbackPct / 100) * prestAcum,
+      cashback: Math.max(0, taxaCashback * totalPagosEfetivos),
       valorResidual: 0,
     })
+
     return rows
   }, [
     buyoutMeses,
@@ -694,10 +751,18 @@ export default function App() {
     buyoutCashbackPct,
     valorMercado,
     buyoutDepreciacaoPct,
+    buyoutDuracao,
+    buyoutIpca,
+    buyoutPagosAcumulados,
   ])
-
-  const buyoutAceiteFinal = tabelaBuyout.find((row) => row.mes === 61) ?? null
-  const buyoutReceitaRows = useMemo(() => tabelaBuyout.filter((row) => row.mes >= 6 && row.mes <= 60), [tabelaBuyout])
+  const buyoutDuracaoNormalizada = Math.max(0, Math.floor(buyoutDuracao))
+  const buyoutDuracaoExibicao = Math.max(7, buyoutDuracaoNormalizada)
+  const buyoutMesAceiteFinal = buyoutDuracaoNormalizada + 1
+  const buyoutAceiteFinal = tabelaBuyout.find((row) => row.mes === buyoutMesAceiteFinal) ?? null
+  const buyoutReceitaRows = useMemo(
+    () => tabelaBuyout.filter((row) => row.mes >= 7 && row.mes <= buyoutDuracaoNormalizada),
+    [tabelaBuyout, buyoutDuracaoNormalizada],
+  )
 
   const buyoutResumo: BuyoutResumo = {
     valorMercado,
@@ -1067,7 +1132,7 @@ export default function App() {
             <section className="card">
               <div className="card-header">
                 <h2>Compra antecipada (Buyout)</h2>
-                <span className="muted">Valores entre o mês 6 e o mês 60.</span>
+                <span className="muted">Valores entre o mês 7 e o mês {buyoutDuracaoExibicao}.</span>
               </div>
               <div className="table-controls">
                 <button
@@ -1094,7 +1159,7 @@ export default function App() {
                     </thead>
                     <tbody>
                       {tabelaBuyout
-                        .filter((row) => row.mes >= 6 && row.mes <= 60)
+                        .filter((row) => row.mes >= 7 && row.mes <= buyoutDuracaoNormalizada)
                         .map((row) => (
                           <tr key={row.mes}>
                             <td>{row.mes}</td>
@@ -1257,9 +1322,6 @@ export default function App() {
 
               <h4>Buyout parâmetros</h4>
               <div className="grid g3">
-                <Field label="Valor de mercado (R$)">
-                  <input type="number" value={buyoutValorMercado} onChange={(e) => setBuyoutValorMercado(Number(e.target.value) || 0)} />
-                </Field>
                 <Field label="Cashback (%)">
                   <input type="number" step="0.1" value={buyoutCashbackPct} onChange={(e) => setBuyoutCashbackPct(Number(e.target.value) || 0)} />
                 </Field>
@@ -1286,6 +1348,13 @@ export default function App() {
                 </Field>
                 <Field label="Duração (meses)">
                   <input type="number" value={buyoutDuracao} onChange={(e) => setBuyoutDuracao(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Pagos acumulados até o mês (R$)">
+                  <input
+                    type="number"
+                    value={buyoutPagosAcumulados}
+                    onChange={(e) => setBuyoutPagosAcumulados(Number(e.target.value) || 0)}
+                  />
                 </Field>
               </div>
 
@@ -1405,7 +1474,7 @@ export default function App() {
                       )}
                       {buyoutAceiteFinal ? (
                         <tr>
-                          <td>61</td>
+                          <td>{buyoutMesAceiteFinal}</td>
                           <td>{currency(buyoutAceiteFinal.prestacaoAcum)}</td>
                         </tr>
                       ) : null}
