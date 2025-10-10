@@ -1059,60 +1059,6 @@ export default function App() {
                 </Field>
               </div>
 
-              <h4>Financiamento parâmetros</h4>
-              <div className="grid g3">
-                <Field label="Juros a.a. (%)">
-                  <input type="number" step="0.1" value={jurosFinAA} onChange={(e) => setJurosFinAA(Number(e.target.value) || 0)} />
-                </Field>
-                <Field label="Prazo (meses)">
-                  <input type="number" value={prazoFinMeses} onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)} />
-                </Field>
-                <Field label="Entrada (%)">
-                  <input type="number" step="0.1" value={entradaFinPct} onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)} />
-                </Field>
-              </div>
-
-              <h4>O&M e seguro</h4>
-              <div className="grid g3">
-                <Field label="O&M base (R$/kWp)">
-                  <input type="number" value={oemBase} onChange={(e) => setOemBase(Number(e.target.value) || 0)} />
-                </Field>
-                <Field label="Reajuste O&M (%)">
-                  <input type="number" step="0.1" value={oemInflacao} onChange={(e) => setOemInflacao(Number(e.target.value) || 0)} />
-                </Field>
-                <Field label="Reajuste seguro (%)">
-                  <input type="number" step="0.1" value={seguroReajuste} onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)} />
-                </Field>
-                <Field label="Modo de seguro">
-                  <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
-                    <option value="A">Modo A — Potência (R$)</option>
-                    <option value="B">Modo B — % Valor de mercado</option>
-                  </select>
-                </Field>
-                <Field label="Base seguro modo A (R$/kWp)">
-                  <input type="number" value={seguroValorA} onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)} />
-                </Field>
-                <Field label="Seguro modo B (%)">
-                  <input type="number" step="0.01" value={seguroPercentualB} onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)} />
-                </Field>
-              </div>
-
-              <h4>Exibição</h4>
-              <div className="grid g2">
-                <Field label="Mostrar gráfico ROI">
-                  <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
-                    <option value="1">Sim</option>
-                    <option value="0">Não</option>
-                  </select>
-                </Field>
-                <Field label="Mostrar coluna financiamento">
-                  <select value={mostrarFinanciamento ? '1' : '0'} onChange={(e) => setMostrarFinanciamento(e.target.value === '1')}>
-                    <option value="1">Sim</option>
-                    <option value="0">Não</option>
-                  </select>
-                </Field>
-              </div>
-
               <h4>Leasing parâmetros</h4>
               <div className="grid g3">
                 <Field label="Prazo contratual (meses)">
@@ -1172,6 +1118,19 @@ export default function App() {
                 </span>
               </div>
 
+              <h4>Financiamento parâmetros</h4>
+              <div className="grid g3">
+                <Field label="Juros a.a. (%)">
+                  <input type="number" step="0.1" value={jurosFinAA} onChange={(e) => setJurosFinAA(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Prazo (meses)">
+                  <input type="number" value={prazoFinMeses} onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Entrada (%)">
+                  <input type="number" step="0.1" value={entradaFinPct} onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)} />
+                </Field>
+              </div>
+
               <h4>Buyout parâmetros</h4>
               <div className="grid g3">
                 <Field label="Valor de mercado (R$)">
@@ -1203,6 +1162,47 @@ export default function App() {
                 </Field>
                 <Field label="Duração (meses)">
                   <input type="number" value={buyoutDuracao} onChange={(e) => setBuyoutDuracao(Number(e.target.value) || 0)} />
+                </Field>
+              </div>
+
+              <h4>O&M e seguro</h4>
+              <div className="grid g3">
+                <Field label="O&M base (R$/kWp)">
+                  <input type="number" value={oemBase} onChange={(e) => setOemBase(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Reajuste O&M (%)">
+                  <input type="number" step="0.1" value={oemInflacao} onChange={(e) => setOemInflacao(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Reajuste seguro (%)">
+                  <input type="number" step="0.1" value={seguroReajuste} onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Modo de seguro">
+                  <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
+                    <option value="A">Modo A — Potência (R$)</option>
+                    <option value="B">Modo B — % Valor de mercado</option>
+                  </select>
+                </Field>
+                <Field label="Base seguro modo A (R$/kWp)">
+                  <input type="number" value={seguroValorA} onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Seguro modo B (%)">
+                  <input type="number" step="0.01" value={seguroPercentualB} onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)} />
+                </Field>
+              </div>
+
+              <h4>Exibição</h4>
+              <div className="grid g2">
+                <Field label="Mostrar gráfico ROI">
+                  <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
+                    <option value="1">Sim</option>
+                    <option value="0">Não</option>
+                  </select>
+                </Field>
+                <Field label="Mostrar coluna financiamento">
+                  <select value={mostrarFinanciamento ? '1' : '0'} onChange={(e) => setMostrarFinanciamento(e.target.value === '1')}>
+                    <option value="1">Sim</option>
+                    <option value="0">Não</option>
+                  </select>
                 </Field>
               </div>
 
