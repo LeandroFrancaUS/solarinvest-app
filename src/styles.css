@@ -10,8 +10,8 @@
   --layer-opaque: rgba(5, 9, 18, 0.96);
   --surface: #0b0d12;
   --elev-4: 0 10px 30px rgba(0, 0, 0, 0.4);
-  --header-height: 120px;
-  --tabs-sticky-offset: var(--header-height);
+  --header-h: 120px;
+  --tabs-h: 48px;
 }
 
 * {
@@ -36,21 +36,30 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding-top: var(--header-height);
   padding-bottom: 64px;
 }
 
-.topbar {
+.app-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding-top: var(--header-h);
+}
+
+.app-header {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1000;
+  background: var(--surface);
+}
+
+.topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 32px;
-  background: var(--surface);
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: var(--elev-4);
 }
@@ -120,7 +129,7 @@ button.icon {
 
 .tabs {
   position: sticky;
-  top: var(--tabs-sticky-offset);
+  top: var(--header-h);
   z-index: 999;
   display: flex;
   gap: 8px;
@@ -128,6 +137,32 @@ button.icon {
   background: var(--surface);
   border: none;
   box-shadow: none;
+  margin: 0;
+}
+
+.tabs-bar,
+.tabs-bar * {
+  margin-top: 0;
+}
+
+.tabs-wrapper {
+  padding-top: 0;
+}
+
+.page-content {
+  margin-top: 0;
+}
+
+.table-header.sticky {
+  top: calc(var(--header-h) + var(--tabs-h, 48px));
+}
+
+.site-header {
+  z-index: 1000;
+}
+
+.tabs-bar {
+  z-index: 999;
 }
 
 .tabs button {
@@ -625,8 +660,7 @@ table tbody tr:hover {
 
 @media (max-width: 880px) {
   :root {
-    --header-height: 192px;
-    --tabs-sticky-offset: var(--header-height);
+    --header-h: 192px;
   }
   .content {
     padding: 24px 20px 64px;
@@ -646,8 +680,7 @@ table tbody tr:hover {
 
 @media (max-width: 640px) {
   :root {
-    --header-height: 224px;
-    --tabs-sticky-offset: var(--header-height);
+    --header-h: 224px;
   }
   .grid.g2,
   .grid.g3,
