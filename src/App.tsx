@@ -1,6 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from 'recharts'
 
+import {
+  selectCreditoMensal,
+  selectInflacaoMensal,
+  selectBuyoutLinhas,
+  selectKcAjustado,
+  selectMensalidades,
+  selectTarifaDescontada,
+  selectValoresPorAno,
+  SimulationState,
+  BuyoutLinha,
+} from './selectors'
+import { EntradaModo } from './utils/calcs'
+
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
 
@@ -26,7 +39,7 @@ type TabKey = 'principal' | 'cliente'
 
 type SeguroModo = 'A' | 'B'
 
-type EntradaModo = 'Crédito mensal' | 'Reduz piso contratado'
+type EntradaModoLabel = 'Crédito mensal' | 'Reduz piso contratado'
 
 type ClienteDados = {
   nome: string
@@ -50,7 +63,7 @@ type BuyoutRow = {
 }
 
 type BuyoutResumo = {
-  valorMercado: number
+  vm0: number
   cashbackPct: number
   depreciacaoPct: number
   inadimplenciaPct: number
@@ -209,7 +222,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <div className="print-notes">
           <p><strong>Parâmetros considerados:</strong></p>
           <ul>
-            <li>Valor de mercado: {currency(buyoutResumo.valorMercado)} • Cashback: {buyoutResumo.cashbackPct}%</li>
+            <li>Valor de mercado: {currency(buyoutResumo.vm0)} • Cashback: {buyoutResumo.cashbackPct}%</li>
             <li>
               Depreciação: {buyoutResumo.depreciacaoPct}% • Inadimplência: {buyoutResumo.inadimplenciaPct}% • Tributos: {buyoutResumo.tributosPct}%
             </li>
@@ -260,11 +273,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('principal')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
-  const [consumoMensal, setConsumoMensal] = useState(1200)
-  const [tarifaBase, setTarifaBase] = useState(0.964)
-  const [descontoPct, setDescontoPct] = useState(20)
+  const [kcKwhMes, setKcKwhMes] = useState(1200)
+  const [tarifaCheia, setTarifaCheia] = useState(0.964)
+  const [desconto, setDesconto] = useState(20)
   const [taxaMinima, setTaxaMinima] = useState(95)
-  const [encargos, setEncargos] = useState(0)
+  const [encargosFixosExtras, setEncargosFixosExtras] = useState(0)
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(5)
   const [potenciaPlaca, setPotenciaPlaca] = useState(550)
   const [numeroPlacasManual, setNumeroPlacasManual] = useState<number | ''>('')
@@ -284,19 +297,19 @@ export default function App() {
   const [precoPorKwp, setPrecoPorKwp] = useState(2470)
   const [irradiacao, setIrradiacao] = useState(5.51)
   const [eficiencia, setEficiencia] = useState(0.8)
-  const [inflEnergia, setInflEnergia] = useState(8)
+  const [inflacaoAa, setInflacaoAa] = useState(8)
 
-  const [jurosFinAA, setJurosFinAA] = useState(15)
+  const [jurosFinAa, setJurosFinAa] = useState(15)
   const [prazoFinMeses, setPrazoFinMeses] = useState(120)
   const [entradaFinPct, setEntradaFinPct] = useState(20)
   const [mostrarFinanciamento, setMostrarFinanciamento] = useState(true)
   const [mostrarGrafico, setMostrarGrafico] = useState(true)
 
-  const [prazoContratoMeses, setPrazoContratoMeses] = useState(60)
-  const [bandeiraValor, setBandeiraValor] = useState(0)
-  const [cipValor, setCipValor] = useState(0)
-  const [entradaValor, setEntradaValor] = useState(0)
-  const [entradaModo, setEntradaModo] = useState<EntradaModo>('Crédito mensal')
+  const [prazoMeses, setPrazoMeses] = useState(60)
+  const [bandeiraEncargo, setBandeiraEncargo] = useState(0)
+  const [cipEncargo, setCipEncargo] = useState(0)
+  const [entradaRs, setEntradaRs] = useState(0)
+  const [entradaModo, setEntradaModo] = useState<EntradaModoLabel>('Crédito mensal')
   const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(false)
   const [mostrarTabelaBuyout, setMostrarTabelaBuyout] = useState(false)
   const [mostrarTabelaParcelasConfig, setMostrarTabelaParcelasConfig] = useState(false)
@@ -312,17 +325,17 @@ export default function App() {
   const [exibirLeasingLinha, setExibirLeasingLinha] = useState(true)
   const [exibirFinLinha, setExibirFinLinha] = useState(false)
 
-  const [buyoutCashbackPct, setBuyoutCashbackPct] = useState(10)
-  const [buyoutDepreciacaoPct, setBuyoutDepreciacaoPct] = useState(12)
-  const [buyoutInadimplenciaPct, setBuyoutInadimplenciaPct] = useState(2)
-  const [buyoutTributosPct, setBuyoutTributosPct] = useState(6)
-  const [buyoutIpca, setBuyoutIpca] = useState(4)
-  const [buyoutCustosFixos, setBuyoutCustosFixos] = useState(0)
-  const [buyoutOpex, setBuyoutOpex] = useState(0)
-  const [buyoutSeguro, setBuyoutSeguro] = useState(0)
-  const [buyoutDuracao, setBuyoutDuracao] = useState(60)
+  const [cashbackPct, setCashbackPct] = useState(10)
+  const [depreciacaoAa, setDepreciacaoAa] = useState(12)
+  const [inadimplenciaAa, setInadimplenciaAa] = useState(2)
+  const [tributosAa, setTributosAa] = useState(6)
+  const [ipcaAa, setIpcaAa] = useState(4)
+  const [custosFixosM, setCustosFixosM] = useState(0)
+  const [opexM, setOpexM] = useState(0)
+  const [seguroM, setSeguroM] = useState(0)
+  const [duracaoMeses, setDuracaoMeses] = useState(60)
   // Valor informado (ou calculado) de parcelas efetivamente pagas até o mês analisado, usado no crédito de cashback
-  const [buyoutPagosAcumulados, setBuyoutPagosAcumulados] = useState(0)
+  const [pagosAcumAteM, setPagosAcumAteM] = useState(0)
 
   useEffect(() => {
     const updateHeaderHeight = () => {
@@ -386,10 +399,10 @@ export default function App() {
       return (numeroPlacasInformado * potenciaPlaca) / 1000
     }
     if (fatorGeracao > 0) {
-      return consumoMensal / fatorGeracao
+      return kcKwhMes / fatorGeracao
     }
     return 0
-  }, [consumoMensal, fatorGeracao, numeroPlacasInformado, potenciaPlaca])
+  }, [kcKwhMes, fatorGeracao, numeroPlacasInformado, potenciaPlaca])
 
   const numeroPlacasCalculado = useMemo(() => {
     if (numeroPlacasInformado) return numeroPlacasInformado
@@ -408,9 +421,81 @@ export default function App() {
     [geracaoMensalKwh],
   )
 
+  const encargosFixos = useMemo(
+    () => Math.max(0, bandeiraEncargo + cipEncargo + encargosFixosExtras),
+    [bandeiraEncargo, cipEncargo, encargosFixosExtras],
+  )
+
+  const modoEntradaNormalizado = useMemo<EntradaModo>(() => {
+    if (!entradaRs || entradaRs <= 0) return 'NONE'
+    const label = (entradaModo ?? '').toLowerCase().trim()
+    if (label.includes('crédito')) return 'CREDITO'
+    if (label.includes('reduz')) return 'REDUZ'
+    return 'NONE'
+  }, [entradaModo, entradaRs])
+
+  const simulationState = useMemo<SimulationState>(() => {
+    const descontoDecimal = Math.max(0, Math.min(desconto / 100, 1))
+    const inflacaoAnual = Math.max(-0.99, inflacaoAa / 100)
+    return {
+      kcKwhMes: Math.max(0, kcKwhMes),
+      tarifaCheia: Math.max(0, tarifaCheia),
+      desconto: descontoDecimal,
+      inflacaoAa: inflacaoAnual,
+      prazoMeses: Math.max(0, Math.floor(prazoMeses)),
+      taxaMinima: Math.max(0, taxaMinima),
+      encargosFixos,
+      entradaRs: Math.max(0, entradaRs),
+      modoEntrada: modoEntradaNormalizado,
+      vm0: Math.max(0, vm0),
+      depreciacaoAa: Math.max(0, depreciacaoAa / 100),
+      ipcaAa: Math.max(0, ipcaAa / 100),
+      inadimplenciaAa: Math.max(0, inadimplenciaAa / 100),
+      tributosAa: Math.max(0, tributosAa / 100),
+      custosFixosM: Math.max(0, custosFixosM),
+      opexM: Math.max(0, opexM),
+      seguroM: Math.max(0, seguroM),
+      cashbackPct: Math.max(0, cashbackPct / 100),
+      pagosAcumManual: Math.max(0, pagosAcumAteM),
+      duracaoMeses: Math.max(0, Math.floor(duracaoMeses)),
+      geracaoMensalKwh: Math.max(0, geracaoMensalKwh),
+    }
+  }, [
+    bandeiraEncargo,
+    cashbackPct,
+    cipEncargo,
+    custosFixosM,
+    desconto,
+    entradaRs,
+    geracaoMensalKwh,
+    inflacaoAa,
+    inadimplenciaAa,
+    ipcaAa,
+    kcKwhMes,
+    modoEntradaNormalizado,
+    opexM,
+    pagosAcumAteM,
+    prazoMeses,
+    seguroM,
+    tarifaCheia,
+    taxaMinima,
+    tributosAa,
+    vm0,
+    encargosFixosExtras,
+    depreciacaoAa,
+    duracaoMeses,
+  ])
+
+  const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
+  const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
+  const valoresPorAno = useMemo(() => selectValoresPorAno(simulationState), [simulationState])
+  const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
+  const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
+  const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
+
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
 
-  const valorMercado = useMemo(() => {
+  const vm0 = useMemo(() => {
     // O Valor de Mercado usado no buyout deve seguir exatamente a mesma lógica da tela principal
     // (Valor de Mercado Estimado calculado automaticamente), evitando discrepâncias entre campos
     // e mantendo o alinhamento com a planilha de referência.
@@ -420,28 +505,20 @@ export default function App() {
     return capex
   }, [capex])
 
-  const tarifaAno = (ano: number) => tarifaBase * Math.pow(1 + inflEnergia / 100, ano - 1)
-  const tarifaDescontadaAno = (ano: number) => tarifaAno(ano) * (1 - descontoPct / 100)
+  const tarifaAno = (ano: number) => tarifaCheia * Math.pow(1 + inflacaoAa / 100, ano - 1)
+  const tarifaDescontadaAno = (ano: number) => tarifaAno(ano) * (1 - desconto / 100)
 
   const leasingBeneficios = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
       const ano = i + 1
       const tarifaCheia = tarifaAno(ano)
       const tarifaDescontada = tarifaDescontadaAno(ano)
-      const custoSemSistema = consumoMensal * tarifaCheia + encargos + taxaMinima
-      const prestacao = ano <= leasingPrazo ? consumoMensal * tarifaDescontada + encargos + taxaMinima : 0
+      const custoSemSistema = kcKwhMes * tarifaCheia + encargosFixos + taxaMinima
+      const prestacao = ano <= leasingPrazo ? kcKwhMes * tarifaDescontada + encargosFixos + taxaMinima : 0
       const beneficio = 12 * (custoSemSistema - prestacao)
       return beneficio
     })
-  }, [consumoMensal, descontoPct, encargos, inflEnergia, leasingPrazo, tarifaBase, taxaMinima])
-
-  const entradaModoNormalizado = useMemo<'CREDITO' | 'REDUZ' | 'NONE'>(() => {
-    const label = (entradaModo ?? '').toLowerCase().trim()
-    if (!entradaValor || entradaValor <= 0) return 'NONE'
-    if (label === 'crédito mensal' || label === 'credito mensal') return 'CREDITO'
-    if (label === 'reduz piso contratado') return 'REDUZ'
-    return 'NONE'
-  }, [entradaModo, entradaValor])
+  }, [kcKwhMes, desconto, encargosFixos, inflacaoAa, leasingPrazo, tarifaCheia, taxaMinima])
 
   const leasingROI = useMemo(() => {
     const acc: number[] = []
@@ -453,7 +530,7 @@ export default function App() {
     return acc
   }, [leasingBeneficios])
 
-  const taxaMensalFin = useMemo(() => Math.pow(1 + jurosFinAA / 100, 1 / 12) - 1, [jurosFinAA])
+  const taxaMensalFin = useMemo(() => Math.pow(1 + jurosFinAa / 100, 1 / 12) - 1, [jurosFinAa])
   const entradaFin = useMemo(() => (capex * entradaFinPct) / 100, [capex, entradaFinPct])
   const valorFinanciado = useMemo(() => Math.max(0, capex - entradaFin), [capex, entradaFin])
   const pmt = useMemo(() => {
@@ -468,14 +545,14 @@ export default function App() {
     if (seguroModo === 'A') {
       return potenciaInstaladaKwp * seguroValorA * Math.pow(1 + seguroReajuste / 100, ano - 1)
     }
-    return valorMercado * (seguroPercentualB / 100) * Math.pow(1 + seguroReajuste / 100, ano - 1)
+    return vm0 * (seguroPercentualB / 100) * Math.pow(1 + seguroReajuste / 100, ano - 1)
   }
 
   const financiamentoFluxo = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
       const ano = i + 1
-      const economia = 12 * consumoMensal * tarifaAno(ano)
-      const custoSemSistemaMensal = Math.max(consumoMensal * tarifaAno(ano), taxaMinima)
+      const economia = 12 * kcKwhMes * tarifaAno(ano)
+      const custoSemSistemaMensal = Math.max(kcKwhMes * tarifaAno(ano), taxaMinima)
       const economiaAnual = 12 * Math.max(custoSemSistemaMensal - taxaMinima, 0)
       const inicioAno = (ano - 1) * 12
       const mesesRestantes = Math.max(0, prazoFinMeses - inicioAno)
@@ -484,7 +561,7 @@ export default function App() {
       const despesasSistema = custoParcela + custoOeM(ano) + custoSeguro(ano)
       return economiaAnual - despesasSistema
     })
-  }, [consumoMensal, inflEnergia, jurosFinAA, oemBase, oemInflacao, pmt, prazoFinMeses, seguroModo, seguroPercentualB, seguroReajuste, seguroValorA, tarifaBase, taxaMinima, valorMercado, potenciaInstaladaKwp])
+  }, [kcKwhMes, inflacaoAa, jurosFinAa, oemBase, oemInflacao, pmt, prazoFinMeses, seguroModo, seguroPercentualB, seguroReajuste, seguroValorA, tarifaCheia, taxaMinima, vm0, potenciaInstaladaKwp])
 
   const financiamentoROI = useMemo(() => {
     const valores: number[] = []
@@ -502,95 +579,42 @@ export default function App() {
   }, [pmt, prazoFinMeses])
 
   const parcelasSolarInvest = useMemo(() => {
-    const descontoDecimal = Math.max(0, Math.min(descontoPct / 100, 1))
-    const inflacaoAnual = Math.max(0, inflEnergia / 100)
-    const meses = Math.max(0, Math.floor(prazoContratoMeses))
-    const tarifaDescontadaBase = tarifaBase * (1 - descontoDecimal)
-    const encargosFixos = Math.max(0, bandeiraValor + cipValor + encargos)
-    const taxaMinimaNormalizada = Math.max(0, taxaMinima)
-    const margemMinima = taxaMinimaNormalizada + encargosFixos
-
-    const denominadorReducao = consumoMensal * tarifaBase * (1 - descontoDecimal) * meses
-    const fracReducao =
-      entradaModoNormalizado === 'REDUZ' && denominadorReducao > 0
-        ? Math.min(1, Math.max(0, entradaValor / denominadorReducao))
-        : 0
-    const kcAjustado = Math.max(0, consumoMensal * (1 - fracReducao))
-    const creditoMensal = entradaModoNormalizado === 'CREDITO' && meses > 0 ? entradaValor / meses : 0
-
     const lista: MensalidadeRow[] = []
-    if (meses > 0) {
-      let totalAcumulado = 0
-      for (let mes = 1; mes <= meses; mes += 1) {
-        const anoIndex = Math.floor((mes - 1) / 12)
-        const fatorInflacao = Math.pow(1 + inflacaoAnual, anoIndex)
-        const tarifaCheia = tarifaBase * fatorInflacao
-        const tarifaDescontada = tarifaDescontadaBase * fatorInflacao
-
-        const consumoContratado = entradaModoNormalizado === 'REDUZ' ? kcAjustado : consumoMensal
-        const baseEnergia = consumoContratado * tarifaDescontada
-
-        let mensalidadeLiquida = baseEnergia + taxaMinimaNormalizada + encargosFixos
-        if (entradaModoNormalizado === 'CREDITO') {
-          mensalidadeLiquida -= creditoMensal
-        }
-
-        mensalidadeLiquida = Math.max(0, mensalidadeLiquida)
-        totalAcumulado += mensalidadeLiquida
-        lista.push({
-          mes,
-          tarifaCheia,
-          tarifaDescontada,
-          mensalidade: Number(mensalidadeLiquida.toFixed(2)),
-          totalAcumulado: Number(totalAcumulado.toFixed(2)),
-        })
-      }
-    }
-
-    const totalPago = lista.length > 0 ? lista[lista.length - 1].totalAcumulado : 0
+    let totalAcumulado = 0
+    mensalidades.forEach((mensalidade, index) => {
+      const mes = index + 1
+      const fatorCrescimento = Math.pow(1 + inflacaoMensal, Math.max(0, mes - 1))
+      const tarifaCheiaMes = simulationState.tarifaCheia * fatorCrescimento
+      const tarifaDescontadaMes = selectTarifaDescontada(simulationState, mes)
+      totalAcumulado += mensalidade
+      lista.push({
+        mes,
+        tarifaCheia: tarifaCheiaMes,
+        tarifaDescontada: tarifaDescontadaMes,
+        mensalidade: Number(mensalidade.toFixed(2)),
+        totalAcumulado: Number(totalAcumulado.toFixed(2)),
+      })
+    })
 
     return {
       lista,
-      tarifaDescontadaBase,
+      tarifaDescontadaBase: selectTarifaDescontada(simulationState, 1),
       kcAjustado,
-      creditoMensal,
-      margemMinima,
-      prazoEfetivo: meses,
-      totalPago,
-      inflacaoMensal: Math.pow(1 + inflacaoAnual, 1 / 12) - 1,
+      creditoMensal: creditoEntradaMensal,
+      margemMinima: simulationState.taxaMinima + simulationState.encargosFixos,
+      prazoEfetivo: mensalidades.length,
+      totalPago: lista.length > 0 ? lista[lista.length - 1].totalAcumulado : 0,
+      inflacaoMensal,
     }
   }, [
-    bandeiraValor,
-    cipValor,
-    consumoMensal,
-    descontoPct,
-    encargos,
-    entradaModoNormalizado,
-    entradaValor,
-    inflEnergia,
-    prazoContratoMeses,
-    tarifaBase,
-    taxaMinima,
+    creditoEntradaMensal,
+    inflacaoMensal,
+    kcAjustado,
+    mensalidades,
+    simulationState,
   ])
 
-  const leasingMensalidades = useMemo(() => {
-    if (parcelasSolarInvest.lista.length === 0) return []
-
-    const meses = parcelasSolarInvest.prazoEfetivo
-    const anos = Math.ceil(meses / 12)
-    const valoresPorAno: number[] = []
-
-    for (let ano = 0; ano < anos; ano += 1) {
-      const inicio = ano * 12
-      const fim = Math.min((ano + 1) * 12, parcelasSolarInvest.lista.length)
-      const chunk = parcelasSolarInvest.lista.slice(inicio, fim)
-      if (chunk.length === 0) continue
-      const soma = chunk.reduce((acc, row) => acc + row.mensalidade, 0)
-      valoresPorAno.push(Number((soma / chunk.length).toFixed(2)))
-    }
-
-    return valoresPorAno
-  }, [parcelasSolarInvest])
+  const leasingMensalidades = valoresPorAno
 
   const chartData = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
@@ -609,173 +633,77 @@ export default function App() {
   const padding = Math.max(5_000, Math.round((maxY - minY) * 0.1))
   const yDomain: [number, number] = [Math.floor((minY - padding) / 1000) * 1000, Math.ceil((maxY + padding) / 1000) * 1000]
 
-  const buyoutMeses = useMemo(() => Array.from({ length: Math.max(buyoutDuracao, 60) }, (_, i) => i + 1), [buyoutDuracao])
-
   const tabelaBuyout = useMemo<BuyoutRow[]>(() => {
+    const horizonte = Math.max(60, Math.floor(simulationState.duracaoMeses))
+    const linhasPorMes = new Map<number, BuyoutLinha>()
+    buyoutLinhas.forEach((linha) => {
+      linhasPorMes.set(linha.mes, linha)
+    })
+
     const rows: BuyoutRow[] = []
-
-    // Guardamos as tarifas de leasing conhecidas por mês para reaproveitar a mesma lógica de projeção já utilizada anteriormente
-    const tarifasLeasingPorMes = new Map<number, number>()
-    parcelasSolarInvest.lista.forEach((row) => {
-      tarifasLeasingPorMes.set(row.mes, row.tarifaCheia)
-    })
-
-    // Número total de meses contratados, usado em diversos cálculos de horizonte
-    const duracaoContrato = Math.max(0, Math.floor(buyoutDuracao))
-
-    // Conversões de taxas anuais em equivalentes mensais usando capitalização composta
-    const taxaDepreciacaoMensal = Math.pow(1 + buyoutDepreciacaoPct / 100, 1 / 12) - 1
-    const taxaIpcaMensal = Math.pow(1 + buyoutIpca / 100, 1 / 12) - 1
-    const taxaInadMensal = Math.pow(1 + buyoutInadimplenciaPct / 100, 1 / 12) - 1
-    const taxaTribMensal = Math.pow(1 + buyoutTributosPct / 100, 1 / 12) - 1
-    const taxaCashback = buyoutCashbackPct / 100
-
-    // Valor mensal fixo de custos operacionais remanescentes (custos fixos + OPEX + seguro)
-    const custosUnitarios = buyoutCustosFixos + buyoutOpex + buyoutSeguro
-
-    // Fator de gross-up: divide pelo líquido para manter a margem frente a inadimplência e tributos mensais
-    const denominadorGross = (1 - taxaInadMensal) * (1 - taxaTribMensal)
-    const fatorGrossUp = denominadorGross !== 0 ? 1 / denominadorGross : 1
-
-    // Utilizado para projetar os reajustes distintos (leasing x buyout) na tarifa
-    const ciclosInflacaoLeasing = (mes: number) => {
-      if (mes <= 0) return 0
-      return Math.floor((mes - 1) / 12)
-    }
-    const ciclosInflacaoBuyout = (mes: number) => {
-      if (mes <= 0) return 0
-      return Math.floor(mes / 12)
+    let ultimoCashback = 0
+    let ultimoPrestacao = 0
+    for (let mes = 1; mes <= horizonte; mes += 1) {
+      const linha = linhasPorMes.get(mes)
+      if (linha) {
+        ultimoCashback = linha.cashback
+        ultimoPrestacao = linha.prestacaoAcum
+        rows.push({
+          mes,
+          tarifa: linha.tarifaCheia,
+          prestacaoEfetiva: linha.prestacaoEfetiva,
+          prestacaoAcum: linha.prestacaoAcum,
+          cashback: linha.cashback,
+          valorResidual: mes >= 7 && mes <= Math.floor(simulationState.duracaoMeses) ? linha.valorResidual : null,
+        })
+      } else {
+        const fator = Math.pow(1 + inflacaoMensal, Math.max(0, mes - 1))
+        const tarifaProjetada = simulationState.tarifaCheia * fator
+        rows.push({
+          mes,
+          tarifa: tarifaProjetada,
+          prestacaoEfetiva: 0,
+          prestacaoAcum: ultimoPrestacao,
+          cashback: ultimoCashback,
+          valorResidual: null,
+        })
+      }
     }
 
-    // Ajusta a tarifa projetada caso o contrato de leasing tenha menos reajustes do que o período de análise de buyout
-    const ajustarTarifaParaBuyout = (tarifa: number, mes: number) => {
-      const inflacaoLeasing = ciclosInflacaoLeasing(mes)
-      const inflacaoBuyout = ciclosInflacaoBuyout(mes)
-      if (inflacaoBuyout <= inflacaoLeasing) {
-        return tarifa
-      }
-      const fatorAjuste = Math.pow(1 + inflEnergia / 100, inflacaoBuyout - inflacaoLeasing)
-      return tarifa * fatorAjuste
-    }
-
-    // Recupera a tarifa projetada para o mês de referência, preservando o histórico da simulação de leasing
-    const obterTarifaProjetada = (mes: number) => {
-      if (mes <= 0) {
-        if (parcelasSolarInvest.lista.length > 0) {
-          return parcelasSolarInvest.lista[0].tarifaCheia
-        }
-        return tarifaBase
-      }
-
-      const tarifaLeasing = tarifasLeasingPorMes.get(mes)
-      if (typeof tarifaLeasing === 'number') {
-        return ajustarTarifaParaBuyout(tarifaLeasing, mes)
-      }
-
-      const ciclosBuyout = ciclosInflacaoBuyout(mes)
-      return tarifaBase * Math.pow(1 + inflEnergia / 100, ciclosBuyout)
-    }
-
-    // Acumulador das prestações efetivas (líquidas) utilizadas também como base para os pagamentos já realizados
-    let prestAcum = 0
-
-    buyoutMeses.forEach((mes) => {
-      const tarifa = obterTarifaProjetada(mes)
-
-      // Projeção da prestação efetiva (receita líquida após inadimplência e tributos mensais)
-      const prestBruta =
-        geracaoMensalKwh * tarifa * (1 - descontoPct / 100) + taxaMinima + buyoutCustosFixos + buyoutOpex + buyoutSeguro
-      const receitaEfetiva = prestBruta * (1 - buyoutInadimplenciaPct / 100)
-      const tributos = receitaEfetiva * (buyoutTributosPct / 100)
-      const prestEfetiva = receitaEfetiva - tributos
-      prestAcum += prestEfetiva
-
-      // Pagamentos efetivos usados na base de cashback: usa o acumulado da simulação, limitado por eventual valor informado manualmente
-      const pagosEfetivos = buyoutPagosAcumulados > 0 ? Math.min(buyoutPagosAcumulados, prestAcum) : prestAcum
-      // Etapa 5: aplica o crédito de cashback respeitando o piso zero
-      const creditoCashback = Math.max(0, taxaCashback * pagosEfetivos)
-      const cashback = creditoCashback
-
-      let valorResidual: number | null = null
-      if (mes >= 7 && mes <= duracaoContrato) {
-        // Etapa 2: calcula o valor de reposição depreciado para o mês m (zera explicitamente no último mês)
-        const fatorSobrevivencia = Math.max(0, 1 - taxaDepreciacaoMensal)
-        const valorReposicao = mes === duracaoContrato ? 0 : valorMercado * Math.pow(fatorSobrevivencia, mes)
-
-        // Etapa 3: projeta todos os custos remanescentes (custos fixos + OPEX + seguro) reajustados pelo IPCA composto
-        let custosRestantes = 0
-        if (custosUnitarios > 0 && mes <= duracaoContrato) {
-          const fatorIpca = 1 + taxaIpcaMensal
-          for (let k = mes; k <= duracaoContrato; k += 1) {
-            const mesesIndice = k - mes
-            custosRestantes += custosUnitarios * Math.pow(fatorIpca, mesesIndice)
-          }
-        }
-
-        // Etapa 6: valor base calculado com gross-up de risco/tributos e abatimento de cashback
-        const valorBase = (valorReposicao + custosRestantes) * fatorGrossUp - creditoCashback
-
-        // Etapa 7: amarra as regras contratuais — valor não pode ser negativo e deve ser zero no último mês
-        valorResidual = mes === duracaoContrato ? 0 : Math.max(0, valorBase)
-      }
-
-      rows.push({ mes, tarifa, prestacaoEfetiva: prestEfetiva, prestacaoAcum: prestAcum, cashback, valorResidual })
-    })
-
-    // Linha adicional para o aceite final pós-contrato, com valor de compra zerado
-    const mesAceiteFinal = duracaoContrato + 1
-    const totalPagosEfetivos = buyoutPagosAcumulados > 0 ? Math.min(buyoutPagosAcumulados, prestAcum) : prestAcum
+    const mesAceiteFinal = Math.floor(simulationState.duracaoMeses) + 1
+    const tarifaAceite = simulationState.tarifaCheia * Math.pow(1 + inflacaoMensal, Math.max(0, mesAceiteFinal - 1))
     rows.push({
       mes: mesAceiteFinal,
-      tarifa: obterTarifaProjetada(mesAceiteFinal),
+      tarifa: tarifaAceite,
       prestacaoEfetiva: 0,
-      prestacaoAcum: prestAcum,
-      cashback: Math.max(0, taxaCashback * totalPagosEfetivos),
+      prestacaoAcum: ultimoPrestacao,
+      cashback: ultimoCashback,
       valorResidual: 0,
     })
 
     return rows
-  }, [
-    buyoutMeses,
-    parcelasSolarInvest,
-    tarifaBase,
-    inflEnergia,
-    geracaoMensalKwh,
-    descontoPct,
-    taxaMinima,
-    buyoutCustosFixos,
-    buyoutOpex,
-    buyoutSeguro,
-    buyoutInadimplenciaPct,
-    buyoutTributosPct,
-    buyoutCashbackPct,
-    valorMercado,
-    buyoutDepreciacaoPct,
-    buyoutDuracao,
-    buyoutIpca,
-    buyoutPagosAcumulados,
-  ])
-  const buyoutDuracaoNormalizada = Math.max(0, Math.floor(buyoutDuracao))
-  const buyoutDuracaoExibicao = Math.max(7, buyoutDuracaoNormalizada)
-  const buyoutMesAceiteFinal = buyoutDuracaoNormalizada + 1
+  }, [buyoutLinhas, inflacaoMensal, simulationState])
+  const duracaoMesesNormalizada = Math.max(0, Math.floor(duracaoMeses))
+  const duracaoMesesExibicao = Math.max(7, duracaoMesesNormalizada)
+  const buyoutMesAceiteFinal = duracaoMesesNormalizada + 1
   const buyoutAceiteFinal = tabelaBuyout.find((row) => row.mes === buyoutMesAceiteFinal) ?? null
   const buyoutReceitaRows = useMemo(
-    () => tabelaBuyout.filter((row) => row.mes >= 7 && row.mes <= buyoutDuracaoNormalizada),
-    [tabelaBuyout, buyoutDuracaoNormalizada],
+    () => tabelaBuyout.filter((row) => row.mes >= 7 && row.mes <= duracaoMesesNormalizada),
+    [tabelaBuyout, duracaoMesesNormalizada],
   )
 
   const buyoutResumo: BuyoutResumo = {
-    valorMercado,
-    cashbackPct: buyoutCashbackPct,
-    depreciacaoPct: buyoutDepreciacaoPct,
-    inadimplenciaPct: buyoutInadimplenciaPct,
-    tributosPct: buyoutTributosPct,
-    infEnergia: inflEnergia,
-    ipca: buyoutIpca,
-    custosFixos: buyoutCustosFixos,
-    opex: buyoutOpex,
-    seguro: buyoutSeguro,
-    duracao: buyoutDuracao,
+    vm0,
+    cashbackPct: cashbackPct,
+    depreciacaoPct: depreciacaoAa,
+    inadimplenciaPct: inadimplenciaAa,
+    tributosPct: tributosAa,
+    infEnergia: inflacaoAa,
+    ipca: ipcaAa,
+    custosFixos: custosFixosM,
+    opex: opexM,
+    seguro: seguroM,
+    duracao: duracaoMeses,
   }
 
   const printableRef = useRef<HTMLDivElement>(null)
@@ -934,19 +862,19 @@ export default function App() {
               <h2>Parâmetros principais</h2>
               <div className="grid g3">
                 <Field label="Consumo (kWh/mês)">
-                  <input type="number" value={consumoMensal} onChange={(e) => setConsumoMensal(Number(e.target.value) || 0)} />
+                  <input type="number" value={kcKwhMes} onChange={(e) => setKcKwhMes(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Tarifa cheia (R$/kWh)">
-                  <input type="number" step="0.001" value={tarifaBase} onChange={(e) => setTarifaBase(Number(e.target.value) || 0)} />
+                  <input type="number" step="0.001" value={tarifaCheia} onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Desconto contratual (%)">
-                  <input type="number" step="0.1" value={descontoPct} onChange={(e) => setDescontoPct(Number(e.target.value) || 0)} />
+                  <input type="number" step="0.1" value={desconto} onChange={(e) => setDesconto(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Taxa mínima (R$/mês)">
                   <input type="number" value={taxaMinima} onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Encargos adicionais (R$/mês)">
-                  <input type="number" value={encargos} onChange={(e) => setEncargos(Number(e.target.value) || 0)} />
+                  <input type="number" value={encargosFixosExtras} onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Prazo do leasing">
                   <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
@@ -973,10 +901,10 @@ export default function App() {
                 <Field label="Entrada (R$)">
                   <input
                     type="number"
-                    value={entradaValor}
+                    value={entradaRs}
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
-                      setEntradaValor(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                      setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
                     }}
                   />
                 </Field>
@@ -986,7 +914,7 @@ export default function App() {
                 <span className="pill">
                   Tarifa c/ desconto: <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
                 </span>
-                {entradaModoNormalizado === 'REDUZ' ? (
+                {modoEntradaNormalizado === 'REDUZ' ? (
                   <span className="pill">
                     Piso contratado ajustado:{' '}
                     <strong>
@@ -997,7 +925,7 @@ export default function App() {
                     </strong>
                   </span>
                 ) : null}
-                {entradaModoNormalizado === 'CREDITO' ? (
+                {modoEntradaNormalizado === 'CREDITO' ? (
                   <span className="pill">
                     Crédito mensal da entrada: <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
                   </span>
@@ -1132,7 +1060,7 @@ export default function App() {
             <section className="card">
               <div className="card-header">
                 <h2>Compra antecipada (Buyout)</h2>
-                <span className="muted">Valores entre o mês 7 e o mês {buyoutDuracaoExibicao}.</span>
+                <span className="muted">Valores entre o mês 7 e o mês {duracaoMesesExibicao}.</span>
               </div>
               <div className="table-controls">
                 <button
@@ -1159,7 +1087,7 @@ export default function App() {
                     </thead>
                     <tbody>
                       {tabelaBuyout
-                        .filter((row) => row.mes >= 7 && row.mes <= buyoutDuracaoNormalizada)
+                        .filter((row) => row.mes >= 7 && row.mes <= duracaoMesesNormalizada)
                         .map((row) => (
                           <tr key={row.mes}>
                             <td>{row.mes}</td>
@@ -1224,7 +1152,7 @@ export default function App() {
               <h4>Mercado & energia</h4>
               <div className="grid g2">
                 <Field label="Inflação energética (%)">
-                  <input type="number" step="0.1" value={inflEnergia} onChange={(e) => setInflEnergia(Number(e.target.value) || 0)} />
+                  <input type="number" step="0.1" value={inflacaoAa} onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Preço por kWp (R$)">
                   <input type="number" value={precoPorKwp} onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)} />
@@ -1264,35 +1192,35 @@ export default function App() {
                   <input
                     type="number"
                     min={1}
-                    value={prazoContratoMeses}
+                    value={prazoMeses}
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
-                      setPrazoContratoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                      setPrazoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
                     }}
                   />
                 </Field>
                 <Field label="Bandeira tarifária (R$)">
                   <input
                     type="number"
-                    value={bandeiraValor}
+                    value={bandeiraEncargo}
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
-                      setBandeiraValor(Number.isFinite(parsed) ? parsed : 0)
+                      setBandeiraEncargo(Number.isFinite(parsed) ? parsed : 0)
                     }}
                   />
                 </Field>
                 <Field label="Contribuição CIP (R$)">
                   <input
                     type="number"
-                    value={cipValor}
+                    value={cipEncargo}
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
-                      setCipValor(Number.isFinite(parsed) ? parsed : 0)
+                      setCipEncargo(Number.isFinite(parsed) ? parsed : 0)
                     }}
                   />
                 </Field>
                 <Field label="Uso da entrada">
-                  <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModo)}>
+                  <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModoLabel)}>
                     <option value="Crédito mensal">Crédito mensal</option>
                     <option value="Reduz piso contratado">Reduz piso contratado</option>
                   </select>
@@ -1310,7 +1238,7 @@ export default function App() {
               <h4>Financiamento parâmetros</h4>
               <div className="grid g3">
                 <Field label="Juros a.a. (%)">
-                  <input type="number" step="0.1" value={jurosFinAA} onChange={(e) => setJurosFinAA(Number(e.target.value) || 0)} />
+                  <input type="number" step="0.1" value={jurosFinAa} onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Prazo (meses)">
                   <input type="number" value={prazoFinMeses} onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)} />
@@ -1323,37 +1251,37 @@ export default function App() {
               <h4>Buyout parâmetros</h4>
               <div className="grid g3">
                 <Field label="Cashback (%)">
-                  <input type="number" step="0.1" value={buyoutCashbackPct} onChange={(e) => setBuyoutCashbackPct(Number(e.target.value) || 0)} />
+                  <input type="number" step="0.1" value={cashbackPct} onChange={(e) => setCashbackPct(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Depreciação (%)">
-                  <input type="number" step="0.1" value={buyoutDepreciacaoPct} onChange={(e) => setBuyoutDepreciacaoPct(Number(e.target.value) || 0)} />
+                  <input type="number" step="0.1" value={depreciacaoAa} onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Inadimplência (%)">
-                  <input type="number" step="0.1" value={buyoutInadimplenciaPct} onChange={(e) => setBuyoutInadimplenciaPct(Number(e.target.value) || 0)} />
+                  <input type="number" step="0.1" value={inadimplenciaAa} onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Tributos (%)">
-                  <input type="number" step="0.1" value={buyoutTributosPct} onChange={(e) => setBuyoutTributosPct(Number(e.target.value) || 0)} />
+                  <input type="number" step="0.1" value={tributosAa} onChange={(e) => setTributosAa(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="IPCA (%)">
-                  <input type="number" step="0.1" value={buyoutIpca} onChange={(e) => setBuyoutIpca(Number(e.target.value) || 0)} />
+                  <input type="number" step="0.1" value={ipcaAa} onChange={(e) => setIpcaAa(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Custos fixos (R$)">
-                  <input type="number" value={buyoutCustosFixos} onChange={(e) => setBuyoutCustosFixos(Number(e.target.value) || 0)} />
+                  <input type="number" value={custosFixosM} onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="OPEX (R$)">
-                  <input type="number" value={buyoutOpex} onChange={(e) => setBuyoutOpex(Number(e.target.value) || 0)} />
+                  <input type="number" value={opexM} onChange={(e) => setOpexM(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Seguro (R$)">
-                  <input type="number" value={buyoutSeguro} onChange={(e) => setBuyoutSeguro(Number(e.target.value) || 0)} />
+                  <input type="number" value={seguroM} onChange={(e) => setSeguroM(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Duração (meses)">
-                  <input type="number" value={buyoutDuracao} onChange={(e) => setBuyoutDuracao(Number(e.target.value) || 0)} />
+                  <input type="number" value={duracaoMeses} onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Pagos acumulados até o mês (R$)">
                   <input
                     type="number"
-                    value={buyoutPagosAcumulados}
-                    onChange={(e) => setBuyoutPagosAcumulados(Number(e.target.value) || 0)}
+                    value={pagosAcumAteM}
+                    onChange={(e) => setPagosAcumAteM(Number(e.target.value) || 0)}
                   />
                 </Field>
               </div>
