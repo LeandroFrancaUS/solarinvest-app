@@ -15,8 +15,15 @@ describe('calcs utilitários', () => {
   })
 
   it('aplica desconto no primeiro mês sem inflação acumulada', () => {
-    const tarifa = tarifaDescontada(0.95, 0.12, 0.08, 1)
+    const tarifa = tarifaDescontada(0.95, 0.12, 0.08, 1, 6, 6)
     expect(tarifa).toBeCloseTo(0.95 * (1 - 0.12), 8)
+  })
+
+  it('aplica reajuste anual ao atingir o mês-aniversário', () => {
+    const antes = tarifaDescontada(1, 0, 0.08, 6, 7, 1)
+    const depois = tarifaDescontada(1, 0, 0.08, 7, 7, 1)
+    expect(antes).toBeCloseTo(1, 8)
+    expect(depois).toBeCloseTo(1.08, 8)
   })
 
   it('distribui crédito mensal de entrada', () => {
@@ -60,9 +67,18 @@ describe('calcs utilitários', () => {
       entradaRs: 0,
       prazoMeses: 60,
       modoEntrada: 'NONE' as const,
+      mesReajuste: 6,
+      mesReferencia: 1,
     }
     const mensalidade = mensalidadeLiquida(params)
-    const tarifa = tarifaDescontada(params.tarifaCheia, params.desconto, params.inflacaoAa, params.m)
+    const tarifa = tarifaDescontada(
+      params.tarifaCheia,
+      params.desconto,
+      params.inflacaoAa,
+      params.m,
+      params.mesReajuste,
+      params.mesReferencia,
+    )
     const esperado = Math.max(params.taxaMinima, params.kcKwhMes * tarifa + params.encargosFixos)
     expect(mensalidade).toBeCloseTo(esperado, 6)
   })
