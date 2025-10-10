@@ -287,6 +287,8 @@ export default function App() {
   const [entradaModo, setEntradaModo] = useState<EntradaModo>('credito_linear')
   const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(false)
   const [mostrarTabelaBuyout, setMostrarTabelaBuyout] = useState(false)
+  const [mostrarTabelaParcelasConfig, setMostrarTabelaParcelasConfig] = useState(false)
+  const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(false)
 
   const [oemBase, setOemBase] = useState(35)
   const [oemInflacao, setOemInflacao] = useState(4)
@@ -767,62 +769,13 @@ export default function App() {
 
             <section className="card">
               <div className="card-header">
-                <h2>Parcelas SolarInvest</h2>
+                <h2>SolarInvest Leasing</h2>
                 <span className="toggle-label">
                   Inflação mensal equivalente: {(parcelasSolarInvest.inflacaoMensal * 100).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}%
                 </span>
-              </div>
-              <div className="grid g4">
-                <Field label="Prazo contratual (meses)">
-                  <input
-                    type="number"
-                    min={1}
-                    value={prazoContratoMeses}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setPrazoContratoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                    }}
-                  />
-                </Field>
-                <Field label="Bandeira tarifária (R$)">
-                  <input
-                    type="number"
-                    value={bandeiraValor}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setBandeiraValor(Number.isFinite(parsed) ? parsed : 0)
-                    }}
-                  />
-                </Field>
-                <Field label="Contribuição CIP (R$)">
-                  <input
-                    type="number"
-                    value={cipValor}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setCipValor(Number.isFinite(parsed) ? parsed : 0)
-                    }}
-                  />
-                </Field>
-                <Field label="Entrada (R$)">
-                  <input
-                    type="number"
-                    value={entradaValor}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setEntradaValor(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                    }}
-                  />
-                </Field>
-                <Field label="Uso da entrada">
-                  <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModo)}>
-                    <option value="credito_linear">Crédito mensal linear</option>
-                    <option value="reduz_kc">Reduz piso contratado</option>
-                  </select>
-                </Field>
               </div>
 
               <div className="info-inline">
@@ -1106,7 +1059,7 @@ export default function App() {
                 </Field>
               </div>
 
-              <h4>Financiamento</h4>
+              <h4>Financiamento parâmetros</h4>
               <div className="grid g3">
                 <Field label="Juros a.a. (%)">
                   <input type="number" step="0.1" value={jurosFinAA} onChange={(e) => setJurosFinAA(Number(e.target.value) || 0)} />
@@ -1160,72 +1113,63 @@ export default function App() {
                 </Field>
               </div>
 
-              <h4>Parcelas — Indicadores</h4>
-              <div className="grid g2">
-                <Field label="Margem mínima (R$)">
-                  <input type="text" readOnly value={currency(parcelasSolarInvest.margemMinima)} />
+              <h4>Leasing parâmetros</h4>
+              <div className="grid g3">
+                <Field label="Prazo contratual (meses)">
+                  <input
+                    type="number"
+                    min={1}
+                    value={prazoContratoMeses}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setPrazoContratoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                    }}
+                  />
                 </Field>
-                <Field label="Total pago no prazo (R$)">
-                  <input type="text" readOnly value={currency(parcelasSolarInvest.totalPago)} />
+                <Field label="Bandeira tarifária (R$)">
+                  <input
+                    type="number"
+                    value={bandeiraValor}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setBandeiraValor(Number.isFinite(parsed) ? parsed : 0)
+                    }}
+                  />
+                </Field>
+                <Field label="Contribuição CIP (R$)">
+                  <input
+                    type="number"
+                    value={cipValor}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setCipValor(Number.isFinite(parsed) ? parsed : 0)
+                    }}
+                  />
+                </Field>
+                <Field label="Entrada (R$)">
+                  <input
+                    type="number"
+                    value={entradaValor}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setEntradaValor(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                    }}
+                  />
+                </Field>
+                <Field label="Uso da entrada">
+                  <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModo)}>
+                    <option value="credito_linear">Crédito mensal linear</option>
+                    <option value="reduz_kc">Reduz piso contratado</option>
+                  </select>
                 </Field>
               </div>
-
-              <h4>Parcelas — Total pago acumulado</h4>
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Mês</th>
-                      <th>Total pago acumulado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parcelasSolarInvest.lista.length > 0 ? (
-                      parcelasSolarInvest.lista.map((row) => (
-                        <tr key={`config-parcela-${row.mes}`}>
-                          <td>{row.mes}</td>
-                          <td>{currency(row.totalAcumulado)}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={2} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <h4>Buyout — Receita acumulada</h4>
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Mês</th>
-                      <th>Receita acumulada</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {buyoutReceitaRows.length > 0 ? (
-                      buyoutReceitaRows.map((row) => (
-                        <tr key={`config-buyout-${row.mes}`}>
-                          <td>{row.mes}</td>
-                          <td>{currency(row.prestacaoAcum)}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={2} className="muted">Defina os parâmetros para visualizar a receita acumulada.</td>
-                      </tr>
-                    )}
-                    {buyoutAceiteFinal ? (
-                      <tr>
-                        <td>61</td>
-                        <td>{currency(buyoutAceiteFinal.prestacaoAcum)}</td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+              <div className="info-inline">
+                <span className="pill">
+                  Margem mínima: <strong>{currency(parcelasSolarInvest.margemMinima)}</strong>
+                </span>
+                <span className="pill">
+                  Total pago no prazo: <strong>{currency(parcelasSolarInvest.totalPago)}</strong>
+                </span>
               </div>
 
               <h4>Buyout parâmetros</h4>
@@ -1261,6 +1205,90 @@ export default function App() {
                   <input type="number" value={buyoutDuracao} onChange={(e) => setBuyoutDuracao(Number(e.target.value) || 0)} />
                 </Field>
               </div>
+
+              <h4>Parcelas — Total pago acumulado</h4>
+              <div className="table-controls">
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  onClick={() => setMostrarTabelaParcelasConfig((prev) => !prev)}
+                  aria-expanded={mostrarTabelaParcelasConfig}
+                  aria-controls="config-parcelas-total"
+                >
+                  {mostrarTabelaParcelasConfig ? 'Ocultar tabela de parcelas' : 'Exibir tabela de parcelas'}
+                </button>
+              </div>
+              {mostrarTabelaParcelasConfig ? (
+                <div className="table-wrapper">
+                  <table id="config-parcelas-total">
+                    <thead>
+                      <tr>
+                        <th>Mês</th>
+                        <th>Total pago acumulado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parcelasSolarInvest.lista.length > 0 ? (
+                        parcelasSolarInvest.lista.map((row) => (
+                          <tr key={`config-parcela-${row.mes}`}>
+                            <td>{row.mes}</td>
+                            <td>{currency(row.totalAcumulado)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+
+              <h4>Buyout — Receita acumulada</h4>
+              <div className="table-controls">
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  onClick={() => setMostrarTabelaBuyoutConfig((prev) => !prev)}
+                  aria-expanded={mostrarTabelaBuyoutConfig}
+                  aria-controls="config-buyout-receita"
+                >
+                  {mostrarTabelaBuyoutConfig ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
+                </button>
+              </div>
+              {mostrarTabelaBuyoutConfig ? (
+                <div className="table-wrapper">
+                  <table id="config-buyout-receita">
+                    <thead>
+                      <tr>
+                        <th>Mês</th>
+                        <th>Receita acumulada</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {buyoutReceitaRows.length > 0 ? (
+                        buyoutReceitaRows.map((row) => (
+                          <tr key={`config-buyout-${row.mes}`}>
+                            <td>{row.mes}</td>
+                            <td>{currency(row.prestacaoAcum)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="muted">Defina os parâmetros para visualizar a receita acumulada.</td>
+                        </tr>
+                      )}
+                      {buyoutAceiteFinal ? (
+                        <tr>
+                          <td>61</td>
+                          <td>{currency(buyoutAceiteFinal.prestacaoAcum)}</td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
