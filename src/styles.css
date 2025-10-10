@@ -214,27 +214,6 @@ button.icon {
   font-size: 11px;
 }
 
-.masked-value {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  min-height: 40px;
-  border-radius: 12px;
-  border: 1px dashed var(--border);
-  background: rgba(9, 15, 26, 0.75);
-  color: var(--muted);
-  font-weight: 600;
-  letter-spacing: 2px;
-  padding: 0 12px;
-  text-transform: uppercase;
-}
-
-.masked-inline {
-  color: var(--muted);
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
 input,
 select {
   width: 100%;
