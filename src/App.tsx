@@ -613,29 +613,41 @@ export default function App() {
       tarifasLeasingPorMes.set(row.mes, row.tarifaCheia)
     })
 
+    const ciclosInflacaoLeasing = (mes: number) => {
+      if (mes <= 0) return 0
+      return Math.floor((mes - 1) / 12)
+    }
+
+    const ciclosInflacaoBuyout = (mes: number) => {
+      if (mes <= 0) return 0
+      return Math.floor(mes / 12)
+    }
+
+    const ajustarTarifaParaBuyout = (tarifa: number, mes: number) => {
+      const inflacaoLeasing = ciclosInflacaoLeasing(mes)
+      const inflacaoBuyout = ciclosInflacaoBuyout(mes)
+      if (inflacaoBuyout <= inflacaoLeasing) {
+        return tarifa
+      }
+      const fatorAjuste = Math.pow(1 + inflEnergia / 100, inflacaoBuyout - inflacaoLeasing)
+      return tarifa * fatorAjuste
+    }
+
     const obterTarifaProjetada = (mes: number) => {
-      const mesReferencia = mes - 5
-      if (mesReferencia <= 0) {
+      if (mes <= 0) {
         if (parcelasSolarInvest.lista.length > 0) {
           return parcelasSolarInvest.lista[0].tarifaCheia
         }
         return tarifaBase
       }
 
-      const tarifaLeasing = tarifasLeasingPorMes.get(mesReferencia)
+      const tarifaLeasing = tarifasLeasingPorMes.get(mes)
       if (typeof tarifaLeasing === 'number') {
-        return tarifaLeasing
+        return ajustarTarifaParaBuyout(tarifaLeasing, mes)
       }
 
-      if (parcelasSolarInvest.lista.length > 0) {
-        const ultimaParcela = parcelasSolarInvest.lista[parcelasSolarInvest.lista.length - 1]
-        if (mesReferencia >= ultimaParcela.mes) {
-          return ultimaParcela.tarifaCheia
-        }
-      }
-
-      const anosDecorridos = Math.floor(Math.max(mesReferencia - 1, 0) / 12)
-      return tarifaBase * Math.pow(1 + inflEnergia / 100, anosDecorridos)
+      const ciclosBuyout = ciclosInflacaoBuyout(mes)
+      return tarifaBase * Math.pow(1 + inflEnergia / 100, ciclosBuyout)
     }
 
     let prestAcum = 0
