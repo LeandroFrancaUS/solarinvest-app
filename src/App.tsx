@@ -16,7 +16,7 @@ type TabKey = 'principal' | 'cliente'
 
 type SeguroModo = 'A' | 'B'
 
-type EntradaModo = 'reduz_kc' | 'credito_linear' | 'piso_ajustado'
+type EntradaModo = 'reduz_kc' | 'credito_linear'
 
 type ClienteDados = {
   nome: string
@@ -469,30 +469,23 @@ export default function App() {
     const descontoDecimal = Math.max(0, Math.min(descontoPct / 100, 1))
     const inflacaoMensal = Math.pow(1 + inflEnergia / 100, 1 / 12) - 1
     const meses = Math.max(0, Math.floor(prazoContratoMeses))
-    const kcBase = Math.max(0, consumoMensal)
     const tarifaDescontadaBase = tarifaBase * (1 - descontoDecimal)
-    const encargosFixos = Math.max(0, bandeiraValor + cipValor + encargos)
-    const mensalidadeSemEntrada = kcBase * tarifaDescontadaBase
-    const mensalidadeTotalSemEntrada = mensalidadeSemEntrada + encargosFixos
-    const margemMinima = 0.15 * (kcBase * tarifaBase)
+    const mensalidadeSemEntrada = consumoMensal * tarifaDescontadaBase
+    const mensalidadeTotalSemEntrada = mensalidadeSemEntrada + bandeiraValor + cipValor
+    const margemMinima = 0.15 * (consumoMensal * tarifaBase)
 
-    let kcAjustado = kcBase
-    if (
-      (entradaModo === 'reduz_kc' || entradaModo === 'piso_ajustado') &&
-      entradaValor > 0 &&
-      kcBase > 0 &&
-      tarifaDescontadaBase > 0 &&
-      meses > 0
-    ) {
-      const denominador = kcBase * tarifaDescontadaBase * meses
+    let fatorReducao = 1
+    if (entradaModo === 'reduz_kc' && entradaValor > 0 && consumoMensal > 0 && tarifaDescontadaBase > 0 && meses > 0) {
+      const denominador = consumoMensal * tarifaDescontadaBase * meses
       if (denominador > 0) {
-        const fator = 1 - entradaValor / denominador
-        if (Number.isFinite(fator)) {
-          kcAjustado = kcBase * Math.min(1, Math.max(0, fator))
+        const bruto = 1 - entradaValor / denominador
+        if (Number.isFinite(bruto)) {
+          fatorReducao = Math.min(1, Math.max(0, bruto))
         }
       }
     }
 
+    const kcAjustado = consumoMensal * fatorReducao
     const creditoMensal = entradaModo === 'credito_linear' && meses > 0 ? entradaValor / meses : 0
 
     const lista: MensalidadeRow[] = []
@@ -501,11 +494,10 @@ export default function App() {
       for (let mes = 1; mes <= meses; mes += 1) {
         const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
         const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
-        const kcReferencia = entradaModo === 'credito_linear' ? kcBase : kcAjustado
-        const mensalidadeBruta = kcReferencia * tarifaDescontada + encargosFixos
-        const mensalidadeAjustada =
-          entradaModo === 'credito_linear' ? Math.max(0, mensalidadeBruta - creditoMensal) : mensalidadeBruta
-        const mensalidadeLiquida = Math.max(mensalidadeAjustada, margemMinima)
+        const kcReferencia = entradaModo === 'reduz_kc' ? kcAjustado : consumoMensal
+        const baseComEncargos = kcReferencia * tarifaDescontada + bandeiraValor + cipValor
+        const comEntrada = Math.max(0, baseComEncargos - creditoMensal)
+        const mensalidadeLiquida = Math.max(comEntrada, margemMinima)
         totalAcumulado += mensalidadeLiquida
         lista.push({
           mes,
@@ -539,7 +531,6 @@ export default function App() {
     entradaModo,
     entradaValor,
     inflEnergia,
-    encargos,
     prazoContratoMeses,
     tarifaBase,
   ])
@@ -825,7 +816,7 @@ export default function App() {
                 <span className="pill">
                   Mensalidade total sem entrada: <strong>{currency(parcelasSolarInvest.mensalidadeTotalSemEntrada)}</strong>
                 </span>
-                {entradaModo === 'reduz_kc' || entradaModo === 'piso_ajustado' ? (
+                {entradaModo === 'reduz_kc' ? (
                   <span className="pill">
                     Piso contratado ajustado:{' '}
                     <strong>
@@ -1132,7 +1123,6 @@ export default function App() {
                 <Field label="Uso da entrada">
                   <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModo)}>
                     <option value="credito_linear">Crédito mensal linear</option>
-                    <option value="piso_ajustado">Piso ajustado (Kc recalculado)</option>
                     <option value="reduz_kc">Reduz piso contratado</option>
                   </select>
                 </Field>
