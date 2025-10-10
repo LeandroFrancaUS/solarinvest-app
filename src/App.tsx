@@ -13,6 +13,7 @@ import {
   BuyoutLinha,
 } from './selectors'
 import { EntradaModo } from './utils/calcs'
+import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './utils/irradiacao'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -295,7 +296,7 @@ export default function App() {
   })
 
   const [precoPorKwp, setPrecoPorKwp] = useState(2470)
-  const [irradiacao, setIrradiacao] = useState(5.51)
+  const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
   const [eficiencia, setEficiencia] = useState(0.8)
   const [inflacaoAa, setInflacaoAa] = useState(8)
 
@@ -356,6 +357,45 @@ export default function App() {
     window.addEventListener('resize', updateHeaderHeight)
     return () => window.removeEventListener('resize', updateHeaderHeight)
   }, [])
+
+  useEffect(() => {
+    const estadoAtual = cliente.uf?.trim() ?? ''
+    if (!estadoAtual) {
+      setIrradiacao(IRRADIACAO_FALLBACK)
+      return
+    }
+
+    if (!hasEstadoMinimo(estadoAtual)) {
+      setIrradiacao(IRRADIACAO_FALLBACK)
+      return
+    }
+
+    let cancelado = false
+
+    getIrradiacaoPorEstado(estadoAtual)
+      .then(({ value, matched, via }) => {
+        if (cancelado) return
+        setIrradiacao((prev) => (prev === value ? prev : value))
+        if (!matched) {
+          console.warn(
+            `[Irradiação] Estado "${estadoAtual}" não encontrado (${via}), usando fallback de ${value.toFixed(2)} kWh/m²/dia.`,
+          )
+        }
+      })
+      .catch((error) => {
+        if (cancelado) return
+        console.warn(
+          `[Irradiação] Erro ao carregar dados para "${estadoAtual}":`,
+          error,
+          `— usando fallback de ${IRRADIACAO_FALLBACK.toFixed(2)} kWh/m²/dia.`,
+        )
+        setIrradiacao(IRRADIACAO_FALLBACK)
+      })
+
+    return () => {
+      cancelado = true
+    }
+  }, [cliente.uf])
 
   useEffect(() => {
     const { body } = document
@@ -1127,8 +1167,8 @@ export default function App() {
               <Field label="Cidade">
                 <input value={cliente.cidade} onChange={(e) => handleClienteChange('cidade', e.target.value)} />
               </Field>
-              <Field label="UF">
-                <input value={cliente.uf} maxLength={2} onChange={(e) => handleClienteChange('uf', e.target.value.toUpperCase())} />
+              <Field label="UF ou Estado">
+                <input value={cliente.uf} onChange={(e) => handleClienteChange('uf', e.target.value)} />
               </Field>
             </div>
           </section>
