@@ -457,15 +457,44 @@ export default function App() {
     if (!node) return
     const printWindow = window.open('', '_blank', 'width=1024,height=768')
     if (!printWindow) return
+
+    const previewHtml = `<!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Proposta-${cliente.nome || 'SolarInvest'}</title>
+          <style>
+            ${printStyles}
+            body{padding-top:88px;}
+            .preview-toolbar{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:16px 44px;border-bottom:1px solid #cbd5f5;box-shadow:0 2px 6px rgba(15,23,42,0.08);}
+            .preview-toolbar h1{margin:0;font-size:18px;color:#0f172a;}
+            .preview-toolbar p{margin:4px 0 0;font-size:13px;color:#475569;}
+            .preview-toolbar button{background:#0f172a;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;cursor:pointer;}
+            .preview-toolbar button:hover{background:#1e293b;}
+            .preview-container{max-width:1040px;margin:0 auto;}
+            @media print{
+              body{padding-top:0;}
+              .preview-toolbar{display:none;}
+            }
+          </style>
+        </head>
+        <body>
+          <div class="preview-toolbar">
+            <div>
+              <h1>Pré-visualização da proposta</h1>
+              <p>Revise o conteúdo e clique em "Imprimir" para gerar o PDF.</p>
+            </div>
+            <button type="button" onclick="window.print()">Imprimir</button>
+          </div>
+          <div class="preview-container">${node.outerHTML}</div>
+        </body>
+      </html>`
+
     const { document } = printWindow
     document.open()
-    document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Proposta-${cliente.nome || 'SolarInvest'}</title><style>${printStyles}</style></head><body>${node.outerHTML}</body></html>`)
+    document.write(previewHtml)
     document.close()
     printWindow.focus()
-    printWindow.onload = () => {
-      printWindow.print()
-      printWindow.close()
-    }
   }
 
   const anosArray = useMemo(() => Array.from({ length: anosAnalise }, (_, i) => i + 1), [])
