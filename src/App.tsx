@@ -266,6 +266,7 @@ export default function App() {
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(5)
   const [potenciaPlaca, setPotenciaPlaca] = useState(550)
   const [numeroPlacasManual, setNumeroPlacasManual] = useState<number | ''>('')
+  const [geracaoMensalManual, setGeracaoMensalManual] = useState<number | ''>('')
 
   const [cliente, setCliente] = useState<ClienteDados>({
     nome: '',
@@ -395,9 +396,14 @@ export default function App() {
     return Math.max(1, Number.isFinite(calculado) ? calculado : 0)
   }, [numeroPlacasInformado, potenciaInstaladaKwp, potenciaPlaca])
 
-  const geracaoMensalKwh = useMemo(
+  const geracaoMensalCalculado = useMemo(
     () => potenciaInstaladaKwp * fatorGeracao,
     [potenciaInstaladaKwp, fatorGeracao],
+  )
+
+  const geracaoMensalKwh = useMemo(
+    () => (geracaoMensalManual === '' ? geracaoMensalCalculado : geracaoMensalManual),
+    [geracaoMensalCalculado, geracaoMensalManual],
   )
 
   const geracaoDiariaKwh = useMemo(
@@ -844,7 +850,27 @@ export default function App() {
                   <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
                 </Field>
                 <Field label="Geração estimada (kWh/mês)">
-                  <input readOnly value={geracaoMensalKwh.toFixed(0)} />
+                  <input
+                    type="number"
+                    min={0}
+                    value={
+                      geracaoMensalManual === ''
+                        ? Math.round(geracaoMensalCalculado)
+                        : geracaoMensalManual
+                    }
+                    onChange={(e) => {
+                      const { value } = e.target
+                      if (value === '') {
+                        setGeracaoMensalManual('')
+                        return
+                      }
+                      const parsed = Number(value)
+                      if (!Number.isFinite(parsed) || parsed < 0) {
+                        return
+                      }
+                      setGeracaoMensalManual(parsed)
+                    }}
+                  />
                 </Field>
               </div>
               <div className="info-inline">
