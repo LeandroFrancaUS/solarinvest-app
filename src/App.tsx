@@ -16,6 +16,8 @@ type TabKey = 'principal' | 'cliente'
 
 type SeguroModo = 'A' | 'B'
 
+type EntradaModo = 'reduz_kc' | 'credito_linear'
+
 type ClienteDados = {
   nome: string
   documento: string
@@ -62,6 +64,15 @@ type PrintableProps = {
   tabelaBuyout: BuyoutRow[]
   buyoutResumo: BuyoutResumo
   capex: number
+}
+
+type MensalidadeRow = {
+  mes: number
+  tarifaCheia: number
+  tarifaDescontada: number
+  mensalidadeBruta: number
+  mensalidadeLiquida: number
+  totalAcumulado: number
 }
 
 const Field: React.FC<{ label: string; children: React.ReactNode; hint?: string }> = ({ label, children, hint }) => (
@@ -270,6 +281,12 @@ export default function App() {
   const [mostrarFinanciamento, setMostrarFinanciamento] = useState(true)
   const [mostrarGrafico, setMostrarGrafico] = useState(true)
 
+  const [prazoContratoMeses, setPrazoContratoMeses] = useState(60)
+  const [bandeiraValor, setBandeiraValor] = useState(0)
+  const [cipValor, setCipValor] = useState(0)
+  const [entradaValor, setEntradaValor] = useState(0)
+  const [entradaModo, setEntradaModo] = useState<EntradaModo>('credito_linear')
+
   const [oemBase, setOemBase] = useState(35)
   const [oemInflacao, setOemInflacao] = useState(4)
   const [seguroModo, setSeguroModo] = useState<SeguroModo>('A')
@@ -428,6 +445,78 @@ export default function App() {
     const anos = Math.ceil(prazoFinMeses / 12)
     return Array.from({ length: anos }, () => Math.abs(pmt))
   }, [pmt, prazoFinMeses])
+
+  const parcelasSolarInvest = useMemo(() => {
+    const descontoDecimal = Math.max(0, Math.min(descontoPct / 100, 1))
+    const inflacaoMensal = Math.pow(1 + inflEnergia / 100, 1 / 12) - 1
+    const meses = Math.max(0, Math.floor(prazoContratoMeses))
+    const tarifaDescontadaBase = tarifaBase * (1 - descontoDecimal)
+    const mensalidadeSemEntrada = consumoMensal * tarifaDescontadaBase
+    const mensalidadeTotalSemEntrada = mensalidadeSemEntrada + bandeiraValor + cipValor
+    const margemMinima = 0.15 * (consumoMensal * tarifaBase)
+
+    let fatorReducao = 1
+    if (entradaModo === 'reduz_kc' && entradaValor > 0 && consumoMensal > 0 && tarifaDescontadaBase > 0 && meses > 0) {
+      const denominador = consumoMensal * tarifaDescontadaBase * meses
+      if (denominador > 0) {
+        const bruto = 1 - entradaValor / denominador
+        if (Number.isFinite(bruto)) {
+          fatorReducao = Math.min(1, Math.max(0, bruto))
+        }
+      }
+    }
+
+    const kcAjustado = consumoMensal * fatorReducao
+    const creditoMensal = entradaModo === 'credito_linear' && meses > 0 ? entradaValor / meses : 0
+
+    const lista: MensalidadeRow[] = []
+    if (meses > 0) {
+      let totalAcumulado = 0
+      for (let mes = 1; mes <= meses; mes += 1) {
+        const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
+        const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
+        const mensalidadeBruta = consumoMensal * tarifaDescontada
+        const kcReferencia = entradaModo === 'reduz_kc' ? kcAjustado : consumoMensal
+        const baseComEncargos = kcReferencia * tarifaDescontada + bandeiraValor + cipValor
+        const comEntrada = Math.max(0, baseComEncargos - creditoMensal)
+        const mensalidadeLiquida = Math.max(comEntrada, margemMinima)
+        totalAcumulado += mensalidadeLiquida
+        lista.push({
+          mes,
+          tarifaCheia,
+          tarifaDescontada,
+          mensalidadeBruta,
+          mensalidadeLiquida,
+          totalAcumulado,
+        })
+      }
+    }
+
+    const totalPago = lista.length > 0 ? lista[lista.length - 1].totalAcumulado : 0
+
+    return {
+      lista,
+      tarifaDescontadaBase,
+      mensalidadeSemEntrada,
+      mensalidadeTotalSemEntrada,
+      kcAjustado,
+      creditoMensal,
+      margemMinima,
+      prazoEfetivo: meses,
+      totalPago,
+      inflacaoMensal,
+    }
+  }, [
+    bandeiraValor,
+    cipValor,
+    consumoMensal,
+    descontoPct,
+    entradaModo,
+    entradaValor,
+    inflEnergia,
+    prazoContratoMeses,
+    tarifaBase,
+  ])
 
   const chartData = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
