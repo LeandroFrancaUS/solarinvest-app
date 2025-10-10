@@ -158,7 +158,7 @@ export interface ValorReposicaoInput {
  * Calcula o valor de reposição depreciado até o mês m.
  * O piso evita valores negativos mesmo com taxas elevadas.
  */
-export function valorReposicaoDepreciado({
+export function valorReposicao({
   vm0,
   depreciacaoAa,
   m,
@@ -167,6 +167,42 @@ export function valorReposicaoDepreciado({
   const depMensal = toMonthly(depreciacaoAa)
   const fatorSobrevivencia = Math.max(0, 1 - depMensal)
   return Math.max(0, vm0) * Math.pow(fatorSobrevivencia, m)
+}
+
+export function creditoCashback(cashbackPct: number, pagosAcumAteM: number): number {
+  if (!Number.isFinite(cashbackPct) || !Number.isFinite(pagosAcumAteM)) return 0
+  if (cashbackPct <= 0 || pagosAcumAteM <= 0) return 0
+  return cashbackPct * pagosAcumAteM
+}
+
+function valorCompraBase({
+  m,
+  vm0,
+  depreciacaoAa,
+  ipcaAa,
+  inadimplenciaAa,
+  tributosAa,
+  custosFixosM,
+  opexM,
+  seguroM,
+  pagosAcumAteM,
+  cashbackPct,
+  duracaoMeses,
+}: ValorCompraClienteInput): number {
+  if (m < 7 || m >= duracaoMeses) return 0
+
+  const valorReposicaoMes = valorReposicao({ vm0, depreciacaoAa, m })
+  const custos = custosRestantes({
+    m,
+    prazoMeses: duracaoMeses,
+    custosFixosM,
+    opexM,
+    seguroM,
+    ipcaAa,
+  })
+  const fatorGross = grossUp({ inadimplenciaAa, tributosAa })
+  const cashback = creditoCashback(cashbackPct, pagosAcumAteM)
+  return (valorReposicaoMes + custos) * fatorGross - cashback
 }
 
 export interface GrossUpInput {
@@ -179,10 +215,10 @@ export interface GrossUpInput {
  * Mantemos a multiplicação separada para facilitar auditorias.
  */
 export function grossUp({ inadimplenciaAa, tributosAa }: GrossUpInput): number {
-  const inadMensal = 1 - toMonthly(inadimplenciaAa)
-  const tribMensal = 1 - toMonthly(tributosAa)
-  const denominador = inadMensal * tribMensal
-  if (denominador === 0) return 1
+  const inadMensal = toMonthly(inadimplenciaAa)
+  const tribMensal = toMonthly(tributosAa)
+  const denominador = (1 - inadMensal) * (1 - tribMensal)
+  if (denominador <= 0) return 1
   return 1 / denominador
 }
 
@@ -219,18 +255,39 @@ export function valorCompraCliente({
   cashbackPct,
   duracaoMeses,
 }: ValorCompraClienteInput): number {
-  if (m >= duracaoMeses) return 0
-  const valorReposicao = valorReposicaoDepreciado({ vm0, depreciacaoAa, m })
-  const custos = custosRestantes({
+  const base = valorCompraBase({
     m,
-    prazoMeses: duracaoMeses,
+    vm0,
+    depreciacaoAa,
+    ipcaAa,
+    inadimplenciaAa,
+    tributosAa,
     custosFixosM,
     opexM,
     seguroM,
-    ipcaAa,
+    pagosAcumAteM,
+    cashbackPct,
+    duracaoMeses,
   })
-  const fatorGross = grossUp({ inadimplenciaAa, tributosAa })
-  const cashback = Math.max(0, pagosAcumAteM * cashbackPct)
-  const valor = (valorReposicao + custos) * fatorGross - cashback
-  return Math.max(0, valor)
+  if (base <= 0) return 0
+  const arredondado = Math.round(base * 100) / 100
+  return arredondado > 0 ? arredondado : 0
+}
+
+export function valorCompraClienteLinear({ duracaoMeses, ...rest }: ValorCompraClienteInput): number {
+  const inicio = 7
+  const mes = rest.m
+  if (mes >= duracaoMeses) return 0
+  if (duracaoMeses <= inicio) return 0
+  if (mes < inicio) return 0
+
+  const valorNoInicio = valorCompraCliente({ ...rest, duracaoMeses, m: inicio })
+  if (valorNoInicio <= 0) return 0
+
+  const fator = (duracaoMeses - mes) / (duracaoMeses - inicio)
+  if (fator <= 0) return 0
+
+  const valor = Math.max(0, valorNoInicio * fator)
+  const arredondado = Math.round(valor * 100) / 100
+  return arredondado > 0 ? arredondado : 0
 }
