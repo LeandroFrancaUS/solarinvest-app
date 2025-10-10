@@ -312,7 +312,6 @@ export default function App() {
   const [exibirLeasingLinha, setExibirLeasingLinha] = useState(true)
   const [exibirFinLinha, setExibirFinLinha] = useState(false)
 
-  const [buyoutValorMercado, setBuyoutValorMercado] = useState(0)
   const [buyoutCashbackPct, setBuyoutCashbackPct] = useState(10)
   const [buyoutDepreciacaoPct, setBuyoutDepreciacaoPct] = useState(12)
   const [buyoutInadimplenciaPct, setBuyoutInadimplenciaPct] = useState(2)
@@ -411,13 +410,15 @@ export default function App() {
 
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
 
-  useEffect(() => {
-    if (buyoutValorMercado === 0) {
-      setBuyoutValorMercado(Math.round(capex))
-    }
-  }, [capex, buyoutValorMercado])
-
-  const valorMercado = useMemo(() => (buyoutValorMercado > 0 ? buyoutValorMercado : capex), [buyoutValorMercado, capex])
+  const valorMercado = useMemo(() => {
+    // O Valor de Mercado usado no buyout deve seguir exatamente a mesma lógica da tela principal
+    // (Valor de Mercado Estimado calculado automaticamente), evitando discrepâncias entre campos
+    // e mantendo o alinhamento com a planilha de referência.
+    // Ao centralizar o cálculo aqui, asseguramos que tanto os resumos exibidos na UI quanto
+    // componentes derivados (como o seguro indexado a esse valor) sejam atualizados em conjunto
+    // sempre que o CAPEX base se alterar.
+    return capex
+  }, [capex])
 
   const tarifaAno = (ano: number) => tarifaBase * Math.pow(1 + inflEnergia / 100, ano - 1)
   const tarifaDescontadaAno = (ano: number) => tarifaAno(ano) * (1 - descontoPct / 100)
@@ -1321,9 +1322,6 @@ export default function App() {
 
               <h4>Buyout parâmetros</h4>
               <div className="grid g3">
-                <Field label="Valor de mercado (R$)">
-                  <input type="number" value={buyoutValorMercado} onChange={(e) => setBuyoutValorMercado(Number(e.target.value) || 0)} />
-                </Field>
                 <Field label="Cashback (%)">
                   <input type="number" step="0.1" value={buyoutCashbackPct} onChange={(e) => setBuyoutCashbackPct(Number(e.target.value) || 0)} />
                 </Field>
