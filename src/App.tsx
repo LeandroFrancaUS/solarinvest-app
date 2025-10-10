@@ -15,6 +15,7 @@ import {
 import { EntradaModo, tarifaDescontada as tarifaDescontadaCalc, tarifaProjetadaCheia } from './utils/calcs'
 import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './utils/irradiacao'
 import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
+import { getTarifaCheia } from './utils/tarifaAneel'
 import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
 
 const currency = (v: number) =>
@@ -342,6 +343,7 @@ export default function App() {
   }, [distribuidorasPorUf, ufTarifa])
 
   const clienteUf = cliente.uf
+  const clienteDistribuidora = cliente.distribuidora
 
   const [precoPorKwp, setPrecoPorKwp] = useState(2470)
   const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
@@ -417,6 +419,37 @@ export default function App() {
       cancelado = true
     }
   }, [distribuidoraTarifa, ufTarifa])
+
+  useEffect(() => {
+    const ufAtual = (ufTarifa || clienteUf || '').trim()
+    if (!ufAtual) {
+      return undefined
+    }
+
+    const distribuidoraAtual = (distribuidoraTarifa || clienteDistribuidora || '').trim()
+    let cancelado = false
+
+    getTarifaCheia({ uf: ufAtual, distribuidora: distribuidoraAtual || undefined })
+      .then((valor) => {
+        if (cancelado) return
+        if (!Number.isFinite(valor)) return
+
+        setTarifaCheia((atual) => {
+          if (!Number.isFinite(atual)) {
+            return valor
+          }
+          return Math.abs(atual - valor) < 0.0005 ? atual : valor
+        })
+      })
+      .catch((error) => {
+        if (cancelado) return
+        console.warn('[Tarifa] Não foi possível atualizar tarifa cheia automaticamente:', error)
+      })
+
+    return () => {
+      cancelado = true
+    }
+  }, [clienteDistribuidora, clienteUf, distribuidoraTarifa, ufTarifa])
 
   useEffect(() => {
     let cancelado = false
