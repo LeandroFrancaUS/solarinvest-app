@@ -311,6 +311,21 @@ export default function App() {
   const [buyoutSeguro, setBuyoutSeguro] = useState(0)
   const [buyoutDuracao, setBuyoutDuracao] = useState(60)
 
+  useEffect(() => {
+    const { body } = document
+    if (!body) return
+
+    if (isSettingsOpen) {
+      body.style.setProperty('overflow', 'hidden')
+    } else {
+      body.style.removeProperty('overflow')
+    }
+
+    return () => {
+      body.style.removeProperty('overflow')
+    }
+  }, [isSettingsOpen])
+
   const eficienciaNormalizada = useMemo(() => {
     if (eficiencia <= 0) return 0
     if (eficiencia >= 1.5) return eficiencia / 100
@@ -778,6 +793,19 @@ export default function App() {
                 </span>
               </div>
 
+              <div className="grid g2">
+                <Field label="Entrada (R$)">
+                  <input
+                    type="number"
+                    value={entradaValor}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setEntradaValor(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                    }}
+                  />
+                </Field>
+              </div>
+
               <div className="info-inline">
                 <span className="pill">
                   Tarifa c/ desconto: <strong>{currency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
@@ -1089,16 +1117,6 @@ export default function App() {
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
                       setCipValor(Number.isFinite(parsed) ? parsed : 0)
-                    }}
-                  />
-                </Field>
-                <Field label="Entrada (R$)">
-                  <input
-                    type="number"
-                    value={entradaValor}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setEntradaValor(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
                     }}
                   />
                 </Field>
