@@ -403,7 +403,7 @@ export default function App() {
   const entradaModoNormalizado = useMemo<'CREDITO' | 'REDUZ' | 'NONE'>(() => {
     const label = (entradaModo ?? '').toLowerCase().trim()
     if (!entradaValor || entradaValor <= 0) return 'NONE'
-    if (label === 'crédito mensal' || label === 'credito mensal') return 'CREDITO'
+    if (label === 'crédito mensal') return 'CREDITO'
     if (label === 'reduz piso contratado') return 'REDUZ'
     return 'NONE'
   }, [entradaModo, entradaValor])
