@@ -461,6 +461,13 @@ export default function App() {
     return valores
   }, [entradaFin, financiamentoFluxo])
 
+  const leasingMensalidades = useMemo(() => {
+    return Array.from({ length: leasingPrazo }, (_, i) => {
+      const ano = i + 1
+      return consumoMensal * tarifaDescontadaAno(ano) + encargos + taxaMinima
+    })
+  }, [consumoMensal, descontoPct, encargos, inflEnergia, leasingPrazo, tarifaBase, taxaMinima])
+
   const financiamentoMensalidades = useMemo(() => {
     const anos = Math.ceil(prazoFinMeses / 12)
     return Array.from({ length: anos }, () => Math.abs(pmt))
