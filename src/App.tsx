@@ -453,12 +453,34 @@ export default function App() {
     return valores
   }, [entradaFin, financiamentoFluxo])
 
+  const { kcAjustado, creditoMensal, margemMinima } = parcelasSolarInvest
+
   const leasingMensalidades = useMemo(() => {
     return Array.from({ length: leasingPrazo }, (_, i) => {
       const ano = i + 1
-      return consumoMensal * tarifaDescontadaAno(ano) + encargos + taxaMinima
+      const consumoReferencia = entradaModo === 'reduz_kc' ? kcAjustado : consumoMensal
+      const mensalidadeBase =
+        consumoReferencia * tarifaDescontadaAno(ano) + bandeiraValor + cipValor + encargos + taxaMinima
+      if (entradaModo === 'credito_linear') {
+        return Math.max(mensalidadeBase - creditoMensal, margemMinima)
+      }
+      return Math.max(mensalidadeBase, margemMinima)
     })
-  }, [consumoMensal, descontoPct, encargos, inflEnergia, leasingPrazo, tarifaBase, taxaMinima])
+  }, [
+    bandeiraValor,
+    cipValor,
+    consumoMensal,
+    encargos,
+    creditoMensal,
+    entradaModo,
+    inflEnergia,
+    kcAjustado,
+    leasingPrazo,
+    margemMinima,
+    tarifaBase,
+    descontoPct,
+    taxaMinima,
+  ])
 
   const financiamentoMensalidades = useMemo(() => {
     const anos = Math.ceil(prazoFinMeses / 12)
@@ -809,12 +831,6 @@ export default function App() {
               <div className="info-inline">
                 <span className="pill">
                   Tarifa c/ desconto: <strong>{currency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
-                </span>
-                <span className="pill">
-                  Mensalidade sem entrada: <strong>{currency(parcelasSolarInvest.mensalidadeSemEntrada)}</strong>
-                </span>
-                <span className="pill">
-                  Mensalidade total sem entrada: <strong>{currency(parcelasSolarInvest.mensalidadeTotalSemEntrada)}</strong>
                 </span>
                 {entradaModo === 'reduz_kc' ? (
                   <span className="pill">
