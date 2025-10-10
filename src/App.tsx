@@ -90,7 +90,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     <div ref={ref} className="print-layout">
       <header className="print-header">
         <div className="print-logo">
-          <img src="/logo.png" alt="SolarInvest" />
+          <img src="/logo.svg" alt="SolarInvest" />
         </div>
         <div className="print-client">
           <h1>Proposta SolarInvest</h1>
@@ -403,7 +403,7 @@ export default function App() {
   const entradaModoNormalizado = useMemo<'CREDITO' | 'REDUZ' | 'NONE'>(() => {
     const label = (entradaModo ?? '').toLowerCase().trim()
     if (!entradaValor || entradaValor <= 0) return 'NONE'
-    if (label === 'crédito mensal') return 'CREDITO'
+    if (label === 'crédito mensal' || label === 'credito mensal') return 'CREDITO'
     if (label === 'reduz piso contratado') return 'REDUZ'
     return 'NONE'
   }, [entradaModo, entradaValor])
@@ -538,36 +538,6 @@ export default function App() {
     entradaValor,
     inflEnergia,
     prazoContratoMeses,
-    tarifaBase,
-    taxaMinima,
-  ])
-
-  const leasingMensalidades = useMemo(() => {
-    const { lista } = parcelasSolarInvest
-    if (lista.length > 0) {
-      const mesesPorAno = 12
-      const anos = Math.ceil(lista.length / mesesPorAno)
-      return Array.from({ length: anos }, (_, index) => {
-        const mesReferencia = Math.min((index + 1) * mesesPorAno - 1, lista.length - 1)
-        const referencia = lista[mesReferencia]
-        return Number((referencia?.mensalidade ?? 0).toFixed(2))
-      })
-    }
-
-    return Array.from({ length: leasingPrazo }, (_, i) => {
-      const ano = i + 1
-      return Number(
-        (consumoMensal * tarifaDescontadaAno(ano) + encargos + taxaMinima).toFixed(2),
-      )
-    })
-  }, [
-    consumoMensal,
-    encargos,
-    leasingPrazo,
-    parcelasSolarInvest,
-    descontoPct,
-    inflEnergia,
-    tarifaDescontadaAno,
     tarifaBase,
     taxaMinima,
   ])
@@ -726,7 +696,7 @@ export default function App() {
       />
       <header className="topbar">
         <div className="brand">
-          <img src="/logo.png" alt="SolarInvest" />
+          <img src="/logo.svg" alt="SolarInvest" />
           <div className="brand-text">
             <h1>SolarInvest App</h1>
             <p>Proposta financeira interativa</p>
