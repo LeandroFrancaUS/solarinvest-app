@@ -598,9 +598,39 @@ export default function App() {
 
   const tabelaBuyout = useMemo<BuyoutRow[]>(() => {
     const rows: BuyoutRow[] = []
+    const tarifasLeasingPorMes = new Map<number, number>()
+    parcelasSolarInvest.lista.forEach((row) => {
+      tarifasLeasingPorMes.set(row.mes, row.tarifaCheia)
+    })
+
+    const obterTarifaProjetada = (mes: number) => {
+      const mesReferencia = mes - 5
+      if (mesReferencia <= 0) {
+        if (parcelasSolarInvest.lista.length > 0) {
+          return parcelasSolarInvest.lista[0].tarifaCheia
+        }
+        return tarifaBase
+      }
+
+      const tarifaLeasing = tarifasLeasingPorMes.get(mesReferencia)
+      if (typeof tarifaLeasing === 'number') {
+        return tarifaLeasing
+      }
+
+      if (parcelasSolarInvest.lista.length > 0) {
+        const ultimaParcela = parcelasSolarInvest.lista[parcelasSolarInvest.lista.length - 1]
+        if (mesReferencia >= ultimaParcela.mes) {
+          return ultimaParcela.tarifaCheia
+        }
+      }
+
+      const anosDecorridos = Math.floor(Math.max(mesReferencia - 1, 0) / 12)
+      return tarifaBase * Math.pow(1 + inflEnergia / 100, anosDecorridos)
+    }
+
     let prestAcum = 0
     buyoutMeses.forEach((mes) => {
-      const tarifa = tarifaBase * Math.pow(1 + inflEnergia / 100, mes / 12)
+      const tarifa = obterTarifaProjetada(mes)
       const prestBruta = geracaoMensalKwh * tarifa * (1 - descontoPct / 100) + taxaMinima + buyoutCustosFixos + buyoutOpex + buyoutSeguro
       const receitaEfetiva = prestBruta * (1 - buyoutInadimplenciaPct / 100)
       const tributos = receitaEfetiva * (buyoutTributosPct / 100)
@@ -619,14 +649,30 @@ export default function App() {
     })
     rows.push({
       mes: 61,
-      tarifa: tarifaBase * Math.pow(1 + inflEnergia / 100, 61 / 12),
+      tarifa: obterTarifaProjetada(61),
       prestacaoEfetiva: 0,
       prestacaoAcum: prestAcum,
       cashback: (buyoutCashbackPct / 100) * prestAcum,
       valorResidual: 0,
     })
     return rows
-  }, [buyoutMeses, tarifaBase, inflEnergia, geracaoMensalKwh, descontoPct, taxaMinima, buyoutCustosFixos, buyoutOpex, buyoutSeguro, buyoutInadimplenciaPct, buyoutTributosPct, buyoutCashbackPct, valorMercado, buyoutDepreciacaoPct])
+  }, [
+    buyoutMeses,
+    parcelasSolarInvest,
+    tarifaBase,
+    inflEnergia,
+    geracaoMensalKwh,
+    descontoPct,
+    taxaMinima,
+    buyoutCustosFixos,
+    buyoutOpex,
+    buyoutSeguro,
+    buyoutInadimplenciaPct,
+    buyoutTributosPct,
+    buyoutCashbackPct,
+    valorMercado,
+    buyoutDepreciacaoPct,
+  ])
 
   const buyoutAceiteFinal = tabelaBuyout.find((row) => row.mes === 61) ?? null
   const buyoutReceitaRows = useMemo(() => tabelaBuyout.filter((row) => row.mes >= 6 && row.mes <= 60), [tabelaBuyout])
