@@ -570,6 +570,9 @@ export default function App() {
     return rows
   }, [buyoutMeses, tarifaBase, inflEnergia, geracaoMensalKwh, descontoPct, taxaMinima, buyoutCustosFixos, buyoutOpex, buyoutSeguro, buyoutInadimplenciaPct, buyoutTributosPct, buyoutCashbackPct, valorMercado, buyoutDepreciacaoPct])
 
+  const buyoutAceiteFinal = tabelaBuyout.find((row) => row.mes === 61) ?? null
+  const buyoutReceitaRows = useMemo(() => tabelaBuyout.filter((row) => row.mes >= 6 && row.mes <= 60), [tabelaBuyout])
+
   const buyoutResumo: BuyoutResumo = {
     valorMercado,
     cashbackPct: buyoutCashbackPct,
@@ -787,9 +790,6 @@ export default function App() {
                 <span className="pill">
                   Mensalidade total sem entrada: <strong>{currency(parcelasSolarInvest.mensalidadeTotalSemEntrada)}</strong>
                 </span>
-                <span className="pill">
-                  Margem mínima: <strong>{currency(parcelasSolarInvest.margemMinima)}</strong>
-                </span>
                 {entradaModo === 'reduz_kc' ? (
                   <span className="pill">
                     Piso contratado ajustado:{' '}
@@ -806,11 +806,6 @@ export default function App() {
                     Crédito mensal da entrada: <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
                   </span>
                 ) : null}
-                {parcelasSolarInvest.prazoEfetivo > 0 ? (
-                  <span className="pill">
-                    Total pago no prazo: <strong>{currency(parcelasSolarInvest.totalPago)}</strong>
-                  </span>
-                ) : null}
               </div>
 
               <div className="table-wrapper">
@@ -822,7 +817,6 @@ export default function App() {
                       <th>Tarifa c/ desconto (R$/kWh)</th>
                       <th>Mensalidade bruta</th>
                       <th>Mensalidade líquida</th>
-                      <th>Total pago acumulado</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -834,12 +828,11 @@ export default function App() {
                           <td>{currency(row.tarifaDescontada)}</td>
                           <td>{currency(row.mensalidadeBruta)}</td>
                           <td>{currency(row.mensalidadeLiquida)}</td>
-                          <td>{currency(row.totalAcumulado)}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
+                        <td colSpan={5} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
                       </tr>
                     )}
                   </tbody>
@@ -978,7 +971,7 @@ export default function App() {
             <section className="card">
               <div className="card-header">
                 <h2>Compra antecipada (Buyout)</h2>
-                <span className="muted">Valores entre o mês 6 e o mês 60. Aceite final no mês 61 = R$ 0,00.</span>
+                <span className="muted">Valores entre o mês 6 e o mês 60.</span>
               </div>
               <div className="table-wrapper">
                 <table>
@@ -987,7 +980,6 @@ export default function App() {
                       <th>Mês</th>
                       <th>Tarifa projetada</th>
                       <th>Prestação efetiva</th>
-                      <th>Receita acumulada</th>
                       <th>Cashback</th>
                       <th>Valor de compra</th>
                     </tr>
@@ -1000,16 +992,10 @@ export default function App() {
                           <td>{row.mes}</td>
                           <td>{currency(row.tarifa)}</td>
                           <td>{currency(row.prestacaoEfetiva)}</td>
-                          <td>{currency(row.prestacaoAcum)}</td>
                           <td>{currency(row.cashback)}</td>
                           <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
                         </tr>
                       ))}
-                    <tr>
-                      <td>61</td>
-                      <td colSpan={4}>Aceite definitivo</td>
-                      <td>{currency(0)}</td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -1149,6 +1135,74 @@ export default function App() {
                     <option value="0">Não</option>
                   </select>
                 </Field>
+              </div>
+
+              <h4>Parcelas — Indicadores</h4>
+              <div className="grid g2">
+                <Field label="Margem mínima (R$)">
+                  <input type="text" readOnly value={currency(parcelasSolarInvest.margemMinima)} />
+                </Field>
+                <Field label="Total pago no prazo (R$)">
+                  <input type="text" readOnly value={currency(parcelasSolarInvest.totalPago)} />
+                </Field>
+              </div>
+
+              <h4>Parcelas — Total pago acumulado</h4>
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Mês</th>
+                      <th>Total pago acumulado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parcelasSolarInvest.lista.length > 0 ? (
+                      parcelasSolarInvest.lista.map((row) => (
+                        <tr key={`config-parcela-${row.mes}`}>
+                          <td>{row.mes}</td>
+                          <td>{currency(row.totalAcumulado)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={2} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <h4>Buyout — Receita acumulada</h4>
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Mês</th>
+                      <th>Receita acumulada</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {buyoutReceitaRows.length > 0 ? (
+                      buyoutReceitaRows.map((row) => (
+                        <tr key={`config-buyout-${row.mes}`}>
+                          <td>{row.mes}</td>
+                          <td>{currency(row.prestacaoAcum)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={2} className="muted">Defina os parâmetros para visualizar a receita acumulada.</td>
+                      </tr>
+                    )}
+                    {buyoutAceiteFinal ? (
+                      <tr>
+                        <td>61</td>
+                        <td>{currency(buyoutAceiteFinal.prestacaoAcum)}</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
               </div>
 
               <h4>Buyout parâmetros</h4>
