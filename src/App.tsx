@@ -285,7 +285,7 @@ export default function App() {
   const [cipValor, setCipValor] = useState(0)
   const [entradaValor, setEntradaValor] = useState(0)
   const [entradaModo, setEntradaModo] = useState<EntradaModo>('credito_linear')
-  const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(true)
+  const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(false)
 
   const [oemBase, setOemBase] = useState(35)
   const [oemInflacao, setOemInflacao] = useState(4)
