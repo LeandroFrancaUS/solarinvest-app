@@ -90,7 +90,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     <div ref={ref} className="print-layout">
       <header className="print-header">
         <div className="print-logo">
-          <img src="/logo.png" alt="SolarInvest" />
+          <img src="/logo.svg" alt="SolarInvest" />
         </div>
         <div className="print-client">
           <h1>Proposta SolarInvest</h1>
@@ -703,7 +703,7 @@ export default function App() {
       />
       <header className="topbar">
         <div className="brand">
-          <img src="/logo.png" alt="SolarInvest" />
+          <img src="/logo.svg" alt="SolarInvest" />
           <div className="brand-text">
             <h1>SolarInvest App</h1>
             <p>Proposta financeira interativa</p>
