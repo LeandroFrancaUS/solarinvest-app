@@ -3,6 +3,7 @@ import {
   creditoMensal,
   kcAjustadoPorEntrada,
   mensalidadeLiquida,
+  tarifaProjetadaCheia,
   tarifaDescontada,
   toMonthly,
   valorCompraCliente,
@@ -30,6 +31,8 @@ export interface SimulationState {
   pagosAcumManual: number
   duracaoMeses: number
   geracaoMensalKwh: number
+  mesReajuste: number
+  mesReferencia: number
 }
 
 export interface BuyoutLinha {
@@ -47,7 +50,14 @@ export function selectInflacaoMensal(state: SimulationState): number {
 }
 
 export function selectTarifaDescontada(state: SimulationState, m: number): number {
-  return tarifaDescontada(state.tarifaCheia, state.desconto, state.inflacaoAa, m)
+  return tarifaDescontada(
+    state.tarifaCheia,
+    state.desconto,
+    state.inflacaoAa,
+    m,
+    state.mesReajuste,
+    state.mesReferencia,
+  )
 }
 
 export function selectMensalidades(state: SimulationState): number[] {
@@ -63,6 +73,8 @@ export function selectMensalidades(state: SimulationState): number[] {
       entradaRs: state.entradaRs,
       prazoMeses: state.prazoMeses,
       modoEntrada: state.modoEntrada,
+      mesReajuste: state.mesReajuste,
+      mesReferencia: state.mesReferencia,
     }),
   )
 }
@@ -90,13 +102,17 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
 
   const inadMensal = toMonthly(state.inadimplenciaAa)
   const tribMensal = toMonthly(state.tributosAa)
-  const inflacaoMensal = selectInflacaoMensal(state)
   const linhas: BuyoutLinha[] = []
   let prestacaoAcum = 0
 
   for (let mes = 1; mes <= duracao; mes += 1) {
-    const fatorCrescimento = Math.pow(1 + inflacaoMensal, Math.max(0, mes - 1))
-    const tarifaCheiaMes = state.tarifaCheia * fatorCrescimento
+    const tarifaCheiaMes = tarifaProjetadaCheia(
+      state.tarifaCheia,
+      state.inflacaoAa,
+      mes,
+      state.mesReajuste,
+      state.mesReferencia,
+    )
     const tarifaLiquida = selectTarifaDescontada(state, mes)
     const prestBruta =
       state.geracaoMensalKwh * tarifaLiquida + state.taxaMinima + state.custosFixosM + state.opexM + state.seguroM
