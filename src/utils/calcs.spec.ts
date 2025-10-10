@@ -48,6 +48,46 @@ describe('calcs utilitários', () => {
     expect(valor).toBe(0)
   })
 
+  it('não calcula valor de compra antes do mês 7', () => {
+    const baseParams = {
+      vm0: 150_000,
+      depreciacaoAa: 0.08,
+      ipcaAa: 0.04,
+      inadimplenciaAa: 0.02,
+      tributosAa: 0.05,
+      custosFixosM: 200,
+      opexM: 150,
+      seguroM: 75,
+      pagosAcumAteM: 20_000,
+      cashbackPct: 0.05,
+      duracaoMeses: 60,
+    }
+    const antes = valorCompraCliente({ ...baseParams, m: 6 })
+    const depois = valorCompraCliente({ ...baseParams, m: 7 })
+    expect(antes).toBe(0)
+    expect(depois).toBeGreaterThanOrEqual(0)
+  })
+
+  it('aplica cashback reduzindo o valor de compra', () => {
+    const comum = {
+      m: 12,
+      vm0: 200_000,
+      depreciacaoAa: 0.07,
+      ipcaAa: 0.04,
+      inadimplenciaAa: 0.03,
+      tributosAa: 0.05,
+      custosFixosM: 250,
+      opexM: 180,
+      seguroM: 90,
+      duracaoMeses: 72,
+      pagosAcumAteM: 40_000,
+    }
+    const semCashback = valorCompraCliente({ ...comum, cashbackPct: 0 })
+    const comCashback = valorCompraCliente({ ...comum, cashbackPct: 0.3 })
+    expect(comCashback).toBeLessThanOrEqual(semCashback)
+    expect(semCashback).toBeCloseTo(Math.round(semCashback * 100) / 100, 8)
+  })
+
   it('mantém mensalidade mínima sem entrada', () => {
     const params = {
       kcKwhMes: 500,

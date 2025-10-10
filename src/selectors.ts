@@ -106,20 +106,23 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
 
     const pagosEfetivos =
       state.pagosAcumManual > 0 ? Math.min(state.pagosAcumManual, prestacaoAcum) : prestacaoAcum
-    const valorResidual = valorCompraCliente({
-      m: mes,
-      vm0: state.vm0,
-      depreciacaoAa: state.depreciacaoAa,
-      ipcaAa: state.ipcaAa,
-      inadimplenciaAa: state.inadimplenciaAa,
-      tributosAa: state.tributosAa,
-      custosFixosM: state.custosFixosM,
-      opexM: state.opexM,
-      seguroM: state.seguroM,
-      pagosAcumAteM: pagosEfetivos,
-      cashbackPct: state.cashbackPct,
-      duracaoMeses: state.duracaoMeses,
-    })
+    const valorResidual =
+      mes >= 7
+        ? valorCompraCliente({
+            m: mes,
+            vm0: state.vm0,
+            depreciacaoAa: state.depreciacaoAa,
+            ipcaAa: state.ipcaAa,
+            inadimplenciaAa: state.inadimplenciaAa,
+            tributosAa: state.tributosAa,
+            custosFixosM: state.custosFixosM,
+            opexM: state.opexM,
+            seguroM: state.seguroM,
+            pagosAcumAteM: pagosEfetivos,
+            cashbackPct: state.cashbackPct,
+            duracaoMeses: state.duracaoMeses,
+          })
+        : 0
     linhas.push({
       mes,
       tarifaCheia: tarifaCheiaMes,
