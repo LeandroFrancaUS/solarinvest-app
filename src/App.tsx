@@ -207,6 +207,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
 })
 
 const anosAnalise = 30
+const diasMesPadrao = 30
 const painelOpcoes = [450, 500, 550, 600, 650, 700]
 const chartColors: Record<'Leasing' | 'Financiamento', string> = {
   Leasing: '#FF8C00',
@@ -244,6 +245,7 @@ export default function App() {
   const [encargos, setEncargos] = useState(0)
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(5)
   const [potenciaPlaca, setPotenciaPlaca] = useState(550)
+  const [numeroPlacasManual, setNumeroPlacasManual] = useState<number | ''>('')
 
   const [cliente, setCliente] = useState<ClienteDados>({
     nome: '',
@@ -259,7 +261,7 @@ export default function App() {
 
   const [precoPorKwp, setPrecoPorKwp] = useState(2470)
   const [irradiacao, setIrradiacao] = useState(5.51)
-  const [eficiencia, setEficiencia] = useState(8)
+  const [eficiencia, setEficiencia] = useState(0.8)
   const [inflEnergia, setInflEnergia] = useState(8)
 
   const [jurosFinAA, setJurosFinAA] = useState(15)
@@ -289,15 +291,56 @@ export default function App() {
   const [buyoutSeguro, setBuyoutSeguro] = useState(0)
   const [buyoutDuracao, setBuyoutDuracao] = useState(60)
 
-  const consumoDiario = useMemo(() => consumoMensal / 30, [consumoMensal])
-  const kWp = useMemo(() => {
-    const base = irradiacao * eficiencia
-    return base > 0 ? consumoDiario / base : 0
-  }, [consumoDiario, irradiacao, eficiencia])
-  const numeroPlacas = useMemo(() => Math.max(1, Math.ceil((kWp * 1000) / potenciaPlaca)), [kWp, potenciaPlaca])
-  const potenciaTotalKwp = useMemo(() => (numeroPlacas * potenciaPlaca) / 1000, [numeroPlacas, potenciaPlaca])
-  const energiaMes = useMemo(() => potenciaTotalKwp * irradiacao * eficiencia * 30, [potenciaTotalKwp, irradiacao, eficiencia])
-  const capex = useMemo(() => potenciaTotalKwp * precoPorKwp, [potenciaTotalKwp, precoPorKwp])
+  const eficienciaNormalizada = useMemo(() => {
+    if (eficiencia <= 0) return 0
+    if (eficiencia >= 1.5) return eficiencia / 100
+    return eficiencia
+  }, [eficiencia])
+
+  const baseIrradiacao = useMemo(
+    () => irradiacao > 0 ? irradiacao : 0,
+    [irradiacao],
+  )
+
+  const fatorGeracao = useMemo(
+    () => baseIrradiacao * eficienciaNormalizada * diasMesPadrao,
+    [baseIrradiacao, eficienciaNormalizada],
+  )
+
+  const numeroPlacasInformado = useMemo(() => {
+    if (typeof numeroPlacasManual !== 'number') return null
+    if (!Number.isFinite(numeroPlacasManual) || numeroPlacasManual <= 0) return null
+    return Math.max(1, Math.round(numeroPlacasManual))
+  }, [numeroPlacasManual])
+
+  const potenciaInstaladaKwp = useMemo(() => {
+    if (numeroPlacasInformado && potenciaPlaca > 0) {
+      return (numeroPlacasInformado * potenciaPlaca) / 1000
+    }
+    if (fatorGeracao > 0) {
+      return consumoMensal / fatorGeracao
+    }
+    return 0
+  }, [consumoMensal, fatorGeracao, numeroPlacasInformado, potenciaPlaca])
+
+  const numeroPlacasCalculado = useMemo(() => {
+    if (numeroPlacasInformado) return numeroPlacasInformado
+    if (potenciaPlaca <= 0) return 0
+    const calculado = Math.ceil((potenciaInstaladaKwp * 1000) / potenciaPlaca)
+    return Math.max(1, Number.isFinite(calculado) ? calculado : 0)
+  }, [numeroPlacasInformado, potenciaInstaladaKwp, potenciaPlaca])
+
+  const geracaoMensalKwh = useMemo(
+    () => potenciaInstaladaKwp * fatorGeracao,
+    [potenciaInstaladaKwp, fatorGeracao],
+  )
+
+  const geracaoDiariaKwh = useMemo(
+    () => (geracaoMensalKwh > 0 ? geracaoMensalKwh / diasMesPadrao : 0),
+    [geracaoMensalKwh],
+  )
+
+  const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
 
   useEffect(() => {
     if (buyoutValorMercado === 0) {
@@ -341,10 +384,10 @@ export default function App() {
     return -valorFinanciado * (taxaMensalFin * fator) / (fator - 1)
   }, [valorFinanciado, taxaMensalFin, prazoFinMeses])
 
-  const custoOeM = (ano: number) => potenciaTotalKwp * oemBase * Math.pow(1 + oemInflacao / 100, ano - 1)
+  const custoOeM = (ano: number) => potenciaInstaladaKwp * oemBase * Math.pow(1 + oemInflacao / 100, ano - 1)
   const custoSeguro = (ano: number) => {
     if (seguroModo === 'A') {
-      return potenciaTotalKwp * seguroValorA * Math.pow(1 + seguroReajuste / 100, ano - 1)
+      return potenciaInstaladaKwp * seguroValorA * Math.pow(1 + seguroReajuste / 100, ano - 1)
     }
     return valorMercado * (seguroPercentualB / 100) * Math.pow(1 + seguroReajuste / 100, ano - 1)
   }
@@ -362,7 +405,7 @@ export default function App() {
       const despesasSistema = custoParcela + custoOeM(ano) + custoSeguro(ano)
       return economiaAnual - despesasSistema
     })
-  }, [consumoMensal, inflEnergia, jurosFinAA, oemBase, oemInflacao, pmt, prazoFinMeses, seguroModo, seguroPercentualB, seguroReajuste, seguroValorA, tarifaBase, taxaMinima, valorMercado, potenciaTotalKwp])
+  }, [consumoMensal, inflEnergia, jurosFinAA, oemBase, oemInflacao, pmt, prazoFinMeses, seguroModo, seguroPercentualB, seguroReajuste, seguroValorA, tarifaBase, taxaMinima, valorMercado, potenciaInstaladaKwp])
 
   const financiamentoROI = useMemo(() => {
     const valores: number[] = []
@@ -410,7 +453,7 @@ export default function App() {
     let prestAcum = 0
     buyoutMeses.forEach((mes) => {
       const tarifa = tarifaBase * Math.pow(1 + inflEnergia / 100, mes / 12)
-      const prestBruta = energiaMes * tarifa * (1 - descontoPct / 100) + taxaMinima + buyoutCustosFixos + buyoutOpex + buyoutSeguro
+      const prestBruta = geracaoMensalKwh * tarifa * (1 - descontoPct / 100) + taxaMinima + buyoutCustosFixos + buyoutOpex + buyoutSeguro
       const receitaEfetiva = prestBruta * (1 - buyoutInadimplenciaPct / 100)
       const tributos = receitaEfetiva * (buyoutTributosPct / 100)
       const prestEfetiva = receitaEfetiva - tributos
@@ -435,7 +478,7 @@ export default function App() {
       valorResidual: 0,
     })
     return rows
-  }, [buyoutMeses, tarifaBase, inflEnergia, energiaMes, descontoPct, taxaMinima, buyoutCustosFixos, buyoutOpex, buyoutSeguro, buyoutInadimplenciaPct, buyoutTributosPct, buyoutCashbackPct, valorMercado, buyoutDepreciacaoPct])
+  }, [buyoutMeses, tarifaBase, inflEnergia, geracaoMensalKwh, descontoPct, taxaMinima, buyoutCustosFixos, buyoutOpex, buyoutSeguro, buyoutInadimplenciaPct, buyoutTributosPct, buyoutCashbackPct, valorMercado, buyoutDepreciacaoPct])
 
   const buyoutResumo: BuyoutResumo = {
     valorMercado,
@@ -452,6 +495,22 @@ export default function App() {
   }
 
   const printableRef = useRef<HTMLDivElement>(null)
+
+  const handleEficienciaInput = (valor: number) => {
+    if (!Number.isFinite(valor)) {
+      setEficiencia(0)
+      return
+    }
+    if (valor <= 0) {
+      setEficiencia(0)
+      return
+    }
+    if (valor >= 1.5) {
+      setEficiencia(valor / 100)
+      return
+    }
+    setEficiencia(valor)
+  }
   const handlePrint = () => {
     const node = printableRef.current
     if (!node) return
@@ -578,19 +637,39 @@ export default function App() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Nº de placas">
-                  <input readOnly value={numeroPlacas} />
+                <Field label="Nº de placas informado (opcional)">
+                  <input
+                    type="number"
+                    min={1}
+                    value={numeroPlacasManual === '' ? '' : numeroPlacasManual}
+                    onChange={(e) => {
+                      const { value } = e.target
+                      if (value === '') {
+                        setNumeroPlacasManual('')
+                        return
+                      }
+                      const parsed = Number(value)
+                      if (!Number.isFinite(parsed) || parsed <= 0) {
+                        setNumeroPlacasManual('')
+                        return
+                      }
+                      setNumeroPlacasManual(parsed)
+                    }}
+                  />
+                </Field>
+                <Field label="Nº de placas (calculado)">
+                  <input readOnly value={numeroPlacasCalculado} />
                 </Field>
                 <Field label="Potência instalada (kWp)">
-                  <input readOnly value={potenciaTotalKwp.toFixed(2)} />
+                  <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
                 </Field>
                 <Field label="Geração estimada (kWh/mês)">
-                  <input readOnly value={energiaMes.toFixed(0)} />
+                  <input readOnly value={geracaoMensalKwh.toFixed(0)} />
                 </Field>
               </div>
               <div className="info-inline">
                 <span className="pill">Valor de Mercado Estimado: <strong>{currency(capex)}</strong></span>
-                <span className="pill">Consumo diário: <strong>{consumoDiario.toFixed(1)} kWh</strong></span>
+                <span className="pill">Consumo diário: <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong></span>
               </div>
             </section>
 
@@ -770,10 +849,31 @@ export default function App() {
                   <input type="number" value={precoPorKwp} onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)} />
                 </Field>
                 <Field label="Irradiação média (kWh/m²/dia)">
-                  <input type="number" step="0.1" value={irradiacao} onChange={(e) => setIrradiacao(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    min={0.01}
+                    value={irradiacao}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value)
+                      setIrradiacao(Number.isFinite(parsed) && parsed > 0 ? parsed : 0)
+                    }}
+                  />
                 </Field>
                 <Field label="Eficiência do sistema">
-                  <input type="number" step="0.01" value={eficiencia} onChange={(e) => setEficiencia(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0.01}
+                    value={eficiencia}
+                    onChange={(e) => {
+                      if (e.target.value === '') {
+                        setEficiencia(0)
+                        return
+                      }
+                      handleEficienciaInput(Number(e.target.value))
+                    }}
+                  />
                 </Field>
               </div>
 
