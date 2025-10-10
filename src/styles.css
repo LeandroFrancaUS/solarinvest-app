@@ -8,7 +8,10 @@
   --title: #f9fafc;
   --shadow: 0 18px 38px rgba(3, 8, 22, 0.55);
   --layer-opaque: rgba(5, 9, 18, 0.96);
-  --tabs-sticky-offset: 84px;
+  --surface: #0b0d12;
+  --elev-4: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --header-height: 120px;
+  --tabs-sticky-offset: var(--header-height);
 }
 
 * {
@@ -33,20 +36,23 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  padding-top: var(--header-height);
   padding-bottom: 64px;
 }
 
 .topbar {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 20;
+  left: 0;
+  right: 0;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 32px;
-  background: var(--layer-opaque);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  background: var(--surface);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: var(--elev-4);
 }
 
 .brand {
@@ -115,14 +121,13 @@ button.icon {
 .tabs {
   position: sticky;
   top: var(--tabs-sticky-offset);
-  z-index: 19;
+  z-index: 999;
   display: flex;
   gap: 8px;
   padding: 14px 32px 12px;
-  background: var(--layer-opaque);
-  backdrop-filter: blur(18px);
+  background: var(--surface);
   border: none;
-  box-shadow: 0 18px 28px rgba(3, 8, 22, 0.35);
+  box-shadow: none;
 }
 
 .tabs button {
@@ -150,6 +155,7 @@ button.icon {
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
+  margin-top: 12px;
   padding: 28px 32px 72px;
   display: flex;
   flex-direction: column;
@@ -450,63 +456,47 @@ table tbody tr:hover {
 .modal {
   position: fixed;
   inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  z-index: 1100;
+  display: block;
 }
 
 .modal-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  background: rgba(4, 8, 18, 0.65);
-  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
 }
 
 .modal-content {
   position: relative;
-  z-index: 41;
-  width: min(960px, 92vw);
-  max-height: 90vh;
-  overflow-y: auto;
-  border-radius: 20px;
-  border: 1px solid rgba(59, 76, 107, 0.5);
-  background: rgba(7, 13, 23, 0.98);
-  padding: 32px 32px 36px;
-  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.55);
+  z-index: 1110;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  border-radius: 0;
+  border: none;
+  background: var(--surface);
+  padding: 0;
+  box-shadow: var(--elev-4);
   display: flex;
   flex-direction: column;
-  scroll-padding-top: 20px;
 }
 
 .modal-header {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin: -16px -20px 16px;
-  padding: 16px 20px 10px;
+  margin: 0;
+  padding: 32px 48px 24px;
   border-bottom: 1px solid rgba(59, 76, 107, 0.6);
-  border-radius: 16px 16px 0 0;
-  background: rgba(7, 13, 23, 0.98);
-  box-shadow: 0 16px 36px rgba(2, 8, 20, 0.6);
-  isolation: isolate;
-}
-
-.modal-header::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: 16px;
-  background: rgba(7, 13, 23, 0.98);
-  border-bottom: 1px solid rgba(59, 76, 107, 0.6);
-  pointer-events: none;
-  z-index: -1;
+  background: var(--surface);
+  box-shadow: none;
 }
 
 .modal-header h3 {
@@ -516,10 +506,13 @@ table tbody tr:hover {
 }
 
 .modal-body {
+  flex: 1;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding-top: 12px;
+  padding: 32px 48px 48px;
+  scroll-padding-top: 32px;
 }
 
 .modal-body h4 {
@@ -632,7 +625,8 @@ table tbody tr:hover {
 
 @media (max-width: 880px) {
   :root {
-    --tabs-sticky-offset: 120px;
+    --header-height: 192px;
+    --tabs-sticky-offset: var(--header-height);
   }
   .content {
     padding: 24px 20px 64px;
@@ -651,6 +645,10 @@ table tbody tr:hover {
 }
 
 @media (max-width: 640px) {
+  :root {
+    --header-height: 224px;
+    --tabs-sticky-offset: var(--header-height);
+  }
   .grid.g2,
   .grid.g3,
   .grid.g4 {
