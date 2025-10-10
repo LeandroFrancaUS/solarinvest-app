@@ -14,6 +14,43 @@ export function toMonthly(rateAa: number): number {
   return Math.pow(1 + rateAa, 1 / 12) - 1
 }
 
+export function normalizaMes(mes: number, fallback = 1): number {
+  if (!Number.isFinite(mes)) return fallback
+  const inteiro = Math.trunc(mes)
+  if (inteiro === 0) return fallback
+  let normalizado = inteiro % 12
+  if (normalizado <= 0) normalizado += 12
+  return normalizado
+}
+
+const reajustesAteMes = (m: number, mesReajuste: number, mesReferencia: number): number => {
+  if (m <= 1) return 0
+  const aniversario = normalizaMes(mesReajuste, 6)
+  let mesCorrente = normalizaMes(mesReferencia, aniversario)
+  let ajustes = 0
+
+  for (let i = 1; i < m; i += 1) {
+    mesCorrente += 1
+    if (mesCorrente > 12) mesCorrente = 1
+    if (mesCorrente === aniversario) ajustes += 1
+  }
+
+  return ajustes
+}
+
+export function fatorReajusteAnual(
+  inflacaoAa: number,
+  m: number,
+  mesReajuste: number,
+  mesReferencia: number,
+): number {
+  if (m <= 0) return 1
+  if (!Number.isFinite(inflacaoAa)) return 1
+  const ajustes = reajustesAteMes(m, mesReajuste, mesReferencia)
+  if (ajustes <= 0) return 1
+  return Math.pow(1 + inflacaoAa, ajustes)
+}
+
 /**
  * Calcula a tarifa com desconto aplicado no mês m.
  * Fórmula: T0 * (1 + g_m)^(m-1) * (1 - desconto)
@@ -24,11 +61,25 @@ export function tarifaDescontada(
   desconto: number,
   inflacaoAa: number,
   m: number,
+  mesReajuste = 6,
+  mesReferencia = new Date().getMonth() + 1,
 ): number {
-  if (m <= 0) return tarifaCheia * (1 - desconto)
-  const inflacaoMensal = toMonthly(inflacaoAa)
-  const fatorCrescimento = Math.pow(1 + inflacaoMensal, Math.max(0, m - 1))
-  return tarifaCheia * fatorCrescimento * (1 - desconto)
+  if (m <= 0) return Math.max(0, tarifaCheia) * Math.max(0, 1 - desconto)
+  const fator = fatorReajusteAnual(inflacaoAa, m, mesReajuste, mesReferencia)
+  const descontoNormalizado = Math.max(0, Math.min(1, desconto))
+  return Math.max(0, tarifaCheia) * fator * (1 - descontoNormalizado)
+}
+
+export function tarifaProjetadaCheia(
+  tarifaCheia: number,
+  inflacaoAa: number,
+  m: number,
+  mesReajuste: number,
+  mesReferencia: number,
+): number {
+  if (m <= 0) return Math.max(0, tarifaCheia)
+  const fator = fatorReajusteAnual(inflacaoAa, m, mesReajuste, mesReferencia)
+  return Math.max(0, tarifaCheia) * fator
 }
 
 /**
@@ -71,6 +122,8 @@ export interface MensalidadeLiquidaInput {
   entradaRs: number
   prazoMeses: number
   modoEntrada: EntradaModo
+  mesReajuste: number
+  mesReferencia: number
 }
 
 /**
@@ -89,6 +142,8 @@ export function mensalidadeLiquida({
   entradaRs,
   prazoMeses,
   modoEntrada,
+  mesReajuste,
+  mesReferencia,
 }: MensalidadeLiquidaInput): number {
   if (m <= 0 || prazoMeses <= 0) return 0
 
@@ -97,7 +152,14 @@ export function mensalidadeLiquida({
       ? kcAjustadoPorEntrada(kcKwhMes, tarifaCheia, desconto, prazoMeses, entradaRs)
       : Math.max(0, kcKwhMes)
 
-  const tarifaComDesconto = tarifaDescontada(tarifaCheia, desconto, inflacaoAa, m)
+  const tarifaComDesconto = tarifaDescontada(
+    tarifaCheia,
+    desconto,
+    inflacaoAa,
+    m,
+    mesReajuste,
+    mesReferencia,
+  )
   const energiaComDesconto = Math.max(0, kcContratado * tarifaComDesconto)
   const encargosAdicionais = Math.max(0, encargosFixos)
   const taxaMinimaPositiva = Math.max(0, taxaMinima)
