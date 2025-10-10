@@ -453,40 +453,6 @@ export default function App() {
     return valores
   }, [entradaFin, financiamentoFluxo])
 
-  const { kcAjustado, creditoMensal, margemMinima } = parcelasSolarInvest
-
-  const leasingMensalidades = useMemo(() => {
-    return Array.from({ length: leasingPrazo }, (_, i) => {
-      const ano = i + 1
-      const consumoReferencia = entradaModo === 'reduz_kc' ? kcAjustado : consumoMensal
-      const mensalidadeBase =
-        consumoReferencia * tarifaDescontadaAno(ano) + bandeiraValor + cipValor + encargos + taxaMinima
-      if (entradaModo === 'credito_linear') {
-        return Math.max(mensalidadeBase - creditoMensal, margemMinima)
-      }
-      return Math.max(mensalidadeBase, margemMinima)
-    })
-  }, [
-    bandeiraValor,
-    cipValor,
-    consumoMensal,
-    encargos,
-    creditoMensal,
-    entradaModo,
-    inflEnergia,
-    kcAjustado,
-    leasingPrazo,
-    margemMinima,
-    tarifaBase,
-    descontoPct,
-    taxaMinima,
-  ])
-
-  const financiamentoMensalidades = useMemo(() => {
-    const anos = Math.ceil(prazoFinMeses / 12)
-    return Array.from({ length: anos }, () => Math.abs(pmt))
-  }, [pmt, prazoFinMeses])
-
   const parcelasSolarInvest = useMemo(() => {
     const descontoDecimal = Math.max(0, Math.min(descontoPct / 100, 1))
     const inflacaoMensal = Math.pow(1 + inflEnergia / 100, 1 / 12) - 1
@@ -556,6 +522,40 @@ export default function App() {
     prazoContratoMeses,
     tarifaBase,
   ])
+
+  const { kcAjustado, creditoMensal, margemMinima } = parcelasSolarInvest
+
+  const leasingMensalidades = useMemo(() => {
+    return Array.from({ length: leasingPrazo }, (_, i) => {
+      const ano = i + 1
+      const consumoReferencia = entradaModo === 'reduz_kc' ? kcAjustado : consumoMensal
+      const mensalidadeBase =
+        consumoReferencia * tarifaDescontadaAno(ano) + bandeiraValor + cipValor + encargos + taxaMinima
+      if (entradaModo === 'credito_linear') {
+        return Math.max(mensalidadeBase - creditoMensal, margemMinima)
+      }
+      return Math.max(mensalidadeBase, margemMinima)
+    })
+  }, [
+    bandeiraValor,
+    cipValor,
+    consumoMensal,
+    encargos,
+    creditoMensal,
+    entradaModo,
+    inflEnergia,
+    kcAjustado,
+    leasingPrazo,
+    margemMinima,
+    tarifaBase,
+    descontoPct,
+    taxaMinima,
+  ])
+
+  const financiamentoMensalidades = useMemo(() => {
+    const anos = Math.ceil(prazoFinMeses / 12)
+    return Array.from({ length: anos }, () => Math.abs(pmt))
+  }, [pmt, prazoFinMeses])
 
   const chartData = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
