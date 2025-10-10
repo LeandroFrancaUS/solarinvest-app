@@ -308,15 +308,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('principal')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
-  const [ufTarifa, setUfTarifa] = useState('')
-  const [distribuidoraTarifa, setDistribuidoraTarifa] = useState('')
+  const [ufTarifa, setUfTarifa] = useState('GO')
+  const [distribuidoraTarifa, setDistribuidoraTarifa] = useState('Equatorial Goiás')
   const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(DISTRIBUIDORAS_FALLBACK.ufs)
   const [distribuidorasPorUf, setDistribuidorasPorUf] = useState<Record<string, string[]>>(
     DISTRIBUIDORAS_FALLBACK.distribuidorasPorUf,
   )
   const [mesReajuste, setMesReajuste] = useState(6)
 
-  const [kcKwhMes, setKcKwhMes] = useState(1200)
+  const [kcKwhMes, setKcKwhMes] = useState(0)
   const [tarifaCheia, setTarifaCheia] = useState(0.964)
   const [desconto, setDesconto] = useState(20)
   const [taxaMinima, setTaxaMinima] = useState(95)
@@ -354,7 +354,7 @@ export default function App() {
   const [jurosFinAa, setJurosFinAa] = useState(15)
   const [prazoFinMeses, setPrazoFinMeses] = useState(120)
   const [entradaFinPct, setEntradaFinPct] = useState(20)
-  const [mostrarFinanciamento, setMostrarFinanciamento] = useState(true)
+  const [mostrarFinanciamento, setMostrarFinanciamento] = useState(false)
   const [mostrarGrafico, setMostrarGrafico] = useState(true)
 
   const [prazoMeses, setPrazoMeses] = useState(60)
