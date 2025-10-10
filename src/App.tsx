@@ -434,7 +434,13 @@ export default function App() {
     return 'NONE'
   }, [entradaModo, entradaRs])
 
+  const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
+
   const simulationState = useMemo<SimulationState>(() => {
+    // Mantemos o valor de mercado (vm0) amarrado ao CAPEX calculado neste mesmo memo para
+    // evitar dependências de ordem que poderiam reaparecer em merges futuros. Assim garantimos
+    // uma única fonte de verdade entre a projeção principal e o fluxo de buyout.
+    const valorMercadoBase = Math.max(0, capex)
     const descontoDecimal = Math.max(0, Math.min(desconto / 100, 1))
     const inflacaoAnual = Math.max(-0.99, inflacaoAa / 100)
     return {
@@ -447,7 +453,7 @@ export default function App() {
       encargosFixos,
       entradaRs: Math.max(0, entradaRs),
       modoEntrada: modoEntradaNormalizado,
-      vm0: Math.max(0, vm0),
+      vm0: valorMercadoBase,
       depreciacaoAa: Math.max(0, depreciacaoAa / 100),
       ipcaAa: Math.max(0, ipcaAa / 100),
       inadimplenciaAa: Math.max(0, inadimplenciaAa / 100),
@@ -462,6 +468,7 @@ export default function App() {
     }
   }, [
     bandeiraEncargo,
+    capex,
     cashbackPct,
     cipEncargo,
     custosFixosM,
@@ -480,11 +487,12 @@ export default function App() {
     tarifaCheia,
     taxaMinima,
     tributosAa,
-    vm0,
     encargosFixosExtras,
     depreciacaoAa,
     duracaoMeses,
   ])
+
+  const vm0 = simulationState.vm0
 
   const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
   const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
@@ -492,18 +500,6 @@ export default function App() {
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
-
-  const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
-
-  const vm0 = useMemo(() => {
-    // O Valor de Mercado usado no buyout deve seguir exatamente a mesma lógica da tela principal
-    // (Valor de Mercado Estimado calculado automaticamente), evitando discrepâncias entre campos
-    // e mantendo o alinhamento com a planilha de referência.
-    // Ao centralizar o cálculo aqui, asseguramos que tanto os resumos exibidos na UI quanto
-    // componentes derivados (como o seguro indexado a esse valor) sejam atualizados em conjunto
-    // sempre que o CAPEX base se alterar.
-    return capex
-  }, [capex])
 
   const tarifaAno = (ano: number) => tarifaCheia * Math.pow(1 + inflacaoAa / 100, ano - 1)
   const tarifaDescontadaAno = (ano: number) => tarifaAno(ano) * (1 - desconto / 100)
