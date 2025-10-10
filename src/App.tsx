@@ -8,7 +8,7 @@ import {
   selectKcAjustado,
   selectMensalidades,
   selectTarifaDescontada,
-  selectValoresPorAno,
+  selectMensalidadesPorAno,
   SimulationState,
   BuyoutLinha,
 } from './selectors'
@@ -496,7 +496,7 @@ export default function App() {
 
   const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
   const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
-  const valoresPorAno = useMemo(() => selectValoresPorAno(simulationState), [simulationState])
+  const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
@@ -610,7 +610,7 @@ export default function App() {
     simulationState,
   ])
 
-  const leasingMensalidades = valoresPorAno
+  const leasingMensalidades = mensalidadesPorAno
 
   const chartData = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {

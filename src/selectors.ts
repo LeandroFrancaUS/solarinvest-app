@@ -67,7 +67,7 @@ export function selectMensalidades(state: SimulationState): number[] {
   )
 }
 
-export function selectValoresPorAno(state: SimulationState): number[] {
+export function selectMensalidadesPorAno(state: SimulationState): number[] {
   const mensalidades = selectMensalidades(state)
   if (mensalidades.length === 0) return []
 

@@ -75,7 +75,8 @@ export interface MensalidadeLiquidaInput {
 
 /**
  * Calcula a mensalidade líquida para o mês m.
- * Mantemos a regra de piso mínimo vs. consumo contratado para refletir o contrato.
+ * A projeção soma a energia contratada às margens fixas (taxa mínima + encargos)
+ * antes de considerar o eventual crédito da entrada.
  */
 export function mensalidadeLiquida({
   kcKwhMes,
@@ -97,10 +98,11 @@ export function mensalidadeLiquida({
       : Math.max(0, kcKwhMes)
 
   const tarifaComDesconto = tarifaDescontada(tarifaCheia, desconto, inflacaoAa, m)
-  const energiaComDesconto = kcContratado * tarifaComDesconto
-  const baseComEncargos = energiaComDesconto + Math.max(0, encargosFixos)
-  const piso = Math.max(0, taxaMinima)
-  const valorBase = Math.max(piso, baseComEncargos)
+  const energiaComDesconto = Math.max(0, kcContratado * tarifaComDesconto)
+  const encargosAdicionais = Math.max(0, encargosFixos)
+  const taxaMinimaPositiva = Math.max(0, taxaMinima)
+  const margemMinima = taxaMinimaPositiva + encargosAdicionais
+  const valorBase = energiaComDesconto + margemMinima
 
   const credito =
     modoEntrada === 'CREDITO'
