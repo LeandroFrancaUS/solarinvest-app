@@ -312,6 +312,26 @@ export default function App() {
   const [buyoutDuracao, setBuyoutDuracao] = useState(60)
 
   useEffect(() => {
+    const updateHeaderHeight = () => {
+      const header = document.querySelector<HTMLElement>('.app-header')
+      if (header) {
+        const { height } = header.getBoundingClientRect()
+        document.documentElement.style.setProperty('--header-h', `${Math.round(height)}px`)
+      }
+
+      const tabs = document.querySelector<HTMLElement>('.tabs-bar')
+      if (tabs) {
+        const { height } = tabs.getBoundingClientRect()
+        document.documentElement.style.setProperty('--tabs-h', `${Math.round(height)}px`)
+      }
+    }
+
+    updateHeaderHeight()
+    window.addEventListener('resize', updateHeaderHeight)
+    return () => window.removeEventListener('resize', updateHeaderHeight)
+  }, [])
+
+  useEffect(() => {
     const { body } = document
     if (!body) return
 
@@ -701,7 +721,7 @@ export default function App() {
         buyoutResumo={buyoutResumo}
         capex={capex}
       />
-      <header className="topbar">
+      <header className="topbar app-header">
         <div className="brand">
           <img src="/logo.svg" alt="SolarInvest" />
           <div className="brand-text">
@@ -714,14 +734,15 @@ export default function App() {
           <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
         </div>
       </header>
-      <nav className="tabs">
-        <button className={activeTab === 'principal' ? 'active' : ''} onClick={() => setActiveTab('principal')}>Principal</button>
-        <button className={activeTab === 'cliente' ? 'active' : ''} onClick={() => setActiveTab('cliente')}>Cliente</button>
-      </nav>
+      <div className="app-main">
+        <nav className="tabs tabs-bar">
+          <button className={activeTab === 'principal' ? 'active' : ''} onClick={() => setActiveTab('principal')}>Principal</button>
+          <button className={activeTab === 'cliente' ? 'active' : ''} onClick={() => setActiveTab('cliente')}>Cliente</button>
+        </nav>
 
-      <main className="content">
-        {activeTab === 'principal' ? (
-          <>
+        <main className="content page-content">
+          {activeTab === 'principal' ? (
+            <>
             <section className="card">
               <h2>Usina fotovoltaica</h2>
               <div className="grid g4">
@@ -1052,8 +1073,9 @@ export default function App() {
               </Field>
             </div>
           </section>
-        )}
-      </main>
+          )}
+        </main>
+      </div>
 
       {isSettingsOpen ? (
         <div className="modal" role="dialog" aria-modal="true">
