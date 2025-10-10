@@ -243,7 +243,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
 })
 
 const anosAnalise = 30
-const diasMesPadrao = 30
+const DIAS_MES_PADRAO = 30
 const painelOpcoes = [450, 500, 550, 600, 650, 700]
 const chartColors: Record<'Leasing' | 'Financiamento', string> = {
   Leasing: '#FF8C00',
@@ -298,6 +298,7 @@ export default function App() {
   const [precoPorKwp, setPrecoPorKwp] = useState(2470)
   const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
   const [eficiencia, setEficiencia] = useState(0.8)
+  const [diasMes, setDiasMes] = useState(DIAS_MES_PADRAO)
   const [inflacaoAa, setInflacaoAa] = useState(8)
 
   const [jurosFinAa, setJurosFinAa] = useState(15)
@@ -419,14 +420,21 @@ export default function App() {
   }, [eficiencia])
 
   const baseIrradiacao = useMemo(
-    () => irradiacao > 0 ? irradiacao : 0,
+    () => (irradiacao > 0 ? irradiacao : 0),
     [irradiacao],
   )
 
-  const fatorGeracao = useMemo(
-    () => baseIrradiacao * eficienciaNormalizada * diasMesPadrao,
-    [baseIrradiacao, eficienciaNormalizada],
+  const diasMesNormalizado = useMemo(
+    () => (diasMes > 0 ? diasMes : 0),
+    [diasMes],
   )
+
+  const fatorGeracao = useMemo(() => {
+    if (baseIrradiacao <= 0 || eficienciaNormalizada <= 0 || diasMesNormalizado <= 0) {
+      return 0
+    }
+    return baseIrradiacao * eficienciaNormalizada * diasMesNormalizado
+  }, [baseIrradiacao, eficienciaNormalizada, diasMesNormalizado])
 
   const numeroPlacasInformado = useMemo(() => {
     if (typeof numeroPlacasManual !== 'number') return null
@@ -451,14 +459,16 @@ export default function App() {
     return Math.max(1, Number.isFinite(calculado) ? calculado : 0)
   }, [numeroPlacasInformado, potenciaInstaladaKwp, potenciaPlaca])
 
-  const geracaoMensalKwh = useMemo(
-    () => potenciaInstaladaKwp * fatorGeracao,
-    [potenciaInstaladaKwp, fatorGeracao],
-  )
+  const geracaoMensalKwh = useMemo(() => {
+    if (potenciaInstaladaKwp <= 0 || fatorGeracao <= 0) {
+      return 0
+    }
+    return Math.round(potenciaInstaladaKwp * fatorGeracao)
+  }, [potenciaInstaladaKwp, fatorGeracao])
 
   const geracaoDiariaKwh = useMemo(
-    () => (geracaoMensalKwh > 0 ? geracaoMensalKwh / diasMesPadrao : 0),
-    [geracaoMensalKwh],
+    () => (geracaoMensalKwh > 0 && diasMesNormalizado > 0 ? geracaoMensalKwh / diasMesNormalizado : 0),
+    [geracaoMensalKwh, diasMesNormalizado],
   )
 
   const encargosFixos = useMemo(
@@ -1217,6 +1227,23 @@ export default function App() {
                         return
                       }
                       handleEficienciaInput(Number(e.target.value))
+                    }}
+                  />
+                </Field>
+                <Field label="Dias no mês (cálculo)">
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={diasMes > 0 ? diasMes : ''}
+                    onChange={(e) => {
+                      const { value } = e.target
+                      if (value === '') {
+                        setDiasMes(0)
+                        return
+                      }
+                      const parsed = Number(value)
+                      setDiasMes(Number.isFinite(parsed) ? parsed : 0)
                     }}
                   />
                 </Field>
