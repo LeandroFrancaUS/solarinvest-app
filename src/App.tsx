@@ -375,8 +375,9 @@ export default function App() {
       const ano = i + 1
       const tarifaCheia = tarifaAno(ano)
       const tarifaDescontada = tarifaDescontadaAno(ano)
-      const prestacao = ano <= leasingPrazo ? consumoMensal * tarifaDescontada + encargos : 0
-      const beneficio = 12 * ((consumoMensal * tarifaCheia - taxaMinima) - prestacao)
+      const custoSemSistema = consumoMensal * tarifaCheia + encargos + taxaMinima
+      const prestacao = ano <= leasingPrazo ? consumoMensal * tarifaDescontada + encargos + taxaMinima : 0
+      const beneficio = 12 * (custoSemSistema - prestacao)
       return beneficio
     })
   }, [consumoMensal, descontoPct, encargos, inflEnergia, leasingPrazo, tarifaBase, taxaMinima])
@@ -437,9 +438,9 @@ export default function App() {
   const leasingMensalidades = useMemo(() => {
     return Array.from({ length: leasingPrazo }, (_, i) => {
       const ano = i + 1
-      return consumoMensal * tarifaDescontadaAno(ano) + encargos
+      return consumoMensal * tarifaDescontadaAno(ano) + encargos + taxaMinima
     })
-  }, [consumoMensal, descontoPct, encargos, inflEnergia, leasingPrazo, tarifaBase])
+  }, [consumoMensal, descontoPct, encargos, inflEnergia, leasingPrazo, tarifaBase, taxaMinima])
 
   const financiamentoMensalidades = useMemo(() => {
     const anos = Math.ceil(prazoFinMeses / 12)
