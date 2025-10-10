@@ -482,11 +482,68 @@ export default function App() {
   }, [entradaFin, financiamentoFluxo])
 
   const leasingMensalidades = useMemo(() => {
-    return Array.from({ length: leasingPrazo }, (_, i) => {
-      const ano = i + 1
-      return consumoMensal * tarifaDescontadaAno(ano) + encargos + taxaMinima
-    })
-  }, [consumoMensal, descontoPct, encargos, inflEnergia, leasingPrazo, tarifaBase, taxaMinima])
+    const descontoDecimal = Math.max(0, Math.min(descontoPct / 100, 1))
+    const inflacaoMensal = Math.pow(1 + inflEnergia / 100, 1 / 12) - 1
+    const meses = Math.max(0, Math.floor(prazoContratoMeses))
+    if (meses === 0) return []
+
+    const encargosFixos = Math.max(0, bandeiraValor + cipValor + encargos)
+    const taxaMinimaNormalizada = Math.max(0, taxaMinima)
+
+    const denominadorReducao = consumoMensal * tarifaBase * (1 - descontoDecimal) * meses
+    const fracReducao =
+      entradaModoNormalizado === 'REDUZ' && denominadorReducao > 0
+        ? Math.min(1, Math.max(0, entradaValor / denominadorReducao))
+        : 0
+    const consumoAjustado = Math.max(0, consumoMensal * (1 - fracReducao))
+    const creditoMensal = entradaModoNormalizado === 'CREDITO' && meses > 0 ? entradaValor / meses : 0
+
+    const mensalidades: number[] = []
+    for (let mes = 1; mes <= meses; mes += 1) {
+      const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
+      const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
+
+      let base: number
+      if (entradaModoNormalizado === 'REDUZ') {
+        base = consumoAjustado * tarifaDescontada
+      } else {
+        base = consumoMensal * tarifaDescontada
+      }
+
+      let mensalidadeCalculada = base + encargosFixos
+      if (entradaModoNormalizado === 'CREDITO') {
+        mensalidadeCalculada -= creditoMensal
+      }
+
+      const mensalidadeLiquida = Math.max(taxaMinimaNormalizada, mensalidadeCalculada)
+      mensalidades.push(Number(mensalidadeLiquida.toFixed(2)))
+    }
+
+    const anos = Math.ceil(meses / 12)
+    const valoresPorAno: number[] = []
+    for (let ano = 0; ano < anos; ano += 1) {
+      const inicio = ano * 12
+      const fim = Math.min((ano + 1) * 12, mensalidades.length)
+      const chunk = mensalidades.slice(inicio, fim)
+      if (chunk.length === 0) continue
+      const media = chunk.reduce((acc, valor) => acc + valor, 0) / chunk.length
+      valoresPorAno.push(Number(media.toFixed(2)))
+    }
+
+    return valoresPorAno
+  }, [
+    bandeiraValor,
+    cipValor,
+    consumoMensal,
+    descontoPct,
+    encargos,
+    entradaModoNormalizado,
+    entradaValor,
+    inflEnergia,
+    prazoContratoMeses,
+    tarifaBase,
+    taxaMinima,
+  ])
 
   const financiamentoMensalidades = useMemo(() => {
     const anos = Math.ceil(prazoFinMeses / 12)
