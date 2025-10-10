@@ -12,9 +12,8 @@ import {
   SimulationState,
   BuyoutLinha,
 } from './selectors'
-import { EntradaModo, tarifaDescontada as tarifaDescontadaCalc, tarifaProjetadaCheia } from './utils/calcs'
+import { EntradaModo } from './utils/calcs'
 import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './utils/irradiacao'
-import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -274,10 +273,6 @@ const printStyles = `
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('principal')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const mesReferenciaRef = useRef(new Date().getMonth() + 1)
-  const [ufTarifa, setUfTarifa] = useState('')
-  const [distribuidoraTarifa, setDistribuidoraTarifa] = useState('')
-  const [mesReajuste, setMesReajuste] = useState(6)
 
   const [kcKwhMes, setKcKwhMes] = useState(1200)
   const [tarifaCheia, setTarifaCheia] = useState(0.964)
@@ -342,37 +337,6 @@ export default function App() {
   const [duracaoMeses, setDuracaoMeses] = useState(60)
   // Valor informado (ou calculado) de parcelas efetivamente pagas até o mês analisado, usado no crédito de cashback
   const [pagosAcumAteM, setPagosAcumAteM] = useState(0)
-
-  const mesReferencia = mesReferenciaRef.current
-
-  useEffect(() => {
-    let cancelado = false
-    const uf = ufTarifa.trim()
-    const dist = distribuidoraTarifa.trim()
-
-    if (!uf || !dist) {
-      setMesReajuste(6)
-      return () => {
-        cancelado = true
-      }
-    }
-
-    getMesReajusteFromANEEL(uf, dist)
-      .then((mes) => {
-        if (cancelado) return
-        const normalizado = Number.isFinite(mes) ? Math.round(mes) : 6
-        const ajustado = Math.min(Math.max(normalizado || 6, 1), 12)
-        setMesReajuste(ajustado)
-      })
-      .catch((error) => {
-        console.warn('[ANEEL] não foi possível atualizar mês de reajuste:', error)
-        if (!cancelado) setMesReajuste(6)
-      })
-
-    return () => {
-      cancelado = true
-    }
-  }, [distribuidoraTarifa, ufTarifa])
 
   useEffect(() => {
     const updateHeaderHeight = () => {
@@ -541,8 +505,6 @@ export default function App() {
       pagosAcumManual: Math.max(0, pagosAcumAteM),
       duracaoMeses: Math.max(0, Math.floor(duracaoMeses)),
       geracaoMensalKwh: Math.max(0, geracaoMensalKwh),
-      mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
-      mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
     }
   }, [
     bandeiraEncargo,
@@ -557,7 +519,6 @@ export default function App() {
     inadimplenciaAa,
     ipcaAa,
     kcKwhMes,
-    mesReajuste,
     modoEntradaNormalizado,
     opexM,
     pagosAcumAteM,
@@ -580,46 +541,20 @@ export default function App() {
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
 
-  const tarifaAno = (ano: number) =>
-    tarifaProjetadaCheia(
-      simulationState.tarifaCheia,
-      simulationState.inflacaoAa,
-      (ano - 1) * 12 + 1,
-      simulationState.mesReajuste,
-      simulationState.mesReferencia,
-    )
-  const tarifaDescontadaAno = (ano: number) =>
-    tarifaDescontadaCalc(
-      simulationState.tarifaCheia,
-      simulationState.desconto,
-      simulationState.inflacaoAa,
-      (ano - 1) * 12 + 1,
-      simulationState.mesReajuste,
-      simulationState.mesReferencia,
-    )
+  const tarifaAno = (ano: number) => tarifaCheia * Math.pow(1 + inflacaoAa / 100, ano - 1)
+  const tarifaDescontadaAno = (ano: number) => tarifaAno(ano) * (1 - desconto / 100)
 
   const leasingBeneficios = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
       const ano = i + 1
-      const tarifaCheiaProj = tarifaAno(ano)
-      const tarifaDescontadaProj = tarifaDescontadaAno(ano)
-      const custoSemSistema = kcKwhMes * tarifaCheiaProj + encargosFixos + taxaMinima
-      const prestacao = ano <= leasingPrazo ? kcKwhMes * tarifaDescontadaProj + encargosFixos + taxaMinima : 0
+      const tarifaCheia = tarifaAno(ano)
+      const tarifaDescontada = tarifaDescontadaAno(ano)
+      const custoSemSistema = kcKwhMes * tarifaCheia + encargosFixos + taxaMinima
+      const prestacao = ano <= leasingPrazo ? kcKwhMes * tarifaDescontada + encargosFixos + taxaMinima : 0
       const beneficio = 12 * (custoSemSistema - prestacao)
       return beneficio
     })
-  }, [
-    anosAnalise,
-    encargosFixos,
-    kcKwhMes,
-    leasingPrazo,
-    simulationState.desconto,
-    simulationState.inflacaoAa,
-    simulationState.mesReajuste,
-    simulationState.mesReferencia,
-    simulationState.tarifaCheia,
-    taxaMinima,
-  ])
+  }, [kcKwhMes, desconto, encargosFixos, inflacaoAa, leasingPrazo, tarifaCheia, taxaMinima])
 
   const leasingROI = useMemo(() => {
     const acc: number[] = []
@@ -684,13 +619,8 @@ export default function App() {
     let totalAcumulado = 0
     mensalidades.forEach((mensalidade, index) => {
       const mes = index + 1
-      const tarifaCheiaMes = tarifaProjetadaCheia(
-        simulationState.tarifaCheia,
-        simulationState.inflacaoAa,
-        mes,
-        simulationState.mesReajuste,
-        simulationState.mesReferencia,
-      )
+      const fatorCrescimento = Math.pow(1 + inflacaoMensal, Math.max(0, mes - 1))
+      const tarifaCheiaMes = simulationState.tarifaCheia * fatorCrescimento
       const tarifaDescontadaMes = selectTarifaDescontada(simulationState, mes)
       totalAcumulado += mensalidade
       lista.push({
@@ -988,20 +918,6 @@ export default function App() {
                     <option value={7}>7 anos</option>
                     <option value={10}>10 anos</option>
                   </select>
-                </Field>
-                <Field label="UF (ANEEL)">
-                  <input
-                    value={ufTarifa}
-                    onChange={(e) => setUfTarifa(e.target.value.toUpperCase())}
-                    placeholder="Ex.: GO"
-                  />
-                </Field>
-                <Field label="Distribuidora (ANEEL)">
-                  <input
-                    value={distribuidoraTarifa}
-                    onChange={(e) => setDistribuidoraTarifa(e.target.value)}
-                    placeholder="Ex.: Enel Goiás"
-                  />
                 </Field>
               </div>
             </section>
