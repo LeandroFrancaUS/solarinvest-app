@@ -70,7 +70,6 @@ type MensalidadeRow = {
   mes: number
   tarifaCheia: number
   tarifaDescontada: number
-  mensalidadeBruta: number
   mensalidadeLiquida: number
   totalAcumulado: number
 }
@@ -286,6 +285,7 @@ export default function App() {
   const [cipValor, setCipValor] = useState(0)
   const [entradaValor, setEntradaValor] = useState(0)
   const [entradaModo, setEntradaModo] = useState<EntradaModo>('credito_linear')
+  const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(false)
 
   const [oemBase, setOemBase] = useState(35)
   const [oemInflacao, setOemInflacao] = useState(4)
@@ -476,7 +476,6 @@ export default function App() {
       for (let mes = 1; mes <= meses; mes += 1) {
         const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
         const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
-        const mensalidadeBruta = consumoMensal * tarifaDescontada
         const kcReferencia = entradaModo === 'reduz_kc' ? kcAjustado : consumoMensal
         const baseComEncargos = kcReferencia * tarifaDescontada + bandeiraValor + cipValor
         const comEntrada = Math.max(0, baseComEncargos - creditoMensal)
@@ -486,7 +485,6 @@ export default function App() {
           mes,
           tarifaCheia,
           tarifaDescontada,
-          mensalidadeBruta,
           mensalidadeLiquida,
           totalAcumulado,
         })
@@ -808,36 +806,47 @@ export default function App() {
                 ) : null}
               </div>
 
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Mês</th>
-                      <th>Tarifa projetada (R$/kWh)</th>
-                      <th>Tarifa c/ desconto (R$/kWh)</th>
-                      <th>Mensalidade bruta</th>
-                      <th>Mensalidade líquida</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parcelasSolarInvest.lista.length > 0 ? (
-                      parcelasSolarInvest.lista.map((row) => (
-                        <tr key={row.mes}>
-                          <td>{row.mes}</td>
-                          <td>{currency(row.tarifaCheia)}</td>
-                          <td>{currency(row.tarifaDescontada)}</td>
-                          <td>{currency(row.mensalidadeBruta)}</td>
-                          <td>{currency(row.mensalidadeLiquida)}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={5} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+              <div className="table-controls">
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  onClick={() => setMostrarTabelaParcelas((prev) => !prev)}
+                  aria-expanded={mostrarTabelaParcelas}
+                  aria-controls="parcelas-solarinvest-tabela"
+                >
+                  {mostrarTabelaParcelas ? 'Ocultar tabela de parcelas' : 'Exibir tabela de parcelas'}
+                </button>
               </div>
+              {mostrarTabelaParcelas ? (
+                <div className="table-wrapper">
+                  <table id="parcelas-solarinvest-tabela">
+                    <thead>
+                      <tr>
+                        <th>Mês</th>
+                        <th>Tarifa projetada (R$/kWh)</th>
+                        <th>Tarifa c/ desconto (R$/kWh)</th>
+                        <th>Mensalidade líquida</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parcelasSolarInvest.lista.length > 0 ? (
+                        parcelasSolarInvest.lista.map((row) => (
+                          <tr key={row.mes}>
+                            <td>{row.mes}</td>
+                            <td>{currency(row.tarifaCheia)}</td>
+                            <td>{currency(row.tarifaDescontada)}</td>
+                            <td>{currency(row.mensalidadeLiquida)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
             </section>
 
             <section className="card">
