@@ -511,6 +511,19 @@ export default function App() {
     }
     setEficiencia(valor)
   }
+
+  const handleNumeroPlacasManualChange = (value: string) => {
+    if (value === '') {
+      setNumeroPlacasManual('')
+      return
+    }
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setNumeroPlacasManual('')
+      return
+    }
+    setNumeroPlacasManual(parsed)
+  }
   const handlePrint = () => {
     const node = printableRef.current
     if (!node) return
@@ -600,62 +613,43 @@ export default function App() {
         {activeTab === 'principal' ? (
           <>
             <section className="card">
-              <h2>Parâmetros principais</h2>
+              <div className="card-header">
+                <h2>Parâmetros principais</h2>
+                <span className="muted">Valores confidenciais — edite em Configurações.</span>
+              </div>
               <div className="grid g3">
-                <Field label="Consumo (kWh/mês)">
-                  <input type="number" value={consumoMensal} onChange={(e) => setConsumoMensal(Number(e.target.value) || 0)} />
+                <Field label="Consumo (kWh/mês)" hint="Disponível para edição nas configurações.">
+                  <span className="masked-value">Oculto</span>
                 </Field>
-                <Field label="Tarifa cheia (R$/kWh)">
-                  <input type="number" step="0.001" value={tarifaBase} onChange={(e) => setTarifaBase(Number(e.target.value) || 0)} />
+                <Field label="Tarifa cheia (R$/kWh)" hint="Disponível para edição nas configurações.">
+                  <span className="masked-value">Oculto</span>
                 </Field>
-                <Field label="Desconto contratual (%)">
-                  <input type="number" step="0.1" value={descontoPct} onChange={(e) => setDescontoPct(Number(e.target.value) || 0)} />
+                <Field label="Desconto contratual (%)" hint="Disponível para edição nas configurações.">
+                  <span className="masked-value">Oculto</span>
                 </Field>
-                <Field label="Taxa mínima (R$/mês)">
-                  <input type="number" value={taxaMinima} onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)} />
+                <Field label="Taxa mínima (R$/mês)" hint="Disponível para edição nas configurações.">
+                  <span className="masked-value">Oculto</span>
                 </Field>
-                <Field label="Encargos adicionais (R$/mês)">
-                  <input type="number" value={encargos} onChange={(e) => setEncargos(Number(e.target.value) || 0)} />
+                <Field label="Encargos adicionais (R$/mês)" hint="Disponível para edição nas configurações.">
+                  <span className="masked-value">Oculto</span>
                 </Field>
-                <Field label="Prazo do leasing">
-                  <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
-                    <option value={5}>5 anos</option>
-                    <option value={7}>7 anos</option>
-                    <option value={10}>10 anos</option>
-                  </select>
+                <Field label="Prazo do leasing" hint="Disponível para edição nas configurações.">
+                  <span className="masked-value">Oculto</span>
                 </Field>
               </div>
             </section>
 
             <section className="card">
-              <h2>Usina fotovoltaica</h2>
-              <div className="grid g4">
-                <Field label="Potência da placa (Wp)">
-                  <select value={potenciaPlaca} onChange={(e) => setPotenciaPlaca(Number(e.target.value))}>
-                    {painelOpcoes.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
+              <div className="card-header">
+                <h2>Usina fotovoltaica</h2>
+                <span className="muted">Configurações internas ocultas.</span>
+              </div>
+              <div className="grid g3">
+                <Field label="Potência da placa (Wp)" hint="Ajuste nas configurações.">
+                  <span className="masked-value">Oculto</span>
                 </Field>
-                <Field label="Nº de placas informado (opcional)">
-                  <input
-                    type="number"
-                    min={1}
-                    value={numeroPlacasManual === '' ? '' : numeroPlacasManual}
-                    onChange={(e) => {
-                      const { value } = e.target
-                      if (value === '') {
-                        setNumeroPlacasManual('')
-                        return
-                      }
-                      const parsed = Number(value)
-                      if (!Number.isFinite(parsed) || parsed <= 0) {
-                        setNumeroPlacasManual('')
-                        return
-                      }
-                      setNumeroPlacasManual(parsed)
-                    }}
-                  />
+                <Field label="Nº de placas informado (opcional)" hint="Ajuste nas configurações.">
+                  <span className="masked-value">Oculto</span>
                 </Field>
                 <Field label="Nº de placas (calculado)">
                   <input readOnly value={numeroPlacasCalculado} />
@@ -668,8 +662,8 @@ export default function App() {
                 </Field>
               </div>
               <div className="info-inline">
-                <span className="pill">Valor de Mercado Estimado: <strong>{currency(capex)}</strong></span>
-                <span className="pill">Consumo diário: <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong></span>
+                <span className="pill">Valor de Mercado Estimado: <strong className="masked-inline">Oculto</strong></span>
+                <span className="pill">Consumo diário: <strong className="masked-inline">Oculto</strong></span>
               </div>
             </section>
 
@@ -840,6 +834,51 @@ export default function App() {
               <button className="icon" onClick={() => setIsSettingsOpen(false)}>✕</button>
             </div>
             <div className="modal-body">
+              <h4>Parâmetros principais</h4>
+              <div className="grid g3">
+                <Field label="Consumo (kWh/mês)">
+                  <input type="number" value={consumoMensal} onChange={(e) => setConsumoMensal(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Tarifa cheia (R$/kWh)">
+                  <input type="number" step="0.001" value={tarifaBase} onChange={(e) => setTarifaBase(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Desconto contratual (%)">
+                  <input type="number" step="0.1" value={descontoPct} onChange={(e) => setDescontoPct(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Taxa mínima (R$/mês)">
+                  <input type="number" value={taxaMinima} onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Encargos adicionais (R$/mês)">
+                  <input type="number" value={encargos} onChange={(e) => setEncargos(Number(e.target.value) || 0)} />
+                </Field>
+                <Field label="Prazo do leasing">
+                  <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
+                    <option value={5}>5 anos</option>
+                    <option value={7}>7 anos</option>
+                    <option value={10}>10 anos</option>
+                  </select>
+                </Field>
+              </div>
+
+              <h4>Usina fotovoltaica</h4>
+              <div className="grid g3">
+                <Field label="Potência da placa (Wp)">
+                  <select value={potenciaPlaca} onChange={(e) => setPotenciaPlaca(Number(e.target.value))}>
+                    {painelOpcoes.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Nº de placas informado (opcional)">
+                  <input
+                    type="number"
+                    min={1}
+                    value={numeroPlacasManual === '' ? '' : numeroPlacasManual}
+                    onChange={(e) => handleNumeroPlacasManualChange(e.target.value)}
+                  />
+                </Field>
+              </div>
+
               <h4>Mercado & energia</h4>
               <div className="grid g2">
                 <Field label="Inflação energética (%)">
