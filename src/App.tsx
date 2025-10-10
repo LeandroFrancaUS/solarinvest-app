@@ -1133,6 +1133,12 @@ export default function App() {
                     ))}
                   </select>
                 </Field>
+                <Field
+                  label="Irradiação média (kWh/m²/dia)"
+                  hint="Atualizado automaticamente conforme a UF ou distribuidora selecionada."
+                >
+                  <input readOnly value={baseIrradiacao > 0 ? baseIrradiacao.toFixed(2) : '—'} />
+                </Field>
               </div>
             </section>
 
