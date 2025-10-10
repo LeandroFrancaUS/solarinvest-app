@@ -12,8 +12,10 @@ import {
   SimulationState,
   BuyoutLinha,
 } from './selectors'
-import { EntradaModo } from './utils/calcs'
+import { EntradaModo, tarifaDescontada as tarifaDescontadaCalc, tarifaProjetadaCheia } from './utils/calcs'
 import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './utils/irradiacao'
+import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
+import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -34,6 +36,37 @@ const formatAxis = (v: number) => {
   if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
   if (abs >= 10_000) return `${Math.round(v / 1000)}k`
   return currency(v)
+}
+
+const DISTRIBUIDORAS_FALLBACK = getDistribuidorasFallback()
+const UF_LABELS: Record<string, string> = {
+  AC: 'Acre',
+  AL: 'Alagoas',
+  AM: 'Amazonas',
+  AP: 'Amapá',
+  BA: 'Bahia',
+  CE: 'Ceará',
+  DF: 'Distrito Federal',
+  ES: 'Espírito Santo',
+  GO: 'Goiás',
+  MA: 'Maranhão',
+  MG: 'Minas Gerais',
+  MS: 'Mato Grosso do Sul',
+  MT: 'Mato Grosso',
+  PA: 'Pará',
+  PB: 'Paraíba',
+  PE: 'Pernambuco',
+  PI: 'Piauí',
+  PR: 'Paraná',
+  RJ: 'Rio de Janeiro',
+  RN: 'Rio Grande do Norte',
+  RO: 'Rondônia',
+  RR: 'Roraima',
+  RS: 'Rio Grande do Sul',
+  SC: 'Santa Catarina',
+  SE: 'Sergipe',
+  SP: 'São Paulo',
+  TO: 'Tocantins',
 }
 
 type TabKey = 'principal' | 'cliente'
@@ -273,6 +306,14 @@ const printStyles = `
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('principal')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const mesReferenciaRef = useRef(new Date().getMonth() + 1)
+  const [ufTarifa, setUfTarifa] = useState('')
+  const [distribuidoraTarifa, setDistribuidoraTarifa] = useState('')
+  const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(DISTRIBUIDORAS_FALLBACK.ufs)
+  const [distribuidorasPorUf, setDistribuidorasPorUf] = useState<Record<string, string[]>>(
+    DISTRIBUIDORAS_FALLBACK.distribuidorasPorUf,
+  )
+  const [mesReajuste, setMesReajuste] = useState(6)
 
   const [kcKwhMes, setKcKwhMes] = useState(1200)
   const [tarifaCheia, setTarifaCheia] = useState(0.964)
@@ -294,6 +335,13 @@ export default function App() {
     cidade: '',
     uf: '',
   })
+
+  const distribuidorasDisponiveis = useMemo(() => {
+    if (!ufTarifa) return [] as string[]
+    return distribuidorasPorUf[ufTarifa] ?? []
+  }, [distribuidorasPorUf, ufTarifa])
+
+  const clienteUf = cliente.uf
 
   const [precoPorKwp, setPrecoPorKwp] = useState(2470)
   const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
@@ -339,6 +387,66 @@ export default function App() {
   // Valor informado (ou calculado) de parcelas efetivamente pagas até o mês analisado, usado no crédito de cashback
   const [pagosAcumAteM, setPagosAcumAteM] = useState(0)
 
+  const mesReferencia = mesReferenciaRef.current
+
+  useEffect(() => {
+    let cancelado = false
+    const uf = ufTarifa.trim()
+    const dist = distribuidoraTarifa.trim()
+
+    if (!uf || !dist) {
+      setMesReajuste(6)
+      return () => {
+        cancelado = true
+      }
+    }
+
+    getMesReajusteFromANEEL(uf, dist)
+      .then((mes) => {
+        if (cancelado) return
+        const normalizado = Number.isFinite(mes) ? Math.round(mes) : 6
+        const ajustado = Math.min(Math.max(normalizado || 6, 1), 12)
+        setMesReajuste(ajustado)
+      })
+      .catch((error) => {
+        console.warn('[ANEEL] não foi possível atualizar mês de reajuste:', error)
+        if (!cancelado) setMesReajuste(6)
+      })
+
+    return () => {
+      cancelado = true
+    }
+  }, [distribuidoraTarifa, ufTarifa])
+
+  useEffect(() => {
+    let cancelado = false
+
+    loadDistribuidorasAneel()
+      .then((dados) => {
+        if (cancelado) return
+        setUfsDisponiveis(dados.ufs)
+        setDistribuidorasPorUf(dados.distribuidorasPorUf)
+      })
+      .catch((error) => {
+        console.warn('[ANEEL] não foi possível atualizar lista de distribuidoras:', error)
+      })
+
+    return () => {
+      cancelado = true
+    }
+  }, [])
+
+  useEffect(() => {
+    setDistribuidoraTarifa((atual) => {
+      if (!ufTarifa) return ''
+      const lista = distribuidorasPorUf[ufTarifa] ?? []
+      if (lista.length === 1) {
+        return lista[0]
+      }
+      return lista.includes(atual) ? atual : ''
+    })
+  }, [distribuidorasPorUf, ufTarifa])
+
   useEffect(() => {
     const updateHeaderHeight = () => {
       const header = document.querySelector<HTMLElement>('.app-header')
@@ -360,7 +468,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const estadoAtual = cliente.uf?.trim() ?? ''
+    const estadoAtual = (ufTarifa || clienteUf || '').trim()
     if (!estadoAtual) {
       setIrradiacao(IRRADIACAO_FALLBACK)
       return
@@ -396,7 +504,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [cliente.uf])
+  }, [clienteUf, ufTarifa])
 
   useEffect(() => {
     const { body } = document
@@ -515,6 +623,8 @@ export default function App() {
       pagosAcumManual: Math.max(0, pagosAcumAteM),
       duracaoMeses: Math.max(0, Math.floor(duracaoMeses)),
       geracaoMensalKwh: Math.max(0, geracaoMensalKwh),
+      mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
+      mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
     }
   }, [
     bandeiraEncargo,
@@ -529,6 +639,7 @@ export default function App() {
     inadimplenciaAa,
     ipcaAa,
     kcKwhMes,
+    mesReajuste,
     modoEntradaNormalizado,
     opexM,
     pagosAcumAteM,
@@ -551,20 +662,46 @@ export default function App() {
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
 
-  const tarifaAno = (ano: number) => tarifaCheia * Math.pow(1 + inflacaoAa / 100, ano - 1)
-  const tarifaDescontadaAno = (ano: number) => tarifaAno(ano) * (1 - desconto / 100)
+  const tarifaAno = (ano: number) =>
+    tarifaProjetadaCheia(
+      simulationState.tarifaCheia,
+      simulationState.inflacaoAa,
+      (ano - 1) * 12 + 1,
+      simulationState.mesReajuste,
+      simulationState.mesReferencia,
+    )
+  const tarifaDescontadaAno = (ano: number) =>
+    tarifaDescontadaCalc(
+      simulationState.tarifaCheia,
+      simulationState.desconto,
+      simulationState.inflacaoAa,
+      (ano - 1) * 12 + 1,
+      simulationState.mesReajuste,
+      simulationState.mesReferencia,
+    )
 
   const leasingBeneficios = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
       const ano = i + 1
-      const tarifaCheia = tarifaAno(ano)
-      const tarifaDescontada = tarifaDescontadaAno(ano)
-      const custoSemSistema = kcKwhMes * tarifaCheia + encargosFixos + taxaMinima
-      const prestacao = ano <= leasingPrazo ? kcKwhMes * tarifaDescontada + encargosFixos + taxaMinima : 0
+      const tarifaCheiaProj = tarifaAno(ano)
+      const tarifaDescontadaProj = tarifaDescontadaAno(ano)
+      const custoSemSistema = kcKwhMes * tarifaCheiaProj + encargosFixos + taxaMinima
+      const prestacao = ano <= leasingPrazo ? kcKwhMes * tarifaDescontadaProj + encargosFixos + taxaMinima : 0
       const beneficio = 12 * (custoSemSistema - prestacao)
       return beneficio
     })
-  }, [kcKwhMes, desconto, encargosFixos, inflacaoAa, leasingPrazo, tarifaCheia, taxaMinima])
+  }, [
+    anosAnalise,
+    encargosFixos,
+    kcKwhMes,
+    leasingPrazo,
+    simulationState.desconto,
+    simulationState.inflacaoAa,
+    simulationState.mesReajuste,
+    simulationState.mesReferencia,
+    simulationState.tarifaCheia,
+    taxaMinima,
+  ])
 
   const leasingROI = useMemo(() => {
     const acc: number[] = []
@@ -629,8 +766,13 @@ export default function App() {
     let totalAcumulado = 0
     mensalidades.forEach((mensalidade, index) => {
       const mes = index + 1
-      const fatorCrescimento = Math.pow(1 + inflacaoMensal, Math.max(0, mes - 1))
-      const tarifaCheiaMes = simulationState.tarifaCheia * fatorCrescimento
+      const tarifaCheiaMes = tarifaProjetadaCheia(
+        simulationState.tarifaCheia,
+        simulationState.inflacaoAa,
+        mes,
+        simulationState.mesReajuste,
+        simulationState.mesReferencia,
+      )
       const tarifaDescontadaMes = selectTarifaDescontada(simulationState, mes)
       totalAcumulado += mensalidade
       lista.push({
@@ -927,6 +1069,35 @@ export default function App() {
                     <option value={5}>5 anos</option>
                     <option value={7}>7 anos</option>
                     <option value={10}>10 anos</option>
+                  </select>
+                </Field>
+                <Field label="UF (ANEEL)">
+                  <select
+                    value={ufTarifa}
+                    onChange={(e) => setUfTarifa(e.target.value)}
+                  >
+                    <option value="">Selecione a UF</option>
+                    {ufsDisponiveis.map((uf) => (
+                      <option key={uf} value={uf}>
+                        {uf} — {UF_LABELS[uf] ?? uf}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Distribuidora (ANEEL)">
+                  <select
+                    value={distribuidoraTarifa}
+                    onChange={(e) => setDistribuidoraTarifa(e.target.value)}
+                    disabled={!ufTarifa || distribuidorasDisponiveis.length === 0}
+                  >
+                    <option value="">
+                      {ufTarifa ? 'Selecione a distribuidora' : 'Selecione a UF'}
+                    </option>
+                    {distribuidorasDisponiveis.map((nome) => (
+                      <option key={nome} value={nome}>
+                        {nome}
+                      </option>
+                    ))}
                   </select>
                 </Field>
               </div>
