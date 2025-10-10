@@ -4,6 +4,16 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Re
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
 
+const tarifaCurrency = (v: number) =>
+  Number.isFinite(v)
+    ? v.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3,
+      })
+    : 'R$\u00a00,000'
+
 const formatAxis = (v: number) => {
   const abs = Math.abs(v)
   if (abs >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}B`
@@ -180,7 +190,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               .map((row) => (
                 <tr key={row.mes}>
                   <td>{row.mes}</td>
-                  <td>{currency(row.tarifa)}</td>
+                  <td>{tarifaCurrency(row.tarifa)}</td>
                   <td>{currency(row.prestacaoEfetiva)}</td>
                   <td>{currency(row.prestacaoAcum)}</td>
                   <td>{currency(row.cashback)}</td>
@@ -851,7 +861,7 @@ export default function App() {
 
               <div className="info-inline">
                 <span className="pill">
-                  Tarifa c/ desconto: <strong>{currency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
+                  Tarifa c/ desconto: <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
                 </span>
                 {entradaModoNormalizado === 'REDUZ' ? (
                   <span className="pill">
@@ -898,8 +908,8 @@ export default function App() {
                         parcelasSolarInvest.lista.map((row) => (
                           <tr key={row.mes}>
                             <td>{row.mes}</td>
-                            <td>{currency(row.tarifaCheia)}</td>
-                            <td>{currency(row.tarifaDescontada)}</td>
+                            <td>{tarifaCurrency(row.tarifaCheia)}</td>
+                            <td>{tarifaCurrency(row.tarifaDescontada)}</td>
                             <td>{currency(row.mensalidade)}</td>
                           </tr>
                         ))
@@ -1030,7 +1040,7 @@ export default function App() {
                         .map((row) => (
                           <tr key={row.mes}>
                             <td>{row.mes}</td>
-                            <td>{currency(row.tarifa)}</td>
+                            <td>{tarifaCurrency(row.tarifa)}</td>
                             <td>{currency(row.prestacaoEfetiva)}</td>
                             <td>{currency(row.cashback)}</td>
                             <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
