@@ -16,7 +16,7 @@ type TabKey = 'principal' | 'cliente'
 
 type SeguroModo = 'A' | 'B'
 
-type EntradaModo = 'reduz_kc' | 'credito_linear'
+type EntradaModo = 'Crédito mensal' | 'Reduz piso contratado'
 
 type ClienteDados = {
   nome: string
@@ -70,7 +70,7 @@ type MensalidadeRow = {
   mes: number
   tarifaCheia: number
   tarifaDescontada: number
-  mensalidadeLiquida: number
+  mensalidade: number
   totalAcumulado: number
 }
 
@@ -284,7 +284,7 @@ export default function App() {
   const [bandeiraValor, setBandeiraValor] = useState(0)
   const [cipValor, setCipValor] = useState(0)
   const [entradaValor, setEntradaValor] = useState(0)
-  const [entradaModo, setEntradaModo] = useState<EntradaModo>('credito_linear')
+  const [entradaModo, setEntradaModo] = useState<EntradaModo>('Crédito mensal')
   const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(false)
   const [mostrarTabelaBuyout, setMostrarTabelaBuyout] = useState(false)
   const [mostrarTabelaParcelasConfig, setMostrarTabelaParcelasConfig] = useState(false)
@@ -400,6 +400,14 @@ export default function App() {
     })
   }, [consumoMensal, descontoPct, encargos, inflEnergia, leasingPrazo, tarifaBase, taxaMinima])
 
+  const entradaModoNormalizado = useMemo<'CREDITO' | 'REDUZ' | 'NONE'>(() => {
+    const label = (entradaModo ?? '').toLowerCase().trim()
+    if (!entradaValor || entradaValor <= 0) return 'NONE'
+    if (label === 'crédito mensal' || label === 'credito mensal') return 'CREDITO'
+    if (label === 'reduz piso contratado') return 'REDUZ'
+    return 'NONE'
+  }, [entradaModo, entradaValor])
+
   const leasingROI = useMemo(() => {
     const acc: number[] = []
     let acumulado = 0
@@ -470,23 +478,20 @@ export default function App() {
     const inflacaoMensal = Math.pow(1 + inflEnergia / 100, 1 / 12) - 1
     const meses = Math.max(0, Math.floor(prazoContratoMeses))
     const tarifaDescontadaBase = tarifaBase * (1 - descontoDecimal)
-    const mensalidadeSemEntrada = consumoMensal * tarifaDescontadaBase
-    const mensalidadeTotalSemEntrada = mensalidadeSemEntrada + bandeiraValor + cipValor
-    const margemMinima = 0.15 * (consumoMensal * tarifaBase)
+    const encargosFixos = Math.max(0, bandeiraValor + cipValor + encargos)
 
-    let fatorReducao = 1
-    if (entradaModo === 'reduz_kc' && entradaValor > 0 && consumoMensal > 0 && tarifaDescontadaBase > 0 && meses > 0) {
-      const denominador = consumoMensal * tarifaDescontadaBase * meses
-      if (denominador > 0) {
-        const bruto = 1 - entradaValor / denominador
-        if (Number.isFinite(bruto)) {
-          fatorReducao = Math.min(1, Math.max(0, bruto))
-        }
-      }
-    }
+    const mensalidadeSemEntradaBruta = consumoMensal * tarifaDescontadaBase + encargosFixos
+    const mensalidadeSemEntrada = Math.max(taxaMinima, mensalidadeSemEntradaBruta)
+    const mensalidadeTotalSemEntrada = mensalidadeSemEntradaBruta
+    const margemMinima = taxaMinima
 
-    const kcAjustado = consumoMensal * fatorReducao
-    const creditoMensal = entradaModo === 'credito_linear' && meses > 0 ? entradaValor / meses : 0
+    const denominadorReducao = consumoMensal * tarifaBase * (1 - descontoDecimal) * meses
+    const fracReducao =
+      entradaModoNormalizado === 'REDUZ' && denominadorReducao > 0
+        ? Math.min(1, Math.max(0, entradaValor / denominadorReducao))
+        : 0
+    const kcAjustado = Math.max(0, consumoMensal * (1 - fracReducao))
+    const creditoMensal = entradaModoNormalizado === 'CREDITO' && meses > 0 ? entradaValor / meses : 0
 
     const lista: MensalidadeRow[] = []
     if (meses > 0) {
@@ -494,17 +499,24 @@ export default function App() {
       for (let mes = 1; mes <= meses; mes += 1) {
         const tarifaCheia = tarifaBase * Math.pow(1 + inflacaoMensal, mes - 1)
         const tarifaDescontada = tarifaCheia * (1 - descontoDecimal)
-        const kcReferencia = entradaModo === 'reduz_kc' ? kcAjustado : consumoMensal
-        const baseComEncargos = kcReferencia * tarifaDescontada + bandeiraValor + cipValor
-        const comEntrada = Math.max(0, baseComEncargos - creditoMensal)
-        const mensalidadeLiquida = Math.max(comEntrada, margemMinima)
+
+        let mensalidadeCalculada: number
+        if (entradaModoNormalizado === 'REDUZ') {
+          mensalidadeCalculada = kcAjustado * tarifaDescontada + encargosFixos
+        } else if (entradaModoNormalizado === 'CREDITO') {
+          mensalidadeCalculada = consumoMensal * tarifaDescontada + encargosFixos - creditoMensal
+        } else {
+          mensalidadeCalculada = consumoMensal * tarifaDescontada + encargosFixos
+        }
+
+        const mensalidadeLiquida = Math.max(taxaMinima, mensalidadeCalculada)
         totalAcumulado += mensalidadeLiquida
         lista.push({
           mes,
           tarifaCheia,
           tarifaDescontada,
-          mensalidadeLiquida,
-          totalAcumulado,
+          mensalidade: Number(mensalidadeLiquida.toFixed(2)),
+          totalAcumulado: Number(totalAcumulado.toFixed(2)),
         })
       }
     }
@@ -528,11 +540,13 @@ export default function App() {
     cipValor,
     consumoMensal,
     descontoPct,
-    entradaModo,
+    encargos,
+    entradaModoNormalizado,
     entradaValor,
     inflEnergia,
     prazoContratoMeses,
     tarifaBase,
+    taxaMinima,
   ])
 
   const chartData = useMemo(() => {
@@ -816,7 +830,7 @@ export default function App() {
                 <span className="pill">
                   Mensalidade total sem entrada: <strong>{currency(parcelasSolarInvest.mensalidadeTotalSemEntrada)}</strong>
                 </span>
-                {entradaModo === 'reduz_kc' ? (
+                {entradaModoNormalizado === 'REDUZ' ? (
                   <span className="pill">
                     Piso contratado ajustado:{' '}
                     <strong>
@@ -827,7 +841,7 @@ export default function App() {
                     </strong>
                   </span>
                 ) : null}
-                {entradaModo === 'credito_linear' && entradaValor > 0 ? (
+                {entradaModoNormalizado === 'CREDITO' ? (
                   <span className="pill">
                     Crédito mensal da entrada: <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
                   </span>
@@ -863,7 +877,7 @@ export default function App() {
                             <td>{row.mes}</td>
                             <td>{currency(row.tarifaCheia)}</td>
                             <td>{currency(row.tarifaDescontada)}</td>
-                            <td>{currency(row.mensalidadeLiquida)}</td>
+                            <td>{currency(row.mensalidade)}</td>
                           </tr>
                         ))
                       ) : (
@@ -1122,8 +1136,8 @@ export default function App() {
                 </Field>
                 <Field label="Uso da entrada">
                   <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModo)}>
-                    <option value="credito_linear">Crédito mensal linear</option>
-                    <option value="reduz_kc">Reduz piso contratado</option>
+                    <option value="Crédito mensal">Crédito mensal</option>
+                    <option value="Reduz piso contratado">Reduz piso contratado</option>
                   </select>
                 </Field>
               </div>
