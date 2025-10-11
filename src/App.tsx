@@ -21,11 +21,6 @@ import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/dist
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
 
-const percentage = (v: number) =>
-  Number.isFinite(v)
-    ? v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-    : '0'
-
 const tarifaCurrency = (v: number) =>
   Number.isFinite(v)
     ? v.toLocaleString('pt-BR', {
@@ -127,7 +122,10 @@ type PrintableProps = {
   tabelaBuyout: BuyoutRow[]
   buyoutResumo: BuyoutResumo
   capex: number
-  desconto: number
+  geracaoMensalKwh: number
+  potenciaPlaca: number
+  numeroPlacas: number
+  potenciaInstaladaKwp: number
 }
 
 type MensalidadeRow = {
@@ -159,7 +157,10 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     tabelaBuyout,
     buyoutResumo,
     capex,
-    desconto,
+    geracaoMensalKwh,
+    potenciaPlaca,
+    numeroPlacas,
+    potenciaInstaladaKwp,
   },
   ref,
 ) {
@@ -256,11 +257,12 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       </section>
 
       <section className="print-section">
-        <h2>Compra antecipada</h2>
+        <h2>Tabela para Compra Antecipada</h2>
         <table>
           <thead>
             <tr>
               <th>Mês</th>
+              <th>Cashback</th>
               <th>Valor de compra</th>
             </tr>
           </thead>
@@ -270,11 +272,13 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               .map((row) => (
                 <tr key={row.mes}>
                   <td>{row.mes}</td>
+                  <td>{currency(row.cashback)}</td>
                   <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
                 </tr>
               ))}
             <tr key={mesAceiteFinal}>
-              <td>{mesAceiteFinal} (Aceite final)</td>
+              <td>{mesAceiteFinal}</td>
+              <td>Aceite final</td>
               <td>{currency(0)}</td>
             </tr>
           </tbody>
@@ -282,8 +286,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <div className="print-notes">
           <p><strong>Informações adicionais:</strong></p>
           <ul>
-            <li>Valor de mercado: {currency(buyoutResumo.vm0)}</li>
-            <li>DESCONTO CONTRATUAL (%): {percentage(desconto)}</li>
+            <li>Valor de mercado: {currency(buyoutResumo.vm0)} • Cashback: {buyoutResumo.cashbackPct}%</li>
             <li>Duração contratual: {buyoutResumo.duracao} meses</li>
           </ul>
         </div>
@@ -1040,7 +1043,10 @@ export default function App() {
         tabelaBuyout={tabelaBuyout}
         buyoutResumo={buyoutResumo}
         capex={capex}
-        desconto={desconto}
+        geracaoMensalKwh={geracaoMensalKwh}
+        potenciaPlaca={potenciaPlaca}
+        numeroPlacas={numeroPlacasCalculado}
+        potenciaInstaladaKwp={potenciaInstaladaKwp}
       />
       <header className="topbar app-header">
         <div className="brand">
