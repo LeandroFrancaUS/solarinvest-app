@@ -122,6 +122,10 @@ type PrintableProps = {
   tabelaBuyout: BuyoutRow[]
   buyoutResumo: BuyoutResumo
   capex: number
+  geracaoMensalKwh: number
+  potenciaPlaca: number
+  numeroPlacas: number
+  potenciaInstaladaKwp: number
 }
 
 type MensalidadeRow = {
@@ -142,11 +146,28 @@ const Field: React.FC<{ label: string; children: React.ReactNode; hint?: string 
 )
 
 const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(function PrintableProposal(
-  { cliente, anos, leasingBeneficios, leasingROI, financiamentoFluxo, financiamentoROI, mostrarFinanciamento, tabelaBuyout, buyoutResumo, capex },
+  {
+    cliente,
+    anos,
+    leasingBeneficios,
+    leasingROI,
+    financiamentoFluxo,
+    financiamentoROI,
+    mostrarFinanciamento,
+    tabelaBuyout,
+    buyoutResumo,
+    capex,
+    geracaoMensalKwh,
+    potenciaPlaca,
+    numeroPlacas,
+    potenciaInstaladaKwp,
+  },
   ref,
 ) {
   const duracaoContrato = Math.max(0, Math.floor(buyoutResumo.duracao || 0))
   const mesAceiteFinal = duracaoContrato + 1
+  const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
+    Number.isFinite(value) ? value.toLocaleString('pt-BR', options) : '—'
   return (
     <div ref={ref} className="print-layout">
       <header className="print-header">
@@ -173,6 +194,19 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <h2>Resumo financeiro</h2>
         <p>
           <strong>Investimento estimado (CAPEX):</strong> {currency(capex)}
+        </p>
+        <p>
+          <strong>Geração estimada (kWh/mês):</strong> {formatNumber(geracaoMensalKwh)}
+        </p>
+        <p>
+          <strong>Potência da placa (Wp):</strong> {formatNumber(potenciaPlaca, { maximumFractionDigits: 0 })}
+        </p>
+        <p>
+          <strong>Nº de placas:</strong> {formatNumber(numeroPlacas, { maximumFractionDigits: 0 })}
+        </p>
+        <p>
+          <strong>Potência instalada (kWp):</strong>{' '}
+          {formatNumber(potenciaInstaladaKwp, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </p>
         <div className={`print-grid ${mostrarFinanciamento ? 'two' : 'one'}`}>
           <div>
@@ -1009,6 +1043,10 @@ export default function App() {
         tabelaBuyout={tabelaBuyout}
         buyoutResumo={buyoutResumo}
         capex={capex}
+        geracaoMensalKwh={geracaoMensalKwh}
+        potenciaPlaca={potenciaPlaca}
+        numeroPlacas={numeroPlacasCalculado}
+        potenciaInstaladaKwp={potenciaInstaladaKwp}
       />
       <header className="topbar app-header">
         <div className="brand">
