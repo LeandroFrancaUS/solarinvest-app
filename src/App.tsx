@@ -165,6 +165,8 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
 ) {
   const duracaoContrato = Math.max(0, Math.floor(buyoutResumo.duracao || 0))
   const mesAceiteFinal = duracaoContrato + 1
+  const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
+    Number.isFinite(value) ? value.toLocaleString('pt-BR', options) : '—'
   return (
     <div ref={ref} className="print-layout">
       <header className="print-header">
@@ -191,6 +193,19 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <h2>Resumo financeiro</h2>
         <p>
           <strong>Investimento estimado</strong> {currency(capex)}
+        </p>
+        <p>
+          <strong>Geração estimada (kWh/mês):</strong> {formatNumber(geracaoMensalKwh)}
+        </p>
+        <p>
+          <strong>Potência da placa (Wp):</strong> {formatNumber(potenciaPlaca, { maximumFractionDigits: 0 })}
+        </p>
+        <p>
+          <strong>Nº de placas:</strong> {formatNumber(numeroPlacas, { maximumFractionDigits: 0 })}
+        </p>
+        <p>
+          <strong>Potência instalada (kWp):</strong>{' '}
+          {formatNumber(potenciaInstaladaKwp, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </p>
         <div className={`print-grid ${mostrarFinanciamento ? 'two' : 'one'}`}>
           <div>
