@@ -128,6 +128,7 @@ type MensalidadeRow = {
   mes: number
   tarifaCheia: number
   tarifaDescontada: number
+  mensalidadeCheia: number
   mensalidade: number
   totalAcumulado: number
 }
@@ -797,6 +798,12 @@ export default function App() {
   const parcelasSolarInvest = useMemo(() => {
     const lista: MensalidadeRow[] = []
     let totalAcumulado = 0
+    const kcContratado =
+      simulationState.modoEntrada === 'REDUZ'
+        ? kcAjustado
+        : Math.max(0, simulationState.kcKwhMes)
+    const margemMinima = Math.max(0, simulationState.taxaMinima) + Math.max(0, simulationState.encargosFixos)
+    const manutencaoPrevencaoSeguroMensal = Math.max(0, (simulationState.vm0 * 0.015) / 12)
     mensalidades.forEach((mensalidade, index) => {
       const mes = index + 1
       const tarifaCheiaMes = tarifaProjetadaCheia(
@@ -807,11 +814,16 @@ export default function App() {
         simulationState.mesReferencia,
       )
       const tarifaDescontadaMes = selectTarifaDescontada(simulationState, mes)
+      const energiaCheia = Math.max(0, kcContratado * tarifaCheiaMes)
+      const mensalidadeCheia = Number(
+        Math.max(0, energiaCheia + margemMinima + manutencaoPrevencaoSeguroMensal).toFixed(2),
+      )
       totalAcumulado += mensalidade
       lista.push({
         mes,
         tarifaCheia: tarifaCheiaMes,
         tarifaDescontada: tarifaDescontadaMes,
+        mensalidadeCheia,
         mensalidade: Number(mensalidade.toFixed(2)),
         totalAcumulado: Number(totalAcumulado.toFixed(2)),
       })
@@ -1207,6 +1219,7 @@ export default function App() {
                         <th>Mês</th>
                         <th>Tarifa projetada (R$/kWh)</th>
                         <th>Tarifa c/ desconto (R$/kWh)</th>
+                        <th>MENSALIDADE CHEIA</th>
                         <th>MENSALIDADE COM LEASING</th>
                       </tr>
                     </thead>
@@ -1217,12 +1230,13 @@ export default function App() {
                             <td>{row.mes}</td>
                             <td>{tarifaCurrency(row.tarifaCheia)}</td>
                             <td>{tarifaCurrency(row.tarifaDescontada)}</td>
+                            <td>{currency(row.mensalidadeCheia)}</td>
                             <td>{currency(row.mensalidade)}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
+                          <td colSpan={5} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
                         </tr>
                       )}
                     </tbody>
