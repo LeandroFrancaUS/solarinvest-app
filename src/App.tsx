@@ -172,7 +172,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       <section className="print-section">
         <h2>Resumo financeiro</h2>
         <p>
-          <strong>Investimento estimado (CAPEX):</strong> {currency(capex)}
+          <strong>Investimento estimado</strong> {currency(capex)}
         </p>
         <div className={`print-grid ${mostrarFinanciamento ? 'two' : 'one'}`}>
           <div>
@@ -182,7 +182,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                 <tr>
                   <th>Ano</th>
                   <th>Benefício anual</th>
-                  <th>ROI acumulado</th>
+                  <th>Beneficio acumulado</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,7 +204,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                   <tr>
                     <th>Ano</th>
                     <th>Fluxo anual</th>
-                    <th>ROI acumulado</th>
+                    <th>Beneficio acumulado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -223,7 +223,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       </section>
 
       <section className="print-section">
-        <h2>Buyout — projeção</h2>
+        <h2>Tabela para Compra Antecipada</h2>
         <table>
           <thead>
             <tr>
@@ -250,7 +250,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           </tbody>
         </table>
         <div className="print-notes">
-          <p><strong>Parâmetros considerados:</strong></p>
+          <p><strong>Informações adicionais:</strong></p>
           <ul>
             <li>Valor de mercado: {currency(buyoutResumo.vm0)} • Cashback: {buyoutResumo.cashbackPct}%</li>
             <li>Duração contratual: {buyoutResumo.duracao} meses</li>
@@ -1275,7 +1275,7 @@ export default function App() {
             {mostrarGrafico ? (
               <section className="card">
                 <div className="card-header">
-                  <h2>ROI acumulado — 30 anos</h2>
+                  <h2>Beneficio acumulado — 30 anos</h2>
                   <div className="legend-toggle">
                     <label>
                       <input type="checkbox" checked={exibirLeasingLinha} onChange={(e) => setExibirLeasingLinha(e.target.checked)} />
