@@ -1207,7 +1207,7 @@ export default function App() {
                         <th>Mês</th>
                         <th>Tarifa projetada (R$/kWh)</th>
                         <th>Tarifa c/ desconto (R$/kWh)</th>
-                        <th>Mensalidade líquida</th>
+                        <th>MENSALIDADE COM LEASING</th>
                       </tr>
                     </thead>
                     <tbody>
