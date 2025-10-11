@@ -228,9 +228,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           <thead>
             <tr>
               <th>Mês</th>
-              <th>Tarifa projetada</th>
-              <th>Prestação efetiva</th>
-              <th>Receita acumulada</th>
               <th>Cashback</th>
               <th>Valor de compra</th>
             </tr>
@@ -241,16 +238,13 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               .map((row) => (
                 <tr key={row.mes}>
                   <td>{row.mes}</td>
-                  <td>{tarifaCurrency(row.tarifa)}</td>
-                  <td>{currency(row.prestacaoEfetiva)}</td>
-                  <td>{currency(row.prestacaoAcum)}</td>
                   <td>{currency(row.cashback)}</td>
                   <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
                 </tr>
               ))}
             <tr key={mesAceiteFinal}>
               <td>{mesAceiteFinal}</td>
-              <td colSpan={4}>Aceite final</td>
+              <td>Aceite final</td>
               <td>{currency(0)}</td>
             </tr>
           </tbody>
@@ -259,13 +253,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           <p><strong>Parâmetros considerados:</strong></p>
           <ul>
             <li>Valor de mercado: {currency(buyoutResumo.vm0)} • Cashback: {buyoutResumo.cashbackPct}%</li>
-            <li>
-              Depreciação: {buyoutResumo.depreciacaoPct}% • Inadimplência: {buyoutResumo.inadimplenciaPct}% • Tributos: {buyoutResumo.tributosPct}%
-            </li>
-            <li>Inflação energética: {buyoutResumo.infEnergia}% • IPCA: {buyoutResumo.ipca}%</li>
-            <li>
-              Custos fixos: {currency(buyoutResumo.custosFixos)} • OPEX: {currency(buyoutResumo.opex)} • Seguro: {currency(buyoutResumo.seguro)}
-            </li>
             <li>Duração contratual: {buyoutResumo.duracao} meses</li>
           </ul>
         </div>
