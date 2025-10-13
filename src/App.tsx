@@ -114,7 +114,6 @@ type BuyoutResumo = {
 type PrintableProps = {
   cliente: ClienteDados
   anos: number[]
-  leasingBeneficios: number[]
   leasingROI: number[]
   financiamentoFluxo: number[]
   financiamentoROI: number[]
@@ -127,6 +126,7 @@ type PrintableProps = {
   numeroPlacas: number
   potenciaInstaladaKwp: number
   descontoContratualPct: number
+  parcelasLeasing: MensalidadeRow[]
 }
 
 type MensalidadeRow = {
@@ -150,7 +150,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   {
     cliente,
     anos,
-    leasingBeneficios,
     leasingROI,
     financiamentoFluxo,
     financiamentoROI,
@@ -163,6 +162,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     numeroPlacas,
     potenciaInstaladaKwp,
     descontoContratualPct,
+    parcelasLeasing,
   },
   ref,
 ) {
@@ -175,6 +175,19 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
   const duracaoContratualTexto = duracaoContratualValida ? `${buyoutResumo.duracao} meses` : '—'
+  const chartDataPrintable = useMemo(
+    () =>
+      anos.map((ano) => ({
+        ano,
+        Leasing: leasingROI[ano - 1] ?? 0,
+        Financiamento: financiamentoROI[ano - 1] ?? 0,
+      })),
+    [anos, financiamentoROI, leasingROI],
+  )
+  const beneficioAno30Printable = useMemo(
+    () => chartDataPrintable.find((row) => row.ano === 30) ?? null,
+    [chartDataPrintable],
+  )
   return (
     <div ref={ref} className="print-layout">
       <header className="print-header">
@@ -182,7 +195,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           <img src="/logo.svg" alt="SolarInvest" />
         </div>
         <div className="print-client">
-          <h1>Proposta SolarInvest</h1>
+          <h1>SolarInvest - Proposta de Leasing</h1>
           <p><strong>Cliente:</strong> {cliente.nome || '—'}</p>
           <p><strong>Documento:</strong> {cliente.documento || '—'}</p>
           <p>
@@ -219,23 +232,35 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         </div>
         <div className={`print-grid ${mostrarFinanciamento ? 'two' : 'one'}`}>
           <div>
-            <h3>Leasing</h3>
+            <h3>Mensalidade projetada</h3>
             <table>
               <thead>
                 <tr>
-                  <th>Ano</th>
-                  <th>Benefício anual</th>
-                  <th>Beneficio acumulado</th>
+                  <th>Mês</th>
+                  <th>Tarifa projetada (R$/kWh)</th>
+                  <th>Tarifa c/ desconto (R$/kWh)</th>
+                  <th>Mensalidade cheia</th>
+                  <th>Mensalidade com leasing</th>
                 </tr>
               </thead>
               <tbody>
-                {anos.map((ano) => (
-                  <tr key={`leasing-${ano}`}>
-                    <td>{ano}</td>
-                    <td>{currency(leasingBeneficios[ano - 1] ?? 0)}</td>
-                    <td>{currency(leasingROI[ano - 1] ?? 0)}</td>
+                {parcelasLeasing.length > 0 ? (
+                  parcelasLeasing.map((row) => (
+                    <tr key={`leasing-${row.mes}`}>
+                      <td>{row.mes}</td>
+                      <td>{tarifaCurrency(row.tarifaCheia)}</td>
+                      <td>{tarifaCurrency(row.tarifaDescontada)}</td>
+                      <td>{currency(row.mensalidadeCheia)}</td>
+                      <td>{currency(row.mensalidade)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Defina um prazo contratual para gerar a projeção das parcelas.
+                    </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -302,8 +327,39 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
             <li>Duração contratual: {duracaoContratualTexto}</li>
           </ul>
         </div>
+        <div className="print-chart-section">
+          <h2>Beneficio acumulado em 30 anos</h2>
+          <div className="chart print-chart">
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={chartDataPrintable}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="ano" stroke="#9CA3AF" label={{ value: 'Anos', position: 'insideBottomRight', offset: -5, fill: '#9CA3AF' }} />
+                <YAxis stroke="#9CA3AF" tickFormatter={formatAxis} />
+                <Tooltip formatter={(value: number) => currency(Number(value))} contentStyle={{ background: '#0b1220', border: '1px solid #1f2b40' }} />
+                <Legend verticalAlign="bottom" align="right" wrapperStyle={{ paddingTop: 16 }} />
+                <ReferenceLine y={0} stroke="#475569" />
+                <Line type="monotone" dataKey="Leasing" stroke={chartColors.Leasing} strokeWidth={2} dot />
+                {mostrarFinanciamento ? (
+                  <Line type="monotone" dataKey="Financiamento" stroke={chartColors.Financiamento} strokeWidth={2} dot />
+                ) : null}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          {beneficioAno30Printable ? (
+            <p className="chart-explainer">
+              Benefício total no ano 30:
+              <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30Printable.Leasing)}</strong>
+              {mostrarFinanciamento ? (
+                <>
+                  {' • '}Financiamento:{' '}
+                  <strong style={{ color: chartColors.Financiamento }}>{currency(beneficioAno30Printable.Financiamento)}</strong>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+        </div>
         <p className="print-footer">
-          Após o prazo, o cliente passa a capturar 100% da economia frente à concessionária — ROI Leasing – Benefício financeiro.
+          Após o final do contrato. o cliente passa a capturar 100% da economia frente à concessionária
         </p>
       </section>
     </div>
@@ -893,6 +949,10 @@ export default function App() {
       }
     })
   }, [financiamentoROI, leasingROI])
+  const beneficioAno30 = useMemo(
+    () => chartData.find((row) => row.ano === 30) ?? null,
+    [chartData],
+  )
 
   const valoresGrafico = chartData.flatMap((row) => [row.Leasing, row.Financiamento])
   const minY = Math.min(...valoresGrafico, 0)
@@ -1048,7 +1108,6 @@ export default function App() {
         ref={printableRef}
         cliente={cliente}
         anos={anosArray}
-        leasingBeneficios={leasingBeneficios}
         leasingROI={leasingROI}
         financiamentoFluxo={financiamentoFluxo}
         financiamentoROI={financiamentoROI}
@@ -1061,6 +1120,7 @@ export default function App() {
         numeroPlacas={numeroPlacasCalculado}
         potenciaInstaladaKwp={potenciaInstaladaKwp}
         descontoContratualPct={desconto}
+        parcelasLeasing={parcelasSolarInvest.lista}
       />
       <header className="topbar app-header">
         <div className="brand">
@@ -1324,48 +1384,6 @@ export default function App() {
               </section>
             </div>
 
-            {mostrarGrafico ? (
-              <section className="card">
-                <div className="card-header">
-                  <h2>Beneficio acumulado — 30 anos</h2>
-                  <div className="legend-toggle">
-                    <label>
-                      <input type="checkbox" checked={exibirLeasingLinha} onChange={(e) => setExibirLeasingLinha(e.target.checked)} />
-                      <span style={{ color: chartColors.Leasing }}>Leasing</span>
-                    </label>
-                    {mostrarFinanciamento ? (
-                      <label>
-                        <input type="checkbox" checked={exibirFinLinha} onChange={(e) => setExibirFinLinha(e.target.checked)} />
-                        <span style={{ color: chartColors.Financiamento }}>Financiamento</span>
-                      </label>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="chart">
-                  {!allCurvesHidden ? (
-                    <div className="chart-explainer">
-                      <strong>ROI Leasing – Benefício financeiro</strong>
-                      <span>Economia acumulada versus concessionária. Após o prazo, o retorno cresce acelerado.</span>
-                    </div>
-                  ) : null}
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="ano" stroke="#9CA3AF" label={{ value: 'Anos', position: 'insideBottomRight', offset: -5, fill: '#9CA3AF' }} />
-                      <YAxis stroke="#9CA3AF" tickFormatter={formatAxis} domain={yDomain} width={92} />
-                      <Tooltip formatter={(value: number) => currency(Number(value))} contentStyle={{ background: '#0b1220', border: '1px solid #1f2b40' }} />
-                      <Legend verticalAlign="bottom" align="right" wrapperStyle={{ paddingTop: 16 }} />
-                      <ReferenceLine y={0} stroke="#475569" />
-                      {exibirLeasingLinha ? <Line type="monotone" dataKey="Leasing" stroke={chartColors.Leasing} strokeWidth={2} dot /> : null}
-                      {mostrarFinanciamento && exibirFinLinha ? (
-                        <Line type="monotone" dataKey="Financiamento" stroke={chartColors.Financiamento} strokeWidth={2} dot />
-                      ) : null}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </section>
-            ) : null}
-
             <section className="card">
               <div className="card-header">
                 <h2>Compra antecipada (Buyout)</h2>
@@ -1411,6 +1429,59 @@ export default function App() {
                 </div>
               ) : null}
             </section>
+            {mostrarGrafico ? (
+              <section className="card">
+                <div className="card-header">
+                  <h2>Beneficio acumulado em 30 anos</h2>
+                  <div className="legend-toggle">
+                    <label>
+                      <input type="checkbox" checked={exibirLeasingLinha} onChange={(e) => setExibirLeasingLinha(e.target.checked)} />
+                      <span style={{ color: chartColors.Leasing }}>Leasing</span>
+                    </label>
+                    {mostrarFinanciamento ? (
+                      <label>
+                        <input type="checkbox" checked={exibirFinLinha} onChange={(e) => setExibirFinLinha(e.target.checked)} />
+                        <span style={{ color: chartColors.Financiamento }}>Financiamento</span>
+                      </label>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="chart">
+                  {!allCurvesHidden ? (
+                    <div className="chart-explainer">
+                      <strong>ROI Leasing – Benefício financeiro</strong>
+                      <span>Economia acumulada versus concessionária.</span>
+                      {beneficioAno30 ? (
+                        <span className="chart-highlight">
+                          Benefício total no ano 30:
+                          <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30.Leasing)}</strong>
+                          {mostrarFinanciamento && exibirFinLinha ? (
+                            <>
+                              {' • '}Financiamento:{' '}
+                              <strong style={{ color: chartColors.Financiamento }}>{currency(beneficioAno30.Financiamento)}</strong>
+                            </>
+                          ) : null}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <XAxis dataKey="ano" stroke="#9CA3AF" label={{ value: 'Anos', position: 'insideBottomRight', offset: -5, fill: '#9CA3AF' }} />
+                      <YAxis stroke="#9CA3AF" tickFormatter={formatAxis} domain={yDomain} width={92} />
+                      <Tooltip formatter={(value: number) => currency(Number(value))} contentStyle={{ background: '#0b1220', border: '1px solid #1f2b40' }} />
+                      <Legend verticalAlign="bottom" align="right" wrapperStyle={{ paddingTop: 16 }} />
+                      <ReferenceLine y={0} stroke="#475569" />
+                      {exibirLeasingLinha ? <Line type="monotone" dataKey="Leasing" stroke={chartColors.Leasing} strokeWidth={2} dot /> : null}
+                      {mostrarFinanciamento && exibirFinLinha ? (
+                        <Line type="monotone" dataKey="Financiamento" stroke={chartColors.Financiamento} strokeWidth={2} dot />
+                      ) : null}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+            ) : null}
           </>
         ) : (
           <section className="card">
