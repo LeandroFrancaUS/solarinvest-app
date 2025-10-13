@@ -194,22 +194,24 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
 
       <section className="print-section">
         <h2>Resumo financeiro</h2>
-        <p>
-          <strong>Investimento estimado</strong> {currency(capex)}
-        </p>
-        <p>
-          <strong>Geração estimada (kWh/mês):</strong> {formatNumber(geracaoMensalKwh)}
-        </p>
-        <p>
-          <strong>Potência da placa (Wp):</strong> {formatNumber(potenciaPlaca, { maximumFractionDigits: 0 })}
-        </p>
-        <p>
-          <strong>Nº de placas:</strong> {formatNumber(numeroPlacas, { maximumFractionDigits: 0 })}
-        </p>
-        <p>
-          <strong>Potência instalada (kWp):</strong>{' '}
-          {formatNumber(potenciaInstaladaKwp, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </p>
+        <div className="print-summary">
+          <p>
+            <strong>Investimento estimado:</strong> {currency(capex)}
+          </p>
+          <p>
+            <strong>Geração estimada (kWh/mês):</strong> {formatNumber(geracaoMensalKwh)}
+          </p>
+          <p>
+            <strong>Potência da placa (Wp):</strong> {formatNumber(potenciaPlaca, { maximumFractionDigits: 0 })}
+          </p>
+          <p>
+            <strong>Nº de placas:</strong> {formatNumber(numeroPlacas, { maximumFractionDigits: 0 })}
+          </p>
+          <p>
+            <strong>Potência instalada (kWp):</strong>{' '}
+            {formatNumber(potenciaInstaladaKwp, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+        </div>
         <div className={`print-grid ${mostrarFinanciamento ? 'two' : 'one'}`}>
           <div>
             <h3>Leasing</h3>
@@ -323,6 +325,7 @@ const printStyles = `
   .print-section h2{margin:0 0 12px;border-bottom:1px solid #cbd5f5;padding-bottom:4px;}
   table{width:100%;border-collapse:collapse;}
   th,td{border:1px solid #d0d7e8;padding:8px 12px;font-size:12px;text-align:left;}
+  .print-summary p{font-size:10px;margin:2px 0;line-height:1.2;}
   .print-grid{display:grid;gap:16px;}
   .print-grid.two{grid-template-columns:repeat(2,minmax(0,1fr));}
   .print-grid.one{grid-template-columns:repeat(1,minmax(0,1fr));}
