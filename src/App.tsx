@@ -170,6 +170,11 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const mesAceiteFinal = duracaoContrato + 1
   const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
     Number.isFinite(value) ? value.toLocaleString('pt-BR', options) : '—'
+  const valorMercadoValido = typeof buyoutResumo.vm0 === 'number' && Number.isFinite(buyoutResumo.vm0)
+  const valorMercadoTexto = valorMercadoValido ? currency(buyoutResumo.vm0) : '—'
+  const duracaoContratualValida =
+    typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
+  const duracaoContratualTexto = duracaoContratualValida ? `${buyoutResumo.duracao} meses` : '—'
   return (
     <div ref={ref} className="print-layout">
       <header className="print-header">
@@ -193,7 +198,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       </header>
 
       <section className="print-section">
-        <h2>Resumo financeiro</h2>
+        <h2>Resumo técnico e financeiro</h2>
         <div className="print-summary">
           <p>
             <strong>Investimento estimado:</strong> {currency(capex)}
@@ -287,14 +292,14 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <div className="print-notes">
           <p><strong>Informações adicionais:</strong></p>
           <ul>
-            <li>Valor de mercado: {currency(buyoutResumo.vm0)}</li>
+            <li>Valor de mercado: {valorMercadoTexto}</li>
             <li>
               Desconto contratual: {formatNumber(descontoContratualPct, {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 2,
               })}%
             </li>
-            <li>Duração contratual: {buyoutResumo.duracao} meses</li>
+            <li>Duração contratual: {duracaoContratualTexto}</li>
           </ul>
         </div>
         <p className="print-footer">
@@ -325,7 +330,7 @@ const printStyles = `
   .print-section h2{margin:0 0 12px;border-bottom:1px solid #cbd5f5;padding-bottom:4px;}
   table{width:100%;border-collapse:collapse;}
   th,td{border:1px solid #d0d7e8;padding:8px 12px;font-size:12px;text-align:left;}
-  .print-summary p{font-size:10px;margin:2px 0;line-height:1.2;}
+  .print-summary p{font-size:12px;margin:2px 0;line-height:1.2;}
   .print-grid{display:grid;gap:16px;}
   .print-grid.two{grid-template-columns:repeat(2,minmax(0,1fr));}
   .print-grid.one{grid-template-columns:repeat(1,minmax(0,1fr));}
