@@ -392,6 +392,17 @@ const printStyles = `
   .print-grid.one{grid-template-columns:repeat(1,minmax(0,1fr));}
   ul{margin:8px 0 0;padding-left:18px;}
   li{font-size:12px;margin-bottom:4px;}
+  .print-chart{position:relative;padding:16px;border:1px solid #cbd5f5;border-radius:12px;background:#f8fafc;}
+  .print-chart .recharts-responsive-container{width:100%;height:100%;}
+  .print-chart svg{overflow:visible;}
+  .print-chart .recharts-cartesian-axis-line,.print-chart .recharts-cartesian-axis-tick-line{stroke:#cbd5f5;}
+  .print-chart .recharts-cartesian-axis-tick text{fill:#475569;font-size:12px;}
+  .print-chart .recharts-legend-item text{fill:#1e293b;font-weight:600;font-size:12px;}
+  .print-chart .recharts-cartesian-grid line{stroke:#e2e8f0;}
+  .print-chart .recharts-tooltip-wrapper{display:none!important;}
+  .print-chart-section h2{margin-bottom:16px;}
+  .chart-explainer{margin-top:12px;font-size:12px;color:#334155;}
+  .chart-explainer strong{font-size:13px;}
 `;
 
 
