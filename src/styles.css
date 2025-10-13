@@ -648,7 +648,14 @@ table tbody tr:hover {
 
 @media screen {
   .print-layout {
-    display: none;
+    position: fixed;
+    top: -9999px;
+    left: -9999px;
+    width: 1040px;
+    max-width: 1040px;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
   }
 }
 
