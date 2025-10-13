@@ -312,7 +312,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
 
 const anosAnalise = 30
 const DIAS_MES_PADRAO = 30
-const painelOpcoes = [450, 500, 550, 600, 650, 700]
+const painelOpcoes = [450, 500, 550, 600, 610, 650, 700]
 const chartColors: Record<'Leasing' | 'Financiamento', string> = {
   Leasing: '#FF8C00',
   Financiamento: '#60A5FA',
