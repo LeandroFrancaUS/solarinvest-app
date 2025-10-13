@@ -328,7 +328,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           </ul>
         </div>
         <div className="print-chart-section">
-          <h2>Beneficio acumulado em 30 anos</h2>
           <div className="chart print-chart">
             <ResponsiveContainer width="100%" height={320}>
               <LineChart data={chartDataPrintable}>
@@ -347,7 +346,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           </div>
           {beneficioAno30Printable ? (
             <p className="chart-explainer">
-              Benefício total no ano 30:
+              Beneficio acumulado em 30 anos:
               <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30Printable.Leasing)}</strong>
               {mostrarFinanciamento ? (
                 <>
@@ -1464,7 +1463,7 @@ export default function App() {
                       <span>Economia acumulada versus concessionária.</span>
                       {beneficioAno30 ? (
                         <span className="chart-highlight">
-                          Benefício total no ano 30:
+                          Beneficio acumulado em 30 anos:
                           <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30.Leasing)}</strong>
                           {mostrarFinanciamento && exibirFinLinha ? (
                             <>
