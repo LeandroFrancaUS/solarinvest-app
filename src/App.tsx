@@ -126,6 +126,7 @@ type PrintableProps = {
   potenciaPlaca: number
   numeroPlacas: number
   potenciaInstaladaKwp: number
+  descontoContratualPct: number
 }
 
 type MensalidadeRow = {
@@ -161,6 +162,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     potenciaPlaca,
     numeroPlacas,
     potenciaInstaladaKwp,
+    descontoContratualPct,
   },
   ref,
 ) {
@@ -257,12 +259,11 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       </section>
 
       <section className="print-section">
-        <h2>Tabela para Compra Antecipada</h2>
+        <h2>Compra antecipada</h2>
         <table>
           <thead>
             <tr>
               <th>Mês</th>
-              <th>Cashback</th>
               <th>Valor de compra</th>
             </tr>
           </thead>
@@ -272,13 +273,11 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               .map((row) => (
                 <tr key={row.mes}>
                   <td>{row.mes}</td>
-                  <td>{currency(row.cashback)}</td>
                   <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
                 </tr>
               ))}
             <tr key={mesAceiteFinal}>
-              <td>{mesAceiteFinal}</td>
-              <td>Aceite final</td>
+              <td>{`${mesAceiteFinal} (Aceite final)`}</td>
               <td>{currency(0)}</td>
             </tr>
           </tbody>
@@ -286,7 +285,13 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <div className="print-notes">
           <p><strong>Informações adicionais:</strong></p>
           <ul>
-            <li>Valor de mercado: {currency(buyoutResumo.vm0)} • Cashback: {buyoutResumo.cashbackPct}%</li>
+            <li>Valor de mercado: {currency(buyoutResumo.vm0)}</li>
+            <li>
+              Desconto contratual: {formatNumber(descontoContratualPct, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+              })}%
+            </li>
             <li>Duração contratual: {buyoutResumo.duracao} meses</li>
           </ul>
         </div>
@@ -1047,6 +1052,7 @@ export default function App() {
         potenciaPlaca={potenciaPlaca}
         numeroPlacas={numeroPlacasCalculado}
         potenciaInstaladaKwp={potenciaInstaladaKwp}
+        descontoContratualPct={desconto}
       />
       <header className="topbar app-header">
         <div className="brand">
