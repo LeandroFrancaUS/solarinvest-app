@@ -70,7 +70,7 @@ const UF_LABELS: Record<string, string> = {
   TO: 'Tocantins',
 }
 
-type TabKey = 'principal' | 'cliente'
+type TabKey = 'leasing' | 'cliente' | 'vendas'
 
 type SeguroModo = 'A' | 'B'
 
@@ -406,7 +406,7 @@ const printStyles = `
 
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabKey>('principal')
+  const [activeTab, setActiveTab] = useState<TabKey>('leasing')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifa] = useState('GO')
@@ -1147,12 +1147,13 @@ export default function App() {
       </header>
       <div className="app-main">
         <nav className="tabs tabs-bar">
-          <button className={activeTab === 'principal' ? 'active' : ''} onClick={() => setActiveTab('principal')}>Principal</button>
           <button className={activeTab === 'cliente' ? 'active' : ''} onClick={() => setActiveTab('cliente')}>Cliente</button>
+          <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>Leasing</button>
+          <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>Vendas</button>
         </nav>
 
         <main className="content page-content">
-          {activeTab === 'principal' ? (
+          {activeTab === 'leasing' ? (
             <>
             <section className="card">
               <h2>Usina fotovoltaica</h2>
@@ -1493,7 +1494,7 @@ export default function App() {
               </section>
             ) : null}
           </>
-        ) : (
+        ) : activeTab === 'cliente' ? (
           <section className="card">
             <h2>Dados do cliente</h2>
             <div className="grid g2">
@@ -1526,7 +1527,12 @@ export default function App() {
               </Field>
             </div>
           </section>
-          )}
+        ) : (
+          <section className="card">
+            <h2>Vendas</h2>
+            <p className="muted">Área de Vendas em desenvolvimento.</p>
+          </section>
+        )}
         </main>
       </div>
 
