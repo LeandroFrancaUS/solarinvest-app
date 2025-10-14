@@ -684,22 +684,30 @@ export default function App() {
     return Math.max(1, Math.round(numeroPlacasManual))
   }, [numeroPlacasManual])
 
-  const potenciaInstaladaKwp = useMemo(() => {
-    if (numeroPlacasInformado && potenciaPlaca > 0) {
-      return (numeroPlacasInformado * potenciaPlaca) / 1000
+  const potenciaNecessariaKwp = useMemo(() => {
+    if (fatorGeracao <= 0 || kcKwhMes <= 0) {
+      return 0
     }
-    if (fatorGeracao > 0) {
-      return kcKwhMes / fatorGeracao
-    }
-    return 0
-  }, [kcKwhMes, fatorGeracao, numeroPlacasInformado, potenciaPlaca])
+    return kcKwhMes / fatorGeracao
+  }, [fatorGeracao, kcKwhMes])
 
   const numeroPlacasCalculado = useMemo(() => {
-    if (numeroPlacasInformado) return numeroPlacasInformado
-    if (potenciaPlaca <= 0) return 0
-    const calculado = Math.ceil((potenciaInstaladaKwp * 1000) / potenciaPlaca)
+    if (potenciaPlaca <= 0 || potenciaNecessariaKwp <= 0) return 0
+    const calculado = Math.ceil((potenciaNecessariaKwp * 1000) / potenciaPlaca)
     return Math.max(1, Number.isFinite(calculado) ? calculado : 0)
-  }, [numeroPlacasInformado, potenciaInstaladaKwp, potenciaPlaca])
+  }, [potenciaNecessariaKwp, potenciaPlaca])
+
+  const numeroPlacasEstimado = useMemo(() => {
+    if (numeroPlacasInformado) return numeroPlacasInformado
+    return numeroPlacasCalculado
+  }, [numeroPlacasCalculado, numeroPlacasInformado])
+
+  const potenciaInstaladaKwp = useMemo(() => {
+    if (!numeroPlacasEstimado || potenciaPlaca <= 0) {
+      return 0
+    }
+    return (numeroPlacasEstimado * potenciaPlaca) / 1000
+  }, [numeroPlacasEstimado, potenciaPlaca])
 
   const geracaoMensalKwh = useMemo(() => {
     if (potenciaInstaladaKwp <= 0 || fatorGeracao <= 0) {
@@ -1127,7 +1135,7 @@ export default function App() {
         capex={capex}
         geracaoMensalKwh={geracaoMensalKwh}
         potenciaPlaca={potenciaPlaca}
-        numeroPlacas={numeroPlacasCalculado}
+        numeroPlacas={numeroPlacasEstimado}
         potenciaInstaladaKwp={potenciaInstaladaKwp}
         descontoContratualPct={desconto}
         parcelasLeasing={parcelasSolarInvest.lista}
@@ -1165,11 +1173,11 @@ export default function App() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Nº de placas informado (opcional)">
+                <Field label="Nº de placas (estimado)">
                   <input
                     type="number"
                     min={1}
-                    value={numeroPlacasManual === '' ? '' : numeroPlacasManual}
+                    value={numeroPlacasManual === '' ? numeroPlacasEstimado : numeroPlacasManual}
                     onChange={(e) => {
                       const { value } = e.target
                       if (value === '') {
@@ -1184,9 +1192,6 @@ export default function App() {
                       setNumeroPlacasManual(parsed)
                     }}
                   />
-                </Field>
-                <Field label="Nº de placas (calculado)">
-                  <input readOnly value={numeroPlacasCalculado} />
                 </Field>
                 <Field label="Potência instalada (kWp)">
                   <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
