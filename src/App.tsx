@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { createRoot } from 'react-dom/client'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from 'recharts'
 
 import {
@@ -494,6 +495,86 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     </div>
   )
 })
+
+type BudgetPreviewOptions = {
+  nomeCliente: string
+  budgetId?: string
+  actionMessage?: string
+  autoPrint?: boolean
+  closeAfterPrint?: boolean
+}
+
+const renderPrintableProposalToHtml = (dados: PrintableProps): Promise<string | null> => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return Promise.resolve(null)
+  }
+
+  return new Promise((resolve) => {
+    const container = document.createElement('div')
+    container.style.position = 'fixed'
+    container.style.top = '-9999px'
+    container.style.left = '-9999px'
+    container.style.width = '1040px'
+    container.style.padding = '36px 44px'
+    container.style.background = '#ffffff'
+    container.style.zIndex = '-1'
+    document.body.appendChild(container)
+
+    let resolved = false
+
+    const cleanup = (root: ReturnType<typeof createRoot> | null) => {
+      if (root) {
+        root.unmount()
+      }
+      if (container.parentElement) {
+        container.parentElement.removeChild(container)
+      }
+    }
+
+    const PrintableHost: React.FC = () => {
+      const localRef = useRef<HTMLDivElement>(null)
+
+      useEffect(() => {
+        const timeouts: number[] = []
+        let attempts = 0
+        const maxAttempts = 6
+
+        const attemptCapture = (root: ReturnType<typeof createRoot> | null) => {
+          if (resolved) {
+            return
+          }
+          if (localRef.current) {
+            resolved = true
+            resolve(localRef.current.outerHTML)
+            cleanup(root)
+            return
+          }
+          attempts += 1
+          if (attempts >= maxAttempts) {
+            resolved = true
+            resolve(null)
+            cleanup(root)
+            return
+          }
+          const timeoutId = window.setTimeout(() => attemptCapture(root), 140)
+          timeouts.push(timeoutId)
+        }
+
+        const initialTimeout = window.setTimeout(() => attemptCapture(rootInstance), 180)
+        timeouts.push(initialTimeout)
+
+        return () => {
+          timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
+        }
+      }, [])
+
+      return <PrintableProposal ref={localRef} {...dados} />
+    }
+
+    const rootInstance = createRoot(container)
+    rootInstance.render(<PrintableHost />)
+  })
+}
 
 const anosAnalise = 30
 const DIAS_MES_PADRAO = 30
@@ -1239,6 +1320,100 @@ export default function App() {
     ],
   )
 
+  const openBudgetPreviewWindow = useCallback(
+    (layoutHtml: string, { nomeCliente, budgetId, actionMessage, autoPrint, closeAfterPrint }: BudgetPreviewOptions) => {
+      if (!layoutHtml) {
+        window.alert('Não foi possível preparar a visualização do orçamento selecionado.')
+        return
+      }
+
+      const printWindow = window.open('', '_blank', 'width=1024,height=768')
+      if (!printWindow) {
+        window.alert('Não foi possível abrir a visualização. Verifique se o bloqueador de pop-ups está ativo.')
+        return
+      }
+
+      const mensagemToolbar =
+        actionMessage || 'Revise o conteúdo e utilize as ações para imprimir ou salvar como PDF.'
+      const codigoHtml = budgetId
+        ? `<p class="preview-toolbar-code">Código do orçamento: <strong>${budgetId}</strong></p>`
+        : ''
+
+      const previewHtml = `<!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Proposta-${nomeCliente}</title>
+            <style>
+              ${printStyles}
+              body{padding-top:88px;}
+              .preview-toolbar{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;gap:24px;background:#f8fafc;padding:16px 44px;border-bottom:1px solid #cbd5f5;box-shadow:0 2px 6px rgba(15,23,42,0.08);}
+              .preview-toolbar-info{display:flex;flex-direction:column;gap:4px;max-width:65%;}
+              .preview-toolbar-info h1{margin:0;font-size:18px;color:#0f172a;}
+              .preview-toolbar-info p{margin:0;font-size:13px;color:#475569;}
+              .preview-toolbar-code strong{color:#0f172a;}
+              .preview-toolbar-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+              .preview-toolbar-actions button{background:#0f172a;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;}
+              .preview-toolbar-actions button:hover{background:#1e293b;}
+              .preview-toolbar-actions button.secondary{background:#e2e8f0;color:#0f172a;}
+              .preview-toolbar-actions button.secondary:hover{background:#cbd5f5;color:#0f172a;}
+              .preview-container{max-width:1040px;margin:0 auto;}
+              @media print{
+                body{padding-top:0;}
+                .preview-toolbar{display:none;}
+              }
+            </style>
+          </head>
+          <body>
+            <div class="preview-toolbar">
+              <div class="preview-toolbar-info">
+                <h1>Pré-visualização da proposta</h1>
+                <p>${mensagemToolbar}</p>
+                ${codigoHtml}
+              </div>
+              <div class="preview-toolbar-actions">
+                <button type="button" data-action="print">Imprimir</button>
+                <button type="button" data-action="download">Baixar PDF</button>
+                <button type="button" data-action="close" class="secondary">Fechar</button>
+              </div>
+            </div>
+            <div class="preview-container">${layoutHtml}</div>
+            <script>
+              (function(){
+                var shouldAutoPrint = ${autoPrint ? 'true' : 'false'};
+                var shouldCloseAfterPrint = ${closeAfterPrint ? 'true' : 'false'};
+                var printBtn = document.querySelector('[data-action=\"print\"]');
+                var downloadBtn = document.querySelector('[data-action=\"download\"]');
+                var closeBtn = document.querySelector('[data-action=\"close\"]');
+                if(printBtn){
+                  printBtn.addEventListener('click', function(){ window.print(); });
+                }
+                if(downloadBtn){
+                  downloadBtn.addEventListener('click', function(){ window.print(); });
+                }
+                if(closeBtn){
+                  closeBtn.addEventListener('click', function(){ window.close(); });
+                }
+                if(shouldAutoPrint){
+                  window.addEventListener('load', function(){ window.setTimeout(function(){ window.print(); }, 320); });
+                }
+                if(shouldCloseAfterPrint){
+                  window.addEventListener('afterprint', function(){ window.setTimeout(function(){ window.close(); }, 180); });
+                }
+              })();
+            </script>
+          </body>
+        </html>`
+
+      const { document } = printWindow
+      document.open()
+      document.write(previewHtml)
+      document.close()
+      printWindow.focus()
+    },
+    [],
+  )
+
   const validarCamposObrigatorios = () => {
     const faltantes = CAMPOS_CLIENTE_OBRIGATORIOS.filter(({ key }) => !cliente[key].trim())
     if (faltantes.length > 0) {
@@ -1310,6 +1485,33 @@ export default function App() {
     }
   }
 
+  const removerOrcamentoSalvo = useCallback(
+    (id: string) => {
+      if (typeof window === 'undefined') {
+        return
+      }
+
+      setOrcamentosSalvos((prevRegistros) => {
+        const registrosAtualizados = prevRegistros.filter((registro) => registro.id !== id)
+
+        try {
+          if (registrosAtualizados.length > 0) {
+            window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+          } else {
+            window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
+          }
+        } catch (error) {
+          console.error('Erro ao atualizar os orçamentos salvos.', error)
+          window.alert('Não foi possível atualizar os orçamentos salvos. Tente novamente.')
+          return prevRegistros
+        }
+
+        return registrosAtualizados
+      })
+    },
+    [setOrcamentosSalvos],
+  )
+
   const handleEficienciaInput = (valor: number) => {
     if (!Number.isFinite(valor)) {
       setEficiencia(0)
@@ -1336,49 +1538,17 @@ export default function App() {
     }
 
     const node = printableRef.current
-    if (!node) return
-    const printWindow = window.open('', '_blank', 'width=1024,height=768')
-    if (!printWindow) return
+    if (!node) {
+      window.alert('Não foi possível gerar a visualização para impressão. Tente novamente.')
+      return
+    }
 
     const nomeCliente = printableData.cliente.nome?.trim() || 'SolarInvest'
-    const previewHtml = `<!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Proposta-${nomeCliente}</title>
-          <style>
-            ${printStyles}
-            body{padding-top:88px;}
-            .preview-toolbar{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:16px 44px;border-bottom:1px solid #cbd5f5;box-shadow:0 2px 6px rgba(15,23,42,0.08);}
-            .preview-toolbar h1{margin:0;font-size:18px;color:#0f172a;}
-            .preview-toolbar p{margin:4px 0 0;font-size:13px;color:#475569;}
-            .preview-toolbar button{background:#0f172a;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;cursor:pointer;}
-            .preview-toolbar button:hover{background:#1e293b;}
-            .preview-container{max-width:1040px;margin:0 auto;}
-            @media print{
-              body{padding-top:0;}
-              .preview-toolbar{display:none;}
-            }
-          </style>
-        </head>
-        <body>
-          <div class="preview-toolbar">
-            <div>
-              <h1>Pré-visualização da proposta</h1>
-              <p>Revise o conteúdo e clique em "Imprimir" para gerar o PDF.</p>
-              <p>Código do orçamento: <strong>${registroOrcamento.id}</strong></p>
-            </div>
-            <button type="button" onclick="window.print()">Imprimir</button>
-          </div>
-          <div class="preview-container">${node.outerHTML}</div>
-        </body>
-      </html>`
-
-    const { document } = printWindow
-    document.open()
-    document.write(previewHtml)
-    document.close()
-    printWindow.focus()
+    openBudgetPreviewWindow(node.outerHTML, {
+      nomeCliente,
+      budgetId: registroOrcamento.id,
+      actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
+    })
   }
 
   const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
@@ -1386,6 +1556,59 @@ export default function App() {
   const handleClienteChange = (key: keyof ClienteDados, value: string) => {
     setCliente((prev) => ({ ...prev, [key]: value }))
   }
+
+  const abrirOrcamentoSalvo = useCallback(
+    async (registro: OrcamentoSalvo, modo: 'preview' | 'print' | 'download') => {
+      try {
+        const layoutHtml = await renderPrintableProposalToHtml(registro.dados)
+        if (!layoutHtml) {
+          window.alert('Não foi possível preparar o orçamento selecionado. Tente novamente.')
+          return
+        }
+
+        const nomeCliente = registro.dados.cliente.nome?.trim() || 'SolarInvest'
+        let actionMessage = 'Revise o conteúdo e utilize as ações para gerar o PDF.'
+        if (modo === 'print') {
+          actionMessage = 'A janela de impressão será aberta automaticamente. Verifique as preferências antes de confirmar.'
+        } else if (modo === 'download') {
+          actionMessage =
+            'Escolha a opção "Salvar como PDF" na janela de impressão para baixar o orçamento.'
+        }
+
+        openBudgetPreviewWindow(layoutHtml, {
+          nomeCliente,
+          budgetId: registro.id,
+          actionMessage,
+          autoPrint: modo !== 'preview',
+          closeAfterPrint: modo === 'download',
+        })
+      } catch (error) {
+        console.error('Erro ao abrir orçamento salvo.', error)
+        window.alert('Não foi possível abrir o orçamento selecionado. Tente novamente.')
+      }
+    },
+    [openBudgetPreviewWindow],
+  )
+
+  const confirmarRemocaoOrcamento = useCallback(
+    (registro: OrcamentoSalvo) => {
+      if (typeof window === 'undefined') {
+        return
+      }
+
+      const nomeCliente = registro.clienteNome || registro.dados.cliente.nome || 'este cliente'
+      const confirmado = window.confirm(
+        `Deseja realmente excluir o orçamento ${registro.id} de ${nomeCliente}? Essa ação não poderá ser desfeita.`,
+      )
+
+      if (!confirmado) {
+        return
+      }
+
+      removerOrcamentoSalvo(registro.id)
+    },
+    [removerOrcamentoSalvo],
+  )
 
   const orcamentosFiltrados = useMemo(() => {
     if (!orcamentoSearchTerm.trim()) {
@@ -2100,6 +2323,7 @@ export default function App() {
                             <th>Documento</th>
                             <th>Unidade consumidora</th>
                             <th>Criado em</th>
+                            <th>Ações</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2122,6 +2346,39 @@ export default function App() {
                                 <td>{documento || '—'}</td>
                                 <td>{unidadeConsumidora || '—'}</td>
                                 <td>{formatBudgetDate(registro.criadoEm)}</td>
+                                <td>
+                                  <div className="budget-search-actions">
+                                    <button
+                                      type="button"
+                                      className="link"
+                                      onClick={() => abrirOrcamentoSalvo(registro, 'preview')}
+                                    >
+                                      Visualizar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="link"
+                                      onClick={() => abrirOrcamentoSalvo(registro, 'print')}
+                                    >
+                                      Imprimir
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="link"
+                                      onClick={() => abrirOrcamentoSalvo(registro, 'download')}
+                                    >
+                                      Baixar PDF
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="link danger"
+                                      onClick={() => confirmarRemocaoOrcamento(registro)}
+                                      title="Excluir orçamento salvo"
+                                    >
+                                      Excluir
+                                    </button>
+                                  </div>
+                                </td>
                               </tr>
                             )
                           })}

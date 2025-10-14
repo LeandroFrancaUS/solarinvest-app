@@ -146,6 +146,15 @@ button.link:focus-visible {
   outline: none;
 }
 
+button.link.danger {
+  color: #f87171;
+}
+
+button.link.danger:hover,
+button.link.danger:focus-visible {
+  color: #fecaca;
+}
+
 .tabs {
   position: sticky;
   top: var(--header-h);
@@ -751,6 +760,17 @@ table tbody tr:hover {
 .budget-search-client span {
   font-size: 12px;
   color: var(--muted);
+}
+
+.budget-search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.budget-search-actions button {
+  font-size: 12px;
+  padding: 0;
 }
 
 .settings-tabs {
