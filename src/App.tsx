@@ -359,7 +359,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <h2>Resumo técnico e financeiro</h2>
         <div className="print-summary">
           <p>
-            <strong>Investimento estimado:</strong> {currency(capex)}
+            <strong>Investimento da SolarInvest:</strong> {currency(capex)}
           </p>
           <p>
             <strong>Geração estimada (kWh/mês):</strong> {formatNumber(geracaoMensalKwh)}
@@ -503,7 +503,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           ) : null}
         </div>
         <p className="print-footer">
-          Após o final do contrato. o cliente passa a capturar 100% da economia frente à concessionária
+          Após o final do contrato a usina passa a render 100% de economia frente a concessionaria para o cliente
         </p>
       </section>
     </div>
@@ -2155,7 +2155,7 @@ export default function App() {
               {mostrarFinanciamento ? (
                 <div className="info-inline">
                   <span className="pill">
-                    Investimento estimado
+                    Investimento da SolarInvest
                     <strong>{currency(capex)}</strong>
                   </span>
                   <span className="pill">
