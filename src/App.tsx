@@ -729,6 +729,7 @@ export default function App() {
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(5)
   const [potenciaPlaca, setPotenciaPlaca] = useState(550)
   const [numeroPlacasManual, setNumeroPlacasManual] = useState<number | ''>('')
+  const consumoAnteriorRef = useRef(kcKwhMes)
 
   const [cliente, setCliente] = useState<ClienteDados>({
     nome: '',
@@ -1015,6 +1016,36 @@ export default function App() {
     if (numeroPlacasInformado) return numeroPlacasInformado
     return numeroPlacasCalculado
   }, [numeroPlacasInformado, numeroPlacasCalculado])
+
+  useEffect(() => {
+    const consumoAnterior = consumoAnteriorRef.current
+    if (consumoAnterior === kcKwhMes) {
+      return
+    }
+
+    consumoAnteriorRef.current = kcKwhMes
+
+    setNumeroPlacasManual((valorAtual) => {
+      if (valorAtual === '') {
+        return valorAtual
+      }
+
+      if (kcKwhMes <= 0) {
+        return ''
+      }
+
+      const valorArredondado = Math.round(Number(valorAtual))
+      if (!Number.isFinite(valorArredondado)) {
+        return ''
+      }
+
+      if (valorArredondado === numeroPlacasCalculado) {
+        return ''
+      }
+
+      return valorAtual
+    })
+  }, [kcKwhMes, numeroPlacasCalculado])
 
   const geracaoMensalKwh = useMemo(() => {
     if (potenciaInstaladaKwp <= 0 || fatorGeracaoMensal <= 0) {
