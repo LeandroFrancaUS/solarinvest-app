@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from 'recharts'
 
 import {
@@ -138,11 +138,67 @@ type MensalidadeRow = {
   totalAcumulado: number
 }
 
-const InfoTooltip: React.FC<{ text: string }> = ({ text }) => (
-  <span className="info-icon" role="img" aria-label="Informação" title={text}>
-    !
-  </span>
-)
+const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLSpanElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const tooltipId = useId()
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        buttonRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
+
+  return (
+    <span className="info-tooltip" ref={containerRef}>
+      <button
+        type="button"
+        className={`info-icon${open ? ' open' : ''}`}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-label="Mostrar explicação"
+        aria-haspopup="true"
+        aria-controls={open ? tooltipId : undefined}
+        ref={buttonRef}
+        onBlur={(event) => {
+          const nextFocus = event.relatedTarget as Node | null
+          if (!nextFocus || !containerRef.current?.contains(nextFocus)) {
+            setOpen(false)
+          }
+        }}
+      >
+        ?
+      </button>
+      {open ? (
+        <span role="tooltip" id={tooltipId} className="info-bubble">
+          {text}
+        </span>
+      ) : null}
+    </span>
+  )
+}
 
 const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; hint?: string }> = ({
   label,
@@ -1218,14 +1274,14 @@ export default function App() {
               </div>
               <div className="info-inline">
                 <span className="pill">
-                  Valor de Mercado Estimado
                   <InfoTooltip text="Valor de mercado = Potência instalada (kWp) × Preço por kWp configurado nas definições." />
-                  : <strong>{currency(capex)}</strong>
+                  Valor de Mercado Estimado
+                  <strong>{currency(capex)}</strong>
                 </span>
                 <span className="pill">
-                  Consumo diário
                   <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ Dias considerados no mês." />
-                  : <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
+                  Consumo diário
+                  <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
                 </span>
               </div>
             </section>
@@ -1301,14 +1357,6 @@ export default function App() {
             <section className="card">
               <div className="card-header">
                 <h2>SolarInvest Leasing</h2>
-                <span className="toggle-label">
-                  Inflação mensal equivalente
-                  <InfoTooltip text="Inflação mensal equivalente = (1 + inflação anual)^(1/12) - 1." />
-                  : {(parcelasSolarInvest.inflacaoMensal * 100).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}%
-                </span>
               </div>
 
               <div className="grid g2">
@@ -1326,9 +1374,9 @@ export default function App() {
 
               <div className="info-inline">
                 <span className="pill">
-                  Tarifa c/ desconto
                   <InfoTooltip text="Tarifa com desconto = Tarifa cheia ajustada pelos reajustes anuais × (1 - desconto contratual)." />
-                  : <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
+                  Tarifa c/ desconto
+                  <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
                 </span>
                 {modoEntradaNormalizado === 'REDUZ' ? (
                   <span className="pill">
@@ -1345,9 +1393,9 @@ export default function App() {
                 ) : null}
                 {modoEntradaNormalizado === 'CREDITO' ? (
                   <span className="pill">
-                    Crédito mensal da entrada
+                    Crédito mensal da entrada:
                     <InfoTooltip text="Crédito mensal = Valor de entrada ÷ Prazo contratual (em meses)." />
-                    : <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
+                    <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
                   </span>
                 ) : null}
               </div>
