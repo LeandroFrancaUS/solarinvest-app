@@ -510,15 +510,27 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <div className="print-notes">
           <p><strong>Informações adicionais:</strong></p>
           <ul>
-            <li>Valor de mercado: {valorMercadoTexto}</li>
             <li>
-              Desconto contratual: {formatNumber(descontoContratualPct, {
+              Valor de mercado estimado conforme parâmetros atuais do setor: {valorMercadoTexto}
+            </li>
+            <li>
+              Desconto contratual aplicado:{' '}
+              {formatNumber(descontoContratualPct, {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 2,
               })}%
             </li>
-            <li>Duração contratual: {duracaoContratualTexto}</li>
-            <li>Tabela para compra antecipada da usina entregue mediante solicitação</li>
+            <li>
+              Prazo de vigência contratual conforme especificado em proposta individual: {duracaoContratualTexto}
+            </li>
+            <li>Tabela de compra antecipada da usina disponível mediante solicitação.</li>
+            <li>Todos os equipamentos utilizados possuem certificação INMETRO.</li>
+            <li>
+              O valor final poderá ser ajustado após a visita técnica e validação do projeto.
+            </li>
+            <li>
+              Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer alterações no contrato definitivo.
+            </li>
           </ul>
         </div>
         <div className="print-chart-section">
