@@ -15,7 +15,9 @@ export function selectNumberInputOnFocus(event: FocusEvent<HTMLInputElement>): v
     try {
       input.select()
     } catch {
-      // Some browsers can throw when selecting certain input types. Ignore and continue.
+      // input.select() can throw on certain input types (e.g., type="number", "email", "date") in browsers like Safari and older versions of Chrome/Edge.
+      // See: https://github.com/facebook/react/issues/7267, https://stackoverflow.com/q/21177489
+      // Ignore and continue.
     }
   }
 
