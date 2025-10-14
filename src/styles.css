@@ -4,6 +4,7 @@
   --ink: #e4e9f3;
   --muted: #97a3ba;
   --accent: #ff8c00;
+  --accent-dark: #d97706;
   --accent-soft: rgba(255, 140, 0, 0.14);
   --accent-strong: rgba(255, 140, 0, 0.22);
   --border: rgba(31, 43, 64, 0.75);
@@ -191,10 +192,10 @@ button.icon {
 }
 
 .tabs button.active {
-  background: var(--accent-strong);
+  background: var(--accent-dark);
   color: var(--title);
-  border-color: rgba(255, 140, 0, 0.35);
-  box-shadow: 0 16px 30px rgba(255, 140, 0, 0.18);
+  border-color: var(--accent-dark);
+  box-shadow: 0 16px 30px rgba(217, 119, 6, 0.35);
 }
 
 .content {
@@ -689,10 +690,10 @@ table tbody tr:hover {
 }
 
 .settings-tab.active {
-  background: linear-gradient(140deg, rgba(255, 140, 0, 0.28), rgba(255, 140, 0, 0.18));
+  background: var(--accent-dark);
   color: var(--title);
-  border-color: rgba(255, 140, 0, 0.45);
-  box-shadow: 0 16px 32px rgba(255, 140, 0, 0.24);
+  border-color: var(--accent-dark);
+  box-shadow: 0 16px 32px rgba(217, 119, 6, 0.42);
 }
 
 .settings-panels {
