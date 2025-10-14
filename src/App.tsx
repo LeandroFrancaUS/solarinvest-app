@@ -207,6 +207,8 @@ type PrintableProps = {
   potenciaPlaca: number
   numeroPlacas: number
   potenciaInstaladaKwp: number
+  tipoInstalacao: TipoInstalacao
+  areaInstalacao: number
   descontoContratualPct: number
   parcelasLeasing: MensalidadeRow[]
 }
@@ -376,6 +378,8 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     potenciaPlaca,
     numeroPlacas,
     potenciaInstaladaKwp,
+    tipoInstalacao,
+    areaInstalacao,
     descontoContratualPct,
     parcelasLeasing,
   },
@@ -390,6 +394,12 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
   const duracaoContratualTexto = duracaoContratualValida ? `${buyoutResumo.duracao} meses` : '—'
+  const tipoInstalacaoDescricao =
+    tipoInstalacao === 'SOLO' ? 'Solo' : tipoInstalacao === 'TELHADO' ? 'Telhado' : '—'
+  const areaInstalacaoValida = Number.isFinite(areaInstalacao) && areaInstalacao > 0
+  const areaInstalacaoTexto = areaInstalacaoValida
+    ? areaInstalacao.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    : '—'
   const chartDataPrintable = useMemo(
     () =>
       anos.map((ano) => ({
@@ -443,6 +453,12 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           <p>
             <strong>Potência instalada (kWp):</strong>{' '}
             {formatNumber(potenciaInstaladaKwp, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+          <p>
+            <strong>Tipo de instalação:</strong> {tipoInstalacaoDescricao}
+          </p>
+          <p>
+            <strong>Área utilizada (m²):</strong> {areaInstalacaoTexto}
           </p>
         </div>
         <div className={`print-grid ${mostrarFinanciamento ? 'two' : 'one'}`}>
@@ -1441,10 +1457,13 @@ export default function App() {
       potenciaPlaca,
       numeroPlacas: numeroPlacasEstimado,
       potenciaInstaladaKwp,
+      tipoInstalacao,
+      areaInstalacao,
       descontoContratualPct: desconto,
       parcelasLeasing: parcelasSolarInvest.lista,
     }),
     [
+      areaInstalacao,
       anosArray,
       buyoutResumo,
       capex,
@@ -1457,6 +1476,7 @@ export default function App() {
       mostrarFinanciamento,
       numeroPlacasEstimado,
       parcelasSolarInvest,
+      tipoInstalacao,
       potenciaInstaladaKwp,
       potenciaPlaca,
       tabelaBuyout,
