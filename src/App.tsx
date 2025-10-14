@@ -699,7 +699,19 @@ export default function App() {
     if (potenciaPlaca <= 0) return 0
     const calculado = Math.ceil((potenciaInstaladaKwp * 1000) / potenciaPlaca)
     return Math.max(1, Number.isFinite(calculado) ? calculado : 0)
-  }, [numeroPlacasInformado, potenciaInstaladaKwp, potenciaPlaca])
+  }, [potenciaNecessariaKwp, potenciaPlaca])
+
+  const numeroPlacasEstimado = useMemo(() => {
+    if (numeroPlacasInformado) return numeroPlacasInformado
+    return numeroPlacasCalculado
+  }, [numeroPlacasCalculado, numeroPlacasInformado])
+
+  const potenciaInstaladaKwp = useMemo(() => {
+    if (!numeroPlacasEstimado || potenciaPlaca <= 0) {
+      return 0
+    }
+    return (numeroPlacasEstimado * potenciaPlaca) / 1000
+  }, [numeroPlacasEstimado, potenciaPlaca])
 
   const geracaoMensalKwh = useMemo(() => {
     if (potenciaInstaladaKwp <= 0 || fatorGeracaoMensal <= 0) {
