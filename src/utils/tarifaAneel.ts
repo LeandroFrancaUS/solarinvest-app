@@ -268,9 +268,16 @@ const fetchTarifaFromCsv = async (uf: string): Promise<number | null> => {
   return null
 }
 
+const UF_PADRAO_TARIFA: Record<string, number> = {
+  GO: 0.964,
+}
+
 const finalFallback = (uf: string): number => {
-  console.warn(`[Tarifa] Nenhum dado encontrado para ${uf}. Usando padrão 0.900 R$/kWh.`)
-  return 0.9
+  const valorPadrao = UF_PADRAO_TARIFA[uf] ?? 0.9
+  console.warn(
+    `[Tarifa] Nenhum dado encontrado para ${uf}. Usando padrão ${valorPadrao.toFixed(3)} R$/kWh.`,
+  )
+  return valorPadrao
 }
 
 const resolvedCache = new Map<string, number>()
