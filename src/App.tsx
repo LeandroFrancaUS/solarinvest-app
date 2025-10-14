@@ -149,6 +149,41 @@ type MensalidadeRow = {
   totalAcumulado: number
 }
 
+type OrcamentoSalvo = {
+  id: string
+  criadoEm: string
+  clienteNome: string
+  clienteCidade: string
+  clienteUf: string
+  dados: PrintableProps
+}
+
+const CAMPOS_CLIENTE_OBRIGATORIOS: { key: keyof ClienteDados; label: string }[] = [
+  { key: 'nome', label: 'Nome do cliente' },
+  { key: 'cidade', label: 'Cidade' },
+  { key: 'uf', label: 'Estado' },
+]
+
+const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
+
+const generateBudgetId = () => {
+  const randomPart = Math.floor(100000 + Math.random() * 900000)
+  const timestampPart = Date.now().toString(36).toUpperCase()
+  return `ORC-${timestampPart}-${randomPart}`
+}
+
+const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
+  ...dados,
+  cliente: { ...dados.cliente },
+  anos: [...dados.anos],
+  leasingROI: [...dados.leasingROI],
+  financiamentoFluxo: [...dados.financiamentoFluxo],
+  financiamentoROI: [...dados.financiamentoROI],
+  tabelaBuyout: dados.tabelaBuyout.map((row) => ({ ...row })),
+  buyoutResumo: { ...dados.buyoutResumo },
+  parcelasLeasing: dados.parcelasLeasing.map((row) => ({ ...row })),
+})
+
 const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLSpanElement | null>(null)
@@ -1144,6 +1179,95 @@ export default function App() {
 
   const printableRef = useRef<HTMLDivElement>(null)
 
+  const anosArray = useMemo(() => Array.from({ length: anosAnalise }, (_, i) => i + 1), [])
+
+  const printableData = useMemo<PrintableProps>(
+    () => ({
+      cliente,
+      anos: anosArray,
+      leasingROI,
+      financiamentoFluxo,
+      financiamentoROI,
+      mostrarFinanciamento,
+      tabelaBuyout,
+      buyoutResumo,
+      capex,
+      geracaoMensalKwh,
+      potenciaPlaca,
+      numeroPlacas: numeroPlacasEstimado,
+      potenciaInstaladaKwp,
+      descontoContratualPct: desconto,
+      parcelasLeasing: parcelasSolarInvest.lista,
+    }),
+    [
+      anosArray,
+      buyoutResumo,
+      capex,
+      cliente,
+      desconto,
+      financiamentoFluxo,
+      financiamentoROI,
+      geracaoMensalKwh,
+      leasingROI,
+      mostrarFinanciamento,
+      numeroPlacasEstimado,
+      parcelasSolarInvest,
+      potenciaInstaladaKwp,
+      potenciaPlaca,
+      tabelaBuyout,
+    ],
+  )
+
+  const validarCamposObrigatorios = () => {
+    const faltantes = CAMPOS_CLIENTE_OBRIGATORIOS.filter(({ key }) => !cliente[key].trim())
+    if (faltantes.length > 0) {
+      const mensagem = `Preencha os campos obrigatórios antes de exportar: ${faltantes
+        .map((campo) => campo.label)
+        .join(', ')}`
+      window.alert(mensagem)
+      return false
+    }
+    return true
+  }
+
+  const salvarOrcamentoLocalmente = (dados: PrintableProps): OrcamentoSalvo | null => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+
+    try {
+      const registro: OrcamentoSalvo = {
+        id: generateBudgetId(),
+        criadoEm: new Date().toISOString(),
+        clienteNome: dados.cliente.nome,
+        clienteCidade: dados.cliente.cidade,
+        clienteUf: dados.cliente.uf,
+        dados: clonePrintableData(dados),
+      }
+
+      const existenteRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
+      let registrosExistentes: OrcamentoSalvo[] = []
+      if (existenteRaw) {
+        try {
+          const parsed = JSON.parse(existenteRaw)
+          if (Array.isArray(parsed)) {
+            registrosExistentes = parsed as OrcamentoSalvo[]
+          }
+        } catch (error) {
+          console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
+        }
+      }
+
+      const registrosAtualizados = [registro, ...registrosExistentes]
+      window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+      return registro
+    } catch (error) {
+      console.error('Erro ao salvar orçamento localmente.', error)
+      window.alert('Não foi possível salvar o orçamento. Tente novamente.')
+      return null
+    }
+  }
+
   const handleEficienciaInput = (valor: number) => {
     if (!Number.isFinite(valor)) {
       setEficiencia(0)
@@ -1160,16 +1284,26 @@ export default function App() {
     setEficiencia(valor)
   }
   const handlePrint = () => {
+    if (!validarCamposObrigatorios()) {
+      return
+    }
+
+    const registroOrcamento = salvarOrcamentoLocalmente(printableData)
+    if (!registroOrcamento) {
+      return
+    }
+
     const node = printableRef.current
     if (!node) return
     const printWindow = window.open('', '_blank', 'width=1024,height=768')
     if (!printWindow) return
 
+    const nomeCliente = printableData.cliente.nome?.trim() || 'SolarInvest'
     const previewHtml = `<!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>Proposta-${cliente.nome || 'SolarInvest'}</title>
+          <title>Proposta-${nomeCliente}</title>
           <style>
             ${printStyles}
             body{padding-top:88px;}
@@ -1190,6 +1324,7 @@ export default function App() {
             <div>
               <h1>Pré-visualização da proposta</h1>
               <p>Revise o conteúdo e clique em "Imprimir" para gerar o PDF.</p>
+              <p>Código do orçamento: <strong>${registroOrcamento.id}</strong></p>
             </div>
             <button type="button" onclick="window.print()">Imprimir</button>
           </div>
@@ -1204,7 +1339,6 @@ export default function App() {
     printWindow.focus()
   }
 
-  const anosArray = useMemo(() => Array.from({ length: anosAnalise }, (_, i) => i + 1), [])
   const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
 
   const handleClienteChange = (key: keyof ClienteDados, value: string) => {
@@ -1213,24 +1347,7 @@ export default function App() {
 
   return (
     <div className="page">
-      <PrintableProposal
-        ref={printableRef}
-        cliente={cliente}
-        anos={anosArray}
-        leasingROI={leasingROI}
-        financiamentoFluxo={financiamentoFluxo}
-        financiamentoROI={financiamentoROI}
-        mostrarFinanciamento={mostrarFinanciamento}
-        tabelaBuyout={tabelaBuyout}
-        buyoutResumo={buyoutResumo}
-        capex={capex}
-        geracaoMensalKwh={geracaoMensalKwh}
-        potenciaPlaca={potenciaPlaca}
-        numeroPlacas={numeroPlacasEstimado}
-        potenciaInstaladaKwp={potenciaInstaladaKwp}
-        descontoContratualPct={desconto}
-        parcelasLeasing={parcelasSolarInvest.lista}
-      />
+      <PrintableProposal ref={printableRef} {...printableData} />
       <header className="topbar app-header">
         <div className="brand">
           <img src="/logo.svg" alt="SolarInvest" />
