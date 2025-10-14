@@ -144,6 +144,8 @@ type TabKey = 'leasing' | 'cliente' | 'vendas' | 'financiamento'
 
 type SettingsTabKey = 'mercado' | 'leasing' | 'financiamento' | 'buyout' | 'outros'
 
+type TipoInstalacao = 'TELHADO' | 'SOLO'
+
 const SETTINGS_TABS: { id: SettingsTabKey; label: string }[] = [
   { id: 'mercado', label: 'Mercado & Energia' },
   { id: 'leasing', label: 'Leasing Parâmetros' },
@@ -728,6 +730,7 @@ export default function App() {
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(0)
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(5)
   const [potenciaPlaca, setPotenciaPlaca] = useState(550)
+  const [tipoInstalacao, setTipoInstalacao] = useState<TipoInstalacao>('TELHADO')
   const [numeroPlacasManual, setNumeroPlacasManual] = useState<number | ''>('')
   const consumoAnteriorRef = useRef(kcKwhMes)
 
@@ -1016,6 +1019,12 @@ export default function App() {
     if (numeroPlacasInformado) return numeroPlacasInformado
     return numeroPlacasCalculado
   }, [numeroPlacasInformado, numeroPlacasCalculado])
+
+  const areaInstalacao = useMemo(() => {
+    if (numeroPlacasEstimado <= 0) return 0
+    const fator = tipoInstalacao === 'SOLO' ? 7 : 3.3
+    return numeroPlacasEstimado * fator
+  }, [numeroPlacasEstimado, tipoInstalacao])
 
   useEffect(() => {
     const consumoAnterior = consumoAnteriorRef.current
@@ -2025,6 +2034,15 @@ export default function App() {
             onFocus={selectNumberInputOnFocus}
           />
         </Field>
+        <Field label="Tipo de instalação">
+          <select
+            value={tipoInstalacao}
+            onChange={(event) => setTipoInstalacao(event.target.value as TipoInstalacao)}
+          >
+            <option value="TELHADO">Telhado</option>
+            <option value="SOLO">Solo</option>
+          </select>
+        </Field>
         <Field
           label={
             <>
@@ -2044,6 +2062,23 @@ export default function App() {
           }
         >
           <input readOnly value={geracaoMensalKwh.toFixed(0)} />
+        </Field>
+        <Field
+          label={
+            <>
+              Área utilizada (m²)
+              <InfoTooltip text="Área utilizada = Nº de placas × 3,3 m² (telhado) ou × 7 m² (solo)." />
+            </>
+          }
+        >
+          <input
+            readOnly
+            value={
+              areaInstalacao > 0
+                ? areaInstalacao.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+                : '—'
+            }
+          />
         </Field>
       </div>
       <div className="info-inline">
