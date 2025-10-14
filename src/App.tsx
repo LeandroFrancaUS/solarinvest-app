@@ -542,9 +542,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
             <li>Tabela de compra antecipada da usina disponível mediante solicitação.</li>
             <li>Todos os equipamentos utilizados possuem certificação INMETRO.</li>
             <li>
-              O valor final poderá ser ajustado após a visita técnica e validação do projeto.
-            </li>
-            <li>
               Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer alterações no contrato definitivo.
             </li>
           </ul>
