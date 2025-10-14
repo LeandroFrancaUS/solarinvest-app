@@ -73,6 +73,16 @@ const UF_LABELS: Record<string, string> = {
 
 type TabKey = 'leasing' | 'cliente' | 'financiamento' | 'vendas'
 
+type SettingsTabKey = 'mercado' | 'leasing' | 'financiamento' | 'buyout' | 'outros'
+
+const SETTINGS_TABS: { id: SettingsTabKey; label: string }[] = [
+  { id: 'mercado', label: 'Mercado & Energia' },
+  { id: 'leasing', label: 'Leasing Parâmetros' },
+  { id: 'financiamento', label: 'Financiamento Parâmetros' },
+  { id: 'buyout', label: 'Buyout Parâmetros' },
+  { id: 'outros', label: 'Outros' },
+]
+
 type SeguroModo = 'A' | 'B'
 
 type EntradaModoLabel = 'Crédito mensal' | 'Reduz piso contratado'
@@ -475,6 +485,7 @@ const printStyles = `
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('leasing')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<SettingsTabKey>('mercado')
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifa] = useState('GO')
   const [distribuidoraTarifa, setDistribuidoraTarifa] = useState('Equatorial Goiás')
@@ -719,6 +730,12 @@ export default function App() {
 
     return () => {
       body.style.removeProperty('overflow')
+    }
+  }, [isSettingsOpen])
+
+  useEffect(() => {
+    if (isSettingsOpen) {
+      setSettingsTab('mercado')
     }
   }, [isSettingsOpen])
 
@@ -1814,397 +1831,493 @@ export default function App() {
               <button className="icon" onClick={() => setIsSettingsOpen(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <h4>Mercado & energia</h4>
-              <div className="grid g2">
-                <Field label="Inflação energética (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={inflacaoAa}
-                    onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Preço por kWp (R$)">
-                  <input
-                    type="number"
-                    value={precoPorKwp}
-                    onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Irradiação média (kWh/m²/dia)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    min={0.01}
-                    value={irradiacao}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setIrradiacao(Number.isFinite(parsed) && parsed > 0 ? parsed : 0)
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Eficiência do sistema">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min={0.01}
-                    value={eficiencia}
-                    onChange={(e) => {
-                      if (e.target.value === '') {
-                        setEficiencia(0)
-                        return
-                      }
-                      handleEficienciaInput(Number(e.target.value))
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Dias no mês (cálculo)">
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={diasMes > 0 ? diasMes : ''}
-                    onChange={(e) => {
-                      const { value } = e.target
-                      if (value === '') {
-                        setDiasMes(0)
-                        return
-                      }
-                      const parsed = Number(value)
-                      setDiasMes(Number.isFinite(parsed) ? parsed : 0)
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              </div>
-
-              <h4>Leasing parâmetros</h4>
-              <div className="grid g3">
-                <Field label="Prazo contratual (meses)">
-                  <input
-                    type="number"
-                    min={1}
-                    value={prazoMeses}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setPrazoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Bandeira tarifária (R$)">
-                  <input
-                    type="number"
-                    value={bandeiraEncargo}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setBandeiraEncargo(Number.isFinite(parsed) ? parsed : 0)
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Contribuição CIP (R$)">
-                  <input
-                    type="number"
-                    value={cipEncargo}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setCipEncargo(Number.isFinite(parsed) ? parsed : 0)
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Uso da entrada">
-                  <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModoLabel)}>
-                    <option value="Crédito mensal">Crédito mensal</option>
-                    <option value="Reduz piso contratado">Reduz piso contratado</option>
-                  </select>
-                </Field>
-              </div>
-              <div className="info-inline">
-                <span className="pill">
-                  Margem mínima: <strong>{currency(parcelasSolarInvest.margemMinima)}</strong>
-                </span>
-                <span className="pill">
-                  Total pago no prazo: <strong>{currency(parcelasSolarInvest.totalPago)}</strong>
-                </span>
-              </div>
-
-              <h4>Financiamento parâmetros</h4>
-              <div className="grid g3">
-                <Field label="Juros a.a. (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={jurosFinAa}
-                    onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Prazo (meses)">
-                  <input
-                    type="number"
-                    value={prazoFinMeses}
-                    onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Entrada (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={entradaFinPct}
-                    onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              </div>
-
-              <h4>Buyout parâmetros</h4>
-              <div className="grid g3">
-                <Field label="Cashback (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={cashbackPct}
-                    onChange={(e) => setCashbackPct(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Depreciação (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={depreciacaoAa}
-                    onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Inadimplência (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={inadimplenciaAa}
-                    onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Tributos (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={tributosAa}
-                    onChange={(e) => setTributosAa(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="IPCA (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={ipcaAa}
-                    onChange={(e) => setIpcaAa(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Custos fixos (R$)">
-                  <input
-                    type="number"
-                    value={custosFixosM}
-                    onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="OPEX (R$)">
-                  <input
-                    type="number"
-                    value={opexM}
-                    onChange={(e) => setOpexM(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Seguro (R$)">
-                  <input
-                    type="number"
-                    value={seguroM}
-                    onChange={(e) => setSeguroM(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Duração (meses)">
-                  <input
-                    type="number"
-                    value={duracaoMeses}
-                    onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Pagos acumulados até o mês (R$)">
-                  <input
-                    type="number"
-                    value={pagosAcumAteM}
-                    onChange={(e) => setPagosAcumAteM(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              </div>
-
-              <h4>O&M e seguro</h4>
-              <div className="grid g3">
-                <Field label="O&M base (R$/kWp)">
-                  <input
-                    type="number"
-                    value={oemBase}
-                    onChange={(e) => setOemBase(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Reajuste O&M (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={oemInflacao}
-                    onChange={(e) => setOemInflacao(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Reajuste seguro (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={seguroReajuste}
-                    onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Modo de seguro">
-                  <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
-                    <option value="A">Modo A — Potência (R$)</option>
-                    <option value="B">Modo B — % Valor de mercado</option>
-                  </select>
-                </Field>
-                <Field label="Base seguro modo A (R$/kWp)">
-                  <input
-                    type="number"
-                    value={seguroValorA}
-                    onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Seguro modo B (%)">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={seguroPercentualB}
-                    onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              </div>
-
-              <h4>Exibição</h4>
-              <div className="grid g2">
-                <Field label="Mostrar gráfico ROI">
-                  <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
-                    <option value="1">Sim</option>
-                    <option value="0">Não</option>
-                  </select>
-                </Field>
-                <Field label="Mostrar coluna financiamento">
-                  <select value={mostrarFinanciamento ? '1' : '0'} onChange={(e) => setMostrarFinanciamento(e.target.value === '1')}>
-                    <option value="1">Sim</option>
-                    <option value="0">Não</option>
-                  </select>
-                </Field>
-              </div>
-
-              <h4>Parcelas — Total pago acumulado</h4>
-              <div className="table-controls">
-                <button
-                  type="button"
-                  className="collapse-toggle"
-                  onClick={() => setMostrarTabelaParcelasConfig((prev) => !prev)}
-                  aria-expanded={mostrarTabelaParcelasConfig}
-                  aria-controls="config-parcelas-total"
+              <div className="settings-tabs">
+                <nav
+                  className="settings-tabs-nav"
+                  role="tablist"
+                  aria-label="Configurações da simulação"
                 >
-                  {mostrarTabelaParcelasConfig ? 'Ocultar tabela de parcelas' : 'Exibir tabela de parcelas'}
-                </button>
-              </div>
-              {mostrarTabelaParcelasConfig ? (
-                <div className="table-wrapper">
-                  <table id="config-parcelas-total">
-                    <thead>
-                      <tr>
-                        <th>Mês</th>
-                        <th>Total pago acumulado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parcelasSolarInvest.lista.length > 0 ? (
-                        parcelasSolarInvest.lista.map((row) => (
-                          <tr key={`config-parcela-${row.mes}`}>
-                            <td>{row.mes}</td>
-                            <td>{currency(row.totalAcumulado)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={2} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-
-              <h4>Buyout — Receita acumulada</h4>
-              <div className="table-controls">
-                <button
-                  type="button"
-                  className="collapse-toggle"
-                  onClick={() => setMostrarTabelaBuyoutConfig((prev) => !prev)}
-                  aria-expanded={mostrarTabelaBuyoutConfig}
-                  aria-controls="config-buyout-receita"
-                >
-                  {mostrarTabelaBuyoutConfig ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
-                </button>
-              </div>
-              {mostrarTabelaBuyoutConfig ? (
-                <div className="table-wrapper">
-                  <table id="config-buyout-receita">
-                    <thead>
-                      <tr>
-                        <th>Mês</th>
-                        <th>Receita acumulada</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {buyoutReceitaRows.length > 0 ? (
-                        buyoutReceitaRows.map((row) => (
-                          <tr key={`config-buyout-${row.mes}`}>
-                            <td>{row.mes}</td>
-                            <td>{currency(row.prestacaoAcum)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={2} className="muted">Defina os parâmetros para visualizar a receita acumulada.</td>
-                        </tr>
-                      )}
-                      {buyoutAceiteFinal ? (
-                        <tr>
-                          <td>{buyoutMesAceiteFinal}</td>
-                          <td>{currency(buyoutAceiteFinal.prestacaoAcum)}</td>
-                        </tr>
+                  {SETTINGS_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={`settings-tab${settingsTab === tab.id ? ' active' : ''}`}
+                      role="tab"
+                      id={`settings-tab-${tab.id}`}
+                      aria-selected={settingsTab === tab.id}
+                      aria-controls={`settings-panel-${tab.id}`}
+                      onClick={() => setSettingsTab(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </nav>
+                <div className="settings-panels">
+                  <section
+                    id="settings-panel-mercado"
+                    role="tabpanel"
+                    aria-labelledby="settings-tab-mercado"
+                    className={`settings-panel${settingsTab === 'mercado' ? ' active' : ''}`}
+                    hidden={settingsTab !== 'mercado'}
+                    aria-hidden={settingsTab !== 'mercado'}
+                  >
+                    <div className="settings-panel-header">
+                      <h4>Mercado & energia</h4>
+                      <p className="settings-panel-description">
+                        Ajuste as premissas macroeconômicas da projeção.
+                      </p>
+                    </div>
+                    <div className="grid g2">
+                      <Field label="Inflação energética (%)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={inflacaoAa}
+                          onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Preço por kWp (R$)">
+                        <input
+                          type="number"
+                          value={precoPorKwp}
+                          onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Irradiação média (kWh/m²/dia)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min={0.01}
+                          value={irradiacao}
+                          onChange={(e) => {
+                            const parsed = Number(e.target.value)
+                            setIrradiacao(Number.isFinite(parsed) && parsed > 0 ? parsed : 0)
+                          }}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Eficiência do sistema">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0.01}
+                          value={eficiencia}
+                          onChange={(e) => {
+                            if (e.target.value === '') {
+                              setEficiencia(0)
+                              return
+                            }
+                            handleEficienciaInput(Number(e.target.value))
+                          }}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Dias no mês (cálculo)">
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={diasMes > 0 ? diasMes : ''}
+                          onChange={(e) => {
+                            const { value } = e.target
+                            if (value === '') {
+                              setDiasMes(0)
+                              return
+                            }
+                            const parsed = Number(value)
+                            setDiasMes(Number.isFinite(parsed) ? parsed : 0)
+                          }}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                    </div>
+                  </section>
+                  <section
+                    id="settings-panel-leasing"
+                    role="tabpanel"
+                    aria-labelledby="settings-tab-leasing"
+                    className={`settings-panel${settingsTab === 'leasing' ? ' active' : ''}`}
+                    hidden={settingsTab !== 'leasing'}
+                    aria-hidden={settingsTab !== 'leasing'}
+                  >
+                    <div className="settings-panel-header">
+                      <h4>Leasing parâmetros</h4>
+                      <p className="settings-panel-description">
+                        Personalize as condições do contrato de leasing.
+                      </p>
+                    </div>
+                    <div className="grid g3">
+                      <Field label="Prazo contratual (meses)">
+                        <input
+                          type="number"
+                          min={1}
+                          value={prazoMeses}
+                          onChange={(e) => {
+                            const parsed = Number(e.target.value)
+                            setPrazoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                          }}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Bandeira tarifária (R$)">
+                        <input
+                          type="number"
+                          value={bandeiraEncargo}
+                          onChange={(e) => {
+                            const parsed = Number(e.target.value)
+                            setBandeiraEncargo(Number.isFinite(parsed) ? parsed : 0)
+                          }}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Contribuição CIP (R$)">
+                        <input
+                          type="number"
+                          value={cipEncargo}
+                          onChange={(e) => {
+                            const parsed = Number(e.target.value)
+                            setCipEncargo(Number.isFinite(parsed) ? parsed : 0)
+                          }}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Uso da entrada">
+                        <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModoLabel)}>
+                          <option value="Crédito mensal">Crédito mensal</option>
+                          <option value="Reduz piso contratado">Reduz piso contratado</option>
+                        </select>
+                      </Field>
+                    </div>
+                    <div className="info-inline">
+                      <span className="pill">
+                        Margem mínima: <strong>{currency(parcelasSolarInvest.margemMinima)}</strong>
+                      </span>
+                      <span className="pill">
+                        Total pago no prazo: <strong>{currency(parcelasSolarInvest.totalPago)}</strong>
+                      </span>
+                    </div>
+                    <div className="settings-subsection">
+                      <p className="settings-subheading">Parcelas — Total pago acumulado</p>
+                      <div className="table-controls">
+                        <button
+                          type="button"
+                          className="collapse-toggle"
+                          onClick={() => setMostrarTabelaParcelasConfig((prev) => !prev)}
+                          aria-expanded={mostrarTabelaParcelasConfig}
+                          aria-controls="config-parcelas-total"
+                        >
+                          {mostrarTabelaParcelasConfig ? 'Ocultar tabela de parcelas' : 'Exibir tabela de parcelas'}
+                        </button>
+                      </div>
+                      {mostrarTabelaParcelasConfig ? (
+                        <div className="table-wrapper">
+                          <table id="config-parcelas-total">
+                            <thead>
+                              <tr>
+                                <th>Mês</th>
+                                <th>Total pago acumulado</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {parcelasSolarInvest.lista.length > 0 ? (
+                                parcelasSolarInvest.lista.map((row) => (
+                                  <tr key={`config-parcela-${row.mes}`}>
+                                    <td>{row.mes}</td>
+                                    <td>{currency(row.totalAcumulado)}</td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={2} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       ) : null}
-                    </tbody>
-                  </table>
+                    </div>
+                  </section>
+                  <section
+                    id="settings-panel-financiamento"
+                    role="tabpanel"
+                    aria-labelledby="settings-tab-financiamento"
+                    className={`settings-panel${settingsTab === 'financiamento' ? ' active' : ''}`}
+                    hidden={settingsTab !== 'financiamento'}
+                    aria-hidden={settingsTab !== 'financiamento'}
+                  >
+                    <div className="settings-panel-header">
+                      <h4>Financiamento parâmetros</h4>
+                      <p className="settings-panel-description">
+                        Defina as variáveis financeiras do cenário financiado.
+                      </p>
+                    </div>
+                    <div className="grid g3">
+                      <Field label="Juros a.a. (%)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={jurosFinAa}
+                          onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Prazo (meses)">
+                        <input
+                          type="number"
+                          value={prazoFinMeses}
+                          onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Entrada (%)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={entradaFinPct}
+                          onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                    </div>
+                  </section>
+                  <section
+                    id="settings-panel-buyout"
+                    role="tabpanel"
+                    aria-labelledby="settings-tab-buyout"
+                    className={`settings-panel${settingsTab === 'buyout' ? ' active' : ''}`}
+                    hidden={settingsTab !== 'buyout'}
+                    aria-hidden={settingsTab !== 'buyout'}
+                  >
+                    <div className="settings-panel-header">
+                      <h4>Buyout parâmetros</h4>
+                      <p className="settings-panel-description">
+                        Configure premissas de recompra e fluxo residual.
+                      </p>
+                    </div>
+                    <div className="grid g3">
+                      <Field label="Cashback (%)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={cashbackPct}
+                          onChange={(e) => setCashbackPct(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Depreciação (%)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={depreciacaoAa}
+                          onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Inadimplência (%)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={inadimplenciaAa}
+                          onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Tributos (%)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={tributosAa}
+                          onChange={(e) => setTributosAa(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="IPCA (%)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={ipcaAa}
+                          onChange={(e) => setIpcaAa(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Custos fixos (R$)">
+                        <input
+                          type="number"
+                          value={custosFixosM}
+                          onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="OPEX (R$)">
+                        <input
+                          type="number"
+                          value={opexM}
+                          onChange={(e) => setOpexM(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Seguro (R$)">
+                        <input
+                          type="number"
+                          value={seguroM}
+                          onChange={(e) => setSeguroM(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Duração (meses)">
+                        <input
+                          type="number"
+                          value={duracaoMeses}
+                          onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Pagos acumulados até o mês (R$)">
+                        <input
+                          type="number"
+                          value={pagosAcumAteM}
+                          onChange={(e) => setPagosAcumAteM(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                    </div>
+                    <div className="settings-subsection">
+                      <p className="settings-subheading">Buyout — Receita acumulada</p>
+                      <div className="table-controls">
+                        <button
+                          type="button"
+                          className="collapse-toggle"
+                          onClick={() => setMostrarTabelaBuyoutConfig((prev) => !prev)}
+                          aria-expanded={mostrarTabelaBuyoutConfig}
+                          aria-controls="config-buyout-receita"
+                        >
+                          {mostrarTabelaBuyoutConfig ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
+                        </button>
+                      </div>
+                      {mostrarTabelaBuyoutConfig ? (
+                        <div className="table-wrapper">
+                          <table id="config-buyout-receita">
+                            <thead>
+                              <tr>
+                                <th>Mês</th>
+                                <th>Receita acumulada</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {buyoutReceitaRows.length > 0 ? (
+                                buyoutReceitaRows.map((row) => (
+                                  <tr key={`config-buyout-${row.mes}`}>
+                                    <td>{row.mes}</td>
+                                    <td>{currency(row.prestacaoAcum)}</td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={2} className="muted">Defina os parâmetros para visualizar a receita acumulada.</td>
+                                </tr>
+                              )}
+                              {buyoutAceiteFinal ? (
+                                <tr>
+                                  <td>{buyoutMesAceiteFinal}</td>
+                                  <td>{currency(buyoutAceiteFinal.prestacaoAcum)}</td>
+                                </tr>
+                              ) : null}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : null}
+                    </div>
+                  </section>
+                  <section
+                    id="settings-panel-outros"
+                    role="tabpanel"
+                    aria-labelledby="settings-tab-outros"
+                    className={`settings-panel${settingsTab === 'outros' ? ' active' : ''}`}
+                    hidden={settingsTab !== 'outros'}
+                    aria-hidden={settingsTab !== 'outros'}
+                  >
+                    <div className="settings-panel-header">
+                      <h4>Outros</h4>
+                      <p className="settings-panel-description">
+                        Controles complementares de operação e apresentação.
+                      </p>
+                    </div>
+                    <div className="settings-subsection">
+                      <p className="settings-subheading">O&M e seguro</p>
+                      <div className="grid g3">
+                        <Field label="O&M base (R$/kWp)">
+                          <input
+                            type="number"
+                            value={oemBase}
+                            onChange={(e) => setOemBase(Number(e.target.value) || 0)}
+                            onFocus={selectNumberInputOnFocus}
+                          />
+                        </Field>
+                        <Field label="Reajuste O&M (%)">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={oemInflacao}
+                            onChange={(e) => setOemInflacao(Number(e.target.value) || 0)}
+                            onFocus={selectNumberInputOnFocus}
+                          />
+                        </Field>
+                        <Field label="Reajuste seguro (%)">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={seguroReajuste}
+                            onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)}
+                            onFocus={selectNumberInputOnFocus}
+                          />
+                        </Field>
+                        <Field label="Modo de seguro">
+                          <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
+                            <option value="A">Modo A — Potência (R$)</option>
+                            <option value="B">Modo B — % Valor de mercado</option>
+                          </select>
+                        </Field>
+                        <Field label="Base seguro modo A (R$/kWp)">
+                          <input
+                            type="number"
+                            value={seguroValorA}
+                            onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)}
+                            onFocus={selectNumberInputOnFocus}
+                          />
+                        </Field>
+                        <Field label="Seguro modo B (%)">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={seguroPercentualB}
+                            onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)}
+                            onFocus={selectNumberInputOnFocus}
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                    <div className="settings-subsection">
+                      <p className="settings-subheading">Exibição</p>
+                      <div className="grid g2">
+                        <Field label="Mostrar gráfico ROI">
+                          <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
+                            <option value="1">Sim</option>
+                            <option value="0">Não</option>
+                          </select>
+                        </Field>
+                        <Field label="Mostrar coluna financiamento">
+                          <select value={mostrarFinanciamento ? '1' : '0'} onChange={(e) => setMostrarFinanciamento(e.target.value === '1')}>
+                            <option value="1">Sim</option>
+                            <option value="0">Não</option>
+                          </select>
+                        </Field>
+                      </div>
+                    </div>
+                  </section>
                 </div>
-              ) : null}
+              </div>
             </div>
           </div>
         </div>
