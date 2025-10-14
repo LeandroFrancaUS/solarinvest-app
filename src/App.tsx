@@ -2366,32 +2366,30 @@ export default function App() {
                                   <div className="budget-search-actions">
                                     <button
                                       type="button"
-                                      className="link"
+                                      className="budget-search-action"
                                       onClick={() => abrirOrcamentoSalvo(registro, 'preview')}
+                                      aria-label="Visualizar orçamento salvo"
+                                      title="Visualizar orçamento"
                                     >
-                                      Visualizar
+                                      👁
                                     </button>
                                     <button
                                       type="button"
-                                      className="link"
-                                      onClick={() => abrirOrcamentoSalvo(registro, 'print')}
-                                    >
-                                      Imprimir
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="link"
+                                      className="budget-search-action"
                                       onClick={() => abrirOrcamentoSalvo(registro, 'download')}
+                                      aria-label="Baixar orçamento em PDF"
+                                      title="Baixar PDF"
                                     >
-                                      Baixar PDF
+                                      ⤓
                                     </button>
                                     <button
                                       type="button"
-                                      className="link danger"
+                                      className="budget-search-action danger"
                                       onClick={() => confirmarRemocaoOrcamento(registro)}
+                                      aria-label="Excluir orçamento salvo"
                                       title="Excluir orçamento salvo"
                                     >
-                                      Excluir
+                                      🗑
                                     </button>
                                   </div>
                                 </td>

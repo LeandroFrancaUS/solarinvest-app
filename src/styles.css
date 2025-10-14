@@ -768,9 +768,38 @@ table tbody tr:hover {
   gap: 8px;
 }
 
-.budget-search-actions button {
-  font-size: 12px;
-  padding: 0;
+.budget-search-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  background: rgba(15, 22, 36, 0.8);
+  color: var(--accent);
+  font-size: 16px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.budget-search-action:hover,
+.budget-search-action:focus-visible {
+  background: rgba(255, 140, 0, 0.15);
+  border-color: rgba(255, 140, 0, 0.6);
+  color: var(--title);
+  outline: none;
+}
+
+.budget-search-action.danger {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.budget-search-action.danger:hover,
+.budget-search-action.danger:focus-visible {
+  color: #fecaca;
+  border-color: rgba(254, 202, 202, 0.6);
+  background: rgba(248, 113, 113, 0.1);
 }
 
 .settings-tabs {
