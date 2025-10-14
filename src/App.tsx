@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from 'recharts'
 
 import {
@@ -155,6 +155,8 @@ type OrcamentoSalvo = {
   clienteNome: string
   clienteCidade: string
   clienteUf: string
+  clienteDocumento?: string
+  clienteUc?: string
   dados: PrintableProps
 }
 
@@ -183,6 +185,22 @@ const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
   buyoutResumo: { ...dados.buyoutResumo },
   parcelasLeasing: dados.parcelasLeasing.map((row) => ({ ...row })),
 })
+
+const normalizeText = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+const normalizeNumbers = (value: string) => value.replace(/\D+/g, '')
+
+const formatBudgetDate = (isoString: string) => {
+  const parsed = new Date(isoString)
+  if (Number.isNaN(parsed.getTime())) {
+    return '—'
+  }
+  return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+}
 
 const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
   const [open, setOpen] = useState(false)
@@ -520,6 +538,9 @@ const printStyles = `
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('leasing')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
+  const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
+  const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>('mercado')
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifa] = useState('GO')
@@ -1230,6 +1251,36 @@ export default function App() {
     return true
   }
 
+  const carregarOrcamentosSalvos = useCallback((): OrcamentoSalvo[] => {
+    if (typeof window === 'undefined') {
+      return []
+    }
+
+    const existenteRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
+    if (!existenteRaw) {
+      return []
+    }
+
+    try {
+      const parsed = JSON.parse(existenteRaw)
+      if (!Array.isArray(parsed)) {
+        return []
+      }
+
+      return parsed.map((item) => {
+        const registro = item as OrcamentoSalvo
+        return {
+          ...registro,
+          clienteDocumento: registro.clienteDocumento ?? registro.dados?.cliente.documento ?? '',
+          clienteUc: registro.clienteUc ?? registro.dados?.cliente.uc ?? '',
+        }
+      })
+    } catch (error) {
+      console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
+      return []
+    }
+  }, [])
+
   const salvarOrcamentoLocalmente = (dados: PrintableProps): OrcamentoSalvo | null => {
     if (typeof window === 'undefined') {
       return null
@@ -1242,24 +1293,15 @@ export default function App() {
         clienteNome: dados.cliente.nome,
         clienteCidade: dados.cliente.cidade,
         clienteUf: dados.cliente.uf,
+        clienteDocumento: dados.cliente.documento,
+        clienteUc: dados.cliente.uc,
         dados: clonePrintableData(dados),
       }
 
-      const existenteRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
-      let registrosExistentes: OrcamentoSalvo[] = []
-      if (existenteRaw) {
-        try {
-          const parsed = JSON.parse(existenteRaw)
-          if (Array.isArray(parsed)) {
-            registrosExistentes = parsed as OrcamentoSalvo[]
-          }
-        } catch (error) {
-          console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
-        }
-      }
-
+      const registrosExistentes = carregarOrcamentosSalvos()
       const registrosAtualizados = [registro, ...registrosExistentes]
       window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+      setOrcamentosSalvos(registrosAtualizados)
       return registro
     } catch (error) {
       console.error('Erro ao salvar orçamento localmente.', error)
@@ -1345,6 +1387,56 @@ export default function App() {
     setCliente((prev) => ({ ...prev, [key]: value }))
   }
 
+  const orcamentosFiltrados = useMemo(() => {
+    if (!orcamentoSearchTerm.trim()) {
+      return orcamentosSalvos
+    }
+
+    const queryText = normalizeText(orcamentoSearchTerm.trim())
+    const queryDigits = normalizeNumbers(orcamentoSearchTerm)
+
+    return orcamentosSalvos.filter((registro) => {
+      const codigo = normalizeText(registro.id)
+      const codigoDigits = normalizeNumbers(registro.id)
+      const nome = normalizeText(registro.clienteNome || registro.dados.cliente.nome || '')
+      const documentoRaw = registro.clienteDocumento || registro.dados.cliente.documento || ''
+      const documentoTexto = normalizeText(documentoRaw)
+      const documentoDigits = normalizeNumbers(documentoRaw)
+      const ucRaw = registro.clienteUc || registro.dados.cliente.uc || ''
+      const ucTexto = normalizeText(ucRaw)
+      const ucDigits = normalizeNumbers(ucRaw)
+
+      if (codigo.includes(queryText) || nome.includes(queryText) || documentoTexto.includes(queryText) || ucTexto.includes(queryText)) {
+        return true
+      }
+
+      if (!queryDigits) {
+        return false
+      }
+
+      return (
+        codigoDigits.includes(queryDigits) ||
+        documentoDigits.includes(queryDigits) ||
+        ucDigits.includes(queryDigits)
+      )
+    })
+  }, [orcamentoSearchTerm, orcamentosSalvos])
+
+  const totalOrcamentos = orcamentosSalvos.length
+  const totalResultados = orcamentosFiltrados.length
+
+  const abrirPesquisaOrcamentos = () => {
+    const registros = carregarOrcamentosSalvos()
+    setOrcamentosSalvos(registros)
+    setOrcamentoSearchTerm('')
+    setIsSettingsOpen(false)
+    setIsBudgetSearchOpen(true)
+  }
+
+  const fecharPesquisaOrcamentos = () => {
+    setIsBudgetSearchOpen(false)
+  }
+
   return (
     <div className="page">
       <PrintableProposal ref={printableRef} {...printableData} />
@@ -1357,6 +1449,7 @@ export default function App() {
           </div>
         </div>
         <div className="top-actions">
+          <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar orçamentos</button>
           <button className="ghost" onClick={handlePrint}>Exportar Proposta (PDF)</button>
           <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
         </div>
@@ -1937,6 +2030,111 @@ export default function App() {
         )}
         </main>
       </div>
+
+      {isBudgetSearchOpen ? (
+        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="budget-search-title">
+          <div className="modal-backdrop" onClick={fecharPesquisaOrcamentos} />
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 id="budget-search-title">Pesquisar orçamentos</h3>
+              <button
+                className="icon"
+                onClick={fecharPesquisaOrcamentos}
+                aria-label="Fechar pesquisa de orçamentos"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <section className="budget-search-panel">
+                <div className="budget-search-header">
+                  <h4>Consulta rápida</h4>
+                  <p>Localize propostas salvas pelo CPF, nome, UC ou código do orçamento.</p>
+                </div>
+                <Field
+                  label="Buscar orçamentos"
+                  hint="Procure por CPF, nome, unidade consumidora ou código do orçamento."
+                >
+                  <input
+                    id="budget-search-input"
+                    type="search"
+                    value={orcamentoSearchTerm}
+                    onChange={(e) => setOrcamentoSearchTerm(e.target.value)}
+                    placeholder="Ex.: 123.456.789-00 ou ORC-ABCD-123456"
+                    autoFocus
+                  />
+                </Field>
+                <div className="budget-search-summary">
+                  <span>
+                    {totalOrcamentos === 0
+                      ? 'Nenhum orçamento salvo até o momento.'
+                      : `${totalResultados} de ${totalOrcamentos} orçamento(s) exibidos.`}
+                  </span>
+                  {orcamentoSearchTerm ? (
+                    <button type="button" className="link" onClick={() => setOrcamentoSearchTerm('')}>
+                      Limpar busca
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+              <section className="budget-search-panel">
+                <div className="budget-search-header">
+                  <h4>Registros salvos</h4>
+                </div>
+                {totalOrcamentos === 0 ? (
+                  <p className="budget-search-empty">
+                    Nenhum orçamento foi salvo ainda. Gere uma proposta para começar.
+                  </p>
+                ) : totalResultados === 0 ? (
+                  <p className="budget-search-empty">
+                    Nenhum orçamento encontrado para "<strong>{orcamentoSearchTerm}</strong>".
+                  </p>
+                ) : (
+                  <div className="budget-search-table">
+                    <div className="table-wrapper">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Código</th>
+                            <th>Cliente</th>
+                            <th>Documento</th>
+                            <th>Unidade consumidora</th>
+                            <th>Criado em</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orcamentosFiltrados.map((registro) => {
+                            const documento = registro.clienteDocumento || registro.dados.cliente.documento || ''
+                            const unidadeConsumidora = registro.clienteUc || registro.dados.cliente.uc || ''
+                            const cidade = registro.clienteCidade || registro.dados.cliente.cidade || ''
+                            const uf = registro.clienteUf || registro.dados.cliente.uf || ''
+                            return (
+                              <tr key={registro.id}>
+                                <td>{registro.id}</td>
+                                <td>
+                                  <div className="budget-search-client">
+                                    <strong>{registro.clienteNome || registro.dados.cliente.nome || '—'}</strong>
+                                    <span>
+                                      {cidade ? `${cidade} / ${uf || '—'}` : uf || '—'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td>{documento || '—'}</td>
+                                <td>{unidadeConsumidora || '—'}</td>
+                                <td>{formatBudgetDate(registro.criadoEm)}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isSettingsOpen ? (
         <div className="modal" role="dialog" aria-modal="true">

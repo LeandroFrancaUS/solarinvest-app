@@ -130,6 +130,22 @@ button.icon {
   font-size: 18px;
 }
 
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+button.link:hover,
+button.link:focus-visible {
+  color: var(--title);
+  outline: none;
+}
+
 .tabs {
   position: sticky;
   top: var(--header-h);
@@ -648,6 +664,93 @@ table tbody tr:hover {
 
 .modal-body h4:first-child {
   padding-top: 10px;
+}
+
+.budget-search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px 32px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 140, 0, 0.2);
+  background: linear-gradient(150deg, rgba(18, 26, 44, 0.92), rgba(10, 18, 32, 0.88));
+  box-shadow: 0 26px 46px rgba(8, 12, 24, 0.45);
+}
+
+.budget-search-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.budget-search-header h4 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--title);
+  letter-spacing: 0.2px;
+  text-transform: none;
+}
+
+.budget-search-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.budget-search-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.budget-search-summary strong {
+  color: var(--accent);
+}
+
+.budget-search-empty {
+  margin: 0;
+  padding: 32px 16px;
+  text-align: center;
+  border-radius: 18px;
+  border: 1px dashed rgba(148, 163, 184, 0.3);
+  background: rgba(9, 16, 28, 0.65);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.budget-search-table {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 140, 0, 0.22);
+  background: rgba(7, 14, 28, 0.85);
+  box-shadow: 0 24px 40px rgba(8, 12, 24, 0.45);
+}
+
+.budget-search-table .table-wrapper {
+  max-height: 440px;
+  overflow-y: auto;
+  border: none;
+  border-radius: 18px;
+}
+
+.budget-search-client {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.budget-search-client strong {
+  font-size: 14px;
+  color: var(--title);
+}
+
+.budget-search-client span {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .settings-tabs {
