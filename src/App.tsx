@@ -17,6 +17,7 @@ import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './
 import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
 import { getTarifaCheia } from './utils/tarifaAneel'
 import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
+import { selectNumberInputOnFocus } from './utils/focusHandlers'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -1181,10 +1182,6 @@ export default function App() {
     setCliente((prev) => ({ ...prev, [key]: value }))
   }
 
-  const handleNumberFocus = (event: React.FocusEvent<HTMLInputElement>) => {
-    event.target.select()
-  }
-
   return (
     <div className="page">
       <PrintableProposal
@@ -1236,7 +1233,7 @@ export default function App() {
                     type="number"
                     value={kcKwhMes}
                     onChange={(e) => setKcKwhMes(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Tarifa cheia (R$/kWh)">
@@ -1245,7 +1242,7 @@ export default function App() {
                     step="0.001"
                     value={tarifaCheia}
                     onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Desconto contratual (%)">
@@ -1254,7 +1251,7 @@ export default function App() {
                     step="0.1"
                     value={desconto}
                     onChange={(e) => setDesconto(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Taxa mínima (R$/mês)">
@@ -1262,7 +1259,7 @@ export default function App() {
                     type="number"
                     value={taxaMinima}
                     onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Encargos adicionais (R$/mês)">
@@ -1270,7 +1267,7 @@ export default function App() {
                     type="number"
                     value={encargosFixosExtras}
                     onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Prazo do leasing">
@@ -1357,7 +1354,7 @@ export default function App() {
                       }
                       setNumeroPlacasManual(parsed)
                     }}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field
@@ -1409,7 +1406,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
                     }}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
               </div>
@@ -1685,7 +1682,7 @@ export default function App() {
                     step="0.1"
                     value={inflacaoAa}
                     onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Preço por kWp (R$)">
@@ -1693,7 +1690,7 @@ export default function App() {
                     type="number"
                     value={precoPorKwp}
                     onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Irradiação média (kWh/m²/dia)">
@@ -1706,7 +1703,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setIrradiacao(Number.isFinite(parsed) && parsed > 0 ? parsed : 0)
                     }}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Eficiência do sistema">
@@ -1722,7 +1719,7 @@ export default function App() {
                       }
                       handleEficienciaInput(Number(e.target.value))
                     }}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Dias no mês (cálculo)">
@@ -1740,7 +1737,7 @@ export default function App() {
                       const parsed = Number(value)
                       setDiasMes(Number.isFinite(parsed) ? parsed : 0)
                     }}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
               </div>
@@ -1756,7 +1753,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setPrazoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
                     }}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Bandeira tarifária (R$)">
@@ -1767,7 +1764,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setBandeiraEncargo(Number.isFinite(parsed) ? parsed : 0)
                     }}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Contribuição CIP (R$)">
@@ -1778,7 +1775,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setCipEncargo(Number.isFinite(parsed) ? parsed : 0)
                     }}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Uso da entrada">
@@ -1805,7 +1802,7 @@ export default function App() {
                     step="0.1"
                     value={jurosFinAa}
                     onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Prazo (meses)">
@@ -1813,7 +1810,7 @@ export default function App() {
                     type="number"
                     value={prazoFinMeses}
                     onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Entrada (%)">
@@ -1822,7 +1819,7 @@ export default function App() {
                     step="0.1"
                     value={entradaFinPct}
                     onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
               </div>
@@ -1835,7 +1832,7 @@ export default function App() {
                     step="0.1"
                     value={cashbackPct}
                     onChange={(e) => setCashbackPct(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Depreciação (%)">
@@ -1844,7 +1841,7 @@ export default function App() {
                     step="0.1"
                     value={depreciacaoAa}
                     onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Inadimplência (%)">
@@ -1853,7 +1850,7 @@ export default function App() {
                     step="0.1"
                     value={inadimplenciaAa}
                     onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Tributos (%)">
@@ -1862,7 +1859,7 @@ export default function App() {
                     step="0.1"
                     value={tributosAa}
                     onChange={(e) => setTributosAa(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="IPCA (%)">
@@ -1871,7 +1868,7 @@ export default function App() {
                     step="0.1"
                     value={ipcaAa}
                     onChange={(e) => setIpcaAa(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Custos fixos (R$)">
@@ -1879,7 +1876,7 @@ export default function App() {
                     type="number"
                     value={custosFixosM}
                     onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="OPEX (R$)">
@@ -1887,7 +1884,7 @@ export default function App() {
                     type="number"
                     value={opexM}
                     onChange={(e) => setOpexM(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Seguro (R$)">
@@ -1895,7 +1892,7 @@ export default function App() {
                     type="number"
                     value={seguroM}
                     onChange={(e) => setSeguroM(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Duração (meses)">
@@ -1903,7 +1900,7 @@ export default function App() {
                     type="number"
                     value={duracaoMeses}
                     onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Pagos acumulados até o mês (R$)">
@@ -1911,7 +1908,7 @@ export default function App() {
                     type="number"
                     value={pagosAcumAteM}
                     onChange={(e) => setPagosAcumAteM(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
               </div>
@@ -1923,7 +1920,7 @@ export default function App() {
                     type="number"
                     value={oemBase}
                     onChange={(e) => setOemBase(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Reajuste O&M (%)">
@@ -1932,7 +1929,7 @@ export default function App() {
                     step="0.1"
                     value={oemInflacao}
                     onChange={(e) => setOemInflacao(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Reajuste seguro (%)">
@@ -1941,7 +1938,7 @@ export default function App() {
                     step="0.1"
                     value={seguroReajuste}
                     onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Modo de seguro">
@@ -1955,7 +1952,7 @@ export default function App() {
                     type="number"
                     value={seguroValorA}
                     onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
                 <Field label="Seguro modo B (%)">
@@ -1964,7 +1961,7 @@ export default function App() {
                     step="0.01"
                     value={seguroPercentualB}
                     onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)}
-                    onFocus={handleNumberFocus}
+                    onFocus={selectNumberInputOnFocus}
                   />
                 </Field>
               </div>
