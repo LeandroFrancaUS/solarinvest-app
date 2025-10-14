@@ -6,8 +6,5 @@
     </radialGradient>
   </defs>
   <circle cx="512" cy="512" r="512" fill="url(#grad)"/>
-  <path
-    fill="#ffffff"
-    d="M512 176 604 356 556 480 676 864 348 864 468 480 420 356 512 176Z"
-  />
+  <path fill="#ffffff" d="M500.8 176 368 560h110.2L356.6 848l299.4-440h-116.8L500.8 176Z"/>
 </svg>
