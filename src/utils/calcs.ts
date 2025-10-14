@@ -152,6 +152,8 @@ export function mensalidadeLiquida({
       ? kcAjustadoPorEntrada(kcKwhMes, tarifaCheia, desconto, prazoMeses, entradaRs)
       : Math.max(0, kcKwhMes)
 
+  if (kcContratado <= 0) return 0
+
   const tarifaComDesconto = tarifaDescontada(
     tarifaCheia,
     desconto,
