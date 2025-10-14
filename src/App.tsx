@@ -671,12 +671,12 @@ export default function App() {
     [diasMes],
   )
 
-  const fatorGeracao = useMemo(() => {
-    if (baseIrradiacao <= 0 || eficienciaNormalizada <= 0 || diasMesNormalizado <= 0) {
+  const fatorGeracaoMensal = useMemo(() => {
+    if (baseIrradiacao <= 0 || eficienciaNormalizada <= 0) {
       return 0
     }
-    return baseIrradiacao * eficienciaNormalizada * diasMesNormalizado
-  }, [baseIrradiacao, eficienciaNormalizada, diasMesNormalizado])
+    return baseIrradiacao * eficienciaNormalizada * DIAS_MES_PADRAO
+  }, [baseIrradiacao, eficienciaNormalizada])
 
   const numeroPlacasInformado = useMemo(() => {
     if (typeof numeroPlacasManual !== 'number') return null
@@ -684,16 +684,20 @@ export default function App() {
     return Math.max(1, Math.round(numeroPlacasManual))
   }, [numeroPlacasManual])
 
-  const potenciaNecessariaKwp = useMemo(() => {
-    if (fatorGeracao <= 0 || kcKwhMes <= 0) {
-      return 0
+  const potenciaInstaladaKwp = useMemo(() => {
+    if (numeroPlacasInformado && potenciaPlaca > 0) {
+      return (numeroPlacasInformado * potenciaPlaca) / 1000
     }
-    return kcKwhMes / fatorGeracao
-  }, [fatorGeracao, kcKwhMes])
+    if (fatorGeracaoMensal > 0) {
+      return kcKwhMes / fatorGeracaoMensal
+    }
+    return 0
+  }, [kcKwhMes, fatorGeracaoMensal, numeroPlacasInformado, potenciaPlaca])
 
-  const numeroPlacasCalculado = useMemo(() => {
-    if (potenciaPlaca <= 0 || potenciaNecessariaKwp <= 0) return 0
-    const calculado = Math.ceil((potenciaNecessariaKwp * 1000) / potenciaPlaca)
+  const numeroPlacasEstimado = useMemo(() => {
+    if (numeroPlacasInformado) return numeroPlacasInformado
+    if (potenciaPlaca <= 0) return 0
+    const calculado = Math.ceil((potenciaInstaladaKwp * 1000) / potenciaPlaca)
     return Math.max(1, Number.isFinite(calculado) ? calculado : 0)
   }, [potenciaNecessariaKwp, potenciaPlaca])
 
@@ -710,11 +714,11 @@ export default function App() {
   }, [numeroPlacasEstimado, potenciaPlaca])
 
   const geracaoMensalKwh = useMemo(() => {
-    if (potenciaInstaladaKwp <= 0 || fatorGeracao <= 0) {
+    if (potenciaInstaladaKwp <= 0 || fatorGeracaoMensal <= 0) {
       return 0
     }
-    return Math.round(potenciaInstaladaKwp * fatorGeracao)
-  }, [potenciaInstaladaKwp, fatorGeracao])
+    return Math.round(potenciaInstaladaKwp * fatorGeracaoMensal)
+  }, [potenciaInstaladaKwp, fatorGeracaoMensal])
 
   const geracaoDiariaKwh = useMemo(
     () => (geracaoMensalKwh > 0 && diasMesNormalizado > 0 ? geracaoMensalKwh / diasMesNormalizado : 0),
