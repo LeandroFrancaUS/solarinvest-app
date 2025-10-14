@@ -11,16 +11,8 @@ export function selectNumberInputOnFocus(event: FocusEvent<HTMLInputElement>): v
     return
   }
 
-  const rawValue = input.value
-  // Only auto-select when the field still contains its zero placeholder (with optional decimal zeros).
-  if (!rawValue || !/^[-+]?0*(?:[.,]0*)?$/.test(rawValue)) {
-    return
-  }
-
   // `select()` must run after the browser applies focus; requestAnimationFrame ensures that.
   window.requestAnimationFrame(() => {
-    if (document.activeElement === input && /^[-+]?0*(?:[.,]0*)?$/.test(input.value)) {
-      input.select()
-    }
+    input.select()
   })
 }
