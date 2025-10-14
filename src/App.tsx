@@ -738,8 +738,8 @@ export default function App() {
     distribuidora: '',
     uc: '',
     endereco: '',
-    cidade: '',
-    uf: '',
+    cidade: 'Anápolis',
+    uf: 'GO',
   })
   const [clienteMensagens, setClienteMensagens] = useState<{ email?: string; cidade?: string }>({})
   const [verificandoCidade, setVerificandoCidade] = useState(false)
