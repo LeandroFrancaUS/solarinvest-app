@@ -71,7 +71,7 @@ const UF_LABELS: Record<string, string> = {
   TO: 'Tocantins',
 }
 
-type TabKey = 'leasing' | 'cliente' | 'financiamento' | 'vendas'
+type TabKey = 'leasing' | 'cliente' | 'vendas' | 'financiamento'
 
 type SettingsTabKey = 'mercado' | 'leasing' | 'financiamento' | 'buyout' | 'outros'
 
@@ -1248,13 +1248,13 @@ export default function App() {
         <nav className="tabs tabs-bar">
           <button className={activeTab === 'cliente' ? 'active' : ''} onClick={() => setActiveTab('cliente')}>Cliente</button>
           <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>Leasing</button>
+          <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>Vendas</button>
           <button
             className={activeTab === 'financiamento' ? 'active' : ''}
             onClick={() => setActiveTab('financiamento')}
           >
             Financiamento
           </button>
-          <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>Vendas</button>
         </nav>
 
         <main className="content page-content">
