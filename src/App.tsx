@@ -1393,9 +1393,9 @@ export default function App() {
                 ) : null}
                 {modoEntradaNormalizado === 'CREDITO' ? (
                   <span className="pill">
-                    Crédito mensal da entrada
+                    Crédito mensal da entrada:
                     <InfoTooltip text="Crédito mensal = Valor de entrada ÷ Prazo contratual (em meses)." />
-                    : <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
+                    <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
                   </span>
                 ) : null}
               </div>
