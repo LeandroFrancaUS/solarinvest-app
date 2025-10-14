@@ -750,22 +750,25 @@ export default function App() {
     return Math.max(1, Math.round(numeroPlacasManual))
   }, [numeroPlacasManual])
 
+  const numeroPlacasCalculado = useMemo(() => {
+    if (kcKwhMes <= 0) return 0
+    if (potenciaPlaca <= 0 || fatorGeracaoMensal <= 0) return 0
+    const potenciaNecessaria = kcKwhMes / fatorGeracaoMensal
+    const calculado = Math.ceil((potenciaNecessaria * 1000) / potenciaPlaca)
+    if (!Number.isFinite(calculado)) return 0
+    return Math.max(1, calculado)
+  }, [kcKwhMes, fatorGeracaoMensal, potenciaPlaca])
+
   const potenciaInstaladaKwp = useMemo(() => {
-    if (numeroPlacasInformado && potenciaPlaca > 0) {
-      return (numeroPlacasInformado * potenciaPlaca) / 1000
-    }
-    if (fatorGeracaoMensal > 0) {
-      return kcKwhMes / fatorGeracaoMensal
-    }
-    return 0
-  }, [kcKwhMes, fatorGeracaoMensal, numeroPlacasInformado, potenciaPlaca])
+    const placas = numeroPlacasInformado ?? numeroPlacasCalculado
+    if (!placas || potenciaPlaca <= 0) return 0
+    return (placas * potenciaPlaca) / 1000
+  }, [numeroPlacasInformado, numeroPlacasCalculado, potenciaPlaca])
 
   const numeroPlacasEstimado = useMemo(() => {
     if (numeroPlacasInformado) return numeroPlacasInformado
-    if (potenciaPlaca <= 0) return 0
-    const calculado = Math.ceil((potenciaInstaladaKwp * 1000) / potenciaPlaca)
-    return Math.max(1, Number.isFinite(calculado) ? calculado : 0)
-  }, [numeroPlacasInformado, potenciaInstaladaKwp, potenciaPlaca])
+    return numeroPlacasCalculado
+  }, [numeroPlacasInformado, numeroPlacasCalculado])
 
   const geracaoMensalKwh = useMemo(() => {
     if (potenciaInstaladaKwp <= 0 || fatorGeracaoMensal <= 0) {
@@ -1303,7 +1306,13 @@ export default function App() {
                   <input
                     type="number"
                     min={1}
-                    value={numeroPlacasManual === '' ? numeroPlacasEstimado : numeroPlacasManual}
+                    value={
+                      numeroPlacasManual === ''
+                        ? numeroPlacasEstimado > 0
+                          ? numeroPlacasEstimado
+                          : ''
+                        : numeroPlacasManual
+                    }
                     onChange={(e) => {
                       const { value } = e.target
                       if (value === '') {
