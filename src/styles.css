@@ -937,6 +937,8 @@ table tbody tr:hover {
 
 .print-section {
   margin-bottom: 28px;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .print-section h2 {
@@ -950,6 +952,7 @@ table tbody tr:hover {
   min-width: 0;
   width: 100%;
   border-collapse: collapse;
+  page-break-inside: auto;
 }
 
 .print-section th,
@@ -958,6 +961,8 @@ table tbody tr:hover {
   padding: 8px 12px;
   font-size: 12px;
   text-align: left;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .print-grid {
@@ -971,6 +976,34 @@ table tbody tr:hover {
 
 .print-grid.one {
   grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.print-header,
+.print-summary,
+.print-notes,
+.print-chart-section {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media print {
+  @page {
+    margin: 12mm 16mm;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  .print-layout {
+    max-width: 1040px;
+    margin: 0 auto;
+    page-break-after: avoid;
+  }
+
+  .print-section {
+    margin-bottom: 24px;
+  }
 }
 
 .print-notes ul {
