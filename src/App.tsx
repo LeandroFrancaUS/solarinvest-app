@@ -1222,71 +1222,6 @@ export default function App() {
           {activeTab === 'leasing' ? (
             <>
             <section className="card">
-              <h2>Usina fotovoltaica</h2>
-              <div className="grid g4">
-                <Field label="Potência da placa (Wp)">
-                  <select value={potenciaPlaca} onChange={(e) => setPotenciaPlaca(Number(e.target.value))}>
-                    {painelOpcoes.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Nº de placas (estimado)">
-                  <input
-                    type="number"
-                    min={1}
-                    value={numeroPlacasManual === '' ? numeroPlacasEstimado : numeroPlacasManual}
-                    onChange={(e) => {
-                      const { value } = e.target
-                      if (value === '') {
-                        setNumeroPlacasManual('')
-                        return
-                      }
-                      const parsed = Number(value)
-                      if (!Number.isFinite(parsed) || parsed <= 0) {
-                        setNumeroPlacasManual('')
-                        return
-                      }
-                      setNumeroPlacasManual(parsed)
-                    }}
-                  />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Potência instalada (kWp)
-                      <InfoTooltip text="Potência instalada = (Nº de placas × Potência da placa) ÷ 1000. Sem entrada manual de placas, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
-                    </>
-                  }
-                >
-                  <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Geração estimada (kWh/mês)
-                      <InfoTooltip text="Geração estimada = Potência instalada × Irradiação média × Eficiência × 30 dias." />
-                    </>
-                  }
-                >
-                  <input readOnly value={geracaoMensalKwh.toFixed(0)} />
-                </Field>
-              </div>
-              <div className="info-inline">
-                <span className="pill">
-                  <InfoTooltip text="Valor de mercado = Potência instalada (kWp) × Preço por kWp configurado nas definições." />
-                  Valor de Mercado Estimado
-                  <strong>{currency(capex)}</strong>
-                </span>
-                <span className="pill">
-                  <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ Dias considerados no mês." />
-                  Consumo diário
-                  <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
-                </span>
-              </div>
-            </section>
-
-            <section className="card">
               <h2>Parâmetros principais</h2>
               <div className="grid g3">
                 <Field label="Consumo (kWh/mês)">
@@ -1351,6 +1286,71 @@ export default function App() {
                 >
                   <input readOnly value={baseIrradiacao > 0 ? baseIrradiacao.toFixed(2) : '—'} />
                 </Field>
+              </div>
+            </section>
+
+            <section className="card">
+              <h2>Configuração da Usina Fotovoltaica</h2>
+              <div className="grid g4">
+                <Field label="Potência da placa (Wp)">
+                  <select value={potenciaPlaca} onChange={(e) => setPotenciaPlaca(Number(e.target.value))}>
+                    {painelOpcoes.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Nº de placas (estimado)">
+                  <input
+                    type="number"
+                    min={1}
+                    value={numeroPlacasManual === '' ? numeroPlacasEstimado : numeroPlacasManual}
+                    onChange={(e) => {
+                      const { value } = e.target
+                      if (value === '') {
+                        setNumeroPlacasManual('')
+                        return
+                      }
+                      const parsed = Number(value)
+                      if (!Number.isFinite(parsed) || parsed <= 0) {
+                        setNumeroPlacasManual('')
+                        return
+                      }
+                      setNumeroPlacasManual(parsed)
+                    }}
+                  />
+                </Field>
+                <Field
+                  label={
+                    <>
+                      Potência instalada (kWp)
+                      <InfoTooltip text="Potência instalada = (Nº de placas × Potência da placa) ÷ 1000. Sem entrada manual de placas, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
+                    </>
+                  }
+                >
+                  <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
+                </Field>
+                <Field
+                  label={
+                    <>
+                      Geração estimada (kWh/mês)
+                      <InfoTooltip text="Geração estimada = Potência instalada × Irradiação média × Eficiência × 30 dias." />
+                    </>
+                  }
+                >
+                  <input readOnly value={geracaoMensalKwh.toFixed(0)} />
+                </Field>
+              </div>
+              <div className="info-inline">
+                <span className="pill">
+                  <InfoTooltip text="Valor de mercado = Potência instalada (kWp) × Preço por kWp configurado nas definições." />
+                  Valor de Mercado Estimado
+                  <strong>{currency(capex)}</strong>
+                </span>
+                <span className="pill">
+                  <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ Dias considerados no mês." />
+                  Consumo diário
+                  <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
+                </span>
               </div>
             </section>
 
