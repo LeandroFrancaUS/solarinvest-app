@@ -1676,6 +1676,177 @@ export default function App() {
     setIsBudgetSearchOpen(false)
   }
 
+  const renderParametrosPrincipaisSection = () => (
+    <section className="card">
+      <h2>Parâmetros principais</h2>
+      <div className="grid g3">
+        <Field label="Consumo (kWh/mês)">
+          <input
+            type="number"
+            value={kcKwhMes}
+            onChange={(e) => setKcKwhMes(Number(e.target.value) || 0)}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field label="Tarifa cheia (R$/kWh)">
+          <input
+            type="number"
+            step="0.001"
+            value={tarifaCheia}
+            onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field label="Desconto contratual (%)">
+          <input
+            type="number"
+            step="0.1"
+            value={desconto}
+            onChange={(e) => setDesconto(Number(e.target.value) || 0)}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field label="Taxa mínima (R$/mês)">
+          <input
+            type="number"
+            value={taxaMinima}
+            onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field label="Encargos adicionais (R$/mês)">
+          <input
+            type="number"
+            value={encargosFixosExtras}
+            onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field label="Prazo do leasing">
+          <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
+            <option value={5}>5 anos</option>
+            <option value={7}>7 anos</option>
+            <option value={10}>10 anos</option>
+          </select>
+        </Field>
+        <Field label="UF (ANEEL)">
+          <select
+            value={ufTarifa}
+            onChange={(e) => setUfTarifa(e.target.value)}
+          >
+            <option value="">Selecione a UF</option>
+            {ufsDisponiveis.map((uf) => (
+              <option key={uf} value={uf}>
+                {uf} — {UF_LABELS[uf] ?? uf}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Distribuidora (ANEEL)">
+          <select
+            value={distribuidoraTarifa}
+            onChange={(e) => setDistribuidoraTarifa(e.target.value)}
+            disabled={!ufTarifa || distribuidorasDisponiveis.length === 0}
+          >
+            <option value="">
+              {ufTarifa ? 'Selecione a distribuidora' : 'Selecione a UF'}
+            </option>
+            {distribuidorasDisponiveis.map((nome) => (
+              <option key={nome} value={nome}>
+                {nome}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field
+          label={
+            <>
+              Irradiação média (kWh/m²/dia)
+              <InfoTooltip text="Irradiação média é preenchida automaticamente a partir da UF/distribuidora ou do valor configurado manualmente." />
+            </>
+          }
+          hint="Atualizado automaticamente conforme a UF ou distribuidora selecionada."
+        >
+          <input readOnly value={baseIrradiacao > 0 ? baseIrradiacao.toFixed(2) : '—'} />
+        </Field>
+      </div>
+    </section>
+  )
+
+  const renderConfiguracaoUsinaSection = () => (
+    <section className="card">
+      <h2>Configuração da Usina Fotovoltaica</h2>
+      <div className="grid g4">
+        <Field label="Potência da placa (Wp)">
+          <select value={potenciaPlaca} onChange={(e) => setPotenciaPlaca(Number(e.target.value))}>
+            {painelOpcoes.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Nº de placas (estimado)">
+          <input
+            type="number"
+            min={1}
+            value={
+              numeroPlacasManual === ''
+                ? numeroPlacasEstimado > 0
+                  ? numeroPlacasEstimado
+                  : ''
+                : numeroPlacasManual
+            }
+            onChange={(e) => {
+              const { value } = e.target
+              if (value === '') {
+                setNumeroPlacasManual('')
+                return
+              }
+              const parsed = Number(value)
+              if (!Number.isFinite(parsed) || parsed <= 0) {
+                setNumeroPlacasManual('')
+                return
+              }
+              setNumeroPlacasManual(parsed)
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field
+          label={
+            <>
+              Potência instalada (kWp)
+              <InfoTooltip text="Potência instalada = (Nº de placas × Potência da placa) ÷ 1000. Sem entrada manual de placas, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
+            </>
+          }
+        >
+          <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
+        </Field>
+        <Field
+          label={
+            <>
+              Geração estimada (kWh/mês)
+              <InfoTooltip text="Geração estimada = Potência instalada × Irradiação média × Eficiência × 30 dias." />
+            </>
+          }
+        >
+          <input readOnly value={geracaoMensalKwh.toFixed(0)} />
+        </Field>
+      </div>
+      <div className="info-inline">
+        <span className="pill">
+          <InfoTooltip text="Valor de mercado = Potência instalada (kWp) × Preço por kWp configurado nas definições." />
+          Valor de Mercado Estimado
+          <strong>{currency(capex)}</strong>
+        </span>
+        <span className="pill">
+          <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ Dias considerados no mês." />
+          Consumo diário
+          <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
+        </span>
+      </div>
+    </section>
+  )
+
   return (
     <div className="page">
       <PrintableProposal ref={printableRef} {...printableData} />
@@ -1709,173 +1880,8 @@ export default function App() {
         <main className="content page-content">
           {activeTab === 'leasing' ? (
             <>
-            <section className="card">
-              <h2>Parâmetros principais</h2>
-              <div className="grid g3">
-                <Field label="Consumo (kWh/mês)">
-                  <input
-                    type="number"
-                    value={kcKwhMes}
-                    onChange={(e) => setKcKwhMes(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Tarifa cheia (R$/kWh)">
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={tarifaCheia}
-                    onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Desconto contratual (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={desconto}
-                    onChange={(e) => setDesconto(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Taxa mínima (R$/mês)">
-                  <input
-                    type="number"
-                    value={taxaMinima}
-                    onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Encargos adicionais (R$/mês)">
-                  <input
-                    type="number"
-                    value={encargosFixosExtras}
-                    onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Prazo do leasing">
-                  <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
-                    <option value={5}>5 anos</option>
-                    <option value={7}>7 anos</option>
-                    <option value={10}>10 anos</option>
-                  </select>
-                </Field>
-                <Field label="UF (ANEEL)">
-                  <select
-                    value={ufTarifa}
-                    onChange={(e) => setUfTarifa(e.target.value)}
-                  >
-                    <option value="">Selecione a UF</option>
-                    {ufsDisponiveis.map((uf) => (
-                      <option key={uf} value={uf}>
-                        {uf} — {UF_LABELS[uf] ?? uf}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Distribuidora (ANEEL)">
-                  <select
-                    value={distribuidoraTarifa}
-                    onChange={(e) => setDistribuidoraTarifa(e.target.value)}
-                    disabled={!ufTarifa || distribuidorasDisponiveis.length === 0}
-                  >
-                    <option value="">
-                      {ufTarifa ? 'Selecione a distribuidora' : 'Selecione a UF'}
-                    </option>
-                    {distribuidorasDisponiveis.map((nome) => (
-                      <option key={nome} value={nome}>
-                        {nome}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Irradiação média (kWh/m²/dia)
-                      <InfoTooltip text="Irradiação média é preenchida automaticamente a partir da UF/distribuidora ou do valor configurado manualmente." />
-                    </>
-                  }
-                  hint="Atualizado automaticamente conforme a UF ou distribuidora selecionada."
-                >
-                  <input readOnly value={baseIrradiacao > 0 ? baseIrradiacao.toFixed(2) : '—'} />
-                </Field>
-              </div>
-            </section>
-
-            <section className="card">
-              <h2>Configuração da Usina Fotovoltaica</h2>
-              <div className="grid g4">
-                <Field label="Potência da placa (Wp)">
-                  <select value={potenciaPlaca} onChange={(e) => setPotenciaPlaca(Number(e.target.value))}>
-                    {painelOpcoes.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Nº de placas (estimado)">
-                  <input
-                    type="number"
-                    min={1}
-                    value={
-                      numeroPlacasManual === ''
-                        ? numeroPlacasEstimado > 0
-                          ? numeroPlacasEstimado
-                          : ''
-                        : numeroPlacasManual
-                    }
-                    onChange={(e) => {
-                      const { value } = e.target
-                      if (value === '') {
-                        setNumeroPlacasManual('')
-                        return
-                      }
-                      const parsed = Number(value)
-                      if (!Number.isFinite(parsed) || parsed <= 0) {
-                        setNumeroPlacasManual('')
-                        return
-                      }
-                      setNumeroPlacasManual(parsed)
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Potência instalada (kWp)
-                      <InfoTooltip text="Potência instalada = (Nº de placas × Potência da placa) ÷ 1000. Sem entrada manual de placas, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
-                    </>
-                  }
-                >
-                  <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Geração estimada (kWh/mês)
-                      <InfoTooltip text="Geração estimada = Potência instalada × Irradiação média × Eficiência × 30 dias." />
-                    </>
-                  }
-                >
-                  <input readOnly value={geracaoMensalKwh.toFixed(0)} />
-                </Field>
-              </div>
-              <div className="info-inline">
-                <span className="pill">
-                  <InfoTooltip text="Valor de mercado = Potência instalada (kWp) × Preço por kWp configurado nas definições." />
-                  Valor de Mercado Estimado
-                  <strong>{currency(capex)}</strong>
-                </span>
-                <span className="pill">
-                  <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ Dias considerados no mês." />
-                  Consumo diário
-                  <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
-                </span>
-              </div>
-            </section>
-
+            {renderParametrosPrincipaisSection()}
+            {renderConfiguracaoUsinaSection()}
             <section className="card">
               <div className="card-header">
                 <h2>SolarInvest Leasing</h2>
@@ -2142,6 +2148,8 @@ export default function App() {
           </section>
         ) : activeTab === 'financiamento' ? (
           <>
+            {renderParametrosPrincipaisSection()}
+            {renderConfiguracaoUsinaSection()}
             <section className="card">
               <h2>Resumo do financiamento</h2>
               {mostrarFinanciamento ? (
@@ -2262,10 +2270,14 @@ export default function App() {
             ) : null}
           </>
         ) : (
-          <section className="card">
-            <h2>Vendas</h2>
-            <p className="muted">Área de Vendas em desenvolvimento.</p>
-          </section>
+          <>
+            {renderParametrosPrincipaisSection()}
+            {renderConfiguracaoUsinaSection()}
+            <section className="card">
+              <h2>Vendas</h2>
+              <p className="muted">Área de Vendas em desenvolvimento.</p>
+            </section>
+          </>
         )}
         </main>
       </div>
