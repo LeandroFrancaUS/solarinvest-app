@@ -671,12 +671,12 @@ export default function App() {
     [diasMes],
   )
 
-  const fatorGeracao = useMemo(() => {
-    if (baseIrradiacao <= 0 || eficienciaNormalizada <= 0 || diasMesNormalizado <= 0) {
+  const fatorGeracaoMensal = useMemo(() => {
+    if (baseIrradiacao <= 0 || eficienciaNormalizada <= 0) {
       return 0
     }
-    return baseIrradiacao * eficienciaNormalizada * diasMesNormalizado
-  }, [baseIrradiacao, eficienciaNormalizada, diasMesNormalizado])
+    return baseIrradiacao * eficienciaNormalizada * DIAS_MES_PADRAO
+  }, [baseIrradiacao, eficienciaNormalizada])
 
   const numeroPlacasInformado = useMemo(() => {
     if (typeof numeroPlacasManual !== 'number') return null
@@ -688,11 +688,11 @@ export default function App() {
     if (numeroPlacasInformado && potenciaPlaca > 0) {
       return (numeroPlacasInformado * potenciaPlaca) / 1000
     }
-    if (fatorGeracao > 0) {
-      return kcKwhMes / fatorGeracao
+    if (fatorGeracaoMensal > 0) {
+      return kcKwhMes / fatorGeracaoMensal
     }
     return 0
-  }, [kcKwhMes, fatorGeracao, numeroPlacasInformado, potenciaPlaca])
+  }, [kcKwhMes, fatorGeracaoMensal, numeroPlacasInformado, potenciaPlaca])
 
   const numeroPlacasCalculado = useMemo(() => {
     if (numeroPlacasInformado) return numeroPlacasInformado
@@ -702,11 +702,11 @@ export default function App() {
   }, [numeroPlacasInformado, potenciaInstaladaKwp, potenciaPlaca])
 
   const geracaoMensalKwh = useMemo(() => {
-    if (potenciaInstaladaKwp <= 0 || fatorGeracao <= 0) {
+    if (potenciaInstaladaKwp <= 0 || fatorGeracaoMensal <= 0) {
       return 0
     }
-    return Math.round(potenciaInstaladaKwp * fatorGeracao)
-  }, [potenciaInstaladaKwp, fatorGeracao])
+    return Math.round(potenciaInstaladaKwp * fatorGeracaoMensal)
+  }, [potenciaInstaladaKwp, fatorGeracaoMensal])
 
   const geracaoDiariaKwh = useMemo(
     () => (geracaoMensalKwh > 0 && diasMesNormalizado > 0 ? geracaoMensalKwh / diasMesNormalizado : 0),
