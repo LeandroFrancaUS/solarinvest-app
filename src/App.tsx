@@ -72,6 +72,74 @@ const UF_LABELS: Record<string, string> = {
   TO: 'Tocantins',
 }
 
+const ESTADOS_BRASILEIROS = Object.entries(UF_LABELS)
+  .map(([sigla, nome]) => ({ sigla, nome }))
+  .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+
+const formatCpfCnpj = (valor: string) => {
+  const numeros = valor.replace(/\D+/g, '')
+  if (!numeros) {
+    return ''
+  }
+
+  if (numeros.length <= 11) {
+    const digits = numeros.slice(0, 11)
+    const parte1 = digits.slice(0, 3)
+    const parte2 = digits.slice(3, 6)
+    const parte3 = digits.slice(6, 9)
+    const parte4 = digits.slice(9, 11)
+
+    return [
+      parte1,
+      parte2 ? `.${parte2}` : '',
+      parte3 ? `.${parte3}` : '',
+      parte4 ? `-${parte4}` : '',
+    ]
+      .join('')
+      .replace(/\.$/, '')
+      .replace(/-$/, '')
+  }
+
+  const digits = numeros.slice(0, 14)
+  const parte1 = digits.slice(0, 2)
+  const parte2 = digits.slice(2, 5)
+  const parte3 = digits.slice(5, 8)
+  const parte4 = digits.slice(8, 12)
+  const parte5 = digits.slice(12, 14)
+
+  return [
+    parte1,
+    parte2 ? `.${parte2}` : '',
+    parte3 ? `.${parte3}` : '',
+    parte4 ? `/${parte4}` : '',
+    parte5 ? `-${parte5}` : '',
+  ]
+    .join('')
+    .replace(/\.$/, '')
+    .replace(/\/$/, '')
+    .replace(/-$/, '')
+}
+
+const emailValido = (valor: string) => {
+  if (!valor) {
+    return true
+  }
+
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return regex.test(valor)
+}
+
+type IbgeMunicipio = {
+  nome?: string
+  microrregiao?: {
+    mesorregiao?: {
+      UF?: {
+        sigla?: string
+      }
+    }
+  }
+}
+
 type TabKey = 'leasing' | 'cliente' | 'vendas' | 'financiamento'
 
 type SettingsTabKey = 'mercado' | 'leasing' | 'financiamento' | 'buyout' | 'outros'
@@ -279,7 +347,7 @@ const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
   )
 }
 
-const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; hint?: string }> = ({
+const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; hint?: React.ReactNode }> = ({
   label,
   children,
   hint,
@@ -692,6 +760,8 @@ export default function App() {
     cidade: '',
     uf: '',
   })
+  const [clienteMensagens, setClienteMensagens] = useState<{ email?: string; cidade?: string }>({})
+  const [verificandoCidade, setVerificandoCidade] = useState(false)
 
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
@@ -1596,8 +1666,114 @@ export default function App() {
   const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
 
   const handleClienteChange = (key: keyof ClienteDados, value: string) => {
-    setCliente((prev) => ({ ...prev, [key]: value }))
+    let nextValue = value
+
+    if (key === 'documento') {
+      nextValue = formatCpfCnpj(value)
+    } else if (key === 'email') {
+      nextValue = value.trim()
+    } else if (key === 'uf') {
+      nextValue = value.toUpperCase()
+    }
+
+    setCliente((prev) => ({ ...prev, [key]: nextValue }))
+
+    if (key === 'email') {
+      const trimmed = nextValue.trim()
+      setClienteMensagens((prev) => ({
+        ...prev,
+        email: trimmed && !emailValido(trimmed) ? 'Informe um e-mail válido.' : undefined,
+      }))
+    }
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const nomeCidade = cliente.cidade.trim()
+    const ufSelecionada = cliente.uf.trim().toUpperCase()
+
+    if (nomeCidade.length < 3) {
+      setVerificandoCidade(false)
+      setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
+      return
+    }
+
+    let ativo = true
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(async () => {
+      if (!ativo) {
+        return
+      }
+
+      setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
+      setVerificandoCidade(true)
+
+      try {
+        const response = await fetch(
+          `https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome=${encodeURIComponent(nomeCidade)}`,
+          { signal: controller.signal },
+        )
+
+        if (!response.ok) {
+          throw new Error('Falha ao buscar municípios no IBGE.')
+        }
+
+        const data: IbgeMunicipio[] = await response.json()
+        if (!ativo) {
+          return
+        }
+
+        let aviso: string | undefined
+        if (!Array.isArray(data) || data.length === 0) {
+          aviso = 'Cidade não encontrada na base do IBGE.'
+        } else {
+          const cidadeNormalizada = normalizeText(nomeCidade)
+          const possuiNome = data.some((municipio) => normalizeText(municipio?.nome ?? '') === cidadeNormalizada)
+
+          if (!possuiNome) {
+            aviso = 'Cidade não encontrada na base do IBGE.'
+          } else if (ufSelecionada) {
+            const existeNoEstado = data.some((municipio) => {
+              if (normalizeText(municipio?.nome ?? '') !== cidadeNormalizada) {
+                return false
+              }
+
+              const sigla = municipio?.microrregiao?.mesorregiao?.UF?.sigla ?? ''
+              return sigla.toUpperCase() === ufSelecionada
+            })
+
+            if (!existeNoEstado) {
+              aviso = `Cidade não encontrada no estado ${ufSelecionada}.`
+            }
+          }
+        }
+
+        setClienteMensagens((prev) => ({ ...prev, cidade: aviso }))
+      } catch (error) {
+        if (!ativo || controller.signal.aborted) {
+          return
+        }
+
+        setClienteMensagens((prev) => ({
+          ...prev,
+          cidade: 'Não foi possível verificar a cidade agora.',
+        }))
+      } finally {
+        if (ativo) {
+          setVerificandoCidade(false)
+        }
+      }
+    }, 400)
+
+    return () => {
+      ativo = false
+      controller.abort()
+      window.clearTimeout(timeoutId)
+    }
+  }, [cliente.cidade, cliente.uf])
 
   const abrirOrcamentoSalvo = useCallback(
     async (registro: OrcamentoSalvo, modo: 'preview' | 'print' | 'download') => {
@@ -2147,10 +2323,20 @@ export default function App() {
                 <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
               </Field>
               <Field label="CPF/CNPJ">
-                <input value={cliente.documento} onChange={(e) => handleClienteChange('documento', e.target.value)} />
+                <input
+                  value={cliente.documento}
+                  onChange={(e) => handleClienteChange('documento', e.target.value)}
+                  inputMode="numeric"
+                  placeholder="000.000.000-00"
+                />
               </Field>
-              <Field label="E-mail">
-                <input value={cliente.email} onChange={(e) => handleClienteChange('email', e.target.value)} />
+              <Field label="E-mail" hint={clienteMensagens.email}>
+                <input
+                  value={cliente.email}
+                  onChange={(e) => handleClienteChange('email', e.target.value)}
+                  type="email"
+                  placeholder="nome@empresa.com"
+                />
               </Field>
               <Field label="Telefone">
                 <input value={cliente.telefone} onChange={(e) => handleClienteChange('telefone', e.target.value)} />
@@ -2164,11 +2350,25 @@ export default function App() {
               <Field label="Endereço">
                 <input value={cliente.endereco} onChange={(e) => handleClienteChange('endereco', e.target.value)} />
               </Field>
-              <Field label="Cidade">
+              <Field
+                label="Cidade"
+                hint={
+                  verificandoCidade
+                    ? 'Verificando cidade...'
+                    : clienteMensagens.cidade
+                }
+              >
                 <input value={cliente.cidade} onChange={(e) => handleClienteChange('cidade', e.target.value)} />
               </Field>
               <Field label="UF ou Estado">
-                <input value={cliente.uf} onChange={(e) => handleClienteChange('uf', e.target.value)} />
+                <select value={cliente.uf} onChange={(e) => handleClienteChange('uf', e.target.value)}>
+                  <option value="">Selecione um estado</option>
+                  {ESTADOS_BRASILEIROS.map(({ sigla, nome }) => (
+                    <option key={sigla} value={sigla}>
+                      {nome} ({sigla})
+                    </option>
+                  ))}
+                </select>
               </Field>
             </div>
           </section>
