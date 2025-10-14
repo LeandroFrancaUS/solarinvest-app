@@ -31,9 +31,9 @@ export function selectNumberInputOnFocus(event: FocusEvent<HTMLInputElement>): v
     }
   }
 
-  input.addEventListener('mouseup', preventSelectionOverride, { once: true })
-  input.addEventListener('pointerup', preventSelectionOverride, { once: true })
-  input.addEventListener('touchend', preventSelectionOverride, { once: true })
+  ['mouseup', 'pointerup', 'touchend'].forEach(eventName => {
+    input.addEventListener(eventName, preventSelectionOverride, { once: true })
+  })
 
   // `select()` must run after the browser applies focus; requestAnimationFrame ensures that.
   window.requestAnimationFrame(() => {
