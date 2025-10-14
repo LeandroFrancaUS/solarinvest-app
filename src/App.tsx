@@ -167,11 +167,25 @@ const CAMPOS_CLIENTE_OBRIGATORIOS: { key: keyof ClienteDados; label: string }[] 
 ]
 
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
+const BUDGET_ID_PREFIX = 'SLRINVST-'
+const BUDGET_ID_SUFFIX_LENGTH = 8
+const BUDGET_ID_MAX_ATTEMPTS = 1000
 
-const generateBudgetId = () => {
-  const randomPart = Math.floor(100000 + Math.random() * 900000)
-  const timestampPart = Date.now().toString(36).toUpperCase()
-  return `ORC-${timestampPart}-${randomPart}`
+const generateBudgetId = (existingIds: Set<string> = new Set()) => {
+  let attempts = 0
+
+  while (attempts < BUDGET_ID_MAX_ATTEMPTS) {
+    attempts += 1
+    const randomNumber = Math.floor(Math.random() * 10 ** BUDGET_ID_SUFFIX_LENGTH)
+    const suffix = randomNumber.toString().padStart(BUDGET_ID_SUFFIX_LENGTH, '0')
+    const candidate = `${BUDGET_ID_PREFIX}${suffix}`
+
+    if (!existingIds.has(candidate)) {
+      return candidate
+    }
+  }
+
+  throw new Error('Não foi possível gerar um código de orçamento único.')
 }
 
 const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
@@ -1287,8 +1301,10 @@ export default function App() {
     }
 
     try {
+      const registrosExistentes = carregarOrcamentosSalvos()
+      const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
       const registro: OrcamentoSalvo = {
-        id: generateBudgetId(),
+        id: generateBudgetId(existingIds),
         criadoEm: new Date().toISOString(),
         clienteNome: dados.cliente.nome,
         clienteCidade: dados.cliente.cidade,
@@ -1298,7 +1314,7 @@ export default function App() {
         dados: clonePrintableData(dados),
       }
 
-      const registrosExistentes = carregarOrcamentosSalvos()
+      existingIds.add(registro.id)
       const registrosAtualizados = [registro, ...registrosExistentes]
       window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
       setOrcamentosSalvos(registrosAtualizados)
