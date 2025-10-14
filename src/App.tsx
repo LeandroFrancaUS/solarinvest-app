@@ -138,7 +138,17 @@ type MensalidadeRow = {
   totalAcumulado: number
 }
 
-const Field: React.FC<{ label: string; children: React.ReactNode; hint?: string }> = ({ label, children, hint }) => (
+const InfoTooltip: React.FC<{ text: string }> = ({ text }) => (
+  <span className="info-icon" role="img" aria-label="Informação" title={text}>
+    !
+  </span>
+)
+
+const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; hint?: string }> = ({
+  label,
+  children,
+  hint,
+}) => (
   <div className="field">
     <label>{label}</label>
     {children}
@@ -1185,16 +1195,38 @@ export default function App() {
                     }}
                   />
                 </Field>
-                <Field label="Potência instalada (kWp)">
+                <Field
+                  label={
+                    <>
+                      Potência instalada (kWp)
+                      <InfoTooltip text="Potência instalada = (Nº de placas × Potência da placa) ÷ 1000. Sem entrada manual de placas, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
+                    </>
+                  }
+                >
                   <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
                 </Field>
-                <Field label="Geração estimada (kWh/mês)">
+                <Field
+                  label={
+                    <>
+                      Geração estimada (kWh/mês)
+                      <InfoTooltip text="Geração estimada = Potência instalada × Irradiação média × Eficiência × 30 dias." />
+                    </>
+                  }
+                >
                   <input readOnly value={geracaoMensalKwh.toFixed(0)} />
                 </Field>
               </div>
               <div className="info-inline">
-                <span className="pill">Valor de Mercado Estimado: <strong>{currency(capex)}</strong></span>
-                <span className="pill">Consumo diário: <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong></span>
+                <span className="pill">
+                  Valor de Mercado Estimado
+                  <InfoTooltip text="Valor de mercado = Potência instalada (kWp) × Preço por kWp configurado nas definições." />
+                  : <strong>{currency(capex)}</strong>
+                </span>
+                <span className="pill">
+                  Consumo diário
+                  <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ Dias considerados no mês." />
+                  : <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
+                </span>
               </div>
             </section>
 
@@ -1253,7 +1285,12 @@ export default function App() {
                   </select>
                 </Field>
                 <Field
-                  label="Irradiação média (kWh/m²/dia)"
+                  label={
+                    <>
+                      Irradiação média (kWh/m²/dia)
+                      <InfoTooltip text="Irradiação média é preenchida automaticamente a partir da UF/distribuidora ou do valor configurado manualmente." />
+                    </>
+                  }
                   hint="Atualizado automaticamente conforme a UF ou distribuidora selecionada."
                 >
                   <input readOnly value={baseIrradiacao > 0 ? baseIrradiacao.toFixed(2) : '—'} />
@@ -1265,7 +1302,9 @@ export default function App() {
               <div className="card-header">
                 <h2>SolarInvest Leasing</h2>
                 <span className="toggle-label">
-                  Inflação mensal equivalente: {(parcelasSolarInvest.inflacaoMensal * 100).toLocaleString('pt-BR', {
+                  Inflação mensal equivalente
+                  <InfoTooltip text="Inflação mensal equivalente = (1 + inflação anual)^(1/12) - 1." />
+                  : {(parcelasSolarInvest.inflacaoMensal * 100).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}%
@@ -1287,11 +1326,15 @@ export default function App() {
 
               <div className="info-inline">
                 <span className="pill">
-                  Tarifa c/ desconto: <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
+                  Tarifa c/ desconto
+                  <InfoTooltip text="Tarifa com desconto = Tarifa cheia ajustada pelos reajustes anuais × (1 - desconto contratual)." />
+                  : <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
                 </span>
                 {modoEntradaNormalizado === 'REDUZ' ? (
                   <span className="pill">
-                    Piso contratado ajustado:{' '}
+                    Piso contratado ajustado
+                    <InfoTooltip text="Piso ajustado = Consumo contratado × (1 - min(1, Entrada ÷ (Consumo × Tarifa cheia × (1 - desconto) × Prazo)))." />
+                    :{' '}
                     <strong>
                       {`${parcelasSolarInvest.kcAjustado.toLocaleString('pt-BR', {
                         maximumFractionDigits: 0,
@@ -1302,7 +1345,9 @@ export default function App() {
                 ) : null}
                 {modoEntradaNormalizado === 'CREDITO' ? (
                   <span className="pill">
-                    Crédito mensal da entrada: <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
+                    Crédito mensal da entrada
+                    <InfoTooltip text="Crédito mensal = Valor de entrada ÷ Prazo contratual (em meses)." />
+                    : <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
                   </span>
                 ) : null}
               </div>

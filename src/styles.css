@@ -248,6 +248,9 @@ button.icon {
 }
 
 .field label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
@@ -289,6 +292,26 @@ input[readonly] {
   display: inline-flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 140, 0, 0.16);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  transition: background 0.2s ease;
+}
+
+.info-icon:hover {
+  background: rgba(255, 140, 0, 0.32);
 }
 
 .pill {
@@ -484,6 +507,9 @@ table tbody tr:hover {
 }
 
 .toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--muted);
   font-size: 12px;
 }
