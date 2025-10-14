@@ -71,7 +71,7 @@ const UF_LABELS: Record<string, string> = {
   TO: 'Tocantins',
 }
 
-type TabKey = 'leasing' | 'cliente' | 'vendas'
+type TabKey = 'leasing' | 'cliente' | 'financiamento' | 'vendas'
 
 type SeguroModo = 'A' | 'B'
 
@@ -922,6 +922,7 @@ export default function App() {
   const valorFinanciado = useMemo(() => Math.max(0, capex - entradaFin), [capex, entradaFin])
   const pmt = useMemo(() => {
     if (valorFinanciado === 0) return 0
+    if (prazoFinMeses <= 0) return 0
     if (taxaMensalFin === 0) return -(valorFinanciado / prazoFinMeses)
     const fator = Math.pow(1 + taxaMensalFin, prazoFinMeses)
     return -valorFinanciado * (taxaMensalFin * fator) / (fator - 1)
@@ -961,9 +962,17 @@ export default function App() {
   }, [entradaFin, financiamentoFluxo])
 
   const financiamentoMensalidades = useMemo(() => {
-    const anos = Math.ceil(prazoFinMeses / 12)
+    const mesesValidos = Math.max(0, prazoFinMeses)
+    const anos = Math.ceil(mesesValidos / 12)
     return Array.from({ length: anos }, () => Math.abs(pmt))
   }, [pmt, prazoFinMeses])
+
+  const parcelaMensalFin = useMemo(() => Math.abs(pmt), [pmt])
+  const taxaMensalFinPct = useMemo(() => taxaMensalFin * 100, [taxaMensalFin])
+  const totalPagoFinanciamento = useMemo(
+    () => entradaFin + parcelaMensalFin * Math.max(prazoFinMeses, 0),
+    [entradaFin, parcelaMensalFin, prazoFinMeses],
+  )
 
   const parcelasSolarInvest = useMemo(() => {
     const lista: MensalidadeRow[] = []
@@ -1219,6 +1228,12 @@ export default function App() {
         <nav className="tabs tabs-bar">
           <button className={activeTab === 'cliente' ? 'active' : ''} onClick={() => setActiveTab('cliente')}>Cliente</button>
           <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>Leasing</button>
+          <button
+            className={activeTab === 'financiamento' ? 'active' : ''}
+            onClick={() => setActiveTab('financiamento')}
+          >
+            Financiamento
+          </button>
           <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>Vendas</button>
         </nav>
 
@@ -1656,6 +1671,127 @@ export default function App() {
               </Field>
             </div>
           </section>
+        ) : activeTab === 'financiamento' ? (
+          <>
+            <section className="card">
+              <h2>Resumo do financiamento</h2>
+              {mostrarFinanciamento ? (
+                <div className="info-inline">
+                  <span className="pill">
+                    Investimento estimado
+                    <strong>{currency(capex)}</strong>
+                  </span>
+                  <span className="pill">
+                    Entrada ({entradaFinPct.toLocaleString('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%)
+                    <strong>{currency(entradaFin)}</strong>
+                  </span>
+                  <span className="pill">
+                    Valor financiado
+                    <strong>{currency(valorFinanciado)}</strong>
+                  </span>
+                  <span className="pill">
+                    Parcela mensal
+                    <strong>{currency(parcelaMensalFin)}</strong>
+                  </span>
+                  <span className="pill">
+                    Prazo do financiamento
+                    <strong>
+                      {Math.max(prazoFinMeses, 0).toLocaleString('pt-BR', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      })}{' '}
+                      meses
+                    </strong>
+                  </span>
+                  <span className="pill">
+                    Juros a.a.
+                    <strong>
+                      {jurosFinAa.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      })}%
+                    </strong>
+                  </span>
+                  <span className="pill">
+                    Juros a.m.
+                    <strong>
+                      {taxaMensalFinPct.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}%
+                    </strong>
+                  </span>
+                  {beneficioAno30 ? (
+                    <span className="pill">
+                      Benefício em 30 anos
+                      <strong>{currency(beneficioAno30.Financiamento)}</strong>
+                    </span>
+                  ) : null}
+                  <span className="pill">
+                    Total pago (entrada + parcelas)
+                    <strong>{currency(totalPagoFinanciamento)}</strong>
+                  </span>
+                </div>
+              ) : (
+                <p className="muted">Habilite nas configurações para visualizar os cenários de financiamento.</p>
+              )}
+            </section>
+            {mostrarFinanciamento ? (
+              <>
+                <div className="grid g2">
+                  <section className="card">
+                    <h2>Mensalidades previstas</h2>
+                    {financiamentoMensalidades.length > 0 ? (
+                      <div className="list-col">
+                        {financiamentoMensalidades.map((valor, index) => (
+                          <div className="list-row" key={`fin-tab-m${index}`}>
+                            <span>Ano {index + 1}</span>
+                            <strong>{currency(valor)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted">Defina um prazo para calcular as mensalidades do financiamento.</p>
+                    )}
+                  </section>
+                  <section className="card">
+                    <h2>Fluxo anual projetado</h2>
+                    <div className="list-col">
+                      {anosArray.map((ano) => (
+                        <div className="list-row" key={`fin-fluxo-${ano}`}>
+                          <span>Ano {ano}</span>
+                          <strong>{currency(financiamentoFluxo[ano - 1] ?? 0)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+                <section className="card">
+                  <h2>Benefício acumulado</h2>
+                  <div className="table-wrapper">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Ano</th>
+                          <th>Fluxo anual</th>
+                          <th>Benefício acumulado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {anosArray.map((ano) => (
+                          <tr key={`fin-tabela-${ano}`}>
+                            <td>{ano}</td>
+                            <td>{currency(financiamentoFluxo[ano - 1] ?? 0)}</td>
+                            <td>{currency(financiamentoROI[ano - 1] ?? 0)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </>
+            ) : null}
+          </>
         ) : (
           <section className="card">
             <h2>Vendas</h2>
