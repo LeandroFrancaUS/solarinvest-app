@@ -1181,6 +1181,10 @@ export default function App() {
     setCliente((prev) => ({ ...prev, [key]: value }))
   }
 
+  const handleNumberFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    event.target.select()
+  }
+
   return (
     <div className="page">
       <PrintableProposal
@@ -1228,19 +1232,46 @@ export default function App() {
               <h2>Parâmetros principais</h2>
               <div className="grid g3">
                 <Field label="Consumo (kWh/mês)">
-                  <input type="number" value={kcKwhMes} onChange={(e) => setKcKwhMes(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={kcKwhMes}
+                    onChange={(e) => setKcKwhMes(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Tarifa cheia (R$/kWh)">
-                  <input type="number" step="0.001" value={tarifaCheia} onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={tarifaCheia}
+                    onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Desconto contratual (%)">
-                  <input type="number" step="0.1" value={desconto} onChange={(e) => setDesconto(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={desconto}
+                    onChange={(e) => setDesconto(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Taxa mínima (R$/mês)">
-                  <input type="number" value={taxaMinima} onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={taxaMinima}
+                    onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Encargos adicionais (R$/mês)">
-                  <input type="number" value={encargosFixosExtras} onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={encargosFixosExtras}
+                    onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Prazo do leasing">
                   <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
@@ -1326,6 +1357,7 @@ export default function App() {
                       }
                       setNumeroPlacasManual(parsed)
                     }}
+                    onFocus={handleNumberFocus}
                   />
                 </Field>
                 <Field
@@ -1377,6 +1409,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
                     }}
+                    onFocus={handleNumberFocus}
                   />
                 </Field>
               </div>
@@ -1647,10 +1680,21 @@ export default function App() {
               <h4>Mercado & energia</h4>
               <div className="grid g2">
                 <Field label="Inflação energética (%)">
-                  <input type="number" step="0.1" value={inflacaoAa} onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={inflacaoAa}
+                    onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Preço por kWp (R$)">
-                  <input type="number" value={precoPorKwp} onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={precoPorKwp}
+                    onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Irradiação média (kWh/m²/dia)">
                   <input
@@ -1662,6 +1706,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setIrradiacao(Number.isFinite(parsed) && parsed > 0 ? parsed : 0)
                     }}
+                    onFocus={handleNumberFocus}
                   />
                 </Field>
                 <Field label="Eficiência do sistema">
@@ -1677,6 +1722,7 @@ export default function App() {
                       }
                       handleEficienciaInput(Number(e.target.value))
                     }}
+                    onFocus={handleNumberFocus}
                   />
                 </Field>
                 <Field label="Dias no mês (cálculo)">
@@ -1694,6 +1740,7 @@ export default function App() {
                       const parsed = Number(value)
                       setDiasMes(Number.isFinite(parsed) ? parsed : 0)
                     }}
+                    onFocus={handleNumberFocus}
                   />
                 </Field>
               </div>
@@ -1709,6 +1756,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setPrazoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
                     }}
+                    onFocus={handleNumberFocus}
                   />
                 </Field>
                 <Field label="Bandeira tarifária (R$)">
@@ -1719,6 +1767,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setBandeiraEncargo(Number.isFinite(parsed) ? parsed : 0)
                     }}
+                    onFocus={handleNumberFocus}
                   />
                 </Field>
                 <Field label="Contribuição CIP (R$)">
@@ -1729,6 +1778,7 @@ export default function App() {
                       const parsed = Number(e.target.value)
                       setCipEncargo(Number.isFinite(parsed) ? parsed : 0)
                     }}
+                    onFocus={handleNumberFocus}
                   />
                 </Field>
                 <Field label="Uso da entrada">
@@ -1750,50 +1800,118 @@ export default function App() {
               <h4>Financiamento parâmetros</h4>
               <div className="grid g3">
                 <Field label="Juros a.a. (%)">
-                  <input type="number" step="0.1" value={jurosFinAa} onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={jurosFinAa}
+                    onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Prazo (meses)">
-                  <input type="number" value={prazoFinMeses} onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={prazoFinMeses}
+                    onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Entrada (%)">
-                  <input type="number" step="0.1" value={entradaFinPct} onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={entradaFinPct}
+                    onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
               </div>
 
               <h4>Buyout parâmetros</h4>
               <div className="grid g3">
                 <Field label="Cashback (%)">
-                  <input type="number" step="0.1" value={cashbackPct} onChange={(e) => setCashbackPct(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={cashbackPct}
+                    onChange={(e) => setCashbackPct(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Depreciação (%)">
-                  <input type="number" step="0.1" value={depreciacaoAa} onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={depreciacaoAa}
+                    onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Inadimplência (%)">
-                  <input type="number" step="0.1" value={inadimplenciaAa} onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={inadimplenciaAa}
+                    onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Tributos (%)">
-                  <input type="number" step="0.1" value={tributosAa} onChange={(e) => setTributosAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={tributosAa}
+                    onChange={(e) => setTributosAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="IPCA (%)">
-                  <input type="number" step="0.1" value={ipcaAa} onChange={(e) => setIpcaAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={ipcaAa}
+                    onChange={(e) => setIpcaAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Custos fixos (R$)">
-                  <input type="number" value={custosFixosM} onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={custosFixosM}
+                    onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="OPEX (R$)">
-                  <input type="number" value={opexM} onChange={(e) => setOpexM(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={opexM}
+                    onChange={(e) => setOpexM(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Seguro (R$)">
-                  <input type="number" value={seguroM} onChange={(e) => setSeguroM(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={seguroM}
+                    onChange={(e) => setSeguroM(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Duração (meses)">
-                  <input type="number" value={duracaoMeses} onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={duracaoMeses}
+                    onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Pagos acumulados até o mês (R$)">
                   <input
                     type="number"
                     value={pagosAcumAteM}
                     onChange={(e) => setPagosAcumAteM(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
                   />
                 </Field>
               </div>
@@ -1801,13 +1919,30 @@ export default function App() {
               <h4>O&M e seguro</h4>
               <div className="grid g3">
                 <Field label="O&M base (R$/kWp)">
-                  <input type="number" value={oemBase} onChange={(e) => setOemBase(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={oemBase}
+                    onChange={(e) => setOemBase(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Reajuste O&M (%)">
-                  <input type="number" step="0.1" value={oemInflacao} onChange={(e) => setOemInflacao(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={oemInflacao}
+                    onChange={(e) => setOemInflacao(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Reajuste seguro (%)">
-                  <input type="number" step="0.1" value={seguroReajuste} onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={seguroReajuste}
+                    onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Modo de seguro">
                   <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
@@ -1816,10 +1951,21 @@ export default function App() {
                   </select>
                 </Field>
                 <Field label="Base seguro modo A (R$/kWp)">
-                  <input type="number" value={seguroValorA} onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={seguroValorA}
+                    onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
                 <Field label="Seguro modo B (%)">
-                  <input type="number" step="0.01" value={seguroPercentualB} onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={seguroPercentualB}
+                    onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus}
+                  />
                 </Field>
               </div>
 
