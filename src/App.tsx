@@ -551,30 +551,56 @@ const renderPrintableProposalToHtml = (dados: PrintableProps): Promise<string | 
       useEffect(() => {
         const timeouts: number[] = []
         let attempts = 0
-        const maxAttempts = 6
+        const maxAttempts = 8
+
+        const chartIsReady = (containerEl: HTMLDivElement | null) => {
+          if (!containerEl) {
+            return false
+          }
+          const chartSvg = containerEl.querySelector('.print-chart svg')
+          if (!chartSvg) {
+            return false
+          }
+          if (chartSvg.childNodes.length === 0) {
+            return false
+          }
+          return true
+        }
 
         const attemptCapture = (root: ReturnType<typeof createRoot> | null) => {
           if (resolved) {
             return
           }
-          if (localRef.current) {
+
+          const containerEl = localRef.current
+
+          if (containerEl && chartIsReady(containerEl)) {
             resolved = true
-            resolve(localRef.current.outerHTML)
+            resolve(containerEl.outerHTML)
             cleanup(root)
             return
           }
+
           attempts += 1
           if (attempts >= maxAttempts) {
             resolved = true
-            resolve(null)
+            resolve(containerEl ? containerEl.outerHTML : null)
             cleanup(root)
             return
           }
-          const timeoutId = window.setTimeout(() => attemptCapture(root), 140)
+
+          const timeoutId = window.setTimeout(() => attemptCapture(root), 160)
           timeouts.push(timeoutId)
         }
 
-        const initialTimeout = window.setTimeout(() => attemptCapture(rootInstance), 180)
+        const triggerResize = () => {
+          window.dispatchEvent(new Event('resize'))
+        }
+
+        const resizeTimeout = window.setTimeout(triggerResize, 120)
+        timeouts.push(resizeTimeout)
+
+        const initialTimeout = window.setTimeout(() => attemptCapture(rootInstance), 220)
         timeouts.push(initialTimeout)
 
         return () => {
