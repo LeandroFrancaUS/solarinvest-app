@@ -982,8 +982,11 @@ export default function App() {
       simulationState.modoEntrada === 'REDUZ'
         ? kcAjustado
         : Math.max(0, simulationState.kcKwhMes)
-    const margemMinima = Math.max(0, simulationState.taxaMinima) + Math.max(0, simulationState.encargosFixos)
-    const manutencaoPrevencaoSeguroMensal = Math.max(0, (simulationState.vm0 * 0.015) / 12)
+    const leasingAtivo = kcContratado > 0
+    const margemMinima =
+      leasingAtivo ? Math.max(0, simulationState.taxaMinima) + Math.max(0, simulationState.encargosFixos) : 0
+    const manutencaoPrevencaoSeguroMensal =
+      leasingAtivo ? Math.max(0, (simulationState.vm0 * 0.015) / 12) : 0
     mensalidades.forEach((mensalidade, index) => {
       const mes = index + 1
       const tarifaCheiaMes = tarifaProjetadaCheia(
@@ -994,10 +997,10 @@ export default function App() {
         simulationState.mesReferencia,
       )
       const tarifaDescontadaMes = selectTarifaDescontada(simulationState, mes)
-      const energiaCheia = Math.max(0, kcContratado * tarifaCheiaMes)
-      const mensalidadeCheia = Number(
-        Math.max(0, energiaCheia + margemMinima + manutencaoPrevencaoSeguroMensal).toFixed(2),
-      )
+      const energiaCheia = leasingAtivo ? Math.max(0, kcContratado * tarifaCheiaMes) : 0
+      const mensalidadeCheia = leasingAtivo
+        ? Number(Math.max(0, energiaCheia + margemMinima + manutencaoPrevencaoSeguroMensal).toFixed(2))
+        : 0
       totalAcumulado += mensalidade
       lista.push({
         mes,
