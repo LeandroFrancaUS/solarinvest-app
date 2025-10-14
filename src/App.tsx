@@ -1181,6 +1181,30 @@ export default function App() {
     setCliente((prev) => ({ ...prev, [key]: value }))
   }
 
+  const [focusedNumberField, setFocusedNumberField] = useState<string | null>(null)
+
+  const focusNumberInput = (input: HTMLInputElement) => {
+    if (!input.value) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      input.select()
+    })
+  }
+
+  const handleNumberFocus = (fieldKey: string) => (event: React.FocusEvent<HTMLInputElement>) => {
+    setFocusedNumberField(fieldKey)
+    focusNumberInput(event.target)
+  }
+
+  const handleNumberBlur = (fieldKey: string) => () => {
+    setFocusedNumberField((current) => (current === fieldKey ? null : current))
+  }
+
+  const getNumberInputValue = (fieldKey: string, value: number) =>
+    focusedNumberField === fieldKey && value === 0 ? '' : value
+
   return (
     <div className="page">
       <PrintableProposal
@@ -1228,19 +1252,51 @@ export default function App() {
               <h2>Parâmetros principais</h2>
               <div className="grid g3">
                 <Field label="Consumo (kWh/mês)">
-                  <input type="number" value={kcKwhMes} onChange={(e) => setKcKwhMes(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('kcKwhMes', kcKwhMes)}
+                    onChange={(e) => setKcKwhMes(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('kcKwhMes')}
+                    onBlur={handleNumberBlur('kcKwhMes')}
+                  />
                 </Field>
                 <Field label="Tarifa cheia (R$/kWh)">
-                  <input type="number" step="0.001" value={tarifaCheia} onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={getNumberInputValue('tarifaCheia', tarifaCheia)}
+                    onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('tarifaCheia')}
+                    onBlur={handleNumberBlur('tarifaCheia')}
+                  />
                 </Field>
                 <Field label="Desconto contratual (%)">
-                  <input type="number" step="0.1" value={desconto} onChange={(e) => setDesconto(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('desconto', desconto)}
+                    onChange={(e) => setDesconto(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('desconto')}
+                    onBlur={handleNumberBlur('desconto')}
+                  />
                 </Field>
                 <Field label="Taxa mínima (R$/mês)">
-                  <input type="number" value={taxaMinima} onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('taxaMinima', taxaMinima)}
+                    onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('taxaMinima')}
+                    onBlur={handleNumberBlur('taxaMinima')}
+                  />
                 </Field>
                 <Field label="Encargos adicionais (R$/mês)">
-                  <input type="number" value={encargosFixosExtras} onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('encargosFixosExtras', encargosFixosExtras)}
+                    onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('encargosFixosExtras')}
+                    onBlur={handleNumberBlur('encargosFixosExtras')}
+                  />
                 </Field>
                 <Field label="Prazo do leasing">
                   <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
@@ -1309,9 +1365,9 @@ export default function App() {
                     value={
                       numeroPlacasManual === ''
                         ? numeroPlacasEstimado > 0
-                          ? numeroPlacasEstimado
+                          ? getNumberInputValue('numeroPlacasManual', numeroPlacasEstimado)
                           : ''
-                        : numeroPlacasManual
+                        : getNumberInputValue('numeroPlacasManual', numeroPlacasManual)
                     }
                     onChange={(e) => {
                       const { value } = e.target
@@ -1326,6 +1382,8 @@ export default function App() {
                       }
                       setNumeroPlacasManual(parsed)
                     }}
+                    onFocus={handleNumberFocus('numeroPlacasManual')}
+                    onBlur={handleNumberBlur('numeroPlacasManual')}
                   />
                 </Field>
                 <Field
@@ -1372,11 +1430,13 @@ export default function App() {
                 <Field label="Entrada (R$)">
                   <input
                     type="number"
-                    value={entradaRs}
+                    value={getNumberInputValue('entradaRs', entradaRs)}
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
                       setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
                     }}
+                    onFocus={handleNumberFocus('entradaRs')}
+                    onBlur={handleNumberBlur('entradaRs')}
                   />
                 </Field>
               </div>
@@ -1647,21 +1707,36 @@ export default function App() {
               <h4>Mercado & energia</h4>
               <div className="grid g2">
                 <Field label="Inflação energética (%)">
-                  <input type="number" step="0.1" value={inflacaoAa} onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('inflacaoAa', inflacaoAa)}
+                    onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('inflacaoAa')}
+                    onBlur={handleNumberBlur('inflacaoAa')}
+                  />
                 </Field>
                 <Field label="Preço por kWp (R$)">
-                  <input type="number" value={precoPorKwp} onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('precoPorKwp', precoPorKwp)}
+                    onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('precoPorKwp')}
+                    onBlur={handleNumberBlur('precoPorKwp')}
+                  />
                 </Field>
                 <Field label="Irradiação média (kWh/m²/dia)">
                   <input
                     type="number"
                     step="0.1"
                     min={0.01}
-                    value={irradiacao}
+                    value={getNumberInputValue('irradiacao', irradiacao)}
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
                       setIrradiacao(Number.isFinite(parsed) && parsed > 0 ? parsed : 0)
                     }}
+                    onFocus={handleNumberFocus('irradiacao')}
+                    onBlur={handleNumberBlur('irradiacao')}
                   />
                 </Field>
                 <Field label="Eficiência do sistema">
@@ -1669,7 +1744,7 @@ export default function App() {
                     type="number"
                     step="0.01"
                     min={0.01}
-                    value={eficiencia}
+                    value={getNumberInputValue('eficiencia', eficiencia)}
                     onChange={(e) => {
                       if (e.target.value === '') {
                         setEficiencia(0)
@@ -1677,6 +1752,8 @@ export default function App() {
                       }
                       handleEficienciaInput(Number(e.target.value))
                     }}
+                    onFocus={handleNumberFocus('eficiencia')}
+                    onBlur={handleNumberBlur('eficiencia')}
                   />
                 </Field>
                 <Field label="Dias no mês (cálculo)">
@@ -1684,7 +1761,7 @@ export default function App() {
                     type="number"
                     min={1}
                     step={1}
-                    value={diasMes > 0 ? diasMes : ''}
+                    value={diasMes > 0 ? getNumberInputValue('diasMes', diasMes) : ''}
                     onChange={(e) => {
                       const { value } = e.target
                       if (value === '') {
@@ -1694,6 +1771,8 @@ export default function App() {
                       const parsed = Number(value)
                       setDiasMes(Number.isFinite(parsed) ? parsed : 0)
                     }}
+                    onFocus={handleNumberFocus('diasMes')}
+                    onBlur={handleNumberBlur('diasMes')}
                   />
                 </Field>
               </div>
@@ -1704,31 +1783,37 @@ export default function App() {
                   <input
                     type="number"
                     min={1}
-                    value={prazoMeses}
+                    value={getNumberInputValue('prazoMeses', prazoMeses)}
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
                       setPrazoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
                     }}
+                    onFocus={handleNumberFocus('prazoMeses')}
+                    onBlur={handleNumberBlur('prazoMeses')}
                   />
                 </Field>
                 <Field label="Bandeira tarifária (R$)">
                   <input
                     type="number"
-                    value={bandeiraEncargo}
+                    value={getNumberInputValue('bandeiraEncargo', bandeiraEncargo)}
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
                       setBandeiraEncargo(Number.isFinite(parsed) ? parsed : 0)
                     }}
+                    onFocus={handleNumberFocus('bandeiraEncargo')}
+                    onBlur={handleNumberBlur('bandeiraEncargo')}
                   />
                 </Field>
                 <Field label="Contribuição CIP (R$)">
                   <input
                     type="number"
-                    value={cipEncargo}
+                    value={getNumberInputValue('cipEncargo', cipEncargo)}
                     onChange={(e) => {
                       const parsed = Number(e.target.value)
                       setCipEncargo(Number.isFinite(parsed) ? parsed : 0)
                     }}
+                    onFocus={handleNumberFocus('cipEncargo')}
+                    onBlur={handleNumberBlur('cipEncargo')}
                   />
                 </Field>
                 <Field label="Uso da entrada">
@@ -1750,50 +1835,131 @@ export default function App() {
               <h4>Financiamento parâmetros</h4>
               <div className="grid g3">
                 <Field label="Juros a.a. (%)">
-                  <input type="number" step="0.1" value={jurosFinAa} onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('jurosFinAa', jurosFinAa)}
+                    onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('jurosFinAa')}
+                    onBlur={handleNumberBlur('jurosFinAa')}
+                  />
                 </Field>
                 <Field label="Prazo (meses)">
-                  <input type="number" value={prazoFinMeses} onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('prazoFinMeses', prazoFinMeses)}
+                    onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('prazoFinMeses')}
+                    onBlur={handleNumberBlur('prazoFinMeses')}
+                  />
                 </Field>
                 <Field label="Entrada (%)">
-                  <input type="number" step="0.1" value={entradaFinPct} onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('entradaFinPct', entradaFinPct)}
+                    onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('entradaFinPct')}
+                    onBlur={handleNumberBlur('entradaFinPct')}
+                  />
                 </Field>
               </div>
 
               <h4>Buyout parâmetros</h4>
               <div className="grid g3">
                 <Field label="Cashback (%)">
-                  <input type="number" step="0.1" value={cashbackPct} onChange={(e) => setCashbackPct(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('cashbackPct', cashbackPct)}
+                    onChange={(e) => setCashbackPct(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('cashbackPct')}
+                    onBlur={handleNumberBlur('cashbackPct')}
+                  />
                 </Field>
                 <Field label="Depreciação (%)">
-                  <input type="number" step="0.1" value={depreciacaoAa} onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('depreciacaoAa', depreciacaoAa)}
+                    onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('depreciacaoAa')}
+                    onBlur={handleNumberBlur('depreciacaoAa')}
+                  />
                 </Field>
                 <Field label="Inadimplência (%)">
-                  <input type="number" step="0.1" value={inadimplenciaAa} onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('inadimplenciaAa', inadimplenciaAa)}
+                    onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('inadimplenciaAa')}
+                    onBlur={handleNumberBlur('inadimplenciaAa')}
+                  />
                 </Field>
                 <Field label="Tributos (%)">
-                  <input type="number" step="0.1" value={tributosAa} onChange={(e) => setTributosAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('tributosAa', tributosAa)}
+                    onChange={(e) => setTributosAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('tributosAa')}
+                    onBlur={handleNumberBlur('tributosAa')}
+                  />
                 </Field>
                 <Field label="IPCA (%)">
-                  <input type="number" step="0.1" value={ipcaAa} onChange={(e) => setIpcaAa(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('ipcaAa', ipcaAa)}
+                    onChange={(e) => setIpcaAa(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('ipcaAa')}
+                    onBlur={handleNumberBlur('ipcaAa')}
+                  />
                 </Field>
                 <Field label="Custos fixos (R$)">
-                  <input type="number" value={custosFixosM} onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('custosFixosM', custosFixosM)}
+                    onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('custosFixosM')}
+                    onBlur={handleNumberBlur('custosFixosM')}
+                  />
                 </Field>
                 <Field label="OPEX (R$)">
-                  <input type="number" value={opexM} onChange={(e) => setOpexM(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('opexM', opexM)}
+                    onChange={(e) => setOpexM(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('opexM')}
+                    onBlur={handleNumberBlur('opexM')}
+                  />
                 </Field>
                 <Field label="Seguro (R$)">
-                  <input type="number" value={seguroM} onChange={(e) => setSeguroM(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('seguroM', seguroM)}
+                    onChange={(e) => setSeguroM(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('seguroM')}
+                    onBlur={handleNumberBlur('seguroM')}
+                  />
                 </Field>
                 <Field label="Duração (meses)">
-                  <input type="number" value={duracaoMeses} onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('duracaoMeses', duracaoMeses)}
+                    onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('duracaoMeses')}
+                    onBlur={handleNumberBlur('duracaoMeses')}
+                  />
                 </Field>
                 <Field label="Pagos acumulados até o mês (R$)">
                   <input
                     type="number"
-                    value={pagosAcumAteM}
+                    value={getNumberInputValue('pagosAcumAteM', pagosAcumAteM)}
                     onChange={(e) => setPagosAcumAteM(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('pagosAcumAteM')}
+                    onBlur={handleNumberBlur('pagosAcumAteM')}
                   />
                 </Field>
               </div>
@@ -1801,13 +1967,33 @@ export default function App() {
               <h4>O&M e seguro</h4>
               <div className="grid g3">
                 <Field label="O&M base (R$/kWp)">
-                  <input type="number" value={oemBase} onChange={(e) => setOemBase(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('oemBase', oemBase)}
+                    onChange={(e) => setOemBase(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('oemBase')}
+                    onBlur={handleNumberBlur('oemBase')}
+                  />
                 </Field>
                 <Field label="Reajuste O&M (%)">
-                  <input type="number" step="0.1" value={oemInflacao} onChange={(e) => setOemInflacao(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('oemInflacao', oemInflacao)}
+                    onChange={(e) => setOemInflacao(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('oemInflacao')}
+                    onBlur={handleNumberBlur('oemInflacao')}
+                  />
                 </Field>
                 <Field label="Reajuste seguro (%)">
-                  <input type="number" step="0.1" value={seguroReajuste} onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={getNumberInputValue('seguroReajuste', seguroReajuste)}
+                    onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('seguroReajuste')}
+                    onBlur={handleNumberBlur('seguroReajuste')}
+                  />
                 </Field>
                 <Field label="Modo de seguro">
                   <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
@@ -1816,10 +2002,23 @@ export default function App() {
                   </select>
                 </Field>
                 <Field label="Base seguro modo A (R$/kWp)">
-                  <input type="number" value={seguroValorA} onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    value={getNumberInputValue('seguroValorA', seguroValorA)}
+                    onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('seguroValorA')}
+                    onBlur={handleNumberBlur('seguroValorA')}
+                  />
                 </Field>
                 <Field label="Seguro modo B (%)">
-                  <input type="number" step="0.01" value={seguroPercentualB} onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)} />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={getNumberInputValue('seguroPercentualB', seguroPercentualB)}
+                    onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)}
+                    onFocus={handleNumberFocus('seguroPercentualB')}
+                    onBlur={handleNumberBlur('seguroPercentualB')}
+                  />
                 </Field>
               </div>
 
