@@ -890,8 +890,9 @@ export default function App() {
       const tarifaCheiaProj = tarifaAno(ano)
       const tarifaDescontadaProj = tarifaDescontadaAno(ano)
       const custoSemSistema = kcKwhMes * tarifaCheiaProj + encargosFixos + taxaMinima
-      const prestacao = ano <= leasingPrazo ? kcKwhMes * tarifaDescontadaProj + encargosFixos + taxaMinima : 0
-      const beneficio = 12 * (custoSemSistema - prestacao)
+      const custoComSistema =
+        (ano <= leasingPrazo ? kcKwhMes * tarifaDescontadaProj : 0) + encargosFixos + taxaMinima
+      const beneficio = 12 * (custoSemSistema - custoComSistema)
       return beneficio
     })
   }, [
