@@ -11,8 +11,34 @@ export function selectNumberInputOnFocus(event: FocusEvent<HTMLInputElement>): v
     return
   }
 
+  const selectAll = () => {
+    try {
+      input.select()
+    } catch {
+      // input.select() can throw on certain input types (e.g., type="number", "email", "date") in browsers like Safari and older versions of Chrome/Edge.
+      // See: https://github.com/facebook/react/issues/7267, https://stackoverflow.com/q/21177489
+      // Ignore and continue.
+    }
+  }
+
+  // Immediately select so keyboard interactions (Backspace/Arrow keys) overwrite the default value.
+  selectAll()
+
+  // Prevent the initial mouseup from overriding the programmatic selection.
+  const preventSelectionOverride = (eventToPrevent: Event) => {
+    if (eventToPrevent.cancelable) {
+      eventToPrevent.preventDefault()
+    }
+  }
+
+  ['mouseup', 'pointerup', 'touchend'].forEach(eventName => {
+    input.addEventListener(eventName, preventSelectionOverride, { once: true })
+  })
+
   // `select()` must run after the browser applies focus; requestAnimationFrame ensures that.
   window.requestAnimationFrame(() => {
-    input.select()
+    if (document.activeElement === input) {
+      selectAll()
+    }
   })
 }
