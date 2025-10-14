@@ -522,7 +522,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       </section>
 
       <section className="print-section">
-        <h2>Compra antecipada</h2>
         <div className="print-notes">
           <p><strong>Informações adicionais:</strong></p>
           <ul>
