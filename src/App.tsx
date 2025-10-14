@@ -694,7 +694,7 @@ export default function App() {
     return 0
   }, [kcKwhMes, fatorGeracao, numeroPlacasInformado, potenciaPlaca])
 
-  const numeroPlacasCalculado = useMemo(() => {
+  const numeroPlacasEstimado = useMemo(() => {
     if (numeroPlacasInformado) return numeroPlacasInformado
     if (potenciaPlaca <= 0) return 0
     const calculado = Math.ceil((potenciaInstaladaKwp * 1000) / potenciaPlaca)
@@ -1127,7 +1127,7 @@ export default function App() {
         capex={capex}
         geracaoMensalKwh={geracaoMensalKwh}
         potenciaPlaca={potenciaPlaca}
-        numeroPlacas={numeroPlacasCalculado}
+        numeroPlacas={numeroPlacasEstimado}
         potenciaInstaladaKwp={potenciaInstaladaKwp}
         descontoContratualPct={desconto}
         parcelasLeasing={parcelasSolarInvest.lista}
@@ -1165,11 +1165,11 @@ export default function App() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Nº de placas informado (opcional)">
+                <Field label="Nº de placas (estimado)">
                   <input
                     type="number"
                     min={1}
-                    value={numeroPlacasManual === '' ? '' : numeroPlacasManual}
+                    value={numeroPlacasManual === '' ? numeroPlacasEstimado : numeroPlacasManual}
                     onChange={(e) => {
                       const { value } = e.target
                       if (value === '') {
@@ -1184,9 +1184,6 @@ export default function App() {
                       setNumeroPlacasManual(parsed)
                     }}
                   />
-                </Field>
-                <Field label="Nº de placas (calculado)">
-                  <input readOnly value={numeroPlacasCalculado} />
                 </Field>
                 <Field label="Potência instalada (kWp)">
                   <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
