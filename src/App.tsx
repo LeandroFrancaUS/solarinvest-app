@@ -437,28 +437,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
 
       <section className="print-section">
         <h2>Compra antecipada</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Mês</th>
-              <th>Valor de compra</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tabelaBuyout
-              .filter((row) => row.mes >= 7 && row.mes <= duracaoContrato)
-              .map((row) => (
-                <tr key={row.mes}>
-                  <td>{row.mes}</td>
-                  <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
-                </tr>
-              ))}
-            <tr key={mesAceiteFinal}>
-              <td>{`${mesAceiteFinal} (Aceite final)`}</td>
-              <td>{currency(0)}</td>
-            </tr>
-          </tbody>
-        </table>
         <div className="print-notes">
           <p><strong>Informações adicionais:</strong></p>
           <ul>
@@ -470,6 +448,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               })}%
             </li>
             <li>Duração contratual: {duracaoContratualTexto}</li>
+            <li>Tabela para compra antecipada da usina entregue mediante solicitação</li>
           </ul>
         </div>
         <div className="print-chart-section">
