@@ -1071,14 +1071,17 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         </div>
         <div className={`print-grid ${mostrarFinanciamento ? 'two' : 'one'}`}>
           <div>
-            <h3>Mensalidade projetada</h3>
+            <h3>Mensalidades projetada</h3>
             <table>
               <thead>
                 <tr>
                   <th>Mês</th>
                   <th>Tarifa projetada (R$/kWh)</th>
                   <th>Tarifa c/ desconto (R$/kWh)</th>
-                  <th>Mensalidade cheia</th>
+                  <th>
+                    Mensalidade com{' '}
+                    {distribuidoraTarifa ? `${distribuidoraTarifa} (ANEEL)` : 'Distribuidora (ANEEL)'}
+                  </th>
                   <th>Mensalidade com leasing</th>
                 </tr>
               </thead>
