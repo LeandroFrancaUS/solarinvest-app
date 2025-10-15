@@ -200,6 +200,70 @@ type BuyoutRow = {
   valorResidual: number | null
 }
 
+type CrmStageId =
+  | 'novo-lead'
+  | 'qualificacao'
+  | 'proposta-enviada'
+  | 'negociacao'
+  | 'aguardando-contrato'
+  | 'fechado'
+
+type CrmPipelineStage = {
+  id: CrmStageId
+  label: string
+}
+
+type CrmTimelineEntryType = 'status' | 'anotacao'
+
+type CrmTimelineEntry = {
+  id: string
+  leadId: string
+  mensagem: string
+  tipo: CrmTimelineEntryType
+  criadoEmIso: string
+}
+
+type CrmLeadRecord = {
+  id: string
+  nome: string
+  telefone: string
+  email?: string
+  cidade: string
+  tipoImovel: string
+  consumoKwhMes: number
+  origemLead: string
+  interesse: string
+  tipoOperacao: 'LEASING' | 'VENDA_DIRETA'
+  valorEstimado: number
+  etapa: CrmStageId
+  ultimoContatoIso: string
+  criadoEmIso: string
+  notas?: string
+}
+
+type CrmDataset = {
+  leads: CrmLeadRecord[]
+  timeline: CrmTimelineEntry[]
+}
+
+type CrmLeadFormState = {
+  nome: string
+  telefone: string
+  email: string
+  cidade: string
+  tipoImovel: string
+  consumoKwhMes: string
+  origemLead: string
+  interesse: string
+  tipoOperacao: 'LEASING' | 'VENDA_DIRETA'
+  valorEstimado: string
+  notas: string
+}
+
+type CrmIntegrationMode = 'local' | 'remote'
+type CrmBackendStatus = 'idle' | 'success' | 'error'
+type CrmFiltroOperacao = 'all' | 'LEASING' | 'VENDA_DIRETA'
+
 type BuyoutResumo = {
   vm0: number
   cashbackPct: number
@@ -316,6 +380,169 @@ const generateClienteId = () => {
 
   const random = Math.floor(Math.random() * 1_000_000)
   return `cliente-${Date.now()}-${random.toString().padStart(6, '0')}`
+}
+
+const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset'
+const CRM_BACKEND_BASE_URL = 'https://crm.solarinvest.app'
+
+const CRM_PIPELINE_STAGES: CrmPipelineStage[] = [
+  { id: 'novo-lead', label: 'Novo lead' },
+  { id: 'qualificacao', label: 'Qualificação' },
+  { id: 'proposta-enviada', label: 'Proposta enviada' },
+  { id: 'negociacao', label: 'Negociação' },
+  { id: 'aguardando-contrato', label: 'Aguardando contrato' },
+  { id: 'fechado', label: 'Fechado' },
+]
+
+const CRM_STAGE_INDEX: Record<CrmStageId, number> = CRM_PIPELINE_STAGES.reduce(
+  (acc, stage, index) => {
+    acc[stage.id] = index
+    return acc
+  },
+  {} as Record<CrmStageId, number>,
+)
+
+const CRM_EMPTY_LEAD_FORM: CrmLeadFormState = {
+  nome: '',
+  telefone: '',
+  email: '',
+  cidade: '',
+  tipoImovel: '',
+  consumoKwhMes: '',
+  origemLead: '',
+  interesse: 'Leasing',
+  tipoOperacao: 'LEASING',
+  valorEstimado: '',
+  notas: '',
+}
+
+const CRM_DATASET_VAZIO: CrmDataset = {
+  leads: [],
+  timeline: [],
+}
+
+const gerarIdCrm = (prefixo: 'lead' | 'evento') => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefixo}-${crypto.randomUUID()}`
+  }
+
+  const aleatorio = Math.floor(Math.random() * 1_000_000)
+  return `${prefixo}-${Date.now()}-${aleatorio.toString().padStart(6, '0')}`
+}
+
+const diasDesdeDataIso = (isoString: string) => {
+  const data = new Date(isoString)
+  if (Number.isNaN(data.getTime())) {
+    return 0
+  }
+  const diffMs = Date.now() - data.getTime()
+  return diffMs <= 0 ? 0 : Math.floor(diffMs / (1000 * 60 * 60 * 24))
+}
+
+const formatarDataCurta = (isoString: string) => {
+  const data = new Date(isoString)
+  if (Number.isNaN(data.getTime())) {
+    return '—'
+  }
+  return data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+const sanitizarLeadCrm = (valor: Partial<CrmLeadRecord>): CrmLeadRecord => {
+  const agoraIso = new Date().toISOString()
+  const etapaValida = CRM_PIPELINE_STAGES.some((stage) => stage.id === valor.etapa)
+    ? (valor.etapa as CrmStageId)
+    : 'novo-lead'
+
+  return {
+    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('lead'),
+    nome: typeof valor.nome === 'string' ? valor.nome : '',
+    telefone: typeof valor.telefone === 'string' ? valor.telefone : '',
+    email: typeof valor.email === 'string' && valor.email ? valor.email : undefined,
+    cidade: typeof valor.cidade === 'string' ? valor.cidade : '',
+    tipoImovel: typeof valor.tipoImovel === 'string' ? valor.tipoImovel : 'Não informado',
+    consumoKwhMes: Number.isFinite(valor.consumoKwhMes)
+      ? Math.max(0, Math.round(valor.consumoKwhMes as number))
+      : 0,
+    origemLead: typeof valor.origemLead === 'string' && valor.origemLead
+      ? valor.origemLead
+      : 'Cadastro manual',
+    interesse: typeof valor.interesse === 'string' && valor.interesse ? valor.interesse : 'Leasing',
+    tipoOperacao: valor.tipoOperacao === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
+    valorEstimado: Number.isFinite(valor.valorEstimado)
+      ? Math.max(0, Math.round(valor.valorEstimado as number))
+      : 0,
+    etapa: etapaValida,
+    ultimoContatoIso:
+      typeof valor.ultimoContatoIso === 'string' && valor.ultimoContatoIso
+        ? valor.ultimoContatoIso
+        : agoraIso,
+    criadoEmIso:
+      typeof valor.criadoEmIso === 'string' && valor.criadoEmIso ? valor.criadoEmIso : agoraIso,
+    notas: typeof valor.notas === 'string' && valor.notas ? valor.notas : undefined,
+  }
+}
+
+const sanitizarEventoCrm = (
+  valor: Partial<CrmTimelineEntry>,
+  leadIds: Set<string>,
+): CrmTimelineEntry | null => {
+  const leadId = typeof valor.leadId === 'string' ? valor.leadId : ''
+  const mensagem = typeof valor.mensagem === 'string' ? valor.mensagem : ''
+  if (!leadId || !mensagem || !leadIds.has(leadId)) {
+    return null
+  }
+
+  return {
+    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('evento'),
+    leadId,
+    mensagem,
+    tipo: valor.tipo === 'anotacao' ? 'anotacao' : 'status',
+    criadoEmIso:
+      typeof valor.criadoEmIso === 'string' && valor.criadoEmIso
+        ? valor.criadoEmIso
+        : new Date().toISOString(),
+  }
+}
+
+const sanitizarDatasetCrm = (valor: unknown): CrmDataset => {
+  if (!valor || typeof valor !== 'object') {
+    return { ...CRM_DATASET_VAZIO, leads: [], timeline: [] }
+  }
+
+  const bruto = valor as Partial<CrmDataset>
+  const leads = Array.isArray(bruto.leads)
+    ? bruto.leads.map((item) => sanitizarLeadCrm(item as Partial<CrmLeadRecord>))
+    : []
+  const leadIds = new Set(leads.map((lead) => lead.id))
+  const timeline = Array.isArray(bruto.timeline)
+    ? bruto.timeline
+        .map((item) => sanitizarEventoCrm(item as Partial<CrmTimelineEntry>, leadIds))
+        .filter((item): item is CrmTimelineEntry => Boolean(item))
+    : []
+
+  leads.sort((a, b) => (a.ultimoContatoIso < b.ultimoContatoIso ? 1 : -1))
+  timeline.sort((a, b) => (a.criadoEmIso < b.criadoEmIso ? 1 : -1))
+
+  return { leads, timeline }
+}
+
+const carregarDatasetCrm = (): CrmDataset => {
+  if (typeof window === 'undefined') {
+    return { ...CRM_DATASET_VAZIO }
+  }
+
+  const existente = window.localStorage.getItem(CRM_LOCAL_STORAGE_KEY)
+  if (!existente) {
+    return { ...CRM_DATASET_VAZIO }
+  }
+
+  try {
+    const parsed = JSON.parse(existente)
+    return sanitizarDatasetCrm(parsed)
+  } catch (error) {
+    console.warn('Não foi possível interpretar o dataset do CRM salvo localmente.', error)
+    return { ...CRM_DATASET_VAZIO }
+  }
 }
 
 const normalizeText = (value: string) =>
@@ -921,6 +1148,19 @@ export default function App() {
   const notificacaoSequencialRef = useRef(0)
   const notificacaoTimeoutsRef = useRef<Record<number, number>>({})
 
+  const [crmIntegrationMode, setCrmIntegrationMode] = useState<CrmIntegrationMode>('local')
+  const crmIntegrationModeRef = useRef<CrmIntegrationMode>(crmIntegrationMode)
+  const [crmIsSaving, setCrmIsSaving] = useState(false)
+  const [crmBackendStatus, setCrmBackendStatus] = useState<CrmBackendStatus>('idle')
+  const [crmBackendError, setCrmBackendError] = useState<string | null>(null)
+  const [crmLastSync, setCrmLastSync] = useState<Date | null>(null)
+  const [crmBusca, setCrmBusca] = useState('')
+  const [crmFiltroOperacao, setCrmFiltroOperacao] = useState<CrmFiltroOperacao>('all')
+  const [crmLeadSelecionadoId, setCrmLeadSelecionadoId] = useState<string | null>(null)
+  const [crmLeadForm, setCrmLeadForm] = useState<CrmLeadFormState>({ ...CRM_EMPTY_LEAD_FORM })
+  const [crmNotaTexto, setCrmNotaTexto] = useState('')
+  const [crmDataset, setCrmDataset] = useState<CrmDataset>(() => carregarDatasetCrm())
+
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
     return distribuidorasPorUf[ufTarifa] ?? []
@@ -974,6 +1214,10 @@ export default function App() {
   const [pagosAcumAteM, setPagosAcumAteM] = useState(0)
 
   const mesReferencia = mesReferenciaRef.current
+
+  useEffect(() => {
+    crmIntegrationModeRef.current = crmIntegrationMode
+  }, [crmIntegrationMode])
 
   useEffect(() => {
     let cancelado = false
@@ -2250,11 +2494,17 @@ export default function App() {
       return ordenados
     })
 
-    if (houveErro || !registroSalvo) {
+    const salvo = registroSalvo as ClienteRegistro | null
+    if (houveErro) {
+      return
+    }
+    if (!salvo) {
       return
     }
 
-    setClienteEmEdicaoId(registroSalvo.id)
+    const registroConfirmado: ClienteRegistro = salvo
+
+    setClienteEmEdicaoId(registroConfirmado.id)
     adicionarNotificacao(
       estaEditando ? 'Dados do cliente atualizados com sucesso.' : 'Cliente salvo com sucesso.',
       'success',
