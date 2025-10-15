@@ -1802,7 +1802,7 @@ const printStyles = `
   .print-chart-section{display:flex;flex-direction:column;gap:18px;}
   .print-chart{position:relative;padding:24px 28px;border-radius:28px;border:1px solid rgba(15,23,42,0.16);background:linear-gradient(155deg,rgba(255,255,255,0.98) 0%,rgba(226,232,240,0.9) 48%,rgba(248,250,252,0.95) 100%);box-shadow:0 22px 48px rgba(15,23,42,0.18);}
   .print-chart::after{content:'';position:absolute;inset:14px 14px auto auto;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at center,rgba(255,140,0,0.22),transparent 72%);opacity:0.85;}
-  .print-chart .recharts-responsive-container{width:100%;height:100%;}
+  .print-chart .recharts-responsive-container{width:80%;height:80%;}
   .print-chart svg{overflow:visible;}
   .print-chart .recharts-cartesian-axis-line,.print-chart .recharts-cartesian-axis-tick-line{stroke:rgba(15,23,42,0.28);}
   .print-chart .recharts-cartesian-axis-tick text{fill:#0f172a;font-size:12px;font-weight:600;}
