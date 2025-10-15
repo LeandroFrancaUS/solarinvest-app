@@ -177,6 +177,20 @@ type ClienteRegistro = {
   dados: ClienteDados
 }
 
+type ToastVariant = 'success' | 'info' | 'error'
+
+type ToastMessage = {
+  id: string
+  mensagem: string
+  variante: ToastVariant
+}
+
+const toastIconByVariant: Record<ToastVariant, string> = {
+  success: '✔',
+  info: 'ℹ',
+  error: '⚠',
+}
+
 type BuyoutRow = {
   mes: number
   tarifa: number
@@ -302,6 +316,14 @@ const generateClienteId = () => {
 
   const random = Math.floor(Math.random() * 1_000_000)
   return `cliente-${Date.now()}-${random.toString().padStart(6, '0')}`
+}
+
+const generateToastId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  return `toast-${Math.random().toString(36).slice(2, 10)}`
 }
 
 const normalizeText = (value: string) =>
@@ -432,10 +454,16 @@ const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEdi
                         return (
                           <tr key={registro.id}>
                             <td>
-                              <div className="clients-table-client">
+                              <button
+                                type="button"
+                                className="clients-table-client clients-table-load"
+                                onClick={() => onEditar(registro)}
+                                title="Carregar dados do cliente"
+                                aria-label="Carregar dados do cliente"
+                              >
                                 <strong>{dados.nome || '—'}</strong>
                                 <span>{dados.email || 'E-mail não informado'}</span>
-                              </div>
+                              </button>
                             </td>
                             <td>{dados.documento || '—'}</td>
                             <td>
@@ -449,15 +477,23 @@ const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEdi
                             <td>{formatBudgetDate(registro.atualizadoEm)}</td>
                             <td>
                               <div className="clients-table-actions">
-                                <button type="button" className="link" onClick={() => onEditar(registro)}>
-                                  Editar
+                                <button
+                                  type="button"
+                                  className="clients-table-action"
+                                  onClick={() => onEditar(registro)}
+                                  aria-label="Carregar dados do cliente"
+                                  title="Carregar dados do cliente"
+                                >
+                                  ✎
                                 </button>
                                 <button
                                   type="button"
-                                  className="link danger"
+                                  className="clients-table-action danger"
                                   onClick={() => onExcluir(registro)}
+                                  aria-label="Excluir cliente salvo"
+                                  title="Excluir cliente salvo"
                                 >
-                                  Excluir
+                                  🗑
                                 </button>
                               </div>
                             </td>
@@ -889,6 +925,8 @@ export default function App() {
   const [isClientesModalOpen, setIsClientesModalOpen] = useState(false)
   const [clienteMensagens, setClienteMensagens] = useState<{ email?: string; cidade?: string }>({})
   const [verificandoCidade, setVerificandoCidade] = useState(false)
+  const [notificacoes, setNotificacoes] = useState<ToastMessage[]>([])
+  const notificacaoTimeoutsRef = useRef<Record<string, number>>({})
 
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
@@ -1757,6 +1795,14 @@ export default function App() {
     setClientesSalvos(registros)
   }, [carregarClientesSalvos])
 
+  useEffect(() => {
+    return () => {
+      Object.values(notificacaoTimeoutsRef.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId)
+      })
+    }
+  }, [])
+
   const handleSalvarCliente = useCallback(() => {
     if (typeof window === 'undefined') {
       return
@@ -1841,8 +1887,11 @@ export default function App() {
     }
 
     setClienteEmEdicaoId(registroSalvo.id)
-    window.alert(estaEditando ? 'Cliente atualizado com sucesso.' : 'Cliente salvo com sucesso.')
-  }, [cliente, clienteEmEdicaoId, setClienteEmEdicaoId, validarCamposObrigatorios])
+    mostrarNotificacao(
+      estaEditando ? 'Dados do cliente atualizados com sucesso.' : 'Cliente salvo com sucesso.',
+      'success',
+    )
+  }, [cliente, clienteEmEdicaoId, mostrarNotificacao, setClienteEmEdicaoId, validarCamposObrigatorios])
 
   const handleEditarCliente = useCallback(
     (registro: ClienteRegistro) => {
@@ -2050,6 +2099,34 @@ export default function App() {
   }
 
   const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
+
+  const removerNotificacao = useCallback((id: string) => {
+    setNotificacoes((prev) => prev.filter((item) => item.id !== id))
+
+    const timeoutId = notificacaoTimeoutsRef.current[id]
+    if (timeoutId) {
+      window.clearTimeout(timeoutId)
+      delete notificacaoTimeoutsRef.current[id]
+    }
+  }, [])
+
+  const mostrarNotificacao = useCallback(
+    (mensagem: string, variante: ToastVariant = 'info') => {
+      if (typeof window === 'undefined') {
+        return
+      }
+
+      const id = generateToastId()
+      setNotificacoes((prev) => [...prev, { id, mensagem, variante }])
+
+      const timeoutId = window.setTimeout(() => {
+        removerNotificacao(id)
+      }, 5000)
+
+      notificacaoTimeoutsRef.current[id] = timeoutId
+    },
+    [removerNotificacao],
+  )
 
   const handleClienteChange = (key: keyof ClienteDados, value: string) => {
     let nextValue = value
@@ -2731,7 +2808,18 @@ export default function App() {
           </>
         ) : activeTab === 'cliente' ? (
           <section className="card">
-            <h2>Dados do cliente</h2>
+            <div className="card-header">
+              <h2>Dados do cliente</h2>
+              <button
+                type="button"
+                className="icon"
+                onClick={abrirClientesModal}
+                title="Carregar cliente salvo"
+                aria-label="Carregar cliente salvo"
+              >
+                📁
+              </button>
+            </div>
             <div className="grid g2">
               <Field label="Nome ou Razão social">
                 <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
@@ -3574,6 +3662,27 @@ export default function App() {
               </div>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {notificacoes.length > 0 ? (
+        <div className="toast-container" aria-live="polite" aria-atomic="false">
+          {notificacoes.map((notificacao) => (
+            <div key={notificacao.id} className={`toast ${notificacao.variante}`} role="status">
+              <span className="toast-icon" aria-hidden="true">
+                {toastIconByVariant[notificacao.variante]}
+              </span>
+              <span className="toast-message">{notificacao.mensagem}</span>
+              <button
+                type="button"
+                className="toast-dismiss"
+                onClick={() => removerNotificacao(notificacao.id)}
+                aria-label="Dispensar notificação"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
         </div>
       ) : null}
     </div>
