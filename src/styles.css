@@ -1755,6 +1755,11 @@ table tbody tr:hover {
   text-shadow: 0 10px 36px rgba(12, 22, 44, 0.45);
 }
 
+html[data-print-mode='print'] .print-hero__title h1 {
+  color: #0b1120;
+  text-shadow: none;
+}
+
 .print-hero__tagline {
   margin: 0;
   font-size: 15px;
