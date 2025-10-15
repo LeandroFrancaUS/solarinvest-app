@@ -1,16 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
   <title>SolarInvest</title>
   <defs>
-    <radialGradient id="glow" cx="38%" cy="32%" r="68%">
-      <stop offset="0%" stop-color="#ffe69a" />
-      <stop offset="55%" stop-color="#ffb347" />
-      <stop offset="100%" stop-color="#ff7b00" />
+    <radialGradient id="solarinvest-gradient" cx="36%" cy="28%" r="74%">
+      <stop offset="0%" stop-color="#FFE78C" />
+      <stop offset="45%" stop-color="#FFB347" />
+      <stop offset="100%" stop-color="#FF6B00" />
     </radialGradient>
+    <linearGradient id="bolt-glow" x1="36%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#FFF1D6" stop-opacity="0.75" />
+    </linearGradient>
   </defs>
-  <circle cx="512" cy="512" r="472" fill="url(#glow)" />
-  <circle cx="512" cy="512" r="512" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="16" />
+  <circle cx="256" cy="256" r="244" fill="url(#solarinvest-gradient)" />
+  <circle cx="256" cy="256" r="252" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="8" />
   <path
-    fill="#ffffff"
-    d="M555 168 312 568h188l-78 324 290-420H528l27-304Z"
+    fill="url(#bolt-glow)"
+    d="M291 64 136 288h114l-53 184 203-260h-112L291 64Z"
   />
 </svg>
