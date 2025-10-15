@@ -1527,12 +1527,15 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   )
 })
 
+type PrintMode = 'preview' | 'print' | 'download'
+
 type BudgetPreviewOptions = {
   nomeCliente: string
   budgetId?: string
   actionMessage?: string
   autoPrint?: boolean
   closeAfterPrint?: boolean
+  initialMode?: PrintMode
 }
 
 const renderPrintableProposalToHtml = (dados: PrintableProps): Promise<string | null> => {
@@ -1646,8 +1649,10 @@ const printStyles = `
   body{margin:0;padding:0;background:#f4f6fb;color:#0c162c;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   h1,h2,h3{color:#0c162c;font-weight:700;}
   .print-layout{max-width:calc(210mm - 32mm);width:100%;margin:0 auto;display:flex;flex-direction:column;gap:28px;page-break-after:avoid;}
+  .print-layout>*{break-inside:avoid;page-break-inside:avoid;}
   .print-hero{position:relative;display:flex;flex-direction:column;gap:24px;padding:40px 44px;border-radius:40px;background:radial-gradient(140% 160% at 0% 0%,rgba(255,255,255,0.18) 0%,rgba(12,22,44,0) 70%),linear-gradient(135deg,#0c162c 0%,#13294c 58%,#1f3a6f 100%);color:#f8fafc;box-shadow:0 26px 60px rgba(12,22,44,0.36);overflow:hidden;}
   .print-hero,.print-section,.print-card,.print-chart,.print-cta__box{color-adjust:exact;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .print-hero,.print-hero__summary,.print-section,.print-card,.print-yearly-payments__item,.print-final-footer,.print-cta__box{break-inside:avoid;page-break-inside:avoid;}
   .print-hero::after{content:'';position:absolute;inset:auto -160px -200px auto;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle at center,rgba(255,255,255,0.25),transparent 72%);opacity:0.9;}
   .print-hero__header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:32px;position:relative;z-index:1;}
   .print-hero__identity{display:flex;align-items:center;gap:28px;min-width:280px;}
@@ -1667,14 +1672,16 @@ const printStyles = `
   .print-client-field dt{margin:0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;font-weight:600;color:rgba(12,22,44,0.62);}
   .print-client-field dd{margin:0;font-size:13px;color:inherit;font-weight:600;line-height:1.35;}
   .print-client-field--wide{grid-column:span 2;}
-  table{width:100%;border-collapse:collapse;font-size:13px;}
-  th,td{border:1px solid rgba(12,22,44,0.12);padding:10px 14px;text-align:left;}
+  table{width:100%;border-collapse:collapse;font-size:13px;page-break-inside:avoid;break-inside:avoid;}
+  th,td{border:1px solid rgba(12,22,44,0.12);padding:10px 14px;text-align:left;page-break-inside:avoid;break-inside:avoid;}
+  thead,tbody,tr{page-break-inside:avoid;break-inside:avoid;}
   thead th{background:#0c162c;color:#f8fafc;font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:0.14em;}
   tbody tr:nth-child(even){background:#f8fafc;}
   .print-key-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:24px;}
   .print-key-values p{margin:0;padding:18px 20px;border-radius:22px;background:rgba(12,22,44,0.03);border:1px solid rgba(12,22,44,0.1);font-size:13px;line-height:1.45;box-shadow:0 12px 26px rgba(12,22,44,0.08);}
   .print-key-values strong{display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:#0c162c;margin-bottom:6px;}
   .print-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;}
+  .print-summary-grid,.print-yearly-payments{break-inside:avoid;page-break-inside:avoid;}
   .print-card{border:1px solid rgba(12,22,44,0.1);border-radius:26px;padding:26px 28px;background:linear-gradient(135deg,#f8fafc 0%,#e9eef6 100%);box-shadow:0 18px 40px rgba(12,22,44,0.14);}
   .print-card h3{margin:0 0 16px;font-size:16px;color:#0c162c;text-transform:uppercase;letter-spacing:0.14em;}
   .print-card .muted{margin:12px 0 0;}
@@ -1717,6 +1724,44 @@ const printStyles = `
   .print-yearly-payments__metrics dt{margin:0;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(12,22,44,0.55);}
   .print-yearly-payments__metrics dd{margin:0;font-size:14px;font-weight:600;color:#0c162c;}
   .print-yearly-payments__empty{margin:0;font-size:13px;color:#475569;}
+  html[data-print-mode='print'],body[data-print-mode='print']{background:#ffffff;color:#0f172a;}
+  html[data-print-mode='print'] .print-layout{background:none;}
+  html[data-print-mode='print'] .print-hero{background:#ffffff;color:#0f172a;box-shadow:none;border:1px solid rgba(15,23,42,0.22);}
+  html[data-print-mode='print'] .print-hero::after{display:none;}
+  html[data-print-mode='print'] .print-logo{background:#f1f5f9;border:1px solid rgba(15,23,42,0.12);box-shadow:none;}
+  html[data-print-mode='print'] .print-logo img{filter:grayscale(100%);opacity:0.85;}
+  html[data-print-mode='print'] .print-hero__eyebrow{color:#1f2937;}
+  html[data-print-mode='print'] .print-hero__title h1{text-shadow:none;color:#0f172a;}
+  html[data-print-mode='print'] .print-hero__tagline{color:#1f2937;}
+  html[data-print-mode='print'] .print-hero__summary{background:#ffffff;color:#0f172a;border:1px solid rgba(15,23,42,0.18);box-shadow:none;}
+  html[data-print-mode='print'] .print-hero__summary h2{color:#0f172a;}
+  html[data-print-mode='print'] .print-section{background:#ffffff;border:1px solid rgba(15,23,42,0.18);box-shadow:none;}
+  html[data-print-mode='print'] .print-section h2{color:#0f172a;}
+  html[data-print-mode='print'] .print-section h2::after{background:#0f172a;}
+  html[data-print-mode='print'] .print-key-values p{background:#ffffff;border:1px solid rgba(15,23,42,0.16);box-shadow:none;}
+  html[data-print-mode='print'] .print-card{background:#ffffff;border:1px solid rgba(15,23,42,0.2);box-shadow:none;}
+  html[data-print-mode='print'] .print-card h3{color:#0f172a;}
+  html[data-print-mode='print'] .print-cta__box{background:#ffffff;border:1px solid rgba(15,23,42,0.2);box-shadow:none;}
+  html[data-print-mode='print'] .print-final-footer{background:#ffffff;border:1px solid rgba(15,23,42,0.2);box-shadow:none;}
+  html[data-print-mode='print'] .print-final-footer__dates strong{color:#0f172a;}
+  html[data-print-mode='print'] .print-brand-footer{color:#0f172a;}
+  html[data-print-mode='print'] .print-brand-footer strong{color:#0f172a;}
+  html[data-print-mode='print'] .print-yearly-payments__item{background:#ffffff;border:1px solid rgba(15,23,42,0.18);box-shadow:none;}
+  html[data-print-mode='print'] .print-yearly-payments__year{color:#0f172a;}
+  html[data-print-mode='print'] .print-yearly-payments__year-label{color:#0f172a;}
+  html[data-print-mode='print'] .print-chart{background:#ffffff;border:1px solid rgba(15,23,42,0.2);box-shadow:none;}
+  html[data-print-mode='print'] .print-chart .recharts-legend-item text{fill:#0f172a;}
+  html[data-print-mode='print'] .chart-title{color:#0f172a;}
+  html[data-print-mode='print'] .chart-explainer{background:#ffffff;border:1px solid rgba(15,23,42,0.16);color:#0f172a;}
+  html[data-print-mode='print'] .chart-explainer strong{color:#0f172a;}
+  html[data-print-mode='print'] .print-chart .recharts-cartesian-axis-line,
+  html[data-print-mode='print'] .print-chart .recharts-cartesian-axis-tick-line{stroke:#475569;}
+  html[data-print-mode='print'] .print-chart .recharts-cartesian-axis-tick text{fill:#0f172a;}
+  html[data-print-mode='print'] .print-chart .recharts-cartesian-grid line{stroke:#94a3b8;}
+  html[data-print-mode='print'] .print-chart svg{filter:grayscale(100%) contrast(1.15);}
+  html[data-print-mode='print'] thead th{background:#0f172a;color:#ffffff;}
+  html[data-print-mode='print'] tbody tr:nth-child(even){background:#ffffff;}
+  html[data-print-mode='print'] .muted{color:#1f2937;}
   @page{size:A4;margin:12mm 16mm;}
 `;
 
@@ -2524,7 +2569,10 @@ export default function App() {
   )
 
   const openBudgetPreviewWindow = useCallback(
-    (layoutHtml: string, { nomeCliente, budgetId, actionMessage, autoPrint, closeAfterPrint }: BudgetPreviewOptions) => {
+    (
+      layoutHtml: string,
+      { nomeCliente, budgetId, actionMessage, autoPrint, closeAfterPrint, initialMode }: BudgetPreviewOptions,
+    ) => {
       if (!layoutHtml) {
         window.alert('Não foi possível preparar a visualização do orçamento selecionado.')
         return
@@ -2542,8 +2590,11 @@ export default function App() {
         ? `<p class="preview-toolbar-code">Código do orçamento: <strong>${budgetId}</strong></p>`
         : ''
 
+      const resolvedInitialMode: PrintMode =
+        initialMode || (autoPrint ? (closeAfterPrint ? 'download' : 'print') : 'preview')
+
       const previewHtml = `<!DOCTYPE html>
-        <html>
+        <html data-print-mode="${resolvedInitialMode}">
           <head>
             <meta charset="utf-8" />
             <title>Proposta-${nomeCliente}</title>
@@ -2567,7 +2618,7 @@ export default function App() {
               }
             </style>
           </head>
-          <body>
+          <body data-print-mode="${resolvedInitialMode}">
             <div class="preview-toolbar">
               <div class="preview-toolbar-info">
                 <h1>Pré-visualização da proposta</h1>
@@ -2585,23 +2636,55 @@ export default function App() {
               (function(){
                 var shouldAutoPrint = ${autoPrint ? 'true' : 'false'};
                 var shouldCloseAfterPrint = ${closeAfterPrint ? 'true' : 'false'};
+                var defaultMode = "${resolvedInitialMode}";
+                var setPrintMode = function(mode){
+                  if(!mode){ return; }
+                  document.body.setAttribute('data-print-mode', mode);
+                  document.documentElement.setAttribute('data-print-mode', mode);
+                };
+                var resetPrintMode = function(){
+                  document.body.setAttribute('data-print-mode', 'preview');
+                  document.documentElement.setAttribute('data-print-mode', 'preview');
+                };
+                setPrintMode(defaultMode);
                 var printBtn = document.querySelector('[data-action=\"print\"]');
                 var downloadBtn = document.querySelector('[data-action=\"download\"]');
                 var closeBtn = document.querySelector('[data-action=\"close\"]');
                 if(printBtn){
-                  printBtn.addEventListener('click', function(){ window.print(); });
+                  printBtn.addEventListener('click', function(){
+                    setPrintMode('print');
+                    window.print();
+                  });
                 }
                 if(downloadBtn){
-                  downloadBtn.addEventListener('click', function(){ window.print(); });
+                  downloadBtn.addEventListener('click', function(){
+                    setPrintMode('download');
+                    window.print();
+                  });
                 }
                 if(closeBtn){
                   closeBtn.addEventListener('click', function(){ window.close(); });
                 }
+                window.addEventListener('beforeprint', function(){
+                  if(document.body.getAttribute('data-print-mode') === 'preview'){
+                    setPrintMode('print');
+                  }
+                });
+                window.addEventListener('afterprint', function(){
+                  if(shouldCloseAfterPrint){
+                    window.setTimeout(function(){ window.close(); }, 180);
+                  } else {
+                    resetPrintMode();
+                  }
+                });
                 if(shouldAutoPrint){
-                  window.addEventListener('load', function(){ window.setTimeout(function(){ window.print(); }, 320); });
-                }
-                if(shouldCloseAfterPrint){
-                  window.addEventListener('afterprint', function(){ window.setTimeout(function(){ window.close(); }, 180); });
+                  window.addEventListener('load', function(){
+                    window.setTimeout(function(){
+                      var autoMode = defaultMode && defaultMode !== 'preview' ? defaultMode : (shouldCloseAfterPrint ? 'download' : 'print');
+                      setPrintMode(autoMode);
+                      window.print();
+                    }, 320);
+                  });
                 }
               })();
             </script>
@@ -5078,6 +5161,7 @@ export default function App() {
       nomeCliente,
       budgetId: registroOrcamento.id,
       actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
+      initialMode: 'preview',
     })
   }
 
@@ -5314,6 +5398,7 @@ export default function App() {
           actionMessage,
           autoPrint: modo !== 'preview',
           closeAfterPrint: modo === 'download',
+          initialMode: modo === 'download' ? 'download' : modo === 'print' ? 'print' : 'preview',
         })
       } catch (error) {
         console.error('Erro ao abrir orçamento salvo.', error)
