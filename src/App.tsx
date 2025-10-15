@@ -1793,8 +1793,9 @@ const printStyles = `
   .print-key-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:24px;}
   .print-key-values p{margin:0;padding:18px 20px;border-radius:22px;background:rgba(12,22,44,0.03);border:1px solid rgba(12,22,44,0.1);font-size:13px;line-height:1.45;box-shadow:0 12px 26px rgba(12,22,44,0.08);}
   .print-key-values strong{display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:#0c162c;margin-bottom:6px;}
-  .print-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;}
-  .print-summary-grid,.print-yearly-payments{break-inside:avoid;page-break-inside:avoid;}
+  .print-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;break-inside:auto;page-break-inside:auto;}
+  .print-summary-grid>*{break-inside:avoid;page-break-inside:avoid;}
+  .print-yearly-payments{display:grid;gap:16px;break-inside:auto;page-break-inside:auto;}
   .print-card{border:1px solid rgba(12,22,44,0.1);border-radius:26px;padding:26px 28px;background:linear-gradient(135deg,#f8fafc 0%,#e9eef6 100%);box-shadow:0 18px 40px rgba(12,22,44,0.14);}
   .print-card h3{margin:0 0 16px;font-size:16px;color:#0c162c;text-transform:uppercase;letter-spacing:0.14em;}
   .print-card .muted{margin:12px 0 0;}
@@ -1802,7 +1803,7 @@ const printStyles = `
   .print-chart-section{display:flex;flex-direction:column;gap:18px;}
   .print-chart{position:relative;padding:24px 28px;border-radius:28px;border:1px solid rgba(15,23,42,0.16);background:linear-gradient(155deg,rgba(255,255,255,0.98) 0%,rgba(226,232,240,0.9) 48%,rgba(248,250,252,0.95) 100%);box-shadow:0 22px 48px rgba(15,23,42,0.18);}
   .print-chart::after{content:'';position:absolute;inset:14px 14px auto auto;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at center,rgba(255,140,0,0.22),transparent 72%);opacity:0.85;}
-  .print-chart .recharts-responsive-container{width:150%;height:150%;}
+  .print-chart .recharts-responsive-container{width:100%!important;height:320px!important;margin:0 auto;}
   .print-chart svg{overflow:visible;}
   .print-chart .recharts-cartesian-axis-line,.print-chart .recharts-cartesian-axis-tick-line{stroke:rgba(15,23,42,0.28);}
   .print-chart .recharts-cartesian-axis-tick text{fill:#0f172a;font-size:12px;font-weight:600;}
@@ -1834,7 +1835,7 @@ const printStyles = `
   .print-brand-footer{display:flex;justify-content:center;align-items:center;gap:10px;font-size:12px;color:#0c162c;text-transform:uppercase;letter-spacing:0.24em;padding-bottom:18px;}
   .print-brand-footer strong{color:#ff8c00;}
   .muted{text-align:center;color:#64748b;font-size:12px;padding:20px 12px;}
-  .print-yearly-payments{display:grid;gap:16px;}
+  .print-yearly-payments{display:grid;gap:16px;break-inside:auto;page-break-inside:auto;}
   .print-yearly-payments__item{display:flex;flex-direction:column;gap:12px;padding:20px 22px;border-radius:22px;background:rgba(12,22,44,0.04);border:1px solid rgba(12,22,44,0.12);box-shadow:0 12px 26px rgba(12,22,44,0.12);}
   .print-yearly-payments__header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
   .print-yearly-payments__year-label{font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(12,22,44,0.6);}
