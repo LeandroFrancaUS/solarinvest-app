@@ -1,6 +1,17 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from 'recharts'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  ReferenceLine,
+  CartesianGrid,
+  ReferenceDot,
+} from 'recharts'
 
 import {
   selectCreditoMensal,
@@ -40,6 +51,8 @@ const formatAxis = (v: number) => {
   if (abs >= 10_000) return `${Math.round(v / 1000)}k`
   return currency(v)
 }
+
+const BENEFICIO_MARCO_ANOS = [5, 10, 15, 20, 30]
 
 const DISTRIBUIDORAS_FALLBACK = getDistribuidorasFallback()
 const UF_LABELS: Record<string, string> = {
@@ -1029,6 +1042,21 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       })),
     [anos, financiamentoROI, leasingROI],
   )
+  const beneficioMarcos = useMemo(
+    () =>
+      BENEFICIO_MARCO_ANOS.map((ano) => {
+        const dadosAno = chartDataPrintable.find((row) => row.ano === ano)
+        if (!dadosAno) {
+          return null
+        }
+        return {
+          ano,
+          Leasing: dadosAno.Leasing,
+          Financiamento: dadosAno.Financiamento,
+        }
+      }).filter((row): row is { ano: number; Leasing: number; Financiamento: number } => row !== null),
+    [chartDataPrintable],
+  )
   const parcelasLeasingAnuais = useMemo<MensalidadeAnualRow[]>(() => {
     if (!parcelasLeasing.length) {
       return []
@@ -1146,7 +1174,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               <thead>
                 <tr>
                   <th>Ano</th>
-                  <th>Tarifa projetada (R$/kWh)</th>
+                  <th>Tarifa por kWh</th>
                   <th>Tarifa c/ desconto (R$/kWh)</th>
                   <th>
                     Mensalidade{' '}
@@ -1238,9 +1266,14 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               A cobrança mensal se inicia após a conclusão da instalação e entrada em operação da usina. O prazo médio de instalação
               é de 30 a 45 dias úteis após a assinatura do contrato e liberação técnica.
             </li>
+            <li>
+              As tarifas por kWh utilizadas nesta proposta são projeções baseadas em estimativas atuais de mercado e podem variar
+              conforme reajustes futuros das distribuidoras.
+            </li>
           </ul>
         </div>
         <div className="print-chart-section">
+          <h3 className="chart-title">Beneficio acumulado</h3>
           <div className="chart print-chart">
             <ResponsiveContainer width="100%" height={320}>
               <LineChart data={chartDataPrintable}>
@@ -1254,6 +1287,33 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                 {mostrarFinanciamento ? (
                   <Line type="monotone" dataKey="Financiamento" stroke={chartColors.Financiamento} strokeWidth={2} dot />
                 ) : null}
+                {beneficioMarcos.map((marco) => (
+                  <React.Fragment key={`beneficio-marco-${marco.ano}`}>
+                    <ReferenceDot
+                      x={marco.ano}
+                      y={marco.Leasing}
+                      r={4}
+                      fill={chartColors.Leasing}
+                      stroke="none"
+                      label={{ value: currency(marco.Leasing), position: 'top', fill: chartColors.Leasing, fontSize: 12 }}
+                    />
+                    {mostrarFinanciamento ? (
+                      <ReferenceDot
+                        x={marco.ano}
+                        y={marco.Financiamento}
+                        r={4}
+                        fill={chartColors.Financiamento}
+                        stroke="none"
+                        label={{
+                          value: currency(marco.Financiamento),
+                          position: 'right',
+                          fill: chartColors.Financiamento,
+                          fontSize: 12,
+                        }}
+                      />
+                    ) : null}
+                  </React.Fragment>
+                ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -5309,7 +5369,7 @@ export default function App() {
                     <thead>
                       <tr>
                         <th>Mês</th>
-                        <th>Tarifa projetada (R$/kWh)</th>
+                        <th>Tarifa por kWh</th>
                         <th>Tarifa c/ desconto (R$/kWh)</th>
                         <th>MENSALIDADE CHEIA</th>
                         <th>MENSALIDADE COM LEASING</th>
