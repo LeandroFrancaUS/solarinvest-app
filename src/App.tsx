@@ -88,10 +88,6 @@ const UF_LABELS: Record<string, string> = {
   TO: 'Tocantins',
 }
 
-const ESTADOS_BRASILEIROS = Object.entries(UF_LABELS)
-  .map(([sigla, nome]) => ({ sigla, nome }))
-  .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-
 const formatCpfCnpj = (valor: string) => {
   const numeros = valor.replace(/\D+/g, '')
   if (!numeros) {
@@ -1978,6 +1974,10 @@ export default function App() {
 
   const clienteUf = cliente.uf
   const clienteDistribuidora = cliente.distribuidora
+  const clienteDistribuidorasDisponiveis = useMemo(() => {
+    if (!clienteUf) return [] as string[]
+    return distribuidorasPorUf[clienteUf] ?? []
+  }, [clienteUf, distribuidorasPorUf])
 
   const [precoPorKwp, setPrecoPorKwp] = useState(2470)
   const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
@@ -5300,6 +5300,24 @@ export default function App() {
       nextValue = formatCep(value)
     } else if (key === 'uf') {
       nextValue = value.toUpperCase()
+      setCliente((prev) => {
+        const ufNormalizada = nextValue
+        const listaDistribuidoras = distribuidorasPorUf[ufNormalizada] ?? []
+        let proximaDistribuidora = prev.distribuidora
+
+        if (listaDistribuidoras.length === 1) {
+          proximaDistribuidora = listaDistribuidoras[0]
+        } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
+          proximaDistribuidora = ''
+        }
+
+        if (prev.uf === ufNormalizada && prev.distribuidora === proximaDistribuidora) {
+          return prev
+        }
+
+        return { ...prev, uf: ufNormalizada, distribuidora: proximaDistribuidora }
+      })
+      return
     }
 
     setCliente((prev) => ({ ...prev, [key]: nextValue }))
@@ -6140,8 +6158,24 @@ export default function App() {
                   placeholder="00000-000"
                 />
               </Field>
-              <Field label="Distribuidora">
-                <input value={cliente.distribuidora} onChange={(e) => handleClienteChange('distribuidora', e.target.value)} />
+              <Field label="Distribuidora (ANEEL)">
+                <select
+                  value={cliente.distribuidora}
+                  onChange={(e) => handleClienteChange('distribuidora', e.target.value)}
+                  disabled={!cliente.uf || clienteDistribuidorasDisponiveis.length === 0}
+                >
+                  <option value="">
+                    {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
+                  </option>
+                  {clienteDistribuidorasDisponiveis.map((nome) => (
+                    <option key={nome} value={nome}>
+                      {nome}
+                    </option>
+                  ))}
+                  {cliente.distribuidora && !clienteDistribuidorasDisponiveis.includes(cliente.distribuidora) ? (
+                    <option value={cliente.distribuidora}>{cliente.distribuidora}</option>
+                  ) : null}
+                </select>
               </Field>
               <Field label="Unidade consumidora (UC)">
                 <input value={cliente.uc} onChange={(e) => handleClienteChange('uc', e.target.value)} />
@@ -6166,11 +6200,16 @@ export default function App() {
               <Field label="UF ou Estado">
                 <select value={cliente.uf} onChange={(e) => handleClienteChange('uf', e.target.value)}>
                   <option value="">Selecione um estado</option>
-                  {ESTADOS_BRASILEIROS.map(({ sigla, nome }) => (
-                    <option key={sigla} value={sigla}>
-                      {nome} ({sigla})
+                  {ufsDisponiveis.map((uf) => (
+                    <option key={uf} value={uf}>
+                      {uf} — {UF_LABELS[uf] ?? uf}
                     </option>
                   ))}
+                  {cliente.uf && !ufsDisponiveis.includes(cliente.uf) ? (
+                    <option value={cliente.uf}>
+                      {cliente.uf} — {UF_LABELS[cliente.uf] ?? cliente.uf}
+                    </option>
+                  ) : null}
                 </select>
               </Field>
             </div>
