@@ -1103,17 +1103,18 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const ufCliente = cliente.uf?.trim() || ''
   const enderecoCliente = cliente.endereco?.trim() || ''
   const prazoContratualResumo = duracaoContratualValida ? `${buyoutResumo.duracao} meses` : '60 meses'
-  const energiaContratadaResumo = energiaContratadaKwh > 0
-    ? `${formatNumber(energiaContratadaKwh, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kWh/mês`
-    : '—'
-  const tarifaCheiaResumo = tarifaCheia > 0
-    ? tarifaCheia.toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-        minimumFractionDigits: 6,
-        maximumFractionDigits: 6,
-      })
-    : '—'
+  const formatEnergiaContratada = (valor: number) => {
+    if (!Number.isFinite(valor) || valor <= 0) {
+      return '—'
+    }
+    const possuiDecimais = Math.abs(valor - Math.round(valor)) > 1e-6
+    return `${valor.toLocaleString('pt-BR', {
+      minimumFractionDigits: possuiDecimais ? 2 : 0,
+      maximumFractionDigits: possuiDecimais ? 2 : 0,
+    })} kWh/mês`
+  }
+  const energiaContratadaResumo = formatEnergiaContratada(energiaContratadaKwh)
+  const tarifaCheiaResumo = tarifaCheia > 0 ? tarifaCurrency(tarifaCheia) : '—'
   const descontoResumo = Number.isFinite(descontoContratualPct)
     ? `${formatNumber(descontoContratualPct, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`
     : '—'
@@ -1341,41 +1342,42 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <div className="print-summary-grid">
           <div className="print-card">
             <h3>Mensalidades por ano</h3>
-            <table className="print-table">
-              <thead>
-                <tr>
-                  <th>Ano</th>
-                  <th>Tarifa por kWh</th>
-                  <th>Tarifa c/ desconto (R$/kWh)</th>
-                  <th>
-                    Mensalidade{' '}
-                    {distribuidoraTarifaLabel
-                      ? `${distribuidoraTarifaLabel} (ANEEL)`
-                      : 'Distribuidora (ANEEL)'}
-                  </th>
-                  <th>Mensalidade com leasing</th>
-                </tr>
-              </thead>
-              <tbody>
-                {parcelasLeasingAnuais.length > 0 ? (
-                  parcelasLeasingAnuais.map((row) => (
-                    <tr key={`leasing-${row.ano}`}>
-                      <td>{`${row.ano}º Ano`}</td>
-                      <td>{tarifaCurrency(row.tarifaCheiaMedia)}</td>
-                      <td>{tarifaCurrency(row.tarifaDescontadaMedia)}</td>
-                      <td>{currency(row.mensalidadeCheiaMedia)}</td>
-                      <td>{currency(row.mensalidadeMedia)}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="muted">
-                      Defina um prazo contratual para gerar a projeção das médias anuais das parcelas.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            {parcelasLeasingAnuais.length > 0 ? (
+              <div className="print-yearly-payments">
+                {parcelasLeasingAnuais.map((row) => (
+                  <article className="print-yearly-payments__item" key={`leasing-${row.ano}`}>
+                    <div className="print-yearly-payments__header">
+                      <span className="print-yearly-payments__year-label">Período</span>
+                      <span className="print-yearly-payments__year">{`${row.ano}º ano`}</span>
+                    </div>
+                    <dl className="print-yearly-payments__metrics">
+                      <div>
+                        <dt>Tarifa cheia média</dt>
+                        <dd>{tarifaCurrency(row.tarifaCheiaMedia)}</dd>
+                      </div>
+                      <div>
+                        <dt>Tarifa c/ desconto média</dt>
+                        <dd>{tarifaCurrency(row.tarifaDescontadaMedia)}</dd>
+                      </div>
+                      <div>
+                        <dt>
+                          Conta {distribuidoraTarifaLabel ? distribuidoraTarifaLabel : 'distribuidora'}
+                        </dt>
+                        <dd>{currency(row.mensalidadeCheiaMedia)}</dd>
+                      </div>
+                      <div>
+                        <dt>Mensalidade SolarInvest</dt>
+                        <dd>{currency(row.mensalidadeMedia)}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="print-yearly-payments__empty muted">
+                Defina um prazo contratual para gerar a projeção das médias anuais das parcelas.
+              </p>
+            )}
           </div>
           {mostrarFinanciamento ? (
             <div className="print-card">
@@ -1645,72 +1647,82 @@ const chartColors: Record<'Leasing' | 'Financiamento', string> = {
 
 const printStyles = `
   *,*::before,*::after{box-sizing:border-box;font-family:'Montserrat','Roboto',sans-serif;}
-  body{margin:0;padding:40px 48px;background:#f8fafc;color:#1f2937;}
-  h1,h2,h3{color:#0f172a;font-weight:700;}
+  body{margin:0;padding:40px 48px;background:#f4f6fb;color:#0c162c;}
+  h1,h2,h3{color:#0c162c;font-weight:700;}
   .print-layout{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:28px;page-break-after:avoid;}
-  .print-hero{position:relative;display:flex;flex-direction:column;gap:24px;padding:36px 42px;border-radius:36px;background:linear-gradient(135deg,#ffb347 0%,#ff7a18 100%);color:#fff;box-shadow:0 26px 68px rgba(255,122,24,0.32);overflow:hidden;}
-  .print-hero::after{content:'';position:absolute;right:-160px;bottom:-180px;width:460px;height:460px;border-radius:50%;background:rgba(255,255,255,0.14);}
+  .print-hero{position:relative;display:flex;flex-direction:column;gap:24px;padding:40px 44px;border-radius:40px;background:radial-gradient(140% 160% at 0% 0%,rgba(255,255,255,0.18) 0%,rgba(12,22,44,0) 70%),linear-gradient(135deg,#0c162c 0%,#13294c 58%,#1f3a6f 100%);color:#f8fafc;box-shadow:0 26px 60px rgba(12,22,44,0.36);overflow:hidden;}
+  .print-hero::after{content:'';position:absolute;inset:auto -160px -200px auto;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle at center,rgba(255,255,255,0.25),transparent 72%);opacity:0.9;}
   .print-hero__header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:32px;position:relative;z-index:1;}
-  .print-hero__identity{display:flex;align-items:center;gap:24px;min-width:280px;}
-  .print-logo{width:96px;height:96px;border-radius:28px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;box-shadow:0 18px 36px rgba(15,23,42,0.32);backdrop-filter:blur(6px);}
-  .print-logo img{width:64px;height:auto;display:block;}
+  .print-hero__identity{display:flex;align-items:center;gap:28px;min-width:280px;}
+  .print-logo{width:110px;height:110px;border-radius:32px;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;box-shadow:0 18px 40px rgba(12,22,44,0.32);backdrop-filter:blur(6px);}
+  .print-logo img{width:72px;height:auto;display:block;}
   .print-hero__title{display:flex;flex-direction:column;gap:8px;}
-  .print-hero__eyebrow{font-size:12px;letter-spacing:0.3em;text-transform:uppercase;font-weight:600;opacity:0.85;}
-  .print-hero__title h1{margin:0;font-size:32px;line-height:1.12;color:inherit;}
-  .print-hero__tagline{margin:0;font-size:15px;opacity:0.95;}
-  .print-hero__summary{position:relative;z-index:1;padding:26px;border-radius:26px;background:rgba(255,255,255,0.12);backdrop-filter:blur(4px);font-size:14px;line-height:1.6;color:rgba(255,255,255,0.96);}
-  .print-hero__summary h2{margin:0 0 10px;font-size:18px;color:#fff;text-transform:uppercase;letter-spacing:0.16em;}
-  .print-hero__summary p{margin:0;}
-  .print-section{background:#ffffff;border-radius:26px;padding:30px 34px;box-shadow:0 18px 44px rgba(15,23,42,0.12);page-break-inside:avoid;}
-  .print-section h2{margin:0 0 18px;font-size:22px;letter-spacing:-0.01em;color:#0f172a;}
-  .print-client-grid{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;}
+  .print-hero__eyebrow{font-size:12px;letter-spacing:0.28em;text-transform:uppercase;font-weight:600;color:rgba(248,250,252,0.74);}
+  .print-hero__title h1{margin:0;font-size:34px;line-height:1.1;color:inherit;text-shadow:0 10px 36px rgba(12,22,44,0.45);}
+  .print-hero__tagline{margin:0;font-size:15px;max-width:320px;color:rgba(248,250,252,0.9);}
+  .print-hero__summary{position:relative;z-index:1;padding:28px 30px;border-radius:28px;background:rgba(12,22,44,0.7);backdrop-filter:blur(6px);font-size:14px;line-height:1.6;color:rgba(248,250,252,0.94);border:1px solid rgba(255,255,255,0.12);}
+  .print-hero__summary h2{margin:0 0 12px;font-size:18px;color:#f8fafc;text-transform:uppercase;letter-spacing:0.18em;}
+  .print-section{background:#ffffff;border-radius:28px;padding:30px 34px;box-shadow:0 20px 44px rgba(12,22,44,0.12);border:1px solid rgba(12,22,44,0.08);page-break-inside:avoid;break-inside:avoid;}
+  .print-section h2{margin:0 0 18px;font-size:22px;letter-spacing:-0.01em;color:#0c162c;position:relative;padding-bottom:8px;}
+  .print-section h2::after{content:'';position:absolute;left:0;bottom:0;width:56px;height:3px;border-radius:999px;background:linear-gradient(135deg,#ff8c00,#f97316);}
+  .print-client-grid{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px 28px;}
   .print-client-field{display:flex;flex-direction:column;gap:6px;}
-  .print-client-field dt{margin:0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#f97316;font-weight:600;}
-  .print-client-field dd{margin:0;font-size:14px;color:#0f172a;font-weight:600;}
+  .print-client-field dt{margin:0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;font-weight:600;color:rgba(12,22,44,0.62);}
+  .print-client-field dd{margin:0;font-size:13px;color:inherit;font-weight:600;line-height:1.35;}
   .print-client-field--wide{grid-column:span 2;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
-  th,td{border:1px solid #e2e8f0;padding:10px 14px;text-align:left;}
-  thead th{background:#fff7ed;color:#9a3412;font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:0.08em;}
-  tbody tr:nth-child(even){background:#fffaf5;}
-  .print-key-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:22px;}
-  .print-key-values p{margin:0;padding:18px;border-radius:20px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;line-height:1.45;color:#1f2937;box-shadow:0 6px 16px rgba(15,23,42,0.06);}
-  .print-key-values strong{display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:#f97316;margin-bottom:6px;}
+  th,td{border:1px solid rgba(12,22,44,0.12);padding:10px 14px;text-align:left;}
+  thead th{background:#0c162c;color:#f8fafc;font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:0.14em;}
+  tbody tr:nth-child(even){background:#f8fafc;}
+  .print-key-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:24px;}
+  .print-key-values p{margin:0;padding:18px 20px;border-radius:22px;background:rgba(12,22,44,0.03);border:1px solid rgba(12,22,44,0.1);font-size:13px;line-height:1.45;box-shadow:0 12px 26px rgba(12,22,44,0.08);}
+  .print-key-values strong{display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:#0c162c;margin-bottom:6px;}
   .print-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;}
-  .print-card{border:1px solid #fde68a;border-radius:24px;padding:24px 26px;background:linear-gradient(135deg,#fffdfa 0%,#fff7ed 100%);box-shadow:0 14px 32px rgba(251,191,36,0.18);}
-  .print-card h3{margin:0 0 18px;font-size:16px;color:#9a3412;text-transform:uppercase;letter-spacing:0.18em;}
+  .print-card{border:1px solid rgba(12,22,44,0.1);border-radius:26px;padding:26px 28px;background:linear-gradient(135deg,#f8fafc 0%,#e9eef6 100%);box-shadow:0 18px 40px rgba(12,22,44,0.14);}
+  .print-card h3{margin:0 0 16px;font-size:16px;color:#0c162c;text-transform:uppercase;letter-spacing:0.14em;}
   .print-card .muted{margin:12px 0 0;}
   .print-metric-list p{margin:0 0 10px;font-size:13px;}
   .print-chart-section{display:flex;flex-direction:column;gap:18px;}
-  .print-chart{padding:18px;border-radius:24px;border:1px solid #fde68a;background:linear-gradient(135deg,#fff7ed 0%,#fffbeb 100%);box-shadow:0 12px 28px rgba(251,191,36,0.15);}
+  .print-chart{padding:20px;border-radius:26px;border:1px solid rgba(12,22,44,0.12);background:linear-gradient(140deg,#eef2f8 0%,#f8fafc 100%);box-shadow:0 18px 40px rgba(12,22,44,0.14);}
   .print-chart .recharts-responsive-container{width:100%;height:100%;}
   .print-chart svg{overflow:visible;}
-  .print-chart .recharts-cartesian-axis-line,.print-chart .recharts-cartesian-axis-tick-line{stroke:#fdba74;}
-  .print-chart .recharts-cartesian-axis-tick text{fill:#b45309;font-size:12px;}
-  .print-chart .recharts-legend-item text{fill:#9a3412;font-weight:600;font-size:12px;}
-  .print-chart .recharts-cartesian-grid line{stroke:#fed7aa;}
+  .print-chart .recharts-cartesian-axis-line,.print-chart .recharts-cartesian-axis-tick-line{stroke:#cbd5f5;}
+  .print-chart .recharts-cartesian-axis-tick text{fill:#1e293b;font-size:12px;}
+  .print-chart .recharts-legend-item text{fill:#0c162c;font-weight:600;font-size:12px;}
+  .print-chart .recharts-cartesian-grid line{stroke:#e2e8f0;}
   .print-chart .recharts-tooltip-wrapper{display:none!important;}
-  .chart-title{margin:0;font-size:18px;color:#c2410c;text-transform:uppercase;letter-spacing:0.22em;}
-  .chart-explainer{margin:0;background:#fff7ed;padding:12px 16px;border-radius:18px;border:1px solid #fef3c7;font-size:13px;color:#7c2d12;}
-  .chart-explainer strong{font-size:14px;color:#c2410c;}
-  .print-chart-footnote{margin:4px 0 0;font-size:12px;color:#7c2d12;}
+  .chart-title{margin:0;font-size:18px;color:#0c162c;text-transform:uppercase;letter-spacing:0.18em;}
+  .chart-explainer{margin:0;background:rgba(12,22,44,0.05);padding:12px 16px;border-radius:18px;border:1px solid rgba(12,22,44,0.12);font-size:13px;color:#1e293b;}
+  .chart-explainer strong{font-size:14px;color:#0c162c;}
+  .print-chart-footnote{margin:4px 0 0;font-size:12px;color:#475569;}
   ul{margin:0;padding-left:20px;font-size:13px;color:#1f2937;line-height:1.55;}
   ul li{margin-bottom:8px;}
   .print-cta{padding:0;border:none;background:none;box-shadow:none;}
-  .print-cta__box{border-radius:30px;background:linear-gradient(135deg,#ffedd5 0%,#fdba74 100%);padding:32px 36px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;border:1px solid #fb923c;box-shadow:0 18px 42px rgba(249,115,22,0.25);}
-  .print-cta__box h2{margin:0;font-size:24px;color:#9a3412;letter-spacing:0.08em;text-transform:uppercase;}
-  .print-cta__box p{margin:0;font-size:15px;color:#7c2d12;}
-  .print-final-footer{display:flex;flex-wrap:wrap;gap:28px;justify-content:space-between;align-items:flex-start;background:#ffffff;border-radius:28px;padding:30px 34px;box-shadow:0 18px 44px rgba(15,23,42,0.12);page-break-inside:avoid;}
+  .print-cta__box{border-radius:30px;background:linear-gradient(135deg,#e2e8f0 0%,#cbd5f5 100%);padding:32px 36px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;border:1px solid rgba(12,22,44,0.12);box-shadow:0 18px 42px rgba(12,22,44,0.18);}
+  .print-cta__box h2{margin:0;font-size:24px;color:#0c162c;letter-spacing:0.08em;text-transform:uppercase;}
+  .print-cta__box p{margin:0;font-size:15px;color:#1e293b;}
+  .print-final-footer{display:flex;flex-wrap:wrap;gap:28px;justify-content:space-between;align-items:flex-start;background:#ffffff;border-radius:28px;padding:30px 34px;box-shadow:0 22px 46px rgba(12,22,44,0.14);page-break-inside:avoid;}
   .print-final-footer__dates{display:flex;flex-direction:column;gap:10px;font-size:13px;color:#1f2937;}
-  .print-final-footer__dates strong{color:#9a3412;}
+  .print-final-footer__dates strong{color:#0c162c;}
   .print-final-footer__signature{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:240px;}
   .signature-line{width:100%;height:1px;background:#cbd5f5;margin-top:28px;}
   .print-final-footer__signature span{font-size:12px;text-transform:uppercase;letter-spacing:0.2em;color:#475569;}
   .print-final-footer__qr{display:flex;flex-direction:column;align-items:center;gap:10px;}
-  .print-final-footer__qr img{width:112px;height:112px;border-radius:18px;border:4px solid #fff7ed;box-shadow:0 10px 26px rgba(249,115,22,0.32);}
-  .print-final-footer__qr small{font-size:11px;color:#9a3412;text-align:center;max-width:180px;}
-  .print-brand-footer{display:flex;justify-content:center;align-items:center;gap:10px;font-size:12px;color:#f97316;text-transform:uppercase;letter-spacing:0.24em;padding-bottom:18px;}
-  .print-brand-footer strong{color:#c2410c;}
-  .muted{text-align:center;color:#94a3b8;font-size:12px;padding:20px 12px;}
+  .print-final-footer__qr img{width:128px;height:128px;border-radius:18px;border:4px solid #ffffff;box-shadow:0 14px 32px rgba(12,22,44,0.2);}
+  .print-final-footer__qr small{font-size:11px;color:#1e293b;text-align:center;max-width:200px;}
+  .print-brand-footer{display:flex;justify-content:center;align-items:center;gap:10px;font-size:12px;color:#0c162c;text-transform:uppercase;letter-spacing:0.24em;padding-bottom:18px;}
+  .print-brand-footer strong{color:#ff8c00;}
+  .muted{text-align:center;color:#64748b;font-size:12px;padding:20px 12px;}
+  .print-yearly-payments{display:grid;gap:16px;}
+  .print-yearly-payments__item{display:flex;flex-direction:column;gap:12px;padding:20px 22px;border-radius:22px;background:rgba(12,22,44,0.04);border:1px solid rgba(12,22,44,0.12);box-shadow:0 12px 26px rgba(12,22,44,0.12);}
+  .print-yearly-payments__header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+  .print-yearly-payments__year-label{font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(12,22,44,0.6);}
+  .print-yearly-payments__year{font-size:22px;font-weight:700;color:#ff8c00;text-transform:uppercase;}
+  .print-yearly-payments__metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px 18px;margin:4px 0 0;}
+  .print-yearly-payments__metrics div{display:flex;flex-direction:column;gap:4px;}
+  .print-yearly-payments__metrics dt{margin:0;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(12,22,44,0.55);}
+  .print-yearly-payments__metrics dd{margin:0;font-size:14px;font-weight:600;color:#0c162c;}
+  .print-yearly-payments__empty{margin:0;font-size:13px;color:#475569;}
   @page{margin:12mm 16mm;}
 `;
 
