@@ -1103,7 +1103,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           </div>
         </div>
         <div className="print-header__client-card">
-          <h2>Informações do cliente</h2>
           <dl className="print-client-grid">
             <div className="print-client-field">
               <dt>Cliente</dt>

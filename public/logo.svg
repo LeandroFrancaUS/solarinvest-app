@@ -1,10 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+  <title>SolarInvest</title>
   <defs>
-    <radialGradient id="grad" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#ffce59"/>
-      <stop offset="100%" stop-color="#ff6a00"/>
+    <radialGradient id="glow" cx="38%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#ffe69a" />
+      <stop offset="55%" stop-color="#ffb347" />
+      <stop offset="100%" stop-color="#ff7b00" />
     </radialGradient>
   </defs>
-  <circle cx="512" cy="512" r="512" fill="url(#grad)"/>
-  <path fill="#ffffff" d="M500.8 176 368 560h110.2L356.6 848l299.4-440h-116.8L500.8 176Z"/>
+  <circle cx="512" cy="512" r="472" fill="url(#glow)" />
+  <circle cx="512" cy="512" r="512" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="16" />
+  <path
+    fill="#ffffff"
+    d="M555 168 312 568h188l-78 324 290-420H528l27-304Z"
+  />
 </svg>
