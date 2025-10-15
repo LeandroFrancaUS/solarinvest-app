@@ -141,6 +141,18 @@ button.ghost {
   transition: background 0.2s ease;
 }
 
+button.ghost.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px 10px 14px;
+}
+
+button.ghost.with-icon span[aria-hidden='true'] {
+  font-size: 18px;
+  line-height: 1;
+}
+
 button.ghost:hover {
   background: rgba(255, 140, 0, 0.28);
 }
@@ -275,7 +287,7 @@ button.link.danger:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  justify-content: flex-start;
+  justify-content: flex-end;
   align-items: center;
   margin-top: auto;
   padding-top: 16px;
@@ -791,6 +803,29 @@ table tbody tr:hover {
   gap: 4px;
 }
 
+.clients-table-load {
+  align-items: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  gap: 4px;
+  border-radius: 12px;
+  width: 100%;
+}
+
+.clients-table-load:hover strong,
+.clients-table-load:focus-visible strong {
+  color: var(--accent);
+}
+
+.clients-table-load:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .clients-table-client strong {
   font-size: 14px;
   color: var(--title);
@@ -806,6 +841,40 @@ table tbody tr:hover {
   gap: 12px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.clients-table-action {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.clients-table-action:hover,
+.clients-table-action:focus-visible {
+  background: rgba(255, 140, 0, 0.18);
+  border-color: rgba(255, 140, 0, 0.5);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.clients-table-action.danger {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(127, 29, 29, 0.25);
+}
+
+.clients-table-action.danger:hover,
+.clients-table-action.danger:focus-visible {
+  background: rgba(248, 113, 113, 0.35);
+  border-color: rgba(248, 113, 113, 0.65);
 }
 
 .budget-search-table .table-wrapper {
@@ -1045,6 +1114,70 @@ table tbody tr:hover {
 
 .print-grid.one {
   grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.toast-stack {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 1200;
+  max-width: min(360px, 80vw);
+}
+
+.toast-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(7, 14, 28, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 18px 40px rgba(5, 10, 20, 0.45);
+  backdrop-filter: blur(6px);
+}
+
+.toast-item.success {
+  border-color: rgba(74, 222, 128, 0.55);
+  box-shadow: 0 18px 42px rgba(16, 185, 129, 0.35);
+}
+
+.toast-item.info {
+  border-color: rgba(96, 165, 250, 0.45);
+}
+
+.toast-item.error {
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.toast-icon {
+  font-size: 18px;
+}
+
+.toast-message {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.toast-dismiss {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 4px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.toast-dismiss:hover,
+.toast-dismiss:focus-visible {
+  color: var(--accent);
+  background: rgba(255, 140, 0, 0.12);
+  outline: none;
 }
 
 .print-header,
