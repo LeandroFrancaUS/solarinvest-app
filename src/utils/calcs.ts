@@ -25,17 +25,23 @@ export function normalizaMes(mes: number, fallback = 1): number {
 
 const reajustesAteMes = (m: number, mesReajuste: number, mesReferencia: number): number => {
   if (m <= 1) return 0
-  const aniversario = normalizaMes(mesReajuste, 6)
-  let mesCorrente = normalizaMes(mesReferencia, aniversario)
-  let ajustes = 0
 
-  for (let i = 1; i < m; i += 1) {
-    mesCorrente += 1
-    if (mesCorrente > 12) mesCorrente = 1
-    if (mesCorrente === aniversario) ajustes += 1
+  const aniversario = normalizaMes(mesReajuste, 6)
+  const referencia = normalizaMes(mesReferencia, aniversario)
+
+  // Calcula a distância até o primeiro reajuste considerando o mês de referência informado.
+  // Se a diferença natural for menor que 12 meses (cenário comum na ativação inicial),
+  // seguramos o reajuste para depois de completar um ciclo cheio de 12 parcelas.
+  let mesesAtePrimeiroReajuste = (aniversario - referencia + 12) % 12
+  if (mesesAtePrimeiroReajuste === 0 || mesesAtePrimeiroReajuste < 12) {
+    mesesAtePrimeiroReajuste = 12
   }
 
-  return ajustes
+  const mesesDecorridos = m - 1
+  if (mesesDecorridos < mesesAtePrimeiroReajuste) return 0
+
+  const mesesRestantes = mesesDecorridos - mesesAtePrimeiroReajuste
+  return 1 + Math.floor(mesesRestantes / 12)
 }
 
 export function fatorReajusteAnual(

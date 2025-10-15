@@ -19,9 +19,16 @@ describe('calcs utilitários', () => {
     expect(tarifa).toBeCloseTo(0.95 * (1 - 0.12), 8)
   })
 
-  it('aplica reajuste anual ao atingir o mês-aniversário', () => {
-    const antes = tarifaDescontada(1, 0, 0.08, 6, 7, 1)
-    const depois = tarifaDescontada(1, 0, 0.08, 7, 7, 1)
+  it('aguarda 12 meses antes de aplicar o primeiro reajuste anual', () => {
+    const antes = tarifaDescontada(1, 0, 0.08, 12, 7, 1)
+    const depois = tarifaDescontada(1, 0, 0.08, 13, 7, 1)
+    expect(antes).toBeCloseTo(1, 8)
+    expect(depois).toBeCloseTo(1.08, 8)
+  })
+
+  it('mantém o primeiro ciclo sem reajuste mesmo quando o aniversário ocorre antes de 12 meses', () => {
+    const antes = tarifaDescontada(1, 0, 0.08, 8, 6, 11)
+    const depois = tarifaDescontada(1, 0, 0.08, 13, 6, 11)
     expect(antes).toBeCloseTo(1, 8)
     expect(depois).toBeCloseTo(1.08, 8)
   })
