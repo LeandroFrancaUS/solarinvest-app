@@ -1064,22 +1064,52 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   return (
     <div ref={ref} className="print-layout">
       <header className="print-header">
-        <div className="print-logo">
-          <img src="/logo.svg" alt="SolarInvest" />
+        <div className="print-header__brand">
+          <div className="print-logo">
+            <img src="/logo.svg" alt="SolarInvest" />
+          </div>
+          <div className="print-header__title">
+            <span className="print-header__pretitle">SolarInvest</span>
+            <h1>Proposta de Leasing</h1>
+            <p className="print-header__tagline">Energia solar inteligente para o seu negócio</p>
+          </div>
         </div>
-        <div className="print-client">
-          <h1>SolarInvest - Proposta de Leasing</h1>
-          <p><strong>Cliente:</strong> {cliente.nome || '—'}</p>
-          <p><strong>Documento:</strong> {cliente.documento || '—'}</p>
-          <p>
-            <strong>E-mail:</strong> {cliente.email || '—'} • <strong>Telefone:</strong> {cliente.telefone || '—'}
-          </p>
-          <p>
-            <strong>UC:</strong> {cliente.uc || '—'} • <strong>Distribuidora:</strong> {cliente.distribuidora || '—'}
-          </p>
-          <p>
-            <strong>Endereço:</strong> {cliente.endereco || '—'} — {cliente.cidade || '—'} / {cliente.uf || '—'}
-          </p>
+        <div className="print-header__client-card">
+          <h2>Informações do cliente</h2>
+          <dl className="print-client-grid">
+            <div className="print-client-field">
+              <dt>Cliente</dt>
+              <dd>{cliente.nome || '—'}</dd>
+            </div>
+            <div className="print-client-field">
+              <dt>Documento</dt>
+              <dd>{cliente.documento || '—'}</dd>
+            </div>
+            <div className="print-client-field">
+              <dt>UC</dt>
+              <dd>{cliente.uc || '—'}</dd>
+            </div>
+            <div className="print-client-field">
+              <dt>Distribuidora</dt>
+              <dd>{cliente.distribuidora || '—'}</dd>
+            </div>
+            <div className="print-client-field">
+              <dt>E-mail</dt>
+              <dd>{cliente.email || '—'}</dd>
+            </div>
+            <div className="print-client-field">
+              <dt>Telefone</dt>
+              <dd>{cliente.telefone || '—'}</dd>
+            </div>
+            <div className="print-client-field print-client-field--wide">
+              <dt>Endereço</dt>
+              <dd>
+                {cliente.endereco || cliente.cidade || cliente.uf
+                  ? `${cliente.endereco || '—'} — ${cliente.cidade || '—'} / ${cliente.uf || '—'}`
+                  : '—'}
+              </dd>
+            </div>
+          </dl>
         </div>
       </header>
 
@@ -1367,9 +1397,22 @@ const printStyles = `
   body{margin:0;padding:36px 44px;background:#ffffff;color:#0f172a;}
   h1,h2,h3{color:#0f172a;}
   .print-layout{display:block;max-width:1040px;margin:0 auto;page-break-after:avoid;}
-  .print-header{display:flex;gap:24px;align-items:center;margin-bottom:24px;break-inside:avoid;page-break-inside:avoid;}
-  .print-header img{height:72px;}
-  .print-client p{margin:4px 0;font-size:13px;}
+  .print-header{position:relative;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:stretch;gap:32px 28px;padding:32px 40px;margin-bottom:32px;border-radius:28px;background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%);color:#f8fafc;break-inside:avoid;page-break-inside:avoid;overflow:hidden;box-shadow:0 18px 44px rgba(15,23,42,0.25);}
+  .print-header::after{content:'';position:absolute;right:-80px;bottom:-110px;width:360px;height:360px;background:radial-gradient(circle at center,rgba(148,163,184,0.45),transparent 72%);opacity:0.9;}
+  .print-header__brand{display:flex;align-items:center;gap:24px;max-width:48%;min-width:280px;z-index:1;}
+  .print-logo{display:flex;align-items:center;justify-content:center;width:88px;height:88px;border-radius:24px;background:rgba(15,23,42,0.35);border:1px solid rgba(148,163,184,0.35);box-shadow:0 0 0 1px rgba(148,163,184,0.15) inset,0 24px 40px rgba(15,23,42,0.28);}
+  .print-logo img{height:56px;}
+  .print-header__title{display:flex;flex-direction:column;gap:6px;}
+  .print-header__pretitle{font-size:12px;letter-spacing:0.32em;text-transform:uppercase;font-weight:600;opacity:0.78;}
+  .print-header__title h1{margin:0;font-size:30px;line-height:1.12;font-weight:700;color:inherit;text-shadow:0 8px 24px rgba(15,23,42,0.32);}
+  .print-header__tagline{margin:0;font-size:13px;max-width:320px;opacity:0.86;line-height:1.4;}
+  .print-header__client-card{flex:1;min-width:280px;display:flex;flex-direction:column;gap:12px;background:rgba(15,23,42,0.55);border-radius:22px;border:1px solid rgba(148,163,184,0.45);padding:24px 28px;z-index:1;box-shadow:0 16px 36px rgba(15,23,42,0.22);}
+  .print-header__client-card h2{margin:0;font-size:14px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;opacity:0.92;color:inherit;}
+  .print-client-grid{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 24px;}
+  .print-client-field{display:flex;flex-direction:column;gap:4px;}
+  .print-client-field dt{margin:0;font-size:11px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;opacity:0.68;}
+  .print-client-field dd{margin:0;font-size:13px;font-weight:600;color:inherit;line-height:1.3;}
+  .print-client-field--wide{grid-column:span 2;}
   .print-section{margin-bottom:28px;break-inside:avoid;page-break-inside:avoid;}
   .print-section h2{margin:0 0 12px;border-bottom:1px solid #cbd5f5;padding-bottom:4px;break-inside:avoid;page-break-inside:avoid;}
   table{width:100%;border-collapse:collapse;page-break-inside:auto;}
