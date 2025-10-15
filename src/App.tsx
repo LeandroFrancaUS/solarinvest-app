@@ -1119,7 +1119,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                   <th>Tarifa projetada (R$/kWh)</th>
                   <th>Tarifa c/ desconto (R$/kWh)</th>
                   <th>
-                    Mensalidade com{' '}
+                    Mensalidade{' '}
                     {distribuidoraTarifaLabel
                       ? `${distribuidoraTarifaLabel} (ANEEL)`
                       : 'Distribuidora (ANEEL)'}
@@ -1176,7 +1176,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
 
       <section className="print-section">
         <div className="print-notes">
-          <p><strong>Informações adicionais:</strong></p>
+          <p><strong>Informações importantes:</strong></p>
           <ul>
             <li>
               Valor de mercado estimado conforme parâmetros atuais do setor: {valorMercadoTexto}

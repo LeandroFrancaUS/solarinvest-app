@@ -1808,6 +1808,10 @@ table tbody tr:hover {
   page-break-inside: avoid;
 }
 
+.print-notes {
+  padding-bottom: 16px;
+}
+
 @media print {
   @page {
     margin: 12mm 16mm;
