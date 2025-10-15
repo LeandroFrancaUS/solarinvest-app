@@ -5506,8 +5506,8 @@ export default function App() {
                       <span>Economia acumulada versus concessionária.</span>
                       {beneficioAno30 ? (
                         <span className="chart-highlight">
-                          Beneficio acumulado em 30 anos:
-                          <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30.Leasing)}</strong>
+                          <strong>Beneficio acumulado em 30 anos:</strong>{' '}
+                          <strong style={{ color: chartColors.Leasing }}>{currency(beneficioAno30.Leasing)}</strong>
                           {mostrarFinanciamento && exibirFinLinha ? (
                             <>
                               {' • '}Financiamento:{' '}
@@ -5519,16 +5519,42 @@ export default function App() {
                     </div>
                   ) : null}
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
+                    <LineChart data={chartData} margin={{ top: 24, right: 32, bottom: 32, left: 16 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="ano" stroke="#9CA3AF" label={{ value: 'Anos', position: 'insideBottomRight', offset: -5, fill: '#9CA3AF' }} />
-                      <YAxis stroke="#9CA3AF" tickFormatter={formatAxis} domain={yDomain} width={92} />
+                      <XAxis
+                        dataKey="ano"
+                        stroke="#E2E8F0"
+                        tick={{ fill: '#E2E8F0', fontWeight: 600 }}
+                        label={{ value: 'Anos', position: 'insideBottomRight', offset: -5, fill: '#F8FAFC', fontWeight: 700 }}
+                      />
+                      <YAxis
+                        stroke="#E2E8F0"
+                        tick={{ fill: '#E2E8F0', fontWeight: 600 }}
+                        tickFormatter={formatAxis}
+                        domain={yDomain}
+                        width={92}
+                        label={{ value: 'Beneficio em Reais', angle: -90, position: 'insideLeft', offset: 12, fill: '#F8FAFC', fontWeight: 700 }}
+                      />
                       <Tooltip formatter={(value: number) => currency(Number(value))} contentStyle={{ background: '#0b1220', border: '1px solid #1f2b40' }} />
                       <Legend verticalAlign="bottom" align="right" wrapperStyle={{ paddingTop: 16 }} />
                       <ReferenceLine y={0} stroke="#475569" />
-                      {exibirLeasingLinha ? <Line type="monotone" dataKey="Leasing" stroke={chartColors.Leasing} strokeWidth={2} dot /> : null}
+                      {exibirLeasingLinha ? (
+                        <Line
+                          type="monotone"
+                          dataKey="Leasing"
+                          stroke={chartColors.Leasing}
+                          strokeWidth={2}
+                          dot
+                        />
+                      ) : null}
                       {mostrarFinanciamento && exibirFinLinha ? (
-                        <Line type="monotone" dataKey="Financiamento" stroke={chartColors.Financiamento} strokeWidth={2} dot />
+                        <Line
+                          type="monotone"
+                          dataKey="Financiamento"
+                          stroke={chartColors.Financiamento}
+                          strokeWidth={2}
+                          dot
+                        />
                       ) : null}
                     </LineChart>
                   </ResponsiveContainer>
