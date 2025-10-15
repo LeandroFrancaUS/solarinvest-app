@@ -177,6 +177,20 @@ type ClienteRegistro = {
   dados: ClienteDados
 }
 
+type NotificacaoTipo = 'success' | 'info' | 'error'
+
+type Notificacao = {
+  id: number
+  mensagem: string
+  tipo: NotificacaoTipo
+}
+
+const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
+  success: '✔',
+  info: 'ℹ',
+  error: '⚠',
+}
+
 type BuyoutRow = {
   mes: number
   tarifa: number
@@ -432,10 +446,16 @@ const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEdi
                         return (
                           <tr key={registro.id}>
                             <td>
-                              <div className="clients-table-client">
+                              <button
+                                type="button"
+                                className="clients-table-client clients-table-load"
+                                onClick={() => onEditar(registro)}
+                                title="Carregar dados do cliente"
+                                aria-label="Carregar dados do cliente"
+                              >
                                 <strong>{dados.nome || '—'}</strong>
                                 <span>{dados.email || 'E-mail não informado'}</span>
-                              </div>
+                              </button>
                             </td>
                             <td>{dados.documento || '—'}</td>
                             <td>
@@ -449,15 +469,23 @@ const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEdi
                             <td>{formatBudgetDate(registro.atualizadoEm)}</td>
                             <td>
                               <div className="clients-table-actions">
-                                <button type="button" className="link" onClick={() => onEditar(registro)}>
-                                  Editar
+                                <button
+                                  type="button"
+                                  className="clients-table-action"
+                                  onClick={() => onEditar(registro)}
+                                  aria-label="Carregar dados do cliente"
+                                  title="Carregar dados do cliente"
+                                >
+                                  <span aria-hidden="true">✎</span>
                                 </button>
                                 <button
                                   type="button"
-                                  className="link danger"
+                                  className="clients-table-action danger"
                                   onClick={() => onExcluir(registro)}
+                                  aria-label="Excluir cliente salvo"
+                                  title="Excluir cliente salvo"
                                 >
-                                  Excluir
+                                  <span aria-hidden="true">🗑</span>
                                 </button>
                               </div>
                             </td>
@@ -889,6 +917,9 @@ export default function App() {
   const [isClientesModalOpen, setIsClientesModalOpen] = useState(false)
   const [clienteMensagens, setClienteMensagens] = useState<{ email?: string; cidade?: string }>({})
   const [verificandoCidade, setVerificandoCidade] = useState(false)
+  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
+  const notificacaoSequencialRef = useRef(0)
+  const notificacaoTimeoutsRef = useRef<Record<number, number>>({})
 
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
@@ -1757,6 +1788,43 @@ export default function App() {
     setClientesSalvos(registros)
   }, [carregarClientesSalvos])
 
+  useEffect(() => {
+    return () => {
+      if (typeof window === 'undefined') {
+        return
+      }
+
+      Object.values(notificacaoTimeoutsRef.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId)
+      })
+    }
+  }, [])
+
+  const removerNotificacao = useCallback((id: number) => {
+    setNotificacoes((prev) => prev.filter((item) => item.id !== id))
+
+    const timeoutId = notificacaoTimeoutsRef.current[id]
+    if (timeoutId && typeof window !== 'undefined') {
+      window.clearTimeout(timeoutId)
+    }
+    delete notificacaoTimeoutsRef.current[id]
+  }, [])
+
+  const adicionarNotificacao = useCallback(
+    (mensagem: string, tipo: NotificacaoTipo = 'info') => {
+      notificacaoSequencialRef.current += 1
+      const id = notificacaoSequencialRef.current
+
+      setNotificacoes((prev) => [...prev, { id, mensagem, tipo }])
+
+      if (typeof window !== 'undefined') {
+        const timeoutId = window.setTimeout(() => removerNotificacao(id), 5000)
+        notificacaoTimeoutsRef.current[id] = timeoutId
+      }
+    },
+    [removerNotificacao],
+  )
+
   const handleSalvarCliente = useCallback(() => {
     if (typeof window === 'undefined') {
       return
@@ -1841,8 +1909,11 @@ export default function App() {
     }
 
     setClienteEmEdicaoId(registroSalvo.id)
-    window.alert(estaEditando ? 'Cliente atualizado com sucesso.' : 'Cliente salvo com sucesso.')
-  }, [cliente, clienteEmEdicaoId, setClienteEmEdicaoId, validarCamposObrigatorios])
+    adicionarNotificacao(
+      estaEditando ? 'Dados do cliente atualizados com sucesso.' : 'Cliente salvo com sucesso.',
+      'success',
+    )
+  }, [adicionarNotificacao, cliente, clienteEmEdicaoId, setClienteEmEdicaoId, validarCamposObrigatorios])
 
   const handleEditarCliente = useCallback(
     (registro: ClienteRegistro) => {
@@ -2731,7 +2802,18 @@ export default function App() {
           </>
         ) : activeTab === 'cliente' ? (
           <section className="card">
-            <h2>Dados do cliente</h2>
+            <div className="card-header">
+              <h2>Dados do cliente</h2>
+              <button
+                type="button"
+                className="icon"
+                onClick={abrirClientesModal}
+                title="Carregar cliente salvo"
+                aria-label="Carregar cliente salvo"
+              >
+                📁
+              </button>
+            </div>
             <div className="grid g2">
               <Field label="Nome ou Razão social">
                 <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
@@ -3574,6 +3656,27 @@ export default function App() {
               </div>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {notificacoes.length > 0 ? (
+        <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
+          {notificacoes.map((item) => (
+            <div key={item.id} className={`toast-item ${item.tipo}`} role="status">
+              <span className="toast-icon" aria-hidden="true">
+                {iconeNotificacaoPorTipo[item.tipo]}
+              </span>
+              <span className="toast-message">{item.mensagem}</span>
+              <button
+                type="button"
+                className="toast-dismiss"
+                onClick={() => removerNotificacao(item.id)}
+                aria-label="Dispensar notificação"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
         </div>
       ) : null}
     </div>
