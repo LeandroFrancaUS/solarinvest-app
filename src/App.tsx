@@ -1516,10 +1516,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           <div className="signature-line" />
           <span>Assinatura do cliente</span>
         </div>
-        <div className="print-final-footer__qr">
-          <img src="/qr-whatsapp.svg" alt="QR Code para contato comercial SolarInvest" />
-          <small>Escaneie para falar com nosso time comercial via WhatsApp.</small>
-        </div>
       </footer>
 
       <div className="print-brand-footer">
@@ -1549,8 +1545,8 @@ const renderPrintableProposalToHtml = (dados: PrintableProps): Promise<string | 
     container.style.position = 'fixed'
     container.style.top = '-9999px'
     container.style.left = '-9999px'
-    container.style.width = '1100px'
-    container.style.padding = '40px 48px'
+    container.style.width = '672px'
+    container.style.padding = '0'
     container.style.background = '#f8fafc'
     container.style.zIndex = '-1'
     document.body.appendChild(container)
@@ -1647,10 +1643,11 @@ const chartColors: Record<'Leasing' | 'Financiamento', string> = {
 
 const printStyles = `
   *,*::before,*::after{box-sizing:border-box;font-family:'Montserrat','Roboto',sans-serif;}
-  body{margin:0;padding:40px 48px;background:#f4f6fb;color:#0c162c;}
+  body{margin:0;padding:0;background:#f4f6fb;color:#0c162c;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   h1,h2,h3{color:#0c162c;font-weight:700;}
-  .print-layout{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:28px;page-break-after:avoid;}
+  .print-layout{max-width:calc(210mm - 32mm);width:100%;margin:0 auto;display:flex;flex-direction:column;gap:28px;page-break-after:avoid;}
   .print-hero{position:relative;display:flex;flex-direction:column;gap:24px;padding:40px 44px;border-radius:40px;background:radial-gradient(140% 160% at 0% 0%,rgba(255,255,255,0.18) 0%,rgba(12,22,44,0) 70%),linear-gradient(135deg,#0c162c 0%,#13294c 58%,#1f3a6f 100%);color:#f8fafc;box-shadow:0 26px 60px rgba(12,22,44,0.36);overflow:hidden;}
+  .print-hero,.print-section,.print-card,.print-chart,.print-cta__box{color-adjust:exact;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .print-hero::after{content:'';position:absolute;inset:auto -160px -200px auto;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle at center,rgba(255,255,255,0.25),transparent 72%);opacity:0.9;}
   .print-hero__header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:32px;position:relative;z-index:1;}
   .print-hero__identity{display:flex;align-items:center;gap:28px;min-width:280px;}
@@ -1707,9 +1704,6 @@ const printStyles = `
   .print-final-footer__signature{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:240px;}
   .signature-line{width:100%;height:1px;background:#cbd5f5;margin-top:28px;}
   .print-final-footer__signature span{font-size:12px;text-transform:uppercase;letter-spacing:0.2em;color:#475569;}
-  .print-final-footer__qr{display:flex;flex-direction:column;align-items:center;gap:10px;}
-  .print-final-footer__qr img{width:128px;height:128px;border-radius:18px;border:4px solid #ffffff;box-shadow:0 14px 32px rgba(12,22,44,0.2);}
-  .print-final-footer__qr small{font-size:11px;color:#1e293b;text-align:center;max-width:200px;}
   .print-brand-footer{display:flex;justify-content:center;align-items:center;gap:10px;font-size:12px;color:#0c162c;text-transform:uppercase;letter-spacing:0.24em;padding-bottom:18px;}
   .print-brand-footer strong{color:#ff8c00;}
   .muted{text-align:center;color:#64748b;font-size:12px;padding:20px 12px;}
@@ -1723,7 +1717,7 @@ const printStyles = `
   .print-yearly-payments__metrics dt{margin:0;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(12,22,44,0.55);}
   .print-yearly-payments__metrics dd{margin:0;font-size:14px;font-weight:600;color:#0c162c;}
   .print-yearly-payments__empty{margin:0;font-size:13px;color:#475569;}
-  @page{margin:12mm 16mm;}
+  @page{size:A4;margin:12mm 16mm;}
 `;
 
 
@@ -2566,7 +2560,7 @@ export default function App() {
               .preview-toolbar-actions button:hover{background:#1e293b;}
               .preview-toolbar-actions button.secondary{background:#e2e8f0;color:#0f172a;}
               .preview-toolbar-actions button.secondary:hover{background:#cbd5f5;color:#0f172a;}
-              .preview-container{max-width:1100px;margin:0 auto;}
+              .preview-container{max-width:calc(210mm - 32mm);width:100%;margin:0 auto;padding:24px 0 40px;}
               @media print{
                 body{padding-top:0;}
                 .preview-toolbar{display:none;}
