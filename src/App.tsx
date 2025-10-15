@@ -55,7 +55,7 @@ const formatAxis = (v: number) => {
   return currency(v)
 }
 
-const BENEFICIO_MARCO_ANOS = [5, 10, 15, 20, 30]
+const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
 
 const DISTRIBUIDORAS_FALLBACK = getDistribuidorasFallback()
 const UF_LABELS: Record<string, string> = {
@@ -1135,18 +1135,18 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const validadeTexto = formatDate(validadeData)
   const inicioOperacaoTexto = formatDate(inicioOperacaoData)
 
-  const chartDataPrintable = useMemo(
-    () =>
-      anos.map((ano) => ({
-        ano,
-        Leasing: leasingROI[ano - 1] ?? 0,
-        Financiamento: financiamentoROI[ano - 1] ?? 0,
-      })),
-    [anos, financiamentoROI, leasingROI],
-  )
+  const chartDataPrintable = useMemo(() => {
+    const anosDisponiveis = new Set(anos)
+
+    return BENEFICIO_CHART_ANOS.filter((ano) => anosDisponiveis.has(ano)).map((ano) => ({
+      ano,
+      Leasing: leasingROI[ano - 1] ?? 0,
+      Financiamento: financiamentoROI[ano - 1] ?? 0,
+    }))
+  }, [anos, financiamentoROI, leasingROI])
   const beneficioMarcos = useMemo(
     () =>
-      BENEFICIO_MARCO_ANOS.map((ano) => {
+      BENEFICIO_CHART_ANOS.map((ano) => {
         const dadosAno = chartDataPrintable.find((row) => row.ano === ano)
         if (!dadosAno) {
           return null
