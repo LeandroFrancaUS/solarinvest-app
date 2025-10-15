@@ -2804,6 +2804,15 @@ export default function App() {
           <section className="card">
             <div className="card-header">
               <h2>Dados do cliente</h2>
+              <button
+                type="button"
+                className="icon"
+                onClick={abrirClientesModal}
+                title="Carregar cliente salvo"
+                aria-label="Carregar cliente salvo"
+              >
+                📁
+              </button>
             </div>
             <div className="grid g2">
               <Field label="Nome ou Razão social">
