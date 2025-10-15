@@ -41,6 +41,17 @@ const formatAxis = (v: number) => {
   return currency(v)
 }
 
+/**
+ * Quando estivermos hospedados no domínio oficial da SolarInvest, precisamos conversar
+ * com o backend dedicado ao CRM. Esta constante prepara a base da URL já pensando
+ * nessa integração, mas mantém um endpoint local durante o desenvolvimento para que
+ * nada quebre quando executarmos em localhost.
+ */
+const CRM_BACKEND_BASE_URL =
+  typeof window !== 'undefined' && window.location.hostname === 'solarinvest.info'
+    ? 'https://solarinvest.info/api/crm'
+    : 'http://localhost:3001/api/crm'
+
 const DISTRIBUIDORAS_FALLBACK = getDistribuidorasFallback()
 const UF_LABELS: Record<string, string> = {
   AC: 'Acre',
@@ -157,6 +168,527 @@ const SETTINGS_TABS: { id: SettingsTabKey; label: string }[] = [
 type SeguroModo = 'A' | 'B'
 
 type EntradaModoLabel = 'Crédito mensal' | 'Reduz piso contratado'
+
+/**
+ * Estrutura base para os blocos de conteúdo da página de CRM. A ideia aqui é manter
+ * todos os textos centralizados, facilitando futuras integrações com CMS ou API.
+ */
+type CrmContentBlock = {
+  id: string
+  title: string
+  description: string
+  points: string[]
+  automationHighlights?: string[]
+}
+
+/**
+ * Seções principais do CRM conforme solicitado, com o máximo de comentários para
+ * facilitar a manutenção e futuras evoluções do produto digital.
+ */
+const CRM_FEATURE_SECTIONS: CrmContentBlock[] = [
+  {
+    id: 'captacao-qualificacao',
+    title: '1. Captação e qualificação',
+    description:
+      'Centralize todos os leads em um único funil inteligente e registre dados ricos para personalizar a jornada.',
+    points: [
+      'Integração direta com o site e anúncios – quando alguém pede orçamento, o lead entra automaticamente no funil.',
+      'Registro automático da origem do lead (Instagram, WhatsApp, indicação, eventos, feiras e muito mais).',
+      'Campos personalizados para cidade, tipo de imóvel, consumo mensal (kWh) e interesse em sistemas off-grid ou on-grid.',
+    ],
+    automationHighlights: [
+      'Leads captados disparam tags e segmentações automáticas.',
+      'Criação automática de registros de projeto vinculados ao lead desde o primeiro contato.',
+    ],
+  },
+  {
+    id: 'prospeccao-proposta',
+    title: '2. Prospecção e proposta',
+    description: 'Transforme oportunidades em contratos com um funil visual e rico em contexto.',
+    points: [
+      'Funil visual de vendas com etapas: Novo lead → Proposta enviada → Negociação → Visita técnica → Contrato assinado.',
+      'Geração automática de propostas em PDF com o branding SolarInvest e dados personalizados do cliente.',
+      'Histórico completo de conversas e anexos – documentos, fotos do telhado, planilhas e tudo mais em um só lugar.',
+    ],
+    automationHighlights: [
+      'Follow-up automático após 48h sem resposta.',
+      'Mudanças de etapa geram tarefas automáticas no módulo de Contrato.',
+    ],
+  },
+  {
+    id: 'contrato-implantacao',
+    title: '3. Contrato e implantação',
+    description: 'Execução rápida e rastreável com checklist técnico e comunicação integrada.',
+    points: [
+      'Integração com assinatura digital e controle de status de instalação em tempo real.',
+      'Notificações automáticas para o cliente (ex: “sua usina está em fase de vistoria”).',
+      'Upload facilitado de ART, notas fiscais, laudos técnicos e demais documentos obrigatórios.',
+    ],
+    automationHighlights: [
+      'Checklist técnico atualizado automaticamente conforme o contrato é assinado.',
+      'Ao concluir a instalação, o status passa para “Usina ativa” sem intervenção manual.',
+    ],
+  },
+  {
+    id: 'instalacao',
+    title: '4. Instalação',
+    description: 'O módulo técnico assume o controle e mantém todo o time sincronizado.',
+    points: [
+      'Gestão de equipe, materiais, cronograma e fotos de execução vinculadas ao mesmo registro de cliente.',
+      'Visão em tempo real do status (em andamento, concluída, aguardando homologação).',
+      'Toda a operação técnica fica centralizada e auditável.',
+    ],
+    automationHighlights: [
+      'Atualizações técnicas alimentam dashboards gerenciais instantaneamente.',
+    ],
+  },
+  {
+    id: 'pos-venda',
+    title: '5. Pós-venda e manutenção',
+    description: 'Mantenha o cliente engajado e reduza custos operacionais com monitoramento ativo.',
+    points: [
+      'Agenda de manutenções preventivas com alertas automáticos.',
+      'Relatórios de geração (kWh) com integração via API do inversor e alertas de falhas.',
+      'Registro de chamados, suporte técnico e histórico completo da usina.',
+    ],
+    automationHighlights: [
+      'Detecção de anomalias gera tickets de suporte automaticamente.',
+    ],
+  },
+  {
+    id: 'financeiro-basico',
+    title: '6. Financeiro básico',
+    description: 'Tudo o que você precisa para organizar recebimentos com segurança.',
+    points: [
+      'Controle de recebimentos de contratos de leasing em um só painel.',
+      'Integração nativa com boletos e Pix para acelerar conciliação.',
+      'Dashboards de ROI e margem por usina com atualização automática.',
+    ],
+  },
+  {
+    id: 'financeiro-avancado',
+    title: '7. Financeiro avançado',
+    description: 'Camadas financeiras robustas para lidar com múltiplos modelos de negócio.',
+    points: [
+      'Contratos de leasing vinculados à cobrança mensal com geração automática de boletos.',
+      'Monitoramento de status de pagamento e indicadores de inadimplência.',
+      'Visão consolidada de ROI, fluxo de caixa e rentabilidade por projeto.',
+    ],
+  },
+]
+
+/**
+ * Blueprint detalhado do CRM conforme solicitado – este conteúdo aprofunda cada pilar
+ * operacional e ajuda o time a visualizar automações e integrações futuras.
+ */
+const CRM_BLUEPRINT_BLOCKS: CrmContentBlock[] = [
+  {
+    id: 'blueprint-captacao',
+    title: 'Blueprint: Captação e Qualificação',
+    description:
+      'Objetivo: centralizar leads, classificar interesses automaticamente e iniciar projetos com dados completos.',
+    points: [
+      'Campos principais: nome, telefone, cidade, tipo de imóvel, consumo (kWh/mês) e origem do lead.',
+      'Automações: captura automática de leads (site, Instagram Ads, WhatsApp) e classificação por interesse.',
+      'Alertas para a equipe quando a proposta é aberta ou respondida pelo lead.',
+      'Criação automática de registro de projeto vinculado ao lead, com tags como on-grid ou off-grid.',
+    ],
+  },
+  {
+    id: 'blueprint-propostas',
+    title: 'Blueprint: Propostas e Negociação',
+    description:
+      'Objetivo: acompanhar o ciclo de venda com precisão, do primeiro contato até a assinatura.',
+    points: [
+      'Etapas do funil: Novo Lead → Proposta Enviada → Em Negociação → Visita Técnica → Aguardando Contrato → Fechado.',
+      'Automações: geração de proposta em PDF, envio automático e notificações internas para follow-up.',
+      'Cálculo automático de ROI e custo estimado com base no consumo informado.',
+      'Registro de histórico completo (mensagens, visitas, alterações de valores) anexado ao projeto.',
+    ],
+  },
+  {
+    id: 'blueprint-contrato',
+    title: 'Blueprint: Contrato e Implantação',
+    description:
+      'Objetivo: garantir execução rastreável com checklist técnico conectado ao CRM.',
+    points: [
+      'Integração com assinatura eletrônica, checklist de vistoria e homologação totalmente digital.',
+      'Uploads de documentos essenciais (ART, notas fiscais, laudos) anexados ao mesmo ID do projeto.',
+      'Alertas automáticos para o time técnico quando o contrato é assinado.',
+      'Transformação do projeto comercial em projeto ativo com cronograma técnico e status “Instalação em andamento”.',
+    ],
+  },
+  {
+    id: 'blueprint-pos-venda',
+    title: 'Blueprint: Pós-venda e Monitoramento',
+    description:
+      'Objetivo: manter clientes engajados, monitorar geração e abrir tickets preventivamente.',
+    points: [
+      'Histórico da usina com dados de equipamentos, datas de vistoria e checklist de manutenção.',
+      'Integração com API do inversor para puxar geração mensal automaticamente.',
+      'Alertas de anomalia e abertura automática de ticket em caso de queda de geração.',
+      'Relatórios automáticos alimentam painel de desempenho e agenda de manutenção preventiva.',
+    ],
+  },
+  {
+    id: 'blueprint-financeiro',
+    title: 'Blueprint: Financeiro Integrado',
+    description:
+      'Objetivo: consolidar contratos, fluxos de caixa e indicadores de performance financeira.',
+    points: [
+      'Controle de parcelas, reajustes e vencimentos com emissão automática de boletos/Pix.',
+      'Dashboards de ROI, margem de lucro, adimplência e receita mensal por usina.',
+      'Relatórios semanais automáticos enviados aos gestores com metas por vendedor.',
+      'Alertas de gargalos (ex: muitos projetos em “aguardando visita técnica”) para ações imediatas.',
+    ],
+  },
+  {
+    id: 'blueprint-inteligencia',
+    title: 'Blueprint: Inteligência e Relatórios',
+    description:
+      'Objetivo: visão gerencial de ponta a ponta, da conversão comercial ao retorno financeiro.',
+    points: [
+      'Indicadores de taxa de conversão, tempo médio de fechamento e lucro líquido por projeto.',
+      'Mapa de geração (kWh) por região com consolidação de dados técnicos e financeiros.',
+      'Relatórios semanais automáticos e alertas de performance por etapa do funil.',
+    ],
+  },
+]
+
+/**
+ * Estrutura adicional para destacar as camadas financeiras avançadas solicitadas,
+ * diferenciando leasing de venda direta e já indicando as métricas essenciais.
+ */
+const CRM_FINANCIAL_LAYERS: CrmContentBlock[] = [
+  {
+    id: 'financeiro-modelos',
+    title: 'Modelos distintos: Leasing x Venda Direta',
+    description:
+      'Cada projeto traz o campo “tipo de operação” para separar fluxos de receita recorrente e pontual.',
+    points: [
+      'Leasing gera parcelas mensais com vencimentos, reajustes e status (em aberto, pago, atrasado).',
+      'Venda direta registra entrada + parcelas únicas ou pagamento à vista.',
+      'Relatórios acompanham receita recorrente (leasing) e receita pontual (vendas diretas) em paralelo.',
+    ],
+  },
+  {
+    id: 'financeiro-caixa',
+    title: 'Controle de caixa real',
+    description:
+      'Fluxo de entrada e saída totalmente categorizado para uma visão fiel do caixa.',
+    points: [
+      'Lançamentos com data, categoria (Receita, Custo Fixo, Custo Variável, Investimento) e origem.',
+      'Formas de pagamento mapeadas (Pix, boleto, cartão, transferência) para conciliação precisa.',
+      'Indicadores exibem caixa diário/mensal, saldo acumulado e entradas vs. saídas.',
+    ],
+  },
+  {
+    id: 'financeiro-custos',
+    title: 'Gestão de custos e margens',
+    description:
+      'Todos os custos ficam vinculados ao mesmo ID do projeto para cálculos automáticos.',
+    points: [
+      'Cadastro de custos de equipamentos, mão de obra, deslocamento, taxas e seguros.',
+      'Cálculo de margem bruta, margem líquida, ROI e payback por projeto/mês.',
+      'Dashboards permitem enxergar rentabilidade por usina em tempo real.',
+    ],
+  },
+  {
+    id: 'financeiro-dashboards',
+    title: 'Dashboards e previsões',
+    description:
+      'Visualize projeções de leasing, indicadores de inadimplência e desempenho consolidado.',
+    points: [
+      'Gráfico de caixa acumulado mês a mês e projeção de entradas futuras.',
+      'Indicadores de inadimplência com alertas automáticos.',
+      'Painel centralizado de receitas, despesas e saldo consolidado.',
+    ],
+  },
+]
+
+/**
+ * A partir deste ponto descrevemos estruturas de dados reais do CRM.
+ * Mesmo sem um backend ativo em todos os ambientes, precisamos manter
+ * um modelo coerente com o que será persistido futuramente. Assim,
+ * conseguimos trabalhar com um "mini backend" local e manter a
+ * experiência íntegra tanto em desenvolvimento quanto em produção.
+ */
+const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset-v1'
+
+const CRM_PIPELINE_STAGES = [
+  {
+    id: 'novo-lead',
+    label: 'Novo lead',
+    description: 'Contato recém captado via site, anúncios ou indicação.',
+  },
+  {
+    id: 'proposta-enviada',
+    label: 'Proposta enviada',
+    description: 'Lead recebeu proposta personalizada e aguarda retorno.',
+  },
+  {
+    id: 'negociacao',
+    label: 'Em negociação',
+    description: 'Conversas ativas, ajustes comerciais e follow-ups em andamento.',
+  },
+  {
+    id: 'visita-tecnica',
+    label: 'Visita técnica',
+    description: 'Equipe técnica agenda ou executa vistoria no local.',
+  },
+  {
+    id: 'aguardando-contrato',
+    label: 'Aguardando contrato',
+    description: 'Contrato enviado para assinatura digital e validações finais.',
+  },
+  {
+    id: 'fechado',
+    label: 'Fechado',
+    description: 'Projeto com contrato assinado e financeiro já configurado.',
+  },
+] as const
+
+type CrmStageId = (typeof CRM_PIPELINE_STAGES)[number]['id']
+
+type CrmLeadInterest = 'ON_GRID' | 'OFF_GRID' | 'CONDIMINIO' | 'COMERCIAL'
+
+type CrmOperacao = 'LEASING' | 'VENDA_DIRETA'
+
+type CrmLeadRecord = {
+  id: string
+  nome: string
+  telefone: string
+  email?: string
+  cidade: string
+  tipoImovel: string
+  consumoKwhMes: number
+  origemLead: string
+  interesse: CrmLeadInterest
+  tipoOperacao: CrmOperacao
+  valorEstimado: number
+  etapa: CrmStageId
+  ultimoContatoIso: string
+  criadoEmIso: string
+  notas?: string
+}
+
+type CrmTimelineEntry = {
+  id: string
+  leadId: string
+  mensagem: string
+  tipo: 'status' | 'anotacao' | 'financeiro'
+  criadoEmIso: string
+}
+
+type CrmDataset = {
+  leads: CrmLeadRecord[]
+  timeline: CrmTimelineEntry[]
+}
+
+type CrmLeadFormState = {
+  nome: string
+  telefone: string
+  email: string
+  cidade: string
+  tipoImovel: string
+  consumoKwhMes: string
+  origemLead: string
+  interesse: CrmLeadInterest
+  tipoOperacao: CrmOperacao
+  valorEstimado: string
+  notas: string
+}
+
+const CRM_STAGE_INDEX: Record<CrmStageId, number> = CRM_PIPELINE_STAGES.reduce(
+  (acc, stage, index) => {
+    acc[stage.id] = index
+    return acc
+  },
+  {} as Record<CrmStageId, number>,
+)
+
+const CRM_EMPTY_LEAD_FORM: CrmLeadFormState = {
+  nome: '',
+  telefone: '',
+  email: '',
+  cidade: '',
+  tipoImovel: '',
+  consumoKwhMes: '',
+  origemLead: '',
+  interesse: 'ON_GRID',
+  tipoOperacao: 'LEASING',
+  valorEstimado: '',
+  notas: '',
+}
+
+const gerarIdCrm = (prefixo: string) => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefixo}-${crypto.randomUUID()}`
+  }
+  const random = Math.floor(Math.random() * 1_000_000)
+  return `${prefixo}-${Date.now()}-${random.toString().padStart(6, '0')}`
+}
+
+const criarDatasetCrmPadrao = (): CrmDataset => {
+  const agoraIso = new Date().toISOString()
+  const leads: CrmLeadRecord[] = [
+    {
+      id: gerarIdCrm('lead'),
+      nome: 'Mariana Lopes',
+      telefone: '(62) 99888-1122',
+      email: 'mariana.lopes@email.com',
+      cidade: 'Anápolis',
+      tipoImovel: 'Residencial',
+      consumoKwhMes: 420,
+      origemLead: 'Site SolarInvest',
+      interesse: 'ON_GRID',
+      tipoOperacao: 'LEASING',
+      valorEstimado: 2650,
+      etapa: 'proposta-enviada',
+      ultimoContatoIso: agoraIso,
+      criadoEmIso: agoraIso,
+      notas: 'Lead respondeu formulário completo e aguarda simulação detalhada.',
+    },
+    {
+      id: gerarIdCrm('lead'),
+      nome: 'Condomínio Boa Vista',
+      telefone: '(62) 99345-7788',
+      cidade: 'Goiânia',
+      tipoImovel: 'Condomínio',
+      consumoKwhMes: 12800,
+      origemLead: 'Feira de energia 2024',
+      interesse: 'CONDIMINIO',
+      tipoOperacao: 'LEASING',
+      valorEstimado: 18800,
+      etapa: 'visita-tecnica',
+      ultimoContatoIso: agoraIso,
+      criadoEmIso: agoraIso,
+      notas: 'Necessário avaliar possibilidade de expansão para estacionamento solar.',
+    },
+    {
+      id: gerarIdCrm('lead'),
+      nome: 'Mercado Aurora',
+      telefone: '(62) 99777-5544',
+      cidade: 'Senador Canedo',
+      tipoImovel: 'Comercial',
+      consumoKwhMes: 3800,
+      origemLead: 'Instagram Ads',
+      interesse: 'COMERCIAL',
+      tipoOperacao: 'VENDA_DIRETA',
+      valorEstimado: 142000,
+      etapa: 'negociacao',
+      ultimoContatoIso: agoraIso,
+      criadoEmIso: agoraIso,
+      notas: 'Cliente pediu revisão de payback considerando financiamento misto.',
+    },
+    {
+      id: gerarIdCrm('lead'),
+      nome: 'Fazenda Mirante',
+      telefone: '(62) 99123-6677',
+      cidade: 'Rio Verde',
+      tipoImovel: 'Rural',
+      consumoKwhMes: 6800,
+      origemLead: 'Indicação',
+      interesse: 'OFF_GRID',
+      tipoOperacao: 'LEASING',
+      valorEstimado: 9800,
+      etapa: 'aguardando-contrato',
+      ultimoContatoIso: agoraIso,
+      criadoEmIso: agoraIso,
+      notas: 'Equipe técnica já aprovou projeto, aguardando assinatura.',
+    },
+  ]
+
+  const timeline: CrmTimelineEntry[] = leads.map((lead) => ({
+    id: gerarIdCrm('evento'),
+    leadId: lead.id,
+    mensagem: `Lead "${lead.nome}" criado automaticamente no funil em ${lead.etapa}.`,
+    tipo: 'status',
+    criadoEmIso: lead.criadoEmIso,
+  }))
+
+  return { leads, timeline }
+}
+
+const carregarDatasetCrmLocal = (): CrmDataset => {
+  if (typeof window === 'undefined') {
+    return criarDatasetCrmPadrao()
+  }
+
+  try {
+    const armazenado = window.localStorage.getItem(CRM_LOCAL_STORAGE_KEY)
+    if (!armazenado) {
+      const datasetInicial = criarDatasetCrmPadrao()
+      window.localStorage.setItem(CRM_LOCAL_STORAGE_KEY, JSON.stringify(datasetInicial))
+      return datasetInicial
+    }
+
+    const parsed = JSON.parse(armazenado) as Partial<CrmDataset>
+    if (!parsed || !Array.isArray(parsed.leads) || !Array.isArray(parsed.timeline)) {
+      throw new Error('Dataset do CRM inválido no storage local.')
+    }
+
+    return {
+      leads: parsed.leads as CrmLeadRecord[],
+      timeline: parsed.timeline as CrmTimelineEntry[],
+    }
+  } catch (error) {
+    console.warn('Falha ao carregar dataset local do CRM, regenerando padrão.', error)
+    const datasetFallback = criarDatasetCrmPadrao()
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(CRM_LOCAL_STORAGE_KEY, JSON.stringify(datasetFallback))
+      } catch (storageError) {
+        console.warn('Não foi possível persistir o dataset padrão do CRM.', storageError)
+      }
+    }
+    return datasetFallback
+  }
+}
+
+const normalizarCrmDatasetRemoto = (payload: unknown): CrmDataset | null => {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+
+  const possivelDataset = payload as Partial<{ dataset: Partial<CrmDataset>; leads: CrmLeadRecord[]; timeline: CrmTimelineEntry[] }>
+
+  if (possivelDataset.dataset && typeof possivelDataset.dataset === 'object') {
+    const { leads, timeline } = possivelDataset.dataset as Partial<CrmDataset>
+    if (Array.isArray(leads) && Array.isArray(timeline)) {
+      return { leads: leads as CrmLeadRecord[], timeline: timeline as CrmTimelineEntry[] }
+    }
+  }
+
+  if (Array.isArray(possivelDataset.leads) && Array.isArray(possivelDataset.timeline)) {
+    return { leads: possivelDataset.leads as CrmLeadRecord[], timeline: possivelDataset.timeline as CrmTimelineEntry[] }
+  }
+
+  return null
+}
+
+const diasDesdeDataIso = (iso: string) => {
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) {
+    return Infinity
+  }
+
+  const diffMs = Date.now() - parsed.getTime()
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+}
+
+const formatarDataCurta = (iso: string) => {
+  try {
+    const parsed = new Date(iso)
+    if (Number.isNaN(parsed.getTime())) {
+      return '—'
+    }
+    return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  } catch (error) {
+    console.warn('Não foi possível formatar data ISO do CRM.', error)
+    return '—'
+  }
+}
 
 type ClienteDados = {
   nome: string
@@ -888,6 +1420,157 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('leasing')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
+  /**
+   * Flag de navegação entre a proposta financeira tradicional e a nova visão de CRM.
+   * Mantemos tudo dentro da mesma SPA para evitar recarregar o app quando estivermos
+   * testando localmente ou demonstrando para clientes.
+   */
+  const [isCrmPage, setIsCrmPage] = useState(false)
+  /**
+   * Estados auxiliares para monitorar a integração com o backend do CRM assim que a
+   * aplicação estiver publicada em solarinvest.info. Enquanto isso, mantemos feedback
+   * visual claro e evitamos chamadas remotas desnecessárias.
+   */
+  const [crmBackendStatus, setCrmBackendStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [crmBackendError, setCrmBackendError] = useState<string | null>(null)
+  const [crmLastSync, setCrmLastSync] = useState<Date | null>(null)
+  /**
+   * Dataset completo do CRM disponível tanto offline (via localStorage) quanto online.
+   * O estado `crmIntegrationMode` sinaliza se estamos operando apenas localmente ou
+   * se a sincronização com o backend remoto está ativa.
+   */
+  const [crmDataset, setCrmDataset] = useState<CrmDataset>(() => carregarDatasetCrmLocal())
+  const [crmIntegrationMode, setCrmIntegrationMode] = useState<'local' | 'remote'>('local')
+  const crmIntegrationModeRef = useRef<'local' | 'remote'>('local')
+  const [crmIsSaving, setCrmIsSaving] = useState(false)
+  const [crmLeadForm, setCrmLeadForm] = useState<CrmLeadFormState>({ ...CRM_EMPTY_LEAD_FORM })
+  const [crmLeadSelecionadoId, setCrmLeadSelecionadoId] = useState<string | null>(null)
+  const [crmBusca, setCrmBusca] = useState('')
+  const [crmFiltroOperacao, setCrmFiltroOperacao] = useState<'all' | CrmOperacao>('all')
+  const [crmNotaTexto, setCrmNotaTexto] = useState('')
+  /**
+   * Descobrimos dinamicamente se estamos rodando no domínio oficial. Essa informação
+   * evita que tentemos conversar com uma API inexistente durante o desenvolvimento.
+   */
+  const isProductionDomain = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    return window.location.hostname === 'solarinvest.info'
+  }, [])
+
+  /**
+   * Texto amigável sobre a última sincronização realizada com o backend do CRM.
+   * Utilizamos useMemo para recalcular apenas quando o timestamp muda.
+   */
+  const crmLastSyncTexto = useMemo(() => {
+    if (!crmLastSync) {
+      return null
+    }
+    try {
+      return crmLastSync.toLocaleString('pt-BR')
+    } catch (error) {
+      console.warn('Falha ao formatar data de sincronização do CRM.', error)
+      return crmLastSync.toISOString()
+    }
+  }, [crmLastSync])
+
+  /**
+   * Navegações encapsuladas em callbacks memorizados para não recriar funções a cada
+   * renderização. Isso ajuda a manter o React Profiler limpo e evita renders extras.
+   */
+  const handleAbrirCrm = useCallback(() => {
+    setIsCrmPage(true)
+  }, [])
+
+  const handleVoltarParaProposta = useCallback(() => {
+    setIsCrmPage(false)
+  }, [])
+
+  useEffect(() => {
+    crmIntegrationModeRef.current = crmIntegrationMode
+  }, [crmIntegrationMode])
+
+  /**
+   * Assim que o usuário entrar na visão de CRM, ativamos a sincronização. Em ambiente
+   * local usamos imediatamente o dataset armazenado no navegador. Quando estivermos
+   * em produção tentamos buscar o bootstrap do backend real e, em caso de falha,
+   * mantemos a experiência totalmente funcional com o fallback local.
+   */
+  useEffect(() => {
+    if (!isCrmPage) {
+      return
+    }
+
+    let cancelado = false
+    const abortController = new AbortController()
+
+    const carregarDataset = async () => {
+      setCrmBackendStatus('loading')
+      setCrmBackendError(null)
+
+      if (!isProductionDomain) {
+        const datasetLocal = carregarDatasetCrmLocal()
+        if (cancelado) {
+          return
+        }
+
+        setCrmIntegrationMode('local')
+        setCrmDataset(datasetLocal)
+        setCrmBackendStatus('success')
+        setCrmLastSync(new Date())
+        return
+      }
+
+      try {
+        const response = await fetch(`${CRM_BACKEND_BASE_URL}/bootstrap`, {
+          signal: abortController.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error(`Falha ao carregar bootstrap do CRM (status ${response.status})`)
+        }
+
+        const payload = await response.json()
+        if (cancelado) {
+          return
+        }
+
+        const datasetNormalizado = normalizarCrmDatasetRemoto(payload) ?? criarDatasetCrmPadrao()
+        setCrmIntegrationMode('remote')
+        setCrmDataset(datasetNormalizado)
+        setCrmBackendStatus('success')
+        setCrmBackendError(null)
+        setCrmLastSync(new Date())
+
+        if (typeof window !== 'undefined') {
+          try {
+            window.localStorage.setItem(CRM_LOCAL_STORAGE_KEY, JSON.stringify(datasetNormalizado))
+          } catch (errorStorage) {
+            console.warn('Não foi possível atualizar o dataset local do CRM após bootstrap.', errorStorage)
+          }
+        }
+      } catch (error) {
+        if (abortController.signal.aborted || cancelado) {
+          return
+        }
+
+        console.warn('Falha ao sincronizar com o backend do CRM, utilizando fallback local.', error)
+        const fallback = carregarDatasetCrmLocal()
+        setCrmIntegrationMode('local')
+        setCrmDataset(fallback)
+        setCrmBackendStatus('error')
+        setCrmBackendError(error instanceof Error ? error.message : 'Erro inesperado ao sincronizar CRM')
+      }
+    }
+
+    void carregarDataset()
+
+    return () => {
+      cancelado = true
+      abortController.abort()
+    }
+  }, [isCrmPage, isProductionDomain])
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>('mercado')
@@ -1825,6 +2508,352 @@ export default function App() {
     [removerNotificacao],
   )
 
+  /**
+   * Centralizamos a persistência do dataset do CRM. Sempre que algo mudar salvamos
+   * uma cópia no navegador e, se estivermos conectados ao backend oficial, enviamos
+   * o snapshot atualizado.
+   */
+  const persistCrmDataset = useCallback(
+    async (dataset: CrmDataset, origem: 'auto' | 'manual' = 'auto') => {
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(CRM_LOCAL_STORAGE_KEY, JSON.stringify(dataset))
+        } catch (error) {
+          console.warn('Não foi possível persistir o dataset do CRM no localStorage.', error)
+        }
+      }
+
+      if (crmIntegrationModeRef.current !== 'remote') {
+        return
+      }
+
+      try {
+        setCrmIsSaving(true)
+        const response = await fetch(`${CRM_BACKEND_BASE_URL}/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ dataset, origem }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Falha ao sincronizar dataset do CRM (status ${response.status})`)
+        }
+
+        setCrmBackendStatus('success')
+        setCrmBackendError(null)
+        setCrmLastSync(new Date())
+      } catch (error) {
+        console.warn('Erro ao sincronizar CRM remoto, mantendo operação local.', error)
+        setCrmBackendStatus('error')
+        setCrmBackendError(error instanceof Error ? error.message : 'Erro inesperado ao sincronizar CRM')
+        setCrmIntegrationMode('local')
+        adicionarNotificacao('Backend do CRM indisponível, utilizando persistência local.', 'error')
+      } finally {
+        setCrmIsSaving(false)
+      }
+    },
+    [adicionarNotificacao],
+  )
+
+  useEffect(() => {
+    void persistCrmDataset(crmDataset)
+  }, [crmDataset, persistCrmDataset])
+
+  const crmLeadSelecionado = useMemo(
+    () => crmDataset.leads.find((lead) => lead.id === crmLeadSelecionadoId) ?? null,
+    [crmDataset.leads, crmLeadSelecionadoId],
+  )
+
+  const crmLeadsFiltrados = useMemo(() => {
+    const termoNormalizado = crmBusca ? normalizeText(crmBusca) : ''
+    const numerosBusca = crmBusca ? normalizeNumbers(crmBusca) : ''
+
+    return crmDataset.leads.filter((lead) => {
+      const correspondeOperacao = crmFiltroOperacao === 'all' || lead.tipoOperacao === crmFiltroOperacao
+
+      if (!correspondeOperacao) {
+        return false
+      }
+
+      if (!termoNormalizado && !numerosBusca) {
+        return true
+      }
+
+      const camposTexto = [lead.nome, lead.cidade, lead.tipoImovel, lead.origemLead]
+      const encontrouTexto = termoNormalizado
+        ? camposTexto.some((campo) => normalizeText(campo).includes(termoNormalizado))
+        : false
+
+      const encontrouTelefone = numerosBusca
+        ? normalizeNumbers(lead.telefone).includes(numerosBusca)
+        : false
+
+      return encontrouTexto || encontrouTelefone
+    })
+  }, [crmDataset.leads, crmBusca, crmFiltroOperacao])
+
+  const crmLeadsPorEtapa = useMemo(() => {
+    const agrupado: Record<CrmStageId, CrmLeadRecord[]> = CRM_PIPELINE_STAGES.reduce(
+      (acc, stage) => {
+        acc[stage.id] = []
+        return acc
+      },
+      {} as Record<CrmStageId, CrmLeadRecord[]>,
+    )
+
+    crmLeadsFiltrados.forEach((lead) => {
+      agrupado[lead.etapa]?.push(lead)
+    })
+
+    CRM_PIPELINE_STAGES.forEach((stage) => {
+      agrupado[stage.id].sort((a, b) => (a.ultimoContatoIso < b.ultimoContatoIso ? 1 : -1))
+    })
+
+    return agrupado
+  }, [crmLeadsFiltrados])
+
+  const crmKpis = useMemo(() => {
+    const totalLeads = crmDataset.leads.length
+    const leadsFechados = crmDataset.leads.filter((lead) => lead.etapa === 'fechado')
+    const stageAguardandoIndex = CRM_STAGE_INDEX['aguardando-contrato']
+    const leadsComContrato = crmDataset.leads.filter(
+      (lead) => CRM_STAGE_INDEX[lead.etapa] >= stageAguardandoIndex,
+    )
+
+    const receitaRecorrente = leadsComContrato
+      .filter((lead) => lead.tipoOperacao === 'LEASING')
+      .reduce((total, lead) => total + lead.valorEstimado, 0)
+
+    const receitaPontual = leadsFechados
+      .filter((lead) => lead.tipoOperacao === 'VENDA_DIRETA')
+      .reduce((total, lead) => total + lead.valorEstimado, 0)
+
+    const leadsEmRisco = crmDataset.leads.filter((lead) => {
+      const diasSemContato = diasDesdeDataIso(lead.ultimoContatoIso)
+      const indiceEtapa = CRM_STAGE_INDEX[lead.etapa]
+      return indiceEtapa >= CRM_STAGE_INDEX['proposta-enviada'] && indiceEtapa <= CRM_STAGE_INDEX['negociacao'] && diasSemContato >= 3
+    })
+
+    return {
+      totalLeads,
+      leadsFechados: leadsFechados.length,
+      receitaRecorrente,
+      receitaPontual,
+      leadsEmRisco: leadsEmRisco.length,
+    }
+  }, [crmDataset.leads])
+
+  const crmTimelineFiltrada = useMemo(() => {
+    const base = crmLeadSelecionadoId
+      ? crmDataset.timeline.filter((item) => item.leadId === crmLeadSelecionadoId)
+      : crmDataset.timeline
+
+    return base.slice(0, 40)
+  }, [crmDataset.timeline, crmLeadSelecionadoId])
+
+  const handleCrmLeadFormChange = useCallback(<K extends keyof CrmLeadFormState>(campo: K, valor: CrmLeadFormState[K]) => {
+    setCrmLeadForm((prev) => ({ ...prev, [campo]: valor }))
+  }, [])
+
+  const handleCrmLeadFormSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+
+      const consumoNumerico = Number(crmLeadForm.consumoKwhMes.replace(',', '.'))
+      const valorEstimadoNumerico = Number(crmLeadForm.valorEstimado.replace(',', '.'))
+
+      if (!crmLeadForm.nome.trim() || !crmLeadForm.telefone.trim() || !crmLeadForm.cidade.trim()) {
+        adicionarNotificacao('Informe nome, telefone e cidade para cadastrar o lead.', 'error')
+        return
+      }
+
+      if (!Number.isFinite(consumoNumerico) || consumoNumerico <= 0) {
+        adicionarNotificacao('Consumo mensal inválido. Utilize apenas números.', 'error')
+        return
+      }
+
+      if (!Number.isFinite(valorEstimadoNumerico) || valorEstimadoNumerico <= 0) {
+        adicionarNotificacao('Defina o valor estimado do projeto para projeções financeiras.', 'error')
+        return
+      }
+
+      const agoraIso = new Date().toISOString()
+      const novoLead: CrmLeadRecord = {
+        id: gerarIdCrm('lead'),
+        nome: crmLeadForm.nome.trim(),
+        telefone: crmLeadForm.telefone.trim(),
+        email: crmLeadForm.email.trim() || undefined,
+        cidade: crmLeadForm.cidade.trim(),
+        tipoImovel: crmLeadForm.tipoImovel.trim() || 'Não informado',
+        consumoKwhMes: Math.round(consumoNumerico),
+        origemLead: crmLeadForm.origemLead.trim() || 'Cadastro manual',
+        interesse: crmLeadForm.interesse,
+        tipoOperacao: crmLeadForm.tipoOperacao,
+        valorEstimado: Math.round(valorEstimadoNumerico),
+        etapa: 'novo-lead',
+        ultimoContatoIso: agoraIso,
+        criadoEmIso: agoraIso,
+        notas: crmLeadForm.notas.trim() || undefined,
+      }
+
+      const evento: CrmTimelineEntry = {
+        id: gerarIdCrm('evento'),
+        leadId: novoLead.id,
+        mensagem: `Lead "${novoLead.nome}" cadastrado manualmente e posicionado em Novo lead.`,
+        tipo: 'status',
+        criadoEmIso: agoraIso,
+      }
+
+      setCrmDataset((prev) => ({
+        leads: [novoLead, ...prev.leads],
+        timeline: [evento, ...prev.timeline].slice(0, 120),
+      }))
+
+      setCrmLeadForm((prev) => ({
+        ...CRM_EMPTY_LEAD_FORM,
+        interesse: prev.interesse,
+        tipoOperacao: prev.tipoOperacao,
+      }))
+      setCrmLeadSelecionadoId(novoLead.id)
+      setCrmNotaTexto('')
+      adicionarNotificacao('Lead adicionado ao funil do CRM.', 'success')
+    },
+    [adicionarNotificacao, crmLeadForm],
+  )
+
+  const handleMoverLead = useCallback(
+    (leadId: string, direcao: 1 | -1) => {
+      let mensagemSucesso: string | null = null
+
+      setCrmDataset((prev) => {
+        const leadAtual = prev.leads.find((lead) => lead.id === leadId)
+        if (!leadAtual) {
+          return prev
+        }
+
+        const indiceAtual = CRM_STAGE_INDEX[leadAtual.etapa]
+        const novoIndice = Math.min(
+          CRM_PIPELINE_STAGES.length - 1,
+          Math.max(0, indiceAtual + direcao),
+        )
+
+        if (novoIndice === indiceAtual) {
+          return prev
+        }
+
+        const novaEtapa = CRM_PIPELINE_STAGES[novoIndice].id
+        const agoraIso = new Date().toISOString()
+        mensagemSucesso = `Lead "${leadAtual.nome}" movido para ${CRM_PIPELINE_STAGES[novoIndice].label}.`
+
+        const leadsAtualizados = prev.leads.map((lead) =>
+          lead.id === leadId
+            ? { ...lead, etapa: novaEtapa, ultimoContatoIso: agoraIso }
+            : lead,
+        )
+
+        const evento: CrmTimelineEntry = {
+          id: gerarIdCrm('evento'),
+          leadId,
+          mensagem: `Etapa atualizada de ${CRM_PIPELINE_STAGES[indiceAtual].label} para ${CRM_PIPELINE_STAGES[novoIndice].label}.`,
+          tipo: 'status',
+          criadoEmIso: agoraIso,
+        }
+
+        return {
+          leads: leadsAtualizados,
+          timeline: [evento, ...prev.timeline].slice(0, 120),
+        }
+      })
+
+      if (mensagemSucesso) {
+        adicionarNotificacao(mensagemSucesso, 'success')
+      }
+    },
+    [adicionarNotificacao],
+  )
+
+  const handleSelecionarLead = useCallback((leadId: string) => {
+    setCrmLeadSelecionadoId((prev) => (prev === leadId ? null : leadId))
+  }, [])
+
+  const handleAdicionarNotaCrm = useCallback(() => {
+    if (!crmLeadSelecionadoId) {
+      adicionarNotificacao('Selecione um lead para registrar uma nota.', 'info')
+      return
+    }
+
+    const notaLimpa = crmNotaTexto.trim()
+    if (!notaLimpa) {
+      adicionarNotificacao('Escreva uma nota antes de salvar.', 'error')
+      return
+    }
+
+    const agoraIso = new Date().toISOString()
+    const evento: CrmTimelineEntry = {
+      id: gerarIdCrm('evento'),
+      leadId: crmLeadSelecionadoId,
+      mensagem: notaLimpa,
+      tipo: 'anotacao',
+      criadoEmIso: agoraIso,
+    }
+
+    setCrmDataset((prev) => ({
+      leads: prev.leads.map((lead) =>
+        lead.id === crmLeadSelecionadoId
+          ? {
+              ...lead,
+              notas: notaLimpa,
+              ultimoContatoIso: agoraIso,
+            }
+          : lead,
+      ),
+      timeline: [evento, ...prev.timeline].slice(0, 120),
+    }))
+
+    setCrmNotaTexto('')
+    adicionarNotificacao('Nota registrada no histórico do lead.', 'success')
+  }, [adicionarNotificacao, crmLeadSelecionadoId, crmNotaTexto])
+
+  const handleRemoverLead = useCallback(
+    (leadId: string) => {
+      let nomeLead: string | null = null
+
+      setCrmDataset((prev) => {
+        const leadAtual = prev.leads.find((lead) => lead.id === leadId)
+        if (!leadAtual) {
+          return prev
+        }
+        nomeLead = leadAtual.nome
+        const agoraIso = new Date().toISOString()
+
+        const leadsRestantes = prev.leads.filter((lead) => lead.id !== leadId)
+        const evento: CrmTimelineEntry = {
+          id: gerarIdCrm('evento'),
+          leadId,
+          mensagem: `Lead removido do funil pelo usuário em ${formatarDataCurta(agoraIso)}.`,
+          tipo: 'status',
+          criadoEmIso: agoraIso,
+        }
+
+        return {
+          leads: leadsRestantes,
+          timeline: [evento, ...prev.timeline].slice(0, 120),
+        }
+      })
+
+      if (nomeLead && crmLeadSelecionadoId === leadId) {
+        setCrmLeadSelecionadoId(null)
+      }
+
+      if (nomeLead) {
+        adicionarNotificacao(`Lead "${nomeLead}" removido do CRM.`, 'info')
+      }
+    },
+    [adicionarNotificacao, crmLeadSelecionadoId],
+  )
+
   const handleSalvarCliente = useCallback(() => {
     if (typeof window === 'undefined') {
       return
@@ -2532,6 +3561,439 @@ export default function App() {
     </section>
   )
 
+  /**
+   * Função utilitária para renderizar blocos do CRM com bastante comentários e clareza.
+   * Isso nos permite reutilizar a estrutura em diferentes seções (funcionalidades,
+   * blueprint e camadas financeiras) sem duplicar JSX complexo.
+   */
+  const renderCrmBlocks = useCallback(
+    (blocks: CrmContentBlock[]) =>
+      blocks.map((block) => (
+        <article key={block.id} className="card crm-card">
+          <h3>{block.title}</h3>
+          <p className="crm-description">{block.description}</p>
+          <ul className="crm-list">
+            {block.points.map((point, index) => (
+              <li key={`${block.id}-point-${index}`}>{point}</li>
+            ))}
+          </ul>
+          {block.automationHighlights ? (
+            <div className="crm-subsection">
+              <h4>Automações em destaque</h4>
+              <ul className="crm-sublist">
+                {block.automationHighlights.map((automation, index) => (
+                  <li key={`${block.id}-automation-${index}`}>{automation}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </article>
+      )),
+    [],
+  )
+
+  if (isCrmPage) {
+    return (
+      <div className="page">
+        <header className="topbar app-header">
+          <div className="brand">
+            <img src="/logo.svg" alt="SolarInvest" />
+            <div className="brand-text">
+              <h1>SolarInvest App</h1>
+              <p>CRM Gestão de Relacionamento e Operações</p>
+            </div>
+          </div>
+          <div className="top-actions">
+            <button className="ghost" onClick={handleVoltarParaProposta}>Voltar para proposta financeira</button>
+          </div>
+        </header>
+        <div className="crm-main">
+          <main className="crm-content">
+            {crmBackendStatus === 'loading' ? (
+              <div className="crm-status-banner loading">Sincronizando dados do CRM...</div>
+            ) : null}
+            {crmBackendStatus === 'success' && crmIntegrationMode === 'remote' ? (
+              <div className="crm-status-banner success">
+                Conectado ao backend oficial{crmLastSyncTexto ? ` — última sincronização em ${crmLastSyncTexto}` : ''}.
+              </div>
+            ) : null}
+            {crmBackendStatus === 'success' && crmIntegrationMode === 'local' ? (
+              <div className="crm-status-banner info">
+                Operando em modo local: dados salvos com segurança no navegador. Ao publicar em solarinvest.info, a
+                sincronização é automática.
+              </div>
+            ) : null}
+            {crmBackendStatus === 'error' ? (
+              <div className="crm-status-banner error">
+                Não foi possível sincronizar com o backend agora. {crmBackendError || 'Continuamos operando com os dados locais.'}
+              </div>
+            ) : null}
+            {crmIsSaving ? (
+              <div className="crm-status-banner saving">Enviando atualizações para o backend...</div>
+            ) : null}
+
+            <section className="card crm-section">
+              <h2>Visão geral do CRM SolarInvest</h2>
+              <p>
+                O módulo de CRM conecta marketing, vendas, operações técnicas e financeiro em uma jornada digital única. Toda a
+                operação funciona integralmente em ambiente local e, quando publicada, sincroniza automaticamente com o backend
+                oficial.
+              </p>
+            </section>
+
+            <section className="crm-section">
+              <h2>Painel operacional</h2>
+              <div className="crm-kpis">
+                <article className="crm-kpi card">
+                  <span className="crm-kpi-label">Leads ativos</span>
+                  <strong>{crmKpis.totalLeads}</strong>
+                  <small>Total de oportunidades monitoradas.</small>
+                </article>
+                <article className="crm-kpi card">
+                  <span className="crm-kpi-label">Projetos fechados</span>
+                  <strong>{crmKpis.leadsFechados}</strong>
+                  <small>Contratos assinados e prontos para implantação.</small>
+                </article>
+                <article className="crm-kpi card">
+                  <span className="crm-kpi-label">Receita recorrente</span>
+                  <strong>{currency(crmKpis.receitaRecorrente)}</strong>
+                  <small>Leasing em andamento ou aguardando ativação.</small>
+                </article>
+                <article className="crm-kpi card">
+                  <span className="crm-kpi-label">Receita pontual</span>
+                  <strong>{currency(crmKpis.receitaPontual)}</strong>
+                  <small>Vendas diretas concluídas e faturadas.</small>
+                </article>
+                <article className="crm-kpi card">
+                  <span className="crm-kpi-label">Leads em risco</span>
+                  <strong>{crmKpis.leadsEmRisco}</strong>
+                  <small>Sem contato há mais de 3 dias em negociação.</small>
+                </article>
+              </div>
+            </section>
+
+            <section className="crm-section">
+              <div className="card crm-filters">
+                <h2>Filtros rápidos</h2>
+                <div className="crm-filters-grid">
+                  <label className="crm-filter-item">
+                    <span>Buscar lead</span>
+                    <input
+                      type="search"
+                      value={crmBusca}
+                      placeholder="Nome, cidade, imóvel ou telefone"
+                      onChange={(event) => setCrmBusca(event.target.value)}
+                    />
+                  </label>
+                  <label className="crm-filter-item">
+                    <span>Tipo de operação</span>
+                    <select
+                      value={crmFiltroOperacao}
+                      onChange={(event) => setCrmFiltroOperacao(event.target.value as 'all' | CrmOperacao)}
+                    >
+                      <option value="all">Todos</option>
+                      <option value="LEASING">Leasing</option>
+                      <option value="VENDA_DIRETA">Venda direta</option>
+                    </select>
+                  </label>
+                  <div className="crm-filter-item resumo">
+                    <span>Leads filtrados</span>
+                    <strong>{crmLeadsFiltrados.length}</strong>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="crm-section">
+              <h2>Funil de vendas em tempo real</h2>
+              <p className="crm-description">
+                Atualize cada lead conforme avança no processo comercial. As mudanças ficam registradas na linha do tempo para
+                auditoria completa.
+              </p>
+              <div className="crm-board">
+                {CRM_PIPELINE_STAGES.map((stage, index) => {
+                  const leadsDaEtapa = crmLeadsPorEtapa[stage.id]
+                  return (
+                    <article key={stage.id} className="crm-column card">
+                      <header className="crm-column-header">
+                        <div>
+                          <h3>{stage.label}</h3>
+                          <p>{stage.description}</p>
+                        </div>
+                        <span className="pill">{leadsDaEtapa.length} leads</span>
+                      </header>
+                      <div className="crm-column-body">
+                        {leadsDaEtapa.length === 0 ? (
+                          <p className="crm-column-empty">Nenhum lead nesta etapa.</p>
+                        ) : (
+                          leadsDaEtapa.map((lead) => {
+                            const diasSemContato = diasDesdeDataIso(lead.ultimoContatoIso)
+                            const isPrimeiraEtapa = index === 0
+                            const isUltimaEtapa = index === CRM_PIPELINE_STAGES.length - 1
+                            const emRisco = diasSemContato >= 3 && index <= CRM_STAGE_INDEX['negociacao']
+
+                            return (
+                              <div
+                                key={lead.id}
+                                className={`crm-lead-card${crmLeadSelecionadoId === lead.id ? ' selected' : ''}${
+                                  emRisco ? ' risk' : ''
+                                }`}
+                              >
+                                <button className="crm-lead-select" type="button" onClick={() => handleSelecionarLead(lead.id)}>
+                                  <div>
+                                    <h4>{lead.nome}</h4>
+                                    <span className="crm-lead-location">
+                                      {lead.cidade} • {lead.tipoImovel}
+                                    </span>
+                                  </div>
+                                  <span className="crm-lead-value">{currency(lead.valorEstimado)}</span>
+                                </button>
+                                <p className="crm-lead-meta">Origem: {lead.origemLead}</p>
+                                <p className="crm-lead-meta">
+                                  Consumo estimado: <strong>{lead.consumoKwhMes} kWh/mês</strong>
+                                </p>
+                                <p className="crm-lead-meta">
+                                  Operação: {lead.tipoOperacao === 'LEASING' ? 'Leasing' : 'Venda direta'} • Interesse:{' '}
+                                  {lead.interesse}
+                                </p>
+                                <p className="crm-lead-meta">
+                                  Último contato: {formatarDataCurta(lead.ultimoContatoIso)}{' '}
+                                  {Number.isFinite(diasSemContato) ? `(${diasSemContato} dias)` : ''}
+                                </p>
+                                <div className="crm-lead-actions">
+                                  <button type="button" onClick={() => handleMoverLead(lead.id, -1)} disabled={isPrimeiraEtapa}>
+                                    ◀ Retornar
+                                  </button>
+                                  <button type="button" onClick={() => handleMoverLead(lead.id, 1)} disabled={isUltimaEtapa}>
+                                    Avançar ▶
+                                  </button>
+                                  <button type="button" onClick={() => handleRemoverLead(lead.id)} className="danger">
+                                    Remover
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            </section>
+
+            <section className="crm-section">
+              <div className="crm-detail-grid">
+                <article className="card crm-detail">
+                  <h2>Lead selecionado</h2>
+                  {crmLeadSelecionado ? (
+                    <>
+                      <p className="crm-description">
+                        Todas as interações ficam registradas abaixo. Você pode complementar com notas internas e manter o
+                        registro sempre atualizado para o time técnico e financeiro.
+                      </p>
+                      <ul className="crm-detail-list">
+                        <li>
+                          <strong>Contato:</strong> {crmLeadSelecionado.telefone}
+                          {crmLeadSelecionado.email ? ` • ${crmLeadSelecionado.email}` : ''}
+                        </li>
+                        <li>
+                          <strong>Origem:</strong> {crmLeadSelecionado.origemLead}
+                        </li>
+                        <li>
+                          <strong>Interesse:</strong> {crmLeadSelecionado.interesse}
+                        </li>
+                        <li>
+                          <strong>Valor estimado:</strong> {currency(crmLeadSelecionado.valorEstimado)}
+                        </li>
+                        <li>
+                          <strong>Última atualização:</strong> {formatarDataCurta(crmLeadSelecionado.ultimoContatoIso)}
+                        </li>
+                      </ul>
+                      <div className="crm-note-form">
+                        <label>
+                          <span>Registrar nota para este lead</span>
+                          <textarea
+                            value={crmNotaTexto}
+                            onChange={(event) => setCrmNotaTexto(event.target.value)}
+                            rows={4}
+                            placeholder="Resumo da ligação, próximos passos ou decisões de financiamento"
+                          />
+                        </label>
+                        <button type="button" className="primary" onClick={handleAdicionarNotaCrm}>
+                          Salvar nota
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="crm-description">Selecione um lead no funil para visualizar detalhes e adicionar notas.</p>
+                  )}
+                </article>
+                <article className="card crm-timeline">
+                  <h2>Linha do tempo de atividades</h2>
+                  <ul>
+                    {crmTimelineFiltrada.length === 0 ? (
+                      <li className="crm-timeline-empty">Sem registros ainda — mova um lead ou adicione uma nota.</li>
+                    ) : (
+                      crmTimelineFiltrada.map((evento) => (
+                        <li key={evento.id}>
+                          <div className="crm-timeline-meta">
+                            <span className={`crm-timeline-tag ${evento.tipo}`}>{evento.tipo === 'anotacao' ? 'Nota' : evento.tipo === 'financeiro' ? 'Financeiro' : 'Status'}</span>
+                            <span className="crm-timeline-date">{formatarDataCurta(evento.criadoEmIso)}</span>
+                          </div>
+                          <p>{evento.mensagem}</p>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </article>
+              </div>
+            </section>
+
+            <section className="crm-section">
+              <article className="card crm-form">
+                <h2>Adicionar novo lead</h2>
+                <p className="crm-description">
+                  Cadastre leads manualmente em ambiente local ou em produção. A integração identifica automaticamente o modo
+                  atual e garante que nada se perca.
+                </p>
+                <form onSubmit={handleCrmLeadFormSubmit} className="crm-form-grid">
+                  <label>
+                    <span>Nome completo *</span>
+                    <input
+                      type="text"
+                      value={crmLeadForm.nome}
+                      onChange={(event) => handleCrmLeadFormChange('nome', event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>Telefone *</span>
+                    <input
+                      type="tel"
+                      value={crmLeadForm.telefone}
+                      onChange={(event) => handleCrmLeadFormChange('telefone', event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>E-mail</span>
+                    <input
+                      type="email"
+                      value={crmLeadForm.email}
+                      onChange={(event) => handleCrmLeadFormChange('email', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Cidade *</span>
+                    <input
+                      type="text"
+                      value={crmLeadForm.cidade}
+                      onChange={(event) => handleCrmLeadFormChange('cidade', event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>Tipo de imóvel</span>
+                    <input
+                      type="text"
+                      value={crmLeadForm.tipoImovel}
+                      onChange={(event) => handleCrmLeadFormChange('tipoImovel', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Consumo mensal (kWh) *</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={crmLeadForm.consumoKwhMes}
+                      onChange={(event) => handleCrmLeadFormChange('consumoKwhMes', event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>Origem do lead</span>
+                    <input
+                      type="text"
+                      value={crmLeadForm.origemLead}
+                      onChange={(event) => handleCrmLeadFormChange('origemLead', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Interesse</span>
+                    <select
+                      value={crmLeadForm.interesse}
+                      onChange={(event) => handleCrmLeadFormChange('interesse', event.target.value as CrmLeadInterest)}
+                    >
+                      <option value="ON_GRID">On-grid</option>
+                      <option value="OFF_GRID">Off-grid</option>
+                      <option value="CONDIMINIO">Condomínio</option>
+                      <option value="COMERCIAL">Comercial / Industrial</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Tipo de operação</span>
+                    <select
+                      value={crmLeadForm.tipoOperacao}
+                      onChange={(event) => handleCrmLeadFormChange('tipoOperacao', event.target.value as CrmOperacao)}
+                    >
+                      <option value="LEASING">Leasing</option>
+                      <option value="VENDA_DIRETA">Venda direta</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Valor estimado (R$) *</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={crmLeadForm.valorEstimado}
+                      onChange={(event) => handleCrmLeadFormChange('valorEstimado', event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label className="full-width">
+                    <span>Observações iniciais</span>
+                    <textarea
+                      value={crmLeadForm.notas}
+                      onChange={(event) => handleCrmLeadFormChange('notas', event.target.value)}
+                      rows={3}
+                    />
+                  </label>
+                  <div className="crm-form-actions">
+                    <button type="submit" className="primary">
+                      Cadastrar lead
+                    </button>
+                  </div>
+                </form>
+              </article>
+            </section>
+
+            <section className="crm-section">
+              <h2>Funcionalidades principais</h2>
+              <div className="crm-grid">{renderCrmBlocks(CRM_FEATURE_SECTIONS)}</div>
+            </section>
+
+            <section className="crm-section">
+              <h2>Blueprint operacional detalhado</h2>
+              <p className="crm-description">
+                Cada etapa abaixo mapeia exatamente como o CRM deve funcionar, desde a captação até a inteligência analítica.
+              </p>
+              <div className="crm-grid">{renderCrmBlocks(CRM_BLUEPRINT_BLOCKS)}</div>
+            </section>
+
+            <section className="crm-section">
+              <h2>Camadas financeiras e previsões</h2>
+              <p className="crm-description">
+                O CRM incorpora fluxos financeiros robustos para lidar com leasing, vendas diretas e projeções de caixa em tempo real.
+              </p>
+              <div className="crm-grid">{renderCrmBlocks(CRM_FINANCIAL_LAYERS)}</div>
+            </section>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="page">
       <PrintableProposal ref={printableRef} {...printableData} />
@@ -2545,6 +4007,7 @@ export default function App() {
         </div>
         <div className="top-actions">
           <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar orçamentos</button>
+          <button className="ghost" onClick={handleAbrirCrm}>CRM</button>
           <button className="ghost" onClick={handlePrint}>Exportar Proposta (PDF)</button>
           <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
         </div>
