@@ -10,9 +10,10 @@ import {
   Legend,
   ReferenceLine,
   CartesianGrid,
-  ReferenceDot,
-  Area,
   Label,
+  BarChart,
+  Bar,
+  LabelList,
 } from 'recharts'
 
 import {
@@ -54,7 +55,7 @@ const formatAxis = (v: number) => {
   return currency(v)
 }
 
-const BENEFICIO_MARCO_ANOS = [5, 10, 15, 20, 30]
+const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
 
 const DISTRIBUIDORAS_FALLBACK = getDistribuidorasFallback()
 const UF_LABELS: Record<string, string> = {
@@ -1134,18 +1135,18 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const validadeTexto = formatDate(validadeData)
   const inicioOperacaoTexto = formatDate(inicioOperacaoData)
 
-  const chartDataPrintable = useMemo(
-    () =>
-      anos.map((ano) => ({
-        ano,
-        Leasing: leasingROI[ano - 1] ?? 0,
-        Financiamento: financiamentoROI[ano - 1] ?? 0,
-      })),
-    [anos, financiamentoROI, leasingROI],
-  )
+  const chartDataPrintable = useMemo(() => {
+    const anosDisponiveis = new Set(anos)
+
+    return BENEFICIO_CHART_ANOS.filter((ano) => anosDisponiveis.has(ano)).map((ano) => ({
+      ano,
+      Leasing: leasingROI[ano - 1] ?? 0,
+      Financiamento: financiamentoROI[ano - 1] ?? 0,
+    }))
+  }, [anos, financiamentoROI, leasingROI])
   const beneficioMarcos = useMemo(
     () =>
-      BENEFICIO_MARCO_ANOS.map((ano) => {
+      BENEFICIO_CHART_ANOS.map((ano) => {
         const dadosAno = chartDataPrintable.find((row) => row.ano === ano)
         if (!dadosAno) {
           return null
@@ -1197,16 +1198,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     }
   }, [chartDataPrintable, mostrarFinanciamento])
 
-  const chartPrintableXTicks = useMemo(() => {
-    if (!chartDataPrintable.length) {
-      return [] as number[]
-    }
-
-    const maiorAno = chartDataPrintable[chartDataPrintable.length - 1]?.ano ?? 0
-    const pontosBase = [1, 3, 5, 10, 15, 20, 25, 30]
-
-    return pontosBase.filter((tick) => tick <= maiorAno)
-  }, [chartDataPrintable])
   const parcelasLeasingAnuais = useMemo<MensalidadeAnualRow[]>(() => {
     if (!parcelasLeasing.length) {
       return []
@@ -1460,56 +1451,38 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <h2>Benefício acumulado projetado (30 anos)</h2>
         <div className="print-chart">
           <ResponsiveContainer width="100%" height={360}>
-            <LineChart
+            <BarChart
+              layout="vertical"
               data={chartDataPrintable}
-              margin={{ top: 40, right: 32, bottom: 64, left: 32 }}
+              margin={{ top: 40, right: 64, bottom: 48, left: 48 }}
             >
-              <defs>
-                <linearGradient id="printLeasingGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={chartColors.Leasing} stopOpacity={0.35} />
-                  <stop offset="95%" stopColor={chartColors.Leasing} stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="printFinancingGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={chartColors.Financiamento} stopOpacity={0.28} />
-                  <stop offset="95%" stopColor={chartColors.Financiamento} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
               <XAxis
-                dataKey="ano"
-                stroke="#0f172a"
-                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
-                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
-                tickLine={false}
-                ticks={chartPrintableXTicks}
-                tickMargin={12}
-                allowDecimals={false}
-                padding={{ left: 8, right: 16 }}
-              >
-                <Label
-                  value="Tempo de contrato (anos)"
-                  position="insideBottom"
-                  offset={-36}
-                  style={{ fill: '#0f172a', fontSize: 13, fontWeight: 700 }}
-                />
-              </XAxis>
-              <YAxis
+                type="number"
                 stroke="#0f172a"
                 tickFormatter={formatAxis}
                 tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
                 axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
                 tickLine={false}
-                width={150}
                 domain={[chartPrintableDomain.min, chartPrintableDomain.max]}
               >
                 <Label
                   value="Benefício acumulado (R$)"
-                  angle={-90}
-                  position="insideLeft"
-                  offset={-24}
+                  position="insideBottom"
+                  offset={-32}
                   style={{ fill: '#0f172a', fontSize: 13, fontWeight: 700 }}
                 />
-              </YAxis>
+              </XAxis>
+              <YAxis
+                type="category"
+                dataKey="ano"
+                stroke="#0f172a"
+                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
+                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                tickLine={false}
+                width={120}
+                tickFormatter={(valor) => `${valor}º ano`}
+              />
               <Tooltip
                 formatter={(value: number) => currency(Number(value))}
                 labelFormatter={(value) => `${value}º ano`}
@@ -1525,82 +1498,40 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                   value === 'Leasing' ? 'Leasing SolarInvest' : 'Financiamento SolarInvest'
                 }
               />
-              <ReferenceLine y={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
-              <Area
-                type="monotone"
+              <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
+              <Bar
                 dataKey="Leasing"
-                stroke="none"
-                fill="url(#printLeasingGradient)"
+                fill={chartColors.Leasing}
+                barSize={14}
+                radius={[0, 8, 8, 0]}
                 isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="Leasing"
-                stroke={chartColors.Leasing}
-                strokeWidth={3}
-                dot={{ r: 4, strokeWidth: 2, stroke: chartColors.Leasing, fill: '#ffffff' }}
-                activeDot={{ r: 5, strokeWidth: 0 }}
-                connectNulls
-                isAnimationActive={false}
-              />
+              >
+                <LabelList
+                  dataKey="Leasing"
+                  position="right"
+                  formatter={(value: number) => currency(Number(value))}
+                  fill={chartColors.Leasing}
+                  style={{ fontSize: 12, fontWeight: 600 }}
+                />
+              </Bar>
               {mostrarFinanciamento ? (
-                <>
-                  <Area
-                    type="monotone"
+                <Bar
+                  dataKey="Financiamento"
+                  fill={chartColors.Financiamento}
+                  barSize={14}
+                  radius={[0, 8, 8, 0]}
+                  isAnimationActive={false}
+                >
+                  <LabelList
                     dataKey="Financiamento"
-                    stroke="none"
-                    fill="url(#printFinancingGradient)"
-                    isAnimationActive={false}
+                    position="right"
+                    formatter={(value: number) => currency(Number(value))}
+                    fill={chartColors.Financiamento}
+                    style={{ fontSize: 12, fontWeight: 600 }}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="Financiamento"
-                    stroke={chartColors.Financiamento}
-                    strokeWidth={3}
-                    dot={{ r: 4, strokeWidth: 2, stroke: chartColors.Financiamento, fill: '#ffffff' }}
-                    activeDot={{ r: 5, strokeWidth: 0 }}
-                    connectNulls
-                    isAnimationActive={false}
-                  />
-                </>
+                </Bar>
               ) : null}
-              {beneficioMarcos.map((marco) => (
-                <React.Fragment key={`beneficio-marco-${marco.ano}`}>
-                  <ReferenceDot
-                    x={marco.ano}
-                    y={marco.Leasing}
-                    r={4}
-                    fill={chartColors.Leasing}
-                    stroke="#ffffff"
-                    strokeWidth={1.5}
-                  >
-                    <Label
-                      value={currency(marco.Leasing)}
-                      position="top"
-                      fill={chartColors.Leasing}
-                      style={{ fontSize: 12, fontWeight: 600 }}
-                    />
-                  </ReferenceDot>
-                  {mostrarFinanciamento ? (
-                    <ReferenceDot
-                      x={marco.ano}
-                      y={marco.Financiamento}
-                      r={4}
-                      fill={chartColors.Financiamento}
-                      stroke="#ffffff"
-                      strokeWidth={1.5}
-                    >
-                      <Label
-                        value={currency(marco.Financiamento)}
-                        position="right"
-                        fill={chartColors.Financiamento}
-                        style={{ fontSize: 12, fontWeight: 600 }}
-                      />
-                    </ReferenceDot>
-                  ) : null}
-                </React.Fragment>
-              ))}
-            </LineChart>
+            </BarChart>
           </ResponsiveContainer>
         </div>
         {beneficioMarcos.length ? (
