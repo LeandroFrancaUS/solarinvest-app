@@ -1454,7 +1454,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
             <BarChart
               layout="vertical"
               data={chartDataPrintable}
-              margin={{ top: 10, right: 22, bottom: 14, left: 12 }}
+              margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
             >
               <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
               <XAxis
