@@ -1450,11 +1450,11 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       <section className="print-section print-chart-section">
         <h2>Economia projetada (30 anos)</h2>
         <div className="print-chart">
-          <ResponsiveContainer width="100%" height={420}>
+          <ResponsiveContainer width="100%" height={480}>
             <BarChart
               layout="vertical"
               data={chartDataPrintable}
-              margin={{ top: 40, right: 64, bottom: 48, left: 48 }}
+              margin={{ top: 32, right: 56, bottom: 40, left: 32 }}
             >
               <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
               <XAxis
@@ -1489,15 +1489,22 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                 contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', padding: 12 }}
                 wrapperStyle={{ zIndex: 1000 }}
               />
-              <Legend
-                verticalAlign="top"
-                align="left"
-                iconType="circle"
-                wrapperStyle={{ paddingBottom: 16 }}
-                formatter={(value: string) =>
-                  value === 'Leasing' ? 'Economia' : 'Financiamento SolarInvest'
-                }
-              />
+              {mostrarFinanciamento ? (
+                <Legend
+                  verticalAlign="top"
+                  align="left"
+                  iconType="circle"
+                  wrapperStyle={{ paddingBottom: 16 }}
+                  payload={[
+                    {
+                      id: 'Financiamento',
+                      value: 'Financiamento SolarInvest',
+                      type: 'circle',
+                      color: chartColors.Financiamento,
+                    },
+                  ]}
+                />
+              ) : null}
               <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
               <Bar
                 dataKey="Leasing"
