@@ -6056,7 +6056,7 @@ export default function App() {
                     </div>
                   ) : null}
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 24, right: 32, bottom: 32, left: 16 }}>
+                    <LineChart data={chartData} margin={{ top: 16, right: 24, bottom: 20, left: 12 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                       <XAxis
                         dataKey="ano"
