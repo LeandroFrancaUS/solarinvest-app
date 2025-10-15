@@ -476,7 +476,7 @@ const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEdi
                                   aria-label="Carregar dados do cliente"
                                   title="Carregar dados do cliente"
                                 >
-                                  <span aria-hidden="true">✎</span>
+                                  <span aria-hidden="true">📁</span>
                                 </button>
                                 <button
                                   type="button"
@@ -2804,15 +2804,6 @@ export default function App() {
           <section className="card">
             <div className="card-header">
               <h2>Dados do cliente</h2>
-              <button
-                type="button"
-                className="icon"
-                onClick={abrirClientesModal}
-                title="Carregar cliente salvo"
-                aria-label="Carregar cliente salvo"
-              >
-                📁
-              </button>
             </div>
             <div className="grid g2">
               <Field label="Nome ou Razão social">
@@ -2871,9 +2862,8 @@ export default function App() {
               <button type="button" className="primary" onClick={handleSalvarCliente}>
                 {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
               </button>
-              <button type="button" className="ghost with-icon" onClick={abrirClientesModal}>
-                <span aria-hidden="true">📁</span>
-                <span>Ver clientes</span>
+              <button type="button" className="ghost" onClick={abrirClientesModal}>
+                Ver clientes
               </button>
             </div>
           </section>
