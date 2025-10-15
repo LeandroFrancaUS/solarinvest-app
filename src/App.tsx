@@ -239,11 +239,61 @@ type CrmLeadRecord = {
   ultimoContatoIso: string
   criadoEmIso: string
   notas?: string
+  instalacaoStatus: 'planejamento' | 'em-andamento' | 'concluida' | 'aguardando-homologacao'
+}
+
+type CrmFinanceiroStatus = 'em-aberto' | 'ativo' | 'inadimplente' | 'quitado'
+
+type CrmContratoFinanceiro = {
+  id: string
+  leadId: string
+  modelo: 'LEASING' | 'VENDA_DIRETA'
+  valorTotal: number
+  entrada: number
+  parcelas: number
+  valorParcela: number
+  reajusteAnualPct: number
+  vencimentoInicialIso: string
+  status: CrmFinanceiroStatus
+}
+
+type CrmLancamentoCaixa = {
+  id: string
+  leadId?: string
+  dataIso: string
+  categoria: 'Receita' | 'Custo Fixo' | 'Custo Variável' | 'Investimento'
+  origem: string
+  formaPagamento: 'Pix' | 'Boleto' | 'Cartão' | 'Transferência'
+  tipo: 'entrada' | 'saida'
+  valor: number
+  observacao?: string
+}
+
+type CrmCustoProjeto = {
+  id: string
+  leadId: string
+  equipamentos: number
+  maoDeObra: number
+  deslocamento: number
+  taxasSeguros: number
+}
+
+type CrmManutencaoRegistro = {
+  id: string
+  leadId: string
+  dataIso: string
+  tipo: string
+  status: 'pendente' | 'concluida'
+  observacao?: string
 }
 
 type CrmDataset = {
   leads: CrmLeadRecord[]
   timeline: CrmTimelineEntry[]
+  contratos: CrmContratoFinanceiro[]
+  lancamentos: CrmLancamentoCaixa[]
+  custos: CrmCustoProjeto[]
+  manutencoes: CrmManutencaoRegistro[]
 }
 
 type CrmLeadFormState = {
@@ -394,6 +444,27 @@ const CRM_PIPELINE_STAGES: CrmPipelineStage[] = [
   { id: 'fechado', label: 'Fechado' },
 ]
 
+const CRM_INSTALACAO_STATUS: { id: CrmLeadRecord['instalacaoStatus']; label: string }[] = [
+  { id: 'planejamento', label: 'Planejamento' },
+  { id: 'em-andamento', label: 'Em andamento' },
+  { id: 'aguardando-homologacao', label: 'Aguardando homologação' },
+  { id: 'concluida', label: 'Concluída' },
+]
+
+const CRM_FINANCEIRO_CATEGORIAS: CrmLancamentoCaixa['categoria'][] = [
+  'Receita',
+  'Custo Fixo',
+  'Custo Variável',
+  'Investimento',
+]
+
+const CRM_FORMAS_PAGAMENTO: CrmLancamentoCaixa['formaPagamento'][] = [
+  'Pix',
+  'Boleto',
+  'Cartão',
+  'Transferência',
+]
+
 const CRM_STAGE_INDEX: Record<CrmStageId, number> = CRM_PIPELINE_STAGES.reduce(
   (acc, stage, index) => {
     acc[stage.id] = index
@@ -419,9 +490,15 @@ const CRM_EMPTY_LEAD_FORM: CrmLeadFormState = {
 const CRM_DATASET_VAZIO: CrmDataset = {
   leads: [],
   timeline: [],
+  contratos: [],
+  lancamentos: [],
+  custos: [],
+  manutencoes: [],
 }
 
-const gerarIdCrm = (prefixo: 'lead' | 'evento') => {
+const gerarIdCrm = (
+  prefixo: 'lead' | 'evento' | 'contrato' | 'lancamento' | 'custo' | 'manutencao',
+) => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${prefixo}-${crypto.randomUUID()}`
   }
@@ -479,6 +556,129 @@ const sanitizarLeadCrm = (valor: Partial<CrmLeadRecord>): CrmLeadRecord => {
     criadoEmIso:
       typeof valor.criadoEmIso === 'string' && valor.criadoEmIso ? valor.criadoEmIso : agoraIso,
     notas: typeof valor.notas === 'string' && valor.notas ? valor.notas : undefined,
+    instalacaoStatus:
+      valor.instalacaoStatus && CRM_INSTALACAO_STATUS.some((item) => item.id === valor.instalacaoStatus)
+        ? valor.instalacaoStatus
+        : 'planejamento',
+  }
+}
+
+const sanitizarContratoCrm = (
+  valor: Partial<CrmContratoFinanceiro>,
+  leadIds: Set<string>,
+): CrmContratoFinanceiro | null => {
+  if (!valor.leadId || !leadIds.has(valor.leadId)) {
+    return null
+  }
+
+  const parcelas = Number.isFinite(valor.parcelas) ? Math.max(0, Math.round(valor.parcelas as number)) : 0
+  const valorParcela = Number.isFinite(valor.valorParcela)
+    ? Math.max(0, Number(valor.valorParcela))
+    : 0
+  const valorTotal = Number.isFinite(valor.valorTotal) ? Math.max(0, Number(valor.valorTotal)) : 0
+  const entrada = Number.isFinite(valor.entrada) ? Math.max(0, Number(valor.entrada)) : 0
+  const reajuste = Number.isFinite(valor.reajusteAnualPct)
+    ? Math.max(0, Number(valor.reajusteAnualPct))
+    : 0
+
+  const modelo = valor.modelo === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING'
+  const status: CrmFinanceiroStatus =
+    valor.status === 'ativo' || valor.status === 'inadimplente' || valor.status === 'quitado'
+      ? valor.status
+      : 'em-aberto'
+
+  const vencimentoIso =
+    typeof valor.vencimentoInicialIso === 'string' && valor.vencimentoInicialIso
+      ? valor.vencimentoInicialIso
+      : new Date().toISOString()
+
+  return {
+    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('contrato'),
+    leadId: valor.leadId,
+    modelo,
+    valorTotal,
+    entrada,
+    parcelas,
+    valorParcela,
+    reajusteAnualPct: reajuste,
+    vencimentoInicialIso: vencimentoIso,
+    status,
+  }
+}
+
+const sanitizarLancamentoCrm = (
+  valor: Partial<CrmLancamentoCaixa>,
+  leadIds: Set<string>,
+): CrmLancamentoCaixa | null => {
+  const dataIso = typeof valor.dataIso === 'string' && valor.dataIso ? valor.dataIso : new Date().toISOString()
+  const categoria = CRM_FINANCEIRO_CATEGORIAS.includes((valor.categoria as CrmLancamentoCaixa['categoria']) ?? 'Receita')
+    ? (valor.categoria as CrmLancamentoCaixa['categoria'])
+    : 'Receita'
+  const forma = CRM_FORMAS_PAGAMENTO.includes(
+    (valor.formaPagamento as CrmLancamentoCaixa['formaPagamento']) ?? 'Pix',
+  )
+    ? (valor.formaPagamento as CrmLancamentoCaixa['formaPagamento'])
+    : 'Pix'
+  const tipo = valor.tipo === 'saida' ? 'saida' : 'entrada'
+  const valorNumerico = Number.isFinite(valor.valor) ? Number(valor.valor) : 0
+
+  if (valor.leadId && !leadIds.has(valor.leadId)) {
+    return null
+  }
+
+  return {
+    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('lancamento'),
+    leadId: valor.leadId && leadIds.has(valor.leadId) ? valor.leadId : undefined,
+    dataIso,
+    categoria,
+    origem: typeof valor.origem === 'string' && valor.origem ? valor.origem : 'Operação',
+    formaPagamento: forma,
+    tipo,
+    valor: valorNumerico,
+    observacao:
+      typeof valor.observacao === 'string' && valor.observacao ? valor.observacao.slice(0, 280) : undefined,
+  }
+}
+
+const sanitizarCustoCrm = (
+  valor: Partial<CrmCustoProjeto>,
+  leadIds: Set<string>,
+): CrmCustoProjeto | null => {
+  if (!valor.leadId || !leadIds.has(valor.leadId)) {
+    return null
+  }
+
+  const normalizar = (numero?: number) => (Number.isFinite(numero) ? Math.max(0, Number(numero)) : 0)
+
+  return {
+    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('custo'),
+    leadId: valor.leadId,
+    equipamentos: normalizar(valor.equipamentos),
+    maoDeObra: normalizar(valor.maoDeObra),
+    deslocamento: normalizar(valor.deslocamento),
+    taxasSeguros: normalizar(valor.taxasSeguros),
+  }
+}
+
+const sanitizarManutencaoCrm = (
+  valor: Partial<CrmManutencaoRegistro>,
+  leadIds: Set<string>,
+): CrmManutencaoRegistro | null => {
+  if (!valor.leadId || !leadIds.has(valor.leadId)) {
+    return null
+  }
+
+  const status = valor.status === 'concluida' ? 'concluida' : 'pendente'
+  const dataIso = typeof valor.dataIso === 'string' && valor.dataIso ? valor.dataIso : new Date().toISOString()
+
+  return {
+    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('manutencao'),
+    leadId: valor.leadId,
+    dataIso,
+    tipo: typeof valor.tipo === 'string' && valor.tipo ? valor.tipo : 'Revisão preventiva',
+    status,
+    observacao:
+      typeof valor.observacao === 'string' && valor.observacao ? valor.observacao.slice(0, 280) : undefined,
   }
 }
 
@@ -506,7 +706,7 @@ const sanitizarEventoCrm = (
 
 const sanitizarDatasetCrm = (valor: unknown): CrmDataset => {
   if (!valor || typeof valor !== 'object') {
-    return { ...CRM_DATASET_VAZIO, leads: [], timeline: [] }
+    return { ...CRM_DATASET_VAZIO }
   }
 
   const bruto = valor as Partial<CrmDataset>
@@ -520,10 +720,38 @@ const sanitizarDatasetCrm = (valor: unknown): CrmDataset => {
         .filter((item): item is CrmTimelineEntry => Boolean(item))
     : []
 
+  const contratos = Array.isArray(bruto.contratos)
+    ? bruto.contratos
+        .map((item) => sanitizarContratoCrm(item as Partial<CrmContratoFinanceiro>, leadIds))
+        .filter((item): item is CrmContratoFinanceiro => Boolean(item))
+    : []
+
+  const lancamentos = Array.isArray(bruto.lancamentos)
+    ? bruto.lancamentos
+        .map((item) => sanitizarLancamentoCrm(item as Partial<CrmLancamentoCaixa>, leadIds))
+        .filter((item): item is CrmLancamentoCaixa => Boolean(item))
+    : []
+
+  const custos = Array.isArray(bruto.custos)
+    ? bruto.custos
+        .map((item) => sanitizarCustoCrm(item as Partial<CrmCustoProjeto>, leadIds))
+        .filter((item): item is CrmCustoProjeto => Boolean(item))
+    : []
+
+  const manutencoes = Array.isArray(bruto.manutencoes)
+    ? bruto.manutencoes
+        .map((item) => sanitizarManutencaoCrm(item as Partial<CrmManutencaoRegistro>, leadIds))
+        .filter((item): item is CrmManutencaoRegistro => Boolean(item))
+    : []
+
   leads.sort((a, b) => (a.ultimoContatoIso < b.ultimoContatoIso ? 1 : -1))
   timeline.sort((a, b) => (a.criadoEmIso < b.criadoEmIso ? 1 : -1))
 
-  return { leads, timeline }
+  contratos.sort((a, b) => (a.vencimentoInicialIso < b.vencimentoInicialIso ? -1 : 1))
+  lancamentos.sort((a, b) => (a.dataIso < b.dataIso ? 1 : -1))
+  manutencoes.sort((a, b) => (a.dataIso > b.dataIso ? 1 : -1))
+
+  return { leads, timeline, contratos, lancamentos, custos, manutencoes }
 }
 
 const carregarDatasetCrm = (): CrmDataset => {
@@ -1112,6 +1340,7 @@ const printStyles = `
 
 
 export default function App() {
+  const [activePage, setActivePage] = useState<'app' | 'crm'>('app')
   const [activeTab, setActiveTab] = useState<TabKey>('leasing')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
@@ -1160,6 +1389,39 @@ export default function App() {
   const [crmLeadForm, setCrmLeadForm] = useState<CrmLeadFormState>({ ...CRM_EMPTY_LEAD_FORM })
   const [crmNotaTexto, setCrmNotaTexto] = useState('')
   const [crmDataset, setCrmDataset] = useState<CrmDataset>(() => carregarDatasetCrm())
+  const [crmLancamentoForm, setCrmLancamentoForm] = useState({
+    dataIso: new Date().toISOString().slice(0, 10),
+    categoria: 'Receita' as CrmLancamentoCaixa['categoria'],
+    origem: 'Leasing',
+    formaPagamento: 'Pix' as CrmLancamentoCaixa['formaPagamento'],
+    tipo: 'entrada' as CrmLancamentoCaixa['tipo'],
+    valor: '',
+    leadId: '' as string,
+    observacao: '',
+  })
+  const [crmCustosForm, setCrmCustosForm] = useState({
+    equipamentos: '',
+    maoDeObra: '',
+    deslocamento: '',
+    taxasSeguros: '',
+  })
+  const [crmContratoForm, setCrmContratoForm] = useState({
+    leadId: '' as string,
+    modelo: 'LEASING' as 'LEASING' | 'VENDA_DIRETA',
+    valorTotal: '',
+    entrada: '',
+    parcelas: '36',
+    valorParcela: '',
+    reajusteAnualPct: '3',
+    vencimentoInicialIso: new Date().toISOString().slice(0, 10),
+    status: 'em-aberto' as CrmFinanceiroStatus,
+  })
+  const [crmManutencaoForm, setCrmManutencaoForm] = useState({
+    leadId: '' as string,
+    dataIso: new Date().toISOString().slice(0, 10),
+    tipo: 'Revisão preventiva',
+    observacao: '',
+  })
 
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
@@ -2127,6 +2389,59 @@ export default function App() {
     [crmDataset.leads, crmLeadSelecionadoId],
   )
 
+  useEffect(() => {
+    if (!crmLeadSelecionado) {
+      setCrmContratoForm((prev) => ({
+        ...prev,
+        leadId: '',
+        modelo: 'LEASING',
+        valorTotal: '',
+        entrada: '',
+        parcelas: '36',
+        valorParcela: '',
+        reajusteAnualPct: '3',
+      }))
+      setCrmCustosForm({ equipamentos: '', maoDeObra: '', deslocamento: '', taxasSeguros: '' })
+      setCrmManutencaoForm((prev) => ({ ...prev, leadId: '' }))
+      setCrmLancamentoForm((prev) => ({ ...prev, leadId: '' }))
+      return
+    }
+
+    const contrato = crmDataset.contratos.find((item) => item.leadId === crmLeadSelecionado.id)
+    setCrmContratoForm({
+      leadId: crmLeadSelecionado.id,
+      modelo: contrato?.modelo ?? crmLeadSelecionado.tipoOperacao,
+      valorTotal: contrato ? String(contrato.valorTotal) : crmLeadSelecionado.valorEstimado.toString(),
+      entrada: contrato ? String(contrato.entrada) : '0',
+      parcelas: contrato ? String(contrato.parcelas) : crmLeadSelecionado.tipoOperacao === 'LEASING' ? '60' : '1',
+      valorParcela: contrato ? String(contrato.valorParcela) : '0',
+      reajusteAnualPct: contrato ? String(contrato.reajusteAnualPct) : '3',
+      vencimentoInicialIso: contrato
+        ? contrato.vencimentoInicialIso.slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+      status: contrato?.status ?? 'em-aberto',
+    })
+
+    const custos = crmDataset.custos.find((item) => item.leadId === crmLeadSelecionado.id)
+    setCrmCustosForm({
+      equipamentos: custos ? String(custos.equipamentos) : '',
+      maoDeObra: custos ? String(custos.maoDeObra) : '',
+      deslocamento: custos ? String(custos.deslocamento) : '',
+      taxasSeguros: custos ? String(custos.taxasSeguros) : '',
+    })
+
+    setCrmManutencaoForm((prev) => ({
+      ...prev,
+      leadId: crmLeadSelecionado.id,
+      dataIso: prev.dataIso || new Date().toISOString().slice(0, 10),
+    }))
+
+    setCrmLancamentoForm((prev) => ({
+      ...prev,
+      leadId: crmLeadSelecionado.id,
+    }))
+  }, [crmDataset.contratos, crmDataset.custos, crmLeadSelecionado])
+
   const crmLeadsFiltrados = useMemo(() => {
     const termoNormalizado = crmBusca ? normalizeText(crmBusca) : ''
     const numerosBusca = crmBusca ? normalizeNumbers(crmBusca) : ''
@@ -2206,6 +2521,228 @@ export default function App() {
     }
   }, [crmDataset.leads])
 
+  const crmFinanceiroResumo = useMemo(() => {
+    const entradas = crmDataset.lancamentos
+      .filter((item) => item.tipo === 'entrada')
+      .reduce((total, item) => total + item.valor, 0)
+    const saidas = crmDataset.lancamentos
+      .filter((item) => item.tipo === 'saida')
+      .reduce((total, item) => total + item.valor, 0)
+    const saldo = entradas - saidas
+
+    const agrupadoPorDia = crmDataset.lancamentos.reduce(
+      (acc, item) => {
+        const dia = item.dataIso.slice(0, 10)
+        if (!acc[dia]) {
+          acc[dia] = { entradas: 0, saidas: 0 }
+        }
+        if (item.tipo === 'entrada') {
+          acc[dia].entradas += item.valor
+        } else {
+          acc[dia].saidas += item.valor
+        }
+        return acc
+      },
+      {} as Record<string, { entradas: number; saidas: number }>,
+    )
+
+    let saldoAcumulado = 0
+    const fluxoOrdenado = Object.entries(agrupadoPorDia)
+      .sort(([dataA], [dataB]) => (dataA < dataB ? -1 : 1))
+      .map(([data, valores]) => {
+        const saldoDia = valores.entradas - valores.saidas
+        saldoAcumulado += saldoDia
+        return {
+          data,
+          entradas: valores.entradas,
+          saidas: valores.saidas,
+          saldoAcumulado,
+        }
+      })
+
+    const contratosLeasing = crmDataset.contratos.filter((contrato) => contrato.modelo === 'LEASING')
+    const contratosVenda = crmDataset.contratos.filter((contrato) => contrato.modelo === 'VENDA_DIRETA')
+
+    const previsaoLeasing = contratosLeasing.reduce(
+      (total, contrato) => total + contrato.valorParcela * Math.max(0, contrato.parcelas),
+      0,
+    )
+    const previsaoVendas = contratosVenda.reduce((total, contrato) => total + contrato.valorTotal, 0)
+    const inadimplentes = crmDataset.contratos.filter((contrato) => contrato.status === 'inadimplente').length
+    const contratosAtivos = crmDataset.contratos.filter((contrato) => contrato.status === 'ativo').length
+
+    const margens = crmDataset.leads.map((lead) => {
+      const custos = crmDataset.custos.find((item) => item.leadId === lead.id)
+      const custoTotal = custos
+        ? custos.equipamentos + custos.maoDeObra + custos.deslocamento + custos.taxasSeguros
+        : 0
+      const margemBruta = lead.valorEstimado - custoTotal
+      const margemPct = custoTotal > 0 ? (margemBruta / custoTotal) * 100 : null
+      const roi = custoTotal > 0 ? (lead.valorEstimado - custoTotal) / custoTotal : null
+      return {
+        leadId: lead.id,
+        leadNome: lead.nome,
+        margemBruta,
+        margemPct,
+        custoTotal,
+        receitaProjetada: lead.valorEstimado,
+        roi,
+        modelo: lead.tipoOperacao,
+      }
+    })
+
+    margens.sort((a, b) => b.margemBruta - a.margemBruta)
+
+    return {
+      entradas,
+      saidas,
+      saldo,
+      fluxoOrdenado,
+      previsaoLeasing,
+      previsaoVendas,
+      inadimplentes,
+      contratosAtivos,
+      margens: margens.slice(0, 8),
+    }
+  }, [crmDataset.contratos, crmDataset.custos, crmDataset.lancamentos, crmDataset.leads])
+
+  const crmPosVendaResumo = useMemo(() => {
+    // Quantifica todas as manutenções cadastradas para criar os alertas de pós-venda.
+    const totalManutencoes = crmDataset.manutencoes.length
+    const pendentes = crmDataset.manutencoes.filter((item) => item.status === 'pendente')
+    const concluidas = crmDataset.manutencoes.filter((item) => item.status === 'concluida')
+
+    // Ordenamos as próximas visitas técnicas para que o gestor visualize rapidamente o que está por vir.
+    const proximas = [...pendentes]
+      .sort((a, b) => (a.dataIso < b.dataIso ? -1 : 1))
+      .slice(0, 6)
+
+    // Simulamos os dados de geração utilizando o consumo informado pelo lead.
+    const geracao = crmDataset.leads
+      .filter((lead) => lead.etapa === 'fechado')
+      .slice(0, 8)
+      .map((lead) => {
+        const geracaoPrevista = Math.max(0, lead.consumoKwhMes)
+        const fatorStatus =
+          lead.instalacaoStatus === 'concluida' ? 1.05 : lead.instalacaoStatus === 'em-andamento' ? 0.65 : 0.4
+        const geracaoAtual = Math.round(geracaoPrevista * fatorStatus)
+        const alertaBaixa = geracaoPrevista > 0 && geracaoAtual < geracaoPrevista * 0.8
+        return {
+          id: lead.id,
+          nome: lead.nome,
+          geracaoPrevista,
+          geracaoAtual,
+          alertaBaixa,
+          cidade: lead.cidade,
+        }
+      })
+
+    const alertasCriticos = proximas
+      .filter((item) => diasDesdeDataIso(item.dataIso) <= 2)
+      .map((item) =>
+        `Manutenção ${item.tipo} para ${formatarDataCurta(item.dataIso)} está há poucos dias do vencimento.`,
+      )
+
+    const chamadosRecentes = crmDataset.timeline
+      .filter((item) => item.tipo === 'anotacao')
+      .slice(0, 8)
+      .map((item) => ({
+        ...item,
+        dataFormatada: formatarDataCurta(item.criadoEmIso),
+      }))
+
+    return {
+      totalManutencoes,
+      pendentes: pendentes.length,
+      concluidas: concluidas.length,
+      proximas,
+      geracao,
+      alertasCriticos,
+      chamadosRecentes,
+    }
+  }, [crmDataset.manutencoes, crmDataset.leads, crmDataset.timeline])
+
+  const crmIndicadoresGerenciais = useMemo(() => {
+    // Calculamos a taxa de conversão geral a partir dos leads existentes.
+    const totalLeads = crmDataset.leads.length
+    const leadsFechados = crmDataset.leads.filter((lead) => lead.etapa === 'fechado')
+    const taxaConversao = totalLeads > 0 ? Math.round((leadsFechados.length / totalLeads) * 100) : 0
+
+    // O tempo médio de fechamento considera o intervalo entre criação e último contato dos projetos fechados.
+    const tempoMedioFechamento = leadsFechados.length
+      ? Math.round(
+          leadsFechados.reduce((total, lead) => {
+            const criado = new Date(lead.criadoEmIso).getTime()
+            const atualizado = new Date(lead.ultimoContatoIso).getTime()
+            const diffDias = Math.max(0, Math.round((atualizado - criado) / (1000 * 60 * 60 * 24)))
+            return total + diffDias
+          }, 0) / leadsFechados.length,
+        )
+      : 0
+
+    // Agrupamos os leads por origem para alimentar o dashboard de marketing.
+    const leadsPorOrigem = crmDataset.leads.reduce<Record<string, number>>((acc, lead) => {
+      const origem = lead.origemLead || 'Indefinido'
+      acc[origem] = (acc[origem] ?? 0) + 1
+      return acc
+    }, {})
+
+    // Identificamos gargalos quando há acúmulo acima de 5 leads em uma etapa intermediária.
+    const gargalos = CRM_PIPELINE_STAGES.filter((stage) => stage.id !== 'fechado' && stage.id !== 'novo-lead')
+      .map((stage) => {
+        const quantidade = crmDataset.leads.filter((lead) => lead.etapa === stage.id).length
+        return quantidade >= 5 ? `${stage.label} possui ${quantidade} leads aguardando ação.` : null
+      })
+      .filter((item): item is string => Boolean(item))
+
+    // ROI médio utilizando os dados de margem calculados na etapa financeira.
+    const roiMedio = crmFinanceiroResumo.margens.length
+      ? Math.round(
+          (crmFinanceiroResumo.margens.reduce((total, item) => total + (item.roi ?? 0), 0) /
+            crmFinanceiroResumo.margens.length) *
+            100,
+        ) / 100
+      : 0
+
+    const mapaGeracao = crmDataset.leads.reduce<Record<string, number>>((acc, lead) => {
+      if (!lead.cidade) {
+        return acc
+      }
+      acc[lead.cidade] = (acc[lead.cidade] ?? 0) + lead.consumoKwhMes
+      return acc
+    }, {})
+
+    return {
+      taxaConversao,
+      tempoMedioFechamento,
+      leadsPorOrigem,
+      gargalos,
+      roiMedio,
+      receitaRecorrenteProjetada: crmFinanceiroResumo.previsaoLeasing,
+      receitaPontualProjetada: crmFinanceiroResumo.previsaoVendas,
+      mapaGeracao,
+    }
+  }, [crmDataset.leads, crmFinanceiroResumo])
+
+  const crmManutencoesPendentes = useMemo(
+    () =>
+      crmDataset.manutencoes
+        .filter((item) => item.status === 'pendente')
+        .sort((a, b) => (a.dataIso < b.dataIso ? -1 : 1))
+        .slice(0, 12),
+    [crmDataset.manutencoes],
+  )
+
+  const crmContratosPorLead = useMemo(() => {
+    const mapa = new Map<string, CrmContratoFinanceiro>()
+    crmDataset.contratos.forEach((contrato) => {
+      if (!mapa.has(contrato.leadId)) {
+        mapa.set(contrato.leadId, contrato)
+      }
+    })
+    return mapa
+  }, [crmDataset.contratos])
+
   const crmTimelineFiltrada = useMemo(() => {
     const base = crmLeadSelecionadoId
       ? crmDataset.timeline.filter((item) => item.leadId === crmLeadSelecionadoId)
@@ -2267,10 +2804,60 @@ export default function App() {
         criadoEmIso: agoraIso,
       }
 
-      setCrmDataset((prev) => ({
-        leads: [novoLead, ...prev.leads],
-        timeline: [evento, ...prev.timeline].slice(0, 120),
-      }))
+      setCrmDataset((prev) => {
+        const jaPossuiContrato = prev.contratos.some((item) => item.leadId === novoLead.id)
+        const parcelasPadrao = novoLead.tipoOperacao === 'LEASING' ? 60 : 1
+        const entradaPadrao = novoLead.tipoOperacao === 'VENDA_DIRETA' ? Math.round(novoLead.valorEstimado * 0.2) : 0
+        const valorParcelaPadrao = parcelasPadrao
+          ? Math.max(0, Math.round(((novoLead.valorEstimado - entradaPadrao) / parcelasPadrao) * 100) / 100)
+          : 0
+
+        const contratoDefault: CrmContratoFinanceiro = {
+          id: gerarIdCrm('contrato'),
+          leadId: novoLead.id,
+          modelo: novoLead.tipoOperacao,
+          valorTotal: novoLead.valorEstimado,
+          entrada: entradaPadrao,
+          parcelas: parcelasPadrao,
+          valorParcela: valorParcelaPadrao,
+          reajusteAnualPct: 3,
+          vencimentoInicialIso: agoraIso,
+          status: 'em-aberto',
+        }
+
+        const custosDefault: CrmCustoProjeto = {
+          id: gerarIdCrm('custo'),
+          leadId: novoLead.id,
+          equipamentos: 0,
+          maoDeObra: 0,
+          deslocamento: 0,
+          taxasSeguros: 0,
+        }
+
+        const manutencaoFutura = new Date()
+        manutencaoFutura.setMonth(manutencaoFutura.getMonth() + 6)
+        const manutencaoDefault: CrmManutencaoRegistro = {
+          id: gerarIdCrm('manutencao'),
+          leadId: novoLead.id,
+          dataIso: manutencaoFutura.toISOString(),
+          tipo: 'Manutenção preventiva programada',
+          status: 'pendente',
+          observacao: 'Agendamento automático ao captar o lead.',
+        }
+
+        return {
+          ...prev,
+          leads: [novoLead, ...prev.leads],
+          timeline: [evento, ...prev.timeline].slice(0, 120),
+          contratos: jaPossuiContrato ? prev.contratos : [contratoDefault, ...prev.contratos],
+          custos: prev.custos.some((item) => item.leadId === novoLead.id)
+            ? prev.custos
+            : [custosDefault, ...prev.custos],
+          manutencoes: prev.manutencoes.some((item) => item.leadId === novoLead.id)
+            ? prev.manutencoes
+            : [manutencaoDefault, ...prev.manutencoes],
+        }
+      })
 
       setCrmLeadForm((prev) => ({
         ...CRM_EMPTY_LEAD_FORM,
@@ -2308,11 +2895,27 @@ export default function App() {
         const agoraIso = new Date().toISOString()
         mensagemSucesso = `Lead "${leadAtual.nome}" movido para ${CRM_PIPELINE_STAGES[novoIndice].label}.`
 
-        const leadsAtualizados = prev.leads.map((lead) =>
-          lead.id === leadId
-            ? { ...lead, etapa: novaEtapa, ultimoContatoIso: agoraIso }
-            : lead,
-        )
+        const leadsAtualizados = prev.leads.map((lead) => {
+          if (lead.id !== leadId) {
+            return lead
+          }
+
+          let novoStatusInstalacao = lead.instalacaoStatus
+          if (novaEtapa === 'aguardando-contrato' || novaEtapa === 'proposta-enviada') {
+            novoStatusInstalacao = 'planejamento'
+          } else if (novaEtapa === 'fechado') {
+            novoStatusInstalacao = lead.instalacaoStatus === 'concluida' ? 'concluida' : 'em-andamento'
+          } else if (novaEtapa === 'negociacao' && lead.instalacaoStatus === 'em-andamento') {
+            novoStatusInstalacao = 'aguardando-homologacao'
+          }
+
+          return {
+            ...lead,
+            etapa: novaEtapa,
+            ultimoContatoIso: agoraIso,
+            instalacaoStatus: novoStatusInstalacao,
+          }
+        })
 
         const evento: CrmTimelineEntry = {
           id: gerarIdCrm('evento'),
@@ -2323,6 +2926,7 @@ export default function App() {
         }
 
         return {
+          ...prev,
           leads: leadsAtualizados,
           timeline: [evento, ...prev.timeline].slice(0, 120),
         }
@@ -2361,6 +2965,7 @@ export default function App() {
     }
 
     setCrmDataset((prev) => ({
+      ...prev,
       leads: prev.leads.map((lead) =>
         lead.id === crmLeadSelecionadoId
           ? {
@@ -2376,6 +2981,25 @@ export default function App() {
     setCrmNotaTexto('')
     adicionarNotificacao('Nota registrada no histórico do lead.', 'success')
   }, [adicionarNotificacao, crmLeadSelecionadoId, crmNotaTexto])
+
+  const handleAtualizarStatusInstalacao = useCallback(
+    (leadId: string, status: CrmLeadRecord['instalacaoStatus']) => {
+      setCrmDataset((prev) => ({
+        ...prev,
+        leads: prev.leads.map((lead) =>
+          lead.id === leadId
+            ? {
+                ...lead,
+                instalacaoStatus: status,
+                ultimoContatoIso: new Date().toISOString(),
+              }
+            : lead,
+        ),
+      }))
+      adicionarNotificacao('Status da instalação atualizado.', 'success')
+    },
+    [adicionarNotificacao],
+  )
 
   const handleRemoverLead = useCallback(
     (leadId: string) => {
@@ -2399,8 +3023,13 @@ export default function App() {
         }
 
         return {
+          ...prev,
           leads: leadsRestantes,
           timeline: [evento, ...prev.timeline].slice(0, 120),
+          contratos: prev.contratos.filter((contrato) => contrato.leadId !== leadId),
+          custos: prev.custos.filter((custo) => custo.leadId !== leadId),
+          manutencoes: prev.manutencoes.filter((manutencao) => manutencao.leadId !== leadId),
+          lancamentos: prev.lancamentos.filter((lancamento) => lancamento.leadId !== leadId),
         }
       })
 
@@ -2413,6 +3042,1340 @@ export default function App() {
       }
     },
     [adicionarNotificacao, crmLeadSelecionadoId],
+  )
+
+  const handleRegistrarLancamentoCrm = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+
+      const valorNumerico = Number(String(crmLancamentoForm.valor).replace(',', '.'))
+      if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
+        adicionarNotificacao('Informe um valor numérico positivo para o lançamento financeiro.', 'error')
+        return
+      }
+
+      const dataIso = crmLancamentoForm.dataIso
+        ? new Date(`${crmLancamentoForm.dataIso}T00:00:00`).toISOString()
+        : new Date().toISOString()
+
+      const leadIdReferencia = crmLancamentoForm.leadId || crmLeadSelecionado?.id
+      const leadValido = leadIdReferencia
+        ? crmDataset.leads.some((lead) => lead.id === leadIdReferencia)
+        : false
+
+      const novoLancamento: CrmLancamentoCaixa = {
+        id: gerarIdCrm('lancamento'),
+        leadId: leadValido ? leadIdReferencia : undefined,
+        dataIso,
+        categoria: crmLancamentoForm.categoria,
+        origem: crmLancamentoForm.origem.trim() || 'Operação',
+        formaPagamento: crmLancamentoForm.formaPagamento,
+        tipo: crmLancamentoForm.tipo,
+        valor: Math.round(valorNumerico * 100) / 100,
+        observacao: crmLancamentoForm.observacao.trim() || undefined,
+      }
+
+      const evento: CrmTimelineEntry | null = novoLancamento.leadId
+        ? {
+            id: gerarIdCrm('evento'),
+            leadId: novoLancamento.leadId,
+            mensagem: `Lançamento financeiro (${novoLancamento.tipo === 'entrada' ? 'entrada' : 'saída'}) de ${currency(
+              novoLancamento.valor,
+            )} registrado em ${formatarDataCurta(dataIso)}.`,
+            tipo: 'status',
+            criadoEmIso: new Date().toISOString(),
+          }
+        : null
+
+      setCrmDataset((prev) => ({
+        ...prev,
+        lancamentos: [novoLancamento, ...prev.lancamentos].slice(0, 200),
+        timeline: evento ? [evento, ...prev.timeline].slice(0, 120) : prev.timeline,
+      }))
+
+      setCrmLancamentoForm((prev) => ({
+        ...prev,
+        valor: '',
+        observacao: '',
+      }))
+
+      adicionarNotificacao('Lançamento financeiro salvo com sucesso.', 'success')
+    },
+    [adicionarNotificacao, crmDataset.leads, crmLancamentoForm, crmLeadSelecionado],
+  )
+
+  const handleSalvarCustosCrm = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+
+      if (!crmLeadSelecionado) {
+        adicionarNotificacao('Selecione um lead para detalhar os custos do projeto.', 'error')
+        return
+      }
+
+      const parse = (valor: string) => {
+        const numero = Number(valor.replace(',', '.'))
+        return Number.isFinite(numero) && numero >= 0 ? Math.round(numero * 100) / 100 : 0
+      }
+
+      const custosAtualizados: CrmCustoProjeto = {
+        id: gerarIdCrm('custo'),
+        leadId: crmLeadSelecionado.id,
+        equipamentos: parse(crmCustosForm.equipamentos),
+        maoDeObra: parse(crmCustosForm.maoDeObra),
+        deslocamento: parse(crmCustosForm.deslocamento),
+        taxasSeguros: parse(crmCustosForm.taxasSeguros),
+      }
+
+      setCrmDataset((prev) => {
+        const jaExistente = prev.custos.some((item) => item.leadId === crmLeadSelecionado.id)
+        const listaAtualizada = jaExistente
+          ? prev.custos.map((item) => (item.leadId === crmLeadSelecionado.id ? { ...custosAtualizados, id: item.id } : item))
+          : [custosAtualizados, ...prev.custos]
+
+        const evento: CrmTimelineEntry = {
+          id: gerarIdCrm('evento'),
+          leadId: crmLeadSelecionado.id,
+          mensagem: 'Custos do projeto atualizados para cálculo de margem e ROI.',
+          tipo: 'status',
+          criadoEmIso: new Date().toISOString(),
+        }
+
+        return {
+          ...prev,
+          custos: listaAtualizada,
+          timeline: [evento, ...prev.timeline].slice(0, 120),
+        }
+      })
+
+      adicionarNotificacao('Custos do projeto registrados.', 'success')
+    },
+    [adicionarNotificacao, crmCustosForm, crmLeadSelecionado],
+  )
+
+  const handleSalvarContratoCrm = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+
+      const leadAlvoId = crmContratoForm.leadId || crmLeadSelecionado?.id
+      if (!leadAlvoId) {
+        adicionarNotificacao('Associe o contrato a um lead para controle financeiro.', 'error')
+        return
+      }
+
+      const leadExiste = crmDataset.leads.some((lead) => lead.id === leadAlvoId)
+      if (!leadExiste) {
+        adicionarNotificacao('Lead selecionado não encontrado. Recarregue a página ou selecione outro registro.', 'error')
+        return
+      }
+
+      const parse = (valor: string, fallback = 0) => {
+        const numero = Number(valor.replace(',', '.'))
+        if (!Number.isFinite(numero) || numero < 0) {
+          return fallback
+        }
+        return Math.round(numero * 100) / 100
+      }
+
+      const contratoNormalizado: CrmContratoFinanceiro = {
+        id: gerarIdCrm('contrato'),
+        leadId: leadAlvoId,
+        modelo: crmContratoForm.modelo,
+        valorTotal: parse(crmContratoForm.valorTotal, 0),
+        entrada: parse(crmContratoForm.entrada, 0),
+        parcelas: Math.max(0, Math.round(parse(crmContratoForm.parcelas, 0))),
+        valorParcela: parse(crmContratoForm.valorParcela, 0),
+        reajusteAnualPct: parse(crmContratoForm.reajusteAnualPct, 0),
+        vencimentoInicialIso: crmContratoForm.vencimentoInicialIso
+          ? new Date(`${crmContratoForm.vencimentoInicialIso}T00:00:00`).toISOString()
+          : new Date().toISOString(),
+        status: crmContratoForm.status,
+      }
+
+      setCrmDataset((prev) => {
+        const contratosAtualizados = prev.contratos.some((item) => item.leadId === leadAlvoId)
+          ? prev.contratos.map((item) => (item.leadId === leadAlvoId ? { ...contratoNormalizado, id: item.id } : item))
+          : [contratoNormalizado, ...prev.contratos]
+
+        const evento: CrmTimelineEntry = {
+          id: gerarIdCrm('evento'),
+          leadId: leadAlvoId,
+          mensagem: `Contrato ${
+            contratoNormalizado.modelo === 'LEASING' ? 'de leasing' : 'de venda direta'
+          } atualizado (${contratoNormalizado.parcelas} parcelas).`,
+          tipo: 'status',
+          criadoEmIso: new Date().toISOString(),
+        }
+
+        return {
+          ...prev,
+          contratos: contratosAtualizados,
+          timeline: [evento, ...prev.timeline].slice(0, 120),
+        }
+      })
+
+      adicionarNotificacao('Contrato financeiro sincronizado com o CRM.', 'success')
+    },
+    [adicionarNotificacao, crmContratoForm, crmDataset.leads, crmLeadSelecionado],
+  )
+
+  const handleAdicionarManutencaoCrm = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+
+      const leadAlvoId = crmManutencaoForm.leadId || crmLeadSelecionado?.id
+      if (!leadAlvoId) {
+        adicionarNotificacao('Selecione um lead para agendar a manutenção.', 'error')
+        return
+      }
+
+      const leadExiste = crmDataset.leads.some((lead) => lead.id === leadAlvoId)
+      if (!leadExiste) {
+        adicionarNotificacao('Não foi possível localizar o lead selecionado.', 'error')
+        return
+      }
+
+      const dataIso = crmManutencaoForm.dataIso
+        ? new Date(`${crmManutencaoForm.dataIso}T00:00:00`).toISOString()
+        : new Date().toISOString()
+
+      const manutencao: CrmManutencaoRegistro = {
+        id: gerarIdCrm('manutencao'),
+        leadId: leadAlvoId,
+        dataIso,
+        tipo: crmManutencaoForm.tipo.trim() || 'Revisão preventiva',
+        status: 'pendente',
+        observacao: crmManutencaoForm.observacao.trim() || undefined,
+      }
+
+      setCrmDataset((prev) => ({
+        ...prev,
+        manutencoes: [manutencao, ...prev.manutencoes].slice(0, 200),
+        timeline: [
+          {
+            id: gerarIdCrm('evento'),
+            leadId: leadAlvoId,
+            mensagem: `Manutenção agendada para ${formatarDataCurta(dataIso)} (${manutencao.tipo}).`,
+            tipo: 'status',
+            criadoEmIso: new Date().toISOString(),
+          },
+          ...prev.timeline,
+        ].slice(0, 120),
+      }))
+
+      setCrmManutencaoForm((prev) => ({
+        ...prev,
+        observacao: '',
+      }))
+
+      adicionarNotificacao('Manutenção registrada e vinculada ao cliente.', 'success')
+    },
+    [adicionarNotificacao, crmDataset.leads, crmLeadSelecionado, crmManutencaoForm],
+  )
+
+  const handleConcluirManutencaoCrm = useCallback(
+    (manutencaoId: string) => {
+      setCrmDataset((prev) => ({
+        ...prev,
+        manutencoes: prev.manutencoes.map((item) =>
+          item.id === manutencaoId
+            ? {
+                ...item,
+                status: 'concluida',
+              }
+            : item,
+        ),
+      }))
+      adicionarNotificacao('Manutenção marcada como concluída.', 'success')
+    },
+    [adicionarNotificacao],
+  )
+
+  const handleSyncCrmManualmente = useCallback(() => {
+    void persistCrmDataset(crmDataset, 'manual')
+    adicionarNotificacao('Sincronização manual solicitada.', 'info')
+  }, [adicionarNotificacao, crmDataset, persistCrmDataset])
+
+  const renderCrmPage = () => (
+    <div className="page crm-page">
+      <header className="topbar crm-header">
+        <div className="brand">
+          <img src="/logo.svg" alt="SolarInvest" />
+          <div className="brand-text">
+            <h1>SolarInvest App</h1>
+            <p>CRM Gestão de Relacionamento e Operações</p>
+          </div>
+        </div>
+        <div className="crm-header-actions">
+          <div className="crm-sync-controls">
+            <label htmlFor="crm-sync-mode">Modo de sincronização</label>
+            <select
+              id="crm-sync-mode"
+              value={crmIntegrationMode}
+              onChange={(event) => setCrmIntegrationMode(event.target.value as CrmIntegrationMode)}
+            >
+              <option value="local">Somente local</option>
+              <option value="remote">Sincronizar com backend</option>
+            </select>
+            <button type="button" className="ghost" onClick={handleSyncCrmManualmente}>
+              Sincronizar agora
+            </button>
+            <small className={`crm-sync-status ${crmBackendStatus}`}>
+              {crmIntegrationMode === 'remote'
+                ? crmBackendStatus === 'success'
+                  ? `Sincronizado${crmLastSync ? ` em ${crmLastSync.toLocaleString('pt-BR')}` : ''}`
+                  : crmBackendStatus === 'error'
+                    ? crmBackendError ?? 'Erro de sincronização'
+                    : crmIsSaving
+                      ? 'Enviando dados para o backend...'
+                      : 'Aguardando alterações para sincronizar'
+                : 'Operando somente com dados locais'}
+            </small>
+          </div>
+          <button className="ghost" onClick={() => setActivePage('app')}>
+            Voltar para proposta financeira
+          </button>
+        </div>
+      </header>
+      <main className="crm-main">
+        {/* Seção 1 - Captação e qualificação */}
+        <section className="crm-card">
+          <div className="crm-card-header">
+            <div>
+              <h2>1. Captação e qualificação</h2>
+              <p>
+                Cadastre leads vindos do site, redes sociais e indicações. Os dados coletados alimentam automaticamente
+                os cálculos financeiros da proposta.
+              </p>
+            </div>
+            <div className="crm-metrics">
+              <div>
+                <span>Total de leads</span>
+                <strong>{crmKpis.totalLeads}</strong>
+              </div>
+              <div>
+                <span>Fechados</span>
+                <strong>{crmKpis.leadsFechados}</strong>
+              </div>
+              <div>
+                <span>Receita recorrente</span>
+                <strong>{currency(crmKpis.receitaRecorrente)}</strong>
+              </div>
+              <div>
+                <span>Receita pontual</span>
+                <strong>{currency(crmKpis.receitaPontual)}</strong>
+              </div>
+              <div className="warning">
+                <span>Leads em risco</span>
+                <strong>{crmKpis.leadsEmRisco}</strong>
+              </div>
+            </div>
+          </div>
+          <div className="crm-capture-grid">
+            <div className="crm-capture-filters">
+              <label htmlFor="crm-busca">Buscar lead</label>
+              <input
+                id="crm-busca"
+                type="search"
+                value={crmBusca}
+                onChange={(event) => setCrmBusca(event.target.value)}
+                placeholder="Pesquisar por nome, telefone, origem ou cidade"
+              />
+              <label htmlFor="crm-operacao-filter">Tipo de operação</label>
+              <select
+                id="crm-operacao-filter"
+                value={crmFiltroOperacao}
+                onChange={(event) => setCrmFiltroOperacao(event.target.value as CrmFiltroOperacao)}
+              >
+                <option value="all">Todos</option>
+                <option value="LEASING">Leasing</option>
+                <option value="VENDA_DIRETA">Venda direta</option>
+              </select>
+              <p className="crm-hint">
+                Leads que abrem uma proposta ou respondem mensagem mudam automaticamente de status. O filtro acima ajuda
+                a focar nos modelos de operação desejados.
+              </p>
+            </div>
+            <form className="crm-capture-form" onSubmit={handleCrmLeadFormSubmit}>
+              <fieldset>
+                <legend>Novo lead</legend>
+                <div className="crm-form-row">
+                  <label>
+                    Nome
+                    <input
+                      value={crmLeadForm.nome}
+                      onChange={(event) => handleCrmLeadFormChange('nome', event.target.value)}
+                      placeholder="Nome do contato"
+                      required
+                    />
+                  </label>
+                  <label>
+                    Telefone / WhatsApp
+                    <input
+                      value={crmLeadForm.telefone}
+                      onChange={(event) => handleCrmLeadFormChange('telefone', event.target.value)}
+                      placeholder="(62) 99999-0000"
+                      required
+                    />
+                  </label>
+                </div>
+                <div className="crm-form-row">
+                  <label>
+                    Cidade
+                    <input
+                      value={crmLeadForm.cidade}
+                      onChange={(event) => handleCrmLeadFormChange('cidade', event.target.value)}
+                      placeholder="Cidade do projeto"
+                      required
+                    />
+                  </label>
+                  <label>
+                    Origem do lead
+                    <input
+                      value={crmLeadForm.origemLead}
+                      onChange={(event) => handleCrmLeadFormChange('origemLead', event.target.value)}
+                      placeholder="Instagram, WhatsApp, Feira..."
+                    />
+                  </label>
+                </div>
+                <div className="crm-form-row">
+                  <label>
+                    Consumo mensal (kWh)
+                    <input
+                      value={crmLeadForm.consumoKwhMes}
+                      onChange={(event) => handleCrmLeadFormChange('consumoKwhMes', event.target.value)}
+                      placeholder="Ex: 1200"
+                      required
+                    />
+                  </label>
+                  <label>
+                    Valor estimado (R$)
+                    <input
+                      value={crmLeadForm.valorEstimado}
+                      onChange={(event) => handleCrmLeadFormChange('valorEstimado', event.target.value)}
+                      placeholder="Ex: 250000"
+                      required
+                    />
+                  </label>
+                </div>
+                <div className="crm-form-row">
+                  <label>
+                    Tipo de imóvel
+                    <input
+                      value={crmLeadForm.tipoImovel}
+                      onChange={(event) => handleCrmLeadFormChange('tipoImovel', event.target.value)}
+                      placeholder="Residencial, Comercial, Condomínio..."
+                    />
+                  </label>
+                  <label>
+                    Modelo de operação
+                    <select
+                      value={crmLeadForm.tipoOperacao}
+                      onChange={(event) =>
+                        handleCrmLeadFormChange('tipoOperacao', event.target.value as CrmLeadFormState['tipoOperacao'])
+                      }
+                    >
+                      <option value="LEASING">Leasing (receita recorrente)</option>
+                      <option value="VENDA_DIRETA">Venda direta (receita pontual)</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="crm-form-notes">
+                  Observações
+                  <textarea
+                    rows={2}
+                    value={crmLeadForm.notas}
+                    onChange={(event) => handleCrmLeadFormChange('notas', event.target.value)}
+                    placeholder="Preferências do cliente, dores principais ou combinações iniciais"
+                  />
+                </label>
+              </fieldset>
+              <div className="crm-form-actions">
+                <button type="submit" className="primary">
+                  Adicionar lead ao funil
+                </button>
+                <p>
+                  Ao salvar, o lead recebe uma tag com o tipo de sistema (on-grid, off-grid, condomínio) e gera um
+                  registro de projeto vinculado automaticamente.
+                </p>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        {/* Seção 2 - Prospecção e proposta */}
+        <section className="crm-card">
+          <div className="crm-card-header">
+            <div>
+              <h2>2. Prospecção e proposta</h2>
+              <p>
+                Acompanhe o funil visual de vendas com etapas automáticas. Movimentações geram registros na linha do
+                tempo do lead e notificações internas de follow-up.
+              </p>
+            </div>
+          </div>
+          <div className="crm-kanban">
+            {CRM_PIPELINE_STAGES.map((stage) => {
+              const leadsDaEtapa = crmLeadsPorEtapa[stage.id] ?? []
+              return (
+                <div key={stage.id} className="crm-kanban-column">
+                  <header>
+                    <h3>{stage.label}</h3>
+                    <span>{leadsDaEtapa.length} lead(s)</span>
+                  </header>
+                  <ul>
+                    {leadsDaEtapa.length === 0 ? (
+                      <li className="crm-empty">Sem leads aqui no momento</li>
+                    ) : (
+                      leadsDaEtapa.map((lead) => (
+                        <li
+                          key={lead.id}
+                          className={`crm-lead-chip${crmLeadSelecionadoId === lead.id ? ' selected' : ''}`}
+                        >
+                          <button type="button" onClick={() => handleSelecionarLead(lead.id)}>
+                            <strong>{lead.nome}</strong>
+                            <small>{lead.cidade}</small>
+                            <small>{currency(lead.valorEstimado)}</small>
+                          </button>
+                          <div className="crm-lead-actions">
+                            <button
+                              type="button"
+                              aria-label="Mover para etapa anterior"
+                              onClick={() => handleMoverLead(lead.id, -1)}
+                              disabled={stage.id === CRM_PIPELINE_STAGES[0].id}
+                            >
+                              ◀
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Mover para próxima etapa"
+                              onClick={() => handleMoverLead(lead.id, 1)}
+                              disabled={stage.id === CRM_PIPELINE_STAGES[CRM_PIPELINE_STAGES.length - 1].id}
+                            >
+                              ▶
+                            </button>
+                            <button type="button" className="danger" onClick={() => handleRemoverLead(lead.id)}>
+                              Remover
+                            </button>
+                          </div>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* Seção 3 - Contrato e implantação */}
+        <section className="crm-card">
+          <div className="crm-card-header">
+            <div>
+              <h2>3. Contrato e implantação</h2>
+              <p>
+                Integração com assinatura digital, checklist técnico e histórico completo de interações e anexos do
+                cliente.
+              </p>
+            </div>
+          </div>
+          {crmLeadSelecionado ? (
+            <div className="crm-selected">
+              <div className="crm-selected-summary">
+                <h3>{crmLeadSelecionado.nome}</h3>
+                <p>
+                  {crmLeadSelecionado.telefone} • {crmLeadSelecionado.email || 'E-mail não informado'}
+                </p>
+                <p>
+                  {crmLeadSelecionado.cidade} • Consumo {crmLeadSelecionado.consumoKwhMes} kWh/mês
+                </p>
+                <label>
+                  Status da instalação
+                  <select
+                    value={crmLeadSelecionado.instalacaoStatus}
+                    onChange={(event) =>
+                      handleAtualizarStatusInstalacao(
+                        crmLeadSelecionado.id,
+                        event.target.value as CrmLeadRecord['instalacaoStatus'],
+                      )
+                    }
+                  >
+                    {CRM_INSTALACAO_STATUS.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Registrar nota
+                  <textarea
+                    rows={2}
+                    value={crmNotaTexto}
+                    onChange={(event) => setCrmNotaTexto(event.target.value)}
+                    placeholder="Ex: Visita técnica agendada, cliente solicitou revisão de valores"
+                  />
+                </label>
+                <button type="button" className="ghost" onClick={handleAdicionarNotaCrm}>
+                  Salvar no histórico
+                </button>
+              </div>
+              <div className="crm-selected-details">
+                <div>
+                  <h4>Contrato financeiro</h4>
+                  {(() => {
+                    const contrato = crmContratosPorLead.get(crmLeadSelecionado.id)
+                    if (!contrato) {
+                      return <p className="crm-empty">Preencha os dados financeiros na seção 6.</p>
+                    }
+                    return (
+                      <ul className="crm-data-list">
+                        <li>
+                          <span>Modelo</span>
+                          <strong>{contrato.modelo === 'LEASING' ? 'Leasing' : 'Venda direta'}</strong>
+                        </li>
+                        <li>
+                          <span>Parcelas</span>
+                          <strong>{contrato.parcelas}x de {currency(contrato.valorParcela)}</strong>
+                        </li>
+                        <li>
+                          <span>Status</span>
+                          <strong>{contrato.status.replace('-', ' ')}</strong>
+                        </li>
+                        <li>
+                          <span>Vencimento inicial</span>
+                          <strong>{formatarDataCurta(contrato.vencimentoInicialIso)}</strong>
+                        </li>
+                      </ul>
+                    )
+                  })()}
+                </div>
+                <div>
+                  <h4>Checklist técnico</h4>
+                  <ul className="crm-checklist">
+                    <li className={crmLeadSelecionado.etapa !== 'novo-lead' ? 'done' : ''}>Captação concluída</li>
+                    <li className={crmLeadSelecionado.etapa !== 'novo-lead' && crmLeadSelecionado.etapa !== 'qualificacao' ? 'done' : ''}>
+                      Proposta enviada
+                    </li>
+                    <li className={crmLeadSelecionado.etapa === 'negociacao' || crmLeadSelecionado.etapa === 'aguardando-contrato' || crmLeadSelecionado.etapa === 'fechado' ? 'done' : ''}>
+                      Negociação em andamento
+                    </li>
+                    <li className={crmLeadSelecionado.etapa === 'aguardando-contrato' || crmLeadSelecionado.etapa === 'fechado' ? 'done' : ''}>
+                      Contrato preparado para assinatura
+                    </li>
+                    <li className={crmLeadSelecionado.instalacaoStatus === 'concluida' ? 'done' : ''}>Usina instalada</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4>Histórico recente</h4>
+                  <ul className="crm-timeline">
+                    {crmTimelineFiltrada.slice(0, 6).map((item) => (
+                      <li key={item.id}>
+                        <span>{formatarDataCurta(item.criadoEmIso)}</span>
+                        <p>{item.mensagem}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="crm-empty">Selecione um lead no funil acima para visualizar detalhes de contrato e implantação.</p>
+          )}
+        </section>
+
+        {/* Seção 4 - Instalação */}
+        <section className="crm-card">
+          <div className="crm-card-header">
+            <div>
+              <h2>4. Instalação</h2>
+              <p>
+                O módulo técnico assume tarefas, materiais e cronogramas vinculados ao mesmo registro do cliente.
+                Atualize a agenda de manutenção preventiva e acompanhe o status de execução em tempo real.
+              </p>
+            </div>
+          </div>
+          <div className="crm-install-grid">
+            <div>
+              <h4>Manutenções pendentes</h4>
+              {crmManutencoesPendentes.length === 0 ? (
+                <p className="crm-empty">Nenhuma manutenção pendente. Cadastre uma nova abaixo.</p>
+              ) : (
+                <ul className="crm-maintenance-list">
+                  {crmManutencoesPendentes.map((item) => (
+                    <li key={item.id}>
+                      <div>
+                        <strong>{formatarDataCurta(item.dataIso)}</strong>
+                        <span>{item.tipo}</span>
+                        {item.observacao ? <small>{item.observacao}</small> : null}
+                      </div>
+                      <button type="button" onClick={() => handleConcluirManutencaoCrm(item.id)}>
+                        Concluir
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <form className="crm-maintenance-form" onSubmit={handleAdicionarManutencaoCrm}>
+              <fieldset>
+                <legend>Agendar manutenção</legend>
+                <label>
+                  Cliente (opcional)
+                  <select
+                    value={crmManutencaoForm.leadId}
+                    onChange={(event) => setCrmManutencaoForm((prev) => ({ ...prev, leadId: event.target.value }))}
+                  >
+                    <option value="">Usar lead selecionado</option>
+                    {crmDataset.leads.map((lead) => (
+                      <option key={lead.id} value={lead.id}>
+                        {lead.nome}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Data prevista
+                  <input
+                    type="date"
+                    value={crmManutencaoForm.dataIso}
+                    onChange={(event) => setCrmManutencaoForm((prev) => ({ ...prev, dataIso: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Tipo de serviço
+                  <input
+                    value={crmManutencaoForm.tipo}
+                    onChange={(event) => setCrmManutencaoForm((prev) => ({ ...prev, tipo: event.target.value }))}
+                    placeholder="Vistoria, limpeza, troca de inversor..."
+                  />
+                </label>
+                <label>
+                  Observações
+                  <textarea
+                    rows={2}
+                    value={crmManutencaoForm.observacao}
+                    onChange={(event) => setCrmManutencaoForm((prev) => ({ ...prev, observacao: event.target.value }))}
+                  />
+                </label>
+              </fieldset>
+              <button type="submit" className="ghost">
+                Agendar manutenção
+              </button>
+            </form>
+            {crmLeadSelecionado ? (
+              <div>
+                <h4>Histórico do cliente selecionado</h4>
+                <ul className="crm-maintenance-list">
+                  {crmDataset.manutencoes
+                    .filter((item) => item.leadId === crmLeadSelecionado.id)
+                    .slice(0, 5)
+                    .map((item) => (
+                      <li key={item.id}>
+                        <div>
+                          <strong>{formatarDataCurta(item.dataIso)}</strong>
+                          <span>{item.tipo}</span>
+                          <small>Status: {item.status}</small>
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        {/* Seção 5 - Pós-venda e manutenção */}
+        <section className="crm-card">
+          <div className="crm-card-header">
+            <div>
+              <h2>5. Pós-venda e manutenção</h2>
+              <p>
+                Monitoramento contínuo da usina, integrações com o inversor e registro de chamados técnicos para manter o
+                cliente engajado.
+              </p>
+            </div>
+            <div className="crm-metrics">
+              <div>
+                <span>Manutenções totais</span>
+                <strong>{crmPosVendaResumo.totalManutencoes}</strong>
+              </div>
+              <div>
+                <span>Pendentes</span>
+                <strong>{crmPosVendaResumo.pendentes}</strong>
+              </div>
+              <div>
+                <span>Concluídas</span>
+                <strong>{crmPosVendaResumo.concluidas}</strong>
+              </div>
+              <div>
+                <span>Alertas críticos</span>
+                <strong>{crmPosVendaResumo.alertasCriticos.length}</strong>
+              </div>
+            </div>
+          </div>
+          <div className="crm-post-grid">
+            <div className="crm-post-column">
+              <h3>Próximas visitas preventivas</h3>
+              <ul className="crm-alert-list">
+                {crmPosVendaResumo.proximas.length === 0 ? (
+                  <li className="crm-empty">Nenhuma visita agendada para os próximos dias.</li>
+                ) : (
+                  crmPosVendaResumo.proximas.map((item) => {
+                    const lead = crmDataset.leads.find((leadItem) => leadItem.id === item.leadId)
+                    return (
+                      <li key={item.id}>
+                        <div>
+                          <strong>{formatarDataCurta(item.dataIso)}</strong>
+                          <span>{item.tipo}</span>
+                          {lead ? <small>{lead.nome}</small> : null}
+                        </div>
+                        <button type="button" className="link" onClick={() => setCrmLeadSelecionadoId(item.leadId)}>
+                          Ver lead
+                        </button>
+                      </li>
+                    )
+                  })
+                )}
+              </ul>
+              {crmPosVendaResumo.alertasCriticos.length > 0 ? (
+                <div className="crm-alert-banner">
+                  <h4>Alertas automáticos</h4>
+                  <ul>
+                    {crmPosVendaResumo.alertasCriticos.map((texto, index) => (
+                      <li key={texto + index}>{texto}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+            <div className="crm-post-column">
+              <h3>Relatório de geração (via API do inversor)</h3>
+              <table className="crm-table">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Cidade</th>
+                    <th>Previsto (kWh)</th>
+                    <th>Gerado (kWh)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {crmPosVendaResumo.geracao.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="crm-empty">
+                        Aguarde a integração com o inversor para sincronizar dados de geração.
+                      </td>
+                    </tr>
+                  ) : (
+                    crmPosVendaResumo.geracao.map((registro) => (
+                      <tr key={registro.id} className={registro.alertaBaixa ? 'alert' : ''}>
+                        <td>{registro.nome}</td>
+                        <td>{registro.cidade}</td>
+                        <td>{registro.geracaoPrevista}</td>
+                        <td>{registro.geracaoAtual}</td>
+                        <td>{registro.alertaBaixa ? 'Baixa geração' : 'Normal'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="crm-post-column">
+              <h3>Chamados recentes</h3>
+              <ul className="crm-alert-list">
+                {crmPosVendaResumo.chamadosRecentes.length === 0 ? (
+                  <li className="crm-empty">Nenhum chamado registrado. Use as notas do lead para registrar atendimentos.</li>
+                ) : (
+                  crmPosVendaResumo.chamadosRecentes.map((registro) => (
+                    <li key={registro.id}>
+                      <div>
+                        <strong>{registro.dataFormatada}</strong>
+                        <span>{registro.mensagem}</span>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* Seção 6 - Financeiro integrado */}
+        <section className="crm-card">
+          <div className="crm-card-header">
+            <div>
+              <h2>6. Financeiro integrado</h2>
+              <p>
+                Controle de contratos de leasing e vendas diretas, lançamentos de caixa e análise de margens para cada
+                usina.
+              </p>
+            </div>
+            <div className="crm-metrics">
+              <div>
+                <span>Entradas</span>
+                <strong>{currency(crmFinanceiroResumo.entradas)}</strong>
+              </div>
+              <div>
+                <span>Saídas</span>
+                <strong>{currency(crmFinanceiroResumo.saidas)}</strong>
+              </div>
+              <div>
+                <span>Saldo acumulado</span>
+                <strong>{currency(crmFinanceiroResumo.saldo)}</strong>
+              </div>
+              <div>
+                <span>Contratos ativos</span>
+                <strong>{crmFinanceiroResumo.contratosAtivos}</strong>
+              </div>
+              <div className="warning">
+                <span>Inadimplentes</span>
+                <strong>{crmFinanceiroResumo.inadimplentes}</strong>
+              </div>
+            </div>
+          </div>
+          <div className="crm-finance-grid">
+            {/* Coluna 1: formulários de contratos, lançamentos e custos para alimentar o financeiro do CRM. */}
+            <div className="crm-finance-forms">
+              <form onSubmit={handleSalvarContratoCrm} className="crm-form">
+                <fieldset>
+                  <legend>Contrato financeiro</legend>
+                  <label>
+                    Lead
+                    <select
+                      value={crmContratoForm.leadId}
+                      onChange={(event) => setCrmContratoForm((prev) => ({ ...prev, leadId: event.target.value }))}
+                    >
+                      <option value="">{crmLeadSelecionado ? 'Usar lead selecionado' : 'Selecione um lead'}</option>
+                      {crmDataset.leads.map((lead) => (
+                        <option key={lead.id} value={lead.id}>
+                          {lead.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Modelo
+                    <select
+                      value={crmContratoForm.modelo}
+                      onChange={(event) =>
+                        setCrmContratoForm((prev) => ({
+                          ...prev,
+                          modelo: event.target.value as 'LEASING' | 'VENDA_DIRETA',
+                        }))
+                      }
+                    >
+                      <option value="LEASING">Leasing</option>
+                      <option value="VENDA_DIRETA">Venda direta</option>
+                    </select>
+                  </label>
+                  <div className="crm-form-row">
+                    <label>
+                      Valor total (R$)
+                      <input
+                        value={crmContratoForm.valorTotal}
+                        onChange={(event) =>
+                          setCrmContratoForm((prev) => ({ ...prev, valorTotal: event.target.value }))
+                        }
+                        placeholder="Ex: 250000"
+                      />
+                    </label>
+                    <label>
+                      Entrada (R$)
+                      <input
+                        value={crmContratoForm.entrada}
+                        onChange={(event) =>
+                          setCrmContratoForm((prev) => ({ ...prev, entrada: event.target.value }))
+                        }
+                        placeholder="Ex: 50000"
+                      />
+                    </label>
+                  </div>
+                  <div className="crm-form-row">
+                    <label>
+                      Parcelas
+                      <input
+                        value={crmContratoForm.parcelas}
+                        onChange={(event) =>
+                          setCrmContratoForm((prev) => ({ ...prev, parcelas: event.target.value }))
+                        }
+                        placeholder="Ex: 36"
+                      />
+                    </label>
+                    <label>
+                      Valor parcela (R$)
+                      <input
+                        value={crmContratoForm.valorParcela}
+                        onChange={(event) =>
+                          setCrmContratoForm((prev) => ({ ...prev, valorParcela: event.target.value }))
+                        }
+                        placeholder="Ex: 4200"
+                      />
+                    </label>
+                  </div>
+                  <div className="crm-form-row">
+                    <label>
+                      Reajuste anual (%)
+                      <input
+                        value={crmContratoForm.reajusteAnualPct}
+                        onChange={(event) =>
+                          setCrmContratoForm((prev) => ({ ...prev, reajusteAnualPct: event.target.value }))
+                        }
+                        placeholder="Ex: 3"
+                      />
+                    </label>
+                    <label>
+                      Primeiro vencimento
+                      <input
+                        type="date"
+                        value={crmContratoForm.vencimentoInicialIso}
+                        onChange={(event) =>
+                          setCrmContratoForm((prev) => ({ ...prev, vencimentoInicialIso: event.target.value }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Status
+                    <select
+                      value={crmContratoForm.status}
+                      onChange={(event) =>
+                        setCrmContratoForm((prev) => ({
+                          ...prev,
+                          status: event.target.value as CrmFinanceiroStatus,
+                        }))
+                      }
+                    >
+                      <option value="em-aberto">Em aberto</option>
+                      <option value="ativo">Ativo</option>
+                      <option value="inadimplente">Inadimplente</option>
+                      <option value="quitado">Quitado</option>
+                    </select>
+                  </label>
+                </fieldset>
+                <button type="submit" className="primary">
+                  Salvar contrato
+                </button>
+              </form>
+
+              <form onSubmit={handleRegistrarLancamentoCrm} className="crm-form">
+                <fieldset>
+                  <legend>Lançamento de caixa</legend>
+                  <div className="crm-form-row">
+                    <label>
+                      Data
+                      <input
+                        type="date"
+                        value={crmLancamentoForm.dataIso}
+                        onChange={(event) =>
+                          setCrmLancamentoForm((prev) => ({ ...prev, dataIso: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Tipo
+                      <select
+                        value={crmLancamentoForm.tipo}
+                        onChange={(event) =>
+                          setCrmLancamentoForm((prev) => ({
+                            ...prev,
+                            tipo: event.target.value as CrmLancamentoCaixa['tipo'],
+                          }))
+                        }
+                      >
+                        <option value="entrada">Entrada</option>
+                        <option value="saida">Saída</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="crm-form-row">
+                    <label>
+                      Categoria
+                      <select
+                        value={crmLancamentoForm.categoria}
+                        onChange={(event) =>
+                          setCrmLancamentoForm((prev) => ({
+                            ...prev,
+                            categoria: event.target.value as CrmLancamentoCaixa['categoria'],
+                          }))
+                        }
+                      >
+                        {CRM_FINANCEIRO_CATEGORIAS.map((categoria) => (
+                          <option key={categoria} value={categoria}>
+                            {categoria}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Forma de pagamento
+                      <select
+                        value={crmLancamentoForm.formaPagamento}
+                        onChange={(event) =>
+                          setCrmLancamentoForm((prev) => ({
+                            ...prev,
+                            formaPagamento: event.target.value as CrmLancamentoCaixa['formaPagamento'],
+                          }))
+                        }
+                      >
+                        {CRM_FORMAS_PAGAMENTO.map((forma) => (
+                          <option key={forma} value={forma}>
+                            {forma}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <label>
+                    Origem do lançamento
+                    <input
+                      value={crmLancamentoForm.origem}
+                      onChange={(event) => setCrmLancamentoForm((prev) => ({ ...prev, origem: event.target.value }))}
+                      placeholder="Leasing, venda direta, manutenção..."
+                    />
+                  </label>
+                  <label>
+                    Valor (R$)
+                    <input
+                      value={crmLancamentoForm.valor}
+                      onChange={(event) => setCrmLancamentoForm((prev) => ({ ...prev, valor: event.target.value }))}
+                      placeholder="Ex: 1800"
+                    />
+                  </label>
+                  <label>
+                    Associar a lead (opcional)
+                    <select
+                      value={crmLancamentoForm.leadId}
+                      onChange={(event) => setCrmLancamentoForm((prev) => ({ ...prev, leadId: event.target.value }))}
+                    >
+                      <option value="">Usar lead selecionado</option>
+                      {crmDataset.leads.map((lead) => (
+                        <option key={lead.id} value={lead.id}>
+                          {lead.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Observação
+                    <textarea
+                      rows={2}
+                      value={crmLancamentoForm.observacao}
+                      onChange={(event) => setCrmLancamentoForm((prev) => ({ ...prev, observacao: event.target.value }))}
+                    />
+                  </label>
+                </fieldset>
+                <button type="submit" className="ghost">
+                  Registrar lançamento
+                </button>
+              </form>
+
+              <form onSubmit={handleSalvarCustosCrm} className="crm-form">
+                <fieldset>
+                  <legend>Custos do projeto selecionado</legend>
+                  <div className="crm-form-row">
+                    <label>
+                      Equipamentos (R$)
+                      <input
+                        value={crmCustosForm.equipamentos}
+                        onChange={(event) => setCrmCustosForm((prev) => ({ ...prev, equipamentos: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Mão de obra (R$)
+                      <input
+                        value={crmCustosForm.maoDeObra}
+                        onChange={(event) => setCrmCustosForm((prev) => ({ ...prev, maoDeObra: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+                  <div className="crm-form-row">
+                    <label>
+                      Deslocamento (R$)
+                      <input
+                        value={crmCustosForm.deslocamento}
+                        onChange={(event) => setCrmCustosForm((prev) => ({ ...prev, deslocamento: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Taxas e seguros (R$)
+                      <input
+                        value={crmCustosForm.taxasSeguros}
+                        onChange={(event) => setCrmCustosForm((prev) => ({ ...prev, taxasSeguros: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+                </fieldset>
+                <button type="submit" className="ghost">
+                  Salvar custos
+                </button>
+              </form>
+            </div>
+            {/* Coluna 2: painéis analíticos que resumem fluxo de caixa e margens. */}
+            <div className="crm-finance-analytics">
+              <div className="crm-flow-chart">
+                <h3>Fluxo de caixa consolidado</h3>
+                {crmFinanceiroResumo.fluxoOrdenado.length === 0 ? (
+                  <p className="crm-empty">Cadastre lançamentos para visualizar o fluxo de caixa.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <LineChart data={crmFinanceiroResumo.fluxoOrdenado}>
+                      <CartesianGrid stroke="rgba(148, 163, 184, 0.15)" strokeDasharray="6 6" />
+                      <XAxis dataKey="data" tickFormatter={(valor) => valor.slice(5)} stroke="#94a3b8" />
+                      <YAxis stroke="#94a3b8" tickFormatter={formatAxis} width={90} />
+                      <Tooltip
+                        formatter={(value: number) => currency(value)}
+                        labelFormatter={(label) => `Dia ${label}`}
+                        contentStyle={{
+                          background: 'rgba(15,22,36,0.96)',
+                          borderRadius: 12,
+                          border: '1px solid rgba(148,163,184,0.2)',
+                        }}
+                      />
+                      <Legend verticalAlign="top" height={36} />
+                      <Line type="monotone" dataKey="entradas" name="Entradas" stroke="#22c55e" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="saidas" name="Saídas" stroke="#ef4444" strokeWidth={2} dot={false} />
+                      <Line
+                        type="monotone"
+                        dataKey="saldoAcumulado"
+                        name="Saldo acumulado"
+                        stroke="#38bdf8"
+                        strokeWidth={3}
+                        dot={false}
+                      />
+                      <ReferenceLine y={0} stroke="rgba(239,68,68,0.45)" strokeDasharray="4 4" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              <div className="crm-margins">
+                <h3>ROI e margens por lead</h3>
+                <table className="crm-table">
+                  <thead>
+                    <tr>
+                      <th>Lead</th>
+                      <th>Modelo</th>
+                      <th>Receita (R$)</th>
+                      <th>Custos (R$)</th>
+                      <th>Margem bruta (R$)</th>
+                      <th>Margem (%)</th>
+                      <th>ROI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {crmFinanceiroResumo.margens.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="crm-empty">
+                          Informe contratos e custos para acompanhar margens e ROI de cada projeto.
+                        </td>
+                      </tr>
+                    ) : (
+                      crmFinanceiroResumo.margens.map((item) => (
+                        <tr key={item.leadId}>
+                          <td>{item.leadNome}</td>
+                          <td>{item.modelo === 'LEASING' ? 'Leasing' : 'Venda direta'}</td>
+                          <td>{currency(item.receitaProjetada)}</td>
+                          <td>{currency(item.custoTotal)}</td>
+                          <td>{currency(item.margemBruta)}</td>
+                          <td>{item.margemPct === null ? '—' : `${item.margemPct.toFixed(1)}%`}</td>
+                          <td>{item.roi === null ? '—' : `${(item.roi * 100).toFixed(1)}%`}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Seção 7 - Inteligência e relatórios */}
+        <section className="crm-card">
+          <div className="crm-card-header">
+            <div>
+              <h2>7. Inteligência e relatórios</h2>
+              <p>
+                Indicadores consolidados da operação comercial, técnica e financeira da SolarInvest, com alertas de
+                gargalos.
+              </p>
+            </div>
+          </div>
+          <div className="crm-insights-grid">
+            {/* Painéis estratégicos conectando marketing, operação técnica e finanças. */}
+            <div className="crm-insight-panel">
+              <h3>Métricas principais</h3>
+              <ul className="crm-kpi-list">
+                <li>
+                  <span>Taxa de conversão</span>
+                  <strong>{crmIndicadoresGerenciais.taxaConversao}%</strong>
+                </li>
+                <li>
+                  <span>Tempo médio de fechamento</span>
+                  <strong>{crmIndicadoresGerenciais.tempoMedioFechamento} dias</strong>
+                </li>
+                <li>
+                  <span>ROI médio</span>
+                  <strong>
+                    {Number.isFinite(crmIndicadoresGerenciais.roiMedio)
+                      ? `${(crmIndicadoresGerenciais.roiMedio * 100).toFixed(1)}%`
+                      : '—'}
+                  </strong>
+                </li>
+                <li>
+                  <span>Receita recorrente projetada</span>
+                  <strong>{currency(crmIndicadoresGerenciais.receitaRecorrenteProjetada)}</strong>
+                </li>
+                <li>
+                  <span>Receita pontual projetada</span>
+                  <strong>{currency(crmIndicadoresGerenciais.receitaPontualProjetada)}</strong>
+                </li>
+              </ul>
+            </div>
+            <div className="crm-insight-panel">
+              <h3>Origem dos leads</h3>
+              <ul className="crm-kpi-list">
+                {Object.entries(crmIndicadoresGerenciais.leadsPorOrigem).map(([origem, quantidade]) => (
+                  <li key={origem}>
+                    <span>{origem}</span>
+                    <strong>{quantidade}</strong>
+                  </li>
+                ))}
+                {Object.keys(crmIndicadoresGerenciais.leadsPorOrigem).length === 0 ? (
+                  <li className="crm-empty">Cadastre leads para visualizar a distribuição de origens.</li>
+                ) : null}
+              </ul>
+            </div>
+            <div className="crm-insight-panel">
+              <h3>Mapa de geração por cidade</h3>
+              <ul className="crm-kpi-list">
+                {Object.entries(crmIndicadoresGerenciais.mapaGeracao).map(([cidade, consumo]) => (
+                  <li key={cidade}>
+                    <span>{cidade}</span>
+                    <strong>{consumo} kWh</strong>
+                  </li>
+                ))}
+                {Object.keys(crmIndicadoresGerenciais.mapaGeracao).length === 0 ? (
+                  <li className="crm-empty">Nenhum dado de geração disponível. Feche contratos para popular o mapa.</li>
+                ) : null}
+              </ul>
+            </div>
+            <div className="crm-insight-panel">
+              <h3>Alertas de gargalos</h3>
+              {crmIndicadoresGerenciais.gargalos.length === 0 ? (
+                <p className="crm-empty">O funil está saudável, sem gargalos detectados.</p>
+              ) : (
+                <ul className="crm-alert-list">
+                  {crmIndicadoresGerenciais.gargalos.map((texto, index) => (
+                    <li key={texto + index}>{texto}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
   )
 
   const handleSalvarCliente = useCallback(() => {
@@ -3129,8 +5092,12 @@ export default function App() {
   )
 
   return (
-    <div className="page">
-      <PrintableProposal ref={printableRef} {...printableData} />
+    <>
+      {activePage === 'crm' ? (
+        renderCrmPage()
+      ) : (
+        <div className="page">
+          <PrintableProposal ref={printableRef} {...printableData} />
       <header className="topbar app-header">
         <div className="brand">
           <img src="/logo.svg" alt="SolarInvest" />
@@ -3140,6 +5107,10 @@ export default function App() {
           </div>
         </div>
         <div className="top-actions">
+          {/* Botão dedicado ao CRM para acesso rápido, mantendo posição à esquerda do buscador de orçamentos. */}
+          <button className="crm-button" onClick={() => setActivePage('crm')}>
+            Central CRM
+          </button>
           <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar orçamentos</button>
           <button className="ghost" onClick={handlePrint}>Exportar Proposta (PDF)</button>
           <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
@@ -4246,6 +6217,8 @@ export default function App() {
         </div>
       ) : null}
 
+        </div>
+      )}
       {notificacoes.length > 0 ? (
         <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
           {notificacoes.map((item) => (
@@ -4266,7 +6239,7 @@ export default function App() {
           ))}
         </div>
       ) : null}
-    </div>
+    </>
   )
 }
 
