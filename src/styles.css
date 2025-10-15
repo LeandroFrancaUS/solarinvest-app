@@ -1809,7 +1809,7 @@ table tbody tr:hover {
 }
 
 .print-notes {
-  padding-bottom: 16px;
+  padding-bottom: 32px;
 }
 
 @media print {

@@ -1179,9 +1179,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           <p><strong>Informações importantes:</strong></p>
           <ul>
             <li>
-              Valor de mercado estimado conforme parâmetros atuais do setor: {valorMercadoTexto}
-            </li>
-            <li>
               Desconto contratual aplicado:{' '}
               {formatNumber(descontoContratualPct, {
                 minimumFractionDigits: 0,
