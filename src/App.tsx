@@ -1188,10 +1188,25 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
             <li>
               Prazo de vigência contratual conforme especificado em proposta individual: {duracaoContratualTexto}
             </li>
+            <li>
+              Durante a vigência do contrato, a SolarInvest é responsável por toda a manutenção preventiva e corretiva da usina,
+              incluindo suporte técnico, limpeza periódica e seguro contra sinistros.
+            </li>
+            <li>
+              Ao término do contrato, a usina será transferida para o cliente, tornando-se seu patrimônio sem custos adicionais.
+            </li>
             <li>Tabela de compra antecipada da usina disponível mediante solicitação.</li>
             <li>Todos os equipamentos utilizados possuem certificação INMETRO.</li>
+            <li>Os módulos e inversores possuem garantia de fábrica conforme especificado na proposta.</li>
+            <li>
+              A instalação é realizada por equipe credenciada com registro no CREA e segue todos os trâmites de homologação exigidos.
+            </li>
             <li>
               Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer alterações no contrato definitivo.
+            </li>
+            <li>
+              A cobrança mensal se inicia após a conclusão da instalação e entrada em operação da usina. O prazo médio de instalação
+              é de 30 a 45 dias úteis após a assinatura do contrato e liberação técnica.
             </li>
           </ul>
         </div>
