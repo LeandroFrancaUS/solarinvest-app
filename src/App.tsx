@@ -1376,10 +1376,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
             <strong>Tipo de instalação</strong>
             {tipoInstalacaoDescricao}
           </p>
-          <p>
-            <strong>Valor de mercado projetado</strong>
-            {valorMercadoTexto}
-          </p>
         </div>
         <div className="print-summary-grid">
           <div className="print-card">
