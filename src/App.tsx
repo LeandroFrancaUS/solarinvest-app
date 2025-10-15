@@ -142,6 +142,51 @@ const emailValido = (valor: string) => {
   return regex.test(valor)
 }
 
+const formatCep = (valor: string) => {
+  const numeros = normalizeNumbers(valor).slice(0, 8)
+  if (!numeros) {
+    return ''
+  }
+
+  if (numeros.length <= 5) {
+    return numeros
+  }
+
+  return `${numeros.slice(0, 5)}-${numeros.slice(5)}`
+}
+
+const formatTelefone = (valor: string) => {
+  const numeros = normalizeNumbers(valor).slice(0, 11)
+  if (!numeros) {
+    return ''
+  }
+
+  if (numeros.length <= 2) {
+    return `(${numeros}${numeros.length === 2 ? ')' : ''}`
+  }
+
+  const ddd = numeros.slice(0, 2)
+  const restante = numeros.slice(2)
+
+  if (!restante) {
+    return `(${ddd}`
+  }
+
+  if (restante.length <= 4) {
+    return `(${ddd}) ${restante}`
+  }
+
+  if (restante.length <= 8) {
+    const parte1 = restante.slice(0, 4)
+    const parte2 = restante.slice(4)
+    return parte2 ? `(${ddd}) ${parte1}-${parte2}` : `(${ddd}) ${parte1}`
+  }
+
+  const parte1 = restante.slice(0, 5)
+  const parte2 = restante.slice(5)
+  return `(${ddd}) ${parte1}-${parte2}`
+}
+
 type IbgeMunicipio = {
   nome?: string
   microrregiao?: {
@@ -151,6 +196,13 @@ type IbgeMunicipio = {
       }
     }
   }
+}
+
+type ViaCepResponse = {
+  logradouro?: string
+  localidade?: string
+  uf?: string
+  erro?: boolean | string
 }
 
 type TabKey = 'leasing' | 'cliente' | 'vendas' | 'financiamento'
@@ -176,6 +228,7 @@ type ClienteDados = {
   documento: string
   email: string
   telefone: string
+  cep: string
   distribuidora: string
   uc: string
   endereco: string
@@ -188,6 +241,12 @@ type ClienteRegistro = {
   criadoEm: string
   atualizadoEm: string
   dados: ClienteDados
+}
+
+type ClienteMensagens = {
+  email?: string
+  cidade?: string
+  cep?: string
 }
 
 type NotificacaoTipo = 'success' | 'info' | 'error'
@@ -407,6 +466,7 @@ const CLIENTE_INICIAL: ClienteDados = {
   documento: '',
   email: '',
   telefone: '',
+  cep: '',
   distribuidora: '',
   uc: '',
   endereco: '',
@@ -1530,8 +1590,9 @@ export default function App() {
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const [isClientesModalOpen, setIsClientesModalOpen] = useState(false)
-  const [clienteMensagens, setClienteMensagens] = useState<{ email?: string; cidade?: string }>({})
+  const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [verificandoCidade, setVerificandoCidade] = useState(false)
+  const [buscandoCep, setBuscandoCep] = useState(false)
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
   const notificacaoSequencialRef = useRef(0)
   const notificacaoTimeoutsRef = useRef<Record<number, number>>({})
@@ -2434,6 +2495,7 @@ export default function App() {
               documento: dados?.documento ?? '',
               email: dados?.email ?? '',
               telefone: dados?.telefone ?? '',
+              cep: dados?.cep ?? '',
               distribuidora: dados?.distribuidora ?? '',
               uc: dados?.uc ?? '',
               endereco: dados?.endereco ?? '',
@@ -4732,9 +4794,14 @@ export default function App() {
       return parsed.map((item) => {
         const registro = item as OrcamentoSalvo
         const dados = registro.dados as PrintableProps
+        const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
         const dadosNormalizados: PrintableProps = {
           ...dados,
-          distribuidoraTarifa: dados.distribuidoraTarifa ?? dados.cliente.distribuidora ?? '',
+          cliente: {
+            ...clienteDados,
+            cep: clienteDados.cep ?? '',
+          },
+          distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteDados.distribuidora ?? '',
         }
 
         return {
@@ -4856,6 +4923,10 @@ export default function App() {
       nextValue = formatCpfCnpj(value)
     } else if (key === 'email') {
       nextValue = value.trim()
+    } else if (key === 'telefone') {
+      nextValue = formatTelefone(value)
+    } else if (key === 'cep') {
+      nextValue = formatCep(value)
     } else if (key === 'uf') {
       nextValue = value.toUpperCase()
     }
@@ -4870,6 +4941,99 @@ export default function App() {
       }))
     }
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const cepNumeros = normalizeNumbers(cliente.cep)
+    if (cepNumeros.length < 8) {
+      setBuscandoCep(false)
+      setClienteMensagens((prev) => ({ ...prev, cep: undefined }))
+      return
+    }
+
+    let ativo = true
+    const controller = new AbortController()
+
+    const consultarCep = async () => {
+      setBuscandoCep(true)
+      setClienteMensagens((prev) => ({ ...prev, cep: undefined }))
+
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`, {
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error('Falha ao consultar CEP.')
+        }
+
+        const data: ViaCepResponse = await response.json()
+        if (!ativo) {
+          return
+        }
+
+        if (data?.erro) {
+          setClienteMensagens((prev) => ({ ...prev, cep: 'CEP não encontrado.' }))
+          return
+        }
+
+        const logradouro = data?.logradouro?.trim() ?? ''
+        const localidade = data?.localidade?.trim() ?? ''
+        const uf = data?.uf?.trim().toUpperCase() ?? ''
+
+        setCliente((prev) => {
+          let alterado = false
+          const proximo: ClienteDados = { ...prev }
+
+          if (logradouro && logradouro !== prev.endereco) {
+            proximo.endereco = logradouro
+            alterado = true
+          }
+
+          if (localidade && localidade !== prev.cidade) {
+            proximo.cidade = localidade
+            alterado = true
+          }
+
+          if (uf && uf !== prev.uf) {
+            proximo.uf = uf
+            alterado = true
+          }
+
+          if (!alterado) {
+            return prev
+          }
+
+          return proximo
+        })
+
+        setClienteMensagens((prev) => ({ ...prev, cep: undefined, cidade: undefined }))
+      } catch (error) {
+        if (!ativo || controller.signal.aborted) {
+          return
+        }
+
+        setClienteMensagens((prev) => ({
+          ...prev,
+          cep: 'Não foi possível consultar o CEP agora.',
+        }))
+      } finally {
+        if (ativo) {
+          setBuscandoCep(false)
+        }
+      }
+    }
+
+    consultarCep()
+
+    return () => {
+      ativo = false
+      controller.abort()
+    }
+  }, [cliente.cep])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -5587,7 +5751,22 @@ export default function App() {
                 />
               </Field>
               <Field label="Telefone">
-                <input value={cliente.telefone} onChange={(e) => handleClienteChange('telefone', e.target.value)} />
+                <input
+                  value={cliente.telefone}
+                  onChange={(e) => handleClienteChange('telefone', e.target.value)}
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="(00) 00000-0000"
+                />
+              </Field>
+              <Field label="CEP" hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}>
+                <input
+                  value={cliente.cep}
+                  onChange={(e) => handleClienteChange('cep', e.target.value)}
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  placeholder="00000-000"
+                />
               </Field>
               <Field label="Distribuidora">
                 <input value={cliente.distribuidora} onChange={(e) => handleClienteChange('distribuidora', e.target.value)} />
@@ -5595,8 +5774,12 @@ export default function App() {
               <Field label="Unidade consumidora (UC)">
                 <input value={cliente.uc} onChange={(e) => handleClienteChange('uc', e.target.value)} />
               </Field>
-              <Field label="Endereço">
-                <input value={cliente.endereco} onChange={(e) => handleClienteChange('endereco', e.target.value)} />
+              <Field label="Endereço de instalação">
+                <input
+                  value={cliente.endereco}
+                  onChange={(e) => handleClienteChange('endereco', e.target.value)}
+                  autoComplete="street-address"
+                />
               </Field>
               <Field
                 label="Cidade"
