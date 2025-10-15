@@ -346,6 +346,7 @@ type PrintableProps = {
   areaInstalacao: number
   descontoContratualPct: number
   parcelasLeasing: MensalidadeRow[]
+  distribuidoraTarifa: string
 }
 
 type MensalidadeRow = {
@@ -990,6 +991,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     areaInstalacao,
     descontoContratualPct,
     parcelasLeasing,
+    distribuidoraTarifa,
   },
   ref,
 ) {
@@ -1008,6 +1010,8 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const areaInstalacaoTexto = areaInstalacaoValida
     ? areaInstalacao.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
     : '—'
+  const distribuidoraTarifaLabel = distribuidoraTarifa?.trim() || ''
+
   const chartDataPrintable = useMemo(
     () =>
       anos.map((ano) => ({
@@ -1080,7 +1084,9 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                   <th>Tarifa c/ desconto (R$/kWh)</th>
                   <th>
                     Mensalidade com{' '}
-                    {distribuidoraTarifa ? `${distribuidoraTarifa} (ANEEL)` : 'Distribuidora (ANEEL)'}
+                    {distribuidoraTarifaLabel
+                      ? `${distribuidoraTarifaLabel} (ANEEL)`
+                      : 'Distribuidora (ANEEL)'}
                   </th>
                   <th>Mensalidade com leasing</th>
                 </tr>
@@ -2115,6 +2121,7 @@ export default function App() {
       areaInstalacao,
       descontoContratualPct: desconto,
       parcelasLeasing: parcelasSolarInvest.lista,
+      distribuidoraTarifa: distribuidoraTarifa || cliente.distribuidora || '',
     }),
     [
       areaInstalacao,
@@ -2130,6 +2137,7 @@ export default function App() {
       mostrarFinanciamento,
       numeroPlacasEstimado,
       parcelasSolarInvest,
+      distribuidoraTarifa,
       tipoInstalacao,
       potenciaInstaladaKwp,
       potenciaPlaca,
@@ -4573,10 +4581,17 @@ export default function App() {
 
       return parsed.map((item) => {
         const registro = item as OrcamentoSalvo
+        const dados = registro.dados as PrintableProps
+        const dadosNormalizados: PrintableProps = {
+          ...dados,
+          distribuidoraTarifa: dados.distribuidoraTarifa ?? dados.cliente.distribuidora ?? '',
+        }
+
         return {
           ...registro,
-          clienteDocumento: registro.clienteDocumento ?? registro.dados?.cliente.documento ?? '',
-          clienteUc: registro.clienteUc ?? registro.dados?.cliente.uc ?? '',
+          clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
+          clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
+          dados: dadosNormalizados,
         }
       })
     } catch (error) {
