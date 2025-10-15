@@ -358,6 +358,14 @@ type MensalidadeRow = {
   totalAcumulado: number
 }
 
+type MensalidadeAnualRow = {
+  ano: number
+  tarifaCheiaMedia: number
+  tarifaDescontadaMedia: number
+  mensalidadeCheiaMedia: number
+  mensalidadeMedia: number
+}
+
 type OrcamentoSalvo = {
   id: string
   criadoEm: string
@@ -1021,6 +1029,34 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       })),
     [anos, financiamentoROI, leasingROI],
   )
+  const parcelasLeasingAnuais = useMemo<MensalidadeAnualRow[]>(() => {
+    if (!parcelasLeasing.length) {
+      return []
+    }
+
+    const mesesPorAno = 12
+    const totalAnos = Math.min(5, Math.ceil(parcelasLeasing.length / mesesPorAno))
+
+    return Array.from({ length: totalAnos }, (_, index) => {
+      const inicio = index * mesesPorAno
+      const fim = inicio + mesesPorAno
+      const mesesAno = parcelasLeasing.slice(inicio, fim)
+      const divisor = mesesAno.length || 1
+
+      const somaTarifaCheia = mesesAno.reduce((acc, row) => acc + row.tarifaCheia, 0)
+      const somaTarifaDescontada = mesesAno.reduce((acc, row) => acc + row.tarifaDescontada, 0)
+      const somaMensalidadeCheia = mesesAno.reduce((acc, row) => acc + row.mensalidadeCheia, 0)
+      const somaMensalidade = mesesAno.reduce((acc, row) => acc + row.mensalidade, 0)
+
+      return {
+        ano: index + 1,
+        tarifaCheiaMedia: somaTarifaCheia / divisor,
+        tarifaDescontadaMedia: somaTarifaDescontada / divisor,
+        mensalidadeCheiaMedia: somaMensalidadeCheia / divisor,
+        mensalidadeMedia: somaMensalidade / divisor,
+      }
+    })
+  }, [parcelasLeasing])
   const beneficioAno30Printable = useMemo(
     () => chartDataPrintable.find((row) => row.ano === 30) ?? null,
     [chartDataPrintable],
@@ -1075,11 +1111,11 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         </div>
         <div className={`print-grid ${mostrarFinanciamento ? 'two' : 'one'}`}>
           <div>
-            <h3>Mensalidades projetada</h3>
+            <h3>Mensalidades projetadas</h3>
             <table>
               <thead>
                 <tr>
-                  <th>Mês</th>
+                  <th>Ano</th>
                   <th>Tarifa projetada (R$/kWh)</th>
                   <th>Tarifa c/ desconto (R$/kWh)</th>
                   <th>
@@ -1092,20 +1128,20 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                 </tr>
               </thead>
               <tbody>
-                {parcelasLeasing.length > 0 ? (
-                  parcelasLeasing.map((row) => (
-                    <tr key={`leasing-${row.mes}`}>
-                      <td>{row.mes}</td>
-                      <td>{tarifaCurrency(row.tarifaCheia)}</td>
-                      <td>{tarifaCurrency(row.tarifaDescontada)}</td>
-                      <td>{currency(row.mensalidadeCheia)}</td>
-                      <td>{currency(row.mensalidade)}</td>
+                {parcelasLeasingAnuais.length > 0 ? (
+                  parcelasLeasingAnuais.map((row) => (
+                    <tr key={`leasing-${row.ano}`}>
+                      <td>{`${row.ano}º Ano`}</td>
+                      <td>{tarifaCurrency(row.tarifaCheiaMedia)}</td>
+                      <td>{tarifaCurrency(row.tarifaDescontadaMedia)}</td>
+                      <td>{currency(row.mensalidadeCheiaMedia)}</td>
+                      <td>{currency(row.mensalidadeMedia)}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td colSpan={5} className="muted">
-                      Defina um prazo contratual para gerar a projeção das parcelas.
+                      Defina um prazo contratual para gerar a projeção das médias anuais das parcelas.
                     </td>
                   </tr>
                 )}
