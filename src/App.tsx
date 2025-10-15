@@ -330,6 +330,7 @@ type BuyoutResumo = {
 
 type PrintableProps = {
   cliente: ClienteDados
+  distribuidoraTarifa?: string
   anos: number[]
   leasingROI: number[]
   financiamentoFluxo: number[]
@@ -974,6 +975,7 @@ const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; hint?
 const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(function PrintableProposal(
   {
     cliente,
+    distribuidoraTarifa,
     anos,
     leasingROI,
     financiamentoFluxo,
@@ -2099,6 +2101,7 @@ export default function App() {
   const printableData = useMemo<PrintableProps>(
     () => ({
       cliente,
+      distribuidoraTarifa,
       anos: anosArray,
       leasingROI,
       financiamentoFluxo,
@@ -2123,6 +2126,7 @@ export default function App() {
       capex,
       cliente,
       desconto,
+      distribuidoraTarifa,
       financiamentoFluxo,
       financiamentoROI,
       geracaoMensalKwh,
