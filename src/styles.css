@@ -105,6 +105,31 @@ button {
   cursor: pointer;
 }
 
+button.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  color: #0b0d12;
+  font-weight: 700;
+  padding: 12px 22px;
+  border-radius: 999px;
+  min-height: 42px;
+  box-shadow: 0 12px 26px rgba(255, 140, 0, 0.35);
+  letter-spacing: 0.2px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+button.primary:hover,
+button.primary:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 30px rgba(255, 140, 0, 0.45);
+  outline: none;
+}
+
+button.primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 button.ghost {
   background: rgba(255, 140, 0, 0.16);
   color: var(--accent);
@@ -244,6 +269,17 @@ button.link.danger:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 140, 0, 0.16);
 }
 
 .card-header {
@@ -686,6 +722,12 @@ table tbody tr:hover {
   box-shadow: 0 26px 46px rgba(8, 12, 24, 0.45);
 }
 
+.clients-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .budget-search-header {
   display: flex;
   flex-direction: column;
@@ -737,6 +779,33 @@ table tbody tr:hover {
   border: 1px solid rgba(255, 140, 0, 0.22);
   background: rgba(7, 14, 28, 0.85);
   box-shadow: 0 24px 40px rgba(8, 12, 24, 0.45);
+}
+
+.clients-table .table-wrapper {
+  max-height: 520px;
+}
+
+.clients-table-client {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clients-table-client strong {
+  font-size: 14px;
+  color: var(--title);
+}
+
+.clients-table-client span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.clients-table-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .budget-search-table .table-wrapper {
