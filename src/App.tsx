@@ -4374,12 +4374,9 @@ export default function App() {
             </div>
           </div>
         </section>
-
-      </div>
-    </section>
-
-  </div>
-)
+      </main>
+    </div>
+  )
 
   const handleSalvarCliente = useCallback(() => {
     if (typeof window === 'undefined') {
