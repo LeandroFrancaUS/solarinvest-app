@@ -2176,6 +2176,352 @@ export default function App() {
     [removerNotificacao],
   )
 
+  /**
+   * Centralizamos a persistência do dataset do CRM. Sempre que algo mudar salvamos
+   * uma cópia no navegador e, se estivermos conectados ao backend oficial, enviamos
+   * o snapshot atualizado.
+   */
+  const persistCrmDataset = useCallback(
+    async (dataset: CrmDataset, origem: 'auto' | 'manual' = 'auto') => {
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(CRM_LOCAL_STORAGE_KEY, JSON.stringify(dataset))
+        } catch (error) {
+          console.warn('Não foi possível persistir o dataset do CRM no localStorage.', error)
+        }
+      }
+
+      if (crmIntegrationModeRef.current !== 'remote') {
+        return
+      }
+
+      try {
+        setCrmIsSaving(true)
+        const response = await fetch(`${CRM_BACKEND_BASE_URL}/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ dataset, origem }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Falha ao sincronizar dataset do CRM (status ${response.status})`)
+        }
+
+        setCrmBackendStatus('success')
+        setCrmBackendError(null)
+        setCrmLastSync(new Date())
+      } catch (error) {
+        console.warn('Erro ao sincronizar CRM remoto, mantendo operação local.', error)
+        setCrmBackendStatus('error')
+        setCrmBackendError(error instanceof Error ? error.message : 'Erro inesperado ao sincronizar CRM')
+        setCrmIntegrationMode('local')
+        adicionarNotificacao('Backend do CRM indisponível, utilizando persistência local.', 'error')
+      } finally {
+        setCrmIsSaving(false)
+      }
+    },
+    [adicionarNotificacao],
+  )
+
+  useEffect(() => {
+    void persistCrmDataset(crmDataset)
+  }, [crmDataset, persistCrmDataset])
+
+  const crmLeadSelecionado = useMemo(
+    () => crmDataset.leads.find((lead) => lead.id === crmLeadSelecionadoId) ?? null,
+    [crmDataset.leads, crmLeadSelecionadoId],
+  )
+
+  const crmLeadsFiltrados = useMemo(() => {
+    const termoNormalizado = crmBusca ? normalizeText(crmBusca) : ''
+    const numerosBusca = crmBusca ? normalizeNumbers(crmBusca) : ''
+
+    return crmDataset.leads.filter((lead) => {
+      const correspondeOperacao = crmFiltroOperacao === 'all' || lead.tipoOperacao === crmFiltroOperacao
+
+      if (!correspondeOperacao) {
+        return false
+      }
+
+      if (!termoNormalizado && !numerosBusca) {
+        return true
+      }
+
+      const camposTexto = [lead.nome, lead.cidade, lead.tipoImovel, lead.origemLead]
+      const encontrouTexto = termoNormalizado
+        ? camposTexto.some((campo) => normalizeText(campo).includes(termoNormalizado))
+        : false
+
+      const encontrouTelefone = numerosBusca
+        ? normalizeNumbers(lead.telefone).includes(numerosBusca)
+        : false
+
+      return encontrouTexto || encontrouTelefone
+    })
+  }, [crmDataset.leads, crmBusca, crmFiltroOperacao])
+
+  const crmLeadsPorEtapa = useMemo(() => {
+    const agrupado: Record<CrmStageId, CrmLeadRecord[]> = CRM_PIPELINE_STAGES.reduce(
+      (acc, stage) => {
+        acc[stage.id] = []
+        return acc
+      },
+      {} as Record<CrmStageId, CrmLeadRecord[]>,
+    )
+
+    crmLeadsFiltrados.forEach((lead) => {
+      agrupado[lead.etapa]?.push(lead)
+    })
+
+    CRM_PIPELINE_STAGES.forEach((stage) => {
+      agrupado[stage.id].sort((a, b) => (a.ultimoContatoIso < b.ultimoContatoIso ? 1 : -1))
+    })
+
+    return agrupado
+  }, [crmLeadsFiltrados])
+
+  const crmKpis = useMemo(() => {
+    const totalLeads = crmDataset.leads.length
+    const leadsFechados = crmDataset.leads.filter((lead) => lead.etapa === 'fechado')
+    const stageAguardandoIndex = CRM_STAGE_INDEX['aguardando-contrato']
+    const leadsComContrato = crmDataset.leads.filter(
+      (lead) => CRM_STAGE_INDEX[lead.etapa] >= stageAguardandoIndex,
+    )
+
+    const receitaRecorrente = leadsComContrato
+      .filter((lead) => lead.tipoOperacao === 'LEASING')
+      .reduce((total, lead) => total + lead.valorEstimado, 0)
+
+    const receitaPontual = leadsFechados
+      .filter((lead) => lead.tipoOperacao === 'VENDA_DIRETA')
+      .reduce((total, lead) => total + lead.valorEstimado, 0)
+
+    const leadsEmRisco = crmDataset.leads.filter((lead) => {
+      const diasSemContato = diasDesdeDataIso(lead.ultimoContatoIso)
+      const indiceEtapa = CRM_STAGE_INDEX[lead.etapa]
+      return indiceEtapa >= CRM_STAGE_INDEX['proposta-enviada'] && indiceEtapa <= CRM_STAGE_INDEX['negociacao'] && diasSemContato >= 3
+    })
+
+    return {
+      totalLeads,
+      leadsFechados: leadsFechados.length,
+      receitaRecorrente,
+      receitaPontual,
+      leadsEmRisco: leadsEmRisco.length,
+    }
+  }, [crmDataset.leads])
+
+  const crmTimelineFiltrada = useMemo(() => {
+    const base = crmLeadSelecionadoId
+      ? crmDataset.timeline.filter((item) => item.leadId === crmLeadSelecionadoId)
+      : crmDataset.timeline
+
+    return base.slice(0, 40)
+  }, [crmDataset.timeline, crmLeadSelecionadoId])
+
+  const handleCrmLeadFormChange = useCallback(<K extends keyof CrmLeadFormState>(campo: K, valor: CrmLeadFormState[K]) => {
+    setCrmLeadForm((prev) => ({ ...prev, [campo]: valor }))
+  }, [])
+
+  const handleCrmLeadFormSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+
+      const consumoNumerico = Number(crmLeadForm.consumoKwhMes.replace(',', '.'))
+      const valorEstimadoNumerico = Number(crmLeadForm.valorEstimado.replace(',', '.'))
+
+      if (!crmLeadForm.nome.trim() || !crmLeadForm.telefone.trim() || !crmLeadForm.cidade.trim()) {
+        adicionarNotificacao('Informe nome, telefone e cidade para cadastrar o lead.', 'error')
+        return
+      }
+
+      if (!Number.isFinite(consumoNumerico) || consumoNumerico <= 0) {
+        adicionarNotificacao('Consumo mensal inválido. Utilize apenas números.', 'error')
+        return
+      }
+
+      if (!Number.isFinite(valorEstimadoNumerico) || valorEstimadoNumerico <= 0) {
+        adicionarNotificacao('Defina o valor estimado do projeto para projeções financeiras.', 'error')
+        return
+      }
+
+      const agoraIso = new Date().toISOString()
+      const novoLead: CrmLeadRecord = {
+        id: gerarIdCrm('lead'),
+        nome: crmLeadForm.nome.trim(),
+        telefone: crmLeadForm.telefone.trim(),
+        email: crmLeadForm.email.trim() || undefined,
+        cidade: crmLeadForm.cidade.trim(),
+        tipoImovel: crmLeadForm.tipoImovel.trim() || 'Não informado',
+        consumoKwhMes: Math.round(consumoNumerico),
+        origemLead: crmLeadForm.origemLead.trim() || 'Cadastro manual',
+        interesse: crmLeadForm.interesse,
+        tipoOperacao: crmLeadForm.tipoOperacao,
+        valorEstimado: Math.round(valorEstimadoNumerico),
+        etapa: 'novo-lead',
+        ultimoContatoIso: agoraIso,
+        criadoEmIso: agoraIso,
+        notas: crmLeadForm.notas.trim() || undefined,
+      }
+
+      const evento: CrmTimelineEntry = {
+        id: gerarIdCrm('evento'),
+        leadId: novoLead.id,
+        mensagem: `Lead "${novoLead.nome}" cadastrado manualmente e posicionado em Novo lead.`,
+        tipo: 'status',
+        criadoEmIso: agoraIso,
+      }
+
+      setCrmDataset((prev) => ({
+        leads: [novoLead, ...prev.leads],
+        timeline: [evento, ...prev.timeline].slice(0, 120),
+      }))
+
+      setCrmLeadForm((prev) => ({
+        ...CRM_EMPTY_LEAD_FORM,
+        interesse: prev.interesse,
+        tipoOperacao: prev.tipoOperacao,
+      }))
+      setCrmLeadSelecionadoId(novoLead.id)
+      setCrmNotaTexto('')
+      adicionarNotificacao('Lead adicionado ao funil do CRM.', 'success')
+    },
+    [adicionarNotificacao, crmLeadForm],
+  )
+
+  const handleMoverLead = useCallback(
+    (leadId: string, direcao: 1 | -1) => {
+      let mensagemSucesso: string | null = null
+
+      setCrmDataset((prev) => {
+        const leadAtual = prev.leads.find((lead) => lead.id === leadId)
+        if (!leadAtual) {
+          return prev
+        }
+
+        const indiceAtual = CRM_STAGE_INDEX[leadAtual.etapa]
+        const novoIndice = Math.min(
+          CRM_PIPELINE_STAGES.length - 1,
+          Math.max(0, indiceAtual + direcao),
+        )
+
+        if (novoIndice === indiceAtual) {
+          return prev
+        }
+
+        const novaEtapa = CRM_PIPELINE_STAGES[novoIndice].id
+        const agoraIso = new Date().toISOString()
+        mensagemSucesso = `Lead "${leadAtual.nome}" movido para ${CRM_PIPELINE_STAGES[novoIndice].label}.`
+
+        const leadsAtualizados = prev.leads.map((lead) =>
+          lead.id === leadId
+            ? { ...lead, etapa: novaEtapa, ultimoContatoIso: agoraIso }
+            : lead,
+        )
+
+        const evento: CrmTimelineEntry = {
+          id: gerarIdCrm('evento'),
+          leadId,
+          mensagem: `Etapa atualizada de ${CRM_PIPELINE_STAGES[indiceAtual].label} para ${CRM_PIPELINE_STAGES[novoIndice].label}.`,
+          tipo: 'status',
+          criadoEmIso: agoraIso,
+        }
+
+        return {
+          leads: leadsAtualizados,
+          timeline: [evento, ...prev.timeline].slice(0, 120),
+        }
+      })
+
+      if (mensagemSucesso) {
+        adicionarNotificacao(mensagemSucesso, 'success')
+      }
+    },
+    [adicionarNotificacao],
+  )
+
+  const handleSelecionarLead = useCallback((leadId: string) => {
+    setCrmLeadSelecionadoId((prev) => (prev === leadId ? null : leadId))
+  }, [])
+
+  const handleAdicionarNotaCrm = useCallback(() => {
+    if (!crmLeadSelecionadoId) {
+      adicionarNotificacao('Selecione um lead para registrar uma nota.', 'info')
+      return
+    }
+
+    const notaLimpa = crmNotaTexto.trim()
+    if (!notaLimpa) {
+      adicionarNotificacao('Escreva uma nota antes de salvar.', 'error')
+      return
+    }
+
+    const agoraIso = new Date().toISOString()
+    const evento: CrmTimelineEntry = {
+      id: gerarIdCrm('evento'),
+      leadId: crmLeadSelecionadoId,
+      mensagem: notaLimpa,
+      tipo: 'anotacao',
+      criadoEmIso: agoraIso,
+    }
+
+    setCrmDataset((prev) => ({
+      leads: prev.leads.map((lead) =>
+        lead.id === crmLeadSelecionadoId
+          ? {
+              ...lead,
+              notas: notaLimpa,
+              ultimoContatoIso: agoraIso,
+            }
+          : lead,
+      ),
+      timeline: [evento, ...prev.timeline].slice(0, 120),
+    }))
+
+    setCrmNotaTexto('')
+    adicionarNotificacao('Nota registrada no histórico do lead.', 'success')
+  }, [adicionarNotificacao, crmLeadSelecionadoId, crmNotaTexto])
+
+  const handleRemoverLead = useCallback(
+    (leadId: string) => {
+      let nomeLead: string | null = null
+
+      setCrmDataset((prev) => {
+        const leadAtual = prev.leads.find((lead) => lead.id === leadId)
+        if (!leadAtual) {
+          return prev
+        }
+        nomeLead = leadAtual.nome
+        const agoraIso = new Date().toISOString()
+
+        const leadsRestantes = prev.leads.filter((lead) => lead.id !== leadId)
+        const evento: CrmTimelineEntry = {
+          id: gerarIdCrm('evento'),
+          leadId,
+          mensagem: `Lead removido do funil pelo usuário em ${formatarDataCurta(agoraIso)}.`,
+          tipo: 'status',
+          criadoEmIso: agoraIso,
+        }
+
+        return {
+          leads: leadsRestantes,
+          timeline: [evento, ...prev.timeline].slice(0, 120),
+        }
+      })
+
+      if (nomeLead && crmLeadSelecionadoId === leadId) {
+        setCrmLeadSelecionadoId(null)
+      }
+
+      if (nomeLead) {
+        adicionarNotificacao(`Lead "${nomeLead}" removido do CRM.`, 'info')
+      }
+    },
+    [adicionarNotificacao, crmLeadSelecionadoId],
+  )
+
   const handleSalvarCliente = useCallback(() => {
     if (typeof window === 'undefined') {
       return
