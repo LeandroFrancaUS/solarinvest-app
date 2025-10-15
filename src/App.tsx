@@ -1871,6 +1871,7 @@ const printStyles = `
   html[data-print-mode='print'] .print-yearly-payments__year-label{color:#0f172a;}
   html[data-print-mode='print'] .print-chart{background:#ffffff;border:1px solid rgba(15,23,42,0.24);box-shadow:none;}
   html[data-print-mode='print'] .print-chart::after{display:none;}
+  html[data-print-mode='download'] .print-chart::after{display:none;}
   html[data-print-mode='print'] .print-chart .recharts-legend-item text{fill:#0f172a;}
   html[data-print-mode='print'] .chart-title{color:#0f172a;}
   html[data-print-mode='print'] .chart-explainer{background:#ffffff;border:1px solid rgba(15,23,42,0.24);color:#0f172a;}
