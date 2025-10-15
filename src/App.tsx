@@ -1450,7 +1450,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       <section className="print-section print-chart-section">
         <h2>Economia projetada (30 anos)</h2>
         <div className="print-chart">
-          <ResponsiveContainer width="100%" height={480}>
+          <ResponsiveContainer width="50%" height={240}>
             <BarChart
               layout="vertical"
               data={chartDataPrintable}
