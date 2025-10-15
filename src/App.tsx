@@ -170,6 +170,13 @@ type ClienteDados = {
   uf: string
 }
 
+type ClienteRegistro = {
+  id: string
+  criadoEm: string
+  atualizadoEm: string
+  dados: ClienteDados
+}
+
 type BuyoutRow = {
   mes: number
   tarifa: number
@@ -239,10 +246,23 @@ const CAMPOS_CLIENTE_OBRIGATORIOS: { key: keyof ClienteDados; label: string }[] 
   { key: 'uf', label: 'Estado' },
 ]
 
+const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
 const BUDGET_ID_PREFIX = 'SLRINVST-'
 const BUDGET_ID_SUFFIX_LENGTH = 8
 const BUDGET_ID_MAX_ATTEMPTS = 1000
+
+const CLIENTE_INICIAL: ClienteDados = {
+  nome: '',
+  documento: '',
+  email: '',
+  telefone: '',
+  distribuidora: '',
+  uc: '',
+  endereco: '',
+  cidade: 'Anápolis',
+  uf: 'GO',
+}
 
 const generateBudgetId = (existingIds: Set<string> = new Set()) => {
   let attempts = 0
@@ -272,6 +292,17 @@ const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
   buyoutResumo: { ...dados.buyoutResumo },
   parcelasLeasing: dados.parcelasLeasing.map((row) => ({ ...row })),
 })
+
+const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
+
+const generateClienteId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  const random = Math.floor(Math.random() * 1_000_000)
+  return `cliente-${Date.now()}-${random.toString().padStart(6, '0')}`
+}
 
 const normalizeText = (value: string) =>
   value
@@ -348,6 +379,100 @@ const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
         </span>
       ) : null}
     </span>
+  )
+}
+
+type ClientesModalProps = {
+  registros: ClienteRegistro[]
+  onClose: () => void
+  onEditar: (registro: ClienteRegistro) => void
+  onExcluir: (registro: ClienteRegistro) => void
+}
+
+const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEditar, onExcluir }) => {
+  const modalTitleId = useId()
+
+  return (
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby={modalTitleId}>
+      <div className="modal-backdrop" onClick={onClose} />
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3 id={modalTitleId}>Clientes salvos</h3>
+          <button className="icon" onClick={onClose} aria-label="Fechar listagem de clientes">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body">
+          <section className="budget-search-panel clients-panel">
+            <div className="budget-search-header">
+              <h4>Gestão de clientes</h4>
+              <p>Clientes armazenados localmente neste dispositivo.</p>
+            </div>
+            {registros.length === 0 ? (
+              <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
+            ) : (
+              <div className="budget-search-table clients-table">
+                <div className="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Cliente</th>
+                        <th>Documento</th>
+                        <th>Cidade/UF</th>
+                        <th>Criado em</th>
+                        <th>Atualizado em</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {registros.map((registro) => {
+                        const { dados } = registro
+                        const cidade = dados.cidade?.trim()
+                        const uf = dados.uf?.trim()
+                        return (
+                          <tr key={registro.id}>
+                            <td>
+                              <div className="clients-table-client">
+                                <strong>{dados.nome || '—'}</strong>
+                                <span>{dados.email || 'E-mail não informado'}</span>
+                              </div>
+                            </td>
+                            <td>{dados.documento || '—'}</td>
+                            <td>
+                              {cidade || uf ? (
+                                <span>{`${cidade || '—'}${uf ? `/${uf}` : ''}`}</span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td>{formatBudgetDate(registro.criadoEm)}</td>
+                            <td>{formatBudgetDate(registro.atualizadoEm)}</td>
+                            <td>
+                              <div className="clients-table-actions">
+                                <button type="button" className="link" onClick={() => onEditar(registro)}>
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="link danger"
+                                  onClick={() => onExcluir(registro)}
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -758,17 +883,10 @@ export default function App() {
   const [numeroPlacasManual, setNumeroPlacasManual] = useState<number | ''>('')
   const consumoAnteriorRef = useRef(kcKwhMes)
 
-  const [cliente, setCliente] = useState<ClienteDados>({
-    nome: '',
-    documento: '',
-    email: '',
-    telefone: '',
-    distribuidora: '',
-    uc: '',
-    endereco: '',
-    cidade: 'Anápolis',
-    uf: 'GO',
-  })
+  const [cliente, setCliente] = useState<ClienteDados>({ ...CLIENTE_INICIAL })
+  const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
+  const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
+  const [isClientesModalOpen, setIsClientesModalOpen] = useState(false)
   const [clienteMensagens, setClienteMensagens] = useState<{ email?: string; cidade?: string }>({})
   const [verificandoCidade, setVerificandoCidade] = useState(false)
 
@@ -1573,16 +1691,235 @@ export default function App() {
     [],
   )
 
-  const validarCamposObrigatorios = () => {
-    const faltantes = CAMPOS_CLIENTE_OBRIGATORIOS.filter(({ key }) => !cliente[key].trim())
-    if (faltantes.length > 0) {
-      const mensagem = `Preencha os campos obrigatórios antes de exportar: ${faltantes
-        .map((campo) => campo.label)
-        .join(', ')}`
-      window.alert(mensagem)
-      return false
+  const validarCamposObrigatorios = useCallback(
+    (acao: string = 'exportar') => {
+      const faltantes = CAMPOS_CLIENTE_OBRIGATORIOS.filter(({ key }) => !cliente[key].trim())
+      if (faltantes.length > 0) {
+        const mensagem = `Preencha os campos obrigatórios antes de ${acao}: ${faltantes
+          .map((campo) => campo.label)
+          .join(', ')}`
+        window.alert(mensagem)
+        return false
+      }
+      return true
+    },
+    [cliente],
+  )
+
+  const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
+    if (typeof window === 'undefined') {
+      return []
     }
-    return true
+
+    const existenteRaw = window.localStorage.getItem(CLIENTES_STORAGE_KEY)
+    if (!existenteRaw) {
+      return []
+    }
+
+    try {
+      const parsed = JSON.parse(existenteRaw)
+      if (!Array.isArray(parsed)) {
+        return []
+      }
+
+      const agora = new Date().toISOString()
+      return parsed
+        .map((item) => {
+          const registro = item as Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> }
+          const dados = registro.dados ?? (registro as unknown as { cliente?: Partial<ClienteDados> }).cliente ?? {}
+          const normalizado: ClienteRegistro = {
+            id: registro.id ?? generateClienteId(),
+            criadoEm: registro.criadoEm ?? agora,
+            atualizadoEm: registro.atualizadoEm ?? registro.criadoEm ?? agora,
+            dados: {
+              nome: dados?.nome ?? '',
+              documento: dados?.documento ?? '',
+              email: dados?.email ?? '',
+              telefone: dados?.telefone ?? '',
+              distribuidora: dados?.distribuidora ?? '',
+              uc: dados?.uc ?? '',
+              endereco: dados?.endereco ?? '',
+              cidade: dados?.cidade ?? '',
+              uf: dados?.uf ?? '',
+            },
+          }
+          return normalizado
+        })
+        .sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+    } catch (error) {
+      console.warn('Não foi possível interpretar os clientes salvos existentes.', error)
+      return []
+    }
+  }, [])
+
+  useEffect(() => {
+    const registros = carregarClientesSalvos()
+    setClientesSalvos(registros)
+  }, [carregarClientesSalvos])
+
+  const handleSalvarCliente = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (!validarCamposObrigatorios('salvar o cliente')) {
+      return
+    }
+
+    const dadosClonados = cloneClienteDados(cliente)
+    const agoraIso = new Date().toISOString()
+    const estaEditando = Boolean(clienteEmEdicaoId)
+    let registroSalvo: ClienteRegistro | null = null
+    let houveErro = false
+
+    setClientesSalvos((prevRegistros) => {
+      let registrosAtualizados: ClienteRegistro[] = prevRegistros
+      let registroAtualizado: ClienteRegistro | null = null
+
+      if (clienteEmEdicaoId) {
+        let encontrado = false
+        registrosAtualizados = prevRegistros.map((registro) => {
+          if (registro.id === clienteEmEdicaoId) {
+            encontrado = true
+            const atualizado: ClienteRegistro = {
+              ...registro,
+              dados: dadosClonados,
+              atualizadoEm: agoraIso,
+            }
+            registroAtualizado = atualizado
+            return atualizado
+          }
+          return registro
+        })
+
+        if (!encontrado) {
+          registroAtualizado = {
+            id: generateClienteId(),
+            criadoEm: agoraIso,
+            atualizadoEm: agoraIso,
+            dados: dadosClonados,
+          }
+          registrosAtualizados = [registroAtualizado, ...prevRegistros]
+        }
+      } else {
+        registroAtualizado = {
+          id: generateClienteId(),
+          criadoEm: agoraIso,
+          atualizadoEm: agoraIso,
+          dados: dadosClonados,
+        }
+        registrosAtualizados = [registroAtualizado, ...prevRegistros]
+      }
+
+      if (!registroAtualizado) {
+        registroAtualizado = {
+          id: generateClienteId(),
+          criadoEm: agoraIso,
+          atualizadoEm: agoraIso,
+          dados: dadosClonados,
+        }
+        registrosAtualizados = [registroAtualizado, ...prevRegistros]
+      }
+
+      const ordenados = [...registrosAtualizados].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+
+      try {
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ordenados))
+      } catch (error) {
+        console.error('Erro ao salvar cliente localmente.', error)
+        window.alert('Não foi possível salvar o cliente. Tente novamente.')
+        houveErro = true
+        return prevRegistros
+      }
+
+      registroSalvo = registroAtualizado
+      return ordenados
+    })
+
+    if (houveErro || !registroSalvo) {
+      return
+    }
+
+    setClienteEmEdicaoId(registroSalvo.id)
+    window.alert(estaEditando ? 'Cliente atualizado com sucesso.' : 'Cliente salvo com sucesso.')
+  }, [cliente, clienteEmEdicaoId, setClienteEmEdicaoId, validarCamposObrigatorios])
+
+  const handleEditarCliente = useCallback(
+    (registro: ClienteRegistro) => {
+      setCliente(cloneClienteDados(registro.dados))
+      setClienteMensagens({})
+      setClienteEmEdicaoId(registro.id)
+      setIsClientesModalOpen(false)
+      setActiveTab('cliente')
+    },
+    [setActiveTab, setCliente, setClienteEmEdicaoId, setClienteMensagens, setIsClientesModalOpen],
+  )
+
+  const handleExcluirCliente = useCallback(
+    (registro: ClienteRegistro) => {
+      if (typeof window === 'undefined') {
+        return
+      }
+
+      const nomeCliente = registro.dados.nome?.trim() || 'este cliente'
+      const confirmado = window.confirm(
+        `Deseja realmente excluir ${nomeCliente}? Essa ação não poderá ser desfeita.`,
+      )
+      if (!confirmado) {
+        return
+      }
+
+      let removeuEdicaoAtual = false
+      let houveErro = false
+
+      setClientesSalvos((prevRegistros) => {
+        const registrosAtualizados = prevRegistros.filter((item) => item.id !== registro.id)
+        if (registrosAtualizados.length === prevRegistros.length) {
+          return prevRegistros
+        }
+
+        try {
+          if (registrosAtualizados.length > 0) {
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+          } else {
+            window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
+          }
+        } catch (error) {
+          console.error('Erro ao excluir cliente salvo.', error)
+          window.alert('Não foi possível atualizar os clientes salvos. Tente novamente.')
+          houveErro = true
+          return prevRegistros
+        }
+
+        if (clienteEmEdicaoId === registro.id) {
+          removeuEdicaoAtual = true
+        }
+
+        return registrosAtualizados
+      })
+
+      if (houveErro) {
+        return
+      }
+
+      if (removeuEdicaoAtual) {
+        setCliente({ ...CLIENTE_INICIAL })
+        setClienteMensagens({})
+        setClienteEmEdicaoId(null)
+      }
+    },
+    [clienteEmEdicaoId, setCliente, setClienteEmEdicaoId, setClienteMensagens],
+  )
+
+  const abrirClientesModal = () => {
+    const registros = carregarClientesSalvos()
+    setClientesSalvos(registros)
+    setIsClientesModalOpen(true)
+    setIsSettingsOpen(false)
+  }
+
+  const fecharClientesModal = () => {
+    setIsClientesModalOpen(false)
   }
 
   const carregarOrcamentosSalvos = useCallback((): OrcamentoSalvo[] => {
@@ -2143,7 +2480,9 @@ export default function App() {
       </header>
       <div className="app-main">
         <nav className="tabs tabs-bar">
-          <button className={activeTab === 'cliente' ? 'active' : ''} onClick={() => setActiveTab('cliente')}>Cliente</button>
+          <button className={activeTab === 'cliente' ? 'active' : ''} onClick={() => setActiveTab('cliente')}>
+            Clientes
+          </button>
           <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>Leasing</button>
           <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>Vendas</button>
           <button
@@ -2446,6 +2785,14 @@ export default function App() {
                 </select>
               </Field>
             </div>
+            <div className="card-actions">
+              <button type="button" className="primary" onClick={handleSalvarCliente}>
+                {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
+              </button>
+              <button type="button" className="ghost" onClick={abrirClientesModal}>
+                Ver clientes
+              </button>
+            </div>
           </section>
         ) : activeTab === 'financiamento' ? (
           <>
@@ -2582,6 +2929,15 @@ export default function App() {
         )}
         </main>
       </div>
+
+      {isClientesModalOpen ? (
+        <ClientesModal
+          registros={clientesSalvos}
+          onClose={fecharClientesModal}
+          onEditar={handleEditarCliente}
+          onExcluir={handleExcluirCliente}
+        />
+      ) : null}
 
       {isBudgetSearchOpen ? (
         <div className="modal" role="dialog" aria-modal="true" aria-labelledby="budget-search-title">
