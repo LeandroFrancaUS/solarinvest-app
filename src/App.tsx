@@ -41,6 +41,17 @@ const formatAxis = (v: number) => {
   return currency(v)
 }
 
+/**
+ * Quando estivermos hospedados no domínio oficial da SolarInvest, precisamos conversar
+ * com o backend dedicado ao CRM. Esta constante prepara a base da URL já pensando
+ * nessa integração, mas mantém um endpoint local durante o desenvolvimento para que
+ * nada quebre quando executarmos em localhost.
+ */
+const CRM_BACKEND_BASE_URL =
+  typeof window !== 'undefined' && window.location.hostname === 'solarinvest.info'
+    ? 'https://solarinvest.info/api/crm'
+    : 'http://localhost:3001/api/crm'
+
 const DISTRIBUIDORAS_FALLBACK = getDistribuidorasFallback()
 const UF_LABELS: Record<string, string> = {
   AC: 'Acre',
@@ -157,6 +168,243 @@ const SETTINGS_TABS: { id: SettingsTabKey; label: string }[] = [
 type SeguroModo = 'A' | 'B'
 
 type EntradaModoLabel = 'Crédito mensal' | 'Reduz piso contratado'
+
+/**
+ * Estrutura base para os blocos de conteúdo da página de CRM. A ideia aqui é manter
+ * todos os textos centralizados, facilitando futuras integrações com CMS ou API.
+ */
+type CrmContentBlock = {
+  id: string
+  title: string
+  description: string
+  points: string[]
+  automationHighlights?: string[]
+}
+
+/**
+ * Seções principais do CRM conforme solicitado, com o máximo de comentários para
+ * facilitar a manutenção e futuras evoluções do produto digital.
+ */
+const CRM_FEATURE_SECTIONS: CrmContentBlock[] = [
+  {
+    id: 'captacao-qualificacao',
+    title: '1. Captação e qualificação',
+    description:
+      'Centralize todos os leads em um único funil inteligente e registre dados ricos para personalizar a jornada.',
+    points: [
+      'Integração direta com o site e anúncios – quando alguém pede orçamento, o lead entra automaticamente no funil.',
+      'Registro automático da origem do lead (Instagram, WhatsApp, indicação, eventos, feiras e muito mais).',
+      'Campos personalizados para cidade, tipo de imóvel, consumo mensal (kWh) e interesse em sistemas off-grid ou on-grid.',
+    ],
+    automationHighlights: [
+      'Leads captados disparam tags e segmentações automáticas.',
+      'Criação automática de registros de projeto vinculados ao lead desde o primeiro contato.',
+    ],
+  },
+  {
+    id: 'prospeccao-proposta',
+    title: '2. Prospecção e proposta',
+    description: 'Transforme oportunidades em contratos com um funil visual e rico em contexto.',
+    points: [
+      'Funil visual de vendas com etapas: Novo lead → Proposta enviada → Negociação → Visita técnica → Contrato assinado.',
+      'Geração automática de propostas em PDF com o branding SolarInvest e dados personalizados do cliente.',
+      'Histórico completo de conversas e anexos – documentos, fotos do telhado, planilhas e tudo mais em um só lugar.',
+    ],
+    automationHighlights: [
+      'Follow-up automático após 48h sem resposta.',
+      'Mudanças de etapa geram tarefas automáticas no módulo de Contrato.',
+    ],
+  },
+  {
+    id: 'contrato-implantacao',
+    title: '3. Contrato e implantação',
+    description: 'Execução rápida e rastreável com checklist técnico e comunicação integrada.',
+    points: [
+      'Integração com assinatura digital e controle de status de instalação em tempo real.',
+      'Notificações automáticas para o cliente (ex: “sua usina está em fase de vistoria”).',
+      'Upload facilitado de ART, notas fiscais, laudos técnicos e demais documentos obrigatórios.',
+    ],
+    automationHighlights: [
+      'Checklist técnico atualizado automaticamente conforme o contrato é assinado.',
+      'Ao concluir a instalação, o status passa para “Usina ativa” sem intervenção manual.',
+    ],
+  },
+  {
+    id: 'instalacao',
+    title: '4. Instalação',
+    description: 'O módulo técnico assume o controle e mantém todo o time sincronizado.',
+    points: [
+      'Gestão de equipe, materiais, cronograma e fotos de execução vinculadas ao mesmo registro de cliente.',
+      'Visão em tempo real do status (em andamento, concluída, aguardando homologação).',
+      'Toda a operação técnica fica centralizada e auditável.',
+    ],
+    automationHighlights: [
+      'Atualizações técnicas alimentam dashboards gerenciais instantaneamente.',
+    ],
+  },
+  {
+    id: 'pos-venda',
+    title: '5. Pós-venda e manutenção',
+    description: 'Mantenha o cliente engajado e reduza custos operacionais com monitoramento ativo.',
+    points: [
+      'Agenda de manutenções preventivas com alertas automáticos.',
+      'Relatórios de geração (kWh) com integração via API do inversor e alertas de falhas.',
+      'Registro de chamados, suporte técnico e histórico completo da usina.',
+    ],
+    automationHighlights: [
+      'Detecção de anomalias gera tickets de suporte automaticamente.',
+    ],
+  },
+  {
+    id: 'financeiro-basico',
+    title: '6. Financeiro básico',
+    description: 'Tudo o que você precisa para organizar recebimentos com segurança.',
+    points: [
+      'Controle de recebimentos de contratos de leasing em um só painel.',
+      'Integração nativa com boletos e Pix para acelerar conciliação.',
+      'Dashboards de ROI e margem por usina com atualização automática.',
+    ],
+  },
+  {
+    id: 'financeiro-avancado',
+    title: '7. Financeiro avançado',
+    description: 'Camadas financeiras robustas para lidar com múltiplos modelos de negócio.',
+    points: [
+      'Contratos de leasing vinculados à cobrança mensal com geração automática de boletos.',
+      'Monitoramento de status de pagamento e indicadores de inadimplência.',
+      'Visão consolidada de ROI, fluxo de caixa e rentabilidade por projeto.',
+    ],
+  },
+]
+
+/**
+ * Blueprint detalhado do CRM conforme solicitado – este conteúdo aprofunda cada pilar
+ * operacional e ajuda o time a visualizar automações e integrações futuras.
+ */
+const CRM_BLUEPRINT_BLOCKS: CrmContentBlock[] = [
+  {
+    id: 'blueprint-captacao',
+    title: 'Blueprint: Captação e Qualificação',
+    description:
+      'Objetivo: centralizar leads, classificar interesses automaticamente e iniciar projetos com dados completos.',
+    points: [
+      'Campos principais: nome, telefone, cidade, tipo de imóvel, consumo (kWh/mês) e origem do lead.',
+      'Automações: captura automática de leads (site, Instagram Ads, WhatsApp) e classificação por interesse.',
+      'Alertas para a equipe quando a proposta é aberta ou respondida pelo lead.',
+      'Criação automática de registro de projeto vinculado ao lead, com tags como on-grid ou off-grid.',
+    ],
+  },
+  {
+    id: 'blueprint-propostas',
+    title: 'Blueprint: Propostas e Negociação',
+    description:
+      'Objetivo: acompanhar o ciclo de venda com precisão, do primeiro contato até a assinatura.',
+    points: [
+      'Etapas do funil: Novo Lead → Proposta Enviada → Em Negociação → Visita Técnica → Aguardando Contrato → Fechado.',
+      'Automações: geração de proposta em PDF, envio automático e notificações internas para follow-up.',
+      'Cálculo automático de ROI e custo estimado com base no consumo informado.',
+      'Registro de histórico completo (mensagens, visitas, alterações de valores) anexado ao projeto.',
+    ],
+  },
+  {
+    id: 'blueprint-contrato',
+    title: 'Blueprint: Contrato e Implantação',
+    description:
+      'Objetivo: garantir execução rastreável com checklist técnico conectado ao CRM.',
+    points: [
+      'Integração com assinatura eletrônica, checklist de vistoria e homologação totalmente digital.',
+      'Uploads de documentos essenciais (ART, notas fiscais, laudos) anexados ao mesmo ID do projeto.',
+      'Alertas automáticos para o time técnico quando o contrato é assinado.',
+      'Transformação do projeto comercial em projeto ativo com cronograma técnico e status “Instalação em andamento”.',
+    ],
+  },
+  {
+    id: 'blueprint-pos-venda',
+    title: 'Blueprint: Pós-venda e Monitoramento',
+    description:
+      'Objetivo: manter clientes engajados, monitorar geração e abrir tickets preventivamente.',
+    points: [
+      'Histórico da usina com dados de equipamentos, datas de vistoria e checklist de manutenção.',
+      'Integração com API do inversor para puxar geração mensal automaticamente.',
+      'Alertas de anomalia e abertura automática de ticket em caso de queda de geração.',
+      'Relatórios automáticos alimentam painel de desempenho e agenda de manutenção preventiva.',
+    ],
+  },
+  {
+    id: 'blueprint-financeiro',
+    title: 'Blueprint: Financeiro Integrado',
+    description:
+      'Objetivo: consolidar contratos, fluxos de caixa e indicadores de performance financeira.',
+    points: [
+      'Controle de parcelas, reajustes e vencimentos com emissão automática de boletos/Pix.',
+      'Dashboards de ROI, margem de lucro, adimplência e receita mensal por usina.',
+      'Relatórios semanais automáticos enviados aos gestores com metas por vendedor.',
+      'Alertas de gargalos (ex: muitos projetos em “aguardando visita técnica”) para ações imediatas.',
+    ],
+  },
+  {
+    id: 'blueprint-inteligencia',
+    title: 'Blueprint: Inteligência e Relatórios',
+    description:
+      'Objetivo: visão gerencial de ponta a ponta, da conversão comercial ao retorno financeiro.',
+    points: [
+      'Indicadores de taxa de conversão, tempo médio de fechamento e lucro líquido por projeto.',
+      'Mapa de geração (kWh) por região com consolidação de dados técnicos e financeiros.',
+      'Relatórios semanais automáticos e alertas de performance por etapa do funil.',
+    ],
+  },
+]
+
+/**
+ * Estrutura adicional para destacar as camadas financeiras avançadas solicitadas,
+ * diferenciando leasing de venda direta e já indicando as métricas essenciais.
+ */
+const CRM_FINANCIAL_LAYERS: CrmContentBlock[] = [
+  {
+    id: 'financeiro-modelos',
+    title: 'Modelos distintos: Leasing x Venda Direta',
+    description:
+      'Cada projeto traz o campo “tipo de operação” para separar fluxos de receita recorrente e pontual.',
+    points: [
+      'Leasing gera parcelas mensais com vencimentos, reajustes e status (em aberto, pago, atrasado).',
+      'Venda direta registra entrada + parcelas únicas ou pagamento à vista.',
+      'Relatórios acompanham receita recorrente (leasing) e receita pontual (vendas diretas) em paralelo.',
+    ],
+  },
+  {
+    id: 'financeiro-caixa',
+    title: 'Controle de caixa real',
+    description:
+      'Fluxo de entrada e saída totalmente categorizado para uma visão fiel do caixa.',
+    points: [
+      'Lançamentos com data, categoria (Receita, Custo Fixo, Custo Variável, Investimento) e origem.',
+      'Formas de pagamento mapeadas (Pix, boleto, cartão, transferência) para conciliação precisa.',
+      'Indicadores exibem caixa diário/mensal, saldo acumulado e entradas vs. saídas.',
+    ],
+  },
+  {
+    id: 'financeiro-custos',
+    title: 'Gestão de custos e margens',
+    description:
+      'Todos os custos ficam vinculados ao mesmo ID do projeto para cálculos automáticos.',
+    points: [
+      'Cadastro de custos de equipamentos, mão de obra, deslocamento, taxas e seguros.',
+      'Cálculo de margem bruta, margem líquida, ROI e payback por projeto/mês.',
+      'Dashboards permitem enxergar rentabilidade por usina em tempo real.',
+    ],
+  },
+  {
+    id: 'financeiro-dashboards',
+    title: 'Dashboards e previsões',
+    description:
+      'Visualize projeções de leasing, indicadores de inadimplência e desempenho consolidado.',
+    points: [
+      'Gráfico de caixa acumulado mês a mês e projeção de entradas futuras.',
+      'Indicadores de inadimplência com alertas automáticos.',
+      'Painel centralizado de receitas, despesas e saldo consolidado.',
+    ],
+  },
+]
 
 type ClienteDados = {
   nome: string
@@ -888,6 +1136,109 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('leasing')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
+  /**
+   * Flag de navegação entre a proposta financeira tradicional e a nova visão de CRM.
+   * Mantemos tudo dentro da mesma SPA para evitar recarregar o app quando estivermos
+   * testando localmente ou demonstrando para clientes.
+   */
+  const [isCrmPage, setIsCrmPage] = useState(false)
+  /**
+   * Estados auxiliares para monitorar a integração com o backend do CRM assim que a
+   * aplicação estiver publicada em solarinvest.info. Enquanto isso, mantemos feedback
+   * visual claro e evitamos chamadas remotas desnecessárias.
+   */
+  const [crmBackendStatus, setCrmBackendStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [crmBackendError, setCrmBackendError] = useState<string | null>(null)
+  const [crmLastSync, setCrmLastSync] = useState<Date | null>(null)
+  /**
+   * Descobrimos dinamicamente se estamos rodando no domínio oficial. Essa informação
+   * evita que tentemos conversar com uma API inexistente durante o desenvolvimento.
+   */
+  const isProductionDomain = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    return window.location.hostname === 'solarinvest.info'
+  }, [])
+
+  /**
+   * Texto amigável sobre a última sincronização realizada com o backend do CRM.
+   * Utilizamos useMemo para recalcular apenas quando o timestamp muda.
+   */
+  const crmLastSyncTexto = useMemo(() => {
+    if (!crmLastSync) {
+      return null
+    }
+    try {
+      return crmLastSync.toLocaleString('pt-BR')
+    } catch (error) {
+      console.warn('Falha ao formatar data de sincronização do CRM.', error)
+      return crmLastSync.toISOString()
+    }
+  }, [crmLastSync])
+
+  /**
+   * Navegações encapsuladas em callbacks memorizados para não recriar funções a cada
+   * renderização. Isso ajuda a manter o React Profiler limpo e evita renders extras.
+   */
+  const handleAbrirCrm = useCallback(() => {
+    setIsCrmPage(true)
+  }, [])
+
+  const handleVoltarParaProposta = useCallback(() => {
+    setIsCrmPage(false)
+  }, [])
+
+  /**
+   * Assim que o usuário entrar na visão de CRM em produção, tentamos buscar um
+   * bootstrap inicial do backend. Em ambiente local evitamos qualquer requisição
+   * externa para manter o desenvolvimento rápido e resiliente.
+   */
+  useEffect(() => {
+    if (!isCrmPage) {
+      return
+    }
+
+    if (!isProductionDomain) {
+      setCrmBackendStatus('idle')
+      setCrmBackendError(null)
+      return
+    }
+
+    const abortController = new AbortController()
+
+    const carregarBootstrapCrm = async () => {
+      setCrmBackendStatus('loading')
+      setCrmBackendError(null)
+
+      try {
+        const response = await fetch(`${CRM_BACKEND_BASE_URL}/bootstrap`, {
+          signal: abortController.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error(`Falha ao carregar bootstrap do CRM (status ${response.status})`)
+        }
+
+        await response.json()
+        setCrmBackendStatus('success')
+        setCrmLastSync(new Date())
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return
+        }
+
+        setCrmBackendStatus('error')
+        setCrmBackendError(error instanceof Error ? error.message : 'Erro inesperado ao sincronizar CRM')
+      }
+    }
+
+    void carregarBootstrapCrm()
+
+    return () => {
+      abortController.abort()
+    }
+  }, [isCrmPage, isProductionDomain])
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>('mercado')
@@ -2532,6 +2883,108 @@ export default function App() {
     </section>
   )
 
+  /**
+   * Função utilitária para renderizar blocos do CRM com bastante comentários e clareza.
+   * Isso nos permite reutilizar a estrutura em diferentes seções (funcionalidades,
+   * blueprint e camadas financeiras) sem duplicar JSX complexo.
+   */
+  const renderCrmBlocks = useCallback(
+    (blocks: CrmContentBlock[]) =>
+      blocks.map((block) => (
+        <article key={block.id} className="card crm-card">
+          <h3>{block.title}</h3>
+          <p className="crm-description">{block.description}</p>
+          <ul className="crm-list">
+            {block.points.map((point, index) => (
+              <li key={`${block.id}-point-${index}`}>{point}</li>
+            ))}
+          </ul>
+          {block.automationHighlights ? (
+            <div className="crm-subsection">
+              <h4>Automações em destaque</h4>
+              <ul className="crm-sublist">
+                {block.automationHighlights.map((automation, index) => (
+                  <li key={`${block.id}-automation-${index}`}>{automation}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </article>
+      )),
+    [],
+  )
+
+  if (isCrmPage) {
+    return (
+      <div className="page">
+        <header className="topbar app-header">
+          <div className="brand">
+            <img src="/logo.svg" alt="SolarInvest" />
+            <div className="brand-text">
+              <h1>SolarInvest App</h1>
+              <p>CRM Gestão de Relacionamento e Operações</p>
+            </div>
+          </div>
+          <div className="top-actions">
+            <button className="ghost" onClick={handleVoltarParaProposta}>Voltar para proposta financeira</button>
+          </div>
+        </header>
+        <div className="crm-main">
+          <main className="crm-content">
+            {crmBackendStatus === 'loading' ? (
+              <div className="crm-status-banner loading">Sincronizando dados iniciais do CRM...</div>
+            ) : null}
+            {crmBackendStatus === 'success' ? (
+              <div className="crm-status-banner success">
+                Integração com o backend confirmada{crmLastSyncTexto ? ` em ${crmLastSyncTexto}` : ''}.
+              </div>
+            ) : null}
+            {crmBackendStatus === 'error' ? (
+              <div className="crm-status-banner error">
+                Não foi possível sincronizar os dados do CRM agora. {crmBackendError || 'Tente novamente em instantes.'}
+              </div>
+            ) : null}
+            {crmBackendStatus === 'idle' && !isProductionDomain ? (
+              <div className="crm-status-banner info">
+                Ambiente local detectado: integrações reais serão ativadas automaticamente quando o app estiver em solarinvest.info.
+              </div>
+            ) : null}
+
+            <section className="card crm-section">
+              <h2>Visão geral do CRM SolarInvest</h2>
+              <p>
+                O módulo de CRM foi desenhado para conectar marketing, vendas, operações técnicas e financeiro em uma única
+                jornada digital. Esta página serve como blueprint funcional e garante que o time esteja preparado para a
+                integração completa com o backend assim que publicada em produção.
+              </p>
+            </section>
+
+            <section className="crm-section">
+              <h2>Funcionalidades principais</h2>
+              <div className="crm-grid">{renderCrmBlocks(CRM_FEATURE_SECTIONS)}</div>
+            </section>
+
+            <section className="crm-section">
+              <h2>Blueprint operacional detalhado</h2>
+              <p className="crm-description">
+                Cada etapa abaixo mapeia exatamente como o CRM deve funcionar, desde a captação até a inteligência analítica.
+              </p>
+              <div className="crm-grid">{renderCrmBlocks(CRM_BLUEPRINT_BLOCKS)}</div>
+            </section>
+
+            <section className="crm-section">
+              <h2>Camadas financeiras e previsões</h2>
+              <p className="crm-description">
+                O CRM incorpora fluxos financeiros robustos para lidar com leasing, vendas diretas e projeções de caixa em tempo real.
+              </p>
+              <div className="crm-grid">{renderCrmBlocks(CRM_FINANCIAL_LAYERS)}</div>
+            </section>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="page">
       <PrintableProposal ref={printableRef} {...printableData} />
@@ -2545,6 +2998,7 @@ export default function App() {
         </div>
         <div className="top-actions">
           <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar orçamentos</button>
+          <button className="ghost" onClick={handleAbrirCrm}>CRM</button>
           <button className="ghost" onClick={handlePrint}>Exportar Proposta (PDF)</button>
           <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
         </div>
