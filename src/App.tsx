@@ -11,6 +11,8 @@ import {
   ReferenceLine,
   CartesianGrid,
   ReferenceDot,
+  Area,
+  Label,
 } from 'recharts'
 
 import {
@@ -1156,6 +1158,55 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       }).filter((row): row is { ano: number; Leasing: number; Financiamento: number } => row !== null),
     [chartDataPrintable],
   )
+  const chartPrintableDomain = useMemo(() => {
+    let min = Number.POSITIVE_INFINITY
+    let max = Number.NEGATIVE_INFINITY
+
+    chartDataPrintable.forEach((row) => {
+      const valores = [row.Leasing]
+      if (mostrarFinanciamento) {
+        valores.push(row.Financiamento)
+      }
+
+      valores.forEach((valor) => {
+        if (Number.isFinite(valor)) {
+          min = Math.min(min, valor)
+          max = Math.max(max, valor)
+        }
+      })
+    })
+
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { min: -1, max: 1 }
+    }
+
+    min = Math.min(min, 0)
+    max = Math.max(max, 0)
+
+    if (min === max) {
+      const padding = Math.max(Math.abs(min) * 0.25, 1)
+      return { min: min - padding, max: max + padding }
+    }
+
+    const range = max - min
+    const padding = range * 0.12
+
+    return {
+      min: min - padding,
+      max: max + padding,
+    }
+  }, [chartDataPrintable, mostrarFinanciamento])
+
+  const chartPrintableXTicks = useMemo(() => {
+    if (!chartDataPrintable.length) {
+      return [] as number[]
+    }
+
+    const maiorAno = chartDataPrintable[chartDataPrintable.length - 1]?.ano ?? 0
+    const pontosBase = [1, 3, 5, 10, 15, 20, 25, 30]
+
+    return pontosBase.filter((tick) => tick <= maiorAno)
+  }, [chartDataPrintable])
   const parcelasLeasingAnuais = useMemo<MensalidadeAnualRow[]>(() => {
     if (!parcelasLeasing.length) {
       return []
@@ -1408,21 +1459,110 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       <section className="print-section print-chart-section">
         <h2>Benefício acumulado projetado (30 anos)</h2>
         <div className="print-chart">
-          <ResponsiveContainer width="100%" height={320}>
-            <LineChart data={chartDataPrintable}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#fcd34d" />
+          <ResponsiveContainer width="100%" height={360}>
+            <LineChart
+              data={chartDataPrintable}
+              margin={{ top: 40, right: 32, bottom: 64, left: 32 }}
+            >
+              <defs>
+                <linearGradient id="printLeasingGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={chartColors.Leasing} stopOpacity={0.35} />
+                  <stop offset="95%" stopColor={chartColors.Leasing} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="printFinancingGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={chartColors.Financiamento} stopOpacity={0.28} />
+                  <stop offset="95%" stopColor={chartColors.Financiamento} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
               <XAxis
                 dataKey="ano"
-                stroke="#b45309"
-                label={{ value: 'Anos', position: 'insideBottomRight', offset: -5, fill: '#b45309' }}
+                stroke="#0f172a"
+                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
+                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                tickLine={false}
+                ticks={chartPrintableXTicks}
+                tickMargin={12}
+                allowDecimals={false}
+                padding={{ left: 8, right: 16 }}
+              >
+                <Label
+                  value="Tempo de contrato (anos)"
+                  position="insideBottom"
+                  offset={-36}
+                  style={{ fill: '#0f172a', fontSize: 13, fontWeight: 700 }}
+                />
+              </XAxis>
+              <YAxis
+                stroke="#0f172a"
+                tickFormatter={formatAxis}
+                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
+                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                tickLine={false}
+                width={150}
+                domain={[chartPrintableDomain.min, chartPrintableDomain.max]}
+              >
+                <Label
+                  value="Benefício acumulado (R$)"
+                  angle={-90}
+                  position="insideLeft"
+                  offset={-24}
+                  style={{ fill: '#0f172a', fontSize: 13, fontWeight: 700 }}
+                />
+              </YAxis>
+              <Tooltip
+                formatter={(value: number) => currency(Number(value))}
+                labelFormatter={(value) => `${value}º ano`}
+                contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', padding: 12 }}
+                wrapperStyle={{ zIndex: 1000 }}
               />
-              <YAxis stroke="#b45309" tickFormatter={formatAxis} />
-              <Tooltip formatter={(value: number) => currency(Number(value))} />
-              <Legend verticalAlign="bottom" align="right" wrapperStyle={{ paddingTop: 16 }} />
-              <ReferenceLine y={0} stroke="#b45309" strokeDasharray="4 4" />
-              <Line type="monotone" dataKey="Leasing" stroke={chartColors.Leasing} strokeWidth={2} dot />
+              <Legend
+                verticalAlign="top"
+                align="left"
+                iconType="circle"
+                wrapperStyle={{ paddingBottom: 16 }}
+                formatter={(value: string) =>
+                  value === 'Leasing' ? 'Leasing SolarInvest' : 'Financiamento SolarInvest'
+                }
+              />
+              <ReferenceLine y={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
+              <Area
+                type="monotone"
+                dataKey="Leasing"
+                stroke="none"
+                fill="url(#printLeasingGradient)"
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="Leasing"
+                stroke={chartColors.Leasing}
+                strokeWidth={3}
+                dot={{ r: 4, strokeWidth: 2, stroke: chartColors.Leasing, fill: '#ffffff' }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+                connectNulls
+                isAnimationActive={false}
+              />
               {mostrarFinanciamento ? (
-                <Line type="monotone" dataKey="Financiamento" stroke={chartColors.Financiamento} strokeWidth={2} dot />
+                <>
+                  <Area
+                    type="monotone"
+                    dataKey="Financiamento"
+                    stroke="none"
+                    fill="url(#printFinancingGradient)"
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="Financiamento"
+                    stroke={chartColors.Financiamento}
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 2, stroke: chartColors.Financiamento, fill: '#ffffff' }}
+                    activeDot={{ r: 5, strokeWidth: 0 }}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                </>
               ) : null}
               {beneficioMarcos.map((marco) => (
                 <React.Fragment key={`beneficio-marco-${marco.ano}`}>
@@ -1431,41 +1571,76 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                     y={marco.Leasing}
                     r={4}
                     fill={chartColors.Leasing}
-                    stroke="none"
-                    label={{ value: currency(marco.Leasing), position: 'top', fill: chartColors.Leasing, fontSize: 12 }}
-                  />
+                    stroke="#ffffff"
+                    strokeWidth={1.5}
+                  >
+                    <Label
+                      value={currency(marco.Leasing)}
+                      position="top"
+                      fill={chartColors.Leasing}
+                      style={{ fontSize: 12, fontWeight: 600 }}
+                    />
+                  </ReferenceDot>
                   {mostrarFinanciamento ? (
                     <ReferenceDot
                       x={marco.ano}
                       y={marco.Financiamento}
                       r={4}
                       fill={chartColors.Financiamento}
-                      stroke="none"
-                      label={{
-                        value: currency(marco.Financiamento),
-                        position: 'right',
-                        fill: chartColors.Financiamento,
-                        fontSize: 12,
-                      }}
-                    />
+                      stroke="#ffffff"
+                      strokeWidth={1.5}
+                    >
+                      <Label
+                        value={currency(marco.Financiamento)}
+                        position="right"
+                        fill={chartColors.Financiamento}
+                        style={{ fontSize: 12, fontWeight: 600 }}
+                      />
+                    </ReferenceDot>
                   ) : null}
                 </React.Fragment>
               ))}
             </LineChart>
           </ResponsiveContainer>
         </div>
+        {beneficioMarcos.length ? (
+          <ul className="print-chart-highlights">
+            {beneficioMarcos.map((marco) => (
+              <li key={`beneficio-marco-resumo-${marco.ano}`}>
+                <span className="print-chart-highlights__year">{marco.ano}º ano</span>
+                <div className="print-chart-highlights__values">
+                  <span className="print-chart-highlights__value" style={{ color: chartColors.Leasing }}>
+                    Leasing: {currency(marco.Leasing)}
+                  </span>
+                  {mostrarFinanciamento ? (
+                    <span className="print-chart-highlights__value" style={{ color: chartColors.Financiamento }}>
+                      Financiamento: {currency(marco.Financiamento)}
+                    </span>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {beneficioAno30Printable ? (
           <p className="chart-explainer">
-            Benefício acumulado em 30 anos:
+            <strong>Economia que cresce ano após ano.</strong>{' '}
+            Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
             <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30Printable.Leasing)}</strong>
             {mostrarFinanciamento ? (
               <>
-                {' • '}Financiamento:{' '}
+                {' '}no leasing e de
                 <strong style={{ color: chartColors.Financiamento }}>
+                  {' '}
                   {currency(beneficioAno30Printable.Financiamento)}
-                </strong>
+                </strong>{' '}
+                com financiamento.
               </>
-            ) : null}
+            ) : (
+              <> comparado à concessionária.</>
+            )}{' '}
+            Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina
+            ao final do acordo.
           </p>
         ) : null}
         <p className="print-chart-footnote">
@@ -1687,18 +1862,25 @@ const printStyles = `
   .print-card .muted{margin:12px 0 0;}
   .print-metric-list p{margin:0 0 10px;font-size:13px;}
   .print-chart-section{display:flex;flex-direction:column;gap:18px;}
-  .print-chart{padding:20px;border-radius:26px;border:1px solid rgba(12,22,44,0.12);background:linear-gradient(140deg,#eef2f8 0%,#f8fafc 100%);box-shadow:0 18px 40px rgba(12,22,44,0.14);}
+  .print-chart{position:relative;padding:32px 36px;border-radius:28px;border:1px solid rgba(15,23,42,0.16);background:linear-gradient(155deg,rgba(255,255,255,0.98) 0%,rgba(226,232,240,0.9) 48%,rgba(248,250,252,0.95) 100%);box-shadow:0 22px 48px rgba(15,23,42,0.18);}
+  .print-chart::after{content:'';position:absolute;inset:18px 18px auto auto;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at center,rgba(255,140,0,0.22),transparent 72%);opacity:0.85;}
   .print-chart .recharts-responsive-container{width:100%;height:100%;}
   .print-chart svg{overflow:visible;}
-  .print-chart .recharts-cartesian-axis-line,.print-chart .recharts-cartesian-axis-tick-line{stroke:#cbd5f5;}
-  .print-chart .recharts-cartesian-axis-tick text{fill:#1e293b;font-size:12px;}
-  .print-chart .recharts-legend-item text{fill:#0c162c;font-weight:600;font-size:12px;}
-  .print-chart .recharts-cartesian-grid line{stroke:#e2e8f0;}
+  .print-chart .recharts-cartesian-axis-line,.print-chart .recharts-cartesian-axis-tick-line{stroke:rgba(15,23,42,0.28);}
+  .print-chart .recharts-cartesian-axis-tick text{fill:#0f172a;font-size:12px;font-weight:600;}
+  .print-chart .recharts-legend-wrapper{padding-top:0!important;}
+  .print-chart .recharts-legend-item text{fill:#0f172a;font-weight:700;font-size:12px;letter-spacing:0.02em;}
+  .print-chart .recharts-cartesian-grid line{stroke:#cbd5f5;}
   .print-chart .recharts-tooltip-wrapper{display:none!important;}
+  .print-chart-highlights{margin:18px 0 0;padding:0;list-style:none;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
+  .print-chart-highlights li{background:rgba(255,255,255,0.85);border:1px solid rgba(148,163,184,0.38);border-radius:18px;padding:12px 16px;display:flex;flex-direction:column;gap:6px;}
+  .print-chart-highlights__year{font-size:12px;font-weight:700;color:#0f172a;letter-spacing:0.08em;text-transform:uppercase;}
+  .print-chart-highlights__values{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;line-height:1.3;}
+  .print-chart-highlights__value{display:inline-flex;align-items:center;gap:4px;}
   .chart-title{margin:0;font-size:18px;color:#0c162c;text-transform:uppercase;letter-spacing:0.18em;}
-  .chart-explainer{margin:0;background:rgba(12,22,44,0.05);padding:12px 16px;border-radius:18px;border:1px solid rgba(12,22,44,0.12);font-size:13px;color:#1e293b;}
+  .chart-explainer{margin:18px 0 0;background:rgba(15,23,42,0.06);padding:14px 18px;border-radius:20px;border:1px solid rgba(15,23,42,0.18);font-size:13px;color:#0f172a;line-height:1.55;}
   .chart-explainer strong{font-size:14px;color:#0c162c;}
-  .print-chart-footnote{margin:4px 0 0;font-size:12px;color:#475569;}
+  .print-chart-footnote{margin:10px 0 0;font-size:12px;color:#475569;}
   ul{margin:0;padding-left:20px;font-size:13px;color:#1f2937;line-height:1.55;}
   ul li{margin-bottom:8px;}
   .print-cta{padding:0;border:none;background:none;box-shadow:none;}
@@ -1749,11 +1931,13 @@ const printStyles = `
   html[data-print-mode='print'] .print-yearly-payments__item{background:#ffffff;border:1px solid rgba(15,23,42,0.18);box-shadow:none;}
   html[data-print-mode='print'] .print-yearly-payments__year{color:#0f172a;}
   html[data-print-mode='print'] .print-yearly-payments__year-label{color:#0f172a;}
-  html[data-print-mode='print'] .print-chart{background:#ffffff;border:1px solid rgba(15,23,42,0.2);box-shadow:none;}
+  html[data-print-mode='print'] .print-chart{background:#ffffff;border:1px solid rgba(15,23,42,0.24);box-shadow:none;}
+  html[data-print-mode='print'] .print-chart::after{display:none;}
   html[data-print-mode='print'] .print-chart .recharts-legend-item text{fill:#0f172a;}
   html[data-print-mode='print'] .chart-title{color:#0f172a;}
-  html[data-print-mode='print'] .chart-explainer{background:#ffffff;border:1px solid rgba(15,23,42,0.16);color:#0f172a;}
+  html[data-print-mode='print'] .chart-explainer{background:#ffffff;border:1px solid rgba(15,23,42,0.24);color:#0f172a;}
   html[data-print-mode='print'] .chart-explainer strong{color:#0f172a;}
+  html[data-print-mode='print'] .print-chart-highlights li{background:#ffffff;border:1px solid rgba(15,23,42,0.26);}
   html[data-print-mode='print'] .print-chart .recharts-cartesian-axis-line,
   html[data-print-mode='print'] .print-chart .recharts-cartesian-axis-tick-line{stroke:#475569;}
   html[data-print-mode='print'] .print-chart .recharts-cartesian-axis-tick text{fill:#0f172a;}
