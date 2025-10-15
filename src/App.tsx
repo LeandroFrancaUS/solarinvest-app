@@ -419,6 +419,8 @@ type PrintableProps = {
   descontoContratualPct: number
   parcelasLeasing: MensalidadeRow[]
   distribuidoraTarifa: string
+  energiaContratadaKwh: number
+  tarifaCheia: number
 }
 
 type MensalidadeRow = {
@@ -501,6 +503,8 @@ const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
   tabelaBuyout: dados.tabelaBuyout.map((row) => ({ ...row })),
   buyoutResumo: { ...dados.buyoutResumo },
   parcelasLeasing: dados.parcelasLeasing.map((row) => ({ ...row })),
+  energiaContratadaKwh: dados.energiaContratadaKwh,
+  tarifaCheia: dados.tarifaCheia,
 })
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
@@ -1073,18 +1077,17 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     descontoContratualPct,
     parcelasLeasing,
     distribuidoraTarifa,
+    energiaContratadaKwh,
+    tarifaCheia,
   },
   ref,
 ) {
-  const duracaoContrato = Math.max(0, Math.floor(buyoutResumo.duracao || 0))
-  const mesAceiteFinal = duracaoContrato + 1
   const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
     Number.isFinite(value) ? value.toLocaleString('pt-BR', options) : '—'
   const valorMercadoValido = typeof buyoutResumo.vm0 === 'number' && Number.isFinite(buyoutResumo.vm0)
   const valorMercadoTexto = valorMercadoValido ? currency(buyoutResumo.vm0) : '—'
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
-  const duracaoContratualTexto = duracaoContratualValida ? `${buyoutResumo.duracao} meses` : '—'
   const tipoInstalacaoDescricao =
     tipoInstalacao === 'SOLO' ? 'Solo' : tipoInstalacao === 'TELHADO' ? 'Telhado' : '—'
   const areaInstalacaoValida = Number.isFinite(areaInstalacao) && areaInstalacao > 0
@@ -1092,6 +1095,41 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     ? areaInstalacao.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
     : '—'
   const distribuidoraTarifaLabel = distribuidoraTarifa?.trim() || ''
+  const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : ''
+  const emailCliente = cliente.email?.trim() || ''
+  const telefoneCliente = cliente.telefone?.trim() || ''
+  const ucCliente = cliente.uc?.trim() || ''
+  const cidadeCliente = cliente.cidade?.trim() || ''
+  const ufCliente = cliente.uf?.trim() || ''
+  const enderecoCliente = cliente.endereco?.trim() || ''
+  const prazoContratualResumo = duracaoContratualValida ? `${buyoutResumo.duracao} meses` : '60 meses'
+  const energiaContratadaResumo = energiaContratadaKwh > 0
+    ? `${formatNumber(energiaContratadaKwh, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kWh/mês`
+    : '—'
+  const tarifaCheiaResumo = tarifaCheia > 0
+    ? tarifaCheia.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 6,
+        maximumFractionDigits: 6,
+      })
+    : '—'
+  const descontoResumo = Number.isFinite(descontoContratualPct)
+    ? `${formatNumber(descontoContratualPct, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`
+    : '—'
+  const responsabilidadesResumo =
+    'Instalação, homologação, manutenção, seguro, suporte técnico, monitoramento'
+  const valorInstalacaoTexto = currency(0)
+  const emissaoData = new Date()
+  const validadeData = new Date(emissaoData.getTime())
+  validadeData.setDate(validadeData.getDate() + 15)
+  const inicioOperacaoData = new Date(emissaoData.getTime())
+  inicioOperacaoData.setDate(inicioOperacaoData.getDate() + 60)
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const emissaoTexto = formatDate(emissaoData)
+  const validadeTexto = formatDate(validadeData)
+  const inicioOperacaoTexto = formatDate(inicioOperacaoData)
 
   const chartDataPrintable = useMemo(
     () =>
@@ -1151,85 +1189,159 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   )
   return (
     <div ref={ref} className="print-layout">
-      <header className="print-header">
-        <div className="print-header__brand">
-          <div className="print-logo">
-            <img src="/logo.svg" alt="SolarInvest" />
-          </div>
-          <div className="print-header__title">
-            <span className="print-header__pretitle">SolarInvest</span>
-            <h1>Proposta de Leasing</h1>
-            <p className="print-header__tagline">Energia solar inteligente para o seu negócio</p>
+      <header className="print-hero">
+        <div className="print-hero__header">
+          <div className="print-hero__identity">
+            <div className="print-logo">
+              <img src="/logo.svg" alt="SolarInvest" />
+            </div>
+            <div className="print-hero__title">
+              <span className="print-hero__eyebrow">SolarInvest</span>
+              <h1>Proposta de Leasing Solar</h1>
+              <p className="print-hero__tagline">Energia inteligente, sem desembolso</p>
+            </div>
           </div>
         </div>
-        <div className="print-header__client-card">
-          <dl className="print-client-grid">
-            <div className="print-client-field">
-              <dt>Cliente</dt>
-              <dd>{cliente.nome || '—'}</dd>
-            </div>
-            <div className="print-client-field">
-              <dt>Documento</dt>
-              <dd>{cliente.documento || '—'}</dd>
-            </div>
-            <div className="print-client-field">
-              <dt>UC</dt>
-              <dd>{cliente.uc || '—'}</dd>
-            </div>
-            <div className="print-client-field">
-              <dt>Distribuidora</dt>
-              <dd>{cliente.distribuidora || '—'}</dd>
-            </div>
-            <div className="print-client-field">
-              <dt>E-mail</dt>
-              <dd>{cliente.email || '—'}</dd>
-            </div>
-            <div className="print-client-field">
-              <dt>Telefone</dt>
-              <dd>{cliente.telefone || '—'}</dd>
-            </div>
-            <div className="print-client-field print-client-field--wide">
-              <dt>Endereço</dt>
-              <dd>
-                {cliente.endereco || cliente.cidade || cliente.uf
-                  ? `${cliente.endereco || '—'} — ${cliente.cidade || '—'} / ${cliente.uf || '—'}`
-                  : '—'}
-              </dd>
-            </div>
-          </dl>
+        <div className="print-hero__summary">
+          <h2>Sumário executivo</h2>
+          <p>
+            Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua
+            própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida
+            gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.
+          </p>
         </div>
       </header>
 
       <section className="print-section">
+        <h2>Identificação do cliente</h2>
+        <dl className="print-client-grid">
+          <div className="print-client-field">
+            <dt>Cliente</dt>
+            <dd>{cliente.nome || '—'}</dd>
+          </div>
+          <div className="print-client-field">
+            <dt>Documento</dt>
+            <dd>{documentoCliente || '—'}</dd>
+          </div>
+          <div className="print-client-field">
+            <dt>UC</dt>
+            <dd>{ucCliente || '—'}</dd>
+          </div>
+          <div className="print-client-field">
+            <dt>Distribuidora</dt>
+            <dd>{distribuidoraTarifaLabel || cliente.distribuidora || '—'}</dd>
+          </div>
+          <div className="print-client-field">
+            <dt>E-mail</dt>
+            <dd>{emailCliente || '—'}</dd>
+          </div>
+          <div className="print-client-field">
+            <dt>Telefone</dt>
+            <dd>{telefoneCliente || '—'}</dd>
+          </div>
+          <div className="print-client-field">
+            <dt>Cidade / UF</dt>
+            <dd>{cidadeCliente || ufCliente ? `${cidadeCliente || '—'} / ${ufCliente || '—'}` : '—'}</dd>
+          </div>
+          <div className="print-client-field print-client-field--wide">
+            <dt>Endereço</dt>
+            <dd>
+              {enderecoCliente
+                ? enderecoCliente
+                : cidadeCliente || ufCliente
+                ? `${cidadeCliente || '—'} / ${ufCliente || '—'}`
+                : '—'}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="print-section">
+        <h2>Quadro comercial resumido</h2>
+        <table className="print-table">
+          <thead>
+            <tr>
+              <th>Condição Comercial</th>
+              <th>Valor/Descrição</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Prazo contratual</td>
+              <td>{prazoContratualResumo}</td>
+            </tr>
+            <tr>
+              <td>Energia contratada (kWh/mês)</td>
+              <td>{energiaContratadaResumo}</td>
+            </tr>
+            <tr>
+              <td>Tarifa cheia da distribuidora</td>
+              <td>{tarifaCheiaResumo}</td>
+            </tr>
+            <tr>
+              <td>Desconto aplicado</td>
+              <td>{descontoResumo}</td>
+            </tr>
+            <tr>
+              <td>Valor da instalação para o cliente</td>
+              <td>{valorInstalacaoTexto}</td>
+            </tr>
+            <tr>
+              <td>Início estimado da operação</td>
+              <td>{inicioOperacaoTexto}</td>
+            </tr>
+            <tr>
+              <td>Responsabilidades da SolarInvest</td>
+              <td>{responsabilidadesResumo}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section className="print-section">
         <h2>Resumo técnico e financeiro</h2>
-        <div className="print-summary">
+        <div className="print-key-values">
           <p>
-            <strong>Investimento da SolarInvest:</strong> {currency(capex)}
+            <strong>Investimento da SolarInvest</strong>
+            {currency(capex)}
           </p>
           <p>
-            <strong>Geração estimada (kWh/mês):</strong> {formatNumber(geracaoMensalKwh)}
+            <strong>Geração estimada (kWh/mês)</strong>
+            {formatNumber(geracaoMensalKwh)}
           </p>
           <p>
-            <strong>Potência da placa (Wp):</strong> {formatNumber(potenciaPlaca, { maximumFractionDigits: 0 })}
+            <strong>Energia contratada</strong>
+            {energiaContratadaResumo}
           </p>
           <p>
-            <strong>Nº de placas:</strong> {formatNumber(numeroPlacas, { maximumFractionDigits: 0 })}
+            <strong>Potência da placa (Wp)</strong>
+            {formatNumber(potenciaPlaca, { maximumFractionDigits: 0 })}
           </p>
           <p>
-            <strong>Potência instalada (kWp):</strong>{' '}
+            <strong>Nº de placas</strong>
+            {formatNumber(numeroPlacas, { maximumFractionDigits: 0 })}
+          </p>
+          <p>
+            <strong>Potência instalada (kWp)</strong>
             {formatNumber(potenciaInstaladaKwp, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
           <p>
-            <strong>Tipo de instalação:</strong> {tipoInstalacaoDescricao}
+            <strong>Área utilizada (m²)</strong>
+            {areaInstalacaoTexto}
           </p>
           <p>
-            <strong>Área utilizada (m²):</strong> {areaInstalacaoTexto}
+            <strong>Tipo de instalação</strong>
+            {tipoInstalacaoDescricao}
+          </p>
+          <p>
+            <strong>Valor de mercado projetado</strong>
+            {valorMercadoTexto}
           </p>
         </div>
-        <div className={`print-grid ${mostrarFinanciamento ? 'two' : 'one'}`}>
-          <div>
-            <h3>Mensalidades projetadas</h3>
-            <table>
+        <div className="print-summary-grid">
+          <div className="print-card">
+            <h3>Mensalidades por ano</h3>
+            <table className="print-table">
               <thead>
                 <tr>
                   <th>Ano</th>
@@ -1266,14 +1378,14 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
             </table>
           </div>
           {mostrarFinanciamento ? (
-            <div>
+            <div className="print-card">
               <h3>Financiamento</h3>
-              <table>
+              <table className="print-table">
                 <thead>
                   <tr>
                     <th>Ano</th>
                     <th>Fluxo anual</th>
-                    <th>Beneficio acumulado</th>
+                    <th>Benefício acumulado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1291,108 +1403,128 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         </div>
       </section>
 
-      <section className="print-section">
-        <div className="print-notes">
-          <p><strong>Informações importantes:</strong></p>
-          <ul>
-            <li>
-              Desconto contratual aplicado:{' '}
-              {formatNumber(descontoContratualPct, {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })}%
-            </li>
-            <li>
-              Prazo de vigência contratual conforme especificado em proposta individual: {duracaoContratualTexto}
-            </li>
-            <li>
-              Durante a vigência do contrato, a SolarInvest é responsável por toda a manutenção preventiva e corretiva da usina,
-              incluindo suporte técnico, limpeza periódica e seguro contra sinistros.
-            </li>
-            <li>
-              Ao término do contrato, a usina será transferida para o cliente, tornando-se seu patrimônio sem custos adicionais.
-            </li>
-            <li>Tabela de compra antecipada da usina disponível mediante solicitação.</li>
-            <li>Todos os equipamentos utilizados possuem certificação INMETRO.</li>
-            <li>Os módulos e inversores possuem garantia de fábrica conforme especificado na proposta.</li>
-            <li>
-              A instalação é realizada por equipe credenciada com registro no CREA e segue todos os trâmites de homologação exigidos.
-            </li>
-            <li>
-              Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer alterações no contrato definitivo.
-            </li>
-            <li>
-              A cobrança mensal se inicia após a conclusão da instalação e entrada em operação da usina. O prazo médio de instalação
-              é de 30 a 45 dias úteis após a assinatura do contrato e liberação técnica.
-            </li>
-            <li>
-              As tarifas por kWh utilizadas nesta proposta são projeções baseadas em estimativas atuais de mercado e podem variar
-              conforme reajustes futuros das distribuidoras.
-            </li>
-          </ul>
-        </div>
-        <div className="print-chart-section">
-          <h3 className="chart-title">Beneficio acumulado</h3>
-          <div className="chart print-chart">
-            <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={chartDataPrintable}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="ano" stroke="#9CA3AF" label={{ value: 'Anos', position: 'insideBottomRight', offset: -5, fill: '#9CA3AF' }} />
-                <YAxis stroke="#9CA3AF" tickFormatter={formatAxis} />
-                <Tooltip formatter={(value: number) => currency(Number(value))} contentStyle={{ background: '#0b1220', border: '1px solid #1f2b40' }} />
-                <Legend verticalAlign="bottom" align="right" wrapperStyle={{ paddingTop: 16 }} />
-                <ReferenceLine y={0} stroke="#475569" />
-                <Line type="monotone" dataKey="Leasing" stroke={chartColors.Leasing} strokeWidth={2} dot />
-                {mostrarFinanciamento ? (
-                  <Line type="monotone" dataKey="Financiamento" stroke={chartColors.Financiamento} strokeWidth={2} dot />
-                ) : null}
-                {beneficioMarcos.map((marco) => (
-                  <React.Fragment key={`beneficio-marco-${marco.ano}`}>
+      <section className="print-section print-chart-section">
+        <h2>Benefício acumulado projetado (30 anos)</h2>
+        <div className="print-chart">
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={chartDataPrintable}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#fcd34d" />
+              <XAxis
+                dataKey="ano"
+                stroke="#b45309"
+                label={{ value: 'Anos', position: 'insideBottomRight', offset: -5, fill: '#b45309' }}
+              />
+              <YAxis stroke="#b45309" tickFormatter={formatAxis} />
+              <Tooltip formatter={(value: number) => currency(Number(value))} />
+              <Legend verticalAlign="bottom" align="right" wrapperStyle={{ paddingTop: 16 }} />
+              <ReferenceLine y={0} stroke="#b45309" strokeDasharray="4 4" />
+              <Line type="monotone" dataKey="Leasing" stroke={chartColors.Leasing} strokeWidth={2} dot />
+              {mostrarFinanciamento ? (
+                <Line type="monotone" dataKey="Financiamento" stroke={chartColors.Financiamento} strokeWidth={2} dot />
+              ) : null}
+              {beneficioMarcos.map((marco) => (
+                <React.Fragment key={`beneficio-marco-${marco.ano}`}>
+                  <ReferenceDot
+                    x={marco.ano}
+                    y={marco.Leasing}
+                    r={4}
+                    fill={chartColors.Leasing}
+                    stroke="none"
+                    label={{ value: currency(marco.Leasing), position: 'top', fill: chartColors.Leasing, fontSize: 12 }}
+                  />
+                  {mostrarFinanciamento ? (
                     <ReferenceDot
                       x={marco.ano}
-                      y={marco.Leasing}
+                      y={marco.Financiamento}
                       r={4}
-                      fill={chartColors.Leasing}
+                      fill={chartColors.Financiamento}
                       stroke="none"
-                      label={{ value: currency(marco.Leasing), position: 'top', fill: chartColors.Leasing, fontSize: 12 }}
+                      label={{
+                        value: currency(marco.Financiamento),
+                        position: 'right',
+                        fill: chartColors.Financiamento,
+                        fontSize: 12,
+                      }}
                     />
-                    {mostrarFinanciamento ? (
-                      <ReferenceDot
-                        x={marco.ano}
-                        y={marco.Financiamento}
-                        r={4}
-                        fill={chartColors.Financiamento}
-                        stroke="none"
-                        label={{
-                          value: currency(marco.Financiamento),
-                          position: 'right',
-                          fill: chartColors.Financiamento,
-                          fontSize: 12,
-                        }}
-                      />
-                    ) : null}
-                  </React.Fragment>
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          {beneficioAno30Printable ? (
-            <p className="chart-explainer">
-              Beneficio acumulado em 30 anos:
-              <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30Printable.Leasing)}</strong>
-              {mostrarFinanciamento ? (
-                <>
-                  {' • '}Financiamento:{' '}
-                  <strong style={{ color: chartColors.Financiamento }}>{currency(beneficioAno30Printable.Financiamento)}</strong>
-                </>
-              ) : null}
-            </p>
-          ) : null}
+                  ) : null}
+                </React.Fragment>
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-        <p className="print-footer">
-          Após o final do contrato a usina passa a render 100% de economia frente a concessionaria para o cliente
+        {beneficioAno30Printable ? (
+          <p className="chart-explainer">
+            Benefício acumulado em 30 anos:
+            <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30Printable.Leasing)}</strong>
+            {mostrarFinanciamento ? (
+              <>
+                {' • '}Financiamento:{' '}
+                <strong style={{ color: chartColors.Financiamento }}>
+                  {currency(beneficioAno30Printable.Financiamento)}
+                </strong>
+              </>
+            ) : null}
+          </p>
+        ) : null}
+        <p className="print-chart-footnote">
+          Após o final do contrato a usina passa a render 100% de economia frente à concessionária para o cliente.
         </p>
       </section>
+
+      <section className="print-section print-important">
+        <h2>Informações importantes</h2>
+        <ul>
+          <li>Desconto contratual aplicado: {descontoResumo} sobre a tarifa da distribuidora.</li>
+          <li>Prazo de vigência: conforme especificado na proposta (ex.: 60 meses).</li>
+          <li>Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.</li>
+          <li>
+            Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e seguro sinistro da usina.
+          </li>
+          <li>
+            Transferência da usina ao cliente ao final do contrato sem custo adicional, desde que obrigações contratuais estejam
+            cumpridas.
+          </li>
+          <li>Tabela de compra antecipada disponível mediante solicitação.</li>
+          <li>Equipamentos utilizados possuem certificação INMETRO.</li>
+          <li>
+            Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer ajustes no contrato definitivo.
+          </li>
+        </ul>
+      </section>
+
+      <section className="print-section print-cta">
+        <div className="print-cta__box">
+          <h2>Vamos avançar?</h2>
+          <p>
+            Agende uma visita técnica gratuita com nossa equipe para confirmar a viabilidade e formalizar a proposta definitiva.
+          </p>
+        </div>
+      </section>
+
+      <footer className="print-final-footer">
+        <div className="print-final-footer__dates">
+          <p>
+            <strong>Data de emissão da proposta:</strong> {emissaoTexto}
+          </p>
+          <p>
+            <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
+          </p>
+        </div>
+        <div className="print-final-footer__signature">
+          <div className="signature-line" />
+          <span>Assinatura do cliente</span>
+        </div>
+        <div className="print-final-footer__qr">
+          <img src="/qr-whatsapp.svg" alt="QR Code para contato comercial SolarInvest" />
+          <small>Escaneie para falar com nosso time comercial via WhatsApp.</small>
+        </div>
+      </footer>
+
+      <div className="print-brand-footer">
+        <strong>SolarInvest</strong>
+        <span>CNPJ: 60.434.015/0001-90</span>
+        <span>Energia inteligente, sem desembolso</span>
+      </div>
     </div>
   )
 })
@@ -1415,9 +1547,9 @@ const renderPrintableProposalToHtml = (dados: PrintableProps): Promise<string | 
     container.style.position = 'fixed'
     container.style.top = '-9999px'
     container.style.left = '-9999px'
-    container.style.width = '1040px'
-    container.style.padding = '36px 44px'
-    container.style.background = '#ffffff'
+    container.style.width = '1100px'
+    container.style.padding = '40px 48px'
+    container.style.background = '#f8fafc'
     container.style.zIndex = '-1'
     document.body.appendChild(container)
 
@@ -1512,48 +1644,73 @@ const chartColors: Record<'Leasing' | 'Financiamento', string> = {
 }
 
 const printStyles = `
-  *{box-sizing:border-box;font-family:'Inter','Roboto',sans-serif;}
-  body{margin:0;padding:36px 44px;background:#ffffff;color:#0f172a;}
-  h1,h2,h3{color:#0f172a;}
-  .print-layout{display:block;max-width:1040px;margin:0 auto;page-break-after:avoid;}
-  .print-header{position:relative;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:stretch;gap:32px 28px;padding:32px 40px;margin-bottom:32px;border-radius:28px;background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%);color:#f8fafc;break-inside:avoid;page-break-inside:avoid;overflow:hidden;box-shadow:0 18px 44px rgba(15,23,42,0.25);}
-  .print-header::after{content:'';position:absolute;right:-80px;bottom:-110px;width:360px;height:360px;background:radial-gradient(circle at center,rgba(148,163,184,0.45),transparent 72%);opacity:0.9;}
-  .print-header__brand{display:flex;align-items:center;gap:24px;max-width:48%;min-width:280px;z-index:1;}
-  .print-logo{display:flex;align-items:center;justify-content:center;width:88px;height:88px;border-radius:24px;background:rgba(15,23,42,0.35);border:1px solid rgba(148,163,184,0.35);box-shadow:0 0 0 1px rgba(148,163,184,0.15) inset,0 24px 40px rgba(15,23,42,0.28);}
-  .print-logo img{height:56px;}
-  .print-header__title{display:flex;flex-direction:column;gap:6px;}
-  .print-header__pretitle{font-size:12px;letter-spacing:0.32em;text-transform:uppercase;font-weight:600;opacity:0.78;}
-  .print-header__title h1{margin:0;font-size:30px;line-height:1.12;font-weight:700;color:inherit;text-shadow:0 8px 24px rgba(15,23,42,0.32);}
-  .print-header__tagline{margin:0;font-size:13px;max-width:320px;opacity:0.86;line-height:1.4;}
-  .print-header__client-card{flex:1;min-width:280px;display:flex;flex-direction:column;gap:12px;background:rgba(15,23,42,0.55);border-radius:22px;border:1px solid rgba(148,163,184,0.45);padding:24px 28px;z-index:1;box-shadow:0 16px 36px rgba(15,23,42,0.22);}
-  .print-header__client-card h2{margin:0;font-size:14px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;opacity:0.92;color:inherit;}
-  .print-client-grid{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 24px;}
-  .print-client-field{display:flex;flex-direction:column;gap:4px;}
-  .print-client-field dt{margin:0;font-size:11px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;opacity:0.68;}
-  .print-client-field dd{margin:0;font-size:13px;font-weight:600;color:inherit;line-height:1.3;}
+  *,*::before,*::after{box-sizing:border-box;font-family:'Montserrat','Roboto',sans-serif;}
+  body{margin:0;padding:40px 48px;background:#f8fafc;color:#1f2937;}
+  h1,h2,h3{color:#0f172a;font-weight:700;}
+  .print-layout{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:28px;page-break-after:avoid;}
+  .print-hero{position:relative;display:flex;flex-direction:column;gap:24px;padding:36px 42px;border-radius:36px;background:linear-gradient(135deg,#ffb347 0%,#ff7a18 100%);color:#fff;box-shadow:0 26px 68px rgba(255,122,24,0.32);overflow:hidden;}
+  .print-hero::after{content:'';position:absolute;right:-160px;bottom:-180px;width:460px;height:460px;border-radius:50%;background:rgba(255,255,255,0.14);}
+  .print-hero__header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:32px;position:relative;z-index:1;}
+  .print-hero__identity{display:flex;align-items:center;gap:24px;min-width:280px;}
+  .print-logo{width:96px;height:96px;border-radius:28px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;box-shadow:0 18px 36px rgba(15,23,42,0.32);backdrop-filter:blur(6px);}
+  .print-logo img{width:64px;height:auto;display:block;}
+  .print-hero__title{display:flex;flex-direction:column;gap:8px;}
+  .print-hero__eyebrow{font-size:12px;letter-spacing:0.3em;text-transform:uppercase;font-weight:600;opacity:0.85;}
+  .print-hero__title h1{margin:0;font-size:32px;line-height:1.12;color:inherit;}
+  .print-hero__tagline{margin:0;font-size:15px;opacity:0.95;}
+  .print-hero__summary{position:relative;z-index:1;padding:26px;border-radius:26px;background:rgba(255,255,255,0.12);backdrop-filter:blur(4px);font-size:14px;line-height:1.6;color:rgba(255,255,255,0.96);}
+  .print-hero__summary h2{margin:0 0 10px;font-size:18px;color:#fff;text-transform:uppercase;letter-spacing:0.16em;}
+  .print-hero__summary p{margin:0;}
+  .print-section{background:#ffffff;border-radius:26px;padding:30px 34px;box-shadow:0 18px 44px rgba(15,23,42,0.12);page-break-inside:avoid;}
+  .print-section h2{margin:0 0 18px;font-size:22px;letter-spacing:-0.01em;color:#0f172a;}
+  .print-client-grid{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;}
+  .print-client-field{display:flex;flex-direction:column;gap:6px;}
+  .print-client-field dt{margin:0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#f97316;font-weight:600;}
+  .print-client-field dd{margin:0;font-size:14px;color:#0f172a;font-weight:600;}
   .print-client-field--wide{grid-column:span 2;}
-  .print-section{margin-bottom:28px;break-inside:avoid;page-break-inside:avoid;}
-  .print-section h2{margin:0 0 12px;border-bottom:1px solid #cbd5f5;padding-bottom:4px;break-inside:avoid;page-break-inside:avoid;}
-  table{width:100%;border-collapse:collapse;page-break-inside:auto;}
-  th,td{border:1px solid #d0d7e8;padding:8px 12px;font-size:12px;text-align:left;break-inside:avoid;page-break-inside:avoid;}
-  .print-summary p{font-size:12px;margin:2px 0;line-height:1.2;}
-  .print-summary,.print-notes,.print-chart-section{break-inside:avoid;page-break-inside:avoid;}
-  .print-grid{display:grid;gap:16px;}
-  .print-grid.two{grid-template-columns:repeat(2,minmax(0,1fr));}
-  .print-grid.one{grid-template-columns:repeat(1,minmax(0,1fr));}
-  ul{margin:8px 0 0;padding-left:18px;}
-  li{font-size:12px;margin-bottom:4px;}
-  .print-chart{position:relative;padding:16px;border:1px solid #cbd5f5;border-radius:12px;background:#f8fafc;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{border:1px solid #e2e8f0;padding:10px 14px;text-align:left;}
+  thead th{background:#fff7ed;color:#9a3412;font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:0.08em;}
+  tbody tr:nth-child(even){background:#fffaf5;}
+  .print-key-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:22px;}
+  .print-key-values p{margin:0;padding:18px;border-radius:20px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;line-height:1.45;color:#1f2937;box-shadow:0 6px 16px rgba(15,23,42,0.06);}
+  .print-key-values strong{display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:#f97316;margin-bottom:6px;}
+  .print-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;}
+  .print-card{border:1px solid #fde68a;border-radius:24px;padding:24px 26px;background:linear-gradient(135deg,#fffdfa 0%,#fff7ed 100%);box-shadow:0 14px 32px rgba(251,191,36,0.18);}
+  .print-card h3{margin:0 0 18px;font-size:16px;color:#9a3412;text-transform:uppercase;letter-spacing:0.18em;}
+  .print-card .muted{margin:12px 0 0;}
+  .print-metric-list p{margin:0 0 10px;font-size:13px;}
+  .print-chart-section{display:flex;flex-direction:column;gap:18px;}
+  .print-chart{padding:18px;border-radius:24px;border:1px solid #fde68a;background:linear-gradient(135deg,#fff7ed 0%,#fffbeb 100%);box-shadow:0 12px 28px rgba(251,191,36,0.15);}
   .print-chart .recharts-responsive-container{width:100%;height:100%;}
   .print-chart svg{overflow:visible;}
-  .print-chart .recharts-cartesian-axis-line,.print-chart .recharts-cartesian-axis-tick-line{stroke:#cbd5f5;}
-  .print-chart .recharts-cartesian-axis-tick text{fill:#475569;font-size:12px;}
-  .print-chart .recharts-legend-item text{fill:#1e293b;font-weight:600;font-size:12px;}
-  .print-chart .recharts-cartesian-grid line{stroke:#e2e8f0;}
+  .print-chart .recharts-cartesian-axis-line,.print-chart .recharts-cartesian-axis-tick-line{stroke:#fdba74;}
+  .print-chart .recharts-cartesian-axis-tick text{fill:#b45309;font-size:12px;}
+  .print-chart .recharts-legend-item text{fill:#9a3412;font-weight:600;font-size:12px;}
+  .print-chart .recharts-cartesian-grid line{stroke:#fed7aa;}
   .print-chart .recharts-tooltip-wrapper{display:none!important;}
-  .print-chart-section h2{margin-bottom:16px;}
-  .chart-explainer{margin-top:12px;font-size:12px;color:#334155;}
-  .chart-explainer strong{font-size:13px;}
+  .chart-title{margin:0;font-size:18px;color:#c2410c;text-transform:uppercase;letter-spacing:0.22em;}
+  .chart-explainer{margin:0;background:#fff7ed;padding:12px 16px;border-radius:18px;border:1px solid #fef3c7;font-size:13px;color:#7c2d12;}
+  .chart-explainer strong{font-size:14px;color:#c2410c;}
+  .print-chart-footnote{margin:4px 0 0;font-size:12px;color:#7c2d12;}
+  ul{margin:0;padding-left:20px;font-size:13px;color:#1f2937;line-height:1.55;}
+  ul li{margin-bottom:8px;}
+  .print-cta{padding:0;border:none;background:none;box-shadow:none;}
+  .print-cta__box{border-radius:30px;background:linear-gradient(135deg,#ffedd5 0%,#fdba74 100%);padding:32px 36px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;border:1px solid #fb923c;box-shadow:0 18px 42px rgba(249,115,22,0.25);}
+  .print-cta__box h2{margin:0;font-size:24px;color:#9a3412;letter-spacing:0.08em;text-transform:uppercase;}
+  .print-cta__box p{margin:0;font-size:15px;color:#7c2d12;}
+  .print-final-footer{display:flex;flex-wrap:wrap;gap:28px;justify-content:space-between;align-items:flex-start;background:#ffffff;border-radius:28px;padding:30px 34px;box-shadow:0 18px 44px rgba(15,23,42,0.12);page-break-inside:avoid;}
+  .print-final-footer__dates{display:flex;flex-direction:column;gap:10px;font-size:13px;color:#1f2937;}
+  .print-final-footer__dates strong{color:#9a3412;}
+  .print-final-footer__signature{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:240px;}
+  .signature-line{width:100%;height:1px;background:#cbd5f5;margin-top:28px;}
+  .print-final-footer__signature span{font-size:12px;text-transform:uppercase;letter-spacing:0.2em;color:#475569;}
+  .print-final-footer__qr{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .print-final-footer__qr img{width:112px;height:112px;border-radius:18px;border:4px solid #fff7ed;box-shadow:0 10px 26px rgba(249,115,22,0.32);}
+  .print-final-footer__qr small{font-size:11px;color:#9a3412;text-align:center;max-width:180px;}
+  .print-brand-footer{display:flex;justify-content:center;align-items:center;gap:10px;font-size:12px;color:#f97316;text-transform:uppercase;letter-spacing:0.24em;padding-bottom:18px;}
+  .print-brand-footer strong{color:#c2410c;}
+  .muted{text-align:center;color:#94a3b8;font-size:12px;padding:20px 12px;}
   @page{margin:12mm 16mm;}
 `;
 
@@ -2333,6 +2490,8 @@ export default function App() {
       descontoContratualPct: desconto,
       parcelasLeasing: parcelasSolarInvest.lista,
       distribuidoraTarifa: distribuidoraTarifa || cliente.distribuidora || '',
+      energiaContratadaKwh: kcKwhMes,
+      tarifaCheia,
     }),
     [
       areaInstalacao,
@@ -2344,6 +2503,7 @@ export default function App() {
       financiamentoFluxo,
       financiamentoROI,
       geracaoMensalKwh,
+      kcKwhMes,
       leasingROI,
       mostrarFinanciamento,
       numeroPlacasEstimado,
@@ -2353,6 +2513,7 @@ export default function App() {
       potenciaInstaladaKwp,
       potenciaPlaca,
       tabelaBuyout,
+      tarifaCheia,
     ],
   )
 
@@ -2393,7 +2554,7 @@ export default function App() {
               .preview-toolbar-actions button:hover{background:#1e293b;}
               .preview-toolbar-actions button.secondary{background:#e2e8f0;color:#0f172a;}
               .preview-toolbar-actions button.secondary:hover{background:#cbd5f5;color:#0f172a;}
-              .preview-container{max-width:1040px;margin:0 auto;}
+              .preview-container{max-width:1100px;margin:0 auto;}
               @media print{
                 body{padding-top:0;}
                 .preview-toolbar{display:none;}
