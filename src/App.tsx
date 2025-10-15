@@ -1448,9 +1448,9 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       </section>
 
       <section className="print-section print-chart-section">
-        <h2>Benefício acumulado projetado (30 anos)</h2>
+        <h2>Economia projetada (30 anos)</h2>
         <div className="print-chart">
-          <ResponsiveContainer width="100%" height={360}>
+          <ResponsiveContainer width="100%" height={420}>
             <BarChart
               layout="vertical"
               data={chartDataPrintable}
@@ -1495,7 +1495,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                 iconType="circle"
                 wrapperStyle={{ paddingBottom: 16 }}
                 formatter={(value: string) =>
-                  value === 'Leasing' ? 'Leasing SolarInvest' : 'Financiamento SolarInvest'
+                  value === 'Leasing' ? 'Economia' : 'Financiamento SolarInvest'
                 }
               />
               <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
@@ -1541,7 +1541,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                 <span className="print-chart-highlights__year">{marco.ano}º ano</span>
                 <div className="print-chart-highlights__values">
                   <span className="print-chart-highlights__value" style={{ color: chartColors.Leasing }}>
-                    Leasing: {currency(marco.Leasing)}
+                    Economia: {currency(marco.Leasing)}
                   </span>
                   {mostrarFinanciamento ? (
                     <span className="print-chart-highlights__value" style={{ color: chartColors.Financiamento }}>
@@ -1746,8 +1746,8 @@ const anosAnalise = 30
 const DIAS_MES_PADRAO = 30
 const painelOpcoes = [450, 500, 550, 600, 610, 650, 700]
 const chartColors: Record<'Leasing' | 'Financiamento', string> = {
-  Leasing: '#FF8C00',
-  Financiamento: '#60A5FA',
+  Leasing: '#0C162C',
+  Financiamento: '#0C162C',
 }
 
 const printStyles = `
