@@ -2871,8 +2871,9 @@ export default function App() {
               <button type="button" className="primary" onClick={handleSalvarCliente}>
                 {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
               </button>
-              <button type="button" className="ghost" onClick={abrirClientesModal}>
-                Ver clientes
+              <button type="button" className="ghost with-icon" onClick={abrirClientesModal}>
+                <span aria-hidden="true">📁</span>
+                <span>Ver clientes</span>
               </button>
             </div>
           </section>

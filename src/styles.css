@@ -141,6 +141,18 @@ button.ghost {
   transition: background 0.2s ease;
 }
 
+button.ghost.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px 10px 14px;
+}
+
+button.ghost.with-icon span[aria-hidden='true'] {
+  font-size: 18px;
+  line-height: 1;
+}
+
 button.ghost:hover {
   background: rgba(255, 140, 0, 0.28);
 }
