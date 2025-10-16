@@ -5663,12 +5663,13 @@ export default function App() {
       }
 
       const { html, dados } = resultado
+      const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
 
       await persistProposalPdf({
         html,
         budgetId: dados.budgetId,
         clientName: dados.cliente.nome,
-        proposalType: 'LEASING',
+        proposalType,
       })
 
       adicionarNotificacao('Proposta salva em PDF com sucesso.', 'success')
@@ -5683,6 +5684,7 @@ export default function App() {
       setSalvandoPropostaPdf(false)
     }
   }, [
+    activeTab,
     adicionarNotificacao,
     prepararPropostaParaExportacao,
     salvandoPropostaPdf,
@@ -5690,6 +5692,7 @@ export default function App() {
   ])
 
   const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
+  const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
 
   const handleClienteChange = (key: keyof ClienteDados, value: string) => {
     let nextValue = value
@@ -6254,6 +6257,16 @@ export default function App() {
           </button>
           <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
           <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
+          {podeSalvarProposta ? (
+            <button
+              type="button"
+              className="primary"
+              onClick={handleSalvarPropostaPdf}
+              disabled={salvandoPropostaPdf}
+            >
+              {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
+            </button>
+          ) : null}
           <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
         </div>
       </header>
@@ -6280,14 +6293,6 @@ export default function App() {
             <section className="card">
               <div className="card-header">
                 <h2>SolarInvest Leasing</h2>
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={handleSalvarPropostaPdf}
-                  disabled={salvandoPropostaPdf}
-                >
-                  {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
-                </button>
               </div>
 
               <div className="grid g2">
