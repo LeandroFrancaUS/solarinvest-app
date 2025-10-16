@@ -2267,6 +2267,7 @@ export default function App() {
     tipo: 'Revisão preventiva',
     observacao: '',
   })
+  const [capexManualOverride, setCapexManualOverride] = useState(false)
 
   const budgetItemsTotal = useMemo(
     () => computeBudgetItemsTotalValue(kitBudget.items),
@@ -2711,7 +2712,6 @@ export default function App() {
   const [retornoProjetado, setRetornoProjetado] = useState<RetornoProjetado | null>(null)
   const [retornoStatus, setRetornoStatus] = useState<'idle' | 'calculating'>('idle')
   const [retornoError, setRetornoError] = useState<string | null>(null)
-  const [capexManualOverride, setCapexManualOverride] = useState(false)
 
   const resetRetorno = useCallback(() => {
     setRetornoProjetado(null)
