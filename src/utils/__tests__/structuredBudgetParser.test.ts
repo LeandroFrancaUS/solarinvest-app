@@ -1,74 +1,83 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  deriveSection,
   parseStructuredBudget,
   structuredBudgetToCsv,
   type StructuredBudget,
 } from '../structuredBudgetParser'
 
-describe('parseStructuredBudget', () => {
-  it('extracts header, items and totals from well-formed lines', () => {
+describe('deriveSection', () => {
+  it('anchors items after "Produto  Quantidade" and before "Valor total:"', () => {
     const lines = [
-      'Número do Orçamento: WEB-004480742',
-      'Orçamento Válido até: 12-10-2025',
-      'De: 60.434.015 LEANDRO LIMA RIBEIRO FRANCA',
-      'Para: Ricardo df',
       'Detalhes do Orçamento',
-      'Modulo Bifacial 132 Cel. N Type 610w Cabo 1.2m Osda - Painel solar de alta eficiência',
-      'Código: MFOS-1.2-BF-132-610W',
-      'Modelo: ODA610-33V-MHDRz',
-      'Quantidade: 5 un',
-      'R$ 1.774,40 R$ 8.872,00',
+      'Potência do sistema',
+      'Produto   Quantidade',
+      'Modulo X  ...',
+      'Código: AAA Modelo: BBB 3',
       'Valor total: R$ 8.872,02',
     ]
 
-    const result = parseStructuredBudget(lines)
+    const { section } = deriveSection(lines)
 
-    expect(result.header).toEqual({
-      numeroOrcamento: 'WEB-004480742',
-      validade: '2025-10-12',
-      de: '60.434.015 LEANDRO LIMA RIBEIRO FRANCA',
-      para: 'Ricardo df',
-    })
-
-    expect(result.itens).toHaveLength(1)
-    const item = result.itens[0]
-    expect(item.produto).toBe(
-      'Modulo Bifacial 132 Cel. N Type 610w Cabo 1.2m Osda',
-    )
-    expect(item.descricao).toBe('Painel solar de alta eficiência')
-    expect(item.codigo).toBe('MFOS-1.2-BF-132-610W')
-    expect(item.modelo).toBe('ODA610-33V-MHDRz')
-    expect(item.quantidade).toBe(5)
-    expect(item.unidade).toBe('un')
-    expect(item.precoUnitario).toBeCloseTo(1774.4)
-    expect(item.precoTotal).toBeCloseTo(8872)
-
-    expect(result.resumo).toEqual({ valorTotal: 8872.02, moeda: 'BRL' })
+    expect(section[0]).toMatch(/Modulo X/)
+    expect(section[section.length - 1]).not.toMatch(/Valor total/i)
   })
+})
 
-  it('merges duplicate items that share codigo and modelo', () => {
+describe('parseStructuredBudget', () => {
+  it('parses code, model, and trailing quantity on a single line', () => {
     const lines = [
-      'Detalhes do Orçamento',
-      'Inversor Solar Premium',
-      'Código: INV-123',
-      'Modelo: X1',
-      'Quantidade: 2',
-      'R$ 3.000,00 R$ 6.000,00',
-      'Inversor Solar Premium',
-      'Código: INV-123',
-      'Modelo: X1',
-      'Quantidade: 1',
-      'R$ 3.000,00 R$ 3.000,00',
-      'Valor total: R$ 9.000,00',
+      'Número do Orçamento: WEB-004480742',
+      'Orçamento Válido até: 12-10-2025',
+      'De: Fornecedor X',
+      'Para: Cliente Y',
+      'Produto  Quantidade',
+      'Modulo Bifacial 610W',
+      'Código: MFOS-1.2-BF-132-610W Modelo: ODA610-33V-MHDRz 5',
+      'Valor total: R$ 0,00',
     ]
 
     const result = parseStructuredBudget(lines)
-
+    expect(result.header.validade).toBe('2025-10-12')
     expect(result.itens).toHaveLength(1)
-    expect(result.itens[0].quantidade).toBe(3)
-    expect(result.itens[0].precoUnitario).toBe(3000)
-    expect(result.itens[0].precoTotal).toBe(6000)
+    const item = result.itens[0]
+    expect(item.produto).toBe('Modulo Bifacial 610W')
+    expect(item.codigo).toBe('MFOS-1.2-BF-132-610W')
+    expect(item.modelo).toBe('ODA610-33V-MHDRz')
+    expect(item.quantidade).toBe(5)
+    expect(item.precoUnitario).toBeNull()
+    expect(item.precoTotal).toBeNull()
+  })
+
+  it('keeps precoUnitario/precoTotal null when not present; parses footer total', () => {
+    const lines = [
+      'Produto  Quantidade',
+      'Modulo X',
+      'Código: AAA Modelo: BBB 2',
+      'Valor total: R$ 1.234,56',
+    ]
+
+    const data = parseStructuredBudget(lines)
+    expect(data.itens).toHaveLength(1)
+    expect(data.itens[0].precoUnitario).toBeNull()
+    expect(data.itens[0].precoTotal).toBeNull()
+    expect(data.resumo.valorTotal).toBeCloseTo(1234.56, 2)
+  })
+
+  it('merges adjacent duplicates by (codigo, modelo) summing quantity', () => {
+    const lines = [
+      'Produto  Quantidade',
+      'Item A',
+      'Código: AAA Modelo: BBB 2',
+      'Item A bis',
+      'Código: AAA Modelo: BBB 3',
+      'Valor total: R$ 0,00',
+    ]
+
+    const data = parseStructuredBudget(lines)
+    expect(data.itens.length).toBe(1)
+    expect(data.itens[0].quantidade).toBe(5)
   })
 })
 
