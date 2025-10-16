@@ -1,4 +1,5 @@
 const DEFAULT_ANEEL_ORIGIN = 'https://dadosabertos.aneel.gov.br'
+const DEFAULT_PROXY_BASE = '/api/aneel'
 
 const trimValue = (value?: string) => (typeof value === 'string' ? value.trim() : '')
 
@@ -27,14 +28,20 @@ const sanitizeProxyBase = (base: string): string => {
   if (!trimmed.startsWith('/')) {
     return ''
   }
-  return trimmed.replace(/\/+$/, '')
+  return trimmed.replace(/\/+$/, '') || '/'
 }
 
 const getProxyBase = (): string => {
   if (typeof import.meta === 'undefined' || typeof import.meta.env === 'undefined') {
-    return ''
+    return DEFAULT_PROXY_BASE
   }
-  return sanitizeProxyBase(trimValue(import.meta.env.VITE_ANEEL_PROXY_BASE))
+
+  const env = import.meta.env as Record<string, string | undefined>
+  if (Object.prototype.hasOwnProperty.call(env, 'VITE_ANEEL_PROXY_BASE')) {
+    return sanitizeProxyBase(trimValue(env.VITE_ANEEL_PROXY_BASE))
+  }
+
+  return DEFAULT_PROXY_BASE
 }
 
 const getDirectOrigin = (): string => {
@@ -62,7 +69,10 @@ export const resolveAneelUrl = (pathOrUrl: string): string => {
 
   const proxyBase = getProxyBase()
   if (proxyBase) {
-    return `${proxyBase}${parsed.pathname}${parsed.search}${parsed.hash}`
+    const upstreamPath = `${parsed.pathname}${parsed.search}${parsed.hash}`
+    const encodedPath = encodeURIComponent(upstreamPath)
+    const separator = proxyBase.includes('?') ? '&' : '?'
+    return `${proxyBase}${separator}path=${encodedPath}`
   }
 
   return parsed.href
