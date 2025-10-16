@@ -2381,92 +2381,6 @@ export default function App() {
     [budgetItemsTotal],
   )
 
-  const autoFillVendaFromBudget = useCallback(
-    (structured: StructuredBudget, totalValue?: number | null) => {
-      if (!structured) {
-        return
-      }
-
-      const moduloKeywords = ['modulo', 'módulo', 'placa', 'painel']
-      const inversorKeywords = ['inversor']
-
-      let quantidadeModulos: number | undefined
-      let modeloModulo: string | undefined
-      let modeloInversor: string | undefined
-      let potenciaInstalada: number | undefined
-      let geracaoEstimada: number | undefined
-
-      structured.itens.forEach((item) => {
-        const descricaoCompleta = `${item.produto ?? ''} ${item.modelo ?? ''} ${item.descricao ?? ''}`
-        const textoNormalizado = normalizeText(descricaoCompleta)
-
-        const quantidadeItem = Number.isFinite(item.quantidade) ? Number(item.quantidade) : null
-        if (quantidadeItem && quantidadeItem > 0) {
-          if (moduloKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
-            quantidadeModulos = (quantidadeModulos ?? 0) + quantidadeItem
-            if (!modeloModulo) {
-              modeloModulo = item.modelo?.trim() || item.produto?.trim() || undefined
-            }
-          }
-          if (!modeloInversor && inversorKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
-            modeloInversor = item.modelo?.trim() || item.produto?.trim() || undefined
-          }
-        }
-
-        if (!potenciaInstalada) {
-          const potenciaMatch = descricaoCompleta.match(/(\d+(?:[.,]\d+)?)\s*k(?:wp|w)\b/i)
-          if (potenciaMatch) {
-            const valor = Number.parseFloat(potenciaMatch[1].replace(',', '.'))
-            if (Number.isFinite(valor) && valor > 0) {
-              potenciaInstalada = valor
-            }
-          }
-        }
-
-        if (!geracaoEstimada) {
-          const geracaoMatch = descricaoCompleta.match(/(\d+(?:[.,]\d+)?)\s*kwh/i)
-          if (geracaoMatch) {
-            const valor = Number.parseFloat(geracaoMatch[1].replace(',', '.'))
-            if (Number.isFinite(valor) && valor > 0) {
-              geracaoEstimada = valor
-            }
-          }
-        }
-      })
-
-      if (!potenciaInstalada && quantidadeModulos && potenciaPlaca > 0) {
-        potenciaInstalada = (quantidadeModulos * potenciaPlaca) / 1000
-      }
-
-      const updates: Partial<VendaForm> = {}
-      if (typeof quantidadeModulos === 'number' && quantidadeModulos > 0) {
-        updates.quantidade_modulos = quantidadeModulos
-      }
-      if (modeloModulo) {
-        updates.modelo_modulo = modeloModulo
-      }
-      if (modeloInversor) {
-        updates.modelo_inversor = modeloInversor
-      }
-      if (typeof potenciaInstalada === 'number' && potenciaInstalada > 0) {
-        updates.potencia_instalada_kwp = potenciaInstalada
-      }
-      if (typeof geracaoEstimada === 'number' && geracaoEstimada > 0) {
-        updates.geracao_estimada_kwh_mes = geracaoEstimada
-      }
-
-      if (typeof totalValue === 'number' && Number.isFinite(totalValue) && totalValue > 0) {
-        updates.capex_total = totalValue
-        setCapexManualOverride(false)
-      }
-
-      if (Object.keys(updates).length > 0) {
-        applyVendaUpdates(updates)
-      }
-    },
-    [applyVendaUpdates, potenciaPlaca],
-  )
-
   const validateVendaForm = useCallback((form: VendaForm) => {
     const errors: Record<string, string> = {}
 
@@ -2588,93 +2502,6 @@ export default function App() {
     }
   }, [validateVendaForm, vendaForm])
 
-  const handleCondicaoPagamentoChange = useCallback(
-    (nextCondicao: PagamentoCondicao) => {
-      const updates: Partial<VendaForm> = { condicao: nextCondicao }
-      if (nextCondicao === 'AVISTA') {
-        updates.modo_pagamento = vendaForm.modo_pagamento ?? 'PIX'
-        updates.n_parcelas = undefined
-        updates.juros_cartao_am_pct = undefined
-        updates.juros_cartao_aa_pct = undefined
-        updates.taxa_mdr_credito_parcelado_pct = undefined
-        updates.n_parcelas_fin = undefined
-        updates.juros_fin_am_pct = undefined
-        updates.juros_fin_aa_pct = undefined
-        updates.entrada_financiamento = undefined
-      } else if (nextCondicao === 'PARCELADO') {
-        updates.modo_pagamento = undefined
-        updates.n_parcelas_fin = undefined
-        updates.juros_fin_am_pct = undefined
-        updates.juros_fin_aa_pct = undefined
-        updates.entrada_financiamento = undefined
-      } else if (nextCondicao === 'FINANCIAMENTO') {
-        updates.modo_pagamento = undefined
-        updates.n_parcelas = undefined
-        updates.juros_cartao_am_pct = undefined
-        updates.juros_cartao_aa_pct = undefined
-        updates.taxa_mdr_credito_parcelado_pct = undefined
-      }
-      applyVendaUpdates(updates)
-    },
-    [applyVendaUpdates, vendaForm.modo_pagamento],
-  )
-
-  const handleBudgetFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (!file) {
-        return
-      }
-      setBudgetProcessingError(null)
-      setIsBudgetProcessing(true)
-      try {
-        const buffer = await file.arrayBuffer()
-        const extraction = await extractBudgetFromPdf(buffer)
-        const timestamp = Date.now().toString(36)
-        const extractedItems: KitBudgetItemState[] = extraction.items.map((item, index) => {
-          const quantity =
-            typeof item.quantity === 'number' && Number.isFinite(item.quantity)
-              ? item.quantity
-              : null
-          const unitPriceRaw =
-            typeof item.unitPrice === 'number' && Number.isFinite(item.unitPrice)
-              ? item.unitPrice
-              : null
-          const unitPrice = normalizeCurrencyNumber(unitPriceRaw)
-          return {
-            id: `pdf-${timestamp}-${index}`,
-            productName: item.productName ?? '',
-            description: item.description ?? '',
-            quantity,
-            quantityInput: formatQuantityInputValue(quantity),
-            unitPrice,
-            unitPriceInput: formatCurrencyInputValue(unitPrice),
-          }
-        })
-        setKitBudget({
-          items: extractedItems,
-          total: extraction.total ?? null,
-          totalSource: extraction.totalSource ?? null,
-          totalInput: formatCurrencyInputValue(extraction.total ?? null),
-          warnings: extraction.warnings ?? [],
-          fileName: file.name,
-        })
-        autoFillVendaFromBudget(extraction.structuredBudget, extraction.total ?? null)
-      } catch (error) {
-        console.error('Erro ao processar orçamento em PDF', error)
-        setBudgetProcessingError(
-          'Não foi possível processar o PDF. Verifique o arquivo e tente novamente.',
-        )
-      } finally {
-        setIsBudgetProcessing(false)
-        if (budgetUploadInputRef.current) {
-          budgetUploadInputRef.current.value = ''
-        }
-      }
-    },
-    [autoFillVendaFromBudget],
-  )
-
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
     return distribuidorasPorUf[ufTarifa] ?? []
@@ -2760,6 +2587,179 @@ export default function App() {
       resetRetorno()
     },
     [resetRetorno],
+  )
+
+  const autoFillVendaFromBudget = useCallback(
+    (structured: StructuredBudget, totalValue?: number | null) => {
+      if (!structured) {
+        return
+      }
+
+      const moduloKeywords = ['modulo', 'módulo', 'placa', 'painel']
+      const inversorKeywords = ['inversor']
+
+      let quantidadeModulos: number | undefined
+      let modeloModulo: string | undefined
+      let modeloInversor: string | undefined
+      let potenciaInstalada: number | undefined
+      let geracaoEstimada: number | undefined
+
+      structured.itens.forEach((item) => {
+        const descricaoCompleta = `${item.produto ?? ''} ${item.modelo ?? ''} ${item.descricao ?? ''}`
+        const textoNormalizado = normalizeText(descricaoCompleta)
+
+        const quantidadeItem = Number.isFinite(item.quantidade) ? Number(item.quantidade) : null
+        if (quantidadeItem && quantidadeItem > 0) {
+          if (moduloKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
+            quantidadeModulos = (quantidadeModulos ?? 0) + quantidadeItem
+            if (!modeloModulo) {
+              modeloModulo = item.modelo?.trim() || item.produto?.trim() || undefined
+            }
+          }
+          if (!modeloInversor && inversorKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
+            modeloInversor = item.modelo?.trim() || item.produto?.trim() || undefined
+          }
+        }
+
+        if (!potenciaInstalada) {
+          const potenciaMatch = descricaoCompleta.match(/(\d+(?:[.,]\d+)?)\s*k(?:wp|w)\b/i)
+          if (potenciaMatch) {
+            const valor = Number.parseFloat(potenciaMatch[1].replace(',', '.'))
+            if (Number.isFinite(valor) && valor > 0) {
+              potenciaInstalada = valor
+            }
+          }
+        }
+
+        if (!geracaoEstimada) {
+          const geracaoMatch = descricaoCompleta.match(/(\d+(?:[.,]\d+)?)\s*kwh/i)
+          if (geracaoMatch) {
+            const valor = Number.parseFloat(geracaoMatch[1].replace(',', '.'))
+            if (Number.isFinite(valor) && valor > 0) {
+              geracaoEstimada = valor
+            }
+          }
+        }
+      })
+
+      if (!potenciaInstalada && quantidadeModulos && potenciaPlaca > 0) {
+        potenciaInstalada = (quantidadeModulos * potenciaPlaca) / 1000
+      }
+
+      const updates: Partial<VendaForm> = {}
+      if (typeof quantidadeModulos === 'number' && quantidadeModulos > 0) {
+        updates.quantidade_modulos = quantidadeModulos
+      }
+      if (modeloModulo) {
+        updates.modelo_modulo = modeloModulo
+      }
+      if (modeloInversor) {
+        updates.modelo_inversor = modeloInversor
+      }
+      if (typeof potenciaInstalada === 'number' && potenciaInstalada > 0) {
+        updates.potencia_instalada_kwp = potenciaInstalada
+      }
+      if (typeof geracaoEstimada === 'number' && geracaoEstimada > 0) {
+        updates.geracao_estimada_kwh_mes = geracaoEstimada
+      }
+
+      if (typeof totalValue === 'number' && Number.isFinite(totalValue) && totalValue > 0) {
+        updates.capex_total = totalValue
+        setCapexManualOverride(false)
+      }
+
+      if (Object.keys(updates).length > 0) {
+        applyVendaUpdates(updates)
+      }
+    },
+    [applyVendaUpdates, potenciaPlaca],
+  )
+
+  const handleCondicaoPagamentoChange = useCallback(
+    (nextCondicao: PagamentoCondicao) => {
+      const updates: Partial<VendaForm> = { condicao: nextCondicao }
+      if (nextCondicao === 'AVISTA') {
+        updates.modo_pagamento = vendaForm.modo_pagamento ?? 'PIX'
+        updates.n_parcelas = undefined
+        updates.juros_cartao_am_pct = undefined
+        updates.juros_cartao_aa_pct = undefined
+        updates.taxa_mdr_credito_parcelado_pct = undefined
+        updates.n_parcelas_fin = undefined
+        updates.juros_fin_am_pct = undefined
+        updates.juros_fin_aa_pct = undefined
+        updates.entrada_financiamento = undefined
+      } else if (nextCondicao === 'PARCELADO') {
+        updates.modo_pagamento = undefined
+        updates.n_parcelas_fin = undefined
+        updates.juros_fin_am_pct = undefined
+        updates.juros_fin_aa_pct = undefined
+        updates.entrada_financiamento = undefined
+      } else if (nextCondicao === 'FINANCIAMENTO') {
+        updates.modo_pagamento = undefined
+        updates.n_parcelas = undefined
+        updates.juros_cartao_am_pct = undefined
+        updates.juros_cartao_aa_pct = undefined
+        updates.taxa_mdr_credito_parcelado_pct = undefined
+      }
+      applyVendaUpdates(updates)
+    },
+    [applyVendaUpdates, vendaForm.modo_pagamento],
+  )
+
+  const handleBudgetFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) {
+        return
+      }
+      setBudgetProcessingError(null)
+      setIsBudgetProcessing(true)
+      try {
+        const buffer = await file.arrayBuffer()
+        const extraction = await extractBudgetFromPdf(buffer)
+        const timestamp = Date.now().toString(36)
+        const extractedItems: KitBudgetItemState[] = extraction.items.map((item, index) => {
+          const quantity =
+            typeof item.quantity === 'number' && Number.isFinite(item.quantity)
+              ? item.quantity
+              : null
+          const unitPriceRaw =
+            typeof item.unitPrice === 'number' && Number.isFinite(item.unitPrice)
+              ? item.unitPrice
+              : null
+          const unitPrice = normalizeCurrencyNumber(unitPriceRaw)
+          return {
+            id: `pdf-${timestamp}-${index}`,
+            productName: item.productName ?? '',
+            description: item.description ?? '',
+            quantity,
+            quantityInput: formatQuantityInputValue(quantity),
+            unitPrice,
+            unitPriceInput: formatCurrencyInputValue(unitPrice),
+          }
+        })
+        setKitBudget({
+          items: extractedItems,
+          total: extraction.total ?? null,
+          totalSource: extraction.totalSource ?? null,
+          totalInput: formatCurrencyInputValue(extraction.total ?? null),
+          warnings: extraction.warnings ?? [],
+          fileName: file.name,
+        })
+        autoFillVendaFromBudget(extraction.structuredBudget, extraction.total ?? null)
+      } catch (error) {
+        console.error('Erro ao processar orçamento em PDF', error)
+        setBudgetProcessingError(
+          'Não foi possível processar o PDF. Verifique o arquivo e tente novamente.',
+        )
+      } finally {
+        setIsBudgetProcessing(false)
+        if (budgetUploadInputRef.current) {
+          budgetUploadInputRef.current.value = ''
+        }
+      }
+    },
+    [autoFillVendaFromBudget],
   )
 
   const [jurosFinAa, setJurosFinAa] = useState(15)
