@@ -34,6 +34,7 @@ import { getTarifaCheia } from './utils/tarifaAneel'
 import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { persistClienteRegistroToOneDrive } from './utils/onedrive'
+import { persistProposalPdf } from './utils/proposalPdf'
 import type { ClienteRegistroSyncPayload } from './utils/onedrive'
 
 const currency = (v: number) =>
@@ -2012,6 +2013,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('leasing')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
+  const [isSavingProposta, setIsSavingProposta] = useState(false)
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [currentBudgetId, setCurrentBudgetId] = useState<string | undefined>(undefined)
@@ -5580,6 +5582,112 @@ export default function App() {
     })
   }
 
+  const handleSalvarProposta = useCallback(async () => {
+    if (activeTab !== 'leasing') {
+      window.alert('O salvamento de propostas está disponível apenas na aba Leasing.')
+      return
+    }
+
+    if (!validarCamposObrigatorios('salvar a proposta')) {
+      return
+    }
+
+    setIsSavingProposta(true)
+
+    try {
+      const registroOrcamento = salvarOrcamentoLocalmente(printableData)
+      if (!registroOrcamento) {
+        return
+      }
+
+      setCurrentBudgetId(registroOrcamento.id)
+
+      const dadosParaImpressao: PrintableProps = {
+        ...printableData,
+        budgetId: registroOrcamento.id,
+      }
+
+      let layoutHtml: string | null = null
+
+      try {
+        layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
+      } catch (error) {
+        console.error('Erro ao preparar a proposta para salvamento.', error)
+      }
+
+      if (!layoutHtml) {
+        const node = printableRef.current
+        if (node) {
+          const clone = node.cloneNode(true) as HTMLElement
+          const codigoDd = clone.querySelector('.print-client-grid .print-client-field:first-child dd')
+          if (codigoDd) {
+            codigoDd.textContent = registroOrcamento.id
+          }
+          layoutHtml = clone.outerHTML
+        }
+      }
+
+      if (!layoutHtml) {
+        window.alert('Não foi possível preparar a proposta para salvar. Tente novamente.')
+        return
+      }
+
+      const nomeCliente = printableData.cliente.nome?.trim() ?? ''
+      const cidadeCliente = printableData.cliente.cidade?.trim() ?? ''
+      const ufCliente = printableData.cliente.uf?.trim() ?? ''
+
+      const resolverClienteId = () => {
+        if (clienteEmEdicaoId?.trim()) {
+          return clienteEmEdicaoId.trim()
+        }
+
+        const normalizadoNome = normalizeText(nomeCliente)
+        if (!normalizadoNome) {
+          return ''
+        }
+
+        const registroExistente = clientesSalvos.find(
+          (registro) => normalizeText(registro.dados.nome) === normalizadoNome,
+        )
+
+        return registroExistente?.id?.trim() ?? ''
+      }
+
+      const clienteIdParaSalvar = resolverClienteId()
+
+      if (!clienteIdParaSalvar) {
+        window.alert('Salve o cadastro do cliente para gerar um ID antes de salvar a proposta.')
+        return
+      }
+
+      await persistProposalPdf({
+        layoutHtml,
+        clienteId: clienteIdParaSalvar,
+        clienteNome: nomeCliente,
+        clienteCidade: cidadeCliente,
+        clienteUf: ufCliente,
+        budgetId: registroOrcamento.id,
+      })
+
+      adicionarNotificacao('Proposta salva e sincronizada com sucesso.', 'success')
+    } catch (error) {
+      console.error('Erro ao salvar a proposta.', error)
+      const mensagem = error instanceof Error ? error.message : 'Erro inesperado ao salvar a proposta.'
+      window.alert(`Não foi possível salvar a proposta. ${mensagem}`)
+    } finally {
+      setIsSavingProposta(false)
+    }
+  }, [
+    activeTab,
+    validarCamposObrigatorios,
+    salvarOrcamentoLocalmente,
+    printableData,
+    clienteEmEdicaoId,
+    clientesSalvos,
+    persistProposalPdf,
+    adicionarNotificacao,
+  ])
+
   const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
 
   const handleClienteChange = (key: keyof ClienteDados, value: string) => {
@@ -6142,6 +6250,14 @@ export default function App() {
             Central CRM
           </button>
           <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
+          <button
+            className="ghost"
+            type="button"
+            onClick={handleSalvarProposta}
+            disabled={isSavingProposta}
+          >
+            {isSavingProposta ? 'Salvando...' : 'Salvar'}
+          </button>
           <button className="ghost" onClick={handlePrint}>Exportar Proposta (PDF)</button>
           <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
         </div>
