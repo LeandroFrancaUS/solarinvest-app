@@ -5534,16 +5534,8 @@ export default function App() {
       return
     }
 
-    const registroOrcamento = salvarOrcamentoLocalmente(printableData)
-    if (!registroOrcamento) {
-      return
-    }
-
-    setCurrentBudgetId(registroOrcamento.id)
-
     const dadosParaImpressao: PrintableProps = {
       ...printableData,
-      budgetId: registroOrcamento.id,
     }
 
     let layoutHtml: string | null = null
@@ -5559,8 +5551,8 @@ export default function App() {
       if (node) {
         const clone = node.cloneNode(true) as HTMLElement
         const codigoDd = clone.querySelector('.print-client-grid .print-client-field:first-child dd')
-        if (codigoDd) {
-          codigoDd.textContent = registroOrcamento.id
+        if (codigoDd && dadosParaImpressao.budgetId) {
+          codigoDd.textContent = dadosParaImpressao.budgetId
         }
         layoutHtml = clone.outerHTML
       }
@@ -5574,7 +5566,7 @@ export default function App() {
     const nomeCliente = printableData.cliente.nome?.trim() || 'SolarInvest'
     openBudgetPreviewWindow(layoutHtml, {
       nomeCliente,
-      budgetId: registroOrcamento.id,
+      budgetId: dadosParaImpressao.budgetId,
       actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
       initialMode: 'preview',
     })
@@ -6142,7 +6134,7 @@ export default function App() {
             Central CRM
           </button>
           <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
-          <button className="ghost" onClick={handlePrint}>Exportar Proposta (PDF)</button>
+          <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
           <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
         </div>
       </header>
