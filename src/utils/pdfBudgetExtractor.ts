@@ -1,3 +1,9 @@
+import {
+  parseStructuredBudget,
+  structuredBudgetToCsv,
+  type StructuredBudget,
+} from './structuredBudgetParser'
+
 const PDFJS_CDN_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/'
 const TESSERACT_CDN =
   'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.esm.min.js'
@@ -5,7 +11,6 @@ const TESSERACT_CDN =
 type PdfJsModule = {
   getDocument: (src: unknown) => { promise: Promise<any> }
   GlobalWorkerOptions: { workerSrc: string }
-  OPS?: Record<string, number>
 }
 
 type TesseractModule = {
@@ -20,6 +25,7 @@ export type BudgetExtractionItem = {
   description?: string
   quantity?: number
   unitPrice?: number
+  totalPrice?: number
   imageDataUrl?: string
 }
 
@@ -32,6 +38,8 @@ export type BudgetExtractionResult = {
     pagesProcessed: number
     usedOcr: boolean
   }
+  structuredBudget: StructuredBudget
+  csv: string
 }
 
 type TextContentItem = {
@@ -66,40 +74,11 @@ async function loadTesseract(): Promise<TesseractModule | null> {
   }
   if (!tesseractLoader) {
     tesseractLoader = import(
-      /* @vite-ignore */ TESSERACT_CDN
+      /* @vite-ignore */ TESSERACT_CDN,
     ) as Promise<TesseractModule>
   }
   return tesseractLoader
 }
-
-const HEADER_KEYWORDS = [
-  'descrição',
-  'descricao',
-  'descrições',
-  'descricoes',
-  'description',
-  'produto',
-  'produtos',
-  'item',
-  'itens',
-  'quantidade',
-  'quantidades',
-  'quantity',
-  'qty',
-  'qtd',
-  'valor',
-  'valores',
-  'preço',
-  'precos',
-  'preco',
-  'price',
-]
-
-const TOTAL_KEYWORDS = ['total', 'valor total', 'total geral', 'total do orçamento', 'total do orcamento']
-
-const CONTINUATION_PREFIX = /^[\-–—•\s]+/
-
-const MULTI_SPACE_SPLIT = /\s{2,}|\t+/g
 
 export async function extractBudgetFromPdf(
   fileBuffer: ArrayBuffer,
@@ -109,93 +88,29 @@ export async function extractBudgetFromPdf(
   const pdf = await loadingTask.promise
   const totalPages = pdf.numPages || 0
 
+  const aggregatedLines: string[] = []
   const warnings: string[] = []
-  const items: BudgetExtractionItem[] = []
-  let explicitTotal: number | undefined
   let usedOcr = false
 
   for (let pageIndex = 1; pageIndex <= totalPages; pageIndex += 1) {
     const page = await pdf.getPage(pageIndex)
     const { lines, ocrUsed } = await extractLinesFromPage(page)
-    let cachedImages: string[] | undefined
-    let imageCursor = 0
-    const ensurePageImages = async () => {
-      if (cachedImages === undefined) {
-        cachedImages = await extractImagesFromPage(page, pdfjs)
-      }
-      return cachedImages
-    }
     if (ocrUsed) {
       usedOcr = true
     }
     if (!lines.length) {
       continue
     }
-
     const normalizedLines = lines
       .map((line) => line.replace(/\s+/g, ' ').trim())
       .filter(Boolean)
-
-    let headerSeen = false
-
-    for (const line of normalizedLines) {
-      if (!headerSeen && containsHeaderKeyword(line)) {
-        headerSeen = true
-        continue
-      }
-
-      const totalCandidate = parseTotalLine(line)
-      if (totalCandidate !== null) {
-        explicitTotal = totalCandidate
-        break
-      }
-
-      const analysis = analyzeLine(line)
-      const item = analysis ? createItemFromAnalysis(analysis) : null
-      if (item) {
-        items.push(item)
-        continue
-      }
-
-      if (analysis && shouldCreateImageFallback(analysis)) {
-        const images = await ensurePageImages()
-        const imageDataUrl = images.length
-          ? images[Math.min(imageCursor, images.length - 1)]
-          : undefined
-        imageCursor += 1
-        if (imageDataUrl) {
-          items.push({
-            productName: '[Item visual]',
-            description: buildImageFallbackDescription(analysis),
-            quantity: analysis.quantitySegment?.value,
-            unitPrice: analysis.unitSegment?.value,
-            imageDataUrl,
-          })
-        }
-        continue
-      }
-
-      if (analysis?.hasHeaderKeyword) {
-        continue
-      }
-
-      if (items.length > 0) {
-        const last = items[items.length - 1]
-        const cleaned = line.replace(CONTINUATION_PREFIX, '').trim()
-        if (cleaned) {
-          last.description = last.description
-            ? `${last.description} ${cleaned}`
-            : cleaned
-        }
-      }
-    }
-
-    if (explicitTotal !== undefined) {
-      break
-    }
+    aggregatedLines.push(...normalizedLines)
   }
 
-  if (!items.length) {
+  const structured = parseStructuredBudget(aggregatedLines)
+  warnings.push(...structured.warnings)
+
+  if (!structured.itens.length) {
     warnings.push(
       'Nenhum item de orçamento foi identificado automaticamente. Revise o PDF ou preencha manualmente.',
     )
@@ -207,11 +122,21 @@ export async function extractBudgetFromPdf(
     )
   }
 
+  const items: BudgetExtractionItem[] = structured.itens.map((item) => ({
+    productName: item.produto ?? '',
+    description: item.descricao ?? '—',
+    quantity: item.quantidade ?? undefined,
+    unitPrice: item.precoUnitario ?? undefined,
+    totalPrice: item.precoTotal ?? undefined,
+  }))
+
+  const explicitTotal = structured.resumo.valorTotal
   const calculatedTotal = computeItemsTotal(items)
+
   let totalSource: 'explicit' | 'calculated' | null = null
   let totalValue: number | undefined
 
-  if (explicitTotal !== undefined) {
+  if (explicitTotal !== null) {
     totalValue = explicitTotal
     totalSource = 'explicit'
   } else if (calculatedTotal !== null) {
@@ -222,6 +147,8 @@ export async function extractBudgetFromPdf(
     )
   }
 
+  const csv = structuredBudgetToCsv(structured)
+
   return {
     items,
     total: totalValue,
@@ -231,221 +158,22 @@ export async function extractBudgetFromPdf(
       pagesProcessed: totalPages,
       usedOcr,
     },
+    structuredBudget: structured,
+    csv,
   }
-}
-
-function containsHeaderKeyword(line: string): boolean {
-  const lower = line.toLowerCase()
-  return HEADER_KEYWORDS.some((keyword) => lower.includes(keyword))
-}
-
-function parseTotalLine(line: string): number | null {
-  const lower = line.toLowerCase()
-  if (!TOTAL_KEYWORDS.some((keyword) => lower.includes(keyword))) {
-    return null
-  }
-  const currencyMatch = line.match(/(?:R\$)?\s*[\d\.]+,?\d{0,2}/g)
-  if (!currencyMatch || currencyMatch.length === 0) {
-    return null
-  }
-  const candidate = currencyMatch[currencyMatch.length - 1]
-  const parsed = parseLocaleNumber(candidate)
-  return parsed === null ? null : parsed
-}
-
-type BudgetCandidateSegment = {
-  idx: number
-  raw: string
-  value: number
-  currencyLike: boolean
-}
-
-type LineAnalysis = {
-  rawLine: string
-  segments: string[]
-  numericSegments: BudgetCandidateSegment[]
-  descriptionSegments: string[]
-  quantitySegment?: BudgetCandidateSegment
-  unitSegment?: BudgetCandidateSegment
-  totalSegment?: BudgetCandidateSegment
-  hasHeaderKeyword: boolean
-}
-
-function analyzeLine(line: string): LineAnalysis | null {
-  const segments = line
-    .split(MULTI_SPACE_SPLIT)
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-
-  if (segments.length < 2) {
-    return null
-  }
-
-  const numericSegments: BudgetCandidateSegment[] = []
-  segments.forEach((segment, idx) => {
-    const parsed = parseLocaleNumber(segment)
-    if (parsed !== null) {
-      numericSegments.push({
-        idx,
-        raw: segment,
-        value: parsed,
-        currencyLike: isCurrencyLike(segment, parsed),
-      })
-    }
-  })
-
-  const currencySegments = numericSegments.filter((segment) => segment.currencyLike)
-  let unitSegment: BudgetCandidateSegment | undefined
-  let totalSegment: BudgetCandidateSegment | undefined
-
-  if (currencySegments.length >= 2) {
-    unitSegment = currencySegments[currencySegments.length - 2]
-    totalSegment = currencySegments[currencySegments.length - 1]
-  } else if (currencySegments.length === 1) {
-    unitSegment = currencySegments[0]
-  }
-
-  let quantitySegment: BudgetCandidateSegment | undefined
-
-  if (unitSegment) {
-    quantitySegment = numericSegments
-      .filter((segment) => segment.idx < unitSegment!.idx && segment !== totalSegment)
-      .slice(-1)[0]
-  }
-
-  if (!quantitySegment && numericSegments.length >= 2) {
-    const candidate = numericSegments[numericSegments.length - 2]
-    if (candidate !== unitSegment && candidate !== totalSegment) {
-      quantitySegment = candidate
-    }
-  }
-
-  const descriptionSegments = segments.filter((_, idx) => {
-    if (idx === unitSegment?.idx) return false
-    if (idx === totalSegment?.idx) return false
-    if (idx === quantitySegment?.idx) return false
-    return true
-  })
-
-  const hasHeaderKeyword = descriptionSegments.some((segment) =>
-    containsHeaderKeyword(segment),
-  )
-
-  return {
-    rawLine: line,
-    segments,
-    numericSegments,
-    descriptionSegments,
-    quantitySegment,
-    unitSegment,
-    totalSegment,
-    hasHeaderKeyword,
-  }
-}
-
-function createItemFromAnalysis(analysis: LineAnalysis): BudgetExtractionItem | null {
-  if (analysis.numericSegments.length === 0) {
-    return null
-  }
-
-  if (!analysis.descriptionSegments.length) {
-    return null
-  }
-
-  const segments = [...analysis.descriptionSegments]
-  const firstSegment = segments[0]
-  if (isHeaderLike(firstSegment) || analysis.hasHeaderKeyword) {
-    return null
-  }
-
-  if (segments.length > 1 && /^[0-9a-z]{2,10}$/i.test(firstSegment)) {
-    segments.shift()
-  }
-
-  const descriptionText = segments.join(' ').trim()
-  if (!descriptionText) {
-    return null
-  }
-
-  const { name, details } = splitNameAndDescription(descriptionText)
-
-  return {
-    productName: name,
-    description: details,
-    quantity: analysis.quantitySegment?.value,
-    unitPrice: analysis.unitSegment?.value,
-  }
-}
-
-function shouldCreateImageFallback(analysis: LineAnalysis): boolean {
-  if (analysis.descriptionSegments.length > 0) {
-    return false
-  }
-  if (analysis.hasHeaderKeyword) {
-    return false
-  }
-  return analysis.numericSegments.length > 0
-}
-
-function buildImageFallbackDescription(analysis: LineAnalysis): string {
-  const cleaned = analysis.rawLine.replace(/\s+/g, ' ').trim()
-  if (cleaned) {
-    return `Valores identificados: ${cleaned}`
-  }
-  return 'Conteúdo identificado apenas por imagem.'
-}
-
-function splitNameAndDescription(text: string): { name: string; details?: string } {
-  const separatorMatch = text.match(/^(.*?)[\s]+[-–—:]{1,2}[\s]+(.+)$/)
-  if (separatorMatch) {
-    return {
-      name: separatorMatch[1].trim(),
-      details: separatorMatch[2].trim(),
-    }
-  }
-  return { name: text.trim(), details: undefined }
-}
-
-function isHeaderLike(segment: string): boolean {
-  const lower = segment.toLowerCase()
-  return HEADER_KEYWORDS.some((keyword) => lower.includes(keyword))
-}
-
-function isCurrencyLike(segment: string, value: number): boolean {
-  if (/r\$/i.test(segment)) {
-    return true
-  }
-  if (/[,\.]/.test(segment) && /,\d{2}$/.test(segment)) {
-    return true
-  }
-  if (value >= 1000) {
-    return true
-  }
-  return false
-}
-
-function parseLocaleNumber(raw: string): number | null {
-  if (!raw) {
-    return null
-  }
-  const sanitized = raw
-    .replace(/[^0-9,.-]/g, '')
-    .replace(/\.(?=\d{3}(?:\D|$))/g, '')
-    .replace(',', '.')
-  if (!sanitized || sanitized === '-' || sanitized === '.') {
-    return null
-  }
-  const parsed = Number(sanitized)
-  return Number.isFinite(parsed) ? parsed : null
 }
 
 function computeItemsTotal(items: BudgetExtractionItem[]): number | null {
   let total = 0
-  let hasCompletable = false
+  let hasCompletable = true
   for (const item of items) {
-    if (item.quantity !== undefined && item.unitPrice !== undefined) {
+    if (
+      item.quantity !== undefined &&
+      item.unitPrice !== undefined &&
+      Number.isFinite(item.quantity) &&
+      Number.isFinite(item.unitPrice)
+    ) {
       total += item.quantity * item.unitPrice
-      hasCompletable = true
     } else {
       hasCompletable = false
       break
@@ -466,59 +194,6 @@ async function extractLinesFromPage(page: any): Promise<{ lines: string[]; ocrUs
     return { lines: ocrLines, ocrUsed: true }
   }
   return { lines, ocrUsed: false }
-}
-
-async function extractImagesFromPage(page: any, pdfjs: PdfJsModule): Promise<string[]> {
-  if (typeof document === 'undefined') {
-    return []
-  }
-
-  const ops = (pdfjs as any)?.OPS
-  let imageOperatorDetected = false
-  if (ops && typeof page.getOperatorList === 'function') {
-    try {
-      const operatorList = await page.getOperatorList()
-      const fnArray: number[] = operatorList?.fnArray || []
-      imageOperatorDetected = fnArray.some((fn: number) =>
-        fn === ops.paintImageXObject ||
-        fn === ops.paintInlineImageXObject ||
-        fn === ops.paintImageMaskXObject ||
-        fn === ops.paintInlineImageXObjectRepeat,
-      )
-    } catch (_error) {
-      imageOperatorDetected = false
-    }
-  }
-
-  if (!imageOperatorDetected) {
-    return []
-  }
-
-  const fallback = await renderPageToImage(page)
-  return fallback ? [fallback] : []
-}
-
-async function renderPageToImage(page: any): Promise<string | null> {
-  if (typeof document === 'undefined') {
-    return null
-  }
-  const canvas = document.createElement('canvas')
-  const context = canvas.getContext('2d')
-  if (!context) {
-    return null
-  }
-  const viewport = page.getViewport({ scale: 1.5 })
-  canvas.width = viewport.width
-  canvas.height = viewport.height
-  try {
-    await page.render({ canvasContext: context, viewport }).promise
-    return canvas.toDataURL('image/png')
-  } catch (_error) {
-    return null
-  } finally {
-    canvas.width = 0
-    canvas.height = 0
-  }
 }
 
 function groupTextItems(content: TextContent): string[] {
@@ -587,3 +262,4 @@ async function runOcrFallback(page: any): Promise<string[]> {
     await cleanup()
   }
 }
+
