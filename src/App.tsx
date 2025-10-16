@@ -33,6 +33,8 @@ import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
 import { getTarifaCheia } from './utils/tarifaAneel'
 import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
+import { persistClienteRegistroToOneDrive } from './utils/onedrive'
+import type { ClienteRegistroSyncPayload } from './utils/onedrive'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -462,6 +464,10 @@ const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
 const BUDGET_ID_PREFIX = 'SLRINVST-'
 const BUDGET_ID_SUFFIX_LENGTH = 8
 const BUDGET_ID_MAX_ATTEMPTS = 1000
+const CLIENTE_ID_LENGTH = 5
+const CLIENTE_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
+const CLIENTE_ID_MAX_ATTEMPTS = 10000
 
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
@@ -510,13 +516,41 @@ const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
 
-const generateClienteId = () => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
+const normalizeClienteIdCandidate = (valor: string | undefined | null) =>
+  (valor ?? '')
+    .toString()
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+
+const generateClienteId = (existingIds: Set<string> = new Set()) => {
+  let attempts = 0
+
+  while (attempts < CLIENTE_ID_MAX_ATTEMPTS) {
+    attempts += 1
+    let candidate = ''
+    for (let index = 0; index < CLIENTE_ID_LENGTH; index += 1) {
+      const randomIndex = Math.floor(Math.random() * CLIENTE_ID_CHARSET.length)
+      candidate += CLIENTE_ID_CHARSET[randomIndex]
+    }
+
+    if (!existingIds.has(candidate)) {
+      existingIds.add(candidate)
+      return candidate
+    }
   }
 
-  const random = Math.floor(Math.random() * 1_000_000)
-  return `cliente-${Date.now()}-${random.toString().padStart(6, '0')}`
+  throw new Error('Não foi possível gerar um identificador único para o cliente.')
+}
+
+const ensureClienteId = (candidate: string | undefined, existingIds: Set<string>) => {
+  const normalized = normalizeClienteIdCandidate(candidate)
+  if (normalized.length === CLIENTE_ID_LENGTH && CLIENTE_ID_PATTERN.test(normalized) && !existingIds.has(normalized)) {
+    existingIds.add(normalized)
+    return normalized
+  }
+
+  return generateClienteId(existingIds)
 }
 
 const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset'
@@ -2956,6 +2990,13 @@ export default function App() {
     [cliente],
   )
 
+  const mapClienteRegistroToSyncPayload = (registro: ClienteRegistro): ClienteRegistroSyncPayload => ({
+    id: registro.id,
+    criadoEm: registro.criadoEm,
+    atualizadoEm: registro.atualizadoEm,
+    dados: { ...registro.dados },
+  })
+
   const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
     if (typeof window === 'undefined') {
       return []
@@ -2973,30 +3014,50 @@ export default function App() {
       }
 
       const agora = new Date().toISOString()
-      return parsed
-        .map((item) => {
-          const registro = item as Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> }
-          const dados = registro.dados ?? (registro as unknown as { cliente?: Partial<ClienteDados> }).cliente ?? {}
-          const normalizado: ClienteRegistro = {
-            id: registro.id ?? generateClienteId(),
-            criadoEm: registro.criadoEm ?? agora,
-            atualizadoEm: registro.atualizadoEm ?? registro.criadoEm ?? agora,
-            dados: {
-              nome: dados?.nome ?? '',
-              documento: dados?.documento ?? '',
-              email: dados?.email ?? '',
-              telefone: dados?.telefone ?? '',
-              cep: dados?.cep ?? '',
-              distribuidora: dados?.distribuidora ?? '',
-              uc: dados?.uc ?? '',
-              endereco: dados?.endereco ?? '',
-              cidade: dados?.cidade ?? '',
-              uf: dados?.uf ?? '',
-            },
-          }
-          return normalizado
-        })
-        .sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+      const existingIds = new Set<string>()
+      let houveAtualizacaoIds = false
+
+      const normalizados = parsed.map((item) => {
+        const registro = item as Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> }
+        const dados = registro.dados ?? (registro as unknown as { cliente?: Partial<ClienteDados> }).cliente ?? {}
+        const rawId = (registro.id ?? '').toString()
+        const sanitizedCandidate = normalizeClienteIdCandidate(rawId)
+        const idNormalizado = ensureClienteId(rawId, existingIds)
+        if (idNormalizado !== sanitizedCandidate || rawId.trim() !== idNormalizado) {
+          houveAtualizacaoIds = true
+        }
+
+        const normalizado: ClienteRegistro = {
+          id: idNormalizado,
+          criadoEm: registro.criadoEm ?? agora,
+          atualizadoEm: registro.atualizadoEm ?? registro.criadoEm ?? agora,
+          dados: {
+            nome: dados?.nome ?? '',
+            documento: dados?.documento ?? '',
+            email: dados?.email ?? '',
+            telefone: dados?.telefone ?? '',
+            cep: dados?.cep ?? '',
+            distribuidora: dados?.distribuidora ?? '',
+            uc: dados?.uc ?? '',
+            endereco: dados?.endereco ?? '',
+            cidade: dados?.cidade ?? '',
+            uf: dados?.uf ?? '',
+          },
+        }
+        return normalizado
+      })
+
+      const ordenados = normalizados.sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+
+      if (houveAtualizacaoIds) {
+        try {
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ordenados))
+        } catch (error) {
+          console.warn('Não foi possível atualizar os identificadores dos clientes salvos.', error)
+        }
+      }
+
+      return ordenados
     } catch (error) {
       console.warn('Não foi possível interpretar os clientes salvos existentes.', error)
       return []
@@ -5092,7 +5153,7 @@ export default function App() {
     </div>
   )
 
-  const handleSalvarCliente = useCallback(() => {
+  const handleSalvarCliente = useCallback(async () => {
     if (typeof window === 'undefined') {
       return
     }
@@ -5108,6 +5169,7 @@ export default function App() {
     let houveErro = false
 
     setClientesSalvos((prevRegistros) => {
+      const existingIds = new Set(prevRegistros.map((registro) => registro.id))
       let registrosAtualizados: ClienteRegistro[] = prevRegistros
       let registroAtualizado: ClienteRegistro | null = null
 
@@ -5128,32 +5190,24 @@ export default function App() {
         })
 
         if (!encontrado) {
-          registroAtualizado = {
-            id: generateClienteId(),
+          const novoRegistro: ClienteRegistro = {
+            id: generateClienteId(existingIds),
             criadoEm: agoraIso,
             atualizadoEm: agoraIso,
             dados: dadosClonados,
           }
-          registrosAtualizados = [registroAtualizado, ...prevRegistros]
+          registroAtualizado = novoRegistro
+          registrosAtualizados = [novoRegistro, ...prevRegistros]
         }
       } else {
-        registroAtualizado = {
-          id: generateClienteId(),
+        const novoRegistro: ClienteRegistro = {
+          id: generateClienteId(existingIds),
           criadoEm: agoraIso,
           atualizadoEm: agoraIso,
           dados: dadosClonados,
         }
-        registrosAtualizados = [registroAtualizado, ...prevRegistros]
-      }
-
-      if (!registroAtualizado) {
-        registroAtualizado = {
-          id: generateClienteId(),
-          criadoEm: agoraIso,
-          atualizadoEm: agoraIso,
-          dados: dadosClonados,
-        }
-        registrosAtualizados = [registroAtualizado, ...prevRegistros]
+        registroAtualizado = novoRegistro
+        registrosAtualizados = [novoRegistro, ...prevRegistros]
       }
 
       const ordenados = [...registrosAtualizados].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
@@ -5172,21 +5226,49 @@ export default function App() {
     })
 
     const salvo = registroSalvo as ClienteRegistro | null
-    if (houveErro) {
-      return
-    }
-    if (!salvo) {
+    if (houveErro || !salvo) {
       return
     }
 
     const registroConfirmado: ClienteRegistro = salvo
+    let sincronizadoComSucesso = false
+    let erroSincronizacao: unknown = null
+
+    try {
+      await persistClienteRegistroToOneDrive(mapClienteRegistroToSyncPayload(registroConfirmado))
+      sincronizadoComSucesso = true
+    } catch (error) {
+      erroSincronizacao = error
+      console.error('Erro ao sincronizar cliente com o OneDrive.', error)
+    }
 
     setClienteEmEdicaoId(registroConfirmado.id)
-    adicionarNotificacao(
-      estaEditando ? 'Dados do cliente atualizados com sucesso.' : 'Cliente salvo com sucesso.',
-      'success',
-    )
-  }, [adicionarNotificacao, cliente, clienteEmEdicaoId, setClienteEmEdicaoId, validarCamposObrigatorios])
+
+    if (sincronizadoComSucesso) {
+      adicionarNotificacao(
+        estaEditando
+          ? 'Dados do cliente atualizados e sincronizados com o OneDrive com sucesso.'
+          : 'Cliente salvo e sincronizado com o OneDrive com sucesso.',
+        'success',
+      )
+    } else {
+      const mensagemErro =
+        erroSincronizacao instanceof Error && erroSincronizacao.message
+          ? erroSincronizacao.message
+          : 'Erro desconhecido ao sincronizar com o OneDrive.'
+      adicionarNotificacao(
+        `Cliente salvo localmente, mas houve erro ao sincronizar com o OneDrive. ${mensagemErro}`,
+        'error',
+      )
+    }
+  }, [
+    adicionarNotificacao,
+    cliente,
+    clienteEmEdicaoId,
+    persistClienteRegistroToOneDrive,
+    setClienteEmEdicaoId,
+    validarCamposObrigatorios,
+  ])
 
   const handleEditarCliente = useCallback(
     (registro: ClienteRegistro) => {
