@@ -5,6 +5,7 @@ const TESSERACT_CDN =
 type PdfJsModule = {
   getDocument: (src: unknown) => { promise: Promise<any> }
   GlobalWorkerOptions: { workerSrc: string }
+  OPS?: Record<string, number>
 }
 
 type TesseractModule = {
@@ -19,6 +20,7 @@ export type BudgetExtractionItem = {
   description?: string
   quantity?: number
   unitPrice?: number
+  imageDataUrl?: string
 }
 
 export type BudgetExtractionResult = {
@@ -70,13 +72,35 @@ async function loadTesseract(): Promise<TesseractModule | null> {
   return tesseractLoader
 }
 
-const HEADER_KEYWORDS = ['descrição', 'produto', 'item', 'quantidade', 'qtd', 'valor', 'preço']
+const HEADER_KEYWORDS = [
+  'descrição',
+  'descricao',
+  'descrições',
+  'descricoes',
+  'description',
+  'produto',
+  'produtos',
+  'item',
+  'itens',
+  'quantidade',
+  'quantidades',
+  'quantity',
+  'qty',
+  'qtd',
+  'valor',
+  'valores',
+  'preço',
+  'precos',
+  'preco',
+  'price',
+]
 
 const TOTAL_KEYWORDS = ['total', 'valor total', 'total geral', 'total do orçamento', 'total do orcamento']
 
 const CONTINUATION_PREFIX = /^[\-–—•\s]+/
 
 const MULTI_SPACE_SPLIT = /\s{2,}|\t+/g
+const ANY_SPACE_SPLIT = /\s+/g
 
 export async function extractBudgetFromPdf(
   fileBuffer: ArrayBuffer,
@@ -94,6 +118,14 @@ export async function extractBudgetFromPdf(
   for (let pageIndex = 1; pageIndex <= totalPages; pageIndex += 1) {
     const page = await pdf.getPage(pageIndex)
     const { lines, ocrUsed } = await extractLinesFromPage(page)
+    let cachedImages: string[] | undefined
+    let imageCursor = 0
+    const ensurePageImages = async () => {
+      if (cachedImages === undefined) {
+        cachedImages = await extractImagesFromPage(page, pdfjs)
+      }
+      return cachedImages
+    }
     if (ocrUsed) {
       usedOcr = true
     }
@@ -108,7 +140,7 @@ export async function extractBudgetFromPdf(
     let headerSeen = false
 
     for (const line of normalizedLines) {
-      if (!headerSeen && containsHeaderKeyword(line)) {
+      if (!headerSeen && isHeaderLine(line)) {
         headerSeen = true
         continue
       }
@@ -119,10 +151,36 @@ export async function extractBudgetFromPdf(
         break
       }
 
-      const item = parseBudgetLine(line)
+      const analysis = analyzeLine(line)
+      const item = analysis ? createItemFromAnalysis(analysis) : null
       if (item) {
         items.push(item)
-      } else if (items.length > 0) {
+        continue
+      }
+
+      if (analysis && shouldCreateImageFallback(analysis)) {
+        const images = await ensurePageImages()
+        const imageDataUrl = images.length
+          ? images[Math.min(imageCursor, images.length - 1)]
+          : undefined
+        imageCursor += 1
+        if (imageDataUrl) {
+          items.push({
+            productName: '[Item visual]',
+            description: buildImageFallbackDescription(analysis),
+            quantity: analysis.quantitySegment?.value,
+            unitPrice: analysis.unitSegment?.value,
+            imageDataUrl,
+          })
+        }
+        continue
+      }
+
+      if (analysis?.hasHeaderKeyword) {
+        continue
+      }
+
+      if (items.length > 0) {
         const last = items[items.length - 1]
         const cleaned = line.replace(CONTINUATION_PREFIX, '').trim()
         if (cleaned) {
@@ -203,8 +261,30 @@ type BudgetCandidateSegment = {
   currencyLike: boolean
 }
 
-function parseBudgetLine(line: string): BudgetExtractionItem | null {
-  const segments = line.split(MULTI_SPACE_SPLIT).map((segment) => segment.trim()).filter(Boolean)
+type LineAnalysis = {
+  rawLine: string
+  segments: string[]
+  numericSegments: BudgetCandidateSegment[]
+  descriptionSegments: string[]
+  quantitySegment?: BudgetCandidateSegment
+  unitSegment?: BudgetCandidateSegment
+  totalSegment?: BudgetCandidateSegment
+  hasHeaderKeyword: boolean
+}
+
+function analyzeLine(line: string): LineAnalysis | null {
+  let segments = line
+    .split(MULTI_SPACE_SPLIT)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  if (segments.length < 2) {
+    segments = line
+      .split(ANY_SPACE_SPLIT)
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+  }
+
   if (segments.length < 2) {
     return null
   }
@@ -221,10 +301,6 @@ function parseBudgetLine(line: string): BudgetExtractionItem | null {
       })
     }
   })
-
-  if (!numericSegments.length) {
-    return null
-  }
 
   const currencySegments = numericSegments.filter((segment) => segment.currencyLike)
   let unitSegment: BudgetCandidateSegment | undefined
@@ -259,20 +335,46 @@ function parseBudgetLine(line: string): BudgetExtractionItem | null {
     return true
   })
 
-  if (!descriptionSegments.length) {
+  const headerMatches = descriptionSegments.filter((segment) =>
+    containsHeaderKeyword(segment),
+  )
+  const hasHeaderKeyword =
+    headerMatches.length > 0 &&
+    headerMatches.length >= Math.max(1, Math.ceil(descriptionSegments.length * 0.6)) &&
+    numericSegments.length === 0
+
+  return {
+    rawLine: line,
+    segments,
+    numericSegments,
+    descriptionSegments,
+    quantitySegment,
+    unitSegment,
+    totalSegment,
+    hasHeaderKeyword,
+  }
+}
+
+function createItemFromAnalysis(analysis: LineAnalysis): BudgetExtractionItem | null {
+  if (analysis.numericSegments.length === 0) {
     return null
   }
 
-  const firstSegment = descriptionSegments[0]
-  if (isHeaderLike(firstSegment)) {
+  if (!analysis.descriptionSegments.length) {
     return null
   }
 
-  if (descriptionSegments.length > 1 && /^[0-9a-z]{2,10}$/i.test(firstSegment)) {
-    descriptionSegments.shift()
+  const segments = [...analysis.descriptionSegments]
+  const firstSegment = segments[0]
+  if (isHeaderLike(firstSegment) || analysis.hasHeaderKeyword) {
+    return null
   }
 
-  const descriptionText = descriptionSegments.join(' ').trim()
+  if (segments.length > 1 && /^[0-9a-z]{2,10}$/i.test(firstSegment)) {
+    segments.shift()
+  }
+
+  const descriptionText = segments.join(' ').trim()
   if (!descriptionText) {
     return null
   }
@@ -282,9 +384,27 @@ function parseBudgetLine(line: string): BudgetExtractionItem | null {
   return {
     productName: name,
     description: details,
-    quantity: quantitySegment?.value,
-    unitPrice: unitSegment?.value,
+    quantity: analysis.quantitySegment?.value,
+    unitPrice: analysis.unitSegment?.value,
   }
+}
+
+function shouldCreateImageFallback(analysis: LineAnalysis): boolean {
+  if (analysis.descriptionSegments.length > 0) {
+    return false
+  }
+  if (analysis.hasHeaderKeyword) {
+    return false
+  }
+  return analysis.numericSegments.length > 0
+}
+
+function buildImageFallbackDescription(analysis: LineAnalysis): string {
+  const cleaned = analysis.rawLine.replace(/\s+/g, ' ').trim()
+  if (cleaned) {
+    return `Valores identificados: ${cleaned}`
+  }
+  return 'Conteúdo identificado apenas por imagem.'
 }
 
 function splitNameAndDescription(text: string): { name: string; details?: string } {
@@ -301,6 +421,34 @@ function splitNameAndDescription(text: string): { name: string; details?: string
 function isHeaderLike(segment: string): boolean {
   const lower = segment.toLowerCase()
   return HEADER_KEYWORDS.some((keyword) => lower.includes(keyword))
+}
+
+function isHeaderLine(line: string): boolean {
+  const lower = line.toLowerCase()
+  const keywordMatches = HEADER_KEYWORDS.filter((keyword) =>
+    lower.includes(keyword),
+  )
+  if (keywordMatches.length === 0) {
+    return false
+  }
+  if (keywordMatches.length >= 2) {
+    return true
+  }
+  if (/\d/.test(line)) {
+    return false
+  }
+  const tokens = line
+    .split(ANY_SPACE_SPLIT)
+    .map((token) => token.trim())
+    .filter(Boolean)
+  if (!tokens.length) {
+    return false
+  }
+  const headerTokens = tokens.filter((token) => isHeaderLike(token))
+  return (
+    headerTokens.length > 0 &&
+    headerTokens.length >= Math.max(1, Math.ceil(tokens.length * 0.6))
+  )
 }
 
 function isCurrencyLike(segment: string, value: number): boolean {
@@ -358,6 +506,59 @@ async function extractLinesFromPage(page: any): Promise<{ lines: string[]; ocrUs
     return { lines: ocrLines, ocrUsed: true }
   }
   return { lines, ocrUsed: false }
+}
+
+async function extractImagesFromPage(page: any, pdfjs: PdfJsModule): Promise<string[]> {
+  if (typeof document === 'undefined') {
+    return []
+  }
+
+  const ops = (pdfjs as any)?.OPS
+  let imageOperatorDetected = false
+  if (ops && typeof page.getOperatorList === 'function') {
+    try {
+      const operatorList = await page.getOperatorList()
+      const fnArray: number[] = operatorList?.fnArray || []
+      imageOperatorDetected = fnArray.some((fn: number) =>
+        fn === ops.paintImageXObject ||
+        fn === ops.paintInlineImageXObject ||
+        fn === ops.paintImageMaskXObject ||
+        fn === ops.paintInlineImageXObjectRepeat,
+      )
+    } catch (_error) {
+      imageOperatorDetected = false
+    }
+  }
+
+  if (!imageOperatorDetected) {
+    return []
+  }
+
+  const fallback = await renderPageToImage(page)
+  return fallback ? [fallback] : []
+}
+
+async function renderPageToImage(page: any): Promise<string | null> {
+  if (typeof document === 'undefined') {
+    return null
+  }
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+  if (!context) {
+    return null
+  }
+  const viewport = page.getViewport({ scale: 1.5 })
+  canvas.width = viewport.width
+  canvas.height = viewport.height
+  try {
+    await page.render({ canvasContext: context, viewport }).promise
+    return canvas.toDataURL('image/png')
+  } catch (_error) {
+    return null
+  } finally {
+    canvas.width = 0
+    canvas.height = 0
+  }
 }
 
 function groupTextItems(content: TextContent): string[] {
