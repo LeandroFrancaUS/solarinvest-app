@@ -37,6 +37,14 @@ import { persistClienteRegistroToOneDrive } from './utils/onedrive'
 import type { ClienteRegistroSyncPayload } from './utils/onedrive'
 import { persistProposalPdf } from './utils/proposalPdf'
 import { extractBudgetFromPdf } from './utils/pdfBudgetExtractor'
+import type { StructuredBudget } from './utils/structuredBudgetParser'
+import {
+  computeROI,
+  type ModoPagamento,
+  type PagamentoCondicao,
+  type RetornoProjetado,
+  type VendaForm,
+} from './utils/vendaRetorno'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -1192,6 +1200,9 @@ const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; hint?
   </div>
 )
 
+const FieldError: React.FC<{ message?: string }> = ({ message }) =>
+  message ? <span className="field-error">{message}</span> : null
+
 const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(function PrintableProposal(
   {
     cliente,
@@ -1242,7 +1253,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const ufCliente = cliente.uf?.trim() || ''
   const enderecoCliente = cliente.endereco?.trim() || ''
   const prazoContratualResumo = isVendaDireta
-    ? 'Venda direta — pagamento integral'
+    ? 'Venda'
     : duracaoContratualValida
     ? `${buyoutResumo.duracao} meses`
     : '60 meses'
@@ -2369,6 +2380,244 @@ export default function App() {
     [budgetItemsTotal],
   )
 
+  const autoFillVendaFromBudget = useCallback(
+    (structured: StructuredBudget, totalValue?: number | null) => {
+      if (!structured) {
+        return
+      }
+
+      const moduloKeywords = ['modulo', 'módulo', 'placa', 'painel']
+      const inversorKeywords = ['inversor']
+
+      let quantidadeModulos: number | undefined
+      let modeloModulo: string | undefined
+      let modeloInversor: string | undefined
+      let potenciaInstalada: number | undefined
+      let geracaoEstimada: number | undefined
+
+      structured.itens.forEach((item) => {
+        const descricaoCompleta = `${item.produto ?? ''} ${item.modelo ?? ''} ${item.descricao ?? ''}`
+        const textoNormalizado = normalizeText(descricaoCompleta)
+
+        const quantidadeItem = Number.isFinite(item.quantidade) ? Number(item.quantidade) : null
+        if (quantidadeItem && quantidadeItem > 0) {
+          if (moduloKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
+            quantidadeModulos = (quantidadeModulos ?? 0) + quantidadeItem
+            if (!modeloModulo) {
+              modeloModulo = item.modelo?.trim() || item.produto?.trim() || undefined
+            }
+          }
+          if (!modeloInversor && inversorKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
+            modeloInversor = item.modelo?.trim() || item.produto?.trim() || undefined
+          }
+        }
+
+        if (!potenciaInstalada) {
+          const potenciaMatch = descricaoCompleta.match(/(\d+(?:[.,]\d+)?)\s*k(?:wp|w)\b/i)
+          if (potenciaMatch) {
+            const valor = Number.parseFloat(potenciaMatch[1].replace(',', '.'))
+            if (Number.isFinite(valor) && valor > 0) {
+              potenciaInstalada = valor
+            }
+          }
+        }
+
+        if (!geracaoEstimada) {
+          const geracaoMatch = descricaoCompleta.match(/(\d+(?:[.,]\d+)?)\s*kwh/i)
+          if (geracaoMatch) {
+            const valor = Number.parseFloat(geracaoMatch[1].replace(',', '.'))
+            if (Number.isFinite(valor) && valor > 0) {
+              geracaoEstimada = valor
+            }
+          }
+        }
+      })
+
+      if (!potenciaInstalada && quantidadeModulos && potenciaPlaca > 0) {
+        potenciaInstalada = (quantidadeModulos * potenciaPlaca) / 1000
+      }
+
+      const updates: Partial<VendaForm> = {}
+      if (typeof quantidadeModulos === 'number' && quantidadeModulos > 0) {
+        updates.quantidade_modulos = quantidadeModulos
+      }
+      if (modeloModulo) {
+        updates.modelo_modulo = modeloModulo
+      }
+      if (modeloInversor) {
+        updates.modelo_inversor = modeloInversor
+      }
+      if (typeof potenciaInstalada === 'number' && potenciaInstalada > 0) {
+        updates.potencia_instalada_kwp = potenciaInstalada
+      }
+      if (typeof geracaoEstimada === 'number' && geracaoEstimada > 0) {
+        updates.geracao_estimada_kwh_mes = geracaoEstimada
+      }
+
+      if (typeof totalValue === 'number' && Number.isFinite(totalValue) && totalValue > 0) {
+        updates.capex_total = totalValue
+        setCapexManualOverride(false)
+      }
+
+      if (Object.keys(updates).length > 0) {
+        applyVendaUpdates(updates)
+      }
+    },
+    [applyVendaUpdates, potenciaPlaca],
+  )
+
+  const validateVendaForm = useCallback((form: VendaForm) => {
+    const errors: Record<string, string> = {}
+
+    if (!Number.isFinite(form.consumo_kwh_mes) || form.consumo_kwh_mes <= 0) {
+      errors.consumo_kwh_mes = 'Informe o consumo mensal em kWh.'
+    }
+    if (!Number.isFinite(form.tarifa_cheia_r_kwh) || form.tarifa_cheia_r_kwh <= 0) {
+      errors.tarifa_cheia_r_kwh = 'Informe a tarifa cheia válida.'
+    }
+    if (!Number.isFinite(form.taxa_minima_mensal) || form.taxa_minima_mensal < 0) {
+      errors.taxa_minima_mensal = 'A taxa mínima deve ser zero ou positiva.'
+    }
+    if (!Number.isFinite(form.horizonte_meses) || form.horizonte_meses <= 0) {
+      errors.horizonte_meses = 'Informe o horizonte em meses.'
+    }
+    if (!Number.isFinite(form.capex_total) || form.capex_total <= 0) {
+      errors.capex_total = 'Informe o investimento total (CAPEX).'
+    }
+
+    const condicao = form.condicao
+    if (!condicao) {
+      errors.condicao = 'Selecione a condição de pagamento.'
+    }
+
+    const ensurePercent = (value: number | undefined, field: keyof VendaForm) => {
+      if (value === undefined || value === null) {
+        return
+      }
+      if (!Number.isFinite(value) || value < 0) {
+        errors[field as string] = 'Use valores maiores ou iguais a zero.'
+        return
+      }
+      if (value > 1) {
+        errors[field as string] = 'Use valores entre 0 e 1.'
+      }
+    }
+
+    ensurePercent(form.taxa_mdr_pix_pct, 'taxa_mdr_pix_pct')
+    ensurePercent(form.taxa_mdr_debito_pct, 'taxa_mdr_debito_pct')
+    ensurePercent(form.taxa_mdr_credito_vista_pct, 'taxa_mdr_credito_vista_pct')
+    ensurePercent(form.taxa_mdr_credito_parcelado_pct, 'taxa_mdr_credito_parcelado_pct')
+
+    if (condicao === 'AVISTA') {
+      if (!form.modo_pagamento) {
+        errors.modo_pagamento = 'Selecione o modo de pagamento.'
+      }
+    } else if (condicao === 'PARCELADO') {
+      const parcelas = Number.isFinite(form.n_parcelas) ? Number(form.n_parcelas) : 0
+      if (!parcelas || parcelas <= 0) {
+        errors.n_parcelas = 'Informe o número de parcelas.'
+      }
+      const jurosAm = Number.isFinite(form.juros_cartao_am_pct) ? Number(form.juros_cartao_am_pct) : null
+      const jurosAa = Number.isFinite(form.juros_cartao_aa_pct) ? Number(form.juros_cartao_aa_pct) : null
+      if ((jurosAm === null || jurosAm < 0) && (jurosAa === null || jurosAa < 0)) {
+        errors.juros_cartao_am_pct = 'Informe os juros a.m. ou a.a.'
+        errors.juros_cartao_aa_pct = 'Informe os juros a.m. ou a.a.'
+      }
+      if (jurosAm !== null && jurosAm < 0) {
+        errors.juros_cartao_am_pct = 'Os juros devem ser zero ou positivos.'
+      }
+      if (jurosAa !== null && jurosAa < 0) {
+        errors.juros_cartao_aa_pct = 'Os juros devem ser zero ou positivos.'
+      }
+    } else if (condicao === 'FINANCIAMENTO') {
+      const parcelasFin = Number.isFinite(form.n_parcelas_fin) ? Number(form.n_parcelas_fin) : 0
+      if (!parcelasFin || parcelasFin <= 0) {
+        errors.n_parcelas_fin = 'Informe as parcelas do financiamento.'
+      }
+      const jurosAm = Number.isFinite(form.juros_fin_am_pct) ? Number(form.juros_fin_am_pct) : null
+      const jurosAa = Number.isFinite(form.juros_fin_aa_pct) ? Number(form.juros_fin_aa_pct) : null
+      if ((jurosAm === null || jurosAm < 0) && (jurosAa === null || jurosAa < 0)) {
+        errors.juros_fin_am_pct = 'Informe os juros a.m. ou a.a.'
+        errors.juros_fin_aa_pct = 'Informe os juros a.m. ou a.a.'
+      }
+      if (jurosAm !== null && jurosAm < 0) {
+        errors.juros_fin_am_pct = 'Os juros devem ser zero ou positivos.'
+      }
+      if (jurosAa !== null && jurosAa < 0) {
+        errors.juros_fin_aa_pct = 'Os juros devem ser zero ou positivos.'
+      }
+      if (
+        Number.isFinite(form.entrada_financiamento) &&
+        (form.entrada_financiamento ?? 0) < 0
+      ) {
+        errors.entrada_financiamento = 'A entrada deve ser zero ou positiva.'
+      }
+    }
+
+    if (
+      Number.isFinite(form.taxa_desconto_aa_pct) &&
+      (form.taxa_desconto_aa_pct ?? 0) < 0
+    ) {
+      errors.taxa_desconto_aa_pct = 'A taxa de desconto deve ser zero ou positiva.'
+    }
+
+    return errors
+  }, [])
+
+  const handleCalcularRetorno = useCallback(() => {
+    const errors = validateVendaForm(vendaForm)
+    setVendaFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      setRetornoError('Revise os campos destacados antes de calcular o retorno.')
+      setRetornoProjetado(null)
+      setRetornoStatus('idle')
+      return
+    }
+    try {
+      setRetornoStatus('calculating')
+      const resultado = computeROI(vendaForm)
+      setRetornoProjetado(resultado)
+      setRetornoError(null)
+    } catch (error) {
+      console.error('Erro ao calcular retorno projetado.', error)
+      setRetornoProjetado(null)
+      setRetornoError('Não foi possível calcular o retorno. Tente novamente.')
+    } finally {
+      setRetornoStatus('idle')
+    }
+  }, [validateVendaForm, vendaForm])
+
+  const handleCondicaoPagamentoChange = useCallback(
+    (nextCondicao: PagamentoCondicao) => {
+      const updates: Partial<VendaForm> = { condicao: nextCondicao }
+      if (nextCondicao === 'AVISTA') {
+        updates.modo_pagamento = vendaForm.modo_pagamento ?? 'PIX'
+        updates.n_parcelas = undefined
+        updates.juros_cartao_am_pct = undefined
+        updates.juros_cartao_aa_pct = undefined
+        updates.taxa_mdr_credito_parcelado_pct = undefined
+        updates.n_parcelas_fin = undefined
+        updates.juros_fin_am_pct = undefined
+        updates.juros_fin_aa_pct = undefined
+        updates.entrada_financiamento = undefined
+      } else if (nextCondicao === 'PARCELADO') {
+        updates.modo_pagamento = undefined
+        updates.n_parcelas_fin = undefined
+        updates.juros_fin_am_pct = undefined
+        updates.juros_fin_aa_pct = undefined
+        updates.entrada_financiamento = undefined
+      } else if (nextCondicao === 'FINANCIAMENTO') {
+        updates.modo_pagamento = undefined
+        updates.n_parcelas = undefined
+        updates.juros_cartao_am_pct = undefined
+        updates.juros_cartao_aa_pct = undefined
+        updates.taxa_mdr_credito_parcelado_pct = undefined
+      }
+      applyVendaUpdates(updates)
+    },
+    [applyVendaUpdates, vendaForm.modo_pagamento],
+  )
+
   const handleBudgetFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0]
@@ -2409,6 +2658,7 @@ export default function App() {
           warnings: extraction.warnings ?? [],
           fileName: file.name,
         })
+        autoFillVendaFromBudget(extraction.structuredBudget, extraction.total ?? null)
       } catch (error) {
         console.error('Erro ao processar orçamento em PDF', error)
         setBudgetProcessingError(
@@ -2421,7 +2671,7 @@ export default function App() {
         }
       }
     },
-    [],
+    [autoFillVendaFromBudget],
   )
 
   const distribuidorasDisponiveis = useMemo(() => {
@@ -2441,6 +2691,76 @@ export default function App() {
   const [eficiencia, setEficiencia] = useState(0.8)
   const [diasMes, setDiasMes] = useState(DIAS_MES_PADRAO)
   const [inflacaoAa, setInflacaoAa] = useState(8)
+
+  const [vendaForm, setVendaForm] = useState<VendaForm>({
+    consumo_kwh_mes: kcKwhMes,
+    tarifa_cheia_r_kwh: tarifaCheia,
+    inflacao_energia_aa_pct: inflacaoAa,
+    taxa_minima_mensal: taxaMinima,
+    horizonte_meses: 60,
+    capex_total: 0,
+    condicao: 'AVISTA',
+    modo_pagamento: 'PIX',
+    taxa_mdr_pix_pct: 0,
+    taxa_mdr_debito_pct: 0,
+    taxa_mdr_credito_vista_pct: 0,
+    taxa_mdr_credito_parcelado_pct: 0,
+    entrada_financiamento: 0,
+  })
+  const [vendaFormErrors, setVendaFormErrors] = useState<Record<string, string>>({})
+  const [retornoProjetado, setRetornoProjetado] = useState<RetornoProjetado | null>(null)
+  const [retornoStatus, setRetornoStatus] = useState<'idle' | 'calculating'>('idle')
+  const [retornoError, setRetornoError] = useState<string | null>(null)
+  const [capexManualOverride, setCapexManualOverride] = useState(false)
+
+  const resetRetorno = useCallback(() => {
+    setRetornoProjetado(null)
+    setRetornoError(null)
+    setRetornoStatus('idle')
+  }, [])
+
+  const applyVendaUpdates = useCallback(
+    (updates: Partial<VendaForm>) => {
+      if (!updates || Object.keys(updates).length === 0) {
+        return
+      }
+      setVendaForm((prev) => {
+        let changed = false
+        const next: VendaForm = { ...prev }
+        Object.entries(updates).forEach(([rawKey, value]) => {
+          const key = rawKey as keyof VendaForm
+          if (value === undefined) {
+            if (next[key] !== undefined) {
+              ;(next as any)[key] = value
+              changed = true
+            }
+            return
+          }
+          if (next[key] !== value) {
+            ;(next as any)[key] = value
+            changed = true
+          }
+        })
+        return changed ? next : prev
+      })
+      setVendaFormErrors((prev) => {
+        if (!prev || Object.keys(prev).length === 0) {
+          return prev
+        }
+        let changed = false
+        const next = { ...prev }
+        Object.keys(updates).forEach((key) => {
+          if (key in next) {
+            delete next[key]
+            changed = true
+          }
+        })
+        return changed ? next : prev
+      })
+      resetRetorno()
+    },
+    [resetRetorno],
+  )
 
   const [jurosFinAa, setJurosFinAa] = useState(15)
   const [prazoFinMeses, setPrazoFinMeses] = useState(120)
@@ -2710,6 +3030,66 @@ export default function App() {
     const fator = tipoInstalacao === 'SOLO' ? 7 : 3.3
     return numeroPlacasEstimado * fator
   }, [numeroPlacasEstimado, tipoInstalacao])
+
+  useEffect(() => {
+    if (capexManualOverride) {
+      return
+    }
+    const total = kitBudget.total
+    if (typeof total !== 'number' || !Number.isFinite(total) || total <= 0) {
+      return
+    }
+    let changed = false
+    setVendaForm((prev) => {
+      if (Math.abs((prev.capex_total ?? 0) - total) < 0.5) {
+        return prev
+      }
+      changed = true
+      return { ...prev, capex_total: total }
+    })
+    if (changed) {
+      setVendaFormErrors((prev) => {
+        if (!prev.capex_total) {
+          return prev
+        }
+        const { capex_total: _removed, ...rest } = prev
+        return rest
+      })
+      resetRetorno()
+    }
+  }, [capexManualOverride, kitBudget.total, resetRetorno])
+
+  useEffect(() => {
+    let updated = false
+    setVendaForm((prev) => {
+      const next = { ...prev }
+      if (
+        (prev.potencia_instalada_kwp === undefined || prev.potencia_instalada_kwp <= 0) &&
+        potenciaInstaladaKwp > 0
+      ) {
+        next.potencia_instalada_kwp = potenciaInstaladaKwp
+        updated = true
+      }
+      if (
+        (prev.geracao_estimada_kwh_mes === undefined || prev.geracao_estimada_kwh_mes <= 0) &&
+        geracaoMensalKwh > 0
+      ) {
+        next.geracao_estimada_kwh_mes = geracaoMensalKwh
+        updated = true
+      }
+      if (
+        (prev.quantidade_modulos === undefined || prev.quantidade_modulos <= 0) &&
+        numeroPlacasEstimado > 0
+      ) {
+        next.quantidade_modulos = numeroPlacasEstimado
+        updated = true
+      }
+      return updated ? next : prev
+    })
+    if (updated) {
+      resetRetorno()
+    }
+  }, [geracaoMensalKwh, numeroPlacasEstimado, potenciaInstaladaKwp, resetRetorno])
 
   useEffect(() => {
     const consumoAnterior = consumoAnteriorRef.current
@@ -6510,6 +6890,733 @@ export default function App() {
     </section>
   )
 
+  const renderVendaParametrosSection = () => (
+    <section className="card">
+      <h2>Parâmetros principais</h2>
+      <div className="grid g3">
+        <Field
+          label={
+            <>
+              Consumo (kWh/mês)
+              <InfoTooltip text="Consumo médio mensal utilizado para projetar a geração e a economia." />
+            </>
+          }
+        >
+          <input
+            type="number"
+            min={0}
+            value={
+              Number.isFinite(vendaForm.consumo_kwh_mes) ? vendaForm.consumo_kwh_mes : ''
+            }
+            onChange={(event) => {
+              const parsed = Number(event.target.value)
+              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              setKcKwhMes(normalized)
+              applyVendaUpdates({ consumo_kwh_mes: normalized })
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+          <FieldError message={vendaFormErrors.consumo_kwh_mes} />
+        </Field>
+        <Field label="Tarifa cheia (R$/kWh)">
+          <input
+            type="number"
+            step="0.001"
+            min={0}
+            value={
+              Number.isFinite(vendaForm.tarifa_cheia_r_kwh)
+                ? vendaForm.tarifa_cheia_r_kwh
+                : ''
+            }
+            onChange={(event) => {
+              const parsed = Number(event.target.value)
+              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              setTarifaCheia(normalized)
+              applyVendaUpdates({ tarifa_cheia_r_kwh: normalized })
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+          <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
+        </Field>
+        <Field label="Taxa mínima (R$/mês)">
+          <input
+            type="number"
+            min={0}
+            value={
+              Number.isFinite(vendaForm.taxa_minima_mensal)
+                ? vendaForm.taxa_minima_mensal
+                : ''
+            }
+            onChange={(event) => {
+              const parsed = Number(event.target.value)
+              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              setTaxaMinima(normalized)
+              applyVendaUpdates({ taxa_minima_mensal: normalized })
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+          <FieldError message={vendaFormErrors.taxa_minima_mensal} />
+        </Field>
+      </div>
+      <div className="grid g3">
+        <Field
+          label={
+            <>
+              Inflação de energia (% a.a.)
+              <InfoTooltip text="Reajuste anual estimado para a tarifa de energia." />
+            </>
+          }
+        >
+          <input
+            type="number"
+            step="0.1"
+            value={
+              Number.isFinite(vendaForm.inflacao_energia_aa_pct)
+                ? vendaForm.inflacao_energia_aa_pct
+                : ''
+            }
+            onChange={(event) => {
+              const parsed = Number(event.target.value)
+              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              setInflacaoAa(normalized)
+              applyVendaUpdates({ inflacao_energia_aa_pct: normalized })
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field label="Horizonte de análise (meses)">
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={
+              Number.isFinite(vendaForm.horizonte_meses) ? vendaForm.horizonte_meses : ''
+            }
+            onChange={(event) => {
+              const parsed = Number(event.target.value)
+              const normalized = Number.isFinite(parsed)
+                ? Math.max(1, Math.round(parsed))
+                : 1
+              applyVendaUpdates({ horizonte_meses: normalized })
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+          <FieldError message={vendaFormErrors.horizonte_meses} />
+        </Field>
+        <Field
+          label={
+            <>
+              Taxa de desconto (% a.a.)
+              <InfoTooltip text="Opcional: utilizada para calcular o Valor Presente Líquido (VPL)." />
+            </>
+          }
+        >
+          <input
+            type="number"
+            step="0.1"
+            min={0}
+            value={
+              Number.isFinite(vendaForm.taxa_desconto_aa_pct)
+                ? vendaForm.taxa_desconto_aa_pct
+                : ''
+            }
+            onChange={(event) => {
+              const parsed = Number(event.target.value)
+              if (event.target.value === '') {
+                applyVendaUpdates({ taxa_desconto_aa_pct: undefined })
+                return
+              }
+              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              applyVendaUpdates({ taxa_desconto_aa_pct: normalized })
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+          <FieldError message={vendaFormErrors.taxa_desconto_aa_pct} />
+        </Field>
+      </div>
+      <div className="grid g3">
+        <Field label="UF (ANEEL)">
+          <select value={ufTarifa} onChange={(event) => setUfTarifa(event.target.value)}>
+            <option value="">Selecione a UF</option>
+            {ufsDisponiveis.map((uf) => (
+              <option key={uf} value={uf}>
+                {uf} — {UF_LABELS[uf] ?? uf}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Distribuidora (ANEEL)">
+          <select
+            value={distribuidoraTarifa}
+            onChange={(event) => setDistribuidoraTarifa(event.target.value)}
+            disabled={!ufTarifa || distribuidorasDisponiveis.length === 0}
+          >
+            <option value="">
+              {ufTarifa ? 'Selecione a distribuidora' : 'Selecione a UF'}
+            </option>
+            {distribuidorasDisponiveis.map((nome) => (
+              <option key={nome} value={nome}>
+                {nome}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field
+          label={
+            <>
+              Irradiação média (kWh/m²/dia)
+              <InfoTooltip text="Valor sugerido automaticamente conforme a UF ou distribuidora." />
+            </>
+          }
+          hint="Atualizado automaticamente conforme a região selecionada."
+        >
+          <input readOnly value={baseIrradiacao > 0 ? baseIrradiacao.toFixed(2) : '—'} />
+        </Field>
+      </div>
+    </section>
+  )
+
+  const renderVendaConfiguracaoSection = () => (
+    <section className="card">
+      <h2>Configuração da Usina Fotovoltaica</h2>
+      <div className="grid g4">
+        <Field label="Potência da placa (Wp)">
+          <select value={potenciaPlaca} onChange={(event) => setPotenciaPlaca(Number(event.target.value))}>
+            {painelOpcoes.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Nº de placas (estimado)">
+          <input
+            type="number"
+            min={1}
+            value={
+              Number.isFinite(vendaForm.quantidade_modulos)
+                ? vendaForm.quantidade_modulos
+                : ''
+            }
+            onChange={(event) => {
+              const { value } = event.target
+              if (!value) {
+                applyVendaUpdates({ quantidade_modulos: undefined })
+                setNumeroPlacasManual('')
+                return
+              }
+              const parsed = Number(value)
+              if (!Number.isFinite(parsed) || parsed <= 0) {
+                applyVendaUpdates({ quantidade_modulos: undefined })
+                setNumeroPlacasManual('')
+                return
+              }
+              const inteiro = Math.max(1, Math.round(parsed))
+              applyVendaUpdates({ quantidade_modulos: inteiro })
+              setNumeroPlacasManual(inteiro)
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field label="Tipo de instalação">
+          <select
+            value={tipoInstalacao}
+            onChange={(event) => setTipoInstalacao(event.target.value as TipoInstalacao)}
+          >
+            <option value="TELHADO">Telhado</option>
+            <option value="SOLO">Solo</option>
+          </select>
+        </Field>
+        <Field label="Potência instalada (kWp)">
+          <input
+            type="number"
+            step="0.01"
+            min={0}
+            value={
+              Number.isFinite(vendaForm.potencia_instalada_kwp)
+                ? vendaForm.potencia_instalada_kwp
+                : ''
+            }
+            onChange={(event) => {
+              const { value } = event.target
+              if (!value) {
+                applyVendaUpdates({ potencia_instalada_kwp: undefined })
+                return
+              }
+              const parsed = Number(value)
+              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              applyVendaUpdates({ potencia_instalada_kwp: normalized })
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field label="Geração estimada (kWh/mês)">
+          <input
+            type="number"
+            min={0}
+            value={
+              Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
+                ? vendaForm.geracao_estimada_kwh_mes
+                : ''
+            }
+            onChange={(event) => {
+              const { value } = event.target
+              if (!value) {
+                applyVendaUpdates({ geracao_estimada_kwh_mes: undefined })
+                return
+              }
+              const parsed = Number(value)
+              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              applyVendaUpdates({ geracao_estimada_kwh_mes: normalized })
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
+        </Field>
+        <Field label="Área utilizada (m²)">
+          <input
+            readOnly
+            value={
+              areaInstalacao > 0
+                ? areaInstalacao.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })
+                : '—'
+            }
+          />
+        </Field>
+      </div>
+      <div className="grid g2">
+        <Field label="Modelo do módulo">
+          <input
+            type="text"
+            value={vendaForm.modelo_modulo ?? ''}
+            onChange={(event) => applyVendaUpdates({ modelo_modulo: event.target.value || undefined })}
+          />
+        </Field>
+        <Field label="Modelo do inversor">
+          <input
+            type="text"
+            value={vendaForm.modelo_inversor ?? ''}
+            onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
+          />
+        </Field>
+      </div>
+      <div className="info-inline">
+        <span className="pill">
+          <InfoTooltip text="Valor de mercado = Potência instalada (kWp) × Preço por kWp configurado nas definições." />
+          Valor de Mercado Estimado
+          <strong>{currency(capex)}</strong>
+        </span>
+        <span className="pill">
+          <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ 30 dias." />
+          Consumo diário
+          <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
+        </span>
+      </div>
+    </section>
+  )
+
+  const renderCondicoesPagamentoSection = () => {
+    const condicao = vendaForm.condicao
+    return (
+      <section className="card">
+        <h2>Condições de Pagamento</h2>
+        <div className="grid g3">
+          <Field label="Condição">
+            <select
+              value={condicao}
+              onChange={(event) => handleCondicaoPagamentoChange(event.target.value as PagamentoCondicao)}
+            >
+              <option value="AVISTA">À vista</option>
+              <option value="PARCELADO">Parcelado</option>
+              <option value="FINANCIAMENTO">Financiamento</option>
+            </select>
+            <FieldError message={vendaFormErrors.condicao} />
+          </Field>
+          <Field label="Investimento (CAPEX total)">
+            <input
+              type="number"
+              min={0}
+              value={
+                Number.isFinite(vendaForm.capex_total) ? vendaForm.capex_total : ''
+              }
+              onChange={(event) => {
+                const parsed = parseNumericInput(event.target.value)
+                const normalized = parsed && parsed > 0 ? parsed : 0
+                setCapexManualOverride(true)
+                applyVendaUpdates({ capex_total: normalized })
+              }}
+              onFocus={selectNumberInputOnFocus}
+            />
+            <FieldError message={vendaFormErrors.capex_total} />
+          </Field>
+          <Field label="Moeda">
+            <input readOnly value="BRL" />
+          </Field>
+        </div>
+        {condicao === 'AVISTA' ? (
+          <div className="grid g3">
+            <Field label="Modo de pagamento">
+              <select
+                value={vendaForm.modo_pagamento ?? 'PIX'}
+                onChange={(event) => applyVendaUpdates({ modo_pagamento: event.target.value as ModoPagamento })}
+              >
+                <option value="PIX">Pix</option>
+                <option value="DEBITO">Cartão de débito</option>
+                <option value="CREDITO">Cartão de crédito</option>
+              </select>
+              <FieldError message={vendaFormErrors.modo_pagamento} />
+            </Field>
+            <Field label="MDR Pix">
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step="0.001"
+                value={
+                  Number.isFinite(vendaForm.taxa_mdr_pix_pct)
+                    ? vendaForm.taxa_mdr_pix_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (value === '') {
+                    applyVendaUpdates({ taxa_mdr_pix_pct: 0 })
+                    return
+                  }
+                  const parsed = Number(value)
+                  applyVendaUpdates({ taxa_mdr_pix_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.taxa_mdr_pix_pct} />
+            </Field>
+            <Field label="MDR Débito">
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step="0.001"
+                value={
+                  Number.isFinite(vendaForm.taxa_mdr_debito_pct)
+                    ? vendaForm.taxa_mdr_debito_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (value === '') {
+                    applyVendaUpdates({ taxa_mdr_debito_pct: 0 })
+                    return
+                  }
+                  const parsed = Number(value)
+                  applyVendaUpdates({ taxa_mdr_debito_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.taxa_mdr_debito_pct} />
+            </Field>
+            <Field label="MDR Crédito à vista">
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step="0.001"
+                value={
+                  Number.isFinite(vendaForm.taxa_mdr_credito_vista_pct)
+                    ? vendaForm.taxa_mdr_credito_vista_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (value === '') {
+                    applyVendaUpdates({ taxa_mdr_credito_vista_pct: 0 })
+                    return
+                  }
+                  const parsed = Number(value)
+                  applyVendaUpdates({
+                    taxa_mdr_credito_vista_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
+                  })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.taxa_mdr_credito_vista_pct} />
+            </Field>
+          </div>
+        ) : null}
+        {condicao === 'PARCELADO' ? (
+          <div className="grid g3">
+            <Field label="Nº de parcelas">
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={Number.isFinite(vendaForm.n_parcelas) ? vendaForm.n_parcelas : ''}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    applyVendaUpdates({ n_parcelas: undefined })
+                    return
+                  }
+                  const parsed = Number(value)
+                  const normalized = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1
+                  applyVendaUpdates({ n_parcelas: normalized })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.n_parcelas} />
+            </Field>
+            <Field label="Juros cartão (% a.m.)">
+              <input
+                type="number"
+                step="0.01"
+                value={
+                  Number.isFinite(vendaForm.juros_cartao_am_pct)
+                    ? vendaForm.juros_cartao_am_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    applyVendaUpdates({ juros_cartao_am_pct: undefined })
+                    return
+                  }
+                  const parsed = Number(value)
+                  applyVendaUpdates({ juros_cartao_am_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.juros_cartao_am_pct} />
+            </Field>
+            <Field label="Juros cartão (% a.a.)">
+              <input
+                type="number"
+                step="0.1"
+                value={
+                  Number.isFinite(vendaForm.juros_cartao_aa_pct)
+                    ? vendaForm.juros_cartao_aa_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    applyVendaUpdates({ juros_cartao_aa_pct: undefined })
+                    return
+                  }
+                  const parsed = Number(value)
+                  applyVendaUpdates({ juros_cartao_aa_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.juros_cartao_aa_pct} />
+            </Field>
+            <Field label="MDR crédito parcelado">
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step="0.001"
+                value={
+                  Number.isFinite(vendaForm.taxa_mdr_credito_parcelado_pct)
+                    ? vendaForm.taxa_mdr_credito_parcelado_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    applyVendaUpdates({ taxa_mdr_credito_parcelado_pct: 0 })
+                    return
+                  }
+                  const parsed = Number(value)
+                  applyVendaUpdates({
+                    taxa_mdr_credito_parcelado_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
+                  })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.taxa_mdr_credito_parcelado_pct} />
+            </Field>
+          </div>
+        ) : null}
+        {condicao === 'FINANCIAMENTO' ? (
+          <div className="grid g3">
+            <Field label="Entrada (R$)">
+              <input
+                type="number"
+                min={0}
+                value={
+                  Number.isFinite(vendaForm.entrada_financiamento)
+                    ? vendaForm.entrada_financiamento
+                    : ''
+                }
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  const normalized = parsed && parsed > 0 ? parsed : 0
+                  applyVendaUpdates({ entrada_financiamento: normalized })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.entrada_financiamento} />
+            </Field>
+            <Field label="Nº de parcelas">
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={
+                  Number.isFinite(vendaForm.n_parcelas_fin)
+                    ? vendaForm.n_parcelas_fin
+                    : ''
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    applyVendaUpdates({ n_parcelas_fin: undefined })
+                    return
+                  }
+                  const parsed = Number(value)
+                  const normalized = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1
+                  applyVendaUpdates({ n_parcelas_fin: normalized })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.n_parcelas_fin} />
+            </Field>
+            <Field label="Juros financiamento (% a.m.)">
+              <input
+                type="number"
+                step="0.01"
+                value={
+                  Number.isFinite(vendaForm.juros_fin_am_pct)
+                    ? vendaForm.juros_fin_am_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    applyVendaUpdates({ juros_fin_am_pct: undefined })
+                    return
+                  }
+                  const parsed = Number(value)
+                  applyVendaUpdates({ juros_fin_am_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.juros_fin_am_pct} />
+            </Field>
+            <Field label="Juros financiamento (% a.a.)">
+              <input
+                type="number"
+                step="0.1"
+                value={
+                  Number.isFinite(vendaForm.juros_fin_aa_pct)
+                    ? vendaForm.juros_fin_aa_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    applyVendaUpdates({ juros_fin_aa_pct: undefined })
+                    return
+                  }
+                  const parsed = Number(value)
+                  applyVendaUpdates({ juros_fin_aa_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.juros_fin_aa_pct} />
+            </Field>
+          </div>
+        ) : null}
+      </section>
+    )
+  }
+
+  const renderRetornoProjetadoSection = () => {
+    const resultado = retornoProjetado
+    const meses = resultado ? resultado.economia.map((_, index) => index) : []
+    const horizonte = vendaForm.horizonte_meses
+    const paybackLabel = resultado?.payback
+      ? `${resultado.payback} meses`
+      : 'Não atingido no horizonte analisado'
+    const roiLabel = resultado
+      ? new Intl.NumberFormat('pt-BR', {
+          style: 'percent',
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        }).format(resultado.roi)
+      : '—'
+    const vplLabel =
+      resultado && typeof resultado.vpl === 'number' ? currency(resultado.vpl) : '—'
+
+    return (
+      <section className="card">
+        <div className="card-header">
+          <h2>Retorno Projetado</h2>
+          <button
+            type="button"
+            className="primary"
+            onClick={handleCalcularRetorno}
+            disabled={retornoStatus === 'calculating'}
+          >
+            {retornoStatus === 'calculating'
+              ? 'Calculando…'
+              : resultado
+              ? 'Recalcular retorno'
+              : 'Calcular retorno'}
+          </button>
+        </div>
+        {retornoError ? <p className="field-error">{retornoError}</p> : null}
+        {resultado ? (
+          <>
+            <div className="kpi-grid">
+              <div className="kpi">
+                <span>Payback estimado</span>
+                <strong>{paybackLabel}</strong>
+              </div>
+              <div className="kpi">
+                <span>ROI acumulado ({horizonte} meses)</span>
+                <strong>{roiLabel}</strong>
+              </div>
+              <div className="kpi">
+                <span>VPL</span>
+                <strong>{vplLabel}</strong>
+              </div>
+            </div>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Mês</th>
+                    <th>Economia</th>
+                    <th>Pagamento</th>
+                    <th>Fluxo líquido</th>
+                    <th>Saldo acumulado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {meses.map((mes) => (
+                    <tr key={`retorno-m-${mes}`}>
+                      <td>{mes}</td>
+                      <td>{currency(resultado.economia[mes] ?? 0)}</td>
+                      <td>{currency(resultado.pagamentoMensal[mes] ?? 0)}</td>
+                      <td>{currency(resultado.fluxo[mes] ?? 0)}</td>
+                      <td>{currency(resultado.saldo[mes] ?? 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : retornoStatus === 'calculating' ? (
+          <p className="muted">Calculando projeções…</p>
+        ) : (
+          <p className="muted">Preencha os dados e clique em “Calcular retorno”.</p>
+        )}
+      </section>
+    )
+  }
+
   return (
     <>
       {activePage === 'crm' ? (
@@ -7070,18 +8177,14 @@ export default function App() {
           </>
         ) : (
           <>
-            {renderParametrosPrincipaisSection()}
-            {renderConfiguracaoUsinaSection()}
+            {renderVendaParametrosSection()}
+            {renderVendaConfiguracaoSection()}
             <section className="card">
-              <h2>Vendas</h2>
+              <h2>Upload de Orçamento em PDF</h2>
               <div className="budget-upload-section">
-                <div className="budget-upload-header">
-                  <h3>Upload de Orçamento em PDF</h3>
-                  <p className="muted">
-                    Envie um orçamento em PDF para extrair automaticamente os itens e valores do kit
-                    solar.
-                  </p>
-                </div>
+                <p className="muted">
+                  Envie um orçamento em PDF para extrair automaticamente os itens e valores do kit solar.
+                </p>
                 <div className="budget-upload-control">
                   <input
                     ref={budgetUploadInputRef}
@@ -7255,6 +8358,8 @@ export default function App() {
                 </div>
               </div>
             </section>
+            {renderCondicoesPagamentoSection()}
+            {renderRetornoProjetadoSection()}
           </>
         )}
         </main>
