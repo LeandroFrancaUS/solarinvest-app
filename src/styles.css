@@ -349,6 +349,12 @@ button.link.danger:focus-visible {
   font-size: 11px;
 }
 
+.field-error {
+  color: #f87171;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 input,
 select {
   width: 100%;
@@ -384,6 +390,37 @@ input[readonly] {
   position: relative;
   display: inline-flex;
   align-items: center;
+}
+
+.kpi-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin: 16px 0 24px;
+}
+
+.kpi {
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: rgba(9, 15, 28, 0.82);
+  border: 1px solid rgba(255, 140, 0, 0.18);
+  box-shadow: 0 12px 28px rgba(3, 8, 22, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kpi span {
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kpi strong {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .info-icon {
