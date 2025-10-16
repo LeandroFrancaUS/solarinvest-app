@@ -1,26 +1,22 @@
 # SolarInvest App
 
-## ANEEL data proxy configuration
+## ANEEL data proxy
 
 The application consults ANEEL's CKAN datasets to fetch distributor information and
 energy tariffs. Those endpoints do not send CORS headers, so browsers block direct
-requests during development. A lightweight proxy can be enabled in Vite to bypass
-that restriction without changing the production build.
+requests. A built-in proxy is now exposed at `/api/aneel` so both the development
+server and the production build can call the API without hitting CORS issues.
 
-1. Create a `.env.local` file in the project root (or use your existing one) with
-   the following content:
+- `npm run dev` automatically mounts the proxy middleware inside Vite. Any request
+  sent to `/api/aneel?path=...` is resolved on the server and forwarded to
+  `https://dadosabertos.aneel.gov.br`.
+- `npm run build && npm run start` builds the static assets and launches a minimal
+  Node server that serves the production bundle and handles the same proxy route.
 
-   ```bash
-   VITE_ANEEL_PROXY_BASE=/aneel
-   # Optional: override the default target (defaults to https://dadosabertos.aneel.gov.br)
-   # VITE_ANEEL_PROXY_TARGET=https://dadosabertos.aneel.gov.br
-   ```
+Advanced configuration:
 
-2. Start the development server with `npm run dev`. Any request sent to
-   `http://localhost:5173/aneel/...` will now be proxied to the ANEEL open-data
-   portal.
-
-If you ever need to point the frontend to a different ANEEL mirror or staging
-instance without the proxy, you can define `VITE_ANEEL_DIRECT_ORIGIN` with the
-desired origin URL. When neither environment variable is present the application
-falls back to the public ANEEL endpoints directly.
+- To disable the proxy entirely, set `VITE_ANEEL_PROXY_BASE=` (empty) in your
+  environment. The application will then call the upstream origin directly and
+  will only work in environments where CORS is already allowed.
+- To point the frontend to a different ANEEL mirror, set
+  `VITE_ANEEL_DIRECT_ORIGIN=https://example.com`.
