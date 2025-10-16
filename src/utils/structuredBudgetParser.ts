@@ -5,58 +5,15 @@ const HEADER_PATTERNS = {
   para: /Para:\s*(.+)$/i,
 }
 
-const ITEM_SECTION_MARKERS = [
-  /Detalhes\s+do\s+Or[cç]amento/i,
-  /Itens\s+do\s+Or[cç]amento/i,
-  /Descri[cç][aã]o\s+dos\s+Itens/i,
-  /Produtos?/i,
-  /Materiais?/i,
-]
-
-const TOTAL_MARKERS = [
-  /Valor\s+total/i,
-  /Total\s+geral/i,
-  /Total\s+do\s+Or[cç]amento/i,
-  /Total\s+do\s+orcamento/i,
-]
-
-const HEADER_KEYWORDS = [
-  'descrição',
-  'descricao',
-  'produtos',
-  'produto',
-  'item',
-  'itens',
-  'quantidade',
-  'quantidades',
-  'quantity',
-  'qty',
-  'qtd',
-  'valor',
-  'valores',
-  'preço',
-  'preco',
-  'price',
-  'unitário',
-  'unitario',
-]
-
-const QUANTITY_REGEX = /(quantidade|qtd|qtde|qty|quantity)[:\-\s]*([0-9]+(?:[.,][0-9]+)?)/i
-const UNIT_REGEX = /(unidade|un|und|pe[cç]a|pc|kg|m|kit|par|l|litro|metros?)[:\-\s]*([A-Za-zº]+)?/i
+const SECTION_HEADER_REGEX = /Produto\s+Quantidade/i
+const FOOTER_TOTAL_REGEX = /Valor\s+total:\s*R?\$?\s*([\d.,]+)/i
+const CODE_MODEL_QTY_REGEX = /C[óo]digo:\s*(.+?)\s+Modelo:\s*(.+?)\s+(\d+)\s*$/i
 const CODIGO_REGEX = /C[óo]digo:\s*(.+)$/i
 const MODELO_REGEX = /Modelo:\s*(.+)$/i
+const QUANTIDADE_REGEX = /Quantidade:\s*(\d+)/i
 const FABRICANTE_REGEX = /Fabricante:\s*(.*)$/i
-const UNIT_PRICE_LABELS = [
-  /Pre[çc]o\s*unit[áa]rio/i,
-  /Valor\s*unit[áa]rio/i,
-  /Unit[áa]rio/i,
-]
-const TOTAL_PRICE_LABELS = [
-  /Pre[çc]o\s*total/i,
-  /Valor\s*total\s+do\s+item/i,
-  /Valor\s*total/i,
-  /Total\s+item/i,
-]
+const UNIT_PRICE_REGEX = /R\$\s*([\d.,]+)\s*(?:\/\s*un|unidade)\b/i
+const TOTAL_PRICE_REGEX = /\b(?:Valor:)?\s*R\$\s*([\d.,]+)\b/i
 
 const CSV_HEADER =
   'numeroOrcamento;validade;de;para;produto;codigo;modelo;descricao;quantidade;unidade;precoUnitario;precoTotal;valorTotal'
@@ -172,7 +129,7 @@ function parseHeader(lines: string[]): HeaderData {
     if (!header.validade) {
       const match = line.match(HEADER_PATTERNS.validade)
       if (match) {
-        header.validade = normalizeDate(match[1])
+        header.validade = toISODate(match[1])
       }
     }
     if (!header.de) {
@@ -192,365 +149,181 @@ function parseHeader(lines: string[]): HeaderData {
   return header
 }
 
+export function deriveSection(
+  lines: string[],
+): { section: string[]; startIdx: number; endIdx: number } {
+  const startIdx = lines.findIndex((line) => SECTION_HEADER_REGEX.test(line))
+  const endIdx = (() => {
+    if (startIdx === -1) return -1
+    const offset = lines.slice(startIdx + 1).findIndex((line) => FOOTER_TOTAL_REGEX.test(line))
+    return offset === -1 ? -1 : startIdx + 1 + offset
+  })()
+
+  const section =
+    startIdx !== -1
+      ? lines.slice(startIdx + 1, endIdx === -1 ? undefined : endIdx)
+      : []
+
+  return { section, startIdx, endIdx }
+}
+
 function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } {
   const itens: ItemData[] = []
   const warnings: string[] = []
+  const { section } = deriveSection(lines)
 
-  const startIndex = findItemsStart(lines)
-  const endIndex = findItemsEnd(lines, startIndex ?? 0)
+  let curr: ItemData | null = null
 
-  const boundsStart = startIndex ?? 0
-  const boundsEnd = endIndex ?? lines.length
-
-  let current: ItemData | null = null
-
-  const pushCurrent = () => {
-    if (!current) return
-    current.descricao = current.descricao.trim() || '—'
-    if (!current.unidade) {
-      current.unidade = 'un'
+  const ensureCurr = () => {
+    if (!curr) {
+      curr = newItem()
     }
-    if (current.quantidade !== null) {
-      const normalized = normalizeQuantity(current.quantidade)
-      current.quantidade = normalized
+  }
+
+  const push = () => {
+    if (!curr) return
+    if (!curr.produto) {
+      curr = null
+      return
     }
+    curr.descricao = curr.descricao.trim() || '—'
     if (
-      current.quantidade !== null &&
-      current.precoUnitario !== null &&
-      current.precoTotal !== null
+      curr.quantidade !== null &&
+      curr.precoUnitario !== null &&
+      curr.precoTotal !== null
     ) {
-      const expected = current.precoUnitario * current.quantidade
-      if (Math.abs(expected - current.precoTotal) > 0.01) {
+      const expected = curr.precoUnitario * curr.quantidade
+      if (Math.abs(expected - curr.precoTotal) > 0.01) {
         warnings.push(
           `Inconsistência de valores para o item "${
-            current.produto ?? current.codigo ?? 'Item'
+            curr.produto ?? curr.codigo ?? 'Item'
           }": total informado não confere com quantidade x preço unitário.`,
         )
       }
     }
-    itens.push(current)
-    current = null
+    itens.push(curr)
+    curr = null
   }
 
-  for (let i = boundsStart; i < boundsEnd; i += 1) {
-    const line = lines[i]
+  section.forEach((raw) => {
+    const line = raw.trim()
     if (!line) {
-      continue
-    }
-    if (isLikelyHeaderRow(line)) {
-      continue
+      return
     }
 
-    const codigoMatch = line.match(CODIGO_REGEX)
-    if (codigoMatch) {
-      current = current ?? createEmptyItem()
-      current.codigo = codigoMatch[1].trim() || null
-      continue
+    const codeModelQty = line.match(CODE_MODEL_QTY_REGEX)
+    if (codeModelQty) {
+      ensureCurr()
+      curr!.codigo = codeModelQty[1].trim() || null
+      curr!.modelo = codeModelQty[2].trim() || null
+      const quantity = parseInt(codeModelQty[3], 10)
+      curr!.quantidade = Number.isNaN(quantity) ? null : quantity
+      return
     }
 
-    const modeloMatch = line.match(MODELO_REGEX)
-    if (modeloMatch) {
-      current = current ?? createEmptyItem()
-      current.modelo = modeloMatch[1].trim() || null
-      continue
-    }
-
-    const fabricanteMatch = line.match(FABRICANTE_REGEX)
-    if (fabricanteMatch) {
-      const value = fabricanteMatch[1].trim()
-      if (value) {
-        current = current ?? createEmptyItem()
-        const addition = `Fabricante: ${value}`
-        current.descricao = current.descricao
-          ? `${current.descricao} ${addition}`
-          : addition
+    if (!line.includes(':') && line.length > 6) {
+      if (curr && curr.produto) {
+        push()
       }
-      continue
+      curr = newItem()
+      curr.produto = line.trim()
+      return
     }
 
-    const quantityInfo = extractQuantityAndUnit(line)
-    if (quantityInfo) {
-      current = current ?? createEmptyItem()
-      if (quantityInfo.quantity !== null && quantityInfo.quantity !== undefined) {
-        current.quantidade = quantityInfo.quantity
-      }
-      if (quantityInfo.unit) {
-        current.unidade = normalizeUnit(quantityInfo.unit)
-      }
-      continue
+    const codigo = line.match(CODIGO_REGEX)
+    if (codigo) {
+      ensureCurr()
+      curr!.codigo = codigo[1].trim() || null
+      return
     }
 
-    const priceInfo = extractPriceInfo(line)
-    if (priceInfo) {
-      current = current ?? createEmptyItem()
-      if (priceInfo.unitPrice !== undefined) {
-        current.precoUnitario = priceInfo.unitPrice
-      }
-      if (priceInfo.totalPrice !== undefined) {
-        current.precoTotal = priceInfo.totalPrice
-      }
-      continue
+    const modelo = line.match(MODELO_REGEX)
+    if (modelo) {
+      ensureCurr()
+      curr!.modelo = modelo[1].trim() || null
+      return
     }
 
-    if (TOTAL_MARKERS.some((regex) => regex.test(line))) {
-      pushCurrent()
-      break
+    const quantidade = line.match(QUANTIDADE_REGEX)
+    if (quantidade) {
+      ensureCurr()
+      const quantity = parseInt(quantidade[1], 10)
+      curr!.quantidade = Number.isNaN(quantity) ? null : quantity
+      return
     }
 
-    if (isPotentialProductLine(line)) {
-      const { name, details } = splitNameAndDetails(line)
-      if (current && (current.produto || current.descricao.trim())) {
-        pushCurrent()
+    const fabricante = line.match(FABRICANTE_REGEX)
+    if (fabricante) {
+      const fab = fabricante[1].trim()
+      if (fab) {
+        ensureCurr()
+        curr!.descricao = curr!.descricao
+          ? `${curr!.descricao} Fabricante: ${fab}`
+          : `Fabricante: ${fab}`
       }
-      current = createEmptyItem()
-      current.produto = name
-      if (details) {
-        current.descricao = details
-      }
-      continue
+      return
     }
 
-    if (current) {
-      const cleaned = line.replace(/^[-–—•\s]+/, '').trim()
-      if (cleaned) {
-        current.descricao = current.descricao
-          ? `${current.descricao} ${cleaned}`
-          : cleaned
+    let matchedPrice = false
+    const unitMatch = line.match(UNIT_PRICE_REGEX)
+    if (unitMatch) {
+      ensureCurr()
+      const value = parseBRL(unitMatch[1])
+      if (!Number.isNaN(value)) {
+        curr!.precoUnitario = value
+        matchedPrice = true
       }
     }
-  }
 
-  pushCurrent()
+    const totalMatches = [...line.matchAll(TOTAL_PRICE_REGEX)].filter((match) => {
+      const index = match.index ?? 0
+      const after = line.slice(index + match[0].length).toLowerCase()
+      return !/^\s*(?:\/\s*un|unidade)\b/.test(after)
+    })
+    if (totalMatches.length) {
+      ensureCurr()
+      const lastMatch = totalMatches[totalMatches.length - 1]
+      const value = parseBRL(lastMatch[1])
+      if (!Number.isNaN(value)) {
+        curr!.precoTotal = value
+        matchedPrice = true
+      }
+    }
+    if (matchedPrice) {
+      return
+    }
 
-  const merged = mergeDuplicateItems(itens)
+    if (curr) {
+      curr.descricao = curr.descricao
+        ? `${curr.descricao} ${line}`.trim()
+        : line
+    }
+  })
+
+  push()
+
+  const merged = mergeAdjacentDuplicates(itens)
 
   return { itens: merged, warnings }
 }
 
 function parseResumo(lines: string[]): ResumoData {
+  const resumo: ResumoData = { valorTotal: null, moeda: 'BRL' }
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i]
-    if (!line) continue
-    if (TOTAL_MARKERS.some((regex) => regex.test(line))) {
-      const value = extractFirstCurrency(line)
-      if (value !== null) {
-        return { valorTotal: value, moeda: 'BRL' }
+    if (!line) {
+      continue
+    }
+    const match = line.match(FOOTER_TOTAL_REGEX)
+    if (match) {
+      const value = parseBRL(match[1])
+      if (!Number.isNaN(value)) {
+        resumo.valorTotal = value
+        break
       }
     }
   }
-  return { valorTotal: null, moeda: 'BRL' }
-}
-
-function findItemsStart(lines: string[]): number | null {
-  for (let i = 0; i < lines.length; i += 1) {
-    if (ITEM_SECTION_MARKERS.some((regex) => regex.test(lines[i]))) {
-      return i + 1
-    }
-  }
-  return null
-}
-
-function findItemsEnd(lines: string[], startIndex: number): number | null {
-  for (let i = startIndex; i < lines.length; i += 1) {
-    if (TOTAL_MARKERS.some((regex) => regex.test(lines[i]))) {
-      return i
-    }
-  }
-  return null
-}
-
-function isLikelyHeaderRow(line: string): boolean {
-  const lower = line.toLowerCase()
-  const matches = HEADER_KEYWORDS.reduce(
-    (count, keyword) => (lower.includes(keyword) ? count + 1 : count),
-    0,
-  )
-  return matches >= 2
-}
-
-function isPotentialProductLine(line: string): boolean {
-  if (!/[a-zá-ú0-9]/i.test(line)) {
-    return false
-  }
-  if (/:/.test(line)) {
-    return false
-  }
-  if (line.length < 4) {
-    return false
-  }
-  if (isLikelyHeaderRow(line)) {
-    return false
-  }
-  if (TOTAL_MARKERS.some((regex) => regex.test(line))) {
-    return false
-  }
-  return true
-}
-
-function createEmptyItem(): ItemData {
-  return {
-    produto: null,
-    codigo: null,
-    modelo: null,
-    descricao: '',
-    quantidade: null,
-    unidade: null,
-    precoUnitario: null,
-    precoTotal: null,
-  }
-}
-
-function extractQuantityAndUnit(line: string):
-  | { quantity: number | null; unit: string | null }
-  | null {
-  const quantityLabelMatch = line.match(QUANTITY_REGEX)
-  if (quantityLabelMatch) {
-    const quantity = parseLocaleNumber(quantityLabelMatch[2])
-    const unitMatch = line.match(/(?:un|und|pc|kg|m|l|kit|par|cx|pçs?)/i)
-    return {
-      quantity: quantity !== null ? quantity : null,
-      unit: unitMatch ? unitMatch[0] : null,
-    }
-  }
-
-  const standaloneMatch = line.match(/^([0-9]+(?:[.,][0-9]+)?)\s*([A-Za-zº]*)$/)
-  if (standaloneMatch) {
-    const quantity = parseLocaleNumber(standaloneMatch[1])
-    const unit = standaloneMatch[2] ? standaloneMatch[2] : null
-    if (quantity !== null) {
-      return { quantity, unit }
-    }
-  }
-
-  const unitMatch = line.match(UNIT_REGEX)
-  if (unitMatch) {
-    const unit = unitMatch[2] || unitMatch[1]
-    if (unit) {
-      return { quantity: null, unit }
-    }
-  }
-
-  return null
-}
-
-function extractPriceInfo(
-  line: string,
-): { unitPrice?: number; totalPrice?: number } | null {
-  const currencyValues = extractCurrencyValues(line)
-  if (!currencyValues.length) {
-    return null
-  }
-
-  const lower = line.toLowerCase()
-  const info: { unitPrice?: number; totalPrice?: number } = {}
-
-  if (UNIT_PRICE_LABELS.some((regex) => regex.test(lower))) {
-    info.unitPrice = currencyValues[0]
-  }
-  if (TOTAL_PRICE_LABELS.some((regex) => regex.test(lower))) {
-    info.totalPrice = currencyValues[currencyValues.length - 1]
-  }
-
-  if (!info.unitPrice && !info.totalPrice) {
-    if (currencyValues.length >= 2) {
-      info.unitPrice = currencyValues[0]
-      info.totalPrice = currencyValues[currencyValues.length - 1]
-    } else if (currencyValues.length === 1) {
-      const hasUnitHint = /\/\s*(un|und|pc|kg|m|l)/i.test(line) || /unit[áa]rio/i.test(lower)
-      const hasTotalHint = /total/i.test(lower)
-      if (hasUnitHint && !hasTotalHint) {
-        info.unitPrice = currencyValues[0]
-      } else if (hasTotalHint) {
-        info.totalPrice = currencyValues[0]
-      }
-    }
-  }
-
-  if (info.unitPrice === undefined && info.totalPrice === undefined) {
-    return null
-  }
-
-  return info
-}
-
-function extractCurrencyValues(line: string): number[] {
-  const matches = line.matchAll(/(?:R\$|\$)?\s*([0-9]{1,3}(?:\.[0-9]{3})*(?:,[0-9]{2})|[0-9]+(?:[.,][0-9]{2}))/g)
-  const values: number[] = []
-  for (const match of matches) {
-    const value = parseLocaleNumber(match[1] ?? match[0])
-    if (value !== null) {
-      values.push(value)
-    }
-  }
-  return values
-}
-
-function extractFirstCurrency(line: string): number | null {
-  const matches = extractCurrencyValues(line)
-  return matches.length ? matches[matches.length - 1] : null
-}
-
-function mergeDuplicateItems(items: ItemData[]): ItemData[] {
-  const merged: ItemData[] = []
-  const indexMap = new Map<string, number>()
-
-  items.forEach((item) => {
-    const key = `${(item.codigo ?? '').toLowerCase()}|${(item.modelo ?? '').toLowerCase()}`
-    if (!key.trim()) {
-      merged.push(item)
-      return
-    }
-    const existingIndex = indexMap.get(key)
-    if (existingIndex === undefined) {
-      indexMap.set(key, merged.length)
-      merged.push(item)
-      return
-    }
-    const existing = merged[existingIndex]
-    if (existing.quantidade !== null && item.quantidade !== null) {
-      existing.quantidade += item.quantidade
-    } else if (existing.quantidade === null) {
-      existing.quantidade = item.quantidade
-    }
-    if (item.descricao && !existing.descricao.includes(item.descricao)) {
-      existing.descricao = `${existing.descricao} ${item.descricao}`.trim()
-    }
-  })
-
-  return merged
-}
-
-function splitNameAndDetails(text: string): { name: string; details?: string } {
-  const match = text.match(/^(.*?)[\s]+[-–—:]{1,2}[\s]+(.+)$/)
-  if (match) {
-    return { name: match[1].trim(), details: match[2].trim() }
-  }
-  return { name: text.trim(), details: undefined }
-}
-
-function normalizeDate(raw: string): string {
-  const [day, month, year] = raw.split('-')
-  if (day && month && year) {
-    return `${year}-${month}-${day}`
-  }
-  return raw
-}
-
-function normalizeQuantity(quantity: number): number {
-  const rounded = Math.round(quantity)
-  return rounded < 1 ? 1 : rounded
-}
-
-function normalizeUnit(raw: string): string {
-  const cleaned = raw.trim().toLowerCase()
-  if (!cleaned) {
-    return 'un'
-  }
-  if (cleaned === 'und') return 'un'
-  if (cleaned === 'pç' || cleaned === 'pçs' || cleaned === 'pc' || cleaned === 'pcs') {
-    return 'pc'
-  }
-  return cleaned
+  return resumo
 }
 
 function formatQuantityForCsv(value: number): string {
@@ -561,17 +334,63 @@ function formatCurrencyForCsv(value: number): string {
   return value.toFixed(2)
 }
 
-function parseLocaleNumber(raw: string): number | null {
-  if (!raw) return null
-  const sanitized = raw
-    .replace(/[^0-9,.-]/g, '')
-    .replace(/\.(?=\d{3}(?:\D|$))/g, '')
-    .replace(',', '.')
-  if (!sanitized || sanitized === '-' || sanitized === '.') {
-    return null
+function newItem(): ItemData {
+  return {
+    produto: null,
+    codigo: null,
+    modelo: null,
+    descricao: '',
+    quantidade: null,
+    unidade: 'un',
+    precoUnitario: null,
+    precoTotal: null,
   }
-  const parsed = Number(sanitized)
-  return Number.isFinite(parsed) ? parsed : null
+}
+
+function mergeAdjacentDuplicates(items: ItemData[]): ItemData[] {
+  if (items.length === 0) {
+    return items
+  }
+
+  const merged: ItemData[] = []
+
+  items.forEach((item) => {
+    const last = merged[merged.length - 1]
+    if (
+      last &&
+      (last.codigo ?? '').toLowerCase() === (item.codigo ?? '').toLowerCase() &&
+      (last.modelo ?? '').toLowerCase() === (item.modelo ?? '').toLowerCase() &&
+      (last.codigo || last.modelo)
+    ) {
+      if (last.quantidade !== null && item.quantidade !== null) {
+        last.quantidade += item.quantidade
+      } else if (last.quantidade === null) {
+        last.quantidade = item.quantidade
+      }
+      if (item.descricao) {
+        const combined = `${last.descricao} ${item.descricao}`.trim()
+        last.descricao = combined.replace(/\s+/g, ' ')
+      }
+    } else {
+      merged.push({ ...item })
+    }
+  })
+
+  return merged
+}
+
+function parseBRL(value: string): number {
+  const normalized = value.replace(/\./g, '').replace(',', '.')
+  const parsed = Number.parseFloat(normalized)
+  return Number.isFinite(parsed) ? parsed : NaN
+}
+
+function toISODate(raw: string): string {
+  const [day, month, year] = raw.split('-')
+  if (day && month && year) {
+    return `${year}-${month}-${day}`
+  }
+  return raw
 }
 
 export type StructuredItem = ItemData
