@@ -6397,7 +6397,7 @@ export default function App() {
 
             <div className="grid g2">
               <section className="card">
-                <h2>Leasing — Mensalidade</h2>
+                <h2>Leasing — Mensalidades</h2>
                 <div className="list-col">
                   {leasingMensalidades.map((valor, index) => (
                     <div className="list-row" key={`leasing-m${index}`}>
@@ -6417,7 +6417,7 @@ export default function App() {
 
               <section className="card">
                 <div className="card-header">
-                  <h2>Financiamento — Mensalidade</h2>
+                  <h2>Financiamento — Mensalidades</h2>
                   <span className="toggle-label">Coluna ativa: {mostrarFinanciamento ? 'Sim' : 'Não'}</span>
                 </div>
                 {mostrarFinanciamento ? (
