@@ -6072,15 +6072,6 @@ export default function App() {
             onFocus={selectNumberInputOnFocus}
           />
         </Field>
-        <Field label="Desconto contratual (%)">
-          <input
-            type="number"
-            step="0.1"
-            value={desconto}
-            onChange={(e) => setDesconto(Number(e.target.value) || 0)}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
         <Field label="Taxa mínima (R$/mês)">
           <input
             type="number"
@@ -6096,13 +6087,6 @@ export default function App() {
             onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)}
             onFocus={selectNumberInputOnFocus}
           />
-        </Field>
-        <Field label="Prazo do leasing">
-          <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
-            <option value={5}>5 anos</option>
-            <option value={7}>7 anos</option>
-            <option value={10}>10 anos</option>
-          </select>
         </Field>
         <Field label="UF (ANEEL)">
           <select
@@ -6308,7 +6292,7 @@ export default function App() {
                 <h2>SolarInvest Leasing</h2>
               </div>
 
-              <div className="grid g2">
+              <div className="grid g3">
                 <Field label="Entrada (R$)">
                   <input
                     type="number"
@@ -6319,6 +6303,22 @@ export default function App() {
                     }}
                     onFocus={selectNumberInputOnFocus}
                   />
+                </Field>
+                <Field label="Desconto contratual (%)">
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={desconto}
+                    onChange={(e) => setDesconto(Number(e.target.value) || 0)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+                <Field label="Prazo do leasing">
+                  <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
+                    <option value={5}>5 anos</option>
+                    <option value={7}>7 anos</option>
+                    <option value={10}>10 anos</option>
+                  </select>
                 </Field>
               </div>
 
