@@ -1,5 +1,7 @@
-const CSV_URL =
-  'https://dadosabertos.aneel.gov.br/dataset/tarifas-distribuidoras-energia-eletrica/resource/fcf2906c-7c32-4b9b-a637-054e7a5234f4/download/tarifas-homologadas-distribuidoras-energia-eletrica.csv'
+import { resolveAneelUrl } from './aneelUrl'
+
+const CSV_PATH =
+  '/dataset/tarifas-distribuidoras-energia-eletrica/resource/fcf2906c-7c32-4b9b-a637-054e7a5234f4/download/tarifas-homologadas-distribuidoras-energia-eletrica.csv'
 
 const FALLBACK_DISTRIBUIDORAS: Record<string, string[]> = {
   AC: ['Energisa Acre'],
@@ -128,7 +130,7 @@ export async function loadDistribuidorasAneel(): Promise<DistribuidorasAneel> {
 
   cachePromise = (async () => {
     try {
-      const response = await fetch(CSV_URL, { cache: 'no-store' })
+      const response = await fetch(resolveAneelUrl(CSV_PATH), { cache: 'no-store' })
       if (!response.ok) {
         throw new Error(`Falha ${response.status}`)
       }

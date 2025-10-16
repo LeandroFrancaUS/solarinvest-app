@@ -50,7 +50,7 @@ async function loadPdfJs(): Promise<PdfJsModule> {
       /* @vite-ignore */ `${PDFJS_CDN_BASE}build/pdf.mjs`
     ).then((module: PdfJsModule) => {
       if (module?.GlobalWorkerOptions) {
-        module.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}build/pdf.worker.min.js`
+        module.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}build/pdf.worker.mjs`
       }
       return module
     })

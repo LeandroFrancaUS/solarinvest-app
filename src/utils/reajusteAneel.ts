@@ -1,7 +1,9 @@
-const CKAN_SQL = 'https://dadosabertos.aneel.gov.br/api/3/action/datastore_search_sql'
-const CKAN_DATASTORE = 'https://dadosabertos.aneel.gov.br/api/3/action/datastore_search'
-const CSV_URL =
-  'https://dadosabertos.aneel.gov.br/dataset/tarifas-distribuidoras-energia-eletrica/resource/fcf2906c-7c32-4b9b-a637-054e7a5234f4/download/tarifas-homologadas-distribuidoras-energia-eletrica.csv'
+import { resolveAneelUrl } from './aneelUrl'
+
+const CKAN_SQL_PATH = '/api/3/action/datastore_search_sql'
+const CKAN_DATASTORE_PATH = '/api/3/action/datastore_search'
+const CSV_PATH =
+  '/dataset/tarifas-distribuidoras-energia-eletrica/resource/fcf2906c-7c32-4b9b-a637-054e7a5234f4/download/tarifas-homologadas-distribuidoras-energia-eletrica.csv'
 
 const RESOURCE_ID = 'fcf2906c-7c32-4b9b-a637-054e7a5234f4'
 
@@ -75,7 +77,9 @@ const getSchema = async (resourceId: string): Promise<string[]> => {
   if (schemaCache.has(resourceId)) return schemaCache.get(resourceId)!
 
   try {
-    const res = await fetch(`${CKAN_DATASTORE}?resource_id=${resourceId}&limit=0`)
+    const res = await fetch(
+      resolveAneelUrl(`${CKAN_DATASTORE_PATH}?resource_id=${resourceId}&limit=0`),
+    )
     const json = (await res.json()) as CkanResponse
     if (json?.result?.fields?.length) {
       const fields = json.result.fields.map((field) => field.id)
@@ -116,7 +120,7 @@ const fetchFromCkan = async (uf: string, distribuidora: string): Promise<number 
   const sql = `SELECT "${ufCol}", "${distCol}", "${dataCol}" FROM "${RESOURCE_ID}" WHERE UPPER("${ufCol}")='${ufSql}' ORDER BY "${dataCol}" DESC LIMIT 200`
 
   try {
-    const res = await fetch(`${CKAN_SQL}?sql=${encodeURIComponent(sql)}`)
+    const res = await fetch(resolveAneelUrl(`${CKAN_SQL_PATH}?sql=${encodeURIComponent(sql)}`))
     const json = (await res.json()) as CkanResponse
     if (!json?.result?.records?.length) return null
 
@@ -149,7 +153,7 @@ const fetchFromCkan = async (uf: string, distribuidora: string): Promise<number 
 
 const fetchFromCsv = async (uf: string, distribuidora: string): Promise<number | null> => {
   try {
-    const res = await fetch(CSV_URL, { cache: 'no-store' })
+    const res = await fetch(resolveAneelUrl(CSV_PATH), { cache: 'no-store' })
     const text = await res.text()
     const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0)
     if (!lines.length) return null

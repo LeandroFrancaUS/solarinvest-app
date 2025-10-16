@@ -1,4 +1,6 @@
-const CKAN_SQL = 'https://dadosabertos.aneel.gov.br/api/3/action/datastore_search_sql'
+import { resolveAneelUrl } from './aneelUrl'
+
+const CKAN_SQL_PATH = '/api/3/action/datastore_search_sql'
 const RESOURCE_ID = 'fcf2906c-7c32-4b9b-a637-054e7a5234f4'
 const CSV_FALLBACK = '/tarifas_medias.csv'
 
@@ -117,7 +119,9 @@ const getSchema = async (resourceId: string): Promise<string[]> => {
   }
 
   try {
-    const res = await fetch(`https://dadosabertos.aneel.gov.br/api/3/action/datastore_search?resource_id=${resourceId}&limit=0`)
+    const res = await fetch(
+      resolveAneelUrl(`/api/3/action/datastore_search?resource_id=${resourceId}&limit=0`),
+    )
     const json = (await res.json()) as CkanResponse & { result?: { fields?: { id: string }[] } }
     const fields = json?.result?.fields?.map((field) => field.id) ?? []
     schemaCache.set(resourceId, fields)
@@ -168,7 +172,7 @@ const fetchTarifaFromCkan = async (uf: string, distribuidora: string): Promise<n
     .join(', ')} FROM "${RESOURCE_ID}" WHERE ${conditions.join(' AND ')} ORDER BY ${orderBy} LIMIT 200`
 
   try {
-    const res = await fetch(`${CKAN_SQL}?sql=${encodeURIComponent(sql)}`)
+    const res = await fetch(resolveAneelUrl(`${CKAN_SQL_PATH}?sql=${encodeURIComponent(sql)}`))
     const json = (await res.json()) as CkanResponse
     if (!json?.success || !json?.result?.records?.length) {
       return null
