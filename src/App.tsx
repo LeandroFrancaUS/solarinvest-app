@@ -5545,39 +5545,42 @@ export default function App() {
     }
   }, [carregarClientesSalvos])
 
-  const salvarOrcamentoLocalmente = (dados: PrintableProps): OrcamentoSalvo | null => {
-    if (typeof window === 'undefined') {
-      return null
-    }
-
-    try {
-      const registrosExistentes = carregarOrcamentosSalvos()
-      const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
-      const novoId = generateBudgetId(existingIds)
-      const dadosClonados = clonePrintableData(dados)
-      const registro: OrcamentoSalvo = {
-        id: novoId,
-        criadoEm: new Date().toISOString(),
-        clienteId: clienteEmEdicaoId ?? undefined,
-        clienteNome: dados.cliente.nome,
-        clienteCidade: dados.cliente.cidade,
-        clienteUf: dados.cliente.uf,
-        clienteDocumento: dados.cliente.documento,
-        clienteUc: dados.cliente.uc,
-        dados: { ...dadosClonados, budgetId: dadosClonados.budgetId ?? novoId },
+  const salvarOrcamentoLocalmente = useCallback(
+    (dados: PrintableProps): OrcamentoSalvo | null => {
+      if (typeof window === 'undefined') {
+        return null
       }
 
-      existingIds.add(registro.id)
-      const registrosAtualizados = [registro, ...registrosExistentes]
-      window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
-      setOrcamentosSalvos(registrosAtualizados)
-      return registro
-    } catch (error) {
-      console.error('Erro ao salvar orçamento localmente.', error)
-      window.alert('Não foi possível salvar o orçamento. Tente novamente.')
-      return null
-    }
-  }
+      try {
+        const registrosExistentes = carregarOrcamentosSalvos()
+        const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
+        const novoId = generateBudgetId(existingIds)
+        const dadosClonados = clonePrintableData(dados)
+        const registro: OrcamentoSalvo = {
+          id: novoId,
+          criadoEm: new Date().toISOString(),
+          clienteId: clienteEmEdicaoId ?? undefined,
+          clienteNome: dados.cliente.nome,
+          clienteCidade: dados.cliente.cidade,
+          clienteUf: dados.cliente.uf,
+          clienteDocumento: dados.cliente.documento,
+          clienteUc: dados.cliente.uc,
+          dados: { ...dadosClonados, budgetId: dadosClonados.budgetId ?? novoId },
+        }
+
+        existingIds.add(registro.id)
+        const registrosAtualizados = [registro, ...registrosExistentes]
+        window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+        setOrcamentosSalvos(registrosAtualizados)
+        return registro
+      } catch (error) {
+        console.error('Erro ao salvar orçamento localmente.', error)
+        window.alert('Não foi possível salvar o orçamento. Tente novamente.')
+        return null
+      }
+    },
+    [carregarOrcamentosSalvos, clienteEmEdicaoId],
+  )
 
   const removerOrcamentoSalvo = useCallback(
     (id: string) => {
@@ -5654,6 +5657,8 @@ export default function App() {
 
     setSalvandoPropostaPdf(true)
 
+    let salvouLocalmente = false
+
     try {
       const resultado = await prepararPropostaParaExportacao()
 
@@ -5663,6 +5668,7 @@ export default function App() {
       }
 
       const { html, dados } = resultado
+      salvouLocalmente = Boolean(salvarOrcamentoLocalmente(dados))
       const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
 
       await persistProposalPdf({
@@ -5672,14 +5678,20 @@ export default function App() {
         proposalType,
       })
 
-      adicionarNotificacao('Proposta salva em PDF com sucesso.', 'success')
+      const mensagemSucesso = salvouLocalmente
+        ? 'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.'
+        : 'Proposta salva em PDF com sucesso.'
+      adicionarNotificacao(mensagemSucesso, 'success')
     } catch (error) {
       console.error('Erro ao salvar a proposta em PDF.', error)
       const mensagem =
         error instanceof Error && error.message
           ? error.message
           : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
-      adicionarNotificacao(mensagem, 'error')
+      const mensagemComFallback = salvouLocalmente
+        ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
+        : mensagem
+      adicionarNotificacao(mensagemComFallback, 'error')
     } finally {
       setSalvandoPropostaPdf(false)
     }
@@ -5687,6 +5699,7 @@ export default function App() {
     activeTab,
     adicionarNotificacao,
     prepararPropostaParaExportacao,
+    salvarOrcamentoLocalmente,
     salvandoPropostaPdf,
     validarCamposObrigatorios,
   ])
