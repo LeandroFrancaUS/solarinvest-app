@@ -1168,9 +1168,10 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   }
   const energiaContratadaResumo = formatEnergiaContratada(energiaContratadaKwh)
   const tarifaCheiaResumo = tarifaCheia > 0 ? tarifaCurrency(tarifaCheia) : '—'
-  const descontoResumo = Number.isFinite(descontoContratualPct)
-    ? `${formatNumber(descontoContratualPct, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`
-    : '—'
+  const descontoResumo =
+    !isVendaDireta && Number.isFinite(descontoContratualPct)
+      ? `${formatNumber(descontoContratualPct, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`
+      : '—'
   const responsabilidadesResumo = isVendaDireta
     ? 'Projeto, instalação, homologação e suporte pós-venda'
     : 'Instalação, homologação, manutenção, seguro, suporte técnico, monitoramento'
@@ -1389,10 +1390,12 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               <td>Tarifa cheia da distribuidora</td>
               <td>{tarifaCheiaResumo}</td>
             </tr>
-            <tr>
-              <td>{isVendaDireta ? 'Economia estimada vs. distribuidora' : 'Desconto aplicado'}</td>
-              <td>{descontoResumo}</td>
-            </tr>
+            {!isVendaDireta ? (
+              <tr>
+                <td>Desconto aplicado</td>
+                <td>{descontoResumo}</td>
+              </tr>
+            ) : null}
             <tr>
               <td>{isVendaDireta ? 'Investimento estimado (CAPEX)' : 'Valor da instalação para o cliente'}</td>
               <td>{valorInstalacaoTexto}</td>
@@ -1676,7 +1679,6 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <ul>
           {isVendaDireta ? (
             <>
-              <li>Economia estimada em relação à distribuidora: {descontoResumo} considerando o histórico tarifário informado.</li>
               <li>Prazo médio de instalação: até 60 dias após aceite formal e emissão da ordem de serviço.</li>
               <li>Tarifas por kWh são projeções e podem variar conforme reajustes autorizados pela ANEEL.</li>
               <li>Projeto inclui engenharia, homologação junto à distribuidora, assistência pós-venda e garantia dos fabricantes.</li>
@@ -2069,6 +2071,7 @@ const simplePrintStyles = `
 export default function App() {
   const [activePage, setActivePage] = useState<'app' | 'crm'>('app')
   const [activeTab, setActiveTab] = useState<TabKey>('leasing')
+  const isVendaDiretaTab = activeTab === 'vendas'
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
@@ -2486,13 +2489,17 @@ export default function App() {
     [bandeiraEncargo, cipEncargo, encargosFixosExtras],
   )
 
+  const entradaConsiderada = isVendaDiretaTab ? 0 : entradaRs
+  const descontoConsiderado = isVendaDiretaTab ? 0 : desconto
+  const prazoMesesConsiderado = isVendaDiretaTab ? 0 : prazoMeses
+
   const modoEntradaNormalizado = useMemo<EntradaModo>(() => {
-    if (!entradaRs || entradaRs <= 0) return 'NONE'
+    if (!entradaConsiderada || entradaConsiderada <= 0) return 'NONE'
     const label = (entradaModo ?? '').toLowerCase().trim()
     if (label.includes('crédito')) return 'CREDITO'
     if (label.includes('reduz')) return 'REDUZ'
     return 'NONE'
-  }, [entradaModo, entradaRs])
+  }, [entradaConsiderada, entradaModo])
 
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
 
@@ -2501,17 +2508,17 @@ export default function App() {
     // evitar dependências de ordem que poderiam reaparecer em merges futuros. Assim garantimos
     // uma única fonte de verdade entre a projeção principal e o fluxo de buyout.
     const valorMercadoBase = Math.max(0, capex)
-    const descontoDecimal = Math.max(0, Math.min(desconto / 100, 1))
+    const descontoDecimal = Math.max(0, Math.min(descontoConsiderado / 100, 1))
     const inflacaoAnual = Math.max(-0.99, inflacaoAa / 100)
     return {
       kcKwhMes: Math.max(0, kcKwhMes),
       tarifaCheia: Math.max(0, tarifaCheia),
       desconto: descontoDecimal,
       inflacaoAa: inflacaoAnual,
-      prazoMeses: Math.max(0, Math.floor(prazoMeses)),
+      prazoMeses: Math.max(0, Math.floor(prazoMesesConsiderado)),
       taxaMinima: Math.max(0, taxaMinima),
       encargosFixos,
-      entradaRs: Math.max(0, entradaRs),
+      entradaRs: Math.max(0, entradaConsiderada),
       modoEntrada: modoEntradaNormalizado,
       vm0: valorMercadoBase,
       depreciacaoAa: Math.max(0, depreciacaoAa / 100),
@@ -2534,8 +2541,8 @@ export default function App() {
     cashbackPct,
     cipEncargo,
     custosFixosM,
-    desconto,
-    entradaRs,
+    descontoConsiderado,
+    entradaConsiderada,
     geracaoMensalKwh,
     inflacaoAa,
     inadimplenciaAa,
@@ -2545,7 +2552,7 @@ export default function App() {
     modoEntradaNormalizado,
     opexM,
     pagosAcumAteM,
-    prazoMeses,
+    prazoMesesConsiderado,
     seguroM,
     tarifaCheia,
     taxaMinima,
@@ -2582,6 +2589,8 @@ export default function App() {
       simulationState.mesReferencia,
     )
 
+  const leasingPrazoConsiderado = isVendaDiretaTab ? 0 : leasingPrazo
+
   const leasingBeneficios = useMemo(() => {
     return Array.from({ length: anosAnalise }, (_, i) => {
       const ano = i + 1
@@ -2589,7 +2598,7 @@ export default function App() {
       const tarifaDescontadaProj = tarifaDescontadaAno(ano)
       const custoSemSistema = kcKwhMes * tarifaCheiaProj + encargosFixos + taxaMinima
       const custoComSistema =
-        (ano <= leasingPrazo ? kcKwhMes * tarifaDescontadaProj : 0) + encargosFixos + taxaMinima
+        (ano <= leasingPrazoConsiderado ? kcKwhMes * tarifaDescontadaProj : 0) + encargosFixos + taxaMinima
       const beneficio = 12 * (custoSemSistema - custoComSistema)
       return beneficio
     })
@@ -2597,7 +2606,7 @@ export default function App() {
     anosAnalise,
     encargosFixos,
     kcKwhMes,
-    leasingPrazo,
+    leasingPrazoConsiderado,
     simulationState.desconto,
     simulationState.inflacaoAa,
     simulationState.mesReajuste,
@@ -2839,15 +2848,15 @@ export default function App() {
       tabelaBuyout,
       buyoutResumo,
       capex,
-      tipoProposta: activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING',
+      tipoProposta: isVendaDiretaTab ? 'VENDA_DIRETA' : 'LEASING',
       geracaoMensalKwh,
       potenciaPlaca,
       numeroPlacas: numeroPlacasEstimado,
       potenciaInstaladaKwp,
       tipoInstalacao,
       areaInstalacao,
-      descontoContratualPct: desconto,
-      parcelasLeasing: parcelasSolarInvest.lista,
+      descontoContratualPct: descontoConsiderado,
+      parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
       distribuidoraTarifa: distribuidoraTarifa || cliente.distribuidora || '',
       energiaContratadaKwh: kcKwhMes,
       tarifaCheia,
@@ -2859,7 +2868,7 @@ export default function App() {
       buyoutResumo,
       capex,
       cliente,
-      desconto,
+      descontoConsiderado,
       financiamentoFluxo,
       financiamentoROI,
       geracaoMensalKwh,
@@ -2874,7 +2883,7 @@ export default function App() {
       potenciaPlaca,
       tabelaBuyout,
       tarifaCheia,
-      activeTab,
+      isVendaDiretaTab,
     ],
   )
 
