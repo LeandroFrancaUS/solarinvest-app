@@ -71,6 +71,7 @@ declare global {
   interface ImportMetaEnv {
     readonly VITE_ONEDRIVE_SYNC_ENDPOINT?: string
     readonly VITE_PROPOSAL_PDF_ENDPOINT?: string
+    readonly VITE_ANEEL_DIRECT_ORIGIN?: string
   }
 
   interface ImportMeta {

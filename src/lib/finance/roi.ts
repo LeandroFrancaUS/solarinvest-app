@@ -173,11 +173,9 @@ export function computeROI(form: VendaForm): RetornoProjetado {
       const economiaTotal = economia.reduce((acc, val) => acc + val, 0)
       roi = (economiaTotal - investimentoInicial) / investimentoInicial
     }
-  } else {
-    if (pagamentoTotal > 0) {
-      const economiaTotal = economia.reduce((acc, val) => acc + val, 0)
-      roi = (economiaTotal - pagamentoTotal) / pagamentoTotal
-    }
+  } else if (pagamentoTotal > 0) {
+    const economiaTotal = economia.reduce((acc, val) => acc + val, 0)
+    roi = (economiaTotal - pagamentoTotal) / pagamentoTotal
   }
 
   let vpl: number | undefined
