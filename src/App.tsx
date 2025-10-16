@@ -36,6 +36,7 @@ import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { persistClienteRegistroToOneDrive } from './utils/onedrive'
 import type { ClienteRegistroSyncPayload } from './utils/onedrive'
 import { persistProposalPdf } from './utils/proposalPdf'
+import { extractBudgetFromPdf } from './utils/pdfBudgetExtractor'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -257,6 +258,95 @@ type Notificacao = {
   id: number
   mensagem: string
   tipo: NotificacaoTipo
+}
+
+type BudgetTotalSource = 'explicit' | 'calculated' | null
+
+type KitBudgetItemState = {
+  id: string
+  productName: string
+  description: string
+  quantity: number | null
+  quantityInput: string
+  unitPrice: number | null
+  unitPriceInput: string
+}
+
+type KitBudgetState = {
+  items: KitBudgetItemState[]
+  total: number | null
+  totalSource: BudgetTotalSource
+  totalInput: string
+  warnings: string[]
+  fileName?: string
+}
+
+const formatQuantityInputValue = (value: number | null) => {
+  if (value === null || !Number.isFinite(value)) {
+    return ''
+  }
+  const normalized = value.toString()
+  return normalized.includes('.') ? normalized.replace('.', ',') : normalized
+}
+
+const formatCurrencyInputValue = (value: number | null) => {
+  if (value === null || !Number.isFinite(value)) {
+    return ''
+  }
+  return value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+const parseNumericInput = (value: string): number | null => {
+  if (!value) {
+    return null
+  }
+  const sanitized = value
+    .replace(/\s+/g, '')
+    .replace(/[Rr]\$/g, '')
+    .replace(/\.(?=\d{3}(?:\D|$))/g, '')
+    .replace(',', '.')
+  if (!sanitized || sanitized === '-' || sanitized === '.' || sanitized === ',') {
+    return null
+  }
+  const parsed = Number(sanitized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const normalizeCurrencyNumber = (value: number | null) =>
+  value === null ? null : Math.round(value * 100) / 100
+
+const computeBudgetItemsTotalValue = (items: KitBudgetItemState[]): number | null => {
+  if (!items.length) {
+    return null
+  }
+  let total = 0
+  for (const item of items) {
+    if (item.quantity === null || item.unitPrice === null) {
+      return null
+    }
+    total += item.quantity * item.unitPrice
+  }
+  return Math.round(total * 100) / 100
+}
+
+const computeBudgetItemLineTotal = (item: KitBudgetItemState): number | null => {
+  if (item.quantity === null || item.unitPrice === null) {
+    return null
+  }
+  return Math.round(item.quantity * item.unitPrice * 100) / 100
+}
+
+const numbersAreClose = (a: number | null, b: number | null, tolerance = 0.01) => {
+  if (a === null && b === null) {
+    return true
+  }
+  if (a === null || b === null) {
+    return false
+  }
+  return Math.abs(a - b) <= tolerance
 }
 
 const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
@@ -2077,6 +2167,18 @@ export default function App() {
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [currentBudgetId, setCurrentBudgetId] = useState<string | undefined>(undefined)
+  const budgetUploadInputId = useId()
+  const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
+  const [kitBudget, setKitBudget] = useState<KitBudgetState>({
+    items: [],
+    total: null,
+    totalSource: null,
+    totalInput: '',
+    warnings: [],
+    fileName: undefined,
+  })
+  const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
+  const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>('mercado')
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifa] = useState('GO')
@@ -2154,6 +2256,173 @@ export default function App() {
     tipo: 'Revisão preventiva',
     observacao: '',
   })
+
+  const budgetItemsTotal = useMemo(
+    () => computeBudgetItemsTotalValue(kitBudget.items),
+    [kitBudget.items],
+  )
+
+  useEffect(() => {
+    if (kitBudget.totalSource !== 'calculated') {
+      return
+    }
+    const nextTotal = budgetItemsTotal
+    const formatted = formatCurrencyInputValue(nextTotal)
+    if (numbersAreClose(nextTotal, kitBudget.total) && formatted === kitBudget.totalInput) {
+      return
+    }
+    setKitBudget((prev) => ({
+      ...prev,
+      total: nextTotal,
+      totalInput: formatted,
+    }))
+  }, [budgetItemsTotal, kitBudget.totalSource, kitBudget.total, kitBudget.totalInput])
+
+  const updateKitBudgetItem = useCallback(
+    (itemId: string, updater: (item: KitBudgetItemState) => KitBudgetItemState) => {
+      setKitBudget((prev) => ({
+        ...prev,
+        items: prev.items.map((item) => (item.id === itemId ? updater(item) : item)),
+      }))
+    },
+    [],
+  )
+
+  const handleBudgetItemTextChange = useCallback(
+    (itemId: string, field: 'productName' | 'description', value: string) => {
+      updateKitBudgetItem(itemId, (item) => ({ ...item, [field]: value }))
+    },
+    [updateKitBudgetItem],
+  )
+
+  const handleBudgetItemQuantityChange = useCallback(
+    (itemId: string, value: string) => {
+      const parsed = parseNumericInput(value)
+      updateKitBudgetItem(itemId, (item) => ({
+        ...item,
+        quantity: parsed,
+        quantityInput: value,
+      }))
+    },
+    [updateKitBudgetItem],
+  )
+
+  const handleBudgetItemUnitPriceChange = useCallback(
+    (itemId: string, value: string) => {
+      const parsed = parseNumericInput(value)
+      updateKitBudgetItem(itemId, (item) => ({
+        ...item,
+        unitPrice: normalizeCurrencyNumber(parsed),
+        unitPriceInput: value,
+      }))
+    },
+    [updateKitBudgetItem],
+  )
+
+  const handleRemoveBudgetItem = useCallback((itemId: string) => {
+    setKitBudget((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.id !== itemId),
+    }))
+  }, [])
+
+  const handleAddBudgetItem = useCallback(() => {
+    const baseId = Date.now().toString(36)
+    setKitBudget((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          id: `manual-${baseId}-${prev.items.length + 1}`,
+          productName: '',
+          description: '',
+          quantity: null,
+          quantityInput: '',
+          unitPrice: null,
+          unitPriceInput: '',
+        },
+      ],
+    }))
+  }, [])
+
+  const handleBudgetTotalChange = useCallback(
+    (value: string) => {
+      setKitBudget((prev) => {
+        const trimmed = value.trim()
+        if (!trimmed) {
+          return {
+            ...prev,
+            totalInput: '',
+            total: budgetItemsTotal,
+            totalSource: budgetItemsTotal !== null ? 'calculated' : null,
+          }
+        }
+        const parsed = normalizeCurrencyNumber(parseNumericInput(trimmed))
+        return {
+          ...prev,
+          totalInput: value,
+          total: parsed,
+          totalSource: trimmed ? 'explicit' : prev.totalSource,
+        }
+      })
+    },
+    [budgetItemsTotal],
+  )
+
+  const handleBudgetFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) {
+        return
+      }
+      setBudgetProcessingError(null)
+      setIsBudgetProcessing(true)
+      try {
+        const buffer = await file.arrayBuffer()
+        const extraction = await extractBudgetFromPdf(buffer)
+        const timestamp = Date.now().toString(36)
+        const extractedItems: KitBudgetItemState[] = extraction.items.map((item, index) => {
+          const quantity =
+            typeof item.quantity === 'number' && Number.isFinite(item.quantity)
+              ? item.quantity
+              : null
+          const unitPriceRaw =
+            typeof item.unitPrice === 'number' && Number.isFinite(item.unitPrice)
+              ? item.unitPrice
+              : null
+          const unitPrice = normalizeCurrencyNumber(unitPriceRaw)
+          return {
+            id: `pdf-${timestamp}-${index}`,
+            productName: item.productName ?? '',
+            description: item.description ?? '',
+            quantity,
+            quantityInput: formatQuantityInputValue(quantity),
+            unitPrice,
+            unitPriceInput: formatCurrencyInputValue(unitPrice),
+          }
+        })
+        setKitBudget({
+          items: extractedItems,
+          total: extraction.total ?? null,
+          totalSource: extraction.totalSource ?? null,
+          totalInput: formatCurrencyInputValue(extraction.total ?? null),
+          warnings: extraction.warnings ?? [],
+          fileName: file.name,
+        })
+      } catch (error) {
+        console.error('Erro ao processar orçamento em PDF', error)
+        setBudgetProcessingError(
+          'Não foi possível processar o PDF. Verifique o arquivo e tente novamente.',
+        )
+      } finally {
+        setIsBudgetProcessing(false)
+        if (budgetUploadInputRef.current) {
+          budgetUploadInputRef.current.value = ''
+        }
+      }
+    },
+    [],
+  )
 
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
@@ -6805,7 +7074,186 @@ export default function App() {
             {renderConfiguracaoUsinaSection()}
             <section className="card">
               <h2>Vendas</h2>
-              <p className="muted">Área de Vendas em desenvolvimento.</p>
+              <div className="budget-upload-section">
+                <div className="budget-upload-header">
+                  <h3>Upload de Orçamento em PDF</h3>
+                  <p className="muted">
+                    Envie um orçamento em PDF para extrair automaticamente os itens e valores do kit
+                    solar.
+                  </p>
+                </div>
+                <div className="budget-upload-control">
+                  <input
+                    ref={budgetUploadInputRef}
+                    id={budgetUploadInputId}
+                    className="budget-upload-input"
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handleBudgetFileChange}
+                    disabled={isBudgetProcessing}
+                  />
+                  <label
+                    htmlFor={budgetUploadInputId}
+                    className={`budget-upload-trigger${isBudgetProcessing ? ' disabled' : ''}`}
+                  >
+                    <span aria-hidden="true">📄</span>
+                    <span>Selecionar PDF</span>
+                  </label>
+                  <span className="budget-upload-hint">Aceita arquivos no formato .pdf</span>
+                  {isBudgetProcessing ? (
+                    <span className="budget-upload-status">Processando orçamento...</span>
+                  ) : null}
+                  {budgetProcessingError ? (
+                    <span className="budget-upload-error">{budgetProcessingError}</span>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+            <section className="card">
+              <h2>Orçamento do Kit Solar</h2>
+              {kitBudget.fileName ? (
+                <p className="budget-upload-file">
+                  Arquivo analisado: <strong>{kitBudget.fileName}</strong>
+                </p>
+              ) : null}
+              {kitBudget.warnings.length > 0 ? (
+                <ul className="budget-warning-list">
+                  {kitBudget.warnings.map((warning, index) => (
+                    <li key={`budget-warning-${index}`}>{warning}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {kitBudget.items.length === 0 ? (
+                <div className="budget-empty">
+                  <p>
+                    Nenhum item de orçamento foi carregado ainda. Faça o upload de um PDF ou adicione
+                    itens manualmente.
+                  </p>
+                  <button type="button" className="ghost" onClick={handleAddBudgetItem}>
+                    Adicionar item manualmente
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="table-wrapper budget-table-wrapper">
+                    <table className="budget-table">
+                      <thead>
+                        <tr>
+                          <th>Produto</th>
+                          <th>Descrição</th>
+                          <th>Quantidade</th>
+                          <th>Valor unitário</th>
+                          <th>Total do item</th>
+                          <th>Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {kitBudget.items.map((item) => {
+                          const lineTotal = computeBudgetItemLineTotal(item)
+                          return (
+                            <tr key={item.id}>
+                              <td>
+                                <input
+                                  type="text"
+                                  value={item.productName}
+                                  onChange={(event) =>
+                                    handleBudgetItemTextChange(item.id, 'productName', event.target.value)
+                                  }
+                                  placeholder="Nome do produto"
+                                />
+                              </td>
+                              <td>
+                                <textarea
+                                  value={item.description}
+                                  onChange={(event) =>
+                                    handleBudgetItemTextChange(item.id, 'description', event.target.value)
+                                  }
+                                  placeholder="Descrição ou observações"
+                                  rows={3}
+                                />
+                              </td>
+                              <td className="budget-table-numeric">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={item.quantityInput}
+                                  onChange={(event) =>
+                                    handleBudgetItemQuantityChange(item.id, event.target.value)
+                                  }
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="budget-table-numeric">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={item.unitPriceInput}
+                                  onChange={(event) =>
+                                    handleBudgetItemUnitPriceChange(item.id, event.target.value)
+                                  }
+                                  placeholder="0,00"
+                                />
+                              </td>
+                              <td className="budget-table-total">
+                                {lineTotal !== null ? currency(lineTotal) : '—'}
+                              </td>
+                              <td className="budget-table-actions">
+                                <button
+                                  type="button"
+                                  className="link danger"
+                                  onClick={() => handleRemoveBudgetItem(item.id)}
+                                >
+                                  Remover
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="budget-actions">
+                    <button type="button" className="ghost" onClick={handleAddBudgetItem}>
+                      Adicionar item
+                    </button>
+                  </div>
+                </>
+              )}
+              <div className="budget-summary">
+                <div className="budget-total-field">
+                  <label htmlFor="budget-total-input">Valor Total do Orçamento</label>
+                  <input
+                    id="budget-total-input"
+                    type="text"
+                    inputMode="decimal"
+                    value={kitBudget.totalInput}
+                    onChange={(event) => handleBudgetTotalChange(event.target.value)}
+                    placeholder="Ex.: 45.000,00"
+                  />
+                  {kitBudget.totalSource === 'calculated' ? (
+                    <small className="muted">
+                      Valor calculado automaticamente com base nos itens listados.
+                    </small>
+                  ) : kitBudget.totalSource === 'explicit' ? (
+                    <small className="muted">Valor identificado no PDF. Ajuste se necessário.</small>
+                  ) : (
+                    <small className="muted">
+                      Informe o valor total do orçamento para registrar no sistema.
+                    </small>
+                  )}
+                </div>
+                <div className="budget-summary-row">
+                  <span>Somatório dos itens:</span>
+                  <strong>{budgetItemsTotal !== null ? currency(budgetItemsTotal) : '—'}</strong>
+                  {kitBudget.total !== null &&
+                  budgetItemsTotal !== null &&
+                  Math.abs(kitBudget.total - budgetItemsTotal) > 1 ? (
+                    <span className="difference">
+                      Diferença de {currency(Math.abs(kitBudget.total - budgetItemsTotal))}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </section>
           </>
         )}
