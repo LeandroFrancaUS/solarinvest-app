@@ -401,6 +401,8 @@ type BuyoutResumo = {
   duracao: number
 }
 
+type PrintableProposalTipo = 'LEASING' | 'VENDA_DIRETA'
+
 type PrintableProps = {
   cliente: ClienteDados
   budgetId?: string
@@ -412,6 +414,7 @@ type PrintableProps = {
   tabelaBuyout: BuyoutRow[]
   buyoutResumo: BuyoutResumo
   capex: number
+  tipoProposta: PrintableProposalTipo
   geracaoMensalKwh: number
   potenciaPlaca: number
   numeroPlacas: number
@@ -503,6 +506,7 @@ const generateBudgetId = (existingIds: Set<string> = new Set()) => {
 const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
   ...dados,
   budgetId: dados.budgetId,
+  tipoProposta: dados.tipoProposta,
   cliente: { ...dados.cliente },
   anos: [...dados.anos],
   leasingROI: [...dados.leasingROI],
@@ -1109,6 +1113,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     tabelaBuyout,
     buyoutResumo,
     capex,
+    tipoProposta,
     geracaoMensalKwh,
     potenciaPlaca,
     numeroPlacas,
@@ -1123,6 +1128,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   },
   ref,
 ) {
+  const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
     Number.isFinite(value) ? value.toLocaleString('pt-BR', options) : '—'
   const valorMercadoValido = typeof buyoutResumo.vm0 === 'number' && Number.isFinite(buyoutResumo.vm0)
@@ -1144,7 +1150,11 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const cidadeCliente = cliente.cidade?.trim() || ''
   const ufCliente = cliente.uf?.trim() || ''
   const enderecoCliente = cliente.endereco?.trim() || ''
-  const prazoContratualResumo = duracaoContratualValida ? `${buyoutResumo.duracao} meses` : '60 meses'
+  const prazoContratualResumo = isVendaDireta
+    ? 'Venda direta — pagamento integral'
+    : duracaoContratualValida
+    ? `${buyoutResumo.duracao} meses`
+    : '60 meses'
   const formatEnergiaContratada = (valor: number) => {
     if (!Number.isFinite(valor) || valor <= 0) {
       return '—'
@@ -1160,9 +1170,10 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const descontoResumo = Number.isFinite(descontoContratualPct)
     ? `${formatNumber(descontoContratualPct, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`
     : '—'
-  const responsabilidadesResumo =
-    'Instalação, homologação, manutenção, seguro, suporte técnico, monitoramento'
-  const valorInstalacaoTexto = currency(0)
+  const responsabilidadesResumo = isVendaDireta
+    ? 'Projeto, instalação, homologação e suporte pós-venda'
+    : 'Instalação, homologação, manutenção, seguro, suporte técnico, monitoramento'
+  const valorInstalacaoTexto = isVendaDireta ? currency(capex) : currency(0)
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
   validadeData.setDate(validadeData.getDate() + 15)
@@ -1173,6 +1184,23 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
   const inicioOperacaoTexto = formatDate(inicioOperacaoData)
+  const heroTitle = isVendaDireta ? 'Proposta de Venda Direta' : 'Proposta de Leasing Solar'
+  const heroTagline = isVendaDireta
+    ? 'Energia inteligente, patrimônio garantido'
+    : 'Energia inteligente, sem desembolso'
+  const heroSummaryDescription = isVendaDireta
+    ? 'Apresentamos sua proposta personalizada de aquisição da usina fotovoltaica SolarInvest. Nesta modalidade de venda direta, você investe no sistema, torna-se proprietário desde o primeiro dia e captura 100% da economia gerada, aumentando a previsibilidade de custos e o valor do seu imóvel.'
+    : 'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
+  const chartEconomiaIntro = isVendaDireta
+    ? 'Retorno que cresce ano após ano.'
+    : 'Economia que cresce ano após ano.'
+  const chartExplainerContext = isVendaDireta
+    ? 'O investimento considera os reajustes anuais de energia, a vida útil projetada dos equipamentos e a propriedade integral do ativo desde o primeiro dia.'
+    : 'Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.'
+  const chartFootnoteText = isVendaDireta
+    ? 'Como proprietário do sistema, toda a economia permanece com o cliente ao longo da vida útil do projeto.'
+    : 'Após o final do contrato a usina passa a render 100% de economia frente à concessionária para o cliente.'
+  const chartPrimaryLabel = isVendaDireta ? 'Venda direta' : 'Leasing SolarInvest'
 
   const chartDataPrintable = useMemo(() => {
     const anosDisponiveis = new Set(anos)
@@ -1279,18 +1307,14 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
             </div>
             <div className="print-hero__title">
               <span className="print-hero__eyebrow">SolarInvest</span>
-              <h1>Proposta de Leasing Solar</h1>
-              <p className="print-hero__tagline">Energia inteligente, sem desembolso</p>
+              <h1>{heroTitle}</h1>
+              <p className="print-hero__tagline">{heroTagline}</p>
             </div>
           </div>
         </div>
         <div className="print-hero__summary">
           <h2>Sumário executivo</h2>
-          <p>
-            Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua
-            própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida
-            gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.
-          </p>
+          <p>{heroSummaryDescription}</p>
         </div>
       </header>
 
@@ -1353,7 +1377,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           </thead>
           <tbody>
             <tr>
-              <td>Prazo contratual</td>
+              <td>{isVendaDireta ? 'Modelo comercial' : 'Prazo contratual'}</td>
               <td>{prazoContratualResumo}</td>
             </tr>
             <tr>
@@ -1365,11 +1389,11 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               <td>{tarifaCheiaResumo}</td>
             </tr>
             <tr>
-              <td>Desconto aplicado</td>
+              <td>{isVendaDireta ? 'Economia estimada vs. distribuidora' : 'Desconto aplicado'}</td>
               <td>{descontoResumo}</td>
             </tr>
             <tr>
-              <td>Valor da instalação para o cliente</td>
+              <td>{isVendaDireta ? 'Investimento estimado (CAPEX)' : 'Valor da instalação para o cliente'}</td>
               <td>{valorInstalacaoTexto}</td>
             </tr>
             <tr>
@@ -1388,7 +1412,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <h2>Resumo técnico e financeiro</h2>
         <div className="print-key-values">
           <p>
-            <strong>Investimento da SolarInvest</strong>
+            <strong>{isVendaDireta ? 'Investimento estimado' : 'Investimento da SolarInvest'}</strong>
             {currency(capex)}
           </p>
           <p>
@@ -1421,45 +1445,65 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           </p>
         </div>
         <div className="print-summary-grid">
-          <div className="print-card">
-            <h3>Mensalidades por ano</h3>
-            {parcelasLeasingAnuais.length > 0 ? (
-              <div className="print-yearly-payments">
-                {parcelasLeasingAnuais.map((row) => (
-                  <article className="print-yearly-payments__item" key={`leasing-${row.ano}`}>
-                    <div className="print-yearly-payments__header">
-                      <span className="print-yearly-payments__year-label">Período</span>
-                      <span className="print-yearly-payments__year">{`${row.ano}º ano`}</span>
-                    </div>
-                    <dl className="print-yearly-payments__metrics">
-                      <div>
-                        <dt>Tarifa cheia média</dt>
-                        <dd>{tarifaCurrency(row.tarifaCheiaMedia)}</dd>
-                      </div>
-                      <div>
-                        <dt>Tarifa c/ desconto média</dt>
-                        <dd>{tarifaCurrency(row.tarifaDescontadaMedia)}</dd>
-                      </div>
-                      <div>
-                        <dt>
-                          Conta {distribuidoraTarifaLabel ? distribuidoraTarifaLabel : 'distribuidora'}
-                        </dt>
-                        <dd>{currency(row.mensalidadeCheiaMedia)}</dd>
-                      </div>
-                      <div>
-                        <dt>Mensalidade SolarInvest</dt>
-                        <dd>{currency(row.mensalidadeMedia)}</dd>
-                      </div>
-                    </dl>
-                  </article>
-                ))}
+          {isVendaDireta ? (
+            <div className="print-card">
+              <h3>Condições de pagamento</h3>
+              <div className="print-metric-list">
+                <p>
+                  <strong>Valor total do sistema</strong>
+                  {currency(capex)}
+                </p>
+                <p>
+                  <strong>Modalidade</strong>
+                  Venda direta com transferência imediata da propriedade.
+                </p>
+                <p className="muted">
+                  As condições de entrada, parcelamento ou financiamento podem ser personalizadas conforme negociação com o
+                  cliente.
+                </p>
               </div>
-            ) : (
-              <p className="print-yearly-payments__empty muted">
-                Defina um prazo contratual para gerar a projeção das médias anuais das parcelas.
-              </p>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="print-card">
+              <h3>Mensalidades por ano</h3>
+              {parcelasLeasingAnuais.length > 0 ? (
+                <div className="print-yearly-payments">
+                  {parcelasLeasingAnuais.map((row) => (
+                    <article className="print-yearly-payments__item" key={`leasing-${row.ano}`}>
+                      <div className="print-yearly-payments__header">
+                        <span className="print-yearly-payments__year-label">Período</span>
+                        <span className="print-yearly-payments__year">{`${row.ano}º ano`}</span>
+                      </div>
+                      <dl className="print-yearly-payments__metrics">
+                        <div>
+                          <dt>Tarifa cheia média</dt>
+                          <dd>{tarifaCurrency(row.tarifaCheiaMedia)}</dd>
+                        </div>
+                        <div>
+                          <dt>Tarifa c/ desconto média</dt>
+                          <dd>{tarifaCurrency(row.tarifaDescontadaMedia)}</dd>
+                        </div>
+                        <div>
+                          <dt>
+                            Conta {distribuidoraTarifaLabel ? distribuidoraTarifaLabel : 'distribuidora'}
+                          </dt>
+                          <dd>{currency(row.mensalidadeCheiaMedia)}</dd>
+                        </div>
+                        <div>
+                          <dt>Mensalidade SolarInvest</dt>
+                          <dd>{currency(row.mensalidadeMedia)}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="print-yearly-payments__empty muted">
+                  Defina um prazo contratual para gerar a projeção das médias anuais das parcelas.
+                </p>
+              )}
+            </div>
+          )}
           {mostrarFinanciamento ? (
             <div className="print-card">
               <h3>Financiamento</h3>
@@ -1487,7 +1531,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       </section>
 
       <section className="print-section print-chart-section">
-        <h2>Economia projetada (30 anos)</h2>
+        <h2>{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
         <div className="print-chart">
           <ResponsiveContainer width="50%" height={240}>
             <BarChart
@@ -1551,6 +1595,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                 barSize={14}
                 radius={[0, 8, 8, 0]}
                 isAnimationActive={false}
+                name={chartPrimaryLabel}
               >
                 <LabelList
                   dataKey="Leasing"
@@ -1587,7 +1632,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                 <span className="print-chart-highlights__year">{marco.ano}º ano</span>
                 <div className="print-chart-highlights__values">
                   <span className="print-chart-highlights__value" style={{ color: chartColors.Leasing }}>
-                    Economia: {currency(marco.Leasing)}
+                    {chartPrimaryLabel}: {currency(marco.Leasing)}
                   </span>
                   {mostrarFinanciamento ? (
                     <span className="print-chart-highlights__value" style={{ color: chartColors.Financiamento }}>
@@ -1601,48 +1646,61 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         ) : null}
         {beneficioAno30Printable ? (
           <p className="chart-explainer">
-            <strong>Economia que cresce ano após ano.</strong>{' '}
+            <strong>{chartEconomiaIntro}</strong>{' '}
             Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
             <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30Printable.Leasing)}</strong>
             {mostrarFinanciamento ? (
               <>
-                {' '}no leasing e de
+                {' '}
+                {isVendaDireta ? 'na venda direta e de' : 'no leasing e de'}
                 <strong style={{ color: chartColors.Financiamento }}>
                   {' '}
                   {currency(beneficioAno30Printable.Financiamento)}
                 </strong>{' '}
-                com financiamento.
+                {isVendaDireta
+                  ? 'com financiamento como alternativa de pagamento.'
+                  : 'com financiamento.'}
               </>
             ) : (
               <> comparado à concessionária.</>
             )}{' '}
-            Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina
-            ao final do acordo.
+            {chartExplainerContext}
           </p>
         ) : null}
-        <p className="print-chart-footnote">
-          Após o final do contrato a usina passa a render 100% de economia frente à concessionária para o cliente.
-        </p>
+        <p className="print-chart-footnote">{chartFootnoteText}</p>
       </section>
 
       <section className="print-section print-important">
         <h2>Informações importantes</h2>
         <ul>
-          <li>Desconto contratual aplicado: {descontoResumo} sobre a tarifa da distribuidora.</li>
-          <li>Prazo de vigência: conforme especificado na proposta (ex.: 60 meses).</li>
-          <li>Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.</li>
-          <li>
-            Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e seguro sinistro da usina.
-          </li>
-          <li>
-            Transferência da usina ao cliente ao final do contrato sem custo adicional, desde que obrigações contratuais estejam
-            cumpridas.
-          </li>
-          <li>Tabela de compra antecipada disponível mediante solicitação.</li>
-          <li>Equipamentos utilizados possuem certificação INMETRO.</li>
-          <li>
-            Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer ajustes no contrato definitivo.
-          </li>
+          {isVendaDireta ? (
+            <>
+              <li>Economia estimada em relação à distribuidora: {descontoResumo} considerando o histórico tarifário informado.</li>
+              <li>Prazo médio de instalação: até 60 dias após aceite formal e emissão da ordem de serviço.</li>
+              <li>Tarifas por kWh são projeções e podem variar conforme reajustes autorizados pela ANEEL.</li>
+              <li>Projeto inclui engenharia, homologação junto à distribuidora, assistência pós-venda e garantia dos fabricantes.</li>
+              <li>Equipamentos utilizados possuem certificação INMETRO e garantias de performance.</li>
+              <li>Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer ajustes na contratação final.</li>
+            </>
+          ) : (
+            <>
+              <li>Desconto contratual aplicado: {descontoResumo} sobre a tarifa da distribuidora.</li>
+              <li>Prazo de vigência: conforme especificado na proposta (ex.: 60 meses).</li>
+              <li>Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.</li>
+              <li>
+                Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e seguro sinistro da usina.
+              </li>
+              <li>
+                Transferência da usina ao cliente ao final do contrato sem custo adicional, desde que obrigações contratuais estejam
+                cumpridas.
+              </li>
+              <li>Tabela de compra antecipada disponível mediante solicitação.</li>
+              <li>Equipamentos utilizados possuem certificação INMETRO.</li>
+              <li>
+                Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer ajustes no contrato definitivo.
+              </li>
+            </>
+          )}
         </ul>
       </section>
 
@@ -1673,7 +1731,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       <div className="print-brand-footer">
         <strong>SolarInvest</strong>
         <span>CNPJ: 60.434.015/0001-90</span>
-        <span>Energia inteligente, sem desembolso</span>
+        <span>{isVendaDireta ? 'Energia inteligente para o seu negócio' : 'Energia inteligente, sem desembolso'}</span>
       </div>
     </div>
   )
@@ -2779,6 +2837,7 @@ export default function App() {
       tabelaBuyout,
       buyoutResumo,
       capex,
+      tipoProposta: activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING',
       geracaoMensalKwh,
       potenciaPlaca,
       numeroPlacas: numeroPlacasEstimado,
@@ -2813,6 +2872,7 @@ export default function App() {
       potenciaPlaca,
       tabelaBuyout,
       tarifaCheia,
+      activeTab,
     ],
   )
 
@@ -5410,6 +5470,7 @@ export default function App() {
             cep: clienteDados.cep ?? '',
           },
           distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteDados.distribuidora ?? '',
+          tipoProposta: dados?.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
         }
 
         const clienteIdArmazenado =
@@ -5805,6 +5866,8 @@ export default function App() {
         const dadosParaImpressao: PrintableProps = {
           ...registro.dados,
           budgetId: registro.dados.budgetId ?? registro.id,
+          tipoProposta:
+            registro.dados.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
         }
         const layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
         if (!layoutHtml) {
