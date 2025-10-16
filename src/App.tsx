@@ -2886,9 +2886,18 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (!ufTarifa) {
+      setDistribuidoraTarifa('')
+      return
+    }
+
+    const lista = distribuidorasPorUf?.[ufTarifa]
+    if (!lista || lista.length === 0) {
+      setDistribuidoraTarifa('')
+      return
+    }
+
     setDistribuidoraTarifa((atual) => {
-      if (!ufTarifa) return ''
-      const lista = distribuidorasPorUf[ufTarifa] ?? []
       if (lista.length === 1) {
         return lista[0]
       }
