@@ -1006,6 +1006,7 @@ const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEdi
                   <table>
                     <thead>
                       <tr>
+                        <th>ID</th>
                         <th>Cliente</th>
                         <th>Documento</th>
                         <th>Cidade/UF</th>
@@ -1021,6 +1022,9 @@ const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEdi
                         const uf = dados.uf?.trim()
                         return (
                           <tr key={registro.id}>
+                            <td className="clients-table-id">
+                              <code>{registro.id}</code>
+                            </td>
                             <td>
                               <button
                                 type="button"
