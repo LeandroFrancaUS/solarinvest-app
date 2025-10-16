@@ -28,6 +28,9 @@ const resolveUpstreamUrl = (requestUrl) => {
   }
 
   const upstream = new URL(pathParam, UPSTREAM_ORIGIN)
+  if (pathParam.startsWith('//') || upstream.origin !== UPSTREAM_ORIGIN) {
+    throw new ProxyError(400, 'The "path" parameter must target dadosabertos.aneel.gov.br')
+  }
   return upstream.toString()
 }
 
