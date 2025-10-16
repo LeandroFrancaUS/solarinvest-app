@@ -15,8 +15,12 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
+    "verbatimModuleSyntax": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ],
     "types": [
-      "vite/client",
       "vitest"
     ]
   },

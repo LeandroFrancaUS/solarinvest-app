@@ -24,10 +24,10 @@ import {
   selectMensalidades,
   selectTarifaDescontada,
   selectMensalidadesPorAno,
-  SimulationState,
-  BuyoutLinha,
 } from './selectors'
-import { EntradaModo, tarifaDescontada as tarifaDescontadaCalc, tarifaProjetadaCheia } from './utils/calcs'
+import type { SimulationState, BuyoutLinha } from './selectors'
+import { tarifaDescontada as tarifaDescontadaCalc, tarifaProjetadaCheia } from './utils/calcs'
+import type { EntradaModo } from './utils/calcs'
 import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './utils/irradiacao'
 import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
 import { getTarifaCheia } from './utils/tarifaAneel'
@@ -38,13 +38,13 @@ import type { ClienteRegistroSyncPayload } from './utils/onedrive'
 import { persistProposalPdf } from './utils/proposalPdf'
 import { extractBudgetFromPdf } from './utils/pdfBudgetExtractor'
 import type { StructuredBudget } from './utils/structuredBudgetParser'
-import {
-  computeROI,
-  type ModoPagamento,
-  type PagamentoCondicao,
-  type RetornoProjetado,
-  type VendaForm,
-} from './utils/vendaRetorno'
+import { computeROI } from './lib/finance/roi'
+import type {
+  ModoPagamento,
+  PagamentoCondicao,
+  RetornoProjetado,
+  VendaForm,
+} from './lib/finance/roi'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -69,7 +69,6 @@ const formatAxis = (v: number) => {
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
 
-const DISTRIBUIDORAS_FALLBACK = getDistribuidorasFallback()
 const UF_LABELS: Record<string, string> = {
   AC: 'Acre',
   AL: 'Alagoas',
@@ -2170,6 +2169,7 @@ const simplePrintStyles = `
 
 
 export default function App() {
+  const distribuidorasFallback = useMemo(() => getDistribuidorasFallback(), [])
   const [activePage, setActivePage] = useState<'app' | 'crm'>('app')
   const [activeTab, setActiveTab] = useState<TabKey>('leasing')
   const isVendaDiretaTab = activeTab === 'vendas'
@@ -2194,9 +2194,14 @@ export default function App() {
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifa] = useState('GO')
   const [distribuidoraTarifa, setDistribuidoraTarifa] = useState('Equatorial Goiás')
-  const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(DISTRIBUIDORAS_FALLBACK.ufs)
-  const [distribuidorasPorUf, setDistribuidorasPorUf] = useState<Record<string, string[]>>(
-    DISTRIBUIDORAS_FALLBACK.distribuidorasPorUf,
+  const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(() => [...distribuidorasFallback.ufs])
+  const [distribuidorasPorUf, setDistribuidorasPorUf] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(
+      Object.entries(distribuidorasFallback.distribuidorasPorUf).map(([uf, lista]) => [
+        uf,
+        [...lista],
+      ]),
+    ),
   )
   const [mesReajuste, setMesReajuste] = useState(6)
 
@@ -2479,29 +2484,6 @@ export default function App() {
     return errors
   }, [])
 
-  const handleCalcularRetorno = useCallback(() => {
-    const errors = validateVendaForm(vendaForm)
-    setVendaFormErrors(errors)
-    if (Object.keys(errors).length > 0) {
-      setRetornoError('Revise os campos destacados antes de calcular o retorno.')
-      setRetornoProjetado(null)
-      setRetornoStatus('idle')
-      return
-    }
-    try {
-      setRetornoStatus('calculating')
-      const resultado = computeROI(vendaForm)
-      setRetornoProjetado(resultado)
-      setRetornoError(null)
-    } catch (error) {
-      console.error('Erro ao calcular retorno projetado.', error)
-      setRetornoProjetado(null)
-      setRetornoError('Não foi possível calcular o retorno. Tente novamente.')
-    } finally {
-      setRetornoStatus('idle')
-    }
-  }, [validateVendaForm, vendaForm])
-
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
     return distribuidorasPorUf[ufTarifa] ?? []
@@ -2545,6 +2527,29 @@ export default function App() {
     setRetornoError(null)
     setRetornoStatus('idle')
   }, [])
+
+  const handleCalcularRetorno = useCallback(() => {
+    const errors = validateVendaForm(vendaForm)
+    setVendaFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      setRetornoError('Revise os campos destacados antes de calcular o retorno.')
+      setRetornoProjetado(null)
+      setRetornoStatus('idle')
+      return
+    }
+    try {
+      setRetornoStatus('calculating')
+      const resultado = computeROI(vendaForm)
+      setRetornoProjetado(resultado)
+      setRetornoError(null)
+    } catch (error) {
+      console.error('Erro ao calcular retorno projetado.', error)
+      setRetornoProjetado(null)
+      setRetornoError('Não foi possível calcular o retorno. Tente novamente.')
+    } finally {
+      setRetornoStatus('idle')
+    }
+  }, [validateVendaForm, vendaForm])
 
   const applyVendaUpdates = useCallback(
     (updates: Partial<VendaForm>) => {
@@ -3068,6 +3073,13 @@ export default function App() {
     }
   }, [capexManualOverride, kitBudget.total, resetRetorno])
 
+  const geracaoMensalKwh = useMemo(() => {
+    if (potenciaInstaladaKwp <= 0 || fatorGeracaoMensal <= 0) {
+      return 0
+    }
+    return Math.round(potenciaInstaladaKwp * fatorGeracaoMensal)
+  }, [potenciaInstaladaKwp, fatorGeracaoMensal])
+
   useEffect(() => {
     let updated = false
     setVendaForm((prev) => {
@@ -3129,13 +3141,6 @@ export default function App() {
       return valorAtual
     })
   }, [kcKwhMes, numeroPlacasCalculado])
-
-  const geracaoMensalKwh = useMemo(() => {
-    if (potenciaInstaladaKwp <= 0 || fatorGeracaoMensal <= 0) {
-      return 0
-    }
-    return Math.round(potenciaInstaladaKwp * fatorGeracaoMensal)
-  }, [potenciaInstaladaKwp, fatorGeracaoMensal])
 
   const geracaoDiariaKwh = useMemo(
     () => (geracaoMensalKwh > 0 && diasMesNormalizado > 0 ? geracaoMensalKwh / diasMesNormalizado : 0),
