@@ -13,7 +13,7 @@ const MODELO_REGEX = /Modelo:\s*(.+)$/i
 const QUANTIDADE_REGEX = /Quantidade:\s*(\d+)/i
 const FABRICANTE_REGEX = /Fabricante:\s*(.*)$/i
 const UNIT_PRICE_REGEX = /R\$\s*([\d.,]+)\s*(?:\/\s*un|unidade)\b/i
-const TOTAL_PRICE_REGEX = /\b(?:Valor:)?\s*R\$\s*([\d.,]+)\b/i
+const TOTAL_PRICE_REGEX = /\b(?:Valor:)?\s*R\$\s*([\d.,]+)\b/gi
 
 const CSV_HEADER =
   'numeroOrcamento;validade;de;para;produto;codigo;modelo;descricao;quantidade;unidade;precoUnitario;precoTotal;valorTotal'
