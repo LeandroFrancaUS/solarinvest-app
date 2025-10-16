@@ -445,6 +445,7 @@ type MensalidadeAnualRow = {
 type OrcamentoSalvo = {
   id: string
   criadoEm: string
+  clienteId?: string
   clienteNome: string
   clienteCidade: string
   clienteUf: string
@@ -5368,8 +5369,37 @@ export default function App() {
         return []
       }
 
+      const clientesRegistrados = carregarClientesSalvos()
+      const clienteIdPorDocumento = new Map<string, string>()
+      const clienteIdPorUc = new Map<string, string>()
+
+      clientesRegistrados.forEach((clienteRegistro) => {
+        const documento = normalizeNumbers(clienteRegistro.dados.documento ?? '')
+        if (documento && !clienteIdPorDocumento.has(documento)) {
+          clienteIdPorDocumento.set(documento, clienteRegistro.id)
+        }
+
+        const uc = normalizeText(clienteRegistro.dados.uc ?? '')
+        if (uc && !clienteIdPorUc.has(uc)) {
+          clienteIdPorUc.set(uc, clienteRegistro.id)
+        }
+      })
+
+      const sanitizeClienteId = (valor: unknown) => {
+        if (typeof valor !== 'string') {
+          return ''
+        }
+
+        const normalizado = normalizeClienteIdCandidate(valor)
+        if (normalizado.length === CLIENTE_ID_LENGTH && CLIENTE_ID_PATTERN.test(normalizado)) {
+          return normalizado
+        }
+
+        return ''
+      }
+
       return parsed.map((item) => {
-        const registro = item as OrcamentoSalvo
+        const registro = item as Partial<OrcamentoSalvo> & { clienteID?: string }
         const dados = registro.dados as PrintableProps
         const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
         const dadosNormalizados: PrintableProps = {
@@ -5382,8 +5412,36 @@ export default function App() {
           distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteDados.distribuidora ?? '',
         }
 
+        const clienteIdArmazenado =
+          sanitizeClienteId(
+            registro.clienteId ??
+              registro.clienteID ??
+              (dadosNormalizados as unknown as { clienteId?: string }).clienteId ??
+              ((dadosNormalizados.cliente as unknown as { id?: string })?.id ?? ''),
+          )
+
+        const documentoRaw = registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? ''
+        const ucRaw = registro.clienteUc ?? dadosNormalizados.cliente.uc ?? ''
+
+        let clienteId = clienteIdArmazenado
+
+        if (!clienteId) {
+          const documentoDigits = normalizeNumbers(documentoRaw)
+          if (documentoDigits) {
+            clienteId = clienteIdPorDocumento.get(documentoDigits) ?? ''
+          }
+        }
+
+        if (!clienteId) {
+          const ucTexto = normalizeText(ucRaw)
+          if (ucTexto) {
+            clienteId = clienteIdPorUc.get(ucTexto) ?? ''
+          }
+        }
+
         return {
           ...registro,
+          clienteId: clienteId || undefined,
           clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
           clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
           dados: dadosNormalizados,
@@ -5393,7 +5451,7 @@ export default function App() {
       console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
       return []
     }
-  }, [])
+  }, [carregarClientesSalvos])
 
   const salvarOrcamentoLocalmente = (dados: PrintableProps): OrcamentoSalvo | null => {
     if (typeof window === 'undefined') {
@@ -5408,6 +5466,7 @@ export default function App() {
       const registro: OrcamentoSalvo = {
         id: novoId,
         criadoEm: new Date().toISOString(),
+        clienteId: clienteEmEdicaoId ?? undefined,
         clienteNome: dados.cliente.nome,
         clienteCidade: dados.cliente.cidade,
         clienteUf: dados.cliente.uf,
@@ -5818,6 +5877,8 @@ export default function App() {
       const codigo = normalizeText(registro.id)
       const codigoDigits = normalizeNumbers(registro.id)
       const nome = normalizeText(registro.clienteNome || registro.dados.cliente.nome || '')
+      const clienteIdTexto = normalizeText(registro.clienteId ?? '')
+      const clienteIdDigits = normalizeNumbers(registro.clienteId ?? '')
       const documentoRaw = registro.clienteDocumento || registro.dados.cliente.documento || ''
       const documentoTexto = normalizeText(documentoRaw)
       const documentoDigits = normalizeNumbers(documentoRaw)
@@ -5825,7 +5886,13 @@ export default function App() {
       const ucTexto = normalizeText(ucRaw)
       const ucDigits = normalizeNumbers(ucRaw)
 
-      if (codigo.includes(queryText) || nome.includes(queryText) || documentoTexto.includes(queryText) || ucTexto.includes(queryText)) {
+      if (
+        codigo.includes(queryText) ||
+        nome.includes(queryText) ||
+        clienteIdTexto.includes(queryText) ||
+        documentoTexto.includes(queryText) ||
+        ucTexto.includes(queryText)
+      ) {
         return true
       }
 
@@ -5835,6 +5902,7 @@ export default function App() {
 
       return (
         codigoDigits.includes(queryDigits) ||
+        clienteIdDigits.includes(queryDigits) ||
         documentoDigits.includes(queryDigits) ||
         ucDigits.includes(queryDigits)
       )
@@ -6073,7 +6141,7 @@ export default function App() {
           <button className="crm-button" onClick={() => setActivePage('crm')}>
             Central CRM
           </button>
-          <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar orçamentos</button>
+          <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
           <button className="ghost" onClick={handlePrint}>Exportar Proposta (PDF)</button>
           <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
         </div>
@@ -6625,18 +6693,18 @@ export default function App() {
               <section className="budget-search-panel">
                 <div className="budget-search-header">
                   <h4>Consulta rápida</h4>
-                  <p>Localize propostas salvas pelo CPF, nome, UC ou código do orçamento.</p>
+                  <p>Localize propostas salvas pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento.</p>
                 </div>
                 <Field
                   label="Buscar orçamentos"
-                  hint="Procure por CPF, nome, unidade consumidora ou código do orçamento."
+                  hint="Procure pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento."
                 >
                   <input
                     id="budget-search-input"
                     type="search"
                     value={orcamentoSearchTerm}
                     onChange={(e) => setOrcamentoSearchTerm(e.target.value)}
-                    placeholder="Ex.: 123.456.789-00 ou ORC-ABCD-123456"
+                    placeholder="Ex.: ABC12, 123.456.789-00 ou SLRINVST-00001234"
                     autoFocus
                   />
                 </Field>
