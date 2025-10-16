@@ -401,6 +401,7 @@ type BuyoutResumo = {
 
 type PrintableProps = {
   cliente: ClienteDados
+  budgetId?: string
   anos: number[]
   leasingROI: number[]
   financiamentoFluxo: number[]
@@ -494,6 +495,7 @@ const generateBudgetId = (existingIds: Set<string> = new Set()) => {
 
 const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
   ...dados,
+  budgetId: dados.budgetId,
   cliente: { ...dados.cliente },
   anos: [...dados.anos],
   leasingROI: [...dados.leasingROI],
@@ -1059,6 +1061,7 @@ const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; hint?
 const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(function PrintableProposal(
   {
     cliente,
+    budgetId,
     anos,
     leasingROI,
     financiamentoFluxo,
@@ -1095,6 +1098,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     : '—'
   const distribuidoraTarifaLabel = distribuidoraTarifa?.trim() || ''
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : ''
+  const codigoOrcamento = budgetId?.trim() || ''
   const emailCliente = cliente.email?.trim() || ''
   const telefoneCliente = cliente.telefone?.trim() || ''
   const ucCliente = cliente.uc?.trim() || ''
@@ -1254,6 +1258,10 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       <section className="print-section">
         <h2>Identificação do cliente</h2>
         <dl className="print-client-grid">
+          <div className="print-client-field">
+            <dt>Código do orçamento</dt>
+            <dd>{codigoOrcamento || '—'}</dd>
+          </div>
           <div className="print-client-field">
             <dt>Cliente</dt>
             <dd>{cliente.nome || '—'}</dd>
@@ -1967,6 +1975,7 @@ export default function App() {
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
+  const [currentBudgetId, setCurrentBudgetId] = useState<string | undefined>(undefined)
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>('mercado')
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifa] = useState('GO')
@@ -2722,6 +2731,7 @@ export default function App() {
   const printableData = useMemo<PrintableProps>(
     () => ({
       cliente,
+      budgetId: currentBudgetId,
       anos: anosArray,
       leasingROI,
       financiamentoFluxo,
@@ -2744,6 +2754,7 @@ export default function App() {
     }),
     [
       areaInstalacao,
+      currentBudgetId,
       anosArray,
       buyoutResumo,
       capex,
@@ -5277,6 +5288,7 @@ export default function App() {
         const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
         const dadosNormalizados: PrintableProps = {
           ...dados,
+          budgetId: dados?.budgetId ?? registro.id,
           cliente: {
             ...clienteDados,
             cep: clienteDados.cep ?? '',
@@ -5305,15 +5317,17 @@ export default function App() {
     try {
       const registrosExistentes = carregarOrcamentosSalvos()
       const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
+      const novoId = generateBudgetId(existingIds)
+      const dadosClonados = clonePrintableData(dados)
       const registro: OrcamentoSalvo = {
-        id: generateBudgetId(existingIds),
+        id: novoId,
         criadoEm: new Date().toISOString(),
         clienteNome: dados.cliente.nome,
         clienteCidade: dados.cliente.cidade,
         clienteUf: dados.cliente.uf,
         clienteDocumento: dados.cliente.documento,
         clienteUc: dados.cliente.uc,
-        dados: clonePrintableData(dados),
+        dados: { ...dadosClonados, budgetId: dadosClonados.budgetId ?? novoId },
       }
 
       existingIds.add(registro.id)
@@ -5370,7 +5384,7 @@ export default function App() {
     }
     setEficiencia(valor)
   }
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (!validarCamposObrigatorios()) {
       return
     }
@@ -5380,14 +5394,40 @@ export default function App() {
       return
     }
 
-    const node = printableRef.current
-    if (!node) {
+    setCurrentBudgetId(registroOrcamento.id)
+
+    const dadosParaImpressao: PrintableProps = {
+      ...printableData,
+      budgetId: registroOrcamento.id,
+    }
+
+    let layoutHtml: string | null = null
+
+    try {
+      layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
+    } catch (error) {
+      console.error('Erro ao preparar o orçamento para impressão imediata.', error)
+    }
+
+    if (!layoutHtml) {
+      const node = printableRef.current
+      if (node) {
+        const clone = node.cloneNode(true) as HTMLElement
+        const codigoDd = clone.querySelector('.print-client-grid .print-client-field:first-child dd')
+        if (codigoDd) {
+          codigoDd.textContent = registroOrcamento.id
+        }
+        layoutHtml = clone.outerHTML
+      }
+    }
+
+    if (!layoutHtml) {
       window.alert('Não foi possível gerar a visualização para impressão. Tente novamente.')
       return
     }
 
     const nomeCliente = printableData.cliente.nome?.trim() || 'SolarInvest'
-    openBudgetPreviewWindow(node.outerHTML, {
+    openBudgetPreviewWindow(layoutHtml, {
       nomeCliente,
       budgetId: registroOrcamento.id,
       actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
@@ -5625,7 +5665,11 @@ export default function App() {
   const abrirOrcamentoSalvo = useCallback(
     async (registro: OrcamentoSalvo, modo: 'preview' | 'print' | 'download') => {
       try {
-        const layoutHtml = await renderPrintableProposalToHtml(registro.dados)
+        const dadosParaImpressao: PrintableProps = {
+          ...registro.dados,
+          budgetId: registro.dados.budgetId ?? registro.id,
+        }
+        const layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
         if (!layoutHtml) {
           window.alert('Não foi possível preparar o orçamento selecionado. Tente novamente.')
           return
