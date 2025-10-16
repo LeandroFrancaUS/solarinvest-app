@@ -35,6 +35,7 @@ import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/dist
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { persistClienteRegistroToOneDrive } from './utils/onedrive'
 import type { ClienteRegistroSyncPayload } from './utils/onedrive'
+import { persistProposalPdf } from './utils/proposalPdf'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -2184,6 +2185,7 @@ export default function App() {
   const [mostrarTabelaBuyout, setMostrarTabelaBuyout] = useState(false)
   const [mostrarTabelaParcelasConfig, setMostrarTabelaParcelasConfig] = useState(false)
   const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(false)
+  const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
 
   const [oemBase, setOemBase] = useState(35)
   const [oemInflacao, setOemInflacao] = useState(4)
@@ -3039,6 +3041,35 @@ export default function App() {
     },
     [],
   )
+
+  const prepararPropostaParaExportacao = useCallback(async () => {
+    const dadosParaImpressao = clonePrintableData(printableData)
+    let layoutHtml: string | null = null
+
+    try {
+      layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
+    } catch (error) {
+      console.error('Erro ao preparar a proposta para exportação.', error)
+    }
+
+    if (!layoutHtml) {
+      const node = printableRef.current
+      if (node) {
+        const clone = node.cloneNode(true) as HTMLElement
+        const codigoDd = clone.querySelector('.print-client-grid .print-client-field:first-child dd')
+        if (codigoDd && dadosParaImpressao.budgetId) {
+          codigoDd.textContent = dadosParaImpressao.budgetId
+        }
+        layoutHtml = clone.outerHTML
+      }
+    }
+
+    if (!layoutHtml) {
+      return null
+    }
+
+    return { html: layoutHtml, dados: dadosParaImpressao }
+  }, [printableData])
 
   const validarCamposObrigatorios = useCallback(
     (acao: string = 'exportar') => {
@@ -5595,43 +5626,68 @@ export default function App() {
       return
     }
 
-    const dadosParaImpressao: PrintableProps = {
-      ...printableData,
-    }
+    const resultado = await prepararPropostaParaExportacao()
 
-    let layoutHtml: string | null = null
-
-    try {
-      layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
-    } catch (error) {
-      console.error('Erro ao preparar o orçamento para impressão imediata.', error)
-    }
-
-    if (!layoutHtml) {
-      const node = printableRef.current
-      if (node) {
-        const clone = node.cloneNode(true) as HTMLElement
-        const codigoDd = clone.querySelector('.print-client-grid .print-client-field:first-child dd')
-        if (codigoDd && dadosParaImpressao.budgetId) {
-          codigoDd.textContent = dadosParaImpressao.budgetId
-        }
-        layoutHtml = clone.outerHTML
-      }
-    }
-
-    if (!layoutHtml) {
+    if (!resultado) {
       window.alert('Não foi possível gerar a visualização para impressão. Tente novamente.')
       return
     }
 
-    const nomeCliente = printableData.cliente.nome?.trim() || 'SolarInvest'
+    const { html: layoutHtml, dados } = resultado
+    const nomeCliente = dados.cliente.nome?.trim() || 'SolarInvest'
     openBudgetPreviewWindow(layoutHtml, {
       nomeCliente,
-      budgetId: dadosParaImpressao.budgetId,
+      budgetId: dados.budgetId,
       actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
       initialMode: 'preview',
     })
   }
+
+  const handleSalvarPropostaPdf = useCallback(async () => {
+    if (salvandoPropostaPdf) {
+      return
+    }
+
+    if (!validarCamposObrigatorios('salvar a proposta')) {
+      return
+    }
+
+    setSalvandoPropostaPdf(true)
+
+    try {
+      const resultado = await prepararPropostaParaExportacao()
+
+      if (!resultado) {
+        window.alert('Não foi possível preparar a proposta para salvar em PDF. Tente novamente.')
+        return
+      }
+
+      const { html, dados } = resultado
+
+      await persistProposalPdf({
+        html,
+        budgetId: dados.budgetId,
+        clientName: dados.cliente.nome,
+        proposalType: 'LEASING',
+      })
+
+      adicionarNotificacao('Proposta salva em PDF com sucesso.', 'success')
+    } catch (error) {
+      console.error('Erro ao salvar a proposta em PDF.', error)
+      const mensagem =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
+      adicionarNotificacao(mensagem, 'error')
+    } finally {
+      setSalvandoPropostaPdf(false)
+    }
+  }, [
+    adicionarNotificacao,
+    prepararPropostaParaExportacao,
+    salvandoPropostaPdf,
+    validarCamposObrigatorios,
+  ])
 
   const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
 
@@ -6224,6 +6280,14 @@ export default function App() {
             <section className="card">
               <div className="card-header">
                 <h2>SolarInvest Leasing</h2>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={handleSalvarPropostaPdf}
+                  disabled={salvandoPropostaPdf}
+                >
+                  {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
+                </button>
               </div>
 
               <div className="grid g2">
