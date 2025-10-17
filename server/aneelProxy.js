@@ -27,7 +27,15 @@ const resolveUpstreamUrl = (requestUrl) => {
     throw new ProxyError(400, 'The "path" parameter must start with "/"')
   }
 
+  if (pathParam.startsWith('//')) {
+    throw new ProxyError(400, 'Protocol-relative URLs are not allowed')
+  }
+
   const upstream = new URL(pathParam, UPSTREAM_ORIGIN)
+
+  if (upstream.origin !== UPSTREAM_ORIGIN) {
+    throw new ProxyError(400, 'The resolved URL must target dadosabertos.aneel.gov.br')
+  }
   return upstream.toString()
 }
 
