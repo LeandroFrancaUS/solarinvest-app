@@ -1320,22 +1320,6 @@ export default function App() {
     window.localStorage.setItem(STORAGE_KEYS.activeTab, activeTab)
   }, [activeTab])
 
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.documentElement.dataset.density = density
-    }
-
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    try {
-      window.localStorage.setItem(DENSITY_STORAGE_KEY, density)
-    } catch (error) {
-      console.warn('Não foi possível persistir a densidade da interface.', error)
-    }
-  }, [density])
-
   const budgetItemsTotal = useMemo(
     () => computeBudgetItemsTotalValue(kitBudget.items),
     [kitBudget.items],
@@ -2189,6 +2173,22 @@ export default function App() {
     const stored = window.localStorage.getItem(DENSITY_STORAGE_KEY)
     return stored && isDensityMode(stored) ? stored : DEFAULT_DENSITY
   })
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.density = density
+    }
+
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(DENSITY_STORAGE_KEY, density)
+    } catch (error) {
+      console.warn('Não foi possível persistir a densidade da interface.', error)
+    }
+  }, [density])
 
   const [prazoMeses, setPrazoMeses] = useState(INITIAL_VALUES.prazoMeses)
   const [bandeiraEncargo, setBandeiraEncargo] = useState(INITIAL_VALUES.bandeiraEncargo)
