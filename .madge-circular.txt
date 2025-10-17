@@ -1,0 +1,5 @@
+
+> solarinvest-app@2.4.3 check:cycles
+> node scripts/find-circular-deps.mjs
+
+No circular dependencies detected.
