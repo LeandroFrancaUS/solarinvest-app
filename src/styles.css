@@ -99,6 +99,22 @@ body {
   align-items: center;
 }
 
+.page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.page-actions-left,
+.page-actions-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
 button {
   font-family: inherit;
   border: none;
