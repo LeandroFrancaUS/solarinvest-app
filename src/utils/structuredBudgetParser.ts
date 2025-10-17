@@ -410,7 +410,7 @@ function formatQuantityForCsv(value: number): string {
 }
 
 function formatCurrencyForCsv(value: number): string {
-  return formatNumberBRWithOptions(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return value.toFixed(2)
 }
 
 function newItem(): ItemData {
