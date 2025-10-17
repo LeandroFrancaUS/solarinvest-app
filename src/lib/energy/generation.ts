@@ -1,5 +1,8 @@
 import { IRRADIACAO_FALLBACK } from '../../utils/irradiacao'
 
+export const DEFAULT_PERFORMANCE_RATIO = 0.8
+export const DEFAULT_DIAS_MES = 30
+
 export function kwpFromWpQty(wp?: number | null, qty?: number | null): number | null {
   if (!Number.isFinite(wp) || !Number.isFinite(qty)) {
     return null
@@ -38,9 +41,6 @@ export interface GenerationInputs {
   performance_ratio?: number
   dias_mes?: number
 }
-
-export const DEFAULT_PERFORMANCE_RATIO = 0.8
-export const DEFAULT_DIAS_MES = 30
 
 export function normalizePerformanceRatio(value?: number): number {
   if (!Number.isFinite(value)) {

@@ -147,6 +147,7 @@ describe('structuredBudgetToCsv', () => {
           unidade: 'un',
           precoUnitario: 100.5,
           precoTotal: 201,
+          fabricante: 'Fabricante 1',
         },
       ],
       resumo: {

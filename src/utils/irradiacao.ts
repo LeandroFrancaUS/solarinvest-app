@@ -1,3 +1,5 @@
+import { toNumberFlexible } from '../lib/locale/br-number'
+
 const CSV_URL = '/tilted_latitude_means.csv'
 
 export const IRRADIACAO_FALLBACK = 5
@@ -50,8 +52,9 @@ function parseCsv(text: string): IrradiacaoDataset {
     if (parts.length < 3) continue
 
     const [stateRaw, ufRaw, valueRaw] = parts
-    const value = Number.parseFloat(valueRaw.replace(',', '.'))
-    if (!Number.isFinite(value)) continue
+    const parsedValue = toNumberFlexible(valueRaw)
+    if (!Number.isFinite(parsedValue)) continue
+    const value = Number(parsedValue)
 
     const normalizedState = normalizeState(stateRaw)
     if (normalizedState && !byState.has(normalizedState)) {

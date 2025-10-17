@@ -2,13 +2,13 @@ export type PagamentoCondicao = 'AVISTA' | 'PARCELADO' | 'FINANCIAMENTO'
 export type ModoPagamento = 'PIX' | 'DEBITO' | 'CREDITO'
 
 export interface VendaForm {
-  potencia_instalada_kwp?: number
-  geracao_estimada_kwh_mes?: number
-  quantidade_modulos?: number
-  modelo_modulo?: string
-  modelo_inversor?: string
-  estrutura_suporte?: string
-  numero_orcamento_vendor?: string
+  potencia_instalada_kwp?: number | undefined
+  geracao_estimada_kwh_mes?: number | undefined
+  quantidade_modulos?: number | undefined
+  modelo_modulo?: string | undefined
+  modelo_inversor?: string | undefined
+  estrutura_suporte?: string | undefined
+  numero_orcamento_vendor?: string | undefined
 
   consumo_kwh_mes: number
   tarifa_cheia_r_kwh: number
@@ -18,25 +18,25 @@ export interface VendaForm {
 
   capex_total: number
   condicao: PagamentoCondicao
-  modo_pagamento?: ModoPagamento
+  modo_pagamento?: ModoPagamento | undefined
 
-  taxa_mdr_pix_pct?: number
-  taxa_mdr_debito_pct?: number
-  taxa_mdr_credito_vista_pct?: number
-  taxa_mdr_credito_parcelado_pct?: number
-  n_parcelas?: number
-  juros_cartao_aa_pct?: number
-  juros_cartao_am_pct?: number
+  taxa_mdr_pix_pct?: number | undefined
+  taxa_mdr_debito_pct?: number | undefined
+  taxa_mdr_credito_vista_pct?: number | undefined
+  taxa_mdr_credito_parcelado_pct?: number | undefined
+  n_parcelas?: number | undefined
+  juros_cartao_aa_pct?: number | undefined
+  juros_cartao_am_pct?: number | undefined
 
-  n_parcelas_fin?: number
-  juros_fin_aa_pct?: number
-  juros_fin_am_pct?: number
-  entrada_financiamento?: number
+  n_parcelas_fin?: number | undefined
+  juros_fin_aa_pct?: number | undefined
+  juros_fin_am_pct?: number | undefined
+  entrada_financiamento?: number | undefined
 
-  taxa_desconto_aa_pct?: number
+  taxa_desconto_aa_pct?: number | undefined
 
-  tarifa_r_kwh?: number
-  taxa_minima_r_mes?: number
+  tarifa_r_kwh?: number | undefined
+  taxa_minima_r_mes?: number | undefined
 }
 
 export interface RetornoProjetado {

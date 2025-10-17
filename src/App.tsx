@@ -20,17 +20,20 @@ import {
   selectMensalidades,
   selectTarifaDescontada,
   selectMensalidadesPorAno,
+  type SimulationState,
+  type BuyoutLinha,
 } from './selectors'
-import type { SimulationState, BuyoutLinha } from './selectors'
-import { tarifaDescontada as tarifaDescontadaCalc, tarifaProjetadaCheia } from './utils/calcs'
-import type { EntradaModo } from './utils/calcs'
+import {
+  tarifaDescontada as tarifaDescontadaCalc,
+  tarifaProjetadaCheia,
+  type EntradaModo,
+} from './utils/calcs'
 import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './utils/irradiacao'
 import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
 import { getTarifaCheia } from './utils/tarifaAneel'
 import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
-import { persistClienteRegistroToOneDrive } from './utils/onedrive'
-import type { ClienteRegistroSyncPayload } from './utils/onedrive'
+import { persistClienteRegistroToOneDrive, type ClienteRegistroSyncPayload } from './utils/onedrive'
 import { persistProposalPdf } from './utils/proposalPdf'
 import { extractBudgetFromPdf } from './utils/pdfBudgetExtractor'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
@@ -40,12 +43,12 @@ import {
   sumModuleQuantities,
   type EssentialInfoSummary,
 } from './utils/moduleDetection'
-import { computeROI } from './lib/finance/roi'
-import type {
-  ModoPagamento,
-  PagamentoCondicao,
-  RetornoProjetado,
-  VendaForm,
+import {
+  computeROI,
+  type ModoPagamento,
+  type PagamentoCondicao,
+  type RetornoProjetado,
+  type VendaForm,
 } from './lib/finance/roi'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh, kwpFromWpQty } from './lib/energy/generation'
 import {
@@ -162,9 +165,9 @@ type ClienteRegistro = {
 }
 
 type ClienteMensagens = {
-  email?: string
-  cidade?: string
-  cep?: string
+  email?: string | undefined
+  cidade?: string | undefined
+  cep?: string | undefined
 }
 
 type NotificacaoTipo = 'success' | 'info' | 'error'
@@ -315,7 +318,7 @@ type CrmLeadRecord = {
   id: string
   nome: string
   telefone: string
-  email?: string
+  email?: string | undefined
   cidade: string
   tipoImovel: string
   consumoKwhMes: number
@@ -326,7 +329,7 @@ type CrmLeadRecord = {
   etapa: CrmStageId
   ultimoContatoIso: string
   criadoEmIso: string
-  notas?: string
+  notas?: string | undefined
   instalacaoStatus: 'planejamento' | 'em-andamento' | 'concluida' | 'aguardando-homologacao'
 }
 
@@ -347,14 +350,14 @@ type CrmContratoFinanceiro = {
 
 type CrmLancamentoCaixa = {
   id: string
-  leadId?: string
+  leadId?: string | undefined
   dataIso: string
   categoria: 'Receita' | 'Custo Fixo' | 'Custo Variável' | 'Investimento'
   origem: string
   formaPagamento: 'Pix' | 'Boleto' | 'Cartão' | 'Transferência'
   tipo: 'entrada' | 'saida'
   valor: number
-  observacao?: string
+  observacao?: string | undefined
 }
 
 type CrmCustoProjeto = {
@@ -372,7 +375,7 @@ type CrmManutencaoRegistro = {
   dataIso: string
   tipo: string
   status: 'pendente' | 'concluida'
-  observacao?: string
+  observacao?: string | undefined
 }
 
 type CrmDataset = {
@@ -405,12 +408,12 @@ type CrmFiltroOperacao = 'all' | 'LEASING' | 'VENDA_DIRETA'
 type OrcamentoSalvo = {
   id: string
   criadoEm: string
-  clienteId?: string
+  clienteId?: string | undefined
   clienteNome: string
   clienteCidade: string
   clienteUf: string
-  clienteDocumento?: string
-  clienteUc?: string
+  clienteDocumento?: string | undefined
+  clienteUc?: string | undefined
   dados: PrintableProposalProps
 }
 
@@ -460,37 +463,54 @@ const generateBudgetId = (existingIds: Set<string> = new Set()) => {
   throw new Error('Não foi possível gerar um código de orçamento único.')
 }
 
-const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalProps => ({
-  ...dados,
-  budgetId: dados.budgetId,
-  tipoProposta: dados.tipoProposta,
-  cliente: { ...dados.cliente },
-  anos: [...dados.anos],
-  leasingROI: [...dados.leasingROI],
-  financiamentoFluxo: [...dados.financiamentoFluxo],
-  financiamentoROI: [...dados.financiamentoROI],
-  tabelaBuyout: dados.tabelaBuyout.map((row) => ({ ...row })),
-  buyoutResumo: { ...dados.buyoutResumo },
-  parcelasLeasing: dados.parcelasLeasing.map((row) => ({ ...row })),
-  energiaContratadaKwh: dados.energiaContratadaKwh,
-  tarifaCheia: dados.tarifaCheia,
-  vendaResumo: dados.vendaResumo
-    ? {
-        form: { ...dados.vendaResumo.form },
-        retorno: dados.vendaResumo.retorno
-          ? {
-              ...dados.vendaResumo.retorno,
-              economia: [...dados.vendaResumo.retorno.economia],
-              pagamentoMensal: [...dados.vendaResumo.retorno.pagamentoMensal],
-              fluxo: [...dados.vendaResumo.retorno.fluxo],
-              saldo: [...dados.vendaResumo.retorno.saldo],
-            }
-          : null,
-      }
-    : undefined,
-  parsedPdfVenda: dados.parsedPdfVenda ? { ...dados.parsedPdfVenda } : dados.parsedPdfVenda,
-  orcamentoItens: dados.orcamentoItens ? dados.orcamentoItens.map((item) => ({ ...item })) : undefined,
-})
+const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalProps => {
+  const clone: PrintableProposalProps = {
+    ...dados,
+    cliente: { ...dados.cliente },
+    anos: [...dados.anos],
+    leasingROI: [...dados.leasingROI],
+    financiamentoFluxo: [...dados.financiamentoFluxo],
+    financiamentoROI: [...dados.financiamentoROI],
+    tabelaBuyout: dados.tabelaBuyout.map((row) => ({ ...row })),
+    buyoutResumo: { ...dados.buyoutResumo },
+    parcelasLeasing: dados.parcelasLeasing.map((row) => ({ ...row })),
+  }
+
+  if (dados.budgetId === undefined) {
+    delete clone.budgetId
+  }
+
+  if (dados.vendaResumo) {
+    clone.vendaResumo = {
+      form: { ...dados.vendaResumo.form },
+      retorno: dados.vendaResumo.retorno
+        ? {
+            ...dados.vendaResumo.retorno,
+            economia: [...dados.vendaResumo.retorno.economia],
+            pagamentoMensal: [...dados.vendaResumo.retorno.pagamentoMensal],
+            fluxo: [...dados.vendaResumo.retorno.fluxo],
+            saldo: [...dados.vendaResumo.retorno.saldo],
+          }
+        : null,
+    }
+  } else {
+    delete clone.vendaResumo
+  }
+
+  if (dados.parsedPdfVenda !== undefined) {
+    clone.parsedPdfVenda = dados.parsedPdfVenda ? { ...dados.parsedPdfVenda } : null
+  } else {
+    delete clone.parsedPdfVenda
+  }
+
+  if (dados.orcamentoItens) {
+    clone.orcamentoItens = dados.orcamentoItens.map((item) => ({ ...item }))
+  } else {
+    delete clone.orcamentoItens
+  }
+
+  return clone
+}
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
 
@@ -864,7 +884,7 @@ const carregarDatasetCrm = (): CrmDataset => {
   }
 
   try {
-    const parsed = JSON.parse(existente)
+    const parsed: unknown = JSON.parse(existente)
     return sanitizarDatasetCrm(parsed)
   } catch (error) {
     console.warn('Não foi possível interpretar o dataset do CRM salvo localmente.', error)
@@ -1081,12 +1101,12 @@ type PrintVariant = 'standard' | 'simple'
 
 type BudgetPreviewOptions = {
   nomeCliente: string
-  budgetId?: string
-  actionMessage?: string
-  autoPrint?: boolean
-  closeAfterPrint?: boolean
-  initialMode?: PrintMode
-  initialVariant?: PrintVariant
+  budgetId?: string | undefined
+  actionMessage?: string | undefined
+  autoPrint?: boolean | undefined
+  closeAfterPrint?: boolean | undefined
+  initialMode?: PrintMode | undefined
+  initialVariant?: PrintVariant | undefined
 }
 
 const renderPrintableProposalToHtml = (dados: PrintableProposalProps): Promise<string | null> => {
@@ -1201,7 +1221,6 @@ const createEmptyKitBudget = (): KitBudgetState => ({
   totalSource: null,
   totalInput: '',
   warnings: [],
-  fileName: undefined,
   missingInfo: null,
 })
 
@@ -2169,34 +2188,52 @@ export default function App() {
       }
 
       if (shouldSetNumber(vendaForm.potencia_instalada_kwp, mergedParsed.potencia_instalada_kwp)) {
-        updates.potencia_instalada_kwp = mergedParsed.potencia_instalada_kwp ?? undefined
+        if (mergedParsed.potencia_instalada_kwp != null) {
+          updates.potencia_instalada_kwp = mergedParsed.potencia_instalada_kwp
+        }
       }
       if (shouldSetNumber(vendaForm.quantidade_modulos, mergedParsed.quantidade_modulos)) {
-        updates.quantidade_modulos = mergedParsed.quantidade_modulos ?? undefined
+        if (mergedParsed.quantidade_modulos != null) {
+          updates.quantidade_modulos = mergedParsed.quantidade_modulos
+        }
       }
       if (shouldSetNumber(vendaForm.geracao_estimada_kwh_mes, mergedParsed.geracao_estimada_kwh_mes)) {
-        updates.geracao_estimada_kwh_mes = mergedParsed.geracao_estimada_kwh_mes ?? undefined
+        if (mergedParsed.geracao_estimada_kwh_mes != null) {
+          updates.geracao_estimada_kwh_mes = mergedParsed.geracao_estimada_kwh_mes
+        }
       }
       if (shouldSetNumber(vendaForm.consumo_kwh_mes, mergedParsed.consumo_kwh_mes)) {
-        updates.consumo_kwh_mes = mergedParsed.consumo_kwh_mes ?? undefined
+        if (mergedParsed.consumo_kwh_mes != null) {
+          updates.consumo_kwh_mes = mergedParsed.consumo_kwh_mes
+        }
         consumoAtualizado = true
       }
       if (shouldSetNumber(vendaForm.capex_total, mergedParsed.capex_total)) {
-        updates.capex_total = mergedParsed.capex_total ?? undefined
+        if (mergedParsed.capex_total != null) {
+          updates.capex_total = mergedParsed.capex_total
+        }
         capexAtualizado = true
       }
       if (shouldSetNumber(vendaForm.tarifa_cheia_r_kwh, mergedParsed.tarifa_cheia_r_kwh)) {
-        updates.tarifa_cheia_r_kwh = mergedParsed.tarifa_cheia_r_kwh ?? undefined
+        if (mergedParsed.tarifa_cheia_r_kwh != null) {
+          updates.tarifa_cheia_r_kwh = mergedParsed.tarifa_cheia_r_kwh
+        }
         tarifaAtualizada = true
       }
       if (shouldSetString(vendaForm.modelo_modulo, mergedParsed.modelo_modulo)) {
-        updates.modelo_modulo = mergedParsed.modelo_modulo ?? undefined
+        if (mergedParsed.modelo_modulo) {
+          updates.modelo_modulo = mergedParsed.modelo_modulo
+        }
       }
       if (shouldSetString(vendaForm.modelo_inversor, mergedParsed.modelo_inversor)) {
-        updates.modelo_inversor = mergedParsed.modelo_inversor ?? undefined
+        if (mergedParsed.modelo_inversor) {
+          updates.modelo_inversor = mergedParsed.modelo_inversor
+        }
       }
       if (shouldSetString(vendaForm.estrutura_suporte, mergedParsed.estrutura_fixacao)) {
-        updates.estrutura_suporte = mergedParsed.estrutura_fixacao ?? undefined
+        if (mergedParsed.estrutura_fixacao) {
+          updates.estrutura_suporte = mergedParsed.estrutura_fixacao
+        }
       }
 
       const numeroOrcamento = structured.header.numeroOrcamento?.trim()
@@ -2317,8 +2354,11 @@ export default function App() {
           }
         })
         const missingInfo = computeBudgetMissingInfo(extractedItems)
+        const devMode =
+          typeof import.meta !== 'undefined' &&
+          Boolean((import.meta as unknown as { env?: Record<string, unknown> }).env?.DEV)
         if (
-          import.meta.env.DEV &&
+          devMode &&
           missingInfo &&
           (missingInfo.modules.missingFields.length > 0 ||
             missingInfo.inverter.missingFields.length > 0)
@@ -2501,7 +2541,7 @@ export default function App() {
       }
     }
 
-    getMesReajusteFromANEEL(uf, dist)
+    void getMesReajusteFromANEEL(uf, dist)
       .then((mes) => {
         if (cancelado) return
         const normalizado = Number.isFinite(mes) ? Math.round(mes) : 6
@@ -2527,7 +2567,7 @@ export default function App() {
     const distribuidoraAtual = (distribuidoraTarifa || clienteDistribuidora || '').trim()
     let cancelado = false
 
-    getTarifaCheia({ uf: ufAtual, distribuidora: distribuidoraAtual || undefined })
+    void getTarifaCheia({ uf: ufAtual, distribuidora: distribuidoraAtual || undefined })
       .then((valor) => {
         if (cancelado) return
         if (!Number.isFinite(valor)) return
@@ -2552,7 +2592,7 @@ export default function App() {
   useEffect(() => {
     let cancelado = false
 
-    loadDistribuidorasAneel()
+    void loadDistribuidorasAneel()
       .then((dados) => {
         if (cancelado) return
         setUfsDisponiveis(dados.ufs)
@@ -2621,7 +2661,7 @@ export default function App() {
 
     let cancelado = false
 
-    getIrradiacaoPorEstado(estadoAtual)
+    void getIrradiacaoPorEstado(estadoAtual)
       .then(({ value, matched, via }) => {
         if (cancelado) return
         setIrradiacao((prev) => (prev === value ? prev : value))
@@ -3352,6 +3392,8 @@ export default function App() {
         modelo: sanitizeItemText(item.modelo),
         fabricante: sanitizeItemText(item.fabricante),
         quantidade: Number.isFinite(item.quantidade) ? Number(item.quantidade) : null,
+        valorUnitario: Number.isFinite(item.precoUnitario) ? Number(item.precoUnitario) : null,
+        valorTotal: Number.isFinite(item.precoTotal) ? Number(item.precoTotal) : null,
       }))
 
       return {
@@ -4199,6 +4241,7 @@ export default function App() {
         ultimoContatoIso: agoraIso,
         criadoEmIso: agoraIso,
         notas: crmLeadForm.notas.trim() || undefined,
+        instalacaoStatus: 'planejamento',
       }
 
       const evento: CrmTimelineEntry = {
@@ -4653,19 +4696,18 @@ export default function App() {
         observacao: crmManutencaoForm.observacao.trim() || undefined,
       }
 
+      const timelineEvento: CrmTimelineEntry = {
+        id: gerarIdCrm('evento'),
+        leadId: leadAlvoId,
+        mensagem: `Manutenção agendada para ${formatarDataCurta(dataIso)} (${manutencao.tipo}).`,
+        tipo: 'status',
+        criadoEmIso: new Date().toISOString(),
+      }
+
       setCrmDataset((prev) => ({
         ...prev,
         manutencoes: [manutencao, ...prev.manutencoes].slice(0, 200),
-        timeline: [
-          {
-            id: gerarIdCrm('evento'),
-            leadId: leadAlvoId,
-            mensagem: `Manutenção agendada para ${formatarDataCurta(dataIso)} (${manutencao.tipo}).`,
-            tipo: 'status',
-            criadoEmIso: new Date().toISOString(),
-          },
-          ...prev.timeline,
-        ].slice(0, 120),
+        timeline: [timelineEvento, ...prev.timeline].slice(0, 120),
       }))
 
       setCrmManutencaoForm((prev) => ({
@@ -6030,14 +6072,24 @@ export default function App() {
         const registro = item as Partial<OrcamentoSalvo> & { clienteID?: string }
         const dados = registro.dados as PrintableProposalProps
         const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
+        const clienteNormalizado: ClienteDados = {
+          nome: clienteDados.nome ?? '',
+          documento: clienteDados.documento ?? '',
+          email: clienteDados.email ?? '',
+          telefone: clienteDados.telefone ?? '',
+          cep: clienteDados.cep ?? '',
+          distribuidora: clienteDados.distribuidora ?? '',
+          uc: clienteDados.uc ?? '',
+          endereco: clienteDados.endereco ?? '',
+          cidade: clienteDados.cidade ?? '',
+          uf: clienteDados.uf ?? '',
+        }
+
         const dadosNormalizados: PrintableProposalProps = {
           ...dados,
           budgetId: dados?.budgetId ?? registro.id,
-          cliente: {
-            ...clienteDados,
-            cep: clienteDados.cep ?? '',
-          },
-          distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteDados.distribuidora ?? '',
+          cliente: clienteNormalizado,
+          distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteNormalizado.distribuidora ?? '',
           tipoProposta: dados?.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
         }
 
@@ -6068,9 +6120,19 @@ export default function App() {
           }
         }
 
+        const id = typeof registro.id === 'string' && registro.id ? registro.id : ensureProposalId(dadosNormalizados.budgetId)
+        const criadoEm =
+          typeof registro.criadoEm === 'string' && registro.criadoEm
+            ? registro.criadoEm
+            : new Date().toISOString()
+
         return {
-          ...registro,
+          id,
+          criadoEm,
           clienteId: clienteId || undefined,
+          clienteNome: dadosNormalizados.cliente.nome,
+          clienteCidade: dadosNormalizados.cliente.cidade,
+          clienteUf: dadosNormalizados.cliente.uf,
           clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
           clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
           dados: dadosNormalizados,
@@ -6382,7 +6444,7 @@ export default function App() {
     const cepNumeros = normalizeNumbers(cliente.cep)
     if (cepNumeros.length < 8) {
       setBuscandoCep(false)
-      setClienteMensagens((prev) => ({ ...prev, cep: undefined }))
+      setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
       return
     }
 
@@ -6391,7 +6453,7 @@ export default function App() {
 
     const consultarCep = async () => {
       setBuscandoCep(true)
-      setClienteMensagens((prev) => ({ ...prev, cep: undefined }))
+      setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
 
       try {
         const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`, {
@@ -6442,7 +6504,7 @@ export default function App() {
           return proximo
         })
 
-        setClienteMensagens((prev) => ({ ...prev, cep: undefined, cidade: undefined }))
+        setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined, cidade: undefined }))
       } catch (error) {
         if (!ativo || controller.signal.aborted) {
           return
@@ -6477,7 +6539,7 @@ export default function App() {
 
     if (nomeCidade.length < 3) {
       setVerificandoCidade(false)
-      setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
+      setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cidade: undefined }))
       return
     }
 
@@ -6488,7 +6550,7 @@ export default function App() {
         return
       }
 
-      setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
+      setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cidade: undefined }))
       setVerificandoCidade(true)
 
       try {
@@ -6531,7 +6593,7 @@ export default function App() {
           }
         }
 
-        setClienteMensagens((prev) => ({ ...prev, cidade: aviso }))
+        setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cidade: aviso }))
       } catch (error) {
         if (!ativo || controller.signal.aborted) {
           return

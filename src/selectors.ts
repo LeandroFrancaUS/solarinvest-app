@@ -6,8 +6,8 @@ import {
   tarifaDescontada,
   toMonthly,
   valorCompraCliente,
+  type EntradaModo,
 } from './utils/calcs'
-import type { EntradaModo } from './utils/calcs'
 
 export interface SimulationState {
   kcKwhMes: number
