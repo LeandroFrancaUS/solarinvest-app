@@ -18,6 +18,11 @@ import {
 import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils/formatters'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 
+const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
+  Leasing: '#2563EB',
+  Financiamento: '#10B981',
+}
+
 type MensalidadeAnualRow = {
   ano: number
   tarifaCheiaMedia: number
@@ -976,7 +981,7 @@ function PrintableProposalInner(
                       id: 'Financiamento',
                       value: 'Financiamento SolarInvest',
                       type: 'circle',
-                      color: chartColors.Financiamento,
+                      color: DEFAULT_CHART_COLORS.Financiamento,
                     },
                   ]}
                 />
@@ -984,7 +989,7 @@ function PrintableProposalInner(
               <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
               <Bar
                 dataKey="Leasing"
-                fill={chartColors.Leasing}
+                fill={DEFAULT_CHART_COLORS.Leasing}
                 barSize={14}
                 radius={[0, 8, 8, 0]}
                 isAnimationActive={false}
@@ -994,14 +999,14 @@ function PrintableProposalInner(
                   dataKey="Leasing"
                   position="right"
                   formatter={(value: number) => currency(Number(value))}
-                  fill={chartColors.Leasing}
+                  fill={DEFAULT_CHART_COLORS.Leasing}
                   style={{ fontSize: 12, fontWeight: 600 }}
                 />
               </Bar>
               {mostrarFinanciamento ? (
                 <Bar
                   dataKey="Financiamento"
-                  fill={chartColors.Financiamento}
+                  fill={DEFAULT_CHART_COLORS.Financiamento}
                   barSize={14}
                   radius={[0, 8, 8, 0]}
                   isAnimationActive={false}
@@ -1010,7 +1015,7 @@ function PrintableProposalInner(
                     dataKey="Financiamento"
                     position="right"
                     formatter={(value: number) => currency(Number(value))}
-                    fill={chartColors.Financiamento}
+                    fill={DEFAULT_CHART_COLORS.Financiamento}
                     style={{ fontSize: 12, fontWeight: 600 }}
                   />
                 </Bar>
@@ -1024,11 +1029,14 @@ function PrintableProposalInner(
               <li key={`beneficio-marco-resumo-${marco.ano}`}>
                 <span className="print-chart-highlights__year">{marco.ano}º ano</span>
                 <div className="print-chart-highlights__values">
-                  <span className="print-chart-highlights__value" style={{ color: chartColors.Leasing }}>
+                  <span className="print-chart-highlights__value" style={{ color: DEFAULT_CHART_COLORS.Leasing }}>
                     {chartPrimaryLabel}: {currency(marco.Leasing)}
                   </span>
                   {mostrarFinanciamento ? (
-                    <span className="print-chart-highlights__value" style={{ color: chartColors.Financiamento }}>
+                    <span
+                      className="print-chart-highlights__value"
+                      style={{ color: DEFAULT_CHART_COLORS.Financiamento }}
+                    >
                       Financiamento: {currency(marco.Financiamento)}
                     </span>
                   ) : null}
@@ -1041,12 +1049,15 @@ function PrintableProposalInner(
           <p className="chart-explainer">
             <strong>{chartEconomiaIntro}</strong>{' '}
             Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
-            <strong style={{ color: chartColors.Leasing }}> {currency(beneficioAno30Printable.Leasing)}</strong>
+            <strong style={{ color: DEFAULT_CHART_COLORS.Leasing }}>
+              {' '}
+              {currency(beneficioAno30Printable.Leasing)}
+            </strong>
             {mostrarFinanciamento ? (
               <>
                 {' '}
                 {isVendaDireta ? 'na venda direta e de' : 'no leasing e de'}
-                <strong style={{ color: chartColors.Financiamento }}>
+                <strong style={{ color: DEFAULT_CHART_COLORS.Financiamento }}>
                   {' '}
                   {currency(beneficioAno30Printable.Financiamento)}
                 </strong>{' '}
