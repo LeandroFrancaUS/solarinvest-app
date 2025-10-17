@@ -121,6 +121,8 @@ function PrintableProposalInner(
     return null
   }
   const parsedPdfResumo = parsedPdfVenda ?? null
+  const tipoInstalacaoDescricao =
+    tipoInstalacao === 'SOLO' ? 'Solo' : tipoInstalacao === 'TELHADO' ? 'Telhado' : '—'
   const kitCapex = pickPositive(vendaFormResumo?.capex_total, parsedPdfResumo?.capex_total, capex)
   const kitPotenciaInstalada = pickPositive(
     vendaFormResumo?.potencia_instalada_kwp,
@@ -206,8 +208,6 @@ function PrintableProposalInner(
   }
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
-  const tipoInstalacaoDescricao =
-    tipoInstalacao === 'SOLO' ? 'Solo' : tipoInstalacao === 'TELHADO' ? 'Telhado' : '—'
   const areaInstalacaoValida = Number.isFinite(areaInstalacao) && areaInstalacao > 0
   const areaInstalacaoTexto = areaInstalacaoValida
     ? areaInstalacao.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
