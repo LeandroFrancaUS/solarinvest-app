@@ -13,7 +13,7 @@
   --layer-opaque: rgba(5, 9, 18, 0.96);
   --surface: #0b0d12;
   --elev-4: 0 10px 30px rgba(0, 0, 0, 0.4);
-  --header-h: 120px;
+  --header-h: 80px;
   --tabs-h: 48px;
   --space-1: 6px;
   --space-2: 12px;
@@ -92,10 +92,29 @@ body {
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 18px 32px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 24px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: var(--elev-4);
+}
+
+.container {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.topbar > .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1180px;
+  margin: 0 auto;
+  flex-wrap: wrap;
 }
 
 .brand {
@@ -259,10 +278,23 @@ button.link.danger:focus-visible {
   display: flex;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
+  justify-content: center;
+  padding: 8px 0;
   background: var(--surface);
   border: none;
   box-shadow: none;
   margin: 0;
+}
+
+.tabs > .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 8px 24px;
 }
 
 .tabs-bar,
@@ -2566,19 +2598,21 @@ html[data-print-mode='print'] .print-hero__title h1 {
 }
 
 @media (max-width: 880px) {
-  :root {
-    --header-h: 192px;
-  }
   .content {
     padding: 24px 20px 64px;
   }
-  .topbar {
+  .topbar > .container {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
   }
-  .tabs {
-    padding: 12px 20px 12px;
+  .top-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .tabs > .container {
+    justify-content: center;
+    padding: 8px 20px;
   }
   .grid.g3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2586,19 +2620,21 @@ html[data-print-mode='print'] .print-hero__title h1 {
 }
 
 @media (max-width: 640px) {
-  :root {
-    --header-h: 224px;
-  }
   .grid.g2,
   .grid.g3,
   .grid.g4 {
     grid-template-columns: repeat(1, minmax(0, 1fr));
   }
-  .tabs {
+  .tabs > .container {
     flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
   .tabs button {
     width: 100%;
+  }
+  .topbar > .container {
+    align-items: stretch;
   }
   .top-actions {
     width: 100%;

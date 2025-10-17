@@ -4788,42 +4788,44 @@ export default function App() {
   const renderCrmPage = () => (
     <div className="page crm-page">
       <header className="topbar crm-header">
-        <div className="brand">
-          <img src="/logo.svg" alt="SolarInvest" />
-          <div className="brand-text">
-            <h1>SolarInvest App</h1>
-            <p>CRM Gestão de Relacionamento e Operações</p>
+        <div className="container">
+          <div className="brand">
+            <img src="/logo.svg" alt="SolarInvest" />
+            <div className="brand-text">
+              <h1>SolarInvest App</h1>
+              <p>CRM Gestão de Relacionamento e Operações</p>
+            </div>
           </div>
-        </div>
-        <div className="crm-header-actions">
-          <div className="crm-sync-controls">
-            <label htmlFor="crm-sync-mode">Modo de sincronização</label>
-            <select
-              id="crm-sync-mode"
-              value={crmIntegrationMode}
-              onChange={(event) => setCrmIntegrationMode(event.target.value as CrmIntegrationMode)}
-            >
-              <option value="local">Somente local</option>
-              <option value="remote">Sincronizar com backend</option>
-            </select>
-            <button type="button" className="ghost" onClick={handleSyncCrmManualmente}>
-              Sincronizar agora
+          <div className="crm-header-actions">
+            <div className="crm-sync-controls">
+              <label htmlFor="crm-sync-mode">Modo de sincronização</label>
+              <select
+                id="crm-sync-mode"
+                value={crmIntegrationMode}
+                onChange={(event) => setCrmIntegrationMode(event.target.value as CrmIntegrationMode)}
+              >
+                <option value="local">Somente local</option>
+                <option value="remote">Sincronizar com backend</option>
+              </select>
+              <button type="button" className="ghost" onClick={handleSyncCrmManualmente}>
+                Sincronizar agora
+              </button>
+              <small className={`crm-sync-status ${crmBackendStatus}`}>
+                {crmIntegrationMode === 'remote'
+                  ? crmBackendStatus === 'success'
+                    ? `Sincronizado${crmLastSync ? ` em ${crmLastSync.toLocaleString('pt-BR')}` : ''}`
+                    : crmBackendStatus === 'error'
+                      ? crmBackendError ?? 'Erro de sincronização'
+                      : crmIsSaving
+                        ? 'Enviando dados para o backend...'
+                        : 'Aguardando alterações para sincronizar'
+                  : 'Operando somente com dados locais'}
+              </small>
+            </div>
+            <button className="ghost" onClick={() => setActivePage('app')}>
+              Voltar para proposta financeira
             </button>
-            <small className={`crm-sync-status ${crmBackendStatus}`}>
-              {crmIntegrationMode === 'remote'
-                ? crmBackendStatus === 'success'
-                  ? `Sincronizado${crmLastSync ? ` em ${crmLastSync.toLocaleString('pt-BR')}` : ''}`
-                  : crmBackendStatus === 'error'
-                    ? crmBackendError ?? 'Erro de sincronização'
-                    : crmIsSaving
-                      ? 'Enviando dados para o backend...'
-                      : 'Aguardando alterações para sincronizar'
-                : 'Operando somente com dados locais'}
-            </small>
           </div>
-          <button className="ghost" onClick={() => setActivePage('app')}>
-            Voltar para proposta financeira
-          </button>
         </div>
       </header>
       <main className="crm-main">
@@ -7875,162 +7877,166 @@ export default function App() {
       ) : (
         <div className="page">
           <PrintableProposal ref={printableRef} {...printableData} />
-      <header className="topbar app-header">
-        <div className="brand">
-          <img src="/logo.svg" alt="SolarInvest" />
-          <div className="brand-text">
-            <h1>SolarInvest App</h1>
-            <p>Proposta financeira interativa</p>
-          </div>
-        </div>
-        <div className="top-actions">
-          {/* Botão dedicado ao CRM para acesso rápido, mantendo posição à esquerda do buscador de orçamentos. */}
-          <button className="crm-button" onClick={() => setActivePage('crm')}>
-            Central CRM
-          </button>
-          <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
-          <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
-          <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
-        </div>
-      </header>
-      <div className="app-main">
-        <nav className="tabs tabs-bar">
-          <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>
-            Leasing
-          </button>
-          <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>
-            Vendas
-          </button>
-        </nav>
-
-        <main className="content page-content">
-          <div className="page-actions">
-            <button type="button" className="ghost" onClick={handleNovaProposta}>
-              Novo
-            </button>
-            {podeSalvarProposta ? (
-              <button
-                type="button"
-                className="primary"
-                onClick={handleSalvarPropostaPdf}
-                disabled={salvandoPropostaPdf}
-              >
-                {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
-              </button>
-            ) : null}
-          </div>
-          {renderClienteDadosSection()}
-          {activeTab === 'leasing' ? (
-            <>
-            {renderParametrosPrincipaisSection()}
-            {renderConfiguracaoUsinaSection()}
-            <section className="card">
-              <div className="card-header">
-                <h2>SolarInvest Leasing</h2>
+          <header className="topbar app-header">
+            <div className="container">
+              <div className="brand">
+                <img src="/logo.svg" alt="SolarInvest" />
+                <div className="brand-text">
+                  <h1>SolarInvest App</h1>
+                  <p>Proposta financeira interativa</p>
+                </div>
               </div>
-
-              <div className="grid g3">
-                <Field label="Entrada (R$)">
-                  <input
-                    type="number"
-                    value={entradaRs}
-                    onChange={(e) => {
-                      const parsed = Number(e.target.value)
-                      setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Desconto contratual (%)">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={desconto}
-                    onChange={(e) => setDesconto(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Prazo do leasing">
-                  <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
-                    <option value={5}>5 anos</option>
-                    <option value={7}>7 anos</option>
-                    <option value={10}>10 anos</option>
-                  </select>
-                </Field>
+              <div className="top-actions">
+                {/* Botão dedicado ao CRM para acesso rápido, mantendo posição à esquerda do buscador de orçamentos. */}
+                <button className="crm-button" onClick={() => setActivePage('crm')}>
+                  Central CRM
+                </button>
+                <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
+                <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
+                <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
               </div>
-
-              <div className="info-inline">
-                <span className="pill">
-                  <InfoTooltip text="Tarifa com desconto = Tarifa cheia ajustada pelos reajustes anuais × (1 - desconto contratual)." />
-                  Tarifa c/ desconto
-                  <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
-                </span>
-                {modoEntradaNormalizado === 'REDUZ' ? (
-                  <span className="pill">
-                    Piso contratado ajustado
-                    <InfoTooltip text="Piso ajustado = Consumo contratado × (1 - min(1, Entrada ÷ (Consumo × Tarifa cheia × (1 - desconto) × Prazo)))." />
-                    :{' '}
-                    <strong>
-                      {`${formatNumberBRWithOptions(parcelasSolarInvest.kcAjustado, {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0,
-                      })} kWh`}
-                    </strong>
-                  </span>
-                ) : null}
-                {modoEntradaNormalizado === 'CREDITO' ? (
-                  <span className="pill">
-                    Crédito mensal da entrada:
-                    <InfoTooltip text="Crédito mensal = Valor de entrada ÷ Prazo contratual (em meses)." />
-                    <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="table-controls">
-                <button
-                  type="button"
-                  className="collapse-toggle"
-                  onClick={() => setMostrarTabelaParcelas((prev) => !prev)}
-                  aria-expanded={mostrarTabelaParcelas}
-                  aria-controls="parcelas-solarinvest-tabela"
-                >
-                  {mostrarTabelaParcelas ? 'Ocultar tabela de parcelas' : 'Exibir tabela de parcelas'}
+            </div>
+          </header>
+          <div className="app-main">
+            <nav className="tabs tabs-bar">
+              <div className="container">
+                <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>
+                  Leasing
+                </button>
+                <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>
+                  Vendas
                 </button>
               </div>
-              {mostrarTabelaParcelas ? (
-                <div className="table-wrapper">
-                  <table id="parcelas-solarinvest-tabela">
-                    <thead>
-                      <tr>
-                        <th>Mês</th>
-                        <th>Tarifa por kWh</th>
-                        <th>Tarifa c/ desconto (R$/kWh)</th>
-                        <th>MENSALIDADE CHEIA</th>
-                        <th>MENSALIDADE COM LEASING</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parcelasSolarInvest.lista.length > 0 ? (
-                        parcelasSolarInvest.lista.map((row) => (
-                          <tr key={row.mes}>
-                            <td>{row.mes}</td>
-                            <td>{tarifaCurrency(row.tarifaCheia)}</td>
-                            <td>{tarifaCurrency(row.tarifaDescontada)}</td>
-                            <td>{currency(row.mensalidadeCheia)}</td>
-                            <td>{currency(row.mensalidade)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </section>
+            </nav>
+
+            <main className="content page-content">
+              <div className="page-actions">
+                <button type="button" className="ghost" onClick={handleNovaProposta}>
+                  Novo
+                </button>
+                {podeSalvarProposta ? (
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={handleSalvarPropostaPdf}
+                    disabled={salvandoPropostaPdf}
+                  >
+                    {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
+                  </button>
+                ) : null}
+              </div>
+              {renderClienteDadosSection()}
+              {activeTab === 'leasing' ? (
+                <>
+                  {renderParametrosPrincipaisSection()}
+                  {renderConfiguracaoUsinaSection()}
+                  <section className="card">
+                    <div className="card-header">
+                      <h2>SolarInvest Leasing</h2>
+                    </div>
+
+                    <div className="grid g3">
+                      <Field label="Entrada (R$)">
+                        <input
+                          type="number"
+                          value={entradaRs}
+                          onChange={(e) => {
+                            const parsed = Number(e.target.value)
+                            setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                          }}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Desconto contratual (%)">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={desconto}
+                          onChange={(e) => setDesconto(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <Field label="Prazo do leasing">
+                        <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
+                          <option value={5}>5 anos</option>
+                          <option value={7}>7 anos</option>
+                          <option value={10}>10 anos</option>
+                        </select>
+                      </Field>
+                    </div>
+
+                    <div className="info-inline">
+                      <span className="pill">
+                        <InfoTooltip text="Tarifa com desconto = Tarifa cheia ajustada pelos reajustes anuais × (1 - desconto contratual)." />
+                        Tarifa c/ desconto
+                        <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
+                      </span>
+                      {modoEntradaNormalizado === 'REDUZ' ? (
+                        <span className="pill">
+                          Piso contratado ajustado
+                          <InfoTooltip text="Piso ajustado = Consumo contratado × (1 - min(1, Entrada ÷ (Consumo × Tarifa cheia × (1 - desconto) × Prazo)))." />
+                          :{' '}
+                          <strong>
+                            {`${formatNumberBRWithOptions(parcelasSolarInvest.kcAjustado, {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0,
+                            })} kWh`}
+                          </strong>
+                        </span>
+                      ) : null}
+                      {modoEntradaNormalizado === 'CREDITO' ? (
+                        <span className="pill">
+                          Crédito mensal da entrada:
+                          <InfoTooltip text="Crédito mensal = Valor de entrada ÷ Prazo contratual (em meses)." />
+                          <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="table-controls">
+                      <button
+                        type="button"
+                        className="collapse-toggle"
+                        onClick={() => setMostrarTabelaParcelas((prev) => !prev)}
+                        aria-expanded={mostrarTabelaParcelas}
+                        aria-controls="parcelas-solarinvest-tabela"
+                      >
+                        {mostrarTabelaParcelas ? 'Ocultar tabela de parcelas' : 'Exibir tabela de parcelas'}
+                      </button>
+                    </div>
+                    {mostrarTabelaParcelas ? (
+                      <div className="table-wrapper">
+                        <table id="parcelas-solarinvest-tabela">
+                          <thead>
+                            <tr>
+                              <th>Mês</th>
+                              <th>Tarifa por kWh</th>
+                              <th>Tarifa c/ desconto (R$/kWh)</th>
+                              <th>MENSALIDADE CHEIA</th>
+                              <th>MENSALIDADE COM LEASING</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {parcelasSolarInvest.lista.length > 0 ? (
+                              parcelasSolarInvest.lista.map((row) => (
+                                <tr key={row.mes}>
+                                  <td>{row.mes}</td>
+                                  <td>{tarifaCurrency(row.tarifaCheia)}</td>
+                                  <td>{tarifaCurrency(row.tarifaDescontada)}</td>
+                                  <td>{currency(row.mensalidadeCheia)}</td>
+                                  <td>{currency(row.mensalidade)}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={5} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null}
+                  </section>
 
             <div className="grid g2">
               <section className="card">
