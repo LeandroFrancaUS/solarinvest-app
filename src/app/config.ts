@@ -1,6 +1,10 @@
 import type { EntradaModo } from '../utils/calcs'
 import type { EssentialInfoSummary } from '../utils/moduleDetection'
-import type { TipoInstalacao } from '../types/printableProposal'
+import type {
+  TipoInstalacao,
+  UfvComposicaoSoloValores,
+  UfvComposicaoTelhadoValores,
+} from '../types/printableProposal'
 import type { VendaForm } from '../lib/finance/roi'
 
 export type TabKey = 'leasing' | 'vendas'
@@ -58,6 +62,38 @@ export const STORAGE_KEYS = {
   activeTab: 'solarinvest-active-tab',
 }
 
+const COMPOSICAO_TELHADO_BASE: UfvComposicaoTelhadoValores = {
+  projeto: 0,
+  instalacao: 0,
+  materialCa: 0,
+  crea: 0,
+  placa: 0,
+  comissaoLiquida: 0,
+  lucroBruto: 0,
+  impostoRetido: 0,
+}
+
+const COMPOSICAO_SOLO_BASE: UfvComposicaoSoloValores = {
+  ...COMPOSICAO_TELHADO_BASE,
+  estruturaSolo: 0,
+  tela: 0,
+  portaoTela: 0,
+  maoObraTela: 0,
+  casaInversor: 0,
+  brita: 0,
+  terraplanagem: 0,
+  trafo: 0,
+  rede: 0,
+}
+
+export function createInitialComposicaoTelhado(): UfvComposicaoTelhadoValores {
+  return { ...COMPOSICAO_TELHADO_BASE }
+}
+
+export function createInitialComposicaoSolo(): UfvComposicaoSoloValores {
+  return { ...COMPOSICAO_SOLO_BASE }
+}
+
 export const INITIAL_VALUES = {
   activeTab: 'leasing' as TabKey,
   settingsTab: 'mercado' as SettingsTabKey,
@@ -107,6 +143,8 @@ export const INITIAL_VALUES = {
   seguroM: 0,
   duracaoMeses: 60,
   pagosAcumManual: 0,
+  composicaoTelhado: createInitialComposicaoTelhado(),
+  composicaoSolo: createInitialComposicaoSolo(),
 }
 
 export const VENDA_FORM_DEFAULT: VendaForm = {
@@ -128,6 +166,7 @@ export const VENDA_FORM_DEFAULT: VendaForm = {
 export function createInitialVendaForm(): VendaForm {
   return { ...VENDA_FORM_DEFAULT }
 }
+
 
 export function createEmptyKitBudget(): KitBudgetState {
   return {
