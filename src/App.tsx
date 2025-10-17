@@ -2597,7 +2597,7 @@ export default function App() {
   const areaInstalacao = useMemo(() => {
     if (numeroModulosEstimado <= 0) return 0
     const fator = tipoInstalacao === 'SOLO' ? 7 : 3.3
-    return numeroModulosEstimado * fator
+    return Math.round(numeroModulosEstimado * fator)
   }, [numeroModulosEstimado, tipoInstalacao])
 
   const geracaoMensalKwh = useMemo(() => {
@@ -2608,10 +2608,10 @@ export default function App() {
       potencia_instalada_kwp: potenciaInstaladaKwp,
       irradiacao_kwh_m2_dia: baseIrradiacao,
       performance_ratio: eficienciaNormalizada,
-      dias_mes: DIAS_MES_PADRAO,
+      dias_mes: diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO,
     })
     return estimada > 0 ? estimada : 0
-  }, [baseIrradiacao, eficienciaNormalizada, potenciaInstaladaKwp])
+  }, [baseIrradiacao, diasMesNormalizado, eficienciaNormalizada, potenciaInstaladaKwp])
 
   useEffect(() => {
     const deveEstimarQuantidade =
