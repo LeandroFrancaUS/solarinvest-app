@@ -1542,6 +1542,7 @@ export default function App() {
   const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => makeProposalId())
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
+  const budgetTableContentId = useId()
   const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
@@ -1549,6 +1550,7 @@ export default function App() {
   const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
   const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
   const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
+  const [isBudgetTableCollapsed, setIsBudgetTableCollapsed] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_SETTINGS_TAB)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifa] = useState(INITIAL_UF_TARIFA)
@@ -8253,93 +8255,114 @@ export default function App() {
                 </div>
               ) : (
                 <>
-                  <div className="table-wrapper budget-table-wrapper">
-                    <table className="budget-table">
-                      <thead>
-                        <tr>
-                          <th>Produto</th>
-                          <th>Descrição</th>
-                          <th>Quantidade</th>
-                          <th>Valor unitário</th>
-                          <th>Valor total</th>
-                          <th>Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {kitBudget.items.map((item) => {
-                          const lineTotal = computeBudgetItemLineTotal(item)
-                          return (
-                            <tr key={item.id}>
-                              <td>
-                                <input
-                                  type="text"
-                                  data-budget-item-id={item.id}
-                                  data-field="product"
-                                  value={item.productName}
-                                  onChange={(event) =>
-                                    handleBudgetItemTextChange(item.id, 'productName', event.target.value)
-                                  }
-                                  placeholder="Nome do produto"
-                                />
-                              </td>
-                              <td>
-                                <textarea
-                                  data-budget-item-id={item.id}
-                                  data-field="description"
-                                  value={item.description}
-                                  onChange={(event) =>
-                                    handleBudgetItemTextChange(item.id, 'description', event.target.value)
-                                  }
-                                  placeholder="Descrição ou observações"
-                                  rows={3}
-                                />
-                              </td>
-                              <td className="budget-table-numeric">
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  data-budget-item-id={item.id}
-                                  data-field="quantity"
-                                  value={item.quantityInput}
-                                  onChange={(event) =>
-                                    handleBudgetItemQuantityChange(item.id, event.target.value)
-                                  }
-                                  placeholder="0"
-                                />
-                              </td>
-                              <td className="budget-table-numeric">
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={item.unitPriceInput}
-                                  onChange={(event) =>
-                                    handleBudgetItemUnitPriceChange(item.id, event.target.value)
-                                  }
-                                  placeholder="0,00"
-                                />
-                              </td>
-                              <td className="budget-table-total">
-                                {lineTotal !== null ? currency(lineTotal) : '—'}
-                              </td>
-                              <td className="budget-table-actions">
-                                <button
-                                  type="button"
-                                  className="link danger"
-                                  onClick={() => handleRemoveBudgetItem(item.id)}
-                                >
-                                  Remover
-                                </button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="budget-actions">
-                    <button type="button" className="ghost" onClick={handleAddBudgetItem}>
-                      Adicionar item
+                  <div className="budget-table-toggle">
+                    <button
+                      type="button"
+                      className="ghost with-icon"
+                      aria-expanded={!isBudgetTableCollapsed}
+                      aria-controls={budgetTableContentId}
+                      onClick={() => setIsBudgetTableCollapsed((previous) => !previous)}
+                    >
+                      <span aria-hidden="true">{isBudgetTableCollapsed ? '▸' : '▾'}</span>
+                      <span>
+                        {isBudgetTableCollapsed
+                          ? 'Expandir itens do orçamento'
+                          : 'Recolher itens do orçamento'}
+                      </span>
                     </button>
+                  </div>
+                  <div
+                    id={budgetTableContentId}
+                    className={`budget-table-content${isBudgetTableCollapsed ? ' collapsed' : ''}`}
+                  >
+                    <div className="table-wrapper budget-table-wrapper">
+                      <table className="budget-table">
+                        <thead>
+                          <tr>
+                            <th>Produto</th>
+                            <th>Descrição</th>
+                            <th>Quantidade</th>
+                            <th>Valor unitário</th>
+                            <th>Valor total</th>
+                            <th>Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {kitBudget.items.map((item) => {
+                            const lineTotal = computeBudgetItemLineTotal(item)
+                            return (
+                              <tr key={item.id}>
+                                <td>
+                                  <input
+                                    type="text"
+                                    data-budget-item-id={item.id}
+                                    data-field="product"
+                                    value={item.productName}
+                                    onChange={(event) =>
+                                      handleBudgetItemTextChange(item.id, 'productName', event.target.value)
+                                    }
+                                    placeholder="Nome do produto"
+                                  />
+                                </td>
+                                <td>
+                                  <textarea
+                                    data-budget-item-id={item.id}
+                                    data-field="description"
+                                    value={item.description}
+                                    onChange={(event) =>
+                                      handleBudgetItemTextChange(item.id, 'description', event.target.value)
+                                    }
+                                    placeholder="Descrição ou observações"
+                                    rows={3}
+                                  />
+                                </td>
+                                <td className="budget-table-numeric">
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    data-budget-item-id={item.id}
+                                    data-field="quantity"
+                                    value={item.quantityInput}
+                                    onChange={(event) =>
+                                      handleBudgetItemQuantityChange(item.id, event.target.value)
+                                    }
+                                    placeholder="0"
+                                  />
+                                </td>
+                                <td className="budget-table-numeric">
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={item.unitPriceInput}
+                                    onChange={(event) =>
+                                      handleBudgetItemUnitPriceChange(item.id, event.target.value)
+                                    }
+                                    placeholder="0,00"
+                                  />
+                                </td>
+                                <td className="budget-table-total">
+                                  {lineTotal !== null ? currency(lineTotal) : '—'}
+                                </td>
+                                <td className="budget-table-actions">
+                                  <button
+                                    type="button"
+                                    className="link danger"
+                                    onClick={() => handleRemoveBudgetItem(item.id)}
+                                  >
+                                    Remover
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="budget-actions">
+                      <button type="button" className="ghost" onClick={handleAddBudgetItem}>
+                        Adicionar item
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
