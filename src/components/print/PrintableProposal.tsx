@@ -70,16 +70,6 @@ function PrintableProposalInner(
   const retornoVenda = vendaResumo?.retorno ?? null
   const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
     Number.isFinite(value) ? value.toLocaleString('pt-BR', options) : '—'
-  const formatPercentFromFraction = (value?: number, fractionDigits = 2) => {
-    if (!Number.isFinite(value)) {
-      return '—'
-    }
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'percent',
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
-    }).format(value ?? 0)
-  }
   const formatPercentFromPct = (value?: number, fractionDigits = 2) => {
     if (!Number.isFinite(value)) {
       return '—'
@@ -430,10 +420,10 @@ function PrintableProposalInner(
   const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
   const jurosCartaoAmResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_am_pct)
   const jurosCartaoAaResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_aa_pct)
-  const mdrPixResumo = formatPercentFromFraction(vendaFormResumo?.taxa_mdr_pix_pct)
-  const mdrDebitoResumo = formatPercentFromFraction(vendaFormResumo?.taxa_mdr_debito_pct)
-  const mdrCreditoVistaResumo = formatPercentFromFraction(vendaFormResumo?.taxa_mdr_credito_vista_pct)
-  const mdrCreditoParceladoResumo = formatPercentFromFraction(
+  const mdrPixResumo = formatPercentFromPct(vendaFormResumo?.taxa_mdr_pix_pct)
+  const mdrDebitoResumo = formatPercentFromPct(vendaFormResumo?.taxa_mdr_debito_pct)
+  const mdrCreditoVistaResumo = formatPercentFromPct(vendaFormResumo?.taxa_mdr_credito_vista_pct)
+  const mdrCreditoParceladoResumo = formatPercentFromPct(
     vendaFormResumo?.taxa_mdr_credito_parcelado_pct,
   )
   const entradaResumo = Number.isFinite(vendaFormResumo?.entrada_financiamento)
@@ -444,7 +434,7 @@ function PrintableProposalInner(
   const jurosFinAaResumo = formatPercentFromPct(vendaFormResumo?.juros_fin_aa_pct)
   const paybackLabelResumo = retornoVenda?.payback
     ? `${retornoVenda.payback} meses`
-    : 'Não atingido no horizonte analisado'
+    : 'Não atingido em 30 anos'
   const roiLabelResumo = retornoVenda
     ? new Intl.NumberFormat('pt-BR', {
         style: 'percent',
@@ -453,10 +443,11 @@ function PrintableProposalInner(
       }).format(retornoVenda.roi)
     : '—'
   const vplResumo = typeof retornoVenda?.vpl === 'number' ? currency(retornoVenda.vpl) : '—'
-  const roiHorizonteResumo =
-    Number.isFinite(vendaFormResumo?.horizonte_meses) && (vendaFormResumo?.horizonte_meses ?? 0) > 0
-      ? `${Math.round(vendaFormResumo?.horizonte_meses ?? 0)} meses`
-      : 'horizonte analisado'
+  const roiHorizonteResumo = isVendaDireta
+    ? '30 anos'
+    : Number.isFinite(vendaFormResumo?.horizonte_meses) && (vendaFormResumo?.horizonte_meses ?? 0) > 0
+    ? `${Math.round(vendaFormResumo?.horizonte_meses ?? 0)} meses`
+    : 'horizonte analisado'
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
   validadeData.setDate(validadeData.getDate() + 15)
@@ -926,7 +917,7 @@ function PrintableProposalInner(
                   {isCondicaoAvista && mdrSelecionadoValor !== undefined ? (
                     <tr>
                       <td>MDR aplicado ({modoPagamentoLabel ?? 'selecionado'})</td>
-                      <td>{formatPercentFromFraction(mdrSelecionadoValor)}</td>
+                      <td>{formatPercentFromPct(mdrSelecionadoValor)}</td>
                     </tr>
                   ) : null}
                   {isCondicaoAvista ? (
@@ -1037,7 +1028,7 @@ function PrintableProposalInner(
 
       {isVendaDireta ? (
         <section className="print-section">
-          <h2>Retorno projetado</h2>
+          <h2>{isVendaDireta ? 'Retorno Financeiro (Venda)' : 'Retorno projetado'}</h2>
           {retornoVenda ? (
             <div className="print-kpi-grid">
               <div className="print-kpi">
@@ -1048,10 +1039,12 @@ function PrintableProposalInner(
                 <span>ROI acumulado ({roiHorizonteResumo})</span>
                 <strong>{roiLabelResumo}</strong>
               </div>
-              <div className="print-kpi">
-                <span>VPL</span>
-                <strong>{vplResumo}</strong>
-              </div>
+              {typeof retornoVenda.vpl === 'number' ? (
+                <div className="print-kpi">
+                  <span>VPL</span>
+                  <strong>{vplResumo}</strong>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="muted">
