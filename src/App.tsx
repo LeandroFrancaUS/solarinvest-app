@@ -78,6 +78,8 @@ import {
   STORAGE_KEYS,
   UF_LABELS,
   createEmptyKitBudget,
+  createInitialComposicaoSolo,
+  createInitialComposicaoTelhado,
   createInitialVendaForm,
   type EntradaModoLabel,
   type KitBudgetItemState,
@@ -101,6 +103,9 @@ import type {
   MensalidadeRow,
   PrintableProposalProps,
   TipoInstalacao,
+  UfvComposicaoResumo,
+  UfvComposicaoSoloValores,
+  UfvComposicaoTelhadoValores,
 } from './types/printableProposal'
 import {
   currency,
@@ -141,6 +146,14 @@ const numbersAreClose = (
   }
 
   return Math.abs(a - b) <= tolerance
+}
+
+const sumComposicaoValores = <T extends Record<string, number>>(valores: T): number => {
+  return (
+    Math.round(
+      Object.values(valores).reduce((acc, valor) => (Number.isFinite(valor) ? acc + Number(valor) : acc), 0) * 100,
+    ) / 100
+  )
 }
 
 type IbgeMunicipio = {
@@ -521,6 +534,21 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
     clone.orcamentoItens = dados.orcamentoItens.map((item) => ({ ...item }))
   } else {
     delete clone.orcamentoItens
+  }
+
+  if (dados.composicaoUfv) {
+    clone.composicaoUfv = {
+      telhado: { ...dados.composicaoUfv.telhado },
+      solo: { ...dados.composicaoUfv.solo },
+      totalTelhado: dados.composicaoUfv.totalTelhado,
+      totalSolo: dados.composicaoUfv.totalSolo,
+      valorOrcamento: dados.composicaoUfv.valorOrcamento,
+      valorVendaTelhado: dados.composicaoUfv.valorVendaTelhado,
+      valorVendaSolo: dados.composicaoUfv.valorVendaSolo,
+      tipoAtual: dados.composicaoUfv.tipoAtual,
+    }
+  } else {
+    delete clone.composicaoUfv
   }
 
   return clone
@@ -1302,6 +1330,12 @@ export default function App() {
   const [numeroModulosManual, setNumeroModulosManual] = useState<number | ''>(
     INITIAL_VALUES.numeroModulosManual,
   )
+  const [composicaoTelhado, setComposicaoTelhado] = useState<UfvComposicaoTelhadoValores>(
+    () => createInitialComposicaoTelhado(),
+  )
+  const [composicaoSolo, setComposicaoSolo] = useState<UfvComposicaoSoloValores>(() =>
+    createInitialComposicaoSolo(),
+  )
   const consumoAnteriorRef = useRef(kcKwhMes)
 
   const [cliente, setCliente] = useState<ClienteDados>({ ...CLIENTE_INICIAL })
@@ -1523,6 +1557,36 @@ export default function App() {
       })
     },
     [budgetItemsTotal],
+  )
+
+  const handleComposicaoTelhadoChange = useCallback(
+    (campo: keyof UfvComposicaoTelhadoValores, valor: string) => {
+      const parsed = parseNumericInput(valor)
+      const normalizado = normalizeCurrencyNumber(parsed)
+      const finalValue = normalizado === null ? 0 : normalizado
+      setComposicaoTelhado((prev) => {
+        if (prev[campo] === finalValue) {
+          return prev
+        }
+        return { ...prev, [campo]: finalValue }
+      })
+    },
+    [],
+  )
+
+  const handleComposicaoSoloChange = useCallback(
+    (campo: keyof UfvComposicaoSoloValores, valor: string) => {
+      const parsed = parseNumericInput(valor)
+      const normalizado = normalizeCurrencyNumber(parsed)
+      const finalValue = normalizado === null ? 0 : normalizado
+      setComposicaoSolo((prev) => {
+        if (prev[campo] === finalValue) {
+          return prev
+        }
+        return { ...prev, [campo]: finalValue }
+      })
+    },
+    [],
   )
 
   const validateVendaForm = useCallback((form: VendaForm) => {
@@ -2830,13 +2894,40 @@ export default function App() {
     return 'NONE'
   }, [entradaConsiderada, entradaModo])
 
+  const composicaoTelhadoTotal = useMemo(
+    () => sumComposicaoValores(composicaoTelhado),
+    [composicaoTelhado],
+  )
+
+  const composicaoSoloTotal = useMemo(
+    () => sumComposicaoValores(composicaoSolo),
+    [composicaoSolo],
+  )
+
+  const valorOrcamentoConsiderado = useMemo(() => {
+    const total = kitBudget.total
+    return typeof total === 'number' && Number.isFinite(total) ? total : 0
+  }, [kitBudget.total])
+
+  const valorVendaTelhado = useMemo(
+    () => Math.round((valorOrcamentoConsiderado + composicaoTelhadoTotal) * 100) / 100,
+    [valorOrcamentoConsiderado, composicaoTelhadoTotal],
+  )
+
+  const valorVendaSolo = useMemo(
+    () => Math.round((valorOrcamentoConsiderado + composicaoSoloTotal) * 100) / 100,
+    [valorOrcamentoConsiderado, composicaoSoloTotal],
+  )
+
+  const valorVendaAtual = tipoInstalacao === 'SOLO' ? valorVendaSolo : valorVendaTelhado
+
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
 
   useEffect(() => {
     if (capexManualOverride) {
       return
     }
-    const normalizedCapex = Number.isFinite(capex) && capex > 0 ? capex : 0
+    const normalizedCapex = Number.isFinite(valorVendaAtual) && valorVendaAtual > 0 ? valorVendaAtual : 0
     let changed = false
     setVendaForm((prev) => {
       if (Math.abs((prev.capex_total ?? 0) - normalizedCapex) < 0.5) {
@@ -2855,7 +2946,7 @@ export default function App() {
       })
       resetRetorno()
     }
-  }, [capex, capexManualOverride, resetRetorno])
+  }, [capexManualOverride, resetRetorno, valorVendaAtual])
 
   const chartPalette = useMemo(
     () => ({
@@ -3257,6 +3348,17 @@ export default function App() {
         valorTotal: Number.isFinite(item.precoTotal) ? Number(item.precoTotal) : null,
       }))
 
+      const composicaoResumo: UfvComposicaoResumo = {
+        telhado: { ...composicaoTelhado },
+        solo: { ...composicaoSolo },
+        totalTelhado: composicaoTelhadoTotal,
+        totalSolo: composicaoSoloTotal,
+        valorOrcamento: valorOrcamentoConsiderado,
+        valorVendaTelhado,
+        valorVendaSolo,
+        tipoAtual: tipoInstalacao,
+      }
+
       return {
         cliente,
         budgetId: sanitizedBudgetId,
@@ -3283,9 +3385,14 @@ export default function App() {
         vendaResumo,
         parsedPdfVenda: parsedVendaPdf ? { ...parsedVendaPdf } : null,
         orcamentoItens: printableBudgetItems,
+        composicaoUfv: composicaoResumo,
       }
     },
     [
+      composicaoSolo,
+      composicaoSoloTotal,
+      composicaoTelhado,
+      composicaoTelhadoTotal,
       areaInstalacao,
       currentBudgetId,
       anosArray,
@@ -3303,6 +3410,9 @@ export default function App() {
       parcelasSolarInvest,
       distribuidoraTarifa,
       tipoInstalacao,
+      valorOrcamentoConsiderado,
+      valorVendaSolo,
+      valorVendaTelhado,
       potenciaInstaladaKwp,
       potenciaModulo,
       tabelaBuyout,
@@ -6195,6 +6305,8 @@ export default function App() {
     setTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
     setTipoInstalacaoDirty(false)
     setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
+    setComposicaoTelhado(createInitialComposicaoTelhado())
+    setComposicaoSolo(createInitialComposicaoSolo())
     setCapexManualOverride(INITIAL_VALUES.capexManualOverride)
     setParsedVendaPdf(null)
     setEstruturaTipoWarning(null)
@@ -7312,6 +7424,152 @@ export default function App() {
     </section>
   )
 
+  const renderComposicaoUfvSection = () => {
+    const telhadoCampos: { key: keyof UfvComposicaoTelhadoValores; label: string }[] = [
+      { key: 'projeto', label: 'Projeto' },
+      { key: 'instalacao', label: 'Instalação' },
+      { key: 'materialCa', label: 'Material CA' },
+      { key: 'crea', label: 'CREA' },
+      { key: 'placa', label: 'Placa' },
+    ]
+    const resumoCamposTelhado: { key: keyof UfvComposicaoTelhadoValores; label: string }[] = [
+      { key: 'comissaoLiquida', label: 'Comissão líquida' },
+      { key: 'lucroBruto', label: 'Lucro bruto' },
+      { key: 'impostoRetido', label: 'Imposto retido' },
+    ]
+    const soloCamposPrincipais: { key: keyof UfvComposicaoSoloValores; label: string }[] = [
+      { key: 'projeto', label: 'Projeto' },
+      { key: 'instalacao', label: 'Instalação' },
+      { key: 'materialCa', label: 'Material CA' },
+      { key: 'crea', label: 'CREA' },
+      { key: 'placa', label: 'Placa' },
+      { key: 'estruturaSolo', label: 'Estrutura solo' },
+      { key: 'tela', label: 'Tela' },
+      { key: 'portaoTela', label: 'Portão tela' },
+      { key: 'maoObraTela', label: 'Mão de obra tela' },
+      { key: 'casaInversor', label: 'Casa inversor' },
+      { key: 'brita', label: 'Brita' },
+      { key: 'terraplanagem', label: 'Terraplanagem' },
+      { key: 'trafo', label: 'Trafo' },
+      { key: 'rede', label: 'Rede' },
+    ]
+    const resumoCamposSolo: { key: keyof UfvComposicaoSoloValores; label: string }[] = [
+      { key: 'comissaoLiquida', label: 'Comissão líquida' },
+      { key: 'lucroBruto', label: 'Lucro bruto' },
+      { key: 'impostoRetido', label: 'Imposto retido' },
+    ]
+
+    const valorAtualLabel = tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado'
+
+    return (
+      <section className="card">
+        <div className="card-header">
+          <h2>Composição da UFV</h2>
+          <span className="pill">
+            Valor de venda ({valorAtualLabel})
+            <strong>{currency(valorVendaAtual)}</strong>
+          </span>
+        </div>
+        <p className="muted">
+          Informe os componentes adicionais do projeto. Esses valores são somados ao orçamento base para definir o
+          valor final de venda da usina.
+        </p>
+        <div className="composicao-ufv-groups">
+          <div className="composicao-ufv-group">
+            <h3>Projeto em Telhado</h3>
+            <div className="grid g3">
+              {telhadoCampos.map(({ key, label }) => (
+                <Field key={`telhado-${key}`} label={label}>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                    onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+              ))}
+            </div>
+            <div className="grid g3">
+              {resumoCamposTelhado.map(({ key, label }) => (
+                <Field key={`telhado-resumo-${key}`} label={label}>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                    onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+              ))}
+            </div>
+            <div className="composicao-ufv-total">
+              <span>Adicionais Telhado</span>
+              <strong>{currency(composicaoTelhadoTotal)}</strong>
+            </div>
+            <div className="composicao-ufv-total">
+              <span>Valor de venda (Telhado)</span>
+              <strong>
+                {currency(valorVendaTelhado)}
+                {tipoInstalacao === 'TELHADO' ? ' (Atual)' : ''}
+              </strong>
+            </div>
+          </div>
+          <div className="composicao-ufv-group">
+            <h3>Projeto em Solo</h3>
+            <div className="grid g3">
+              {soloCamposPrincipais.map(({ key, label }) => (
+                <Field key={`solo-${key}`} label={label}>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                    onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+              ))}
+            </div>
+            <div className="grid g3">
+              {resumoCamposSolo.map(({ key, label }) => (
+                <Field key={`solo-resumo-${key}`} label={label}>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                    onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+              ))}
+            </div>
+            <div className="composicao-ufv-total">
+              <span>Adicionais Solo</span>
+              <strong>{currency(composicaoSoloTotal)}</strong>
+            </div>
+            <div className="composicao-ufv-total">
+              <span>Valor de venda (Solo)</span>
+              <strong>
+                {currency(valorVendaSolo)}
+                {tipoInstalacao === 'SOLO' ? ' (Atual)' : ''}
+              </strong>
+            </div>
+          </div>
+        </div>
+        <div className="info-inline">
+          <span className="pill">
+            Valor do orçamento base
+            <strong>{currency(valorOrcamentoConsiderado)}</strong>
+          </span>
+        </div>
+      </section>
+    )
+  }
+
   const renderCondicoesPagamentoSection = () => {
     const condicao = vendaForm.condicao
     return (
@@ -8277,6 +8535,7 @@ export default function App() {
                 </div>
               </div>
             </section>
+            {renderComposicaoUfvSection()}
             {renderCondicoesPagamentoSection()}
             {renderRetornoProjetadoSection()}
           </>

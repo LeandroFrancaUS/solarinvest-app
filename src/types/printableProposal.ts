@@ -3,6 +3,40 @@ import type { RetornoProjetado, VendaForm } from '../lib/finance/roi'
 
 export type TipoInstalacao = 'TELHADO' | 'SOLO'
 
+export type UfvComposicaoTelhadoValores = {
+  projeto: number
+  instalacao: number
+  materialCa: number
+  crea: number
+  placa: number
+  comissaoLiquida: number
+  lucroBruto: number
+  impostoRetido: number
+}
+
+export type UfvComposicaoSoloValores = UfvComposicaoTelhadoValores & {
+  estruturaSolo: number
+  tela: number
+  portaoTela: number
+  maoObraTela: number
+  casaInversor: number
+  brita: number
+  terraplanagem: number
+  trafo: number
+  rede: number
+}
+
+export type UfvComposicaoResumo = {
+  telhado: UfvComposicaoTelhadoValores
+  solo: UfvComposicaoSoloValores
+  totalTelhado: number
+  totalSolo: number
+  valorOrcamento: number
+  valorVendaTelhado: number
+  valorVendaSolo: number
+  tipoAtual: TipoInstalacao
+}
+
 export type ClienteDados = {
   nome: string
   documento: string
@@ -90,4 +124,5 @@ export type PrintableProposalProps = {
   } | undefined
   parsedPdfVenda?: ParsedVendaPdfData | null | undefined
   orcamentoItens?: PrintableOrcamentoItem[] | undefined
+  composicaoUfv?: UfvComposicaoResumo | undefined
 }
