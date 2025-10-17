@@ -3,9 +3,21 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
+function getExpectedRollupPackage() {
+  if (process.platform === 'linux' && process.arch === 'x64') {
+    return '@rollup/rollup-linux-x64-gnu';
+  }
+  return null;
+}
+
 function assertRollupNativeBinding() {
+  const packageName = getExpectedRollupPackage();
+  if (!packageName) {
+    return true;
+  }
+
   try {
-    require('@rollup/rollup-linux-x64-gnu');
+    require(packageName);
     return true;
   } catch (error) {
     if (error && error.code !== 'MODULE_NOT_FOUND') {

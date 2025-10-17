@@ -2986,7 +2986,10 @@ export default function App() {
 
   const printableData = useMemo<PrintableProposalProps>(
     () => {
-      const capexPrintable = capex
+      const capexPrintable =
+        isVendaDiretaTab && Number.isFinite(vendaForm.capex_total)
+          ? Number(vendaForm.capex_total)
+          : capex
       const potenciaInstaladaPrintable =
         isVendaDiretaTab && Number.isFinite(vendaForm.potencia_instalada_kwp)
           ? Number(vendaForm.potencia_instalada_kwp)
