@@ -211,10 +211,23 @@ function PrintableProposalInner(
   const itensOrcamentoFormatados = (Array.isArray(orcamentoItens) ? orcamentoItens : [])
     .map((item, index) => {
       const produto = normalizarTextoTabela(item.produto)
-      const descricao = normalizarTextoTabela(item.descricao)
+      const descricaoBase = normalizarTextoTabela(item.descricao)
       const codigo = normalizarTextoTabela(item.codigo)
       const modelo = normalizarTextoTabela(item.modelo)
       const fabricante = normalizarTextoTabela(item.fabricante)
+      const descricaoPartes = [descricaoBase]
+      if (codigo && !descricaoBase.toLowerCase().includes('código')) {
+        descricaoPartes.push(`Código: ${codigo}`)
+      }
+      if (modelo && !descricaoBase.toLowerCase().includes('modelo')) {
+        descricaoPartes.push(`Modelo: ${modelo}`)
+      }
+      if (fabricante && !descricaoBase.toLowerCase().includes('fabricante')) {
+        descricaoPartes.push(`Fabricante: ${fabricante}`)
+      }
+      const descricao = descricaoPartes
+        .filter((parte) => parte && parte.trim().length > 0)
+        .join(' • ')
       const quantidade =
         typeof item.quantidade === 'number' && Number.isFinite(item.quantidade)
           ? Number(item.quantidade)
@@ -230,7 +243,7 @@ function PrintableProposalInner(
       }
     })
     .filter((item) => {
-      if (item.produto || item.descricao || item.codigo || item.modelo || item.fabricante) {
+      if (item.produto || item.descricao) {
         return true
       }
       return item.quantidade !== null && Number.isFinite(item.quantidade)
@@ -815,9 +828,6 @@ function PrintableProposalInner(
               <tr>
                 <th>Produto</th>
                 <th>Descrição</th>
-                <th>Código</th>
-                <th>Modelo</th>
-                <th>Fabricante</th>
                 <th>Quantidade</th>
               </tr>
             </thead>
@@ -831,9 +841,6 @@ function PrintableProposalInner(
                   <tr key={item.key}>
                     <td>{item.produto || '—'}</td>
                     <td>{item.descricao || '—'}</td>
-                    <td>{item.codigo || '—'}</td>
-                    <td>{item.modelo || '—'}</td>
-                    <td>{item.fabricante || '—'}</td>
                     <td>{quantidadeFormatada}</td>
                   </tr>
                 )

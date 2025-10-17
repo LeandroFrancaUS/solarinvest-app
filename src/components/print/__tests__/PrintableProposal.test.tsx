@@ -192,5 +192,34 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).toContain('Retorno Financeiro (Venda)')
     expect(markup).not.toMatch(/<span>VPL<\/span>/)
   })
+
+  it('renderiza itens do orçamento apenas com Produto, Descrição e Quantidade', () => {
+    const props = createPrintableProps({
+      orcamentoItens: [
+        {
+          produto: 'Módulo Solar 550W',
+          descricao: 'Módulo monocristalino',
+          codigo: 'MOD-550',
+          modelo: 'XYZ-550',
+          fabricante: 'Fabricante Solar',
+          quantidade: 12,
+        },
+      ],
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain('<th>Produto</th>')
+    expect(markup).toContain('<th>Descrição</th>')
+    expect(markup).toContain('<th>Quantidade</th>')
+    expect(markup).not.toContain('<th>Código</th>')
+    expect(markup).not.toContain('<th>Modelo</th>')
+    expect(markup).not.toContain('<th>Fabricante</th>')
+    expect(markup).toContain('Módulo Solar 550W')
+    expect(markup).toContain('Módulo monocristalino')
+    expect(markup).toContain('Código: MOD-550')
+    expect(markup).toContain('Modelo: XYZ-550')
+    expect(markup).toContain('Fabricante: Fabricante Solar')
+  })
 })
 
