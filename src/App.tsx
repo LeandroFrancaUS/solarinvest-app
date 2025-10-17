@@ -86,7 +86,18 @@ import {
   tarifaCurrency,
 } from './utils/formatters'
 
-const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
+let printableProposalModulePromise: Promise<
+  typeof import('./components/print/PrintableProposal')
+> | null = null
+
+const loadPrintableProposalModule = () => {
+  if (!printableProposalModulePromise) {
+    printableProposalModulePromise = import('./components/print/PrintableProposal')
+  }
+  return printableProposalModulePromise
+}
+
+const PrintableProposal = React.lazy(loadPrintableProposalModule)
 
 const UF_LABELS: Record<string, string> = {
   AC: 'Acre',
@@ -1113,10 +1124,14 @@ type BudgetPreviewOptions = {
   initialVariant?: PrintVariant | undefined
 }
 
-const renderPrintableProposalToHtml = (dados: PrintableProposalProps): Promise<string | null> => {
+const renderPrintableProposalToHtml = async (
+  dados: PrintableProposalProps,
+): Promise<string | null> => {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return Promise.resolve(null)
+    return null
   }
+
+  await loadPrintableProposalModule()
 
   return new Promise((resolve) => {
     const container = document.createElement('div')
@@ -1146,7 +1161,9 @@ const renderPrintableProposalToHtml = (dados: PrintableProposalProps): Promise<s
       useEffect(() => {
         const timeouts: number[] = []
         let attempts = 0
-        const maxAttempts = 8
+        const maxAttempts = 30
+        const moduleLoadTimeoutMs = 10000
+        const startTime = performance.now()
 
         const chartIsReady = (containerEl: HTMLDivElement | null) => {
           if (!containerEl) {
@@ -1169,7 +1186,20 @@ const renderPrintableProposalToHtml = (dados: PrintableProposalProps): Promise<s
 
           const containerEl = localRef.current
 
-          if (containerEl && chartIsReady(containerEl)) {
+          if (!containerEl) {
+            if (performance.now() - startTime >= moduleLoadTimeoutMs) {
+              resolved = true
+              resolve(null)
+              cleanup(root)
+              return
+            }
+
+            const timeoutId = window.setTimeout(() => attemptCapture(root), 160)
+            timeouts.push(timeoutId)
+            return
+          }
+
+          if (chartIsReady(containerEl)) {
             resolved = true
             resolve(containerEl.outerHTML)
             cleanup(root)
