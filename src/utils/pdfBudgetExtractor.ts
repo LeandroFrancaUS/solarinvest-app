@@ -26,6 +26,9 @@ export type BudgetExtractionItem = {
   quantity?: number
   unitPrice?: number
   totalPrice?: number
+  code?: string
+  model?: string
+  manufacturer?: string
   imageDataUrl?: string
 }
 
@@ -129,6 +132,9 @@ export async function extractBudgetFromPdf(
     quantity: item.quantidade ?? undefined,
     unitPrice: item.precoUnitario ?? undefined,
     totalPrice: item.precoTotal ?? undefined,
+    code: item.codigo ?? undefined,
+    model: item.modelo ?? undefined,
+    manufacturer: item.fabricante ?? undefined,
   }))
 
   const explicitTotal = structured.resumo.valorTotal

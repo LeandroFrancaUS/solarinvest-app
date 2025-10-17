@@ -18,7 +18,7 @@ export interface ParsedVendaPdfData {
 }
 
 const RE_CAPEX = /Investimento total\s*\(?(?:CAPEX)?\)?\s*R?\$?\s*([\d.,]+)/i
-const RE_POT_KWP = /Pot[êe]ncia\s+instalada.*?\(?\s*kwp\s*\)?\s*([\d.,]+)/i
+const RE_POT_KWP = /Pot[êe]ncia\s+(?:do\s+)?(?:sistema|instalada)[^\d]*([\d.,]+)\s*kwp/i
 const RE_GERACAO_KWH_MES = /Gera[çc][aã]o\s+estimada.*?\(?\s*kwh\/m[eê]s\s*\)?\s*([\d.,]+)/i
 const RE_QTD_MODULOS = /Quantidade\s+de\s+m[oó]dulos\s*([\d.,]+)\s*(?:un|unid|unidade)?/i
 const RE_POT_MODULO_WP = /Pot[êe]ncia\s+da\s+placa\s*\(?\s*wp\s*\)?\s*([\d.,]+)/i
@@ -141,7 +141,19 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
   const potencia_instalada_kwp = brToFloat(text.match(RE_POT_KWP)?.[1])
   const geracao_extr = brToFloat(text.match(RE_GERACAO_KWH_MES)?.[1])
   const quantidade_modulos = onlyDigits(text.match(RE_QTD_MODULOS)?.[1])
-  const potencia_da_placa_wp = brToFloat(text.match(RE_POT_MODULO_WP)?.[1])
+  let potencia_da_placa_wp = brToFloat(text.match(RE_POT_MODULO_WP)?.[1])
+  if (potencia_da_placa_wp == null) {
+    const fallbackMatch = text.match(/m[óo]dulo[^\n]*?(\d{3,4})\s*(?:wp|w)\b/i)
+    if (fallbackMatch) {
+      const numeric = fallbackMatch[1].replace(/\D+/g, '')
+      if (numeric) {
+        const parsed = Number.parseInt(numeric, 10)
+        if (Number.isFinite(parsed) && parsed > 0) {
+          potencia_da_placa_wp = parsed
+        }
+      }
+    }
+  }
   const modelo_modulo = cleanString(text.match(RE_MODELO_MODULO)?.[1])
   const modelo_inversor = cleanString(text.match(RE_MODELO_INV)?.[1])
   const estrutura_fixacao = cleanString(text.match(RE_ESTRUTURA)?.[1])

@@ -33,7 +33,7 @@ import { persistClienteRegistroToOneDrive } from './utils/onedrive'
 import type { ClienteRegistroSyncPayload } from './utils/onedrive'
 import { persistProposalPdf } from './utils/proposalPdf'
 import { extractBudgetFromPdf } from './utils/pdfBudgetExtractor'
-import type { StructuredBudget } from './utils/structuredBudgetParser'
+import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import { computeROI } from './lib/finance/roi'
 import type {
   ModoPagamento,
@@ -47,6 +47,7 @@ import {
   mergeParsedVendaPdfData,
   type ParsedVendaPdfData,
 } from './lib/pdf/extractVendas'
+import { ensureProposalId, makeProposalId } from './lib/ids'
 import PrintableProposal from './components/print/PrintableProposal'
 import type {
   BuyoutResumo,
@@ -456,6 +457,7 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
       }
     : undefined,
   parsedPdfVenda: dados.parsedPdfVenda ? { ...dados.parsedPdfVenda } : dados.parsedPdfVenda,
+  orcamentoItens: dados.orcamentoItens ? dados.orcamentoItens.map((item) => ({ ...item })) : undefined,
 })
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
@@ -1224,7 +1226,7 @@ const VENDA_FORM_DEFAULT: VendaForm = {
   tarifa_cheia_r_kwh: INITIAL_TARIFA_CHEIA,
   inflacao_energia_aa_pct: INITIAL_INFLACAO_AA,
   taxa_minima_mensal: INITIAL_TAXA_MINIMA,
-  horizonte_meses: 60,
+  horizonte_meses: 360,
   capex_total: 0,
   condicao: 'AVISTA',
   modo_pagamento: 'PIX',
@@ -1468,7 +1470,8 @@ export default function App() {
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
-  const [currentBudgetId, setCurrentBudgetId] = useState<string | undefined>(undefined)
+  const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => makeProposalId())
+  const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
   const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
@@ -1880,6 +1883,7 @@ export default function App() {
       let quantidadeModulos: number | undefined
       let modeloModulo: string | undefined
       let modeloInversor: string | undefined
+      let potenciaModuloWp: number | undefined
       let potenciaInstalada: number | undefined
       let geracaoEstimada: number | undefined
       let estruturaSuporte: string | undefined
@@ -1889,26 +1893,73 @@ export default function App() {
         return trimmed && trimmed !== '—' ? trimmed : undefined
       }
 
+      const formatEquipment = (item: StructuredItem) => {
+        const nome = sanitizeTexto(item.produto) || sanitizeTexto(item.descricao)
+        const codigo = sanitizeTexto(item.codigo)
+        const modeloEquip = sanitizeTexto(item.modelo)
+        const fabricante = sanitizeTexto(item.fabricante)
+        const metaParts: string[] = []
+        if (codigo) {
+          metaParts.push(`Código: ${codigo}`)
+        }
+        if (modeloEquip) {
+          metaParts.push(`Modelo: ${modeloEquip}`)
+        }
+        if (fabricante) {
+          metaParts.push(`Fabricante: ${fabricante}`)
+        }
+        const partes: string[] = []
+        if (nome) {
+          partes.push(nome)
+        }
+        if (metaParts.length > 0) {
+          partes.push(metaParts.join('  ·  '))
+        }
+        return partes.length > 0 ? partes.join(' — ') : undefined
+      }
+
       structured.itens.forEach((item) => {
         const descricaoCompleta = `${item.produto ?? ''} ${item.modelo ?? ''} ${item.descricao ?? ''}`
         const textoNormalizado = normalizeText(descricaoCompleta)
-
         const quantidadeItem = Number.isFinite(item.quantidade) ? Number(item.quantidade) : null
-        if (quantidadeItem && quantidadeItem > 0) {
-          if (moduloKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
-            quantidadeModulos = (quantidadeModulos ?? 0) + quantidadeItem
-            if (!modeloModulo) {
-              modeloModulo = sanitizeTexto(item.modelo) || sanitizeTexto(item.produto)
+        const isModulo = moduloKeywords.some((palavra) => textoNormalizado.includes(palavra))
+        const isInversor = inversorKeywords.some((palavra) => textoNormalizado.includes(palavra))
+        const isEstrutura = estruturaKeywords.some((palavra) => textoNormalizado.includes(palavra))
+
+        if (quantidadeItem && quantidadeItem > 0 && isModulo) {
+          quantidadeModulos = (quantidadeModulos ?? 0) + quantidadeItem
+        }
+
+        if (isModulo && !modeloModulo) {
+          const resumoModulo = formatEquipment(item) || sanitizeTexto(item.modelo) || sanitizeTexto(item.produto)
+          if (resumoModulo) {
+            modeloModulo = resumoModulo
+          }
+        }
+
+        if (isModulo && !potenciaModuloWp) {
+          const potenciaMatch = descricaoCompleta.match(/(\d{3,4})\s*(?:wp|w)\b/i)
+          if (potenciaMatch) {
+            const numeric = potenciaMatch[1].replace(/\D+/g, '')
+            const parsed = Number.parseInt(numeric, 10)
+            if (Number.isFinite(parsed) && parsed > 0) {
+              potenciaModuloWp = parsed
             }
           }
-          if (!modeloInversor && inversorKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
-            modeloInversor = sanitizeTexto(item.modelo) || sanitizeTexto(item.produto)
+        }
+
+        if (isInversor && !modeloInversor) {
+          const resumoInversor = formatEquipment(item) || sanitizeTexto(item.modelo) || sanitizeTexto(item.produto)
+          if (resumoInversor) {
+            modeloInversor = resumoInversor
           }
-          if (!estruturaSuporte && estruturaKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
-            const candidato = sanitizeTexto(item.modelo) || sanitizeTexto(item.produto) || sanitizeTexto(item.descricao) || ''
-            if (candidato) {
-              estruturaSuporte = candidato.replace(/^[-–—\s]+/, '')
-            }
+        }
+
+        if (isEstrutura && !estruturaSuporte) {
+          const candidato =
+            sanitizeTexto(item.modelo) || sanitizeTexto(item.produto) || sanitizeTexto(item.descricao) || ''
+          if (candidato) {
+            estruturaSuporte = candidato.replace(/^[-–—\s]+/, '')
           }
         }
 
@@ -1933,8 +1984,11 @@ export default function App() {
         }
       })
 
-      if (!potenciaInstalada && quantidadeModulos && potenciaPlaca > 0) {
-        potenciaInstalada = (quantidadeModulos * potenciaPlaca) / 1000
+      if (!potenciaInstalada && quantidadeModulos) {
+        const potenciaReferencia = potenciaModuloWp ?? (potenciaPlaca > 0 ? potenciaPlaca : undefined)
+        if (potenciaReferencia) {
+          potenciaInstalada = (quantidadeModulos * potenciaReferencia) / 1000
+        }
       }
 
       const structuredPartial: Partial<ParsedVendaPdfData> & {
@@ -1955,6 +2009,9 @@ export default function App() {
       }
       if (typeof potenciaInstalada === 'number' && potenciaInstalada > 0) {
         structuredPartial.potencia_instalada_kwp = potenciaInstalada
+      }
+      if (typeof potenciaModuloWp === 'number' && potenciaModuloWp > 0) {
+        structuredPartial.potencia_da_placa_wp = potenciaModuloWp
       }
       if (typeof geracaoEstimada === 'number' && geracaoEstimada > 0) {
         structuredPartial.geracao_estimada_kwh_mes = geracaoEstimada
@@ -2148,10 +2205,8 @@ export default function App() {
           warnings: extraction.warnings ?? [],
           fileName: file.name,
         })
-        const numeroOrcamento = extraction.structuredBudget.header.numeroOrcamento?.trim()
-        if (numeroOrcamento) {
-          setCurrentBudgetId(numeroOrcamento)
-        }
+        setBudgetStructuredItems(extraction.structuredBudget.itens)
+        setCurrentBudgetId(makeProposalId())
         autoFillVendaFromBudget(
           extraction.structuredBudget,
           extraction.total ?? null,
@@ -2931,10 +2986,7 @@ export default function App() {
 
   const printableData = useMemo<PrintableProposalProps>(
     () => {
-      const capexPrintable =
-        isVendaDiretaTab && Number.isFinite(vendaForm.capex_total) && (vendaForm.capex_total ?? 0) > 0
-          ? Number(vendaForm.capex_total)
-          : capex
+      const capexPrintable = capex
       const potenciaInstaladaPrintable =
         isVendaDiretaTab && Number.isFinite(vendaForm.potencia_instalada_kwp)
           ? Number(vendaForm.potencia_instalada_kwp)
@@ -2953,10 +3005,23 @@ export default function App() {
             retorno: vendaRetornoAuto,
           }
         : undefined
+      const sanitizedBudgetId = ensureProposalId(currentBudgetId)
+      const sanitizeItemText = (valor?: string | null) => {
+        const trimmed = valor?.toString().trim() ?? ''
+        return trimmed && trimmed !== '—' ? trimmed : undefined
+      }
+      const printableBudgetItems = budgetStructuredItems.map((item) => ({
+        produto: sanitizeItemText(item.produto) ?? '',
+        descricao: sanitizeItemText(item.descricao) ?? '',
+        codigo: sanitizeItemText(item.codigo),
+        modelo: sanitizeItemText(item.modelo),
+        fabricante: sanitizeItemText(item.fabricante),
+        quantidade: Number.isFinite(item.quantidade) ? Number(item.quantidade) : null,
+      }))
 
       return {
         cliente,
-        budgetId: currentBudgetId,
+        budgetId: sanitizedBudgetId,
         anos: anosArray,
         leasingROI,
         financiamentoFluxo,
@@ -2979,6 +3044,7 @@ export default function App() {
         tarifaCheia,
         vendaResumo,
         parsedPdfVenda: parsedVendaPdf ? { ...parsedVendaPdf } : null,
+        orcamentoItens: printableBudgetItems,
       }
     },
     [
@@ -3007,6 +3073,7 @@ export default function App() {
       vendaForm,
       vendaRetornoAuto,
       parsedVendaPdf,
+      budgetStructuredItems,
     ],
   )
 
@@ -5697,7 +5764,7 @@ export default function App() {
           clienteUf: dados.cliente.uf,
           clienteDocumento: dados.cliente.documento,
           clienteUc: dados.cliente.uc,
-          dados: { ...dadosClonados, budgetId: dadosClonados.budgetId ?? novoId },
+          dados: { ...dadosClonados, budgetId: ensureProposalId(dadosClonados.budgetId ?? novoId) },
         }
 
         existingIds.add(registro.id)
@@ -5843,7 +5910,8 @@ export default function App() {
     setIsSettingsOpen(false)
     setIsBudgetSearchOpen(false)
     setOrcamentoSearchTerm('')
-    setCurrentBudgetId(undefined)
+    setCurrentBudgetId(makeProposalId())
+    setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
     setIsBudgetProcessing(false)
     setBudgetProcessingError(null)
@@ -6156,7 +6224,7 @@ export default function App() {
       try {
         const dadosParaImpressao: PrintableProposalProps = {
           ...registro.dados,
-          budgetId: registro.dados.budgetId ?? registro.id,
+          budgetId: ensureProposalId(registro.dados.budgetId ?? registro.id),
           tipoProposta:
             registro.dados.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
         }

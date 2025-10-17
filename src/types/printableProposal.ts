@@ -50,6 +50,15 @@ export type BuyoutResumo = {
 
 export type PrintableProposalTipo = 'LEASING' | 'VENDA_DIRETA'
 
+export type PrintableOrcamentoItem = {
+  produto: string
+  descricao: string
+  codigo?: string
+  modelo?: string
+  fabricante?: string
+  quantidade?: number | null
+}
+
 export type PrintableProposalProps = {
   cliente: ClienteDados
   budgetId?: string
@@ -78,4 +87,5 @@ export type PrintableProposalProps = {
     retorno: RetornoProjetado | null
   }
   parsedPdfVenda?: ParsedVendaPdfData | null
+  orcamentoItens?: PrintableOrcamentoItem[]
 }

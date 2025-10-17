@@ -29,6 +29,7 @@ type ItemData = {
   produto: string | null
   codigo: string | null
   modelo: string | null
+  fabricante: string | null
   descricao: string
   quantidade: number | null
   unidade: string | null
@@ -257,9 +258,7 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       const fab = fabricante[1].trim()
       if (fab) {
         ensureCurr()
-        curr!.descricao = curr!.descricao
-          ? `${curr!.descricao} Fabricante: ${fab}`
-          : `Fabricante: ${fab}`
+        curr!.fabricante = fab
       }
       return
     }
@@ -339,6 +338,7 @@ function newItem(): ItemData {
     produto: null,
     codigo: null,
     modelo: null,
+    fabricante: null,
     descricao: '',
     quantidade: null,
     unidade: 'un',
@@ -370,6 +370,9 @@ function mergeAdjacentDuplicates(items: ItemData[]): ItemData[] {
       if (item.descricao) {
         const combined = `${last.descricao} ${item.descricao}`.trim()
         last.descricao = combined.replace(/\s+/g, ' ')
+      }
+      if (!last.fabricante && item.fabricante) {
+        last.fabricante = item.fabricante
       }
     } else {
       merged.push({ ...item })
