@@ -2292,6 +2292,35 @@ html[data-print-mode='print'] .print-hero__title h1 {
   flex-wrap: wrap;
 }
 
+.estrutura-warning-alert {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.12);
+  color: #fef3c7;
+}
+
+.estrutura-warning-alert h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #facc15;
+}
+
+.estrutura-warning-alert p {
+  margin: 0;
+  color: rgba(255, 251, 235, 0.92);
+}
+
+.estrutura-warning-alert-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .budget-empty {
   display: flex;
   flex-direction: column;

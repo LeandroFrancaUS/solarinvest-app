@@ -33,6 +33,8 @@ const createParsedVenda = (overrides: Partial<ParsedVendaPdfData> = {}): ParsedV
   modelo_modulo: null,
   modelo_inversor: null,
   estrutura_fixacao: null,
+  estrutura_fixacao_source: null,
+  estrutura_utilizada_tipo_warning: null,
   tipo_instalacao: null,
   tarifa_cheia_r_kwh: null,
   consumo_kwh_mes: null,

@@ -20,6 +20,28 @@ const runtimeEnv = (() => {
 const DEBUG_ENABLED =
   runtimeEnv.VITE_PARSER_DEBUG === 'true' || runtimeEnv.VENDAS_PARSER_DEBUG === 'true'
 
+const runtimeEnvAny = runtimeEnv as Record<string, unknown>
+
+const isTruthyDevFlag = (value: unknown): boolean => {
+  if (value == null) {
+    return false
+  }
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase()
+    return normalized === 'true' || normalized === '1' || normalized === 'development' || normalized === 'dev'
+  }
+  return false
+}
+
+const DEV_ENVIRONMENT =
+  isTruthyDevFlag(runtimeEnvAny.DEV) ||
+  isTruthyDevFlag(runtimeEnvAny.VITE_DEV) ||
+  isTruthyDevFlag(runtimeEnvAny.NODE_ENV) ||
+  isTruthyDevFlag(runtimeEnvAny.MODE)
+
 const debugLog = (context: string, payload: unknown): void => {
   if (!DEBUG_ENABLED) {
     return
@@ -51,6 +73,212 @@ const logRegexMiss = (field: string, regex: RegExp, text: string): void => {
   })
 }
 
+export type EstruturaUtilizadaTipoWarning =
+  | 'missing-section'
+  | 'missing-header'
+  | 'missing-data-row'
+  | 'missing-tipo-value'
+
+const ESTRUTURA_EXPECTED_COLUMNS = [
+  'TIPO',
+  'DETALHES',
+  'LINHAS',
+  'MODULOS POR LINHA',
+  'ORIENTACAO',
+] as const
+
+const NUMERIC_VALUE_PATTERN = '[\\d]+(?:[.,]\\d+)?'
+
+type EstruturaTipoExtractionResult = {
+  tipo: string | null
+  warning: EstruturaUtilizadaTipoWarning | null
+  context: string[]
+}
+
+const normalizeForSearch = (value: string): string =>
+  value
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}+/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+
+const normalizeHeaderKey = (value: string): string => {
+  const normalized = normalizeForSearch(value)
+  if (!normalized) {
+    return normalized
+  }
+  for (const expected of ESTRUTURA_EXPECTED_COLUMNS) {
+    if (normalized.includes(expected)) {
+      return expected
+    }
+  }
+  return normalized
+}
+
+const splitEstruturaColumns = (line: string): string[] =>
+  line
+    .replace(/\u00A0/g, ' ')
+    .split(/\s{2,}|\t+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+
+const splitEstruturaColumnsFlexible = (line: string): string[] => {
+  const sanitized = line.replace(/\u00A0/g, ' ').trim()
+  if (!sanitized) {
+    return []
+  }
+
+  let columns = splitEstruturaColumns(sanitized)
+  if (columns.length >= ESTRUTURA_EXPECTED_COLUMNS.length) {
+    return columns.slice(0, ESTRUTURA_EXPECTED_COLUMNS.length)
+  }
+
+  const fallbackPattern = new RegExp(
+    `^(?<col0>.+?)\\s+(?<col1>.+?)\\s+(?<col2>${NUMERIC_VALUE_PATTERN})\\s+(?<col3>${NUMERIC_VALUE_PATTERN})\\s+(?<col4>.+)$`,
+    'i',
+  )
+  const match = sanitized.match(fallbackPattern)
+  if (match?.groups) {
+    return ESTRUTURA_EXPECTED_COLUMNS.map((_, index) => match.groups?.[`col${index}`]?.trim() ?? '')
+  }
+
+  return columns
+}
+
+const isTableTerminator = (normalizedLine: string): boolean => {
+  if (!normalizedLine) {
+    return false
+  }
+  if (normalizedLine.startsWith('PRODUTO ') && normalizedLine.includes(' QUANTIDADE')) {
+    return true
+  }
+  if (normalizedLine.includes('DADOS DO CLIENTE')) {
+    return true
+  }
+  if (normalizedLine.includes('ACEITE DA PROPOSTA')) {
+    return true
+  }
+  if (normalizedLine.includes('QUADRO COMERCIAL')) {
+    return true
+  }
+  return false
+}
+
+const collectEstruturaContext = (lines: string[], start: number, count = 8): string[] =>
+  lines.slice(start, Math.min(lines.length, start + count)).map((line) => line.trim())
+
+const extractEstruturaUtilizadaTipo = (text: string): EstruturaTipoExtractionResult => {
+  const lines = text.split(/\r?\n/)
+  const anchorIndex = lines.findIndex((line) => normalizeForSearch(line).includes('ESTRUTURA UTILIZADA'))
+  if (anchorIndex === -1) {
+    return { tipo: null, warning: 'missing-section', context: extractContextLines(text, RE_ESTRUTURA_UTILIZADA_SECTION) }
+  }
+
+  const searchEnd = Math.min(lines.length, anchorIndex + 80)
+  let headerIndex = -1
+  let headerColumnsNormalized: string[] = []
+
+  for (let index = anchorIndex + 1; index < searchEnd; index += 1) {
+    const rawLine = lines[index]
+    if (!rawLine) {
+      continue
+    }
+    const normalized = normalizeForSearch(rawLine)
+    if (!normalized) {
+      continue
+    }
+    if (isTableTerminator(normalized)) {
+      break
+    }
+    const hasAllColumns = ESTRUTURA_EXPECTED_COLUMNS.every((expected) => normalized.includes(expected))
+    if (hasAllColumns) {
+      headerIndex = index
+      const headerParts = splitEstruturaColumns(rawLine)
+      headerColumnsNormalized =
+        headerParts.length >= ESTRUTURA_EXPECTED_COLUMNS.length
+          ? headerParts.map((part) => normalizeHeaderKey(part))
+          : [...ESTRUTURA_EXPECTED_COLUMNS]
+      break
+    }
+  }
+
+  if (headerIndex === -1 || !headerColumnsNormalized.includes('TIPO')) {
+    return {
+      tipo: null,
+      warning: 'missing-header',
+      context: collectEstruturaContext(lines, anchorIndex),
+    }
+  }
+
+  const tipoIndex = headerColumnsNormalized.indexOf('TIPO')
+  const columnCount = headerColumnsNormalized.length
+  const dataLines: string[] = []
+
+  for (let index = headerIndex + 1; index < searchEnd; index += 1) {
+    const rawLine = lines[index]
+    if (!rawLine) {
+      if (dataLines.length > 0) {
+        break
+      }
+      continue
+    }
+    const trimmed = rawLine.replace(/\u00A0/g, ' ').trim()
+    if (!trimmed) {
+      if (dataLines.length > 0) {
+        break
+      }
+      continue
+    }
+    const normalized = normalizeForSearch(trimmed)
+    if (isTableTerminator(normalized) || normalized.includes('ESTRUTURA UTILIZADA')) {
+      break
+    }
+    dataLines.push(trimmed)
+    const combined = dataLines.join(' ')
+    const columns = splitEstruturaColumnsFlexible(combined)
+    if (columns.length >= columnCount) {
+      const tipoCandidate = columns[tipoIndex]?.trim()
+      if (tipoCandidate) {
+        return {
+          tipo: tipoCandidate,
+          warning: null,
+          context: collectEstruturaContext(lines, headerIndex),
+        }
+      }
+    }
+    if (dataLines.length >= 6) {
+      break
+    }
+  }
+
+  if (dataLines.length === 0) {
+    return {
+      tipo: null,
+      warning: 'missing-data-row',
+      context: collectEstruturaContext(lines, headerIndex),
+    }
+  }
+
+  const combinedRow = dataLines.join(' ')
+  const columns = splitEstruturaColumnsFlexible(combinedRow)
+  const tipoCandidate = columns[tipoIndex]?.trim()
+
+  if (tipoCandidate) {
+    return {
+      tipo: tipoCandidate,
+      warning: null,
+      context: collectEstruturaContext(lines, headerIndex),
+    }
+  }
+
+  return {
+    tipo: null,
+    warning: 'missing-tipo-value',
+    context: collectEstruturaContext(lines, headerIndex),
+  }
+}
+
 export type GeracaoSource = 'extracted' | 'calculated'
 
 export interface ParsedVendaPdfData {
@@ -62,6 +290,8 @@ export interface ParsedVendaPdfData {
   modelo_modulo: string | null
   modelo_inversor: string | null
   estrutura_fixacao: string | null
+  estrutura_fixacao_source: 'estrutura_utilizada_tipo' | 'texto_fallback' | null
+  estrutura_utilizada_tipo_warning: EstruturaUtilizadaTipoWarning | null
   tipo_instalacao: string | null
   tarifa_cheia_r_kwh: number | null
   consumo_kwh_mes: number | null
@@ -77,7 +307,7 @@ const RE_POT_MODULO_WP = /Pot[êe]ncia\s+(?:da\s+placa|do\s+m[oó]dulo)\s*\(?\s*
 const RE_MODELO_MODULO = /Modelo\s+dos\s+m[oó]dulos\s*(.+)/i
 const RE_MODELO_INV = /Modelo\s+dos\s+inversores\s*(.+)/i
 const RE_ESTRUTURA_FIXACAO = /Estrutura\s+de\s+fixa[çc][aã]o\s*(.+)/i
-const RE_ESTRUTURA_UTILIZADA = /Estrutura\s+utilizada[\s\S]*?\n([^\n]{3,})/i
+const RE_ESTRUTURA_UTILIZADA_SECTION = /Estrutura\s+utilizada/i
 const RE_TIPO_INST = /Tipo\s+de\s+instala[çc][aã]o\s*(.+)/i
 const RE_TARIFA = /Tarifa\s+cheia.*?R?\$?\s*([\d.,]+)/i
 
@@ -193,10 +423,20 @@ export function finalizeParsedVendaData(
     modelo_modulo: cleanString(input.modelo_modulo ?? null),
     modelo_inversor: cleanString(input.modelo_inversor ?? null),
     estrutura_fixacao: cleanString(input.estrutura_fixacao ?? null),
+    estrutura_fixacao_source: input.estrutura_fixacao_source ?? null,
+    estrutura_utilizada_tipo_warning: input.estrutura_utilizada_tipo_warning ?? null,
     tipo_instalacao: cleanString(input.tipo_instalacao ?? null),
     tarifa_cheia_r_kwh: sanitizePositive(input.tarifa_cheia_r_kwh ?? null),
     consumo_kwh_mes: null,
     geracao_estimada_source: input.geracao_estimada_source ?? null,
+  }
+
+  if (!result.estrutura_fixacao) {
+    result.estrutura_fixacao_source = null
+  }
+
+  if (!result.estrutura_utilizada_tipo_warning) {
+    result.estrutura_utilizada_tipo_warning = null
   }
 
   if (
@@ -306,18 +546,43 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
   }
   const modelo_inversor = cleanString(modeloInversorMatch?.[1])
 
-  const estruturaMatch = text.match(RE_ESTRUTURA_FIXACAO)
-  if (!estruturaMatch) {
-    logRegexMiss('estrutura_fixacao', RE_ESTRUTURA_FIXACAO, text)
-  }
-  let estrutura_fixacao = cleanString(estruturaMatch?.[1])
-  if (!estrutura_fixacao) {
-    const estruturaUtilizadaMatch = text.match(RE_ESTRUTURA_UTILIZADA)
-    if (estruturaUtilizadaMatch) {
-      estrutura_fixacao = cleanString(estruturaUtilizadaMatch[1])
+  const estruturaTipoResult = extractEstruturaUtilizadaTipo(text)
+  let estrutura_fixacao = cleanString(estruturaTipoResult.tipo)
+  let estrutura_fixacao_source: 'estrutura_utilizada_tipo' | 'texto_fallback' | null = null
+  const estrutura_utilizada_tipo_warning = estruturaTipoResult.warning ?? null
+
+  if (estrutura_fixacao) {
+    estrutura_fixacao_source = 'estrutura_utilizada_tipo'
+    debugLog('estrutura-tipo-extraido', {
+      estrutura_fixacao,
+      contexto: estruturaTipoResult.context,
+    })
+  } else {
+    const estruturaMatch = text.match(RE_ESTRUTURA_FIXACAO)
+    if (!estruturaMatch) {
+      logRegexMiss('estrutura_fixacao', RE_ESTRUTURA_FIXACAO, text)
+    }
+    const fallbackValue = cleanString(estruturaMatch?.[1])
+    if (fallbackValue) {
+      estrutura_fixacao = fallbackValue
+      estrutura_fixacao_source = 'texto_fallback'
       debugLog('estrutura-fallback', {
-        contexto: extractContextLines(text, RE_ESTRUTURA_UTILIZADA),
+        contexto: extractContextLines(text, RE_ESTRUTURA_FIXACAO),
         estrutura_fixacao,
+      })
+    }
+  }
+
+  if (estrutura_utilizada_tipo_warning) {
+    debugLog('estrutura-tipo-warning', {
+      warning: estrutura_utilizada_tipo_warning,
+      contexto: estruturaTipoResult.context,
+      fallback_utilizado: estrutura_fixacao_source,
+    })
+    if (DEV_ENVIRONMENT) {
+      console.warn('Estrutura utilizada não identificada', {
+        motivo: estrutura_utilizada_tipo_warning,
+        contexto: estruturaTipoResult.context,
       })
     }
   }
@@ -342,6 +607,8 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
     modelo_modulo,
     modelo_inversor,
     estrutura_fixacao,
+    estrutura_fixacao_source,
+    estrutura_utilizada_tipo_warning,
     tipo_instalacao,
     tarifa_cheia_r_kwh,
     geracao_estimada_source: geracao_extr != null ? 'extracted' : null,
