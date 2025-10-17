@@ -66,6 +66,7 @@ import {
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { ensureProposalId, makeProposalId } from './lib/ids'
+import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import PrintableProposal from './components/print/PrintableProposal'
 import type {
   BuyoutResumo,
@@ -1656,6 +1657,22 @@ export default function App() {
     window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeTab)
   }, [activeTab])
 
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.density = density
+    }
+
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(DENSITY_STORAGE_KEY, density)
+    } catch (error) {
+      console.warn('Não foi possível persistir a densidade da interface.', error)
+    }
+  }, [density])
+
   const budgetItemsTotal = useMemo(
     () => computeBudgetItemsTotalValue(kitBudget.items),
     [kitBudget.items],
@@ -2506,6 +2523,14 @@ export default function App() {
   const [entradaFinPct, setEntradaFinPct] = useState(INITIAL_ENTRADA_FIN_PCT)
   const [mostrarFinanciamento, setMostrarFinanciamento] = useState(INITIAL_MOSTRAR_FINANCIAMENTO)
   const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_MOSTRAR_GRAFICO)
+  const [density, setDensity] = useState<DensityMode>(() => {
+    if (typeof window === 'undefined') {
+      return DEFAULT_DENSITY
+    }
+
+    const stored = window.localStorage.getItem(DENSITY_STORAGE_KEY)
+    return stored && isDensityMode(stored) ? stored : DEFAULT_DENSITY
+  })
 
   const [prazoMeses, setPrazoMeses] = useState(INITIAL_PRAZO_MESES)
   const [bandeiraEncargo, setBandeiraEncargo] = useState(INITIAL_BANDEIRA_ENCARGO)
@@ -9040,6 +9065,16 @@ export default function App() {
                     <div className="settings-subsection">
                       <p className="settings-subheading">Exibição</p>
                       <div className="grid g2">
+                        <Field label="Densidade da interface">
+                          <select
+                            value={density}
+                            onChange={(event) => setDensity(event.target.value as DensityMode)}
+                          >
+                            <option value="compact">Compacto</option>
+                            <option value="cozy">Acolhedor</option>
+                            <option value="comfortable">Confortável</option>
+                          </select>
+                        </Field>
                         <Field label="Mostrar gráfico ROI">
                           <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
                             <option value="1">Sim</option>
