@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { maybeFillQuantidadeModulos, mergeParsedVendaPdfData, RE_POT_KWP } from './extractVendas'
+import {
+  maybeFillQuantidadeModulos,
+  mergeParsedVendaPdfData,
+  parseVendaPdfText,
+  RE_POT_KWP,
+} from './extractVendas'
 import { toNumberFlexible } from '../locale/br-number'
 
 describe('maybeFillQuantidadeModulos', () => {
@@ -57,5 +62,64 @@ describe('mergeParsedVendaPdfData', () => {
 
     expect(merged.quantidade_modulos).toBe(12)
     expect(merged.geracao_estimada_source).toBe('extracted')
+  })
+})
+
+describe('parseVendaPdfText — Estrutura utilizada', () => {
+  it('extrai o tipo da primeira linha da tabela', () => {
+    const texto = [
+      'Resumo do orçamento',
+      'Estrutura utilizada',
+      'Tipo    Detalhes    Linhas    Módulos por linha    Orientação',
+      'Fibrocimento e Madeira    Telhado colonial    2    3    Norte-Sul',
+    ].join('\n')
+
+    const parsed = parseVendaPdfText(texto)
+
+    expect(parsed.estrutura_fixacao).toBe('Fibrocimento e Madeira')
+    expect(parsed.estrutura_fixacao_source).toBe('estrutura_utilizada_tipo')
+    expect(parsed.estrutura_utilizada_tipo_warning).toBeNull()
+  })
+
+  it('identifica cabeçalhos com acentos', () => {
+    const texto = [
+      'Resumo do orçamento',
+      'Estrutura utilizada',
+      'Tipo  Detalhes  Linhas  Módulos por linha  Orientação',
+      'Telha Metálica  Cobertura galvanizada  1  4  Leste-Oeste',
+    ].join('\n')
+
+    const parsed = parseVendaPdfText(texto)
+
+    expect(parsed.estrutura_fixacao).toBe('Telha Metálica')
+    expect(parsed.estrutura_fixacao_source).toBe('estrutura_utilizada_tipo')
+    expect(parsed.estrutura_utilizada_tipo_warning).toBeNull()
+  })
+
+  it('suporta linhas linearizadas sem espaçamento duplo', () => {
+    const texto = [
+      'Estrutura utilizada',
+      'Tipo Detalhes Linhas Módulos por linha Orientação',
+      'Laje Concreto Impermeabilizada 2 5 Norte',
+    ].join('\n')
+
+    const parsed = parseVendaPdfText(texto)
+
+    expect(parsed.estrutura_fixacao).toBe('Laje Concreto Impermeabilizada')
+    expect(parsed.estrutura_fixacao_source).toBe('estrutura_utilizada_tipo')
+    expect(parsed.estrutura_utilizada_tipo_warning).toBeNull()
+  })
+
+  it('sinaliza ausência da tabela e mantém fallback textual', () => {
+    const texto = [
+      'Resumo do orçamento',
+      'Estrutura de fixação Perfilado de Alumínio',
+    ].join('\n')
+
+    const parsed = parseVendaPdfText(texto)
+
+    expect(parsed.estrutura_fixacao).toBe('Perfilado de Alumínio')
+    expect(parsed.estrutura_fixacao_source).toBe('texto_fallback')
+    expect(parsed.estrutura_utilizada_tipo_warning).toBe('missing-section')
   })
 })

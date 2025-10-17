@@ -54,6 +54,7 @@ import { estimateMonthlyGenerationKWh, estimateMonthlyKWh, kwpFromWpQty } from '
 import {
   parseVendaPdfText,
   mergeParsedVendaPdfData,
+  type EstruturaUtilizadaTipoWarning,
   type ParsedVendaPdfData,
 } from './lib/pdf/extractVendas'
 import {
@@ -1544,6 +1545,7 @@ export default function App() {
   const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
+  const estruturaSuporteInputRef = useRef<HTMLInputElement | null>(null)
   const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
   const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
   const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
@@ -1633,6 +1635,8 @@ export default function App() {
   })
   const [capexManualOverride, setCapexManualOverride] = useState(INITIAL_CAPEX_MANUAL_OVERRIDE)
   const [parsedVendaPdf, setParsedVendaPdf] = useState<ParsedVendaPdfData | null>(null)
+  const [estruturaTipoWarning, setEstruturaTipoWarning] =
+    useState<EstruturaUtilizadaTipoWarning | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -2164,6 +2168,7 @@ export default function App() {
 
       const mergedParsed = mergeParsedVendaPdfData(parsedFromText, structuredPartial, capexPartial)
       setParsedVendaPdf(mergedParsed)
+      setEstruturaTipoWarning(mergedParsed.estrutura_utilizada_tipo_warning ?? null)
 
       const updates: Partial<VendaForm> = {}
       let consumoAtualizado = false
@@ -2287,6 +2292,7 @@ export default function App() {
       setTarifaCheia,
       vendaForm,
       setParsedVendaPdf,
+      setEstruturaTipoWarning,
     ],
   )
 
@@ -2482,6 +2488,15 @@ export default function App() {
 
   const handleMissingInfoUploadClick = useCallback(() => {
     budgetUploadInputRef.current?.click()
+  }, [])
+
+  const handleEstruturaTipoManualEdit = useCallback(() => {
+    const input = estruturaSuporteInputRef.current
+    if (!input) {
+      return
+    }
+    input.focus()
+    input.select?.()
   }, [])
 
   const [jurosFinAa, setJurosFinAa] = useState(INITIAL_JUROS_FIN_AA)
@@ -6334,6 +6349,7 @@ export default function App() {
     setNumeroModulosManual(INITIAL_NUMERO_MODULOS_MANUAL)
     setCapexManualOverride(INITIAL_CAPEX_MANUAL_OVERRIDE)
     setParsedVendaPdf(null)
+    setEstruturaTipoWarning(null)
 
     setPrecoPorKwp(INITIAL_PRECO_POR_KWP)
     setIrradiacao(IRRADIACAO_FALLBACK)
@@ -7381,6 +7397,26 @@ export default function App() {
           />
         </Field>
       </div>
+      {estruturaTipoWarning ? (
+        <div className="estrutura-warning-alert" role="alert">
+          <div>
+            <h3>Estrutura utilizada não identificada</h3>
+            <p>
+              Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
+              <strong>Estrutura utilizada</strong> no PDF. Você pode preencher manualmente ou tentar enviar um PDF em
+              outro formato.
+            </p>
+          </div>
+          <div className="estrutura-warning-alert-actions">
+            <button type="button" className="primary" onClick={handleEstruturaTipoManualEdit}>
+              Editar manualmente
+            </button>
+            <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
+              Enviar outro PDF
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="grid g3">
         <Field label="Modelo do módulo">
           <input
@@ -7400,6 +7436,7 @@ export default function App() {
         <Field label="Estrutura de fixação">
           <input
             type="text"
+            ref={estruturaSuporteInputRef}
             value={vendaForm.estrutura_suporte ?? ''}
             onChange={(event) =>
               applyVendaUpdates({ estrutura_suporte: event.target.value || undefined })
