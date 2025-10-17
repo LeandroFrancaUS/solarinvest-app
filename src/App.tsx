@@ -1218,11 +1218,6 @@ const renderPrintableProposalToHtml = (dados: PrintableProposalProps): Promise<s
 const anosAnalise = 30
 const DIAS_MES_PADRAO = 30
 const painelOpcoes = [450, 500, 550, 600, 610, 650, 700]
-const chartColors: Record<'Leasing' | 'Financiamento', string> = {
-  Leasing: '#0C162C',
-  Financiamento: '#0C162C',
-}
-
 const createEmptyKitBudget = (): KitBudgetState => ({
   items: [],
   total: null,
@@ -1975,7 +1970,6 @@ export default function App() {
 
       const updates: Partial<VendaForm> = {}
       let consumoAtualizado = false
-      let capexAtualizado = false
       let tarifaAtualizada = false
 
       const shouldSetNumber = (current: number | undefined, value: number | null) => {
@@ -2016,12 +2010,6 @@ export default function App() {
         }
         consumoAtualizado = true
       }
-      if (shouldSetNumber(vendaForm.capex_total, mergedParsed.capex_total)) {
-        if (mergedParsed.capex_total != null) {
-          updates.capex_total = mergedParsed.capex_total
-        }
-        capexAtualizado = true
-      }
       if (shouldSetNumber(vendaForm.tarifa_cheia_r_kwh, mergedParsed.tarifa_cheia_r_kwh)) {
         if (mergedParsed.tarifa_cheia_r_kwh != null) {
           updates.tarifa_cheia_r_kwh = mergedParsed.tarifa_cheia_r_kwh
@@ -2053,9 +2041,7 @@ export default function App() {
         applyVendaUpdates(updates)
       }
 
-      if (capexAtualizado) {
-        setCapexManualOverride(false)
-      }
+      setCapexManualOverride(false)
       if (consumoAtualizado && mergedParsed.consumo_kwh_mes != null) {
         setKcKwhMes(mergedParsed.consumo_kwh_mes)
       }
@@ -2620,17 +2606,14 @@ export default function App() {
     if (capexManualOverride) {
       return
     }
-    const total = kitBudget.total
-    if (typeof total !== 'number' || !Number.isFinite(total) || total <= 0) {
-      return
-    }
+    const normalizedCapex = Number.isFinite(capex) && capex > 0 ? capex : 0
     let changed = false
     setVendaForm((prev) => {
-      if (Math.abs((prev.capex_total ?? 0) - total) < 0.5) {
+      if (Math.abs((prev.capex_total ?? 0) - normalizedCapex) < 0.5) {
         return prev
       }
       changed = true
-      return { ...prev, capex_total: total }
+      return { ...prev, capex_total: normalizedCapex }
     })
     if (changed) {
       setVendaFormErrors((prev) => {
@@ -2642,7 +2625,7 @@ export default function App() {
       })
       resetRetorno()
     }
-  }, [capexManualOverride, kitBudget.total, resetRetorno])
+  }, [capex, capexManualOverride, resetRetorno])
 
   const geracaoMensalKwh = useMemo(() => {
     if (potenciaInstaladaKwp <= 0) {
@@ -2832,6 +2815,14 @@ export default function App() {
   }, [entradaConsiderada, entradaModo])
 
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
+
+  const chartPalette = useMemo(
+    () => ({
+      Leasing: '#38BDF8',
+      Financiamento: '#F97316',
+    }),
+    [],
+  )
 
   const simulationState = useMemo<SimulationState>(() => {
     // Mantemos o valor de mercado (vm0) amarrado ao CAPEX calculado neste mesmo memo para
@@ -7916,12 +7907,12 @@ export default function App() {
                   <div className="legend-toggle">
                     <label>
                       <input type="checkbox" checked={exibirLeasingLinha} onChange={(e) => setExibirLeasingLinha(e.target.checked)} />
-                      <span style={{ color: chartColors.Leasing }}>Leasing</span>
+                      <span style={{ color: chartPalette.Leasing }}>Leasing</span>
                     </label>
                     {mostrarFinanciamento ? (
                       <label>
                         <input type="checkbox" checked={exibirFinLinha} onChange={(e) => setExibirFinLinha(e.target.checked)} />
-                        <span style={{ color: chartColors.Financiamento }}>Financiamento</span>
+                        <span style={{ color: chartPalette.Financiamento }}>Financiamento</span>
                       </label>
                     ) : null}
                   </div>
@@ -7934,11 +7925,11 @@ export default function App() {
                       {beneficioAno30 ? (
                         <span className="chart-highlight">
                           <strong>Beneficio acumulado em 30 anos:</strong>{' '}
-                          <strong style={{ color: chartColors.Leasing }}>{currency(beneficioAno30.Leasing)}</strong>
+                          <strong style={{ color: chartPalette.Leasing }}>{currency(beneficioAno30.Leasing)}</strong>
                           {mostrarFinanciamento && exibirFinLinha ? (
                             <>
                               {' • '}Financiamento:{' '}
-                              <strong style={{ color: chartColors.Financiamento }}>{currency(beneficioAno30.Financiamento)}</strong>
+                              <strong style={{ color: chartPalette.Financiamento }}>{currency(beneficioAno30.Financiamento)}</strong>
                             </>
                           ) : null}
                         </span>
@@ -7969,7 +7960,7 @@ export default function App() {
                         <Line
                           type="monotone"
                           dataKey="Leasing"
-                          stroke={chartColors.Leasing}
+                          stroke={chartPalette.Leasing}
                           strokeWidth={2}
                           dot
                         />
@@ -7978,7 +7969,7 @@ export default function App() {
                         <Line
                           type="monotone"
                           dataKey="Financiamento"
-                          stroke={chartColors.Financiamento}
+                          stroke={chartPalette.Financiamento}
                           strokeWidth={2}
                           dot
                         />
