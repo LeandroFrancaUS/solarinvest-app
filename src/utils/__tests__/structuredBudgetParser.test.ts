@@ -72,6 +72,20 @@ describe('parseStructuredBudget', () => {
     expect(data.resumo.valorTotal).toBeCloseTo(1234.56, 2)
   })
 
+  it('does not infer quantity when it is absent', () => {
+    const lines = [
+      'Detalhes do Orçamento',
+      'Produto  Quantidade',
+      'Estrutura de fixação',
+      'Descrição: Componentes para instalação',
+      'Valor total: R$ 0,00',
+    ]
+
+    const data = parseStructuredBudget(lines)
+    expect(data.itens).toHaveLength(1)
+    expect(data.itens[0].quantidade).toBeNull()
+  })
+
   it('merges adjacent duplicates by (codigo, modelo) summing quantity', () => {
     const lines = [
       'Detalhes do Orçamento',
@@ -125,6 +139,26 @@ describe('parseStructuredBudget', () => {
 
     const data = parseStructuredBudget(lines)
     expect(data.itens).toHaveLength(0)
+  })
+
+  it('falls back to pattern detection when anchors are missing (OCR layout)', () => {
+    const lines = [
+      'Orçamento WEB-0001',
+      'KIT GERADOR 5K',
+      'Código: KIT-5K Modelo: REV1 4',
+      'Inversor monofásico 5kW',
+      'Fabricante: SolarX',
+      'Descrição adicional das características',
+      'Aceite da Proposta',
+      'Valor total: R$ 15.000,00',
+    ]
+
+    const data = parseStructuredBudget(lines)
+    expect(data.itens).toHaveLength(2)
+    expect(data.itens[0].produto).toBe('KIT GERADOR 5K')
+    expect(data.itens[0].quantidade).toBe(4)
+    expect(data.itens[1].produto).toBe('Inversor monofásico 5kW')
+    expect(data.resumo.valorTotal).toBeCloseTo(15000, 2)
   })
 })
 
