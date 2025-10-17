@@ -1708,8 +1708,8 @@ export default function App() {
         errors[field as string] = 'Use valores maiores ou iguais a zero.'
         return
       }
-      if (value > 1) {
-        errors[field as string] = 'Use valores entre 0 e 1.'
+      if (value > 100) {
+        errors[field as string] = 'Use valores entre 0 e 100.'
       }
     }
 
@@ -7404,11 +7404,9 @@ export default function App() {
 
   const renderRetornoProjetadoSection = () => {
     const resultado = retornoProjetado
-    const meses = resultado ? resultado.economia.map((_, index) => index) : []
-    const horizonte = vendaForm.horizonte_meses
     const paybackLabel = resultado?.payback
       ? `${resultado.payback} meses`
-      : 'Não atingido no horizonte analisado'
+      : 'Não atingido em 30 anos'
     const roiLabel = resultado
       ? new Intl.NumberFormat('pt-BR', {
           style: 'percent',
@@ -7416,13 +7414,22 @@ export default function App() {
           maximumFractionDigits: 1,
         }).format(resultado.roi)
       : '—'
-    const vplLabel =
-      resultado && typeof resultado.vpl === 'number' ? currency(resultado.vpl) : '—'
+    const showVpl = Boolean(resultado && typeof resultado.vpl === 'number')
+    const vplLabel = showVpl && resultado ? currency(resultado.vpl as number) : '—'
+
+    const kpis: { label: string; value: string }[] = [
+      { label: 'Payback (meses)', value: paybackLabel },
+      { label: 'ROI acumulado (30 anos)', value: roiLabel },
+    ]
+
+    if (showVpl) {
+      kpis.push({ label: 'VPL', value: vplLabel })
+    }
 
     return (
       <section className="card">
         <div className="card-header">
-          <h2>Retorno Projetado</h2>
+          <h2>Retorno Financeiro (Venda)</h2>
           <button
             type="button"
             className="primary"
@@ -7440,42 +7447,12 @@ export default function App() {
         {resultado ? (
           <>
             <div className="kpi-grid">
-              <div className="kpi">
-                <span>Payback estimado</span>
-                <strong>{paybackLabel}</strong>
-              </div>
-              <div className="kpi">
-                <span>ROI acumulado ({horizonte} meses)</span>
-                <strong>{roiLabel}</strong>
-              </div>
-              <div className="kpi">
-                <span>VPL</span>
-                <strong>{vplLabel}</strong>
-              </div>
-            </div>
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Mês</th>
-                    <th>Economia</th>
-                    <th>Pagamento</th>
-                    <th>Fluxo líquido</th>
-                    <th>Saldo acumulado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {meses.map((mes) => (
-                    <tr key={`retorno-m-${mes}`}>
-                      <td>{mes}</td>
-                      <td>{currency(resultado.economia[mes] ?? 0)}</td>
-                      <td>{currency(resultado.pagamentoMensal[mes] ?? 0)}</td>
-                      <td>{currency(resultado.fluxo[mes] ?? 0)}</td>
-                      <td>{currency(resultado.saldo[mes] ?? 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {kpis.map((item) => (
+                <div key={item.label} className="kpi">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
             </div>
           </>
         ) : retornoStatus === 'calculating' ? (
