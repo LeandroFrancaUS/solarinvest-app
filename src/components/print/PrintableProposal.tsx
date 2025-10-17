@@ -59,6 +59,7 @@ function PrintableProposalInner(
     tarifaCheia,
     vendaResumo: vendaResumoProp,
     parsedPdfVenda,
+    orcamentoItens,
   }: PrintableProposalProps,
   ref: React.ForwardedRef<HTMLDivElement>,
 ) {
@@ -128,7 +129,7 @@ function PrintableProposalInner(
   const parsedPdfResumo = parsedPdfVenda ?? null
   const tipoInstalacaoDescricao =
     tipoInstalacao === 'SOLO' ? 'Solo' : tipoInstalacao === 'TELHADO' ? 'Telhado' : '—'
-  const kitCapex = pickPositive(vendaFormResumo?.capex_total, parsedPdfResumo?.capex_total, capex)
+  const kitCapex = pickPositive(capex, vendaFormResumo?.capex_total, parsedPdfResumo?.capex_total)
   const kitPotenciaInstalada = pickPositive(
     vendaFormResumo?.potencia_instalada_kwp,
     parsedPdfResumo?.potencia_instalada_kwp,
@@ -150,14 +151,8 @@ function PrintableProposalInner(
     numeroPlacas,
   )
   const kitPotenciaModulo = pickPositive(parsedPdfResumo?.potencia_da_placa_wp, potenciaPlaca)
-  const kitTarifa = pickPositive(
-    vendaFormResumo?.tarifa_cheia_r_kwh,
-    parsedPdfResumo?.tarifa_cheia_r_kwh,
-    tarifaCheia,
-  )
   const kitModeloModulo = pickText(vendaFormResumo?.modelo_modulo, parsedPdfResumo?.modelo_modulo)
   const kitModeloInversor = pickText(vendaFormResumo?.modelo_inversor, parsedPdfResumo?.modelo_inversor)
-  const kitEstrutura = pickText(vendaFormResumo?.estrutura_suporte, parsedPdfResumo?.estrutura_fixacao)
   const kitTipoInstalacao = pickText(
     tipoInstalacaoDescricao !== '—' ? tipoInstalacaoDescricao : null,
     parsedPdfResumo?.tipo_instalacao,
@@ -202,15 +197,40 @@ function PrintableProposalInner(
   if (kitModeloInversor) {
     kitEntries.push({ label: 'Modelo do inversor', value: kitModeloInversor })
   }
-  if (kitEstrutura) {
-    kitEntries.push({ label: 'Estrutura de fixação', value: kitEstrutura })
-  }
   if (kitTipoInstalacao) {
     kitEntries.push({ label: 'Tipo de instalação', value: kitTipoInstalacao })
   }
-  if (kitTarifa) {
-    kitEntries.push({ label: 'Tarifa cheia (R$/kWh)', value: `${tarifaCurrency(kitTarifa)} / kWh` })
+  const normalizarTextoTabela = (valor?: string | null) => {
+    const trimmed = valor?.toString().trim() ?? ''
+    return trimmed && trimmed !== '—' ? trimmed : ''
   }
+  const itensOrcamentoFormatados = (Array.isArray(orcamentoItens) ? orcamentoItens : [])
+    .map((item, index) => {
+      const produto = normalizarTextoTabela(item.produto)
+      const descricao = normalizarTextoTabela(item.descricao)
+      const codigo = normalizarTextoTabela(item.codigo)
+      const modelo = normalizarTextoTabela(item.modelo)
+      const fabricante = normalizarTextoTabela(item.fabricante)
+      const quantidade =
+        typeof item.quantidade === 'number' && Number.isFinite(item.quantidade)
+          ? Number(item.quantidade)
+          : null
+      return {
+        key: `orcamento-item-${index}`,
+        produto,
+        descricao,
+        codigo,
+        modelo,
+        fabricante,
+        quantidade,
+      }
+    })
+    .filter((item) => {
+      if (item.produto || item.descricao || item.codigo || item.modelo || item.fabricante) {
+        return true
+      }
+      return item.quantidade !== null && Number.isFinite(item.quantidade)
+    })
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
   const areaInstalacaoValida = Number.isFinite(areaInstalacao) && areaInstalacao > 0
@@ -219,8 +239,7 @@ function PrintableProposalInner(
     : '—'
   const distribuidoraTarifaLabel = distribuidoraTarifa?.trim() || ''
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : ''
-  const codigoOrcamento =
-    vendaFormResumo?.numero_orcamento_vendor?.trim() || budgetId?.trim() || ''
+  const codigoOrcamento = budgetId?.trim() || ''
   const emailCliente = cliente.email?.trim() || ''
   const telefoneCliente = cliente.telefone?.trim() || ''
   const ucCliente = cliente.uc?.trim() || ''
@@ -239,9 +258,7 @@ function PrintableProposalInner(
     }
     return `${Math.round(quantidade ?? 0)} un.`
   })()
-  const modeloModuloResumo = vendaFormResumo?.modelo_modulo?.trim() || '—'
   const modeloInversorResumo = vendaFormResumo?.modelo_inversor?.trim() || '—'
-  const estruturaResumo = vendaFormResumo?.estrutura_suporte?.trim() || '—'
   const prazoContratualResumo = isVendaDireta
     ? 'Venda'
     : duracaoContratualValida
@@ -338,7 +355,6 @@ function PrintableProposalInner(
   const parcelasFinResumo = formatParcelas(vendaFormResumo?.n_parcelas_fin)
   const jurosFinAmResumo = formatPercentFromPct(vendaFormResumo?.juros_fin_am_pct)
   const jurosFinAaResumo = formatPercentFromPct(vendaFormResumo?.juros_fin_aa_pct)
-  const mesesRetorno = retornoVenda ? retornoVenda.economia.map((_, index) => index) : []
   const paybackLabelResumo = retornoVenda?.payback
     ? `${retornoVenda.payback} meses`
     : 'Não atingido no horizonte analisado'
@@ -560,6 +576,42 @@ function PrintableProposalInner(
         </section>
       ) : null}
 
+      {itensOrcamentoFormatados.length > 0 ? (
+        <section className="print-section">
+          <h2>Itens do orçamento</h2>
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Descrição</th>
+                <th>Código</th>
+                <th>Modelo</th>
+                <th>Fabricante</th>
+                <th>Quantidade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itensOrcamentoFormatados.map((item) => {
+                const quantidadeFormatada =
+                  item.quantidade !== null && Number.isFinite(item.quantidade) && item.quantidade > 0
+                    ? formatNumber(item.quantidade, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                    : '—'
+                return (
+                  <tr key={item.key}>
+                    <td>{item.produto || '—'}</td>
+                    <td>{item.descricao || '—'}</td>
+                    <td>{item.codigo || '—'}</td>
+                    <td>{item.modelo || '—'}</td>
+                    <td>{item.fabricante || '—'}</td>
+                    <td>{quantidadeFormatada}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+
       <section className="print-section">
         <h2>Quadro comercial resumido</h2>
         <table className="print-table">
@@ -628,16 +680,8 @@ function PrintableProposalInner(
             {quantidadeModulosResumo}
           </p>
           <p>
-            <strong>Modelo dos módulos</strong>
-            {modeloModuloResumo}
-          </p>
-          <p>
             <strong>Modelo dos inversores</strong>
             {modeloInversorResumo}
-          </p>
-          <p>
-            <strong>Estrutura de fixação</strong>
-            {estruturaResumo}
           </p>
           <p>
             <strong>Tipo de instalação</strong>
@@ -881,45 +925,20 @@ function PrintableProposalInner(
         <section className="print-section">
           <h2>Retorno projetado</h2>
           {retornoVenda ? (
-            <>
-              <div className="print-kpi-grid">
-                <div className="print-kpi">
-                  <span>Payback estimado</span>
-                  <strong>{paybackLabelResumo}</strong>
-                </div>
-                <div className="print-kpi">
-                  <span>ROI acumulado ({roiHorizonteResumo})</span>
-                  <strong>{roiLabelResumo}</strong>
-                </div>
-                <div className="print-kpi">
-                  <span>VPL</span>
-                  <strong>{vplResumo}</strong>
-                </div>
+            <div className="print-kpi-grid">
+              <div className="print-kpi">
+                <span>Payback estimado</span>
+                <strong>{paybackLabelResumo}</strong>
               </div>
-              <h3 className="print-subheading">Fluxo mensal</h3>
-              <table className="print-table">
-                <thead>
-                  <tr>
-                    <th>Mês</th>
-                    <th>Economia</th>
-                    <th>Pagamento</th>
-                    <th>Fluxo líquido</th>
-                    <th>Saldo acumulado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mesesRetorno.map((mes) => (
-                    <tr key={`retorno-print-${mes}`}>
-                      <td>{mes}</td>
-                      <td>{currency(retornoVenda.economia[mes] ?? 0)}</td>
-                      <td>{currency(retornoVenda.pagamentoMensal[mes] ?? 0)}</td>
-                      <td>{currency(retornoVenda.fluxo[mes] ?? 0)}</td>
-                      <td>{currency(retornoVenda.saldo[mes] ?? 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
+              <div className="print-kpi">
+                <span>ROI acumulado ({roiHorizonteResumo})</span>
+                <strong>{roiLabelResumo}</strong>
+              </div>
+              <div className="print-kpi">
+                <span>VPL</span>
+                <strong>{vplResumo}</strong>
+              </div>
+            </div>
           ) : (
             <p className="muted">
               Informe os parâmetros financeiros na aba Vendas para calcular o retorno projetado.
@@ -1045,7 +1064,7 @@ function PrintableProposalInner(
             ))}
           </ul>
         ) : null}
-        {beneficioAno30Printable ? (
+        {!isVendaDireta && beneficioAno30Printable ? (
           <p className="chart-explainer">
             <strong>{chartEconomiaIntro}</strong>{' '}
             Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
@@ -1071,7 +1090,7 @@ function PrintableProposalInner(
             {chartExplainerContext}
           </p>
         ) : null}
-        <p className="print-chart-footnote">{chartFootnoteText}</p>
+        {!isVendaDireta ? <p className="print-chart-footnote">{chartFootnoteText}</p> : null}
       </section>
 
       <section className="print-section print-important">
