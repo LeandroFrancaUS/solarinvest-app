@@ -7247,22 +7247,18 @@ export default function App() {
 
         <main className="content page-content">
           <div className="page-actions">
-            <div className="page-actions-left">
-              <button type="button" className="ghost" onClick={handleNovaProposta}>
-                Novo
-              </button>
-            </div>
+            <button type="button" className="ghost" onClick={handleNovaProposta}>
+              Novo
+            </button>
             {podeSalvarProposta ? (
-              <div className="page-actions-right">
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={handleSalvarPropostaPdf}
-                  disabled={salvandoPropostaPdf}
-                >
-                  {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
-                </button>
-              </div>
+              <button
+                type="button"
+                className="primary"
+                onClick={handleSalvarPropostaPdf}
+                disabled={salvandoPropostaPdf}
+              >
+                {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
+              </button>
             ) : null}
           </div>
           {activeTab === 'leasing' ? (
