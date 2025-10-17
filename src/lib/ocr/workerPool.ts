@@ -167,8 +167,9 @@ export async function recognizeImageData(
   if (!(imageData instanceof ImageData)) {
     throw new OcrError('Entrada inválida para OCR')
   }
+  const safeImageData = cloneImageData(imageData)
   return new Promise<RecognizeResult>((resolve, reject) => {
-    queue.push({ imageData, resolve, reject, options, attempt: 0 })
+    queue.push({ imageData: safeImageData, resolve, reject, options, attempt: 0 })
     void processQueue()
   })
 }
