@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 
 import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils/formatters'
+import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 
 const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
@@ -150,56 +151,69 @@ function PrintableProposalInner(
     parsedPdfResumo?.quantidade_modulos,
     numeroPlacas,
   )
-  const kitPotenciaModulo = pickPositive(parsedPdfResumo?.potencia_da_placa_wp, potenciaPlaca)
-  const kitModeloModulo = pickText(vendaFormResumo?.modelo_modulo, parsedPdfResumo?.modelo_modulo)
-  const kitModeloInversor = pickText(vendaFormResumo?.modelo_inversor, parsedPdfResumo?.modelo_inversor)
-  const kitTipoInstalacao = pickText(
-    tipoInstalacaoDescricao !== '—' ? tipoInstalacaoDescricao : null,
-    parsedPdfResumo?.tipo_instalacao,
+  const areaInstalacaoValida = Number.isFinite(areaInstalacao) && areaInstalacao > 0
+  const areaInstalacaoTexto = areaInstalacaoValida
+    ? areaInstalacao.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    : '—'
+  const moduleAreaM2 =
+    Number.isFinite(parsedPdfResumo?.module_area_m2) && (parsedPdfResumo?.module_area_m2 ?? 0) > 0
+      ? Number(parsedPdfResumo?.module_area_m2)
+      : null
+  const areaMinimaNecessaria =
+    kitQuantidadeModulos && kitQuantidadeModulos > 0
+      ? (moduleAreaM2 ?? 2) * kitQuantidadeModulos
+      : areaInstalacaoValida
+      ? areaInstalacao
+      : null
+
+  const formatKwpDetalhe = (valor: number | null) => {
+    if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
+      return '—'
+    }
+    return `${formatNumber(valor ?? 0, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kWp`
+  }
+
+  const formatQuantidadeDetalhe = (valor: number | null) => {
+    if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
+      return '—'
+    }
+    return `${Math.round(valor ?? 0).toLocaleString('pt-BR')} módulos`
+  }
+
+  const formatAreaDetalhe = (valor: number | null) => {
+    if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
+      return '—'
+    }
+    return `${(valor ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`
+  }
+
+  const formatTarifaDetalhe = (valor: number | null) => {
+    if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
+      return '—'
+    }
+    return tarifaCurrency(valor ?? 0)
+  }
+
+  const tarifaProjeto = pickPositive(
+    vendaFormResumo?.tarifa_cheia_r_kwh,
+    parsedPdfResumo?.tarifa_cheia_r_kwh,
+    tarifaCheia,
   )
-  const kitEntries: { label: string; value: string }[] = []
-  if (kitCapex) {
-    kitEntries.push({ label: 'Investimento total (CAPEX)', value: currency(kitCapex) })
-  }
-  if (kitPotenciaInstalada) {
-    kitEntries.push({
-      label: 'Potência instalada (kWp)',
-      value: `${formatNumber(kitPotenciaInstalada, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })} kWp`,
-    })
-  }
-  if (kitGeracao) {
-    kitEntries.push({ label: 'Geração estimada', value: formatKwhMes(kitGeracao) })
-  }
-  if (kitConsumo) {
-    kitEntries.push({ label: 'Consumo (kWh/mês)', value: formatKwhMes(kitConsumo) })
-  }
-  if (kitQuantidadeModulos) {
-    kitEntries.push({
-      label: 'Quantidade de módulos',
-      value: `${Math.round(kitQuantidadeModulos).toLocaleString('pt-BR')} unidades`,
-    })
-  }
-  if (kitPotenciaModulo) {
-    kitEntries.push({
-      label: 'Potência da placa',
-      value: `${formatNumber(kitPotenciaModulo, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      })} Wp`,
-    })
-  }
-  if (kitModeloModulo) {
-    kitEntries.push({ label: 'Modelo do módulo', value: kitModeloModulo })
-  }
-  if (kitModeloInversor) {
-    kitEntries.push({ label: 'Modelo do inversor', value: kitModeloInversor })
-  }
-  if (kitTipoInstalacao) {
-    kitEntries.push({ label: 'Tipo de instalação', value: kitTipoInstalacao })
-  }
+
+  const autonomiaPct =
+    kitGeracao && kitConsumo && kitGeracao > 0 && kitConsumo > 0 ? (kitGeracao / kitConsumo) * 100 : null
+  const autonomiaLabel =
+    Number.isFinite(autonomiaPct) && (autonomiaPct ?? 0) > 0 ? formatPercentFromPct(autonomiaPct ?? 0, 1) : '—'
+
+  const detalhamentoCampos = [
+    { label: 'Potência instalada', value: formatKwpDetalhe(kitPotenciaInstalada ?? null) },
+    { label: 'Produção média mensal', value: formatKwhMes(kitGeracao ?? undefined) },
+    { label: 'Consumo médio mensal', value: formatKwhMes(kitConsumo ?? undefined) },
+    { label: 'Quantidade de módulos', value: formatQuantidadeDetalhe(kitQuantidadeModulos ?? null) },
+    { label: 'Área mínima necessária', value: formatAreaDetalhe(areaMinimaNecessaria ?? null) },
+    { label: 'Tarifa', value: formatTarifaDetalhe(tarifaProjeto ?? null) },
+    { label: 'Autonomia (%)', value: autonomiaLabel },
+  ]
   const normalizarTextoTabela = (valor?: string | null) => {
     const trimmed = valor?.toString().trim() ?? ''
     return trimmed && trimmed !== '—' ? trimmed : ''
@@ -233,10 +247,83 @@ function PrintableProposalInner(
     })
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
-  const areaInstalacaoValida = Number.isFinite(areaInstalacao) && areaInstalacao > 0
-  const areaInstalacaoTexto = areaInstalacaoValida
-    ? areaInstalacao.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-    : '—'
+  const linhasAgrupamento: Linha[] = itensOrcamentoFormatados
+    .map((item) => {
+      const nomeBase = (item.produto || item.descricao || '').trim()
+      if (!nomeBase) {
+        return null
+      }
+      return {
+        nome: nomeBase,
+        codigo: item.codigo || undefined,
+        modelo: item.modelo || undefined,
+        fabricante: item.fabricante || undefined,
+        quantidade:
+          typeof item.quantidade === 'number' && Number.isFinite(item.quantidade) && item.quantidade > 0
+            ? item.quantidade
+            : null,
+      }
+    })
+    .filter((linha): linha is Linha => Boolean(linha))
+
+  const produtosAgrupados = (() => {
+    if (!linhasAgrupamento.length) {
+      return [] as {
+        categoria: string
+        grupo: string
+        descricao: string
+        quantidade: number | null
+      }[]
+    }
+    const grupos = agrupar(linhasAgrupamento)
+    const rows: { categoria: string; grupo: string; descricao: string; quantidade: number | null }[] = []
+
+    const pushGroup = (categoria: string, label: string, lista: Linha[]) => {
+      if (!lista.length) {
+        return
+      }
+      const nomes = new Set<string>()
+      lista.forEach((linha) => {
+        const candidatos = [linha.nome, linha.modelo, linha.fabricante, linha.codigo]
+        const encontrado = candidatos.find((texto) => texto && texto.trim().length > 0)
+        if (encontrado) {
+          nomes.add(encontrado.trim())
+        }
+      })
+      const descricao = nomes.size > 0 ? Array.from(nomes).join(' • ') : '—'
+      const quantidadeTotal = lista.reduce((acc, linha) => {
+        if (typeof linha.quantidade === 'number' && Number.isFinite(linha.quantidade) && linha.quantidade > 0) {
+          return acc + linha.quantidade
+        }
+        return acc
+      }, 0)
+      if (descricao === '—' && quantidadeTotal <= 0) {
+        return
+      }
+      rows.push({
+        categoria,
+        grupo: label,
+        descricao,
+        quantidade: quantidadeTotal > 0 ? quantidadeTotal : null,
+      })
+    }
+
+    pushGroup('Hardware', 'Módulos', grupos.Hardware.Modulos)
+    pushGroup('Hardware', 'Inversores', grupos.Hardware.Inversores)
+    pushGroup(
+      'Hardware',
+      'KIT DE FIXAÇÃO, CABOS, ATERRAMENTO, DEMAIS ACESSÓRIOS',
+      grupos.Hardware.KitsECabosEAterramentoEAcessorios,
+    )
+    pushGroup(
+      'Serviços',
+      'ART, PROJETO, INSTALAÇÃO, HOMOLOGAÇÃO, MONITORAMENTO',
+      grupos.Servicos.EngenhariaEInstalacaoEHomologacao,
+    )
+
+    return rows
+  })()
+  const mostrarDetalhamento = detalhamentoCampos.length > 0 || produtosAgrupados.length > 0
   const distribuidoraTarifaLabel = distribuidoraTarifa?.trim() || ''
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : ''
   const codigoOrcamento = budgetId?.trim() || ''
@@ -562,19 +649,172 @@ function PrintableProposalInner(
         </dl>
       </section>
 
-      {kitEntries.length > 0 ? (
+      {mostrarDetalhamento ? (
         <section className="print-section">
-          <h2>Kit da usina</h2>
-          <dl className="print-kit-grid">
-            {kitEntries.map((entry) => (
-              <div key={entry.label} className="print-kit-field">
-                <dt>{entry.label}</dt>
-                <dd>{entry.value}</dd>
-              </div>
-            ))}
-          </dl>
+          <h2>Detalhamento do Projeto</h2>
+          {detalhamentoCampos.length > 0 ? (
+            <dl className="print-kit-grid">
+              {detalhamentoCampos.map((campo) => (
+                <div key={campo.label} className="print-kit-field">
+                  <dt>{campo.label}</dt>
+                  <dd>{campo.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+          {produtosAgrupados.length > 0 ? (
+            <>
+              <h3 className="print-subheading">Produtos/Serviços e Quantidade</h3>
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th>Categoria</th>
+                    <th>Produtos/Serviços</th>
+                    <th>Quantidade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const rendered: React.ReactNode[] = []
+                    let categoriaAtual: string | null = null
+                    produtosAgrupados.forEach((row, index) => {
+                      if (row.categoria !== categoriaAtual) {
+                        categoriaAtual = row.categoria
+                        rendered.push(
+                          <tr key={`categoria-${categoriaAtual}`} className="print-table-group">
+                            <td colSpan={3}>{categoriaAtual}</td>
+                          </tr>,
+                        )
+                      }
+                      rendered.push(
+                        <tr key={`grupo-${row.categoria}-${index}`}>
+                          <td>{row.grupo}</td>
+                          <td>{row.descricao || '—'}</td>
+                          <td>
+                            {row.quantidade
+                              ? formatNumber(row.quantidade, {
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0,
+                                })
+                              : '—'}
+                          </td>
+                        </tr>,
+                      )
+                    })
+                    return rendered
+                  })()}
+                </tbody>
+              </table>
+            </>
+          ) : null}
         </section>
       ) : null}
+
+      <section className="print-section">
+        <h2>Composição do Sistema</h2>
+        <div className="print-key-values">
+          <p>
+            <strong>{investimentoLabel}</strong>
+            {currency(capex)}
+          </p>
+          <p>
+            <strong>Potência instalada (kWp)</strong>
+            {potenciaInstaladaTexto}
+          </p>
+          <p>
+            <strong>Geração estimada (kWh/mês)</strong>
+            {geracaoMensalResumo}
+          </p>
+          <p>
+            <strong>Energia contratada</strong>
+            {energiaContratadaResumo}
+          </p>
+          <p>
+            <strong>Quantidade de módulos</strong>
+            {quantidadeModulosResumo}
+          </p>
+          <p>
+            <strong>Modelo dos inversores</strong>
+            {modeloInversorResumo}
+          </p>
+          <p>
+            <strong>Tipo de instalação</strong>
+            {tipoInstalacaoDescricao}
+          </p>
+          <p>
+            <strong>Área utilizada (m²)</strong>
+            {areaInstalacaoTexto}
+          </p>
+        </div>
+        {!isVendaDireta || mostrarFinanciamento ? (
+          <div className="print-summary-grid">
+            {!isVendaDireta ? (
+              <div className="print-card">
+                <h3>Mensalidades por ano</h3>
+                {parcelasLeasingAnuais.length > 0 ? (
+                  <div className="print-yearly-payments">
+                    {parcelasLeasingAnuais.map((row) => (
+                      <article className="print-yearly-payments__item" key={`leasing-${row.ano}`}>
+                        <div className="print-yearly-payments__header">
+                          <span className="print-yearly-payments__year-label">Período</span>
+                          <span className="print-yearly-payments__year">{`${row.ano}º ano`}</span>
+                        </div>
+                        <dl className="print-yearly-payments__metrics">
+                          <div>
+                            <dt>Tarifa cheia média</dt>
+                            <dd>{tarifaCurrency(row.tarifaCheiaMedia)}</dd>
+                          </div>
+                          <div>
+                            <dt>Tarifa c/ desconto média</dt>
+                            <dd>{tarifaCurrency(row.tarifaDescontadaMedia)}</dd>
+                          </div>
+                          <div>
+                            <dt>
+                              Conta {distribuidoraTarifaLabel ? distribuidoraTarifaLabel : 'distribuidora'}
+                            </dt>
+                            <dd>{currency(row.mensalidadeCheiaMedia)}</dd>
+                          </div>
+                          <div>
+                            <dt>Mensalidade SolarInvest</dt>
+                            <dd>{currency(row.mensalidadeMedia)}</dd>
+                          </div>
+                        </dl>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="print-yearly-payments__empty muted">
+                    Defina um prazo contratual para gerar a projeção das médias anuais das parcelas.
+                  </p>
+                )}
+              </div>
+            ) : null}
+            {mostrarFinanciamento ? (
+              <div className="print-card">
+                <h3>Financiamento</h3>
+                <table className="print-table">
+                  <thead>
+                    <tr>
+                      <th>Ano</th>
+                      <th>Fluxo anual</th>
+                      <th>Benefício acumulado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {anos.map((ano) => (
+                      <tr key={`fin-${ano}`}>
+                        <td>{ano}</td>
+                        <td>{currency(financiamentoFluxo[ano - 1] ?? 0)}</td>
+                        <td>{currency(financiamentoROI[ano - 1] ?? 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       {itensOrcamentoFormatados.length > 0 ? (
         <section className="print-section">
@@ -654,134 +894,6 @@ function PrintableProposalInner(
             </tr>
           </tbody>
         </table>
-      </section>
-
-      <section className="print-section">
-        <h2>Resumo técnico e financeiro</h2>
-        <div className="print-key-values">
-          <p>
-            <strong>{investimentoLabel}</strong>
-            {currency(capex)}
-          </p>
-          <p>
-            <strong>Potência instalada (kWp)</strong>
-            {potenciaInstaladaTexto}
-          </p>
-          <p>
-            <strong>Geração estimada (kWh/mês)</strong>
-            {geracaoMensalResumo}
-          </p>
-          <p>
-            <strong>Energia contratada</strong>
-            {energiaContratadaResumo}
-          </p>
-          <p>
-            <strong>Quantidade de módulos</strong>
-            {quantidadeModulosResumo}
-          </p>
-          <p>
-            <strong>Modelo dos inversores</strong>
-            {modeloInversorResumo}
-          </p>
-          <p>
-            <strong>Tipo de instalação</strong>
-            {tipoInstalacaoDescricao}
-          </p>
-          <p>
-            <strong>Área utilizada (m²)</strong>
-            {areaInstalacaoTexto}
-          </p>
-        </div>
-        <div className="print-summary-grid">
-          {isVendaDireta ? (
-            <div className="print-card">
-              <h3>Resumo da venda</h3>
-              <div className="print-metric-list">
-                <p>
-                  <strong>Modelo comercial</strong>
-                  Venda
-                </p>
-                <p>
-                  <strong>Condição selecionada</strong>
-                  {condicaoLabel}
-                </p>
-                <p>
-                  <strong>Investimento total</strong>
-                  {currency(capex)}
-                </p>
-                {modoPagamentoLabel ? (
-                  <p>
-                    <strong>Modo de pagamento</strong>
-                    {modoPagamentoLabel}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          ) : (
-            <div className="print-card">
-              <h3>Mensalidades por ano</h3>
-              {parcelasLeasingAnuais.length > 0 ? (
-                <div className="print-yearly-payments">
-                  {parcelasLeasingAnuais.map((row) => (
-                    <article className="print-yearly-payments__item" key={`leasing-${row.ano}`}>
-                      <div className="print-yearly-payments__header">
-                        <span className="print-yearly-payments__year-label">Período</span>
-                        <span className="print-yearly-payments__year">{`${row.ano}º ano`}</span>
-                      </div>
-                      <dl className="print-yearly-payments__metrics">
-                        <div>
-                          <dt>Tarifa cheia média</dt>
-                          <dd>{tarifaCurrency(row.tarifaCheiaMedia)}</dd>
-                        </div>
-                        <div>
-                          <dt>Tarifa c/ desconto média</dt>
-                          <dd>{tarifaCurrency(row.tarifaDescontadaMedia)}</dd>
-                        </div>
-                        <div>
-                          <dt>
-                            Conta {distribuidoraTarifaLabel ? distribuidoraTarifaLabel : 'distribuidora'}
-                          </dt>
-                          <dd>{currency(row.mensalidadeCheiaMedia)}</dd>
-                        </div>
-                        <div>
-                          <dt>Mensalidade SolarInvest</dt>
-                          <dd>{currency(row.mensalidadeMedia)}</dd>
-                        </div>
-                      </dl>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="print-yearly-payments__empty muted">
-                  Defina um prazo contratual para gerar a projeção das médias anuais das parcelas.
-                </p>
-              )}
-            </div>
-          )}
-          {mostrarFinanciamento ? (
-            <div className="print-card">
-              <h3>Financiamento</h3>
-              <table className="print-table">
-                <thead>
-                  <tr>
-                    <th>Ano</th>
-                    <th>Fluxo anual</th>
-                    <th>Benefício acumulado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {anos.map((ano) => (
-                    <tr key={`fin-${ano}`}>
-                      <td>{ano}</td>
-                      <td>{currency(financiamentoFluxo[ano - 1] ?? 0)}</td>
-                      <td>{currency(financiamentoROI[ano - 1] ?? 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </div>
       </section>
 
       {isVendaDireta ? (
@@ -900,10 +1012,12 @@ function PrintableProposalInner(
                     <td>Taxa mínima mensal</td>
                     <td>{taxaMinimaResumo}</td>
                   </tr>
-                  <tr>
-                    <td>Horizonte de análise</td>
-                    <td>{horizonteAnaliseResumo}</td>
-                  </tr>
+                  {!isVendaDireta ? (
+                    <tr>
+                      <td>Horizonte de análise</td>
+                      <td>{horizonteAnaliseResumo}</td>
+                    </tr>
+                  ) : null}
                   {taxaDescontoResumo ? (
                     <tr>
                       <td>Taxa de desconto (a.a.)</td>
@@ -1042,7 +1156,7 @@ function PrintableProposalInner(
             </BarChart>
           </ResponsiveContainer>
         </div>
-        {beneficioMarcos.length ? (
+        {!isVendaDireta && beneficioMarcos.length ? (
           <ul className="print-chart-highlights">
             {beneficioMarcos.map((marco) => (
               <li key={`beneficio-marco-resumo-${marco.ano}`}>

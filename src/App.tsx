@@ -41,7 +41,7 @@ import type {
   RetornoProjetado,
   VendaForm,
 } from './lib/finance/roi'
-import { estimateMonthlyGenerationKWh } from './lib/energy/generation'
+import { estimateMonthlyGenerationKWh, estimateMonthlyKWh, kwpFromWpQty } from './lib/energy/generation'
 import {
   parseVendaPdfText,
   mergeParsedVendaPdfData,
@@ -2499,6 +2499,28 @@ export default function App() {
     return numeroPlacasCalculado
   }, [numeroPlacasInformado, numeroPlacasCalculado])
 
+  const vendaQuantidadeModulos = useMemo(() => {
+    const quantidade = vendaForm.quantidade_modulos
+    if (!Number.isFinite(quantidade)) {
+      return null
+    }
+    const resolved = Number(quantidade)
+    return resolved > 0 ? resolved : null
+  }, [vendaForm.quantidade_modulos])
+
+  const vendaAutoPotenciaKwp = useMemo(
+    () => kwpFromWpQty(potenciaPlaca, vendaQuantidadeModulos),
+    [potenciaPlaca, vendaQuantidadeModulos],
+  )
+
+  const vendaGeracaoParametros = useMemo(
+    () => ({
+      hsp: baseIrradiacao > 0 ? baseIrradiacao : 0,
+      pr: eficienciaNormalizada > 0 ? eficienciaNormalizada : 0,
+    }),
+    [baseIrradiacao, eficienciaNormalizada],
+  )
+
   const areaInstalacao = useMemo(() => {
     if (numeroPlacasEstimado <= 0) return 0
     const fator = tipoInstalacao === 'SOLO' ? 7 : 3.3
@@ -2577,6 +2599,90 @@ export default function App() {
       resetRetorno()
     }
   }, [geracaoMensalKwh, numeroPlacasEstimado, potenciaInstaladaKwp, resetRetorno])
+
+  useEffect(() => {
+    const { hsp, pr } = vendaGeracaoParametros
+    if (hsp <= 0 || pr <= 0) {
+      return
+    }
+
+    const potenciaManualValida =
+      Number.isFinite(vendaForm.potencia_instalada_kwp) && (vendaForm.potencia_instalada_kwp ?? 0) > 0
+    const potenciaBase = potenciaManualValida
+      ? Number(vendaForm.potencia_instalada_kwp)
+      : vendaAutoPotenciaKwp ?? null
+
+    if (!potenciaBase || potenciaBase <= 0) {
+      return
+    }
+
+    const estimada = estimateMonthlyKWh(potenciaBase, vendaGeracaoParametros)
+    if (estimada <= 0) {
+      return
+    }
+
+    let consumoAtualizado = false
+    let geracaoAtualizada = false
+
+    setVendaForm((prev) => {
+      const updates: Partial<VendaForm> = {}
+      let changed = false
+
+      if (
+        (!Number.isFinite(prev.potencia_instalada_kwp) || (prev.potencia_instalada_kwp ?? 0) <= 0) &&
+        vendaAutoPotenciaKwp
+      ) {
+        updates.potencia_instalada_kwp = vendaAutoPotenciaKwp
+        changed = true
+      }
+
+      if (!Number.isFinite(prev.geracao_estimada_kwh_mes) || (prev.geracao_estimada_kwh_mes ?? 0) <= 0) {
+        updates.geracao_estimada_kwh_mes = estimada
+        geracaoAtualizada = true
+        changed = true
+      }
+
+      if (prev.consumo_kwh_mes !== estimada) {
+        updates.consumo_kwh_mes = estimada
+        consumoAtualizado = true
+        changed = true
+      }
+
+      if (!changed) {
+        return prev
+      }
+
+      return { ...prev, ...updates }
+    })
+
+    if (consumoAtualizado) {
+      setKcKwhMes(estimada)
+      setVendaFormErrors((prev) => {
+        if (!prev.consumo_kwh_mes) {
+          return prev
+        }
+        const { consumo_kwh_mes: _omit, ...rest } = prev
+        return rest
+      })
+    }
+
+    if (geracaoAtualizada) {
+      setVendaFormErrors((prev) => {
+        if (!prev.geracao_estimada_kwh_mes) {
+          return prev
+        }
+        const { geracao_estimada_kwh_mes: _omit, ...rest } = prev
+        return rest
+      })
+    }
+  }, [
+    vendaAutoPotenciaKwp,
+    vendaForm.potencia_instalada_kwp,
+    vendaGeracaoParametros,
+    setKcKwhMes,
+    setVendaFormErrors,
+    setVendaForm,
+  ])
 
   useEffect(() => {
     const consumoAnterior = consumoAnteriorRef.current
