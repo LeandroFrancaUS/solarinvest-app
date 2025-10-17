@@ -1173,6 +1173,8 @@ const createEmptyKitBudget = (): KitBudgetState => ({
 })
 
 const INITIAL_ACTIVE_TAB: TabKey = 'leasing'
+const ACTIVE_PAGE_STORAGE_KEY = 'solarinvest-active-page'
+const ACTIVE_TAB_STORAGE_KEY = 'solarinvest-active-tab'
 const INITIAL_SETTINGS_TAB: SettingsTabKey = 'mercado'
 const INITIAL_UF_TARIFA = 'GO'
 const INITIAL_DISTRIBUIDORA_TARIFA = 'Equatorial Goiás'
@@ -1463,8 +1465,22 @@ const simplePrintStyles = `
 
 export default function App() {
   const distribuidorasFallback = useMemo(() => getDistribuidorasFallback(), [])
-  const [activePage, setActivePage] = useState<'app' | 'crm'>('app')
-  const [activeTab, setActiveTab] = useState<TabKey>(INITIAL_ACTIVE_TAB)
+  const [activePage, setActivePage] = useState<'app' | 'crm'>(() => {
+    if (typeof window === 'undefined') {
+      return 'app'
+    }
+
+    const storedPage = window.localStorage.getItem(ACTIVE_PAGE_STORAGE_KEY)
+    return storedPage === 'crm' ? 'crm' : 'app'
+  })
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    if (typeof window === 'undefined') {
+      return INITIAL_ACTIVE_TAB
+    }
+
+    const storedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY)
+    return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_ACTIVE_TAB
+  })
   const isVendaDiretaTab = activeTab === 'vendas'
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
@@ -1563,6 +1579,22 @@ export default function App() {
   })
   const [capexManualOverride, setCapexManualOverride] = useState(INITIAL_CAPEX_MANUAL_OVERRIDE)
   const [parsedVendaPdf, setParsedVendaPdf] = useState<ParsedVendaPdfData | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(ACTIVE_PAGE_STORAGE_KEY, activePage)
+  }, [activePage])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeTab)
+  }, [activeTab])
 
   const budgetItemsTotal = useMemo(
     () => computeBudgetItemsTotalValue(kitBudget.items),
@@ -6009,8 +6041,6 @@ export default function App() {
   ])
 
   const handleNovaProposta = useCallback(() => {
-    setActivePage('app')
-    setActiveTab(INITIAL_ACTIVE_TAB)
     setSettingsTab(INITIAL_SETTINGS_TAB)
     setIsSettingsOpen(false)
     setIsBudgetSearchOpen(false)
