@@ -1,19 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Label,
-  LabelList,
-  Legend,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import React, { useMemo } from 'react'
+import { Bar, BarChart, CartesianGrid, Label, LabelList, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils/formatters'
 import {
@@ -50,15 +36,13 @@ function PrintableProposalInner(
     financiamentoFluxo,
     financiamentoROI,
     mostrarFinanciamento,
-    tabelaBuyout,
-    buyoutResumo,
-    capex,
-    tipoProposta,
-    geracaoMensalKwh,
-    potenciaModulo,
-    numeroModulos,
-    potenciaInstaladaKwp,
-    tipoInstalacao,
+  buyoutResumo,
+  capex,
+  tipoProposta,
+  geracaoMensalKwh,
+  numeroModulos,
+  potenciaInstaladaKwp,
+  tipoInstalacao,
     areaInstalacao,
     descontoContratualPct,
     parcelasLeasing,
@@ -116,19 +100,9 @@ function PrintableProposalInner(
     }
     return null
   }
-  const pickText = (...values: (string | null | undefined)[]): string | null => {
-    for (const value of values) {
-      const trimmed = value?.trim() ?? ''
-      if (trimmed) {
-        return trimmed
-      }
-    }
-    return null
-  }
   const parsedPdfResumo = parsedPdfVenda ?? null
   const tipoInstalacaoDescricao =
     tipoInstalacao === 'SOLO' ? 'Solo' : tipoInstalacao === 'TELHADO' ? 'Telhado' : '—'
-  const kitCapex = pickPositive(capex, vendaFormResumo?.capex_total, parsedPdfResumo?.capex_total)
   const kitPotenciaInstalada = pickPositive(
     vendaFormResumo?.potencia_instalada_kwp,
     parsedPdfResumo?.potencia_instalada_kwp,
@@ -245,6 +219,14 @@ function PrintableProposalInner(
         typeof item.quantidade === 'number' && Number.isFinite(item.quantidade)
           ? Number(item.quantidade)
           : null
+      const valorUnitario =
+        typeof item.valorUnitario === 'number' && Number.isFinite(item.valorUnitario)
+          ? Number(item.valorUnitario)
+          : null
+      const valorTotal =
+        typeof item.valorTotal === 'number' && Number.isFinite(item.valorTotal)
+          ? Number(item.valorTotal)
+          : null
       return {
         key: `orcamento-item-${index}`,
         produto,
@@ -253,6 +235,8 @@ function PrintableProposalInner(
         modelo,
         fabricante,
         quantidade,
+        valorUnitario,
+        valorTotal,
       }
     })
     .filter((item) => {
@@ -263,24 +247,23 @@ function PrintableProposalInner(
     })
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
-  const linhasAgrupamento: Linha[] = itensOrcamentoFormatados
-    .map((item) => {
-      const nomeBase = (item.produto || item.descricao || '').trim()
-      if (!nomeBase) {
-        return null
-      }
-      return {
-        nome: nomeBase,
-        codigo: item.codigo || undefined,
-        modelo: item.modelo || undefined,
-        fabricante: item.fabricante || undefined,
-        quantidade:
-          typeof item.quantidade === 'number' && Number.isFinite(item.quantidade) && item.quantidade > 0
-            ? item.quantidade
-            : null,
-      }
+  const linhasAgrupamento: Linha[] = []
+  itensOrcamentoFormatados.forEach((item) => {
+    const nomeBase = (item.produto || item.descricao || '').trim()
+    if (!nomeBase) {
+      return
+    }
+    linhasAgrupamento.push({
+      nome: nomeBase,
+      codigo: item.codigo || undefined,
+      modelo: item.modelo || undefined,
+      fabricante: item.fabricante || undefined,
+      quantidade:
+        typeof item.quantidade === 'number' && Number.isFinite(item.quantidade) && item.quantidade > 0
+          ? item.quantidade
+          : null,
     })
-    .filter((linha): linha is Linha => Boolean(linha))
+  })
 
   const produtosAgrupados = (() => {
     if (!linhasAgrupamento.length) {
@@ -842,6 +825,8 @@ function PrintableProposalInner(
                 <th>Produto</th>
                 <th>Descrição</th>
                 <th>Quantidade</th>
+                <th>Valor Unitário</th>
+                <th>Valor Total</th>
               </tr>
             </thead>
             <tbody>
@@ -853,11 +838,21 @@ function PrintableProposalInner(
                         maximumFractionDigits: 0,
                       })
                     : '—'
+                const valorUnitarioFormatado =
+                  item.valorUnitario !== null && Number.isFinite(item.valorUnitario) && item.valorUnitario > 0
+                    ? formatMoneyBRWithDigits(item.valorUnitario, 2)
+                    : '—'
+                const valorTotalFormatado =
+                  item.valorTotal !== null && Number.isFinite(item.valorTotal) && item.valorTotal > 0
+                    ? formatMoneyBRWithDigits(item.valorTotal, 2)
+                    : '—'
                 return (
                   <tr key={item.key}>
                     <td>{item.produto || '—'}</td>
                     <td>{item.descricao || '—'}</td>
                     <td>{quantidadeFormatada}</td>
+                    <td>{valorUnitarioFormatado}</td>
+                    <td>{valorTotalFormatado}</td>
                   </tr>
                 )
               })}

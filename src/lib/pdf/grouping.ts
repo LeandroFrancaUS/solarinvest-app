@@ -1,8 +1,8 @@
 export type Linha = {
   nome: string
-  codigo?: string
-  modelo?: string
-  fabricante?: string
+  codigo?: string | undefined
+  modelo?: string | undefined
+  fabricante?: string | undefined
   quantidade?: number | null
 }
 

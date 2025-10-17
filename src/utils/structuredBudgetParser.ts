@@ -51,6 +51,38 @@ const DESCRIPTION_ALLOWED_REGEXES: RegExp[] = [/^Descri[çc][aã]o/i, /^Observa[
 const CSV_HEADER =
   'numeroOrcamento;validade;de;para;produto;codigo;modelo;descricao;quantidade;unidade;precoUnitario;precoTotal;valorTotal'
 
+const runtimeEnv = (() => {
+  if (typeof import.meta !== 'undefined') {
+    const meta = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
+    if (meta) {
+      return meta
+    }
+  }
+  if (typeof globalThis !== 'undefined') {
+    const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+    if (processEnv) {
+      return processEnv
+    }
+  }
+  return {} as Record<string, string | undefined>
+})()
+
+const PARSER_DEBUG_ENABLED =
+  runtimeEnv.VITE_PARSER_DEBUG === 'true' || runtimeEnv.PARSER_DEBUG === 'true'
+
+const parserDebugLog = (context: string, payload: Record<string, unknown>): void => {
+  if (!PARSER_DEBUG_ENABLED) {
+    return
+  }
+  console.debug(`[structuredBudgetParser:${context}]`, payload)
+}
+
+const collectContextLines = (lines: string[], index: number, radius = 2): string[] => {
+  const start = Math.max(0, index - radius)
+  const end = Math.min(lines.length, index + radius + 1)
+  return lines.slice(start, end)
+}
+
 type HeaderData = {
   numeroOrcamento: string | null
   validade: string | null
@@ -221,9 +253,19 @@ export function deriveSection(
 function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } {
   const itens: ItemData[] = []
   const warnings: string[] = []
-  const { section } = deriveSection(lines)
+  const { section, startIdx } = deriveSection(lines)
+
+  if (!section.length) {
+    parserDebugLog('itens-vazios', { startIdx })
+  }
 
   let curr: ItemData | null = null
+  let lastAbsoluteIndex = startIdx
+
+  const resolveContext = (absoluteIndex: number) => {
+    const index = Number.isFinite(absoluteIndex) ? absoluteIndex : startIdx
+    return collectContextLines(lines, Math.max(index, 0))
+  }
 
   const ensureCurr = () => {
     if (!curr) {
@@ -235,6 +277,11 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
     if (!curr) return
     const produto = curr.produto?.trim()
     if (!produto || shouldIgnoreValue(produto)) {
+      parserDebugLog('item-descartado', {
+        motivo: 'produto-invalido',
+        produto,
+        contexto: resolveContext(lastAbsoluteIndex),
+      })
       curr = null
       return
     }
@@ -255,20 +302,41 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
             curr.produto ?? curr.codigo ?? 'Item'
           }": total informado não confere com quantidade x preço unitário.`,
         )
+        parserDebugLog('item-total-inconsistente', {
+          produto: curr.produto,
+          quantidade: curr.quantidade,
+          precoUnitario: curr.precoUnitario,
+          precoTotal: curr.precoTotal,
+          esperado: expected,
+          contexto: resolveContext(lastAbsoluteIndex),
+        })
       }
     }
     itens.push(curr)
     curr = null
   }
 
-  section.forEach((raw) => {
+  for (let lineIndex = 0; lineIndex < section.length; lineIndex += 1) {
+    const raw = section[lineIndex]
     const line = raw.replace(/\s+/g, ' ').trim()
+    const absoluteIndex = startIdx === -1 ? lineIndex : startIdx + 1 + lineIndex
+    lastAbsoluteIndex = absoluteIndex
+
     if (!line) {
-      return
+      parserDebugLog('linha-vazia', {
+        indice: absoluteIndex,
+        contexto: resolveContext(absoluteIndex),
+      })
+      continue
     }
 
     if (shouldIgnoreValue(line)) {
-      return
+      parserDebugLog('linha-ignorada', {
+        linha: line,
+        indice: absoluteIndex,
+        contexto: resolveContext(absoluteIndex),
+      })
+      continue
     }
 
     const quantityStandalone = line.match(QUANTIDADE_SOZINHA_REGEX)
@@ -276,7 +344,7 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       ensureCurr()
       const quantity = parseQuantity(quantityStandalone[1])
       curr!.quantidade = Number.isNaN(quantity) ? curr!.quantidade ?? null : quantity
-      return
+      continue
     }
 
     const codeModelQty = line.match(CODE_MODEL_QTY_REGEX)
@@ -288,7 +356,7 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       curr!.quantidade = Number.isNaN(quantity) ? null : quantity
       appendDescricao(curr!, curr!.codigo ? `Código: ${curr!.codigo}` : '')
       appendDescricao(curr!, curr!.modelo ? `Modelo: ${curr!.modelo}` : '')
-      return
+      continue
     }
 
     if (isLikelyProductLine(line)) {
@@ -297,7 +365,7 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       }
       curr = newItem()
       curr.produto = line.trim()
-      return
+      continue
     }
 
     const codigo = line.match(CODIGO_REGEX)
@@ -307,7 +375,7 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       if (curr!.codigo) {
         appendDescricao(curr!, `Código: ${curr!.codigo}`)
       }
-      return
+      continue
     }
 
     const modelo = line.match(MODELO_REGEX)
@@ -317,7 +385,7 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       if (curr!.modelo) {
         appendDescricao(curr!, `Modelo: ${curr!.modelo}`)
       }
-      return
+      continue
     }
 
     const quantidade = line.match(QUANTIDADE_REGEX)
@@ -325,7 +393,7 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       ensureCurr()
       const quantity = parseInt(quantidade[1], 10)
       curr!.quantidade = Number.isNaN(quantity) ? null : quantity
-      return
+      continue
     }
 
     const fabricante = line.match(FABRICANTE_REGEX)
@@ -336,7 +404,7 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
         curr!.fabricante = fab
         appendDescricao(curr!, `Fabricante: ${fab}`)
       }
-      return
+      continue
     }
 
     let matchedPrice = false
@@ -347,6 +415,12 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       if (!Number.isNaN(value)) {
         curr!.precoUnitario = value
         matchedPrice = true
+      } else {
+        parserDebugLog('preco-unitario-invalido', {
+          linha: line,
+          indice: absoluteIndex,
+          contexto: resolveContext(absoluteIndex),
+        })
       }
     }
 
@@ -362,22 +436,34 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       if (!Number.isNaN(value)) {
         curr!.precoTotal = value
         matchedPrice = true
+      } else {
+        parserDebugLog('preco-total-invalido', {
+          linha: line,
+          indice: absoluteIndex,
+          contexto: resolveContext(absoluteIndex),
+        })
       }
     }
     if (matchedPrice) {
-      return
+      continue
     }
 
     if (DESCRIPTION_ALLOWED_REGEXES.some((regex) => regex.test(line))) {
       ensureCurr()
       appendDescricao(curr!, line)
-      return
+      continue
     }
 
     if (curr) {
       appendDescricao(curr, line)
+    } else {
+      parserDebugLog('linha-sem-contexto', {
+        linha: line,
+        indice: absoluteIndex,
+        contexto: resolveContext(absoluteIndex),
+      })
     }
-  })
+  }
 
   push()
 
@@ -401,6 +487,11 @@ function parseResumo(lines: string[]): ResumoData {
         break
       }
     }
+  }
+  if (resumo.valorTotal === null) {
+    parserDebugLog('resumo-sem-total', {
+      contexto: collectContextLines(lines, Math.max(lines.length - 1, 0), 5),
+    })
   }
   return resumo
 }

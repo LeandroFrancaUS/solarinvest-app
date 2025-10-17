@@ -17,9 +17,9 @@ const buildDefaultFileName = ({
   clientName,
   proposalType,
 }: {
-  budgetId?: string
-  clientName?: string
-  proposalType?: string
+  budgetId?: string | undefined
+  clientName?: string | undefined
+  proposalType?: string | undefined
 }) => {
   const parts = ['Proposta']
   if (proposalType) {
@@ -92,10 +92,10 @@ const resolveProposalPdfBridge = (): ProposalPdfBridge | null => {
 
 export type PersistProposalPdfInput = {
   html: string
-  budgetId?: string
-  clientName?: string
-  proposalType?: string
-  fileName?: string
+  budgetId?: string | undefined
+  clientName?: string | undefined
+  proposalType?: string | undefined
+  fileName?: string | undefined
   metadata?: Record<string, unknown>
 }
 

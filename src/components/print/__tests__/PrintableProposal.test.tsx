@@ -58,9 +58,9 @@ const createPrintableProps = (
   },
   budgetId: 'ORC123',
   anos: anosBase,
-  leasingROI: Array(30).fill(0),
-  financiamentoFluxo: Array(30).fill(0),
-  financiamentoROI: Array(30).fill(0),
+  leasingROI: Array.from({ length: 30 }, () => 0),
+  financiamentoFluxo: Array.from({ length: 30 }, () => 0),
+  financiamentoROI: Array.from({ length: 30 }, () => 0),
   mostrarFinanciamento: false,
   tabelaBuyout: [],
   buyoutResumo: {
@@ -140,7 +140,7 @@ describe('PrintableProposal (venda direta)', () => {
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
     expect(markup).toMatch(/Área mínima necessária<\/dt>\s*<dd>21,6 m²<\/dd>/)
-    expect(markup).toMatch(/Autonomia \(\%\)<\/dt>\s*<dd>120,0%<\/dd>/)
+    expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>120,0%<\/dd>/)
     expect(markup).toMatch(/<span>VPL<\/span>\s*<strong>/)
   })
 
@@ -188,7 +188,7 @@ describe('PrintableProposal (venda direta)', () => {
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
     expect(markup).toMatch(/Área mínima necessária<\/dt>\s*<dd>20,0 m²<\/dd>/)
-    expect(markup).toMatch(/Autonomia \(\%\)<\/dt>\s*<dd>—<\/dd>/)
+    expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).toContain('Retorno Financeiro (Venda)')
     expect(markup).not.toMatch(/<span>VPL<\/span>/)
   })
@@ -212,6 +212,8 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).toContain('<th>Produto</th>')
     expect(markup).toContain('<th>Descrição</th>')
     expect(markup).toContain('<th>Quantidade</th>')
+    expect(markup).toContain('<th>Valor Unitário</th>')
+    expect(markup).toContain('<th>Valor Total</th>')
     expect(markup).not.toContain('<th>Código</th>')
     expect(markup).not.toContain('<th>Modelo</th>')
     expect(markup).not.toContain('<th>Fabricante</th>')

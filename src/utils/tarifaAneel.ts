@@ -1,4 +1,4 @@
-import { formatNumberBRWithOptions } from '../lib/locale/br-number'
+import { formatNumberBRWithOptions, toNumberFlexible } from '../lib/locale/br-number'
 import { resolveAneelUrl } from './aneelUrl'
 
 const CKAN_SQL_PATH = '/api/3/action/datastore_search_sql'
@@ -260,7 +260,11 @@ const fetchTarifaFromCsv = async (uf: string): Promise<number | null> => {
       if (!ufCsv || !tarifaCsv) continue
       if (norm(ufCsv) !== uf) continue
 
-      const valor = Number(parseFloat(tarifaCsv).toFixed(3))
+      const tarifaNumero = toNumberFlexible(tarifaCsv)
+      if (!Number.isFinite(tarifaNumero) || (tarifaNumero ?? 0) <= 0) {
+        continue
+      }
+      const valor = Math.round(Number(tarifaNumero) * 1000) / 1000
       if (Number.isFinite(valor) && valor > 0) {
         console.warn(
           `[Tarifa] Usando valor médio local de ${formatNumberBRWithOptions(valor, {
@@ -298,7 +302,7 @@ const pendingCache = new Map<string, Promise<number>>()
 
 export interface TarifaParams {
   uf: string
-  distribuidora?: string
+  distribuidora?: string | undefined
 }
 
 export async function getTarifaCheia({ uf, distribuidora }: TarifaParams): Promise<number> {

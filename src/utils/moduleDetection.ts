@@ -54,7 +54,6 @@ const createEmptyCategory = (): EssentialCategoryInfo => ({
   hasDescription: false,
   hasQuantity: false,
   missingFields: [],
-  firstMissingId: undefined,
 })
 
 const hasText = (value: string | null | undefined): boolean => {

@@ -53,15 +53,17 @@ export type PrintableProposalTipo = 'LEASING' | 'VENDA_DIRETA'
 export type PrintableOrcamentoItem = {
   produto: string
   descricao: string
-  codigo?: string
-  modelo?: string
-  fabricante?: string
+  codigo?: string | undefined
+  modelo?: string | undefined
+  fabricante?: string | undefined
   quantidade?: number | null
+  valorUnitario?: number | null
+  valorTotal?: number | null
 }
 
 export type PrintableProposalProps = {
   cliente: ClienteDados
-  budgetId?: string
+  budgetId?: string | undefined
   anos: number[]
   leasingROI: number[]
   financiamentoFluxo: number[]
@@ -85,7 +87,7 @@ export type PrintableProposalProps = {
   vendaResumo?: {
     form: VendaForm
     retorno: RetornoProjetado | null
-  }
-  parsedPdfVenda?: ParsedVendaPdfData | null
-  orcamentoItens?: PrintableOrcamentoItem[]
+  } | undefined
+  parsedPdfVenda?: ParsedVendaPdfData | null | undefined
+  orcamentoItens?: PrintableOrcamentoItem[] | undefined
 }

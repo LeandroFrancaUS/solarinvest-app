@@ -4,6 +4,32 @@ import {
   type StructuredBudget,
 } from './structuredBudgetParser'
 
+const runtimeEnv = (() => {
+  if (typeof import.meta !== 'undefined') {
+    const meta = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
+    if (meta) {
+      return meta
+    }
+  }
+  if (typeof globalThis !== 'undefined') {
+    const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+    if (processEnv) {
+      return processEnv
+    }
+  }
+  return {} as Record<string, string | undefined>
+})()
+
+const DEBUG_ENABLED =
+  runtimeEnv.VITE_PARSER_DEBUG === 'true' || runtimeEnv.ORCAMENTO_PARSER_DEBUG === 'true'
+
+const debugLog = (context: string, payload: Record<string, unknown>): void => {
+  if (!DEBUG_ENABLED) {
+    return
+  }
+  console.debug(`[pdfBudgetExtractor:${context}]`, payload)
+}
+
 const PDFJS_CDN_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/'
 const TESSERACT_CDN =
   'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.esm.min.js'
@@ -23,18 +49,18 @@ type TesseractModule = {
 export type BudgetExtractionItem = {
   productName: string
   description?: string
-  quantity?: number
-  unitPrice?: number
-  totalPrice?: number
-  code?: string
-  model?: string
-  manufacturer?: string
+  quantity?: number | undefined
+  unitPrice?: number | undefined
+  totalPrice?: number | undefined
+  code?: string | undefined
+  model?: string | undefined
+  manufacturer?: string | undefined
   imageDataUrl?: string
 }
 
 export type BudgetExtractionResult = {
   items: BudgetExtractionItem[]
-  total?: number
+  total?: number | undefined
   totalSource: 'explicit' | 'calculated' | null
   warnings: string[]
   meta: {
@@ -103,21 +129,34 @@ export async function extractBudgetFromPdf(
       usedOcr = true
     }
     if (!lines.length) {
+      debugLog('pagina-vazia', { pageIndex })
       continue
     }
     const normalizedLines = lines
       .map((line) => line.replace(/\s+/g, ' ').trim())
       .filter(Boolean)
+    debugLog('pagina-processada', {
+      pageIndex,
+      linhasNormalizadas: normalizedLines.length,
+    })
     aggregatedLines.push(...normalizedLines)
   }
 
   const structured = parseStructuredBudget(aggregatedLines)
+  debugLog('structured-budget', {
+    itens: structured.itens.length,
+    warnings: structured.warnings,
+    valorTotal: structured.resumo.valorTotal,
+  })
   warnings.push(...structured.warnings)
 
   if (!structured.itens.length) {
     warnings.push(
       'Nenhum item de orçamento foi identificado automaticamente. Revise o PDF ou preencha manualmente.',
     )
+    debugLog('structured-sem-itens', {
+      linhasProcessadas: aggregatedLines.slice(0, 20),
+    })
   }
 
   if (usedOcr) {
@@ -156,6 +195,13 @@ export async function extractBudgetFromPdf(
 
   const csv = structuredBudgetToCsv(structured)
   const plainText = aggregatedLines.join('\n')
+
+  debugLog('budget-extraction-fim', {
+    itens: items.length,
+    total: totalValue,
+    fonteTotal: totalSource,
+    avisos: warnings.length,
+  })
 
   return {
     items,
