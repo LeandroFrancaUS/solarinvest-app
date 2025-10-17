@@ -1,3 +1,4 @@
+import { formatNumberBRWithOptions } from '../lib/locale/br-number'
 import { resolveAneelUrl } from './aneelUrl'
 
 const CKAN_SQL_PATH = '/api/3/action/datastore_search_sql'
@@ -261,7 +262,12 @@ const fetchTarifaFromCsv = async (uf: string): Promise<number | null> => {
 
       const valor = Number(parseFloat(tarifaCsv).toFixed(3))
       if (Number.isFinite(valor) && valor > 0) {
-        console.warn(`[Tarifa] Usando valor médio local de ${valor.toFixed(3)} R$/kWh para ${uf}.`)
+        console.warn(
+          `[Tarifa] Usando valor médio local de ${formatNumberBRWithOptions(valor, {
+            minimumFractionDigits: 3,
+            maximumFractionDigits: 3,
+          })} R$/kWh para ${uf}.`,
+        )
         return valor
       }
     }
@@ -279,7 +285,10 @@ const UF_PADRAO_TARIFA: Record<string, number> = {
 const finalFallback = (uf: string): number => {
   const valorPadrao = UF_PADRAO_TARIFA[uf] ?? 0.9
   console.warn(
-    `[Tarifa] Nenhum dado encontrado para ${uf}. Usando padrão ${valorPadrao.toFixed(3)} R$/kWh.`,
+    `[Tarifa] Nenhum dado encontrado para ${uf}. Usando padrão ${formatNumberBRWithOptions(valorPadrao, {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    })} R$/kWh.`,
   )
   return valorPadrao
 }
