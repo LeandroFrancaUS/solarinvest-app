@@ -524,6 +524,10 @@ type PrintableProps = {
   distribuidoraTarifa: string
   energiaContratadaKwh: number
   tarifaCheia: number
+  vendaResumo?: {
+    form: VendaForm
+    retorno: RetornoProjetado | null
+  }
 }
 
 type MensalidadeRow = {
@@ -615,6 +619,20 @@ const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
   parcelasLeasing: dados.parcelasLeasing.map((row) => ({ ...row })),
   energiaContratadaKwh: dados.energiaContratadaKwh,
   tarifaCheia: dados.tarifaCheia,
+  vendaResumo: dados.vendaResumo
+    ? {
+        form: { ...dados.vendaResumo.form },
+        retorno: dados.vendaResumo.retorno
+          ? {
+              ...dados.vendaResumo.retorno,
+              economia: [...dados.vendaResumo.retorno.economia],
+              pagamentoMensal: [...dados.vendaResumo.retorno.pagamentoMensal],
+              fluxo: [...dados.vendaResumo.retorno.fluxo],
+              saldo: [...dados.vendaResumo.retorno.saldo],
+            }
+          : null,
+      }
+    : undefined,
 })
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
@@ -1226,14 +1244,56 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     distribuidoraTarifa,
     energiaContratadaKwh,
     tarifaCheia,
+    vendaResumo: vendaResumoProp,
   },
   ref,
 ) {
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
+  const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
+  const vendaFormResumo = vendaResumo?.form
+  const retornoVenda = vendaResumo?.retorno ?? null
   const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
     Number.isFinite(value) ? value.toLocaleString('pt-BR', options) : '—'
-  const valorMercadoValido = typeof buyoutResumo.vm0 === 'number' && Number.isFinite(buyoutResumo.vm0)
-  const valorMercadoTexto = valorMercadoValido ? currency(buyoutResumo.vm0) : '—'
+  const formatPercentFromFraction = (value?: number, fractionDigits = 2) => {
+    if (!Number.isFinite(value)) {
+      return '—'
+    }
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'percent',
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format(value ?? 0)
+  }
+  const formatPercentFromPct = (value?: number, fractionDigits = 2) => {
+    if (!Number.isFinite(value)) {
+      return '—'
+    }
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'percent',
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format((value ?? 0) / 100)
+  }
+  const formatKwhMes = (value?: number) => {
+    if (!Number.isFinite(value) || (value ?? 0) <= 0) {
+      return '—'
+    }
+    return `${formatNumber(value ?? 0, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} kWh/mês`
+  }
+  const formatMeses = (value?: number) => {
+    if (!Number.isFinite(value) || (value ?? 0) <= 0) {
+      return '—'
+    }
+    const inteiro = Math.round(value ?? 0)
+    return `${inteiro} meses`
+  }
+  const formatParcelas = (value?: number) => {
+    if (!Number.isFinite(value) || (value ?? 0) <= 0) {
+      return '—'
+    }
+    const inteiro = Math.round(value ?? 0)
+    return `${inteiro} parcelas`
+  }
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
   const tipoInstalacaoDescricao =
@@ -1244,13 +1304,29 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     : '—'
   const distribuidoraTarifaLabel = distribuidoraTarifa?.trim() || ''
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : ''
-  const codigoOrcamento = budgetId?.trim() || ''
+  const codigoOrcamento =
+    vendaFormResumo?.numero_orcamento_vendor?.trim() || budgetId?.trim() || ''
   const emailCliente = cliente.email?.trim() || ''
   const telefoneCliente = cliente.telefone?.trim() || ''
   const ucCliente = cliente.uc?.trim() || ''
   const cidadeCliente = cliente.cidade?.trim() || ''
   const ufCliente = cliente.uf?.trim() || ''
   const enderecoCliente = cliente.endereco?.trim() || ''
+  const quantidadeModulosResumo = (() => {
+    const quantidade =
+      vendaFormResumo && Number.isFinite(vendaFormResumo.quantidade_modulos)
+        ? Number(vendaFormResumo.quantidade_modulos)
+        : Number.isFinite(numeroPlacas)
+        ? Number(numeroPlacas)
+        : null
+    if (!Number.isFinite(quantidade) || (quantidade ?? 0) <= 0) {
+      return '—'
+    }
+    return `${Math.round(quantidade ?? 0)} un.`
+  })()
+  const modeloModuloResumo = vendaFormResumo?.modelo_modulo?.trim() || '—'
+  const modeloInversorResumo = vendaFormResumo?.modelo_inversor?.trim() || '—'
+  const estruturaResumo = vendaFormResumo?.estrutura_suporte?.trim() || '—'
   const prazoContratualResumo = isVendaDireta
     ? 'Venda'
     : duracaoContratualValida
@@ -1276,6 +1352,93 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     ? 'Projeto, instalação, homologação e suporte pós-venda'
     : 'Instalação, homologação, manutenção, seguro, suporte técnico, monitoramento'
   const valorInstalacaoTexto = isVendaDireta ? currency(capex) : currency(0)
+  const geracaoMensalResumo = formatKwhMes(geracaoMensalKwh)
+  const potenciaInstaladaTexto =
+    Number.isFinite(potenciaInstaladaKwp) && potenciaInstaladaKwp > 0
+      ? `${formatNumber(potenciaInstaladaKwp, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} kWp`
+      : '—'
+  const investimentoLabel = isVendaDireta ? 'Investimento total (CAPEX)' : 'Investimento da SolarInvest'
+  const condicaoLabel = (() => {
+    if (!vendaFormResumo) {
+      return '—'
+    }
+    switch (vendaFormResumo.condicao) {
+      case 'AVISTA':
+        return 'À vista'
+      case 'PARCELADO':
+        return 'Parcelado'
+      case 'FINANCIAMENTO':
+        return 'Financiamento'
+      default:
+        return '—'
+    }
+  })()
+  const isCondicaoAvista = vendaFormResumo?.condicao === 'AVISTA'
+  const isCondicaoParcelado = vendaFormResumo?.condicao === 'PARCELADO'
+  const isCondicaoFinanciamento = vendaFormResumo?.condicao === 'FINANCIAMENTO'
+  const modoPagamentoTipo = vendaFormResumo?.modo_pagamento ?? 'PIX'
+  const modoPagamentoLabel =
+    isCondicaoAvista
+      ? modoPagamentoTipo === 'PIX'
+        ? 'Pix'
+        : modoPagamentoTipo === 'DEBITO'
+        ? 'Cartão de débito'
+        : 'Cartão de crédito'
+      : null
+  const mdrSelecionadoValor =
+    isCondicaoAvista
+      ? modoPagamentoTipo === 'PIX'
+        ? vendaFormResumo.taxa_mdr_pix_pct
+        : modoPagamentoTipo === 'DEBITO'
+        ? vendaFormResumo.taxa_mdr_debito_pct
+        : vendaFormResumo.taxa_mdr_credito_vista_pct
+      : undefined
+  const consumoResumo = formatKwhMes(vendaFormResumo?.consumo_kwh_mes)
+  const tarifaInicialResumo = Number.isFinite(vendaFormResumo?.tarifa_cheia_r_kwh)
+    ? tarifaCurrency(vendaFormResumo?.tarifa_cheia_r_kwh ?? 0)
+    : tarifaCheiaResumo
+  const inflacaoResumo = formatPercentFromPct(vendaFormResumo?.inflacao_energia_aa_pct)
+  const taxaMinimaResumo = Number.isFinite(vendaFormResumo?.taxa_minima_mensal)
+    ? currency(vendaFormResumo?.taxa_minima_mensal ?? 0)
+    : '—'
+  const horizonteAnaliseResumo = formatMeses(vendaFormResumo?.horizonte_meses)
+  const taxaDescontoResumo = Number.isFinite(vendaFormResumo?.taxa_desconto_aa_pct)
+    ? formatPercentFromPct(vendaFormResumo?.taxa_desconto_aa_pct)
+    : null
+  const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
+  const jurosCartaoAmResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_am_pct)
+  const jurosCartaoAaResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_aa_pct)
+  const mdrPixResumo = formatPercentFromFraction(vendaFormResumo?.taxa_mdr_pix_pct)
+  const mdrDebitoResumo = formatPercentFromFraction(vendaFormResumo?.taxa_mdr_debito_pct)
+  const mdrCreditoVistaResumo = formatPercentFromFraction(vendaFormResumo?.taxa_mdr_credito_vista_pct)
+  const mdrCreditoParceladoResumo = formatPercentFromFraction(
+    vendaFormResumo?.taxa_mdr_credito_parcelado_pct,
+  )
+  const entradaResumo = Number.isFinite(vendaFormResumo?.entrada_financiamento)
+    ? currency(vendaFormResumo?.entrada_financiamento ?? 0)
+    : '—'
+  const parcelasFinResumo = formatParcelas(vendaFormResumo?.n_parcelas_fin)
+  const jurosFinAmResumo = formatPercentFromPct(vendaFormResumo?.juros_fin_am_pct)
+  const jurosFinAaResumo = formatPercentFromPct(vendaFormResumo?.juros_fin_aa_pct)
+  const mesesRetorno = retornoVenda ? retornoVenda.economia.map((_, index) => index) : []
+  const paybackLabelResumo = retornoVenda?.payback
+    ? `${retornoVenda.payback} meses`
+    : 'Não atingido no horizonte analisado'
+  const roiLabelResumo = retornoVenda
+    ? new Intl.NumberFormat('pt-BR', {
+        style: 'percent',
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }).format(retornoVenda.roi)
+    : '—'
+  const vplResumo = typeof retornoVenda?.vpl === 'number' ? currency(retornoVenda.vpl) : '—'
+  const roiHorizonteResumo =
+    Number.isFinite(vendaFormResumo?.horizonte_meses) && (vendaFormResumo?.horizonte_meses ?? 0) > 0
+      ? `${Math.round(vendaFormResumo?.horizonte_meses ?? 0)} meses`
+      : 'horizonte analisado'
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
   validadeData.setDate(validadeData.getDate() + 15)
@@ -1286,12 +1449,12 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
   const inicioOperacaoTexto = formatDate(inicioOperacaoData)
-  const heroTitle = isVendaDireta ? 'Proposta de Venda Direta' : 'Proposta de Leasing Solar'
+  const heroTitle = isVendaDireta ? 'Proposta de Venda Solar' : 'Proposta de Leasing Solar'
   const heroTagline = isVendaDireta
     ? 'Energia inteligente, patrimônio garantido'
     : 'Energia inteligente, sem desembolso'
   const heroSummaryDescription = isVendaDireta
-    ? 'Apresentamos sua proposta personalizada de aquisição da usina fotovoltaica SolarInvest. Nesta modalidade de venda direta, você investe no sistema, torna-se proprietário desde o primeiro dia e captura 100% da economia gerada, aumentando a previsibilidade de custos e o valor do seu imóvel.'
+    ? 'Apresentamos sua proposta personalizada de aquisição da usina fotovoltaica SolarInvest. Nesta modalidade de venda, você investe no sistema, torna-se proprietário desde o primeiro dia e captura 100% da economia gerada, aumentando a previsibilidade de custos e o valor do seu imóvel.'
     : 'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
   const chartEconomiaIntro = isVendaDireta
     ? 'Retorno que cresce ano após ano.'
@@ -1302,7 +1465,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const chartFootnoteText = isVendaDireta
     ? 'Como proprietário do sistema, toda a economia permanece com o cliente ao longo da vida útil do projeto.'
     : 'Após o final do contrato a usina passa a render 100% de economia frente à concessionária para o cliente.'
-  const chartPrimaryLabel = isVendaDireta ? 'Venda direta' : 'Leasing SolarInvest'
+  const chartPrimaryLabel = isVendaDireta ? 'Venda' : 'Leasing SolarInvest'
 
   const chartDataPrintable = useMemo(() => {
     const anosDisponiveis = new Set(anos)
@@ -1497,7 +1660,7 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
               </tr>
             ) : null}
             <tr>
-              <td>{isVendaDireta ? 'Investimento estimado (CAPEX)' : 'Valor da instalação para o cliente'}</td>
+              <td>{isVendaDireta ? 'Investimento total (CAPEX)' : 'Valor da instalação para o cliente'}</td>
               <td>{valorInstalacaoTexto}</td>
             </tr>
             <tr>
@@ -1516,55 +1679,69 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <h2>Resumo técnico e financeiro</h2>
         <div className="print-key-values">
           <p>
-            <strong>{isVendaDireta ? 'Investimento estimado' : 'Investimento da SolarInvest'}</strong>
+            <strong>{investimentoLabel}</strong>
             {currency(capex)}
           </p>
           <p>
+            <strong>Potência instalada (kWp)</strong>
+            {potenciaInstaladaTexto}
+          </p>
+          <p>
             <strong>Geração estimada (kWh/mês)</strong>
-            {formatNumber(geracaoMensalKwh)}
+            {geracaoMensalResumo}
           </p>
           <p>
             <strong>Energia contratada</strong>
             {energiaContratadaResumo}
           </p>
           <p>
-            <strong>Potência da placa (Wp)</strong>
-            {formatNumber(potenciaPlaca, { maximumFractionDigits: 0 })}
+            <strong>Quantidade de módulos</strong>
+            {quantidadeModulosResumo}
           </p>
           <p>
-            <strong>Nº de placas</strong>
-            {formatNumber(numeroPlacas, { maximumFractionDigits: 0 })}
+            <strong>Modelo dos módulos</strong>
+            {modeloModuloResumo}
           </p>
           <p>
-            <strong>Potência instalada (kWp)</strong>
-            {formatNumber(potenciaInstaladaKwp, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <strong>Modelo dos inversores</strong>
+            {modeloInversorResumo}
           </p>
           <p>
-            <strong>Área utilizada (m²)</strong>
-            {areaInstalacaoTexto}
+            <strong>Estrutura de fixação</strong>
+            {estruturaResumo}
           </p>
           <p>
             <strong>Tipo de instalação</strong>
             {tipoInstalacaoDescricao}
           </p>
+          <p>
+            <strong>Área utilizada (m²)</strong>
+            {areaInstalacaoTexto}
+          </p>
         </div>
         <div className="print-summary-grid">
           {isVendaDireta ? (
             <div className="print-card">
-              <h3>Condições de pagamento</h3>
+              <h3>Resumo da venda</h3>
               <div className="print-metric-list">
                 <p>
-                  <strong>Valor total do sistema</strong>
-                  {currency(capex)}
+                  <strong>Modelo comercial</strong>
+                  Venda
                 </p>
                 <p>
-                  <strong>Modalidade</strong>
-                  Venda direta com transferência imediata da propriedade.
+                  <strong>Condição selecionada</strong>
+                  {condicaoLabel}
                 </p>
-                <p className="muted">
-                  As condições de entrada, parcelamento ou financiamento podem ser personalizadas conforme negociação com o
-                  cliente.
+                <p>
+                  <strong>Investimento total</strong>
+                  {currency(capex)}
                 </p>
+                {modoPagamentoLabel ? (
+                  <p>
+                    <strong>Modo de pagamento</strong>
+                    {modoPagamentoLabel}
+                  </p>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -1633,6 +1810,194 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           ) : null}
         </div>
       </section>
+
+      {isVendaDireta ? (
+        <section className="print-section">
+          <h2>Condições de pagamento</h2>
+          {vendaFormResumo ? (
+            <>
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th>Parâmetro</th>
+                    <th>Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Condição</td>
+                    <td>{condicaoLabel}</td>
+                  </tr>
+                  <tr>
+                    <td>Investimento (CAPEX)</td>
+                    <td>{currency(capex)}</td>
+                  </tr>
+                  {modoPagamentoLabel ? (
+                    <tr>
+                      <td>Modo de pagamento</td>
+                      <td>{modoPagamentoLabel}</td>
+                    </tr>
+                  ) : null}
+                  {isCondicaoAvista && mdrSelecionadoValor !== undefined ? (
+                    <tr>
+                      <td>MDR aplicado ({modoPagamentoLabel ?? 'selecionado'})</td>
+                      <td>{formatPercentFromFraction(mdrSelecionadoValor)}</td>
+                    </tr>
+                  ) : null}
+                  {isCondicaoAvista ? (
+                    <>
+                      <tr>
+                        <td>MDR Pix</td>
+                        <td>{mdrPixResumo}</td>
+                      </tr>
+                      <tr>
+                        <td>MDR débito</td>
+                        <td>{mdrDebitoResumo}</td>
+                      </tr>
+                      <tr>
+                        <td>MDR crédito à vista</td>
+                        <td>{mdrCreditoVistaResumo}</td>
+                      </tr>
+                    </>
+                  ) : null}
+                  {isCondicaoParcelado ? (
+                    <>
+                      <tr>
+                        <td>Número de parcelas</td>
+                        <td>{parcelasResumo}</td>
+                      </tr>
+                      <tr>
+                        <td>Juros do cartão (% a.m.)</td>
+                        <td>{jurosCartaoAmResumo}</td>
+                      </tr>
+                      <tr>
+                        <td>Juros do cartão (% a.a.)</td>
+                        <td>{jurosCartaoAaResumo}</td>
+                      </tr>
+                      <tr>
+                        <td>MDR crédito parcelado</td>
+                        <td>{mdrCreditoParceladoResumo}</td>
+                      </tr>
+                    </>
+                  ) : null}
+                  {isCondicaoFinanciamento ? (
+                    <>
+                      <tr>
+                        <td>Entrada</td>
+                        <td>{entradaResumo}</td>
+                      </tr>
+                      <tr>
+                        <td>Número de parcelas</td>
+                        <td>{parcelasFinResumo}</td>
+                      </tr>
+                      <tr>
+                        <td>Juros do financiamento (% a.m.)</td>
+                        <td>{jurosFinAmResumo}</td>
+                      </tr>
+                      <tr>
+                        <td>Juros do financiamento (% a.a.)</td>
+                        <td>{jurosFinAaResumo}</td>
+                      </tr>
+                    </>
+                  ) : null}
+                </tbody>
+              </table>
+              <h3 className="print-subheading">Parâmetros de economia</h3>
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th>Parâmetro</th>
+                    <th>Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Consumo considerado</td>
+                    <td>{consumoResumo}</td>
+                  </tr>
+                  <tr>
+                    <td>Tarifa inicial</td>
+                    <td>{tarifaInicialResumo}</td>
+                  </tr>
+                  <tr>
+                    <td>Inflação de energia (a.a.)</td>
+                    <td>{inflacaoResumo}</td>
+                  </tr>
+                  <tr>
+                    <td>Taxa mínima mensal</td>
+                    <td>{taxaMinimaResumo}</td>
+                  </tr>
+                  <tr>
+                    <td>Horizonte de análise</td>
+                    <td>{horizonteAnaliseResumo}</td>
+                  </tr>
+                  {taxaDescontoResumo ? (
+                    <tr>
+                      <td>Taxa de desconto (a.a.)</td>
+                      <td>{taxaDescontoResumo}</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </>
+          ) : (
+            <p className="muted">
+              Preencha as condições de pagamento na aba Vendas para exibir os detalhes nesta proposta.
+            </p>
+          )}
+        </section>
+      ) : null}
+
+      {isVendaDireta ? (
+        <section className="print-section">
+          <h2>Retorno projetado</h2>
+          {retornoVenda ? (
+            <>
+              <div className="print-kpi-grid">
+                <div className="print-kpi">
+                  <span>Payback estimado</span>
+                  <strong>{paybackLabelResumo}</strong>
+                </div>
+                <div className="print-kpi">
+                  <span>ROI acumulado ({roiHorizonteResumo})</span>
+                  <strong>{roiLabelResumo}</strong>
+                </div>
+                <div className="print-kpi">
+                  <span>VPL</span>
+                  <strong>{vplResumo}</strong>
+                </div>
+              </div>
+              <h3 className="print-subheading">Fluxo mensal</h3>
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th>Mês</th>
+                    <th>Economia</th>
+                    <th>Pagamento</th>
+                    <th>Fluxo líquido</th>
+                    <th>Saldo acumulado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mesesRetorno.map((mes) => (
+                    <tr key={`retorno-print-${mes}`}>
+                      <td>{mes}</td>
+                      <td>{currency(retornoVenda.economia[mes] ?? 0)}</td>
+                      <td>{currency(retornoVenda.pagamentoMensal[mes] ?? 0)}</td>
+                      <td>{currency(retornoVenda.fluxo[mes] ?? 0)}</td>
+                      <td>{currency(retornoVenda.saldo[mes] ?? 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          ) : (
+            <p className="muted">
+              Informe os parâmetros financeiros na aba Vendas para calcular o retorno projetado.
+            </p>
+          )}
+        </section>
+      ) : null}
 
       <section className="print-section print-chart-section">
         <h2>{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
@@ -1779,11 +2144,14 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
         <ul>
           {isVendaDireta ? (
             <>
-              <li>Prazo médio de instalação: até 60 dias após aceite formal e emissão da ordem de serviço.</li>
-              <li>Tarifas por kWh são projeções e podem variar conforme reajustes autorizados pela ANEEL.</li>
-              <li>Projeto inclui engenharia, homologação junto à distribuidora, assistência pós-venda e garantia dos fabricantes.</li>
-              <li>Equipamentos utilizados possuem certificação INMETRO e garantias de performance.</li>
-              <li>Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer ajustes na contratação final.</li>
+              <li>Esta proposta refere-se à venda do sistema fotovoltaico (não inclui serviços de leasing).</li>
+              <li>Todos os equipamentos utilizados possuem certificação INMETRO (ou equivalente) e seguem as normas técnicas aplicáveis.</li>
+              <li>Os valores, condições de pagamento e prazos apresentados são estimativas preliminares e podem ser ajustados na contratação definitiva.</li>
+              <li>A projeção de economia considera: produção estimada, tarifa de energia inicial e inflação de energia informadas, e a taxa mínima aplicável em sistemas on-grid.</li>
+              <li>As parcelas/encargos de cartão e/ou financiamento impactam o fluxo de caixa e o ROI projetado.</li>
+              <li>A geração real pode variar conforme radiação solar, sombreamento, temperatura e condições de instalação/operação.</li>
+              <li>O cronograma de entrega e instalação está sujeito a vistoria técnica e disponibilidade de estoque.</li>
+              <li>Garantias dos fabricantes seguem seus termos. Manutenção preventiva/corretiva e seguros podem ser contratados à parte (se aplicável).</li>
             </>
           ) : (
             <>
@@ -2002,6 +2370,11 @@ const printStyles = `
   .print-card{border:1px solid rgba(12,22,44,0.1);border-radius:26px;padding:26px 28px;background:linear-gradient(135deg,#f8fafc 0%,#e9eef6 100%);box-shadow:0 18px 40px rgba(12,22,44,0.14);}
   .print-card h3{margin:0 0 16px;font-size:16px;color:#0c162c;text-transform:uppercase;letter-spacing:0.14em;}
   .print-card .muted{margin:12px 0 0;}
+  .print-subheading{margin:26px 0 12px;font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#0c162c;}
+  .print-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin:0 0 18px;}
+  .print-kpi{padding:18px 20px;border-radius:20px;background:rgba(12,22,44,0.05);border:1px solid rgba(12,22,44,0.12);box-shadow:0 10px 24px rgba(12,22,44,0.12);}
+  .print-kpi span{display:block;margin:0 0 6px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(12,22,44,0.66);}
+  .print-kpi strong{display:block;font-size:20px;color:#0c162c;}
   .print-metric-list p{margin:0 0 10px;font-size:13px;}
   .print-chart-section{display:flex;flex-direction:column;gap:18px;}
   .print-chart{position:relative;padding:24px 28px;border-radius:28px;border:1px solid rgba(15,23,42,0.16);background:linear-gradient(155deg,rgba(255,255,255,0.98) 0%,rgba(226,232,240,0.9) 48%,rgba(248,250,252,0.95) 100%);box-shadow:0 22px 48px rgba(15,23,42,0.18);}
@@ -2125,6 +2498,11 @@ const simplePrintStyles = `
   [data-print-variant='simple'] .print-summary-grid{gap:16px;}
   [data-print-variant='simple'] .print-card{background:#fff!important;border:1px solid #000!important;border-radius:4px;padding:16px 18px;box-shadow:none!important;}
   [data-print-variant='simple'] .print-card h3{font-size:14px;letter-spacing:0.1em;}
+  [data-print-variant='simple'] .print-subheading{margin:16px 0 6px;font-size:12px;letter-spacing:0.1em;}
+  [data-print-variant='simple'] .print-kpi-grid{gap:10px;}
+  [data-print-variant='simple'] .print-kpi{background:#fff!important;border:1px solid #000!important;border-radius:4px;padding:12px 14px;box-shadow:none!important;}
+  [data-print-variant='simple'] .print-kpi span{font-size:10px;letter-spacing:0.1em;}
+  [data-print-variant='simple'] .print-kpi strong{font-size:16px;}
   [data-print-variant='simple'] .print-yearly-payments__item{background:#fff!important;border:1px solid #000!important;border-radius:4px;padding:14px 16px;box-shadow:none!important;}
   [data-print-variant='simple'] .print-yearly-payments__header{align-items:center;}
   [data-print-variant='simple'] .print-yearly-payments__year{color:#000!important;font-size:18px;}
@@ -2602,12 +2980,14 @@ export default function App() {
 
       const moduloKeywords = ['modulo', 'módulo', 'placa', 'painel']
       const inversorKeywords = ['inversor']
+      const estruturaKeywords = ['estrutura', 'fixacao', 'fixação', 'suporte', 'trilho', 'perfil']
 
       let quantidadeModulos: number | undefined
       let modeloModulo: string | undefined
       let modeloInversor: string | undefined
       let potenciaInstalada: number | undefined
       let geracaoEstimada: number | undefined
+      let estruturaSuporte: string | undefined
 
       structured.itens.forEach((item) => {
         const descricaoCompleta = `${item.produto ?? ''} ${item.modelo ?? ''} ${item.descricao ?? ''}`
@@ -2623,6 +3003,13 @@ export default function App() {
           }
           if (!modeloInversor && inversorKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
             modeloInversor = item.modelo?.trim() || item.produto?.trim() || undefined
+          }
+          if (!estruturaSuporte && estruturaKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
+            const candidato = item.modelo?.trim() || item.produto?.trim() || item.descricao?.trim() || ''
+            const limpado = candidato.replace(/^[-–—\s]+/, '')
+            if (limpado && limpado !== '—') {
+              estruturaSuporte = limpado
+            }
           }
         }
 
@@ -2661,11 +3048,18 @@ export default function App() {
       if (modeloInversor) {
         updates.modelo_inversor = modeloInversor
       }
+      if (estruturaSuporte) {
+        updates.estrutura_suporte = estruturaSuporte
+      }
       if (typeof potenciaInstalada === 'number' && potenciaInstalada > 0) {
         updates.potencia_instalada_kwp = potenciaInstalada
       }
       if (typeof geracaoEstimada === 'number' && geracaoEstimada > 0) {
         updates.geracao_estimada_kwh_mes = geracaoEstimada
+      }
+      const numeroOrcamento = structured.header.numeroOrcamento?.trim()
+      if (numeroOrcamento) {
+        updates.numero_orcamento_vendor = numeroOrcamento
       }
 
       if (typeof totalValue === 'number' && Number.isFinite(totalValue) && totalValue > 0) {
@@ -2751,6 +3145,10 @@ export default function App() {
           warnings: extraction.warnings ?? [],
           fileName: file.name,
         })
+        const numeroOrcamento = extraction.structuredBudget.header.numeroOrcamento?.trim()
+        if (numeroOrcamento) {
+          setCurrentBudgetId(numeroOrcamento)
+        }
         autoFillVendaFromBudget(extraction.structuredBudget, extraction.total ?? null)
       } catch (error) {
         console.error('Erro ao processar orçamento em PDF', error)
@@ -3499,31 +3897,76 @@ export default function App() {
 
   const anosArray = useMemo(() => Array.from({ length: anosAnalise }, (_, i) => i + 1), [])
 
+  const vendaRetornoAuto = useMemo(() => {
+    if (!isVendaDiretaTab) {
+      return null
+    }
+    if (retornoProjetado) {
+      return retornoProjetado
+    }
+    const errors = validateVendaForm(vendaForm)
+    if (Object.keys(errors).length > 0) {
+      return null
+    }
+    try {
+      return computeROI(vendaForm)
+    } catch (error) {
+      console.warn('Não foi possível calcular o retorno para impressão.', error)
+      return null
+    }
+  }, [isVendaDiretaTab, retornoProjetado, validateVendaForm, vendaForm])
+
   const printableData = useMemo<PrintableProps>(
-    () => ({
-      cliente,
-      budgetId: currentBudgetId,
-      anos: anosArray,
-      leasingROI,
-      financiamentoFluxo,
-      financiamentoROI,
-      mostrarFinanciamento,
-      tabelaBuyout,
-      buyoutResumo,
-      capex,
-      tipoProposta: isVendaDiretaTab ? 'VENDA_DIRETA' : 'LEASING',
-      geracaoMensalKwh,
-      potenciaPlaca,
-      numeroPlacas: numeroPlacasEstimado,
-      potenciaInstaladaKwp,
-      tipoInstalacao,
-      areaInstalacao,
-      descontoContratualPct: descontoConsiderado,
-      parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
-      distribuidoraTarifa: distribuidoraTarifa || cliente.distribuidora || '',
-      energiaContratadaKwh: kcKwhMes,
-      tarifaCheia,
-    }),
+    () => {
+      const capexPrintable =
+        isVendaDiretaTab && Number.isFinite(vendaForm.capex_total) && (vendaForm.capex_total ?? 0) > 0
+          ? Number(vendaForm.capex_total)
+          : capex
+      const potenciaInstaladaPrintable =
+        isVendaDiretaTab && Number.isFinite(vendaForm.potencia_instalada_kwp)
+          ? Number(vendaForm.potencia_instalada_kwp)
+          : potenciaInstaladaKwp
+      const geracaoMensalPrintable =
+        isVendaDiretaTab && Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
+          ? Number(vendaForm.geracao_estimada_kwh_mes)
+          : geracaoMensalKwh
+      const numeroPlacasPrintable =
+        isVendaDiretaTab && Number.isFinite(vendaForm.quantidade_modulos)
+          ? Math.max(0, Number(vendaForm.quantidade_modulos))
+          : numeroPlacasEstimado
+      const vendaResumo = isVendaDiretaTab
+        ? {
+            form: { ...vendaForm },
+            retorno: vendaRetornoAuto,
+          }
+        : undefined
+
+      return {
+        cliente,
+        budgetId: currentBudgetId,
+        anos: anosArray,
+        leasingROI,
+        financiamentoFluxo,
+        financiamentoROI,
+        mostrarFinanciamento,
+        tabelaBuyout,
+        buyoutResumo,
+        capex: capexPrintable,
+        tipoProposta: isVendaDiretaTab ? 'VENDA_DIRETA' : 'LEASING',
+        geracaoMensalKwh: geracaoMensalPrintable,
+        potenciaPlaca,
+        numeroPlacas: numeroPlacasPrintable,
+        potenciaInstaladaKwp: potenciaInstaladaPrintable,
+        tipoInstalacao,
+        areaInstalacao,
+        descontoContratualPct: descontoConsiderado,
+        parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
+        distribuidoraTarifa: distribuidoraTarifa || cliente.distribuidora || '',
+        energiaContratadaKwh: kcKwhMes,
+        tarifaCheia,
+        vendaResumo,
+      }
+    },
     [
       areaInstalacao,
       currentBudgetId,
@@ -3547,6 +3990,8 @@ export default function App() {
       tabelaBuyout,
       tarifaCheia,
       isVendaDiretaTab,
+      vendaForm,
+      vendaRetornoAuto,
     ],
   )
 
@@ -4932,7 +5377,7 @@ export default function App() {
               >
                 <option value="all">Todos</option>
                 <option value="LEASING">Leasing</option>
-                <option value="VENDA_DIRETA">Venda direta</option>
+                <option value="VENDA_DIRETA">Venda</option>
               </select>
               <p className="crm-hint">
                 Leads que abrem uma proposta ou respondem mensagem mudam automaticamente de status. O filtro acima ajuda
@@ -5019,7 +5464,7 @@ export default function App() {
                       }
                     >
                       <option value="LEASING">Leasing (receita recorrente)</option>
-                      <option value="VENDA_DIRETA">Venda direta (receita pontual)</option>
+                      <option value="VENDA_DIRETA">Venda (receita pontual)</option>
                     </select>
                   </label>
                 </div>
@@ -5175,7 +5620,7 @@ export default function App() {
                       <ul className="crm-data-list">
                         <li>
                           <span>Modelo</span>
-                          <strong>{contrato.modelo === 'LEASING' ? 'Leasing' : 'Venda direta'}</strong>
+                          <strong>{contrato.modelo === 'LEASING' ? 'Leasing' : 'Venda'}</strong>
                         </li>
                         <li>
                           <span>Parcelas</span>
@@ -5510,7 +5955,7 @@ export default function App() {
                       }
                     >
                       <option value="LEASING">Leasing</option>
-                      <option value="VENDA_DIRETA">Venda direta</option>
+                      <option value="VENDA_DIRETA">Venda</option>
                     </select>
                   </label>
                   <div className="crm-form-row">
@@ -5817,7 +6262,7 @@ export default function App() {
                       crmFinanceiroResumo.margens.map((item) => (
                         <tr key={item.leadId}>
                           <td>{item.leadNome}</td>
-                          <td>{item.modelo === 'LEASING' ? 'Leasing' : 'Venda direta'}</td>
+                          <td>{item.modelo === 'LEASING' ? 'Leasing' : 'Venda'}</td>
                           <td>{currency(item.receitaProjetada)}</td>
                           <td>{currency(item.custoTotal)}</td>
                           <td>{currency(item.margemBruta)}</td>
@@ -7200,7 +7645,7 @@ export default function App() {
           />
         </Field>
       </div>
-      <div className="grid g2">
+      <div className="grid g3">
         <Field label="Modelo do módulo">
           <input
             type="text"
@@ -7213,6 +7658,15 @@ export default function App() {
             type="text"
             value={vendaForm.modelo_inversor ?? ''}
             onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
+          />
+        </Field>
+        <Field label="Estrutura de fixação">
+          <input
+            type="text"
+            value={vendaForm.estrutura_suporte ?? ''}
+            onChange={(event) =>
+              applyVendaUpdates({ estrutura_suporte: event.target.value || undefined })
+            }
           />
         </Field>
       </div>

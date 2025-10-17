@@ -7,6 +7,8 @@ export interface VendaForm {
   quantidade_modulos?: number
   modelo_modulo?: string
   modelo_inversor?: string
+  estrutura_suporte?: string
+  numero_orcamento_vendor?: string
 
   consumo_kwh_mes: number
   tarifa_cheia_r_kwh: number
