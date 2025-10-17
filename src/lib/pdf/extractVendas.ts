@@ -15,16 +15,18 @@ export interface ParsedVendaPdfData {
   tarifa_cheia_r_kwh: number | null
   consumo_kwh_mes: number | null
   geracao_estimada_source: GeracaoSource | null
+  module_area_m2?: number | null
 }
 
 const RE_CAPEX = /Investimento total\s*\(?(?:CAPEX)?\)?\s*R?\$?\s*([\d.,]+)/i
-const RE_POT_KWP = /Pot[êe]ncia\s+(?:do\s+)?(?:sistema|instalada)[^\d]*([\d.,]+)\s*kwp/i
+const RE_POTENCIA_SISTEMA = /Pot[êe]ncia\s+do\s+sistema\s*([\d.,]+)\s*kwp/i
 const RE_GERACAO_KWH_MES = /Gera[çc][aã]o\s+estimada.*?\(?\s*kwh\/m[eê]s\s*\)?\s*([\d.,]+)/i
 const RE_QTD_MODULOS = /Quantidade\s+de\s+m[oó]dulos\s*([\d.,]+)\s*(?:un|unid|unidade)?/i
 const RE_POT_MODULO_WP = /Pot[êe]ncia\s+da\s+placa\s*\(?\s*wp\s*\)?\s*([\d.,]+)/i
 const RE_MODELO_MODULO = /Modelo\s+dos\s+m[oó]dulos\s*(.+)/i
 const RE_MODELO_INV = /Modelo\s+dos\s+inversores\s*(.+)/i
-const RE_ESTRUTURA = /Estrutura\s+de\s+fixa[çc][aã]o\s*(.+)/i
+const RE_ESTRUTURA_FIXACAO = /Estrutura\s+de\s+fixa[çc][aã]o\s*(.+)/i
+const RE_ESTRUTURA_UTILIZADA = /Estrutura\s+utilizada[\s\S]*?\n([^\n]{3,})/i
 const RE_TIPO_INST = /Tipo\s+de\s+instala[çc][aã]o\s*(.+)/i
 const RE_TARIFA = /Tarifa\s+cheia.*?R?\$?\s*([\d.,]+)/i
 
@@ -32,8 +34,9 @@ function brToFloat(input: string | undefined | null): number | null {
   if (!input) {
     return null
   }
-  const sanitized = input.replace(/\./g, '').replace(',', '.')
-  const match = sanitized.match(/-?\d+(?:\.\d+)?/)
+  const sanitized = input.replace(/\u00a0/g, '').replace(/\s+/g, '')
+  const normalized = sanitized.replace(/\./g, '').replace(',', '.')
+  const match = normalized.match(/-?\d+(?:\.\d+)?/)
   if (!match) {
     return null
   }
@@ -138,7 +141,7 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
   }
 
   const capex_total = brToFloat(text.match(RE_CAPEX)?.[1])
-  const potencia_instalada_kwp = brToFloat(text.match(RE_POT_KWP)?.[1])
+  const potencia_instalada_kwp = brToFloat(text.match(RE_POTENCIA_SISTEMA)?.[1])
   const geracao_extr = brToFloat(text.match(RE_GERACAO_KWH_MES)?.[1])
   const quantidade_modulos = onlyDigits(text.match(RE_QTD_MODULOS)?.[1])
   let potencia_da_placa_wp = brToFloat(text.match(RE_POT_MODULO_WP)?.[1])
@@ -156,7 +159,13 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
   }
   const modelo_modulo = cleanString(text.match(RE_MODELO_MODULO)?.[1])
   const modelo_inversor = cleanString(text.match(RE_MODELO_INV)?.[1])
-  const estrutura_fixacao = cleanString(text.match(RE_ESTRUTURA)?.[1])
+  let estrutura_fixacao = cleanString(text.match(RE_ESTRUTURA_FIXACAO)?.[1])
+  if (!estrutura_fixacao) {
+    const estruturaUtilizadaMatch = text.match(RE_ESTRUTURA_UTILIZADA)
+    if (estruturaUtilizadaMatch) {
+      estrutura_fixacao = cleanString(estruturaUtilizadaMatch[1])
+    }
+  }
   const tipo_instalacao = cleanString(text.match(RE_TIPO_INST)?.[1])
   const tarifa_cheia_r_kwh = brToFloat(text.match(RE_TARIFA)?.[1])
 

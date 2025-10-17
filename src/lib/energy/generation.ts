@@ -1,5 +1,37 @@
 import { IRRADIACAO_FALLBACK } from '../../utils/irradiacao'
 
+export function kwpFromWpQty(wp?: number | null, qty?: number | null): number | null {
+  if (!Number.isFinite(wp) || !Number.isFinite(qty)) {
+    return null
+  }
+  const placaWp = Number(wp)
+  const quantidade = Number(qty)
+  if (placaWp <= 0 || quantidade <= 0) {
+    return null
+  }
+  const potencia = (placaWp * quantidade) / 1000
+  return Number.isFinite(potencia) && potencia > 0 ? potencia : null
+}
+
+export function estimateMonthlyKWh(
+  potencia_kWp: number,
+  params: { hsp: number; pr: number },
+): number {
+  if (!Number.isFinite(potencia_kWp) || potencia_kWp <= 0) {
+    return 0
+  }
+  const hsp = Number.isFinite(params.hsp) ? Math.max(0, params.hsp) : 0
+  const pr = Number.isFinite(params.pr) ? Math.max(0, params.pr) : 0
+  if (hsp <= 0 || pr <= 0) {
+    return 0
+  }
+  const estimativa = potencia_kWp * hsp * DEFAULT_DIAS_MES * pr
+  if (!Number.isFinite(estimativa) || estimativa <= 0) {
+    return 0
+  }
+  return Math.round(estimativa)
+}
+
 export interface GenerationInputs {
   potencia_instalada_kwp: number
   irradiacao_kwh_m2_dia?: number
