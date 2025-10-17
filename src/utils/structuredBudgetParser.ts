@@ -9,7 +9,8 @@ const HEADER_PATTERNS = {
 
 const SECTION_START_REGEX = /Detalhes\s+do\s+Or[cç]amento/i
 const SECTION_HEADER_REGEX = /Produto\s+Quantidade/i
-const SECTION_END_REGEX = /(Valor\s+total\s*:|Aceite\s+da\s+Proposta|Assinatura|Quadro\s+comercial|Dados\s+do\s+cliente)/i
+const SECTION_END_REGEX =
+  /(Valor\s+total\s*:|Aceite\s+da\s+Proposta|Assinatura|Quadro\s+comercial|Dados\s+do\s+cliente)/i
 const FOOTER_TOTAL_REGEX = /Valor\s+total:\s*R?\$?\s*([\d.,]+)/i
 const CODE_MODEL_QTY_REGEX = /C[óo]digo:\s*(.+?)\s+Modelo:\s*(.+?)\s+(\d+)\s*$/i
 const CODIGO_REGEX = /C[óo]digo:\s*(.+)$/i
@@ -31,6 +32,7 @@ const LINE_EXCLUSION_PATTERNS: RegExp[] = [
   /\brg\b/i,
   /\bdados do cliente\b/i,
   /\bcliente\b/i,
+  /^or[cç]amento\b/i,
   /\bendere[cç]o\b/i,
   /\bbairro\b/i,
   /\bcidade\b/i,
@@ -222,45 +224,52 @@ function parseHeader(lines: string[]): HeaderData {
   return header
 }
 
+type SectionCandidate = {
+  section: string[]
+  startIdx: number
+  endIdx: number
+  strategy: 'header' | 'detalhes' | 'fallback'
+}
+
 export function deriveSection(
   lines: string[],
 ): { section: string[]; startIdx: number; endIdx: number } {
-  const detailAnchor = lines.findIndex((line) => SECTION_START_REGEX.test(line))
-  const headerIdx = (() => {
-    if (detailAnchor !== -1) {
-      const offset = lines
-        .slice(detailAnchor + 1)
-        .findIndex((line) => SECTION_HEADER_REGEX.test(line))
-      if (offset !== -1) {
-        return detailAnchor + 1 + offset
-      }
-    }
-    return lines.findIndex((line) => SECTION_HEADER_REGEX.test(line))
-  })()
-
-  if (headerIdx === -1) {
+  const [candidate] = findSectionCandidates(lines)
+  if (!candidate) {
     return { section: [], startIdx: -1, endIdx: -1 }
   }
-
-  const endIdx = (() => {
-    const afterHeader = lines.slice(headerIdx + 1)
-    const explicitEnd = afterHeader.findIndex((line) => SECTION_END_REGEX.test(line))
-    if (explicitEnd !== -1) {
-      return headerIdx + 1 + explicitEnd
-    }
-    const totalOffset = afterHeader.findIndex((line) => FOOTER_TOTAL_REGEX.test(line))
-    return totalOffset === -1 ? -1 : headerIdx + 1 + totalOffset
-  })()
-
-  const section = lines.slice(headerIdx + 1, endIdx === -1 ? undefined : endIdx)
-
-  return { section, startIdx: headerIdx, endIdx }
+  return { section: candidate.section, startIdx: candidate.startIdx, endIdx: candidate.endIdx }
 }
 
 function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } {
+  const candidates = findSectionCandidates(lines)
+  let parsed: { itens: ItemData[]; warnings: string[] } | null = null
+
+  for (const candidate of candidates) {
+    const result = parseSectionItems(lines, candidate.section, candidate.startIdx)
+    if (result.itens.length) {
+      parsed = result
+      break
+    }
+    if (!parsed) {
+      parsed = result
+    }
+  }
+
+  if (!parsed) {
+    parsed = { itens: [], warnings: [] }
+  }
+
+  return parsed
+}
+
+function parseSectionItems(
+  lines: string[],
+  section: string[],
+  startIdx: number,
+): { itens: ItemData[]; warnings: string[] } {
   const itens: ItemData[] = []
   const warnings: string[] = []
-  const { section, startIdx } = deriveSection(lines)
 
   if (!section.length) {
     parserDebugLog('itens-vazios', { startIdx })
@@ -294,9 +303,6 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
     }
     curr.produto = produto
     curr.descricao = curr.descricao.trim() || '—'
-    if (curr.quantidade === null) {
-      curr.quantidade = 1
-    }
     if (
       curr.quantidade !== null &&
       curr.precoUnitario !== null &&
@@ -593,6 +599,99 @@ function parseQuantity(raw: string): number {
     return Number.NaN
   }
   return Math.round(parsed)
+}
+
+function findSectionCandidates(lines: string[]): SectionCandidate[] {
+  const normalized = lines.map((line) => line.replace(/\s+/g, ' ').trim())
+  const detailIdx = normalized.findIndex((line) => SECTION_START_REGEX.test(line))
+  const headerIdx = (() => {
+    if (detailIdx !== -1) {
+      const offset = normalized
+        .slice(detailIdx + 1)
+        .findIndex((line) => SECTION_HEADER_REGEX.test(line))
+      if (offset !== -1) {
+        return detailIdx + 1 + offset
+      }
+    }
+    return normalized.findIndex((line) => SECTION_HEADER_REGEX.test(line))
+  })()
+
+  const candidates: SectionCandidate[] = []
+
+  if (headerIdx !== -1) {
+    const startLine = Math.max(headerIdx, detailIdx)
+    const sectionStart = Math.min(startLine + 1, lines.length)
+    const endIdx = findSectionEnd(normalized, sectionStart)
+    const sliceEnd = endIdx === -1 ? undefined : endIdx
+    const section = lines.slice(sectionStart, sliceEnd)
+    candidates.push({ section, startIdx: startLine, endIdx, strategy: 'header' })
+  }
+
+  if (detailIdx !== -1) {
+    let sectionStart = detailIdx + 1
+    let section = lines.slice(sectionStart)
+    if (section.length && SECTION_HEADER_REGEX.test(section[0])) {
+      sectionStart += 1
+      section = section.slice(1)
+    }
+    const endIdx = findSectionEnd(normalized, sectionStart)
+    const sliceEnd = endIdx === -1 ? undefined : endIdx
+    section = lines.slice(sectionStart, sliceEnd)
+    candidates.push({ section, startIdx: detailIdx, endIdx, strategy: 'detalhes' })
+  }
+
+  const fallbackStart = normalized.findIndex((line, index) => {
+    if (!line) {
+      return false
+    }
+    if (SECTION_START_REGEX.test(line) || SECTION_HEADER_REGEX.test(line)) {
+      return false
+    }
+    if (SECTION_END_REGEX.test(line)) {
+      return false
+    }
+    if (shouldIgnoreValue(line)) {
+      return false
+    }
+    return isLikelyProductLine(line) && index < normalized.length - 1
+  })
+
+  if (fallbackStart !== -1) {
+    const endIdx = findSectionEnd(normalized, fallbackStart)
+    const sliceEnd = endIdx === -1 ? undefined : endIdx
+    const section = lines.slice(fallbackStart, sliceEnd)
+    candidates.push({ section, startIdx: fallbackStart - 1, endIdx, strategy: 'fallback' })
+  }
+
+  if (!candidates.length) {
+    candidates.push({ section: [], startIdx: -1, endIdx: -1, strategy: 'fallback' })
+  }
+
+  const unique = candidates.filter((candidate, index, array) => {
+    const key = `${candidate.startIdx}:${candidate.endIdx}`
+    return array.findIndex((other) => `${other.startIdx}:${other.endIdx}` === key) === index
+  })
+
+  return unique
+}
+
+function findSectionEnd(lines: string[], start: number): number {
+  if (start < 0) {
+    return -1
+  }
+  for (let index = start; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (!line) {
+      continue
+    }
+    if (SECTION_END_REGEX.test(line)) {
+      return index
+    }
+    if (FOOTER_TOTAL_REGEX.test(line)) {
+      return index
+    }
+  }
+  return -1
 }
 
 function mergeAdjacentDuplicates(items: ItemData[]): ItemData[] {
