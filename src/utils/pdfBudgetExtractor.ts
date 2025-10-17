@@ -40,6 +40,7 @@ export type BudgetExtractionResult = {
   }
   structuredBudget: StructuredBudget
   csv: string
+  plainText: string
 }
 
 type TextContentItem = {
@@ -148,6 +149,7 @@ export async function extractBudgetFromPdf(
   }
 
   const csv = structuredBudgetToCsv(structured)
+  const plainText = aggregatedLines.join('\n')
 
   return {
     items,
@@ -160,6 +162,7 @@ export async function extractBudgetFromPdf(
     },
     structuredBudget: structured,
     csv,
+    plainText,
   }
 }
 

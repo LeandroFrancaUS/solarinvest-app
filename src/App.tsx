@@ -45,6 +45,12 @@ import type {
   RetornoProjetado,
   VendaForm,
 } from './lib/finance/roi'
+import { estimateMonthlyGenerationKWh } from './lib/energy/generation'
+import {
+  parseVendaPdfText,
+  mergeParsedVendaPdfData,
+  type ParsedVendaPdfData,
+} from './lib/pdf/extractVendas'
 
 const currency = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$\u00a00,00'
@@ -528,6 +534,7 @@ type PrintableProps = {
     form: VendaForm
     retorno: RetornoProjetado | null
   }
+  parsedPdfVenda?: ParsedVendaPdfData | null
 }
 
 type MensalidadeRow = {
@@ -633,6 +640,7 @@ const clonePrintableData = (dados: PrintableProps): PrintableProps => ({
           : null,
       }
     : undefined,
+  parsedPdfVenda: dados.parsedPdfVenda ? { ...dados.parsedPdfVenda } : dados.parsedPdfVenda,
 })
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
@@ -1240,11 +1248,12 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     tipoInstalacao,
     areaInstalacao,
     descontoContratualPct,
-    parcelasLeasing,
-    distribuidoraTarifa,
-    energiaContratadaKwh,
-    tarifaCheia,
-    vendaResumo: vendaResumoProp,
+  parcelasLeasing,
+  distribuidoraTarifa,
+  energiaContratadaKwh,
+  tarifaCheia,
+  vendaResumo: vendaResumoProp,
+  parsedPdfVenda,
   },
   ref,
 ) {
@@ -1293,6 +1302,107 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     }
     const inteiro = Math.round(value ?? 0)
     return `${inteiro} parcelas`
+  }
+  const pickPositive = (...values: (number | null | undefined)[]): number | null => {
+    for (const value of values) {
+      if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+        return value
+      }
+    }
+    return null
+  }
+  const pickText = (...values: (string | null | undefined)[]): string | null => {
+    for (const value of values) {
+      const trimmed = value?.trim() ?? ''
+      if (trimmed) {
+        return trimmed
+      }
+    }
+    return null
+  }
+  const parsedPdfResumo = parsedPdfVenda ?? null
+  const kitCapex = pickPositive(vendaFormResumo?.capex_total, parsedPdfResumo?.capex_total, capex)
+  const kitPotenciaInstalada = pickPositive(
+    vendaFormResumo?.potencia_instalada_kwp,
+    parsedPdfResumo?.potencia_instalada_kwp,
+    potenciaInstaladaKwp,
+  )
+  const kitGeracao = pickPositive(
+    vendaFormResumo?.geracao_estimada_kwh_mes,
+    parsedPdfResumo?.geracao_estimada_kwh_mes,
+    geracaoMensalKwh,
+  )
+  const kitConsumo = pickPositive(
+    vendaFormResumo?.consumo_kwh_mes,
+    parsedPdfResumo?.consumo_kwh_mes,
+    energiaContratadaKwh,
+  )
+  const kitQuantidadeModulos = pickPositive(
+    vendaFormResumo?.quantidade_modulos,
+    parsedPdfResumo?.quantidade_modulos,
+    numeroPlacas,
+  )
+  const kitPotenciaModulo = pickPositive(parsedPdfResumo?.potencia_da_placa_wp, potenciaPlaca)
+  const kitTarifa = pickPositive(
+    vendaFormResumo?.tarifa_cheia_r_kwh,
+    parsedPdfResumo?.tarifa_cheia_r_kwh,
+    tarifaCheia,
+  )
+  const kitModeloModulo = pickText(vendaFormResumo?.modelo_modulo, parsedPdfResumo?.modelo_modulo)
+  const kitModeloInversor = pickText(vendaFormResumo?.modelo_inversor, parsedPdfResumo?.modelo_inversor)
+  const kitEstrutura = pickText(vendaFormResumo?.estrutura_suporte, parsedPdfResumo?.estrutura_fixacao)
+  const kitTipoInstalacao = pickText(
+    tipoInstalacaoDescricao !== '—' ? tipoInstalacaoDescricao : null,
+    parsedPdfResumo?.tipo_instalacao,
+  )
+  const kitEntries: { label: string; value: string }[] = []
+  if (kitCapex) {
+    kitEntries.push({ label: 'Investimento total (CAPEX)', value: currency(kitCapex) })
+  }
+  if (kitPotenciaInstalada) {
+    kitEntries.push({
+      label: 'Potência instalada (kWp)',
+      value: `${formatNumber(kitPotenciaInstalada, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })} kWp`,
+    })
+  }
+  if (kitGeracao) {
+    kitEntries.push({ label: 'Geração estimada', value: formatKwhMes(kitGeracao) })
+  }
+  if (kitConsumo) {
+    kitEntries.push({ label: 'Consumo (kWh/mês)', value: formatKwhMes(kitConsumo) })
+  }
+  if (kitQuantidadeModulos) {
+    kitEntries.push({
+      label: 'Quantidade de módulos',
+      value: `${Math.round(kitQuantidadeModulos).toLocaleString('pt-BR')} unidades`,
+    })
+  }
+  if (kitPotenciaModulo) {
+    kitEntries.push({
+      label: 'Potência da placa',
+      value: `${formatNumber(kitPotenciaModulo, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })} Wp`,
+    })
+  }
+  if (kitModeloModulo) {
+    kitEntries.push({ label: 'Modelo do módulo', value: kitModeloModulo })
+  }
+  if (kitModeloInversor) {
+    kitEntries.push({ label: 'Modelo do inversor', value: kitModeloInversor })
+  }
+  if (kitEstrutura) {
+    kitEntries.push({ label: 'Estrutura de fixação', value: kitEstrutura })
+  }
+  if (kitTipoInstalacao) {
+    kitEntries.push({ label: 'Tipo de instalação', value: kitTipoInstalacao })
+  }
+  if (kitTarifa) {
+    kitEntries.push({ label: 'Tarifa cheia (R$/kWh)', value: `${tarifaCurrency(kitTarifa)} / kWh` })
   }
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
@@ -1630,6 +1740,20 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
           </div>
         </dl>
       </section>
+
+      {kitEntries.length > 0 ? (
+        <section className="print-section">
+          <h2>Kit da usina</h2>
+          <dl className="print-kit-grid">
+            {kitEntries.map((entry) => (
+              <div key={entry.label} className="print-kit-field">
+                <dt>{entry.label}</dt>
+                <dd>{entry.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
 
       <section className="print-section">
         <h2>Quadro comercial resumido</h2>
@@ -2432,6 +2556,10 @@ const printStyles = `
   .print-client-field dt{margin:0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;font-weight:600;color:rgba(12,22,44,0.62);}
   .print-client-field dd{margin:0;font-size:13px;color:inherit;font-weight:600;line-height:1.35;}
   .print-client-field--wide{grid-column:span 2;}
+  .print-kit-grid{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px 28px;}
+  .print-kit-field{display:flex;flex-direction:column;gap:6px;}
+  .print-kit-field dt{margin:0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;font-weight:600;color:rgba(12,22,44,0.62);}
+  .print-kit-field dd{margin:0;font-size:13px;color:inherit;font-weight:600;line-height:1.35;}
   table{width:100%;border-collapse:collapse;font-size:13px;page-break-inside:avoid;break-inside:avoid;}
   th,td{border:1px solid rgba(12,22,44,0.12);padding:10px 14px;text-align:left;page-break-inside:avoid;break-inside:avoid;}
   thead,tbody,tr{page-break-inside:avoid;break-inside:avoid;}
@@ -2659,7 +2787,9 @@ export default function App() {
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(INITIAL_ENCARGOS_FIXOS_EXTRAS)
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(INITIAL_LEASING_PRAZO)
   const [potenciaPlaca, setPotenciaPlaca] = useState(INITIAL_POTENCIA_PLACA)
+  const [potenciaPlacaDirty, setPotenciaPlacaDirty] = useState(false)
   const [tipoInstalacao, setTipoInstalacao] = useState<TipoInstalacao>(INITIAL_TIPO_INSTALACAO)
+  const [tipoInstalacaoDirty, setTipoInstalacaoDirty] = useState(false)
   const [numeroPlacasManual, setNumeroPlacasManual] = useState<number | ''>(INITIAL_NUMERO_PLACAS_MANUAL)
   const consumoAnteriorRef = useRef(kcKwhMes)
 
@@ -2720,6 +2850,7 @@ export default function App() {
     observacao: '',
   })
   const [capexManualOverride, setCapexManualOverride] = useState(INITIAL_CAPEX_MANUAL_OVERRIDE)
+  const [parsedVendaPdf, setParsedVendaPdf] = useState<ParsedVendaPdfData | null>(null)
 
   const budgetItemsTotal = useMemo(
     () => computeBudgetItemsTotalValue(kitBudget.items),
@@ -3028,7 +3159,7 @@ export default function App() {
   )
 
   const autoFillVendaFromBudget = useCallback(
-    (structured: StructuredBudget, totalValue?: number | null) => {
+    (structured: StructuredBudget, totalValue?: number | null, plainText?: string | null) => {
       if (!structured) {
         return
       }
@@ -3044,6 +3175,11 @@ export default function App() {
       let geracaoEstimada: number | undefined
       let estruturaSuporte: string | undefined
 
+      const sanitizeTexto = (valor?: string | null) => {
+        const trimmed = valor?.trim() ?? ''
+        return trimmed && trimmed !== '—' ? trimmed : undefined
+      }
+
       structured.itens.forEach((item) => {
         const descricaoCompleta = `${item.produto ?? ''} ${item.modelo ?? ''} ${item.descricao ?? ''}`
         const textoNormalizado = normalizeText(descricaoCompleta)
@@ -3053,17 +3189,16 @@ export default function App() {
           if (moduloKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
             quantidadeModulos = (quantidadeModulos ?? 0) + quantidadeItem
             if (!modeloModulo) {
-              modeloModulo = item.modelo?.trim() || item.produto?.trim() || undefined
+              modeloModulo = sanitizeTexto(item.modelo) || sanitizeTexto(item.produto)
             }
           }
           if (!modeloInversor && inversorKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
-            modeloInversor = item.modelo?.trim() || item.produto?.trim() || undefined
+            modeloInversor = sanitizeTexto(item.modelo) || sanitizeTexto(item.produto)
           }
           if (!estruturaSuporte && estruturaKeywords.some((palavra) => textoNormalizado.includes(palavra))) {
-            const candidato = item.modelo?.trim() || item.produto?.trim() || item.descricao?.trim() || ''
-            const limpado = candidato.replace(/^[-–—\s]+/, '')
-            if (limpado && limpado !== '—') {
-              estruturaSuporte = limpado
+            const candidato = sanitizeTexto(item.modelo) || sanitizeTexto(item.produto) || sanitizeTexto(item.descricao) || ''
+            if (candidato) {
+              estruturaSuporte = candidato.replace(/^[-–—\s]+/, '')
             }
           }
         }
@@ -3093,40 +3228,144 @@ export default function App() {
         potenciaInstalada = (quantidadeModulos * potenciaPlaca) / 1000
       }
 
-      const updates: Partial<VendaForm> = {}
+      const structuredPartial: Partial<ParsedVendaPdfData> & {
+        geracao_estimada_source?: 'extracted' | 'calculated' | null
+      } = {}
+
       if (typeof quantidadeModulos === 'number' && quantidadeModulos > 0) {
-        updates.quantidade_modulos = quantidadeModulos
+        structuredPartial.quantidade_modulos = quantidadeModulos
       }
       if (modeloModulo) {
-        updates.modelo_modulo = modeloModulo
+        structuredPartial.modelo_modulo = modeloModulo
       }
       if (modeloInversor) {
-        updates.modelo_inversor = modeloInversor
+        structuredPartial.modelo_inversor = modeloInversor
       }
       if (estruturaSuporte) {
-        updates.estrutura_suporte = estruturaSuporte
+        structuredPartial.estrutura_fixacao = estruturaSuporte
       }
       if (typeof potenciaInstalada === 'number' && potenciaInstalada > 0) {
-        updates.potencia_instalada_kwp = potenciaInstalada
+        structuredPartial.potencia_instalada_kwp = potenciaInstalada
       }
       if (typeof geracaoEstimada === 'number' && geracaoEstimada > 0) {
-        updates.geracao_estimada_kwh_mes = geracaoEstimada
-      }
-      const numeroOrcamento = structured.header.numeroOrcamento?.trim()
-      if (numeroOrcamento) {
-        updates.numero_orcamento_vendor = numeroOrcamento
+        structuredPartial.geracao_estimada_kwh_mes = geracaoEstimada
+        structuredPartial.geracao_estimada_source = 'extracted'
       }
 
+      const parsedFromText = parseVendaPdfText(plainText ?? '')
+      const capexPartial: Partial<ParsedVendaPdfData> = {}
       if (typeof totalValue === 'number' && Number.isFinite(totalValue) && totalValue > 0) {
-        updates.capex_total = totalValue
-        setCapexManualOverride(false)
+        capexPartial.capex_total = totalValue
+      }
+
+      const mergedParsed = mergeParsedVendaPdfData(parsedFromText, structuredPartial, capexPartial)
+      setParsedVendaPdf(mergedParsed)
+
+      const updates: Partial<VendaForm> = {}
+      let consumoAtualizado = false
+      let capexAtualizado = false
+      let tarifaAtualizada = false
+
+      const shouldSetNumber = (current: number | undefined, value: number | null) => {
+        if (value == null || !Number.isFinite(value) || value <= 0) {
+          return false
+        }
+        if (!Number.isFinite(current) || (current ?? 0) <= 0) {
+          return true
+        }
+        return false
+      }
+
+      const shouldSetString = (current: string | undefined, value: string | null) => {
+        if (!value) {
+          return false
+        }
+        return !current || current.trim().length === 0
+      }
+
+      if (shouldSetNumber(vendaForm.quantidade_modulos, mergedParsed.quantidade_modulos)) {
+        updates.quantidade_modulos = mergedParsed.quantidade_modulos ?? undefined
+      }
+      if (shouldSetNumber(vendaForm.potencia_instalada_kwp, mergedParsed.potencia_instalada_kwp)) {
+        updates.potencia_instalada_kwp = mergedParsed.potencia_instalada_kwp ?? undefined
+      }
+      if (shouldSetNumber(vendaForm.geracao_estimada_kwh_mes, mergedParsed.geracao_estimada_kwh_mes)) {
+        updates.geracao_estimada_kwh_mes = mergedParsed.geracao_estimada_kwh_mes ?? undefined
+      }
+      if (shouldSetNumber(vendaForm.consumo_kwh_mes, mergedParsed.consumo_kwh_mes)) {
+        updates.consumo_kwh_mes = mergedParsed.consumo_kwh_mes ?? undefined
+        consumoAtualizado = true
+      }
+      if (shouldSetNumber(vendaForm.capex_total, mergedParsed.capex_total)) {
+        updates.capex_total = mergedParsed.capex_total ?? undefined
+        capexAtualizado = true
+      }
+      if (shouldSetNumber(vendaForm.tarifa_cheia_r_kwh, mergedParsed.tarifa_cheia_r_kwh)) {
+        updates.tarifa_cheia_r_kwh = mergedParsed.tarifa_cheia_r_kwh ?? undefined
+        tarifaAtualizada = true
+      }
+      if (shouldSetString(vendaForm.modelo_modulo, mergedParsed.modelo_modulo)) {
+        updates.modelo_modulo = mergedParsed.modelo_modulo ?? undefined
+      }
+      if (shouldSetString(vendaForm.modelo_inversor, mergedParsed.modelo_inversor)) {
+        updates.modelo_inversor = mergedParsed.modelo_inversor ?? undefined
+      }
+      if (shouldSetString(vendaForm.estrutura_suporte, mergedParsed.estrutura_fixacao)) {
+        updates.estrutura_suporte = mergedParsed.estrutura_fixacao ?? undefined
+      }
+
+      const numeroOrcamento = structured.header.numeroOrcamento?.trim()
+      if (numeroOrcamento && (!vendaForm.numero_orcamento_vendor || !vendaForm.numero_orcamento_vendor.trim())) {
+        updates.numero_orcamento_vendor = numeroOrcamento
       }
 
       if (Object.keys(updates).length > 0) {
         applyVendaUpdates(updates)
       }
+
+      if (capexAtualizado) {
+        setCapexManualOverride(false)
+      }
+      if (consumoAtualizado && mergedParsed.consumo_kwh_mes != null) {
+        setKcKwhMes(mergedParsed.consumo_kwh_mes)
+      }
+      if (tarifaAtualizada && mergedParsed.tarifa_cheia_r_kwh != null) {
+        setTarifaCheia(mergedParsed.tarifa_cheia_r_kwh)
+      }
+
+      if (!potenciaPlacaDirty && mergedParsed.potencia_da_placa_wp != null) {
+        const potenciaAjustada = Math.round(mergedParsed.potencia_da_placa_wp)
+        if (painelOpcoes.includes(potenciaAjustada) && potenciaAjustada !== potenciaPlaca) {
+          setPotenciaPlaca(potenciaAjustada)
+        }
+      }
+
+      if (!tipoInstalacaoDirty && mergedParsed.tipo_instalacao) {
+        const normalizado = normalizeText(mergedParsed.tipo_instalacao)
+        const resolved: TipoInstalacao | null = normalizado.includes('solo')
+          ? 'SOLO'
+          : normalizado.includes('telhad')
+          ? 'TELHADO'
+          : null
+        if (resolved && resolved !== tipoInstalacao) {
+          setTipoInstalacao(resolved)
+        }
+      }
     },
-    [applyVendaUpdates, potenciaPlaca],
+    [
+      applyVendaUpdates,
+      potenciaPlaca,
+      potenciaPlacaDirty,
+      setPotenciaPlaca,
+      tipoInstalacao,
+      tipoInstalacaoDirty,
+      setTipoInstalacao,
+      setCapexManualOverride,
+      setKcKwhMes,
+      setTarifaCheia,
+      vendaForm,
+      setParsedVendaPdf,
+    ],
   )
 
   const handleCondicaoPagamentoChange = useCallback(
@@ -3204,7 +3443,11 @@ export default function App() {
         if (numeroOrcamento) {
           setCurrentBudgetId(numeroOrcamento)
         }
-        autoFillVendaFromBudget(extraction.structuredBudget, extraction.total ?? null)
+        autoFillVendaFromBudget(
+          extraction.structuredBudget,
+          extraction.total ?? null,
+          extraction.plainText,
+        )
       } catch (error) {
         console.error('Erro ao processar orçamento em PDF', error)
         setBudgetProcessingError(
@@ -3527,11 +3770,17 @@ export default function App() {
   }, [capexManualOverride, kitBudget.total, resetRetorno])
 
   const geracaoMensalKwh = useMemo(() => {
-    if (potenciaInstaladaKwp <= 0 || fatorGeracaoMensal <= 0) {
+    if (potenciaInstaladaKwp <= 0) {
       return 0
     }
-    return Math.round(potenciaInstaladaKwp * fatorGeracaoMensal)
-  }, [potenciaInstaladaKwp, fatorGeracaoMensal])
+    const estimada = estimateMonthlyGenerationKWh({
+      potencia_instalada_kwp: potenciaInstaladaKwp,
+      irradiacao_kwh_m2_dia: baseIrradiacao,
+      performance_ratio: eficienciaNormalizada,
+      dias_mes: DIAS_MES_PADRAO,
+    })
+    return estimada > 0 ? estimada : 0
+  }, [baseIrradiacao, eficienciaNormalizada, potenciaInstaladaKwp])
 
   useEffect(() => {
     let updated = false
@@ -4020,6 +4269,7 @@ export default function App() {
         energiaContratadaKwh: kcKwhMes,
         tarifaCheia,
         vendaResumo,
+        parsedPdfVenda: parsedVendaPdf ? { ...parsedVendaPdf } : null,
       }
     },
     [
@@ -4047,6 +4297,7 @@ export default function App() {
       isVendaDiretaTab,
       vendaForm,
       vendaRetornoAuto,
+      parsedVendaPdf,
     ],
   )
 
@@ -6902,9 +7153,12 @@ export default function App() {
     setEncargosFixosExtras(INITIAL_ENCARGOS_FIXOS_EXTRAS)
     setLeasingPrazo(INITIAL_LEASING_PRAZO)
     setPotenciaPlaca(INITIAL_POTENCIA_PLACA)
+    setPotenciaPlacaDirty(false)
     setTipoInstalacao(INITIAL_TIPO_INSTALACAO)
+    setTipoInstalacaoDirty(false)
     setNumeroPlacasManual(INITIAL_NUMERO_PLACAS_MANUAL)
     setCapexManualOverride(INITIAL_CAPEX_MANUAL_OVERRIDE)
+    setParsedVendaPdf(null)
 
     setPrecoPorKwp(INITIAL_PRECO_POR_KWP)
     setIrradiacao(IRRADIACAO_FALLBACK)
@@ -7393,7 +7647,13 @@ export default function App() {
       <h2>Configuração da Usina Fotovoltaica</h2>
       <div className="grid g4">
         <Field label="Potência da placa (Wp)">
-          <select value={potenciaPlaca} onChange={(e) => setPotenciaPlaca(Number(e.target.value))}>
+          <select
+            value={potenciaPlaca}
+            onChange={(e) => {
+              setPotenciaPlacaDirty(true)
+              setPotenciaPlaca(Number(e.target.value))
+            }}
+          >
             {painelOpcoes.map((opt) => (
               <option key={opt} value={opt}>{opt}</option>
             ))}
@@ -7429,7 +7689,10 @@ export default function App() {
         <Field label="Tipo de instalação">
           <select
             value={tipoInstalacao}
-            onChange={(event) => setTipoInstalacao(event.target.value as TipoInstalacao)}
+            onChange={(event) => {
+              setTipoInstalacaoDirty(true)
+              setTipoInstalacao(event.target.value as TipoInstalacao)
+            }}
           >
             <option value="TELHADO">Telhado</option>
             <option value="SOLO">Solo</option>
@@ -7679,7 +7942,13 @@ export default function App() {
       <h2>Configuração da Usina Fotovoltaica</h2>
       <div className="grid g4">
         <Field label="Potência da placa (Wp)">
-          <select value={potenciaPlaca} onChange={(event) => setPotenciaPlaca(Number(event.target.value))}>
+          <select
+            value={potenciaPlaca}
+            onChange={(event) => {
+              setPotenciaPlacaDirty(true)
+              setPotenciaPlaca(Number(event.target.value))
+            }}
+          >
             {painelOpcoes.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
@@ -7719,7 +7988,10 @@ export default function App() {
         <Field label="Tipo de instalação">
           <select
             value={tipoInstalacao}
-            onChange={(event) => setTipoInstalacao(event.target.value as TipoInstalacao)}
+            onChange={(event) => {
+              setTipoInstalacaoDirty(true)
+              setTipoInstalacao(event.target.value as TipoInstalacao)
+            }}
           >
             <option value="TELHADO">Telhado</option>
             <option value="SOLO">Solo</option>
