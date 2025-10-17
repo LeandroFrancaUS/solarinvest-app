@@ -256,7 +256,7 @@ const computeBudgetItemsTotalValue = (items: KitBudgetItemState[]): number | nul
   }
   let total = 0
   for (const item of items) {
-    if (item.quantity === null || item.unitPrice === null) {
+    if (item.wasQuantityInferred || item.quantity === null || item.unitPrice === null) {
       return null
     }
     total += item.quantity * item.unitPrice
@@ -265,7 +265,7 @@ const computeBudgetItemsTotalValue = (items: KitBudgetItemState[]): number | nul
 }
 
 const computeBudgetItemLineTotal = (item: KitBudgetItemState): number | null => {
-  if (item.quantity === null || item.unitPrice === null) {
+  if (item.wasQuantityInferred || item.quantity === null || item.unitPrice === null) {
     return null
   }
   return Math.round(item.quantity * item.unitPrice * 100) / 100
@@ -280,7 +280,7 @@ const computeBudgetMissingInfo = (items: KitBudgetItemState[]): KitBudgetMissing
       id: item.id,
       product: item.productName,
       description: item.description,
-      quantity: item.quantity,
+      quantity: item.wasQuantityInferred ? null : item.quantity,
     })),
   )
 }
@@ -1443,10 +1443,12 @@ export default function App() {
   const handleBudgetItemQuantityChange = useCallback(
     (itemId: string, value: string) => {
       const parsed = parseNumericInput(value)
+      const isValidQuantity = typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0
       updateKitBudgetItem(itemId, (item) => ({
         ...item,
-        quantity: parsed,
+        quantity: isValidQuantity ? Math.round(parsed as number) : null,
         quantityInput: value,
+        wasQuantityInferred: !isValidQuantity,
       }))
     },
     [updateKitBudgetItem],
@@ -1488,6 +1490,7 @@ export default function App() {
           quantityInput: '',
           unitPrice: null,
           unitPriceInput: '',
+          wasQuantityInferred: true,
         },
       ]
       return {
@@ -2077,20 +2080,30 @@ export default function App() {
           },
         })
         const timestamp = Date.now().toString(36)
+        const quantityWarnings: string[] = []
         const extractedItems: KitBudgetItemState[] = result.json.itens.map((item, index) => {
-          const quantity =
+          const rawQuantity =
             typeof item.quantidade === 'number' && Number.isFinite(item.quantidade)
               ? Math.round(item.quantidade)
               : null
+          const hasValidQuantity = rawQuantity !== null && rawQuantity > 0
+          const resolvedQuantity = hasValidQuantity ? rawQuantity : 1
+          const wasQuantityInferred = !hasValidQuantity
+          if (wasQuantityInferred) {
+            const label = (item.produto ?? '').trim() || `Item ${index + 1}`
+            quantityWarnings.push(label)
+          }
           const unitPrice = normalizeCurrencyNumber(item.precoUnitario)
+          const description = item.descricao?.trim() ? item.descricao.trim() : '—'
           return {
             id: `budget-${timestamp}-${index}`,
-            productName: item.produto ?? '',
-            description: item.descricao ?? '',
-            quantity,
-            quantityInput: formatQuantityInputValue(quantity),
+            productName: (item.produto ?? '').trim(),
+            description,
+            quantity: resolvedQuantity,
+            quantityInput: formatQuantityInputValue(resolvedQuantity),
             unitPrice,
             unitPriceInput: formatCurrencyInputValue(unitPrice),
+            wasQuantityInferred,
           }
         })
         const missingInfo = computeBudgetMissingInfo(extractedItems)
@@ -2108,6 +2121,13 @@ export default function App() {
         const explicitTotal = normalizeCurrencyNumber(result.json.resumo.valorTotal)
         const calculatedTotal = computeBudgetItemsTotalValue(extractedItems)
         const warnings: string[] = [...(result.structured.warnings ?? [])]
+        if (quantityWarnings.length) {
+          const formatted = formatList(quantityWarnings.slice(0, 3))
+          const suffix = quantityWarnings.length > 3 ? ' e outros' : ''
+          warnings.push(
+            `Alguns itens tiveram a quantidade assumida como 1 por não constar no documento: ${formatted}${suffix}.`,
+          )
+        }
         let totalSource: 'explicit' | 'calculated' | null = null
         let totalValue: number | null = null
         if (explicitTotal !== null) {
@@ -8021,7 +8041,7 @@ export default function App() {
                     id={budgetUploadInputId}
                     className="budget-upload-input"
                     type="file"
-                    accept=".pdf,.png,.jpg,.jpeg"
+                    accept="application/pdf,image/png,image/jpeg"
                     onChange={handleBudgetFileChange}
                     disabled={isBudgetProcessing}
                   />

@@ -210,7 +210,11 @@ async function pdfToText(
         message: `Executando OCR na página ${index}`,
       })
       const imageData = await rasterizePage(page, options.dpi)
-      const result = await recognizeImageData(imageData, createOcrProgressAdapter(options, index, totalPages))
+      const processed = preprocessImageData(imageData)
+      const result = await recognizeImageData(
+        processed,
+        createOcrProgressAdapter(options, index, totalPages),
+      )
       pageText = result.data.text
     }
     pages.push(pageText)
@@ -243,7 +247,8 @@ async function imageToText(
   })
 
   const imageData = await getImageDataFromFile(file)
-  const result = await recognizeImageData(imageData, {
+  const processed = preprocessImageData(imageData)
+  const result = await recognizeImageData(processed, {
     onProgress: (update) => {
       options.onProgress?.({
         stage: 'ocr',
@@ -379,7 +384,7 @@ function normalizeItem(item: StructuredItem): ParsedBudgetJSON['itens'][number] 
     produto: item.produto ?? '',
     codigo: sanitizeString(item.codigo),
     modelo: sanitizeString(item.modelo),
-    descricao: item.descricao ?? '',
+    descricao: item.descricao?.trim() ? item.descricao.trim() : '—',
     quantidade: quantidade !== null ? Math.round(quantidade) : null,
     unidade: 'un',
     precoUnitario: normalizeNumber(item.precoUnitario),
@@ -430,4 +435,80 @@ export {
   BudgetUploadError,
   type BudgetUploadProgress,
   type ParsedBudgetJSON,
+}
+
+function preprocessImageData(source: ImageData): ImageData {
+  const { width, height, data } = source
+  const length = data.length
+  if (width === 0 || height === 0 || length === 0) {
+    return source
+  }
+
+  const grayscale = new Uint8ClampedArray(length)
+  const histogram = new Uint32Array(256)
+  for (let index = 0; index < length; index += 4) {
+    const r = data[index]
+    const g = data[index + 1]
+    const b = data[index + 2]
+    const a = data[index + 3]
+    const gray = a === 0 ? 255 : Math.round(0.299 * r + 0.587 * g + 0.114 * b)
+    histogram[gray] += 1
+    grayscale[index] = gray
+    grayscale[index + 1] = gray
+    grayscale[index + 2] = gray
+    grayscale[index + 3] = a
+  }
+
+  const totalPixels = width * height
+  const threshold = computeOtsuThreshold(histogram, totalPixels)
+  const output = new Uint8ClampedArray(length)
+
+  for (let index = 0; index < length; index += 4) {
+    const gray = grayscale[index]
+    const alpha = grayscale[index + 3]
+    const binary = alpha === 0 ? 255 : gray > threshold ? 255 : 0
+    const blended = Math.round(gray * 0.6 + binary * 0.4)
+    output[index] = blended
+    output[index + 1] = blended
+    output[index + 2] = blended
+    output[index + 3] = alpha
+  }
+
+  return new ImageData(output, width, height)
+}
+
+function computeOtsuThreshold(histogram: Uint32Array, totalPixels: number): number {
+  if (totalPixels <= 0) {
+    return 127
+  }
+  let sum = 0
+  for (let i = 0; i < histogram.length; i += 1) {
+    sum += i * histogram[i]
+  }
+
+  let sumB = 0
+  let wB = 0
+  let maxVariance = -1
+  let threshold = 127
+
+  for (let i = 0; i < histogram.length; i += 1) {
+    wB += histogram[i]
+    if (wB === 0) {
+      continue
+    }
+    const wF = totalPixels - wB
+    if (wF === 0) {
+      break
+    }
+    sumB += i * histogram[i]
+    const meanB = sumB / wB
+    const meanF = (sum - sumB) / wF
+    const variance = wB * wF * (meanB - meanF) * (meanB - meanF)
+    if (variance > maxVariance) {
+      maxVariance = variance
+      threshold = i
+    }
+  }
+
+  return threshold
 }

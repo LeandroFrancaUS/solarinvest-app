@@ -53,6 +53,7 @@ const LINE_EXCLUSION_PATTERNS: RegExp[] = [
   /\bdistribuidora\b/i,
   /\buc\b/i,
   /vamos avan[çc]ar/i,
+  /valor\s+total/i,
 ]
 
 const DESCRIPTION_ALLOWED_REGEXES: RegExp[] = [/^Descri[çc][aã]o/i, /^Observa[çc][aã]o/i]
@@ -565,6 +566,10 @@ function shouldIgnoreValue(value: string): boolean {
 
 function isLikelyProductLine(value: string): boolean {
   if (!value || value.includes(':')) {
+    return false
+  }
+  const normalized = value.trim()
+  if (normalized.length <= 6) {
     return false
   }
   if (shouldIgnoreValue(value)) {
