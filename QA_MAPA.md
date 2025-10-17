@@ -2,7 +2,7 @@
 
 ## Visão geral
 - **Fluxos principais**: `src/App.tsx` concentra cadastros, abas de **Vendas** e **Leasing**, geração de relatórios e integrações com upload de PDF.
-- **Parsers e PDF**: o extrator de orçamento vive em `src/utils/pdfBudgetExtractor.ts`, que delega a normalização textual para `src/utils/structuredBudgetParser.ts` e às heurísticas de agrupamento em `src/lib/pdf/grouping.ts`. A leitura de propostas de venda é feita por `src/lib/pdf/extractVendas.ts`.
+- **Parsers e PDF**: o pipeline de orçamento vive em `src/lib/budget/budgetUploadPipeline.ts`, que delega a normalização textual para `src/utils/structuredBudgetParser.ts` e às heurísticas de agrupamento em `src/lib/pdf/grouping.ts`. A leitura de propostas de venda é feita por `src/lib/pdf/extractVendas.ts`.
 - **Formatação numérica**: centralizada em `src/lib/locale/br-number.ts` e reutilizada pelos seletores, cálculos e componentes de UI.
 - **Cálculos críticos**: `src/lib/energy/generation.ts` (estimativas de kWh/kWp), `src/lib/finance/roi.ts` (ROI, buyout, leasing) e utilidades correlatas em `src/utils/calcs.ts`, `src/utils/irradiacao.ts` e `src/utils/tarifaAneel.ts`.
 - **Printable/PDF**: o componente imprimível `src/components/print/PrintableProposal.tsx` consome dados preparados por `App.tsx`, `structuredBudgetParser` e `extractVendas`.
@@ -10,7 +10,7 @@
 ## Front-end (`src/`)
 - `src/App.tsx`
   - Orquestra tabs **Leasing** e **Vendas**, controla formulários (`VendaForm`, leasing settings) e sincroniza dados com `PrintableProposal`.
-  - Dependências diretas: `lib/pdf/extractVendas`, `utils/pdfBudgetExtractor`, `utils/moduleDetection`, `lib/locale/br-number`, `lib/energy/generation`, `lib/finance/roi`, `utils/irradiacao`, `utils/tarifaAneel`, `utils/onedrive`, `utils/proposalPdf`.
+  - Dependências diretas: `app/services/budgetUpload`, `lib/pdf/extractVendas`, `utils/moduleDetection`, `lib/locale/br-number`, `lib/energy/generation`, `lib/finance/roi`, `utils/irradiacao`, `utils/tarifaAneel`, `utils/onedrive`, `utils/proposalPdf`.
   - Responsável por compor `budgetStructuredItems` (resultado do parser) e repassar para UI e printable.
 - `src/components/print/PrintableProposal.tsx`
   - Gera versão imprimível (Proposta PDF) com tabelas de orçamento, gráficos e quadro comercial.
@@ -35,9 +35,9 @@
   - Consumido por `App.tsx` para calcular projeções e alimentar gráficos/printable.
 
 ## PDF e parsing (`src/lib/pdf`, `src/utils`)
-- `src/utils/pdfBudgetExtractor.ts`
-  - Faz parsing incremental de PDFs (via `pdfjs-dist`/Tesseract CDN) e delega a `parseStructuredBudget` para montar `StructuredBudget`.
-  - Produz CSV (`structuredBudgetToCsv`) e agrega warnings/meta.
+- `src/lib/budget/budgetUploadPipeline.ts`
+  - Faz parsing de PDFs e imagens (via `pdfjs-dist`/Tesseract CDN) e delega a `parseStructuredBudget` para montar `StructuredBudget`.
+  - Normaliza texto (NFKC), aplica OCR com fila/worker dedicado e expõe JSON padronizado.
 - `src/utils/structuredBudgetParser.ts`
   - Define âncoras “Produto  Quantidade” até “Valor total” para extrair itens, remove ruídos (dados do cliente), normaliza quantidades e preços usando `toNumberFlexible`.
   - Exporta `StructuredBudget`, `StructuredItem` e helpers (`deriveSection`).
@@ -75,7 +75,7 @@
 - `scripts/build.mjs` (build Vite), `scripts/find-circular-deps.mjs` (madge), `scripts/run-e2e-placeholder.mjs` (stub de E2E headless, invocado em `qa:full`).
 
 ## Principais dependências entre blocos
-- `App.tsx` ⇄ `structuredBudgetParser`/`pdfBudgetExtractor` para preencher tabela “Orçamento do Kit Solar”.
+- `App.tsx` ⇄ `app/services/budgetUpload`/`structuredBudgetParser` para preencher tabela “Orçamento do Kit Solar”.
 - `PrintableProposal` consome `PrintableProposalProps` gerados por `App.tsx`, incluindo itens normalizados e métricas de `extractVendas` + `moduleDetection`.
 - `selectors.ts` e `lib/finance/roi.ts` derivam projeções usadas tanto em gráficos (Recharts) quanto no printable.
 - `lib/pdf/extractVendas.ts` alimenta `App.tsx` (tab Vendas), `PrintableProposal`, e validações de módulos/geração.

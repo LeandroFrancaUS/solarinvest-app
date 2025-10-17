@@ -35,7 +35,6 @@ import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/dist
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { persistClienteRegistroToOneDrive, type ClienteRegistroSyncPayload } from './utils/onedrive'
 import { persistProposalPdf } from './utils/proposalPdf'
-import { extractBudgetFromPdf } from './utils/pdfBudgetExtractor'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
   analyzeEssentialInfo,
@@ -88,6 +87,13 @@ import {
   type SettingsTabKey,
   type TabKey,
 } from './app/config'
+import {
+  uploadBudgetFile,
+  BudgetUploadError,
+  MAX_FILE_SIZE_BYTES,
+  DEFAULT_OCR_DPI,
+  type BudgetUploadProgress,
+} from './app/services/budgetUpload'
 import type {
   BuyoutResumo,
   BuyoutRow,
@@ -179,6 +185,50 @@ const parseNumericInput = (value: string): number | null => {
 
 const normalizeCurrencyNumber = (value: number | null) =>
   value === null ? null : Math.round(value * 100) / 100
+
+const describeBudgetProgress = (progress: BudgetUploadProgress | null) => {
+  if (!progress) {
+    return 'Processando orçamento...'
+  }
+  const percentage = Number.isFinite(progress.progress)
+    ? Math.min(100, Math.max(0, Math.round(progress.progress * 100)))
+    : 0
+  if (progress.message) {
+    if (progress.totalPages > 0 && progress.page > 0) {
+      return `${progress.message} (${percentage}%)`
+    }
+    return `${progress.message}${percentage ? ` (${percentage}%)` : ''}`
+  }
+  switch (progress.stage) {
+    case 'carregando':
+      return percentage ? `Preparando arquivo (${percentage}%)` : 'Preparando arquivo'
+    case 'texto':
+      return `Extraindo texto da página ${progress.page} de ${progress.totalPages} (${percentage}%)`
+    case 'ocr':
+      return `OCR na página ${progress.page} de ${progress.totalPages} (${percentage}%)`
+    case 'parse':
+      return percentage
+        ? `Interpretando dados do orçamento (${percentage}%)`
+        : 'Interpretando dados do orçamento'
+    default:
+      return 'Processando orçamento...'
+  }
+}
+
+const formatFileSize = (bytes?: number) => {
+  if (!bytes || !Number.isFinite(bytes)) {
+    return ''
+  }
+  const units = ['B', 'KB', 'MB', 'GB'] as const
+  let size = bytes
+  let unitIndex = 0
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+  const formatted = unitIndex === 0 ? size.toString() : size.toFixed(size >= 100 ? 0 : 1)
+  return `${formatted.replace('.', ',')} ${units[unitIndex]}`
+}
 
 const computeBudgetItemsTotalValue = (items: KitBudgetItemState[]): number | null => {
   if (!items.length) {
@@ -1206,6 +1256,9 @@ export default function App() {
   const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
   const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
   const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
+  const [budgetProcessingProgress, setBudgetProcessingProgress] =
+    useState<BudgetUploadProgress | null>(null)
+  const [ocrDpi, setOcrDpi] = useState(DEFAULT_OCR_DPI)
   const [isBudgetTableCollapsed, setIsBudgetTableCollapsed] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
@@ -1990,26 +2043,40 @@ export default function App() {
       if (!file) {
         return
       }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setBudgetProcessingError('O arquivo excede o limite de 40MB.')
+        if (budgetUploadInputRef.current) {
+          budgetUploadInputRef.current.value = ''
+        }
+        return
+      }
       setBudgetProcessingError(null)
+      setBudgetProcessingProgress({
+        stage: 'carregando',
+        page: 0,
+        totalPages: 0,
+        progress: 0,
+        message: 'Preparando arquivo para processamento',
+      })
       setIsBudgetProcessing(true)
       try {
-        const buffer = await file.arrayBuffer()
-        const extraction = await extractBudgetFromPdf(buffer)
+        const result = await uploadBudgetFile(file, {
+          dpi: ocrDpi,
+          onProgress: (progress) => {
+            setBudgetProcessingProgress(progress)
+          },
+        })
         const timestamp = Date.now().toString(36)
-        const extractedItems: KitBudgetItemState[] = extraction.items.map((item, index) => {
+        const extractedItems: KitBudgetItemState[] = result.json.itens.map((item, index) => {
           const quantity =
-            typeof item.quantity === 'number' && Number.isFinite(item.quantity)
-              ? item.quantity
+            typeof item.quantidade === 'number' && Number.isFinite(item.quantidade)
+              ? Math.round(item.quantidade)
               : null
-          const unitPriceRaw =
-            typeof item.unitPrice === 'number' && Number.isFinite(item.unitPrice)
-              ? item.unitPrice
-              : null
-          const unitPrice = normalizeCurrencyNumber(unitPriceRaw)
+          const unitPrice = normalizeCurrencyNumber(item.precoUnitario)
           return {
-            id: `pdf-${timestamp}-${index}`,
-            productName: item.productName ?? '',
-            description: item.description ?? '',
+            id: `budget-${timestamp}-${index}`,
+            productName: item.produto ?? '',
+            description: item.descricao ?? '',
             quantity,
             quantityInput: formatQuantityInputValue(quantity),
             unitPrice,
@@ -2026,37 +2093,70 @@ export default function App() {
           (missingInfo.modules.missingFields.length > 0 ||
             missingInfo.inverter.missingFields.length > 0)
         ) {
-          console.warn('PDF sem informações essenciais identificadas:', missingInfo)
+          console.warn('Orçamento sem informações essenciais identificadas:', missingInfo)
+        }
+        const explicitTotal = normalizeCurrencyNumber(result.json.resumo.valorTotal)
+        const calculatedTotal = computeBudgetItemsTotalValue(extractedItems)
+        const warnings: string[] = [...(result.structured.warnings ?? [])]
+        let totalSource: 'explicit' | 'calculated' | null = null
+        let totalValue: number | null = null
+        if (explicitTotal !== null) {
+          totalSource = 'explicit'
+          totalValue = explicitTotal
+        } else if (calculatedTotal !== null) {
+          totalSource = 'calculated'
+          totalValue = calculatedTotal
+          warnings.push(
+            'O valor total do orçamento foi calculado a partir da soma dos itens porque não foi identificado no documento.',
+          )
+        }
+        if (!result.structured.itens.length) {
+          warnings.push(
+            'Nenhum item de orçamento foi identificado automaticamente. Revise o arquivo ou preencha manualmente.',
+          )
+        }
+        if (result.usedOcr) {
+          warnings.push(
+            'Foi necessário utilizar OCR em parte do documento. Revise os dados extraídos antes de continuar.',
+          )
         }
         setKitBudget({
           items: extractedItems,
-          total: extraction.total ?? null,
-          totalSource: extraction.totalSource ?? null,
-          totalInput: formatCurrencyInputValue(extraction.total ?? null),
-          warnings: extraction.warnings ?? [],
+          total: totalValue,
+          totalSource,
+          totalInput: formatCurrencyInputValue(totalValue),
+          warnings,
           fileName: file.name,
+          fileSizeBytes: file.size,
           missingInfo,
         })
-        setBudgetStructuredItems(extraction.structuredBudget.itens)
+        setBudgetStructuredItems(result.structured.itens)
         setCurrentBudgetId(makeProposalId())
-        autoFillVendaFromBudget(
-          extraction.structuredBudget,
-          extraction.total ?? null,
-          extraction.plainText,
-        )
+        autoFillVendaFromBudget(result.structured, totalValue, result.plainText)
       } catch (error) {
-        console.error('Erro ao processar orçamento em PDF', error)
-        setBudgetProcessingError(
-          'Não foi possível processar o PDF. Verifique o arquivo e tente novamente.',
-        )
+        console.error('Erro ao processar orçamento', error)
+        if (error instanceof BudgetUploadError) {
+          if (error.code === 'unsupported-format') {
+            setBudgetProcessingError('Formato não suportado. Envie um arquivo PDF ou imagem (PNG/JPG).')
+          } else if (error.code === 'file-too-large') {
+            setBudgetProcessingError('O arquivo excede o limite de 40MB.')
+          } else {
+            setBudgetProcessingError('Não foi possível concluir o processamento do orçamento. Tente novamente.')
+          }
+        } else {
+          setBudgetProcessingError(
+            'Não foi possível processar o orçamento. Verifique o arquivo e tente novamente.',
+          )
+        }
       } finally {
         setIsBudgetProcessing(false)
+        setBudgetProcessingProgress(null)
         if (budgetUploadInputRef.current) {
           budgetUploadInputRef.current.value = ''
         }
       }
     },
-    [autoFillVendaFromBudget],
+    [autoFillVendaFromBudget, ocrDpi],
   )
 
   const handleMissingInfoManualEdit = useCallback(() => {
@@ -7108,8 +7208,8 @@ export default function App() {
             <h3>Estrutura utilizada não identificada</h3>
             <p>
               Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
-              <strong>Estrutura utilizada</strong> no PDF. Você pode preencher manualmente ou tentar enviar um PDF em
-              outro formato.
+              <strong>Estrutura utilizada</strong> no documento enviado. Você pode preencher manualmente ou tentar
+              enviar um arquivo em outro formato.
             </p>
           </div>
           <div className="estrutura-warning-alert-actions">
@@ -7117,7 +7217,7 @@ export default function App() {
               Editar manualmente
             </button>
             <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
-              Enviar outro PDF
+              Enviar outro arquivo
             </button>
           </div>
         </div>
@@ -7887,10 +7987,10 @@ export default function App() {
             {renderVendaParametrosSection()}
             {renderVendaConfiguracaoSection()}
             <section className="card">
-              <h2>Upload de Orçamento em PDF</h2>
+              <h2>Upload de Orçamento</h2>
               <div className="budget-upload-section">
                 <p className="muted">
-                  Envie um orçamento em PDF para extrair automaticamente os itens e valores do kit solar.
+                  Envie um orçamento em PDF ou imagem (PNG/JPG) para extrair automaticamente os itens e valores do kit solar.
                 </p>
                 <div className="budget-upload-control">
                   <input
@@ -7898,7 +7998,7 @@ export default function App() {
                     id={budgetUploadInputId}
                     className="budget-upload-input"
                     type="file"
-                    accept="application/pdf"
+                    accept=".pdf,.png,.jpg,.jpeg"
                     onChange={handleBudgetFileChange}
                     disabled={isBudgetProcessing}
                   />
@@ -7906,15 +8006,36 @@ export default function App() {
                     htmlFor={budgetUploadInputId}
                     className={`budget-upload-trigger${isBudgetProcessing ? ' disabled' : ''}`}
                   >
-                    <span aria-hidden="true">📄</span>
-                    <span>Selecionar PDF</span>
+                    <span aria-hidden="true">📎</span>
+                    <span>Selecionar arquivo</span>
                   </label>
-                  <span className="budget-upload-hint">Aceita arquivos no formato .pdf</span>
+                  <div className="budget-upload-dpi">
+                    <label htmlFor="budget-ocr-dpi">Resolução do OCR</label>
+                    <select
+                      id="budget-ocr-dpi"
+                      value={ocrDpi}
+                      onChange={(event) => setOcrDpi(Number(event.target.value) as 200 | 300 | 400)}
+                      disabled={isBudgetProcessing}
+                    >
+                      <option value={200}>200 DPI</option>
+                      <option value={300}>300 DPI (padrão)</option>
+                      <option value={400}>400 DPI</option>
+                    </select>
+                  </div>
+                  <span className="budget-upload-hint">Envie um orçamento em PDF ou imagem (PNG/JPG).</span>
                   {isBudgetProcessing ? (
-                    <span className="budget-upload-status">Processando orçamento...</span>
+                    <span className="budget-upload-status">
+                      {describeBudgetProgress(budgetProcessingProgress)}
+                    </span>
                   ) : null}
                   {budgetProcessingError ? (
                     <span className="budget-upload-error">{budgetProcessingError}</span>
+                  ) : null}
+                  {!isBudgetProcessing && kitBudget.fileName ? (
+                    <span className="budget-upload-file">
+                      <strong>{kitBudget.fileName}</strong>
+                      {kitBudget.fileSizeBytes ? ` — ${formatFileSize(kitBudget.fileSizeBytes)}` : ''}
+                    </span>
                   ) : null}
                 </div>
               </div>
@@ -7924,6 +8045,7 @@ export default function App() {
               {kitBudget.fileName ? (
                 <p className="budget-upload-file">
                   Arquivo analisado: <strong>{kitBudget.fileName}</strong>
+                  {kitBudget.fileSizeBytes ? ` (${formatFileSize(kitBudget.fileSizeBytes)})` : ''}
                 </p>
               ) : null}
               {kitBudget.warnings.length > 0 ? (
@@ -7936,11 +8058,11 @@ export default function App() {
               {budgetMissingSummary ? (
                 <div className="budget-missing-alert">
                   <div>
-                    <h3>Informações ausentes do PDF</h3>
+                    <h3>Informações ausentes do documento</h3>
                     <p>
                       Não foi possível identificar {budgetMissingSummary.fieldsText} de{' '}
                       <strong>módulos e/ou inversor</strong> neste orçamento. Você pode editar manualmente ou
-                      reenviar um PDF em outro formato.
+                      reenviar um arquivo em outro formato.
                     </p>
                   </div>
                   <div className="budget-missing-alert-actions">
@@ -7948,7 +8070,7 @@ export default function App() {
                       Editar manualmente
                     </button>
                     <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
-                      Enviar outro PDF
+                      Enviar outro arquivo
                     </button>
                   </div>
                 </div>
@@ -7956,7 +8078,7 @@ export default function App() {
               {kitBudget.items.length === 0 ? (
                 <div className="budget-empty">
                   <p>
-                    Nenhum item de orçamento foi carregado ainda. Faça o upload de um PDF ou adicione
+                    Nenhum item de orçamento foi carregado ainda. Faça o upload de um arquivo ou adicione
                     itens manualmente.
                   </p>
                   <button type="button" className="ghost" onClick={handleAddBudgetItem}>
