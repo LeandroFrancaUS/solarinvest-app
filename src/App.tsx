@@ -68,6 +68,26 @@ import {
 import { ensureProposalId, makeProposalId } from './lib/ids'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
+import { AppRoutes } from './app/Routes'
+import { Providers } from './app/Providers'
+import {
+  ANALISE_ANOS_PADRAO,
+  DIAS_MES_PADRAO,
+  INITIAL_VALUES,
+  PAINEL_OPCOES,
+  SETTINGS_TABS,
+  STORAGE_KEYS,
+  UF_LABELS,
+  createEmptyKitBudget,
+  createInitialVendaForm,
+  type EntradaModoLabel,
+  type KitBudgetItemState,
+  type KitBudgetMissingInfo,
+  type KitBudgetState,
+  type SeguroModo,
+  type SettingsTabKey,
+  type TabKey,
+} from './app/config'
 import type {
   BuyoutResumo,
   BuyoutRow,
@@ -87,36 +107,6 @@ import {
 } from './utils/formatters'
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
-
-const UF_LABELS: Record<string, string> = {
-  AC: 'Acre',
-  AL: 'Alagoas',
-  AM: 'Amazonas',
-  AP: 'Amapá',
-  BA: 'Bahia',
-  CE: 'Ceará',
-  DF: 'Distrito Federal',
-  ES: 'Espírito Santo',
-  GO: 'Goiás',
-  MA: 'Maranhão',
-  MG: 'Minas Gerais',
-  MS: 'Mato Grosso do Sul',
-  MT: 'Mato Grosso',
-  PA: 'Pará',
-  PB: 'Paraíba',
-  PE: 'Pernambuco',
-  PI: 'Piauí',
-  PR: 'Paraná',
-  RJ: 'Rio de Janeiro',
-  RN: 'Rio Grande do Norte',
-  RO: 'Rondônia',
-  RR: 'Roraima',
-  RS: 'Rio Grande do Sul',
-  SC: 'Santa Catarina',
-  SE: 'Sergipe',
-  SP: 'São Paulo',
-  TO: 'Tocantins',
-}
 
 const emailValido = (valor: string) => {
   if (!valor) {
@@ -145,22 +135,6 @@ type ViaCepResponse = {
   erro?: boolean | string
 }
 
-type TabKey = 'leasing' | 'vendas'
-
-type SettingsTabKey = 'mercado' | 'leasing' | 'financiamento' | 'buyout' | 'outros'
-
-const SETTINGS_TABS: { id: SettingsTabKey; label: string }[] = [
-  { id: 'mercado', label: 'Mercado & Energia' },
-  { id: 'leasing', label: 'Leasing Parâmetros' },
-  { id: 'financiamento', label: 'Financiamento Parâmetros' },
-  { id: 'buyout', label: 'Buyout Parâmetros' },
-  { id: 'outros', label: 'Outros' },
-]
-
-type SeguroModo = 'A' | 'B'
-
-type EntradaModoLabel = 'Crédito mensal' | 'Reduz piso contratado'
-
 type ClienteRegistro = {
   id: string
   criadoEm: string
@@ -180,30 +154,6 @@ type Notificacao = {
   id: number
   mensagem: string
   tipo: NotificacaoTipo
-}
-
-type BudgetTotalSource = 'explicit' | 'calculated' | null
-
-type KitBudgetItemState = {
-  id: string
-  productName: string
-  description: string
-  quantity: number | null
-  quantityInput: string
-  unitPrice: number | null
-  unitPriceInput: string
-}
-
-type KitBudgetMissingInfo = EssentialInfoSummary | null
-
-type KitBudgetState = {
-  items: KitBudgetItemState[]
-  total: number | null
-  totalSource: BudgetTotalSource
-  totalInput: string
-  warnings: string[]
-  fileName?: string
-  missingInfo: KitBudgetMissingInfo
 }
 
 const formatQuantityInputValue = (value: number | null) => {
@@ -910,7 +860,7 @@ const formatBudgetDate = (isoString: string) => {
   return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
+function InfoTooltip({ text }: { text: string }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLSpanElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
@@ -979,7 +929,7 @@ type ClientesModalProps = {
   onExcluir: (registro: ClienteRegistro) => void
 }
 
-const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEditar, onExcluir }) => {
+function ClientesModal({ registros, onClose, onEditar, onExcluir }: ClientesModalProps) {
   const modalTitleId = useId()
 
   return (
@@ -1084,20 +1034,27 @@ const ClientesModal: React.FC<ClientesModalProps> = ({ registros, onClose, onEdi
   )
 }
 
-const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; hint?: React.ReactNode }> = ({
+function Field({
   label,
   children,
   hint,
-}) => (
-  <div className="field">
-    <label>{label}</label>
-    {children}
-    {hint ? <small>{hint}</small> : null}
-  </div>
-)
+}: {
+  label: React.ReactNode
+  children: React.ReactNode
+  hint?: React.ReactNode
+}) {
+  return (
+    <div className="field">
+      <label>{label}</label>
+      {children}
+      {hint ? <small>{hint}</small> : null}
+    </div>
+  )
+}
 
-const FieldError: React.FC<{ message?: string }> = ({ message }) =>
-  message ? <span className="field-error">{message}</span> : null
+function FieldError({ message }: { message?: string }) {
+  return message ? <span className="field-error">{message}</span> : null
+}
 
 type PrintMode = 'preview' | 'print' | 'download'
 
@@ -1113,7 +1070,7 @@ type BudgetPreviewOptions = {
   initialVariant?: PrintVariant | undefined
 }
 
-const renderPrintableProposalToHtml = (dados: PrintableProposalProps): Promise<string | null> => {
+function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<string | null> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return Promise.resolve(null)
   }
@@ -1215,87 +1172,6 @@ const renderPrintableProposalToHtml = (dados: PrintableProposalProps): Promise<s
   })
 }
 
-const anosAnalise = 30
-const DIAS_MES_PADRAO = 30
-const painelOpcoes = [450, 500, 550, 600, 610, 650, 700]
-const createEmptyKitBudget = (): KitBudgetState => ({
-  items: [],
-  total: null,
-  totalSource: null,
-  totalInput: '',
-  warnings: [],
-  missingInfo: null,
-})
-
-const INITIAL_ACTIVE_TAB: TabKey = 'leasing'
-const ACTIVE_PAGE_STORAGE_KEY = 'solarinvest-active-page'
-const ACTIVE_TAB_STORAGE_KEY = 'solarinvest-active-tab'
-const INITIAL_SETTINGS_TAB: SettingsTabKey = 'mercado'
-const INITIAL_UF_TARIFA = 'GO'
-const INITIAL_DISTRIBUIDORA_TARIFA = 'Equatorial Goiás'
-const INITIAL_MES_REAJUSTE = 6
-const INITIAL_KC_KWH_MES = 0
-const INITIAL_TARIFA_CHEIA = 0.964
-const INITIAL_DESCONTO = 20
-const INITIAL_TAXA_MINIMA = 95
-const INITIAL_ENCARGOS_FIXOS_EXTRAS = 0
-const INITIAL_LEASING_PRAZO: 5 | 7 | 10 = 5
-const INITIAL_POTENCIA_MODULO = 550
-const INITIAL_TIPO_INSTALACAO: TipoInstalacao = 'TELHADO'
-const INITIAL_NUMERO_MODULOS_MANUAL: number | '' = ''
-const INITIAL_PRECO_POR_KWP = 2470
-const INITIAL_EFICIENCIA = 0.8
-const INITIAL_DIAS_MES = DIAS_MES_PADRAO
-const INITIAL_INFLACAO_AA = 8
-const INITIAL_JUROS_FIN_AA = 15
-const INITIAL_PRAZO_FIN_MESES = 120
-const INITIAL_ENTRADA_FIN_PCT = 20
-const INITIAL_MOSTRAR_FINANCIAMENTO = false
-const INITIAL_MOSTRAR_GRAFICO = true
-const INITIAL_PRAZO_MESES = 60
-const INITIAL_BANDEIRA_ENCARGO = 0
-const INITIAL_CIP_ENCARGO = 0
-const INITIAL_ENTRADA_RS = 0
-const INITIAL_ENTRADA_MODO: EntradaModoLabel = 'Crédito mensal'
-const INITIAL_TABELA_VISIVEL = false
-const INITIAL_CAPEX_MANUAL_OVERRIDE = false
-const INITIAL_OEM_BASE = 35
-const INITIAL_OEM_INFLACAO = 4
-const INITIAL_SEGURO_MODO: SeguroModo = 'A'
-const INITIAL_SEGURO_REAJUSTE = 5
-const INITIAL_SEGURO_VALOR_A = 20
-const INITIAL_SEGURO_PERCENTUAL_B = 0.3
-const INITIAL_EXIBIR_LEASING_LINHA = true
-const INITIAL_EXIBIR_FIN_LINHA = false
-const INITIAL_CASHBACK_PCT = 10
-const INITIAL_DEPRECIACAO_AA = 12
-const INITIAL_INADIMPLENCIA_AA = 2
-const INITIAL_TRIBUTOS_AA = 6
-const INITIAL_IPCA_AA = 4
-const INITIAL_CUSTOS_FIXOS_M = 0
-const INITIAL_OPEX_M = 0
-const INITIAL_SEGURO_M = 0
-const INITIAL_DURACAO_MESES = 60
-const INITIAL_PAGOS_ACUM_ATE_M = 0
-
-const VENDA_FORM_DEFAULT: VendaForm = {
-  consumo_kwh_mes: INITIAL_KC_KWH_MES,
-  tarifa_cheia_r_kwh: INITIAL_TARIFA_CHEIA,
-  inflacao_energia_aa_pct: INITIAL_INFLACAO_AA,
-  taxa_minima_mensal: INITIAL_TAXA_MINIMA,
-  horizonte_meses: 360,
-  capex_total: 0,
-  condicao: 'AVISTA',
-  modo_pagamento: 'PIX',
-  taxa_mdr_pix_pct: 0,
-  taxa_mdr_debito_pct: 0,
-  taxa_mdr_credito_vista_pct: 0,
-  taxa_mdr_credito_parcelado_pct: 0,
-  entrada_financiamento: 0,
-}
-
-const createInitialVendaForm = (): VendaForm => ({ ...VENDA_FORM_DEFAULT })
-
 export default function App() {
   const distribuidorasFallback = useMemo(() => getDistribuidorasFallback(), [])
   const [activePage, setActivePage] = useState<'app' | 'crm'>(() => {
@@ -1303,16 +1179,16 @@ export default function App() {
       return 'app'
     }
 
-    const storedPage = window.localStorage.getItem(ACTIVE_PAGE_STORAGE_KEY)
+    const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
     return storedPage === 'crm' ? 'crm' : 'app'
   })
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window === 'undefined') {
-      return INITIAL_ACTIVE_TAB
+      return INITIAL_VALUES.activeTab
     }
 
-    const storedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY)
-    return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_ACTIVE_TAB
+    const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
+    return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
   const isVendaDiretaTab = activeTab === 'vendas'
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -1331,10 +1207,10 @@ export default function App() {
   const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
   const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
   const [isBudgetTableCollapsed, setIsBudgetTableCollapsed] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_SETTINGS_TAB)
+  const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
-  const [ufTarifa, setUfTarifa] = useState(INITIAL_UF_TARIFA)
-  const [distribuidoraTarifa, setDistribuidoraTarifa] = useState(INITIAL_DISTRIBUIDORA_TARIFA)
+  const [ufTarifa, setUfTarifa] = useState(INITIAL_VALUES.ufTarifa)
+  const [distribuidoraTarifa, setDistribuidoraTarifa] = useState(INITIAL_VALUES.distribuidoraTarifa)
   const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(() => [...distribuidorasFallback.ufs])
   const [distribuidorasPorUf, setDistribuidorasPorUf] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(
@@ -1344,19 +1220,25 @@ export default function App() {
       ]),
     ),
   )
-  const [mesReajuste, setMesReajuste] = useState(INITIAL_MES_REAJUSTE)
+  const [mesReajuste, setMesReajuste] = useState(INITIAL_VALUES.mesReajuste)
 
-  const [kcKwhMes, setKcKwhMes] = useState(INITIAL_KC_KWH_MES)
-  const [tarifaCheia, setTarifaCheia] = useState(INITIAL_TARIFA_CHEIA)
-  const [desconto, setDesconto] = useState(INITIAL_DESCONTO)
-  const [taxaMinima, setTaxaMinima] = useState(INITIAL_TAXA_MINIMA)
-  const [encargosFixosExtras, setEncargosFixosExtras] = useState(INITIAL_ENCARGOS_FIXOS_EXTRAS)
-  const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(INITIAL_LEASING_PRAZO)
-  const [potenciaModulo, setPotenciaModulo] = useState(INITIAL_POTENCIA_MODULO)
+  const [kcKwhMes, setKcKwhMes] = useState(INITIAL_VALUES.kcKwhMes)
+  const [tarifaCheia, setTarifaCheia] = useState(INITIAL_VALUES.tarifaCheia)
+  const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
+  const [taxaMinima, setTaxaMinima] = useState(INITIAL_VALUES.taxaMinima)
+  const [encargosFixosExtras, setEncargosFixosExtras] = useState(
+    INITIAL_VALUES.encargosFixosExtras,
+  )
+  const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(INITIAL_VALUES.leasingPrazo)
+  const [potenciaModulo, setPotenciaModulo] = useState(INITIAL_VALUES.potenciaModulo)
   const [potenciaModuloDirty, setPotenciaModuloDirty] = useState(false)
-  const [tipoInstalacao, setTipoInstalacao] = useState<TipoInstalacao>(INITIAL_TIPO_INSTALACAO)
+  const [tipoInstalacao, setTipoInstalacao] = useState<TipoInstalacao>(
+    INITIAL_VALUES.tipoInstalacao,
+  )
   const [tipoInstalacaoDirty, setTipoInstalacaoDirty] = useState(false)
-  const [numeroModulosManual, setNumeroModulosManual] = useState<number | ''>(INITIAL_NUMERO_MODULOS_MANUAL)
+  const [numeroModulosManual, setNumeroModulosManual] = useState<number | ''>(
+    INITIAL_VALUES.numeroModulosManual,
+  )
   const consumoAnteriorRef = useRef(kcKwhMes)
 
   const [cliente, setCliente] = useState<ClienteDados>({ ...CLIENTE_INICIAL })
@@ -1415,7 +1297,9 @@ export default function App() {
     tipo: 'Revisão preventiva',
     observacao: '',
   })
-  const [capexManualOverride, setCapexManualOverride] = useState(INITIAL_CAPEX_MANUAL_OVERRIDE)
+  const [capexManualOverride, setCapexManualOverride] = useState(
+    INITIAL_VALUES.capexManualOverride,
+  )
   const [parsedVendaPdf, setParsedVendaPdf] = useState<ParsedVendaPdfData | null>(null)
   const [estruturaTipoWarning, setEstruturaTipoWarning] =
     useState<EstruturaUtilizadaTipoWarning | null>(null)
@@ -1425,7 +1309,7 @@ export default function App() {
       return
     }
 
-    window.localStorage.setItem(ACTIVE_PAGE_STORAGE_KEY, activePage)
+    window.localStorage.setItem(STORAGE_KEYS.activePage, activePage)
   }, [activePage])
 
   useEffect(() => {
@@ -1433,7 +1317,7 @@ export default function App() {
       return
     }
 
-    window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeTab)
+    window.localStorage.setItem(STORAGE_KEYS.activeTab, activeTab)
   }, [activeTab])
 
   useEffect(() => {
@@ -1701,11 +1585,11 @@ export default function App() {
     return distribuidorasPorUf[clienteUf] ?? []
   }, [clienteUf, distribuidorasPorUf])
 
-  const [precoPorKwp, setPrecoPorKwp] = useState(INITIAL_PRECO_POR_KWP)
+  const [precoPorKwp, setPrecoPorKwp] = useState(INITIAL_VALUES.precoPorKwp)
   const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
-  const [eficiencia, setEficiencia] = useState(INITIAL_EFICIENCIA)
-  const [diasMes, setDiasMes] = useState(INITIAL_DIAS_MES)
-  const [inflacaoAa, setInflacaoAa] = useState(INITIAL_INFLACAO_AA)
+  const [eficiencia, setEficiencia] = useState(INITIAL_VALUES.eficiencia)
+  const [diasMes, setDiasMes] = useState(INITIAL_VALUES.diasMes)
+  const [inflacaoAa, setInflacaoAa] = useState(INITIAL_VALUES.inflacaoAa)
 
   const [vendaForm, setVendaForm] = useState<VendaForm>(() => createInitialVendaForm())
   const [vendaFormErrors, setVendaFormErrors] = useState<Record<string, string>>({})
@@ -2051,7 +1935,7 @@ export default function App() {
 
       if (!potenciaModuloDirty && mergedParsed.potencia_da_placa_wp != null) {
         const potenciaAjustada = Math.round(mergedParsed.potencia_da_placa_wp)
-        if (painelOpcoes.includes(potenciaAjustada) && potenciaAjustada !== potenciaModulo) {
+    if (PAINEL_OPCOES.includes(potenciaAjustada) && potenciaAjustada !== potenciaModulo) {
           setPotenciaModulo(potenciaAjustada)
         }
       }
@@ -2288,11 +2172,15 @@ export default function App() {
     input.select?.()
   }, [])
 
-  const [jurosFinAa, setJurosFinAa] = useState(INITIAL_JUROS_FIN_AA)
-  const [prazoFinMeses, setPrazoFinMeses] = useState(INITIAL_PRAZO_FIN_MESES)
-  const [entradaFinPct, setEntradaFinPct] = useState(INITIAL_ENTRADA_FIN_PCT)
-  const [mostrarFinanciamento, setMostrarFinanciamento] = useState(INITIAL_MOSTRAR_FINANCIAMENTO)
-  const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_MOSTRAR_GRAFICO)
+  const [jurosFinAa, setJurosFinAa] = useState(INITIAL_VALUES.jurosFinanciamentoAa)
+  const [prazoFinMeses, setPrazoFinMeses] = useState(
+    INITIAL_VALUES.prazoFinanciamentoMeses,
+  )
+  const [entradaFinPct, setEntradaFinPct] = useState(INITIAL_VALUES.entradaFinanciamentoPct)
+  const [mostrarFinanciamento, setMostrarFinanciamento] = useState(
+    INITIAL_VALUES.mostrarFinanciamento,
+  )
+  const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_VALUES.mostrarGrafico)
   const [density, setDensity] = useState<DensityMode>(() => {
     if (typeof window === 'undefined') {
       return DEFAULT_DENSITY
@@ -2302,38 +2190,48 @@ export default function App() {
     return stored && isDensityMode(stored) ? stored : DEFAULT_DENSITY
   })
 
-  const [prazoMeses, setPrazoMeses] = useState(INITIAL_PRAZO_MESES)
-  const [bandeiraEncargo, setBandeiraEncargo] = useState(INITIAL_BANDEIRA_ENCARGO)
-  const [cipEncargo, setCipEncargo] = useState(INITIAL_CIP_ENCARGO)
-  const [entradaRs, setEntradaRs] = useState(INITIAL_ENTRADA_RS)
-  const [entradaModo, setEntradaModo] = useState<EntradaModoLabel>(INITIAL_ENTRADA_MODO)
-  const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(INITIAL_TABELA_VISIVEL)
-  const [mostrarTabelaBuyout, setMostrarTabelaBuyout] = useState(INITIAL_TABELA_VISIVEL)
-  const [mostrarTabelaParcelasConfig, setMostrarTabelaParcelasConfig] = useState(INITIAL_TABELA_VISIVEL)
-  const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(INITIAL_TABELA_VISIVEL)
+  const [prazoMeses, setPrazoMeses] = useState(INITIAL_VALUES.prazoMeses)
+  const [bandeiraEncargo, setBandeiraEncargo] = useState(INITIAL_VALUES.bandeiraEncargo)
+  const [cipEncargo, setCipEncargo] = useState(INITIAL_VALUES.cipEncargo)
+  const [entradaRs, setEntradaRs] = useState(INITIAL_VALUES.entradaRs)
+  const [entradaModo, setEntradaModo] = useState<EntradaModoLabel>(INITIAL_VALUES.entradaModo)
+  const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(
+    INITIAL_VALUES.tabelaVisivel,
+  )
+  const [mostrarTabelaBuyout, setMostrarTabelaBuyout] = useState(INITIAL_VALUES.tabelaVisivel)
+  const [mostrarTabelaParcelasConfig, setMostrarTabelaParcelasConfig] = useState(
+    INITIAL_VALUES.tabelaVisivel,
+  )
+  const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(
+    INITIAL_VALUES.tabelaVisivel,
+  )
   const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
 
-  const [oemBase, setOemBase] = useState(INITIAL_OEM_BASE)
-  const [oemInflacao, setOemInflacao] = useState(INITIAL_OEM_INFLACAO)
-  const [seguroModo, setSeguroModo] = useState<SeguroModo>(INITIAL_SEGURO_MODO)
-  const [seguroReajuste, setSeguroReajuste] = useState(INITIAL_SEGURO_REAJUSTE)
-  const [seguroValorA, setSeguroValorA] = useState(INITIAL_SEGURO_VALOR_A)
-  const [seguroPercentualB, setSeguroPercentualB] = useState(INITIAL_SEGURO_PERCENTUAL_B)
+  const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
+  const [oemInflacao, setOemInflacao] = useState(INITIAL_VALUES.oemInflacao)
+  const [seguroModo, setSeguroModo] = useState<SeguroModo>(INITIAL_VALUES.seguroModo)
+  const [seguroReajuste, setSeguroReajuste] = useState(INITIAL_VALUES.seguroReajuste)
+  const [seguroValorA, setSeguroValorA] = useState(INITIAL_VALUES.seguroValorA)
+  const [seguroPercentualB, setSeguroPercentualB] = useState(
+    INITIAL_VALUES.seguroPercentualB,
+  )
 
-  const [exibirLeasingLinha, setExibirLeasingLinha] = useState(INITIAL_EXIBIR_LEASING_LINHA)
-  const [exibirFinLinha, setExibirFinLinha] = useState(INITIAL_EXIBIR_FIN_LINHA)
+  const [exibirLeasingLinha, setExibirLeasingLinha] = useState(
+    INITIAL_VALUES.exibirLeasingLinha,
+  )
+  const [exibirFinLinha, setExibirFinLinha] = useState(INITIAL_VALUES.exibirFinanciamentoLinha)
 
-  const [cashbackPct, setCashbackPct] = useState(INITIAL_CASHBACK_PCT)
-  const [depreciacaoAa, setDepreciacaoAa] = useState(INITIAL_DEPRECIACAO_AA)
-  const [inadimplenciaAa, setInadimplenciaAa] = useState(INITIAL_INADIMPLENCIA_AA)
-  const [tributosAa, setTributosAa] = useState(INITIAL_TRIBUTOS_AA)
-  const [ipcaAa, setIpcaAa] = useState(INITIAL_IPCA_AA)
-  const [custosFixosM, setCustosFixosM] = useState(INITIAL_CUSTOS_FIXOS_M)
-  const [opexM, setOpexM] = useState(INITIAL_OPEX_M)
-  const [seguroM, setSeguroM] = useState(INITIAL_SEGURO_M)
-  const [duracaoMeses, setDuracaoMeses] = useState(INITIAL_DURACAO_MESES)
+  const [cashbackPct, setCashbackPct] = useState(INITIAL_VALUES.cashbackPct)
+  const [depreciacaoAa, setDepreciacaoAa] = useState(INITIAL_VALUES.depreciacaoAa)
+  const [inadimplenciaAa, setInadimplenciaAa] = useState(INITIAL_VALUES.inadimplenciaAa)
+  const [tributosAa, setTributosAa] = useState(INITIAL_VALUES.tributosAa)
+  const [ipcaAa, setIpcaAa] = useState(INITIAL_VALUES.ipcaAa)
+  const [custosFixosM, setCustosFixosM] = useState(INITIAL_VALUES.custosFixosM)
+  const [opexM, setOpexM] = useState(INITIAL_VALUES.opexM)
+  const [seguroM, setSeguroM] = useState(INITIAL_VALUES.seguroM)
+  const [duracaoMeses, setDuracaoMeses] = useState(INITIAL_VALUES.duracaoMeses)
   // Valor informado (ou calculado) de parcelas efetivamente pagas até o mês analisado, usado no crédito de cashback
-  const [pagosAcumAteM, setPagosAcumAteM] = useState(INITIAL_PAGOS_ACUM_ATE_M)
+  const [pagosAcumAteM, setPagosAcumAteM] = useState(INITIAL_VALUES.pagosAcumManual)
 
   const mesReferencia = mesReferenciaRef.current
 
@@ -2913,7 +2811,7 @@ export default function App() {
   const leasingPrazoConsiderado = isVendaDiretaTab ? 0 : leasingPrazo
 
   const leasingBeneficios = useMemo(() => {
-    return Array.from({ length: anosAnalise }, (_, i) => {
+    return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
       const ano = i + 1
       const tarifaCheiaProj = tarifaAno(ano)
       const tarifaDescontadaProj = tarifaDescontadaAno(ano)
@@ -2924,7 +2822,7 @@ export default function App() {
       return beneficio
     })
   }, [
-    anosAnalise,
+    ANALISE_ANOS_PADRAO,
     encargosFixos,
     kcKwhMes,
     leasingPrazoConsiderado,
@@ -2966,7 +2864,7 @@ export default function App() {
   }
 
   const financiamentoFluxo = useMemo(() => {
-    return Array.from({ length: anosAnalise }, (_, i) => {
+    return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
       const ano = i + 1
       const economia = 12 * kcKwhMes * tarifaAno(ano)
       const custoSemSistemaMensal = Math.max(kcKwhMes * tarifaAno(ano), taxaMinima)
@@ -3060,7 +2958,7 @@ export default function App() {
   const leasingMensalidades = mensalidadesPorAno
 
   const chartData = useMemo(() => {
-    return Array.from({ length: anosAnalise }, (_, i) => {
+    return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
       const ano = i + 1
       return {
         ano,
@@ -3155,7 +3053,10 @@ export default function App() {
 
   const printableRef = useRef<HTMLDivElement>(null)
 
-  const anosArray = useMemo(() => Array.from({ length: anosAnalise }, (_, i) => i + 1), [])
+  const anosArray = useMemo(
+    () => Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => i + 1),
+    [],
+  )
 
   const vendaRetornoAuto = useMemo(() => {
     if (!isVendaDiretaTab) {
@@ -6123,7 +6024,7 @@ export default function App() {
   ])
 
   const handleNovaProposta = useCallback(() => {
-    setSettingsTab(INITIAL_SETTINGS_TAB)
+    setSettingsTab(INITIAL_VALUES.settingsTab)
     setIsSettingsOpen(false)
     setIsBudgetSearchOpen(false)
     setOrcamentoSearchTerm('')
@@ -6136,71 +6037,71 @@ export default function App() {
       budgetUploadInputRef.current.value = ''
     }
 
-    setUfTarifa(INITIAL_UF_TARIFA)
-    setDistribuidoraTarifa(INITIAL_DISTRIBUIDORA_TARIFA)
-    setMesReajuste(INITIAL_MES_REAJUSTE)
+    setUfTarifa(INITIAL_VALUES.ufTarifa)
+    setDistribuidoraTarifa(INITIAL_VALUES.distribuidoraTarifa)
+    setMesReajuste(INITIAL_VALUES.mesReajuste)
     mesReferenciaRef.current = new Date().getMonth() + 1
-    setKcKwhMes(INITIAL_KC_KWH_MES)
-    setTarifaCheia(INITIAL_TARIFA_CHEIA)
-    setDesconto(INITIAL_DESCONTO)
-    setTaxaMinima(INITIAL_TAXA_MINIMA)
-    setEncargosFixosExtras(INITIAL_ENCARGOS_FIXOS_EXTRAS)
-    setLeasingPrazo(INITIAL_LEASING_PRAZO)
-    setPotenciaModulo(INITIAL_POTENCIA_MODULO)
+    setKcKwhMes(INITIAL_VALUES.kcKwhMes)
+    setTarifaCheia(INITIAL_VALUES.tarifaCheia)
+    setDesconto(INITIAL_VALUES.desconto)
+    setTaxaMinima(INITIAL_VALUES.taxaMinima)
+    setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
+    setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
+    setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
     setPotenciaModuloDirty(false)
-    setTipoInstalacao(INITIAL_TIPO_INSTALACAO)
+    setTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
     setTipoInstalacaoDirty(false)
-    setNumeroModulosManual(INITIAL_NUMERO_MODULOS_MANUAL)
-    setCapexManualOverride(INITIAL_CAPEX_MANUAL_OVERRIDE)
+    setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
+    setCapexManualOverride(INITIAL_VALUES.capexManualOverride)
     setParsedVendaPdf(null)
     setEstruturaTipoWarning(null)
 
-    setPrecoPorKwp(INITIAL_PRECO_POR_KWP)
+    setPrecoPorKwp(INITIAL_VALUES.precoPorKwp)
     setIrradiacao(IRRADIACAO_FALLBACK)
-    setEficiencia(INITIAL_EFICIENCIA)
-    setDiasMes(INITIAL_DIAS_MES)
-    setInflacaoAa(INITIAL_INFLACAO_AA)
+    setEficiencia(INITIAL_VALUES.eficiencia)
+    setDiasMes(INITIAL_VALUES.diasMes)
+    setInflacaoAa(INITIAL_VALUES.inflacaoAa)
 
     setVendaForm(createInitialVendaForm())
     setVendaFormErrors({})
     resetRetorno()
 
-    setJurosFinAa(INITIAL_JUROS_FIN_AA)
-    setPrazoFinMeses(INITIAL_PRAZO_FIN_MESES)
-    setEntradaFinPct(INITIAL_ENTRADA_FIN_PCT)
-    setMostrarFinanciamento(INITIAL_MOSTRAR_FINANCIAMENTO)
-    setMostrarGrafico(INITIAL_MOSTRAR_GRAFICO)
+    setJurosFinAa(INITIAL_VALUES.jurosFinanciamentoAa)
+    setPrazoFinMeses(INITIAL_VALUES.prazoFinanciamentoMeses)
+    setEntradaFinPct(INITIAL_VALUES.entradaFinanciamentoPct)
+    setMostrarFinanciamento(INITIAL_VALUES.mostrarFinanciamento)
+    setMostrarGrafico(INITIAL_VALUES.mostrarGrafico)
 
-    setPrazoMeses(INITIAL_PRAZO_MESES)
-    setBandeiraEncargo(INITIAL_BANDEIRA_ENCARGO)
-    setCipEncargo(INITIAL_CIP_ENCARGO)
-    setEntradaRs(INITIAL_ENTRADA_RS)
-    setEntradaModo(INITIAL_ENTRADA_MODO)
-    setMostrarTabelaParcelas(INITIAL_TABELA_VISIVEL)
-    setMostrarTabelaBuyout(INITIAL_TABELA_VISIVEL)
-    setMostrarTabelaParcelasConfig(INITIAL_TABELA_VISIVEL)
-    setMostrarTabelaBuyoutConfig(INITIAL_TABELA_VISIVEL)
+    setPrazoMeses(INITIAL_VALUES.prazoMeses)
+    setBandeiraEncargo(INITIAL_VALUES.bandeiraEncargo)
+    setCipEncargo(INITIAL_VALUES.cipEncargo)
+    setEntradaRs(INITIAL_VALUES.entradaRs)
+    setEntradaModo(INITIAL_VALUES.entradaModo)
+    setMostrarTabelaParcelas(INITIAL_VALUES.tabelaVisivel)
+    setMostrarTabelaBuyout(INITIAL_VALUES.tabelaVisivel)
+    setMostrarTabelaParcelasConfig(INITIAL_VALUES.tabelaVisivel)
+    setMostrarTabelaBuyoutConfig(INITIAL_VALUES.tabelaVisivel)
     setSalvandoPropostaPdf(false)
 
-    setOemBase(INITIAL_OEM_BASE)
-    setOemInflacao(INITIAL_OEM_INFLACAO)
-    setSeguroModo(INITIAL_SEGURO_MODO)
-    setSeguroReajuste(INITIAL_SEGURO_REAJUSTE)
-    setSeguroValorA(INITIAL_SEGURO_VALOR_A)
-    setSeguroPercentualB(INITIAL_SEGURO_PERCENTUAL_B)
-    setExibirLeasingLinha(INITIAL_EXIBIR_LEASING_LINHA)
-    setExibirFinLinha(INITIAL_EXIBIR_FIN_LINHA)
+    setOemBase(INITIAL_VALUES.oemBase)
+    setOemInflacao(INITIAL_VALUES.oemInflacao)
+    setSeguroModo(INITIAL_VALUES.seguroModo)
+    setSeguroReajuste(INITIAL_VALUES.seguroReajuste)
+    setSeguroValorA(INITIAL_VALUES.seguroValorA)
+    setSeguroPercentualB(INITIAL_VALUES.seguroPercentualB)
+    setExibirLeasingLinha(INITIAL_VALUES.exibirLeasingLinha)
+    setExibirFinLinha(INITIAL_VALUES.exibirFinanciamentoLinha)
 
-    setCashbackPct(INITIAL_CASHBACK_PCT)
-    setDepreciacaoAa(INITIAL_DEPRECIACAO_AA)
-    setInadimplenciaAa(INITIAL_INADIMPLENCIA_AA)
-    setTributosAa(INITIAL_TRIBUTOS_AA)
-    setIpcaAa(INITIAL_IPCA_AA)
-    setCustosFixosM(INITIAL_CUSTOS_FIXOS_M)
-    setOpexM(INITIAL_OPEX_M)
-    setSeguroM(INITIAL_SEGURO_M)
-    setDuracaoMeses(INITIAL_DURACAO_MESES)
-    setPagosAcumAteM(INITIAL_PAGOS_ACUM_ATE_M)
+    setCashbackPct(INITIAL_VALUES.cashbackPct)
+    setDepreciacaoAa(INITIAL_VALUES.depreciacaoAa)
+    setInadimplenciaAa(INITIAL_VALUES.inadimplenciaAa)
+    setTributosAa(INITIAL_VALUES.tributosAa)
+    setIpcaAa(INITIAL_VALUES.ipcaAa)
+    setCustosFixosM(INITIAL_VALUES.custosFixosM)
+    setOpexM(INITIAL_VALUES.opexM)
+    setSeguroM(INITIAL_VALUES.seguroM)
+    setDuracaoMeses(INITIAL_VALUES.duracaoMeses)
+    setPagosAcumAteM(INITIAL_VALUES.pagosAcumManual)
 
     setCliente({ ...CLIENTE_INICIAL })
     setClienteMensagens({})
@@ -6768,7 +6669,7 @@ export default function App() {
               setPotenciaModulo(Number(e.target.value))
             }}
           >
-            {painelOpcoes.map((opt) => (
+            {PAINEL_OPCOES.map((opt) => (
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
@@ -7094,7 +6995,7 @@ export default function App() {
               setPotenciaModulo(Number(event.target.value))
             }}
           >
-            {painelOpcoes.map((opt) => (
+            {PAINEL_OPCOES.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
               </option>
@@ -7646,11 +7547,12 @@ export default function App() {
   }
 
   return (
-    <>
-      {activePage === 'crm' ? (
-        renderCrmPage()
-      ) : (
-        <div className="page">
+    <Providers>
+      <AppRoutes>
+        {activePage === 'crm' ? (
+          renderCrmPage()
+        ) : (
+          <div className="page">
           <React.Suspense fallback={null}>
             <PrintableProposal ref={printableRef} {...printableData} />
           </React.Suspense>
@@ -8875,28 +8777,29 @@ export default function App() {
       ) : null}
 
         </div>
-      )}
-      {notificacoes.length > 0 ? (
-        <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
-          {notificacoes.map((item) => (
-            <div key={item.id} className={`toast-item ${item.tipo}`} role="status">
-              <span className="toast-icon" aria-hidden="true">
-                {iconeNotificacaoPorTipo[item.tipo]}
-              </span>
-              <span className="toast-message">{item.mensagem}</span>
-              <button
-                type="button"
-                className="toast-dismiss"
-                onClick={() => removerNotificacao(item.id)}
-                aria-label="Dispensar notificação"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </>
+        )}
+        {notificacoes.length > 0 ? (
+          <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
+            {notificacoes.map((item) => (
+              <div key={item.id} className={`toast-item ${item.tipo}`} role="status">
+                <span className="toast-icon" aria-hidden="true">
+                  {iconeNotificacaoPorTipo[item.tipo]}
+                </span>
+                <span className="toast-message">{item.mensagem}</span>
+                <button
+                  type="button"
+                  className="toast-dismiss"
+                  onClick={() => removerNotificacao(item.id)}
+                  aria-label="Dispensar notificação"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </AppRoutes>
+    </Providers>
   )
 }
 
