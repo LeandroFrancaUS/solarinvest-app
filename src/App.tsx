@@ -2500,31 +2500,6 @@ export default function App() {
     return numeroModulosEstimado * fator
   }, [numeroModulosEstimado, tipoInstalacao])
 
-  useEffect(() => {
-    if (capexManualOverride) {
-      return
-    }
-    const normalizedCapex = Number.isFinite(capex) && capex > 0 ? capex : 0
-    let changed = false
-    setVendaForm((prev) => {
-      if (Math.abs((prev.capex_total ?? 0) - normalizedCapex) < 0.5) {
-        return prev
-      }
-      changed = true
-      return { ...prev, capex_total: normalizedCapex }
-    })
-    if (changed) {
-      setVendaFormErrors((prev) => {
-        if (!prev.capex_total) {
-          return prev
-        }
-        const { capex_total: _removed, ...rest } = prev
-        return rest
-      })
-      resetRetorno()
-    }
-  }, [capex, capexManualOverride, resetRetorno])
-
   const geracaoMensalKwh = useMemo(() => {
     if (potenciaInstaladaKwp <= 0) {
       return 0
@@ -2713,6 +2688,31 @@ export default function App() {
   }, [entradaConsiderada, entradaModo])
 
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
+
+  useEffect(() => {
+    if (capexManualOverride) {
+      return
+    }
+    const normalizedCapex = Number.isFinite(capex) && capex > 0 ? capex : 0
+    let changed = false
+    setVendaForm((prev) => {
+      if (Math.abs((prev.capex_total ?? 0) - normalizedCapex) < 0.5) {
+        return prev
+      }
+      changed = true
+      return { ...prev, capex_total: normalizedCapex }
+    })
+    if (changed) {
+      setVendaFormErrors((prev) => {
+        if (!prev.capex_total) {
+          return prev
+        }
+        const { capex_total: _removed, ...rest } = prev
+        return rest
+      })
+      resetRetorno()
+    }
+  }, [capex, capexManualOverride, resetRetorno])
 
   const chartPalette = useMemo(
     () => ({
