@@ -112,16 +112,16 @@ async function runRecognition(task: {
   attempt: number
 }): Promise<RecognizeResult> {
   const worker = await getWorker()
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
-    const race = Promise.race([
-      worker.recognize(task.imageData),
-      new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new OcrError('Tempo limite excedido no OCR'))
-        }, OCR_TIMEOUT_MS)
-      }),
-    ]) as Promise<RecognizeResult>
-    return await race
+    const recognitionPromise = worker.recognize(task.imageData) as Promise<RecognizeResult>
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        timeoutId = undefined
+        reject(new OcrError('Tempo limite excedido no OCR'))
+      }, OCR_TIMEOUT_MS)
+    })
+    return await Promise.race([recognitionPromise, timeoutPromise])
   } catch (error) {
     if (
       error &&
@@ -137,6 +137,11 @@ async function runRecognition(task: {
       await resetWorker()
     }
     throw error
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId)
+      timeoutId = undefined
+    }
   }
 }
 
