@@ -44,6 +44,35 @@ const LINE_EXCLUSION_PATTERNS: RegExp[] = [
   /vamos avan[çc]ar/i,
 ]
 
+const UPPERCASE_NOISE_PATTERNS: RegExp[] = [
+  /^TOTAL(?:\s+GERAL)?$/,
+  /^VALOR(?:\s+TOTAL)?$/,
+  /^TOTAL\s+DOS\s+ITENS$/,
+  /^SUBTOTAL$/,
+  /^DESCONTO$/,
+  /^ITENS?$/,
+  /^SERVI[ÇC]OS?$/,
+  /^DESCRI[ÇC][ÃA]O$/,
+  /^QUANTIDADE$/,
+  /^UNID(?:ADE)?$/,
+  /^C[ÓO]DIGO$/,
+  /^MODELO$/,
+  /^FABRICANTE$/,
+]
+
+const UPPERCASE_NOISE_KEYWORD_PATTERNS: RegExp[] = [
+  /\bDESCRI[ÇC][ÃA]O(?:\s+(?:DO|DA|DOS|DAS))?\b/,
+  /\bSERVI[ÇC]OS?(?:\s+ADICIONAIS?)?\b/,
+  /\bPRODUTOS?\b/,
+  /\bITENS?\b/,
+  /\bOBSERVA[ÇC][ÃA]O\b/,
+  /\bDETALHES?\b/,
+  /\bQUANTIDADE\b/,
+  /\bFABRICANTE\b/,
+  /\bMODELO\b/,
+  /\bC[ÓO]DIGO\b/,
+]
+
 const DESCRIPTION_ALLOWED_REGEXES: RegExp[] = [/^Descri[çc][aã]o/i, /^Observa[çc][aã]o/i]
 
 const CSV_HEADER =
@@ -472,19 +501,18 @@ function isUppercaseNoise(value: string): boolean {
   if (/\d/.test(value)) {
     return false
   }
-  const sanitized = value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, '').trim()
+  const sanitized = value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, ' ').replace(/\s+/g, ' ').trim()
   if (!sanitized) {
     return false
   }
-  const words = sanitized.split(/\s+/).filter(Boolean)
-  if (words.length > 2) {
+  const uppercase = sanitized.toUpperCase()
+  if (sanitized !== uppercase) {
     return false
   }
-  const whitelist = [/kit/i, /servi[çc]o/i, /m[óo]dulo/i, /inversor/i]
-  if (whitelist.some((regex) => regex.test(value))) {
-    return false
+  if (UPPERCASE_NOISE_PATTERNS.some((regex) => regex.test(uppercase))) {
+    return true
   }
-  return words.every((word) => word === word.toUpperCase())
+  return UPPERCASE_NOISE_KEYWORD_PATTERNS.some((regex) => regex.test(uppercase))
 }
 
 function parseQuantity(raw: string): number {
