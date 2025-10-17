@@ -79,8 +79,8 @@ const createPrintableProps = (
   capex: 30000,
   tipoProposta: 'VENDA_DIRETA',
   geracaoMensalKwh: 600,
-  potenciaPlaca: 550,
-  numeroPlacas: 12,
+  potenciaModulo: 550,
+  numeroModulos: 12,
   potenciaInstaladaKwp: 6.6,
   tipoInstalacao: 'TELHADO',
   areaInstalacao: 0,
@@ -131,7 +131,7 @@ describe('PrintableProposal (venda direta)', () => {
 
     const retorno = computeROI(vendaForm)
     const props = createPrintableProps({
-      numeroPlacas: 12,
+      numeroModulos: 12,
       energiaContratadaKwh: 500,
       vendaResumo: { form: vendaForm, retorno },
       parsedPdfVenda: createParsedVenda({ module_area_m2: 1.8 }),
@@ -179,7 +179,7 @@ describe('PrintableProposal (venda direta)', () => {
 
     const retorno = computeROI(vendaForm)
     const props = createPrintableProps({
-      numeroPlacas: 10,
+      numeroModulos: 10,
       energiaContratadaKwh: 0,
       vendaResumo: { form: vendaForm, retorno },
       parsedPdfVenda: createParsedVenda({ module_area_m2: undefined }),

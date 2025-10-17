@@ -55,8 +55,8 @@ function PrintableProposalInner(
     capex,
     tipoProposta,
     geracaoMensalKwh,
-    potenciaPlaca,
-    numeroPlacas,
+    potenciaModulo,
+    numeroModulos,
     potenciaInstaladaKwp,
     tipoInstalacao,
     areaInstalacao,
@@ -147,7 +147,7 @@ function PrintableProposalInner(
   const kitQuantidadeModulos = pickPositive(
     vendaFormResumo?.quantidade_modulos,
     parsedPdfResumo?.quantidade_modulos,
-    numeroPlacas,
+    numeroModulos,
   )
   const areaInstalacaoValida = Number.isFinite(areaInstalacao) && areaInstalacao > 0
   const areaInstalacaoTexto = areaInstalacaoValida
@@ -209,7 +209,7 @@ function PrintableProposalInner(
       : '—'
 
   const detalhamentoCampos = [
-    { label: 'Potência instalada', value: formatKwpDetalhe(kitPotenciaInstalada ?? null) },
+    { label: 'Potência do sistema', value: formatKwpDetalhe(kitPotenciaInstalada ?? null) },
     { label: 'Produção média mensal', value: formatKwhMes(kitGeracao ?? undefined) },
     { label: 'Consumo médio mensal', value: formatKwhMes(kitConsumo ?? undefined) },
     { label: 'Quantidade de módulos', value: formatQuantidadeDetalhe(kitQuantidadeModulos ?? null) },
@@ -353,8 +353,8 @@ function PrintableProposalInner(
     const quantidade =
       vendaFormResumo && Number.isFinite(vendaFormResumo.quantidade_modulos)
         ? Number(vendaFormResumo.quantidade_modulos)
-        : Number.isFinite(numeroPlacas)
-        ? Number(numeroPlacas)
+        : Number.isFinite(numeroModulos)
+        ? Number(numeroModulos)
         : null
     if (!Number.isFinite(quantidade) || (quantidade ?? 0) <= 0) {
       return '—'
@@ -735,7 +735,7 @@ function PrintableProposalInner(
             {currency(capex)}
           </p>
           <p>
-            <strong>Potência instalada (kWp)</strong>
+            <strong>Potência do sistema (kWp)</strong>
             {potenciaInstaladaTexto}
           </p>
           <p>

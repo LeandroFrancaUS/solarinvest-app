@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { maybeFillQuantidadeModulos } from './extractVendas'
+import { maybeFillQuantidadeModulos, RE_POT_KWP } from './extractVendas'
+import { toNumberFlexible } from '../locale/br-number'
 
 describe('maybeFillQuantidadeModulos', () => {
   it('não recalcula quantidade quando PDF trouxe valor explícito', () => {
@@ -29,5 +30,12 @@ describe('maybeFillQuantidadeModulos', () => {
         potencia_da_placa_wp: 550,
       }),
     ).toBeNull()
+  })
+
+  it('RE_POT_KWP captura decimais preservando separador', () => {
+    const texto = 'Potência do sistema 4.88kWp'
+    const match = texto.match(RE_POT_KWP)
+    expect(match?.[1]).toBe('4.88')
+    expect(toNumberFlexible(match?.[1])).toBeCloseTo(4.88, 6)
   })
 })

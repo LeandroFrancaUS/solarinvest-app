@@ -20,10 +20,10 @@ export interface ParsedVendaPdfData {
 }
 
 const RE_CAPEX = /Investimento total\s*\(?(?:CAPEX)?\)?\s*R?\$?\s*([\d.,]+)/i
-const RE_POTENCIA_KWP = /Pot[êe]ncia\s+(?:instalada|do\s+sistema).*?\(?\s*kwp\s*\)?\s*([\d.,]+)/i
+export const RE_POT_KWP = /Pot[êe]ncia\s+(?:do\s+sistema|instalada)[^\n]*?([\d\.,]+)\s*k\s*w\s*p/i
 const RE_GERACAO_KWH_MES = /Gera[çc][aã]o\s+estimada.*?\(?\s*kwh\/m[eê]s\s*\)?\s*([\d.,]+)/i
 const RE_QTD_MODULOS = /Quantidade\s+de\s+m[oó]dulos\s*([\d.,]+)\s*(?:un|unid|unidade)?/i
-const RE_POT_MODULO_WP = /Pot[êe]ncia\s+da\s+placa\s*\(?\s*wp\s*\)?\s*([\d.,]+)/i
+const RE_POT_MODULO_WP = /Pot[êe]ncia\s+(?:da\s+placa|do\s+m[oó]dulo)\s*\(?\s*wp\s*\)?\s*([\d.,]+)/i
 const RE_MODELO_MODULO = /Modelo\s+dos\s+m[oó]dulos\s*(.+)/i
 const RE_MODELO_INV = /Modelo\s+dos\s+inversores\s*(.+)/i
 const RE_ESTRUTURA_FIXACAO = /Estrutura\s+de\s+fixa[çc][aã]o\s*(.+)/i
@@ -72,10 +72,10 @@ export function maybeFillQuantidadeModulos({
   }
 
   const potencia = Number.isFinite(potencia_instalada_kwp) ? Number(potencia_instalada_kwp) : NaN
-  const placaWp = Number.isFinite(potencia_da_placa_wp) ? Number(potencia_da_placa_wp) : NaN
+  const moduloWp = Number.isFinite(potencia_da_placa_wp) ? Number(potencia_da_placa_wp) : NaN
 
-  if (potencia > 0 && placaWp > 0) {
-    const estimada = Math.round((potencia * 1000) / placaWp)
+  if (potencia > 0 && moduloWp > 0) {
+    const estimada = Math.round((potencia * 1000) / moduloWp)
     return Number.isFinite(estimada) && estimada > 0 ? estimada : null
   }
 
@@ -167,7 +167,7 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
   }
 
   const capex_total = toNumberFlexible(text.match(RE_CAPEX)?.[1])
-  const potencia_instalada_kwp = toNumberFlexible(text.match(RE_POTENCIA_KWP)?.[1])
+  const potencia_instalada_kwp = toNumberFlexible(text.match(RE_POT_KWP)?.[1])
   const geracao_extr = toNumberFlexible(text.match(RE_GERACAO_KWH_MES)?.[1])
   const quantidade_modulos = toNumberFlexible(text.match(RE_QTD_MODULOS)?.[1])
   let potencia_da_placa_wp = toNumberFlexible(text.match(RE_POT_MODULO_WP)?.[1])
