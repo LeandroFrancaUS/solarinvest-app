@@ -1,4 +1,4 @@
-import { formatNumberBRWithOptions } from '../lib/locale/br-number'
+import { formatNumberBRWithOptions, toNumberFlexible } from '../lib/locale/br-number'
 
 const HEADER_PATTERNS = {
   numeroOrcamento: /N[úu]mero do Or[cç]amento:\s*([A-Za-z0-9\-/.]+)/i,
@@ -490,9 +490,8 @@ function isUppercaseNoise(value: string): boolean {
 }
 
 function parseQuantity(raw: string): number {
-  const normalized = raw.replace(/\./g, '').replace(',', '.')
-  const parsed = Number.parseFloat(normalized)
-  if (!Number.isFinite(parsed)) {
+  const parsed = toNumberFlexible(raw)
+  if (parsed == null || !Number.isFinite(parsed)) {
     return Number.NaN
   }
   return Math.round(parsed)
@@ -534,9 +533,8 @@ function mergeAdjacentDuplicates(items: ItemData[]): ItemData[] {
 }
 
 function parseBRL(value: string): number {
-  const normalized = value.replace(/\./g, '').replace(',', '.')
-  const parsed = Number.parseFloat(normalized)
-  return Number.isFinite(parsed) ? parsed : NaN
+  const parsed = toNumberFlexible(value)
+  return parsed != null && Number.isFinite(parsed) ? parsed : Number.NaN
 }
 
 function toISODate(raw: string): string {

@@ -1903,9 +1903,10 @@ export default function App() {
         return
       }
 
-      const moduloKeywords = ['modulo', 'módulo', 'placa', 'painel']
       const inversorKeywords = ['inversor']
       const estruturaKeywords = ['estrutura', 'fixacao', 'fixação', 'suporte', 'trilho', 'perfil']
+
+      const parsedFromText = parseVendaPdfText(plainText ?? '')
 
       let quantidadeModulos: number | undefined
       let modeloModulo: string | undefined
@@ -1918,6 +1919,20 @@ export default function App() {
       const sanitizeTexto = (valor?: string | null) => {
         const trimmed = valor?.trim() ?? ''
         return trimmed && trimmed !== '—' ? trimmed : undefined
+      }
+
+      const isModuloDescricao = (valor?: string | null) => {
+        if (!valor) {
+          return false
+        }
+        const normalized = valor
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+        if (!normalized.includes('MODULO')) {
+          return false
+        }
+        return !normalized.includes('ESTRUTURA')
       }
 
       const formatEquipment = (item: StructuredItem) => {
@@ -1948,12 +1963,14 @@ export default function App() {
       structured.itens.forEach((item) => {
         const descricaoCompleta = `${item.produto ?? ''} ${item.modelo ?? ''} ${item.descricao ?? ''}`
         const textoNormalizado = normalizeText(descricaoCompleta)
-        const quantidadeItem = Number.isFinite(item.quantidade) ? Number(item.quantidade) : null
-        const isModulo = moduloKeywords.some((palavra) => textoNormalizado.includes(palavra))
+        const quantidadeItem = Number.isFinite(item.quantidade)
+          ? Math.round(Number(item.quantidade))
+          : null
+        const isModulo = isModuloDescricao(descricaoCompleta)
         const isInversor = inversorKeywords.some((palavra) => textoNormalizado.includes(palavra))
         const isEstrutura = estruturaKeywords.some((palavra) => textoNormalizado.includes(palavra))
 
-        if (quantidadeItem && quantidadeItem > 0 && isModulo) {
+        if (isModulo && quantidadeItem && quantidadeItem > 0) {
           quantidadeModulos = (quantidadeModulos ?? 0) + quantidadeItem
         }
 
@@ -1992,21 +2009,17 @@ export default function App() {
 
         if (!potenciaInstalada) {
           const potenciaMatch = descricaoCompleta.match(/(\d+(?:[.,]\d+)?)\s*k(?:wp|w)\b/i)
-          if (potenciaMatch) {
-            const valor = Number.parseFloat(potenciaMatch[1].replace(',', '.'))
-            if (Number.isFinite(valor) && valor > 0) {
-              potenciaInstalada = valor
-            }
+          const valorPotencia = potenciaMatch ? toNumberFlexible(potenciaMatch[1]) : null
+          if (Number.isFinite(valorPotencia) && (valorPotencia ?? 0) > 0) {
+            potenciaInstalada = Number(valorPotencia)
           }
         }
 
         if (!geracaoEstimada) {
           const geracaoMatch = descricaoCompleta.match(/(\d+(?:[.,]\d+)?)\s*kwh/i)
-          if (geracaoMatch) {
-            const valor = Number.parseFloat(geracaoMatch[1].replace(',', '.'))
-            if (Number.isFinite(valor) && valor > 0) {
-              geracaoEstimada = valor
-            }
+          const valorGeracao = geracaoMatch ? toNumberFlexible(geracaoMatch[1]) : null
+          if (Number.isFinite(valorGeracao) && (valorGeracao ?? 0) > 0) {
+            geracaoEstimada = Number(valorGeracao)
           }
         }
       })
@@ -2022,8 +2035,23 @@ export default function App() {
         geracao_estimada_source?: 'extracted' | 'calculated' | null
       } = {}
 
-      if (typeof quantidadeModulos === 'number' && quantidadeModulos > 0) {
-        structuredPartial.quantidade_modulos = quantidadeModulos
+      const parsedQuantidadeValor =
+        parsedFromText.quantidade_modulos != null
+          ? Number(parsedFromText.quantidade_modulos)
+          : null
+      const parsedQuantidadeValida =
+        parsedQuantidadeValor != null &&
+        Number.isFinite(parsedQuantidadeValor) &&
+        parsedQuantidadeValor > 0
+          ? Math.round(parsedQuantidadeValor)
+          : null
+
+      if (
+        typeof quantidadeModulos === 'number' &&
+        quantidadeModulos > 0 &&
+        (!parsedQuantidadeValida || parsedQuantidadeValida <= 0)
+      ) {
+        structuredPartial.quantidade_modulos = Math.max(1, Math.round(quantidadeModulos))
       }
       if (modeloModulo) {
         structuredPartial.modelo_modulo = modeloModulo
@@ -2045,7 +2073,6 @@ export default function App() {
         structuredPartial.geracao_estimada_source = 'extracted'
       }
 
-      const parsedFromText = parseVendaPdfText(plainText ?? '')
       const capexPartial: Partial<ParsedVendaPdfData> = {}
       if (typeof totalValue === 'number' && Number.isFinite(totalValue) && totalValue > 0) {
         capexPartial.capex_total = totalValue
@@ -2076,11 +2103,11 @@ export default function App() {
         return !current || current.trim().length === 0
       }
 
-      if (shouldSetNumber(vendaForm.quantidade_modulos, mergedParsed.quantidade_modulos)) {
-        updates.quantidade_modulos = mergedParsed.quantidade_modulos ?? undefined
-      }
       if (shouldSetNumber(vendaForm.potencia_instalada_kwp, mergedParsed.potencia_instalada_kwp)) {
         updates.potencia_instalada_kwp = mergedParsed.potencia_instalada_kwp ?? undefined
+      }
+      if (shouldSetNumber(vendaForm.quantidade_modulos, mergedParsed.quantidade_modulos)) {
+        updates.quantidade_modulos = mergedParsed.quantidade_modulos ?? undefined
       }
       if (shouldSetNumber(vendaForm.geracao_estimada_kwh_mes, mergedParsed.geracao_estimada_kwh_mes)) {
         updates.geracao_estimada_kwh_mes = mergedParsed.geracao_estimada_kwh_mes ?? undefined
@@ -7944,7 +7971,7 @@ export default function App() {
                           <th>Descrição</th>
                           <th>Quantidade</th>
                           <th>Valor unitário</th>
-                          <th>Total do item</th>
+                          <th>Valor total</th>
                           <th>Ações</th>
                         </tr>
                       </thead>

@@ -20,7 +20,7 @@ export interface ParsedVendaPdfData {
 }
 
 const RE_CAPEX = /Investimento total\s*\(?(?:CAPEX)?\)?\s*R?\$?\s*([\d.,]+)/i
-const RE_POTENCIA_SISTEMA = /Pot[êe]ncia\s+do\s+sistema\s*([\d.,]+)\s*kwp/i
+const RE_POTENCIA_KWP = /Pot[êe]ncia\s+(?:instalada|do\s+sistema).*?\(?\s*kwp\s*\)?\s*([\d.,]+)/i
 const RE_GERACAO_KWH_MES = /Gera[çc][aã]o\s+estimada.*?\(?\s*kwh\/m[eê]s\s*\)?\s*([\d.,]+)/i
 const RE_QTD_MODULOS = /Quantidade\s+de\s+m[oó]dulos\s*([\d.,]+)\s*(?:un|unid|unidade)?/i
 const RE_POT_MODULO_WP = /Pot[êe]ncia\s+da\s+placa\s*\(?\s*wp\s*\)?\s*([\d.,]+)/i
@@ -57,15 +57,66 @@ function sanitizePositiveInteger(value: unknown): number | null {
   return rounded > 0 ? rounded : null
 }
 
+export function maybeFillQuantidadeModulos({
+  quantidade_modulos,
+  potencia_instalada_kwp,
+  potencia_da_placa_wp,
+}: {
+  quantidade_modulos: number | null
+  potencia_instalada_kwp: number | null
+  potencia_da_placa_wp: number | null
+}): number | null {
+  if (Number.isFinite(quantidade_modulos) && (quantidade_modulos ?? 0) > 0) {
+    const inteiro = Math.round(Number(quantidade_modulos))
+    return inteiro > 0 ? inteiro : null
+  }
+
+  const potencia = Number.isFinite(potencia_instalada_kwp) ? Number(potencia_instalada_kwp) : NaN
+  const placaWp = Number.isFinite(potencia_da_placa_wp) ? Number(potencia_da_placa_wp) : NaN
+
+  if (potencia > 0 && placaWp > 0) {
+    const estimada = Math.round((potencia * 1000) / placaWp)
+    return Number.isFinite(estimada) && estimada > 0 ? estimada : null
+  }
+
+  return null
+}
+
 export function finalizeParsedVendaData(
   input: Partial<ParsedVendaPdfData> & { geracao_estimada_source?: GeracaoSource | null },
 ): ParsedVendaPdfData {
+  const capex_total = sanitizePositive(input.capex_total ?? null)
+  const potencia_da_placa_wp = sanitizePositive(input.potencia_da_placa_wp ?? null)
+  let potencia_instalada_kwp = sanitizePositive(input.potencia_instalada_kwp ?? null)
+  let quantidade_modulos = sanitizePositiveInteger(input.quantidade_modulos ?? null)
+
+  quantidade_modulos = sanitizePositiveInteger(
+    maybeFillQuantidadeModulos({
+      quantidade_modulos,
+      potencia_instalada_kwp,
+      potencia_da_placa_wp,
+    }),
+  )
+
+  if (
+    potencia_instalada_kwp == null &&
+    quantidade_modulos != null &&
+    potencia_da_placa_wp != null
+  ) {
+    const potencia = (quantidade_modulos * potencia_da_placa_wp) / 1000
+    if (Number.isFinite(potencia) && potencia > 0) {
+      potencia_instalada_kwp = potencia
+    }
+  }
+
+  potencia_instalada_kwp = sanitizePositive(potencia_instalada_kwp ?? null)
+
   const result: ParsedVendaPdfData = {
-    capex_total: sanitizePositive(input.capex_total ?? null),
-    potencia_instalada_kwp: sanitizePositive(input.potencia_instalada_kwp ?? null),
+    capex_total,
+    potencia_instalada_kwp,
     geracao_estimada_kwh_mes: sanitizePositive(input.geracao_estimada_kwh_mes ?? null),
-    quantidade_modulos: sanitizePositiveInteger(input.quantidade_modulos ?? null),
-    potencia_da_placa_wp: sanitizePositive(input.potencia_da_placa_wp ?? null),
+    quantidade_modulos,
+    potencia_da_placa_wp,
     modelo_modulo: cleanString(input.modelo_modulo ?? null),
     modelo_inversor: cleanString(input.modelo_inversor ?? null),
     estrutura_fixacao: cleanString(input.estrutura_fixacao ?? null),
@@ -116,7 +167,7 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
   }
 
   const capex_total = toNumberFlexible(text.match(RE_CAPEX)?.[1])
-  const potencia_instalada_kwp = toNumberFlexible(text.match(RE_POTENCIA_SISTEMA)?.[1])
+  const potencia_instalada_kwp = toNumberFlexible(text.match(RE_POTENCIA_KWP)?.[1])
   const geracao_extr = toNumberFlexible(text.match(RE_GERACAO_KWH_MES)?.[1])
   const quantidade_modulos = toNumberFlexible(text.match(RE_QTD_MODULOS)?.[1])
   let potencia_da_placa_wp = toNumberFlexible(text.match(RE_POT_MODULO_WP)?.[1])

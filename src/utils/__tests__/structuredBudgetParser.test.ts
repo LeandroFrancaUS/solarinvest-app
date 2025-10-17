@@ -10,21 +10,21 @@ import {
 describe('deriveSection', () => {
   it('anchors items after "Produto  Quantidade" and before "Valor total:"', () => {
     const lines = [
-      'Sobre nós',
       'Detalhes do Orçamento',
-      'Potência do sistema',
-      'Produto   Quantidade',
-      'Modulo X  ...',
-      'Código: AAA Modelo: BBB 3',
-      'Valor total: R$ 8.872,02',
-      'Aceite da Proposta',
+      'Produto  Quantidade',
+      'MODULO BIFACIAL 610W CABO 1.2M OSDA',
+      'Código: MFOS-1.2-BF-132-610W Modelo: ODA610-33V-MHDRz',
+      'Fabricante: OSDA',
+      '8',
+      'Valor total: R$ 9.008,41',
+      'Dados do cliente',
     ]
 
     const { section } = deriveSection(lines)
 
-    expect(section[0]).toMatch(/Modulo X/)
+    expect(section[0]).toMatch(/MODULO BIFACIAL/)
     expect(section[section.length - 1]).not.toMatch(/Valor total/i)
-    expect(section.some((line) => /Aceite da Proposta/i.test(line))).toBe(false)
+    expect(section.some((line) => /Dados do cliente/i.test(line))).toBe(false)
   })
 })
 
