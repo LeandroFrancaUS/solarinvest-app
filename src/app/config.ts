@@ -137,6 +137,8 @@ export function createEmptyKitBudget(): KitBudgetState {
     totalInput: '',
     warnings: [],
     missingInfo: null,
+    fileName: undefined,
+    fileSizeBytes: undefined,
   }
 }
 
@@ -161,6 +163,7 @@ type KitBudgetState = {
   totalInput: string
   warnings: KitBudgetWarning[]
   fileName?: string
+  fileSizeBytes?: number
   missingInfo: KitBudgetMissingInfo
 }
 

@@ -2294,6 +2294,41 @@ html[data-print-mode='print'] .print-hero__title h1 {
   color: var(--muted);
 }
 
+.budget-upload-dpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.budget-upload-dpi label {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.budget-upload-dpi select {
+  min-width: 160px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+  color: var(--ink);
+  font-size: 13px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.budget-upload-dpi select:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.budget-upload-dpi select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .budget-upload-status {
   font-size: 13px;
   color: var(--accent);
