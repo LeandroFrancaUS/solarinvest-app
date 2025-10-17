@@ -6,10 +6,8 @@ const fmtPerc = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFracti
 export function toNumberFlexible(input: unknown): number | null {
   if (input == null) return null
   if (typeof input === 'number' && Number.isFinite(input)) return input
-  let s = String(input).trim()
+  let s = String(input).trim().replace(/\u00a0/g, ' ')
   if (!s) return null
-  // remove espaços não-quebrantes
-  s = s.replace(/\u00a0/g, ' ')
   // se tiver vírgula e ponto, assume BR -> remove pontos (milhar), troca vírgula por ponto
   if (s.match(/,\d{1,}$/)) s = s.replace(/\./g, '').replace(',', '.')
   // remove qualquer caractere que não seja dígito, ponto, menos

@@ -12,6 +12,11 @@ describe('br-number utilities', () => {
     expect(toNumberFlexible('R$\u00a01.234,56')).toBeCloseTo(1234.56)
   })
 
+  it('normaliza 4,88 ou 4.88 para 4.88', () => {
+    expect(toNumberFlexible('4,88')).toBeCloseTo(4.88, 6)
+    expect(toNumberFlexible('4.88')).toBeCloseTo(4.88, 6)
+  })
+
   it('formatMoneyBR formata BRL', () => {
     expect(formatMoneyBR(1234.56)).toBe('R$\u00a01.234,56')
   })
