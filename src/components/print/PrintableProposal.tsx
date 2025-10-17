@@ -27,6 +27,10 @@ type MensalidadeAnualRow = {
 }
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
+const chartColors: Record<'Leasing' | 'Financiamento', string> = {
+  Leasing: '#0C162C',
+  Financiamento: '#0C162C',
+}
 
 function PrintableProposalInner(
   {
