@@ -60,6 +60,19 @@ const UPPERCASE_NOISE_PATTERNS: RegExp[] = [
   /^FABRICANTE$/,
 ]
 
+const UPPERCASE_NOISE_KEYWORD_PATTERNS: RegExp[] = [
+  /\bDESCRI[ÇC][ÃA]O(?:\s+(?:DO|DA|DOS|DAS))?\b/,
+  /\bSERVI[ÇC]OS?(?:\s+ADICIONAIS?)?\b/,
+  /\bPRODUTOS?\b/,
+  /\bITENS?\b/,
+  /\bOBSERVA[ÇC][ÃA]O\b/,
+  /\bDETALHES?\b/,
+  /\bQUANTIDADE\b/,
+  /\bFABRICANTE\b/,
+  /\bMODELO\b/,
+  /\bC[ÓO]DIGO\b/,
+]
+
 const DESCRIPTION_ALLOWED_REGEXES: RegExp[] = [/^Descri[çc][aã]o/i, /^Observa[çc][aã]o/i]
 
 const CSV_HEADER =
@@ -496,7 +509,10 @@ function isUppercaseNoise(value: string): boolean {
   if (sanitized !== uppercase) {
     return false
   }
-  return UPPERCASE_NOISE_PATTERNS.some((regex) => regex.test(uppercase))
+  if (UPPERCASE_NOISE_PATTERNS.some((regex) => regex.test(uppercase))) {
+    return true
+  }
+  return UPPERCASE_NOISE_KEYWORD_PATTERNS.some((regex) => regex.test(uppercase))
 }
 
 function parseQuantity(raw: string): number {
