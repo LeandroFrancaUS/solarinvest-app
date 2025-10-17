@@ -124,7 +124,7 @@ type ViaCepResponse = {
   erro?: boolean | string
 }
 
-type TabKey = 'leasing' | 'cliente' | 'vendas' | 'financiamento'
+type TabKey = 'leasing' | 'vendas'
 
 type SettingsTabKey = 'mercado' | 'leasing' | 'financiamento' | 'buyout' | 'outros'
 
@@ -5571,9 +5571,8 @@ export default function App() {
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
       setIsClientesModalOpen(false)
-      setActiveTab('cliente')
     },
-    [setActiveTab, setCliente, setClienteEmEdicaoId, setClienteMensagens, setIsClientesModalOpen],
+    [setCliente, setClienteEmEdicaoId, setClienteMensagens, setIsClientesModalOpen],
   )
 
   const handleExcluirCliente = useCallback(
@@ -6337,6 +6336,115 @@ export default function App() {
   const fecharPesquisaOrcamentos = () => {
     setIsBudgetSearchOpen(false)
   }
+
+  const renderClienteDadosSection = () => (
+    <section className="card">
+      <div className="card-header">
+        <h2>Dados do cliente</h2>
+      </div>
+      <div className="grid g2">
+        <Field label="Nome ou Razão social">
+          <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
+        </Field>
+        <Field label="CPF/CNPJ">
+          <input
+            value={cliente.documento}
+            onChange={(e) => handleClienteChange('documento', e.target.value)}
+            inputMode="numeric"
+            placeholder="000.000.000-00"
+          />
+        </Field>
+        <Field label="E-mail" hint={clienteMensagens.email}>
+          <input
+            value={cliente.email}
+            onChange={(e) => handleClienteChange('email', e.target.value)}
+            type="email"
+            placeholder="nome@empresa.com"
+          />
+        </Field>
+        <Field label="Telefone">
+          <input
+            value={cliente.telefone}
+            onChange={(e) => handleClienteChange('telefone', e.target.value)}
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="(00) 00000-0000"
+          />
+        </Field>
+        <Field label="CEP" hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}>
+          <input
+            value={cliente.cep}
+            onChange={(e) => handleClienteChange('cep', e.target.value)}
+            inputMode="numeric"
+            autoComplete="postal-code"
+            placeholder="00000-000"
+          />
+        </Field>
+        <Field label="Distribuidora (ANEEL)">
+          <select
+            value={cliente.distribuidora}
+            onChange={(e) => handleClienteChange('distribuidora', e.target.value)}
+            disabled={!cliente.uf || clienteDistribuidorasDisponiveis.length === 0}
+          >
+            <option value="">
+              {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
+            </option>
+            {clienteDistribuidorasDisponiveis.map((nome) => (
+              <option key={nome} value={nome}>
+                {nome}
+              </option>
+            ))}
+            {cliente.distribuidora && !clienteDistribuidorasDisponiveis.includes(cliente.distribuidora) ? (
+              <option value={cliente.distribuidora}>{cliente.distribuidora}</option>
+            ) : null}
+          </select>
+        </Field>
+        <Field label="Unidade consumidora (UC)">
+          <input value={cliente.uc} onChange={(e) => handleClienteChange('uc', e.target.value)} />
+        </Field>
+        <Field label="Endereço de instalação">
+          <input
+            value={cliente.endereco}
+            onChange={(e) => handleClienteChange('endereco', e.target.value)}
+            autoComplete="street-address"
+          />
+        </Field>
+        <Field
+          label="Cidade"
+          hint={
+            verificandoCidade
+              ? 'Verificando cidade...'
+              : clienteMensagens.cidade
+          }
+        >
+          <input value={cliente.cidade} onChange={(e) => handleClienteChange('cidade', e.target.value)} />
+        </Field>
+        <Field label="UF ou Estado">
+          <select value={cliente.uf} onChange={(e) => handleClienteChange('uf', e.target.value)}>
+            <option value="">Selecione um estado</option>
+            {ufsDisponiveis.map((uf) => (
+              <option key={uf} value={uf}>
+                {uf} — {UF_LABELS[uf] ?? uf}
+              </option>
+            ))}
+            {cliente.uf && !ufsDisponiveis.includes(cliente.uf) ? (
+              <option value={cliente.uf}>
+                {cliente.uf} — {UF_LABELS[cliente.uf] ?? cliente.uf}
+              </option>
+            ) : null}
+          </select>
+        </Field>
+      </div>
+      <div className="card-actions">
+        <button type="button" className="primary" onClick={handleSalvarCliente}>
+          {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
+        </button>
+        <button type="button" className="ghost" onClick={abrirClientesModal}>
+          Ver clientes
+        </button>
+      </div>
+    </section>
+  )
 
   const renderParametrosPrincipaisSection = () => (
     <section className="card">
@@ -7300,16 +7408,11 @@ export default function App() {
       </header>
       <div className="app-main">
         <nav className="tabs tabs-bar">
-          <button className={activeTab === 'cliente' ? 'active' : ''} onClick={() => setActiveTab('cliente')}>
-            Clientes
+          <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>
+            Leasing
           </button>
-          <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>Leasing</button>
-          <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>Vendas</button>
-          <button
-            className={activeTab === 'financiamento' ? 'active' : ''}
-            onClick={() => setActiveTab('financiamento')}
-          >
-            Financiamento
+          <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>
+            Vendas
           </button>
         </nav>
 
@@ -7329,6 +7432,7 @@ export default function App() {
               </button>
             ) : null}
           </div>
+          {renderClienteDadosSection()}
           {activeTab === 'leasing' ? (
             <>
             {renderParametrosPrincipaisSection()}
@@ -7604,236 +7708,6 @@ export default function App() {
                   </ResponsiveContainer>
                 </div>
               </section>
-            ) : null}
-          </>
-        ) : activeTab === 'cliente' ? (
-          <section className="card">
-            <div className="card-header">
-              <h2>Dados do cliente</h2>
-            </div>
-            <div className="grid g2">
-              <Field label="Nome ou Razão social">
-                <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
-              </Field>
-              <Field label="CPF/CNPJ">
-                <input
-                  value={cliente.documento}
-                  onChange={(e) => handleClienteChange('documento', e.target.value)}
-                  inputMode="numeric"
-                  placeholder="000.000.000-00"
-                />
-              </Field>
-              <Field label="E-mail" hint={clienteMensagens.email}>
-                <input
-                  value={cliente.email}
-                  onChange={(e) => handleClienteChange('email', e.target.value)}
-                  type="email"
-                  placeholder="nome@empresa.com"
-                />
-              </Field>
-              <Field label="Telefone">
-                <input
-                  value={cliente.telefone}
-                  onChange={(e) => handleClienteChange('telefone', e.target.value)}
-                  inputMode="tel"
-                  autoComplete="tel"
-                  placeholder="(00) 00000-0000"
-                />
-              </Field>
-              <Field label="CEP" hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}>
-                <input
-                  value={cliente.cep}
-                  onChange={(e) => handleClienteChange('cep', e.target.value)}
-                  inputMode="numeric"
-                  autoComplete="postal-code"
-                  placeholder="00000-000"
-                />
-              </Field>
-              <Field label="Distribuidora (ANEEL)">
-                <select
-                  value={cliente.distribuidora}
-                  onChange={(e) => handleClienteChange('distribuidora', e.target.value)}
-                  disabled={!cliente.uf || clienteDistribuidorasDisponiveis.length === 0}
-                >
-                  <option value="">
-                    {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
-                  </option>
-                  {clienteDistribuidorasDisponiveis.map((nome) => (
-                    <option key={nome} value={nome}>
-                      {nome}
-                    </option>
-                  ))}
-                  {cliente.distribuidora && !clienteDistribuidorasDisponiveis.includes(cliente.distribuidora) ? (
-                    <option value={cliente.distribuidora}>{cliente.distribuidora}</option>
-                  ) : null}
-                </select>
-              </Field>
-              <Field label="Unidade consumidora (UC)">
-                <input value={cliente.uc} onChange={(e) => handleClienteChange('uc', e.target.value)} />
-              </Field>
-              <Field label="Endereço de instalação">
-                <input
-                  value={cliente.endereco}
-                  onChange={(e) => handleClienteChange('endereco', e.target.value)}
-                  autoComplete="street-address"
-                />
-              </Field>
-              <Field
-                label="Cidade"
-                hint={
-                  verificandoCidade
-                    ? 'Verificando cidade...'
-                    : clienteMensagens.cidade
-                }
-              >
-                <input value={cliente.cidade} onChange={(e) => handleClienteChange('cidade', e.target.value)} />
-              </Field>
-              <Field label="UF ou Estado">
-                <select value={cliente.uf} onChange={(e) => handleClienteChange('uf', e.target.value)}>
-                  <option value="">Selecione um estado</option>
-                  {ufsDisponiveis.map((uf) => (
-                    <option key={uf} value={uf}>
-                      {uf} — {UF_LABELS[uf] ?? uf}
-                    </option>
-                  ))}
-                  {cliente.uf && !ufsDisponiveis.includes(cliente.uf) ? (
-                    <option value={cliente.uf}>
-                      {cliente.uf} — {UF_LABELS[cliente.uf] ?? cliente.uf}
-                    </option>
-                  ) : null}
-                </select>
-              </Field>
-            </div>
-            <div className="card-actions">
-              <button type="button" className="primary" onClick={handleSalvarCliente}>
-                {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
-              </button>
-              <button type="button" className="ghost" onClick={abrirClientesModal}>
-                Ver clientes
-              </button>
-            </div>
-          </section>
-        ) : activeTab === 'financiamento' ? (
-          <>
-            {renderParametrosPrincipaisSection()}
-            {renderConfiguracaoUsinaSection()}
-            <section className="card">
-              <h2>Resumo do financiamento</h2>
-              {mostrarFinanciamento ? (
-                <div className="info-inline">
-                  <span className="pill">
-                    Investimento da SolarInvest
-                    <strong>{currency(capex)}</strong>
-                  </span>
-                  <span className="pill">
-                    Entrada ({entradaFinPct.toLocaleString('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%)
-                    <strong>{currency(entradaFin)}</strong>
-                  </span>
-                  <span className="pill">
-                    Valor financiado
-                    <strong>{currency(valorFinanciado)}</strong>
-                  </span>
-                  <span className="pill">
-                    Parcela mensal
-                    <strong>{currency(parcelaMensalFin)}</strong>
-                  </span>
-                  <span className="pill">
-                    Prazo do financiamento
-                    <strong>
-                      {Math.max(prazoFinMeses, 0).toLocaleString('pt-BR', {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0,
-                      })}{' '}
-                      meses
-                    </strong>
-                  </span>
-                  <span className="pill">
-                    Juros a.a.
-                    <strong>
-                      {jurosFinAa.toLocaleString('pt-BR', {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      })}%
-                    </strong>
-                  </span>
-                  <span className="pill">
-                    Juros a.m.
-                    <strong>
-                      {taxaMensalFinPct.toLocaleString('pt-BR', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}%
-                    </strong>
-                  </span>
-                  {beneficioAno30 ? (
-                    <span className="pill">
-                      Benefício em 30 anos
-                      <strong>{currency(beneficioAno30.Financiamento)}</strong>
-                    </span>
-                  ) : null}
-                  <span className="pill">
-                    Total pago (entrada + parcelas)
-                    <strong>{currency(totalPagoFinanciamento)}</strong>
-                  </span>
-                </div>
-              ) : (
-                <p className="muted">Habilite nas configurações para visualizar os cenários de financiamento.</p>
-              )}
-            </section>
-            {mostrarFinanciamento ? (
-              <>
-                <div className="grid g2">
-                  <section className="card">
-                    <h2>Mensalidades previstas</h2>
-                    {financiamentoMensalidades.length > 0 ? (
-                      <div className="list-col">
-                        {financiamentoMensalidades.map((valor, index) => (
-                          <div className="list-row" key={`fin-tab-m${index}`}>
-                            <span>Ano {index + 1}</span>
-                            <strong>{currency(valor)}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="muted">Defina um prazo para calcular as mensalidades do financiamento.</p>
-                    )}
-                  </section>
-                  <section className="card">
-                    <h2>Fluxo anual projetado</h2>
-                    <div className="list-col">
-                      {anosArray.map((ano) => (
-                        <div className="list-row" key={`fin-fluxo-${ano}`}>
-                          <span>Ano {ano}</span>
-                          <strong>{currency(financiamentoFluxo[ano - 1] ?? 0)}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-                <section className="card">
-                  <h2>Benefício acumulado</h2>
-                  <div className="table-wrapper">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Ano</th>
-                          <th>Fluxo anual</th>
-                          <th>Benefício acumulado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {anosArray.map((ano) => (
-                          <tr key={`fin-tabela-${ano}`}>
-                            <td>{ano}</td>
-                            <td>{currency(financiamentoFluxo[ano - 1] ?? 0)}</td>
-                            <td>{currency(financiamentoROI[ano - 1] ?? 0)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              </>
             ) : null}
           </>
         ) : (
