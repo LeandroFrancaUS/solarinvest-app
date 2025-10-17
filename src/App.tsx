@@ -123,6 +123,26 @@ const emailValido = (valor: string) => {
   return regex.test(valor)
 }
 
+const numbersAreClose = (
+  a: number | null | undefined,
+  b: number | null | undefined,
+  tolerance = 0.01,
+) => {
+  if (a == null && b == null) {
+    return true
+  }
+
+  if (a == null || b == null) {
+    return false
+  }
+
+  if (!Number.isFinite(a) || !Number.isFinite(b)) {
+    return false
+  }
+
+  return Math.abs(a - b) <= tolerance
+}
+
 type IbgeMunicipio = {
   nome?: string
   microrregiao?: {
@@ -2620,24 +2640,30 @@ export default function App() {
     let updated = false
     setVendaForm((prev) => {
       const next = { ...prev }
+      const potenciaNormalizada = Math.round(potenciaInstaladaKwp * 100) / 100
       if (
-        (prev.potencia_instalada_kwp === undefined || prev.potencia_instalada_kwp <= 0) &&
-        potenciaInstaladaKwp > 0
+        potenciaNormalizada > 0 &&
+        !numbersAreClose(prev.potencia_instalada_kwp, potenciaNormalizada, 0.005)
       ) {
-        next.potencia_instalada_kwp = potenciaInstaladaKwp
+        next.potencia_instalada_kwp = potenciaNormalizada
         updated = true
       }
-      if (
-        (prev.geracao_estimada_kwh_mes === undefined || prev.geracao_estimada_kwh_mes <= 0) &&
-        geracaoMensalKwh > 0
-      ) {
-        next.geracao_estimada_kwh_mes = geracaoMensalKwh
+
+      const geracaoNormalizada = Math.round(geracaoMensalKwh * 10) / 10
+      if (geracaoNormalizada > 0 && !numbersAreClose(prev.geracao_estimada_kwh_mes, geracaoNormalizada, 0.05)) {
+        next.geracao_estimada_kwh_mes = geracaoNormalizada
         updated = true
       }
-      if (deveEstimarQuantidade && numeroModulosEstimado > 0) {
+
+      if (
+        deveEstimarQuantidade &&
+        numeroModulosEstimado > 0 &&
+        prev.quantidade_modulos !== numeroModulosEstimado
+      ) {
         next.quantidade_modulos = numeroModulosEstimado
         updated = true
       }
+
       return updated ? next : prev
     })
     if (updated) {
@@ -2679,22 +2705,29 @@ export default function App() {
       const updates: Partial<VendaForm> = {}
       let changed = false
 
+      const potenciaNormalizadaAuto = vendaAutoPotenciaKwp
+        ? Math.round(vendaAutoPotenciaKwp * 100) / 100
+        : 0
       if (
-        (!Number.isFinite(prev.potencia_instalada_kwp) || (prev.potencia_instalada_kwp ?? 0) <= 0) &&
-        vendaAutoPotenciaKwp
+        potenciaNormalizadaAuto > 0 &&
+        !numbersAreClose(prev.potencia_instalada_kwp, potenciaNormalizadaAuto, 0.005)
       ) {
-        updates.potencia_instalada_kwp = vendaAutoPotenciaKwp
+        updates.potencia_instalada_kwp = potenciaNormalizadaAuto
         changed = true
       }
 
-      if (!Number.isFinite(prev.geracao_estimada_kwh_mes) || (prev.geracao_estimada_kwh_mes ?? 0) <= 0) {
-        updates.geracao_estimada_kwh_mes = estimada
+      const geracaoNormalizadaAuto = Math.round(estimada * 10) / 10
+      if (
+        geracaoNormalizadaAuto > 0 &&
+        !numbersAreClose(prev.geracao_estimada_kwh_mes, geracaoNormalizadaAuto, 0.05)
+      ) {
+        updates.geracao_estimada_kwh_mes = geracaoNormalizadaAuto
         geracaoAtualizada = true
         changed = true
       }
 
-      if (prev.consumo_kwh_mes !== estimada) {
-        updates.consumo_kwh_mes = estimada
+      if (!numbersAreClose(prev.consumo_kwh_mes, geracaoNormalizadaAuto, 0.05)) {
+        updates.consumo_kwh_mes = geracaoNormalizadaAuto
         consumoAtualizado = true
         changed = true
       }
@@ -2707,7 +2740,7 @@ export default function App() {
     })
 
     if (consumoAtualizado) {
-      setKcKwhMes(estimada)
+      setKcKwhMes(geracaoNormalizadaAuto)
       setVendaFormErrors((prev) => {
         if (!prev.consumo_kwh_mes) {
           return prev
