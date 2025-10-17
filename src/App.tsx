@@ -1228,7 +1228,7 @@ const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; hint?
 const FieldError: React.FC<{ message?: string }> = ({ message }) =>
   message ? <span className="field-error">{message}</span> : null
 
-const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(function PrintableProposal(
+function PrintableProposalInner(
   {
     cliente,
     budgetId,
@@ -1248,14 +1248,14 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
     tipoInstalacao,
     areaInstalacao,
     descontoContratualPct,
-  parcelasLeasing,
-  distribuidoraTarifa,
-  energiaContratadaKwh,
-  tarifaCheia,
-  vendaResumo: vendaResumoProp,
-  parsedPdfVenda,
-  },
-  ref,
+    parcelasLeasing,
+    distribuidoraTarifa,
+    energiaContratadaKwh,
+    tarifaCheia,
+    vendaResumo: vendaResumoProp,
+    parsedPdfVenda,
+  }: PrintableProps,
+  ref: React.ForwardedRef<HTMLDivElement>,
 ) {
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -2330,7 +2330,9 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
       </div>
     </div>
   )
-})
+}
+
+const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(PrintableProposalInner)
 
 type PrintMode = 'preview' | 'print' | 'download'
 
