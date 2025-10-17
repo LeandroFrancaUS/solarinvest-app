@@ -2606,7 +2606,10 @@ export default function App() {
     if (capexManualOverride) {
       return
     }
-    const normalizedCapex = Number.isFinite(capex) && capex > 0 ? capex : 0
+    if (!Number.isFinite(capex) || capex <= 0) {
+      return
+    }
+    const normalizedCapex = capex
     let changed = false
     setVendaForm((prev) => {
       if (Math.abs((prev.capex_total ?? 0) - normalizedCapex) < 0.5) {
