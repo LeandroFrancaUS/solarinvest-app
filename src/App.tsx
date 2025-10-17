@@ -999,6 +999,8 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
   const mesAceiteFinal = duracaoContrato + 1
   const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
     Number.isFinite(value) ? value.toLocaleString('pt-BR', options) : '—'
+  const headerDistribuidoraTarifa =
+    (distribuidoraTarifa && distribuidoraTarifa.trim()) || cliente.distribuidora.trim() || ''
   const valorMercadoValido = typeof buyoutResumo.vm0 === 'number' && Number.isFinite(buyoutResumo.vm0)
   const valorMercadoTexto = valorMercadoValido ? currency(buyoutResumo.vm0) : '—'
   const duracaoContratualValida =
@@ -1082,7 +1084,9 @@ const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProps>(funct
                   <th>Tarifa c/ desconto (R$/kWh)</th>
                   <th>
                     Mensalidade com{' '}
-                    {distribuidoraTarifa ? `${distribuidoraTarifa} (ANEEL)` : 'Distribuidora (ANEEL)'}
+                    {headerDistribuidoraTarifa
+                      ? `${headerDistribuidoraTarifa} (ANEEL)`
+                      : 'Distribuidora (ANEEL)'}
                   </th>
                   <th>Mensalidade com leasing</th>
                 </tr>
@@ -2097,11 +2101,15 @@ export default function App() {
   const printableRef = useRef<HTMLDivElement>(null)
 
   const anosArray = useMemo(() => Array.from({ length: anosAnalise }, (_, i) => i + 1), [])
+  const printableDistribuidoraTarifa = useMemo(() => {
+    const trimmed = distribuidoraTarifa.trim()
+    return trimmed ? trimmed : undefined
+  }, [distribuidoraTarifa])
 
   const printableData = useMemo<PrintableProps>(
     () => ({
       cliente,
-      distribuidoraTarifa,
+      distribuidoraTarifa: printableDistribuidoraTarifa,
       anos: anosArray,
       leasingROI,
       financiamentoFluxo,
@@ -2126,7 +2134,7 @@ export default function App() {
       capex,
       cliente,
       desconto,
-      distribuidoraTarifa,
+      printableDistribuidoraTarifa,
       financiamentoFluxo,
       financiamentoROI,
       geracaoMensalKwh,
