@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "start": "node server/index.js",
     "test": "vitest",
-    "check:cycles": "node scripts/find-circular-deps.mjs"
+    "check:cycles": "node scripts/find-circular-deps.mjs",
+    "check:locale": "bash -lc 'if grep -R \"toLocaleString(\" src | grep -v \"pt-BR\"; then echo \"toLocaleString sem locale pt-BR encontrado\" >&2; exit 1; fi'"
   },
   "dependencies": {
     "react": "^18.3.1",

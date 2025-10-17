@@ -1,3 +1,5 @@
+import { formatNumberBRWithOptions } from '../lib/locale/br-number'
+
 const HEADER_PATTERNS = {
   numeroOrcamento: /N[úu]mero do Or[cç]amento:\s*([A-Za-z0-9\-/.]+)/i,
   validade: /Or[cç]amento V[áa]lido at[ée]:\s*([0-9]{2}-[0-9]{2}-[0-9]{4})/i,
@@ -408,7 +410,7 @@ function formatQuantityForCsv(value: number): string {
 }
 
 function formatCurrencyForCsv(value: number): string {
-  return value.toFixed(2)
+  return formatNumberBRWithOptions(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function newItem(): ItemData {

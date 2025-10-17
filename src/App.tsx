@@ -47,6 +47,14 @@ import {
   mergeParsedVendaPdfData,
   type ParsedVendaPdfData,
 } from './lib/pdf/extractVendas'
+import {
+  fmt,
+  formatMoneyBR,
+  formatNumberBR,
+  formatNumberBRWithOptions,
+  formatPercentBR,
+  toNumberFlexible,
+} from './lib/locale/br-number'
 import { ensureProposalId, makeProposalId } from './lib/ids'
 import PrintableProposal from './components/print/PrintableProposal'
 import type {
@@ -186,34 +194,21 @@ const formatQuantityInputValue = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) {
     return ''
   }
-  const normalized = value.toString()
-  return normalized.includes('.') ? normalized.replace('.', ',') : normalized
+  return formatNumberBR(value)
 }
 
 const formatCurrencyInputValue = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) {
     return ''
   }
-  return value.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  return formatMoneyBR(value)
 }
 
 const parseNumericInput = (value: string): number | null => {
   if (!value) {
     return null
   }
-  const sanitized = value
-    .replace(/\s+/g, '')
-    .replace(/[Rr]\$/g, '')
-    .replace(/\.(?=\d{3}(?:\D|$))/g, '')
-    .replace(',', '.')
-  if (!sanitized || sanitized === '-' || sanitized === '.' || sanitized === ',') {
-    return null
-  }
-  const parsed = Number(sanitized)
-  return Number.isFinite(parsed) ? parsed : null
+  return toNumberFlexible(value)
 }
 
 const normalizeCurrencyNumber = (value: number | null) =>
@@ -2442,7 +2437,10 @@ export default function App() {
         setIrradiacao((prev) => (prev === value ? prev : value))
         if (!matched) {
           console.warn(
-            `[Irradiação] Estado "${estadoAtual}" não encontrado (${via}), usando fallback de ${value.toFixed(2)} kWh/m²/dia.`,
+            `[Irradiação] Estado "${estadoAtual}" não encontrado (${via}), usando fallback de ${formatNumberBRWithOptions(value, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })} kWh/m²/dia.`,
           )
         }
       })
@@ -2451,7 +2449,10 @@ export default function App() {
         console.warn(
           `[Irradiação] Erro ao carregar dados para "${estadoAtual}":`,
           error,
-          `— usando fallback de ${IRRADIACAO_FALLBACK.toFixed(2)} kWh/m²/dia.`,
+          `— usando fallback de ${formatNumberBRWithOptions(IRRADIACAO_FALLBACK, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })} kWh/m²/dia.`,
         )
         setIrradiacao(IRRADIACAO_FALLBACK)
       })
@@ -4795,7 +4796,7 @@ export default function App() {
                   {crmLeadSelecionado.telefone} • {crmLeadSelecionado.email || 'E-mail não informado'}
                 </p>
                 <p>
-                  {crmLeadSelecionado.cidade} • Consumo {crmLeadSelecionado.consumoKwhMes} kWh/mês
+                  {crmLeadSelecionado.cidade} • Consumo {fmt.kwhMes(crmLeadSelecionado.consumoKwhMes)}
                 </p>
                 <label>
                   Status da instalação
@@ -5486,8 +5487,12 @@ export default function App() {
                           <td>{currency(item.receitaProjetada)}</td>
                           <td>{currency(item.custoTotal)}</td>
                           <td>{currency(item.margemBruta)}</td>
-                          <td>{item.margemPct === null ? '—' : `${item.margemPct.toFixed(1)}%`}</td>
-                          <td>{item.roi === null ? '—' : `${(item.roi * 100).toFixed(1)}%`}</td>
+                          <td>
+                            {item.margemPct === null
+                              ? '—'
+                              : formatPercentBR((item.margemPct ?? 0) / 100)}
+                          </td>
+                          <td>{item.roi === null ? '—' : formatPercentBR(item.roi)}</td>
                         </tr>
                       ))
                     )}
@@ -5526,7 +5531,7 @@ export default function App() {
                   <span>ROI médio</span>
                   <strong>
                     {Number.isFinite(crmIndicadoresGerenciais.roiMedio)
-                      ? `${(crmIndicadoresGerenciais.roiMedio * 100).toFixed(1)}%`
+                      ? formatPercentBR(crmIndicadoresGerenciais.roiMedio)
                       : '—'}
                   </strong>
                 </li>
@@ -6657,7 +6662,17 @@ export default function App() {
           }
           hint="Atualizado automaticamente conforme a UF ou distribuidora selecionada."
         >
-          <input readOnly value={baseIrradiacao > 0 ? baseIrradiacao.toFixed(2) : '—'} />
+          <input
+            readOnly
+            value={
+              baseIrradiacao > 0
+                ? formatNumberBRWithOptions(baseIrradiacao, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                : '—'
+            }
+          />
         </Field>
       </div>
     </section>
@@ -6727,7 +6742,13 @@ export default function App() {
             </>
           }
         >
-          <input readOnly value={potenciaInstaladaKwp.toFixed(2)} />
+          <input
+            readOnly
+            value={formatNumberBRWithOptions(potenciaInstaladaKwp, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          />
         </Field>
         <Field
           label={
@@ -6737,7 +6758,13 @@ export default function App() {
             </>
           }
         >
-          <input readOnly value={geracaoMensalKwh.toFixed(0)} />
+          <input
+            readOnly
+            value={formatNumberBRWithOptions(geracaoMensalKwh, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}
+          />
         </Field>
         <Field
           label={
@@ -6751,7 +6778,10 @@ export default function App() {
             readOnly
             value={
               areaInstalacao > 0
-                ? areaInstalacao.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+                ? formatNumberBRWithOptions(areaInstalacao, {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })
                 : '—'
             }
           />
@@ -6766,7 +6796,12 @@ export default function App() {
         <span className="pill">
           <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ Dias considerados no mês." />
           Consumo diário
-          <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
+          <strong>
+            {`${formatNumberBRWithOptions(geracaoDiariaKwh, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })} kWh`}
+          </strong>
         </span>
       </div>
     </section>
@@ -6952,7 +6987,17 @@ export default function App() {
           }
           hint="Atualizado automaticamente conforme a região selecionada."
         >
-          <input readOnly value={baseIrradiacao > 0 ? baseIrradiacao.toFixed(2) : '—'} />
+          <input
+            readOnly
+            value={
+              baseIrradiacao > 0
+                ? formatNumberBRWithOptions(baseIrradiacao, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                : '—'
+            }
+          />
         </Field>
       </div>
     </section>
@@ -7068,7 +7113,7 @@ export default function App() {
             readOnly
             value={
               areaInstalacao > 0
-                ? areaInstalacao.toLocaleString('pt-BR', {
+                ? formatNumberBRWithOptions(areaInstalacao, {
                     minimumFractionDigits: 1,
                     maximumFractionDigits: 1,
                   })
@@ -7111,7 +7156,12 @@ export default function App() {
         <span className="pill">
           <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ 30 dias." />
           Consumo diário
-          <strong>{geracaoDiariaKwh.toFixed(1)} kWh</strong>
+          <strong>
+            {`${formatNumberBRWithOptions(geracaoDiariaKwh, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })} kWh`}
+          </strong>
         </span>
       </div>
     </section>
@@ -7597,9 +7647,9 @@ export default function App() {
                     <InfoTooltip text="Piso ajustado = Consumo contratado × (1 - min(1, Entrada ÷ (Consumo × Tarifa cheia × (1 - desconto) × Prazo)))." />
                     :{' '}
                     <strong>
-                      {`${parcelasSolarInvest.kcAjustado.toLocaleString('pt-BR', {
-                        maximumFractionDigits: 0,
+                      {`${formatNumberBRWithOptions(parcelasSolarInvest.kcAjustado, {
                         minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
                       })} kWh`}
                     </strong>
                   </span>

@@ -1,4 +1,5 @@
 import { estimateMonthlyGenerationKWh } from '../energy/generation'
+import { toNumberFlexible } from '../locale/br-number'
 
 export type GeracaoSource = 'extracted' | 'calculated'
 
@@ -29,32 +30,6 @@ const RE_ESTRUTURA_FIXACAO = /Estrutura\s+de\s+fixa[çc][aã]o\s*(.+)/i
 const RE_ESTRUTURA_UTILIZADA = /Estrutura\s+utilizada[\s\S]*?\n([^\n]{3,})/i
 const RE_TIPO_INST = /Tipo\s+de\s+instala[çc][aã]o\s*(.+)/i
 const RE_TARIFA = /Tarifa\s+cheia.*?R?\$?\s*([\d.,]+)/i
-
-function brToFloat(input: string | undefined | null): number | null {
-  if (!input) {
-    return null
-  }
-  const sanitized = input.replace(/\u00a0/g, '').replace(/\s+/g, '')
-  const normalized = sanitized.replace(/\./g, '').replace(',', '.')
-  const match = normalized.match(/-?\d+(?:\.\d+)?/)
-  if (!match) {
-    return null
-  }
-  const value = Number.parseFloat(match[0])
-  return Number.isFinite(value) ? value : null
-}
-
-function onlyDigits(input: string | undefined | null): number | null {
-  if (!input) {
-    return null
-  }
-  const match = input.match(/\d+/)
-  if (!match) {
-    return null
-  }
-  const value = Number.parseInt(match[0], 10)
-  return Number.isFinite(value) ? value : null
-}
 
 function cleanString(value: string | undefined | null): string | null {
   if (typeof value !== 'string') {
@@ -140,18 +115,18 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
     return finalizeParsedVendaData({})
   }
 
-  const capex_total = brToFloat(text.match(RE_CAPEX)?.[1])
-  const potencia_instalada_kwp = brToFloat(text.match(RE_POTENCIA_SISTEMA)?.[1])
-  const geracao_extr = brToFloat(text.match(RE_GERACAO_KWH_MES)?.[1])
-  const quantidade_modulos = onlyDigits(text.match(RE_QTD_MODULOS)?.[1])
-  let potencia_da_placa_wp = brToFloat(text.match(RE_POT_MODULO_WP)?.[1])
+  const capex_total = toNumberFlexible(text.match(RE_CAPEX)?.[1])
+  const potencia_instalada_kwp = toNumberFlexible(text.match(RE_POTENCIA_SISTEMA)?.[1])
+  const geracao_extr = toNumberFlexible(text.match(RE_GERACAO_KWH_MES)?.[1])
+  const quantidade_modulos = toNumberFlexible(text.match(RE_QTD_MODULOS)?.[1])
+  let potencia_da_placa_wp = toNumberFlexible(text.match(RE_POT_MODULO_WP)?.[1])
   if (potencia_da_placa_wp == null) {
     const fallbackMatch = text.match(/m[óo]dulo[^\n]*?(\d{3,4})\s*(?:wp|w)\b/i)
     if (fallbackMatch) {
       const numeric = fallbackMatch[1].replace(/\D+/g, '')
       if (numeric) {
-        const parsed = Number.parseInt(numeric, 10)
-        if (Number.isFinite(parsed) && parsed > 0) {
+        const parsed = toNumberFlexible(numeric)
+        if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {
           potencia_da_placa_wp = parsed
         }
       }
@@ -167,7 +142,7 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
     }
   }
   const tipo_instalacao = cleanString(text.match(RE_TIPO_INST)?.[1])
-  const tarifa_cheia_r_kwh = brToFloat(text.match(RE_TARIFA)?.[1])
+  const tarifa_cheia_r_kwh = toNumberFlexible(text.match(RE_TARIFA)?.[1])
 
   return finalizeParsedVendaData({
     capex_total,

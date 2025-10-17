@@ -1,17 +1,8 @@
-export const currency = (value: number) =>
-  Number.isFinite(value)
-    ? value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    : 'R$\u00a00,00'
+import { formatMoneyBR, formatMoneyBRWithDigits } from '../lib/locale/br-number'
 
-export const tarifaCurrency = (value: number) =>
-  Number.isFinite(value)
-    ? value.toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-        minimumFractionDigits: 3,
-        maximumFractionDigits: 3,
-      })
-    : 'R$\u00a00,000'
+export const currency = (value: number) => formatMoneyBR(value)
+
+export const tarifaCurrency = (value: number) => formatMoneyBRWithDigits(value, 3)
 
 export const formatAxis = (value: number) => {
   const absolute = Math.abs(value)

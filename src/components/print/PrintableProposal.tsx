@@ -16,6 +16,13 @@ import {
 } from 'recharts'
 
 import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils/formatters'
+import {
+  fmt,
+  formatMoneyBRWithDigits,
+  formatNumberBRWithOptions,
+  formatPercentBR,
+  formatPercentBRWithDigits,
+} from '../../lib/locale/br-number'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 
@@ -68,37 +75,38 @@ function PrintableProposalInner(
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
   const vendaFormResumo = vendaResumo?.form
   const retornoVenda = vendaResumo?.retorno ?? null
-  const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
-    Number.isFinite(value) ? value.toLocaleString('pt-BR', options) : '—'
   const formatPercentFromPct = (value?: number, fractionDigits = 2) => {
     if (!Number.isFinite(value)) {
       return '—'
     }
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'percent',
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
-    }).format((value ?? 0) / 100)
+    return formatPercentBRWithDigits((value ?? 0) / 100, fractionDigits)
   }
   const formatKwhMes = (value?: number) => {
     if (!Number.isFinite(value) || (value ?? 0) <= 0) {
       return '—'
     }
-    return `${formatNumber(value ?? 0, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} kWh/mês`
+    return `${formatNumberBRWithOptions(value ?? 0, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })} kWh/mês`
   }
   const formatMeses = (value?: number) => {
     if (!Number.isFinite(value) || (value ?? 0) <= 0) {
       return '—'
     }
-    const inteiro = Math.round(value ?? 0)
-    return `${inteiro} meses`
+    return `${formatNumberBRWithOptions(value ?? 0, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })} meses`
   }
   const formatParcelas = (value?: number) => {
     if (!Number.isFinite(value) || (value ?? 0) <= 0) {
       return '—'
     }
-    const inteiro = Math.round(value ?? 0)
-    return `${inteiro} parcelas`
+    return `${formatNumberBRWithOptions(value ?? 0, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })} parcelas`
   }
   const pickPositive = (...values: (number | null | undefined)[]): number | null => {
     for (const value of values) {
@@ -143,7 +151,7 @@ function PrintableProposalInner(
   )
   const areaInstalacaoValida = Number.isFinite(areaInstalacao) && areaInstalacao > 0
   const areaInstalacaoTexto = areaInstalacaoValida
-    ? areaInstalacao.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    ? formatNumberBRWithOptions(areaInstalacao, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
     : '—'
   const moduleAreaM2 =
     Number.isFinite(parsedPdfResumo?.module_area_m2) && (parsedPdfResumo?.module_area_m2 ?? 0) > 0
@@ -160,28 +168,31 @@ function PrintableProposalInner(
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
       return '—'
     }
-    return `${formatNumber(valor ?? 0, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kWp`
+    return `${formatNumberBRWithOptions(valor ?? 0, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kWp`
   }
 
   const formatQuantidadeDetalhe = (valor: number | null) => {
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
       return '—'
     }
-    return `${Math.round(valor ?? 0).toLocaleString('pt-BR')} módulos`
+    return `${formatNumberBRWithOptions(Math.round(valor ?? 0), {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })} módulos`
   }
 
   const formatAreaDetalhe = (valor: number | null) => {
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
       return '—'
     }
-    return `${(valor ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`
+    return fmt.m2(valor ?? 0)
   }
 
   const formatTarifaDetalhe = (valor: number | null) => {
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
       return '—'
     }
-    return tarifaCurrency(valor ?? 0)
+    return formatMoneyBRWithDigits(valor ?? 0, 3)
   }
 
   const tarifaProjeto = pickPositive(
@@ -193,7 +204,9 @@ function PrintableProposalInner(
   const autonomiaPct =
     kitGeracao && kitConsumo && kitGeracao > 0 && kitConsumo > 0 ? (kitGeracao / kitConsumo) * 100 : null
   const autonomiaLabel =
-    Number.isFinite(autonomiaPct) && (autonomiaPct ?? 0) > 0 ? formatPercentFromPct(autonomiaPct ?? 0, 1) : '—'
+    Number.isFinite(autonomiaPct) && (autonomiaPct ?? 0) > 0
+      ? formatPercentBRWithDigits((autonomiaPct ?? 0) / 100, 1)
+      : '—'
 
   const detalhamentoCampos = [
     { label: 'Potência instalada', value: formatKwpDetalhe(kitPotenciaInstalada ?? null) },
@@ -359,7 +372,7 @@ function PrintableProposalInner(
       return '—'
     }
     const possuiDecimais = Math.abs(valor - Math.round(valor)) > 1e-6
-    return `${valor.toLocaleString('pt-BR', {
+    return `${formatNumberBRWithOptions(valor, {
       minimumFractionDigits: possuiDecimais ? 2 : 0,
       maximumFractionDigits: possuiDecimais ? 2 : 0,
     })} kWh/mês`
@@ -368,7 +381,7 @@ function PrintableProposalInner(
   const tarifaCheiaResumo = tarifaCheia > 0 ? tarifaCurrency(tarifaCheia) : '—'
   const descontoResumo =
     !isVendaDireta && Number.isFinite(descontoContratualPct)
-      ? `${formatNumber(descontoContratualPct, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`
+      ? formatPercentBR((descontoContratualPct ?? 0) / 100)
       : '—'
   const responsabilidadesResumo = isVendaDireta
     ? 'Projeto, instalação, homologação e suporte pós-venda'
@@ -377,7 +390,7 @@ function PrintableProposalInner(
   const geracaoMensalResumo = formatKwhMes(geracaoMensalKwh)
   const potenciaInstaladaTexto =
     Number.isFinite(potenciaInstaladaKwp) && potenciaInstaladaKwp > 0
-      ? `${formatNumber(potenciaInstaladaKwp, {
+      ? `${formatNumberBRWithOptions(potenciaInstaladaKwp, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })} kWp`
@@ -696,7 +709,7 @@ function PrintableProposalInner(
                           <td>{row.descricao || '—'}</td>
                           <td>
                             {row.quantidade
-                              ? formatNumber(row.quantidade, {
+                              ? formatNumberBRWithOptions(row.quantidade, {
                                   minimumFractionDigits: 0,
                                   maximumFractionDigits: 0,
                                 })
@@ -835,7 +848,10 @@ function PrintableProposalInner(
               {itensOrcamentoFormatados.map((item) => {
                 const quantidadeFormatada =
                   item.quantidade !== null && Number.isFinite(item.quantidade) && item.quantidade > 0
-                    ? formatNumber(item.quantidade, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                    ? formatNumberBRWithOptions(item.quantidade, {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      })
                     : '—'
                 return (
                   <tr key={item.key}>
