@@ -2607,6 +2607,17 @@ export default function App() {
       return
     }
     if (!Number.isFinite(capex) || capex <= 0) {
+      let cleared = false
+      setVendaForm((prev) => {
+        if ((prev.capex_total ?? 0) === 0) {
+          return prev
+        }
+        cleared = true
+        return { ...prev, capex_total: 0 }
+      })
+      if (cleared) {
+        resetRetorno()
+      }
       return
     }
     const normalizedCapex = capex
