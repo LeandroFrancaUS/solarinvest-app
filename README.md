@@ -20,3 +20,10 @@ Advanced configuration:
   will only work in environments where CORS is already allowed.
 - To point the frontend to a different ANEEL mirror, set
   `VITE_ANEEL_DIRECT_ORIGIN=https://example.com`.
+
+## Testing
+
+Install dependencies with `npm install` before running the test suite. The project
+uses [Vitest](https://vitest.dev/) for unit tests, exposed through `npm run test`.
+If your environment blocks access to the public npm registry, mirror the required
+packages or configure an internal registry so Vitest can be installed successfully.
