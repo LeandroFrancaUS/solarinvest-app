@@ -34,6 +34,12 @@ import type { ClienteRegistroSyncPayload } from './utils/onedrive'
 import { persistProposalPdf } from './utils/proposalPdf'
 import { extractBudgetFromPdf } from './utils/pdfBudgetExtractor'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
+import {
+  analyzeEssentialInfo,
+  classifyBudgetItem,
+  sumModuleQuantities,
+  type EssentialInfoSummary,
+} from './utils/moduleDetection'
 import { computeROI } from './lib/finance/roi'
 import type {
   ModoPagamento,
@@ -181,6 +187,8 @@ type KitBudgetItemState = {
   unitPriceInput: string
 }
 
+type KitBudgetMissingInfo = EssentialInfoSummary | null
+
 type KitBudgetState = {
   items: KitBudgetItemState[]
   total: number | null
@@ -188,6 +196,7 @@ type KitBudgetState = {
   totalInput: string
   warnings: string[]
   fileName?: string
+  missingInfo: KitBudgetMissingInfo
 }
 
 const formatQuantityInputValue = (value: number | null) => {
@@ -233,6 +242,34 @@ const computeBudgetItemLineTotal = (item: KitBudgetItemState): number | null => 
     return null
   }
   return Math.round(item.quantity * item.unitPrice * 100) / 100
+}
+
+const computeBudgetMissingInfo = (items: KitBudgetItemState[]): KitBudgetMissingInfo => {
+  if (!items.length) {
+    return null
+  }
+  return analyzeEssentialInfo(
+    items.map((item) => ({
+      id: item.id,
+      product: item.productName,
+      description: item.description,
+      quantity: item.quantity,
+    })),
+  )
+}
+
+const formatList = (values: string[]): string => {
+  if (values.length === 0) {
+    return ''
+  }
+  if (values.length === 1) {
+    return values[0]
+  }
+  if (values.length === 2) {
+    return `${values[0]} e ${values[1]}`
+  }
+  const [last, ...rest] = values.slice().reverse()
+  return `${rest.reverse().join(', ')} e ${last}`
 }
 
 const numbersAreClose = (a: number | null, b: number | null, tolerance = 0.01) => {
@@ -1165,6 +1202,7 @@ const createEmptyKitBudget = (): KitBudgetState => ({
   totalInput: '',
   warnings: [],
   fileName: undefined,
+  missingInfo: null,
 })
 
 const INITIAL_ACTIVE_TAB: TabKey = 'leasing'
@@ -1180,9 +1218,9 @@ const INITIAL_DESCONTO = 20
 const INITIAL_TAXA_MINIMA = 95
 const INITIAL_ENCARGOS_FIXOS_EXTRAS = 0
 const INITIAL_LEASING_PRAZO: 5 | 7 | 10 = 5
-const INITIAL_POTENCIA_PLACA = 550
+const INITIAL_POTENCIA_MODULO = 550
 const INITIAL_TIPO_INSTALACAO: TipoInstalacao = 'TELHADO'
-const INITIAL_NUMERO_PLACAS_MANUAL: number | '' = ''
+const INITIAL_NUMERO_MODULOS_MANUAL: number | '' = ''
 const INITIAL_PRECO_POR_KWP = 2470
 const INITIAL_EFICIENCIA = 0.8
 const INITIAL_DIAS_MES = DIAS_MES_PADRAO
@@ -1485,6 +1523,8 @@ export default function App() {
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
+  const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
+  const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
   const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
   const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
   const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
@@ -1509,11 +1549,11 @@ export default function App() {
   const [taxaMinima, setTaxaMinima] = useState(INITIAL_TAXA_MINIMA)
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(INITIAL_ENCARGOS_FIXOS_EXTRAS)
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(INITIAL_LEASING_PRAZO)
-  const [potenciaPlaca, setPotenciaPlaca] = useState(INITIAL_POTENCIA_PLACA)
-  const [potenciaPlacaDirty, setPotenciaPlacaDirty] = useState(false)
+  const [potenciaModulo, setPotenciaModulo] = useState(INITIAL_POTENCIA_MODULO)
+  const [potenciaModuloDirty, setPotenciaModuloDirty] = useState(false)
   const [tipoInstalacao, setTipoInstalacao] = useState<TipoInstalacao>(INITIAL_TIPO_INSTALACAO)
   const [tipoInstalacaoDirty, setTipoInstalacaoDirty] = useState(false)
-  const [numeroPlacasManual, setNumeroPlacasManual] = useState<number | ''>(INITIAL_NUMERO_PLACAS_MANUAL)
+  const [numeroModulosManual, setNumeroModulosManual] = useState<number | ''>(INITIAL_NUMERO_MODULOS_MANUAL)
   const consumoAnteriorRef = useRef(kcKwhMes)
 
   const [cliente, setCliente] = useState<ClienteDados>({ ...CLIENTE_INICIAL })
@@ -1596,6 +1636,21 @@ export default function App() {
     [kitBudget.items],
   )
 
+  const budgetMissingSummary = useMemo(() => {
+    const info = kitBudget.missingInfo
+    if (!info || kitBudget.items.length === 0) {
+      return null
+    }
+    const fieldSet = new Set<string>()
+    info.modules.missingFields.forEach((field) => fieldSet.add(field))
+    info.inverter.missingFields.forEach((field) => fieldSet.add(field))
+    if (fieldSet.size === 0) {
+      return null
+    }
+    const fieldsText = formatList(Array.from(fieldSet))
+    return { info, fieldsText }
+  }, [kitBudget.items.length, kitBudget.missingInfo])
+
   useEffect(() => {
     if (kitBudget.totalSource !== 'calculated') {
       return
@@ -1614,10 +1669,14 @@ export default function App() {
 
   const updateKitBudgetItem = useCallback(
     (itemId: string, updater: (item: KitBudgetItemState) => KitBudgetItemState) => {
-      setKitBudget((prev) => ({
-        ...prev,
-        items: prev.items.map((item) => (item.id === itemId ? updater(item) : item)),
-      }))
+      setKitBudget((prev) => {
+        const nextItems = prev.items.map((item) => (item.id === itemId ? updater(item) : item))
+        return {
+          ...prev,
+          items: nextItems,
+          missingInfo: computeBudgetMissingInfo(nextItems),
+        }
+      })
     },
     [],
   )
@@ -1654,17 +1713,20 @@ export default function App() {
   )
 
   const handleRemoveBudgetItem = useCallback((itemId: string) => {
-    setKitBudget((prev) => ({
-      ...prev,
-      items: prev.items.filter((item) => item.id !== itemId),
-    }))
+    setKitBudget((prev) => {
+      const nextItems = prev.items.filter((item) => item.id !== itemId)
+      return {
+        ...prev,
+        items: nextItems,
+        missingInfo: computeBudgetMissingInfo(nextItems),
+      }
+    })
   }, [])
 
   const handleAddBudgetItem = useCallback(() => {
     const baseId = Date.now().toString(36)
-    setKitBudget((prev) => ({
-      ...prev,
-      items: [
+    setKitBudget((prev) => {
+      const nextItems = [
         ...prev.items,
         {
           id: `manual-${baseId}-${prev.items.length + 1}`,
@@ -1675,8 +1737,13 @@ export default function App() {
           unitPrice: null,
           unitPriceInput: '',
         },
-      ],
-    }))
+      ]
+      return {
+        ...prev,
+        items: nextItems,
+        missingInfo: computeBudgetMissingInfo(nextItems),
+      }
+    })
   }, [])
 
   const handleBudgetTotalChange = useCallback(
@@ -1903,12 +1970,13 @@ export default function App() {
         return
       }
 
-      const inversorKeywords = ['inversor']
       const estruturaKeywords = ['estrutura', 'fixacao', 'fixação', 'suporte', 'trilho', 'perfil']
 
       const parsedFromText = parseVendaPdfText(plainText ?? '')
 
-      let quantidadeModulos: number | undefined
+      const moduleQuantityFromStructured = sumModuleQuantities(structured.itens)
+      let quantidadeModulos: number | undefined =
+        moduleQuantityFromStructured > 0 ? moduleQuantityFromStructured : undefined
       let modeloModulo: string | undefined
       let modeloInversor: string | undefined
       let potenciaModuloWp: number | undefined
@@ -1919,20 +1987,6 @@ export default function App() {
       const sanitizeTexto = (valor?: string | null) => {
         const trimmed = valor?.trim() ?? ''
         return trimmed && trimmed !== '—' ? trimmed : undefined
-      }
-
-      const isModuloDescricao = (valor?: string | null) => {
-        if (!valor) {
-          return false
-        }
-        const normalized = valor
-          .normalize('NFKD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toUpperCase()
-        if (!normalized.includes('MODULO')) {
-          return false
-        }
-        return !normalized.includes('ESTRUTURA')
       }
 
       const formatEquipment = (item: StructuredItem) => {
@@ -1966,11 +2020,22 @@ export default function App() {
         const quantidadeItem = Number.isFinite(item.quantidade)
           ? Math.round(Number(item.quantidade))
           : null
-        const isModulo = isModuloDescricao(descricaoCompleta)
-        const isInversor = inversorKeywords.some((palavra) => textoNormalizado.includes(palavra))
+        const classification = classifyBudgetItem({
+          product: item.produto,
+          description: item.descricao,
+          quantity: item.quantidade ?? null,
+          extra: `${item.modelo ?? ''} ${item.fabricante ?? ''}`,
+        })
+        const isModulo = classification === 'module'
+        const isInversor = classification === 'inverter'
         const isEstrutura = estruturaKeywords.some((palavra) => textoNormalizado.includes(palavra))
 
-        if (isModulo && quantidadeItem && quantidadeItem > 0) {
+        if (
+          moduleQuantityFromStructured <= 0 &&
+          isModulo &&
+          quantidadeItem &&
+          quantidadeItem > 0
+        ) {
           quantidadeModulos = (quantidadeModulos ?? 0) + quantidadeItem
         }
 
@@ -2025,7 +2090,7 @@ export default function App() {
       })
 
       if (!potenciaInstalada && quantidadeModulos) {
-        const potenciaReferencia = potenciaModuloWp ?? (potenciaPlaca > 0 ? potenciaPlaca : undefined)
+        const potenciaReferencia = potenciaModuloWp ?? (potenciaModulo > 0 ? potenciaModulo : undefined)
         if (potenciaReferencia) {
           potenciaInstalada = (quantidadeModulos * potenciaReferencia) / 1000
         }
@@ -2153,10 +2218,10 @@ export default function App() {
         setTarifaCheia(mergedParsed.tarifa_cheia_r_kwh)
       }
 
-      if (!potenciaPlacaDirty && mergedParsed.potencia_da_placa_wp != null) {
+      if (!potenciaModuloDirty && mergedParsed.potencia_da_placa_wp != null) {
         const potenciaAjustada = Math.round(mergedParsed.potencia_da_placa_wp)
-        if (painelOpcoes.includes(potenciaAjustada) && potenciaAjustada !== potenciaPlaca) {
-          setPotenciaPlaca(potenciaAjustada)
+        if (painelOpcoes.includes(potenciaAjustada) && potenciaAjustada !== potenciaModulo) {
+          setPotenciaModulo(potenciaAjustada)
         }
       }
 
@@ -2174,9 +2239,9 @@ export default function App() {
     },
     [
       applyVendaUpdates,
-      potenciaPlaca,
-      potenciaPlacaDirty,
-      setPotenciaPlaca,
+      potenciaModulo,
+      potenciaModuloDirty,
+      setPotenciaModulo,
       tipoInstalacao,
       tipoInstalacaoDirty,
       setTipoInstalacao,
@@ -2251,6 +2316,15 @@ export default function App() {
             unitPriceInput: formatCurrencyInputValue(unitPrice),
           }
         })
+        const missingInfo = computeBudgetMissingInfo(extractedItems)
+        if (
+          import.meta.env.DEV &&
+          missingInfo &&
+          (missingInfo.modules.missingFields.length > 0 ||
+            missingInfo.inverter.missingFields.length > 0)
+        ) {
+          console.warn('PDF sem informações essenciais identificadas:', missingInfo)
+        }
         setKitBudget({
           items: extractedItems,
           total: extraction.total ?? null,
@@ -2258,6 +2332,7 @@ export default function App() {
           totalInput: formatCurrencyInputValue(extraction.total ?? null),
           warnings: extraction.warnings ?? [],
           fileName: file.name,
+          missingInfo,
         })
         setBudgetStructuredItems(extraction.structuredBudget.itens)
         setCurrentBudgetId(makeProposalId())
@@ -2280,6 +2355,94 @@ export default function App() {
     },
     [autoFillVendaFromBudget],
   )
+
+  const handleMissingInfoManualEdit = useCallback(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+    const info = kitBudget.missingInfo
+    const focusBudgetField = (
+      itemId: string,
+      fields: ('product' | 'description' | 'quantity')[],
+    ): boolean => {
+      for (const field of fields) {
+        const element = document.querySelector<HTMLElement>(
+          `[data-budget-item-id="${itemId}"][data-field="${field}"]`,
+        )
+        if (!element) {
+          continue
+        }
+        if ('focus' in element && typeof element.focus === 'function') {
+          element.focus()
+          if (
+            ('select' in element && typeof (element as HTMLInputElement | HTMLTextAreaElement).select === 'function')
+          ) {
+            ;(element as HTMLInputElement | HTMLTextAreaElement).select()
+          }
+          return true
+        }
+      }
+      return false
+    }
+
+    const tryFocusCategory = (categoryInfo: EssentialInfoSummary['modules']): boolean => {
+      if (!categoryInfo.firstMissingId) {
+        return false
+      }
+      const target = kitBudget.items.find((item) => item.id === categoryInfo.firstMissingId)
+      if (!target) {
+        return false
+      }
+      const missingFields: ('product' | 'description' | 'quantity')[] = []
+      if (!target.productName.trim()) {
+        missingFields.push('product')
+      }
+      if (!target.description.trim()) {
+        missingFields.push('description')
+      }
+      const quantityOk = Number.isFinite(target.quantity) && (target.quantity ?? 0) > 0
+      if (!quantityOk) {
+        missingFields.push('quantity')
+      }
+      if (missingFields.length === 0) {
+        missingFields.push('product', 'description', 'quantity')
+      }
+      return focusBudgetField(categoryInfo.firstMissingId, missingFields)
+    }
+
+    if (info) {
+      if (info.modules.missingFields.length > 0 && tryFocusCategory(info.modules)) {
+        return
+      }
+      if (info.inverter.missingFields.length > 0 && tryFocusCategory(info.inverter)) {
+        return
+      }
+    }
+
+    const modulesMissing = info ? info.modules.missingFields.length > 0 : true
+    if (modulesMissing && moduleQuantityInputRef.current) {
+      moduleQuantityInputRef.current.focus()
+      moduleQuantityInputRef.current.select?.()
+      return
+    }
+    if (info && info.inverter.missingFields.length > 0 && inverterModelInputRef.current) {
+      inverterModelInputRef.current.focus()
+      inverterModelInputRef.current.select?.()
+      return
+    }
+    if (!modulesMissing && moduleQuantityInputRef.current) {
+      moduleQuantityInputRef.current.focus()
+      moduleQuantityInputRef.current.select?.()
+    }
+    if (!info && inverterModelInputRef.current) {
+      inverterModelInputRef.current.focus()
+      inverterModelInputRef.current.select?.()
+    }
+  }, [kitBudget.items, kitBudget.missingInfo])
+
+  const handleMissingInfoUploadClick = useCallback(() => {
+    budgetUploadInputRef.current?.click()
+  }, [])
 
   const [jurosFinAa, setJurosFinAa] = useState(INITIAL_JUROS_FIN_AA)
   const [prazoFinMeses, setPrazoFinMeses] = useState(INITIAL_PRAZO_FIN_MESES)
@@ -2533,31 +2696,31 @@ export default function App() {
     return baseIrradiacao * eficienciaNormalizada * DIAS_MES_PADRAO
   }, [baseIrradiacao, eficienciaNormalizada])
 
-  const numeroPlacasInformado = useMemo(() => {
-    if (typeof numeroPlacasManual !== 'number') return null
-    if (!Number.isFinite(numeroPlacasManual) || numeroPlacasManual <= 0) return null
-    return Math.max(1, Math.round(numeroPlacasManual))
-  }, [numeroPlacasManual])
+  const numeroModulosInformado = useMemo(() => {
+    if (typeof numeroModulosManual !== 'number') return null
+    if (!Number.isFinite(numeroModulosManual) || numeroModulosManual <= 0) return null
+    return Math.max(1, Math.round(numeroModulosManual))
+  }, [numeroModulosManual])
 
-  const numeroPlacasCalculado = useMemo(() => {
+  const numeroModulosCalculado = useMemo(() => {
     if (kcKwhMes <= 0) return 0
-    if (potenciaPlaca <= 0 || fatorGeracaoMensal <= 0) return 0
+    if (potenciaModulo <= 0 || fatorGeracaoMensal <= 0) return 0
     const potenciaNecessaria = kcKwhMes / fatorGeracaoMensal
-    const calculado = Math.ceil((potenciaNecessaria * 1000) / potenciaPlaca)
+    const calculado = Math.ceil((potenciaNecessaria * 1000) / potenciaModulo)
     if (!Number.isFinite(calculado)) return 0
     return Math.max(1, calculado)
-  }, [kcKwhMes, fatorGeracaoMensal, potenciaPlaca])
+  }, [kcKwhMes, fatorGeracaoMensal, potenciaModulo])
 
   const potenciaInstaladaKwp = useMemo(() => {
-    const placas = numeroPlacasInformado ?? numeroPlacasCalculado
-    if (!placas || potenciaPlaca <= 0) return 0
-    return (placas * potenciaPlaca) / 1000
-  }, [numeroPlacasInformado, numeroPlacasCalculado, potenciaPlaca])
+    const modulos = numeroModulosInformado ?? numeroModulosCalculado
+    if (!modulos || potenciaModulo <= 0) return 0
+    return (modulos * potenciaModulo) / 1000
+  }, [numeroModulosInformado, numeroModulosCalculado, potenciaModulo])
 
-  const numeroPlacasEstimado = useMemo(() => {
-    if (numeroPlacasInformado) return numeroPlacasInformado
-    return numeroPlacasCalculado
-  }, [numeroPlacasInformado, numeroPlacasCalculado])
+  const numeroModulosEstimado = useMemo(() => {
+    if (numeroModulosInformado) return numeroModulosInformado
+    return numeroModulosCalculado
+  }, [numeroModulosInformado, numeroModulosCalculado])
 
   const vendaQuantidadeModulos = useMemo(() => {
     const quantidade = vendaForm.quantidade_modulos
@@ -2569,8 +2732,8 @@ export default function App() {
   }, [vendaForm.quantidade_modulos])
 
   const vendaAutoPotenciaKwp = useMemo(
-    () => kwpFromWpQty(potenciaPlaca, vendaQuantidadeModulos),
-    [potenciaPlaca, vendaQuantidadeModulos],
+    () => kwpFromWpQty(potenciaModulo, vendaQuantidadeModulos),
+    [potenciaModulo, vendaQuantidadeModulos],
   )
 
   const vendaGeracaoParametros = useMemo(
@@ -2582,10 +2745,10 @@ export default function App() {
   )
 
   const areaInstalacao = useMemo(() => {
-    if (numeroPlacasEstimado <= 0) return 0
+    if (numeroModulosEstimado <= 0) return 0
     const fator = tipoInstalacao === 'SOLO' ? 7 : 3.3
-    return numeroPlacasEstimado * fator
-  }, [numeroPlacasEstimado, tipoInstalacao])
+    return numeroModulosEstimado * fator
+  }, [numeroModulosEstimado, tipoInstalacao])
 
   useEffect(() => {
     if (capexManualOverride) {
@@ -2629,6 +2792,9 @@ export default function App() {
   }, [baseIrradiacao, eficienciaNormalizada, potenciaInstaladaKwp])
 
   useEffect(() => {
+    const deveEstimarQuantidade =
+      !Number.isFinite(vendaForm.quantidade_modulos) || (vendaForm.quantidade_modulos ?? 0) <= 0
+
     let updated = false
     setVendaForm((prev) => {
       const next = { ...prev }
@@ -2646,11 +2812,8 @@ export default function App() {
         next.geracao_estimada_kwh_mes = geracaoMensalKwh
         updated = true
       }
-      if (
-        (prev.quantidade_modulos === undefined || prev.quantidade_modulos <= 0) &&
-        numeroPlacasEstimado > 0
-      ) {
-        next.quantidade_modulos = numeroPlacasEstimado
+      if (deveEstimarQuantidade && numeroModulosEstimado > 0) {
+        next.quantidade_modulos = numeroModulosEstimado
         updated = true
       }
       return updated ? next : prev
@@ -2658,7 +2821,13 @@ export default function App() {
     if (updated) {
       resetRetorno()
     }
-  }, [geracaoMensalKwh, numeroPlacasEstimado, potenciaInstaladaKwp, resetRetorno])
+  }, [
+    geracaoMensalKwh,
+    numeroModulosEstimado,
+    potenciaInstaladaKwp,
+    resetRetorno,
+    vendaForm.quantidade_modulos,
+  ])
 
   useEffect(() => {
     const { hsp, pr } = vendaGeracaoParametros
@@ -2752,7 +2921,7 @@ export default function App() {
 
     consumoAnteriorRef.current = kcKwhMes
 
-    setNumeroPlacasManual((valorAtual) => {
+    setNumeroModulosManual((valorAtual) => {
       if (valorAtual === '') {
         return valorAtual
       }
@@ -2766,13 +2935,13 @@ export default function App() {
         return ''
       }
 
-      if (valorArredondado === numeroPlacasCalculado) {
+      if (valorArredondado === numeroModulosCalculado) {
         return ''
       }
 
       return valorAtual
     })
-  }, [kcKwhMes, numeroPlacasCalculado])
+  }, [kcKwhMes, numeroModulosCalculado])
 
   const geracaoDiariaKwh = useMemo(
     () => (geracaoMensalKwh > 0 && diasMesNormalizado > 0 ? geracaoMensalKwh / diasMesNormalizado : 0),
@@ -3161,10 +3330,10 @@ export default function App() {
         isVendaDiretaTab && Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
           ? Number(vendaForm.geracao_estimada_kwh_mes)
           : geracaoMensalKwh
-      const numeroPlacasPrintable =
+      const numeroModulosPrintable =
         isVendaDiretaTab && Number.isFinite(vendaForm.quantidade_modulos)
           ? Math.max(0, Number(vendaForm.quantidade_modulos))
-          : numeroPlacasEstimado
+          : numeroModulosEstimado
       const vendaResumo = isVendaDiretaTab
         ? {
             form: { ...vendaForm },
@@ -3198,8 +3367,8 @@ export default function App() {
         capex: capexPrintable,
         tipoProposta: isVendaDiretaTab ? 'VENDA_DIRETA' : 'LEASING',
         geracaoMensalKwh: geracaoMensalPrintable,
-        potenciaPlaca,
-        numeroPlacas: numeroPlacasPrintable,
+        potenciaModulo,
+        numeroModulos: numeroModulosPrintable,
         potenciaInstaladaKwp: potenciaInstaladaPrintable,
         tipoInstalacao,
         areaInstalacao,
@@ -3227,12 +3396,12 @@ export default function App() {
       kcKwhMes,
       leasingROI,
       mostrarFinanciamento,
-      numeroPlacasEstimado,
+      numeroModulosEstimado,
       parcelasSolarInvest,
       distribuidoraTarifa,
       tipoInstalacao,
       potenciaInstaladaKwp,
-      potenciaPlaca,
+      potenciaModulo,
       tabelaBuyout,
       tarifaCheia,
       isVendaDiretaTab,
@@ -6096,11 +6265,11 @@ export default function App() {
     setTaxaMinima(INITIAL_TAXA_MINIMA)
     setEncargosFixosExtras(INITIAL_ENCARGOS_FIXOS_EXTRAS)
     setLeasingPrazo(INITIAL_LEASING_PRAZO)
-    setPotenciaPlaca(INITIAL_POTENCIA_PLACA)
-    setPotenciaPlacaDirty(false)
+    setPotenciaModulo(INITIAL_POTENCIA_MODULO)
+    setPotenciaModuloDirty(false)
     setTipoInstalacao(INITIAL_TIPO_INSTALACAO)
     setTipoInstalacaoDirty(false)
-    setNumeroPlacasManual(INITIAL_NUMERO_PLACAS_MANUAL)
+    setNumeroModulosManual(INITIAL_NUMERO_MODULOS_MANUAL)
     setCapexManualOverride(INITIAL_CAPEX_MANUAL_OVERRIDE)
     setParsedVendaPdf(null)
 
@@ -6709,12 +6878,12 @@ export default function App() {
     <section className="card">
       <h2>Configuração da Usina Fotovoltaica</h2>
       <div className="grid g4">
-        <Field label="Potência da placa (Wp)">
+        <Field label="Potência do módulo (Wp)">
           <select
-            value={potenciaPlaca}
+            value={potenciaModulo}
             onChange={(e) => {
-              setPotenciaPlacaDirty(true)
-              setPotenciaPlaca(Number(e.target.value))
+              setPotenciaModuloDirty(true)
+              setPotenciaModulo(Number(e.target.value))
             }}
           >
             {painelOpcoes.map((opt) => (
@@ -6722,29 +6891,30 @@ export default function App() {
             ))}
           </select>
         </Field>
-        <Field label="Nº de placas (estimado)">
+        <Field label="Nº de módulos (estimado)">
           <input
             type="number"
             min={1}
+            ref={moduleQuantityInputRef}
             value={
-              numeroPlacasManual === ''
-                ? numeroPlacasEstimado > 0
-                  ? numeroPlacasEstimado
+              numeroModulosManual === ''
+                ? numeroModulosEstimado > 0
+                  ? numeroModulosEstimado
                   : ''
-                : numeroPlacasManual
+                : numeroModulosManual
             }
             onChange={(e) => {
               const { value } = e.target
               if (value === '') {
-                setNumeroPlacasManual('')
+                setNumeroModulosManual('')
                 return
               }
               const parsed = Number(value)
               if (!Number.isFinite(parsed) || parsed <= 0) {
-                setNumeroPlacasManual('')
+                setNumeroModulosManual('')
                 return
               }
-              setNumeroPlacasManual(parsed)
+              setNumeroModulosManual(parsed)
             }}
             onFocus={selectNumberInputOnFocus}
           />
@@ -6764,8 +6934,8 @@ export default function App() {
         <Field
           label={
             <>
-              Potência instalada (kWp)
-              <InfoTooltip text="Potência instalada = (Nº de placas × Potência da placa) ÷ 1000. Sem entrada manual de placas, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
+              Potência do sistema (kWp)
+              <InfoTooltip text="Potência do sistema = (Nº de módulos × Potência do módulo) ÷ 1000. Sem entrada manual de módulos, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
             </>
           }
         >
@@ -6781,7 +6951,7 @@ export default function App() {
           label={
             <>
               Geração estimada (kWh/mês)
-              <InfoTooltip text="Geração estimada = Potência instalada × Irradiação média × Eficiência × 30 dias." />
+              <InfoTooltip text="Geração estimada = Potência do sistema × Irradiação média × Eficiência × 30 dias." />
             </>
           }
         >
@@ -6797,7 +6967,7 @@ export default function App() {
           label={
             <>
               Área utilizada (m²)
-              <InfoTooltip text="Área utilizada = Nº de placas × 3,3 m² (telhado) ou × 7 m² (solo)." />
+              <InfoTooltip text="Área utilizada = Nº de módulos × 3,3 m² (telhado) ou × 7 m² (solo)." />
             </>
           }
         >
@@ -6816,7 +6986,7 @@ export default function App() {
       </div>
       <div className="info-inline">
         <span className="pill">
-          <InfoTooltip text="Valor de mercado = Potência instalada (kWp) × Preço por kWp configurado nas definições." />
+          <InfoTooltip text="Valor de mercado = Potência do sistema (kWp) × Preço por kWp configurado nas definições." />
           Valor de Mercado Estimado
           <strong>{currency(capex)}</strong>
         </span>
@@ -7034,12 +7204,12 @@ export default function App() {
     <section className="card">
       <h2>Configuração da Usina Fotovoltaica</h2>
       <div className="grid g4">
-        <Field label="Potência da placa (Wp)">
+        <Field label="Potência do módulo (Wp)">
           <select
-            value={potenciaPlaca}
+            value={potenciaModulo}
             onChange={(event) => {
-              setPotenciaPlacaDirty(true)
-              setPotenciaPlaca(Number(event.target.value))
+              setPotenciaModuloDirty(true)
+              setPotenciaModulo(Number(event.target.value))
             }}
           >
             {painelOpcoes.map((opt) => (
@@ -7049,7 +7219,7 @@ export default function App() {
             ))}
           </select>
         </Field>
-        <Field label="Nº de placas (estimado)">
+        <Field label="Nº de módulos (estimado)">
           <input
             type="number"
             min={1}
@@ -7062,18 +7232,18 @@ export default function App() {
               const { value } = event.target
               if (!value) {
                 applyVendaUpdates({ quantidade_modulos: undefined })
-                setNumeroPlacasManual('')
+                setNumeroModulosManual('')
                 return
               }
               const parsed = Number(value)
               if (!Number.isFinite(parsed) || parsed <= 0) {
                 applyVendaUpdates({ quantidade_modulos: undefined })
-                setNumeroPlacasManual('')
+                setNumeroModulosManual('')
                 return
               }
               const inteiro = Math.max(1, Math.round(parsed))
               applyVendaUpdates({ quantidade_modulos: inteiro })
-              setNumeroPlacasManual(inteiro)
+              setNumeroModulosManual(inteiro)
             }}
             onFocus={selectNumberInputOnFocus}
           />
@@ -7090,7 +7260,7 @@ export default function App() {
             <option value="SOLO">Solo</option>
           </select>
         </Field>
-        <Field label="Potência instalada (kWp)">
+        <Field label="Potência do sistema (kWp)">
           <input
             type="number"
             step="0.01"
@@ -7160,6 +7330,7 @@ export default function App() {
         <Field label="Modelo do inversor">
           <input
             type="text"
+            ref={inverterModelInputRef}
             value={vendaForm.modelo_inversor ?? ''}
             onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
           />
@@ -7176,7 +7347,7 @@ export default function App() {
       </div>
       <div className="info-inline">
         <span className="pill">
-          <InfoTooltip text="Valor de mercado = Potência instalada (kWp) × Preço por kWp configurado nas definições." />
+          <InfoTooltip text="Valor de mercado = Potência do sistema (kWp) × Preço por kWp configurado nas definições." />
           Valor de Mercado Estimado
           <strong>{currency(capex)}</strong>
         </span>
@@ -7951,6 +8122,26 @@ export default function App() {
                   ))}
                 </ul>
               ) : null}
+              {budgetMissingSummary ? (
+                <div className="budget-missing-alert">
+                  <div>
+                    <h3>Informações ausentes do PDF</h3>
+                    <p>
+                      Não foi possível identificar {budgetMissingSummary.fieldsText} de{' '}
+                      <strong>módulos e/ou inversor</strong> neste orçamento. Você pode editar manualmente ou
+                      reenviar um PDF em outro formato.
+                    </p>
+                  </div>
+                  <div className="budget-missing-alert-actions">
+                    <button type="button" className="primary" onClick={handleMissingInfoManualEdit}>
+                      Editar manualmente
+                    </button>
+                    <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
+                      Enviar outro PDF
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {kitBudget.items.length === 0 ? (
                 <div className="budget-empty">
                   <p>
@@ -7983,6 +8174,8 @@ export default function App() {
                               <td>
                                 <input
                                   type="text"
+                                  data-budget-item-id={item.id}
+                                  data-field="product"
                                   value={item.productName}
                                   onChange={(event) =>
                                     handleBudgetItemTextChange(item.id, 'productName', event.target.value)
@@ -7992,6 +8185,8 @@ export default function App() {
                               </td>
                               <td>
                                 <textarea
+                                  data-budget-item-id={item.id}
+                                  data-field="description"
                                   value={item.description}
                                   onChange={(event) =>
                                     handleBudgetItemTextChange(item.id, 'description', event.target.value)
@@ -8004,6 +8199,8 @@ export default function App() {
                                 <input
                                   type="text"
                                   inputMode="decimal"
+                                  data-budget-item-id={item.id}
+                                  data-field="quantity"
                                   value={item.quantityInput}
                                   onChange={(event) =>
                                     handleBudgetItemQuantityChange(item.id, event.target.value)

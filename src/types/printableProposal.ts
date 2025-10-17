@@ -72,8 +72,8 @@ export type PrintableProposalProps = {
   capex: number
   tipoProposta: PrintableProposalTipo
   geracaoMensalKwh: number
-  potenciaPlaca: number
-  numeroPlacas: number
+  potenciaModulo: number
+  numeroModulos: number
   potenciaInstaladaKwp: number
   tipoInstalacao: TipoInstalacao
   areaInstalacao: number

@@ -4,12 +4,12 @@ export function kwpFromWpQty(wp?: number | null, qty?: number | null): number | 
   if (!Number.isFinite(wp) || !Number.isFinite(qty)) {
     return null
   }
-  const placaWp = Number(wp)
+  const moduloWp = Number(wp)
   const quantidade = Number(qty)
-  if (placaWp <= 0 || quantidade <= 0) {
+  if (moduloWp <= 0 || quantidade <= 0) {
     return null
   }
-  const potencia = (placaWp * quantidade) / 1000
+  const potencia = (moduloWp * quantidade) / 1000
   return Number.isFinite(potencia) && potencia > 0 ? potencia : null
 }
 
