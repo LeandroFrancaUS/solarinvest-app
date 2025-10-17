@@ -299,16 +299,6 @@ const formatList = (values: string[]): string => {
   return `${rest.reverse().join(', ')} e ${last}`
 }
 
-const numbersAreClose = (a: number | null, b: number | null, tolerance = 0.01) => {
-  if (a === null && b === null) {
-    return true
-  }
-  if (a === null || b === null) {
-    return false
-  }
-  return Math.abs(a - b) <= tolerance
-}
-
 const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
   success: '✔',
   info: 'ℹ',
