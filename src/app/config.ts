@@ -150,6 +150,7 @@ type KitBudgetItemState = {
   quantityInput: string
   unitPrice: number | null
   unitPriceInput: string
+  wasQuantityInferred: boolean
 }
 
 type KitBudgetMissingInfo = EssentialInfoSummary | null

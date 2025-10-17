@@ -142,7 +142,8 @@ async function runRecognition(task: {
 
 function cloneImageData(imageData: ImageData): ImageData {
   const { width, height, data } = imageData
-  const buffer = new Uint8ClampedArray(data)
+  const transferable = data.buffer.slice(0)
+  const buffer = new Uint8ClampedArray(transferable)
   return new ImageData(buffer, width, height)
 }
 
