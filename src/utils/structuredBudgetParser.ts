@@ -5,7 +5,9 @@ const HEADER_PATTERNS = {
   para: /Para:\s*(.+)$/i,
 }
 
+const SECTION_START_REGEX = /Detalhes\s+do\s+Or[cç]amento/i
 const SECTION_HEADER_REGEX = /Produto\s+Quantidade/i
+const SECTION_END_REGEX = /(Valor\s+total\s*:|Aceite\s+da\s+Proposta|Assinatura|Quadro\s+comercial|Dados\s+do\s+cliente)/i
 const FOOTER_TOTAL_REGEX = /Valor\s+total:\s*R?\$?\s*([\d.,]+)/i
 const CODE_MODEL_QTY_REGEX = /C[óo]digo:\s*(.+?)\s+Modelo:\s*(.+?)\s+(\d+)\s*$/i
 const CODIGO_REGEX = /C[óo]digo:\s*(.+)$/i
@@ -14,6 +16,35 @@ const QUANTIDADE_REGEX = /Quantidade:\s*(\d+)/i
 const FABRICANTE_REGEX = /Fabricante:\s*(.*)$/i
 const UNIT_PRICE_REGEX = /R\$\s*([\d.,]+)\s*(?:\/\s*un|unidade)\b/i
 const TOTAL_PRICE_REGEX = /\b(?:Valor:)?\s*R\$\s*([\d.,]+)\b/gi
+const QUANTIDADE_SOZINHA_REGEX = /^\s*([0-9]{1,5})(?:[,\.](?:0+))?\s*$/
+
+const LINE_EXCLUSION_PATTERNS: RegExp[] = [
+  /@/i,
+  /\bemail\b/i,
+  /brsolarinvest/i,
+  /\btelefone\b/i,
+  /\bwhatsapp\b/i,
+  /\bcnpj\b/i,
+  /\bdados do cliente\b/i,
+  /\bcliente\b/i,
+  /\bc\u00f3digo do or[cç]amento\b/i,
+  /portf[óo]lio/i,
+  /sobre\s+n[óo]s/i,
+  /proposta comercial/i,
+  /contato/i,
+  /\baceite da proposta\b/i,
+  /\bassinatura\b/i,
+  /\bdocumento\b/i,
+  /\bru[áa]/i,
+  /\bjardim/i,
+  /\betapa/i,
+  /an[áa]polis/i,
+  /\bdistribuidora\b/i,
+  /\buc\b/i,
+  /vamos avan[çc]ar/i,
+]
+
+const DESCRIPTION_ALLOWED_REGEXES: RegExp[] = [/^Descri[çc][aã]o/i, /^Observa[çc][aã]o/i]
 
 const CSV_HEADER =
   'numeroOrcamento;validade;de;para;produto;codigo;modelo;descricao;quantidade;unidade;precoUnitario;precoTotal;valorTotal'
@@ -153,19 +184,36 @@ function parseHeader(lines: string[]): HeaderData {
 export function deriveSection(
   lines: string[],
 ): { section: string[]; startIdx: number; endIdx: number } {
-  const startIdx = lines.findIndex((line) => SECTION_HEADER_REGEX.test(line))
-  const endIdx = (() => {
-    if (startIdx === -1) return -1
-    const offset = lines.slice(startIdx + 1).findIndex((line) => FOOTER_TOTAL_REGEX.test(line))
-    return offset === -1 ? -1 : startIdx + 1 + offset
+  const detailAnchor = lines.findIndex((line) => SECTION_START_REGEX.test(line))
+  const headerIdx = (() => {
+    if (detailAnchor !== -1) {
+      const offset = lines
+        .slice(detailAnchor + 1)
+        .findIndex((line) => SECTION_HEADER_REGEX.test(line))
+      if (offset !== -1) {
+        return detailAnchor + 1 + offset
+      }
+    }
+    return lines.findIndex((line) => SECTION_HEADER_REGEX.test(line))
   })()
 
-  const section =
-    startIdx !== -1
-      ? lines.slice(startIdx + 1, endIdx === -1 ? undefined : endIdx)
-      : []
+  if (headerIdx === -1) {
+    return { section: [], startIdx: -1, endIdx: -1 }
+  }
 
-  return { section, startIdx, endIdx }
+  const endIdx = (() => {
+    const afterHeader = lines.slice(headerIdx + 1)
+    const explicitEnd = afterHeader.findIndex((line) => SECTION_END_REGEX.test(line))
+    if (explicitEnd !== -1) {
+      return headerIdx + 1 + explicitEnd
+    }
+    const totalOffset = afterHeader.findIndex((line) => FOOTER_TOTAL_REGEX.test(line))
+    return totalOffset === -1 ? -1 : headerIdx + 1 + totalOffset
+  })()
+
+  const section = lines.slice(headerIdx + 1, endIdx === -1 ? undefined : endIdx)
+
+  return { section, startIdx: headerIdx, endIdx }
 }
 
 function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } {
@@ -183,11 +231,16 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
 
   const push = () => {
     if (!curr) return
-    if (!curr.produto) {
+    const produto = curr.produto?.trim()
+    if (!produto || shouldIgnoreValue(produto)) {
       curr = null
       return
     }
+    curr.produto = produto
     curr.descricao = curr.descricao.trim() || '—'
+    if (curr.quantidade === null) {
+      curr.quantidade = 1
+    }
     if (
       curr.quantidade !== null &&
       curr.precoUnitario !== null &&
@@ -207,8 +260,20 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
   }
 
   section.forEach((raw) => {
-    const line = raw.trim()
+    const line = raw.replace(/\s+/g, ' ').trim()
     if (!line) {
+      return
+    }
+
+    if (shouldIgnoreValue(line)) {
+      return
+    }
+
+    const quantityStandalone = line.match(QUANTIDADE_SOZINHA_REGEX)
+    if (quantityStandalone) {
+      ensureCurr()
+      const quantity = parseQuantity(quantityStandalone[1])
+      curr!.quantidade = Number.isNaN(quantity) ? curr!.quantidade ?? null : quantity
       return
     }
 
@@ -219,10 +284,12 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       curr!.modelo = codeModelQty[2].trim() || null
       const quantity = parseInt(codeModelQty[3], 10)
       curr!.quantidade = Number.isNaN(quantity) ? null : quantity
+      appendDescricao(curr!, curr!.codigo ? `Código: ${curr!.codigo}` : '')
+      appendDescricao(curr!, curr!.modelo ? `Modelo: ${curr!.modelo}` : '')
       return
     }
 
-    if (!line.includes(':') && line.length > 6) {
+    if (isLikelyProductLine(line)) {
       if (curr && curr.produto) {
         push()
       }
@@ -235,6 +302,9 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
     if (codigo) {
       ensureCurr()
       curr!.codigo = codigo[1].trim() || null
+      if (curr!.codigo) {
+        appendDescricao(curr!, `Código: ${curr!.codigo}`)
+      }
       return
     }
 
@@ -242,6 +312,9 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
     if (modelo) {
       ensureCurr()
       curr!.modelo = modelo[1].trim() || null
+      if (curr!.modelo) {
+        appendDescricao(curr!, `Modelo: ${curr!.modelo}`)
+      }
       return
     }
 
@@ -259,6 +332,7 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       if (fab) {
         ensureCurr()
         curr!.fabricante = fab
+        appendDescricao(curr!, `Fabricante: ${fab}`)
       }
       return
     }
@@ -292,10 +366,14 @@ function parseItems(lines: string[]): { itens: ItemData[]; warnings: string[] } 
       return
     }
 
+    if (DESCRIPTION_ALLOWED_REGEXES.some((regex) => regex.test(line))) {
+      ensureCurr()
+      appendDescricao(curr!, line)
+      return
+    }
+
     if (curr) {
-      curr.descricao = curr.descricao
-        ? `${curr.descricao} ${line}`.trim()
-        : line
+      appendDescricao(curr, line)
     }
   })
 
@@ -345,6 +423,77 @@ function newItem(): ItemData {
     precoUnitario: null,
     precoTotal: null,
   }
+}
+
+function appendDescricao(item: ItemData, fragment: string): void {
+  const normalized = fragment.replace(/\s+/g, ' ').trim()
+  if (!normalized) {
+    return
+  }
+  if (!item.descricao) {
+    item.descricao = normalized
+    return
+  }
+  const partes = item.descricao.split(' • ')
+  if (partes.includes(normalized)) {
+    return
+  }
+  item.descricao = `${item.descricao} • ${normalized}`
+}
+
+function shouldIgnoreValue(value: string): boolean {
+  if (!value) {
+    return true
+  }
+  if (LINE_EXCLUSION_PATTERNS.some((regex) => regex.test(value))) {
+    return true
+  }
+  if (/\(\d{2}\)/.test(value)) {
+    return true
+  }
+  if (isUppercaseNoise(value)) {
+    return true
+  }
+  return false
+}
+
+function isLikelyProductLine(value: string): boolean {
+  if (!value || value.includes(':')) {
+    return false
+  }
+  if (shouldIgnoreValue(value)) {
+    return false
+  }
+  const hasLetters = /[A-Za-zÀ-ÖØ-öø-ÿ]/.test(value)
+  return hasLetters
+}
+
+function isUppercaseNoise(value: string): boolean {
+  if (/\d/.test(value)) {
+    return false
+  }
+  const sanitized = value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/g, '').trim()
+  if (!sanitized) {
+    return false
+  }
+  const words = sanitized.split(/\s+/).filter(Boolean)
+  if (words.length > 2) {
+    return false
+  }
+  const whitelist = [/kit/i, /servi[çc]o/i, /m[óo]dulo/i, /inversor/i]
+  if (whitelist.some((regex) => regex.test(value))) {
+    return false
+  }
+  return words.every((word) => word === word.toUpperCase())
+}
+
+function parseQuantity(raw: string): number {
+  const normalized = raw.replace(/\./g, '').replace(',', '.')
+  const parsed = Number.parseFloat(normalized)
+  if (!Number.isFinite(parsed)) {
+    return Number.NaN
+  }
+  return Math.round(parsed)
 }
 
 function mergeAdjacentDuplicates(items: ItemData[]): ItemData[] {

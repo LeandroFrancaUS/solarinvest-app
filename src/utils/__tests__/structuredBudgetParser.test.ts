@@ -10,18 +10,21 @@ import {
 describe('deriveSection', () => {
   it('anchors items after "Produto  Quantidade" and before "Valor total:"', () => {
     const lines = [
+      'Sobre nós',
       'Detalhes do Orçamento',
       'Potência do sistema',
       'Produto   Quantidade',
       'Modulo X  ...',
       'Código: AAA Modelo: BBB 3',
       'Valor total: R$ 8.872,02',
+      'Aceite da Proposta',
     ]
 
     const { section } = deriveSection(lines)
 
     expect(section[0]).toMatch(/Modulo X/)
     expect(section[section.length - 1]).not.toMatch(/Valor total/i)
+    expect(section.some((line) => /Aceite da Proposta/i.test(line))).toBe(false)
   })
 })
 
@@ -32,6 +35,7 @@ describe('parseStructuredBudget', () => {
       'Orçamento Válido até: 12-10-2025',
       'De: Fornecedor X',
       'Para: Cliente Y',
+      'Detalhes do Orçamento',
       'Produto  Quantidade',
       'Modulo Bifacial 610W',
       'Código: MFOS-1.2-BF-132-610W Modelo: ODA610-33V-MHDRz 5',
@@ -46,12 +50,15 @@ describe('parseStructuredBudget', () => {
     expect(item.codigo).toBe('MFOS-1.2-BF-132-610W')
     expect(item.modelo).toBe('ODA610-33V-MHDRz')
     expect(item.quantidade).toBe(5)
+    expect(item.descricao).toContain('Código: MFOS-1.2-BF-132-610W')
+    expect(item.descricao).toContain('Modelo: ODA610-33V-MHDRz')
     expect(item.precoUnitario).toBeNull()
     expect(item.precoTotal).toBeNull()
   })
 
   it('keeps precoUnitario/precoTotal null when not present; parses footer total', () => {
     const lines = [
+      'Detalhes do Orçamento',
       'Produto  Quantidade',
       'Modulo X',
       'Código: AAA Modelo: BBB 2',
@@ -67,6 +74,7 @@ describe('parseStructuredBudget', () => {
 
   it('merges adjacent duplicates by (codigo, modelo) summing quantity', () => {
     const lines = [
+      'Detalhes do Orçamento',
       'Produto  Quantidade',
       'Item A',
       'Código: AAA Modelo: BBB 2',
@@ -78,6 +86,45 @@ describe('parseStructuredBudget', () => {
     const data = parseStructuredBudget(lines)
     expect(data.itens.length).toBe(1)
     expect(data.itens[0].quantidade).toBe(5)
+  })
+
+  it('reconstructs produto, descricao e quantidade ignorando dados do cliente', () => {
+    const lines = [
+      'Detalhes do Orçamento',
+      'Dados do cliente',
+      'Produto Quantidade',
+      'Cliente: Fulano da Silva',
+      'MODULO BIFACIAL 132 CEL. N TYPE 610W CABO 1.2M OSDA',
+      'Código: MFOS-1.2-BF-132-610W',
+      'Modelo: ODA610-33V-MHDRz',
+      'Fabricante: OSDA',
+      '8',
+      'brsolarinvest@gmail.com',
+      'Valor total: R$ 10.000,00',
+    ]
+
+    const data = parseStructuredBudget(lines)
+    expect(data.itens).toHaveLength(1)
+    const item = data.itens[0]
+    expect(item.produto).toBe('MODULO BIFACIAL 132 CEL. N TYPE 610W CABO 1.2M OSDA')
+    expect(item.descricao).toContain('Código: MFOS-1.2-BF-132-610W')
+    expect(item.descricao).toContain('Modelo: ODA610-33V-MHDRz')
+    expect(item.descricao).toContain('Fabricante: OSDA')
+    expect(item.quantidade).toBe(8)
+  })
+
+  it('descarta blocos quando somente dados de contato são encontrados', () => {
+    const lines = [
+      'Detalhes do Orçamento',
+      'Produto Quantidade',
+      'Telefone: (62) 99999-9999',
+      'E-mail: teste@dominio.com',
+      'Anápolis - GO',
+      'Valor total: R$ 0,00',
+    ]
+
+    const data = parseStructuredBudget(lines)
+    expect(data.itens).toHaveLength(0)
   })
 })
 

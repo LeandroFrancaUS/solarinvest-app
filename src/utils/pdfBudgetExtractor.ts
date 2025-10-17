@@ -128,7 +128,7 @@ export async function extractBudgetFromPdf(
 
   const items: BudgetExtractionItem[] = structured.itens.map((item) => ({
     productName: item.produto ?? '',
-    description: item.descricao ?? '—',
+    description: item.descricao ?? '',
     quantity: item.quantidade ?? undefined,
     unitPrice: item.precoUnitario ?? undefined,
     totalPrice: item.precoTotal ?? undefined,
