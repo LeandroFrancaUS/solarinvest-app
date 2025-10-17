@@ -39,6 +39,9 @@ export default defineConfig(({ mode }) => {
     build: {
       sourcemap: true,
     },
+    esbuild: {
+      sourcefile: true,
+    },
     server: {
       host: true,
     },
