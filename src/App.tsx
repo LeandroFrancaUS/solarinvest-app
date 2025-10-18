@@ -7851,12 +7851,6 @@ export default function App() {
           Informe os componentes adicionais do projeto. Esses valores são somados ao orçamento base para definir o
           valor final de venda da usina.
         </p>
-        <div className="info-inline">
-          <span className="pill">
-            Valor do Investimento:{' '}
-            <strong>{capex > 0 ? currency(capex) : '—'}</strong>
-          </span>
-        </div>
         <div className="composicao-ufv-groups">
           {isTelhado ? (
             <div className="composicao-ufv-group">
