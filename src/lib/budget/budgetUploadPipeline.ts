@@ -386,7 +386,7 @@ function normalizeItem(item: StructuredItem): ParsedBudgetJSON['itens'][number] 
     modelo: sanitizeString(item.modelo),
     descricao: item.descricao?.trim() ? item.descricao.trim() : '—',
     quantidade: quantidade !== null ? Math.round(quantidade) : null,
-    unidade: 'un',
+    unidade: item.unidade?.trim() ? item.unidade.trim() : 'un',
     precoUnitario: normalizeNumber(item.precoUnitario),
     precoTotal: normalizeNumber(item.precoTotal),
   }

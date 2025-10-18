@@ -141,6 +141,44 @@ describe('parseStructuredBudget', () => {
     expect(data.itens).toHaveLength(0)
   })
 
+  it('interpreta quantidades com unidade e ignora seções extras do orçamento', () => {
+    const lines = [
+      'Proposta Comercial',
+      'Cotação WEB-004504319',
+      'Entrega Escolhida',
+      'Detalhes do Orçamento',
+      'Produto  Quantidade',
+      'MODULO BIFACIAL 132 CEL. HJT 700W CABO 1.4M RISEN',
+      'Código: RSN700 Modelo: ABC123',
+      'Fabricante: RISEN',
+      '8 JG',
+      'ESTRUTURA PERFIL C DE MONTAGEM 2 PEÇAS',
+      'Modelo: PERFIL-C',
+      'Quantidade: 32 JG',
+      'Potência do sistema: 32,9 kWp',
+      'Valor total: R$ 123.456,78',
+      'Condição de Pagamento: PIX',
+    ]
+
+    const data = parseStructuredBudget(lines)
+    expect(data.itens).toHaveLength(2)
+
+    const [modulo, estrutura] = data.itens
+    expect(modulo.produto).toBe('MODULO BIFACIAL 132 CEL. HJT 700W CABO 1.4M RISEN')
+    expect(modulo.quantidade).toBe(8)
+    expect(modulo.unidade).toBe('JG')
+    expect(modulo.descricao).toContain('Código: RSN700')
+    expect(modulo.descricao).toContain('Modelo: ABC123')
+    expect(modulo.descricao).toContain('Fabricante: RISEN')
+
+    expect(estrutura.produto).toBe('ESTRUTURA PERFIL C DE MONTAGEM 2 PEÇAS')
+    expect(estrutura.quantidade).toBe(32)
+    expect(estrutura.unidade).toBe('JG')
+    expect(estrutura.descricao).toContain('Modelo: PERFIL-C')
+
+    expect(data.resumo.valorTotal).toBeCloseTo(123456.78, 2)
+  })
+
   it('falls back to pattern detection when anchors are missing (OCR layout)', () => {
     const lines = [
       'Orçamento WEB-0001',
