@@ -2,27 +2,12 @@ import React, { useMemo } from 'react'
 import { Bar, BarChart, CartesianGrid, Label, LabelList, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils/formatters'
-import {
-  fmt,
-  formatMoneyBRWithDigits,
-  formatNumberBRWithOptions,
-  formatPercentBR,
-  formatPercentBRWithDigits,
-} from '../../lib/locale/br-number'
-import { agrupar, type Linha } from '../../lib/pdf/grouping'
+import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 
 const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
   Leasing: '#2563EB',
   Financiamento: '#10B981',
-}
-
-type MensalidadeAnualRow = {
-  ano: number
-  tarifaCheiaMedia: number
-  tarifaDescontadaMedia: number
-  mensalidadeCheiaMedia: number
-  mensalidadeMedia: number
 }
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
@@ -42,16 +27,12 @@ function PrintableProposalInner(
   geracaoMensalKwh,
   numeroModulos,
   potenciaInstaladaKwp,
-  tipoInstalacao,
-    areaInstalacao,
     descontoContratualPct,
-    parcelasLeasing,
     distribuidoraTarifa,
     energiaContratadaKwh,
     tarifaCheia,
     vendaResumo: vendaResumoProp,
     parsedPdfVenda,
-    orcamentoItens,
   }: PrintableProposalProps,
   ref: React.ForwardedRef<HTMLDivElement>,
 ) {
@@ -101,8 +82,6 @@ function PrintableProposalInner(
     return null
   }
   const parsedPdfResumo = parsedPdfVenda ?? null
-  const tipoInstalacaoDescricao =
-    tipoInstalacao === 'SOLO' ? 'Solo' : tipoInstalacao === 'TELHADO' ? 'Telhado' : '—'
   const kitPotenciaInstalada = pickPositive(
     vendaFormResumo?.potencia_instalada_kwp,
     parsedPdfResumo?.potencia_instalada_kwp,
@@ -123,20 +102,6 @@ function PrintableProposalInner(
     parsedPdfResumo?.quantidade_modulos,
     numeroModulos,
   )
-  const areaInstalacaoValida = Number.isFinite(areaInstalacao) && areaInstalacao > 0
-  const areaInstalacaoTexto = areaInstalacaoValida
-    ? formatNumberBRWithOptions(areaInstalacao, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-    : '—'
-  const moduleAreaM2 =
-    Number.isFinite(parsedPdfResumo?.module_area_m2) && (parsedPdfResumo?.module_area_m2 ?? 0) > 0
-      ? Number(parsedPdfResumo?.module_area_m2)
-      : null
-  const areaMinimaNecessaria =
-    kitQuantidadeModulos && kitQuantidadeModulos > 0
-      ? (moduleAreaM2 ?? 2) * kitQuantidadeModulos
-      : areaInstalacaoValida
-      ? areaInstalacao
-      : null
 
   const formatKwpDetalhe = (valor: number | null) => {
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
@@ -155,11 +120,15 @@ function PrintableProposalInner(
     })} módulos`
   }
 
-  const formatAreaDetalhe = (valor: number | null) => {
+  const potenciaModuloDetalhe = pickPositive(parsedPdfResumo?.potencia_da_placa_wp, potenciaModulo)
+  const formatModuloDetalhe = (valor: number | null) => {
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
       return '—'
     }
-    return fmt.m2(valor ?? 0)
+    return `${formatNumberBRWithOptions(valor ?? 0, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })} Wp`
   }
 
   const formatTarifaDetalhe = (valor: number | null) => {
@@ -187,142 +156,13 @@ function PrintableProposalInner(
     { label: 'Produção média mensal', value: formatKwhMes(kitGeracao ?? undefined) },
     { label: 'Consumo médio mensal', value: formatKwhMes(kitConsumo ?? undefined) },
     { label: 'Quantidade de módulos', value: formatQuantidadeDetalhe(kitQuantidadeModulos ?? null) },
-    { label: 'Área mínima necessária', value: formatAreaDetalhe(areaMinimaNecessaria ?? null) },
+    { label: 'Potência dos módulos', value: formatModuloDetalhe(potenciaModuloDetalhe ?? null) },
     { label: 'Tarifa', value: formatTarifaDetalhe(tarifaProjeto ?? null) },
     { label: 'Autonomia (%)', value: autonomiaLabel },
   ]
-  const normalizarTextoTabela = (valor?: string | null) => {
-    const trimmed = valor?.toString().trim() ?? ''
-    return trimmed && trimmed !== '—' ? trimmed : ''
-  }
-  const itensOrcamentoFormatados = (Array.isArray(orcamentoItens) ? orcamentoItens : [])
-    .map((item, index) => {
-      const produto = normalizarTextoTabela(item.produto)
-      const descricaoBase = normalizarTextoTabela(item.descricao)
-      const codigo = normalizarTextoTabela(item.codigo)
-      const modelo = normalizarTextoTabela(item.modelo)
-      const fabricante = normalizarTextoTabela(item.fabricante)
-      const descricaoPartes = [descricaoBase]
-      if (codigo && !descricaoBase.toLowerCase().includes('código')) {
-        descricaoPartes.push(`Código: ${codigo}`)
-      }
-      if (modelo && !descricaoBase.toLowerCase().includes('modelo')) {
-        descricaoPartes.push(`Modelo: ${modelo}`)
-      }
-      if (fabricante && !descricaoBase.toLowerCase().includes('fabricante')) {
-        descricaoPartes.push(`Fabricante: ${fabricante}`)
-      }
-      const descricao = descricaoPartes
-        .filter((parte) => parte && parte.trim().length > 0)
-        .join(' • ')
-      const quantidade =
-        typeof item.quantidade === 'number' && Number.isFinite(item.quantidade)
-          ? Number(item.quantidade)
-          : null
-      const valorUnitario =
-        typeof item.valorUnitario === 'number' && Number.isFinite(item.valorUnitario)
-          ? Number(item.valorUnitario)
-          : null
-      const valorTotal =
-        typeof item.valorTotal === 'number' && Number.isFinite(item.valorTotal)
-          ? Number(item.valorTotal)
-          : null
-      return {
-        key: `orcamento-item-${index}`,
-        produto,
-        descricao,
-        codigo,
-        modelo,
-        fabricante,
-        quantidade,
-        valorUnitario,
-        valorTotal,
-      }
-    })
-    .filter((item) => {
-      if (item.produto || item.descricao) {
-        return true
-      }
-      return item.quantidade !== null && Number.isFinite(item.quantidade)
-    })
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
-  const linhasAgrupamento: Linha[] = []
-  itensOrcamentoFormatados.forEach((item) => {
-    const nomeBase = (item.produto || item.descricao || '').trim()
-    if (!nomeBase) {
-      return
-    }
-    linhasAgrupamento.push({
-      nome: nomeBase,
-      codigo: item.codigo || undefined,
-      modelo: item.modelo || undefined,
-      fabricante: item.fabricante || undefined,
-      quantidade:
-        typeof item.quantidade === 'number' && Number.isFinite(item.quantidade) && item.quantidade > 0
-          ? item.quantidade
-          : null,
-    })
-  })
-
-  const produtosAgrupados = (() => {
-    if (!linhasAgrupamento.length) {
-      return [] as {
-        categoria: string
-        grupo: string
-        descricao: string
-        quantidade: number | null
-      }[]
-    }
-    const grupos = agrupar(linhasAgrupamento)
-    const rows: { categoria: string; grupo: string; descricao: string; quantidade: number | null }[] = []
-
-    const pushGroup = (categoria: string, label: string, lista: Linha[]) => {
-      if (!lista.length) {
-        return
-      }
-      const nomes = new Set<string>()
-      lista.forEach((linha) => {
-        const candidatos = [linha.nome, linha.modelo, linha.fabricante, linha.codigo]
-        const encontrado = candidatos.find((texto) => texto && texto.trim().length > 0)
-        if (encontrado) {
-          nomes.add(encontrado.trim())
-        }
-      })
-      const descricao = nomes.size > 0 ? Array.from(nomes).join(' • ') : '—'
-      const quantidadeTotal = lista.reduce((acc, linha) => {
-        if (typeof linha.quantidade === 'number' && Number.isFinite(linha.quantidade) && linha.quantidade > 0) {
-          return acc + linha.quantidade
-        }
-        return acc
-      }, 0)
-      if (descricao === '—' && quantidadeTotal <= 0) {
-        return
-      }
-      rows.push({
-        categoria,
-        grupo: label,
-        descricao,
-        quantidade: quantidadeTotal > 0 ? quantidadeTotal : null,
-      })
-    }
-
-    pushGroup('Hardware', 'Módulos', grupos.Hardware.Modulos)
-    pushGroup('Hardware', 'Inversores', grupos.Hardware.Inversores)
-    pushGroup(
-      'Hardware',
-      'KIT DE FIXAÇÃO, CABOS, ATERRAMENTO, DEMAIS ACESSÓRIOS',
-      grupos.Hardware.KitsECabosEAterramentoEAcessorios,
-    )
-    pushGroup(
-      'Serviços',
-      'ART, PROJETO, INSTALAÇÃO, HOMOLOGAÇÃO, MONITORAMENTO',
-      grupos.Servicos.EngenhariaEInstalacaoEHomologacao,
-    )
-
-    return rows
-  })()
-  const mostrarDetalhamento = detalhamentoCampos.length > 0 || produtosAgrupados.length > 0
+  const mostrarDetalhamento = detalhamentoCampos.length > 0
   const distribuidoraTarifaLabel = distribuidoraTarifa?.trim() || ''
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : ''
   const codigoOrcamento = budgetId?.trim() || ''
@@ -332,19 +172,6 @@ function PrintableProposalInner(
   const cidadeCliente = cliente.cidade?.trim() || ''
   const ufCliente = cliente.uf?.trim() || ''
   const enderecoCliente = cliente.endereco?.trim() || ''
-  const quantidadeModulosResumo = (() => {
-    const quantidade =
-      vendaFormResumo && Number.isFinite(vendaFormResumo.quantidade_modulos)
-        ? Number(vendaFormResumo.quantidade_modulos)
-        : Number.isFinite(numeroModulos)
-        ? Number(numeroModulos)
-        : null
-    if (!Number.isFinite(quantidade) || (quantidade ?? 0) <= 0) {
-      return '—'
-    }
-    return `${Math.round(quantidade ?? 0)} un.`
-  })()
-  const modeloInversorResumo = vendaFormResumo?.modelo_inversor?.trim() || '—'
   const prazoContratualResumo = isVendaDireta
     ? 'Venda'
     : duracaoContratualValida
@@ -366,19 +193,7 @@ function PrintableProposalInner(
     !isVendaDireta && Number.isFinite(descontoContratualPct)
       ? formatPercentBR((descontoContratualPct ?? 0) / 100)
       : '—'
-  const responsabilidadesResumo = isVendaDireta
-    ? 'Projeto, instalação, homologação e suporte pós-venda'
-    : 'Instalação, homologação, manutenção, seguro, suporte técnico, monitoramento'
   const valorInstalacaoTexto = isVendaDireta ? currency(capex) : currency(0)
-  const geracaoMensalResumo = formatKwhMes(geracaoMensalKwh)
-  const potenciaInstaladaTexto =
-    Number.isFinite(potenciaInstaladaKwp) && potenciaInstaladaKwp > 0
-      ? `${formatNumberBRWithOptions(potenciaInstaladaKwp, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} kWp`
-      : '—'
-  const investimentoLabel = isVendaDireta ? 'Investimento total (CAPEX)' : 'Investimento da SolarInvest'
   const condicaoLabel = (() => {
     if (!vendaFormResumo) {
       return '—'
@@ -421,6 +236,9 @@ function PrintableProposalInner(
   const inflacaoResumo = formatPercentFromPct(vendaFormResumo?.inflacao_energia_aa_pct)
   const taxaMinimaResumo = Number.isFinite(vendaFormResumo?.taxa_minima_mensal)
     ? currency(vendaFormResumo?.taxa_minima_mensal ?? 0)
+    : '—'
+  const iluminacaoPublicaResumo = Number.isFinite(vendaFormResumo?.taxa_minima_r_mes)
+    ? currency(vendaFormResumo?.taxa_minima_r_mes ?? 0)
     : '—'
   const horizonteAnaliseResumo = formatMeses(vendaFormResumo?.horizonte_meses)
   const taxaDescontoResumo = Number.isFinite(vendaFormResumo?.taxa_desconto_aa_pct)
@@ -548,34 +366,6 @@ function PrintableProposalInner(
     }
   }, [chartDataPrintable, mostrarFinanciamento])
 
-  const parcelasLeasingAnuais = useMemo<MensalidadeAnualRow[]>(() => {
-    if (!parcelasLeasing.length) {
-      return []
-    }
-
-    const mesesPorAno = 12
-    const totalAnos = Math.min(5, Math.ceil(parcelasLeasing.length / mesesPorAno))
-
-    return Array.from({ length: totalAnos }, (_, index) => {
-      const inicio = index * mesesPorAno
-      const fim = inicio + mesesPorAno
-      const mesesAno = parcelasLeasing.slice(inicio, fim)
-      const divisor = mesesAno.length || 1
-
-      const somaTarifaCheia = mesesAno.reduce((acc, row) => acc + row.tarifaCheia, 0)
-      const somaTarifaDescontada = mesesAno.reduce((acc, row) => acc + row.tarifaDescontada, 0)
-      const somaMensalidadeCheia = mesesAno.reduce((acc, row) => acc + row.mensalidadeCheia, 0)
-      const somaMensalidade = mesesAno.reduce((acc, row) => acc + row.mensalidade, 0)
-
-      return {
-        ano: index + 1,
-        tarifaCheiaMedia: somaTarifaCheia / divisor,
-        tarifaDescontadaMedia: somaTarifaDescontada / divisor,
-        mensalidadeCheiaMedia: somaMensalidadeCheia / divisor,
-        mensalidadeMedia: somaMensalidade / divisor,
-      }
-    })
-  }, [parcelasLeasing])
   const beneficioAno30Printable = useMemo(
     () => chartDataPrintable.find((row) => row.ano === 30) ?? null,
     [chartDataPrintable],
@@ -662,205 +452,8 @@ function PrintableProposalInner(
               ))}
             </dl>
           ) : null}
-          {produtosAgrupados.length > 0 ? (
-            <>
-              <h3 className="print-subheading">Produtos/Serviços e Quantidade</h3>
-              <table className="print-table">
-                <thead>
-                  <tr>
-                    <th>Categoria</th>
-                    <th>Produtos/Serviços</th>
-                    <th>Quantidade</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const rendered: React.ReactNode[] = []
-                    let categoriaAtual: string | null = null
-                    produtosAgrupados.forEach((row, index) => {
-                      if (row.categoria !== categoriaAtual) {
-                        categoriaAtual = row.categoria
-                        rendered.push(
-                          <tr key={`categoria-${categoriaAtual}`} className="print-table-group">
-                            <td colSpan={3}>{categoriaAtual}</td>
-                          </tr>,
-                        )
-                      }
-                      rendered.push(
-                        <tr key={`grupo-${row.categoria}-${index}`}>
-                          <td>{row.grupo}</td>
-                          <td>{row.descricao || '—'}</td>
-                          <td>
-                            {row.quantidade
-                              ? formatNumberBRWithOptions(row.quantidade, {
-                                  minimumFractionDigits: 0,
-                                  maximumFractionDigits: 0,
-                                })
-                              : '—'}
-                          </td>
-                        </tr>,
-                      )
-                    })
-                    return rendered
-                  })()}
-                </tbody>
-              </table>
-            </>
-          ) : null}
         </section>
       ) : null}
-
-      <section className="print-section">
-        <h2>Composição do Sistema</h2>
-        <div className="print-key-values">
-          <p>
-            <strong>{investimentoLabel}</strong>
-            {currency(capex)}
-          </p>
-          <p>
-            <strong>Potência do sistema (kWp)</strong>
-            {potenciaInstaladaTexto}
-          </p>
-          <p>
-            <strong>Geração estimada (kWh/mês)</strong>
-            {geracaoMensalResumo}
-          </p>
-          <p>
-            <strong>Energia contratada</strong>
-            {energiaContratadaResumo}
-          </p>
-          <p>
-            <strong>Quantidade de módulos</strong>
-            {quantidadeModulosResumo}
-          </p>
-          <p>
-            <strong>Modelo dos inversores</strong>
-            {modeloInversorResumo}
-          </p>
-          <p>
-            <strong>Tipo de instalação</strong>
-            {tipoInstalacaoDescricao}
-          </p>
-          <p>
-            <strong>Área utilizada (m²)</strong>
-            {areaInstalacaoTexto}
-          </p>
-        </div>
-        {!isVendaDireta || mostrarFinanciamento ? (
-          <div className="print-summary-grid">
-            {!isVendaDireta ? (
-              <div className="print-card">
-                <h3>Mensalidades por ano</h3>
-                {parcelasLeasingAnuais.length > 0 ? (
-                  <div className="print-yearly-payments">
-                    {parcelasLeasingAnuais.map((row) => (
-                      <article className="print-yearly-payments__item" key={`leasing-${row.ano}`}>
-                        <div className="print-yearly-payments__header">
-                          <span className="print-yearly-payments__year-label">Período</span>
-                          <span className="print-yearly-payments__year">{`${row.ano}º ano`}</span>
-                        </div>
-                        <dl className="print-yearly-payments__metrics">
-                          <div>
-                            <dt>Tarifa cheia média</dt>
-                            <dd>{tarifaCurrency(row.tarifaCheiaMedia)}</dd>
-                          </div>
-                          <div>
-                            <dt>Tarifa c/ desconto média</dt>
-                            <dd>{tarifaCurrency(row.tarifaDescontadaMedia)}</dd>
-                          </div>
-                          <div>
-                            <dt>
-                              Conta {distribuidoraTarifaLabel ? distribuidoraTarifaLabel : 'distribuidora'}
-                            </dt>
-                            <dd>{currency(row.mensalidadeCheiaMedia)}</dd>
-                          </div>
-                          <div>
-                            <dt>Mensalidade SolarInvest</dt>
-                            <dd>{currency(row.mensalidadeMedia)}</dd>
-                          </div>
-                        </dl>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="print-yearly-payments__empty muted">
-                    Defina um prazo contratual para gerar a projeção das médias anuais das parcelas.
-                  </p>
-                )}
-              </div>
-            ) : null}
-            {mostrarFinanciamento ? (
-              <div className="print-card">
-                <h3>Financiamento</h3>
-                <table className="print-table">
-                  <thead>
-                    <tr>
-                      <th>Ano</th>
-                      <th>Fluxo anual</th>
-                      <th>Benefício acumulado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {anos.map((ano) => (
-                      <tr key={`fin-${ano}`}>
-                        <td>{ano}</td>
-                        <td>{currency(financiamentoFluxo[ano - 1] ?? 0)}</td>
-                        <td>{currency(financiamentoROI[ano - 1] ?? 0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
-
-      {itensOrcamentoFormatados.length > 0 ? (
-        <section className="print-section">
-          <h2>Itens do orçamento</h2>
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th>Produto</th>
-                <th>Descrição</th>
-                <th>Quantidade</th>
-                <th>Valor Unitário</th>
-                <th>Valor Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itensOrcamentoFormatados.map((item) => {
-                const quantidadeFormatada =
-                  item.quantidade !== null && Number.isFinite(item.quantidade) && item.quantidade > 0
-                    ? formatNumberBRWithOptions(item.quantidade, {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0,
-                      })
-                    : '—'
-                const valorUnitarioFormatado =
-                  item.valorUnitario !== null && Number.isFinite(item.valorUnitario) && item.valorUnitario > 0
-                    ? formatMoneyBRWithDigits(item.valorUnitario, 2)
-                    : '—'
-                const valorTotalFormatado =
-                  item.valorTotal !== null && Number.isFinite(item.valorTotal) && item.valorTotal > 0
-                    ? formatMoneyBRWithDigits(item.valorTotal, 2)
-                    : '—'
-                return (
-                  <tr key={item.key}>
-                    <td>{item.produto || '—'}</td>
-                    <td>{item.descricao || '—'}</td>
-                    <td>{quantidadeFormatada}</td>
-                    <td>{valorUnitarioFormatado}</td>
-                    <td>{valorTotalFormatado}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </section>
-      ) : null}
-
       <section className="print-section">
         <h2>Quadro comercial resumido</h2>
         <table className="print-table">
@@ -896,10 +489,6 @@ function PrintableProposalInner(
             <tr>
               <td>Início estimado da operação</td>
               <td>{inicioOperacaoTexto}</td>
-            </tr>
-            <tr>
-              <td>Responsabilidades da SolarInvest</td>
-              <td>{responsabilidadesResumo}</td>
             </tr>
           </tbody>
         </table>
@@ -1020,6 +609,10 @@ function PrintableProposalInner(
                   <tr>
                     <td>Taxa mínima mensal</td>
                     <td>{taxaMinimaResumo}</td>
+                  </tr>
+                  <tr>
+                    <td>Iluminação pública</td>
+                    <td>{iluminacaoPublicaResumo}</td>
                   </tr>
                   {!isVendaDireta ? (
                     <tr>
@@ -1228,9 +821,14 @@ function PrintableProposalInner(
               <li>Os valores, condições de pagamento e prazos apresentados são estimativas preliminares e podem ser ajustados na contratação definitiva.</li>
               <li>A projeção de economia considera: produção estimada, tarifa de energia inicial e inflação de energia informadas, e a taxa mínima aplicável em sistemas on-grid.</li>
               <li>As parcelas/encargos de cartão e/ou financiamento impactam o fluxo de caixa e o ROI projetado.</li>
-              <li>A geração real pode variar conforme radiação solar, sombreamento, temperatura e condições de instalação/operação.</li>
               <li>O cronograma de entrega e instalação está sujeito a vistoria técnica e disponibilidade de estoque.</li>
               <li>Garantias dos fabricantes seguem seus termos. Manutenção preventiva/corretiva e seguros podem ser contratados à parte (se aplicável).</li>
+              <li>
+                Não é de responsabilidade da SolarInvest Solutions cálculo e reforço/modificações de estrutura; reforço/modificações na rede elétrica; mudança/adaptação de transformador; armazenamento/seguro de material; segurança local; autorização ambiental; autorização de autoridades/autarquias municipais/estaduais além da distribuidora de energia; e ajuste de tensão com troca de padrão junto à distribuidora. O prazo de entrega da instalação será de acordo com contrato assinado e condicionado às intempéries climáticas, podendo ser de aproximadamente 30 dias úteis após a entrega integral do material.
+              </li>
+              <li>
+                É de responsabilidade da SolarInvest Solutions: dimensionamento do sistema; elaboração do projeto; relação dos equipamentos e materiais necessários; acompanhamento junto à distribuidora; instalação do sistema; supervisão e gerenciamento da obra. Será realizada visita técnica antes da assinatura do contrato e o dimensionamento poderá ser ajustado conforme a posição da cobertura, pois as estimativas consideram a instalação dos módulos orientados para o norte, inclinados a 17° e livres de sombreamento.
+              </li>
             </>
           ) : (
             <>
