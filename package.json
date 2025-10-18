@@ -8,7 +8,7 @@
     "build": "node scripts/build.mjs",
     "preview": "vite preview",
     "start": "node server/index.js",
-    "test": "vitest run --coverage",
+    "test": "node scripts/run-vitest.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "e2e:headless": "node scripts/run-e2e-placeholder.mjs",

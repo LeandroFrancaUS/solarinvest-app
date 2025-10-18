@@ -5,6 +5,7 @@ import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils
 import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
+import { calculateCapexFromState } from '../../store/useVendaStore'
 
 const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
   Leasing: '#2563EB',
@@ -37,14 +38,21 @@ function PrintableProposalInner(
     energiaContratadaKwh,
     tarifaCheia,
     vendaResumo: vendaResumoProp,
+    tipoInstalacao,
     parsedPdfVenda,
     orcamentoItens,
     composicaoUfv,
+    vendaSnapshot,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
   const vendaFormResumo = vendaResumo?.form
   const retornoVenda = vendaResumo?.retorno ?? null
+  const snapshotConfig = vendaSnapshot?.configuracao ?? null
+  const snapshotResultados = vendaSnapshot?.resultados ?? null
+  const snapshotParametros = vendaSnapshot?.parametros ?? null
+  const snapshotPagamento = vendaSnapshot?.pagamento ?? null
+  const snapshotComposicao = vendaSnapshot?.composicao ?? null
   const formatPercentFromPct = (value?: number, fractionDigits = 2) => {
     if (!Number.isFinite(value)) {
       return '—'
@@ -95,21 +103,26 @@ function PrintableProposalInner(
   }
   const parsedPdfResumo = parsedPdfVenda ?? null
   const kitPotenciaInstalada = pickPositive(
+    snapshotConfig?.potencia_sistema_kwp,
     vendaFormResumo?.potencia_instalada_kwp,
     parsedPdfResumo?.potencia_instalada_kwp,
     potenciaInstaladaKwp,
   )
   const kitGeracao = pickPositive(
+    snapshotConfig?.geracao_estimada_kwh_mes,
     vendaFormResumo?.geracao_estimada_kwh_mes,
     parsedPdfResumo?.geracao_estimada_kwh_mes,
     geracaoMensalKwh,
   )
   const kitConsumo = pickPositive(
+    snapshotResultados?.energia_contratada_kwh_mes,
+    snapshotParametros?.consumo_kwh_mes,
     vendaFormResumo?.consumo_kwh_mes,
     parsedPdfResumo?.consumo_kwh_mes,
     energiaContratadaKwh,
   )
   const kitQuantidadeModulos = pickPositive(
+    snapshotConfig?.n_modulos,
     vendaFormResumo?.quantidade_modulos,
     parsedPdfResumo?.quantidade_modulos,
     numeroModulos,
@@ -194,8 +207,18 @@ function PrintableProposalInner(
   const inverterModeloCatalogo = firstItemText(inverterItems, (item) => item.modelo || item.fabricante || null)
   const moduleModeloCatalogo = firstItemText(moduleItems, (item) => item.modelo || item.fabricante || null)
 
-  const inverterModelo = pickFirstText(vendaFormResumo?.modelo_inversor, parsedPdfResumo?.modelo_inversor, inverterModeloCatalogo)
-  const moduleModelo = pickFirstText(vendaFormResumo?.modelo_modulo, parsedPdfResumo?.modelo_modulo, moduleModeloCatalogo)
+  const inverterModelo = pickFirstText(
+    snapshotConfig?.modelo_inversor,
+    vendaFormResumo?.modelo_inversor,
+    parsedPdfResumo?.modelo_inversor,
+    inverterModeloCatalogo,
+  )
+  const moduleModelo = pickFirstText(
+    snapshotConfig?.modelo_modulo,
+    vendaFormResumo?.modelo_modulo,
+    parsedPdfResumo?.modelo_modulo,
+    moduleModeloCatalogo,
+  )
 
   const inverterQuantidade = pickPositive(inverterQuantidadeCatalogo)
   const moduleQuantidade = pickPositive(kitQuantidadeModulos, moduleQuantidadeCatalogo)
@@ -243,6 +266,7 @@ function PrintableProposalInner(
   }
 
   const potenciaModuloDetalhe = pickPositive(
+    snapshotConfig?.potencia_modulo_wp,
     parsedPdfResumo?.potencia_da_placa_wp,
     potenciaModuloProp,
   )
@@ -264,13 +288,19 @@ function PrintableProposalInner(
   }
 
   const tarifaProjeto = pickPositive(
+    snapshotParametros?.tarifa_r_kwh,
     vendaFormResumo?.tarifa_cheia_r_kwh,
     parsedPdfResumo?.tarifa_cheia_r_kwh,
     tarifaCheia,
   )
 
+  const autonomiaSnapshotPct =
+    typeof snapshotResultados?.autonomia_frac === 'number' && snapshotResultados.autonomia_frac > 0
+      ? snapshotResultados.autonomia_frac * 100
+      : null
   const autonomiaPct =
-    kitGeracao && kitConsumo && kitGeracao > 0 && kitConsumo > 0 ? (kitGeracao / kitConsumo) * 100 : null
+    autonomiaSnapshotPct ??
+    (kitGeracao && kitConsumo && kitGeracao > 0 && kitConsumo > 0 ? (kitGeracao / kitConsumo) * 100 : null)
   const autonomiaLabel =
     Number.isFinite(autonomiaPct) && (autonomiaPct ?? 0) > 0
       ? formatPercentBRWithDigits((autonomiaPct ?? 0) / 100, 1)
@@ -303,7 +333,8 @@ function PrintableProposalInner(
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
   const mostrarDetalhamento = detalhamentoCampos.length > 0
-  const distribuidoraTarifaLabel = distribuidoraTarifa?.trim() || ''
+  const distribuidoraTarifaLabel =
+    distribuidoraTarifa?.trim() || snapshotParametros?.distribuidora?.trim() || ''
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : ''
   const codigoOrcamento = budgetId?.trim() || ''
   const emailCliente = cliente.email?.trim() || ''
@@ -312,16 +343,18 @@ function PrintableProposalInner(
   const cidadeCliente = cliente.cidade?.trim() || ''
   const ufCliente = cliente.uf?.trim() || ''
   const enderecoCliente = cliente.endereco?.trim() || ''
-  const tarifaCheiaResumo = tarifaCheia > 0 ? tarifaCurrency(tarifaCheia) : '—'
+  const tarifaCheiaValor = pickPositive(snapshotParametros?.tarifa_r_kwh, tarifaCheia)
+  const tarifaCheiaResumo = tarifaCheiaValor ? tarifaCurrency(tarifaCheiaValor) : '—'
   const descontoResumo =
     !isVendaDireta && Number.isFinite(descontoContratualPct)
       ? formatPercentBR((descontoContratualPct ?? 0) / 100)
       : '—'
+  const condicaoFonte =
+    (snapshotPagamento?.forma_pagamento as 'AVISTA' | 'PARCELADO' | 'FINANCIAMENTO' | undefined) ??
+    vendaFormResumo?.condicao ??
+    null
   const condicaoLabel = (() => {
-    if (!vendaFormResumo) {
-      return '—'
-    }
-    switch (vendaFormResumo.condicao) {
+    switch (condicaoFonte) {
       case 'AVISTA':
         return 'À vista'
       case 'PARCELADO':
@@ -332,9 +365,9 @@ function PrintableProposalInner(
         return '—'
     }
   })()
-  const isCondicaoAvista = vendaFormResumo?.condicao === 'AVISTA'
-  const isCondicaoParcelado = vendaFormResumo?.condicao === 'PARCELADO'
-  const isCondicaoFinanciamento = vendaFormResumo?.condicao === 'FINANCIAMENTO'
+  const isCondicaoAvista = condicaoFonte === 'AVISTA'
+  const isCondicaoParcelado = condicaoFonte === 'PARCELADO'
+  const isCondicaoFinanciamento = condicaoFonte === 'FINANCIAMENTO'
   const modoPagamentoTipo = vendaFormResumo?.modo_pagamento ?? 'PIX'
   const modoPagamentoLabel =
     isCondicaoAvista
@@ -345,35 +378,47 @@ function PrintableProposalInner(
         : 'Cartão de crédito'
       : null
   const formaPagamentoLabel = (() => {
-    if (!vendaFormResumo) {
-      return '—'
-    }
     if (isCondicaoAvista && modoPagamentoLabel) {
       return `${condicaoLabel} • ${modoPagamentoLabel}`
     }
     return condicaoLabel
   })()
-  const consumoResumo = formatKwhMes(vendaFormResumo?.consumo_kwh_mes)
-  const tarifaInicialResumo = Number.isFinite(vendaFormResumo?.tarifa_cheia_r_kwh)
-    ? tarifaCurrency(vendaFormResumo?.tarifa_cheia_r_kwh ?? 0)
-    : tarifaCheiaResumo
-  const inflacaoResumo = formatPercentFromPct(vendaFormResumo?.inflacao_energia_aa_pct)
-  const taxaMinimaResumo = Number.isFinite(vendaFormResumo?.taxa_minima_mensal)
+  const consumoResumo = formatKwhMes(snapshotParametros?.consumo_kwh_mes ?? vendaFormResumo?.consumo_kwh_mes)
+  const tarifaInicialResumo = (() => {
+    const valor = pickPositive(snapshotParametros?.tarifa_r_kwh, vendaFormResumo?.tarifa_cheia_r_kwh)
+    return Number.isFinite(valor) && (valor ?? 0) > 0 ? tarifaCurrency(valor ?? 0) : tarifaCheiaResumo
+  })()
+  const inflacaoResumo = formatPercentFromPct(
+    snapshotParametros?.inflacao_energia_aa ?? vendaFormResumo?.inflacao_energia_aa_pct,
+  )
+  const taxaMinimaResumo = Number.isFinite(snapshotParametros?.taxa_minima_rs_mes)
+    ? currency(snapshotParametros?.taxa_minima_rs_mes ?? 0)
+    : Number.isFinite(vendaFormResumo?.taxa_minima_mensal)
     ? currency(vendaFormResumo?.taxa_minima_mensal ?? 0)
     : '—'
   const iluminacaoPublicaResumo = Number.isFinite(vendaFormResumo?.taxa_minima_r_mes)
     ? currency(vendaFormResumo?.taxa_minima_r_mes ?? 0)
     : '—'
-  const horizonteAnaliseResumo = formatMeses(vendaFormResumo?.horizonte_meses)
-  const taxaDescontoResumo = Number.isFinite(vendaFormResumo?.taxa_desconto_aa_pct)
+  const horizonteAnaliseResumo = formatMeses(snapshotParametros?.horizonte_meses ?? vendaFormResumo?.horizonte_meses)
+  const taxaDescontoResumo = Number.isFinite(snapshotParametros?.taxa_desconto_aa)
+    ? formatPercentFromPct(snapshotParametros?.taxa_desconto_aa)
+    : Number.isFinite(vendaFormResumo?.taxa_desconto_aa_pct)
     ? formatPercentFromPct(vendaFormResumo?.taxa_desconto_aa_pct)
     : null
   const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
   const jurosCartaoAmResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_am_pct)
   const jurosCartaoAaResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_aa_pct)
-  const mdrPixResumo = formatPercentFromPct(vendaFormResumo?.taxa_mdr_pix_pct)
-  const mdrDebitoResumo = formatPercentFromPct(vendaFormResumo?.taxa_mdr_debito_pct)
-  const mdrCreditoVistaResumo = formatPercentFromPct(vendaFormResumo?.taxa_mdr_credito_vista_pct)
+  const mdrPixResumo = formatPercentFromPct(
+    Number.isFinite(snapshotPagamento?.mdr_pix) ? snapshotPagamento?.mdr_pix : vendaFormResumo?.taxa_mdr_pix_pct,
+  )
+  const mdrDebitoResumo = formatPercentFromPct(
+    Number.isFinite(snapshotPagamento?.mdr_debito) ? snapshotPagamento?.mdr_debito : vendaFormResumo?.taxa_mdr_debito_pct,
+  )
+  const mdrCreditoVistaResumo = formatPercentFromPct(
+    Number.isFinite(snapshotPagamento?.mdr_credito_avista)
+      ? snapshotPagamento?.mdr_credito_avista
+      : vendaFormResumo?.taxa_mdr_credito_vista_pct,
+  )
   const mdrCreditoParceladoResumo = formatPercentFromPct(
     vendaFormResumo?.taxa_mdr_credito_parcelado_pct,
   )
@@ -392,15 +437,18 @@ function PrintableProposalInner(
   const parcelasFinResumo = formatParcelas(vendaFormResumo?.n_parcelas_fin)
   const jurosFinAmResumo = formatPercentFromPct(vendaFormResumo?.juros_fin_am_pct)
   const jurosFinAaResumo = formatPercentFromPct(vendaFormResumo?.juros_fin_aa_pct)
-  const paybackLabelResumo = retornoVenda?.payback
-    ? `${retornoVenda.payback} meses`
-    : 'Não atingido em 30 anos'
-  const roiLabelResumo = retornoVenda
+  const paybackValor = snapshotResultados?.payback_meses ?? retornoVenda?.payback ?? null
+  const paybackLabelResumo =
+    Number.isFinite(paybackValor) && (paybackValor ?? 0) > 0
+      ? `${Math.round(paybackValor ?? 0)} meses`
+      : 'Não atingido em 30 anos'
+  const roiValor = snapshotResultados?.roi_acumulado_30a ?? retornoVenda?.roi ?? null
+  const roiLabelResumo = Number.isFinite(roiValor)
     ? new Intl.NumberFormat('pt-BR', {
         style: 'percent',
         minimumFractionDigits: 1,
         maximumFractionDigits: 1,
-      }).format(retornoVenda.roi)
+      }).format(roiValor ?? 0)
     : '—'
   const vplResumo = typeof retornoVenda?.vpl === 'number' ? currency(retornoVenda.vpl) : '—'
   const roiHorizonteResumo = isVendaDireta
@@ -416,11 +464,17 @@ function PrintableProposalInner(
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
   const validadePropostaLabel =
-    sanitizeTextField(vendaFormResumo?.validade_proposta) ?? `${validadeTexto} (15 dias corridos)`
+    sanitizeTextField(snapshotPagamento?.validade_proposta_txt) ??
+    sanitizeTextField(vendaFormResumo?.validade_proposta) ??
+    `${validadeTexto} (15 dias corridos)`
   const prazoExecucaoLabel =
-    sanitizeTextField(vendaFormResumo?.prazo_execucao) ?? 'Sob consulta'
+    sanitizeTextField(snapshotPagamento?.prazo_execucao_txt) ??
+    sanitizeTextField(vendaFormResumo?.prazo_execucao) ??
+    'Sob consulta'
   const condicoesAdicionaisLabel =
-    sanitizeTextField(vendaFormResumo?.condicoes_adicionais) ?? '—'
+    sanitizeTextField(snapshotPagamento?.condicoes_adicionais_txt) ??
+    sanitizeTextField(vendaFormResumo?.condicoes_adicionais) ??
+    '—'
   const heroTitle = isVendaDireta ? 'Proposta de Venda Solar' : 'Proposta de Leasing Solar'
   const heroTagline = isVendaDireta
     ? 'Energia inteligente, patrimônio garantido'
@@ -609,36 +663,88 @@ function PrintableProposalInner(
           </thead>
           <tbody>
             {(() => {
-              const itens: { label: string; valor: number | null }[] = []
+              const linhas: { label: string; valor: number }[] = []
+              if (snapshotComposicao) {
+                const pushValor = (label: string, valor: number | null | undefined) => {
+                  if (Number.isFinite(valor) && (valor ?? 0) > 0) {
+                    linhas.push({ label, valor: Number(valor) })
+                  }
+                }
+                const valorKit = Number.isFinite(vendaSnapshot?.orcamento.valor_total_orcamento)
+                  ? Number(vendaSnapshot?.orcamento.valor_total_orcamento)
+                  : null
+                if (valorKit && valorKit > 0) {
+                  linhas.push({ label: 'Kit Fotovoltaico (referência)', valor: valorKit })
+                }
+                pushValor('Projeto', snapshotComposicao.projeto)
+                pushValor('Instalação', snapshotComposicao.instalacao)
+                pushValor('Material CA', snapshotComposicao.material_ca)
+                pushValor('ART', snapshotComposicao.art)
+                pushValor('CREA', snapshotComposicao.crea)
+                pushValor('Placa', snapshotComposicao.placa)
+                pushValor('OPEX', snapshotComposicao.opex)
+                pushValor('Comissão líquida', snapshotComposicao.comissao_liquida)
+                pushValor('Margem Operacional', snapshotComposicao.margem_operacional)
+                pushValor('Imposto retido', snapshotComposicao.imposto_retido)
+
+                const totalCapex = vendaSnapshot ? calculateCapexFromState(vendaSnapshot) : 0
+                const linhasRender = linhas.map((item) => (
+                  <tr key={item.label}>
+                    <td>{item.label}</td>
+                    <td>{currency(item.valor)}</td>
+                  </tr>
+                ))
+
+                linhasRender.push(
+                  <tr key="total-capex">
+                    <td>TOTAL CAPEX</td>
+                    <td>{totalCapex > 0 ? currency(totalCapex) : '—'}</td>
+                  </tr>,
+                )
+
+                return linhasRender
+              }
+
               const composicaoAtual = composicaoUfv ?? null
-              const tipoResumo = composicaoAtual?.tipoAtual ?? tipoInstalacao
+              if (!composicaoAtual) {
+                return [
+                  <tr key="total-capex">
+                    <td>TOTAL CAPEX</td>
+                    <td>—</td>
+                  </tr>,
+                ]
+              }
+
+              const itens: { label: string; valor: number }[] = []
               const pushIfPositivo = (label: string, valor: number | null | undefined) => {
                 if (Number.isFinite(valor) && (valor ?? 0) > 0) {
                   itens.push({ label, valor: Number(valor) })
                 }
               }
-
-              const kitValor = Number.isFinite(composicaoAtual?.valorOrcamento)
-                ? Number(composicaoAtual?.valorOrcamento)
+              const tipoResumo = composicaoAtual.tipoAtual ?? tipoInstalacao
+              const kitValor = Number.isFinite(composicaoAtual.valorOrcamento)
+                ? Number(composicaoAtual.valorOrcamento)
                 : null
-              if (Number.isFinite(kitValor) && (kitValor ?? 0) > 0) {
-                itens.push({ label: 'Kit Fotovoltaico', valor: kitValor ?? null })
+              if (kitValor && kitValor > 0) {
+                itens.push({ label: 'Kit Fotovoltaico (referência)', valor: kitValor })
               }
-
               if (tipoResumo === 'TELHADO') {
-                const telhadoValores = composicaoAtual?.telhado
+                const telhadoValores = composicaoAtual.telhado
                 pushIfPositivo('Projeto', telhadoValores?.projeto)
                 pushIfPositivo('Instalação', telhadoValores?.instalacao)
-                pushIfPositivo('ART', (telhadoValores as { art?: number })?.art ?? null)
                 pushIfPositivo('Material CA', telhadoValores?.materialCa)
+                pushIfPositivo('ART', (telhadoValores as { art?: number })?.art ?? null)
                 pushIfPositivo('CREA', telhadoValores?.crea)
                 pushIfPositivo('Placa', telhadoValores?.placa)
+                pushIfPositivo('Comissão líquida', telhadoValores?.comissaoLiquida)
+                pushIfPositivo('Margem Operacional', telhadoValores?.lucroBruto)
+                pushIfPositivo('Imposto retido', telhadoValores?.impostoRetido)
               } else {
-                const soloValores = composicaoAtual?.solo
+                const soloValores = composicaoAtual.solo
                 pushIfPositivo('Projeto', soloValores?.projeto)
                 pushIfPositivo('Instalação', soloValores?.instalacao)
-                pushIfPositivo('ART', (soloValores as { art?: number })?.art ?? null)
                 pushIfPositivo('Material CA', soloValores?.materialCa)
+                pushIfPositivo('ART', (soloValores as { art?: number })?.art ?? null)
                 pushIfPositivo('CREA', soloValores?.crea)
                 pushIfPositivo('Placa', soloValores?.placa)
                 pushIfPositivo('TELA', soloValores?.tela)
@@ -648,53 +754,23 @@ function PrintableProposalInner(
                 pushIfPositivo('TRAFO', soloValores?.trafo)
                 pushIfPositivo('BRITA', soloValores?.brita)
                 pushIfPositivo('TERRAPLANAGEM', soloValores?.terraplanagem)
+                pushIfPositivo('Comissão líquida', soloValores?.comissaoLiquida)
+                pushIfPositivo('Margem Operacional', soloValores?.lucroBruto)
+                pushIfPositivo('Imposto retido', soloValores?.impostoRetido)
               }
-
-              const subtotal = itens.reduce((acc, item) => acc + (item.valor ?? 0), 0)
-              const totalCapex = subtotal > 0 ? subtotal / 0.995 : null
-              const opex = totalCapex ? totalCapex * 0.005 : null
-              const margemOperacional = (() => {
-                if (!composicaoAtual) {
-                  return null
-                }
-                const margemOrigem =
-                  tipoResumo === 'TELHADO'
-                    ? composicaoAtual.telhado?.lucroBruto
-                    : composicaoAtual.solo?.lucroBruto
-                return Number.isFinite(margemOrigem) ? Number(margemOrigem) : null
-              })()
-
-              if (Number.isFinite(opex) && (opex ?? 0) > 0) {
-                itens.push({ label: 'OPEX', valor: opex ?? null })
-              }
-
-              if (Number.isFinite(margemOperacional) && (margemOperacional ?? 0) > 0) {
-                itens.push({ label: 'Margem Operacional', valor: margemOperacional ?? null })
-              }
-
+              const subtotal = itens.reduce((acc, item) => acc + item.valor, 0)
               const linhasRender = itens.map((item) => (
                 <tr key={item.label}>
                   <td>{item.label}</td>
-                  <td>{currency(item.valor ?? 0)}</td>
+                  <td>{currency(item.valor)}</td>
                 </tr>
               ))
-
               linhasRender.push(
                 <tr key="total-capex">
                   <td>TOTAL CAPEX</td>
-                  <td>{Number.isFinite(totalCapex) && (totalCapex ?? 0) > 0 ? currency(totalCapex ?? 0) : '—'}</td>
+                  <td>{subtotal > 0 ? currency(subtotal) : '—'}</td>
                 </tr>,
               )
-
-              if (linhasRender.length === 1) {
-                return [
-                  <tr key="total-capex">
-                    <td>TOTAL CAPEX</td>
-                    <td>—</td>
-                  </tr>,
-                ]
-              }
-
               return linhasRender
             })()}
           </tbody>
@@ -704,7 +780,7 @@ function PrintableProposalInner(
       {isVendaDireta ? (
         <section className="print-section">
           <h2>Condições Comerciais e de Pagamento</h2>
-          {vendaFormResumo ? (
+          {snapshotPagamento || vendaFormResumo ? (
             <>
               <table className="print-table">
                 <thead>
@@ -831,7 +907,7 @@ function PrintableProposalInner(
       {isVendaDireta ? (
         <section className="print-section">
           <h2>{isVendaDireta ? 'Retorno Financeiro (Venda)' : 'Retorno projetado'}</h2>
-          {retornoVenda ? (
+          {snapshotResultados || retornoVenda ? (
             <div className="print-kpi-grid">
               <div className="print-kpi">
                 <span>Payback estimado</span>
@@ -841,7 +917,7 @@ function PrintableProposalInner(
                 <span>ROI acumulado ({roiHorizonteResumo})</span>
                 <strong>{roiLabelResumo}</strong>
               </div>
-              {typeof retornoVenda.vpl === 'number' ? (
+              {typeof retornoVenda?.vpl === 'number' ? (
                 <div className="print-kpi">
                   <span>VPL</span>
                   <strong>{vplResumo}</strong>
