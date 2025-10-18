@@ -5,7 +5,6 @@ import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils
 import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
-import { calculateCapexFromState } from '../../store/useVendaStore'
 
 const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
   Leasing: '#2563EB',
@@ -687,7 +686,7 @@ function PrintableProposalInner(
                 pushValor('Margem Operacional', snapshotComposicao.margem_operacional)
                 pushValor('Imposto retido', snapshotComposicao.imposto_retido)
 
-                const totalCapex = vendaSnapshot ? calculateCapexFromState(vendaSnapshot) : 0
+                const subtotal = linhas.reduce((acc, item) => acc + item.valor, 0)
                 const linhasRender = linhas.map((item) => (
                   <tr key={item.label}>
                     <td>{item.label}</td>
@@ -698,7 +697,7 @@ function PrintableProposalInner(
                 linhasRender.push(
                   <tr key="total-capex">
                     <td>Investimento Total do Projeto</td>
-                    <td>{totalCapex > 0 ? currency(totalCapex) : '—'}</td>
+                    <td>{subtotal > 0 ? currency(subtotal) : '—'}</td>
                   </tr>,
                 )
 
