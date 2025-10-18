@@ -1,5 +1,16 @@
 import React, { useMemo } from 'react'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  CartesianGrid,
+  Defs,
+  Line,
+  LineChart,
+  LinearGradient,
+  ResponsiveContainer,
+  Stop,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
 import './styles/proposal-leasing.css'
 import { currency, formatAxis, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
@@ -158,11 +169,11 @@ function PrintableProposalLeasingInner(
       value: tarifaCheiaBase > 0 ? tarifaCurrency(tarifaCheiaBase) : '—',
     },
     {
-      label: 'Desconto aplicado',
+      label: 'Desconto aplicado (%)',
       value: toDisplayPercent(descontoContratualPct),
     },
     {
-      label: 'Valor da instalação para o cliente',
+      label: 'Valor da instalação para o cliente (R$)',
       value: currency(valorInstalacaoCliente),
     },
     {
@@ -175,16 +186,12 @@ function PrintableProposalLeasingInner(
         'Operação, manutenção, suporte técnico, limpeza e seguro integral da usina durante o contrato.',
     },
     {
-      label: 'Investimento da SolarInvest',
+      label: 'Investimento da SolarInvest (R$)',
       value: capex > 0 ? currency(capex) : '—',
     },
     {
       label: 'Geração estimada (kWh/mês)',
       value: formatKwhMes(geracaoMensalKwh),
-    },
-    {
-      label: 'Energia contratada (kWh/mês)',
-      value: formatKwhMes(energiaContratadaKwh),
     },
     {
       label: 'Potência da placa (Wp)',
@@ -219,7 +226,7 @@ function PrintableProposalLeasingInner(
       value: tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado',
     },
     {
-      label: 'Valor de mercado projetado',
+      label: 'Valor de mercado projetado (R$)',
       value: valorMercadoProjetado > 0 ? currency(valorMercadoProjetado) : '—',
     },
   ]
@@ -315,21 +322,17 @@ function PrintableProposalLeasingInner(
 
   return (
     <div ref={ref} className="leasing-print-layout">
-      <header className="leasing-hero">
-        <div className="leasing-hero__head">
-          <div className="leasing-hero__brand">
-            <div className="leasing-hero__logo">
-              <img src="/logo.svg" alt="SolarInvest" />
-            </div>
-            <div className="leasing-hero__title">
-              <span className="leasing-hero__eyebrow">SolarInvest</span>
-              <h1>Proposta de Leasing Solar</h1>
-              <p>Energia inteligente, sem desembolso</p>
-            </div>
+      <header className="leasing-header">
+        <div className="leasing-header__branding">
+          <img src="/logo.svg" alt="SolarInvest" className="leasing-header__logo" />
+          <div>
+            <p className="leasing-header__eyebrow">SOLARINVEST</p>
+            <h1>SOLARINVEST — Proposta de Leasing Solar</h1>
+            <p className="leasing-header__subtitle">Energia inteligente, sem desembolso</p>
           </div>
         </div>
-        <div className="leasing-hero__summary">
-          <h2>Sumário Executivo</h2>
+        <div className="leasing-summary">
+          <h2>SUMÁRIO EXECUTIVO</h2>
           <p>
             Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest.
             Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem
@@ -340,27 +343,29 @@ function PrintableProposalLeasingInner(
       </header>
 
       <section className="leasing-section">
-        <h2>Identificação do Cliente</h2>
+        <h2>IDENTIFICAÇÃO DO CLIENTE</h2>
         <ClientInfoGrid fields={resumoCampos} />
       </section>
 
       <section className="leasing-section">
-        <h2>Quadro Comercial Resumido</h2>
-        <div className="leasing-summary-grid">
-          {quadroComercial.map((item) => (
-            <div key={item.label} className="leasing-summary-item">
-              <strong>{item.label}</strong>
-              <span>{item.value}</span>
-            </div>
-          ))}
-        </div>
+        <h2>QUADRO COMERCIAL RESUMIDO</h2>
+        <table className="leasing-commercial-table">
+          <tbody>
+            {quadroComercial.map((item) => (
+              <tr key={item.label}>
+                <th scope="row">{item.label}</th>
+                <td>{item.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       <section className="leasing-section">
-        <h2>Resumo Técnico e Financeiro</h2>
-        <div className="leasing-grid-two">
-          <div className="leasing-card">
-            <h3>Dados técnicos</h3>
+        <h2>RESUMO TÉCNICO E FINANCEIRO</h2>
+        <div className="leasing-dual-cards">
+          <div className="leasing-dual-card">
+            <h3>DADOS TÉCNICOS</h3>
             <dl>
               {resumoTecnico.map((item) => (
                 <React.Fragment key={item.label}>
@@ -370,8 +375,8 @@ function PrintableProposalLeasingInner(
               ))}
             </dl>
           </div>
-          <div className="leasing-card">
-            <h3>Dados financeiros</h3>
+          <div className="leasing-dual-card">
+            <h3>DADOS FINANCEIROS</h3>
             <dl>
               {resumoFinanceiro.map((item) => (
                 <React.Fragment key={item.label}>
@@ -385,21 +390,21 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="leasing-section">
-        <h2>Mensalidades por Ano</h2>
+        <h2>MENSALIDADES POR ANO</h2>
         <table className="leasing-table">
           <thead>
             <tr>
-              <th>Ano</th>
+              <th>Período</th>
               <th>Tarifa cheia média</th>
               <th>Tarifa com desconto média</th>
-              <th>Conta distribuidora</th>
-              <th>Mensalidade SolarInvest</th>
+              <th>Conta distribuidora (R$)</th>
+              <th>Mensalidade SolarInvest (R$)</th>
             </tr>
           </thead>
           <tbody>
             {mensalidadesPorAno.map((linha) => (
               <tr key={`mensalidade-${linha.ano}`}>
-                <td>{linha.ano}º</td>
+                <td>{`${linha.ano}º ano`}</td>
                 <td>{tarifaCurrency(linha.tarifaCheiaAno)}</td>
                 <td>{tarifaCurrency(linha.tarifaComDesconto)}</td>
                 <td>{currency(linha.contaDistribuidora)}</td>
@@ -411,80 +416,97 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="leasing-section">
-        <h2>Economia Projetada (30 anos)</h2>
-        <div className="leasing-economia-chart">
-          <ResponsiveContainer height={240}>
-            <LineChart data={economiaChartData} margin={{ top: 12, right: 24, bottom: 4, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(30, 64, 175, 0.25)" />
-              <XAxis dataKey="ano" stroke="#1e40af" tickLine={false} axisLine={false} />
-              <YAxis tickFormatter={formatAxis} stroke="#1e40af" axisLine={false} tickLine={false} />
+        <h2>ECONOMIA PROJETADA (30 ANOS)</h2>
+        <div className="leasing-economia">
+          <ResponsiveContainer height={260}>
+            <LineChart data={economiaChartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="leasing-economia-gradient" x1="0" y1="0" x2="1" y2="1">
+                  <Stop offset="0%" stopColor="#004F9E" stopOpacity={1} />
+                  <Stop offset="100%" stopColor="#33BFFF" stopOpacity={1} />
+                </LinearGradient>
+              </Defs>
+              <CartesianGrid stroke="rgba(0, 79, 158, 0.12)" strokeDasharray="4 4" />
+              <XAxis dataKey="ano" stroke="#004F9E" tickLine={false} axisLine={false} />
+              <YAxis
+                tickFormatter={formatAxis}
+                stroke="#004F9E"
+                axisLine={false}
+                tickLine={false}
+                width={90}
+              />
               <Tooltip formatter={(value: number) => currency(value)} labelFormatter={(label) => `Ano ${label}`} />
               <Line
                 type="monotone"
                 dataKey="beneficio"
-                stroke="#2563eb"
+                stroke="url(#leasing-economia-gradient)"
                 strokeWidth={3}
-                dot={{ r: 4, strokeWidth: 2, stroke: '#1e3a8a', fill: '#bfdbfe' }}
-                activeDot={{ r: 6, strokeWidth: 2, stroke: '#1d4ed8', fill: '#eff6ff' }}
+                dot={{ r: 4, strokeWidth: 2, stroke: '#004F9E', fill: '#ffffff' }}
+                activeDot={{ r: 6, strokeWidth: 2, stroke: '#004F9E', fill: '#E0F2FE' }}
               />
             </LineChart>
           </ResponsiveContainer>
           <div className="leasing-economia-table">
-            {economiaProjetada.map((item) => (
-              <div key={`economia-${item.ano}`}>
-                <span>{item.ano}º ano</span>
-                <strong>{currency(item.acumulado)}</strong>
-                <small>{`Economia no ano: ${currency(item.economiaAnual)}`}</small>
-              </div>
-            ))}
+            {ECONOMIA_MARCOS.map((ano) => {
+              const row = economiaProjetada.find((item) => item.ano === ano)
+              return (
+                <div key={`economia-${ano}`}>
+                  <span>{`${ano}º ano`}</span>
+                  <strong>{row ? currency(row.acumulado) : '—'}</strong>
+                  {row ? <small>{`Economia no ano: ${currency(row.economiaAnual)}`}</small> : <small>—</small>}
+                </div>
+              )
+            })}
           </div>
+          <p className="leasing-economia__note">
+            Economia que cresce ano após ano. Em 30 anos, a SolarInvest projeta um benefício acumulado
+            de R$ 1.394.294,71 comparado à concessionária. Essa trajetória considera os reajustes anuais
+            de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.
+          </p>
         </div>
       </section>
 
       <section className="leasing-section">
-        <h2>Informações Importantes</h2>
+        <h2>INFORMAÇÕES IMPORTANTES</h2>
         <div className="leasing-info-list">
           <p>Desconto contratual aplicado: {descontoInformativo} sobre a tarifa da distribuidora.</p>
-          <p>Prazo de vigência: conforme especificado na proposta ({prazoInformativo}).</p>
+          <p>Prazo de vigência: conforme especificado na proposta (ex.: {prazoInformativo}).</p>
           <p>Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.</p>
           <p>
             Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e
-            seguro sinistro da usina.
+            seguro.
           </p>
-          <p>
-            Transferência da usina ao cliente ao final do contrato sem custo adicional, desde que
-            obrigações contratuais estejam cumpridas.
-          </p>
+          <p>Transferência da usina ao cliente ao final do contrato sem custo adicional.</p>
           <p>Tabela de compra antecipada disponível mediante solicitação.</p>
           <p>Equipamentos utilizados possuem certificação INMETRO.</p>
           <p>
-            Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer ajustes
-            no contrato definitivo.
+            Os valores apresentados são estimativas preliminares e poderão sofrer ajustes no contrato
+            definitivo.
           </p>
           <p>
-            Agende uma visita técnica gratuita com nossa equipe para confirmar a viabilidade e
-            formalizar a proposta definitiva.
+            Agende uma visita técnica gratuita para confirmar a viabilidade e formalizar a proposta
+            definitiva.
           </p>
         </div>
       </section>
 
-      <section className="leasing-section">
-        <div className="leasing-footer">
-          <div className="leasing-footer__info">
-            <span>Data de emissão: {formatDate(emissaoData)}</span>
-            <span>Validade da proposta: {formatDate(validadeData)}</span>
-          </div>
-          <div className="leasing-footer__signature">
-            <strong>Vamos avançar?</strong>
-            <div className="leasing-signature-line" />
-            <span>Assinatura do cliente</span>
-          </div>
+      <section className="leasing-section leasing-signature">
+        <div className="leasing-signature__dates">
+          <span>Data de emissão: {formatDate(emissaoData)}</span>
+          <span>Validade da proposta: 15 dias corridos</span>
+        </div>
+        <div className="leasing-signature__line">
+          <span>Vamos avançar?</span>
+          <div className="leasing-signature__stroke" />
+          <small>Assinatura do cliente</small>
         </div>
       </section>
 
-      <footer className="leasing-brand-footer">
-        <strong>Energia inteligente, sem desembolso</strong>
-        <span>CNPJ: 60.434.015/0001-90</span>
+      <footer className="leasing-footer">
+        <p>SolarInvest</p>
+        <p>CNPJ: 60.434.015/0001-90</p>
+        <p>Energia inteligente, sem desembolso</p>
+        <p>Vamos avançar?</p>
       </footer>
     </div>
   )
