@@ -1379,7 +1379,8 @@ export default function App() {
   )
   const [mesReajuste, setMesReajuste] = useState(INITIAL_VALUES.mesReajuste)
 
-  const [kcKwhMes, setKcKwhMes] = useState(INITIAL_VALUES.kcKwhMes)
+  const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
+  const [consumoManual, setConsumoManual] = useState(false)
   const [tarifaCheia, setTarifaCheia] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
   const [taxaMinima, setTaxaMinima] = useState(INITIAL_VALUES.taxaMinima)
@@ -1406,6 +1407,16 @@ export default function App() {
     createInitialComposicaoSolo(),
   )
   const consumoAnteriorRef = useRef(kcKwhMes)
+
+  const setKcKwhMes = useCallback(
+    (value: number, origin: 'auto' | 'user' = 'auto') => {
+      const normalized = Number.isFinite(value) ? Math.max(0, value) : 0
+      setConsumoManual(origin === 'user')
+      setKcKwhMesState(normalized)
+      return normalized
+    },
+    [setConsumoManual, setKcKwhMesState],
+  )
 
   const [cliente, setCliente] = useState<ClienteDados>({ ...CLIENTE_INICIAL })
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
@@ -3055,7 +3066,10 @@ export default function App() {
         changed = true
       }
 
-      if (!numbersAreClose(prev.consumo_kwh_mes, geracaoNormalizadaAuto, 0.05)) {
+      if (
+        !consumoManual &&
+        !numbersAreClose(prev.consumo_kwh_mes, geracaoNormalizadaAuto, 0.05)
+      ) {
         updates.consumo_kwh_mes = geracaoNormalizadaAuto
         consumoAtualizado = true
         changed = true
@@ -3089,6 +3103,7 @@ export default function App() {
       })
     }
   }, [
+    consumoManual,
     vendaAutoPotenciaKwp,
     vendaForm.potencia_instalada_kwp,
     vendaGeracaoParametros,
@@ -7178,7 +7193,7 @@ export default function App() {
           <input
             type="number"
             value={kcKwhMes}
-            onChange={(e) => setKcKwhMes(Number(e.target.value) || 0)}
+            onChange={(e) => setKcKwhMes(Number(e.target.value) || 0, 'user')}
             onFocus={selectNumberInputOnFocus}
           />
         </Field>
@@ -7422,7 +7437,7 @@ export default function App() {
             onChange={(event) => {
               const parsed = Number(event.target.value)
               const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setKcKwhMes(normalized)
+              setKcKwhMes(normalized, 'user')
               applyVendaUpdates({ consumo_kwh_mes: normalized })
             }}
             onFocus={selectNumberInputOnFocus}
