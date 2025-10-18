@@ -66,6 +66,12 @@ import {
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { ensureProposalId, makeProposalId } from './lib/ids'
+import {
+  calculateCapexFromState,
+  getVendaSnapshot,
+  vendaActions,
+  type VendaKitItem,
+} from './store/useVendaStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
 import { AppRoutes } from './app/Routes'
@@ -1406,6 +1412,20 @@ export default function App() {
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const [isClientesModalOpen, setIsClientesModalOpen] = useState(false)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+
+  useEffect(() => {
+    vendaActions.updateCliente({
+      nome: cliente.nome ?? '',
+      documento: cliente.documento ?? '',
+      email: cliente.email ?? '',
+      telefone: cliente.telefone ?? '',
+      cidade: cliente.cidade ?? '',
+      uf: cliente.uf ?? '',
+      endereco: cliente.endereco ?? '',
+      uc: cliente.uc ?? '',
+      distribuidora: cliente.distribuidora ?? '',
+    })
+  }, [cliente])
   const [verificandoCidade, setVerificandoCidade] = useState(false)
   const [buscandoCep, setBuscandoCep] = useState(false)
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
@@ -1790,6 +1810,13 @@ export default function App() {
       setRetornoStatus('idle')
     }
   }, [validateVendaForm, vendaForm])
+
+  useEffect(() => {
+    vendaActions.updateResultados({
+      payback_meses: retornoProjetado?.payback ?? null,
+      roi_acumulado_30a: retornoProjetado ? retornoProjetado.roi : null,
+    })
+  }, [retornoProjetado])
 
   const applyVendaUpdates = useCallback(
     (updates: Partial<VendaForm>) => {
@@ -2778,6 +2805,163 @@ export default function App() {
   }, [baseIrradiacao, diasMesNormalizado, eficienciaNormalizada, potenciaInstaladaKwp])
 
   useEffect(() => {
+    const consumo = Number.isFinite(vendaForm.consumo_kwh_mes)
+      ? Number(vendaForm.consumo_kwh_mes)
+      : kcKwhMes
+    const tarifaAtual = Number.isFinite(vendaForm.tarifa_r_kwh)
+      ? Number(vendaForm.tarifa_r_kwh)
+      : tarifaCheia
+    const inflacaoEnergia = Number.isFinite(vendaForm.inflacao_energia_aa_pct)
+      ? Number(vendaForm.inflacao_energia_aa_pct)
+      : inflacaoAa
+    const taxaMinimaEnergia = Number.isFinite(vendaForm.taxa_minima_r_mes)
+      ? Number(vendaForm.taxa_minima_r_mes)
+      : taxaMinima
+    const taxaDesconto = Number.isFinite(vendaForm.taxa_desconto_aa_pct)
+      ? Number(vendaForm.taxa_desconto_aa_pct)
+      : 0
+
+    vendaActions.updateParametros({
+      consumo_kwh_mes: consumo > 0 ? consumo : 0,
+      tarifa_r_kwh: tarifaAtual > 0 ? tarifaAtual : 0,
+      inflacao_energia_aa: inflacaoEnergia > 0 ? inflacaoEnergia : 0,
+      taxa_minima_rs_mes: taxaMinimaEnergia > 0 ? taxaMinimaEnergia : 0,
+      taxa_desconto_aa: taxaDesconto > 0 ? taxaDesconto : 0,
+      horizonte_meses: 360,
+      uf: cliente.uf ?? '',
+      distribuidora: distribuidoraTarifa || cliente.distribuidora || '',
+      irradiacao_kwhm2_dia: baseIrradiacao > 0 ? baseIrradiacao : 0,
+    })
+  }, [
+    baseIrradiacao,
+    cliente.distribuidora,
+    cliente.uf,
+    distribuidoraTarifa,
+    inflacaoAa,
+    kcKwhMes,
+    tarifaCheia,
+    taxaMinima,
+    vendaForm.consumo_kwh_mes,
+    vendaForm.inflacao_energia_aa_pct,
+    vendaForm.tarifa_r_kwh,
+    vendaForm.taxa_desconto_aa_pct,
+    vendaForm.taxa_minima_r_mes,
+  ])
+
+  useEffect(() => {
+    const quantidadeInformada = Number.isFinite(vendaForm.quantidade_modulos)
+      ? Number(vendaForm.quantidade_modulos)
+      : null
+    const quantidadeFinal = quantidadeInformada ?? numeroModulosEstimado ?? 0
+    const potenciaSistema = Number.isFinite(vendaForm.potencia_instalada_kwp)
+      ? Number(vendaForm.potencia_instalada_kwp)
+      : potenciaInstaladaKwp
+    const geracaoEstimativa = Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
+      ? Number(vendaForm.geracao_estimada_kwh_mes)
+      : geracaoMensalKwh
+
+    vendaActions.updateConfiguracao({
+      potencia_modulo_wp: Number.isFinite(potenciaModulo) ? Number(potenciaModulo) : 0,
+      n_modulos: Number.isFinite(quantidadeFinal) ? Math.max(0, Number(quantidadeFinal)) : 0,
+      potencia_sistema_kwp: potenciaSistema > 0 ? potenciaSistema : 0,
+      geracao_estimada_kwh_mes: geracaoEstimativa > 0 ? geracaoEstimativa : 0,
+      area_m2: areaInstalacao > 0 ? areaInstalacao : 0,
+      tipo_instalacao: tipoInstalacao,
+      segmento: segmentoCliente,
+      modelo_modulo: vendaForm.modelo_modulo ?? '',
+      modelo_inversor: vendaForm.modelo_inversor ?? '',
+    })
+  }, [
+    areaInstalacao,
+    geracaoMensalKwh,
+    numeroModulosEstimado,
+    potenciaInstaladaKwp,
+    potenciaModulo,
+    segmentoCliente,
+    tipoInstalacao,
+    vendaForm.geracao_estimada_kwh_mes,
+    vendaForm.modelo_inversor,
+    vendaForm.modelo_modulo,
+    vendaForm.potencia_instalada_kwp,
+    vendaForm.quantidade_modulos,
+  ])
+
+  useEffect(() => {
+    const autonomia = kcKwhMes > 0 && geracaoMensalKwh > 0 ? geracaoMensalKwh / kcKwhMes : null
+    vendaActions.updateResultados({
+      autonomia_frac: autonomia,
+      energia_contratada_kwh_mes: kcKwhMes > 0 ? kcKwhMes : null,
+    })
+  }, [geracaoMensalKwh, kcKwhMes])
+
+  useEffect(() => {
+    const origem = tipoInstalacao === 'SOLO' ? composicaoSolo : composicaoTelhado
+    vendaActions.updateComposicao({
+      projeto: Number(origem.projeto) || 0,
+      instalacao: Number(origem.instalacao) || 0,
+      material_ca: Number(origem.materialCa) || 0,
+      art: Number(origem.art) || 0,
+      crea: Number(origem.crea) || 0,
+      placa: Number(origem.placa) || 0,
+      opex: 0,
+      comissao_liquida: Number(origem.comissaoLiquida) || 0,
+      margem_operacional: Number('lucroBruto' in origem ? (origem as typeof composicaoTelhado).lucroBruto : 0) || 0,
+      imposto_retido: Number(origem.impostoRetido) || 0,
+    })
+  }, [composicaoSolo, composicaoTelhado, tipoInstalacao])
+
+  useEffect(() => {
+    const itensNormalizados = budgetStructuredItems.map((item) => {
+      const normalizado: VendaKitItem = {
+        produto: item.produto ?? '',
+        descricao: item.descricao ?? '',
+        quantidade: Number.isFinite(item.quantidade) ? Number(item.quantidade) : null,
+        unidade: item.unidade?.trim() ? item.unidade.trim() : null,
+        precoUnit: Number.isFinite(item.precoUnitario) ? Number(item.precoUnitario) : null,
+        precoTotal: Number.isFinite(item.precoTotal) ? Number(item.precoTotal) : null,
+      }
+      if (item.codigo?.trim()) {
+        normalizado.codigo = item.codigo.trim()
+      }
+      if (item.modelo?.trim()) {
+        normalizado.modelo = item.modelo.trim()
+      }
+      if (item.fabricante?.trim()) {
+        normalizado.fabricante = item.fabricante.trim()
+      }
+      return normalizado
+    })
+    const valorTotal =
+      kitBudget.total != null && Number.isFinite(kitBudget.total)
+        ? Number(kitBudget.total)
+        : 0
+    vendaActions.updateOrcamento({ itens: itensNormalizados, valor_total_orcamento: valorTotal })
+  }, [budgetStructuredItems, kitBudget.total])
+
+  useEffect(() => {
+    vendaActions.updatePagamento({
+      forma_pagamento: vendaForm.condicao,
+      moeda: 'BRL',
+      mdr_pix: Number.isFinite(vendaForm.taxa_mdr_pix_pct) ? Number(vendaForm.taxa_mdr_pix_pct) : 0,
+      mdr_debito: Number.isFinite(vendaForm.taxa_mdr_debito_pct) ? Number(vendaForm.taxa_mdr_debito_pct) : 0,
+      mdr_credito_avista: Number.isFinite(vendaForm.taxa_mdr_credito_vista_pct)
+        ? Number(vendaForm.taxa_mdr_credito_vista_pct)
+        : 0,
+      validade_proposta_txt: vendaForm.validade_proposta ?? '',
+      prazo_execucao_txt: vendaForm.prazo_execucao ?? '',
+      condicoes_adicionais_txt: vendaForm.condicoes_adicionais ?? '',
+    })
+  }, [
+    vendaForm.condicao,
+    vendaForm.condicoes_adicionais,
+    vendaForm.prazo_execucao,
+    vendaForm.taxa_mdr_credito_vista_pct,
+    vendaForm.taxa_mdr_debito_pct,
+    vendaForm.taxa_mdr_pix_pct,
+    vendaForm.validade_proposta,
+  ])
+
+  useEffect(() => {
     const deveEstimarQuantidade =
       !Number.isFinite(vendaForm.quantidade_modulos) || (vendaForm.quantidade_modulos ?? 0) <= 0
 
@@ -2842,6 +3026,11 @@ export default function App() {
       return
     }
 
+    const potenciaNormalizadaAuto = vendaAutoPotenciaKwp
+      ? Math.round(vendaAutoPotenciaKwp * 100) / 100
+      : 0
+    const geracaoNormalizadaAuto = Math.round(estimada * 10) / 10
+
     let consumoAtualizado = false
     let geracaoAtualizada = false
 
@@ -2849,9 +3038,6 @@ export default function App() {
       const updates: Partial<VendaForm> = {}
       let changed = false
 
-      const potenciaNormalizadaAuto = vendaAutoPotenciaKwp
-        ? Math.round(vendaAutoPotenciaKwp * 100) / 100
-        : 0
       if (
         potenciaNormalizadaAuto > 0 &&
         !numbersAreClose(prev.potencia_instalada_kwp, potenciaNormalizadaAuto, 0.005)
@@ -2860,7 +3046,6 @@ export default function App() {
         changed = true
       }
 
-      const geracaoNormalizadaAuto = Math.round(estimada * 10) / 10
       if (
         geracaoNormalizadaAuto > 0 &&
         !numbersAreClose(prev.geracao_estimada_kwh_mes, geracaoNormalizadaAuto, 0.05)
@@ -3437,19 +3622,33 @@ export default function App() {
 
   const printableData = useMemo<PrintableProposalProps>(
     () => {
-      const capexPrintable = capex
+      const vendaSnapshot = getVendaSnapshot()
+      const capexFromStore = calculateCapexFromState(vendaSnapshot)
+      const capexPrintable = capexFromStore > 0 ? capexFromStore : capex
+      const potenciaInstaladaSnapshot = vendaSnapshot.configuracao.potencia_sistema_kwp
       const potenciaInstaladaPrintable =
-        isVendaDiretaTab && Number.isFinite(vendaForm.potencia_instalada_kwp)
+        potenciaInstaladaSnapshot > 0
+          ? potenciaInstaladaSnapshot
+          : isVendaDiretaTab && Number.isFinite(vendaForm.potencia_instalada_kwp)
           ? Number(vendaForm.potencia_instalada_kwp)
           : potenciaInstaladaKwp
+      const geracaoMensalSnapshot = vendaSnapshot.configuracao.geracao_estimada_kwh_mes
       const geracaoMensalPrintable =
-        isVendaDiretaTab && Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
+        geracaoMensalSnapshot > 0
+          ? geracaoMensalSnapshot
+          : isVendaDiretaTab && Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
           ? Number(vendaForm.geracao_estimada_kwh_mes)
           : geracaoMensalKwh
+      const numeroModulosSnapshot = vendaSnapshot.configuracao.n_modulos
       const numeroModulosPrintable =
-        isVendaDiretaTab && Number.isFinite(vendaForm.quantidade_modulos)
+        numeroModulosSnapshot > 0
+          ? numeroModulosSnapshot
+          : isVendaDiretaTab && Number.isFinite(vendaForm.quantidade_modulos)
           ? Math.max(0, Number(vendaForm.quantidade_modulos))
           : numeroModulosEstimado
+      const potenciaModuloSnapshot = vendaSnapshot.configuracao.potencia_modulo_wp
+      const potenciaModuloPrintable =
+        potenciaModuloSnapshot > 0 ? potenciaModuloSnapshot : potenciaModulo
       const vendaResumo = isVendaDiretaTab
         ? {
             form: { ...vendaForm },
@@ -3496,20 +3695,26 @@ export default function App() {
         capex: capexPrintable,
         tipoProposta: isVendaDiretaTab ? 'VENDA_DIRETA' : 'LEASING',
         geracaoMensalKwh: geracaoMensalPrintable,
-        potenciaModulo,
+        potenciaModulo: potenciaModuloPrintable,
         numeroModulos: numeroModulosPrintable,
         potenciaInstaladaKwp: potenciaInstaladaPrintable,
         tipoInstalacao,
         areaInstalacao,
         descontoContratualPct: descontoConsiderado,
         parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
-        distribuidoraTarifa: distribuidoraTarifa || cliente.distribuidora || '',
-        energiaContratadaKwh: kcKwhMes,
-        tarifaCheia,
+        distribuidoraTarifa:
+          vendaSnapshot.parametros.distribuidora || distribuidoraTarifa || cliente.distribuidora || '',
+        energiaContratadaKwh:
+          vendaSnapshot.resultados.energia_contratada_kwh_mes ?? vendaSnapshot.parametros.consumo_kwh_mes ?? kcKwhMes,
+        tarifaCheia:
+          vendaSnapshot.parametros.tarifa_r_kwh > 0
+            ? vendaSnapshot.parametros.tarifa_r_kwh
+            : tarifaCheia,
         vendaResumo,
         parsedPdfVenda: parsedVendaPdf ? { ...parsedVendaPdf } : null,
         orcamentoItens: printableBudgetItems,
         composicaoUfv: composicaoResumo,
+        vendaSnapshot,
       }
     },
     [
@@ -6325,6 +6530,15 @@ export default function App() {
       return
     }
 
+    const codigoOrcamento = ensureProposalId(currentBudgetId)
+    if (codigoOrcamento !== currentBudgetId) {
+      setCurrentBudgetId(codigoOrcamento)
+    }
+    vendaActions.updateCodigos({
+      codigo_orcamento_interno: codigoOrcamento,
+      data_emissao: new Date().toISOString().slice(0, 10),
+    })
+
     const resultado = await prepararPropostaParaExportacao()
 
     if (!resultado) {
@@ -6350,6 +6564,15 @@ export default function App() {
     if (!validarCamposObrigatorios('salvar a proposta')) {
       return
     }
+
+    const codigoOrcamento = ensureProposalId(currentBudgetId)
+    if (codigoOrcamento !== currentBudgetId) {
+      setCurrentBudgetId(codigoOrcamento)
+    }
+    vendaActions.updateCodigos({
+      codigo_orcamento_interno: codigoOrcamento,
+      data_emissao: new Date().toISOString().slice(0, 10),
+    })
 
     setSalvandoPropostaPdf(true)
 
@@ -6394,6 +6617,7 @@ export default function App() {
   }, [
     activeTab,
     adicionarNotificacao,
+    currentBudgetId,
     prepararPropostaParaExportacao,
     salvarOrcamentoLocalmente,
     salvandoPropostaPdf,

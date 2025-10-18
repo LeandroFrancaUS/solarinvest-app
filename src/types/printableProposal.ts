@@ -1,5 +1,6 @@
 import type { ParsedVendaPdfData } from '../lib/pdf/extractVendas'
 import type { RetornoProjetado, VendaForm } from '../lib/finance/roi'
+import type { VendaSnapshot } from '../store/useVendaStore'
 
 export type TipoInstalacao = 'TELHADO' | 'SOLO'
 
@@ -126,4 +127,5 @@ export type PrintableProposalProps = {
   parsedPdfVenda?: ParsedVendaPdfData | null | undefined
   orcamentoItens?: PrintableOrcamentoItem[] | undefined
   composicaoUfv?: UfvComposicaoResumo | undefined
+  vendaSnapshot?: VendaSnapshot | undefined
 }

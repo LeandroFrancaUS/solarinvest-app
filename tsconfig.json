@@ -22,10 +22,6 @@
     "typeRoots": [
       "./node_modules/@types",
       "./src/types"
-    ],
-    "types": [
-      "vitest",
-      "vitest/globals"
     ]
   },
   "include": [

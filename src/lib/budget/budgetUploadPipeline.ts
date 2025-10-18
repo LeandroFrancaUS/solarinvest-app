@@ -38,7 +38,7 @@ export type ParsedBudgetJSON = {
     modelo: string | null
     descricao: string
     quantidade: number | null
-    unidade: 'un'
+    unidade: string | null
     precoUnitario: number | null
     precoTotal: number | null
   }>
@@ -144,10 +144,17 @@ export async function handleUpload(
   const type = detectFileType(file)
   const dpi = options.dpi ?? DEFAULT_OCR_DPI
 
+  const pdfOptions: { dpi: number; onProgress?: (progress: BudgetUploadProgress) => void } =
+    options.onProgress
+      ? { dpi, onProgress: options.onProgress }
+      : { dpi }
+  const imageOptions: { onProgress?: (progress: BudgetUploadProgress) => void } =
+    options.onProgress ? { onProgress: options.onProgress } : {}
+
   const extraction =
     type === 'pdf'
-      ? await pdfToText(file, { onProgress: options.onProgress, dpi })
-      : await imageToText(file, { onProgress: options.onProgress })
+      ? await pdfToText(file, pdfOptions)
+      : await imageToText(file, imageOptions)
 
   options.onProgress?.({
     stage: 'parse',
@@ -429,13 +436,7 @@ function createOcrProgressAdapter(
   }
 }
 
-export {
-  MAX_FILE_SIZE_BYTES,
-  DEFAULT_OCR_DPI,
-  BudgetUploadError,
-  type BudgetUploadProgress,
-  type ParsedBudgetJSON,
-}
+export { MAX_FILE_SIZE_BYTES, DEFAULT_OCR_DPI, BudgetUploadError }
 
 function preprocessImageData(source: ImageData): ImageData {
   const { width, height, data } = source

@@ -27,14 +27,10 @@ const queue: Array<{
   imageData: ImageData
   resolve: (result: RecognizeResult) => void
   reject: (error: unknown) => void
-  options: RecognizeImageDataOptions | undefined
+  options?: RecognizeImageDataOptions
   attempt: number
 }> = []
-let currentTask:
-  | {
-      options?: RecognizeImageDataOptions
-    }
-  | null = null
+let currentTask: { options?: RecognizeImageDataOptions } | null = null
 
 async function loadTesseractModule(): Promise<import('./workerTypes').TesseractModule | null> {
   if (typeof window === 'undefined') {
@@ -93,7 +89,7 @@ async function processQueue(): Promise<void> {
   processing = true
   while (queue.length) {
     const task = queue.shift()!
-    currentTask = { options: task.options }
+    currentTask = task.options ? { options: task.options } : {}
     try {
       const result = await runRecognition(task)
       task.resolve(result)
@@ -109,7 +105,7 @@ async function processQueue(): Promise<void> {
 async function runRecognition(
   task: {
     imageData: ImageData
-    options: RecognizeImageDataOptions | undefined
+    options?: RecognizeImageDataOptions
     attempt: number
   },
   input?: import('./workerTypes').WorkerImageInput,
@@ -135,18 +131,29 @@ async function runRecognition(
     ) {
       if (task.attempt === 0) {
         const cloned = cloneImageData(task.imageData)
-        return runRecognition({
+        const retryTask: { imageData: ImageData; attempt: number; options?: RecognizeImageDataOptions } = {
           imageData: cloned,
-          options: task.options,
           attempt: 1,
-        })
+        }
+        if (task.options) {
+          retryTask.options = task.options
+        }
+        return runRecognition(retryTask)
       }
       if (task.attempt === 1) {
         const dataUrl = imageDataToDataUrl(task.imageData)
-        return runRecognition(
-          { imageData: task.imageData, options: task.options, attempt: 2 },
-          dataUrl,
-        )
+        const retryTask: {
+          imageData: ImageData
+          attempt: number
+          options?: RecognizeImageDataOptions
+        } = {
+          imageData: task.imageData,
+          attempt: 2,
+        }
+        if (task.options) {
+          retryTask.options = task.options
+        }
+        return runRecognition(retryTask, dataUrl)
       }
     }
     if (error instanceof OcrError) {
@@ -207,7 +214,22 @@ export async function recognizeImageData(
   }
   const safeImageData = cloneImageData(imageData)
   return new Promise<RecognizeResult>((resolve, reject) => {
-    queue.push({ imageData: safeImageData, resolve, reject, options, attempt: 0 })
+    const task: {
+      imageData: ImageData
+      resolve: (result: RecognizeResult) => void
+      reject: (error: unknown) => void
+      attempt: number
+      options?: RecognizeImageDataOptions
+    } = {
+      imageData: safeImageData,
+      resolve,
+      reject,
+      attempt: 0,
+    }
+    if (options) {
+      task.options = options
+    }
+    queue.push(task)
     void processQueue()
   })
 }
