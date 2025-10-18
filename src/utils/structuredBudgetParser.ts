@@ -10,16 +10,16 @@ const HEADER_PATTERNS = {
 const SECTION_START_REGEX = /Detalhes\s+do\s+Or[cç]amento/i
 const SECTION_HEADER_REGEX = /Produto\s+Quantidade/i
 const SECTION_END_REGEX =
-  /(Valor\s+total\s*:|Aceite\s+da\s+Proposta|Assinatura|Quadro\s+comercial|Dados\s+do\s+cliente)/i
+  /(Valor\s+total\s*:|Aceite\s+da\s+Proposta|Assinatura|Quadro\s+comercial|Dados\s+do\s+cliente|Entrega\s+Escolhida|Condi[cç][aã]o\s+de\s+Pagamento|Pot[êe]ncia\s+do\s+sistema)/i
 const FOOTER_TOTAL_REGEX = /Valor\s+total:\s*R?\$?\s*([\d.,]+)/i
-const CODE_MODEL_QTY_REGEX = /C[óo]digo:\s*(.+?)\s+Modelo:\s*(.+?)\s+(\d+)\s*$/i
+const CODE_MODEL_QTY_REGEX = /C[óo]digo:\s*(.+?)\s+Modelo:\s*(.+?)\s+(\d+)(?:\s*([A-Za-z]{1,5}))?\s*$/i
 const CODIGO_REGEX = /C[óo]digo:\s*(.+)$/i
 const MODELO_REGEX = /Modelo:\s*(.+)$/i
-const QUANTIDADE_REGEX = /Quantidade:\s*(\d+)/i
+const QUANTIDADE_REGEX = /Quantidade:\s*(\d+)(?:\s*([A-Za-z]{1,5}))?/i
 const FABRICANTE_REGEX = /Fabricante:\s*(.*)$/i
 const UNIT_PRICE_REGEX = /R\$\s*([\d.,]+)\s*(?:\/\s*un|unidade)\b/i
 const TOTAL_PRICE_REGEX = /\b(?:Valor:)?\s*R\$\s*([\d.,]+)\b/gi
-const QUANTIDADE_SOZINHA_REGEX = /^\s*([0-9]{1,5})(?:[,\.](?:0+))?\s*$/
+const QUANTIDADE_SOZINHA_REGEX = /^\s*([0-9]{1,5})(?:[,\.](?:0+))?\s*([A-Za-z]{1,5})?\s*$/
 
 const LINE_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -54,6 +54,11 @@ const LINE_EXCLUSION_PATTERNS: RegExp[] = [
   /\buc\b/i,
   /vamos avan[çc]ar/i,
   /valor\s+total/i,
+  /cot[aã][cç][aã]o\b/i,
+  /entrega\s+escolhida/i,
+  /transportadora/i,
+  /condi[cç][aã]o\s+de\s+pagamento/i,
+  /pot[êe]ncia\s+do\s+sistema/i,
 ]
 
 const DESCRIPTION_ALLOWED_REGEXES: RegExp[] = [/^Descri[çc][aã]o/i, /^Observa[çc][aã]o/i]
@@ -358,6 +363,10 @@ function parseSectionItems(
       ensureCurr()
       const quantity = parseQuantity(quantityStandalone[1])
       curr!.quantidade = Number.isNaN(quantity) ? curr!.quantidade ?? null : quantity
+      const unit = normalizeUnit(quantityStandalone[2])
+      if (unit) {
+        curr!.unidade = unit
+      }
       continue
     }
 
@@ -368,6 +377,10 @@ function parseSectionItems(
       curr!.modelo = codeModelQty[2].trim() || null
       const quantity = parseInt(codeModelQty[3], 10)
       curr!.quantidade = Number.isNaN(quantity) ? null : quantity
+      const unit = normalizeUnit(codeModelQty[4])
+      if (unit) {
+        curr!.unidade = unit
+      }
       appendDescricao(curr!, curr!.codigo ? `Código: ${curr!.codigo}` : '')
       appendDescricao(curr!, curr!.modelo ? `Modelo: ${curr!.modelo}` : '')
       continue
@@ -407,6 +420,10 @@ function parseSectionItems(
       ensureCurr()
       const quantity = parseInt(quantidade[1], 10)
       curr!.quantidade = Number.isNaN(quantity) ? null : quantity
+      const unit = normalizeUnit(quantidade[2])
+      if (unit) {
+        curr!.unidade = unit
+      }
       continue
     }
 
@@ -526,7 +543,7 @@ function newItem(): ItemData {
     fabricante: null,
     descricao: '',
     quantidade: null,
-    unidade: 'un',
+    unidade: null,
     precoUnitario: null,
     precoTotal: null,
   }
@@ -604,6 +621,20 @@ function parseQuantity(raw: string): number {
     return Number.NaN
   }
   return Math.round(parsed)
+}
+
+function normalizeUnit(raw: string | undefined): string | null {
+  if (!raw) {
+    return null
+  }
+  const letters = raw.replace(/[^A-Za-z]/g, '')
+  if (!letters) {
+    return null
+  }
+  if (letters.length > 6) {
+    return null
+  }
+  return letters.toUpperCase()
 }
 
 function findSectionCandidates(lines: string[]): SectionCandidate[] {
