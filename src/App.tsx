@@ -2820,6 +2820,10 @@ export default function App() {
     const taxaDesconto = Number.isFinite(vendaForm.taxa_desconto_aa_pct)
       ? Number(vendaForm.taxa_desconto_aa_pct)
       : 0
+    const horizonteInformado = Number.isFinite(vendaForm.horizonte_meses)
+      ? Number(vendaForm.horizonte_meses)
+      : null
+    const horizonteMeses = horizonteInformado && horizonteInformado > 0 ? horizonteInformado : 360
 
     vendaActions.updateParametros({
       consumo_kwh_mes: consumo > 0 ? consumo : 0,
@@ -2827,7 +2831,7 @@ export default function App() {
       inflacao_energia_aa: inflacaoEnergia > 0 ? inflacaoEnergia : 0,
       taxa_minima_rs_mes: taxaMinimaEnergia > 0 ? taxaMinimaEnergia : 0,
       taxa_desconto_aa: taxaDesconto > 0 ? taxaDesconto : 0,
-      horizonte_meses: 360,
+      horizonte_meses: horizonteMeses,
       uf: cliente.uf ?? '',
       distribuidora: distribuidoraTarifa || cliente.distribuidora || '',
       irradiacao_kwhm2_dia: baseIrradiacao > 0 ? baseIrradiacao : 0,
@@ -2843,6 +2847,7 @@ export default function App() {
     taxaMinima,
     vendaForm.consumo_kwh_mes,
     vendaForm.inflacao_energia_aa_pct,
+    vendaForm.horizonte_meses,
     vendaForm.tarifa_r_kwh,
     vendaForm.taxa_desconto_aa_pct,
     vendaForm.taxa_minima_r_mes,
