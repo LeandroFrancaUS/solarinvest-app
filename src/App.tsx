@@ -47,6 +47,7 @@ import {
   type ModoPagamento,
   type PagamentoCondicao,
   type RetornoProjetado,
+  type SegmentoCliente,
   type VendaForm,
 } from './lib/finance/roi'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh, kwpFromWpQty } from './lib/energy/generation'
@@ -1326,6 +1327,9 @@ export default function App() {
   const [tipoInstalacao, setTipoInstalacao] = useState<TipoInstalacao>(
     INITIAL_VALUES.tipoInstalacao,
   )
+  const [segmentoCliente, setSegmentoCliente] = useState<SegmentoCliente>(
+    INITIAL_VALUES.segmentoCliente,
+  )
   const [tipoInstalacaoDirty, setTipoInstalacaoDirty] = useState(false)
   const [numeroModulosManual, setNumeroModulosManual] = useState<number | ''>(
     INITIAL_VALUES.numeroModulosManual,
@@ -1781,6 +1785,14 @@ export default function App() {
       resetRetorno()
     },
     [resetRetorno],
+  )
+
+  const handleSegmentoClienteChange = useCallback(
+    (value: SegmentoCliente) => {
+      setSegmentoCliente((prev) => (prev === value ? prev : value))
+      applyVendaUpdates({ segmento_cliente: value })
+    },
+    [applyVendaUpdates],
   )
 
   const autoFillVendaFromBudget = useCallback(
@@ -2687,6 +2699,17 @@ export default function App() {
     }),
     [baseIrradiacao, eficienciaNormalizada],
   )
+
+  useEffect(() => {
+    const segmentoAtual = vendaForm.segmento_cliente
+    if (segmentoAtual && segmentoAtual !== segmentoCliente) {
+      setSegmentoCliente(segmentoAtual)
+      return
+    }
+    if (!segmentoAtual && segmentoCliente !== INITIAL_VALUES.segmentoCliente) {
+      setSegmentoCliente(INITIAL_VALUES.segmentoCliente)
+    }
+  }, [segmentoCliente, vendaForm.segmento_cliente])
 
   const areaInstalacao = useMemo(() => {
     if (numeroModulosEstimado <= 0) return 0
@@ -6304,6 +6327,7 @@ export default function App() {
     setPotenciaModuloDirty(false)
     setTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
     setTipoInstalacaoDirty(false)
+    setSegmentoCliente(INITIAL_VALUES.segmentoCliente)
     setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
     setComposicaoTelhado(createInitialComposicaoTelhado())
     setComposicaoSolo(createInitialComposicaoSolo())
@@ -6962,6 +6986,17 @@ export default function App() {
             onFocus={selectNumberInputOnFocus}
           />
         </Field>
+        <Field label="Segmento">
+          <select
+            value={segmentoCliente}
+            onChange={(event) =>
+              handleSegmentoClienteChange(event.target.value as SegmentoCliente)
+            }
+          >
+            <option value="RESIDENCIAL">Residencial</option>
+            <option value="COMERCIAL">Comercial</option>
+          </select>
+        </Field>
         <Field label="Tipo de instalação">
           <div className="toggle-group" role="group" aria-label="Tipo de instalação">
             <button
@@ -7293,6 +7328,17 @@ export default function App() {
             }}
             onFocus={selectNumberInputOnFocus}
           />
+        </Field>
+        <Field label="Segmento">
+          <select
+            value={segmentoCliente}
+            onChange={(event) =>
+              handleSegmentoClienteChange(event.target.value as SegmentoCliente)
+            }
+          >
+            <option value="RESIDENCIAL">Residencial</option>
+            <option value="COMERCIAL">Comercial</option>
+          </select>
         </Field>
         <Field label="Tipo de instalação">
           <div className="toggle-group" role="group" aria-label="Tipo de instalação">

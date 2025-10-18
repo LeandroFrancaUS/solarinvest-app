@@ -1,6 +1,8 @@
 export type PagamentoCondicao = 'AVISTA' | 'PARCELADO' | 'FINANCIAMENTO'
 export type ModoPagamento = 'PIX' | 'DEBITO' | 'CREDITO'
 
+export type SegmentoCliente = 'RESIDENCIAL' | 'COMERCIAL'
+
 export interface VendaForm {
   potencia_instalada_kwp?: number | undefined
   geracao_estimada_kwh_mes?: number | undefined
@@ -9,6 +11,8 @@ export interface VendaForm {
   modelo_inversor?: string | undefined
   estrutura_suporte?: string | undefined
   numero_orcamento_vendor?: string | undefined
+
+  segmento_cliente?: SegmentoCliente | undefined
 
   consumo_kwh_mes: number
   tarifa_cheia_r_kwh: number
