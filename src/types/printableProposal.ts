@@ -117,6 +117,11 @@ export type PrintableProposalProps = {
   areaInstalacao: number
   descontoContratualPct: number
   parcelasLeasing: MensalidadeRow[]
+  leasingPrazoContratualMeses?: number | null
+  leasingValorInstalacaoCliente?: number | null
+  leasingDataInicioOperacao?: string | null
+  leasingValorMercadoProjetado?: number | null
+  leasingInflacaoEnergiaAa?: number | null
   distribuidoraTarifa: string
   energiaContratadaKwh: number
   tarifaCheia: number
