@@ -106,14 +106,17 @@ async function processQueue(): Promise<void> {
   processing = false
 }
 
-async function runRecognition(task: {
-  imageData: ImageData
-  options: RecognizeImageDataOptions | undefined
-  attempt: number
-}): Promise<RecognizeResult> {
+async function runRecognition(
+  task: {
+    imageData: ImageData
+    options: RecognizeImageDataOptions | undefined
+    attempt: number
+  },
+  input?: import('./workerTypes').WorkerImageInput,
+): Promise<RecognizeResult> {
   const worker = await getWorker()
   try {
-    const payload = toWorkerImageInput(task.imageData)
+    const payload = input ?? toWorkerImageInput(task.imageData)
     const race = Promise.race([
       worker.recognize(payload),
       new Promise((_, reject) => {
@@ -128,11 +131,23 @@ async function runRecognition(task: {
       error &&
       typeof error === 'object' &&
       'name' in error &&
-      (error as { name?: string }).name === 'DataCloneError' &&
-      task.attempt === 0
+      (error as { name?: string }).name === 'DataCloneError'
     ) {
-      const cloned = cloneImageData(task.imageData)
-      return runRecognition({ imageData: cloned, options: task.options, attempt: 1 })
+      if (task.attempt === 0) {
+        const cloned = cloneImageData(task.imageData)
+        return runRecognition({
+          imageData: cloned,
+          options: task.options,
+          attempt: 1,
+        })
+      }
+      if (task.attempt === 1) {
+        const dataUrl = imageDataToDataUrl(task.imageData)
+        return runRecognition(
+          { imageData: task.imageData, options: task.options, attempt: 2 },
+          dataUrl,
+        )
+      }
     }
     if (error instanceof OcrError) {
       await resetWorker()
@@ -146,6 +161,21 @@ function cloneImageData(imageData: ImageData): ImageData {
   const transferable = data.buffer.slice(0)
   const buffer = new Uint8ClampedArray(transferable)
   return new ImageData(buffer, width, height)
+}
+
+function imageDataToDataUrl(imageData: ImageData): string {
+  if (typeof document === 'undefined') {
+    throw new OcrError('Conversão de imagem indisponível no ambiente atual')
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = imageData.width
+  canvas.height = imageData.height
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new OcrError('Contexto 2D indisponível para conversão de imagem')
+  }
+  context.putImageData(imageData, 0, 0)
+  return canvas.toDataURL('image/png')
 }
 
 function toWorkerImageInput(imageData: ImageData): WorkerImageInput {

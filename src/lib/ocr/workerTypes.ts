@@ -11,6 +11,7 @@ export type WorkerImageInput =
       width: number
       height: number
     }
+  | string
 
 export type TesseractWorker = {
   load: () => Promise<void>
