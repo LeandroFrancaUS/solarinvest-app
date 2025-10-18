@@ -617,7 +617,7 @@ function PrintableProposalInner(
                 pushIfPositivo('TRAFO', soloValores?.trafo)
                 pushIfPositivo('BRITA', soloValores?.brita)
                 pushIfPositivo('TERRAPLANAGEM', soloValores?.terraplanagem)
-                pushIfPositivo('Lucro Bruto', soloValores?.lucroBruto)
+                pushIfPositivo('Margem Operacional', soloValores?.lucroBruto)
               }
 
               const subtotal = itens.reduce((acc, item) => acc + (item.valor ?? 0), 0)
