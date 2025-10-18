@@ -8,6 +8,7 @@ export type UfvComposicaoTelhadoValores = {
   instalacao: number
   materialCa: number
   crea: number
+  art: number
   placa: number
   comissaoLiquida: number
   lucroBruto: number
