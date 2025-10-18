@@ -277,13 +277,6 @@ const computeBudgetItemsTotalValue = (items: KitBudgetItemState[]): number | nul
   return Math.round(total * 100) / 100
 }
 
-const computeBudgetItemLineTotal = (item: KitBudgetItemState): number | null => {
-  if (item.wasQuantityInferred || item.quantity === null || item.unitPrice === null) {
-    return null
-  }
-  return Math.round(item.quantity * item.unitPrice * 100) / 100
-}
-
 const computeBudgetMissingInfo = (items: KitBudgetItemState[]): KitBudgetMissingInfo => {
   if (!items.length) {
     return null
@@ -1483,18 +1476,6 @@ export default function App() {
         quantity: isValidQuantity ? Math.round(parsed as number) : null,
         quantityInput: value,
         wasQuantityInferred: !isValidQuantity,
-      }))
-    },
-    [updateKitBudgetItem],
-  )
-
-  const handleBudgetItemUnitPriceChange = useCallback(
-    (itemId: string, value: string) => {
-      const parsed = parseNumericInput(value)
-      updateKitBudgetItem(itemId, (item) => ({
-        ...item,
-        unitPrice: normalizeCurrencyNumber(parsed),
-        unitPriceInput: value,
       }))
     },
     [updateKitBudgetItem],
@@ -8399,16 +8380,12 @@ export default function App() {
                             <th>Produto</th>
                             <th>Descrição</th>
                             <th>Quantidade</th>
-                            <th>Valor unitário</th>
-                            <th>Valor total</th>
                             <th>Ações</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {kitBudget.items.map((item) => {
-                            const lineTotal = computeBudgetItemLineTotal(item)
-                            return (
-                              <tr key={item.id}>
+                          {kitBudget.items.map((item) => (
+                            <tr key={item.id}>
                                 <td>
                                   <input
                                     type="text"
@@ -8446,20 +8423,6 @@ export default function App() {
                                     placeholder="0"
                                   />
                                 </td>
-                                <td className="budget-table-numeric">
-                                  <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={item.unitPriceInput}
-                                    onChange={(event) =>
-                                      handleBudgetItemUnitPriceChange(item.id, event.target.value)
-                                    }
-                                    placeholder="0,00"
-                                  />
-                                </td>
-                                <td className="budget-table-total">
-                                  {lineTotal !== null ? currency(lineTotal) : '—'}
-                                </td>
                                 <td className="budget-table-actions">
                                   <button
                                     type="button"
@@ -8471,7 +8434,7 @@ export default function App() {
                                 </td>
                               </tr>
                             )
-                          })}
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -8505,17 +8468,6 @@ export default function App() {
                       Informe o valor total do orçamento para registrar no sistema.
                     </small>
                   )}
-                </div>
-                <div className="budget-summary-row">
-                  <span>Somatório dos itens:</span>
-                  <strong>{budgetItemsTotal !== null ? currency(budgetItemsTotal) : '—'}</strong>
-                  {kitBudget.total !== null &&
-                  budgetItemsTotal !== null &&
-                  Math.abs(kitBudget.total - budgetItemsTotal) > 1 ? (
-                    <span className="difference">
-                      Diferença de {currency(Math.abs(kitBudget.total - budgetItemsTotal))}
-                    </span>
-                  ) : null}
                 </div>
               </div>
             </section>
