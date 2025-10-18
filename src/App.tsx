@@ -7575,7 +7575,7 @@ export default function App() {
     ]
     const resumoCamposTelhado: { key: keyof UfvComposicaoTelhadoValores; label: string }[] = [
       { key: 'comissaoLiquida', label: 'Comissão líquida' },
-      { key: 'lucroBruto', label: 'Lucro bruto' },
+      { key: 'lucroBruto', label: 'Margem operacional' },
       { key: 'impostoRetido', label: 'Imposto retido' },
     ]
     const soloCamposPrincipais: { key: keyof UfvComposicaoSoloValores; label: string }[] = [
@@ -7597,7 +7597,7 @@ export default function App() {
     ]
     const resumoCamposSolo: { key: keyof UfvComposicaoSoloValores; label: string }[] = [
       { key: 'comissaoLiquida', label: 'Comissão líquida' },
-      { key: 'lucroBruto', label: 'Lucro bruto' },
+      { key: 'lucroBruto', label: 'Margem operacional' },
       { key: 'impostoRetido', label: 'Imposto retido' },
     ]
 
