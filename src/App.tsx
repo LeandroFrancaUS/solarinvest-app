@@ -163,6 +163,10 @@ const sumComposicaoValores = <T extends Record<string, number>>(valores: T): num
   )
 }
 
+const resolveStateUpdate = <T,>(input: T | ((prev: T) => T), prev: T): T => {
+  return typeof input === 'function' ? (input as (previous: T) => T)(prev) : input
+}
+
 const sumComposicaoValoresExcluding = <T extends Record<string, number>>(
   valores: T,
   excludedKeys: (keyof T)[],
@@ -1366,8 +1370,8 @@ export default function App() {
   const [isBudgetTableCollapsed, setIsBudgetTableCollapsed] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
-  const [ufTarifa, setUfTarifa] = useState(INITIAL_VALUES.ufTarifa)
-  const [distribuidoraTarifa, setDistribuidoraTarifa] = useState(INITIAL_VALUES.distribuidoraTarifa)
+  const [ufTarifa, setUfTarifaState] = useState(INITIAL_VALUES.ufTarifa)
+  const [distribuidoraTarifa, setDistribuidoraTarifaState] = useState(INITIAL_VALUES.distribuidoraTarifa)
   const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(() => [...distribuidorasFallback.ufs])
   const [distribuidorasPorUf, setDistribuidorasPorUf] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(
@@ -1380,24 +1384,24 @@ export default function App() {
   const [mesReajuste, setMesReajuste] = useState(INITIAL_VALUES.mesReajuste)
 
   const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
-  const [consumoManual, setConsumoManual] = useState(false)
-  const [tarifaCheia, setTarifaCheia] = useState(INITIAL_VALUES.tarifaCheia)
+  const [consumoManual, setConsumoManualState] = useState(false)
+  const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
-  const [taxaMinima, setTaxaMinima] = useState(INITIAL_VALUES.taxaMinima)
+  const [taxaMinima, setTaxaMinimaState] = useState(INITIAL_VALUES.taxaMinima)
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(
     INITIAL_VALUES.encargosFixosExtras,
   )
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(INITIAL_VALUES.leasingPrazo)
-  const [potenciaModulo, setPotenciaModulo] = useState(INITIAL_VALUES.potenciaModulo)
-  const [potenciaModuloDirty, setPotenciaModuloDirty] = useState(false)
-  const [tipoInstalacao, setTipoInstalacao] = useState<TipoInstalacao>(
+  const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
+  const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
+  const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
     INITIAL_VALUES.tipoInstalacao,
   )
-  const [segmentoCliente, setSegmentoCliente] = useState<SegmentoCliente>(
+  const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(
     INITIAL_VALUES.segmentoCliente,
   )
-  const [tipoInstalacaoDirty, setTipoInstalacaoDirty] = useState(false)
-  const [numeroModulosManual, setNumeroModulosManual] = useState<number | ''>(
+  const [tipoInstalacaoDirty, setTipoInstalacaoDirtyState] = useState(false)
+  const [numeroModulosManual, setNumeroModulosManualState] = useState<number | ''>(
     INITIAL_VALUES.numeroModulosManual,
   )
   const [composicaoTelhado, setComposicaoTelhado] = useState<UfvComposicaoTelhadoValores>(
@@ -1408,15 +1412,251 @@ export default function App() {
   )
   const consumoAnteriorRef = useRef(kcKwhMes)
 
+  type PageSharedSettings = {
+    kcKwhMes: number
+    tarifaCheia: number
+    taxaMinima: number
+    ufTarifa: string
+    distribuidoraTarifa: string
+    potenciaModulo: number
+    numeroModulosManual: number | ''
+    segmentoCliente: SegmentoCliente
+    tipoInstalacao: TipoInstalacao
+    consumoManual: boolean
+    potenciaModuloDirty: boolean
+    tipoInstalacaoDirty: boolean
+  }
+
+  const createPageSharedSettings = useCallback((): PageSharedSettings => ({
+    kcKwhMes: INITIAL_VALUES.kcKwhMes,
+    tarifaCheia: INITIAL_VALUES.tarifaCheia,
+    taxaMinima: INITIAL_VALUES.taxaMinima,
+    ufTarifa: INITIAL_VALUES.ufTarifa,
+    distribuidoraTarifa: INITIAL_VALUES.distribuidoraTarifa,
+    potenciaModulo: INITIAL_VALUES.potenciaModulo,
+    numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
+    segmentoCliente: INITIAL_VALUES.segmentoCliente,
+    tipoInstalacao: INITIAL_VALUES.tipoInstalacao,
+    consumoManual: false,
+    potenciaModuloDirty: false,
+    tipoInstalacaoDirty: false,
+  }), [])
+
+  const [pageSharedState, setPageSharedState] = useState<Record<TabKey, PageSharedSettings>>({
+    leasing: createPageSharedSettings(),
+    vendas: createPageSharedSettings(),
+  })
+
+  const updatePageSharedState = useCallback(
+    (updater: (current: PageSharedSettings) => PageSharedSettings) => {
+      setPageSharedState((prev) => {
+        const current = prev[activeTab]
+        const next = updater(current)
+        if (next === current) {
+          return prev
+        }
+        return { ...prev, [activeTab]: next }
+      })
+    },
+    [activeTab],
+  )
+
+  const setConsumoManual = useCallback(
+    (value: boolean) => {
+      setConsumoManualState(value)
+      updatePageSharedState((current) => {
+        if (current.consumoManual === value) {
+          return current
+        }
+        return { ...current, consumoManual: value }
+      })
+    },
+    [updatePageSharedState],
+  )
+
   const setKcKwhMes = useCallback(
     (value: number, origin: 'auto' | 'user' = 'auto') => {
       const normalized = Number.isFinite(value) ? Math.max(0, value) : 0
       setConsumoManual(origin === 'user')
       setKcKwhMesState(normalized)
+      updatePageSharedState((current) => {
+        if (current.kcKwhMes === normalized) {
+          return current
+        }
+        return { ...current, kcKwhMes: normalized }
+      })
       return normalized
     },
-    [setConsumoManual, setKcKwhMesState],
+    [setConsumoManual, setKcKwhMesState, updatePageSharedState],
   )
+
+  const setTarifaCheia = useCallback(
+    (valueOrUpdater: number | ((prev: number) => number)) => {
+      const nextRaw = resolveStateUpdate(valueOrUpdater, tarifaCheia)
+      const normalized = Number.isFinite(nextRaw) ? Math.max(0, nextRaw) : 0
+      setTarifaCheiaState(normalized)
+      updatePageSharedState((current) => {
+        if (current.tarifaCheia === normalized) {
+          return current
+        }
+        return { ...current, tarifaCheia: normalized }
+      })
+    },
+    [tarifaCheia, updatePageSharedState],
+  )
+
+  const setTaxaMinima = useCallback(
+    (valueOrUpdater: number | ((prev: number) => number)) => {
+      const nextRaw = resolveStateUpdate(valueOrUpdater, taxaMinima)
+      const normalized = Number.isFinite(nextRaw) ? Math.max(0, nextRaw) : 0
+      setTaxaMinimaState(normalized)
+      updatePageSharedState((current) => {
+        if (current.taxaMinima === normalized) {
+          return current
+        }
+        return { ...current, taxaMinima: normalized }
+      })
+    },
+    [taxaMinima, updatePageSharedState],
+  )
+
+  const setUfTarifa = useCallback(
+    (valueOrUpdater: string | ((prev: string) => string)) => {
+      const nextValue = resolveStateUpdate(valueOrUpdater, ufTarifa)
+      setUfTarifaState(nextValue)
+      updatePageSharedState((current) => {
+        if (current.ufTarifa === nextValue) {
+          return current
+        }
+        return { ...current, ufTarifa: nextValue }
+      })
+    },
+    [ufTarifa, updatePageSharedState],
+  )
+
+  const setDistribuidoraTarifa = useCallback(
+    (valueOrUpdater: string | ((prev: string) => string)) => {
+      const nextValue = resolveStateUpdate(valueOrUpdater, distribuidoraTarifa)
+      setDistribuidoraTarifaState(nextValue)
+      updatePageSharedState((current) => {
+        if (current.distribuidoraTarifa === nextValue) {
+          return current
+        }
+        return { ...current, distribuidoraTarifa: nextValue }
+      })
+    },
+    [distribuidoraTarifa, updatePageSharedState],
+  )
+
+  const setPotenciaModulo = useCallback(
+    (valueOrUpdater: number | ((prev: number) => number)) => {
+      const nextRaw = resolveStateUpdate(valueOrUpdater, potenciaModulo)
+      const normalized = Number.isFinite(nextRaw) ? nextRaw : INITIAL_VALUES.potenciaModulo
+      setPotenciaModuloState(normalized)
+      updatePageSharedState((current) => {
+        if (current.potenciaModulo === normalized) {
+          return current
+        }
+        return { ...current, potenciaModulo: normalized }
+      })
+    },
+    [potenciaModulo, updatePageSharedState],
+  )
+
+  const setPotenciaModuloDirty = useCallback(
+    (value: boolean) => {
+      setPotenciaModuloDirtyState(value)
+      updatePageSharedState((current) => {
+        if (current.potenciaModuloDirty === value) {
+          return current
+        }
+        return { ...current, potenciaModuloDirty: value }
+      })
+    },
+    [updatePageSharedState],
+  )
+
+  const setTipoInstalacao = useCallback(
+    (value: TipoInstalacao) => {
+      setTipoInstalacaoState(value)
+      updatePageSharedState((current) => {
+        if (current.tipoInstalacao === value) {
+          return current
+        }
+        return { ...current, tipoInstalacao: value }
+      })
+    },
+    [updatePageSharedState],
+  )
+
+  const setTipoInstalacaoDirty = useCallback(
+    (value: boolean) => {
+      setTipoInstalacaoDirtyState(value)
+      updatePageSharedState((current) => {
+        if (current.tipoInstalacaoDirty === value) {
+          return current
+        }
+        return { ...current, tipoInstalacaoDirty: value }
+      })
+    },
+    [updatePageSharedState],
+  )
+
+  const setSegmentoCliente = useCallback(
+    (valueOrUpdater: SegmentoCliente | ((prev: SegmentoCliente) => SegmentoCliente)) => {
+      const nextValue = resolveStateUpdate(valueOrUpdater, segmentoCliente)
+      setSegmentoClienteState(nextValue)
+      updatePageSharedState((current) => {
+        if (current.segmentoCliente === nextValue) {
+          return current
+        }
+        return { ...current, segmentoCliente: nextValue }
+      })
+    },
+    [segmentoCliente, updatePageSharedState],
+  )
+
+  const setNumeroModulosManual = useCallback(
+    (valueOrUpdater: number | '' | ((prev: number | '') => number | '')) => {
+      const nextValue = resolveStateUpdate(valueOrUpdater, numeroModulosManual)
+      setNumeroModulosManualState(nextValue)
+      updatePageSharedState((current) => {
+        if (current.numeroModulosManual === nextValue) {
+          return current
+        }
+        return { ...current, numeroModulosManual: nextValue }
+      })
+    },
+    [numeroModulosManual, updatePageSharedState],
+  )
+
+  useEffect(() => {
+    const snapshot = pageSharedState[activeTab]
+    if (!snapshot) {
+      return
+    }
+
+    setKcKwhMesState((prev) => (prev === snapshot.kcKwhMes ? prev : snapshot.kcKwhMes))
+    setTarifaCheiaState((prev) => (prev === snapshot.tarifaCheia ? prev : snapshot.tarifaCheia))
+    setTaxaMinimaState((prev) => (prev === snapshot.taxaMinima ? prev : snapshot.taxaMinima))
+    setUfTarifaState((prev) => (prev === snapshot.ufTarifa ? prev : snapshot.ufTarifa))
+    setDistribuidoraTarifaState((prev) =>
+      prev === snapshot.distribuidoraTarifa ? prev : snapshot.distribuidoraTarifa,
+    )
+    setPotenciaModuloState((prev) => (prev === snapshot.potenciaModulo ? prev : snapshot.potenciaModulo))
+    setNumeroModulosManualState((prev) =>
+      prev === snapshot.numeroModulosManual ? prev : snapshot.numeroModulosManual,
+    )
+    setSegmentoClienteState((prev) => (prev === snapshot.segmentoCliente ? prev : snapshot.segmentoCliente))
+    setTipoInstalacaoState((prev) => (prev === snapshot.tipoInstalacao ? prev : snapshot.tipoInstalacao))
+    setConsumoManualState((prev) => (prev === snapshot.consumoManual ? prev : snapshot.consumoManual))
+    setPotenciaModuloDirtyState((prev) =>
+      prev === snapshot.potenciaModuloDirty ? prev : snapshot.potenciaModuloDirty,
+    )
+    setTipoInstalacaoDirtyState((prev) =>
+      prev === snapshot.tipoInstalacaoDirty ? prev : snapshot.tipoInstalacaoDirty,
+    )
+  }, [activeTab, pageSharedState])
 
   const [cliente, setCliente] = useState<ClienteDados>({ ...CLIENTE_INICIAL })
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
@@ -6649,6 +6889,10 @@ export default function App() {
     setKitBudget(createEmptyKitBudget())
     setIsBudgetProcessing(false)
     setBudgetProcessingError(null)
+    setPageSharedState({
+      leasing: createPageSharedSettings(),
+      vendas: createPageSharedSettings(),
+    })
     if (budgetUploadInputRef.current) {
       budgetUploadInputRef.current.value = ''
     }
@@ -6727,7 +6971,22 @@ export default function App() {
     setClienteEmEdicaoId(null)
     setIsClientesModalOpen(false)
     setNotificacoes([])
-  }, [resetRetorno])
+  }, [
+    createPageSharedSettings,
+    resetRetorno,
+    setDistribuidoraTarifa,
+    setKcKwhMes,
+    setNumeroModulosManual,
+    setPageSharedState,
+    setPotenciaModulo,
+    setPotenciaModuloDirty,
+    setSegmentoCliente,
+    setTarifaCheia,
+    setTaxaMinima,
+    setTipoInstalacao,
+    setTipoInstalacaoDirty,
+    setUfTarifa,
+  ])
 
   const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
   const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
