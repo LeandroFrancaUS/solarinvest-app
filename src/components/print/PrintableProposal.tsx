@@ -28,7 +28,7 @@ function PrintableProposalInner(
     capex,
     tipoProposta,
     geracaoMensalKwh,
-    potenciaModulo,
+    potenciaModulo: potenciaModuloProp,
     numeroModulos,
     potenciaInstaladaKwp,
     descontoContratualPct,
@@ -122,7 +122,10 @@ function PrintableProposalInner(
     })} módulos`
   }
 
-  const potenciaModuloDetalhe = pickPositive(parsedPdfResumo?.potencia_da_placa_wp, potenciaModulo)
+  const potenciaModuloDetalhe = pickPositive(
+    parsedPdfResumo?.potencia_da_placa_wp,
+    potenciaModuloProp,
+  )
   const formatModuloDetalhe = (valor: number | null) => {
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
       return '—'

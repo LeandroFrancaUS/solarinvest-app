@@ -151,7 +151,7 @@ body {
 
 .page-actions {
   position: sticky;
-  bottom: var(--space-4);
+  top: calc(var(--header-h) + var(--tabs-h) + var(--space-2));
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
@@ -159,9 +159,20 @@ body {
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.85);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35);
-  margin: 0 0 var(--space-4) auto;
+  margin: var(--space-3) 0 var(--space-4) auto;
   z-index: 5;
   backdrop-filter: blur(12px);
+  align-self: flex-end;
+}
+
+@media (max-width: 768px) {
+  .page-actions {
+    position: sticky;
+    top: calc(var(--header-h) + var(--tabs-h) + var(--space-1));
+    margin: var(--space-2) auto var(--space-3);
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 button {
