@@ -7037,11 +7037,6 @@ export default function App() {
       </div>
       <div className="info-inline">
         <span className="pill">
-          <InfoTooltip text="Valor de mercado = Potência do sistema (kWp) × Preço por kWp configurado nas definições." />
-          Valor de Mercado Estimado
-          <strong>{currency(capex)}</strong>
-        </span>
-        <span className="pill">
           <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ Dias considerados no mês." />
           Consumo diário
           <strong>
@@ -7427,11 +7422,6 @@ export default function App() {
       </div>
       <div className="info-inline">
         <span className="pill">
-          <InfoTooltip text="Valor de mercado = Potência do sistema (kWp) × Preço por kWp configurado nas definições." />
-          Valor de Mercado Estimado
-          <strong>{currency(capex)}</strong>
-        </span>
-        <span className="pill">
           <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ 30 dias." />
           Consumo diário
           <strong>
@@ -7480,17 +7470,12 @@ export default function App() {
       { key: 'impostoRetido', label: 'Imposto retido' },
     ]
 
-    const valorAtualLabel = tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado'
     const isTelhado = tipoInstalacao === 'TELHADO'
 
     return (
       <section className="card">
         <div className="card-header">
           <h2>Composição da UFV</h2>
-          <span className="pill">
-            Valor de venda ({valorAtualLabel})
-            <strong>{currency(valorVendaAtual)}</strong>
-          </span>
         </div>
         <p className="muted">
           Informe os componentes adicionais do projeto. Esses valores são somados ao orçamento base para definir o
@@ -7528,14 +7513,6 @@ export default function App() {
                   </Field>
                 ))}
               </div>
-              <div className="composicao-ufv-total">
-                <span>Adicionais Telhado</span>
-                <strong>{currency(composicaoTelhadoTotal)}</strong>
-              </div>
-              <div className="composicao-ufv-total">
-                <span>Valor de venda (Telhado)</span>
-                <strong>{currency(valorVendaTelhado)}</strong>
-              </div>
             </div>
           ) : (
             <div className="composicao-ufv-group">
@@ -7568,22 +7545,8 @@ export default function App() {
                   </Field>
                 ))}
               </div>
-              <div className="composicao-ufv-total">
-                <span>Adicionais Solo</span>
-                <strong>{currency(composicaoSoloTotal)}</strong>
-              </div>
-              <div className="composicao-ufv-total">
-                <span>Valor de venda (Solo)</span>
-                <strong>{currency(valorVendaSolo)}</strong>
-              </div>
             </div>
           )}
-        </div>
-        <div className="info-inline">
-          <span className="pill">
-            Valor do orçamento base
-            <strong>{currency(valorOrcamentoConsiderado)}</strong>
-          </span>
         </div>
       </section>
     )
