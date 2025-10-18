@@ -6979,24 +6979,15 @@ export default function App() {
           </select>
         </Field>
         <Field label="Tipo de instalação">
-          <div className="toggle-group" role="group" aria-label="Tipo de instalação">
-            <button
-              type="button"
-              className={`toggle-option${tipoInstalacao === 'TELHADO' ? ' active' : ''}`}
-              aria-pressed={tipoInstalacao === 'TELHADO'}
-              onClick={() => handleTipoInstalacaoChange('TELHADO')}
-            >
-              Telhado
-            </button>
-            <button
-              type="button"
-              className={`toggle-option${tipoInstalacao === 'SOLO' ? ' active' : ''}`}
-              aria-pressed={tipoInstalacao === 'SOLO'}
-              onClick={() => handleTipoInstalacaoChange('SOLO')}
-            >
-              Solo
-            </button>
-          </div>
+          <select
+            value={tipoInstalacao}
+            onChange={(event) =>
+              handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
+            }
+          >
+            <option value="TELHADO">Telhado</option>
+            <option value="SOLO">Solo</option>
+          </select>
         </Field>
         <Field
           label={
@@ -7322,24 +7313,15 @@ export default function App() {
           </select>
         </Field>
         <Field label="Tipo de instalação">
-          <div className="toggle-group" role="group" aria-label="Tipo de instalação">
-            <button
-              type="button"
-              className={`toggle-option${tipoInstalacao === 'TELHADO' ? ' active' : ''}`}
-              aria-pressed={tipoInstalacao === 'TELHADO'}
-              onClick={() => handleTipoInstalacaoChange('TELHADO')}
-            >
-              Telhado
-            </button>
-            <button
-              type="button"
-              className={`toggle-option${tipoInstalacao === 'SOLO' ? ' active' : ''}`}
-              aria-pressed={tipoInstalacao === 'SOLO'}
-              onClick={() => handleTipoInstalacaoChange('SOLO')}
-            >
-              Solo
-            </button>
-          </div>
+          <select
+            value={tipoInstalacao}
+            onChange={(event) =>
+              handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
+            }
+          >
+            <option value="TELHADO">Telhado</option>
+            <option value="SOLO">Solo</option>
+          </select>
         </Field>
         <Field label="Potência do sistema (kWp)">
           <input

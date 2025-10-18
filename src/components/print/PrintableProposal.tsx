@@ -13,7 +13,10 @@ const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
 
 function PrintableProposalInner(
-  {
+  props: PrintableProposalProps,
+  ref: React.ForwardedRef<HTMLDivElement>,
+) {
+  const {
     cliente,
     budgetId,
     anos,
@@ -34,9 +37,7 @@ function PrintableProposalInner(
     tarifaCheia,
     vendaResumo: vendaResumoProp,
     parsedPdfVenda,
-  }: PrintableProposalProps,
-  ref: React.ForwardedRef<HTMLDivElement>,
-) {
+  } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
   const vendaFormResumo = vendaResumo?.form
