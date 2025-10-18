@@ -41,6 +41,10 @@ export interface VendaForm {
 
   tarifa_r_kwh?: number | undefined
   taxa_minima_r_mes?: number | undefined
+
+  validade_proposta?: string | undefined
+  prazo_execucao?: string | undefined
+  condicoes_adicionais?: string | undefined
 }
 
 export interface RetornoProjetado {

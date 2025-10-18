@@ -78,6 +78,13 @@ function PrintableProposalInner(
       maximumFractionDigits: 0,
     })} parcelas`
   }
+  const sanitizeTextField = (value?: string | null) => {
+    if (typeof value !== 'string') {
+      return null
+    }
+    const trimmed = value.trim()
+    return trimmed ? trimmed : null
+  }
   const pickPositive = (...values: (number | null | undefined)[]): number | null => {
     for (const value of values) {
       if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
@@ -337,14 +344,15 @@ function PrintableProposalInner(
         ? 'Cartão de débito'
         : 'Cartão de crédito'
       : null
-  const mdrSelecionadoValor =
-    isCondicaoAvista
-      ? modoPagamentoTipo === 'PIX'
-        ? vendaFormResumo.taxa_mdr_pix_pct
-        : modoPagamentoTipo === 'DEBITO'
-        ? vendaFormResumo.taxa_mdr_debito_pct
-        : vendaFormResumo.taxa_mdr_credito_vista_pct
-      : undefined
+  const formaPagamentoLabel = (() => {
+    if (!vendaFormResumo) {
+      return '—'
+    }
+    if (isCondicaoAvista && modoPagamentoLabel) {
+      return `${condicaoLabel} • ${modoPagamentoLabel}`
+    }
+    return condicaoLabel
+  })()
   const consumoResumo = formatKwhMes(vendaFormResumo?.consumo_kwh_mes)
   const tarifaInicialResumo = Number.isFinite(vendaFormResumo?.tarifa_cheia_r_kwh)
     ? tarifaCurrency(vendaFormResumo?.tarifa_cheia_r_kwh ?? 0)
@@ -369,6 +377,15 @@ function PrintableProposalInner(
   const mdrCreditoParceladoResumo = formatPercentFromPct(
     vendaFormResumo?.taxa_mdr_credito_parcelado_pct,
   )
+  const encargosFinanceirosLabel = (() => {
+    if (isCondicaoAvista) {
+      return `Pix: ${mdrPixResumo} | Débito: ${mdrDebitoResumo} | Crédito à vista: ${mdrCreditoVistaResumo}`
+    }
+    if (isCondicaoParcelado) {
+      return `Crédito parcelado: ${mdrCreditoParceladoResumo}`
+    }
+    return '—'
+  })()
   const entradaResumo = Number.isFinite(vendaFormResumo?.entrada_financiamento)
     ? currency(vendaFormResumo?.entrada_financiamento ?? 0)
     : '—'
@@ -398,6 +415,12 @@ function PrintableProposalInner(
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
+  const validadePropostaLabel =
+    sanitizeTextField(vendaFormResumo?.validade_proposta) ?? `${validadeTexto} (15 dias corridos)`
+  const prazoExecucaoLabel =
+    sanitizeTextField(vendaFormResumo?.prazo_execucao) ?? 'Sob consulta'
+  const condicoesAdicionaisLabel =
+    sanitizeTextField(vendaFormResumo?.condicoes_adicionais) ?? '—'
   const heroTitle = isVendaDireta ? 'Proposta de Venda Solar' : 'Proposta de Leasing Solar'
   const heroTagline = isVendaDireta
     ? 'Energia inteligente, patrimônio garantido'
@@ -680,7 +703,7 @@ function PrintableProposalInner(
 
       {isVendaDireta ? (
         <section className="print-section">
-          <h2>Condições de pagamento</h2>
+          <h2>Condições Comerciais e de Pagamento</h2>
           {vendaFormResumo ? (
             <>
               <table className="print-table">
@@ -692,41 +715,29 @@ function PrintableProposalInner(
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Condição</td>
-                    <td>{condicaoLabel}</td>
+                    <td>Forma de pagamento</td>
+                    <td>{formaPagamentoLabel}</td>
                   </tr>
                   <tr>
-                    <td>Investimento (CAPEX)</td>
+                    <td>Investimento total (CAPEX)</td>
                     <td>{currency(capex)}</td>
                   </tr>
-                  {modoPagamentoLabel ? (
-                    <tr>
-                      <td>Modo de pagamento</td>
-                      <td>{modoPagamentoLabel}</td>
-                    </tr>
-                  ) : null}
-                  {isCondicaoAvista && mdrSelecionadoValor !== undefined ? (
-                    <tr>
-                      <td>MDR aplicado ({modoPagamentoLabel ?? 'selecionado'})</td>
-                      <td>{formatPercentFromPct(mdrSelecionadoValor)}</td>
-                    </tr>
-                  ) : null}
-                  {isCondicaoAvista ? (
-                    <>
-                      <tr>
-                        <td>MDR Pix</td>
-                        <td>{mdrPixResumo}</td>
-                      </tr>
-                      <tr>
-                        <td>MDR débito</td>
-                        <td>{mdrDebitoResumo}</td>
-                      </tr>
-                      <tr>
-                        <td>MDR crédito à vista</td>
-                        <td>{mdrCreditoVistaResumo}</td>
-                      </tr>
-                    </>
-                  ) : null}
+                  <tr>
+                    <td>Validade da proposta</td>
+                    <td>{validadePropostaLabel}</td>
+                  </tr>
+                  <tr>
+                    <td>Prazo de execução</td>
+                    <td>{prazoExecucaoLabel}</td>
+                  </tr>
+                  <tr>
+                    <td>Encargos financeiros (MDR)</td>
+                    <td>{encargosFinanceirosLabel}</td>
+                  </tr>
+                  <tr>
+                    <td>Condições adicionais</td>
+                    <td>{condicoesAdicionaisLabel}</td>
+                  </tr>
                   {isCondicaoParcelado ? (
                     <>
                       <tr>
@@ -740,10 +751,6 @@ function PrintableProposalInner(
                       <tr>
                         <td>Juros do cartão (% a.a.)</td>
                         <td>{jurosCartaoAaResumo}</td>
-                      </tr>
-                      <tr>
-                        <td>MDR crédito parcelado</td>
-                        <td>{mdrCreditoParceladoResumo}</td>
                       </tr>
                     </>
                   ) : null}
