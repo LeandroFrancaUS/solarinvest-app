@@ -88,6 +88,11 @@ const createPrintableProps = (
   areaInstalacao: 0,
   descontoContratualPct: 0,
   parcelasLeasing: [],
+  leasingPrazoContratualMeses: null,
+  leasingValorInstalacaoCliente: null,
+  leasingDataInicioOperacao: null,
+  leasingValorMercadoProjetado: null,
+  leasingInflacaoEnergiaAa: null,
   distribuidoraTarifa: 'Copel',
   energiaContratadaKwh: 600,
   tarifaCheia: 0.95,
@@ -227,3 +232,52 @@ describe('PrintableProposal (venda direta)', () => {
   })
 })
 
+
+describe('PrintableProposal (leasing)', () => {
+  it('renderiza seções exclusivas de leasing com economia projetada', () => {
+    const props = createPrintableProps({
+      tipoProposta: 'LEASING',
+      descontoContratualPct: 12,
+      tarifaCheia: 0.78,
+      energiaContratadaKwh: 520,
+      geracaoMensalKwh: 540,
+      numeroModulos: 14,
+      potenciaModulo: 550,
+      potenciaInstaladaKwp: 7.7,
+      areaInstalacao: 42,
+      capex: 48000,
+      leasingROI: Array.from({ length: 30 }, (_, index) => (index + 1) * 1200),
+      parcelasLeasing: [
+        { mes: 1, tarifaCheia: 0.78, tarifaDescontada: 0.6864, mensalidadeCheia: 450, mensalidade: 357.75, totalAcumulado: 357.75 },
+        { mes: 12, tarifaCheia: 0.78, tarifaDescontada: 0.6864, mensalidadeCheia: 450, mensalidade: 357.75, totalAcumulado: 4293 },
+        { mes: 60, tarifaCheia: 1.22, tarifaDescontada: 1.0736, mensalidadeCheia: 702, mensalidade: 558.27, totalAcumulado: 28000 },
+      ],
+      leasingPrazoContratualMeses: 60,
+      leasingValorInstalacaoCliente: 0,
+      leasingDataInicioOperacao: '01/09/2024',
+      leasingValorMercadoProjetado: 120000,
+      leasingInflacaoEnergiaAa: 8,
+      buyoutResumo: {
+        vm0: 120000,
+        cashbackPct: 0,
+        depreciacaoPct: 5,
+        inadimplenciaPct: 2,
+        tributosPct: 4,
+        infEnergia: 8,
+        ipca: 4,
+        custosFixos: 0,
+        opex: 0,
+        seguro: 0,
+        duracao: 60,
+      },
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain('Proposta de Leasing Solar')
+    expect(markup).toContain('Quadro Comercial Resumido')
+    expect(markup).toContain('Energia inteligente, sem desembolso')
+    expect(markup).toContain('Investimento da SolarInvest')
+    expect(markup).toContain('Informações Importantes')
+  })
+})

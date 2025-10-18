@@ -3957,6 +3957,11 @@ export default function App() {
         areaInstalacao,
         descontoContratualPct: descontoConsiderado,
         parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
+        leasingPrazoContratualMeses: isVendaDiretaTab ? null : Math.max(0, Math.floor(duracaoMeses)),
+        leasingValorInstalacaoCliente: isVendaDiretaTab ? null : 0,
+        leasingDataInicioOperacao: isVendaDiretaTab ? null : null,
+        leasingValorMercadoProjetado: isVendaDiretaTab ? null : buyoutResumo.vm0,
+        leasingInflacaoEnergiaAa: isVendaDiretaTab ? null : inflacaoAa,
         distribuidoraTarifa:
           vendaSnapshot.parametros.distribuidora || distribuidoraTarifa || cliente.distribuidora || '',
         energiaContratadaKwh:
@@ -3992,6 +3997,7 @@ export default function App() {
       mostrarFinanciamento,
       numeroModulosEstimado,
       parcelasSolarInvest,
+      duracaoMeses,
       distribuidoraTarifa,
       tipoInstalacao,
       valorOrcamentoConsiderado,
@@ -4001,6 +4007,7 @@ export default function App() {
       potenciaModulo,
       tabelaBuyout,
       tarifaCheia,
+      inflacaoAa,
       isVendaDiretaTab,
       vendaForm,
       vendaRetornoAuto,
