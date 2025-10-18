@@ -107,7 +107,7 @@ export const INITIAL_VALUES = {
   taxaMinima: 95,
   encargosFixosExtras: 0,
   leasingPrazo: 5 as 5 | 7 | 10,
-  potenciaModulo: 550,
+  potenciaModulo: 600,
   tipoInstalacao: 'TELHADO' as TipoInstalacao,
   segmentoCliente: 'RESIDENCIAL' as SegmentoCliente,
   numeroModulosManual: '' as number | '',
