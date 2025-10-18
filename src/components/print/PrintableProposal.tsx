@@ -568,7 +568,7 @@ function PrintableProposalInner(
         </section>
       ) : null}
       <section className="print-section">
-        <h2>Quadro comercial resumido</h2>
+        <h2>Resumo de Custos e Investimento</h2>
         <table className="print-table">
           <thead>
             <tr>
@@ -617,15 +617,28 @@ function PrintableProposalInner(
                 pushIfPositivo('TRAFO', soloValores?.trafo)
                 pushIfPositivo('BRITA', soloValores?.brita)
                 pushIfPositivo('TERRAPLANAGEM', soloValores?.terraplanagem)
-                pushIfPositivo('Lucro Bruto', soloValores?.lucroBruto)
               }
 
               const subtotal = itens.reduce((acc, item) => acc + (item.valor ?? 0), 0)
               const totalCapex = subtotal > 0 ? subtotal / 0.995 : null
               const opex = totalCapex ? totalCapex * 0.005 : null
+              const margemOperacional = (() => {
+                if (!composicaoAtual) {
+                  return null
+                }
+                const margemOrigem =
+                  tipoResumo === 'TELHADO'
+                    ? composicaoAtual.telhado?.lucroBruto
+                    : composicaoAtual.solo?.lucroBruto
+                return Number.isFinite(margemOrigem) ? Number(margemOrigem) : null
+              })()
 
               if (Number.isFinite(opex) && (opex ?? 0) > 0) {
                 itens.push({ label: 'OPEX', valor: opex ?? null })
+              }
+
+              if (Number.isFinite(margemOperacional) && (margemOperacional ?? 0) > 0) {
+                itens.push({ label: 'Margem Operacional', valor: margemOperacional ?? null })
               }
 
               const linhasRender = itens.map((item) => (
