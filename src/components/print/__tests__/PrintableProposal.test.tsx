@@ -98,7 +98,7 @@ const createPrintableProps = (
 })
 
 describe('PrintableProposal (venda direta)', () => {
-  it('renderiza área mínima com catálogo e autonomia formatada', () => {
+  it('exibe potência dos módulos a partir do catálogo e autonomia formatada', () => {
     const vendaForm: VendaForm = {
       consumo_kwh_mes: 500,
       tarifa_cheia_r_kwh: 1,
@@ -136,17 +136,18 @@ describe('PrintableProposal (venda direta)', () => {
       numeroModulos: 12,
       energiaContratadaKwh: 500,
       vendaResumo: { form: vendaForm, retorno },
-      parsedPdfVenda: createParsedVenda({ module_area_m2: 1.8 }),
+      parsedPdfVenda: createParsedVenda({ potencia_da_placa_wp: 610 }),
     })
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
-    expect(markup).toMatch(/Área mínima necessária<\/dt>\s*<dd>21,6 m²<\/dd>/)
+    expect(markup).toMatch(/Potência dos módulos<\/dt>\s*<dd>610 Wp<\/dd>/)
+    expect(markup).not.toMatch(/Área mínima necessária/)
     expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>120,0%<\/dd>/)
     expect(markup).toMatch(/<span>VPL<\/span>\s*<strong>/)
   })
 
-  it('usa área padrão quando o catálogo não informa medida e oculta VPL sem desconto', () => {
+  it('mostra potência dos módulos como indisponível quando não há dados e oculta VPL sem desconto', () => {
     const vendaForm: VendaForm = {
       consumo_kwh_mes: 0,
       tarifa_cheia_r_kwh: 0.95,
@@ -184,18 +185,21 @@ describe('PrintableProposal (venda direta)', () => {
       numeroModulos: 10,
       energiaContratadaKwh: 0,
       vendaResumo: { form: vendaForm, retorno },
-      parsedPdfVenda: createParsedVenda({ module_area_m2: undefined }),
+      parsedPdfVenda: createParsedVenda({ potencia_da_placa_wp: null }),
+      potenciaModulo: 0,
     })
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
-    expect(markup).toMatch(/Área mínima necessária<\/dt>\s*<dd>20,0 m²<\/dd>/)
+    expect(markup).toMatch(/Potência dos módulos<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).toContain('Retorno Financeiro (Venda)')
     expect(markup).not.toMatch(/<span>VPL<\/span>/)
+    expect(markup).not.toContain('A geração real pode variar')
+    expect(markup).toContain('Não é de responsabilidade da SolarInvest Solutions')
   })
 
-  it('renderiza itens do orçamento apenas com Produto, Descrição e Quantidade', () => {
+  it('não renderiza a tabela de itens do orçamento', () => {
     const props = createPrintableProps({
       orcamentoItens: [
         {
@@ -211,19 +215,9 @@ describe('PrintableProposal (venda direta)', () => {
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
-    expect(markup).toContain('<th>Produto</th>')
-    expect(markup).toContain('<th>Descrição</th>')
-    expect(markup).toContain('<th>Quantidade</th>')
-    expect(markup).toContain('<th>Valor Unitário</th>')
-    expect(markup).toContain('<th>Valor Total</th>')
-    expect(markup).not.toContain('<th>Código</th>')
-    expect(markup).not.toContain('<th>Modelo</th>')
-    expect(markup).not.toContain('<th>Fabricante</th>')
-    expect(markup).toContain('Módulo Solar 550W')
-    expect(markup).toContain('Módulo monocristalino')
-    expect(markup).toContain('Código: MOD-550')
-    expect(markup).toContain('Modelo: XYZ-550')
-    expect(markup).toContain('Fabricante: Fabricante Solar')
+    expect(markup).not.toContain('Itens do orçamento')
+    expect(markup).not.toContain('<th>Produto</th>')
+    expect(markup).not.toContain('Módulo Solar 550W')
   })
 })
 
