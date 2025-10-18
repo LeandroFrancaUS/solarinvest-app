@@ -290,7 +290,7 @@ export const getVendaSnapshot = (): VendaSnapshot => cloneState(vendaStore.getSt
 
 export const calculateCapexFromState = (input: VendaState): number => {
   const campos = input.composicao
-  return (
+  const totalComposicao =
     campos.projeto +
     campos.instalacao +
     campos.material_ca +
@@ -301,6 +301,11 @@ export const calculateCapexFromState = (input: VendaState): number => {
     campos.comissao_liquida +
     campos.margem_operacional +
     campos.imposto_retido
-  )
+
+  const kitTotal = Number.isFinite(input.orcamento?.valor_total_orcamento)
+    ? Number(input.orcamento.valor_total_orcamento)
+    : 0
+
+  return totalComposicao + (kitTotal > 0 ? kitTotal : 0)
 }
 
