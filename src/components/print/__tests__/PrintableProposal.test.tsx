@@ -142,8 +142,13 @@ describe('PrintableProposal (venda direta)', () => {
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
     expect(markup).toMatch(/Potência dos módulos<\/dt>\s*<dd>610 Wp<\/dd>/)
+    expect(markup).toMatch(/Energia contratada \(kWh\/mês\)<\/dt>\s*<dd>500 kWh\/mês<\/dd>/)
+    expect(markup).toMatch(/Tarifa atual \(distribuidora\)<\/dt>\s*<dd>R\$\s*1,000<\/dd>/)
+    expect(markup).toMatch(/Inversores<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).not.toMatch(/Área mínima necessária/)
     expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>120,0%<\/dd>/)
+    expect(markup).toContain('>Item<')
+    expect(markup).toContain('TOTAL CAPEX')
     expect(markup).toMatch(/<span>VPL<\/span>\s*<strong>/)
   })
 
@@ -192,6 +197,7 @@ describe('PrintableProposal (venda direta)', () => {
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
     expect(markup).toMatch(/Potência dos módulos<\/dt>\s*<dd>—<\/dd>/)
+    expect(markup).toMatch(/Energia contratada \(kWh\/mês\)<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).toContain('Retorno Financeiro (Venda)')
     expect(markup).not.toMatch(/<span>VPL<\/span>/)

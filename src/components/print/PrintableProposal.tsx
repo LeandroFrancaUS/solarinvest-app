@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import { Bar, BarChart, CartesianGrid, Label, LabelList, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils/formatters'
+import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 
@@ -37,6 +38,8 @@ function PrintableProposalInner(
     tarifaCheia,
     vendaResumo: vendaResumoProp,
     parsedPdfVenda,
+    orcamentoItens,
+    composicaoUfv,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -105,21 +108,131 @@ function PrintableProposalInner(
     numeroModulos,
   )
 
+  const printableBudgetItems = useMemo(() => orcamentoItens ?? [], [orcamentoItens])
+  const inverterItems = useMemo(
+    () =>
+      printableBudgetItems.filter((item) =>
+        classifyBudgetItem({
+          product: item.produto,
+          description: item.descricao,
+          quantity: item.quantidade ?? null,
+          extra: `${item.modelo ?? ''} ${item.fabricante ?? ''}`,
+        }) === 'inverter',
+      ),
+    [printableBudgetItems],
+  )
+  const moduleItems = useMemo(
+    () =>
+      printableBudgetItems.filter((item) =>
+        classifyBudgetItem({
+          product: item.produto,
+          description: item.descricao,
+          quantity: item.quantidade ?? null,
+          extra: `${item.modelo ?? ''} ${item.fabricante ?? ''}`,
+        }) === 'module',
+      ),
+    [printableBudgetItems],
+  )
+
+  const sumItemQuantity = (items: typeof printableBudgetItems): number | null => {
+    let total = 0
+    let hasAny = false
+    items.forEach((item) => {
+      if (Number.isFinite(item.quantidade) && (item.quantidade ?? 0) > 0) {
+        total += Number(item.quantidade)
+        hasAny = true
+      }
+    })
+    if (!hasAny) {
+      return null
+    }
+    return total
+  }
+
+  const pickFirstText = (...values: (string | null | undefined)[]): string | null => {
+    for (const value of values) {
+      if (typeof value !== 'string') {
+        continue
+      }
+      const trimmed = value.trim()
+      if (trimmed) {
+        return trimmed
+      }
+    }
+    return null
+  }
+
+  const firstItemText = (
+    items: typeof printableBudgetItems,
+    extractor: (item: (typeof printableBudgetItems)[number]) => string | null | undefined,
+  ): string | null => {
+    for (const item of items) {
+      const value = extractor(item)
+      if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (trimmed) {
+          return trimmed
+        }
+      }
+    }
+    return null
+  }
+
+  const moduleQuantidadeCatalogo = sumItemQuantity(moduleItems)
+  const inverterQuantidadeCatalogo = sumItemQuantity(inverterItems)
+
+  const inverterNome = firstItemText(inverterItems, (item) => item.produto || item.descricao)
+  const moduleNome = firstItemText(moduleItems, (item) => item.produto || item.descricao)
+
+  const inverterModeloCatalogo = firstItemText(inverterItems, (item) => item.modelo || item.fabricante || null)
+  const moduleModeloCatalogo = firstItemText(moduleItems, (item) => item.modelo || item.fabricante || null)
+
+  const inverterModelo = pickFirstText(vendaFormResumo?.modelo_inversor, parsedPdfResumo?.modelo_inversor, inverterModeloCatalogo)
+  const moduleModelo = pickFirstText(vendaFormResumo?.modelo_modulo, parsedPdfResumo?.modelo_modulo, moduleModeloCatalogo)
+
+  const inverterQuantidade = pickPositive(inverterQuantidadeCatalogo)
+  const moduleQuantidade = pickPositive(kitQuantidadeModulos, moduleQuantidadeCatalogo)
+
+  const formatEquipmentQuantidade = (valor: number | null, unidade: string) => {
+    if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
+      return null
+    }
+    return `${formatNumberBRWithOptions(Math.round(valor ?? 0), {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })} ${unidade}`
+  }
+
+  const formatEquipmentDetail = ({
+    nome,
+    modelo,
+    quantidade,
+  }: {
+    nome: string | null
+    modelo: string | null
+    quantidade: string | null
+  }): string => {
+    const partes: string[] = []
+    if (nome) {
+      partes.push(`Nome: ${nome}`)
+    }
+    if (modelo) {
+      partes.push(`Modelo: ${modelo}`)
+    }
+    if (quantidade) {
+      partes.push(`Quantidade: ${quantidade}`)
+    }
+    if (partes.length === 0) {
+      return '—'
+    }
+    return partes.join(' • ')
+  }
+
   const formatKwpDetalhe = (valor: number | null) => {
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
       return '—'
     }
     return `${formatNumberBRWithOptions(valor ?? 0, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kWp`
-  }
-
-  const formatQuantidadeDetalhe = (valor: number | null) => {
-    if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
-      return '—'
-    }
-    return `${formatNumberBRWithOptions(Math.round(valor ?? 0), {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    })} módulos`
   }
 
   const potenciaModuloDetalhe = pickPositive(
@@ -159,10 +272,25 @@ function PrintableProposalInner(
   const detalhamentoCampos = [
     { label: 'Potência do sistema', value: formatKwpDetalhe(kitPotenciaInstalada ?? null) },
     { label: 'Produção média mensal', value: formatKwhMes(kitGeracao ?? undefined) },
-    { label: 'Consumo médio mensal', value: formatKwhMes(kitConsumo ?? undefined) },
-    { label: 'Quantidade de módulos', value: formatQuantidadeDetalhe(kitQuantidadeModulos ?? null) },
+    { label: 'Energia contratada (kWh/mês)', value: formatKwhMes(kitConsumo ?? undefined) },
+    {
+      label: 'Inversores',
+      value: formatEquipmentDetail({
+        nome: inverterNome,
+        modelo: inverterModelo,
+        quantidade: formatEquipmentQuantidade(inverterQuantidade, 'inversores'),
+      }),
+    },
+    {
+      label: 'Módulos',
+      value: formatEquipmentDetail({
+        nome: moduleNome,
+        modelo: moduleModelo,
+        quantidade: formatEquipmentQuantidade(moduleQuantidade, 'módulos'),
+      }),
+    },
     { label: 'Potência dos módulos', value: formatModuloDetalhe(potenciaModuloDetalhe ?? null) },
-    { label: 'Tarifa', value: formatTarifaDetalhe(tarifaProjeto ?? null) },
+    { label: 'Tarifa atual (distribuidora)', value: formatTarifaDetalhe(tarifaProjeto ?? null) },
     { label: 'Autonomia (%)', value: autonomiaLabel },
   ]
   const duracaoContratualValida =
@@ -177,28 +305,11 @@ function PrintableProposalInner(
   const cidadeCliente = cliente.cidade?.trim() || ''
   const ufCliente = cliente.uf?.trim() || ''
   const enderecoCliente = cliente.endereco?.trim() || ''
-  const prazoContratualResumo = isVendaDireta
-    ? 'Venda'
-    : duracaoContratualValida
-    ? `${buyoutResumo.duracao} meses`
-    : '60 meses'
-  const formatEnergiaContratada = (valor: number) => {
-    if (!Number.isFinite(valor) || valor <= 0) {
-      return '—'
-    }
-    const possuiDecimais = Math.abs(valor - Math.round(valor)) > 1e-6
-    return `${formatNumberBRWithOptions(valor, {
-      minimumFractionDigits: possuiDecimais ? 2 : 0,
-      maximumFractionDigits: possuiDecimais ? 2 : 0,
-    })} kWh/mês`
-  }
-  const energiaContratadaResumo = formatEnergiaContratada(energiaContratadaKwh)
   const tarifaCheiaResumo = tarifaCheia > 0 ? tarifaCurrency(tarifaCheia) : '—'
   const descontoResumo =
     !isVendaDireta && Number.isFinite(descontoContratualPct)
       ? formatPercentBR((descontoContratualPct ?? 0) / 100)
       : '—'
-  const valorInstalacaoTexto = isVendaDireta ? currency(capex) : currency(0)
   const condicaoLabel = (() => {
     if (!vendaFormResumo) {
       return '—'
@@ -283,13 +394,10 @@ function PrintableProposalInner(
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
   validadeData.setDate(validadeData.getDate() + 15)
-  const inicioOperacaoData = new Date(emissaoData.getTime())
-  inicioOperacaoData.setDate(inicioOperacaoData.getDate() + 60)
   const formatDate = (date: Date) =>
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
-  const inicioOperacaoTexto = formatDate(inicioOperacaoData)
   const heroTitle = isVendaDireta ? 'Proposta de Venda Solar' : 'Proposta de Leasing Solar'
   const heroTagline = isVendaDireta
     ? 'Energia inteligente, patrimônio garantido'
@@ -464,37 +572,87 @@ function PrintableProposalInner(
         <table className="print-table">
           <thead>
             <tr>
-              <th>Condição Comercial</th>
+              <th>Item</th>
               <th>Valor/Descrição</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>{isVendaDireta ? 'Modelo comercial' : 'Prazo contratual'}</td>
-              <td>{prazoContratualResumo}</td>
-            </tr>
-            <tr>
-              <td>Energia contratada (kWh/mês)</td>
-              <td>{energiaContratadaResumo}</td>
-            </tr>
-            <tr>
-              <td>Tarifa cheia da distribuidora</td>
-              <td>{tarifaCheiaResumo}</td>
-            </tr>
-            {!isVendaDireta ? (
-              <tr>
-                <td>Desconto aplicado</td>
-                <td>{descontoResumo}</td>
-              </tr>
-            ) : null}
-            <tr>
-              <td>{isVendaDireta ? 'Investimento total (CAPEX)' : 'Valor da instalação para o cliente'}</td>
-              <td>{valorInstalacaoTexto}</td>
-            </tr>
-            <tr>
-              <td>Início estimado da operação</td>
-              <td>{inicioOperacaoTexto}</td>
-            </tr>
+            {(() => {
+              const itens: { label: string; valor: number | null }[] = []
+              const composicaoAtual = composicaoUfv ?? null
+              const tipoResumo = composicaoAtual?.tipoAtual ?? tipoInstalacao
+              const pushIfPositivo = (label: string, valor: number | null | undefined) => {
+                if (Number.isFinite(valor) && (valor ?? 0) > 0) {
+                  itens.push({ label, valor: Number(valor) })
+                }
+              }
+
+              const kitValor = Number.isFinite(composicaoAtual?.valorOrcamento)
+                ? Number(composicaoAtual?.valorOrcamento)
+                : null
+              if (Number.isFinite(kitValor) && (kitValor ?? 0) > 0) {
+                itens.push({ label: 'Kit Fotovoltaico', valor: kitValor ?? null })
+              }
+
+              if (tipoResumo === 'TELHADO') {
+                const telhadoValores = composicaoAtual?.telhado
+                pushIfPositivo('Projeto', telhadoValores?.projeto)
+                pushIfPositivo('Instalação', telhadoValores?.instalacao)
+                pushIfPositivo('ART', (telhadoValores as { art?: number })?.art ?? null)
+                pushIfPositivo('Material CA', telhadoValores?.materialCa)
+                pushIfPositivo('CREA', telhadoValores?.crea)
+                pushIfPositivo('Placa', telhadoValores?.placa)
+              } else {
+                const soloValores = composicaoAtual?.solo
+                pushIfPositivo('Projeto', soloValores?.projeto)
+                pushIfPositivo('Instalação', soloValores?.instalacao)
+                pushIfPositivo('ART', (soloValores as { art?: number })?.art ?? null)
+                pushIfPositivo('Material CA', soloValores?.materialCa)
+                pushIfPositivo('CREA', soloValores?.crea)
+                pushIfPositivo('Placa', soloValores?.placa)
+                pushIfPositivo('TELA', soloValores?.tela)
+                pushIfPositivo('M. OBRA - TELA', soloValores?.maoObraTela)
+                pushIfPositivo('PORTÃO - TELA', soloValores?.portaoTela)
+                pushIfPositivo('CASA INVERSOR', soloValores?.casaInversor)
+                pushIfPositivo('TRAFO', soloValores?.trafo)
+                pushIfPositivo('BRITA', soloValores?.brita)
+                pushIfPositivo('TERRAPLANAGEM', soloValores?.terraplanagem)
+                pushIfPositivo('Lucro Bruto', soloValores?.lucroBruto)
+              }
+
+              const subtotal = itens.reduce((acc, item) => acc + (item.valor ?? 0), 0)
+              const totalCapex = subtotal > 0 ? subtotal / 0.995 : null
+              const opex = totalCapex ? totalCapex * 0.005 : null
+
+              if (Number.isFinite(opex) && (opex ?? 0) > 0) {
+                itens.push({ label: 'OPEX', valor: opex ?? null })
+              }
+
+              const linhasRender = itens.map((item) => (
+                <tr key={item.label}>
+                  <td>{item.label}</td>
+                  <td>{currency(item.valor ?? 0)}</td>
+                </tr>
+              ))
+
+              linhasRender.push(
+                <tr key="total-capex">
+                  <td>TOTAL CAPEX</td>
+                  <td>{Number.isFinite(totalCapex) && (totalCapex ?? 0) > 0 ? currency(totalCapex ?? 0) : '—'}</td>
+                </tr>,
+              )
+
+              if (linhasRender.length === 1) {
+                return [
+                  <tr key="total-capex">
+                    <td>TOTAL CAPEX</td>
+                    <td>—</td>
+                  </tr>,
+                ]
+              }
+
+              return linhasRender
+            })()}
           </tbody>
         </table>
       </section>
