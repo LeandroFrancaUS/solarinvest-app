@@ -674,7 +674,7 @@ function PrintableProposalInner(
                   ? Number(vendaSnapshot?.orcamento.valor_total_orcamento)
                   : null
                 if (valorKit && valorKit > 0) {
-                  linhas.push({ label: 'Kit Fotovoltaico (referência)', valor: valorKit })
+                  linhas.push({ label: 'Kit Fotovoltaico', valor: valorKit })
                 }
                 pushValor('Projeto', snapshotComposicao.projeto)
                 pushValor('Instalação', snapshotComposicao.instalacao)
@@ -697,7 +697,7 @@ function PrintableProposalInner(
 
                 linhasRender.push(
                   <tr key="total-capex">
-                    <td>TOTAL CAPEX</td>
+                    <td>Investimento Total do Projeto</td>
                     <td>{totalCapex > 0 ? currency(totalCapex) : '—'}</td>
                   </tr>,
                 )
@@ -709,7 +709,7 @@ function PrintableProposalInner(
               if (!composicaoAtual) {
                 return [
                   <tr key="total-capex">
-                    <td>TOTAL CAPEX</td>
+                    <td>Investimento Total do Projeto</td>
                     <td>—</td>
                   </tr>,
                 ]
@@ -726,7 +726,7 @@ function PrintableProposalInner(
                 ? Number(composicaoAtual.valorOrcamento)
                 : null
               if (kitValor && kitValor > 0) {
-                itens.push({ label: 'Kit Fotovoltaico (referência)', valor: kitValor })
+                itens.push({ label: 'Kit Fotovoltaico', valor: kitValor })
               }
               if (tipoResumo === 'TELHADO') {
                 const telhadoValores = composicaoAtual.telhado
@@ -767,7 +767,7 @@ function PrintableProposalInner(
               ))
               linhasRender.push(
                 <tr key="total-capex">
-                  <td>TOTAL CAPEX</td>
+                  <td>Investimento Total do Projeto</td>
                   <td>{subtotal > 0 ? currency(subtotal) : '—'}</td>
                 </tr>,
               )

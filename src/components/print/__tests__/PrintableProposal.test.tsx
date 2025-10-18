@@ -148,7 +148,7 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).not.toMatch(/Área mínima necessária/)
     expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>120,0%<\/dd>/)
     expect(markup).toContain('>Item<')
-    expect(markup).toContain('TOTAL CAPEX')
+    expect(markup).toContain('Investimento Total do Projeto')
     expect(markup).toMatch(/<span>VPL<\/span>\s*<strong>/)
   })
 
