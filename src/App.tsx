@@ -8362,7 +8362,6 @@ export default function App() {
                 <>
                   {renderParametrosPrincipaisSection()}
                   {renderConfiguracaoUsinaSection()}
-                  {renderComposicaoUfvSection()}
                   <section className="card">
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
