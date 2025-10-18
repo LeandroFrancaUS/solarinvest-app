@@ -3055,6 +3055,89 @@ export default function App() {
     return estimada > 0 ? estimada : 0
   }, [baseIrradiacao, diasMesNormalizado, eficienciaNormalizada, potenciaInstaladaKwp])
 
+  const diasMesConsiderado = diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO
+
+  const normalizarPotenciaKwp = useCallback((valor: number) => {
+    if (!Number.isFinite(valor) || valor <= 0) {
+      return 0
+    }
+    return Math.round(valor * 100) / 100
+  }, [])
+
+  const normalizarGeracaoMensal = useCallback((valor: number) => {
+    if (!Number.isFinite(valor) || valor <= 0) {
+      return 0
+    }
+    return Math.round(valor * 10) / 10
+  }, [])
+
+  const calcularPotenciaSistemaKwp = useCallback(
+    (modulos: number, potenciaModuloOverride?: number) => {
+      const potenciaWp =
+        Number.isFinite(potenciaModuloOverride) && (potenciaModuloOverride ?? 0) > 0
+          ? Number(potenciaModuloOverride)
+          : potenciaModulo
+      if (!Number.isFinite(modulos) || modulos <= 0) {
+        return 0
+      }
+      if (!Number.isFinite(potenciaWp) || potenciaWp <= 0) {
+        return 0
+      }
+      return (modulos * potenciaWp) / 1000
+    },
+    [potenciaModulo],
+  )
+
+  const estimarGeracaoPorPotencia = useCallback(
+    (potenciaKwp: number) => {
+      if (!Number.isFinite(potenciaKwp) || potenciaKwp <= 0) {
+        return 0
+      }
+      return estimateMonthlyGenerationKWh({
+        potencia_instalada_kwp: potenciaKwp,
+        irradiacao_kwh_m2_dia: baseIrradiacao,
+        performance_ratio: eficienciaNormalizada,
+        dias_mes: diasMesConsiderado,
+      })
+    },
+    [baseIrradiacao, eficienciaNormalizada, diasMesConsiderado],
+  )
+
+  const fatorGeracaoMensalCompleto = useMemo(() => {
+    if (baseIrradiacao <= 0 || eficienciaNormalizada <= 0 || diasMesConsiderado <= 0) {
+      return 0
+    }
+    return baseIrradiacao * eficienciaNormalizada * diasMesConsiderado
+  }, [baseIrradiacao, diasMesConsiderado, eficienciaNormalizada])
+
+  const calcularModulosPorGeracao = useCallback(
+    (geracaoAlvo: number, potenciaModuloOverride?: number) => {
+      if (!Number.isFinite(geracaoAlvo) || geracaoAlvo <= 0) {
+        return null
+      }
+      if (!Number.isFinite(fatorGeracaoMensalCompleto) || fatorGeracaoMensalCompleto <= 0) {
+        return null
+      }
+      const potenciaWp =
+        Number.isFinite(potenciaModuloOverride) && (potenciaModuloOverride ?? 0) > 0
+          ? Number(potenciaModuloOverride)
+          : potenciaModulo
+      if (!Number.isFinite(potenciaWp) || potenciaWp <= 0) {
+        return null
+      }
+      const potenciaNecessaria = geracaoAlvo / fatorGeracaoMensalCompleto
+      if (!Number.isFinite(potenciaNecessaria) || potenciaNecessaria <= 0) {
+        return null
+      }
+      const modulosCalculados = Math.ceil((potenciaNecessaria * 1000) / potenciaWp)
+      if (!Number.isFinite(modulosCalculados) || modulosCalculados <= 0) {
+        return null
+      }
+      return modulosCalculados
+    },
+    [fatorGeracaoMensalCompleto, potenciaModulo],
+  )
+
   useEffect(() => {
     const consumo = Number.isFinite(vendaForm.consumo_kwh_mes)
       ? Number(vendaForm.consumo_kwh_mes)
@@ -7701,10 +7784,63 @@ export default function App() {
               Number.isFinite(vendaForm.consumo_kwh_mes) ? vendaForm.consumo_kwh_mes : ''
             }
             onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setKcKwhMes(normalized, 'user')
-              applyVendaUpdates({ consumo_kwh_mes: normalized })
+              const { value } = event.target
+              if (value === '') {
+                setNumeroModulosManual('')
+                setKcKwhMes(0, 'auto')
+                applyVendaUpdates({
+                  consumo_kwh_mes: undefined,
+                  geracao_estimada_kwh_mes: undefined,
+                  potencia_instalada_kwp: undefined,
+                  quantidade_modulos: undefined,
+                })
+                return
+              }
+
+              const parsed = Number(value)
+              const consumoDesejado = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              const modulosCalculados = calcularModulosPorGeracao(consumoDesejado)
+
+              let potenciaCalculada = 0
+              let geracaoCalculada = consumoDesejado
+
+              if (modulosCalculados != null) {
+                potenciaCalculada = calcularPotenciaSistemaKwp(modulosCalculados)
+                if (potenciaCalculada > 0) {
+                  const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
+                  if (estimada > 0) {
+                    geracaoCalculada = normalizarGeracaoMensal(estimada)
+                  }
+                }
+              }
+
+              if (geracaoCalculada <= 0 && consumoDesejado > 0) {
+                geracaoCalculada = consumoDesejado
+              }
+
+              const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
+              setKcKwhMes(consumoFinal, 'user')
+
+              applyVendaUpdates({
+                consumo_kwh_mes: consumoFinal,
+                geracao_estimada_kwh_mes:
+                  geracaoCalculada > 0
+                    ? geracaoCalculada
+                    : consumoDesejado === 0
+                    ? 0
+                    : undefined,
+                potencia_instalada_kwp:
+                  potenciaCalculada > 0
+                    ? normalizarPotenciaKwp(potenciaCalculada)
+                    : consumoDesejado === 0
+                    ? 0
+                    : undefined,
+                quantidade_modulos: modulosCalculados ?? undefined,
+              })
+
+              if (modulosCalculados != null) {
+                setNumeroModulosManual('')
+              }
             }}
             onFocus={selectNumberInputOnFocus}
           />
@@ -7887,7 +8023,127 @@ export default function App() {
             value={potenciaModulo}
             onChange={(event) => {
               setPotenciaModuloDirty(true)
-              setPotenciaModulo(Number(event.target.value))
+              const parsed = Number(event.target.value)
+              const potenciaSelecionada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              setPotenciaModulo(potenciaSelecionada)
+
+              const modulosManuais =
+                typeof numeroModulosManual === 'number' && Number.isFinite(numeroModulosManual)
+                  ? Math.max(1, Math.round(numeroModulosManual))
+                  : null
+              const modulosFormulario = Number.isFinite(vendaForm.quantidade_modulos)
+                ? Math.max(1, Math.round(Number(vendaForm.quantidade_modulos)))
+                : null
+
+              const modulosBase = modulosManuais ?? modulosFormulario
+
+              const consumoAtualFormulario = Number.isFinite(vendaForm.consumo_kwh_mes)
+                ? Math.max(0, Number(vendaForm.consumo_kwh_mes))
+                : 0
+              const consumoReferencia = consumoAtualFormulario > 0 ? consumoAtualFormulario : kcKwhMes
+              const geracaoAtualFormulario = Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
+                ? Math.max(0, Number(vendaForm.geracao_estimada_kwh_mes))
+                : 0
+              const geracaoReferencia = geracaoAtualFormulario > 0 ? geracaoAtualFormulario : consumoReferencia
+
+              if (modulosBase && modulosBase > 0) {
+                const potenciaCalculada = calcularPotenciaSistemaKwp(modulosBase, potenciaSelecionada)
+                const potenciaNormalizada =
+                  potenciaCalculada > 0 ? normalizarPotenciaKwp(potenciaCalculada) : 0
+                let geracaoCalculada = 0
+                if (potenciaCalculada > 0) {
+                  const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
+                  if (estimada > 0) {
+                    geracaoCalculada = normalizarGeracaoMensal(estimada)
+                  }
+                }
+                if (geracaoCalculada <= 0 && geracaoReferencia > 0) {
+                  geracaoCalculada = geracaoReferencia
+                }
+                const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
+                setKcKwhMes(consumoFinal, 'auto')
+                applyVendaUpdates({
+                  quantidade_modulos: modulosBase,
+                  potencia_instalada_kwp:
+                    potenciaCalculada > 0
+                      ? potenciaNormalizada
+                      : consumoFinal === 0
+                      ? 0
+                      : undefined,
+                  geracao_estimada_kwh_mes:
+                    geracaoCalculada > 0
+                      ? geracaoCalculada
+                      : consumoFinal === 0
+                      ? 0
+                      : geracaoReferencia || undefined,
+                  consumo_kwh_mes: consumoFinal,
+                })
+                return
+              }
+
+              if (geracaoReferencia <= 0) {
+                setKcKwhMes(0, 'auto')
+                applyVendaUpdates({
+                  consumo_kwh_mes: 0,
+                  geracao_estimada_kwh_mes: undefined,
+                  potencia_instalada_kwp: undefined,
+                  quantidade_modulos: undefined,
+                })
+                return
+              }
+
+              const modulosCalculados = calcularModulosPorGeracao(
+                geracaoReferencia,
+                potenciaSelecionada,
+              )
+
+              if (modulosCalculados == null) {
+                setKcKwhMes(geracaoReferencia, 'auto')
+                applyVendaUpdates({
+                  consumo_kwh_mes: geracaoReferencia,
+                  geracao_estimada_kwh_mes: geracaoReferencia,
+                  potencia_instalada_kwp: undefined,
+                  quantidade_modulos: undefined,
+                })
+                setNumeroModulosManual('')
+                return
+              }
+
+              const potenciaCalculada = calcularPotenciaSistemaKwp(
+                modulosCalculados,
+                potenciaSelecionada,
+              )
+              const potenciaNormalizada =
+                potenciaCalculada > 0 ? normalizarPotenciaKwp(potenciaCalculada) : 0
+              let geracaoCalculada = geracaoReferencia
+              if (potenciaCalculada > 0) {
+                const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
+                if (estimada > 0) {
+                  geracaoCalculada = normalizarGeracaoMensal(estimada)
+                }
+              }
+              if (geracaoCalculada <= 0 && geracaoReferencia > 0) {
+                geracaoCalculada = geracaoReferencia
+              }
+              const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
+              setKcKwhMes(consumoFinal, 'auto')
+              applyVendaUpdates({
+                quantidade_modulos: modulosCalculados,
+                potencia_instalada_kwp:
+                  potenciaCalculada > 0
+                    ? potenciaNormalizada
+                    : consumoFinal === 0
+                    ? 0
+                    : undefined,
+                geracao_estimada_kwh_mes:
+                  geracaoCalculada > 0
+                    ? geracaoCalculada
+                    : consumoFinal === 0
+                    ? 0
+                    : geracaoReferencia || undefined,
+                consumo_kwh_mes: consumoFinal,
+              })
+              setNumeroModulosManual('')
             }}
           >
             {PAINEL_OPCOES.map((opt) => (
@@ -7911,17 +8167,47 @@ export default function App() {
               if (!value) {
                 applyVendaUpdates({ quantidade_modulos: undefined })
                 setNumeroModulosManual('')
+                setKcKwhMes(0, 'auto')
                 return
               }
               const parsed = Number(value)
               if (!Number.isFinite(parsed) || parsed <= 0) {
                 applyVendaUpdates({ quantidade_modulos: undefined })
                 setNumeroModulosManual('')
+                setKcKwhMes(0, 'auto')
                 return
               }
               const inteiro = Math.max(1, Math.round(parsed))
-              applyVendaUpdates({ quantidade_modulos: inteiro })
+              const potenciaCalculada = calcularPotenciaSistemaKwp(inteiro)
+              const potenciaNormalizada =
+                potenciaCalculada > 0 ? normalizarPotenciaKwp(potenciaCalculada) : 0
+              let geracaoCalculada = 0
+              if (potenciaCalculada > 0) {
+                const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
+                if (estimada > 0) {
+                  geracaoCalculada = normalizarGeracaoMensal(estimada)
+                }
+              }
+              const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
+
+              applyVendaUpdates({
+                quantidade_modulos: inteiro,
+                potencia_instalada_kwp:
+                  potenciaCalculada > 0
+                    ? potenciaNormalizada
+                    : consumoFinal === 0
+                    ? 0
+                    : undefined,
+                geracao_estimada_kwh_mes:
+                  geracaoCalculada > 0
+                    ? geracaoCalculada
+                    : consumoFinal === 0
+                    ? 0
+                    : undefined,
+                consumo_kwh_mes: consumoFinal,
+              })
               setNumeroModulosManual(inteiro)
+              setKcKwhMes(consumoFinal, 'auto')
             }}
             onFocus={selectNumberInputOnFocus}
           />
@@ -7983,12 +8269,60 @@ export default function App() {
             onChange={(event) => {
               const { value } = event.target
               if (!value) {
-                applyVendaUpdates({ geracao_estimada_kwh_mes: undefined })
+                setNumeroModulosManual('')
+                setKcKwhMes(0, 'auto')
+                applyVendaUpdates({
+                  geracao_estimada_kwh_mes: undefined,
+                  consumo_kwh_mes: undefined,
+                  potencia_instalada_kwp: undefined,
+                  quantidade_modulos: undefined,
+                })
                 return
               }
               const parsed = Number(value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              applyVendaUpdates({ geracao_estimada_kwh_mes: normalized })
+              const geracaoDesejada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              const modulosCalculados = calcularModulosPorGeracao(geracaoDesejada)
+
+              let potenciaCalculada = 0
+              let geracaoCalculada = geracaoDesejada
+
+              if (modulosCalculados != null) {
+                potenciaCalculada = calcularPotenciaSistemaKwp(modulosCalculados)
+                if (potenciaCalculada > 0) {
+                  const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
+                  if (estimada > 0) {
+                    geracaoCalculada = normalizarGeracaoMensal(estimada)
+                  }
+                }
+              }
+
+              if (geracaoCalculada <= 0 && geracaoDesejada > 0) {
+                geracaoCalculada = geracaoDesejada
+              }
+
+              const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
+              setKcKwhMes(consumoFinal, 'auto')
+
+              applyVendaUpdates({
+                geracao_estimada_kwh_mes:
+                  geracaoCalculada > 0
+                    ? geracaoCalculada
+                    : geracaoDesejada === 0
+                    ? 0
+                    : undefined,
+                consumo_kwh_mes: consumoFinal,
+                potencia_instalada_kwp:
+                  potenciaCalculada > 0
+                    ? normalizarPotenciaKwp(potenciaCalculada)
+                    : geracaoDesejada === 0
+                    ? 0
+                    : undefined,
+                quantidade_modulos: modulosCalculados ?? undefined,
+              })
+
+              if (modulosCalculados != null) {
+                setNumeroModulosManual('')
+              }
             }}
             onFocus={selectNumberInputOnFocus}
           />
