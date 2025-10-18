@@ -67,6 +67,7 @@ const COMPOSICAO_TELHADO_BASE: UfvComposicaoTelhadoValores = {
   instalacao: 0,
   materialCa: 0,
   crea: 0,
+  art: 0,
   placa: 0,
   comissaoLiquida: 0,
   lucroBruto: 0,
