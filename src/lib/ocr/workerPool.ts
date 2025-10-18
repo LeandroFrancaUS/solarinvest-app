@@ -1,4 +1,4 @@
-import type { RecognizeResult } from './workerTypes'
+import type { RecognizeResult, WorkerImageInput } from './workerTypes'
 
 export type OcrProgressUpdate = {
   progress: number
@@ -113,8 +113,9 @@ async function runRecognition(task: {
 }): Promise<RecognizeResult> {
   const worker = await getWorker()
   try {
+    const payload = toWorkerImageInput(task.imageData)
     const race = Promise.race([
-      worker.recognize(task.imageData),
+      worker.recognize(payload),
       new Promise((_, reject) => {
         setTimeout(() => {
           reject(new OcrError('Tempo limite excedido no OCR'))
@@ -145,6 +146,12 @@ function cloneImageData(imageData: ImageData): ImageData {
   const transferable = data.buffer.slice(0)
   const buffer = new Uint8ClampedArray(transferable)
   return new ImageData(buffer, width, height)
+}
+
+function toWorkerImageInput(imageData: ImageData): WorkerImageInput {
+  const { data, width, height } = imageData
+  const cloned = new Uint8ClampedArray(data)
+  return { data: cloned, width, height }
 }
 
 async function resetWorker(): Promise<void> {

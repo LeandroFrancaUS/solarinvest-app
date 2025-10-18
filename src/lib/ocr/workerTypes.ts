@@ -4,11 +4,19 @@ export type RecognizeResult = {
   }
 }
 
+export type WorkerImageInput =
+  | ImageData
+  | {
+      data: Uint8ClampedArray
+      width: number
+      height: number
+    }
+
 export type TesseractWorker = {
   load: () => Promise<void>
   loadLanguage: (lang: string) => Promise<void>
   initialize: (lang: string) => Promise<void>
-  recognize: (image: ImageData) => Promise<RecognizeResult>
+  recognize: (image: WorkerImageInput) => Promise<RecognizeResult>
   terminate: () => Promise<void>
 }
 
