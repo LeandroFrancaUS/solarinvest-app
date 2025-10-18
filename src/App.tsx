@@ -8399,6 +8399,11 @@ export default function App() {
 
                     <div className="info-inline">
                       <span className="pill">
+                        <InfoTooltip text="Calculado como Potência do sistema (kWp) × Preço por kWp (R$)." />
+                        Valor do Investimento
+                        <strong>{currency(capex)}</strong>
+                      </span>
+                      <span className="pill">
                         <InfoTooltip text="Tarifa com desconto = Tarifa cheia ajustada pelos reajustes anuais × (1 - desconto contratual)." />
                         Tarifa c/ desconto
                         <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
