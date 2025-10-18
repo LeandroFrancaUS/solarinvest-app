@@ -6912,6 +6912,11 @@ export default function App() {
     </section>
   )
 
+  const handleTipoInstalacaoChange = (value: TipoInstalacao) => {
+    setTipoInstalacaoDirty(true)
+    setTipoInstalacao(value)
+  }
+
   const renderConfiguracaoUsinaSection = () => (
     <section className="card">
       <h2>Configuração da Usina Fotovoltaica</h2>
@@ -6958,16 +6963,24 @@ export default function App() {
           />
         </Field>
         <Field label="Tipo de instalação">
-          <select
-            value={tipoInstalacao}
-            onChange={(event) => {
-              setTipoInstalacaoDirty(true)
-              setTipoInstalacao(event.target.value as TipoInstalacao)
-            }}
-          >
-            <option value="TELHADO">Telhado</option>
-            <option value="SOLO">Solo</option>
-          </select>
+          <div className="toggle-group" role="group" aria-label="Tipo de instalação">
+            <button
+              type="button"
+              className={`toggle-option${tipoInstalacao === 'TELHADO' ? ' active' : ''}`}
+              aria-pressed={tipoInstalacao === 'TELHADO'}
+              onClick={() => handleTipoInstalacaoChange('TELHADO')}
+            >
+              Telhado
+            </button>
+            <button
+              type="button"
+              className={`toggle-option${tipoInstalacao === 'SOLO' ? ' active' : ''}`}
+              aria-pressed={tipoInstalacao === 'SOLO'}
+              onClick={() => handleTipoInstalacaoChange('SOLO')}
+            >
+              Solo
+            </button>
+          </div>
         </Field>
         <Field
           label={
@@ -7287,16 +7300,24 @@ export default function App() {
           />
         </Field>
         <Field label="Tipo de instalação">
-          <select
-            value={tipoInstalacao}
-            onChange={(event) => {
-              setTipoInstalacaoDirty(true)
-              setTipoInstalacao(event.target.value as TipoInstalacao)
-            }}
-          >
-            <option value="TELHADO">Telhado</option>
-            <option value="SOLO">Solo</option>
-          </select>
+          <div className="toggle-group" role="group" aria-label="Tipo de instalação">
+            <button
+              type="button"
+              className={`toggle-option${tipoInstalacao === 'TELHADO' ? ' active' : ''}`}
+              aria-pressed={tipoInstalacao === 'TELHADO'}
+              onClick={() => handleTipoInstalacaoChange('TELHADO')}
+            >
+              Telhado
+            </button>
+            <button
+              type="button"
+              className={`toggle-option${tipoInstalacao === 'SOLO' ? ' active' : ''}`}
+              aria-pressed={tipoInstalacao === 'SOLO'}
+              onClick={() => handleTipoInstalacaoChange('SOLO')}
+            >
+              Solo
+            </button>
+          </div>
         </Field>
         <Field label="Potência do sistema (kWp)">
           <input
@@ -7460,6 +7481,7 @@ export default function App() {
     ]
 
     const valorAtualLabel = tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado'
+    const isTelhado = tipoInstalacao === 'TELHADO'
 
     return (
       <section className="card">
@@ -7475,90 +7497,87 @@ export default function App() {
           valor final de venda da usina.
         </p>
         <div className="composicao-ufv-groups">
-          <div className="composicao-ufv-group">
-            <h3>Projeto em Telhado</h3>
-            <div className="grid g3">
-              {telhadoCampos.map(({ key, label }) => (
-                <Field key={`telhado-${key}`} label={label}>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
-                    onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              ))}
+          {isTelhado ? (
+            <div className="composicao-ufv-group">
+              <h3>Projeto em Telhado</h3>
+              <div className="grid g3">
+                {telhadoCampos.map(({ key, label }) => (
+                  <Field key={`telhado-${key}`} label={label}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                      onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <div className="grid g3">
+                {resumoCamposTelhado.map(({ key, label }) => (
+                  <Field key={`telhado-resumo-${key}`} label={label}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                      onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <div className="composicao-ufv-total">
+                <span>Adicionais Telhado</span>
+                <strong>{currency(composicaoTelhadoTotal)}</strong>
+              </div>
+              <div className="composicao-ufv-total">
+                <span>Valor de venda (Telhado)</span>
+                <strong>{currency(valorVendaTelhado)}</strong>
+              </div>
             </div>
-            <div className="grid g3">
-              {resumoCamposTelhado.map(({ key, label }) => (
-                <Field key={`telhado-resumo-${key}`} label={label}>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
-                    onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              ))}
+          ) : (
+            <div className="composicao-ufv-group">
+              <h3>Projeto em Solo</h3>
+              <div className="grid g3">
+                {soloCamposPrincipais.map(({ key, label }) => (
+                  <Field key={`solo-${key}`} label={label}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                      onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <div className="grid g3">
+                {resumoCamposSolo.map(({ key, label }) => (
+                  <Field key={`solo-resumo-${key}`} label={label}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                      onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <div className="composicao-ufv-total">
+                <span>Adicionais Solo</span>
+                <strong>{currency(composicaoSoloTotal)}</strong>
+              </div>
+              <div className="composicao-ufv-total">
+                <span>Valor de venda (Solo)</span>
+                <strong>{currency(valorVendaSolo)}</strong>
+              </div>
             </div>
-            <div className="composicao-ufv-total">
-              <span>Adicionais Telhado</span>
-              <strong>{currency(composicaoTelhadoTotal)}</strong>
-            </div>
-            <div className="composicao-ufv-total">
-              <span>Valor de venda (Telhado)</span>
-              <strong>
-                {currency(valorVendaTelhado)}
-                {tipoInstalacao === 'TELHADO' ? ' (Atual)' : ''}
-              </strong>
-            </div>
-          </div>
-          <div className="composicao-ufv-group">
-            <h3>Projeto em Solo</h3>
-            <div className="grid g3">
-              {soloCamposPrincipais.map(({ key, label }) => (
-                <Field key={`solo-${key}`} label={label}>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
-                    onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              ))}
-            </div>
-            <div className="grid g3">
-              {resumoCamposSolo.map(({ key, label }) => (
-                <Field key={`solo-resumo-${key}`} label={label}>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
-                    onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              ))}
-            </div>
-            <div className="composicao-ufv-total">
-              <span>Adicionais Solo</span>
-              <strong>{currency(composicaoSoloTotal)}</strong>
-            </div>
-            <div className="composicao-ufv-total">
-              <span>Valor de venda (Solo)</span>
-              <strong>
-                {currency(valorVendaSolo)}
-                {tipoInstalacao === 'SOLO' ? ' (Atual)' : ''}
-              </strong>
-            </div>
-          </div>
+          )}
         </div>
         <div className="info-inline">
           <span className="pill">
@@ -8010,6 +8029,7 @@ export default function App() {
                 <>
                   {renderParametrosPrincipaisSection()}
                   {renderConfiguracaoUsinaSection()}
+                  {renderComposicaoUfvSection()}
                   <section className="card">
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
@@ -8287,6 +8307,7 @@ export default function App() {
           <>
             {renderVendaParametrosSection()}
             {renderVendaConfiguracaoSection()}
+            {renderComposicaoUfvSection()}
             <section className="card">
               <h2>Upload de Orçamento</h2>
               <div className="budget-upload-section">
@@ -8535,7 +8556,6 @@ export default function App() {
                 </div>
               </div>
             </section>
-            {renderComposicaoUfvSection()}
             {renderCondicoesPagamentoSection()}
             {renderRetornoProjetadoSection()}
           </>
