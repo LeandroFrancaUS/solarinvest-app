@@ -556,14 +556,22 @@ function PrintableProposalInner(
         <section className="print-section">
           <h2>Detalhamento do Projeto</h2>
           {detalhamentoCampos.length > 0 ? (
-            <dl className="print-kit-grid">
-              {detalhamentoCampos.map((campo) => (
-                <div key={campo.label} className="print-kit-field">
-                  <dt>{campo.label}</dt>
-                  <dd>{campo.value}</dd>
-                </div>
-              ))}
-            </dl>
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Valor/Descrição</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detalhamentoCampos.map((campo) => (
+                  <tr key={campo.label}>
+                    <td>{campo.label}</td>
+                    <td>{campo.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : null}
         </section>
       ) : null}
