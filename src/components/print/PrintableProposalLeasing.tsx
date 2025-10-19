@@ -1,15 +1,5 @@
 import React, { useMemo } from 'react'
-import {
-  CartesianGrid,
-  Defs,
-  Line,
-  LineChart,
-  LinearGradient,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import './styles/proposal-leasing.css'
 import { currency, formatAxis, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
@@ -419,12 +409,12 @@ function PrintableProposalLeasingInner(
         <div className="leasing-economia">
           <ResponsiveContainer height={260}>
             <LineChart data={economiaChartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-              <Defs>
-                <LinearGradient id="leasing-economia-gradient" x1="0" y1="0" x2="1" y2="1">
+              <defs>
+                <linearGradient id="leasing-economia-gradient" x1="0" y1="0" x2="1" y2="1">
                   <stop offset="0%" stopColor="#004F9E" stopOpacity={1} />
                   <stop offset="100%" stopColor="#33BFFF" stopOpacity={1} />
-                </LinearGradient>
-              </Defs>
+                </linearGradient>
+              </defs>
               <CartesianGrid stroke="rgba(0, 79, 158, 0.12)" strokeDasharray="4 4" />
               <XAxis dataKey="ano" stroke="#004F9E" tickLine={false} axisLine={false} />
               <YAxis

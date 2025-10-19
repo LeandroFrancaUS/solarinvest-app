@@ -2069,8 +2069,10 @@ export default function App() {
     })
   }, [retornoProjetado])
 
+  type VendaFormUpdates = { [K in keyof VendaForm]?: VendaForm[K] | undefined }
+
   const applyVendaUpdates = useCallback(
-    (updates: Partial<VendaForm>) => {
+    (updates: VendaFormUpdates) => {
       if (!updates || Object.keys(updates).length === 0) {
         return
       }
