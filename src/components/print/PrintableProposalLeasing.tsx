@@ -6,7 +6,6 @@ import {
   LineChart,
   LinearGradient,
   ResponsiveContainer,
-  Stop,
   Tooltip,
   XAxis,
   YAxis,
@@ -422,8 +421,8 @@ function PrintableProposalLeasingInner(
             <LineChart data={economiaChartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <Defs>
                 <LinearGradient id="leasing-economia-gradient" x1="0" y1="0" x2="1" y2="1">
-                  <Stop offset="0%" stopColor="#004F9E" stopOpacity={1} />
-                  <Stop offset="100%" stopColor="#33BFFF" stopOpacity={1} />
+                  <stop offset="0%" stopColor="#004F9E" stopOpacity={1} />
+                  <stop offset="100%" stopColor="#33BFFF" stopOpacity={1} />
                 </LinearGradient>
               </Defs>
               <CartesianGrid stroke="rgba(0, 79, 158, 0.12)" strokeDasharray="4 4" />
