@@ -39,7 +39,14 @@ const classifyNormalized = (normalized: string): Classification | null => {
   if (normalized.includes('INVERSOR')) {
     return 'inverter'
   }
-  if (normalized.includes('MODULO') && !normalized.includes('ESTRUTURA')) {
+  const hasModuleKeyword =
+    normalized.includes('MODULO') ||
+    ((normalized.includes('PAINEL') || normalized.includes('PLACA')) &&
+      (normalized.includes('SOLAR') ||
+        normalized.includes('FOTOVOLTAIC') ||
+        normalized.includes(' FV')))
+
+  if (hasModuleKeyword && !normalized.includes('ESTRUTURA')) {
     return 'module'
   }
   return null
