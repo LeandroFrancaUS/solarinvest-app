@@ -14,12 +14,12 @@
   min-height: 100%;
 }
 
-.print-cover {
+.print-hero {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 28px;
+  gap: 32px;
   padding: 56px 60px;
   border-radius: 32px;
   background:
@@ -31,7 +31,7 @@
   text-align: center;
 }
 
-.print-cover::after {
+.print-hero::after {
   content: '';
   position: absolute;
   inset: auto -220px -260px auto;
@@ -42,7 +42,26 @@
   opacity: 0.85;
 }
 
-.print-cover__logo {
+.print-hero__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  position: relative;
+  z-index: 1;
+  max-width: 640px;
+  width: 100%;
+}
+
+.print-hero__identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.print-logo {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -52,63 +71,47 @@
   background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(10px);
   box-shadow: 0 24px 54px rgba(5, 9, 18, 0.55);
-  position: relative;
-  z-index: 1;
 }
 
-.print-cover__logo img {
+.print-logo img {
   width: 74px;
   height: auto;
 }
 
-.print-cover__content {
+.print-hero__title {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  position: relative;
-  z-index: 1;
+  gap: 10px;
 }
 
-.print-cover__content h1 {
+.print-hero__eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.74);
+}
+
+.print-hero__title h1 {
   margin: 0;
-  font-size: 34px;
-  line-height: 1.1;
+  font-size: 36px;
+  line-height: 1.05;
   font-weight: 700;
+  color: inherit;
   text-shadow: 0 18px 42px rgba(5, 9, 18, 0.55);
 }
 
-.print-cover__subtitle {
+.print-hero__tagline {
   margin: 0;
   font-size: 16px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(248, 250, 252, 0.82);
+  line-height: 1.6;
+  color: rgba(248, 250, 252, 0.88);
 }
 
-.print-cover__meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px 18px;
-  font-size: 13px;
-  color: rgba(248, 250, 252, 0.84);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.print-cover__meta-item {
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(248, 250, 252, 0.24);
-  backdrop-filter: blur(6px);
-}
-
-.print-cover__summary {
-  margin: 0;
+.print-hero__summary {
   position: relative;
   z-index: 1;
-  padding: 28px 32px;
+  padding: 32px 36px;
   border-radius: 28px;
   background: rgba(5, 9, 18, 0.48);
   backdrop-filter: blur(8px);
@@ -117,6 +120,14 @@
   color: rgba(248, 250, 252, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.16);
   max-width: 720px;
+}
+
+.print-hero__summary h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #f8fafc;
 }
 
 .print-section {
@@ -222,31 +233,6 @@
 
 .print-client-field--wide {
   grid-column: span 2;
-}
-
-.print-benefits__layout {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 24px;
-}
-
-.print-benefits__panel {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 24px 26px;
-  border-radius: 20px;
-  background: rgba(8, 15, 30, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
-}
-
-.print-benefits__panel h3 {
-  margin: 0;
-  font-size: 14px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(226, 232, 240, 0.8);
 }
 
 .leasing-table-value {
@@ -403,39 +389,6 @@
   color: rgba(226, 232, 240, 0.82);
   font-size: 13px;
   line-height: 1.7;
-}
-
-.print-institutional-footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: flex-start;
-  font-size: 13px;
-  color: rgba(226, 232, 240, 0.82);
-}
-
-.print-institutional-footer__dates {
-  display: grid;
-  gap: 6px;
-}
-
-.print-institutional-footer__dates strong {
-  color: #f8fafc;
-}
-
-.print-institutional-footer__brand {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: right;
-}
-
-.print-institutional-footer__brand strong {
-  font-size: 15px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #f8fafc;
 }
 
 .print-cta__box {
