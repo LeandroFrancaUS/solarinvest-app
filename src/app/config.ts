@@ -179,6 +179,7 @@ export function createEmptyKitBudget(): KitBudgetState {
     totalInput: '',
     warnings: [],
     missingInfo: null,
+    ignoredByNoise: 0,
   }
 }
 
@@ -206,6 +207,7 @@ type KitBudgetState = {
   fileName?: string
   fileSizeBytes?: number
   missingInfo: KitBudgetMissingInfo
+  ignoredByNoise: number
 }
 
 // Re-exporting the KitBudgetState-related types to keep them colocated with the default factory.

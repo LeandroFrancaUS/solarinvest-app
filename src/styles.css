@@ -1988,6 +1988,18 @@ table tbody tr:hover {
   margin-top: 6px;
 }
 
+.budget-noise-badge {
+  display: inline-block;
+  margin: 0 0 16px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .budget-missing-alert {
   display: flex;
   flex-direction: column;
