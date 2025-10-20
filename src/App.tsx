@@ -2117,7 +2117,7 @@ export default function App() {
       setSegmentoCliente((prev) => (prev === value ? prev : value))
       applyVendaUpdates({ segmento_cliente: value })
     },
-    [applyVendaUpdates],
+    [applyVendaUpdates, setSegmentoCliente],
   )
 
   const autoFillVendaFromBudget = useCallback(
