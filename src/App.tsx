@@ -94,7 +94,6 @@ import {
   type KitBudgetMissingInfo,
   type KitBudgetState,
   type SeguroModo,
-  type TipoSistema,
   type SettingsTabKey,
   type TabKey,
 } from './app/config'
@@ -1402,7 +1401,6 @@ export default function App() {
   const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(
     INITIAL_VALUES.segmentoCliente,
   )
-  const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
   const [tipoInstalacaoDirty, setTipoInstalacaoDirtyState] = useState(false)
   const [numeroModulosManual, setNumeroModulosManualState] = useState<number | ''>(
     INITIAL_VALUES.numeroModulosManual,
@@ -1425,7 +1423,6 @@ export default function App() {
     numeroModulosManual: number | ''
     segmentoCliente: SegmentoCliente
     tipoInstalacao: TipoInstalacao
-    tipoSistema: TipoSistema
     consumoManual: boolean
     potenciaModuloDirty: boolean
     tipoInstalacaoDirty: boolean
@@ -1441,7 +1438,6 @@ export default function App() {
     numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
     segmentoCliente: INITIAL_VALUES.segmentoCliente,
     tipoInstalacao: INITIAL_VALUES.tipoInstalacao,
-    tipoSistema: INITIAL_VALUES.tipoSistema,
     consumoManual: false,
     potenciaModuloDirty: false,
     tipoInstalacaoDirty: false,
@@ -1621,20 +1617,6 @@ export default function App() {
     [segmentoCliente, updatePageSharedState],
   )
 
-  const setTipoSistema = useCallback(
-    (valueOrUpdater: TipoSistema | ((prev: TipoSistema) => TipoSistema)) => {
-      const nextValue = resolveStateUpdate(valueOrUpdater, tipoSistema)
-      setTipoSistemaState(nextValue)
-      updatePageSharedState((current) => {
-        if (current.tipoSistema === nextValue) {
-          return current
-        }
-        return { ...current, tipoSistema: nextValue }
-      })
-    },
-    [tipoSistema, updatePageSharedState],
-  )
-
   const setNumeroModulosManual = useCallback(
     (valueOrUpdater: number | '' | ((prev: number | '') => number | '')) => {
       const nextValue = resolveStateUpdate(valueOrUpdater, numeroModulosManual)
@@ -1668,7 +1650,6 @@ export default function App() {
     )
     setSegmentoClienteState((prev) => (prev === snapshot.segmentoCliente ? prev : snapshot.segmentoCliente))
     setTipoInstalacaoState((prev) => (prev === snapshot.tipoInstalacao ? prev : snapshot.tipoInstalacao))
-    setTipoSistemaState((prev) => (prev === snapshot.tipoSistema ? prev : snapshot.tipoSistema))
     setConsumoManualState((prev) => (prev === snapshot.consumoManual ? prev : snapshot.consumoManual))
     setPotenciaModuloDirtyState((prev) =>
       prev === snapshot.potenciaModuloDirty ? prev : snapshot.potenciaModuloDirty,
@@ -7031,7 +7012,6 @@ export default function App() {
     setTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
     setTipoInstalacaoDirty(false)
     setSegmentoCliente(INITIAL_VALUES.segmentoCliente)
-    setTipoSistema(INITIAL_VALUES.tipoSistema)
     setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
     setComposicaoTelhado(createInitialComposicaoTelhado())
     setComposicaoSolo(createInitialComposicaoSolo())
@@ -7101,7 +7081,6 @@ export default function App() {
     setPotenciaModulo,
     setPotenciaModuloDirty,
     setSegmentoCliente,
-    setTipoSistema,
     setTarifaCheia,
     setTaxaMinima,
     setTipoInstalacao,
@@ -7728,16 +7707,6 @@ export default function App() {
             <option value="SOLO">Solo</option>
           </select>
         </Field>
-        <Field label="Tipo de sistema">
-          <select
-            value={tipoSistema}
-            onChange={(event) => setTipoSistema(event.target.value as TipoSistema)}
-          >
-            <option value="ON_GRID">On-grid</option>
-            <option value="HIBRIDO">Híbrido</option>
-            <option value="OFF_GRID">Off-grid</option>
-          </select>
-        </Field>
         <Field
           label={
             <>
@@ -8128,16 +8097,6 @@ export default function App() {
           >
             <option value="TELHADO">Telhado</option>
             <option value="SOLO">Solo</option>
-          </select>
-        </Field>
-        <Field label="Tipo de sistema">
-          <select
-            value={tipoSistema}
-            onChange={(event) => setTipoSistema(event.target.value as TipoSistema)}
-          >
-            <option value="ON_GRID">On-grid</option>
-            <option value="HIBRIDO">Híbrido</option>
-            <option value="OFF_GRID">Off-grid</option>
           </select>
         </Field>
         <Field
@@ -8852,14 +8811,6 @@ export default function App() {
                         <InfoTooltip text="Tarifa com desconto = Tarifa cheia ajustada pelos reajustes anuais × (1 - desconto contratual)." />
                         Tarifa c/ desconto
                         <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
-                      </span>
-                      <span className="pill">
-                        Modelo dos módulos
-                        <strong>{vendaForm.modelo_modulo?.trim() || 'Não informado'}</strong>
-                      </span>
-                      <span className="pill">
-                        Modelo do inversor
-                        <strong>{vendaForm.modelo_inversor?.trim() || 'Não informado'}</strong>
                       </span>
                       {modoEntradaNormalizado === 'REDUZ' ? (
                         <span className="pill">
