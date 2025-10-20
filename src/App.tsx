@@ -1463,23 +1463,21 @@ export default function App() {
     tipoInstalacaoDirty: false,
   }), [])
 
-  const [pageSharedState, setPageSharedState] = useState<Record<TabKey, PageSharedSettings>>({
-    leasing: createPageSharedSettings(),
-    vendas: createPageSharedSettings(),
-  })
+  const [pageSharedState, setPageSharedState] = useState<PageSharedSettings>(() =>
+    createPageSharedSettings(),
+  )
 
   const updatePageSharedState = useCallback(
     (updater: (current: PageSharedSettings) => PageSharedSettings) => {
       setPageSharedState((prev) => {
-        const current = prev[activeTab]
-        const next = updater(current)
-        if (next === current) {
+        const next = updater(prev)
+        if (next === prev) {
           return prev
         }
-        return { ...prev, [activeTab]: next }
+        return next
       })
     },
-    [activeTab],
+    [],
   )
 
   const setConsumoManual = useCallback(
@@ -1665,10 +1663,7 @@ export default function App() {
   )
 
   useEffect(() => {
-    const snapshot = pageSharedState[activeTab]
-    if (!snapshot) {
-      return
-    }
+    const snapshot = pageSharedState
 
     setKcKwhMesState((prev) => (prev === snapshot.kcKwhMes ? prev : snapshot.kcKwhMes))
     setTarifaCheiaState((prev) => (prev === snapshot.tarifaCheia ? prev : snapshot.tarifaCheia))
