@@ -311,6 +311,17 @@ function PrintableProposalLeasingInner(
     [economiaProjetada],
   )
 
+  const economiaLongoPrazo = useMemo(() => {
+    if (economiaProjetada.length === 0) {
+      return null
+    }
+    const economia30Anos = economiaProjetada.find((item) => item.ano === 30)
+    if (economia30Anos) {
+      return economia30Anos
+    }
+    return economiaProjetada[economiaProjetada.length - 1]
+  }, [economiaProjetada])
+
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
   validadeData.setDate(validadeData.getDate() + 15)
@@ -459,9 +470,17 @@ function PrintableProposalLeasingInner(
             })}
           </div>
           <p className="leasing-economia__note">
-            Economia que cresce ano após ano. Em 30 anos, a SolarInvest projeta um benefício acumulado
-            de R$ 1.394.294,71 comparado à concessionária. Essa trajetória considera os reajustes anuais
-            de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.
+            Economia que cresce ano após ano.
+            {economiaLongoPrazo ? (
+              <>
+                {` Em ${economiaLongoPrazo.ano} anos, a SolarInvest projeta um benefício acumulado de ${currency(
+                  economiaLongoPrazo.acumulado,
+                )} comparado à concessionária.`}
+              </>
+            ) : (
+              ' A SolarInvest projeta benefícios acumulados conforme as simulações financeiras disponíveis.'
+            )}
+            {' Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.'}
           </p>
         </div>
       </section>
