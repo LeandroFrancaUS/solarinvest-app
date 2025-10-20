@@ -1,5 +1,14 @@
 import React, { useMemo } from 'react'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
 import './styles/proposal-venda.css'
 import './styles/proposal-leasing.css'
@@ -295,7 +304,7 @@ function PrintableProposalLeasingInner(
   const economiaChartData = useMemo(
     () =>
       economiaProjetada.map((item) => ({
-        ano: `${item.ano}º`,
+        ano: item.ano,
         beneficio: item.acumulado,
       })),
     [economiaProjetada],
@@ -314,11 +323,15 @@ function PrintableProposalLeasingInner(
   const heroSummary =
     'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
-  const economiaExplainer = beneficioAno30
-    ? `Economia que cresce ano após ano. Em ${beneficioAno30.ano} anos, a SolarInvest projeta um benefício acumulado de ${currency(
-        beneficioAno30.acumulado,
-      )} comparado à concessionária. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.`
-    : 'Economia que cresce ano após ano. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.'
+  const economiaExplainer: React.ReactNode = beneficioAno30 ? (
+    <>
+      <strong>Economia acumulada em 30 anos:</strong> Em {beneficioAno30.ano} anos, a SolarInvest projeta um
+      benefício total de <strong>{currency(beneficioAno30.acumulado)}</strong>. Essa trajetória considera os reajustes
+      anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.
+    </>
+  ) : (
+    <>Economia que cresce ano após ano. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.</>
+  )
   const informacoesImportantes = [
     `Desconto contratual aplicado: ${descontoInformativo} sobre a tarifa da distribuidora.`,
     `Prazo de vigência: conforme especificado na proposta (ex.: ${prazoInformativo}).`,
@@ -455,16 +468,22 @@ function PrintableProposalLeasingInner(
       <section className="print-section print-chart-section">
         <h2>Economia projetada (30 anos)</h2>
         <div className="print-chart leasing-chart">
-          <ResponsiveContainer height={260}>
-            <LineChart data={economiaChartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={economiaChartData} margin={{ top: 16, right: 24, bottom: 0, left: 0 }}>
               <defs>
-                <linearGradient id="leasing-economia-gradient" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#004F9E" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#33BFFF" stopOpacity={1} />
+                <linearGradient id="leasing-economia-gradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#33BFFF" stopOpacity={1} />
+                  <stop offset="100%" stopColor="#004F9E" stopOpacity={1} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(0, 79, 158, 0.12)" strokeDasharray="4 4" />
-              <XAxis dataKey="ano" stroke="#004F9E" tickLine={false} axisLine={false} />
+              <CartesianGrid stroke="rgba(0, 79, 158, 0.12)" strokeDasharray="4 4" vertical={false} />
+              <XAxis
+                dataKey="ano"
+                stroke="#004F9E"
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => `${value}º ano`}
+              />
               <YAxis
                 tickFormatter={formatAxis}
                 stroke="#004F9E"
@@ -473,15 +492,16 @@ function PrintableProposalLeasingInner(
                 width={90}
               />
               <Tooltip formatter={(value: number) => currency(value)} labelFormatter={(label) => `Ano ${label}`} />
-              <Line
-                type="monotone"
-                dataKey="beneficio"
-                stroke="url(#leasing-economia-gradient)"
-                strokeWidth={3}
-                dot={{ r: 4, strokeWidth: 2, stroke: '#004F9E', fill: '#ffffff' }}
-                activeDot={{ r: 6, strokeWidth: 2, stroke: '#004F9E', fill: '#E0F2FE' }}
-              />
-            </LineChart>
+              <Bar dataKey="beneficio" fill="url(#leasing-economia-gradient)" barSize={24} radius={[6, 6, 0, 0]}>
+                <LabelList
+                  dataKey="beneficio"
+                  position="top"
+                  formatter={(value: number) => currency(value)}
+                  fill="#004F9E"
+                  style={{ fontSize: 12, fontWeight: 600 }}
+                />
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
         <ul className="leasing-chart-summary">
