@@ -1,6 +1,7 @@
 import type { EntradaModo } from '../utils/calcs'
 import type { EssentialInfoSummary } from '../utils/moduleDetection'
 import type {
+  LeasingSistemaTipo,
   TipoInstalacao,
   UfvComposicaoSoloValores,
   UfvComposicaoTelhadoValores,
@@ -107,6 +108,9 @@ export const INITIAL_VALUES = {
   taxaMinima: 95,
   encargosFixosExtras: 0,
   leasingPrazo: 5 as 5 | 7 | 10,
+  leasingModeloModulo: '',
+  leasingModeloInversor: '',
+  leasingTipoSistema: 'ON_GRID' as LeasingSistemaTipo,
   potenciaModulo: 600,
   tipoInstalacao: 'TELHADO' as TipoInstalacao,
   segmentoCliente: 'RESIDENCIAL' as SegmentoCliente,

@@ -19,7 +19,7 @@ import {
   formatNumberBRWithOptions,
   formatPercentBRWithDigits,
 } from '../../lib/locale/br-number'
-import type { PrintableProposalProps } from '../../types/printableProposal'
+import type { LeasingSistemaTipo, PrintableProposalProps } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 
@@ -128,6 +128,19 @@ const formatWp = (value?: number) => {
   })} Wp`
 }
 
+const formatTipoSistema = (value?: LeasingSistemaTipo | null): string => {
+  switch (value) {
+    case 'ON_GRID':
+      return 'On-grid'
+    case 'HIBRIDO':
+      return 'Híbrido'
+    case 'OFF_GRID':
+      return 'Off-grid'
+    default:
+      return '—'
+  }
+}
+
 function PrintableProposalLeasingInner(
   props: PrintableProposalProps,
   ref: React.ForwardedRef<HTMLDivElement>,
@@ -157,6 +170,9 @@ function PrintableProposalLeasingInner(
     leasingInflacaoEnergiaAa,
     orcamentoItens,
     informacoesImportantesObservacao,
+    leasingModeloModulo,
+    leasingModeloInversor,
+    leasingTipoSistema,
   } = props
 
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
@@ -259,7 +275,10 @@ function PrintableProposalLeasingInner(
     },
   ]
 
-  const { modeloModulo, modeloInversor } = useMemo(() => {
+  const modeloModuloManual = sanitizeItemText(leasingModeloModulo)
+  const modeloInversorManual = sanitizeItemText(leasingModeloInversor)
+
+  const modelosOrcamento = useMemo(() => {
     if (!orcamentoItens || orcamentoItens.length === 0) {
       return { modeloModulo: null, modeloInversor: null }
     }
@@ -315,6 +334,9 @@ function PrintableProposalLeasingInner(
     }
   }, [orcamentoItens])
 
+  const modeloModulo = modeloModuloManual ?? modelosOrcamento.modeloModulo
+  const modeloInversor = modeloInversorManual ?? modelosOrcamento.modeloInversor
+
   const especificacoesUsina = [
     {
       label: 'Potência instalada (kWp)',
@@ -339,6 +361,10 @@ function PrintableProposalLeasingInner(
     {
       label: 'Modelo do inversor',
       value: modeloInversor ?? '—',
+    },
+    {
+      label: 'Tipo de sistema',
+      value: formatTipoSistema(leasingTipoSistema),
     },
     {
       label: 'Número de módulos',
