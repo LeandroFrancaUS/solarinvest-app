@@ -3,7 +3,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Label,
   LabelList,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,6 +23,7 @@ import type { PrintableProposalProps } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 
 const ECONOMIA_MARCOS = [5, 6, 10, 15, 20, 30]
+const LEASING_CHART_COLOR = '#2563EB'
 
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
   if (!Number.isFinite(value)) {
@@ -310,6 +313,43 @@ function PrintableProposalLeasingInner(
     [economiaProjetada],
   )
 
+  const economiaChartDomain = useMemo(() => {
+    if (economiaChartData.length === 0) {
+      return { min: -1, max: 1 }
+    }
+
+    let min = Number.POSITIVE_INFINITY
+    let max = Number.NEGATIVE_INFINITY
+
+    economiaChartData.forEach((row) => {
+      const valor = row.beneficio
+      if (Number.isFinite(valor)) {
+        min = Math.min(min, valor)
+        max = Math.max(max, valor)
+      }
+    })
+
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { min: -1, max: 1 }
+    }
+
+    min = Math.min(min, 0)
+    max = Math.max(max, 0)
+
+    if (min === max) {
+      const padding = Math.max(Math.abs(min) * 0.25, 1)
+      return { min: min - padding, max: max + padding }
+    }
+
+    const range = max - min
+    const padding = range * 0.12
+
+    return {
+      min: min - padding,
+      max: max + padding,
+    }
+  }, [economiaChartData])
+
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
   validadeData.setDate(validadeData.getDate() + 15)
@@ -468,50 +508,79 @@ function PrintableProposalLeasingInner(
       <section className="print-section print-chart-section">
         <h2>Economia projetada (30 anos)</h2>
         <div className="print-chart leasing-chart">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={economiaChartData} margin={{ top: 16, right: 24, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="leasing-economia-gradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#33BFFF" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#004F9E" stopOpacity={1} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="rgba(0, 79, 158, 0.12)" strokeDasharray="4 4" vertical={false} />
+          <ResponsiveContainer width="50%" height={240}>
+            <BarChart
+              layout="vertical"
+              data={economiaChartData}
+              margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
+            >
+              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
               <XAxis
-                dataKey="ano"
-                stroke="#004F9E"
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(value) => `${value}º ano`}
-              />
-              <YAxis
+                type="number"
+                stroke="#0f172a"
                 tickFormatter={formatAxis}
-                stroke="#004F9E"
-                axisLine={false}
+                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
+                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
                 tickLine={false}
-                width={90}
+                domain={[economiaChartDomain.min, economiaChartDomain.max]}
+              >
+                <Label
+                  value="Benefício acumulado (R$)"
+                  position="insideBottom"
+                  offset={-32}
+                  style={{ fill: '#0f172a', fontSize: 13, fontWeight: 700 }}
+                />
+              </XAxis>
+              <YAxis
+                type="category"
+                dataKey="ano"
+                stroke="#0f172a"
+                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
+                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                tickLine={false}
+                width={120}
+                tickFormatter={(valor) => `${valor}º ano`}
               />
-              <Tooltip formatter={(value: number) => currency(value)} labelFormatter={(label) => `Ano ${label}`} />
-              <Bar dataKey="beneficio" fill="url(#leasing-economia-gradient)" barSize={24} radius={[6, 6, 0, 0]}>
+              <Tooltip
+                formatter={(value: number) => currency(Number(value))}
+                labelFormatter={(value) => `${value}º ano`}
+                contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', padding: 12 }}
+                wrapperStyle={{ zIndex: 1000 }}
+              />
+              <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
+              <Bar
+                dataKey="beneficio"
+                fill={LEASING_CHART_COLOR}
+                barSize={14}
+                radius={[0, 8, 8, 0]}
+                isAnimationActive={false}
+                name="Economia acumulada"
+              >
                 <LabelList
                   dataKey="beneficio"
-                  position="top"
-                  formatter={(value: number) => currency(value)}
-                  fill="#004F9E"
+                  position="right"
+                  formatter={(value: number) => currency(Number(value))}
+                  fill={LEASING_CHART_COLOR}
                   style={{ fontSize: 12, fontWeight: 600 }}
                 />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <ul className="leasing-chart-summary">
+        <ul className="print-chart-highlights">
           {ECONOMIA_MARCOS.map((ano) => {
             const row = economiaProjetada.find((item) => item.ano === ano)
             return (
               <li key={`economia-${ano}`}>
-                <span>{`${ano}º ano`}</span>
-                <strong>{row ? currency(row.acumulado) : '—'}</strong>
-                <small>{row ? `Economia no ano: ${currency(row.economiaAnual)}` : '—'}</small>
+                <span className="print-chart-highlights__year">{`${ano}º ano`}</span>
+                <div className="print-chart-highlights__values">
+                  <span className="print-chart-highlights__value" style={{ color: LEASING_CHART_COLOR }}>
+                    Economia acumulada: {row ? currency(row.acumulado) : '—'}
+                  </span>
+                  <span className="print-chart-highlights__value" style={{ color: '#0f172a' }}>
+                    Economia no ano: {row ? currency(row.economiaAnual) : '—'}
+                  </span>
+                </div>
               </li>
             )
           })}
