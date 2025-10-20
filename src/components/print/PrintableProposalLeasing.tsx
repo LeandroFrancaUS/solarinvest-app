@@ -13,11 +13,12 @@ import {
 } from 'recharts'
 
 import './styles/proposal-leasing.css'
-import { currency, formatAxis, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
+import { formatCpfCnpj } from '../../utils/formatters'
 import {
   formatMoneyBR,
   formatNumberBRWithOptions,
   formatPercentBRWithDigits,
+  fmt,
 } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
@@ -65,6 +66,7 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
 
 const ECONOMIA_MARCOS = [5, 6, 10, 15, 20, 30]
 const LEASING_CHART_COLOR = '#2563EB'
+const COVER_TAGLINE = 'Solução SolarInvest Leasing — Energia solar sem investimento inicial'
 
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
   if (!Number.isFinite(value)) {
@@ -73,83 +75,18 @@ const toDisplayPercent = (value?: number, fractionDigits = 1) => {
   return formatPercentBRWithDigits((value ?? 0) / 100, fractionDigits)
 }
 
-const sanitizeItemText = (value?: string | null): string | null => {
-  if (typeof value !== 'string') {
-    return null
-  }
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-  return trimmed.replace(/\s+/g, ' ')
-}
-
-const stripDiacritics = (value: string): string =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-
-const hasBudgetItemExclusion = (value: string): boolean => {
-  if (!value) {
-    return false
-  }
-  const normalized = stripDiacritics(value)
-  return BUDGET_ITEM_EXCLUSION_PATTERNS.some((pattern) => pattern.test(value) || pattern.test(normalized))
-}
-
-type LinhaComDisplay = Linha & {
-  display: {
-    produto: string | null
-    descricao: string | null
-    quantidade: number | null
-  }
-}
-
-type ComposicaoSubgrupo = {
-  titulo: string
-  itens: {
-    key: string
-    produto: string
-    descricao: string
-    quantidade: number | null
-  }[]
-}
-
-type ComposicaoGrupo = {
-  titulo: string
-  subgrupos: ComposicaoSubgrupo[]
-}
-
-const formatKwhMes = (value?: number) => {
+const formatTarifaKwh = (value?: number) => {
   if (!Number.isFinite(value) || (value ?? 0) <= 0) {
     return '—'
   }
-  return `${formatNumberBRWithOptions(value ?? 0, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })} kWh/mês`
+  const exibicao = formatNumberBRWithOptions(value ?? 0, {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 4,
+  })
+  return `R$ ${exibicao}/kWh`
 }
 
-const formatKwp = (value?: number) => {
-  if (!Number.isFinite(value) || (value ?? 0) <= 0) {
-    return '—'
-  }
-  return `${formatNumberBRWithOptions(value ?? 0, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })} kWp`
-}
-
-const formatWp = (value?: number) => {
-  if (!Number.isFinite(value) || (value ?? 0) <= 0) {
-    return '—'
-  }
-  return `${formatNumberBRWithOptions(value ?? 0, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })} Wp`
-}
+const formatAxisCurrency = (value: number) => formatMoneyBR(Number.isFinite(value) ? value : 0)
 
 function PrintableProposalLeasingInner(
   props: PrintableProposalProps,
@@ -168,6 +105,8 @@ function PrintableProposalLeasingInner(
     tipoInstalacao,
     areaInstalacao,
     buyoutResumo,
+    tabelaBuyout,
+    capex,
     anos,
     leasingROI,
     parcelasLeasing,
@@ -181,15 +120,20 @@ function PrintableProposalLeasingInner(
     orcamentoItens,
   } = props
 
-  const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
-  const telefoneCliente = cliente.telefone?.trim() || null
-  const emailCliente = cliente.email?.trim() || null
+  const nomeCliente = cliente.nome?.trim() || '—'
+  const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : '—'
+  const telefoneCliente = cliente.telefone?.trim() || '—'
+  const emailCliente = cliente.email?.trim() || '—'
   const enderecoCliente = cliente.endereco?.trim() || null
   const cidadeCliente = cliente.cidade?.trim() || null
   const ufCliente = cliente.uf?.trim() || null
   const codigoOrcamento = budgetId?.trim() || null
-  const ucCliente = cliente.uc?.trim() || null
-  const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
+  const ucCliente = cliente.uc?.trim() || '—'
+  const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || '—'
+
+  const codigoLimpo = codigoOrcamento ? codigoOrcamento.replace(/[^A-Za-z0-9]/g, '').toUpperCase() : ''
+  const codigoSufixo = codigoLimpo ? codigoLimpo.slice(-6).padStart(6, '0') : '000000'
+  const codigoDocumento = `SLRINVST-${codigoSufixo}`
 
   const prazoContratual = useMemo(() => {
     if (Number.isFinite(leasingPrazoContratualMeses) && (leasingPrazoContratualMeses ?? 0) > 0) {
@@ -220,25 +164,23 @@ function PrintableProposalLeasingInner(
   const valorMercadoProjetado = Number.isFinite(leasingValorMercadoProjetado)
     ? Math.max(0, leasingValorMercadoProjetado ?? 0)
     : Math.max(0, buyoutResumo?.vm0 ?? 0)
-  const inicioOperacaoTexto = leasingDataInicioOperacao?.trim() || null
+  const inicioOperacaoTexto = leasingDataInicioOperacao?.trim() || 'Conforme agenda técnica'
 
   const investimentoSolarinvestFormatado =
     Number.isFinite(leasingValorDeMercadoEstimado) && (leasingValorDeMercadoEstimado ?? 0) > 0
       ? formatMoneyBR(leasingValorDeMercadoEstimado ?? 0)
       : '—'
 
-  const resumoCampos: ClientInfoField[] = [
-    { label: 'Código do orçamento', value: codigoOrcamento || '—' },
-    { label: 'Cliente', value: cliente.nome || '—' },
-    { label: 'Documento', value: documentoCliente || '—' },
-    { label: 'UC', value: ucCliente || '—' },
-    { label: 'Distribuidora', value: distribuidoraLabel || '—' },
-    { label: 'E-mail', value: emailCliente || '—' },
-    { label: 'Telefone', value: telefoneCliente || '—' },
+  const clienteCampos: ClientInfoField[] = [
+    { label: 'Cliente', value: nomeCliente },
+    { label: 'Documento', value: documentoCliente },
+    { label: 'UC', value: ucCliente },
+    { label: 'Distribuidora', value: distribuidoraLabel },
+    { label: 'Telefone', value: telefoneCliente },
+    { label: 'E-mail', value: emailCliente },
     {
       label: 'Cidade / UF',
-      value:
-        cidadeCliente || ufCliente ? `${cidadeCliente || '—'} / ${ufCliente || '—'}` : '—',
+      value: cidadeCliente || ufCliente ? `${cidadeCliente || '—'} / ${ufCliente || '—'}` : '—',
     },
     {
       label: 'Endereço',
@@ -250,120 +192,60 @@ function PrintableProposalLeasingInner(
           : '—',
       wide: true,
     },
+    { label: 'Código original', value: codigoOrcamento || '—' },
   ]
 
-  const quadroComercial = [
-    {
-      label: 'Prazo contratual (meses)',
-      value: prazoContratual > 0 ? `${prazoContratual} meses` : '—',
-    },
-    {
-      label: 'Energia contratada (kWh/mês)',
-      value: formatKwhMes(energiaContratadaKwh),
-    },
-    {
-      label: 'Tarifa cheia da distribuidora (R$/kWh)',
-      value: tarifaCheiaBase > 0 ? tarifaCurrency(tarifaCheiaBase) : '—',
-    },
-    {
-      label: 'Desconto aplicado (%)',
-      value: toDisplayPercent(descontoContratualPct),
-    },
-    {
-      label: 'Valor da instalação para o cliente (R$)',
-      value: currency(valorInstalacaoCliente),
-    },
-    {
-      label: 'Início estimado da operação',
-      value: inicioOperacaoTexto || '—',
-    },
-    {
-      label: 'Responsabilidades da SolarInvest',
-      value:
-        'Operação, manutenção, suporte técnico, limpeza e seguro integral da usina durante o contrato.',
-    },
-    {
-      label: 'Investimento da SolarInvest (R$)',
-      value: investimentoSolarinvestFormatado,
-    },
-    {
-      label: 'Geração estimada (kWh/mês)',
-      value: formatKwhMes(geracaoMensalKwh),
-    },
-    {
-      label: 'Potência da placa (Wp)',
-      value: formatWp(potenciaModulo),
-    },
-    {
-      label: 'Nº de placas',
-      value:
-        Number.isFinite(numeroModulos) && (numeroModulos ?? 0) > 0
-          ? formatNumberBRWithOptions(numeroModulos ?? 0, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })
-          : '—',
-    },
-    {
-      label: 'Potência instalada (kWp)',
-      value: formatKwp(potenciaInstaladaKwp),
-    },
-    {
-      label: 'Área útil (m²)',
-      value:
-        Number.isFinite(areaInstalacao) && (areaInstalacao ?? 0) > 0
-          ? `${formatNumberBRWithOptions(areaInstalacao ?? 0, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })} m²`
-          : '—',
-    },
-    {
-      label: 'Tipo de instalação',
-      value: tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado',
-    },
-    {
-      label: 'Valor de mercado projetado (R$)',
-      value: valorMercadoProjetado > 0 ? currency(valorMercadoProjetado) : '—',
-    },
+  const numeroModulosFormatado =
+    Number.isFinite(numeroModulos) && (numeroModulos ?? 0) > 0
+      ? formatNumberBRWithOptions(numeroModulos ?? 0, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        })
+      : '—'
+
+  const areaInstalacaoFormatada = fmt.m2(areaInstalacao)
+  const tipoInstalacaoTexto = tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado'
+
+  const detalhamentoProjeto = [
+    { label: 'Potência instalada', value: fmt.kwp(potenciaInstaladaKwp) },
+    { label: 'Geração média mensal', value: fmt.kwhMes(geracaoMensalKwh) },
+    { label: 'Energia contratada', value: fmt.kwhMes(energiaContratadaKwh) },
+    { label: 'Número de módulos', value: numeroModulosFormatado },
+    { label: 'Potência unitária dos módulos', value: fmt.wp(potenciaModulo) },
+    { label: 'Área estimada de instalação', value: areaInstalacaoFormatada },
+    { label: 'Tipo de instalação', value: tipoInstalacaoTexto },
   ]
 
-  const resumoTecnico = [
-    {
-      label: 'Potência instalada',
-      value: formatKwp(potenciaInstaladaKwp),
-    },
-    {
-      label: 'Geração estimada',
-      value: formatKwhMes(geracaoMensalKwh),
-    },
-    {
-      label: 'Energia contratada',
-      value: formatKwhMes(energiaContratadaKwh),
-    },
-    {
-      label: 'Potência da placa',
-      value: formatWp(potenciaModulo),
-    },
-  ]
+  const mensalidadeEstimativaValor = useMemo(() => {
+    const primeiraParcela = parcelasLeasing.find((row) =>
+      Number.isFinite(row?.mensalidade) && (row?.mensalidade ?? 0) > 0,
+    )
+    return primeiraParcela?.mensalidade ?? null
+  }, [parcelasLeasing])
 
-  const resumoFinanceiro = [
-    {
-      label: 'Investimento SolarInvest',
-      value: investimentoSolarinvestFormatado,
-    },
-    {
-      label: 'Valor de mercado projetado',
-      value: valorMercadoProjetado > 0 ? currency(valorMercadoProjetado) : '—',
-    },
-    {
-      label: 'Desconto contratual',
-      value: toDisplayPercent(descontoContratualPct),
-    },
-    {
-      label: 'Tarifa inicial projetada',
-      value: tarifaCheiaBase > 0 ? tarifaCurrency(tarifaCheiaBase) : '—',
-    },
+  const compraAntecipadaValor = useMemo(() => {
+    const candidatos = tabelaBuyout
+      .filter((row) => Number.isFinite(row?.valorResidual) && (row?.valorResidual ?? 0) > 0)
+      .sort((a, b) => a.mes - b.mes)
+    return candidatos.length > 0 ? candidatos[0].valorResidual ?? null : null
+  }, [tabelaBuyout])
+
+  const vigenciaTexto = prazoContratual > 0 ? `${prazoContratual} meses` : 'Conforme proposta'
+  const mensalidadeEstimativa =
+    mensalidadeEstimativaValor != null ? formatMoneyBR(mensalidadeEstimativaValor) : '—'
+  const descontoInformativo = toDisplayPercent(descontoContratualPct)
+  const compraAntecipadaTexto = compraAntecipadaValor != null ? formatMoneyBR(compraAntecipadaValor) : 'Sob consulta'
+  const capexFormatado = Number.isFinite(capex) ? formatMoneyBR(Math.max(0, capex ?? 0)) : '—'
+  const observacaoContrato =
+    'Valores sujeitos à vistoria técnica, atualização tributária e aprovação documental da distribuidora.'
+
+  const condicoesContrato = [
+    { label: 'Vigência do contrato', value: vigenciaTexto },
+    { label: 'Mensalidade estimada inicial', value: mensalidadeEstimativa },
+    { label: 'Desconto aplicado sobre a tarifa', value: descontoInformativo },
+    { label: 'Compra antecipada (a partir de)', value: compraAntecipadaTexto },
+    { label: 'CAPEX assumido pela SolarInvest', value: capexFormatado },
+    { label: 'Observação', value: observacaoContrato },
   ]
 
   const mensalidadesPorAno = useMemo(() => {
@@ -451,177 +333,58 @@ function PrintableProposalLeasingInner(
   const formatDate = (date: Date) =>
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-  const descontoInformativo = toDisplayPercent(descontoContratualPct)
-  const prazoInformativo = prazoContratual > 0 ? `${prazoContratual} meses` : 'conforme proposta'
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
-  const heroSummary =
-    'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
+
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
   const economiaExplainer: React.ReactNode = beneficioAno30 ? (
     <>
-      <strong>Economia acumulada em 30 anos:</strong> Em {beneficioAno30.ano} anos, a SolarInvest projeta um
-      benefício total de <strong>{currency(beneficioAno30.acumulado)}</strong>. Essa trajetória considera os reajustes
-      anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.
+      <strong>Economia acumulada em 30 anos:</strong> {formatMoneyBR(beneficioAno30.acumulado)} considerando reajustes
+      anuais de energia, desconto contratual e transferência definitiva da usina ao final da vigência.
     </>
   ) : (
-    <>Economia que cresce ano após ano. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.</>
+    <>Economia crescente ao longo do contrato, com reajustes anuais de energia e desconto SolarInvest aplicados.</>
   )
+
   const informacoesImportantes = [
-    `Desconto contratual aplicado: ${descontoInformativo} sobre a tarifa da distribuidora.`,
-    `Prazo de vigência: conforme especificado na proposta (ex.: ${prazoInformativo}).`,
-    'Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.',
-    'Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e seguro.',
-    'Transferência da usina ao cliente ao final do contrato sem custo adicional.',
-    'Tabela de compra antecipada disponível mediante solicitação.',
-    'Equipamentos utilizados possuem certificação INMETRO.',
-    'Os valores apresentados são estimativas preliminares e poderão sofrer ajustes no contrato definitivo.',
-    'Agende uma visita técnica gratuita para confirmar a viabilidade e formalizar a proposta definitiva.',
+    `Tarifa cheia considerada: ${formatTarifaKwh(tarifaCheiaBase)} com desconto de ${descontoInformativo}.`,
+    `Geração projetada de ${fmt.kwhMes(geracaoMensalKwh)} com potência instalada de ${fmt.kwp(potenciaInstaladaKwp)}.`,
+    `Mensalidade estimada inicial de ${mensalidadeEstimativa}, sujeita a variações anuais de energia.`,
+    `Compra antecipada disponível a partir de ${compraAntecipadaTexto}, mediante saldo contratual e aprovação.`,
+    `Início estimado da operação: ${inicioOperacaoTexto}.`,
+    `Durante toda a vigência, a SolarInvest cuida de operação, manutenção, limpeza e seguro da usina.`,
+    `Instalação sem investimento inicial: valor para o cliente de ${formatMoneyBR(valorInstalacaoCliente)}.`,
+    `Investimento SolarInvest estimado em ${investimentoSolarinvestFormatado}.`,
+    'Projeções sujeitas a atualização por normas ANEEL e validação documental da concessionária.',
   ]
 
-  const composicaoSistema = useMemo(() => {
-    if (!orcamentoItens || orcamentoItens.length === 0) {
-      return null
-    }
-
-    const linhas: LinhaComDisplay[] = []
-
-    orcamentoItens.forEach((item) => {
-      const produto = sanitizeItemText(item.produto)
-      const descricao = sanitizeItemText(item.descricao)
-      const combinedText = [produto, descricao].filter(Boolean).join(' ')
-
-      if (!combinedText || hasBudgetItemExclusion(combinedText)) {
-        return
-      }
-
-      const quantidade = Number.isFinite(item.quantidade) ? Number(item.quantidade) : null
-      const codigo = sanitizeItemText(item.codigo)
-      const modelo = sanitizeItemText(item.modelo)
-      const fabricante = sanitizeItemText(item.fabricante)
-
-      linhas.push({
-        nome: produto ?? descricao ?? combinedText,
-        codigo: codigo ?? undefined,
-        modelo: modelo ?? undefined,
-        fabricante: fabricante ?? undefined,
-        quantidade,
-        display: {
-          produto,
-          descricao,
-          quantidade,
-        },
-      })
-    })
-
-    if (linhas.length === 0) {
-      return null
-    }
-
-    const agrupado = agrupar(linhas)
-
-    const mapItems = (items: Linha[]): ComposicaoSubgrupo['itens'] =>
-      (items as LinhaComDisplay[]).map((linha, index) => ({
-        key: `${linha.nome}-${index}`,
-        produto: linha.display.produto ?? linha.nome,
-        descricao: linha.display.descricao ?? '—',
-        quantidade: linha.display.quantidade,
-      }))
-
-    const hardwareSubgrupos: ComposicaoSubgrupo[] = [
-      { titulo: 'Módulos', itens: mapItems(agrupado.Hardware.Modulos) },
-      { titulo: 'Inversores', itens: mapItems(agrupado.Hardware.Inversores) },
-      {
-        titulo: 'Kits, cabos, aterramento e acessórios',
-        itens: mapItems(agrupado.Hardware.KitsECabosEAterramentoEAcessorios),
-      },
-    ].filter((subgrupo) => subgrupo.itens.length > 0)
-
-    const servicosSubgrupos: ComposicaoSubgrupo[] = [
-      {
-        titulo: 'Engenharia, instalação e homologação',
-        itens: mapItems(agrupado.Servicos.EngenhariaEInstalacaoEHomologacao),
-      },
-    ].filter((subgrupo) => subgrupo.itens.length > 0)
-
-    const grupos: ComposicaoGrupo[] = []
-    if (hardwareSubgrupos.length > 0) {
-      grupos.push({ titulo: 'Hardware', subgrupos: hardwareSubgrupos })
-    }
-    if (servicosSubgrupos.length > 0) {
-      grupos.push({ titulo: 'Serviços', subgrupos: servicosSubgrupos })
-    }
-
-    return grupos.length > 0 ? grupos : null
-  }, [orcamentoItens])
-
-  const formatQuantidade = (value: number | null | undefined): string => {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return '—'
-    }
-    const isInteger = Number.isInteger(value)
-    return formatNumberBRWithOptions(value, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: isInteger ? 0 : 2,
-    })
-  }
+  const itensSistema = (orcamentoItens ?? []).filter((item) => item != null)
 
   return (
     <div ref={ref} className="print-layout leasing-print-layout">
-      <header className="print-hero">
-        <div className="print-hero__header">
-          <div className="print-hero__identity">
-            <div className="print-logo">
-              <img src="/logo.svg" alt="SolarInvest" />
-            </div>
-            <div className="print-hero__title">
-              <span className="print-hero__eyebrow">SolarInvest</span>
-              <h1>Proposta de Leasing Solar</h1>
-              <p className="print-hero__tagline">Energia inteligente, sustentável e sem investimento inicial.</p>
-            </div>
+      <section className="print-cover">
+        <div className="print-cover__logo">
+          <img src="/logo.svg" alt="SolarInvest" />
+        </div>
+        <div className="print-cover__identity">
+          <span className="print-cover__code">{codigoDocumento}</span>
+          <h1>Solução SolarInvest Leasing</h1>
+          <p className="print-cover__tagline">{COVER_TAGLINE}</p>
+          <div className="print-cover__meta">
+            <span>
+              <strong>Cliente:</strong> {nomeCliente}
+            </span>
+            <span>
+              <strong>Data:</strong> {emissaoTexto}
+            </span>
           </div>
         </div>
-        <div className="print-hero__summary">
-          <h2>Sumário executivo</h2>
-          <p>{heroSummary}</p>
-        </div>
-      </header>
-
-      <section className="print-section">
-        <h2>Identificação do cliente</h2>
-        <ClientInfoGrid
-          fields={resumoCampos}
-          className="print-client-grid"
-          fieldClassName="print-client-field"
-          wideFieldClassName="print-client-field--wide"
-        />
       </section>
 
       <section className="print-section">
-        <h2>Quadro comercial resumido</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Parâmetro</th>
-              <th>Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quadroComercial.map((item) => (
-              <tr key={item.label}>
-                <td>{item.label}</td>
-                <td className="leasing-table-value">{item.value}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="print-section">
-        <h2>Resumo técnico e financeiro</h2>
+        <h2>Detalhamento do Projeto</h2>
         <div className="leasing-summary-grid">
           <div className="leasing-summary-card">
-            <h3>Dados técnicos</h3>
             <table>
               <thead>
                 <tr>
@@ -630,7 +393,7 @@ function PrintableProposalLeasingInner(
                 </tr>
               </thead>
               <tbody>
-                {resumoTecnico.map((item) => (
+                {detalhamentoProjeto.map((item) => (
                   <tr key={item.label}>
                     <td>{item.label}</td>
                     <td className="leasing-table-value">{item.value}</td>
@@ -640,23 +403,13 @@ function PrintableProposalLeasingInner(
             </table>
           </div>
           <div className="leasing-summary-card">
-            <h3>Dados financeiros</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumoFinanceiro.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <h3>Informações do cliente</h3>
+            <ClientInfoGrid
+              fields={clienteCampos}
+              className="print-client-grid"
+              fieldClassName="print-client-field"
+              wideFieldClassName="print-client-field--wide"
+            />
           </div>
         </div>
       </section>
@@ -703,25 +456,56 @@ function PrintableProposalLeasingInner(
       ) : null}
 
       <section className="print-section">
-        <h2>Mensalidades por ano</h2>
+        <h2>Composição do Sistema</h2>
+        {itensSistema.length > 0 ? (
+          <table>
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Descrição</th>
+                <th>Quantidade</th>
+                <th>Valor unitário</th>
+                <th>Valor total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itensSistema.map((item, index) => (
+                <tr key={`${item.produto}-${index}`}>
+                  <td>{item.produto}</td>
+                  <td>{item.descricao}</td>
+                  <td className="leasing-table-value">
+                    {Number.isFinite(item.quantidade)
+                      ? formatNumberBRWithOptions(item.quantidade ?? 0, {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        })
+                      : '—'}
+                  </td>
+                  <td className="leasing-table-value">{formatMoneyBR(item.valorUnitario)}</td>
+                  <td className="leasing-table-value">{formatMoneyBR(item.valorTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>Composição detalhada disponível na proposta comercial completa.</p>
+        )}
+      </section>
+
+      <section className="print-section">
+        <h2>Condições do contrato</h2>
         <table>
           <thead>
             <tr>
-              <th>Período</th>
-              <th>Tarifa cheia média</th>
-              <th>Tarifa com desconto média</th>
-              <th>Conta distribuidora (R$)</th>
-              <th>Mensalidade SolarInvest (R$)</th>
+              <th>Condição</th>
+              <th>Detalhe</th>
             </tr>
           </thead>
           <tbody>
-            {mensalidadesPorAno.map((linha) => (
-              <tr key={`mensalidade-${linha.ano}`}>
-                <td>{`${linha.ano}º ano`}</td>
-                <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
-                <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
-                <td className="leasing-table-value">{currency(linha.contaDistribuidora)}</td>
-                <td className="leasing-table-value">{currency(linha.mensalidade)}</td>
+            {condicoesContrato.map((item) => (
+              <tr key={item.label}>
+                <td>{item.label}</td>
+                <td className="leasing-table-value">{item.value}</td>
               </tr>
             ))}
           </tbody>
@@ -729,19 +513,24 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section print-chart-section">
-        <h2>Economia projetada (30 anos)</h2>
+        <h2>Benefícios e Retorno</h2>
+        <p>
+          Investimento assumido pela SolarInvest: {investimentoSolarinvestFormatado}. Tarifa cheia da distribuidora:{' '}
+          {formatTarifaKwh(tarifaCheiaBase)}. Energia contratada de {fmt.kwhMes(energiaContratadaKwh)} com desconto de
+          {` ${descontoInformativo}`}.
+        </p>
         <div className="print-chart leasing-chart">
-          <ResponsiveContainer width="50%" height={240}>
+          <ResponsiveContainer width="100%" height={260}>
             <BarChart
               layout="vertical"
               data={economiaChartData}
-              margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
+              margin={{ top: 5, right: 12, bottom: 7, left: 6 }}
             >
               <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
               <XAxis
                 type="number"
                 stroke="#0f172a"
-                tickFormatter={formatAxis}
+                tickFormatter={formatAxisCurrency}
                 tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
                 axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
                 tickLine={false}
@@ -765,7 +554,7 @@ function PrintableProposalLeasingInner(
                 tickFormatter={(valor) => `${valor}º ano`}
               />
               <Tooltip
-                formatter={(value: number) => currency(Number(value))}
+                formatter={(value: number) => formatMoneyBR(value)}
                 labelFormatter={(value) => `${value}º ano`}
                 contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', padding: 12 }}
                 wrapperStyle={{ zIndex: 1000 }}
@@ -782,7 +571,7 @@ function PrintableProposalLeasingInner(
                 <LabelList
                   dataKey="beneficio"
                   position="right"
-                  formatter={(value: number) => currency(Number(value))}
+                  formatter={(value: number) => formatMoneyBR(value)}
                   fill={LEASING_CHART_COLOR}
                   style={{ fontSize: 12, fontWeight: 600 }}
                 />
@@ -798,10 +587,10 @@ function PrintableProposalLeasingInner(
                 <span className="print-chart-highlights__year">{`${ano}º ano`}</span>
                 <div className="print-chart-highlights__values">
                   <span className="print-chart-highlights__value" style={{ color: LEASING_CHART_COLOR }}>
-                    Economia acumulada: {row ? currency(row.acumulado) : '—'}
+                    Economia acumulada: {row ? formatMoneyBR(row.acumulado) : '—'}
                   </span>
                   <span className="print-chart-highlights__value" style={{ color: '#0f172a' }}>
-                    Economia no ano: {row ? currency(row.economiaAnual) : '—'}
+                    Economia no ano: {row ? formatMoneyBR(row.economiaAnual) : '—'}
                   </span>
                 </div>
               </li>
@@ -809,6 +598,31 @@ function PrintableProposalLeasingInner(
           })}
         </ul>
         <p className="leasing-chart-note">{economiaExplainer}</p>
+        <div className="leasing-summary-card">
+          <h3>Evolução das mensalidades estimadas</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Período</th>
+                <th>Tarifa cheia média</th>
+                <th>Tarifa com desconto média</th>
+                <th>Conta distribuidora</th>
+                <th>Mensalidade SolarInvest</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mensalidadesPorAno.map((linha) => (
+                <tr key={`mensalidade-${linha.ano}`}>
+                  <td>{`${linha.ano}º ano`}</td>
+                  <td className="leasing-table-value">{formatTarifaKwh(linha.tarifaCheiaAno)}</td>
+                  <td className="leasing-table-value">{formatTarifaKwh(linha.tarifaComDesconto)}</td>
+                  <td className="leasing-table-value">{formatMoneyBR(linha.contaDistribuidora)}</td>
+                  <td className="leasing-table-value">{formatMoneyBR(linha.mensalidade)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="print-section print-important">
@@ -820,17 +634,14 @@ function PrintableProposalLeasingInner(
         </ul>
       </section>
 
-      <section className="print-section print-cta">
-        <div className="print-cta__box">
-          <h2>Vamos avançar?</h2>
-          <p>Agende uma visita técnica gratuita e finalize a contratação da sua usina SolarInvest.</p>
-        </div>
-      </section>
-
-      <footer className="print-final-footer">
+      <section className="print-section print-footer-institutional">
+        <h2>Rodapé institucional</h2>
         <div className="print-final-footer__dates">
           <p>
-            <strong>Data de emissão da proposta:</strong> {emissaoTexto}
+            <strong>Código SolarInvest:</strong> {codigoDocumento}
+          </p>
+          <p>
+            <strong>Data de emissão:</strong> {emissaoTexto}
           </p>
           <p>
             <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
@@ -840,13 +651,12 @@ function PrintableProposalLeasingInner(
           <div className="signature-line" />
           <span>Assinatura do cliente</span>
         </div>
-      </footer>
+      </section>
 
       <div className="print-brand-footer">
         <strong>SolarInvest</strong>
         <span>CNPJ: 60.434.015/0001-90</span>
-        <span>Av. Paulista, 1374 - Bela Vista · São Paulo/SP</span>
-        <span>www.solarinvest.com.br · Energia inteligente, sustentável e sem investimento inicial.</span>
+        <span>{COVER_TAGLINE}</span>
       </div>
     </div>
   )
