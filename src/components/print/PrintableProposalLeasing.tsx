@@ -16,6 +16,7 @@ import './styles/proposal-venda.css'
 import './styles/proposal-leasing.css'
 import { currency, formatAxis, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
 import {
+  formatMoneyBR,
   formatNumberBRWithOptions,
   formatPercentBRWithDigits,
 } from '../../lib/locale/br-number'
@@ -78,7 +79,6 @@ function PrintableProposalLeasingInner(
     potenciaInstaladaKwp,
     tipoInstalacao,
     areaInstalacao,
-    capex,
     buyoutResumo,
     anos,
     leasingROI,
@@ -86,6 +86,7 @@ function PrintableProposalLeasingInner(
     distribuidoraTarifa,
     leasingDataInicioOperacao,
     leasingValorInstalacaoCliente,
+    leasingValorDeMercadoEstimado,
     leasingPrazoContratualMeses,
     leasingValorMercadoProjetado,
     leasingInflacaoEnergiaAa,
@@ -131,6 +132,11 @@ function PrintableProposalLeasingInner(
     ? Math.max(0, leasingValorMercadoProjetado ?? 0)
     : Math.max(0, buyoutResumo?.vm0 ?? 0)
   const inicioOperacaoTexto = leasingDataInicioOperacao?.trim() || null
+
+  const investimentoSolarinvestFormatado =
+    Number.isFinite(leasingValorDeMercadoEstimado) && (leasingValorDeMercadoEstimado ?? 0) > 0
+      ? formatMoneyBR(leasingValorDeMercadoEstimado ?? 0)
+      : '—'
 
   const resumoCampos: ClientInfoField[] = [
     { label: 'Código do orçamento', value: codigoOrcamento || '—' },
@@ -189,7 +195,7 @@ function PrintableProposalLeasingInner(
     },
     {
       label: 'Investimento da SolarInvest (R$)',
-      value: capex > 0 ? currency(capex) : '—',
+      value: investimentoSolarinvestFormatado,
     },
     {
       label: 'Geração estimada (kWh/mês)',
@@ -255,7 +261,7 @@ function PrintableProposalLeasingInner(
   const resumoFinanceiro = [
     {
       label: 'Investimento SolarInvest',
-      value: capex > 0 ? currency(capex) : '—',
+      value: investimentoSolarinvestFormatado,
     },
     {
       label: 'Valor de mercado projetado',

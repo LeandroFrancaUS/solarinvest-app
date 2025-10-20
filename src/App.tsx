@@ -72,6 +72,7 @@ import {
   vendaActions,
   type VendaKitItem,
 } from './store/useVendaStore'
+import { useLeasingValorDeMercadoEstimado } from './store/useLeasingStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
 import { AppRoutes } from './app/Routes'
@@ -3572,6 +3573,8 @@ export default function App() {
 
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
 
+  const leasingValorDeMercadoEstimado = useLeasingValorDeMercadoEstimado()
+
   useEffect(() => {
     if (capexManualOverride) {
       return
@@ -4042,6 +4045,9 @@ export default function App() {
         areaInstalacao,
         descontoContratualPct: descontoConsiderado,
         parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
+        leasingValorDeMercadoEstimado: isVendaDiretaTab
+          ? null
+          : leasingValorDeMercadoEstimado || 0,
         leasingPrazoContratualMeses: isVendaDiretaTab ? null : Math.max(0, Math.floor(duracaoMeses)),
         leasingValorInstalacaoCliente: isVendaDiretaTab ? null : 0,
         leasingDataInicioOperacao: isVendaDiretaTab ? null : null,
@@ -4098,6 +4104,7 @@ export default function App() {
       vendaRetornoAuto,
       parsedVendaPdf,
       budgetStructuredItems,
+      leasingValorDeMercadoEstimado,
     ],
   )
 
