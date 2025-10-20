@@ -7647,9 +7647,11 @@ export default function App() {
         <Field label="Potência do módulo (Wp)">
           <select
             value={potenciaModulo}
-            onChange={(e) => {
+            onChange={(event) => {
               setPotenciaModuloDirty(true)
-              setPotenciaModulo(Number(e.target.value))
+              const parsed = Number(event.target.value)
+              const potenciaSelecionada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              setPotenciaModulo(potenciaSelecionada)
             }}
           >
             {PAINEL_OPCOES.map((opt) => (
@@ -7669,8 +7671,8 @@ export default function App() {
                   : ''
                 : numeroModulosManual
             }
-            onChange={(e) => {
-              const { value } = e.target
+            onChange={(event) => {
+              const { value } = event.target
               if (value === '') {
                 setNumeroModulosManual('')
                 return
@@ -7680,7 +7682,8 @@ export default function App() {
                 setNumeroModulosManual('')
                 return
               }
-              setNumeroModulosManual(parsed)
+              const inteiro = Math.max(1, Math.round(parsed))
+              setNumeroModulosManual(inteiro)
             }}
             onFocus={selectNumberInputOnFocus}
           />
@@ -7739,14 +7742,7 @@ export default function App() {
             })}
           />
         </Field>
-        <Field
-          label={
-            <>
-              Área utilizada (m²)
-              <InfoTooltip text="Área utilizada = Nº de módulos × 3,3 m² (telhado) ou × 7 m² (solo)." />
-            </>
-          }
-        >
+        <Field label="Área utilizada (m²)">
           <input
             readOnly
             value={
@@ -7762,7 +7758,7 @@ export default function App() {
       </div>
       <div className="info-inline">
         <span className="pill">
-          <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ Dias considerados no mês." />
+          <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ 30 dias." />
           Consumo diário
           <strong>
             {`${formatNumberBRWithOptions(geracaoDiariaKwh, {
