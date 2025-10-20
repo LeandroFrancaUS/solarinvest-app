@@ -542,25 +542,25 @@ function PrintableProposalLeasingInner(
             <strong>{emissaoTexto}</strong>
           </div>
         </div>
-        <div className="print-hero__summary">
+        <div className="print-hero__summary no-break-inside">
           <p>{heroSummary}</p>
         </div>
       </header>
 
-      <section className="print-section">
-        <h2 className="section-title">Identificação do Cliente</h2>
+      <section className="print-section no-break-inside">
+        <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
         <ClientInfoGrid
           fields={resumoCampos}
-          className="print-client-grid"
+          className="print-client-grid no-break-inside"
           fieldClassName="print-client-field"
           wideFieldClassName="print-client-field--wide"
         />
       </section>
 
-      <section className="print-section">
-        <h2 className="section-title">Resumo da Proposta</h2>
-        <p className="section-subtitle">Visão geral dos parâmetros comerciais e técnicos</p>
-        <table>
+      <section className="print-section no-break-inside">
+        <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
+        <p className="section-subtitle keep-with-next">Visão geral dos parâmetros comerciais e técnicos</p>
+        <table className="no-break-inside">
           <thead>
             <tr>
               <th>Parâmetro</th>
@@ -578,10 +578,10 @@ function PrintableProposalLeasingInner(
         </table>
       </section>
 
-      <section className="print-section">
-        <h2 className="section-title">Especificações da Usina Solar</h2>
-        <p className="section-subtitle">Configuração técnica do sistema proposto</p>
-        <table>
+      <section className="print-section no-break-inside">
+        <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
+        <p className="section-subtitle keep-with-next">Configuração técnica do sistema proposto</p>
+        <table className="no-break-inside">
           <thead>
             <tr>
               <th>Item</th>
@@ -599,10 +599,10 @@ function PrintableProposalLeasingInner(
         </table>
       </section>
 
-      <section className="print-section">
-        <h2 className="section-title">Condições Financeiras do Leasing</h2>
-        <p className="section-subtitle">Valores projetados e vigência contratual</p>
-        <table>
+      <section className="print-section no-break-inside">
+        <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
+        <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
+        <table className="no-break-inside">
           <thead>
             <tr>
               <th>Item</th>
@@ -620,10 +620,10 @@ function PrintableProposalLeasingInner(
         </table>
       </section>
 
-      <section className="print-section">
-        <h2 className="section-title">Evolução das Mensalidades e Economia</h2>
-        <p className="section-subtitle">Comparativo anual entre tarifa convencional e SolarInvest</p>
-        <table>
+      <section className="print-section no-break-inside">
+        <h2 className="section-title keep-with-next">Evolução das Mensalidades e Economia</h2>
+        <p className="section-subtitle keep-with-next">Comparativo anual entre tarifa convencional e SolarInvest</p>
+        <table className="no-break-inside">
           <thead>
             <tr>
               <th>Período</th>
@@ -647,10 +647,10 @@ function PrintableProposalLeasingInner(
         </table>
       </section>
 
-      <section className="print-section print-chart-section">
-        <h2 className="section-title">Economia Acumulada ao Longo de 30 Anos</h2>
-        <div className="section-grid print-chart-layout">
-          <div className="print-chart leasing-chart">
+      <section className="print-section print-chart-section no-break-inside">
+        <h2 className="section-title keep-with-next">Economia Acumulada ao Longo de 30 Anos</h2>
+        <div className="section-grid print-chart-layout no-break-inside">
+          <div className="print-chart leasing-chart no-break-inside">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart
                 layout="vertical"
@@ -710,7 +710,7 @@ function PrintableProposalLeasingInner(
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <ul className="print-chart-highlights">
+          <ul className="print-chart-highlights no-break-inside">
             {ECONOMIA_MARCOS.map((ano) => {
               const row = economiaProjetada.find((item) => item.ano === ano)
               return (
@@ -732,15 +732,15 @@ function PrintableProposalLeasingInner(
             })}
           </ul>
         </div>
-        <p className="leasing-chart-note">{economiaExplainer}</p>
+        <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
       </section>
 
-      <section className="print-section print-important">
-        <h2 className="section-title">Informações Importantes</h2>
-        <p className="section-subtitle">
+      <section className="print-section print-important no-break-inside">
+        <h2 className="section-title keep-with-next">Informações Importantes</h2>
+        <p className="section-subtitle keep-with-next">
           <strong>Responsabilidades, garantias e condições gerais</strong>
         </p>
-        <ul>
+        <ul className="no-break-inside">
           <li>
             Durante toda a vigência do contrato, a SolarInvest é responsável pela{' '}
             <strong>operação, manutenção, suporte técnico, limpeza e seguro integral</strong> da usina.
@@ -775,11 +775,11 @@ function PrintableProposalLeasingInner(
           </li>
         </ul>
         {informacoesImportantesObservacaoTexto ? (
-          <p className="print-important__observation">{informacoesImportantesObservacaoTexto}</p>
+          <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
         ) : null}
       </section>
 
-      <footer className="print-final-footer">
+      <footer className="print-final-footer no-break-inside">
         <div className="print-final-footer__dates">
           <p>
             <strong>Data de emissão da proposta:</strong> {emissaoTexto}
@@ -794,7 +794,7 @@ function PrintableProposalLeasingInner(
         </div>
       </footer>
 
-      <div className="print-brand-footer">
+      <div className="print-brand-footer no-break-inside">
         <strong>SOLARINVEST</strong>
         <span>CNPJ: 60.434.015/0001-90</span>
         <span>Anápolis-GO</span>

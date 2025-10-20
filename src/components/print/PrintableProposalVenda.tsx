@@ -589,27 +589,27 @@ function PrintableProposalInner(
             </div>
           </div>
         </div>
-        <div className="print-hero__summary">
-          <h2>Sumário executivo</h2>
+        <div className="print-hero__summary no-break-inside">
+          <h2 className="keep-with-next">Sumário executivo</h2>
           <p>{heroSummaryDescription}</p>
         </div>
       </header>
 
-      <section className="print-section">
-        <h2>Identificação do cliente</h2>
+      <section className="print-section no-break-inside">
+        <h2 className="keep-with-next">Identificação do cliente</h2>
         <ClientInfoGrid
           fields={clienteCampos}
-          className="print-client-grid"
+          className="print-client-grid no-break-inside"
           fieldClassName="print-client-field"
           wideFieldClassName="print-client-field--wide"
         />
       </section>
 
       {mostrarDetalhamento ? (
-        <section className="print-section">
-          <h2>Detalhamento do Projeto</h2>
+        <section className="print-section no-break-inside">
+          <h2 className="keep-with-next">Detalhamento do Projeto</h2>
           {detalhamentoCampos.length > 0 ? (
-            <table className="print-table">
+            <table className="print-table no-break-inside">
               <thead>
                 <tr>
                   <th>Item</th>
@@ -628,9 +628,9 @@ function PrintableProposalInner(
           ) : null}
         </section>
       ) : null}
-      <section className="print-section">
-        <h2>Resumo de Custos e Investimento</h2>
-        <table className="print-table">
+      <section className="print-section no-break-inside">
+        <h2 className="keep-with-next">Resumo de Custos e Investimento</h2>
+        <table className="print-table no-break-inside">
           <thead>
             <tr>
               <th>Item</th>
@@ -754,11 +754,11 @@ function PrintableProposalInner(
       </section>
 
       {isVendaDireta ? (
-        <section className="print-section">
-          <h2>Condições Comerciais e de Pagamento</h2>
+        <section className="print-section no-break-inside">
+          <h2 className="keep-with-next">Condições Comerciais e de Pagamento</h2>
           {snapshotPagamento || vendaFormResumo ? (
             <>
-              <table className="print-table">
+              <table className="print-table no-break-inside">
                 <thead>
                   <tr>
                     <th>Parâmetro</th>
@@ -828,8 +828,8 @@ function PrintableProposalInner(
                   ) : null}
                 </tbody>
               </table>
-              <h3 className="print-subheading">Parâmetros de economia</h3>
-              <table className="print-table">
+              <h3 className="print-subheading keep-with-next">Parâmetros de economia</h3>
+              <table className="print-table no-break-inside">
                 <thead>
                   <tr>
                     <th>Parâmetro</th>
@@ -873,7 +873,7 @@ function PrintableProposalInner(
               </table>
             </>
           ) : (
-            <p className="muted">
+            <p className="muted no-break-inside">
               Preencha as condições de pagamento na aba Vendas para exibir os detalhes nesta proposta.
             </p>
           )}
@@ -881,36 +881,36 @@ function PrintableProposalInner(
       ) : null}
 
       {isVendaDireta ? (
-        <section className="print-section">
-          <h2>{isVendaDireta ? 'Retorno Financeiro (Venda)' : 'Retorno projetado'}</h2>
+        <section className="print-section no-break-inside">
+          <h2 className="keep-with-next">{isVendaDireta ? 'Retorno Financeiro (Venda)' : 'Retorno projetado'}</h2>
           {snapshotResultados || retornoVenda ? (
-            <div className="print-kpi-grid">
-              <div className="print-kpi">
+            <div className="print-kpi-grid no-break-inside">
+              <div className="print-kpi no-break-inside">
                 <span>Payback estimado</span>
                 <strong>{paybackLabelResumo}</strong>
               </div>
-              <div className="print-kpi">
+              <div className="print-kpi no-break-inside">
                 <span>ROI acumulado ({roiHorizonteResumo})</span>
                 <strong>{roiLabelResumo}</strong>
               </div>
               {typeof retornoVenda?.vpl === 'number' ? (
-                <div className="print-kpi">
+                <div className="print-kpi no-break-inside">
                   <span>VPL</span>
                   <strong>{vplResumo}</strong>
                 </div>
               ) : null}
             </div>
           ) : (
-            <p className="muted">
+            <p className="muted no-break-inside">
               Informe os parâmetros financeiros na aba Vendas para calcular o retorno projetado.
             </p>
           )}
         </section>
       ) : null}
 
-      <section className="print-section print-chart-section">
-        <h2>{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
-        <div className="print-chart">
+      <section className="print-section print-chart-section no-break-inside">
+        <h2 className="keep-with-next">{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
+        <div className="print-chart no-break-inside">
           <ResponsiveContainer width="50%" height={240}>
             <BarChart
               layout="vertical"
@@ -1004,7 +1004,7 @@ function PrintableProposalInner(
           </ResponsiveContainer>
         </div>
         {!isVendaDireta && beneficioMarcos.length ? (
-          <ul className="print-chart-highlights">
+          <ul className="print-chart-highlights no-break-inside">
             {beneficioMarcos.map((marco) => (
               <li key={`beneficio-marco-resumo-${marco.ano}`}>
                 <span className="print-chart-highlights__year">{marco.ano}º ano</span>
@@ -1026,7 +1026,7 @@ function PrintableProposalInner(
           </ul>
         ) : null}
         {!isVendaDireta && beneficioAno30Printable ? (
-          <p className="chart-explainer">
+          <p className="chart-explainer no-break-inside">
             <strong>{chartEconomiaIntro}</strong>{' '}
             Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
             <strong style={{ color: DEFAULT_CHART_COLORS.Leasing }}>
@@ -1051,12 +1051,12 @@ function PrintableProposalInner(
             {chartExplainerContext}
           </p>
         ) : null}
-        {!isVendaDireta ? <p className="print-chart-footnote">{chartFootnoteText}</p> : null}
+        {!isVendaDireta ? <p className="print-chart-footnote no-break-inside">{chartFootnoteText}</p> : null}
       </section>
 
-      <section className="print-section print-important">
-        <h2>Informações importantes</h2>
-        <ul>
+      <section className="print-section print-important no-break-inside">
+        <h2 className="keep-with-next">Informações importantes</h2>
+        <ul className="no-break-inside">
           {isVendaDireta ? (
             <>
               <li>Esta proposta refere-se à venda do sistema fotovoltaico (não inclui serviços de leasing).</li>
@@ -1095,16 +1095,16 @@ function PrintableProposalInner(
         </ul>
       </section>
 
-      <section className="print-section print-cta">
-        <div className="print-cta__box">
-          <h2>Vamos avançar?</h2>
+      <section className="print-section print-cta no-break-inside">
+        <div className="print-cta__box no-break-inside">
+          <h2 className="keep-with-next">Vamos avançar?</h2>
           <p>
             Agende uma visita técnica gratuita com nossa equipe para confirmar a viabilidade e formalizar a proposta definitiva.
           </p>
         </div>
       </section>
 
-      <footer className="print-final-footer">
+      <footer className="print-final-footer no-break-inside">
         <div className="print-final-footer__dates">
           <p>
             <strong>Data de emissão da proposta:</strong> {emissaoTexto}
@@ -1119,7 +1119,7 @@ function PrintableProposalInner(
         </div>
       </footer>
 
-      <div className="print-brand-footer">
+      <div className="print-brand-footer no-break-inside">
         <strong>SOLARINVEST</strong>
         <span>CNPJ: 60.434.015/0001-90</span>
         <span>Anápolis-GO</span>
