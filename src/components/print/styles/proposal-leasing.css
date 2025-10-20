@@ -1,379 +1,114 @@
-.leasing-print-layout {
-  background: #f5f7fa;
-  color: #222222;
-  font-family: 'Inter', 'Lato', 'Roboto', sans-serif;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 48px;
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-  line-height: 1.5;
+.print-layout.leasing-print-layout {
+  background: #f4f6fb;
+  color: #0c162c;
+  gap: 28px;
 }
 
-.leasing-header {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
+.leasing-print-layout .print-hero__tagline {
+  max-width: 360px;
 }
 
-.leasing-header__branding {
-  display: flex;
+.leasing-table-value {
+  text-align: right;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.leasing-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 24px;
-  align-items: center;
 }
 
-.leasing-header__logo {
-  width: 72px;
-  height: auto;
+.leasing-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.leasing-header__eyebrow {
-  font-size: 12px;
-  letter-spacing: 2px;
+.leasing-summary-card h3 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  margin: 0 0 8px;
-  color: #004f9e;
+  color: #0c162c;
+}
+
+.leasing-summary-card table {
+  width: 100%;
+}
+
+.leasing-summary-card thead th {
+  text-align: left;
+}
+
+.leasing-summary-card tbody td:first-child {
+  color: #334155;
+  font-weight: 500;
+}
+
+.leasing-summary-card tbody td:last-child {
+  text-align: right;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.leasing-chart .recharts-cartesian-grid line {
+  stroke: rgba(0, 79, 158, 0.16);
+}
+
+.leasing-chart .recharts-cartesian-axis-tick text {
+  fill: #0f172a;
   font-weight: 600;
 }
 
-.leasing-header h1 {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 700;
-  color: #0f1f3d;
-}
-
-.leasing-header__subtitle {
-  margin: 4px 0 0;
-  font-size: 16px;
-  color: #4a4a4a;
-}
-
-.leasing-summary {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 32px;
-  border: 1px solid #e0e0e0;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.05);
-}
-
-.leasing-summary h2 {
-  margin: 0 0 16px;
-  font-size: 16px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: #004f9e;
-}
-
-.leasing-summary p {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.6;
-  color: #2d2d2d;
-}
-
-.leasing-section {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 32px 36px;
-  border: 1px solid #e0e0e0;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.04);
-}
-
-.leasing-section h2 {
-  margin: 0 0 20px;
-  font-size: 16px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: #004f9e;
-}
-
-.client-info-grid {
+.leasing-chart-summary {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
   display: grid;
-  gap: 16px 24px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-.client-info-field {
+.leasing-chart-summary li {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.client-info-field dt {
-  margin: 0;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: #7a7a7a;
-  font-weight: 600;
-}
-
-.client-info-field dd {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2a3d;
-}
-
-.client-info-field--wide {
-  grid-column: span 2;
-}
-
-.leasing-commercial-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.leasing-commercial-table tr + tr {
-  border-top: 1px solid #e8ecf2;
-}
-
-.leasing-commercial-table th,
-.leasing-commercial-table td {
-  padding: 12px 0;
-  font-size: 14px;
-  vertical-align: top;
-}
-
-.leasing-commercial-table th {
-  text-align: left;
-  width: 52%;
-  color: #0f1f3d;
-  font-weight: 600;
-}
-
-.leasing-commercial-table td {
-  text-align: right;
-  color: #004f9e;
-  font-weight: 600;
-}
-
-.leasing-dual-cards {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-}
-
-.leasing-dual-card {
-  border: 1px solid #e0e0e0;
-  border-radius: 16px;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background: #f9fbff;
-}
-
-.leasing-dual-card h3 {
-  margin: 0;
-  font-size: 14px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: #004f9e;
-}
-
-.leasing-dual-card dl {
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 18px;
-}
-
-.leasing-dual-card dt {
-  margin: 0;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: #7a7a7a;
-  font-weight: 600;
-}
-
-.leasing-dual-card dd {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2a3d;
-}
-
-.leasing-table {
-  width: 100%;
-  border-collapse: collapse;
-  border: 1px solid #e0e0e0;
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-.leasing-table thead th {
-  background: #004f9e;
-  color: #ffffff;
-  font-size: 12px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  padding: 14px 16px;
-  text-align: left;
-}
-
-.leasing-table tbody td {
-  padding: 14px 16px;
-  font-size: 14px;
-  border-top: 1px solid #e8ecf2;
-  color: #1f2a3d;
-}
-
-.leasing-table tbody td:not(:first-child) {
-  text-align: right;
-}
-
-.leasing-economia {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.leasing-economia-table {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.leasing-economia-table div {
-  border: 1px solid #d8e3f6;
-  border-radius: 14px;
   padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  background: #f2f7ff;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(12, 22, 44, 0.04);
 }
 
-.leasing-economia-table span {
+.leasing-chart-summary span {
   font-size: 11px;
-  letter-spacing: 2px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #56657a;
+  color: #475569;
   font-weight: 600;
 }
 
-.leasing-economia-table strong {
+.leasing-chart-summary strong {
   font-size: 16px;
-  color: #004f9e;
-  font-weight: 700;
+  color: #0f172a;
 }
 
-.leasing-economia-table small {
+.leasing-chart-summary small {
   font-size: 12px;
-  color: #445066;
+  color: #475569;
 }
 
-.leasing-economia__note {
-  margin: 0;
+.leasing-chart-note {
+  margin: 12px 0 0;
   font-size: 13px;
   line-height: 1.6;
-  color: #445066;
+  color: #475569;
 }
 
-.leasing-info-list {
-  display: grid;
-  gap: 12px;
-}
-
-.leasing-info-list p {
-  margin: 0;
-  font-size: 13px;
-  color: #3c4a60;
-  line-height: 1.6;
-}
-
-.leasing-signature {
-  display: flex;
-  justify-content: space-between;
-  gap: 32px;
-  align-items: flex-start;
-}
-
-.leasing-signature__dates {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 13px;
-  color: #3c4a60;
-}
-
-.leasing-signature__line {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.leasing-signature__line span {
-  font-size: 16px;
-  color: #004f9e;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.leasing-signature__stroke {
-  width: 100%;
-  height: 1px;
-  background: #9aa7bc;
-}
-
-.leasing-signature__line small {
-  font-size: 12px;
-  color: #3c4a60;
-}
-
-.leasing-footer {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: #555555;
-}
-
-.leasing-footer p {
-  margin: 0;
-}
-
-@media print {
-  @page {
-    margin: 12mm 16mm;
-  }
-
-  body {
-    background: #ffffff;
-  }
-}
-
-@media (max-width: 820px) {
-  .leasing-print-layout {
-    padding: 32px 24px;
-  }
-
-  .leasing-dual-cards,
-  .leasing-economia-table,
-  .client-info-grid {
+@media (max-width: 920px) {
+  .leasing-summary-grid {
     grid-template-columns: 1fr;
-  }
-
-  .leasing-commercial-table th,
-  .leasing-commercial-table td {
-    display: block;
-    text-align: left;
-  }
-
-  .leasing-commercial-table td {
-    margin-top: 4px;
-  }
-
-  .leasing-signature {
-    flex-direction: column;
   }
 }
 
@@ -382,6 +117,8 @@
     position: fixed;
     top: -9999px;
     left: -9999px;
+    width: 1040px;
+    max-width: 1040px;
     opacity: 0;
     pointer-events: none;
     visibility: hidden;

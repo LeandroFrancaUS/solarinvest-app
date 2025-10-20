@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
+import './styles/proposal-venda.css'
 import './styles/proposal-leasing.css'
 import { currency, formatAxis, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
 import {
@@ -308,79 +309,126 @@ function PrintableProposalLeasingInner(
 
   const descontoInformativo = toDisplayPercent(descontoContratualPct)
   const prazoInformativo = prazoContratual > 0 ? `${prazoContratual} meses` : 'conforme proposta'
+  const emissaoTexto = formatDate(emissaoData)
+  const validadeTexto = formatDate(validadeData)
+  const heroSummary =
+    'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
+  const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
+  const economiaExplainer = beneficioAno30
+    ? `Economia que cresce ano após ano. Em ${beneficioAno30.ano} anos, a SolarInvest projeta um benefício acumulado de ${currency(
+        beneficioAno30.acumulado,
+      )} comparado à concessionária. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.`
+    : 'Economia que cresce ano após ano. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.'
+  const informacoesImportantes = [
+    `Desconto contratual aplicado: ${descontoInformativo} sobre a tarifa da distribuidora.`,
+    `Prazo de vigência: conforme especificado na proposta (ex.: ${prazoInformativo}).`,
+    'Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.',
+    'Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e seguro.',
+    'Transferência da usina ao cliente ao final do contrato sem custo adicional.',
+    'Tabela de compra antecipada disponível mediante solicitação.',
+    'Equipamentos utilizados possuem certificação INMETRO.',
+    'Os valores apresentados são estimativas preliminares e poderão sofrer ajustes no contrato definitivo.',
+    'Agende uma visita técnica gratuita para confirmar a viabilidade e formalizar a proposta definitiva.',
+  ]
 
   return (
-    <div ref={ref} className="leasing-print-layout">
-      <header className="leasing-header">
-        <div className="leasing-header__branding">
-          <img src="/logo.svg" alt="SolarInvest" className="leasing-header__logo" />
-          <div>
-            <p className="leasing-header__eyebrow">SOLARINVEST</p>
-            <h1>SOLARINVEST — Proposta de Leasing Solar</h1>
-            <p className="leasing-header__subtitle">Energia inteligente, sem desembolso</p>
+    <div ref={ref} className="print-layout leasing-print-layout">
+      <header className="print-hero">
+        <div className="print-hero__header">
+          <div className="print-hero__identity">
+            <div className="print-logo">
+              <img src="/logo.svg" alt="SolarInvest" />
+            </div>
+            <div className="print-hero__title">
+              <span className="print-hero__eyebrow">SolarInvest</span>
+              <h1>Proposta de Leasing Solar</h1>
+              <p className="print-hero__tagline">Energia inteligente, sem desembolso</p>
+            </div>
           </div>
         </div>
-        <div className="leasing-summary">
-          <h2>SUMÁRIO EXECUTIVO</h2>
-          <p>
-            Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest.
-            Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem
-            precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para
-            você, tornando-se um patrimônio durável, valorizando seu imóvel.
-          </p>
+        <div className="print-hero__summary">
+          <h2>Sumário executivo</h2>
+          <p>{heroSummary}</p>
         </div>
       </header>
 
-      <section className="leasing-section">
-        <h2>IDENTIFICAÇÃO DO CLIENTE</h2>
-        <ClientInfoGrid fields={resumoCampos} />
+      <section className="print-section">
+        <h2>Identificação do cliente</h2>
+        <ClientInfoGrid
+          fields={resumoCampos}
+          className="print-client-grid"
+          fieldClassName="print-client-field"
+          wideFieldClassName="print-client-field--wide"
+        />
       </section>
 
-      <section className="leasing-section">
-        <h2>QUADRO COMERCIAL RESUMIDO</h2>
-        <table className="leasing-commercial-table">
+      <section className="print-section">
+        <h2>Quadro comercial resumido</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Parâmetro</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
           <tbody>
             {quadroComercial.map((item) => (
               <tr key={item.label}>
-                <th scope="row">{item.label}</th>
-                <td>{item.value}</td>
+                <td>{item.label}</td>
+                <td className="leasing-table-value">{item.value}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
 
-      <section className="leasing-section">
-        <h2>RESUMO TÉCNICO E FINANCEIRO</h2>
-        <div className="leasing-dual-cards">
-          <div className="leasing-dual-card">
-            <h3>DADOS TÉCNICOS</h3>
-            <dl>
-              {resumoTecnico.map((item) => (
-                <React.Fragment key={item.label}>
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </React.Fragment>
-              ))}
-            </dl>
+      <section className="print-section">
+        <h2>Resumo técnico e financeiro</h2>
+        <div className="leasing-summary-grid">
+          <div className="leasing-summary-card">
+            <h3>Dados técnicos</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumoTecnico.map((item) => (
+                  <tr key={item.label}>
+                    <td>{item.label}</td>
+                    <td className="leasing-table-value">{item.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="leasing-dual-card">
-            <h3>DADOS FINANCEIROS</h3>
-            <dl>
-              {resumoFinanceiro.map((item) => (
-                <React.Fragment key={item.label}>
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </React.Fragment>
-              ))}
-            </dl>
+          <div className="leasing-summary-card">
+            <h3>Dados financeiros</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumoFinanceiro.map((item) => (
+                  <tr key={item.label}>
+                    <td>{item.label}</td>
+                    <td className="leasing-table-value">{item.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
 
-      <section className="leasing-section">
-        <h2>MENSALIDADES POR ANO</h2>
-        <table className="leasing-table">
+      <section className="print-section">
+        <h2>Mensalidades por ano</h2>
+        <table>
           <thead>
             <tr>
               <th>Período</th>
@@ -394,19 +442,19 @@ function PrintableProposalLeasingInner(
             {mensalidadesPorAno.map((linha) => (
               <tr key={`mensalidade-${linha.ano}`}>
                 <td>{`${linha.ano}º ano`}</td>
-                <td>{tarifaCurrency(linha.tarifaCheiaAno)}</td>
-                <td>{tarifaCurrency(linha.tarifaComDesconto)}</td>
-                <td>{currency(linha.contaDistribuidora)}</td>
-                <td>{currency(linha.mensalidade)}</td>
+                <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
+                <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
+                <td className="leasing-table-value">{currency(linha.contaDistribuidora)}</td>
+                <td className="leasing-table-value">{currency(linha.mensalidade)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
 
-      <section className="leasing-section">
-        <h2>ECONOMIA PROJETADA (30 ANOS)</h2>
-        <div className="leasing-economia">
+      <section className="print-section print-chart-section">
+        <h2>Economia projetada (30 anos)</h2>
+        <div className="print-chart leasing-chart">
           <ResponsiveContainer height={260}>
             <LineChart data={economiaChartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <defs>
@@ -435,68 +483,58 @@ function PrintableProposalLeasingInner(
               />
             </LineChart>
           </ResponsiveContainer>
-          <div className="leasing-economia-table">
-            {ECONOMIA_MARCOS.map((ano) => {
-              const row = economiaProjetada.find((item) => item.ano === ano)
-              return (
-                <div key={`economia-${ano}`}>
-                  <span>{`${ano}º ano`}</span>
-                  <strong>{row ? currency(row.acumulado) : '—'}</strong>
-                  {row ? <small>{`Economia no ano: ${currency(row.economiaAnual)}`}</small> : <small>—</small>}
-                </div>
-              )
-            })}
-          </div>
-          <p className="leasing-economia__note">
-            Economia que cresce ano após ano. Em 30 anos, a SolarInvest projeta um benefício acumulado
-            de R$ 1.394.294,71 comparado à concessionária. Essa trajetória considera os reajustes anuais
-            de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.
-          </p>
+        </div>
+        <ul className="leasing-chart-summary">
+          {ECONOMIA_MARCOS.map((ano) => {
+            const row = economiaProjetada.find((item) => item.ano === ano)
+            return (
+              <li key={`economia-${ano}`}>
+                <span>{`${ano}º ano`}</span>
+                <strong>{row ? currency(row.acumulado) : '—'}</strong>
+                <small>{row ? `Economia no ano: ${currency(row.economiaAnual)}` : '—'}</small>
+              </li>
+            )
+          })}
+        </ul>
+        <p className="leasing-chart-note">{economiaExplainer}</p>
+      </section>
+
+      <section className="print-section print-important">
+        <h2>Informações importantes</h2>
+        <ul>
+          {informacoesImportantes.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="print-section print-cta">
+        <div className="print-cta__box">
+          <h2>Vamos avançar?</h2>
+          <p>Agende uma visita técnica gratuita e finalize a contratação da sua usina SolarInvest.</p>
         </div>
       </section>
 
-      <section className="leasing-section">
-        <h2>INFORMAÇÕES IMPORTANTES</h2>
-        <div className="leasing-info-list">
-          <p>Desconto contratual aplicado: {descontoInformativo} sobre a tarifa da distribuidora.</p>
-          <p>Prazo de vigência: conforme especificado na proposta (ex.: {prazoInformativo}).</p>
-          <p>Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.</p>
+      <footer className="print-final-footer">
+        <div className="print-final-footer__dates">
           <p>
-            Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e
-            seguro.
-          </p>
-          <p>Transferência da usina ao cliente ao final do contrato sem custo adicional.</p>
-          <p>Tabela de compra antecipada disponível mediante solicitação.</p>
-          <p>Equipamentos utilizados possuem certificação INMETRO.</p>
-          <p>
-            Os valores apresentados são estimativas preliminares e poderão sofrer ajustes no contrato
-            definitivo.
+            <strong>Data de emissão da proposta:</strong> {emissaoTexto}
           </p>
           <p>
-            Agende uma visita técnica gratuita para confirmar a viabilidade e formalizar a proposta
-            definitiva.
+            <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
           </p>
         </div>
-      </section>
-
-      <section className="leasing-section leasing-signature">
-        <div className="leasing-signature__dates">
-          <span>Data de emissão: {formatDate(emissaoData)}</span>
-          <span>Validade da proposta: 15 dias corridos</span>
+        <div className="print-final-footer__signature">
+          <div className="signature-line" />
+          <span>Assinatura do cliente</span>
         </div>
-        <div className="leasing-signature__line">
-          <span>Vamos avançar?</span>
-          <div className="leasing-signature__stroke" />
-          <small>Assinatura do cliente</small>
-        </div>
-      </section>
-
-      <footer className="leasing-footer">
-        <p>SolarInvest</p>
-        <p>CNPJ: 60.434.015/0001-90</p>
-        <p>Energia inteligente, sem desembolso</p>
-        <p>Vamos avançar?</p>
       </footer>
+
+      <div className="print-brand-footer">
+        <strong>SolarInvest</strong>
+        <span>CNPJ: 60.434.015/0001-90</span>
+        <span>Energia inteligente, sem desembolso</span>
+      </div>
     </div>
   )
 }
