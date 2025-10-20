@@ -391,6 +391,13 @@
   line-height: 1.7;
 }
 
+.print-important__observation {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(226, 232, 240, 0.7);
+}
+
 .print-cta__box {
   display: flex;
   flex-direction: column;
