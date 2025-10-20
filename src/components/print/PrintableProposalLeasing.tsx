@@ -22,6 +22,7 @@ import {
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
+import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -186,6 +187,8 @@ function PrintableProposalLeasingInner(
 
   const primaryChartColor = DEFAULT_CHART_COLORS[0] ?? '#2563EB'
   const secondaryChartColor = DEFAULT_CHART_COLORS[1] ?? '#0f172a'
+
+  usePrintCanvasFallback('#economia-30-anos')
 
   const prazoContratual = useMemo(() => {
     if (Number.isFinite(leasingPrazoContratualMeses) && (leasingPrazoContratualMeses ?? 0) > 0) {
@@ -547,7 +550,7 @@ function PrintableProposalLeasingInner(
         </div>
       </header>
 
-      <section className="print-section no-break-inside">
+      <section className="print-section keep-together">
         <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
         <ClientInfoGrid
           fields={resumoCampos}
@@ -557,7 +560,7 @@ function PrintableProposalLeasingInner(
         />
       </section>
 
-      <section className="print-section no-break-inside">
+      <section id="resumo-proposta" className="print-section keep-together">
         <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
         <p className="section-subtitle keep-with-next">Visão geral dos parâmetros comerciais e técnicos</p>
         <table className="no-break-inside">
@@ -578,7 +581,7 @@ function PrintableProposalLeasingInner(
         </table>
       </section>
 
-      <section className="print-section no-break-inside">
+      <section className="print-section keep-together">
         <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
         <p className="section-subtitle keep-with-next">Configuração técnica do sistema proposto</p>
         <table className="no-break-inside">
@@ -599,7 +602,10 @@ function PrintableProposalLeasingInner(
         </table>
       </section>
 
-      <section className="print-section no-break-inside">
+      <section
+        id="condicoes-financeiras"
+        className="print-section keep-together page-break-before"
+      >
         <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
         <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
         <table className="no-break-inside">
@@ -620,7 +626,7 @@ function PrintableProposalLeasingInner(
         </table>
       </section>
 
-      <section className="print-section no-break-inside">
+      <section className="print-section keep-together">
         <h2 className="section-title keep-with-next">Evolução das Mensalidades e Economia</h2>
         <p className="section-subtitle keep-with-next">Comparativo anual entre tarifa convencional e SolarInvest</p>
         <table className="no-break-inside">
@@ -647,7 +653,10 @@ function PrintableProposalLeasingInner(
         </table>
       </section>
 
-      <section className="print-section print-chart-section no-break-inside">
+      <section
+        id="economia-30-anos"
+        className="print-section print-chart-section keep-together page-break-before"
+      >
         <h2 className="section-title keep-with-next">Economia Acumulada ao Longo de 30 Anos</h2>
         <div className="section-grid print-chart-layout no-break-inside">
           <div className="print-chart leasing-chart no-break-inside">
@@ -735,7 +744,10 @@ function PrintableProposalLeasingInner(
         <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
       </section>
 
-      <section className="print-section print-important no-break-inside">
+      <section
+        id="infos-importantes"
+        className="print-section print-important keep-together page-break-before"
+      >
         <h2 className="section-title keep-with-next">Informações Importantes</h2>
         <p className="section-subtitle keep-with-next">
           <strong>Responsabilidades, garantias e condições gerais</strong>

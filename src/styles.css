@@ -2322,6 +2322,7 @@ table tbody tr:hover {
   *::after {
     box-shadow: none !important;
     text-shadow: none !important;
+    background: transparent !important;
   }
 
   html,
@@ -2333,8 +2334,8 @@ table tbody tr:hover {
     print-color-adjust: exact !important;
   }
 
-  .page,
-  .app-main {
+  .app-main,
+  .page {
     padding-top: 0 !important;
   }
 
@@ -2353,6 +2354,47 @@ table tbody tr:hover {
     background: transparent !important;
   }
 
+  [style*='transform'],
+  [class*='transform'] {
+    transform: none !important;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+    overflow: visible !important;
+    line-height: 1.2 !important;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  .keep-with-next {
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+  }
+
+  .no-break-inside {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+
+  .keep-together {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+
+  .page-break-before {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  .page-break-after {
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
   .card,
   .print-layout,
   .print-section,
@@ -2368,26 +2410,6 @@ table tbody tr:hover {
   .summary-block {
     break-inside: avoid-page !important;
     page-break-inside: avoid !important;
-  }
-
-  .keep-with-next {
-    break-after: avoid-page !important;
-    page-break-after: avoid !important;
-  }
-
-  .no-break-inside {
-    break-inside: avoid-page !important;
-    page-break-inside: avoid !important;
-  }
-
-  .page-break-before {
-    break-before: page !important;
-    page-break-before: always !important;
-  }
-
-  .page-break-after {
-    break-after: page !important;
-    page-break-after: always !important;
   }
 
   table {
@@ -2419,6 +2441,16 @@ table tbody tr:hover {
     table-layout: auto !important;
   }
 
+  .chart,
+  img,
+  svg,
+  canvas {
+    max-width: 100% !important;
+    height: auto !important;
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+
   button,
   .page-actions,
   .table-controls,
@@ -2428,13 +2460,6 @@ table tbody tr:hover {
   .crm-button,
   .preview-toolbar-actions {
     display: none !important;
-  }
-
-  img,
-  svg,
-  canvas {
-    max-width: 100% !important;
-    height: auto !important;
   }
 
   [data-print-variant='simple'] *,

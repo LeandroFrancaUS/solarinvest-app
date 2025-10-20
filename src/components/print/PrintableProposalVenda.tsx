@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, Label, LabelList, Legend, ReferenceLine, 
 import './styles/proposal-venda.css'
 import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils/formatters'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
+import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
 import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
@@ -574,6 +575,7 @@ function PrintableProposalInner(
     () => chartDataPrintable.find((row) => row.ano === 30) ?? null,
     [chartDataPrintable],
   )
+  usePrintCanvasFallback('#economia-30-anos')
   return (
     <div ref={ref} className="print-layout">
       <header className="print-hero">
@@ -595,7 +597,7 @@ function PrintableProposalInner(
         </div>
       </header>
 
-      <section className="print-section no-break-inside">
+      <section className="print-section keep-together">
         <h2 className="keep-with-next">Identificação do cliente</h2>
         <ClientInfoGrid
           fields={clienteCampos}
@@ -606,7 +608,7 @@ function PrintableProposalInner(
       </section>
 
       {mostrarDetalhamento ? (
-        <section className="print-section no-break-inside">
+        <section className="print-section keep-together">
           <h2 className="keep-with-next">Detalhamento do Projeto</h2>
           {detalhamentoCampos.length > 0 ? (
             <table className="print-table no-break-inside">
@@ -628,7 +630,7 @@ function PrintableProposalInner(
           ) : null}
         </section>
       ) : null}
-      <section className="print-section no-break-inside">
+      <section id="resumo-proposta" className="print-section keep-together">
         <h2 className="keep-with-next">Resumo de Custos e Investimento</h2>
         <table className="print-table no-break-inside">
           <thead>
@@ -881,7 +883,10 @@ function PrintableProposalInner(
       ) : null}
 
       {isVendaDireta ? (
-        <section className="print-section no-break-inside">
+        <section
+          id="condicoes-financeiras"
+          className="print-section keep-together page-break-before"
+        >
           <h2 className="keep-with-next">{isVendaDireta ? 'Retorno Financeiro (Venda)' : 'Retorno projetado'}</h2>
           {snapshotResultados || retornoVenda ? (
             <div className="print-kpi-grid no-break-inside">
@@ -908,7 +913,10 @@ function PrintableProposalInner(
         </section>
       ) : null}
 
-      <section className="print-section print-chart-section no-break-inside">
+      <section
+        id="economia-30-anos"
+        className="print-section print-chart-section keep-together page-break-before"
+      >
         <h2 className="keep-with-next">{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
         <div className="print-chart no-break-inside">
           <ResponsiveContainer width="50%" height={240}>
@@ -1054,7 +1062,10 @@ function PrintableProposalInner(
         {!isVendaDireta ? <p className="print-chart-footnote no-break-inside">{chartFootnoteText}</p> : null}
       </section>
 
-      <section className="print-section print-important no-break-inside">
+      <section
+        id="infos-importantes"
+        className="print-section print-important keep-together page-break-before"
+      >
         <h2 className="keep-with-next">Informações importantes</h2>
         <ul className="no-break-inside">
           {isVendaDireta ? (
