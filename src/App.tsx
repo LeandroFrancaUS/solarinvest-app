@@ -128,6 +128,31 @@ import {
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 
+const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
+
+const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    const canonical = trimmed.toUpperCase().replace(/[\s-]+/g, '_')
+    return TIPO_SISTEMA_VALUES.includes(canonical as TipoSistema)
+      ? (canonical as TipoSistema)
+      : undefined
+  }
+
+  if (value == null) {
+    return undefined
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return normalizeTipoSistemaValue(String(value))
+  }
+
+  return undefined
+}
+
 const emailValido = (valor: string) => {
   if (!valor) {
     return true
@@ -1609,16 +1634,18 @@ export default function App() {
   )
 
   const setTipoSistema = useCallback(
-    (value: TipoSistema) => {
-      setTipoSistemaState(value)
+    (valueOrUpdater: TipoSistema | ((prev: TipoSistema) => TipoSistema)) => {
+      const nextValue = resolveStateUpdate(valueOrUpdater, tipoSistema)
+      const normalized = normalizeTipoSistemaValue(nextValue) ?? tipoSistema
+      setTipoSistemaState(normalized)
       updatePageSharedState((current) => {
-        if (current.tipoSistema === value) {
+        if (current.tipoSistema === normalized) {
           return current
         }
-        return { ...current, tipoSistema: value }
+        return { ...current, tipoSistema: normalized }
       })
     },
-    [updatePageSharedState],
+    [tipoSistema, updatePageSharedState],
   )
 
   const setTipoInstalacaoDirty = useCallback(
@@ -1678,7 +1705,10 @@ export default function App() {
     )
     setSegmentoClienteState((prev) => (prev === snapshot.segmentoCliente ? prev : snapshot.segmentoCliente))
     setTipoInstalacaoState((prev) => (prev === snapshot.tipoInstalacao ? prev : snapshot.tipoInstalacao))
-    setTipoSistemaState((prev) => (prev === snapshot.tipoSistema ? prev : snapshot.tipoSistema))
+    setTipoSistemaState((prev) => {
+      const normalized = normalizeTipoSistemaValue(snapshot.tipoSistema) ?? prev
+      return prev === normalized ? prev : normalized
+    })
     setConsumoManualState((prev) => (prev === snapshot.consumoManual ? prev : snapshot.consumoManual))
     setPotenciaModuloDirtyState((prev) =>
       prev === snapshot.potenciaModuloDirty ? prev : snapshot.potenciaModuloDirty,
@@ -3077,7 +3107,7 @@ export default function App() {
   }, [segmentoCliente, vendaForm.segmento_cliente])
 
   useEffect(() => {
-    const tipoAtual = vendaForm.tipo_sistema
+    const tipoAtual = normalizeTipoSistemaValue(vendaForm.tipo_sistema)
     if (tipoAtual && tipoAtual !== tipoSistema) {
       setTipoSistema(tipoAtual)
     }
@@ -4040,13 +4070,13 @@ export default function App() {
       const potenciaModuloSnapshot = vendaSnapshot.configuracao.potencia_modulo_wp
       const potenciaModuloPrintable =
         potenciaModuloSnapshot > 0 ? potenciaModuloSnapshot : potenciaModulo
-      const tipoSistemaSnapshot = vendaSnapshot.configuracao.tipo_sistema
-      const tipoSistemaPrintable =
-        (tipoSistemaSnapshot && tipoSistemaSnapshot.trim())
-          ? tipoSistemaSnapshot
-          : isVendaDiretaTab && vendaForm.tipo_sistema
-          ? vendaForm.tipo_sistema
-          : tipoSistema
+      const tipoSistemaSnapshot = normalizeTipoSistemaValue(
+        vendaSnapshot.configuracao.tipo_sistema,
+      )
+      const tipoSistemaFromForm = isVendaDiretaTab
+        ? normalizeTipoSistemaValue(vendaForm.tipo_sistema)
+        : undefined
+      const tipoSistemaPrintable = tipoSistemaSnapshot ?? tipoSistemaFromForm ?? tipoSistema
 
       const vendaResumo = isVendaDiretaTab
         ? {
