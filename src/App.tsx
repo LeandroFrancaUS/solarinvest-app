@@ -89,7 +89,6 @@ import {
   createInitialComposicaoSolo,
   createInitialComposicaoTelhado,
   createInitialVendaForm,
-  type LeasingSistemaTipo,
   type EntradaModoLabel,
   type KitBudgetItemState,
   type KitBudgetMissingInfo,
@@ -1216,22 +1215,6 @@ function FieldError({ message }: { message?: string }) {
   return message ? <span className="field-error">{message}</span> : null
 }
 
-const sanitizeEquipmentText = (value?: string | null): string => {
-  if (typeof value !== 'string') {
-    return ''
-  }
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return ''
-  }
-  return trimmed.replace(/\s+/g, ' ')
-}
-
-const toNullableEquipmentText = (value?: string | null): string | null => {
-  const sanitized = sanitizeEquipmentText(value)
-  return sanitized ? sanitized : null
-}
-
 type PrintMode = 'preview' | 'print' | 'download'
 
 type PrintVariant = 'standard' | 'simple'
@@ -1410,16 +1393,6 @@ export default function App() {
     INITIAL_VALUES.encargosFixosExtras,
   )
   const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(INITIAL_VALUES.leasingPrazo)
-  const [leasingModeloModulo, setLeasingModeloModulo] = useState(
-    () => INITIAL_VALUES.leasingModeloModulo,
-  )
-  const [leasingModeloInversor, setLeasingModeloInversor] = useState(
-    () => INITIAL_VALUES.leasingModeloInversor,
-  )
-  const [leasingTipoSistema, setLeasingTipoSistema] = useState<LeasingSistemaTipo>(
-    INITIAL_VALUES.leasingTipoSistema,
-  )
-  const [leasingEquipamentosTouched, setLeasingEquipamentosTouched] = useState(false)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
   const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
@@ -2061,28 +2034,6 @@ export default function App() {
   const [retornoStatus, setRetornoStatus] = useState<'idle' | 'calculating'>('idle')
   const [retornoError, setRetornoError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (leasingEquipamentosTouched) {
-      return
-    }
-    const sanitizedModuloAtual = sanitizeEquipmentText(leasingModeloModulo)
-    const sanitizedInversorAtual = sanitizeEquipmentText(leasingModeloInversor)
-    const moduloVenda = sanitizeEquipmentText(vendaForm.modelo_modulo)
-    const inversorVenda = sanitizeEquipmentText(vendaForm.modelo_inversor)
-    if (moduloVenda && moduloVenda !== sanitizedModuloAtual) {
-      setLeasingModeloModulo(moduloVenda)
-    }
-    if (inversorVenda && inversorVenda !== sanitizedInversorAtual) {
-      setLeasingModeloInversor(inversorVenda)
-    }
-  }, [
-    leasingEquipamentosTouched,
-    leasingModeloInversor,
-    leasingModeloModulo,
-    vendaForm.modelo_inversor,
-    vendaForm.modelo_modulo,
-  ])
-
   const resetRetorno = useCallback(() => {
     setRetornoProjetado(null)
     setRetornoError(null)
@@ -2162,37 +2113,6 @@ export default function App() {
       resetRetorno()
     },
     [resetRetorno],
-  )
-
-  const handleImportarModelosVenda = useCallback(() => {
-    const modulo = sanitizeEquipmentText(vendaForm.modelo_modulo)
-    const inversor = sanitizeEquipmentText(vendaForm.modelo_inversor)
-    setLeasingEquipamentosTouched(false)
-    setLeasingModeloModulo(modulo)
-    setLeasingModeloInversor(inversor)
-  }, [vendaForm.modelo_inversor, vendaForm.modelo_modulo])
-
-  const handleLeasingModeloModuloChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setLeasingEquipamentosTouched(true)
-      setLeasingModeloModulo(event.target.value)
-    },
-    [],
-  )
-
-  const handleLeasingModeloInversorChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setLeasingEquipamentosTouched(true)
-      setLeasingModeloInversor(event.target.value)
-    },
-    [],
-  )
-
-  const handleLeasingTipoSistemaChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>) => {
-      setLeasingTipoSistema(event.target.value as LeasingSistemaTipo)
-    },
-    [],
   )
 
   const handleSegmentoClienteChange = useCallback(
@@ -4106,18 +4026,6 @@ export default function App() {
         tipoAtual: tipoInstalacao,
       }
 
-      const modeloModuloPrintable =
-        toNullableEquipmentText(leasingModeloModulo) ??
-        toNullableEquipmentText(vendaSnapshot.configuracao.modelo_modulo) ??
-        toNullableEquipmentText(vendaForm.modelo_modulo) ??
-        toNullableEquipmentText(parsedVendaPdf?.modelo_modulo ?? null)
-
-      const modeloInversorPrintable =
-        toNullableEquipmentText(leasingModeloInversor) ??
-        toNullableEquipmentText(vendaSnapshot.configuracao.modelo_inversor) ??
-        toNullableEquipmentText(vendaForm.modelo_inversor) ??
-        toNullableEquipmentText(parsedVendaPdf?.modelo_inversor ?? null)
-
       return {
         cliente,
         budgetId: sanitizedBudgetId,
@@ -4159,9 +4067,6 @@ export default function App() {
         orcamentoItens: printableBudgetItems,
         composicaoUfv: composicaoResumo,
         vendaSnapshot,
-        leasingModeloModulo: modeloModuloPrintable,
-        leasingModeloInversor: modeloInversorPrintable,
-        leasingTipoSistema,
       }
     },
     [
@@ -4201,9 +4106,6 @@ export default function App() {
       parsedVendaPdf,
       budgetStructuredItems,
       leasingValorDeMercadoEstimado,
-      leasingModeloInversor,
-      leasingModeloModulo,
-      leasingTipoSistema,
     ],
   )
 
@@ -7105,10 +7007,6 @@ export default function App() {
     setTaxaMinima(INITIAL_VALUES.taxaMinima)
     setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
     setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
-    setLeasingModeloModulo(INITIAL_VALUES.leasingModeloModulo)
-    setLeasingModeloInversor(INITIAL_VALUES.leasingModeloInversor)
-    setLeasingTipoSistema(INITIAL_VALUES.leasingTipoSistema)
-    setLeasingEquipamentosTouched(false)
     setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
     setPotenciaModuloDirty(false)
     setTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
@@ -8871,9 +8769,6 @@ export default function App() {
                   <section className="card">
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
-                      <button type="button" className="ghost" onClick={handleImportarModelosVenda}>
-                        Usar dados da aba Vendas
-                      </button>
                     </div>
 
                     <div className="grid g3">
@@ -8902,30 +8797,6 @@ export default function App() {
                           <option value={5}>5 anos</option>
                           <option value={7}>7 anos</option>
                           <option value={10}>10 anos</option>
-                        </select>
-                      </Field>
-                    </div>
-
-                    <div className="grid g3">
-                      <Field label="Modelo dos módulos">
-                        <input
-                          type="text"
-                          value={leasingModeloModulo}
-                          onChange={handleLeasingModeloModuloChange}
-                        />
-                      </Field>
-                      <Field label="Modelo do inversor">
-                        <input
-                          type="text"
-                          value={leasingModeloInversor}
-                          onChange={handleLeasingModeloInversorChange}
-                        />
-                      </Field>
-                      <Field label="Tipo de sistema">
-                        <select value={leasingTipoSistema} onChange={handleLeasingTipoSistemaChange}>
-                          <option value="ON_GRID">On-grid</option>
-                          <option value="HIBRIDO">Híbrido</option>
-                          <option value="OFF_GRID">Off-grid</option>
                         </select>
                       </Field>
                     </div>

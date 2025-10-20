@@ -4,8 +4,6 @@ import type { VendaSnapshot } from '../store/useVendaStore'
 
 export type TipoInstalacao = 'TELHADO' | 'SOLO'
 
-export type LeasingSistemaTipo = 'ON_GRID' | 'HIBRIDO' | 'OFF_GRID'
-
 export type UfvComposicaoTelhadoValores = {
   projeto: number
   instalacao: number
@@ -137,7 +135,4 @@ export type PrintableProposalProps = {
   composicaoUfv?: UfvComposicaoResumo | undefined
   vendaSnapshot?: VendaSnapshot | undefined
   informacoesImportantesObservacao?: string | null | undefined
-  leasingModeloModulo?: string | null | undefined
-  leasingModeloInversor?: string | null | undefined
-  leasingTipoSistema?: LeasingSistemaTipo | null | undefined
 }
