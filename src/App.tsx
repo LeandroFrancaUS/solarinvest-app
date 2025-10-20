@@ -2563,6 +2563,7 @@ export default function App() {
           fileName: file.name,
           fileSizeBytes: file.size,
           missingInfo,
+          ignoredByNoise: result.structured.meta?.ignoredByNoise ?? 0,
         })
         setBudgetStructuredItems(result.structured.itens)
         setCurrentBudgetId(makeProposalId())
@@ -9116,6 +9117,14 @@ export default function App() {
                     <li key={`budget-warning-${index}`}>{warning}</li>
                   ))}
                 </ul>
+              ) : null}
+              {kitBudget.ignoredByNoise > 0 ? (
+                <span className="budget-noise-badge">
+                  {kitBudget.ignoredByNoise}{' '}
+                  {kitBudget.ignoredByNoise === 1
+                    ? 'item ignorado por filtro de ruído'
+                    : 'itens ignorados por filtro de ruído'}
+                </span>
               ) : null}
               {budgetMissingSummary ? (
                 <div className="budget-missing-alert">
