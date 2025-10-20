@@ -2364,6 +2364,8 @@ table tbody tr:hover {
   h3 {
     break-after: avoid-page !important;
     page-break-after: avoid !important;
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
     overflow: visible !important;
     line-height: 1.2 !important;
     padding-top: 0 !important;
@@ -2373,26 +2375,30 @@ table tbody tr:hover {
   .keep-with-next {
     break-after: avoid-page !important;
     page-break-after: avoid !important;
+    break-before: avoid-page !important;
+    page-break-before: avoid !important;
   }
 
-  .no-break-inside {
-    break-inside: avoid-page !important;
-    page-break-inside: avoid !important;
-  }
-
+  .no-break-inside,
   .keep-together {
     break-inside: avoid-page !important;
     page-break-inside: avoid !important;
+    -webkit-column-break-inside: avoid !important;
+    -webkit-region-break-inside: avoid !important;
   }
 
   .page-break-before {
     break-before: page !important;
     page-break-before: always !important;
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
   }
 
   .page-break-after {
     break-after: page !important;
     page-break-after: always !important;
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
   }
 
   .card,
