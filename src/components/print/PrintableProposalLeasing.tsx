@@ -12,7 +12,6 @@ import {
   YAxis,
 } from 'recharts'
 
-import './styles/proposal-venda.css'
 import './styles/proposal-leasing.css'
 import { currency, formatAxis, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
 import {
@@ -401,7 +400,7 @@ function PrintableProposalLeasingInner(
             <div className="print-hero__title">
               <span className="print-hero__eyebrow">SolarInvest</span>
               <h1>Proposta de Leasing Solar</h1>
-              <p className="print-hero__tagline">Energia inteligente, sem desembolso</p>
+              <p className="print-hero__tagline">Energia inteligente, sustentável e sem investimento inicial.</p>
             </div>
           </div>
         </div>
@@ -628,7 +627,8 @@ function PrintableProposalLeasingInner(
       <div className="print-brand-footer">
         <strong>SolarInvest</strong>
         <span>CNPJ: 60.434.015/0001-90</span>
-        <span>Energia inteligente, sem desembolso</span>
+        <span>Av. Paulista, 1374 - Bela Vista · São Paulo/SP</span>
+        <span>www.solarinvest.com.br · Energia inteligente, sustentável e sem investimento inicial.</span>
       </div>
     </div>
   )
