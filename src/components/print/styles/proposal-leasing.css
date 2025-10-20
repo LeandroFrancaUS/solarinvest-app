@@ -326,9 +326,46 @@
   color: rgba(226, 232, 240, 0.68);
 }
 
-.print-chart-highlights__values {
-  display: grid;
-  gap: 6px;
+.print-composition-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.print-composition-group {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.print-composition-group h3 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #0c162c;
+}
+
+.print-composition-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.print-composition-subgroup h4 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1e293b;
+}
+
+.print-composition-table table {
+  margin: 0;
+}
+
+.leasing-chart .recharts-cartesian-grid line {
+  stroke: #e2e8f0;
 }
 
 .print-chart-highlights__value {
