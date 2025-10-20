@@ -7841,6 +7841,10 @@ export default function App() {
     ]
 
     const isTelhado = tipoInstalacao === 'TELHADO'
+    const investimentoTotal =
+      typeof vendaForm.capex_total === 'number' && Number.isFinite(vendaForm.capex_total)
+        ? vendaForm.capex_total
+        : capex
 
     return (
       <section className="card">
@@ -7854,7 +7858,7 @@ export default function App() {
         <div className="info-inline">
           <span className="pill">
             Valor do Investimento:{' '}
-            <strong>{capex > 0 ? currency(capex) : '—'}</strong>
+            <strong>{investimentoTotal > 0 ? currency(investimentoTotal) : '—'}</strong>
           </span>
         </div>
         <div className="composicao-ufv-groups">
