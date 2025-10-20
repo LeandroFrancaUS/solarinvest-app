@@ -255,50 +255,49 @@ function PrintableProposalLeasingInner(
     },
   ]
 
-  const quadroComercial = [
+  const resumoProposta = [
     {
-      label: 'Prazo contratual (meses)',
-      value: prazoContratual > 0 ? `${prazoContratual} meses` : '—',
-    },
-    {
-      label: 'Energia contratada (kWh/mês)',
-      value: formatKwhMes(energiaContratadaKwh),
-    },
-    {
-      label: 'Tarifa cheia da distribuidora (R$/kWh)',
-      value: tarifaCheiaBase > 0 ? tarifaCurrency(tarifaCheiaBase) : '—',
-    },
-    {
-      label: 'Desconto aplicado (%)',
-      value: toDisplayPercent(descontoContratualPct),
-    },
-    {
-      label: 'Valor da instalação para o cliente (R$)',
-      value: currency(valorInstalacaoCliente),
+      label: 'Modalidade de contratação',
+      value: 'Leasing SolarInvest',
     },
     {
       label: 'Início estimado da operação',
       value: inicioOperacaoTexto || '—',
     },
     {
+      label: 'Tipo de instalação',
+      value: tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado',
+    },
+    {
+      label: 'Distribuidora atendida',
+      value: distribuidoraLabel || '—',
+    },
+    {
       label: 'Responsabilidades da SolarInvest',
       value:
         'Operação, manutenção, suporte técnico, limpeza e seguro integral da usina durante o contrato.',
     },
+  ]
+
+  const especificacoesUsina = [
     {
-      label: 'Investimento Estimado da SolarInvest (R$)',
-      value: valorMercadoProjetado > 0 ? currency(valorMercadoProjetado) : '—',
+      label: 'Potência instalada (kWp)',
+      value: formatKwp(potenciaInstaladaKwp),
     },
     {
       label: 'Geração estimada (kWh/mês)',
       value: formatKwhMes(geracaoMensalKwh),
     },
     {
+      label: 'Energia contratada (kWh/mês)',
+      value: formatKwhMes(energiaContratadaKwh),
+    },
+    {
       label: 'Potência da placa (Wp)',
       value: formatWp(potenciaModulo),
     },
     {
-      label: 'Nº de placas',
+      label: 'Número de módulos',
       value:
         Number.isFinite(numeroModulos) && (numeroModulos ?? 0) > 0
           ? formatNumberBRWithOptions(numeroModulos ?? 0, {
@@ -308,11 +307,7 @@ function PrintableProposalLeasingInner(
           : '—',
     },
     {
-      label: 'Potência instalada (kWp)',
-      value: formatKwp(potenciaInstaladaKwp),
-    },
-    {
-      label: 'Área útil (m²)',
+      label: 'Área útil necessária (m²)',
       value:
         Number.isFinite(areaInstalacao) && (areaInstalacao ?? 0) > 0
           ? `${formatNumberBRWithOptions(areaInstalacao ?? 0, {
@@ -321,43 +316,34 @@ function PrintableProposalLeasingInner(
             })} m²`
           : '—',
     },
-    {
-      label: 'Tipo de instalação',
-      value: tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado',
-    },
   ]
 
-  const resumoTecnico = [
-    {
-      label: 'Potência instalada',
-      value: formatKwp(potenciaInstaladaKwp),
-    },
-    {
-      label: 'Geração estimada',
-      value: formatKwhMes(geracaoMensalKwh),
-    },
-    {
-      label: 'Energia contratada',
-      value: formatKwhMes(energiaContratadaKwh),
-    },
-    {
-      label: 'Potência da placa',
-      value: formatWp(potenciaModulo),
-    },
-  ]
+  const tarifaInicialProjetada = tarifaCheiaBase > 0 ? tarifaCheiaBase * (1 - descontoFracao) : 0
 
-  const resumoFinanceiro = [
+  const condicoesFinanceiras = [
     {
-      label: 'Investimento Estimado da SolarInvest (R$)',
+      label: 'Investimento estimado da SolarInvest (R$)',
       value: valorMercadoProjetado > 0 ? currency(valorMercadoProjetado) : '—',
+    },
+    {
+      label: 'Valor da instalação para o cliente (R$)',
+      value: currency(valorInstalacaoCliente),
+    },
+    {
+      label: 'Tarifa cheia da distribuidora (R$/kWh)',
+      value: tarifaCheiaBase > 0 ? tarifaCurrency(tarifaCheiaBase) : '—',
+    },
+    {
+      label: 'Tarifa inicial SolarInvest (R$/kWh)',
+      value: tarifaInicialProjetada > 0 ? tarifaCurrency(tarifaInicialProjetada) : '—',
     },
     {
       label: 'Desconto contratual',
       value: toDisplayPercent(descontoContratualPct),
     },
     {
-      label: 'Tarifa inicial projetada',
-      value: tarifaCheiaBase > 0 ? tarifaCurrency(tarifaCheiaBase) : '—',
+      label: 'Prazo contratual',
+      value: prazoContratual > 0 ? `${prazoContratual} meses` : '—',
     },
   ]
 
@@ -614,7 +600,7 @@ function PrintableProposalLeasingInner(
       <section className="print-section">
         <h2 className="section-title">
           Resumo da Proposta
-          <small className="section-subtitle">Principais parâmetros comerciais do leasing solar</small>
+          <small className="section-subtitle">Visão geral dos parâmetros comerciais e técnicos</small>
         </h2>
         <table>
           <thead>
@@ -624,7 +610,7 @@ function PrintableProposalLeasingInner(
             </tr>
           </thead>
           <tbody>
-            {quadroComercial.map((item) => (
+            {resumoProposta.map((item) => (
               <tr key={item.label}>
                 <td>{item.label}</td>
                 <td className="leasing-table-value">{item.value}</td>
@@ -637,29 +623,24 @@ function PrintableProposalLeasingInner(
       <section className="print-section">
         <h2 className="section-title">
           Especificações da Usina Solar
-          <small className="section-subtitle">Configuração técnica e composição dos equipamentos</small>
+          <small className="section-subtitle">Configuração técnica do sistema proposto</small>
         </h2>
-        <div className="leasing-summary-grid">
-          <div className="leasing-summary-card">
-            <h3>Parâmetros técnicos essenciais</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumoTecnico.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {especificacoesUsina.map((item) => (
+              <tr key={item.label}>
+                <td>{item.label}</td>
+                <td className="leasing-table-value">{item.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
         {composicaoSistema ? (
           <div className="print-composition-groups">
             {composicaoSistema.map((grupo) => (
@@ -702,35 +683,30 @@ function PrintableProposalLeasingInner(
       <section className="print-section">
         <h2 className="section-title">
           Condições Financeiras do Leasing
-          <small className="section-subtitle">Valores projetados, tarifas aplicadas e investimentos envolvidos</small>
+          <small className="section-subtitle">Valores projetados e vigência contratual</small>
         </h2>
-        <div className="leasing-summary-grid">
-          <div className="leasing-summary-card">
-            <h3>Tabela financeira do projeto</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumoFinanceiro.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {condicoesFinanceiras.map((item) => (
+              <tr key={item.label}>
+                <td>{item.label}</td>
+                <td className="leasing-table-value">{item.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       <section className="print-section">
         <h2 className="section-title">
           Evolução das Mensalidades e Economia
-          <small className="section-subtitle">Comparativo anual entre a distribuidora e a tarifa SolarInvest</small>
+          <small className="section-subtitle">Comparativo anual entre tarifa convencional e SolarInvest</small>
         </h2>
         <table>
           <thead>
@@ -759,96 +735,98 @@ function PrintableProposalLeasingInner(
       <section className="print-section print-chart-section">
         <h2 className="section-title">
           Economia Acumulada ao Longo de 30 Anos
-          <small className="section-subtitle">Benefícios financeiros estimados no horizonte completo do leasing</small>
+          <small className="section-subtitle">Projeção de benefício total</small>
         </h2>
-        <div className="print-chart leasing-chart">
-          <ResponsiveContainer width="50%" height={240}>
-            <BarChart
-              layout="vertical"
-              data={economiaChartData}
-              margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
-            >
-              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
-              <XAxis
-                type="number"
-                stroke="#0f172a"
-                tickFormatter={formatAxis}
-                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
-                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
-                tickLine={false}
-                domain={[economiaChartDomain.min, economiaChartDomain.max]}
+        <div className="section-grid print-chart-layout">
+          <div className="print-chart leasing-chart">
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart
+                layout="vertical"
+                data={economiaChartData}
+                margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
               >
-                <Label
-                  value="Benefício acumulado (R$)"
-                  position="insideBottom"
-                  offset={-32}
-                  style={{ fill: '#0f172a', fontSize: 13, fontWeight: 700 }}
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
+                <XAxis
+                  type="number"
+                  stroke="#0f172a"
+                  tickFormatter={formatAxis}
+                  tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
+                  axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                  tickLine={false}
+                  domain={[economiaChartDomain.min, economiaChartDomain.max]}
+                >
+                  <Label
+                    value="Benefício acumulado (R$)"
+                    position="insideBottom"
+                    offset={-32}
+                    style={{ fill: '#0f172a', fontSize: 13, fontWeight: 700 }}
+                  />
+                </XAxis>
+                <YAxis
+                  type="category"
+                  dataKey="ano"
+                  stroke="#0f172a"
+                  tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
+                  axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                  tickLine={false}
+                  width={120}
+                  tickFormatter={(valor) => `${valor}º ano`}
                 />
-              </XAxis>
-              <YAxis
-                type="category"
-                dataKey="ano"
-                stroke="#0f172a"
-                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
-                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
-                tickLine={false}
-                width={120}
-                tickFormatter={(valor) => `${valor}º ano`}
-              />
-              <Tooltip
-                formatter={(value: number) => currency(Number(value))}
-                labelFormatter={(value) => `${value}º ano`}
-                contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', padding: 12 }}
-                wrapperStyle={{ zIndex: 1000 }}
-              />
-              <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
-              <Bar
-                dataKey="beneficio"
-                fill={primaryChartColor}
-                barSize={14}
-                radius={[0, 8, 8, 0]}
-                isAnimationActive={false}
-                name="Economia acumulada"
-              >
-                <LabelList
-                  dataKey="beneficio"
-                  position="right"
+                <Tooltip
                   formatter={(value: number) => currency(Number(value))}
-                  fill={primaryChartColor}
-                  style={{ fontSize: 12, fontWeight: 600 }}
+                  labelFormatter={(value) => `${value}º ano`}
+                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', padding: 12 }}
+                  wrapperStyle={{ zIndex: 1000 }}
                 />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+                <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
+                <Bar
+                  dataKey="beneficio"
+                  fill={primaryChartColor}
+                  barSize={14}
+                  radius={[0, 8, 8, 0]}
+                  isAnimationActive={false}
+                  name="Economia acumulada"
+                >
+                  <LabelList
+                    dataKey="beneficio"
+                    position="right"
+                    formatter={(value: number) => currency(Number(value))}
+                    fill={primaryChartColor}
+                    style={{ fontSize: 12, fontWeight: 600 }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <ul className="print-chart-highlights">
+            {ECONOMIA_MARCOS.map((ano) => {
+              const row = economiaProjetada.find((item) => item.ano === ano)
+              return (
+                <li key={`economia-${ano}`}>
+                  <span className="print-chart-highlights__year">{`${ano}º ano`}</span>
+                  <div className="print-chart-highlights__values">
+                    <span className="print-chart-highlights__value" style={{ color: primaryChartColor }}>
+                      Economia acumulada: {row ? currency(row.acumulado) : '—'}
+                    </span>
+                    <span
+                      className="print-chart-highlights__value"
+                      style={{ color: secondaryChartColor }}
+                    >
+                      Economia no ano: {row ? currency(row.economiaAnual) : '—'}
+                    </span>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
         </div>
-        <ul className="print-chart-highlights">
-          {ECONOMIA_MARCOS.map((ano) => {
-            const row = economiaProjetada.find((item) => item.ano === ano)
-            return (
-              <li key={`economia-${ano}`}>
-                <span className="print-chart-highlights__year">{`${ano}º ano`}</span>
-                <div className="print-chart-highlights__values">
-                  <span className="print-chart-highlights__value" style={{ color: primaryChartColor }}>
-                    Economia acumulada: {row ? currency(row.acumulado) : '—'}
-                  </span>
-                  <span
-                    className="print-chart-highlights__value"
-                    style={{ color: secondaryChartColor }}
-                  >
-                    Economia no ano: {row ? currency(row.economiaAnual) : '—'}
-                  </span>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
         <p className="leasing-chart-note">{economiaExplainer}</p>
       </section>
 
       <section className="print-section print-important">
         <h2 className="section-title">
           Informações Importantes
-          <small className="section-subtitle">Leia atentamente antes de seguir com a contratação</small>
+          <small className="section-subtitle">Responsabilidades, garantias e condições gerais.</small>
         </h2>
         <ul>
           {informacoesImportantes.map((item) => (
