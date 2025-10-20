@@ -329,7 +329,7 @@ const describeBudgetProgress = (progress: BudgetUploadProgress | null) => {
 
 const resolvePotenciaModuloFromBudget = (
   potenciaExtraida: number | null | undefined,
-): number => {
+): number | null => {
   if (
     typeof potenciaExtraida === 'number' &&
     Number.isFinite(potenciaExtraida) &&
@@ -340,7 +340,7 @@ const resolvePotenciaModuloFromBudget = (
       return arredondada
     }
   }
-  return INITIAL_VALUES.potenciaModulo
+  return null
 }
 
 const formatFileSize = (bytes?: number) => {
@@ -2432,7 +2432,10 @@ export default function App() {
       const potenciaModuloSelecionada = resolvePotenciaModuloFromBudget(
         mergedParsed.potencia_da_placa_wp,
       )
-      if (potenciaModuloSelecionada !== potenciaModulo) {
+      if (
+        potenciaModuloSelecionada != null &&
+        potenciaModuloSelecionada !== potenciaModulo
+      ) {
         setPotenciaModulo(potenciaModuloSelecionada)
       }
 
