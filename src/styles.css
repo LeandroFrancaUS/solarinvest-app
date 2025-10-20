@@ -2311,3 +2311,166 @@ table tbody tr:hover {
   }
 }
 
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm 14mm 12mm;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    background: #fff !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .page,
+  .app-main {
+    padding-top: 0 !important;
+  }
+
+  .app-header,
+  .site-header,
+  .topbar,
+  .tabs,
+  .tabs-bar,
+  .tabs-wrapper,
+  .page-actions,
+  .preview-toolbar {
+    position: static !important;
+    inset: auto !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .card,
+  .print-layout,
+  .print-section,
+  .section,
+  .kpi-grid,
+  .crm-card,
+  .crm-post-column,
+  .crm-insight-panel,
+  .print-chart,
+  .print-cta__box,
+  .print-final-footer,
+  .preview-content,
+  .summary-block {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+
+  .keep-with-next {
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+  }
+
+  .no-break-inside {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+
+  .page-break-before {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  .page-break-after {
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  tr,
+  td,
+  th {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+
+  .table-wrapper table,
+  .print-section table,
+  .card table,
+  .preview-table,
+  .print-layout table {
+    min-width: auto !important;
+    table-layout: auto !important;
+  }
+
+  button,
+  .page-actions,
+  .table-controls,
+  .legend-toggle,
+  .modal,
+  .modal-backdrop,
+  .crm-button,
+  .preview-toolbar-actions {
+    display: none !important;
+  }
+
+  img,
+  svg,
+  canvas {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  [data-print-variant='simple'] *,
+  [data-print-variant='simple'] *::before,
+  [data-print-variant='simple'] *::after {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  [data-print-variant='simple'] .print-layout {
+    width: 100% !important;
+    max-width: calc(210mm - 24mm) !important;
+  }
+
+  [data-print-variant='simple'] table {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+  }
+}
+
+@media print {
+  .print-simple * {
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .print-simple h1,
+  .print-simple h2,
+  .print-simple h3 {
+    margin: 8px 0 4px;
+  }
+
+  .print-simple table {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+}
+
