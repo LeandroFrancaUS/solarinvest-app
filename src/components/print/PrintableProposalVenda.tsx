@@ -630,7 +630,7 @@ function PrintableProposalInner(
           ) : null}
         </section>
       ) : null}
-      <section id="resumo-proposta" className="print-section keep-together">
+      <section id="resumo-proposta" className="print-section keep-together page-break-before">
         <h2 className="keep-with-next">Resumo de Custos e Investimento</h2>
         <table className="print-table no-break-inside">
           <thead>

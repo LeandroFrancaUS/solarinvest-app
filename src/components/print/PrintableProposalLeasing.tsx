@@ -560,7 +560,7 @@ function PrintableProposalLeasingInner(
         />
       </section>
 
-      <section id="resumo-proposta" className="print-section keep-together">
+      <section id="resumo-proposta" className="print-section keep-together page-break-before">
         <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
         <p className="section-subtitle keep-with-next">Visão geral dos parâmetros comerciais e técnicos</p>
         <table className="no-break-inside">

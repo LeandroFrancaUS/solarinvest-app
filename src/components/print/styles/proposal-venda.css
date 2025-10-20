@@ -162,8 +162,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
   padding: 30px 34px;
   box-shadow: 0 20px 44px rgba(12, 22, 44, 0.12);
   border: 1px solid rgba(12, 22, 44, 0.08);
-  break-inside: avoid;
+  break-inside: avoid-page;
   page-break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  -webkit-region-break-inside: avoid;
 }
 
 .print-section h2 {
@@ -190,7 +192,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
   min-width: 0;
   width: 100%;
   border-collapse: collapse;
-  page-break-inside: auto;
+  break-inside: avoid-page;
+  page-break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  -webkit-region-break-inside: avoid;
   box-shadow: 0 4px 16px rgba(12, 22, 44, 0.06);
   border-radius: 18px;
   overflow: hidden;
@@ -202,8 +207,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
   padding: 10px 14px;
   font-size: 12px;
   text-align: left;
-  break-inside: avoid;
+  break-inside: avoid-page;
   page-break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  -webkit-region-break-inside: avoid;
 }
 
 .print-section th {
@@ -359,8 +366,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-summary,
 .print-notes,
 .print-chart-section {
-  break-inside: avoid;
+  break-inside: avoid-page;
   page-break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  -webkit-region-break-inside: avoid;
 }
 
 .print-notes {
@@ -369,6 +378,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 @media print {
   @page {
+    size: A4 portrait;
     margin: 12mm 16mm;
   }
 
