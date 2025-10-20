@@ -7,8 +7,6 @@ import type {
 } from '../types/printableProposal'
 import type { SegmentoCliente, VendaForm } from '../lib/finance/roi'
 
-export type TipoSistema = 'ON_GRID' | 'HIBRIDO' | 'OFF_GRID'
-
 export type TabKey = 'leasing' | 'vendas'
 
 export type SettingsTabKey = 'mercado' | 'leasing' | 'financiamento' | 'buyout' | 'outros'
@@ -113,7 +111,6 @@ export const INITIAL_VALUES = {
   tipoInstalacao: 'TELHADO' as TipoInstalacao,
   segmentoCliente: 'RESIDENCIAL' as SegmentoCliente,
   numeroModulosManual: '' as number | '',
-  tipoSistema: 'ON_GRID' as TipoSistema,
   precoPorKwp: 2470,
   eficiencia: 0.8,
   diasMes: DIAS_MES_PADRAO,
