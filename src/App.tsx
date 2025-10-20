@@ -48,6 +48,7 @@ import {
   type PagamentoCondicao,
   type RetornoProjetado,
   type SegmentoCliente,
+  type TipoSistema,
   type VendaForm,
 } from './lib/finance/roi'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh, kwpFromWpQty } from './lib/energy/generation'
@@ -1398,6 +1399,7 @@ export default function App() {
   const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
     INITIAL_VALUES.tipoInstalacao,
   )
+  const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
   const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(
     INITIAL_VALUES.segmentoCliente,
   )
@@ -1423,6 +1425,7 @@ export default function App() {
     numeroModulosManual: number | ''
     segmentoCliente: SegmentoCliente
     tipoInstalacao: TipoInstalacao
+    tipoSistema: TipoSistema
     consumoManual: boolean
     potenciaModuloDirty: boolean
     tipoInstalacaoDirty: boolean
@@ -1438,6 +1441,7 @@ export default function App() {
     numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
     segmentoCliente: INITIAL_VALUES.segmentoCliente,
     tipoInstalacao: INITIAL_VALUES.tipoInstalacao,
+    tipoSistema: INITIAL_VALUES.tipoSistema,
     consumoManual: false,
     potenciaModuloDirty: false,
     tipoInstalacaoDirty: false,
@@ -1590,6 +1594,19 @@ export default function App() {
     [updatePageSharedState],
   )
 
+  const setTipoSistema = useCallback(
+    (value: TipoSistema) => {
+      setTipoSistemaState(value)
+      updatePageSharedState((current) => {
+        if (current.tipoSistema === value) {
+          return current
+        }
+        return { ...current, tipoSistema: value }
+      })
+    },
+    [updatePageSharedState],
+  )
+
   const setTipoInstalacaoDirty = useCallback(
     (value: boolean) => {
       setTipoInstalacaoDirtyState(value)
@@ -1650,6 +1667,7 @@ export default function App() {
     )
     setSegmentoClienteState((prev) => (prev === snapshot.segmentoCliente ? prev : snapshot.segmentoCliente))
     setTipoInstalacaoState((prev) => (prev === snapshot.tipoInstalacao ? prev : snapshot.tipoInstalacao))
+    setTipoSistemaState((prev) => (prev === snapshot.tipoSistema ? prev : snapshot.tipoSistema))
     setConsumoManualState((prev) => (prev === snapshot.consumoManual ? prev : snapshot.consumoManual))
     setPotenciaModuloDirtyState((prev) =>
       prev === snapshot.potenciaModuloDirty ? prev : snapshot.potenciaModuloDirty,
@@ -2121,6 +2139,14 @@ export default function App() {
       applyVendaUpdates({ segmento_cliente: value })
     },
     [applyVendaUpdates],
+  )
+
+  const handleTipoSistemaChange = useCallback(
+    (value: TipoSistema) => {
+      setTipoSistema((prev) => (prev === value ? prev : value))
+      applyVendaUpdates({ tipo_sistema: value })
+    },
+    [applyVendaUpdates, setTipoSistema],
   )
 
   const autoFillVendaFromBudget = useCallback(
@@ -3040,6 +3066,13 @@ export default function App() {
     }
   }, [segmentoCliente, vendaForm.segmento_cliente])
 
+  useEffect(() => {
+    const tipoAtual = vendaForm.tipo_sistema
+    if (tipoAtual && tipoAtual !== tipoSistema) {
+      setTipoSistema(tipoAtual)
+    }
+  }, [setTipoSistema, tipoSistema, vendaForm.tipo_sistema])
+
   const areaInstalacao = useMemo(() => {
     if (numeroModulosEstimado <= 0) return 0
     const fator = tipoInstalacao === 'SOLO' ? 7 : 3.3
@@ -3208,6 +3241,8 @@ export default function App() {
       segmento: segmentoCliente,
       modelo_modulo: vendaForm.modelo_modulo ?? '',
       modelo_inversor: vendaForm.modelo_inversor ?? '',
+      estrutura_suporte: vendaForm.estrutura_suporte ?? '',
+      tipo_sistema: tipoSistema,
     })
   }, [
     areaInstalacao,
@@ -3216,10 +3251,12 @@ export default function App() {
     potenciaInstaladaKwp,
     potenciaModulo,
     segmentoCliente,
+    tipoSistema,
     tipoInstalacao,
     vendaForm.geracao_estimada_kwh_mes,
     vendaForm.modelo_inversor,
     vendaForm.modelo_modulo,
+    vendaForm.estrutura_suporte,
     vendaForm.potencia_instalada_kwp,
     vendaForm.quantidade_modulos,
   ])
@@ -7011,6 +7048,7 @@ export default function App() {
     setPotenciaModuloDirty(false)
     setTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
     setTipoInstalacaoDirty(false)
+    setTipoSistema(INITIAL_VALUES.tipoSistema)
     setSegmentoCliente(INITIAL_VALUES.segmentoCliente)
     setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
     setComposicaoTelhado(createInitialComposicaoTelhado())
@@ -7710,6 +7748,16 @@ export default function App() {
             <option value="SOLO">Solo</option>
           </select>
         </Field>
+        <Field label="Tipo de sistema">
+          <select
+            value={tipoSistema}
+            onChange={(event) => handleTipoSistemaChange(event.target.value as TipoSistema)}
+          >
+            <option value="ON_GRID">On-grid</option>
+            <option value="HIBRIDO">Híbrido</option>
+            <option value="OFF_GRID">Off-grid</option>
+          </select>
+        </Field>
         <Field
           label={
             <>
@@ -7752,6 +7800,53 @@ export default function App() {
                     maximumFractionDigits: 1,
                   })
                 : '—'
+            }
+          />
+        </Field>
+      </div>
+      {estruturaTipoWarning ? (
+        <div className="estrutura-warning-alert" role="alert">
+          <div>
+            <h3>Estrutura utilizada não identificada</h3>
+            <p>
+              Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
+              <strong>Estrutura utilizada</strong> no documento enviado. Você pode preencher manualmente ou tentar
+              enviar um arquivo em outro formato.
+            </p>
+          </div>
+          <div className="estrutura-warning-alert-actions">
+            <button type="button" className="primary" onClick={handleEstruturaTipoManualEdit}>
+              Editar manualmente
+            </button>
+            <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
+              Enviar outro arquivo
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div className="grid g3">
+        <Field label="Modelo do módulo">
+          <input
+            type="text"
+            value={vendaForm.modelo_modulo ?? ''}
+            onChange={(event) => applyVendaUpdates({ modelo_modulo: event.target.value || undefined })}
+          />
+        </Field>
+        <Field label="Modelo do inversor">
+          <input
+            type="text"
+            ref={inverterModelInputRef}
+            value={vendaForm.modelo_inversor ?? ''}
+            onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
+          />
+        </Field>
+        <Field label="Estrutura de fixação">
+          <input
+            type="text"
+            ref={estruturaSuporteInputRef}
+            value={vendaForm.estrutura_suporte ?? ''}
+            onChange={(event) =>
+              applyVendaUpdates({ estrutura_suporte: event.target.value || undefined })
             }
           />
         </Field>
@@ -8093,6 +8188,16 @@ export default function App() {
           >
             <option value="TELHADO">Telhado</option>
             <option value="SOLO">Solo</option>
+          </select>
+        </Field>
+        <Field label="Tipo de sistema">
+          <select
+            value={tipoSistema}
+            onChange={(event) => handleTipoSistemaChange(event.target.value as TipoSistema)}
+          >
+            <option value="ON_GRID">On-grid</option>
+            <option value="HIBRIDO">Híbrido</option>
+            <option value="OFF_GRID">Off-grid</option>
           </select>
         </Field>
         <Field

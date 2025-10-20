@@ -5,7 +5,7 @@ import type {
   UfvComposicaoSoloValores,
   UfvComposicaoTelhadoValores,
 } from '../types/printableProposal'
-import type { SegmentoCliente, VendaForm } from '../lib/finance/roi'
+import type { SegmentoCliente, TipoSistema, VendaForm } from '../lib/finance/roi'
 
 export type TabKey = 'leasing' | 'vendas'
 
@@ -110,6 +110,7 @@ export const INITIAL_VALUES = {
   potenciaModulo: 600,
   tipoInstalacao: 'TELHADO' as TipoInstalacao,
   segmentoCliente: 'RESIDENCIAL' as SegmentoCliente,
+  tipoSistema: 'ON_GRID' as TipoSistema,
   numeroModulosManual: '' as number | '',
   precoPorKwp: 2470,
   eficiencia: 0.8,
@@ -159,6 +160,7 @@ export const VENDA_FORM_DEFAULT: VendaForm = {
   condicao: 'AVISTA',
   modo_pagamento: 'PIX',
   segmento_cliente: INITIAL_VALUES.segmentoCliente,
+  tipo_sistema: INITIAL_VALUES.tipoSistema,
   taxa_mdr_pix_pct: 0,
   taxa_mdr_debito_pct: 0,
   taxa_mdr_credito_vista_pct: 0,
