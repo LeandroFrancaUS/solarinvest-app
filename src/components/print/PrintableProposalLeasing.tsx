@@ -490,14 +490,6 @@ function PrintableProposalLeasingInner(
   ) : (
     <>Economia que cresce ano após ano. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.</>
   )
-  const informacoesImportantes = [
-    'Durante toda a vigência do contrato, a SolarInvest é responsável pela operação, manutenção, suporte técnico, limpeza e seguro da usina.',
-    'As tarifas de energia podem variar conforme reajustes autorizados pela ANEEL e aplicação de bandeiras tarifárias.',
-    'Todos os equipamentos fornecidos possuem certificação INMETRO e atendem às normas técnicas vigentes.',
-    'Tabela de compra antecipada disponível mediante solicitação ao consultor SolarInvest.',
-    'Os valores apresentados são estimativas sujeitas a alteração até a formalização do contrato definitivo.',
-  ]
-
   const informacoesImportantesObservacaoTexto = useMemo(() => {
     if (typeof informacoesImportantesObservacao !== 'string') {
       return null
@@ -727,11 +719,42 @@ function PrintableProposalLeasingInner(
 
       <section className="print-section print-important">
         <h2 className="section-title">Informações Importantes</h2>
-        <p className="section-subtitle">Responsabilidades, garantias e condições gerais.</p>
+        <p className="section-subtitle">
+          <strong>Responsabilidades, garantias e condições gerais</strong>
+        </p>
         <ul>
-          {informacoesImportantes.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
+          <li>
+            Durante toda a vigência do contrato, a SolarInvest é responsável pela{' '}
+            <strong>operação, manutenção, suporte técnico, limpeza e seguro integral</strong> da usina.
+          </li>
+          <li>
+            As tarifas de energia apresentadas são{' '}
+            <strong>projeções baseadas nas condições atuais de mercado</strong> e podem variar conforme{' '}
+            <strong>reajustes autorizados pela ANEEL</strong>, aplicação de <strong>bandeiras tarifárias</strong> ou{' '}
+            <strong>mudanças na matriz energética</strong>.
+          </li>
+          <li>
+            Todos os equipamentos fornecidos possuem <strong>certificação INMETRO</strong> e atendem às{' '}
+            <strong>normas técnicas vigentes</strong>.
+          </li>
+          <li>
+            A <strong>tabela de compra antecipada</strong> da usina está disponível mediante solicitação ao consultor{' '}
+            SolarInvest.
+          </li>
+          <li>
+            Os <strong>valores, taxas, tarifas e mensalidades</strong> exibidos representam{' '}
+            <strong>simulações preliminares</strong>, calculadas com base em estimativas de consumo, tarifas vigentes e{' '}
+            parâmetros técnicos médios.
+          </li>
+          <li>
+            Essas <strong>simulações não constituem valores contratuais finais</strong> e poderão sofrer ajustes após a{' '}
+            <strong>análise técnica</strong>, <strong>vistoria</strong>, <strong>alterações tarifárias</strong> ou{' '}
+            <strong>atualizações comerciais da SolarInvest</strong>.
+          </li>
+          <li>
+            A <strong>formalização definitiva</strong> dos valores e condições ocorrerá{' '}
+            <strong>somente no momento da assinatura do contrato</strong>.
+          </li>
         </ul>
         {informacoesImportantesObservacaoTexto ? (
           <p className="print-important__observation">{informacoesImportantesObservacaoTexto}</p>
