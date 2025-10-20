@@ -134,4 +134,5 @@ export type PrintableProposalProps = {
   orcamentoItens?: PrintableOrcamentoItem[] | undefined
   composicaoUfv?: UfvComposicaoResumo | undefined
   vendaSnapshot?: VendaSnapshot | undefined
+  informacoesImportantesObservacao?: string | null | undefined
 }

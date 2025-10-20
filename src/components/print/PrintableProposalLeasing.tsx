@@ -179,6 +179,7 @@ function PrintableProposalLeasingInner(
     leasingValorMercadoProjetado,
     leasingInflacaoEnergiaAa,
     orcamentoItens,
+    informacoesImportantesObservacao,
   } = props
 
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
@@ -451,8 +452,6 @@ function PrintableProposalLeasingInner(
   const formatDate = (date: Date) =>
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-  const descontoInformativo = toDisplayPercent(descontoContratualPct)
-  const prazoInformativo = prazoContratual > 0 ? `${prazoContratual} meses` : 'conforme proposta'
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
   const heroSummary =
@@ -468,16 +467,21 @@ function PrintableProposalLeasingInner(
     <>Economia que cresce ano após ano. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.</>
   )
   const informacoesImportantes = [
-    `Desconto contratual aplicado: ${descontoInformativo} sobre a tarifa da distribuidora.`,
-    `Prazo de vigência: conforme especificado na proposta (ex.: ${prazoInformativo}).`,
-    'Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.',
-    'Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e seguro.',
-    'Transferência da usina ao cliente ao final do contrato sem custo adicional.',
-    'Tabela de compra antecipada disponível mediante solicitação.',
-    'Equipamentos utilizados possuem certificação INMETRO.',
-    'Os valores apresentados são estimativas preliminares e poderão sofrer ajustes no contrato definitivo.',
-    'Agende uma visita técnica gratuita para confirmar a viabilidade e formalizar a proposta definitiva.',
+    'Durante toda a vigência do contrato, a SolarInvest é responsável pela operação, manutenção, suporte técnico, limpeza e seguro da usina.',
+    'As tarifas de energia podem variar conforme reajustes autorizados pela ANEEL e aplicação de bandeiras tarifárias.',
+    'Todos os equipamentos fornecidos possuem certificação INMETRO e atendem às normas técnicas vigentes.',
+    'Tabela de compra antecipada disponível mediante solicitação ao consultor SolarInvest.',
+    'Os valores apresentados são estimativas sujeitas a alteração até a formalização do contrato definitivo.',
   ]
+
+  const informacoesImportantesObservacaoTexto = useMemo(() => {
+    if (typeof informacoesImportantesObservacao !== 'string') {
+      return null
+    }
+
+    const texto = informacoesImportantesObservacao.trim()
+    return texto ? texto : null
+  }, [informacoesImportantesObservacao])
 
   const composicaoSistema = useMemo(() => {
     if (!orcamentoItens || orcamentoItens.length === 0) {
@@ -818,6 +822,9 @@ function PrintableProposalLeasingInner(
             <li key={item}>{item}</li>
           ))}
         </ul>
+        {informacoesImportantesObservacaoTexto ? (
+          <p className="print-important__observation">{informacoesImportantesObservacaoTexto}</p>
+        ) : null}
       </section>
 
       <section className="print-section print-cta">
