@@ -4030,6 +4030,14 @@ export default function App() {
       const potenciaModuloSnapshot = vendaSnapshot.configuracao.potencia_modulo_wp
       const potenciaModuloPrintable =
         potenciaModuloSnapshot > 0 ? potenciaModuloSnapshot : potenciaModulo
+      const tipoSistemaSnapshot = vendaSnapshot.configuracao.tipo_sistema
+      const tipoSistemaPrintable =
+        (tipoSistemaSnapshot && tipoSistemaSnapshot.trim())
+          ? tipoSistemaSnapshot
+          : isVendaDiretaTab && vendaForm.tipo_sistema
+          ? vendaForm.tipo_sistema
+          : tipoSistema
+
       const vendaResumo = isVendaDiretaTab
         ? {
             form: { ...vendaForm },
@@ -4080,6 +4088,7 @@ export default function App() {
         numeroModulos: numeroModulosPrintable,
         potenciaInstaladaKwp: potenciaInstaladaPrintable,
         tipoInstalacao,
+        tipoSistema: tipoSistemaPrintable,
         areaInstalacao,
         descontoContratualPct: descontoConsiderado,
         parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
@@ -4129,6 +4138,7 @@ export default function App() {
       duracaoMeses,
       distribuidoraTarifa,
       tipoInstalacao,
+      tipoSistema,
       valorOrcamentoConsiderado,
       valorVendaSolo,
       valorVendaTelhado,

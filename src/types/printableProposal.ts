@@ -1,5 +1,5 @@
 import type { ParsedVendaPdfData } from '../lib/pdf/extractVendas'
-import type { RetornoProjetado, VendaForm } from '../lib/finance/roi'
+import type { RetornoProjetado, TipoSistema, VendaForm } from '../lib/finance/roi'
 import type { VendaSnapshot } from '../store/useVendaStore'
 
 export type TipoInstalacao = 'TELHADO' | 'SOLO'
@@ -114,6 +114,7 @@ export type PrintableProposalProps = {
   numeroModulos: number
   potenciaInstaladaKwp: number
   tipoInstalacao: TipoInstalacao
+  tipoSistema: TipoSistema
   areaInstalacao: number
   descontoContratualPct: number
   parcelasLeasing: MensalidadeRow[]
