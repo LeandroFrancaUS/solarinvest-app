@@ -599,9 +599,9 @@ function PrintableProposalLeasingInner(
       </header>
 
       <section className="print-section">
-        <h2>
+        <h2 className="section-title">
           Identificação do Cliente
-          <small>Dados cadastrais e informações de contato</small>
+          <small className="section-subtitle">Dados cadastrais e informações de contato</small>
         </h2>
         <ClientInfoGrid
           fields={resumoCampos}
@@ -612,9 +612,9 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section">
-        <h2>
+        <h2 className="section-title">
           Resumo da Proposta
-          <small>Principais parâmetros comerciais do leasing solar</small>
+          <small className="section-subtitle">Principais parâmetros comerciais do leasing solar</small>
         </h2>
         <table>
           <thead>
@@ -635,9 +635,9 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section">
-        <h2>
+        <h2 className="section-title">
           Especificações da Usina Solar
-          <small>Configuração técnica e composição dos equipamentos</small>
+          <small className="section-subtitle">Configuração técnica e composição dos equipamentos</small>
         </h2>
         <div className="leasing-summary-grid">
           <div className="leasing-summary-card">
@@ -700,9 +700,9 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section">
-        <h2>
+        <h2 className="section-title">
           Condições Financeiras do Leasing
-          <small>Valores projetados, tarifas aplicadas e investimentos envolvidos</small>
+          <small className="section-subtitle">Valores projetados, tarifas aplicadas e investimentos envolvidos</small>
         </h2>
         <div className="leasing-summary-grid">
           <div className="leasing-summary-card">
@@ -728,9 +728,9 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section">
-        <h2>
+        <h2 className="section-title">
           Evolução das Mensalidades e Economia
-          <small>Comparativo anual entre a distribuidora e a tarifa SolarInvest</small>
+          <small className="section-subtitle">Comparativo anual entre a distribuidora e a tarifa SolarInvest</small>
         </h2>
         <table>
           <thead>
@@ -757,9 +757,9 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section print-chart-section">
-        <h2>
+        <h2 className="section-title">
           Economia Acumulada ao Longo de 30 Anos
-          <small>Benefícios financeiros estimados no horizonte completo do leasing</small>
+          <small className="section-subtitle">Benefícios financeiros estimados no horizonte completo do leasing</small>
         </h2>
         <div className="print-chart leasing-chart">
           <ResponsiveContainer width="50%" height={240}>
@@ -846,9 +846,9 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section print-important">
-        <h2>
+        <h2 className="section-title">
           Informações Importantes
-          <small>Leia atentamente antes de seguir com a contratação</small>
+          <small className="section-subtitle">Leia atentamente antes de seguir com a contratação</small>
         </h2>
         <ul>
           {informacoesImportantes.map((item) => (
