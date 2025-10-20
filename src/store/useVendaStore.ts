@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react'
+import type { TipoSistema } from '../lib/finance/roi'
 
 export type VendaClienteInfo = {
   nome: string
@@ -34,6 +35,8 @@ export type VendaConfiguracaoUfv = {
   segmento: string
   modelo_modulo: string
   modelo_inversor: string
+  estrutura_suporte: string
+  tipo_sistema: TipoSistema
 }
 
 export type VendaKitItem = {
@@ -137,6 +140,8 @@ const createInitialState = (): VendaState => ({
     segmento: '',
     modelo_modulo: '',
     modelo_inversor: '',
+    estrutura_suporte: '',
+    tipo_sistema: 'ON_GRID',
   },
   orcamento: {
     itens: [],
