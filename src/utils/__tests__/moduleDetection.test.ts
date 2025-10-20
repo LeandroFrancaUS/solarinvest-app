@@ -24,6 +24,20 @@ describe('moduleDetection utilities', () => {
         description: 'Estrutura para módulos',
       }),
     ).toBeNull()
+
+    expect(
+      classifyBudgetItem({
+        product: 'Painel Solar 550W',
+        description: 'Painel fotovoltaico',
+      }),
+    ).toBe('module')
+
+    expect(
+      classifyBudgetItem({
+        product: 'Placa solar 550W',
+        description: 'Placa FV monocristalina',
+      }),
+    ).toBe('module')
   })
 
   it('sumModuleQuantities soma apenas itens de módulos', () => {

@@ -327,6 +327,22 @@ const describeBudgetProgress = (progress: BudgetUploadProgress | null) => {
   }
 }
 
+const resolvePotenciaModuloFromBudget = (
+  potenciaExtraida: number | null | undefined,
+): number => {
+  if (
+    typeof potenciaExtraida === 'number' &&
+    Number.isFinite(potenciaExtraida) &&
+    potenciaExtraida > 0
+  ) {
+    const arredondada = Math.round(potenciaExtraida)
+    if (PAINEL_OPCOES.includes(arredondada)) {
+      return arredondada
+    }
+  }
+  return INITIAL_VALUES.potenciaModulo
+}
+
 const formatFileSize = (bytes?: number) => {
   if (!bytes || !Number.isFinite(bytes)) {
     return ''
@@ -2413,11 +2429,11 @@ export default function App() {
         setTarifaCheia(mergedParsed.tarifa_cheia_r_kwh)
       }
 
-      if (!potenciaModuloDirty && mergedParsed.potencia_da_placa_wp != null) {
-        const potenciaAjustada = Math.round(mergedParsed.potencia_da_placa_wp)
-    if (PAINEL_OPCOES.includes(potenciaAjustada) && potenciaAjustada !== potenciaModulo) {
-          setPotenciaModulo(potenciaAjustada)
-        }
+      const potenciaModuloSelecionada = resolvePotenciaModuloFromBudget(
+        mergedParsed.potencia_da_placa_wp,
+      )
+      if (potenciaModuloSelecionada !== potenciaModulo) {
+        setPotenciaModulo(potenciaModuloSelecionada)
       }
 
       if (!tipoInstalacaoDirty && mergedParsed.tipo_instalacao) {
@@ -2435,7 +2451,6 @@ export default function App() {
     [
       applyVendaUpdates,
       potenciaModulo,
-      potenciaModuloDirty,
       setPotenciaModulo,
       tipoInstalacao,
       tipoInstalacaoDirty,
