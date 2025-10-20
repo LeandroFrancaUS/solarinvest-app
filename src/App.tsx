@@ -7827,7 +7827,7 @@ export default function App() {
                 geracaoCalculada = consumoDesejado
               }
 
-              const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
+              const consumoFinal = consumoDesejado
               setKcKwhMes(consumoFinal, 'user')
 
               applyVendaUpdates({
@@ -7835,13 +7835,13 @@ export default function App() {
                 geracao_estimada_kwh_mes:
                   geracaoCalculada > 0
                     ? geracaoCalculada
-                    : consumoDesejado === 0
+                    : consumoFinal === 0
                     ? 0
                     : undefined,
                 potencia_instalada_kwp:
                   potenciaCalculada > 0
                     ? normalizarPotenciaKwp(potenciaCalculada)
-                    : consumoDesejado === 0
+                    : consumoFinal === 0
                     ? 0
                     : undefined,
                 quantidade_modulos: modulosCalculados ?? undefined,
@@ -8035,124 +8035,6 @@ export default function App() {
               const parsed = Number(event.target.value)
               const potenciaSelecionada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
               setPotenciaModulo(potenciaSelecionada)
-
-              const modulosManuais =
-                typeof numeroModulosManual === 'number' && Number.isFinite(numeroModulosManual)
-                  ? Math.max(1, Math.round(numeroModulosManual))
-                  : null
-              const modulosFormulario = Number.isFinite(vendaForm.quantidade_modulos)
-                ? Math.max(1, Math.round(Number(vendaForm.quantidade_modulos)))
-                : null
-
-              const modulosBase = modulosManuais ?? modulosFormulario
-
-              const consumoAtualFormulario = Number.isFinite(vendaForm.consumo_kwh_mes)
-                ? Math.max(0, Number(vendaForm.consumo_kwh_mes))
-                : 0
-              const consumoReferencia = consumoAtualFormulario > 0 ? consumoAtualFormulario : kcKwhMes
-              const geracaoAtualFormulario = Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
-                ? Math.max(0, Number(vendaForm.geracao_estimada_kwh_mes))
-                : 0
-              const geracaoReferencia = geracaoAtualFormulario > 0 ? geracaoAtualFormulario : consumoReferencia
-
-              if (modulosBase && modulosBase > 0) {
-                const potenciaCalculada = calcularPotenciaSistemaKwp(modulosBase, potenciaSelecionada)
-                const potenciaNormalizada =
-                  potenciaCalculada > 0 ? normalizarPotenciaKwp(potenciaCalculada) : 0
-                let geracaoCalculada = 0
-                if (potenciaCalculada > 0) {
-                  const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
-                  if (estimada > 0) {
-                    geracaoCalculada = normalizarGeracaoMensal(estimada)
-                  }
-                }
-                if (geracaoCalculada <= 0 && geracaoReferencia > 0) {
-                  geracaoCalculada = geracaoReferencia
-                }
-                const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
-                setKcKwhMes(consumoFinal, 'auto')
-                applyVendaUpdates({
-                  quantidade_modulos: modulosBase,
-                  potencia_instalada_kwp:
-                    potenciaCalculada > 0
-                      ? potenciaNormalizada
-                      : consumoFinal === 0
-                      ? 0
-                      : undefined,
-                  geracao_estimada_kwh_mes:
-                    geracaoCalculada > 0
-                      ? geracaoCalculada
-                      : consumoFinal === 0
-                      ? 0
-                      : geracaoReferencia || undefined,
-                  consumo_kwh_mes: consumoFinal,
-                })
-                return
-              }
-
-              if (geracaoReferencia <= 0) {
-                setKcKwhMes(0, 'auto')
-                applyVendaUpdates({
-                  consumo_kwh_mes: 0,
-                  geracao_estimada_kwh_mes: undefined,
-                  potencia_instalada_kwp: undefined,
-                  quantidade_modulos: undefined,
-                })
-                return
-              }
-
-              const modulosCalculados = calcularModulosPorGeracao(
-                geracaoReferencia,
-                potenciaSelecionada,
-              )
-
-              if (modulosCalculados == null) {
-                setKcKwhMes(geracaoReferencia, 'auto')
-                applyVendaUpdates({
-                  consumo_kwh_mes: geracaoReferencia,
-                  geracao_estimada_kwh_mes: geracaoReferencia,
-                  potencia_instalada_kwp: undefined,
-                  quantidade_modulos: undefined,
-                })
-                setNumeroModulosManual('')
-                return
-              }
-
-              const potenciaCalculada = calcularPotenciaSistemaKwp(
-                modulosCalculados,
-                potenciaSelecionada,
-              )
-              const potenciaNormalizada =
-                potenciaCalculada > 0 ? normalizarPotenciaKwp(potenciaCalculada) : 0
-              let geracaoCalculada = geracaoReferencia
-              if (potenciaCalculada > 0) {
-                const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
-                if (estimada > 0) {
-                  geracaoCalculada = normalizarGeracaoMensal(estimada)
-                }
-              }
-              if (geracaoCalculada <= 0 && geracaoReferencia > 0) {
-                geracaoCalculada = geracaoReferencia
-              }
-              const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
-              setKcKwhMes(consumoFinal, 'auto')
-              applyVendaUpdates({
-                quantidade_modulos: modulosCalculados,
-                potencia_instalada_kwp:
-                  potenciaCalculada > 0
-                    ? potenciaNormalizada
-                    : consumoFinal === 0
-                    ? 0
-                    : undefined,
-                geracao_estimada_kwh_mes:
-                  geracaoCalculada > 0
-                    ? geracaoCalculada
-                    : consumoFinal === 0
-                    ? 0
-                    : geracaoReferencia || undefined,
-                consumo_kwh_mes: consumoFinal,
-              })
-              setNumeroModulosManual('')
             }}
           >
             {PAINEL_OPCOES.map((opt) => (
@@ -8166,57 +8048,30 @@ export default function App() {
           <input
             type="number"
             min={1}
+            ref={moduleQuantityInputRef}
             value={
-              Number.isFinite(vendaForm.quantidade_modulos)
-                ? vendaForm.quantidade_modulos
-                : ''
+              numeroModulosManual === ''
+                ? numeroModulosEstimado > 0
+                  ? numeroModulosEstimado
+                  : ''
+                : numeroModulosManual
             }
             onChange={(event) => {
               const { value } = event.target
-              if (!value) {
-                applyVendaUpdates({ quantidade_modulos: undefined })
+              if (value === '') {
                 setNumeroModulosManual('')
-                setKcKwhMes(0, 'auto')
+                applyVendaUpdates({ quantidade_modulos: undefined })
                 return
               }
               const parsed = Number(value)
               if (!Number.isFinite(parsed) || parsed <= 0) {
-                applyVendaUpdates({ quantidade_modulos: undefined })
                 setNumeroModulosManual('')
-                setKcKwhMes(0, 'auto')
+                applyVendaUpdates({ quantidade_modulos: undefined })
                 return
               }
               const inteiro = Math.max(1, Math.round(parsed))
-              const potenciaCalculada = calcularPotenciaSistemaKwp(inteiro)
-              const potenciaNormalizada =
-                potenciaCalculada > 0 ? normalizarPotenciaKwp(potenciaCalculada) : 0
-              let geracaoCalculada = 0
-              if (potenciaCalculada > 0) {
-                const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
-                if (estimada > 0) {
-                  geracaoCalculada = normalizarGeracaoMensal(estimada)
-                }
-              }
-              const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
-
-              applyVendaUpdates({
-                quantidade_modulos: inteiro,
-                potencia_instalada_kwp:
-                  potenciaCalculada > 0
-                    ? potenciaNormalizada
-                    : consumoFinal === 0
-                    ? 0
-                    : undefined,
-                geracao_estimada_kwh_mes:
-                  geracaoCalculada > 0
-                    ? geracaoCalculada
-                    : consumoFinal === 0
-                    ? 0
-                    : undefined,
-                consumo_kwh_mes: consumoFinal,
-              })
               setNumeroModulosManual(inteiro)
-              setKcKwhMes(consumoFinal, 'auto')
+              applyVendaUpdates({ quantidade_modulos: inteiro })
             }}
             onFocus={selectNumberInputOnFocus}
           />
@@ -8243,97 +8098,36 @@ export default function App() {
             <option value="SOLO">Solo</option>
           </select>
         </Field>
-        <Field label="Potência do sistema (kWp)">
+        <Field
+          label={
+            <>
+              Potência do sistema (kWp)
+              <InfoTooltip text="Potência do sistema = (Nº de módulos × Potência do módulo) ÷ 1000. Sem entrada manual de módulos, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
+            </>
+          }
+        >
           <input
-            type="number"
-            step="0.01"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.potencia_instalada_kwp)
-                ? vendaForm.potencia_instalada_kwp
-                : ''
-            }
-            onChange={(event) => {
-              const { value } = event.target
-              if (!value) {
-                applyVendaUpdates({ potencia_instalada_kwp: undefined })
-                return
-              }
-              const parsed = Number(value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              applyVendaUpdates({ potencia_instalada_kwp: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
+            readOnly
+            value={formatNumberBRWithOptions(potenciaInstaladaKwp, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
           />
         </Field>
-        <Field label="Geração estimada (kWh/mês)">
+        <Field
+          label={
+            <>
+              Geração estimada (kWh/mês)
+              <InfoTooltip text="Geração estimada = Potência do sistema × Irradiação média × Eficiência × 30 dias." />
+            </>
+          }
+        >
           <input
-            type="number"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
-                ? vendaForm.geracao_estimada_kwh_mes
-                : ''
-            }
-            onChange={(event) => {
-              const { value } = event.target
-              if (!value) {
-                setNumeroModulosManual('')
-                setKcKwhMes(0, 'auto')
-                applyVendaUpdates({
-                  geracao_estimada_kwh_mes: undefined,
-                  consumo_kwh_mes: undefined,
-                  potencia_instalada_kwp: undefined,
-                  quantidade_modulos: undefined,
-                })
-                return
-              }
-              const parsed = Number(value)
-              const geracaoDesejada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              const modulosCalculados = calcularModulosPorGeracao(geracaoDesejada)
-
-              let potenciaCalculada = 0
-              let geracaoCalculada = geracaoDesejada
-
-              if (modulosCalculados != null) {
-                potenciaCalculada = calcularPotenciaSistemaKwp(modulosCalculados)
-                if (potenciaCalculada > 0) {
-                  const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
-                  if (estimada > 0) {
-                    geracaoCalculada = normalizarGeracaoMensal(estimada)
-                  }
-                }
-              }
-
-              if (geracaoCalculada <= 0 && geracaoDesejada > 0) {
-                geracaoCalculada = geracaoDesejada
-              }
-
-              const consumoFinal = geracaoCalculada > 0 ? geracaoCalculada : 0
-              setKcKwhMes(consumoFinal, 'auto')
-
-              applyVendaUpdates({
-                geracao_estimada_kwh_mes:
-                  geracaoCalculada > 0
-                    ? geracaoCalculada
-                    : geracaoDesejada === 0
-                    ? 0
-                    : undefined,
-                consumo_kwh_mes: consumoFinal,
-                potencia_instalada_kwp:
-                  potenciaCalculada > 0
-                    ? normalizarPotenciaKwp(potenciaCalculada)
-                    : geracaoDesejada === 0
-                    ? 0
-                    : undefined,
-                quantidade_modulos: modulosCalculados ?? undefined,
-              })
-
-              if (modulosCalculados != null) {
-                setNumeroModulosManual('')
-              }
-            }}
-            onFocus={selectNumberInputOnFocus}
+            readOnly
+            value={formatNumberBRWithOptions(geracaoMensalKwh, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}
           />
         </Field>
         <Field label="Área utilizada (m²)">
