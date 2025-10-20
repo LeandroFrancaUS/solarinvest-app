@@ -12,7 +12,6 @@ import {
   YAxis,
 } from 'recharts'
 
-import './styles/proposal-venda.css'
 import './styles/proposal-leasing.css'
 import { formatCpfCnpj } from '../../utils/formatters'
 import {
@@ -23,6 +22,47 @@ import {
 } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
+import { agrupar, type Linha } from '../../lib/pdf/grouping'
+
+const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
+  /@/i,
+  /\bemail\b/i,
+  /brsolarinvest/i,
+  /\btelefone\b/i,
+  /\bwhatsapp\b/i,
+  /\bcnpj\b/i,
+  /\bcpf\b/i,
+  /\brg\b/i,
+  /\bdados do cliente\b/i,
+  /\bcliente\b/i,
+  /^or[cç]amento\b/i,
+  /\bendere[cç]o\b/i,
+  /\bbairro\b/i,
+  /\bcidade\b/i,
+  /\bestado\b/i,
+  /\bcep\b/i,
+  /\bc[óo]digo do or[cç]amento\b/i,
+  /portf[óo]lio/i,
+  /sobre\s+n[óo]s/i,
+  /proposta comercial/i,
+  /contato/i,
+  /\baceite da proposta\b/i,
+  /\bassinatura\b/i,
+  /\bdocumento\b/i,
+  /\bru[áa]/i,
+  /\bjardim/i,
+  /\betapa/i,
+  /an[áa]polis/i,
+  /\bdistribuidora\b/i,
+  /\buc\b/i,
+  /vamos avan[çc]ar/i,
+  /valor\s+total/i,
+  /cot[aã][cç][aã]o\b/i,
+  /entrega\s+escolhida/i,
+  /transportadora/i,
+  /condi[cç][aã]o\s+de\s+pagamento/i,
+  /pot[êe]ncia\s+do\s+sistema/i,
+]
 
 const ECONOMIA_MARCOS = [5, 6, 10, 15, 20, 30]
 const LEASING_CHART_COLOR = '#2563EB'
@@ -373,6 +413,47 @@ function PrintableProposalLeasingInner(
           </div>
         </div>
       </section>
+
+      {composicaoSistema ? (
+        <section className="print-section">
+          <h2>Composição do sistema</h2>
+          <div className="print-composition-groups">
+            {composicaoSistema.map((grupo) => (
+              <div key={grupo.titulo} className="print-composition-group">
+                <h3>{grupo.titulo}</h3>
+                {grupo.subgrupos.map((subgrupo) => (
+                  <div
+                    key={`${grupo.titulo}-${subgrupo.titulo}`}
+                    className="print-composition-subgroup"
+                  >
+                    <h4>{subgrupo.titulo}</h4>
+                    <div className="print-composition-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Produto</th>
+                            <th>Descrição</th>
+                            <th>Quantidade</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subgrupo.itens.map((item) => (
+                            <tr key={`${subgrupo.titulo}-${item.key}`}>
+                              <td>{item.produto}</td>
+                              <td>{item.descricao}</td>
+                              <td className="leasing-table-value">{formatQuantidade(item.quantidade)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="print-section">
         <h2>Composição do Sistema</h2>
