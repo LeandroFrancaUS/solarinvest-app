@@ -287,8 +287,8 @@ function PrintableProposalLeasingInner(
         'Operação, manutenção, suporte técnico, limpeza e seguro integral da usina durante o contrato.',
     },
     {
-      label: 'Investimento da SolarInvest (R$)',
-      value: investimentoSolarinvestFormatado,
+      label: 'Investimento Estimado da SolarInvest (R$)',
+      value: valorMercadoProjetado > 0 ? currency(valorMercadoProjetado) : '—',
     },
     {
       label: 'Geração estimada (kWh/mês)',
@@ -326,10 +326,6 @@ function PrintableProposalLeasingInner(
       label: 'Tipo de instalação',
       value: tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado',
     },
-    {
-      label: 'Valor de mercado projetado (R$)',
-      value: valorMercadoProjetado > 0 ? currency(valorMercadoProjetado) : '—',
-    },
   ]
 
   const resumoTecnico = [
@@ -353,11 +349,7 @@ function PrintableProposalLeasingInner(
 
   const resumoFinanceiro = [
     {
-      label: 'Investimento SolarInvest',
-      value: investimentoSolarinvestFormatado,
-    },
-    {
-      label: 'Valor de mercado projetado',
+      label: 'Investimento Estimado da SolarInvest (R$)',
       value: valorMercadoProjetado > 0 ? currency(valorMercadoProjetado) : '—',
     },
     {
