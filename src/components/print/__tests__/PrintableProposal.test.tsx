@@ -85,6 +85,7 @@ const createPrintableProps = (
   numeroModulos: 12,
   potenciaInstaladaKwp: 6.6,
   tipoInstalacao: 'TELHADO',
+  tipoSistema: 'ON_GRID',
   areaInstalacao: 0,
   descontoContratualPct: 0,
   parcelasLeasing: [],

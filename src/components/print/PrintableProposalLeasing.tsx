@@ -128,6 +128,19 @@ const formatWp = (value?: number) => {
   })} Wp`
 }
 
+const formatTipoSistema = (value?: PrintableProposalProps['tipoSistema']) => {
+  switch (value) {
+    case 'ON_GRID':
+      return 'On-grid'
+    case 'OFF_GRID':
+      return 'Off-grid'
+    case 'HIBRIDO':
+      return 'Híbrido'
+    default:
+      return '—'
+  }
+}
+
 function PrintableProposalLeasingInner(
   props: PrintableProposalProps,
   ref: React.ForwardedRef<HTMLDivElement>,
@@ -143,6 +156,7 @@ function PrintableProposalLeasingInner(
     potenciaModulo,
     potenciaInstaladaKwp,
     tipoInstalacao,
+    tipoSistema,
     areaInstalacao,
     buyoutResumo,
     anos,
@@ -317,28 +331,24 @@ function PrintableProposalLeasingInner(
 
   const especificacoesUsina = [
     {
+      label: 'Tipo de Sistema',
+      value: formatTipoSistema(tipoSistema),
+    },
+    {
       label: 'Potência instalada (kWp)',
       value: formatKwp(potenciaInstaladaKwp),
     },
     {
-      label: 'Geração estimada (kWh/mês)',
-      value: formatKwhMes(geracaoMensalKwh),
-    },
-    {
-      label: 'Energia contratada (kWh/mês)',
-      value: formatKwhMes(energiaContratadaKwh),
-    },
-    {
-      label: 'Potência da placa (Wp)',
-      value: formatWp(potenciaModulo),
+      label: 'Modelo do inversor',
+      value: modeloInversor ?? '—',
     },
     {
       label: 'Modelo dos módulos',
       value: modeloModulo ?? '—',
     },
     {
-      label: 'Modelo do inversor',
-      value: modeloInversor ?? '—',
+      label: 'Potência do Módulos (Wp)',
+      value: formatWp(potenciaModulo),
     },
     {
       label: 'Número de módulos',
@@ -349,6 +359,14 @@ function PrintableProposalLeasingInner(
               maximumFractionDigits: 0,
             })
           : '—',
+    },
+    {
+      label: 'Energia contratada (kWh/mês)',
+      value: formatKwhMes(energiaContratadaKwh),
+    },
+    {
+      label: 'Geração estimada (kWh/mês)',
+      value: formatKwhMes(geracaoMensalKwh),
     },
     {
       label: 'Área útil necessária (m²)',
