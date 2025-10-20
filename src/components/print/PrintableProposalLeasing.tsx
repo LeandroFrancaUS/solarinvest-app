@@ -98,29 +98,6 @@ const hasBudgetItemExclusion = (value: string): boolean => {
   return BUDGET_ITEM_EXCLUSION_PATTERNS.some((pattern) => pattern.test(value) || pattern.test(normalized))
 }
 
-type LinhaComDisplay = Linha & {
-  display: {
-    produto: string | null
-    descricao: string | null
-    quantidade: number | null
-  }
-}
-
-type ComposicaoSubgrupo = {
-  titulo: string
-  itens: {
-    key: string
-    produto: string
-    descricao: string
-    quantidade: number | null
-  }[]
-}
-
-type ComposicaoGrupo = {
-  titulo: string
-  subgrupos: ComposicaoSubgrupo[]
-}
-
 const formatKwhMes = (value?: number) => {
   if (!Number.isFinite(value) || (value ?? 0) <= 0) {
     return '—'
@@ -282,6 +259,62 @@ function PrintableProposalLeasingInner(
     },
   ]
 
+  const { modeloModulo, modeloInversor } = useMemo(() => {
+    if (!orcamentoItens || orcamentoItens.length === 0) {
+      return { modeloModulo: null, modeloInversor: null }
+    }
+
+    const linhas: Linha[] = []
+
+    orcamentoItens.forEach((item) => {
+      const produto = sanitizeItemText(item.produto)
+      const descricao = sanitizeItemText(item.descricao)
+      const combinedText = [produto, descricao].filter(Boolean).join(' ')
+
+      if (!combinedText || hasBudgetItemExclusion(combinedText)) {
+        return
+      }
+
+      const quantidade = Number.isFinite(item.quantidade) ? Number(item.quantidade) : null
+      const codigo = sanitizeItemText(item.codigo)
+      const modelo = sanitizeItemText(item.modelo)
+      const fabricante = sanitizeItemText(item.fabricante)
+
+      linhas.push({
+        nome: produto ?? descricao ?? combinedText,
+        codigo: codigo ?? undefined,
+        modelo: modelo ?? undefined,
+        fabricante: fabricante ?? undefined,
+        quantidade,
+      })
+    })
+
+    if (linhas.length === 0) {
+      return { modeloModulo: null, modeloInversor: null }
+    }
+
+    const agrupado = agrupar(linhas)
+
+    const formatModelo = (linha: Linha | undefined): string | null => {
+      if (!linha) {
+        return null
+      }
+
+      const modelo = sanitizeItemText(linha.modelo)
+      const fabricante = sanitizeItemText(linha.fabricante)
+      if (modelo && fabricante) {
+        return `${fabricante} · ${modelo}`
+      }
+
+      return modelo || fabricante || sanitizeItemText(linha.nome) || null
+    }
+
+    return {
+      modeloModulo: formatModelo(agrupado.Hardware.Modulos[0]),
+      modeloInversor: formatModelo(agrupado.Hardware.Inversores[0]),
+    }
+  }, [orcamentoItens])
+
   const especificacoesUsina = [
     {
       label: 'Potência instalada (kWp)',
@@ -298,6 +331,14 @@ function PrintableProposalLeasingInner(
     {
       label: 'Potência da placa (Wp)',
       value: formatWp(potenciaModulo),
+    },
+    {
+      label: 'Modelo dos módulos',
+      value: modeloModulo ?? '—',
+    },
+    {
+      label: 'Modelo do inversor',
+      value: modeloInversor ?? '—',
     },
     {
       label: 'Número de módulos',
@@ -466,93 +507,6 @@ function PrintableProposalLeasingInner(
     return texto ? texto : null
   }, [informacoesImportantesObservacao])
 
-  const composicaoSistema = useMemo(() => {
-    if (!orcamentoItens || orcamentoItens.length === 0) {
-      return null
-    }
-
-    const linhas: LinhaComDisplay[] = []
-
-    orcamentoItens.forEach((item) => {
-      const produto = sanitizeItemText(item.produto)
-      const descricao = sanitizeItemText(item.descricao)
-      const combinedText = [produto, descricao].filter(Boolean).join(' ')
-
-      if (!combinedText || hasBudgetItemExclusion(combinedText)) {
-        return
-      }
-
-      const quantidade = Number.isFinite(item.quantidade) ? Number(item.quantidade) : null
-      const codigo = sanitizeItemText(item.codigo)
-      const modelo = sanitizeItemText(item.modelo)
-      const fabricante = sanitizeItemText(item.fabricante)
-
-      linhas.push({
-        nome: produto ?? descricao ?? combinedText,
-        codigo: codigo ?? undefined,
-        modelo: modelo ?? undefined,
-        fabricante: fabricante ?? undefined,
-        quantidade,
-        display: {
-          produto,
-          descricao,
-          quantidade,
-        },
-      })
-    })
-
-    if (linhas.length === 0) {
-      return null
-    }
-
-    const agrupado = agrupar(linhas)
-
-    const mapItems = (items: Linha[]): ComposicaoSubgrupo['itens'] =>
-      (items as LinhaComDisplay[]).map((linha, index) => ({
-        key: `${linha.nome}-${index}`,
-        produto: linha.display.produto ?? linha.nome,
-        descricao: linha.display.descricao ?? '—',
-        quantidade: linha.display.quantidade,
-      }))
-
-    const hardwareSubgrupos: ComposicaoSubgrupo[] = [
-      { titulo: 'Módulos', itens: mapItems(agrupado.Hardware.Modulos) },
-      { titulo: 'Inversores', itens: mapItems(agrupado.Hardware.Inversores) },
-      {
-        titulo: 'Kits, cabos, aterramento e acessórios',
-        itens: mapItems(agrupado.Hardware.KitsECabosEAterramentoEAcessorios),
-      },
-    ].filter((subgrupo) => subgrupo.itens.length > 0)
-
-    const servicosSubgrupos: ComposicaoSubgrupo[] = [
-      {
-        titulo: 'Engenharia, instalação e homologação',
-        itens: mapItems(agrupado.Servicos.EngenhariaEInstalacaoEHomologacao),
-      },
-    ].filter((subgrupo) => subgrupo.itens.length > 0)
-
-    const grupos: ComposicaoGrupo[] = []
-    if (hardwareSubgrupos.length > 0) {
-      grupos.push({ titulo: 'Hardware', subgrupos: hardwareSubgrupos })
-    }
-    if (servicosSubgrupos.length > 0) {
-      grupos.push({ titulo: 'Serviços', subgrupos: servicosSubgrupos })
-    }
-
-    return grupos.length > 0 ? grupos : null
-  }, [orcamentoItens])
-
-  const formatQuantidade = (value: number | null | undefined): string => {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return '—'
-    }
-    const isInteger = Number.isInteger(value)
-    return formatNumberBRWithOptions(value, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: isInteger ? 0 : 2,
-    })
-  }
-
   return (
     <div ref={ref} className="print-layout leasing-print-layout">
       <header className="print-hero">
@@ -633,43 +587,6 @@ function PrintableProposalLeasingInner(
             ))}
           </tbody>
         </table>
-        {composicaoSistema ? (
-          <div className="print-composition-groups">
-            {composicaoSistema.map((grupo) => (
-              <div key={grupo.titulo} className="print-composition-group">
-                <h3>{grupo.titulo}</h3>
-                {grupo.subgrupos.map((subgrupo) => (
-                  <div
-                    key={`${grupo.titulo}-${subgrupo.titulo}`}
-                    className="print-composition-subgroup"
-                  >
-                    <h4>{subgrupo.titulo}</h4>
-                    <div className="print-composition-table">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Produto</th>
-                            <th>Descrição</th>
-                            <th>Quantidade</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {subgrupo.itens.map((item) => (
-                            <tr key={`${subgrupo.titulo}-${item.key}`}>
-                              <td>{item.produto}</td>
-                              <td>{item.descricao}</td>
-                              <td className="leasing-table-value">{formatQuantidade(item.quantidade)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        ) : null}
       </section>
 
       <section className="print-section">
