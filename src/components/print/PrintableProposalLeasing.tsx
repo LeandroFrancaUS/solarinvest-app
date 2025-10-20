@@ -189,6 +189,7 @@ function PrintableProposalLeasingInner(
   const cidadeCliente = cliente.cidade?.trim() || null
   const ufCliente = cliente.uf?.trim() || null
   const codigoOrcamento = budgetId?.trim() || null
+  const nomeCliente = cliente.nome?.trim() || null
   const ucCliente = cliente.uc?.trim() || null
   const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
 
@@ -232,8 +233,6 @@ function PrintableProposalLeasingInner(
       : '—'
 
   const resumoCampos: ClientInfoField[] = [
-    { label: 'Código do orçamento', value: codigoOrcamento || '—' },
-    { label: 'Cliente', value: cliente.nome || '—' },
     { label: 'Documento', value: documentoCliente || '—' },
     { label: 'UC', value: ucCliente || '—' },
     { label: 'Distribuidora', value: distribuidoraLabel || '—' },
@@ -580,14 +579,30 @@ function PrintableProposalLeasingInner(
             </div>
           </div>
         </div>
+        <div className="print-hero__meta">
+          <div className="print-hero__meta-item">
+            <small>Código interno</small>
+            <strong>{codigoOrcamento || '—'}</strong>
+          </div>
+          <div className="print-hero__meta-item">
+            <small>Cliente</small>
+            <strong>{nomeCliente || '—'}</strong>
+          </div>
+          <div className="print-hero__meta-item">
+            <small>Data de emissão</small>
+            <strong>{emissaoTexto}</strong>
+          </div>
+        </div>
         <div className="print-hero__summary">
-          <h2>Sumário executivo</h2>
           <p>{heroSummary}</p>
         </div>
       </header>
 
       <section className="print-section">
-        <h2>Identificação do cliente</h2>
+        <h2>
+          Identificação do Cliente
+          <small>Dados cadastrais e informações de contato</small>
+        </h2>
         <ClientInfoGrid
           fields={resumoCampos}
           className="print-client-grid"
@@ -597,7 +612,10 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section">
-        <h2>Quadro comercial resumido</h2>
+        <h2>
+          Resumo da Proposta
+          <small>Principais parâmetros comerciais do leasing solar</small>
+        </h2>
         <table>
           <thead>
             <tr>
@@ -617,10 +635,13 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section">
-        <h2>Resumo técnico e financeiro</h2>
+        <h2>
+          Especificações da Usina Solar
+          <small>Configuração técnica e composição dos equipamentos</small>
+        </h2>
         <div className="leasing-summary-grid">
           <div className="leasing-summary-card">
-            <h3>Dados técnicos</h3>
+            <h3>Parâmetros técnicos essenciais</h3>
             <table>
               <thead>
                 <tr>
@@ -638,31 +659,8 @@ function PrintableProposalLeasingInner(
               </tbody>
             </table>
           </div>
-          <div className="leasing-summary-card">
-            <h3>Dados financeiros</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumoFinanceiro.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
-      </section>
-
-      {composicaoSistema ? (
-        <section className="print-section">
-          <h2>Composição do sistema</h2>
+        {composicaoSistema ? (
           <div className="print-composition-groups">
             {composicaoSistema.map((grupo) => (
               <div key={grupo.titulo} className="print-composition-group">
@@ -698,11 +696,42 @@ function PrintableProposalLeasingInner(
               </div>
             ))}
           </div>
-        </section>
-      ) : null}
+        ) : null}
+      </section>
 
       <section className="print-section">
-        <h2>Mensalidades por ano</h2>
+        <h2>
+          Condições Financeiras do Leasing
+          <small>Valores projetados, tarifas aplicadas e investimentos envolvidos</small>
+        </h2>
+        <div className="leasing-summary-grid">
+          <div className="leasing-summary-card">
+            <h3>Tabela financeira do projeto</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumoFinanceiro.map((item) => (
+                  <tr key={item.label}>
+                    <td>{item.label}</td>
+                    <td className="leasing-table-value">{item.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section className="print-section">
+        <h2>
+          Evolução das Mensalidades e Economia
+          <small>Comparativo anual entre a distribuidora e a tarifa SolarInvest</small>
+        </h2>
         <table>
           <thead>
             <tr>
@@ -728,7 +757,10 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section print-chart-section">
-        <h2>Economia projetada (30 anos)</h2>
+        <h2>
+          Economia Acumulada ao Longo de 30 Anos
+          <small>Benefícios financeiros estimados no horizonte completo do leasing</small>
+        </h2>
         <div className="print-chart leasing-chart">
           <ResponsiveContainer width="50%" height={240}>
             <BarChart
@@ -814,7 +846,10 @@ function PrintableProposalLeasingInner(
       </section>
 
       <section className="print-section print-important">
-        <h2>Informações importantes</h2>
+        <h2>
+          Informações Importantes
+          <small>Leia atentamente antes de seguir com a contratação</small>
+        </h2>
         <ul>
           {informacoesImportantes.map((item) => (
             <li key={item}>{item}</li>
@@ -823,13 +858,6 @@ function PrintableProposalLeasingInner(
         {informacoesImportantesObservacaoTexto ? (
           <p className="print-important__observation">{informacoesImportantesObservacaoTexto}</p>
         ) : null}
-      </section>
-
-      <section className="print-section print-cta">
-        <div className="print-cta__box">
-          <h2>Vamos avançar?</h2>
-          <p>Agende uma visita técnica gratuita e finalize a contratação da sua usina SolarInvest.</p>
-        </div>
       </section>
 
       <footer className="print-final-footer">
