@@ -38,6 +38,7 @@ export type LeasingState = {
   investimentoSolarinvest: number
   dataInicioOperacao: string
   responsavelSolarinvest: string
+  valorDeMercadoEstimado: number
   dadosTecnicos: LeasingDadosTecnicos
   projecao: LeasingProjecao
 }
@@ -55,6 +56,7 @@ const createInitialState = (): LeasingState => ({
   investimentoSolarinvest: 0,
   dataInicioOperacao: '',
   responsavelSolarinvest: 'Operação, manutenção, suporte técnico, limpeza e seguro da usina.',
+  valorDeMercadoEstimado: 0,
   dadosTecnicos: {
     potenciaInstaladaKwp: 0,
     geracaoEstimadakWhMes: 0,
@@ -113,6 +115,15 @@ export const useLeasingStore = <T,>(selector: (state: LeasingState) => T): T => 
 
 export const getLeasingSnapshot = (): LeasingState => cloneState(leasingStore.getState())
 
+export const selectLeasingValorDeMercadoEstimado = (state: LeasingState): number =>
+  state.valorDeMercadoEstimado
+
+export const getLeasingValorDeMercadoEstimado = (): number =>
+  leasingStore.getState().valorDeMercadoEstimado
+
+export const useLeasingValorDeMercadoEstimado = (): number =>
+  useLeasingStore(selectLeasingValorDeMercadoEstimado)
+
 export const leasingActions = {
   reset() {
     state = createInitialState()
@@ -138,6 +149,11 @@ export const leasingActions = {
           ? partial.economiaProjetada.map((item) => ({ ...item }))
           : draft.projecao.economiaProjetada.map((item) => ({ ...item })),
       }
+    })
+  },
+  setValorDeMercadoEstimado(valor: number) {
+    setState((draft) => {
+      draft.valorDeMercadoEstimado = valor
     })
   },
 }

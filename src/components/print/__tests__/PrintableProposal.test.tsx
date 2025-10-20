@@ -88,6 +88,7 @@ const createPrintableProps = (
   areaInstalacao: 0,
   descontoContratualPct: 0,
   parcelasLeasing: [],
+  leasingValorDeMercadoEstimado: null,
   leasingPrazoContratualMeses: null,
   leasingValorInstalacaoCliente: null,
   leasingDataInicioOperacao: null,
@@ -246,6 +247,7 @@ describe('PrintableProposal (leasing)', () => {
       potenciaInstaladaKwp: 7.7,
       areaInstalacao: 42,
       capex: 48000,
+      leasingValorDeMercadoEstimado: 48000,
       leasingROI: Array.from({ length: 30 }, (_, index) => (index + 1) * 1200),
       parcelasLeasing: [
         { mes: 1, tarifaCheia: 0.78, tarifaDescontada: 0.6864, mensalidadeCheia: 450, mensalidade: 357.75, totalAcumulado: 357.75 },
@@ -278,6 +280,7 @@ describe('PrintableProposal (leasing)', () => {
     expect(markup).toContain('Quadro Comercial Resumido')
     expect(markup).toContain('Energia inteligente, sem desembolso')
     expect(markup).toContain('Investimento da SolarInvest')
+    expect(markup).toContain('R$\u00a048.000,00')
     expect(markup).toContain('Informações Importantes')
   })
 })
