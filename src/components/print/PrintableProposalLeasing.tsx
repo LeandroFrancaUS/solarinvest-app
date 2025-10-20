@@ -64,7 +64,7 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
 ]
 
 const ECONOMIA_MARCOS = [5, 6, 10, 15, 20, 30]
-const LEASING_CHART_COLOR = '#2563EB'
+const DEFAULT_CHART_COLORS = ['#2563EB', '#0f172a'] as const
 
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
   if (!Number.isFinite(value)) {
@@ -191,6 +191,9 @@ function PrintableProposalLeasingInner(
   const codigoOrcamento = budgetId?.trim() || null
   const ucCliente = cliente.uc?.trim() || null
   const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
+
+  const primaryChartColor = DEFAULT_CHART_COLORS[0] ?? '#2563EB'
+  const secondaryChartColor = DEFAULT_CHART_COLORS[1] ?? '#0f172a'
 
   const prazoContratual = useMemo(() => {
     if (Number.isFinite(leasingPrazoContratualMeses) && (leasingPrazoContratualMeses ?? 0) > 0) {
@@ -777,7 +780,7 @@ function PrintableProposalLeasingInner(
               <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
               <Bar
                 dataKey="beneficio"
-                fill={LEASING_CHART_COLOR}
+                fill={primaryChartColor}
                 barSize={14}
                 radius={[0, 8, 8, 0]}
                 isAnimationActive={false}
@@ -787,7 +790,7 @@ function PrintableProposalLeasingInner(
                   dataKey="beneficio"
                   position="right"
                   formatter={(value: number) => currency(Number(value))}
-                  fill={LEASING_CHART_COLOR}
+                  fill={primaryChartColor}
                   style={{ fontSize: 12, fontWeight: 600 }}
                 />
               </Bar>
@@ -801,10 +804,13 @@ function PrintableProposalLeasingInner(
               <li key={`economia-${ano}`}>
                 <span className="print-chart-highlights__year">{`${ano}º ano`}</span>
                 <div className="print-chart-highlights__values">
-                  <span className="print-chart-highlights__value" style={{ color: LEASING_CHART_COLOR }}>
+                  <span className="print-chart-highlights__value" style={{ color: primaryChartColor }}>
                     Economia acumulada: {row ? currency(row.acumulado) : '—'}
                   </span>
-                  <span className="print-chart-highlights__value" style={{ color: '#0f172a' }}>
+                  <span
+                    className="print-chart-highlights__value"
+                    style={{ color: secondaryChartColor }}
+                  >
                     Economia no ano: {row ? currency(row.economiaAnual) : '—'}
                   </span>
                 </div>
