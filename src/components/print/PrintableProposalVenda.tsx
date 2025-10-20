@@ -1120,9 +1120,10 @@ function PrintableProposalInner(
       </footer>
 
       <div className="print-brand-footer">
-        <strong>SolarInvest</strong>
+        <strong>SOLARINVEST</strong>
         <span>CNPJ: 60.434.015/0001-90</span>
-        <span>{isVendaDireta ? 'Energia inteligente para o seu negócio' : 'Energia inteligente, sem desembolso'}</span>
+        <span>Anápolis-GO</span>
+        <span>Solarinvest.info</span>
       </div>
     </div>
   )

@@ -795,10 +795,10 @@ function PrintableProposalLeasingInner(
       </footer>
 
       <div className="print-brand-footer">
-        <strong>SolarInvest</strong>
+        <strong>SOLARINVEST</strong>
         <span>CNPJ: 60.434.015/0001-90</span>
-        <span>Av. Paulista, 1374 - Bela Vista · São Paulo/SP</span>
-        <span>www.solarinvest.com.br · Energia inteligente, sustentável e sem investimento inicial.</span>
+        <span>Anápolis-GO</span>
+        <span>Solarinvest.info</span>
       </div>
     </div>
   )
