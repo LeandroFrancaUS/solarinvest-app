@@ -64,7 +64,8 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /pot[êe]ncia\s+do\s+sistema/i,
 ]
 
-const ECONOMIA_MARCOS = [5, 6, 10, 15, 20, 30]
+const FALLBACK_ECONOMIA_MARCOS = [5, 6, 10, 15, 20, 30]
+const EXTRA_ECONOMIA_MARCOS = [10, 15, 20, 30]
 const DEFAULT_CHART_COLORS = ['#2563EB', '#0f172a'] as const
 
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
@@ -447,8 +448,43 @@ function PrintableProposalLeasingInner(
     })
   }, [descontoFracao, energiaContratadaBase, inflacaoEnergiaFracao, tarifaCheiaBase])
 
+  const economiaMarcos = useMemo(() => {
+    const maxAnoDisponivel = anos.length > 0 ? Math.max(...anos) : 30
+
+    const marcosCandidatos: number[] = []
+
+    if (Number.isFinite(prazoContratual) && prazoContratual > 0) {
+      const prazoEmAnos = Math.max(1, Math.round((prazoContratual ?? 0) / 12))
+      const prazoLimitado = Math.min(prazoEmAnos, maxAnoDisponivel)
+      marcosCandidatos.push(prazoLimitado)
+
+      const proximoAno = prazoLimitado + 1
+      if (proximoAno <= maxAnoDisponivel) {
+        marcosCandidatos.push(proximoAno)
+      }
+    }
+
+    EXTRA_ECONOMIA_MARCOS.forEach((ano) => {
+      if (ano <= maxAnoDisponivel) {
+        marcosCandidatos.push(ano)
+      }
+    })
+
+    const marcosUnicos = marcosCandidatos.filter((ano, index) => marcosCandidatos.indexOf(ano) === index)
+    if (marcosUnicos.length > 0) {
+      return marcosUnicos
+    }
+
+    const fallback = FALLBACK_ECONOMIA_MARCOS.filter((ano) => ano <= maxAnoDisponivel)
+    if (fallback.length > 0) {
+      return fallback
+    }
+
+    return anos.slice(0, Math.min(anos.length, 6))
+  }, [anos, prazoContratual])
+
   const economiaProjetada = useMemo(() => {
-    return ECONOMIA_MARCOS.map((ano) => {
+    return economiaMarcos.map((ano) => {
       if (!anos.includes(ano)) {
         return null
       }
@@ -460,7 +496,7 @@ function PrintableProposalLeasingInner(
         economiaAnual: acumulado - anterior,
       }
     }).filter((row): row is { ano: number; acumulado: number; economiaAnual: number } => row !== null)
-  }, [anos, leasingROI])
+  }, [anos, economiaMarcos, leasingROI])
 
   const economiaChartData = useMemo(
     () =>
@@ -831,7 +867,7 @@ function PrintableProposalLeasingInner(
             </ResponsiveContainer>
           </div>
           <ul className="print-chart-highlights no-break-inside">
-            {ECONOMIA_MARCOS.map((ano) => {
+            {economiaMarcos.map((ano) => {
               const row = economiaProjetada.find((item) => item.ano === ano)
               return (
                 <li key={`economia-${ano}`}>
