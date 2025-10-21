@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { labelWithTooltip } from '../InfoTooltip'
+import { InfoTooltip, labelWithTooltip } from '../InfoTooltip'
 
 import {
   calcEconomiaContrato,
@@ -122,6 +122,35 @@ const createDefaultSimulation = ({
 const cloneSimulation = (sim: Simulacao): Simulacao => ({ ...sim })
 
 const ECONOMIA_ANOS_OPTIONS = [15, 20, 30] as const
+
+type FieldLabelWithTooltipProps = {
+  htmlFor?: string
+  label: React.ReactNode
+  tooltip: string
+}
+
+const FieldLabelWithTooltip = ({
+  htmlFor,
+  label,
+  tooltip,
+}: FieldLabelWithTooltipProps) => (
+  <div className="field-label-with-tooltip">
+    <label htmlFor={htmlFor}>{label}</label>
+    <InfoTooltip text={tooltip} />
+  </div>
+)
+
+type CheckboxWithTooltipProps = {
+  children: React.ReactNode
+  tooltip: string
+}
+
+const CheckboxWithTooltip = ({ children, tooltip }: CheckboxWithTooltipProps) => (
+  <div className="checkbox-with-tooltip">
+    {children}
+    <InfoTooltip text={tooltip} />
+  </div>
+)
 
 type SimulacoesTabProps = {
   consumoKwhMes: number
@@ -527,12 +556,11 @@ export function SimulacoesTab({
             </header>
             <div className="simulations-form-grid">
               <div className="field">
-                <label htmlFor="sim-nome">
-                  {labelWithTooltip(
-                    'Nome do cenário',
-                    'Identificação do cenário exibida na lista lateral e no comparativo de resultados.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-nome"
+                  label="Nome do cenário"
+                  tooltip="Identificação do cenário exibida na lista lateral e no comparativo de resultados."
+                />
                 <input
                   id="sim-nome"
                   type="text"
@@ -544,12 +572,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-desconto">
-                  {labelWithTooltip(
-                    'Desconto SolarInvest (%)',
-                    'Percentual de abatimento aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-desconto"
+                  label="Desconto SolarInvest (%)"
+                  tooltip="Percentual de abatimento aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100)."
+                />
                 <input
                   id="sim-desconto"
                   type="number"
@@ -563,12 +590,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-capex">
-                  {labelWithTooltip(
-                    'CAPEX SolarInvest (R$)',
-                    'Investimento total previsto para o projeto. Valor de mercado estimado = CAPEX × 1,29.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-capex"
+                  label="CAPEX SolarInvest (R$)"
+                  tooltip="Investimento total previsto para o projeto. Valor de mercado estimado = CAPEX × 1,29."
+                />
                 <input
                   id="sim-capex"
                   type="number"
@@ -581,12 +607,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-anos">
-                  {labelWithTooltip(
-                    'Anos de contrato',
-                    'Prazo do contrato em anos. Meses simulados = Anos de contrato × 12.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-anos"
+                  label="Anos de contrato"
+                  tooltip="Prazo do contrato em anos. Meses simulados = Anos de contrato × 12."
+                />
                 <input
                   id="sim-anos"
                   type="number"
@@ -599,12 +624,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-inflacao-energetica">
-                  {labelWithTooltip(
-                    'Inflação energética anual (% a.a.)',
-                    'Reajuste esperado para a tarifa cheia. Tarifa projetada no mês m = Tarifa cheia mês 1 × (1 + inflação)^{(m-1)/12}.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-inflacao-energetica"
+                  label="Inflação energética anual (% a.a.)"
+                  tooltip="Reajuste esperado para a tarifa cheia. Tarifa projetada no mês m = Tarifa cheia mês 1 × (1 + inflação)^{(m-1)/12}."
+                />
                 <input
                   id="sim-inflacao-energetica"
                   type="number"
@@ -617,12 +641,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-inflacao-ipca">
-                  {labelWithTooltip(
-                    'Inflação IPCA anual (% a.a.)',
-                    'Premissa macroeconômica registrada junto ao cenário para análises externas e exportações. Valor informativo, sem impacto direto nos cálculos automáticos.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-inflacao-ipca"
+                  label="Inflação IPCA anual (% a.a.)"
+                  tooltip="Premissa macroeconômica registrada junto ao cenário para análises externas e exportações. Valor informativo, sem impacto direto nos cálculos automáticos."
+                />
                 <input
                   id="sim-inflacao-ipca"
                   type="number"
@@ -635,12 +658,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-tarifa-cheia">
-                  {labelWithTooltip(
-                    'Tarifa cheia (R$/kWh) - Mês 1',
-                    'Tarifa sem desconto considerada no primeiro mês da simulação; ponto de partida para reajustes e cálculos de economia.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-tarifa-cheia"
+                  label="Tarifa cheia (R$/kWh) - Mês 1"
+                  tooltip="Tarifa sem desconto considerada no primeiro mês da simulação; ponto de partida para reajustes e cálculos de economia."
+                />
                 <input
                   id="sim-tarifa-cheia"
                   type="number"
@@ -653,12 +675,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-consumo">
-                  {labelWithTooltip(
-                    'Consumo (kWh/mês)',
-                    'Consumo médio mensal compensado pelo leasing. Receita mensal = Consumo × Tarifa com desconto; economia bruta = Consumo × (Tarifa cheia - Tarifa com desconto).',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-consumo"
+                  label="Consumo (kWh/mês)"
+                  tooltip="Consumo médio mensal compensado pelo leasing. Receita mensal = Consumo × Tarifa com desconto; economia bruta = Consumo × (Tarifa cheia - Tarifa com desconto)."
+                />
                 <input
                   id="sim-consumo"
                   type="number"
@@ -671,12 +692,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-tipo-sistema">
-                  {labelWithTooltip(
-                    'Tipo de sistema',
-                    'Classificação técnica do projeto (on-grid, híbrido ou off-grid). Ajuda a definir parâmetros de TUSD e regras de compensação.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-tipo-sistema"
+                  label="Tipo de sistema"
+                  tooltip="Classificação técnica do projeto (on-grid, híbrido ou off-grid). Ajuda a definir parâmetros de TUSD e regras de compensação."
+                />
                 <select
                   id="sim-tipo-sistema"
                   value={tipoSistemaAtual}
@@ -693,12 +713,10 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label>
-                  {labelWithTooltip(
-                    'Perfil de consumo',
-                    'Categoria da unidade consumidora. Define o TUSD padrão sugerido e influencia simultaneidade e fator ano na TUSD.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  label="Perfil de consumo"
+                  tooltip="Categoria da unidade consumidora. Define o TUSD padrão sugerido e influencia simultaneidade e fator ano na TUSD."
+                />
                 <div className="radio-group">
                   <label>
                     <input
@@ -724,12 +742,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-tusd">
-                  {labelWithTooltip(
-                    'TUSD (%)',
-                    'Percentual do fio B aplicado sobre a energia compensada. Encargo TUSD ≈ Consumo × Tarifa cheia × (TUSD ÷ 100) ajustado por simultaneidade e fator ano.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-tusd"
+                  label="TUSD (%)"
+                  tooltip="Percentual do fio B aplicado sobre a energia compensada. Encargo TUSD ≈ Consumo × Tarifa cheia × (TUSD ÷ 100) ajustado por simultaneidade e fator ano."
+                />
                 <div className="inline-field">
                   <input
                     id="sim-tusd"
@@ -754,12 +771,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-seguro">
-                  {labelWithTooltip(
-                    'Seguro anual (% valor de mercado)',
-                    'Percentual aplicado sobre o valor de mercado estimado. Seguro anual = Valor de mercado × (% ÷ 100); seguro mensal é rateado em 12 meses com reajuste de 1,2% a.a.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-seguro"
+                  label="Seguro anual (% valor de mercado)"
+                  tooltip="Percentual aplicado sobre o valor de mercado estimado. Seguro anual = Valor de mercado × (% ÷ 100); seguro mensal é rateado em 12 meses com reajuste de 1,2% a.a."
+                />
                 <input
                   id="sim-seguro"
                   type="number"
@@ -772,12 +788,11 @@ export function SimulacoesTab({
               </div>
 
               <div className="field field-textarea">
-                <label htmlFor="sim-obs">
-                  {labelWithTooltip(
-                    'Observações',
-                    'Notas internas exibidas na tabela comparativa para contextualizar o cenário.',
-                  )}
-                </label>
+                <FieldLabelWithTooltip
+                  htmlFor="sim-obs"
+                  label="Observações"
+                  tooltip="Notas internas exibidas na tabela comparativa para contextualizar o cenário."
+                />
                 <textarea
                   id="sim-obs"
                   value={current.obs ?? ''}
@@ -789,32 +804,30 @@ export function SimulacoesTab({
             </div>
 
             <div className="simulations-toggles">
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={current.subtrair_tusd_contrato !== false}
-                  onChange={handleToggle('subtrair_tusd_contrato')}
-                />
-                <span>
-                  {labelWithTooltip(
-                    'Subtrair TUSD da economia durante o contrato',
-                    'Quando ativo, a economia líquida mensal considera Encargo TUSD = Economia bruta - Encargo TUSD calculado para cada mês do contrato.',
-                  )}
-                </span>
-              </label>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={current.subtrair_tusd_pos_contrato !== false}
-                  onChange={handleToggle('subtrair_tusd_pos_contrato')}
-                />
-                <span>
-                  {labelWithTooltip(
-                    'Subtrair TUSD no pós-contrato',
-                    'Define se o comparativo após o término do leasing deduz a TUSD projetada (Economia pós-contrato = Consumo × Tarifa cheia - TUSD quando marcado).',
-                  )}
-                </span>
-              </label>
+              <CheckboxWithTooltip
+                tooltip="Quando ativo, a economia líquida mensal considera Encargo TUSD = Economia bruta - Encargo TUSD calculado para cada mês do contrato."
+              >
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={current.subtrair_tusd_contrato !== false}
+                    onChange={handleToggle('subtrair_tusd_contrato')}
+                  />
+                  <span>Subtrair TUSD da economia durante o contrato</span>
+                </label>
+              </CheckboxWithTooltip>
+              <CheckboxWithTooltip
+                tooltip="Define se o comparativo após o término do leasing deduz a TUSD projetada (Economia pós-contrato = Consumo × Tarifa cheia - TUSD quando marcado)."
+              >
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={current.subtrair_tusd_pos_contrato !== false}
+                    onChange={handleToggle('subtrair_tusd_pos_contrato')}
+                  />
+                  <span>Subtrair TUSD no pós-contrato</span>
+                </label>
+              </CheckboxWithTooltip>
             </div>
           </section>
 
