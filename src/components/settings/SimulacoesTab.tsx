@@ -197,12 +197,13 @@ export function SimulacoesTab(): JSX.Element {
   }
 
   const sanitizeSimulationForSave = (sim: Simulacao, timestamp: number): Simulacao => {
-    const nome = sim.nome?.trim()
-    const obs = sim.obs?.trim()
+    const { nome, obs, ...rest } = sim
+    const trimmedNome = nome?.trim()
+    const trimmedObs = obs?.trim()
     return {
-      ...sim,
-      nome: nome ? nome : undefined,
-      obs: obs ? obs : undefined,
+      ...rest,
+      ...(trimmedNome ? { nome: trimmedNome } : {}),
+      ...(trimmedObs ? { obs: trimmedObs } : {}),
       updatedAt: timestamp,
     }
   }
@@ -259,10 +260,11 @@ export function SimulacoesTab(): JSX.Element {
       return
     }
     const now = Date.now()
+    const { nome, ...rest } = current
     const clone: Simulacao = {
-      ...current,
+      ...rest,
+      ...(nome ? { nome: `${nome} (cópia)` } : {}),
       id: makeSimId(),
-      nome: current.nome ? `${current.nome} (cópia)` : current.nome,
       createdAt: now,
       updatedAt: now,
     }
