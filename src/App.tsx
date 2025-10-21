@@ -1174,6 +1174,13 @@ function InfoTooltip({ text }: { text: string }) {
   )
 }
 
+const labelWithTooltip = (label: React.ReactNode, text: string) => (
+  <>
+    {label}
+    <InfoTooltip text={text} />
+  </>
+)
+
 type ClientesModalProps = {
   registros: ClienteRegistro[]
   onClose: () => void
@@ -8125,10 +8132,20 @@ export default function App() {
         <h2>Dados do cliente</h2>
       </div>
       <div className="grid g2">
-        <Field label="Nome ou Razão social">
+        <Field
+          label={labelWithTooltip(
+            'Nome ou Razão social',
+            'Identificação oficial do cliente utilizada em contratos, relatórios e integração com o CRM.',
+          )}
+        >
           <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
         </Field>
-        <Field label="CPF/CNPJ">
+        <Field
+          label={labelWithTooltip(
+            'CPF/CNPJ',
+            'Documento fiscal do titular da unidade consumidora; necessário para emissão da proposta e cadastros.',
+          )}
+        >
           <input
             value={cliente.documento}
             onChange={(e) => handleClienteChange('documento', e.target.value)}
@@ -8136,7 +8153,13 @@ export default function App() {
             placeholder="000.000.000-00"
           />
         </Field>
-        <Field label="E-mail" hint={clienteMensagens.email}>
+        <Field
+          label={labelWithTooltip(
+            'E-mail',
+            'Endereço eletrônico usado para envio da proposta, acompanhamento e notificações automáticas.',
+          )}
+          hint={clienteMensagens.email}
+        >
           <input
             value={cliente.email}
             onChange={(e) => handleClienteChange('email', e.target.value)}
@@ -8144,7 +8167,12 @@ export default function App() {
             placeholder="nome@empresa.com"
           />
         </Field>
-        <Field label="Telefone">
+        <Field
+          label={labelWithTooltip(
+            'Telefone',
+            'Contato telefônico principal do cliente para follow-up comercial e registros no CRM.',
+          )}
+        >
           <input
             value={cliente.telefone}
             onChange={(e) => handleClienteChange('telefone', e.target.value)}
@@ -8153,7 +8181,13 @@ export default function App() {
             placeholder="(00) 00000-0000"
           />
         </Field>
-        <Field label="CEP" hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}>
+        <Field
+          label={labelWithTooltip(
+            'CEP',
+            'Código postal da instalação; utilizado para preencher endereço automaticamente e consultar tarifas locais.',
+          )}
+          hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}
+        >
           <input
             value={cliente.cep}
             onChange={(e) => handleClienteChange('cep', e.target.value)}
@@ -8162,7 +8196,12 @@ export default function App() {
             placeholder="00000-000"
           />
         </Field>
-        <Field label="Distribuidora (ANEEL)">
+        <Field
+          label={labelWithTooltip(
+            'Distribuidora (ANEEL)',
+            'Concessionária responsável pela unidade consumidora; define tarifas homologadas e regras de compensação.',
+          )}
+        >
           <select
             value={cliente.distribuidora}
             onChange={(e) => handleClienteChange('distribuidora', e.target.value)}
@@ -8181,10 +8220,20 @@ export default function App() {
             ) : null}
           </select>
         </Field>
-        <Field label="Unidade consumidora (UC)">
+        <Field
+          label={labelWithTooltip(
+            'Unidade consumidora (UC)',
+            'Código numérico da UC junto à distribuidora, usado para vincular contratos e projeções de consumo.',
+          )}
+        >
           <input value={cliente.uc} onChange={(e) => handleClienteChange('uc', e.target.value)} />
         </Field>
-        <Field label="Endereço de instalação">
+        <Field
+          label={labelWithTooltip(
+            'Endereço de instalação',
+            'Local onde o sistema será instalado; aparece em propostas, laudos e integrações logísticas.',
+          )}
+        >
           <input
             value={cliente.endereco}
             onChange={(e) => handleClienteChange('endereco', e.target.value)}
@@ -8192,7 +8241,10 @@ export default function App() {
           />
         </Field>
         <Field
-          label="Cidade"
+          label={labelWithTooltip(
+            'Cidade',
+            'Município da instalação utilizado em relatórios, cálculo de impostos locais e validação de CEP.',
+          )}
           hint={
             verificandoCidade
               ? 'Verificando cidade...'
@@ -8201,7 +8253,12 @@ export default function App() {
         >
           <input value={cliente.cidade} onChange={(e) => handleClienteChange('cidade', e.target.value)} />
         </Field>
-        <Field label="UF ou Estado">
+        <Field
+          label={labelWithTooltip(
+            'UF ou Estado',
+            'Estado da instalação; utilizado para listar distribuidoras disponíveis, definir tarifas e parâmetros regionais.',
+          )}
+        >
           <select value={cliente.uf} onChange={(e) => handleClienteChange('uf', e.target.value)}>
             <option value="">Selecione um estado</option>
             {ufsDisponiveis.map((uf) => (
@@ -8267,7 +8324,12 @@ export default function App() {
       <section className="card">
         <h2>Parâmetros principais</h2>
         <div className="grid g3">
-          <Field label="Consumo (kWh/mês)">
+          <Field
+            label={labelWithTooltip(
+              'Consumo (kWh/mês)',
+              'Consumo médio mensal histórico da UC principal; serve como base para dimensionar geração e economia.',
+            )}
+          >
             <input
               type="number"
               value={kcKwhMes}
@@ -8275,7 +8337,12 @@ export default function App() {
               onFocus={selectNumberInputOnFocus}
             />
           </Field>
-          <Field label="Tarifa cheia (R$/kWh)">
+          <Field
+            label={labelWithTooltip(
+              'Tarifa cheia (R$/kWh)',
+              'Valor cobrado por kWh sem descontos; multiplicado pelo consumo projetado para estimar a conta cheia.',
+            )}
+          >
             <input
               type="number"
               step="0.001"
@@ -8284,7 +8351,12 @@ export default function App() {
               onFocus={selectNumberInputOnFocus}
             />
           </Field>
-          <Field label="Taxa mínima (R$/mês)">
+          <Field
+            label={labelWithTooltip(
+              'Taxa mínima (R$/mês)',
+              'Valor mínimo faturado pela distribuidora independentemente da compensação de créditos.',
+            )}
+          >
             <input
               type="number"
               value={taxaMinima}
@@ -8292,7 +8364,12 @@ export default function App() {
               onFocus={selectNumberInputOnFocus}
             />
           </Field>
-          <Field label="Encargos adicionais (R$/mês)">
+          <Field
+            label={labelWithTooltip(
+              'Encargos adicionais (R$/mês)',
+              'Outras cobranças fixas recorrentes (CIP, iluminação, taxas municipais) adicionadas à conta mensal.',
+            )}
+          >
             <input
               type="number"
               value={encargosFixosExtras}
@@ -8300,7 +8377,12 @@ export default function App() {
               onFocus={selectNumberInputOnFocus}
             />
           </Field>
-          <Field label="UF (ANEEL)">
+          <Field
+            label={labelWithTooltip(
+              'UF (ANEEL)',
+              'Estado utilizado para buscar tarifas homologadas pela ANEEL e sugerir parâmetros regionais.',
+            )}
+          >
             <select
               value={ufTarifa}
               onChange={(e) => setUfTarifa(e.target.value)}
@@ -8313,7 +8395,12 @@ export default function App() {
               ))}
             </select>
           </Field>
-          <Field label="Distribuidora (ANEEL)">
+          <Field
+            label={labelWithTooltip(
+              'Distribuidora (ANEEL)',
+              'Concessionária selecionada para carregar automaticamente tarifas de TE e TUSD.',
+            )}
+          >
             <select
               value={distribuidoraTarifa}
               onChange={(e) => setDistribuidoraTarifa(e.target.value)}
@@ -8372,7 +8459,12 @@ export default function App() {
           {multiUcAtivo ? (
             <div className="multi-uc-body">
               <div className="grid g3">
-                <Field label="Número de UCs">
+                <Field
+                  label={labelWithTooltip(
+                    'Número de UCs',
+                    'Quantidade de unidades consumidoras consideradas no rateio de créditos deste cenário.',
+                  )}
+                >
                   <input
                     type="number"
                     min={1}
@@ -8436,7 +8528,12 @@ export default function App() {
                 </Field>
               </div>
               <div className="grid g3">
-                <Field label="Ano de vigência">
+                <Field
+                  label={labelWithTooltip(
+                    'Ano de vigência',
+                    'Ano-base do contrato utilizado para determinar o percentual de TUSD Fio B escalonado.',
+                  )}
+                >
                   <input
                     type="number"
                     min={2023}
@@ -8465,7 +8562,12 @@ export default function App() {
                 >
                   <input readOnly value={escalonamentoAplicadoTexto} />
                 </Field>
-                <Field label="Personalizar escalonamento">
+                <Field
+                  label={labelWithTooltip(
+                    'Personalizar escalonamento',
+                    'Habilite para informar manualmente o percentual de TUSD Fio B aplicado no ano selecionado.',
+                  )}
+                >
                   <div className="multi-uc-override-control">
                     <label className="multi-uc-checkbox">
                       <input
@@ -8762,7 +8864,12 @@ export default function App() {
     <section className="card">
       <h2>Configuração da Usina Fotovoltaica</h2>
       <div className="grid g4">
-        <Field label="Potência do módulo (Wp)">
+        <Field
+          label={labelWithTooltip(
+            'Potência do módulo (Wp)',
+            'Potência nominal de cada módulo fotovoltaico; usada na conversão kWp = (módulos × Wp) ÷ 1000.',
+          )}
+        >
           <select
             value={potenciaModulo}
             onChange={(event) => {
@@ -8777,7 +8884,12 @@ export default function App() {
             ))}
           </select>
         </Field>
-        <Field label="Nº de módulos (estimado)">
+        <Field
+          label={labelWithTooltip(
+            'Nº de módulos (estimado)',
+            'Quantidade de módulos utilizada no dimensionamento. Estimativa = ceil(Consumo alvo ÷ (Irradiação × Eficiência × dias) × 1000 ÷ Potência do módulo).',
+          )}
+        >
           <input
             type="number"
             min={1}
@@ -8806,7 +8918,12 @@ export default function App() {
             onFocus={selectNumberInputOnFocus}
           />
         </Field>
-        <Field label="Segmento">
+        <Field
+          label={labelWithTooltip(
+            'Segmento',
+            'Classificação do cliente (residencial ou comercial), utilizada para relatórios e cálculos de tarifas.',
+          )}
+        >
           <select
             value={segmentoCliente}
             onChange={(event) =>
@@ -8817,7 +8934,12 @@ export default function App() {
             <option value="COMERCIAL">Comercial</option>
           </select>
         </Field>
-        <Field label="Tipo de instalação">
+        <Field
+          label={labelWithTooltip(
+            'Tipo de instalação',
+            'Define se o sistema será instalado em telhado ou solo; altera a área estimada e custos de estrutura.',
+          )}
+        >
           <select
             value={tipoInstalacao}
             onChange={(event) =>
@@ -8828,7 +8950,12 @@ export default function App() {
             <option value="SOLO">Solo</option>
           </select>
         </Field>
-        <Field label="Tipo de sistema">
+        <Field
+          label={labelWithTooltip(
+            'Tipo de sistema',
+            'Escolha entre on-grid, híbrido ou off-grid para registrar a topologia elétrica da proposta.',
+          )}
+        >
           <select
             value={tipoSistema}
             onChange={(event) => handleTipoSistemaChange(event.target.value as TipoSistema)}
@@ -8870,7 +8997,12 @@ export default function App() {
             })}
           />
         </Field>
-        <Field label="Área utilizada (m²)">
+        <Field
+          label={labelWithTooltip(
+            'Área utilizada (m²)',
+            'Estimativa de área ocupada: Nº de módulos × fator (3,3 m² para telhado ou 7 m² para solo).',
+          )}
+        >
           <input
             readOnly
             value={
@@ -8905,14 +9037,24 @@ export default function App() {
         </div>
       ) : null}
       <div className="grid g3">
-        <Field label="Modelo do módulo">
+        <Field
+          label={labelWithTooltip(
+            'Modelo do módulo',
+            'Descrição comercial do módulo fotovoltaico utilizado na proposta.',
+          )}
+        >
           <input
             type="text"
             value={vendaForm.modelo_modulo ?? ''}
             onChange={(event) => applyVendaUpdates({ modelo_modulo: event.target.value || undefined })}
           />
         </Field>
-        <Field label="Modelo do inversor">
+        <Field
+          label={labelWithTooltip(
+            'Modelo do inversor',
+            'Modelo comercial do inversor responsável pela conversão CC/CA.',
+          )}
+        >
           <input
             type="text"
             ref={inverterModelInputRef}
@@ -8920,7 +9062,12 @@ export default function App() {
             onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
           />
         </Field>
-        <Field label="Estrutura de fixação">
+        <Field
+          label={labelWithTooltip(
+            'Estrutura de fixação',
+            'Tipo de estrutura utilizada para fixar os módulos (perfis, suportes ou trackers).',
+          )}
+        >
           <input
             type="text"
             ref={estruturaSuporteInputRef}
@@ -9027,7 +9174,12 @@ export default function App() {
           />
           <FieldError message={vendaFormErrors.consumo_kwh_mes} />
         </Field>
-        <Field label="Tarifa cheia (R$/kWh)">
+        <Field
+          label={labelWithTooltip(
+            'Tarifa cheia (R$/kWh)',
+            'Valor cobrado por kWh sem descontos contratuais; base para calcular a conta de energia projetada.',
+          )}
+        >
           <input
             type="number"
             step="0.001"
@@ -9047,7 +9199,12 @@ export default function App() {
           />
           <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
         </Field>
-        <Field label="Taxa mínima (R$/mês)">
+        <Field
+          label={labelWithTooltip(
+            'Taxa mínima (R$/mês)',
+            'Valor mínimo mensal faturado pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
+          )}
+        >
           <input
             type="number"
             min={0}
@@ -9093,7 +9250,12 @@ export default function App() {
             onFocus={selectNumberInputOnFocus}
           />
         </Field>
-        <Field label="Horizonte de análise (meses)">
+        <Field
+          label={labelWithTooltip(
+            'Horizonte de análise (meses)',
+            'Quantidade de meses simulados para payback, ROI e fluxo de caixa projetado.',
+          )}
+        >
           <input
             type="number"
             min={1}
@@ -9144,7 +9306,12 @@ export default function App() {
         </Field>
       </div>
       <div className="grid g3">
-        <Field label="UF (ANEEL)">
+        <Field
+          label={labelWithTooltip(
+            'UF (ANEEL)',
+            'Estado utilizado para consultar automaticamente tarifas homologadas e irradiação base.',
+          )}
+        >
           <select value={ufTarifa} onChange={(event) => setUfTarifa(event.target.value)}>
             <option value="">Selecione a UF</option>
             {ufsDisponiveis.map((uf) => (
@@ -9154,7 +9321,12 @@ export default function App() {
             ))}
           </select>
         </Field>
-        <Field label="Distribuidora (ANEEL)">
+        <Field
+          label={labelWithTooltip(
+            'Distribuidora (ANEEL)',
+            'Concessionária da UC; determina TE, TUSD e reajustes aplicados nas simulações.',
+          )}
+        >
           <select
             value={distribuidoraTarifa}
             onChange={(event) => setDistribuidoraTarifa(event.target.value)}
@@ -9199,7 +9371,12 @@ export default function App() {
     <section className="card">
       <h2>Configuração da Usina Fotovoltaica</h2>
       <div className="grid g4">
-        <Field label="Potência do módulo (Wp)">
+        <Field
+          label={labelWithTooltip(
+            'Potência do módulo (Wp)',
+            'Potência nominal de cada módulo fotovoltaico; usada na conversão kWp = (módulos × Wp) ÷ 1000.',
+          )}
+        >
           <select
             value={potenciaModulo}
             onChange={(event) => {
@@ -9216,7 +9393,12 @@ export default function App() {
             ))}
           </select>
         </Field>
-        <Field label="Nº de módulos (estimado)">
+        <Field
+          label={labelWithTooltip(
+            'Nº de módulos (estimado)',
+            'Quantidade de módulos utilizada no dimensionamento. Estimativa = ceil(Consumo alvo ÷ (Irradiação × Eficiência × dias) × 1000 ÷ Potência do módulo).',
+          )}
+        >
           <input
             type="number"
             min={1}
@@ -9248,7 +9430,12 @@ export default function App() {
             onFocus={selectNumberInputOnFocus}
           />
         </Field>
-        <Field label="Segmento">
+        <Field
+          label={labelWithTooltip(
+            'Segmento',
+            'Classificação do cliente (residencial ou comercial), utilizada para relatórios e cálculos de tarifas.',
+          )}
+        >
           <select
             value={segmentoCliente}
             onChange={(event) =>
@@ -9259,7 +9446,12 @@ export default function App() {
             <option value="COMERCIAL">Comercial</option>
           </select>
         </Field>
-        <Field label="Tipo de instalação">
+        <Field
+          label={labelWithTooltip(
+            'Tipo de instalação',
+            'Define se o sistema será instalado em telhado ou solo; altera a área estimada e custos de estrutura.',
+          )}
+        >
           <select
             value={tipoInstalacao}
             onChange={(event) =>
@@ -9270,7 +9462,12 @@ export default function App() {
             <option value="SOLO">Solo</option>
           </select>
         </Field>
-        <Field label="Tipo de sistema">
+        <Field
+          label={labelWithTooltip(
+            'Tipo de sistema',
+            'Escolha entre on-grid, híbrido ou off-grid para registrar a topologia elétrica da proposta.',
+          )}
+        >
           <select
             value={tipoSistema}
             onChange={(event) => handleTipoSistemaChange(event.target.value as TipoSistema)}
@@ -9312,7 +9509,12 @@ export default function App() {
             })}
           />
         </Field>
-        <Field label="Área utilizada (m²)">
+        <Field
+          label={labelWithTooltip(
+            'Área utilizada (m²)',
+            'Estimativa de área ocupada: Nº de módulos × fator (3,3 m² para telhado ou 7 m² para solo).',
+          )}
+        >
           <input
             readOnly
             value={
@@ -9347,14 +9549,24 @@ export default function App() {
         </div>
       ) : null}
       <div className="grid g3">
-        <Field label="Modelo do módulo">
+        <Field
+          label={labelWithTooltip(
+            'Modelo do módulo',
+            'Descrição comercial do módulo fotovoltaico utilizado na proposta.',
+          )}
+        >
           <input
             type="text"
             value={vendaForm.modelo_modulo ?? ''}
             onChange={(event) => applyVendaUpdates({ modelo_modulo: event.target.value || undefined })}
           />
         </Field>
-        <Field label="Modelo do inversor">
+        <Field
+          label={labelWithTooltip(
+            'Modelo do inversor',
+            'Modelo comercial do inversor responsável pela conversão CC/CA.',
+          )}
+        >
           <input
             type="text"
             ref={inverterModelInputRef}
@@ -9362,7 +9574,12 @@ export default function App() {
             onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
           />
         </Field>
-        <Field label="Estrutura de fixação">
+        <Field
+          label={labelWithTooltip(
+            'Estrutura de fixação',
+            'Tipo de estrutura utilizada para fixar os módulos (perfis, suportes ou trackers).',
+          )}
+        >
           <input
             type="text"
             ref={estruturaSuporteInputRef}
@@ -9389,40 +9606,40 @@ export default function App() {
   )
 
   const renderComposicaoUfvSection = () => {
-    const telhadoCampos: { key: keyof UfvComposicaoTelhadoValores; label: string }[] = [
-      { key: 'projeto', label: 'Projeto' },
-      { key: 'instalacao', label: 'Instalação' },
-      { key: 'materialCa', label: 'Material CA' },
-      { key: 'crea', label: 'CREA' },
-      { key: 'art', label: 'ART' },
-      { key: 'placa', label: 'Placa' },
+    const telhadoCampos: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
+      { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
+      { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
+      { key: 'materialCa', label: 'Material CA', tooltip: 'Materiais elétricos do lado CA (cabos, disjuntores, quadros).' },
+      { key: 'crea', label: 'CREA', tooltip: 'Taxas do conselho de engenharia necessárias para o projeto.' },
+      { key: 'art', label: 'ART', tooltip: 'Valor da Anotação de Responsabilidade Técnica do responsável.' },
+      { key: 'placa', label: 'Placa', tooltip: 'Investimento nos módulos fotovoltaicos utilizados no sistema.' },
     ]
-    const resumoCamposTelhado: { key: keyof UfvComposicaoTelhadoValores; label: string }[] = [
-      { key: 'comissaoLiquida', label: 'Comissão líquida' },
-      { key: 'lucroBruto', label: 'Margem operacional' },
-      { key: 'impostoRetido', label: 'Imposto retido' },
+    const resumoCamposTelhado: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
+      { key: 'comissaoLiquida', label: 'Comissão líquida', tooltip: 'Comissão líquida destinada ao time comercial.' },
+      { key: 'lucroBruto', label: 'Margem operacional', tooltip: 'Margem de lucro bruto prevista sobre o projeto.' },
+      { key: 'impostoRetido', label: 'Imposto retido', tooltip: 'Tributos retidos na fonte (ISS, IR, CSLL etc.).' },
     ]
-    const soloCamposPrincipais: { key: keyof UfvComposicaoSoloValores; label: string }[] = [
-      { key: 'projeto', label: 'Projeto' },
-      { key: 'instalacao', label: 'Instalação' },
-      { key: 'materialCa', label: 'Material CA' },
-      { key: 'crea', label: 'CREA' },
-      { key: 'art', label: 'ART' },
-      { key: 'placa', label: 'Placa' },
-      { key: 'estruturaSolo', label: 'Estrutura solo' },
-      { key: 'tela', label: 'Tela' },
-      { key: 'portaoTela', label: 'Portão tela' },
-      { key: 'maoObraTela', label: 'Mão de obra tela' },
-      { key: 'casaInversor', label: 'Casa inversor' },
-      { key: 'brita', label: 'Brita' },
-      { key: 'terraplanagem', label: 'Terraplanagem' },
-      { key: 'trafo', label: 'Trafo' },
-      { key: 'rede', label: 'Rede' },
+    const soloCamposPrincipais: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
+      { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
+      { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
+      { key: 'materialCa', label: 'Material CA', tooltip: 'Materiais elétricos do lado CA (cabos, disjuntores, quadros).' },
+      { key: 'crea', label: 'CREA', tooltip: 'Taxas do conselho de engenharia necessárias para o projeto.' },
+      { key: 'art', label: 'ART', tooltip: 'Valor da Anotação de Responsabilidade Técnica do responsável.' },
+      { key: 'placa', label: 'Placa', tooltip: 'Investimento nos módulos fotovoltaicos utilizados no sistema.' },
+      { key: 'estruturaSolo', label: 'Estrutura solo', tooltip: 'Estruturas e fundações específicas para montagem em solo.' },
+      { key: 'tela', label: 'Tela', tooltip: 'Material de cercamento (telas de proteção) para o parque solar.' },
+      { key: 'portaoTela', label: 'Portão tela', tooltip: 'Portões e acessos associados ao cercamento em tela.' },
+      { key: 'maoObraTela', label: 'Mão de obra tela', tooltip: 'Equipe dedicada à instalação da tela e portões.' },
+      { key: 'casaInversor', label: 'Casa inversor', tooltip: 'Construção ou abrigo para inversores e painéis elétricos.' },
+      { key: 'brita', label: 'Brita', tooltip: 'Lastro de brita utilizado para nivelamento e drenagem do solo.' },
+      { key: 'terraplanagem', label: 'Terraplanagem', tooltip: 'Serviços de preparo e nivelamento do terreno.' },
+      { key: 'trafo', label: 'Trafo', tooltip: 'Custo de transformadores ou adequações de tensão.' },
+      { key: 'rede', label: 'Rede', tooltip: 'Adequações de rede, cabeamento e conexões externas.' },
     ]
-    const resumoCamposSolo: { key: keyof UfvComposicaoSoloValores; label: string }[] = [
-      { key: 'comissaoLiquida', label: 'Comissão líquida' },
-      { key: 'lucroBruto', label: 'Margem operacional' },
-      { key: 'impostoRetido', label: 'Imposto retido' },
+    const resumoCamposSolo: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
+      { key: 'comissaoLiquida', label: 'Comissão líquida', tooltip: 'Comissão líquida destinada ao time comercial.' },
+      { key: 'lucroBruto', label: 'Margem operacional', tooltip: 'Margem de lucro bruto prevista sobre o projeto.' },
+      { key: 'impostoRetido', label: 'Imposto retido', tooltip: 'Tributos retidos na fonte (ISS, IR, CSLL etc.).' },
     ]
 
     const isTelhado = tipoInstalacao === 'TELHADO'
@@ -9441,8 +9658,8 @@ export default function App() {
             <div className="composicao-ufv-group">
               <h3>Projeto em Telhado</h3>
               <div className="grid g3">
-                {telhadoCampos.map(({ key, label }) => (
-                  <Field key={`telhado-${key}`} label={label}>
+                {telhadoCampos.map(({ key, label, tooltip }) => (
+                  <Field key={`telhado-${key}`} label={labelWithTooltip(label, tooltip)}>
                     <input
                       type="number"
                       min={0}
@@ -9455,8 +9672,8 @@ export default function App() {
                 ))}
               </div>
               <div className="grid g3">
-                {resumoCamposTelhado.map(({ key, label }) => (
-                  <Field key={`telhado-resumo-${key}`} label={label}>
+                {resumoCamposTelhado.map(({ key, label, tooltip }) => (
+                  <Field key={`telhado-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
                     <input
                       type="number"
                       min={0}
@@ -9473,8 +9690,8 @@ export default function App() {
             <div className="composicao-ufv-group">
               <h3>Projeto em Solo</h3>
               <div className="grid g3">
-                {soloCamposPrincipais.map(({ key, label }) => (
-                  <Field key={`solo-${key}`} label={label}>
+                {soloCamposPrincipais.map(({ key, label, tooltip }) => (
+                  <Field key={`solo-${key}`} label={labelWithTooltip(label, tooltip)}>
                     <input
                       type="number"
                       min={0}
@@ -9487,8 +9704,8 @@ export default function App() {
                 ))}
               </div>
               <div className="grid g3">
-                {resumoCamposSolo.map(({ key, label }) => (
-                  <Field key={`solo-resumo-${key}`} label={label}>
+                {resumoCamposSolo.map(({ key, label, tooltip }) => (
+                  <Field key={`solo-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
                     <input
                       type="number"
                       min={0}
@@ -9513,7 +9730,12 @@ export default function App() {
       <section className="card">
         <h2>Condições de Pagamento</h2>
         <div className="grid g3">
-          <Field label="Condição">
+          <Field
+            label={labelWithTooltip(
+              'Condição',
+              'Seleciona o formato de pagamento (à vista, parcelado ou financiamento), alterando os campos exibidos.',
+            )}
+          >
             <select
               value={condicao}
               onChange={(event) => handleCondicaoPagamentoChange(event.target.value as PagamentoCondicao)}
@@ -9524,7 +9746,12 @@ export default function App() {
             </select>
             <FieldError message={vendaFormErrors.condicao} />
           </Field>
-          <Field label="Investimento (CAPEX total)">
+          <Field
+            label={labelWithTooltip(
+              'Investimento (CAPEX total)',
+              'Valor total do projeto fotovoltaico. Serve de base para entradas, parcelas e margens.',
+            )}
+          >
             <input
               type="number"
               min={0}
@@ -9541,13 +9768,23 @@ export default function App() {
             />
             <FieldError message={vendaFormErrors.capex_total} />
           </Field>
-          <Field label="Moeda">
+          <Field
+            label={labelWithTooltip(
+              'Moeda',
+              'Moeda utilizada na proposta. Atualmente fixa em reais (BRL).',
+            )}
+          >
             <input readOnly value="BRL" />
           </Field>
         </div>
         {condicao === 'AVISTA' ? (
           <div className="grid g3">
-            <Field label="Modo de pagamento">
+            <Field
+              label={labelWithTooltip(
+                'Modo de pagamento',
+                'Define o meio de pagamento à vista (Pix, débito ou crédito) e habilita as taxas correspondentes.',
+              )}
+            >
               <select
                 value={vendaForm.modo_pagamento ?? 'PIX'}
                 onChange={(event) => applyVendaUpdates({ modo_pagamento: event.target.value as ModoPagamento })}
@@ -9558,7 +9795,12 @@ export default function App() {
               </select>
               <FieldError message={vendaFormErrors.modo_pagamento} />
             </Field>
-            <Field label="MDR Pix">
+            <Field
+              label={labelWithTooltip(
+                'MDR Pix',
+                'Taxa de desconto do adquirente para Pix. Custo MDR = Valor transacionado × MDR.',
+              )}
+            >
               <input
                 type="number"
                 min={0}
@@ -9582,7 +9824,12 @@ export default function App() {
               />
               <FieldError message={vendaFormErrors.taxa_mdr_pix_pct} />
             </Field>
-            <Field label="MDR Débito">
+            <Field
+              label={labelWithTooltip(
+                'MDR Débito',
+                'Percentual retido pela adquirente em pagamentos no débito. Custo = Valor × MDR.',
+              )}
+            >
               <input
                 type="number"
                 min={0}
@@ -9606,7 +9853,12 @@ export default function App() {
               />
               <FieldError message={vendaFormErrors.taxa_mdr_debito_pct} />
             </Field>
-            <Field label="MDR Crédito à vista">
+            <Field
+              label={labelWithTooltip(
+                'MDR Crédito à vista',
+                'Taxa aplicada sobre vendas no crédito em parcela única. Custo = Valor × MDR.',
+              )}
+            >
               <input
                 type="number"
                 min={0}
@@ -9636,7 +9888,12 @@ export default function App() {
         ) : null}
         {condicao === 'PARCELADO' ? (
           <div className="grid g3">
-            <Field label="Nº de parcelas">
+            <Field
+              label={labelWithTooltip(
+                'Nº de parcelas',
+                'Quantidade de parcelas do cartão. Parcela estimada via fórmula PMT = Valor × [i × (1 + i)^n] / [(1 + i)^n - 1].',
+              )}
+            >
               <input
                 type="number"
                 min={1}
@@ -9656,7 +9913,12 @@ export default function App() {
               />
               <FieldError message={vendaFormErrors.n_parcelas} />
             </Field>
-            <Field label="Juros cartão (% a.m.)">
+            <Field
+              label={labelWithTooltip(
+                'Juros cartão (% a.m.)',
+                'Taxa de juros mensal aplicada pela operadora. Equivalência anual: (1 + i)^12 - 1.',
+              )}
+            >
               <input
                 type="number"
                 step="0.01"
@@ -9678,7 +9940,12 @@ export default function App() {
               />
               <FieldError message={vendaFormErrors.juros_cartao_am_pct} />
             </Field>
-            <Field label="Juros cartão (% a.a.)">
+            <Field
+              label={labelWithTooltip(
+                'Juros cartão (% a.a.)',
+                'Taxa de juros anual utilizada para relatórios. Pode ser derivada de i_mensal: (1 + i_mensal)^12 - 1.',
+              )}
+            >
               <input
                 type="number"
                 step="0.1"
@@ -9700,7 +9967,12 @@ export default function App() {
               />
               <FieldError message={vendaFormErrors.juros_cartao_aa_pct} />
             </Field>
-            <Field label="MDR crédito parcelado">
+            <Field
+              label={labelWithTooltip(
+                'MDR crédito parcelado',
+                'Taxa retida pela adquirente em vendas parceladas no cartão. Custo = Valor × MDR.',
+              )}
+            >
               <input
                 type="number"
                 min={0}
@@ -9730,7 +10002,12 @@ export default function App() {
         ) : null}
         {condicao === 'FINANCIAMENTO' ? (
           <div className="grid g3">
-            <Field label="Entrada (R$)">
+            <Field
+              label={labelWithTooltip(
+                'Entrada (R$)',
+                'Valor de entrada pago pelo cliente. Saldo financiado = CAPEX - Entrada.',
+              )}
+            >
               <input
                 type="number"
                 min={0}
@@ -9748,7 +10025,12 @@ export default function App() {
               />
               <FieldError message={vendaFormErrors.entrada_financiamento} />
             </Field>
-            <Field label="Nº de parcelas">
+            <Field
+              label={labelWithTooltip(
+                'Nº de parcelas',
+                'Quantidade de parcelas do financiamento. Parcela calculada pela fórmula PMT com i_mensal e n.',
+              )}
+            >
               <input
                 type="number"
                 min={1}
@@ -9772,7 +10054,12 @@ export default function App() {
               />
               <FieldError message={vendaFormErrors.n_parcelas_fin} />
             </Field>
-            <Field label="Juros financiamento (% a.m.)">
+            <Field
+              label={labelWithTooltip(
+                'Juros financiamento (% a.m.)',
+                'Taxa de juros mensal contratada com a instituição financeira.',
+              )}
+            >
               <input
                 type="number"
                 step="0.01"
@@ -9794,7 +10081,12 @@ export default function App() {
               />
               <FieldError message={vendaFormErrors.juros_fin_am_pct} />
             </Field>
-            <Field label="Juros financiamento (% a.a.)">
+            <Field
+              label={labelWithTooltip(
+                'Juros financiamento (% a.a.)',
+                'Taxa de juros anual equivalente. Pode ser obtida por (1 + i_mensal)^12 - 1.',
+              )}
+            >
               <input
                 type="number"
                 step="0.1"
@@ -9953,7 +10245,12 @@ export default function App() {
                     </div>
 
                     <div className="grid g3">
-                      <Field label="Entrada (R$)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Entrada (R$)',
+                          'Entrada inicial do leasing. Pode gerar crédito mensal: Entrada ÷ Prazo contratual (meses).',
+                        )}
+                      >
                         <input
                           type="number"
                           value={entradaRs}
@@ -9964,7 +10261,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Desconto contratual (%)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Desconto contratual (%)',
+                          'Percentual aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto).',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -9973,7 +10275,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Prazo do leasing">
+                      <Field
+                        label={labelWithTooltip(
+                          'Prazo do leasing',
+                          'Duração do contrato de leasing em anos. Prazo em meses = anos × 12.',
+                        )}
+                      >
                         <select
                           value={leasingPrazo}
                           onChange={(e) => setLeasingPrazo(Number(e.target.value) as LeasingPrazoAnos)}
@@ -10500,7 +10807,10 @@ export default function App() {
                   <p>Localize propostas salvas pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento.</p>
                 </div>
                 <Field
-                  label="Buscar orçamentos"
+                  label={labelWithTooltip(
+                    'Buscar orçamentos',
+                    'Filtra propostas salvas por nome do cliente, documento, UC ou código interno.',
+                  )}
                   hint="Procure pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento."
                 >
                   <input
@@ -10662,7 +10972,12 @@ export default function App() {
                       </p>
                     </div>
                     <div className="grid g2">
-                      <Field label="Inflação energética (%)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Inflação energética (%)',
+                          'Percentual anual de reajuste tarifário. Tarifa projetada = Tarifa base × (1 + inflação)^ano.',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -10671,7 +10986,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Preço por kWp (R$)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Preço por kWp (R$)',
+                          'Preço médio de investimento por kWp. CAPEX estimado = Potência (kWp) × Preço por kWp.',
+                        )}
+                      >
                         <input
                           type="number"
                           value={precoPorKwp}
@@ -10679,7 +10999,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Irradiação média (kWh/m²/dia)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Irradiação média (kWh/m²/dia)',
+                          'Valor médio diário usado na estimativa: Geração = kWp × Irradiação × Eficiência × dias.',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -10692,7 +11017,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Eficiência do sistema">
+                      <Field
+                        label={labelWithTooltip(
+                          'Eficiência do sistema',
+                          'Performance ratio global (PR). Impacta diretamente a geração estimada na fórmula acima.',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.01"
@@ -10708,7 +11038,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Dias no mês (cálculo)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Dias no mês (cálculo)',
+                          'Quantidade de dias considerada por mês na estimativa de geração (padrão: 30).',
+                        )}
+                      >
                         <input
                           type="number"
                           min={1}
@@ -10764,7 +11099,12 @@ export default function App() {
                       </p>
                     </div>
                     <div className="grid g3">
-                      <Field label="Prazo contratual (meses)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Prazo contratual (meses)',
+                          'Quantidade de meses do contrato de leasing. Utilizada no cálculo das parcelas.',
+                        )}
+                      >
                         <input
                           type="number"
                           min={1}
@@ -10776,7 +11116,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Bandeira tarifária (R$)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Bandeira tarifária (R$)',
+                          'Valor adicional por kWh conforme bandeira vigente. Aplicado às tarifas projetadas.',
+                        )}
+                      >
                         <input
                           type="number"
                           value={bandeiraEncargo}
@@ -10787,7 +11132,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Contribuição CIP (R$)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Contribuição CIP (R$)',
+                          'Valor mensal da Contribuição de Iluminação Pública considerado no cenário.',
+                        )}
+                      >
                         <input
                           type="number"
                           value={cipEncargo}
@@ -10798,7 +11148,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Uso da entrada">
+                      <Field
+                        label={labelWithTooltip(
+                          'Uso da entrada',
+                          'Define se a entrada gera crédito mensal ou reduz o piso contratado do cliente.',
+                        )}
+                      >
                         <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModoLabel)}>
                           <option value="Crédito mensal">Crédito mensal</option>
                           <option value="Reduz piso contratado">Reduz piso contratado</option>
@@ -10869,7 +11224,12 @@ export default function App() {
                       </p>
                     </div>
                     <div className="grid g3">
-                      <Field label="Juros a.a. (%)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Juros a.a. (%)',
+                          'Taxa de juros anual utilizada no cenário financiado para comparação.',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -10878,7 +11238,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Prazo (meses)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Prazo (meses)',
+                          'Prazo total do financiamento comparado, em meses.',
+                        )}
+                      >
                         <input
                           type="number"
                           value={prazoFinMeses}
@@ -10886,7 +11251,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Entrada (%)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Entrada (%)',
+                          'Percentual de entrada considerado no cenário financiado (Entrada = CAPEX × %).',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -10912,7 +11282,12 @@ export default function App() {
                       </p>
                     </div>
                     <div className="grid g3">
-                      <Field label="Cashback (%)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Cashback (%)',
+                          'Percentual devolvido ao cliente em caso de compra antecipada.',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -10921,7 +11296,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Depreciação (%)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Depreciação (%)',
+                          'Taxa anual de depreciação dos ativos considerados no buyout.',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -10930,7 +11310,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Inadimplência (%)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Inadimplência (%)',
+                          'Percentual anual de inadimplência considerado na projeção.',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -10939,7 +11324,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Tributos (%)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Tributos (%)',
+                          'Percentual de tributos incidentes sobre o fluxo financeiro do buyout.',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -10948,7 +11338,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="IPCA (%)">
+                      <Field
+                        label={labelWithTooltip(
+                          'IPCA (%)',
+                          'Inflação geral (IPCA) para atualizar valores reais ao longo do tempo.',
+                        )}
+                      >
                         <input
                           type="number"
                           step="0.1"
@@ -10957,7 +11352,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Custos fixos (R$)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Custos fixos (R$)',
+                          'Custos fixos mensais associados à operação no cenário buyout.',
+                        )}
+                      >
                         <input
                           type="number"
                           value={custosFixosM}
@@ -10965,7 +11365,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="OPEX (R$)">
+                      <Field
+                        label={labelWithTooltip(
+                          'OPEX (R$)',
+                          'Despesas operacionais mensais (manutenção, monitoramento etc.).',
+                        )}
+                      >
                         <input
                           type="number"
                           value={opexM}
@@ -10973,7 +11378,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Seguro (R$)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Seguro (R$)',
+                          'Prêmio mensal de seguro considerado na simulação.',
+                        )}
+                      >
                         <input
                           type="number"
                           value={seguroM}
@@ -10981,7 +11391,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Duração (meses)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Duração (meses)',
+                          'Janela de tempo analisada para o fluxo residual e compra antecipada.',
+                        )}
+                      >
                         <input
                           type="number"
                           value={duracaoMeses}
@@ -10989,7 +11404,12 @@ export default function App() {
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
-                      <Field label="Pagos acumulados até o mês (R$)">
+                      <Field
+                        label={labelWithTooltip(
+                          'Pagos acumulados até o mês (R$)',
+                          'Total pago acumulado considerado até o mês de avaliação.',
+                        )}
+                      >
                         <input
                           type="number"
                           value={pagosAcumAteM}
@@ -11062,7 +11482,12 @@ export default function App() {
                     <div className="settings-subsection">
                       <p className="settings-subheading">O&M e seguro</p>
                       <div className="grid g3">
-                        <Field label="O&M base (R$/kWp)">
+                        <Field
+                          label={labelWithTooltip(
+                            'O&M base (R$/kWp)',
+                            'Valor base de contrato de operação e manutenção por kWp instalado.',
+                          )}
+                        >
                           <input
                             type="number"
                             value={oemBase}
@@ -11070,7 +11495,12 @@ export default function App() {
                             onFocus={selectNumberInputOnFocus}
                           />
                         </Field>
-                        <Field label="Reajuste O&M (%)">
+                        <Field
+                          label={labelWithTooltip(
+                            'Reajuste O&M (%)',
+                            'Percentual anual de reajuste aplicado ao contrato de O&M.',
+                          )}
+                        >
                           <input
                             type="number"
                             step="0.1"
@@ -11079,7 +11509,12 @@ export default function App() {
                             onFocus={selectNumberInputOnFocus}
                           />
                         </Field>
-                        <Field label="Reajuste seguro (%)">
+                        <Field
+                          label={labelWithTooltip(
+                            'Reajuste seguro (%)',
+                            'Percentual anual de reajuste do prêmio de seguro.',
+                          )}
+                        >
                           <input
                             type="number"
                             step="0.1"
@@ -11088,13 +11523,23 @@ export default function App() {
                             onFocus={selectNumberInputOnFocus}
                           />
                         </Field>
-                        <Field label="Modo de seguro">
+                        <Field
+                          label={labelWithTooltip(
+                            'Modo de seguro',
+                            'Escolha entre valor fixo por kWp (Modo A) ou percentual do valor de mercado (Modo B).',
+                          )}
+                        >
                           <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
                             <option value="A">Modo A — Potência (R$)</option>
                             <option value="B">Modo B — % Valor de mercado</option>
                           </select>
                         </Field>
-                        <Field label="Base seguro modo A (R$/kWp)">
+                        <Field
+                          label={labelWithTooltip(
+                            'Base seguro modo A (R$/kWp)',
+                            'Valor aplicado por kWp quando o seguro está configurado no modo A.',
+                          )}
+                        >
                           <input
                             type="number"
                             value={seguroValorA}
@@ -11102,7 +11547,12 @@ export default function App() {
                             onFocus={selectNumberInputOnFocus}
                           />
                         </Field>
-                        <Field label="Seguro modo B (%)">
+                        <Field
+                          label={labelWithTooltip(
+                            'Seguro modo B (%)',
+                            'Percentual aplicado sobre o valor de mercado quando o modo B está ativo.',
+                          )}
+                        >
                           <input
                             type="number"
                             step="0.01"
@@ -11116,7 +11566,12 @@ export default function App() {
                     <div className="settings-subsection">
                       <p className="settings-subheading">Exibição</p>
                       <div className="grid g2">
-                        <Field label="Densidade da interface">
+                        <Field
+                          label={labelWithTooltip(
+                            'Densidade da interface',
+                            'Ajuste visual dos espaçamentos da interface (compacto, acolhedor ou confortável).',
+                          )}
+                        >
                           <select
                             value={density}
                             onChange={(event) => setDensity(event.target.value as DensityMode)}
@@ -11126,13 +11581,23 @@ export default function App() {
                             <option value="comfortable">Confortável</option>
                           </select>
                         </Field>
-                        <Field label="Mostrar gráfico ROI">
+                        <Field
+                          label={labelWithTooltip(
+                            'Mostrar gráfico ROI',
+                            'Liga ou desliga a visualização do gráfico de retorno sobre investimento.',
+                          )}
+                        >
                           <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
                             <option value="1">Sim</option>
                             <option value="0">Não</option>
                           </select>
                         </Field>
-                        <Field label="Mostrar coluna financiamento">
+                        <Field
+                          label={labelWithTooltip(
+                            'Mostrar coluna financiamento',
+                            'Exibe ou oculta a coluna de comparação com financiamento na tela principal.',
+                          )}
+                        >
                           <select value={mostrarFinanciamento ? '1' : '0'} onChange={(e) => setMostrarFinanciamento(e.target.value === '1')}>
                             <option value="1">Sim</option>
                             <option value="0">Não</option>
