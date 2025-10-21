@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { calcularMultiUc, ESCALONAMENTO_PADRAO } from '../multiUc'
+import type { MultiUcClasse } from '../../types/multiUc'
 
 describe('calcularMultiUc', () => {
   it('distribui créditos e calcula TUSD/TE por UC com rateio percentual', () => {
@@ -10,7 +11,7 @@ describe('calcularMultiUc', () => {
       ucs: [
         {
           id: 'UC-1',
-          classe: 'B1_Residencial',
+          classe: 'B1_Residencial' as MultiUcClasse,
           consumoKWh: 600,
           rateioPercentual: 50,
           manualRateioKWh: null,
@@ -18,7 +19,7 @@ describe('calcularMultiUc', () => {
         },
         {
           id: 'UC-2',
-          classe: 'B3_Comercial',
+          classe: 'B3_Comercial' as MultiUcClasse,
           consumoKWh: 600,
           rateioPercentual: 50,
           manualRateioKWh: null,
@@ -68,7 +69,7 @@ describe('calcularMultiUc', () => {
       ucs: [
         {
           id: 'UC-B3',
-          classe: 'B3_Comercial',
+          classe: 'B3_Comercial' as MultiUcClasse,
           consumoKWh: 900,
           rateioPercentual: 80,
           manualRateioKWh: null,
@@ -76,7 +77,7 @@ describe('calcularMultiUc', () => {
         },
         {
           id: 'UC-B1',
-          classe: 'B1_Residencial',
+          classe: 'B1_Residencial' as MultiUcClasse,
           consumoKWh: 150,
           rateioPercentual: 20,
           manualRateioKWh: null,
@@ -116,7 +117,7 @@ describe('calcularMultiUc', () => {
       ucs: [
         {
           id: 'UC-ML',
-          classe: 'B3_Comercial',
+          classe: 'B3_Comercial' as MultiUcClasse,
           consumoKWh: 800,
           rateioPercentual: 100,
           manualRateioKWh: null,
@@ -157,7 +158,7 @@ describe('calcularMultiUc', () => {
       ucs: [
         {
           id: 'UC-1',
-          classe: 'B1_Residencial',
+          classe: 'B1_Residencial' as MultiUcClasse,
           consumoKWh: 400,
           rateioPercentual: 100,
           manualRateioKWh: null,
