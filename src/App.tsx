@@ -83,6 +83,7 @@ import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
   INITIAL_VALUES,
+  LEASING_PRAZO_OPCOES,
   PAINEL_OPCOES,
   SETTINGS_TABS,
   STORAGE_KEYS,
@@ -95,6 +96,7 @@ import {
   type KitBudgetItemState,
   type KitBudgetMissingInfo,
   type KitBudgetState,
+  type LeasingPrazoAnos,
   type SeguroModo,
   type SettingsTabKey,
   type TabKey,
@@ -152,6 +154,14 @@ const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
   }
 
   return undefined
+}
+
+const formatLeasingPrazoAnos = (valor: number) => {
+  const fractionDigits = Number.isInteger(valor) ? 0 : 1
+  return formatNumberBRWithOptions(valor, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })
 }
 
 const emailValido = (valor: string) => {
@@ -1435,7 +1445,7 @@ export default function App() {
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(
     INITIAL_VALUES.encargosFixosExtras,
   )
-  const [leasingPrazo, setLeasingPrazo] = useState<5 | 7 | 10>(INITIAL_VALUES.leasingPrazo)
+  const [leasingPrazo, setLeasingPrazo] = useState<LeasingPrazoAnos>(INITIAL_VALUES.leasingPrazo)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
   const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
@@ -8942,10 +8952,15 @@ export default function App() {
                         />
                       </Field>
                       <Field label="Prazo do leasing">
-                        <select value={leasingPrazo} onChange={(e) => setLeasingPrazo(Number(e.target.value) as 5 | 7 | 10)}>
-                          <option value={5}>5 anos</option>
-                          <option value={7}>7 anos</option>
-                          <option value={10}>10 anos</option>
+                        <select
+                          value={leasingPrazo}
+                          onChange={(e) => setLeasingPrazo(Number(e.target.value) as LeasingPrazoAnos)}
+                        >
+                          {LEASING_PRAZO_OPCOES.map((valor) => (
+                            <option key={valor} value={valor}>
+                              {`${formatLeasingPrazoAnos(valor)} anos`}
+                            </option>
+                          ))}
                         </select>
                       </Field>
                     </div>
@@ -9043,7 +9058,9 @@ export default function App() {
                   <div className="dot" />
                   <div>
                     <p className="notice-title">Fim do prazo</p>
-                    <p className="notice-sub">Após {leasingPrazo} anos a curva acelera: 100% do retorno fica com o cliente.</p>
+                    <p className="notice-sub">
+                      Após {formatLeasingPrazoAnos(leasingPrazo)} anos a curva acelera: 100% do retorno fica com o cliente.
+                    </p>
                   </div>
                 </div>
               </section>
