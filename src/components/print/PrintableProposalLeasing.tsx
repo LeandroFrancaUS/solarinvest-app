@@ -452,10 +452,11 @@ function PrintableProposalLeasingInner(
     const maxAnoDisponivel = anos.length > 0 ? Math.max(...anos) : 30
 
     const marcosCandidatos: number[] = []
+    let prazoLimitado: number | null = null
 
     if (Number.isFinite(prazoContratual) && prazoContratual > 0) {
       const prazoEmAnos = Math.max(1, Math.round((prazoContratual ?? 0) / 12))
-      const prazoLimitado = Math.min(prazoEmAnos, maxAnoDisponivel)
+      prazoLimitado = Math.min(prazoEmAnos, maxAnoDisponivel)
       marcosCandidatos.push(prazoLimitado)
 
       const proximoAno = prazoLimitado + 1
@@ -465,7 +466,8 @@ function PrintableProposalLeasingInner(
     }
 
     EXTRA_ECONOMIA_MARCOS.forEach((ano) => {
-      if (ano <= maxAnoDisponivel) {
+      const isPosteriorAoPrazo = prazoLimitado === null || ano > prazoLimitado
+      if (ano <= maxAnoDisponivel && isPosteriorAoPrazo) {
         marcosCandidatos.push(ano)
       }
     })
