@@ -44,12 +44,12 @@ const clamp = (value: number, min: number, max: number): number => {
 
 const sanitizeAprovadores = (lista: unknown): string[] => {
   if (!Array.isArray(lista)) {
-    return ['financeiro@solarinvest.com']
+    return ['financeiro@solarinvest.com.br']
   }
   const normalized = lista
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter((item) => item.length > 0)
-  return normalized.length > 0 ? normalized : ['financeiro@solarinvest.com']
+  return normalized.length > 0 ? normalized : ['financeiro@solarinvest.com.br']
 }
 
 const sanitizeOverrides = (
@@ -114,7 +114,7 @@ export const DEFAULT_VENDAS_CONFIG: VendasConfig = {
 
   desconto_max_percent_sem_aprovacao: 5,
   workflow_aprovacao_ativo: true,
-  aprovadores: ['financeiro@solarinvest.com'],
+  aprovadores: ['financeiro@solarinvest.com.br'],
   validade_proposta_dias: 15,
 
   regime_tributario_default: 'lucro_presumido',
