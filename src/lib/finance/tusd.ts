@@ -110,11 +110,6 @@ const resolverSimultaneidade = (
     if (typeof padrao === 'number') {
       return Math.min(Math.max(padrao, 0), 1)
     }
-
-    const primeiro = Object.values(grupo)[0]
-    if (typeof primeiro === 'number') {
-      return Math.min(Math.max(primeiro, 0), 1)
-    }
   }
 
   return SIMULTANEIDADE_FALLBACK
