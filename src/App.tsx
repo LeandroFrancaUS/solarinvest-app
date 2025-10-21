@@ -96,6 +96,7 @@ import {
   createEmptyKitBudget,
   createInitialComposicaoSolo,
   createInitialComposicaoTelhado,
+  createInitialComposicaoConfig,
   createInitialVendaForm,
   createDefaultMultiUcRow,
   type EntradaModoLabel,
@@ -112,6 +113,13 @@ import {
 import { buscarTarifaPorClasse } from './utils/tarifasPorClasse'
 import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcResultado } from './utils/multiUc'
 import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
+import {
+  calcularComposicaoUFV,
+  type BasePercentualComissao,
+  type ComissaoTipo,
+  type MargemTipo,
+  type RegimeTributario,
+} from './lib/venda/calcComposicaoUFV'
 import {
   uploadBudgetFile,
   BudgetUploadError,
@@ -130,6 +138,7 @@ import type {
   UfvComposicaoResumo,
   UfvComposicaoSoloValores,
   UfvComposicaoTelhadoValores,
+  UfvComposicaoConfiguracao,
 } from './types/printableProposal'
 import {
   currency,
@@ -150,6 +159,12 @@ const MULTI_UC_CLASS_LABELS: Record<MultiUcClasse, string> = {
   B2_Rural: 'B2 — Rural',
   B3_Comercial: 'B3 — Comercial',
   B4_Iluminacao: 'B4 — Iluminação pública',
+}
+
+const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
+  simples: 'Simples Nacional',
+  lucro_presumido: 'Lucro Presumido',
+  lucro_real: 'Lucro Real',
 }
 
 const formatKwhValue = (value: number | null | undefined, digits = 2) => {
@@ -234,6 +249,9 @@ const numbersAreClose = (
 
   return Math.abs(a - b) <= tolerance
 }
+
+const toNumberSafe = (value: number | null | undefined): number =>
+  Number.isFinite(value) ? Number(value) : 0
 
 const sumComposicaoValores = <T extends Record<string, number>>(valores: T): number => {
   return (
@@ -1467,6 +1485,9 @@ export default function App() {
   )
   const [composicaoSolo, setComposicaoSolo] = useState<UfvComposicaoSoloValores>(() =>
     createInitialComposicaoSolo(),
+  )
+  const [composicaoConfig, setComposicaoConfig] = useState<UfvComposicaoConfiguracao>(() =>
+    createInitialComposicaoConfig(),
   )
 
   const [multiUcAtivo, setMultiUcAtivo] = useState(INITIAL_VALUES.multiUcAtivo)
@@ -3795,20 +3816,32 @@ export default function App() {
   }, [geracaoMensalKwh, kcKwhMes])
 
   useEffect(() => {
-    const origem = tipoInstalacao === 'SOLO' ? composicaoSolo : composicaoTelhado
+    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
+    const valores = calculoAtual ?? {
+      capex_base: 0,
+      margem_operacional_valor: 0,
+      venda_total: 0,
+      venda_liquida: 0,
+      comissao_liquida_valor: 0,
+      imposto_retido_valor: 0,
+      impostos_regime_valor: 0,
+      impostos_totais_valor: 0,
+      capex_total: 0,
+      total_contrato_R$: 0,
+      regime_breakdown: [],
+    }
+
     vendaActions.updateComposicao({
-      projeto: Number(origem.projeto) || 0,
-      instalacao: Number(origem.instalacao) || 0,
-      material_ca: Number(origem.materialCa) || 0,
-      art: Number(origem.art) || 0,
-      crea: Number(origem.crea) || 0,
-      placa: Number(origem.placa) || 0,
-      opex: 0,
-      comissao_liquida: Number(origem.comissaoLiquida) || 0,
-      margem_operacional: Number('lucroBruto' in origem ? (origem as typeof composicaoTelhado).lucroBruto : 0) || 0,
-      imposto_retido: Number(origem.impostoRetido) || 0,
+      ...valores,
+      regime_breakdown: valores.regime_breakdown.map((item) => ({ ...item })),
+      descontos: toNumberSafe(composicaoConfig.descontos),
     })
-  }, [composicaoSolo, composicaoTelhado, tipoInstalacao])
+  }, [
+    composicaoConfig.descontos,
+    composicaoSoloCalculo,
+    composicaoTelhadoCalculo,
+    tipoInstalacao,
+  ])
 
   useEffect(() => {
     const itensNormalizados = budgetStructuredItems.map((item) => {
@@ -4054,23 +4087,94 @@ export default function App() {
     return 'NONE'
   }, [entradaConsiderada, entradaModo])
 
-  const composicaoTelhadoTotal = useMemo(
-    () => sumComposicaoValores(composicaoTelhado),
-    [composicaoTelhado],
-  )
+  const composicaoTelhadoCalculo = useMemo(() => {
+    const input = {
+      projeto: toNumberSafe(composicaoTelhado.projeto),
+      instalacao: toNumberSafe(composicaoTelhado.instalacao),
+      material_ca: toNumberSafe(composicaoTelhado.materialCa),
+      crea: toNumberSafe(composicaoTelhado.crea),
+      art: toNumberSafe(composicaoTelhado.art),
+      placa: toNumberSafe(composicaoTelhado.placa),
+      comissao_liquida_input: toNumberSafe(composicaoTelhado.comissaoLiquida),
+      comissao_tipo: composicaoConfig.comissaoTipo,
+      comissao_percent_base: composicaoConfig.comissaoBase,
+      margem_operacional: toNumberSafe(composicaoTelhado.lucroBruto),
+      margem_tipo: composicaoConfig.margemTipo,
+      descontos: toNumberSafe(composicaoConfig.descontos),
+      regime: composicaoConfig.regime,
+      imposto_retido_aliquota: toNumberSafe(composicaoConfig.impostoRetidoAliquota),
+      incluirImpostosNoCAPEX: composicaoConfig.incluirImpostosNoCapex,
+      impostosRegime: undefined,
+    }
 
-  const composicaoSoloTotal = useMemo(
-    () => sumComposicaoValores(composicaoSolo),
-    [composicaoSolo],
-  )
+    return calcularComposicaoUFV(input)
+  }, [composicaoTelhado, composicaoConfig])
+
+  const composicaoSoloCalculo = useMemo(() => {
+    const extrasSolo =
+      toNumberSafe(composicaoSolo.estruturaSolo) +
+      toNumberSafe(composicaoSolo.tela) +
+      toNumberSafe(composicaoSolo.portaoTela) +
+      toNumberSafe(composicaoSolo.maoObraTela) +
+      toNumberSafe(composicaoSolo.casaInversor) +
+      toNumberSafe(composicaoSolo.brita) +
+      toNumberSafe(composicaoSolo.terraplanagem) +
+      toNumberSafe(composicaoSolo.trafo) +
+      toNumberSafe(composicaoSolo.rede)
+
+    const input = {
+      projeto: toNumberSafe(composicaoSolo.projeto),
+      instalacao: toNumberSafe(composicaoSolo.instalacao),
+      material_ca: toNumberSafe(composicaoSolo.materialCa) + extrasSolo,
+      crea: toNumberSafe(composicaoSolo.crea),
+      art: toNumberSafe(composicaoSolo.art),
+      placa: toNumberSafe(composicaoSolo.placa),
+      comissao_liquida_input: toNumberSafe(composicaoSolo.comissaoLiquida),
+      comissao_tipo: composicaoConfig.comissaoTipo,
+      comissao_percent_base: composicaoConfig.comissaoBase,
+      margem_operacional: toNumberSafe(composicaoSolo.lucroBruto),
+      margem_tipo: composicaoConfig.margemTipo,
+      descontos: toNumberSafe(composicaoConfig.descontos),
+      regime: composicaoConfig.regime,
+      imposto_retido_aliquota: toNumberSafe(composicaoConfig.impostoRetidoAliquota),
+      incluirImpostosNoCAPEX: composicaoConfig.incluirImpostosNoCapex,
+      impostosRegime: undefined,
+    }
+
+    return calcularComposicaoUFV(input)
+  }, [composicaoSolo, composicaoConfig])
+
+  const composicaoTelhadoTotal = useMemo(() => {
+    if (composicaoTelhadoCalculo) {
+      return Math.round(composicaoTelhadoCalculo.venda_total * 100) / 100
+    }
+    return sumComposicaoValores(composicaoTelhado)
+  }, [composicaoTelhadoCalculo, composicaoTelhado])
+
+  const composicaoSoloTotal = useMemo(() => {
+    if (composicaoSoloCalculo) {
+      return Math.round(composicaoSoloCalculo.venda_total * 100) / 100
+    }
+    return sumComposicaoValores(composicaoSolo)
+  }, [composicaoSoloCalculo, composicaoSolo])
 
   const composicaoTelhadoSubtotalSemLucro = useMemo(
-    () => sumComposicaoValoresExcluding(composicaoTelhado, ['lucroBruto']),
+    () =>
+      sumComposicaoValoresExcluding(composicaoTelhado, [
+        'lucroBruto',
+        'comissaoLiquida',
+        'impostoRetido',
+      ]),
     [composicaoTelhado],
   )
 
   const composicaoSoloSubtotalSemLucro = useMemo(
-    () => sumComposicaoValoresExcluding(composicaoSolo, ['lucroBruto']),
+    () =>
+      sumComposicaoValoresExcluding(composicaoSolo, [
+        'lucroBruto',
+        'comissaoLiquida',
+        'impostoRetido',
+      ]),
     [composicaoSolo],
   )
 
@@ -4112,6 +4216,9 @@ export default function App() {
   )
 
   useEffect(() => {
+    if (composicaoConfig.margemTipo !== 'valor') {
+      return
+    }
     setComposicaoTelhado((prev) => {
       const subtotalSemLucro = sumComposicaoValoresExcluding(prev, ['lucroBruto'])
       const lucroCalculado = calcularLucroBrutoPadrao(valorOrcamentoConsiderado, subtotalSemLucro)
@@ -4120,9 +4227,12 @@ export default function App() {
       }
       return { ...prev, lucroBruto: lucroCalculado }
     })
-  }, [valorOrcamentoConsiderado, composicaoTelhadoSubtotalSemLucro])
+  }, [composicaoConfig.margemTipo, valorOrcamentoConsiderado, composicaoTelhadoSubtotalSemLucro])
 
   useEffect(() => {
+    if (composicaoConfig.margemTipo !== 'valor') {
+      return
+    }
     setComposicaoSolo((prev) => {
       const subtotalSemLucro = sumComposicaoValoresExcluding(prev, ['lucroBruto'])
       const lucroCalculado = calcularLucroBrutoPadrao(valorOrcamentoConsiderado, subtotalSemLucro)
@@ -4131,7 +4241,7 @@ export default function App() {
       }
       return { ...prev, lucroBruto: lucroCalculado }
     })
-  }, [valorOrcamentoConsiderado, composicaoSoloSubtotalSemLucro])
+  }, [composicaoConfig.margemTipo, valorOrcamentoConsiderado, composicaoSoloSubtotalSemLucro])
 
   const valorVendaAtual = tipoInstalacao === 'SOLO' ? valorVendaSolo : valorVendaTelhado
 
@@ -4691,6 +4801,19 @@ export default function App() {
         valorVendaTelhado,
         valorVendaSolo,
         tipoAtual: tipoInstalacao,
+        calculoTelhado: composicaoTelhadoCalculo
+          ? {
+              ...composicaoTelhadoCalculo,
+              regime_breakdown: composicaoTelhadoCalculo.regime_breakdown.map((item) => ({ ...item })),
+            }
+          : undefined,
+        calculoSolo: composicaoSoloCalculo
+          ? {
+              ...composicaoSoloCalculo,
+              regime_breakdown: composicaoSoloCalculo.regime_breakdown.map((item) => ({ ...item })),
+            }
+          : undefined,
+        configuracao: { ...composicaoConfig },
       }
 
       return {
@@ -4745,6 +4868,9 @@ export default function App() {
       composicaoSoloTotal,
       composicaoTelhado,
       composicaoTelhadoTotal,
+      composicaoSoloCalculo,
+      composicaoTelhadoCalculo,
+      composicaoConfig,
       areaInstalacao,
       currentBudgetId,
       anosArray,
@@ -9762,6 +9888,14 @@ export default function App() {
   )
 
   const renderComposicaoUfvSection = () => {
+    const comissaoLabel =
+      composicaoConfig.comissaoTipo === 'percentual'
+        ? 'Comissão líquida (%)'
+        : 'Comissão líquida (R$)'
+    const margemLabel =
+      composicaoConfig.margemTipo === 'percentual'
+        ? 'Margem operacional (%)'
+        : 'Margem operacional (R$)'
     const telhadoCampos: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
       { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
       { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
@@ -9771,9 +9905,18 @@ export default function App() {
       { key: 'placa', label: 'Placa', tooltip: 'Investimento nos módulos fotovoltaicos utilizados no sistema.' },
     ]
     const resumoCamposTelhado: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
-      { key: 'comissaoLiquida', label: 'Comissão líquida', tooltip: 'Comissão líquida destinada ao time comercial.' },
-      { key: 'lucroBruto', label: 'Margem operacional', tooltip: 'Margem de lucro bruto prevista sobre o projeto.' },
-      { key: 'impostoRetido', label: 'Imposto retido', tooltip: 'Tributos retidos na fonte (ISS, IR, CSLL etc.).' },
+      {
+        key: 'comissaoLiquida',
+        label: comissaoLabel,
+        tooltip:
+          'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
+      },
+      {
+        key: 'lucroBruto',
+        label: margemLabel,
+        tooltip:
+          'Margem de lucro prevista sobre o CAPEX base. Defina se será informada em valor ou percentual nos parâmetros.',
+      },
     ]
     const soloCamposPrincipais: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
       { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
@@ -9793,12 +9936,42 @@ export default function App() {
       { key: 'rede', label: 'Rede', tooltip: 'Adequações de rede, cabeamento e conexões externas.' },
     ]
     const resumoCamposSolo: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
-      { key: 'comissaoLiquida', label: 'Comissão líquida', tooltip: 'Comissão líquida destinada ao time comercial.' },
-      { key: 'lucroBruto', label: 'Margem operacional', tooltip: 'Margem de lucro bruto prevista sobre o projeto.' },
-      { key: 'impostoRetido', label: 'Imposto retido', tooltip: 'Tributos retidos na fonte (ISS, IR, CSLL etc.).' },
+      {
+        key: 'comissaoLiquida',
+        label: comissaoLabel,
+        tooltip:
+          'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
+      },
+      {
+        key: 'lucroBruto',
+        label: margemLabel,
+        tooltip:
+          'Margem de lucro prevista sobre o CAPEX base. Defina se será informada em valor ou percentual nos parâmetros.',
+      },
     ]
 
     const isTelhado = tipoInstalacao === 'TELHADO'
+    const descontoValor = toNumberSafe(composicaoConfig.descontos)
+    const impostoRetidoPct = toNumberSafe(composicaoConfig.impostoRetidoAliquota)
+    const calculoAtual = isTelhado ? composicaoTelhadoCalculo : composicaoSoloCalculo
+    const regimeBreakdown = calculoAtual?.regime_breakdown ?? []
+    const currencyValue = (valor?: number) => (Number.isFinite(valor) ? currency(Number(valor)) : '—')
+    const percentValue = (valor?: number) =>
+      Number.isFinite(valor)
+        ? `${formatNumberBRWithOptions(Number(valor), {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}%`
+        : '—'
+    const comissaoBaseOptions: { value: BasePercentualComissao; label: string }[] = [
+      { value: 'venda_total', label: 'Venda total' },
+      { value: 'venda_liquida', label: 'Venda líquida' },
+    ]
+    const regimeOptions: { value: RegimeTributario; label: string }[] = [
+      { value: 'simples', label: REGIME_TRIBUTARIO_LABELS.simples },
+      { value: 'lucro_presumido', label: REGIME_TRIBUTARIO_LABELS.lucro_presumido },
+      { value: 'lucro_real', label: REGIME_TRIBUTARIO_LABELS.lucro_real },
+    ]
 
     return (
       <section className="card">
@@ -9806,8 +9979,8 @@ export default function App() {
           <h2>Composição da UFV</h2>
         </div>
         <p className="muted">
-          Informe os componentes adicionais do projeto. Esses valores são somados ao orçamento base para definir o
-          valor final de venda da usina.
+          Informe os componentes adicionais do projeto e configure comissão, margem e impostos para calcular o valor de
+          venda da usina.
         </p>
         <div className="composicao-ufv-groups">
           {isTelhado ? (
@@ -9875,6 +10048,224 @@ export default function App() {
               </div>
             </div>
           )}
+        </div>
+        <div className="composicao-ufv-config">
+          <h3>Parâmetros comerciais</h3>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Tipo de comissão',
+                'Define se o campo de comissão será interpretado como valor (R$) ou percentual.',
+              )}
+            >
+              <select
+                value={composicaoConfig.comissaoTipo}
+                onChange={(event) =>
+                  setComposicaoConfig((prev) => ({ ...prev, comissaoTipo: event.target.value as ComissaoTipo }))
+                }
+              >
+                <option value="valor">Valor (R$)</option>
+                <option value="percentual">Percentual</option>
+              </select>
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Base da comissão',
+                'Quando em percentual, define se a comissão incide sobre a venda total ou a venda líquida (após descontos).',
+              )}
+            >
+              <select
+                value={composicaoConfig.comissaoBase}
+                onChange={(event) =>
+                  setComposicaoConfig((prev) => ({
+                    ...prev,
+                    comissaoBase: event.target.value as BasePercentualComissao,
+                  }))
+                }
+              >
+                {comissaoBaseOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Tipo de margem operacional',
+                'Escolha se a margem será informada como valor absoluto (R$) ou percentual sobre o CAPEX base.',
+              )}
+            >
+              <select
+                value={composicaoConfig.margemTipo}
+                onChange={(event) =>
+                  setComposicaoConfig((prev) => ({ ...prev, margemTipo: event.target.value as MargemTipo }))
+                }
+              >
+                <option value="valor">Valor (R$)</option>
+                <option value="percentual">Percentual</option>
+              </select>
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Descontos comerciais (R$)',
+                'Valor de descontos concedidos ao cliente. Utilizado para calcular a venda líquida.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={Number.isFinite(composicaoConfig.descontos) ? composicaoConfig.descontos : 0}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  const normalized = normalizeCurrencyNumber(parsed)
+                  setComposicaoConfig((prev) => ({
+                    ...prev,
+                    descontos: normalized === null ? 0 : normalized,
+                  }))
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Imposto retido (%)',
+                'Percentual de impostos retidos na fonte aplicados sobre a venda total.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={Number.isFinite(composicaoConfig.impostoRetidoAliquota) ? composicaoConfig.impostoRetidoAliquota : 0}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  const normalized = parsed === null ? 0 : Math.min(100, Math.max(0, parsed))
+                  setComposicaoConfig((prev) => ({
+                    ...prev,
+                    impostoRetidoAliquota: normalized,
+                  }))
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Regime tributário',
+                'Selecione o regime para aplicar a carga tributária padrão sobre a venda total.',
+              )}
+            >
+              <select
+                value={composicaoConfig.regime}
+                onChange={(event) =>
+                  setComposicaoConfig((prev) => ({ ...prev, regime: event.target.value as RegimeTributario }))
+                }
+              >
+                {regimeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <div className="grid g2">
+            <Field
+              label={labelWithTooltip(
+                'Incluir impostos no CAPEX',
+                'Quando marcado, soma impostos retidos e do regime ao CAPEX considerado nas análises.',
+              )}
+            >
+              <label className="inline-checkbox">
+                <input
+                  type="checkbox"
+                  checked={composicaoConfig.incluirImpostosNoCapex}
+                  onChange={(event) =>
+                    setComposicaoConfig((prev) => ({
+                      ...prev,
+                      incluirImpostosNoCapex: event.target.checked,
+                    }))
+                  }
+                />
+                <span>Somar impostos ao CAPEX base.</span>
+              </label>
+            </Field>
+          </div>
+        </div>
+        <div className="composicao-ufv-summary">
+          <h3>Resumo do cálculo</h3>
+          <div className="grid g3">
+            <Field label="CAPEX base">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.capex_base)} />
+            </Field>
+            <Field label="Margem operacional (R$)">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.margem_operacional_valor)} />
+            </Field>
+            <Field label="Comissão líquida (R$)">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.comissao_liquida_valor)} />
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field label="Imposto retido (R$)">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.imposto_retido_valor)} />
+            </Field>
+            <Field label="Impostos do regime (R$)">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.impostos_regime_valor)} />
+            </Field>
+            <Field label="Impostos totais (R$)">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.impostos_totais_valor)} />
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field label="CAPEX considerado">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.capex_total)} />
+            </Field>
+            <Field label="Venda total (bruta)">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.venda_total)} />
+            </Field>
+            <Field label="Venda líquida">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.venda_liquida)} />
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field label="Descontos comerciais">
+              <input type="text" readOnly value={currencyValue(descontoValor)} />
+            </Field>
+            <Field label="Imposto retido (%)">
+              <input type="text" readOnly value={percentValue(impostoRetidoPct)} />
+            </Field>
+            <Field label="Regime tributário">
+              <input
+                type="text"
+                readOnly
+                value={REGIME_TRIBUTARIO_LABELS[composicaoConfig.regime] ?? '—'}
+              />
+            </Field>
+          </div>
+          <div className="composicao-ufv-breakdown">
+            <h4>Detalhamento do regime tributário</h4>
+            {regimeBreakdown.length ? (
+              <div className="grid g3">
+                {regimeBreakdown.map((item) => (
+                  <Field
+                    key={item.nome}
+                    label={`${item.nome} (${formatNumberBRWithOptions(item.aliquota, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}%)`}
+                  >
+                    <input type="text" readOnly value={currencyValue(item.valor)} />
+                  </Field>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">Sem impostos adicionais para o regime selecionado.</p>
+            )}
+          </div>
         </div>
       </section>
     )

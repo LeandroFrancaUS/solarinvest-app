@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import type { TipoSistema } from '../lib/finance/roi'
+import type { Outputs as ComposicaoCalculo } from '../lib/venda/calcComposicaoUFV'
 import { useSafeStore } from '../lib/react/safeStore'
 
 export type VendaClienteInfo = {
@@ -57,17 +58,8 @@ export type VendaOrcamentoKit = {
   valor_total_orcamento: number
 }
 
-export type VendaComposicaoUfv = {
-  projeto: number
-  instalacao: number
-  material_ca: number
-  art: number
-  crea: number
-  placa: number
-  opex: number
-  comissao_liquida: number
-  margem_operacional: number
-  imposto_retido: number
+export type VendaComposicaoUfv = ComposicaoCalculo & {
+  descontos: number
 }
 
 export type VendaPagamentoInfo = {
@@ -149,16 +141,18 @@ const createInitialState = (): VendaState => ({
     valor_total_orcamento: 0,
   },
   composicao: {
-    projeto: 0,
-    instalacao: 0,
-    material_ca: 0,
-    art: 0,
-    crea: 0,
-    placa: 0,
-    opex: 0,
-    comissao_liquida: 0,
-    margem_operacional: 0,
-    imposto_retido: 0,
+    capex_base: 0,
+    margem_operacional_valor: 0,
+    venda_total: 0,
+    venda_liquida: 0,
+    comissao_liquida_valor: 0,
+    imposto_retido_valor: 0,
+    impostos_regime_valor: 0,
+    impostos_totais_valor: 0,
+    capex_total: 0,
+    total_contrato_R$: 0,
+    regime_breakdown: [],
+    descontos: 0,
   },
   pagamento: {
     forma_pagamento: '',
@@ -189,7 +183,10 @@ const cloneState = (input: VendaState): VendaState => ({
   parametros: { ...input.parametros },
   configuracao: { ...input.configuracao },
   orcamento: { itens: input.orcamento.itens.map((item) => ({ ...item })), valor_total_orcamento: input.orcamento.valor_total_orcamento },
-  composicao: { ...input.composicao },
+  composicao: {
+    ...input.composicao,
+    regime_breakdown: input.composicao.regime_breakdown.map((item) => ({ ...item })),
+  },
   pagamento: { ...input.pagamento },
   codigos: { ...input.codigos },
   resultados: { ...input.resultados },
@@ -296,17 +293,9 @@ export const getVendaSnapshot = (): VendaSnapshot => cloneState(vendaStore.getSt
 
 export const calculateCapexFromState = (input: VendaState): number => {
   const campos = input.composicao
-  return (
-    campos.projeto +
-    campos.instalacao +
-    campos.material_ca +
-    campos.art +
-    campos.crea +
-    campos.placa +
-    campos.opex +
-    campos.comissao_liquida +
-    campos.margem_operacional +
-    campos.imposto_retido
-  )
+  if (!campos) {
+    return 0
+  }
+  return Number.isFinite(campos.capex_total) ? Number(campos.capex_total) : 0
 }
 
