@@ -443,13 +443,13 @@ export function SimulacoesTab({
                       <strong>{displayName}</strong>
                       <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
                     </button>
-                    <label className="simulations-select">
+                    <label className={`simulations-select${isSelected ? ' checked' : ''}`}>
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelection(sim.id)}
                       />
-                      Comparar
+                      <span>Comparar</span>
                     </label>
                   </div>
                 )

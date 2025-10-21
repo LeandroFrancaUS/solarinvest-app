@@ -1793,8 +1793,28 @@ table tbody tr:hover {
 
 .simulations-scenario-card {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(9, 14, 24, 0.4);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.simulations-scenario-card:hover,
+.simulations-scenario-card:focus-within {
+  border-color: rgba(255, 140, 0, 0.45);
+  background: rgba(12, 18, 28, 0.6);
+}
+
+.simulations-scenario-card.active {
+  border-color: rgba(255, 140, 0, 0.55);
+  background: rgba(255, 140, 0, 0.12);
+  color: var(--title);
+  box-shadow: none;
 }
 
 .simulations-scenario-button {
@@ -1802,15 +1822,14 @@ table tbody tr:hover {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(9, 14, 24, 0.4);
-  color: var(--ink);
-  font-weight: 600;
+  flex: 1 1 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   text-align: left;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  cursor: pointer;
 }
 
 .simulations-scenario-button strong {
@@ -1826,32 +1845,36 @@ table tbody tr:hover {
   text-transform: none;
 }
 
-.simulations-scenario-button:hover,
 .simulations-scenario-button:focus-visible {
-  border-color: rgba(255, 140, 0, 0.45);
-  background: rgba(12, 18, 28, 0.6);
   outline: none;
-}
-
-.simulations-scenario-card.active .simulations-scenario-button {
-  border-color: rgba(255, 140, 0, 0.55);
-  background: rgba(255, 140, 0, 0.12);
-  color: var(--title);
-  box-shadow: none;
+  box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.35);
+  border-radius: 10px;
 }
 
 .simulations-select {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
   color: var(--muted);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .simulations-select input {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.simulations-select span {
+  line-height: 1.1;
+}
+
+.simulations-select.checked {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .simulations-sidebar-actions {
@@ -1931,10 +1954,19 @@ table tbody tr:hover {
 }
 
 .simulations-toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--muted);
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
+}
+
+.simulations-toggles input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
 }
 
 .field.field-textarea textarea {
