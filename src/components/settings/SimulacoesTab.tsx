@@ -1,876 +1,673 @@
-import React, { useMemo, useState } from 'react'
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import React, { useEffect, useMemo, useState } from 'react'
 
 import {
-  DEFAULT_TUSD_CONFIG,
-  formatYYYYMM,
-  getCurrentYearMonth,
-  parseYYYYMM,
-  runSimulations,
-  type SimulationInput,
-  type SimulationResult,
-} from '../../lib/simulacoes/calculadora'
+  calcEconomiaContrato,
+  calcEconomiaHorizonte,
+  calcKPIs,
+  calcTarifaComDesconto,
+  calcTUSDValue,
+  calcValorMercado,
+  defaultTUSD,
+  makeSimId,
+  projectTarifaCheia,
+  type PerfilConsumo,
+  type Simulacao,
+} from '../../lib/finance/simulation'
 import {
   formatMoneyBR,
   formatNumberBR,
   formatNumberBRWithOptions,
+  formatPercentBR,
   toNumberFlexible,
 } from '../../lib/locale/br-number'
-import { formatAxis } from '../../utils/formatters'
 import { selectNumberInputOnFocus } from '../../utils/focusHandlers'
+import { simulationsSelectors, useSimulationsStore } from '../../store/useSimulationsStore'
 
-type SimulationScenarioForm = {
-  id: string
-  label: string
-  desconto: string
-  capex: string
-  anos: string
-  inflacaoEnergeticaAA: string
-  ipcaAA: string
-  tarifaCheiaInicial: string
-  tarifaComDesconto: string
-  indexarTarifaComDesconto: boolean
-  kcKWhMes: string
-  omMensal: string
-  seguroMensal: string
-  inicioYYYYMM: string
+const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+})
+
+const formatUpdatedAt = (timestamp: number | undefined): string => {
+  if (!timestamp) {
+    return 'Nunca salvo'
+  }
+  try {
+    return dateTimeFormatter.format(new Date(timestamp))
+  } catch (error) {
+    return '—'
+  }
 }
 
-type ScenarioFieldKey = keyof SimulationScenarioForm
-
-type ScenarioErrors = Partial<Record<ScenarioFieldKey, string>>
-
-type SortOption = 'lucroLiquido' | 'roiPercent' | 'paybackMeses' | 'receitaTotal'
-
-const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'lucroLiquido', label: 'Lucro líquido (maior primeiro)' },
-  { value: 'roiPercent', label: 'ROI do projeto (maior primeiro)' },
-  { value: 'paybackMeses', label: 'Payback (menor primeiro)' },
-  { value: 'receitaTotal', label: 'Receita total (maior primeiro)' },
-]
-
-const DEFAULT_SCENARIO_VALUES = {
-  desconto: '20',
-  capex: '40000',
-  anos: '5',
-  inflacaoEnergeticaAA: '8',
-  ipcaAA: '4',
-  tarifaCheiaInicial: '1',
-  tarifaComDesconto: '',
-  kcKWhMes: '400',
-  omMensal: '0',
-  seguroMensal: '0',
+const formatPercentValue = (value: number): string => {
+  if (!Number.isFinite(value) || value <= -1) {
+    return '—'
+  }
+  return formatPercentBR(value)
 }
 
-const createScenarioId = () => `sim-${Math.random().toString(36).slice(2, 10)}`
+const formatPayback = (payback: number): string => {
+  if (!Number.isFinite(payback) || payback <= 0) {
+    return '—'
+  }
+  return formatNumberBRWithOptions(payback, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
 
-const createDefaultScenario = (index: number): SimulationScenarioForm => {
-  const defaultDate = formatYYYYMM(getCurrentYearMonth())
+const createDefaultSimulation = (): Simulacao => {
+  const now = Date.now()
+  const perfil: PerfilConsumo = 'residencial'
   return {
-    id: createScenarioId(),
-    label: `Cenário ${index}`,
-    desconto: DEFAULT_SCENARIO_VALUES.desconto,
-    capex: DEFAULT_SCENARIO_VALUES.capex,
-    anos: DEFAULT_SCENARIO_VALUES.anos,
-    inflacaoEnergeticaAA: DEFAULT_SCENARIO_VALUES.inflacaoEnergeticaAA,
-    ipcaAA: DEFAULT_SCENARIO_VALUES.ipcaAA,
-    tarifaCheiaInicial: DEFAULT_SCENARIO_VALUES.tarifaCheiaInicial,
-    tarifaComDesconto: DEFAULT_SCENARIO_VALUES.tarifaComDesconto,
-    indexarTarifaComDesconto: true,
-    kcKWhMes: DEFAULT_SCENARIO_VALUES.kcKWhMes,
-    omMensal: DEFAULT_SCENARIO_VALUES.omMensal,
-    seguroMensal: DEFAULT_SCENARIO_VALUES.seguroMensal,
-    inicioYYYYMM: defaultDate,
+    id: makeSimId(),
+    nome: 'Nova simulação',
+    createdAt: now,
+    updatedAt: now,
+    desconto_pct: 20,
+    capex_solarinvest: 40000,
+    anos_contrato: 5,
+    inflacao_energetica_pct: 8,
+    inflacao_ipca_pct: 4,
+    tarifa_cheia_r_kwh_m1: 1,
+    kc_kwh_mes: 400,
+    perfil_consumo: perfil,
+    tusd_pct: defaultTUSD(perfil),
+    seguro_pct: 0.8,
+    obs: '',
+    subtrair_tusd_contrato: true,
+    subtrair_tusd_pos_contrato: true,
   }
 }
 
-const toPercentDisplay = (value: number) =>
-  `${formatNumberBRWithOptions(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
+const cloneSimulation = (sim: Simulacao): Simulacao => ({ ...sim })
 
-const toMonthsDisplay = (value: number | null, totalMeses: number) => {
-  if (value == null) {
-    return `> ${totalMeses}`
-  }
-  return formatNumberBRWithOptions(value, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-}
-
-const tooltipFormatter = (value: number) => formatMoneyBR(value)
-
-const monthFormatter = (index: number) => `M${index}`
-
-const parsePositiveNumber = (value: string, allowZero = false) => {
-  const parsed = toNumberFlexible(value)
-  if (parsed == null) return null
-  if (parsed < 0 || (!allowZero && parsed === 0)) return null
-  return parsed
-}
-
-const parseNonNegativeNumber = (value: string) => {
-  const parsed = toNumberFlexible(value)
-  if (parsed == null) return null
-  if (parsed < 0) return null
-  return parsed
-}
-
-const sanitizeLabel = (label: string, fallback: string) => {
-  const trimmed = label.trim()
-  return trimmed || fallback
-}
-
-const buildSimulationInput = (
-  scenario: SimulationScenarioForm,
-  fallbackLabel: string,
-): { input?: SimulationInput; errors: ScenarioErrors } => {
-  const errors: ScenarioErrors = {}
-
-  const descontoPct = parseNonNegativeNumber(scenario.desconto)
-  if (descontoPct == null) {
-    errors.desconto = 'Informe um percentual válido.'
-  } else if (descontoPct > 100) {
-    errors.desconto = 'O desconto deve estar entre 0% e 100%.'
-  }
-
-  const anos = parsePositiveNumber(scenario.anos)
-  if (anos == null) {
-    errors.anos = 'Informe um prazo em anos maior que zero.'
-  }
-
-  const capex = parsePositiveNumber(scenario.capex)
-  if (capex == null) {
-    errors.capex = 'CAPEX inválido.'
-  }
-
-  const inflacaoEnergeticaAA = parseNonNegativeNumber(scenario.inflacaoEnergeticaAA)
-  if (inflacaoEnergeticaAA == null) {
-    errors.inflacaoEnergeticaAA = 'Informe a inflação energética anual.'
-  }
-
-  const ipcaAA = parseNonNegativeNumber(scenario.ipcaAA)
-  if (ipcaAA == null) {
-    errors.ipcaAA = 'Informe o IPCA anual.'
-  }
-
-  const tarifaCheiaInicial = parsePositiveNumber(scenario.tarifaCheiaInicial, true)
-  if (tarifaCheiaInicial == null) {
-    errors.tarifaCheiaInicial = 'Tarifa cheia inválida.'
-  }
-
-  const tarifaComDesconto = scenario.tarifaComDesconto
-    ? parsePositiveNumber(scenario.tarifaComDesconto, true)
-    : undefined
-  if (scenario.tarifaComDesconto && tarifaComDesconto == null) {
-    errors.tarifaComDesconto = 'Tarifa com desconto inválida.'
-  }
-
-  if (
-    tarifaCheiaInicial != null &&
-    tarifaComDesconto != null &&
-    tarifaComDesconto > tarifaCheiaInicial
-  ) {
-    errors.tarifaComDesconto = 'A tarifa com desconto não pode exceder a tarifa cheia.'
-  }
-
-  const kcKWhMes = parsePositiveNumber(scenario.kcKWhMes)
-  if (kcKWhMes == null) {
-    errors.kcKWhMes = 'Informe um piso contratual em kWh/mês.'
-  }
-
-  const omMensal = scenario.omMensal ? parseNonNegativeNumber(scenario.omMensal) : 0
-  if (scenario.omMensal && omMensal == null) {
-    errors.omMensal = 'Valor de O&M inválido.'
-  }
-
-  const seguroMensal = scenario.seguroMensal ? parseNonNegativeNumber(scenario.seguroMensal) : 0
-  if (scenario.seguroMensal && seguroMensal == null) {
-    errors.seguroMensal = 'Valor do seguro inválido.'
-  }
-
-  const inicio = parseYYYYMM(scenario.inicioYYYYMM)
-  if (!inicio) {
-    errors.inicioYYYYMM = 'Data de início inválida (use AAAA-MM).'
-  }
-
-  if (Object.keys(errors).length > 0) {
-    return { errors }
-  }
-
-  const label = sanitizeLabel(scenario.label, fallbackLabel)
-
-  const input: SimulationInput = {
-    id: scenario.id,
-    label,
-    desconto: (descontoPct ?? 0) / 100,
-    capex: capex ?? 0,
-    anos: Math.max(1, Math.round(anos ?? 1)),
-    inflacaoEnergeticaAA: (inflacaoEnergeticaAA ?? 0) / 100,
-    ipcaAA: (ipcaAA ?? 0) / 100,
-    tarifaCheiaInicial: tarifaCheiaInicial ?? 0,
-    indexarTarifaComDesconto: scenario.indexarTarifaComDesconto,
-    kcKWhMes: kcKWhMes ?? 0,
-    omMensal: omMensal ?? 0,
-    seguroMensal: seguroMensal ?? 0,
-    inicioYYYYMM: scenario.inicioYYYYMM,
-  }
-
-  if (tarifaComDesconto != null) {
-    input.tarifaComDesconto = tarifaComDesconto
-  }
-
-  return { input, errors }
-}
-
-const getSortMetric = (result: SimulationResult, sort: SortOption) => {
-  switch (sort) {
-    case 'lucroLiquido':
-      return result.kpi.lucroLiquido
-    case 'roiPercent':
-      return result.kpi.roiPercent
-    case 'paybackMeses':
-      return result.kpi.paybackMeses ?? Infinity
-    case 'receitaTotal':
-      return result.kpi.receitaTotal
-    default:
-      return result.kpi.lucroLiquido
-  }
-}
-
-const sortResults = (results: SimulationResult[], sort: SortOption) => {
-  const sorted = [...results]
-  sorted.sort((a, b) => {
-    const valueA = getSortMetric(a, sort)
-    const valueB = getSortMetric(b, sort)
-
-    if (sort === 'paybackMeses') {
-      return valueA - valueB
-    }
-
-    return valueB - valueA
-  })
-  return sorted
-}
-
-const formatEconomiaLabel = (value: number) => formatMoneyBR(value)
-
-const formatObservacoes = (result: SimulationResult) => {
-  const partes = [] as string[]
-  partes.push(`Indexa T desc: ${result.input.indexarTarifaComDesconto ? 'sim' : 'não'}`)
-  const possuiCustos = (result.input.omMensal ?? 0) > 0 || (result.input.seguroMensal ?? 0) > 0
-  partes.push(`O&M/Seguro: ${possuiCustos ? 'sim' : 'não'}`)
-  return partes.join(' | ')
-}
-
-const formatMonthLabel = (month: number | null, totalMeses?: number) => {
-  if (month == null || !Number.isFinite(month)) {
-    if (Number.isFinite(totalMeses)) {
-      return `> ${formatNumberBRWithOptions(totalMeses ?? 0, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      })} meses`
-    }
-    return 'Sem payback no prazo'
-  }
-
-  return `${formatNumberBRWithOptions(month, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}º mês`
-}
-
-const SimulationTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || payload.length === 0) {
-    return null
-  }
-
-  return (
-    <div className="simulations-chart-tooltip">
-      <strong>{monthFormatter(label as number)}</strong>
-      <ul>
-        {payload.map((entry: any) => (
-          <li key={entry.dataKey}>
-            <span>{entry.name}:</span> <strong>{tooltipFormatter(entry.value)}</strong>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
+const ECONOMIA_ANOS_OPTIONS = [15, 20, 30] as const
 
 export function SimulacoesTab(): JSX.Element {
-  const [scenarios, setScenarios] = useState<SimulationScenarioForm[]>([
-    createDefaultScenario(1),
-  ])
-  const [activeScenarioId, setActiveScenarioId] = useState<string>(scenarios[0]?.id ?? '')
-  const [sortOption, setSortOption] = useState<SortOption>('lucroLiquido')
-  const [results, setResults] = useState<SimulationResult[]>([])
-  const [errors, setErrors] = useState<Record<string, ScenarioErrors>>({})
+  const simulations = useSimulationsStore(simulationsSelectors.list)
+  const itemsById = useSimulationsStore((state) => state.items)
+  const selectedIds = useSimulationsStore((state) => state.selectedIds)
+  const addSimulation = useSimulationsStore((state) => state.add)
+  const updateSimulation = useSimulationsStore((state) => state.update)
+  const removeSimulation = useSimulationsStore((state) => state.remove)
+  const duplicateSimulation = useSimulationsStore((state) => state.duplicate)
+  const selectSimulations = useSimulationsStore((state) => state.select)
+  const clearSelection = useSimulationsStore((state) => state.clearSelection)
 
-  const activeScenario = scenarios.find((scenario) => scenario.id === activeScenarioId) ?? scenarios[0]
+  const [current, setCurrent] = useState<Simulacao>(() => createDefaultSimulation())
+  const [tusdTouched, setTusdTouched] = useState(false)
+  const [comparisonHorizon, setComparisonHorizon] = useState<number>(30)
 
-  const handleUpdateScenario = (id: string, field: ScenarioFieldKey, value: string | boolean) => {
-    setScenarios((prev) =>
-      prev.map((scenario) =>
-        scenario.id === id
-          ? {
-              ...scenario,
-              [field]: typeof value === 'boolean' ? value : value,
-            }
-          : scenario,
-      ),
-    )
+  const isSaved = Boolean(itemsById[current.id])
 
-    setErrors((prev) => {
-      const scenarioErrors = prev[id]
-      if (!scenarioErrors) {
-        return prev
-      }
-      const { [field]: _removed, ...rest } = scenarioErrors
-      return { ...prev, [id]: rest }
-    })
-  }
-
-  const handleAddScenario = () => {
-    setScenarios((prev) => {
-      const nextIndex = prev.length + 1
-      const novo = createDefaultScenario(nextIndex)
-      setActiveScenarioId(novo.id)
-      return [...prev, novo]
-    })
-  }
-
-  const handleDuplicateScenario = () => {
-    const base = activeScenario
-    if (!base) return
-    setScenarios((prev) => {
-      const novo: SimulationScenarioForm = {
-        ...base,
-        id: createScenarioId(),
-        label: `${sanitizeLabel(base.label, 'Cenário')} (cópia)`,
-      }
-      setActiveScenarioId(novo.id)
-      return [...prev, novo]
-    })
-  }
-
-  const handleRemoveScenario = () => {
-    if (scenarios.length <= 1) {
-      return
+  useEffect(() => {
+    if (!tusdTouched && (!current.tusd_pct || current.tusd_pct <= 0)) {
+      setCurrent((prev) => ({ ...prev, tusd_pct: defaultTUSD(prev.perfil_consumo) }))
     }
-    setScenarios((prev) => {
-      const filtered = prev.filter((scenario) => scenario.id !== activeScenarioId)
-      const nextActive = filtered[filtered.length - 1]
-      setActiveScenarioId(nextActive?.id ?? '')
-      setErrors((current) => {
-        const { [activeScenarioId]: _removed, ...rest } = current
-        return rest
-      })
-      return filtered
+  }, [current.perfil_consumo, current.tusd_pct, tusdTouched])
+
+  const valorMercado = useMemo(() => calcValorMercado(current.capex_solarinvest), [current.capex_solarinvest])
+  const tarifaComDesconto = useMemo(
+    () => calcTarifaComDesconto(current.tarifa_cheia_r_kwh_m1, current.desconto_pct),
+    [current.tarifa_cheia_r_kwh_m1, current.desconto_pct],
+  )
+  const encargoTusdMes1 = useMemo(
+    () => calcTUSDValue(current.kc_kwh_mes, current.tarifa_cheia_r_kwh_m1, current.tusd_pct),
+    [current.kc_kwh_mes, current.tarifa_cheia_r_kwh_m1, current.tusd_pct],
+  )
+  const seguroMensal = useMemo(
+    () => valorMercado * (Number.isFinite(current.seguro_pct) ? current.seguro_pct / 100 : 0),
+    [valorMercado, current.seguro_pct],
+  )
+  const economiaContrato = useMemo(() => calcEconomiaContrato(current), [current])
+  const economia15 = useMemo(() => calcEconomiaHorizonte(current, 15), [current])
+  const economia20 = useMemo(() => calcEconomiaHorizonte(current, 20), [current])
+  const economia30 = useMemo(() => calcEconomiaHorizonte(current, 30), [current])
+  const kpis = useMemo(() => calcKPIs(current), [current])
+
+  const selectedSimulations = useMemo(
+    () =>
+      selectedIds
+        .map((id) => itemsById[id])
+        .filter((sim): sim is Simulacao => Boolean(sim))
+        .map((sim) => cloneSimulation(sim)),
+    [itemsById, selectedIds],
+  )
+
+  const comparisonRows = useMemo(() => {
+    return selectedSimulations.map((sim) => {
+      const tarifaDesconto = calcTarifaComDesconto(sim.tarifa_cheia_r_kwh_m1, sim.desconto_pct)
+      const encargoTusd = calcTUSDValue(sim.kc_kwh_mes, sim.tarifa_cheia_r_kwh_m1, sim.tusd_pct)
+      const indicadores = calcKPIs(sim)
+      const economiaContratoSim = calcEconomiaContrato(sim)
+      const economiaHorizon = calcEconomiaHorizonte(sim, comparisonHorizon)
+      return {
+        sim,
+        tarifaDesconto,
+        encargoTusd,
+        indicadores,
+        economiaContratoSim,
+        economiaHorizon,
+      }
     })
-    setResults((prev) => prev.filter((result) => result.input.id !== activeScenarioId))
+  }, [comparisonHorizon, selectedSimulations])
+
+  const handleNumberChange = (field: keyof Simulacao) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = toNumberFlexible(event.target.value)
+    const value = parsed ?? 0
+    setCurrent((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+    if (field === 'tusd_pct') {
+      setTusdTouched(true)
+    }
+  }
+
+  const handleTextChange = (field: 'nome' | 'obs') => (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const value = event.target.value
+    setCurrent((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handlePerfilChange = (perfil: PerfilConsumo) => {
+    setCurrent((prev) => {
+      const shouldAutofill = !tusdTouched || prev.tusd_pct <= 0
+      return {
+        ...prev,
+        perfil_consumo: perfil,
+        tusd_pct: shouldAutofill ? defaultTUSD(perfil) : prev.tusd_pct,
+      }
+    })
+  }
+
+  const handleToggle = (field: 'subtrair_tusd_contrato' | 'subtrair_tusd_pos_contrato') =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setCurrent((prev) => ({
+        ...prev,
+        [field]: event.target.checked,
+      }))
+    }
+
+  const handleNewSimulation = () => {
+    setCurrent(createDefaultSimulation())
+    setTusdTouched(false)
+  }
+
+  const sanitizeSimulationForSave = (sim: Simulacao, timestamp: number): Simulacao => {
+    const nome = sim.nome?.trim()
+    const obs = sim.obs?.trim()
+    return {
+      ...sim,
+      nome: nome ? nome : undefined,
+      obs: obs ? obs : undefined,
+      updatedAt: timestamp,
+    }
+  }
+
+  const handleSave = () => {
+    const now = Date.now()
+    const sanitized = sanitizeSimulationForSave(current, now)
+    if (isSaved) {
+      updateSimulation(current.id, sanitized)
+      setCurrent(sanitized)
+    } else {
+      const payload = { ...sanitized, createdAt: now }
+      addSimulation(payload)
+      setCurrent(payload)
+    }
   }
 
   const handleReset = () => {
-    const primeiro = createDefaultScenario(1)
-    setScenarios([primeiro])
-    setActiveScenarioId(primeiro.id)
-    setResults([])
-    setErrors({})
-  }
-
-  const handleRun = () => {
-    const aggregateErrors: Record<string, ScenarioErrors> = {}
-    const inputs: SimulationInput[] = []
-
-    scenarios.forEach((scenario, index) => {
-      const fallback = `Cenário ${index + 1}`
-      const { input, errors: scenarioErrors } = buildSimulationInput(scenario, fallback)
-      if (Object.keys(scenarioErrors).length > 0 || !input) {
-        aggregateErrors[scenario.id] = scenarioErrors
+    if (isSaved) {
+      const stored = itemsById[current.id]
+      if (stored) {
+        setCurrent(cloneSimulation(stored))
+        setTusdTouched(true)
         return
       }
-      inputs.push({ ...input, label: sanitizeLabel(scenario.label, fallback) })
-    })
-
-    setErrors(aggregateErrors)
-
-    if (Object.keys(aggregateErrors).length > 0) {
-      return
     }
-
-    const computed = runSimulations(inputs, DEFAULT_TUSD_CONFIG)
-    setResults(computed)
+    handleNewSimulation()
   }
 
-  const sortedResults = useMemo(() => sortResults(results, sortOption), [results, sortOption])
-
-  const activeResult = results.find((result) => result.input.id === activeScenario?.id)
-
-  const chartData = useMemo(() => {
-    if (!activeResult) {
-      return []
-    }
-    return activeResult.meses.map((mes) => ({
-      mes: mes.mesIndex,
-      receita: mes.receitaBruta,
-      custos: mes.om + mes.seguro,
-      acumulado: mes.acumuladoLiquido,
-    }))
-  }, [activeResult])
-
-  const handleExportCsv = () => {
-    if (sortedResults.length === 0) {
+  const handleDelete = () => {
+    if (!isSaved) {
+      handleNewSimulation()
       return
     }
-
-    if (typeof window === 'undefined') {
-      return
+    const previousList = simulations
+    const index = previousList.findIndex((sim) => sim.id === current.id)
+    removeSimulation(current.id)
+    const fallback = previousList.filter((sim) => sim.id !== current.id)[Math.max(0, index - 1)]
+    if (fallback) {
+      setCurrent(cloneSimulation(fallback))
+      setTusdTouched(true)
+    } else {
+      handleNewSimulation()
     }
-
-    const header = [
-      'Cenário',
-      'Desconto (%)',
-      'Prazo (meses)',
-      'Kc (kWh/mês)',
-      'Tarifa cheia (mês 1)',
-      'Tarifa com desconto (mês 1)',
-      'Receita total (R$)',
-      'Custos variáveis (R$)',
-      'Lucro líquido (R$)',
-      'ROI (%)',
-      'Payback (meses)',
-      'Retorno bruto a.m. (%)',
-      'Economia cliente mês 1 (R$)',
-      'Economia cliente acumulada (R$)',
-      'Encargo TUSD total (R$)',
-      'Observações',
-    ]
-
-    const rows = sortedResults.map((result) => {
-      const mesesTotais = result.meses.length
-      const tarifaDescontoMes1 = result.meses[0]?.tarifaDesconto ?? 0
-      const linha = [
-        sanitizeLabel(result.input.label ?? '', 'Cenário'),
-        toPercentDisplay(result.input.desconto * 100),
-        formatNumberBRWithOptions(mesesTotais, { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
-        formatNumberBR(result.input.kcKWhMes),
-        formatMoneyBR(result.input.tarifaCheiaInicial),
-        formatMoneyBR(tarifaDescontoMes1),
-        formatMoneyBR(result.kpi.receitaTotal),
-        formatMoneyBR(result.kpi.custosVariaveisTotais),
-        formatMoneyBR(result.kpi.lucroLiquido),
-        toPercentDisplay(result.kpi.roiPercent),
-        toMonthsDisplay(result.kpi.paybackMeses, mesesTotais),
-        toPercentDisplay(result.kpi.retornoMesBrutoPercent),
-        formatMoneyBR(result.kpi.economiaClienteMes1),
-        formatMoneyBR(result.kpi.economiaClienteAcumulada),
-        formatMoneyBR(result.kpi.tusdTotal),
-        formatObservacoes(result),
-      ]
-      return linha.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(';')
-    })
-
-    const csvContent = [header.join(';'), ...rows].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `simulacoes-solarinvest-${Date.now()}.csv`
-    anchor.style.display = 'none'
-    document.body.appendChild(anchor)
-    anchor.click()
-    document.body.removeChild(anchor)
-    URL.revokeObjectURL(url)
   }
+
+  const handleDuplicate = () => {
+    if (isSaved) {
+      const duplicated = duplicateSimulation(current.id)
+      if (duplicated) {
+        setCurrent(cloneSimulation(duplicated))
+        setTusdTouched(true)
+      }
+      return
+    }
+    const now = Date.now()
+    const clone: Simulacao = {
+      ...current,
+      id: makeSimId(),
+      nome: current.nome ? `${current.nome} (cópia)` : current.nome,
+      createdAt: now,
+      updatedAt: now,
+    }
+    setCurrent(clone)
+  }
+
+  const handleLoadSimulation = (id: string) => {
+    const stored = itemsById[id]
+    if (!stored) {
+      return
+    }
+    setCurrent(cloneSimulation(stored))
+    setTusdTouched(true)
+  }
+
+  const handleToggleSelection = (id: string) => {
+    const alreadySelected = selectedIds.includes(id)
+    if (alreadySelected) {
+      selectSimulations(selectedIds.filter((selectedId) => selectedId !== id))
+    } else {
+      selectSimulations([...selectedIds, id])
+    }
+  }
+
+  const prazoMeses = Math.max(0, Math.round(current.anos_contrato * 12))
+  const tarifaCheiaMes1 = projectTarifaCheia(current.tarifa_cheia_r_kwh_m1, current.inflacao_energetica_pct, 1)
 
   return (
     <div className="simulations-tab">
       <div className="simulations-layout">
-        <aside className="simulations-sidebar" aria-label="Cenários cadastrados">
+        <aside className="simulations-sidebar">
           <div className="simulations-sidebar-header">
-            <h5>Cenários</h5>
-            <p>Adicione variações para comparar resultados lado a lado.</p>
+            <h5>Simulações salvas</h5>
+            <p>Gerencie cenários e compare resultados financeiros.</p>
           </div>
           <div className="simulations-scenario-list">
-            {scenarios.map((scenario, index) => {
-              const label = sanitizeLabel(scenario.label, `Cenário ${index + 1}`)
-              return (
-                <button
-                  key={scenario.id}
-                  type="button"
-                  className={`simulations-scenario-button${
-                    scenario.id === activeScenario?.id ? ' active' : ''
-                  }`}
-                  onClick={() => setActiveScenarioId(scenario.id)}
-                >
-                  <span>{label}</span>
-                  <small>{formatNumberBRWithOptions(Number(scenario.anos) * 12 || 0, {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                  })} meses</small>
-                </button>
-              )
-            })}
+            {simulations.length === 0 ? (
+              <p className="muted">Nenhuma simulação salva até o momento.</p>
+            ) : (
+              simulations.map((sim) => {
+                const isActive = sim.id === current.id
+                const isSelected = selectedIds.includes(sim.id)
+                const displayName = sim.nome?.trim() || sim.id
+                return (
+                  <div key={sim.id} className={`simulations-scenario-card${isActive ? ' active' : ''}`}>
+                    <button
+                      type="button"
+                      className="simulations-scenario-button"
+                      onClick={() => handleLoadSimulation(sim.id)}
+                    >
+                      <strong>{displayName}</strong>
+                      <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
+                    </button>
+                    <label className="simulations-select">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleSelection(sim.id)}
+                      />
+                      Comparar
+                    </label>
+                  </div>
+                )
+              })
+            )}
           </div>
           <div className="simulations-sidebar-actions">
-            <button type="button" onClick={handleAddScenario} className="secondary">
-              + Adicionar cenário
+            <button type="button" className="secondary" onClick={handleNewSimulation}>
+              Nova simulação
             </button>
-            <button type="button" onClick={handleDuplicateScenario} className="secondary">
-              Duplicar cenário
+            <button type="button" className="primary" onClick={handleSave}>
+              Salvar
             </button>
-            <button
-              type="button"
-              onClick={handleRemoveScenario}
-              className="secondary danger"
-              disabled={scenarios.length <= 1}
-            >
-              Remover cenário
+            <button type="button" className="secondary" onClick={handleDuplicate}>
+              Duplicar
+            </button>
+            <button type="button" className="secondary danger" onClick={handleDelete}>
+              Excluir
+            </button>
+            <button type="button" className="secondary" onClick={handleReset}>
+              Reset
             </button>
           </div>
         </aside>
 
-        {activeScenario ? (
-          <div className="simulations-form-area">
+        <div className="simulations-form-area">
+          <section className="simulations-form-card">
+            <header>
+              <h4>Configurações da simulação</h4>
+            </header>
             <div className="simulations-form-grid">
               <div className="field">
-                <label htmlFor="simulation-label">Nome do cenário</label>
+                <label htmlFor="sim-nome">Nome do cenário</label>
                 <input
-                  id="simulation-label"
+                  id="sim-nome"
                   type="text"
-                  maxLength={60}
-                  value={activeScenario.label}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'label', event.target.value)}
-                  placeholder="Ex.: 60 meses | 20% desconto"
+                  maxLength={80}
+                  value={current.nome ?? ''}
+                  onChange={handleTextChange('nome')}
+                  placeholder="Ex.: Residencial | 60 meses"
                 />
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-desconto">Desconto SolarInvest (%)</label>
+                <label htmlFor="sim-desconto">Desconto SolarInvest (%)</label>
                 <input
-                  id="simulation-desconto"
+                  id="sim-desconto"
                   type="number"
+                  value={current.desconto_pct}
+                  onChange={handleNumberChange('desconto_pct')}
+                  onFocus={selectNumberInputOnFocus}
                   min={0}
                   max={100}
                   step="0.1"
-                  value={activeScenario.desconto}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'desconto', event.target.value)}
-                  onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.desconto)}
                 />
-                {errors[activeScenario.id]?.desconto ? (
-                  <span className="field-error">{errors[activeScenario.id]?.desconto}</span>
-                ) : null}
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-capex">CAPEX SolarInvest (R$)</label>
+                <label htmlFor="sim-capex">CAPEX SolarInvest (R$)</label>
                 <input
-                  id="simulation-capex"
+                  id="sim-capex"
                   type="number"
+                  value={current.capex_solarinvest}
+                  onChange={handleNumberChange('capex_solarinvest')}
+                  onFocus={selectNumberInputOnFocus}
                   min={0}
                   step="100"
-                  value={activeScenario.capex}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'capex', event.target.value)}
-                  onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.capex)}
                 />
-                {errors[activeScenario.id]?.capex ? (
-                  <span className="field-error">{errors[activeScenario.id]?.capex}</span>
-                ) : null}
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-anos">Prazo (anos)</label>
+                <label htmlFor="sim-anos">Anos de contrato</label>
                 <input
-                  id="simulation-anos"
+                  id="sim-anos"
                   type="number"
+                  value={current.anos_contrato}
+                  onChange={handleNumberChange('anos_contrato')}
+                  onFocus={selectNumberInputOnFocus}
                   min={1}
                   step="1"
-                  value={activeScenario.anos}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'anos', event.target.value)}
-                  onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.anos)}
                 />
-                {errors[activeScenario.id]?.anos ? (
-                  <span className="field-error">{errors[activeScenario.id]?.anos}</span>
-                ) : null}
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-inflacao-energetica">Inflação energética anual (% a.a.)</label>
+                <label htmlFor="sim-inflacao-energetica">Inflação energética anual (% a.a.)</label>
                 <input
-                  id="simulation-inflacao-energetica"
+                  id="sim-inflacao-energetica"
                   type="number"
+                  value={current.inflacao_energetica_pct}
+                  onChange={handleNumberChange('inflacao_energetica_pct')}
+                  onFocus={selectNumberInputOnFocus}
                   min={0}
                   step="0.1"
-                  value={activeScenario.inflacaoEnergeticaAA}
-                  onChange={(event) =>
-                    handleUpdateScenario(activeScenario.id, 'inflacaoEnergeticaAA', event.target.value)
-                  }
-                  onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.inflacaoEnergeticaAA)}
                 />
-                {errors[activeScenario.id]?.inflacaoEnergeticaAA ? (
-                  <span className="field-error">{errors[activeScenario.id]?.inflacaoEnergeticaAA}</span>
-                ) : null}
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-ipca">Inflação IPCA anual (% a.a.)</label>
+                <label htmlFor="sim-inflacao-ipca">Inflação IPCA anual (% a.a.)</label>
                 <input
-                  id="simulation-ipca"
+                  id="sim-inflacao-ipca"
                   type="number"
+                  value={current.inflacao_ipca_pct}
+                  onChange={handleNumberChange('inflacao_ipca_pct')}
+                  onFocus={selectNumberInputOnFocus}
                   min={0}
                   step="0.1"
-                  value={activeScenario.ipcaAA}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'ipcaAA', event.target.value)}
-                  onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.ipcaAA)}
                 />
-                {errors[activeScenario.id]?.ipcaAA ? (
-                  <span className="field-error">{errors[activeScenario.id]?.ipcaAA}</span>
-                ) : null}
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-tarifa-cheia">Tarifa cheia (R$/kWh)</label>
+                <label htmlFor="sim-tarifa-cheia">Tarifa cheia (R$/kWh) - Mês 1</label>
                 <input
-                  id="simulation-tarifa-cheia"
+                  id="sim-tarifa-cheia"
                   type="number"
-                  min={0}
-                  step="0.001"
-                  value={activeScenario.tarifaCheiaInicial}
-                  onChange={(event) =>
-                    handleUpdateScenario(activeScenario.id, 'tarifaCheiaInicial', event.target.value)
-                  }
+                  value={current.tarifa_cheia_r_kwh_m1}
+                  onChange={handleNumberChange('tarifa_cheia_r_kwh_m1')}
                   onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.tarifaCheiaInicial)}
+                  min={0}
+                  step="0.01"
                 />
-                {errors[activeScenario.id]?.tarifaCheiaInicial ? (
-                  <span className="field-error">{errors[activeScenario.id]?.tarifaCheiaInicial}</span>
-                ) : null}
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-tarifa-desconto">Tarifa com desconto (R$/kWh)</label>
+                <label htmlFor="sim-kc">KC (kWh/mês)</label>
                 <input
-                  id="simulation-tarifa-desconto"
+                  id="sim-kc"
                   type="number"
-                  min={0}
-                  step="0.001"
-                  value={activeScenario.tarifaComDesconto}
-                  onChange={(event) =>
-                    handleUpdateScenario(activeScenario.id, 'tarifaComDesconto', event.target.value)
-                  }
+                  value={current.kc_kwh_mes}
+                  onChange={handleNumberChange('kc_kwh_mes')}
                   onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.tarifaComDesconto)}
-                  placeholder="Se vazio, usa tarifa cheia - desconto"
+                  min={0}
+                  step="10"
                 />
-                {errors[activeScenario.id]?.tarifaComDesconto ? (
-                  <span className="field-error">{errors[activeScenario.id]?.tarifaComDesconto}</span>
-                ) : null}
-                <label className="checkbox">
+              </div>
+
+              <div className="field">
+                <label>Perfil de consumo</label>
+                <div className="radio-group">
+                  <label>
+                    <input
+                      type="radio"
+                      name="perfil-consumo"
+                      value="residencial"
+                      checked={current.perfil_consumo === 'residencial'}
+                      onChange={() => handlePerfilChange('residencial')}
+                    />
+                    Residencial
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="perfil-consumo"
+                      value="comercial"
+                      checked={current.perfil_consumo === 'comercial'}
+                      onChange={() => handlePerfilChange('comercial')}
+                    />
+                    Comercial
+                  </label>
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="sim-tusd">TUSD (%)</label>
+                <div className="inline-field">
                   <input
-                    type="checkbox"
-                    checked={activeScenario.indexarTarifaComDesconto}
-                    onChange={(event) =>
-                      handleUpdateScenario(activeScenario.id, 'indexarTarifaComDesconto', event.target.checked)
-                    }
+                    id="sim-tusd"
+                    type="number"
+                    value={current.tusd_pct}
+                    onChange={handleNumberChange('tusd_pct')}
+                    onFocus={selectNumberInputOnFocus}
+                    min={0}
+                    step="0.1"
                   />
-                  Indexar tarifa com desconto pelos reajustes anuais
-                </label>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      setCurrent((prev) => ({ ...prev, tusd_pct: defaultTUSD(prev.perfil_consumo) }))
+                      setTusdTouched(false)
+                    }}
+                  >
+                    Aplicar padrão
+                  </button>
+                </div>
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-kc">Energia contratada Kc (kWh/mês)</label>
+                <label htmlFor="sim-seguro">Seguro mensal (% valor de mercado)</label>
                 <input
-                  id="simulation-kc"
+                  id="sim-seguro"
                   type="number"
-                  min={0}
-                  step="1"
-                  value={activeScenario.kcKWhMes}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'kcKWhMes', event.target.value)}
+                  value={current.seguro_pct}
+                  onChange={handleNumberChange('seguro_pct')}
                   onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.kcKWhMes)}
+                  min={0}
+                  step="0.1"
                 />
-                {errors[activeScenario.id]?.kcKWhMes ? (
-                  <span className="field-error">{errors[activeScenario.id]?.kcKWhMes}</span>
-                ) : null}
               </div>
 
-              <div className="field">
-                <label htmlFor="simulation-om">O&amp;M mensal (R$/mês)</label>
-                <input
-                  id="simulation-om"
-                  type="number"
-                  min={0}
-                  step="10"
-                  value={activeScenario.omMensal}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'omMensal', event.target.value)}
-                  onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.omMensal)}
+              <div className="field field-textarea">
+                <label htmlFor="sim-obs">Observações</label>
+                <textarea
+                  id="sim-obs"
+                  value={current.obs ?? ''}
+                  onChange={handleTextChange('obs')}
+                  rows={3}
+                  placeholder="Informações adicionais sobre o cenário"
                 />
-                {errors[activeScenario.id]?.omMensal ? (
-                  <span className="field-error">{errors[activeScenario.id]?.omMensal}</span>
-                ) : null}
-              </div>
-
-              <div className="field">
-                <label htmlFor="simulation-seguro">Seguro mensal (R$/mês)</label>
-                <input
-                  id="simulation-seguro"
-                  type="number"
-                  min={0}
-                  step="10"
-                  value={activeScenario.seguroMensal}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'seguroMensal', event.target.value)}
-                  onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.seguroMensal)}
-                />
-                {errors[activeScenario.id]?.seguroMensal ? (
-                  <span className="field-error">{errors[activeScenario.id]?.seguroMensal}</span>
-                ) : null}
-              </div>
-
-              <div className="field">
-                <label htmlFor="simulation-inicio">Data de início (AAAA-MM)</label>
-                <input
-                  id="simulation-inicio"
-                  type="month"
-                  value={activeScenario.inicioYYYYMM}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'inicioYYYYMM', event.target.value)}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.inicioYYYYMM)}
-                />
-                {errors[activeScenario.id]?.inicioYYYYMM ? (
-                  <span className="field-error">{errors[activeScenario.id]?.inicioYYYYMM}</span>
-                ) : null}
               </div>
             </div>
 
-            <div className="simulations-actions">
-              <button type="button" className="primary" onClick={handleRun}>
-                Rodar simulação
-              </button>
-              <button type="button" className="secondary" onClick={handleReset}>
-                Limpar
-              </button>
+            <div className="simulations-toggles">
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={current.subtrair_tusd_contrato !== false}
+                  onChange={handleToggle('subtrair_tusd_contrato')}
+                />
+                Subtrair TUSD da economia durante o contrato
+              </label>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={current.subtrair_tusd_pos_contrato !== false}
+                  onChange={handleToggle('subtrair_tusd_pos_contrato')}
+                />
+                Subtrair TUSD no pós-contrato
+              </label>
             </div>
-          </div>
-        ) : null}
+          </section>
+
+          <section className="simulations-summary">
+            <header>
+              <h4>Resumo financeiro</h4>
+            </header>
+            <div className="simulations-summary-grid">
+              <div className="simulations-summary-card">
+                <span>Tarifa cheia (mês 1)</span>
+                <strong>{formatMoneyBR(tarifaCheiaMes1)}</strong>
+              </div>
+              <div className="simulations-summary-card">
+                <span>Tarifa com desconto (mês 1)</span>
+                <strong>{formatMoneyBR(tarifaComDesconto)}</strong>
+              </div>
+              <div className="simulations-summary-card">
+                <span>Valor de mercado</span>
+                <strong>{formatMoneyBR(valorMercado)}</strong>
+              </div>
+              <div className="simulations-summary-card">
+                <span>Seguro mensal</span>
+                <strong>{formatMoneyBR(seguroMensal)}</strong>
+              </div>
+              <div className="simulations-summary-card">
+                <span>Encargo TUSD (mês 1)</span>
+                <strong>{formatMoneyBR(encargoTusdMes1)}</strong>
+              </div>
+              <div className="simulations-summary-card">
+                <span>Economia acumulada no contrato</span>
+                <strong>{formatMoneyBR(economiaContrato)}</strong>
+              </div>
+            </div>
+          </section>
+
+          <section className="simulations-economy">
+            <header>
+              <h4>Economia projetada</h4>
+            </header>
+            <div className="simulations-summary-grid">
+              <div className="simulations-summary-card">
+                <span>Economia em 15 anos</span>
+                <strong>{formatMoneyBR(economia15)}</strong>
+              </div>
+              <div className="simulations-summary-card">
+                <span>Economia em 20 anos</span>
+                <strong>{formatMoneyBR(economia20)}</strong>
+              </div>
+              <div className="simulations-summary-card">
+                <span>Economia em 30 anos</span>
+                <strong>{formatMoneyBR(economia30)}</strong>
+              </div>
+            </div>
+          </section>
+
+          <section className="simulations-kpis">
+            <header>
+              <h4>KPIs SolarInvest</h4>
+            </header>
+            <div className="simulations-kpi-grid">
+              <div className="simulations-kpi-card">
+                <span>Receita total</span>
+                <strong>{formatMoneyBR(kpis.receitaTotal)}</strong>
+              </div>
+              <div className="simulations-kpi-card">
+                <span>Custos variáveis (OPEX)</span>
+                <strong>{formatMoneyBR(kpis.custosVariaveis)}</strong>
+              </div>
+              <div className="simulations-kpi-card">
+                <span>Lucro líquido</span>
+                <strong>{formatMoneyBR(kpis.lucroLiquido)}</strong>
+              </div>
+              <div className="simulations-kpi-card">
+                <span>ROI</span>
+                <strong>{formatPercentValue(kpis.roi)}</strong>
+              </div>
+              <div className="simulations-kpi-card">
+                <span>Payback (meses)</span>
+                <strong>{formatPayback(kpis.paybackMeses)}</strong>
+              </div>
+              <div className="simulations-kpi-card">
+                <span>Retorno a.m. bruto</span>
+                <strong>{formatPercentValue(kpis.retornoMensalBruto)}</strong>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
 
-      {activeResult ? (
-        <div className="simulations-results">
-          <div className="simulations-kpi-cards">
-            <div className="simulations-kpi-card">
-              <span>Receita bruta total</span>
-              <strong>{formatMoneyBR(activeResult.kpi.receitaTotal)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Lucro líquido do projeto</span>
-              <strong>{formatMoneyBR(activeResult.kpi.lucroLiquido)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>ROI do projeto</span>
-              <strong>{toPercentDisplay(activeResult.kpi.roiPercent)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Payback estimado</span>
-              <strong>
-                {formatMonthLabel(activeResult.kpi.paybackMeses, activeResult.meses.length)}
-              </strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Retorno bruto ao mês</span>
-              <strong>{toPercentDisplay(activeResult.kpi.retornoMesBrutoPercent)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Economia cliente (mês 1)</span>
-              <strong>{formatEconomiaLabel(activeResult.kpi.economiaClienteMes1)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Economia acumulada (prazo)</span>
-              <strong>{formatEconomiaLabel(activeResult.kpi.economiaClienteAcumulada)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Encargo TUSD estimado</span>
-              <strong>{formatMoneyBR(activeResult.kpi.tusdTotal)}</strong>
-            </div>
+      <section className="simulations-table">
+        <div className="simulations-table-header">
+          <div>
+            <h5>Comparativo de cenários</h5>
+            <p>Selecione os cenários desejados para gerar o comparativo.</p>
           </div>
-
-          <div className="simulations-chart">
-            <header>
-              <h5>Fluxos mensais</h5>
-              <p>
-                Receita bruta, custos variáveis (O&amp;M/seguro) e fluxo líquido acumulado para o
-                cenário selecionado.
-              </p>
-            </header>
-            {chartData.length > 0 ? (
-              <div className="chart-wrapper">
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart data={chartData} margin={{ top: 16, right: 24, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="mes" tickFormatter={monthFormatter} stroke="#cbd5f5" />
-                    <YAxis tickFormatter={formatAxis} stroke="#cbd5f5" width={100} />
-                    <Tooltip content={<SimulationTooltip />} />
-                    <Legend />
-                    <Line type="monotone" dataKey="receita" stroke="#22d3ee" dot={false} name="Receita" />
-                    <Line type="monotone" dataKey="custos" stroke="#f97316" dot={false} name="Custos" />
-                    <Line
-                      type="monotone"
-                      dataKey="acumulado"
-                      stroke="#a855f7"
-                      dot={false}
-                      name="Fluxo acumulado"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="muted">Rodando a simulação exibe o comportamento mensal aqui.</p>
-            )}
+          <div className="simulations-table-actions">
+            <label htmlFor="economy-horizon">Economia (anos)</label>
+            <select
+              id="economy-horizon"
+              value={comparisonHorizon}
+              onChange={(event) => setComparisonHorizon(Number(event.target.value))}
+            >
+              {ECONOMIA_ANOS_OPTIONS.map((anos) => (
+                <option key={anos} value={anos}>
+                  {anos} anos
+                </option>
+              ))}
+            </select>
+            <button type="button" className="secondary" onClick={clearSelection} disabled={selectedIds.length === 0}>
+              Limpar seleção
+            </button>
           </div>
         </div>
-      ) : null}
 
-      {results.length > 0 ? (
-        <div className="simulations-table">
-          <div className="simulations-table-header">
-            <div>
-              <h5>Comparativo de cenários</h5>
-              <p>Ordene pelo indicador desejado e exporte para CSV.</p>
-            </div>
-            <div className="simulations-table-actions">
-              <label htmlFor="simulation-sort">Ordenar por</label>
-              <select
-                id="simulation-sort"
-                value={sortOption}
-                onChange={(event) => setSortOption(event.target.value as SortOption)}
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="secondary" onClick={handleExportCsv}>
-                Exportar CSV
-              </button>
-            </div>
-          </div>
-
+        {comparisonRows.length === 0 ? (
+          <p className="muted simulations-empty">Selecione ao menos uma simulação salva para comparar.</p>
+        ) : (
           <div className="table-wrapper">
             <table>
               <thead>
@@ -878,60 +675,56 @@ export function SimulacoesTab(): JSX.Element {
                   <th>Cenário</th>
                   <th>Desconto</th>
                   <th>Prazo (meses)</th>
-                  <th>Kc (kWh/mês)</th>
+                  <th>KC (kWh/mês)</th>
                   <th>Tarifa cheia (mês 1)</th>
                   <th>Tarifa com desconto (mês 1)</th>
-                  <th>Receita total</th>
+                  <th>Encargo TUSD</th>
                   <th>Custos variáveis</th>
+                  <th>Receita total</th>
                   <th>Lucro líquido</th>
                   <th>ROI</th>
                   <th>Payback</th>
                   <th>Retorno a.m. bruto</th>
-                  <th>Economia cliente (mês 1)</th>
+                  <th>{`Economia (${comparisonHorizon} anos)`}</th>
                   <th>Economia acumulada</th>
-                  <th>Encargo TUSD</th>
                   <th>Observações</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedResults.map((result) => {
-                  const mesesTotais = result.meses.length
-                  const tarifaDescontoMes1 = result.meses[0]?.tarifaDesconto ?? 0
-                  const isActive = result.input.id === activeScenario?.id
+                {comparisonRows.map(({ sim, tarifaDesconto, encargoTusd, indicadores, economiaContratoSim, economiaHorizon }) => {
+                  const prazo = Math.max(0, Math.round(sim.anos_contrato * 12))
+                  const tarifaCheia = projectTarifaCheia(sim.tarifa_cheia_r_kwh_m1, sim.inflacao_energetica_pct, 1)
                   return (
-                    <tr key={result.input.id} className={isActive ? 'active' : undefined}>
-                      <td>{sanitizeLabel(result.input.label ?? '', 'Cenário')}</td>
-                      <td>{toPercentDisplay(result.input.desconto * 100)}</td>
+                    <tr key={sim.id}>
+                      <td>{sim.nome?.trim() || sim.id}</td>
+                      <td>{formatPercentBR(sim.desconto_pct / 100)}</td>
                       <td>
-                        {formatNumberBRWithOptions(mesesTotais, {
+                        {formatNumberBRWithOptions(prazo, {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 0,
                         })}
                       </td>
-                      <td>{formatNumberBR(result.input.kcKWhMes)}</td>
-                      <td>{formatMoneyBR(result.input.tarifaCheiaInicial)}</td>
-                      <td>{formatMoneyBR(tarifaDescontoMes1)}</td>
-                      <td>{formatMoneyBR(result.kpi.receitaTotal)}</td>
-                      <td>{formatMoneyBR(result.kpi.custosVariaveisTotais)}</td>
-                      <td>{formatMoneyBR(result.kpi.lucroLiquido)}</td>
-                      <td>{toPercentDisplay(result.kpi.roiPercent)}</td>
-                      <td>{toMonthsDisplay(result.kpi.paybackMeses, mesesTotais)}</td>
-                      <td>{toPercentDisplay(result.kpi.retornoMesBrutoPercent)}</td>
-                      <td>{formatMoneyBR(result.kpi.economiaClienteMes1)}</td>
-                      <td>{formatMoneyBR(result.kpi.economiaClienteAcumulada)}</td>
-                      <td>{formatMoneyBR(result.kpi.tusdTotal)}</td>
-                      <td>{formatObservacoes(result)}</td>
+                      <td>{formatNumberBR(sim.kc_kwh_mes)}</td>
+                      <td>{formatMoneyBR(tarifaCheia)}</td>
+                      <td>{formatMoneyBR(tarifaDesconto)}</td>
+                      <td>{formatMoneyBR(encargoTusd)}</td>
+                      <td>{formatMoneyBR(indicadores.custosVariaveis)}</td>
+                      <td>{formatMoneyBR(indicadores.receitaTotal)}</td>
+                      <td>{formatMoneyBR(indicadores.lucroLiquido)}</td>
+                      <td>{formatPercentValue(indicadores.roi)}</td>
+                      <td>{formatPayback(indicadores.paybackMeses)}</td>
+                      <td>{formatPercentValue(indicadores.retornoMensalBruto)}</td>
+                      <td>{formatMoneyBR(economiaHorizon)}</td>
+                      <td>{formatMoneyBR(economiaContratoSim)}</td>
+                      <td>{sim.obs?.trim() || '—'}</td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
-        </div>
-      ) : (
-        <p className="muted simulations-empty">Inclua um ou mais cenários e rode a simulação para ver o comparativo.</p>
-      )}
+        )}
+      </section>
     </div>
   )
 }
-

@@ -22,7 +22,11 @@
     "typeRoots": [
       "./node_modules/@types",
       "./src/types"
-    ]
+    ],
+    "paths": {
+      "zustand": ["./src/lib/zustand-shim"],
+      "zustand/middleware": ["./src/lib/zustand-middleware-shim"]
+    }
   },
   "include": [
     "src"
