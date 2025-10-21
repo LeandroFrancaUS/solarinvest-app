@@ -1,0 +1,42 @@
+[
+  {
+    "distribuidora": "Equatorial Goiás",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": "2025-06-30",
+        "classes": {
+          "B1_Residencial": { "TE": 0.4312, "TUSD_total": 0.3841, "TUSD_FioB": 0.247 },
+          "B2_Rural": { "TE": 0.3985, "TUSD_total": 0.3428, "TUSD_FioB": 0.212 },
+          "B3_Comercial": { "TE": 0.521, "TUSD_total": 0.4125, "TUSD_FioB": 0.273 },
+          "B4_Iluminacao": { "TE": 0.4652, "TUSD_total": 0.3784, "TUSD_FioB": 0.2412 }
+        }
+      },
+      {
+        "data_inicio": "2025-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": { "TE": 0.4475, "TUSD_total": 0.3952, "TUSD_FioB": 0.256 },
+          "B2_Rural": { "TE": 0.4124, "TUSD_total": 0.353, "TUSD_FioB": 0.221 },
+          "B3_Comercial": { "TE": 0.5388, "TUSD_total": 0.426, "TUSD_FioB": 0.284 },
+          "B4_Iluminacao": { "TE": 0.4821, "TUSD_total": 0.3895, "TUSD_FioB": 0.252 }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "DEFAULT",
+    "vigencias": [
+      {
+        "data_inicio": "2024-01-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": { "TE": 0.42, "TUSD_total": 0.36, "TUSD_FioB": 0.23 },
+          "B2_Rural": { "TE": 0.39, "TUSD_total": 0.33, "TUSD_FioB": 0.2 },
+          "B3_Comercial": { "TE": 0.51, "TUSD_total": 0.4, "TUSD_FioB": 0.26 },
+          "B4_Iluminacao": { "TE": 0.46, "TUSD_total": 0.37, "TUSD_FioB": 0.24 }
+        }
+      }
+    ]
+  }
+]

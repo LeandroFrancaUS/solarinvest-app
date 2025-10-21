@@ -1,6 +1,7 @@
 import type { ParsedVendaPdfData } from '../lib/pdf/extractVendas'
 import type { RetornoProjetado, TipoSistema, VendaForm } from '../lib/finance/roi'
 import type { VendaSnapshot } from '../store/useVendaStore'
+import type { MultiUcClasse } from './multiUc'
 
 export type TipoInstalacao = 'TELHADO' | 'SOLO'
 
@@ -59,6 +60,38 @@ export type MensalidadeRow = {
   mensalidadeCheia: number
   mensalidade: number
   totalAcumulado: number
+}
+
+export type PrintableMultiUcUc = {
+  id: string
+  classe: MultiUcClasse
+  consumoKWh: number
+  rateioPercentual: number
+  manualRateioKWh: number | null
+  creditosKWh: number
+  kWhFaturados: number
+  kWhCompensados: number
+  te: number
+  tusdTotal: number
+  tusdFioB: number
+  tusdOutros: number
+  tusdMensal: number
+  teMensal: number
+  totalMensal: number
+  observacoes?: string | null
+}
+
+export type PrintableMultiUcResumo = {
+  energiaGeradaTotalKWh: number
+  energiaGeradaUtilizadaKWh: number
+  sobraCreditosKWh: number
+  escalonamentoPercentual: number
+  totalTusd: number
+  totalTe: number
+  totalContrato: number
+  distribuicaoPorPercentual: boolean
+  anoVigencia: number
+  ucs: PrintableMultiUcUc[]
 }
 
 export type BuyoutRow = {
@@ -136,4 +169,5 @@ export type PrintableProposalProps = {
   composicaoUfv?: UfvComposicaoResumo | undefined
   vendaSnapshot?: VendaSnapshot | undefined
   informacoesImportantesObservacao?: string | null | undefined
+  multiUcResumo?: PrintableMultiUcResumo | null | undefined
 }

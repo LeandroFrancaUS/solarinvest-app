@@ -6,6 +6,8 @@ import type {
   UfvComposicaoTelhadoValores,
 } from '../types/printableProposal'
 import type { SegmentoCliente, TipoSistema, VendaForm } from '../lib/finance/roi'
+import type { MultiUcClasse } from '../types/multiUc'
+import { ESCALONAMENTO_PADRAO } from '../utils/multiUc'
 
 export type TabKey = 'leasing' | 'vendas'
 
@@ -59,6 +61,40 @@ export const SETTINGS_TABS: { id: SettingsTabKey; label: string }[] = [
   { id: 'buyout', label: 'Buyout Parâmetros' },
   { id: 'outros', label: 'Outros' },
 ]
+
+export type MultiUcTarifaFonte = 'auto' | 'manual'
+
+export type MultiUcRateioModo = 'percentual' | 'manual'
+
+export type MultiUcRowState = {
+  id: string
+  classe: MultiUcClasse
+  consumoKWh: number
+  rateioPercentual: number
+  manualRateioKWh: number | null
+  te: number
+  tusdTotal: number
+  tusdFioB: number
+  observacoes: string
+  teFonte: MultiUcTarifaFonte
+  tusdTotalFonte: MultiUcTarifaFonte
+  tusdFioBFonte: MultiUcTarifaFonte
+}
+
+export const createDefaultMultiUcRow = (index = 1): MultiUcRowState => ({
+  id: `UC-${index}`,
+  classe: 'B1_Residencial',
+  consumoKWh: 0,
+  rateioPercentual: index === 1 ? 100 : 0,
+  manualRateioKWh: null,
+  te: 0,
+  tusdTotal: 0,
+  tusdFioB: 0,
+  observacoes: '',
+  teFonte: 'auto',
+  tusdTotalFonte: 'auto',
+  tusdFioBFonte: 'auto',
+})
 
 export const ANALISE_ANOS_PADRAO = 30
 export const DIAS_MES_PADRAO = 30
@@ -158,6 +194,14 @@ export const INITIAL_VALUES = {
   pagosAcumManual: 0,
   composicaoTelhado: createInitialComposicaoTelhado(),
   composicaoSolo: createInitialComposicaoSolo(),
+  multiUcAtivo: false,
+  multiUcUcs: [createDefaultMultiUcRow()],
+  multiUcRateioModo: 'percentual' as MultiUcRateioModo,
+  multiUcEnergiaGeradaKWh: 0,
+  multiUcAnoVigencia: new Date().getFullYear(),
+  multiUcOverrideEscalonamento: false,
+  multiUcEscalonamentoCustomPercent: null as number | null,
+  multiUcEscalonamentoPadrao: ESCALONAMENTO_PADRAO,
 }
 
 export const VENDA_FORM_DEFAULT: VendaForm = {
