@@ -4688,7 +4688,9 @@ export default function App() {
         leasingValorDeMercadoEstimado: isVendaDiretaTab
           ? null
           : leasingValorDeMercadoEstimado || 0,
-        leasingPrazoContratualMeses: isVendaDiretaTab ? null : Math.max(0, Math.floor(duracaoMeses)),
+        leasingPrazoContratualMeses: isVendaDiretaTab
+          ? null
+          : Math.max(0, Math.round(leasingPrazoConsiderado * 12)),
         leasingValorInstalacaoCliente: isVendaDiretaTab ? null : 0,
         leasingDataInicioOperacao: isVendaDiretaTab ? null : null,
         leasingValorMercadoProjetado: isVendaDiretaTab ? null : buyoutResumo.vm0,

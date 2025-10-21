@@ -70,6 +70,25 @@ const DEFAULT_CHART_COLORS = ['#2563EB', '#0f172a'] as const
 
 const formatAnoDescricao = (ano: number): string => `${ano} ${ano === 1 ? 'ano' : 'anos'}`
 
+const formatPrazoContratual = (meses: number): string => {
+  if (!Number.isFinite(meses) || meses <= 0) {
+    return '—'
+  }
+
+  const anos = meses / 12
+  const fractionDigits = Number.isInteger(anos) ? 0 : 1
+  const anosTexto = formatNumberBRWithOptions(anos, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })
+  const mesesTexto = formatNumberBRWithOptions(meses, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+
+  return `${anosTexto} anos (${mesesTexto} meses)`
+}
+
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
   if (!Number.isFinite(value)) {
     return '—'
@@ -428,7 +447,7 @@ function PrintableProposalLeasingInner(
     },
     {
       label: 'Prazo contratual',
-      value: prazoContratual > 0 ? `${prazoContratual} meses` : '—',
+      value: formatPrazoContratual(prazoContratual),
     },
   ]
 
