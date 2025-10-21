@@ -96,7 +96,6 @@ import {
   createEmptyKitBudget,
   createInitialComposicaoSolo,
   createInitialComposicaoTelhado,
-  createInitialComposicaoConfig,
   createInitialVendaForm,
   createDefaultMultiUcRow,
   type EntradaModoLabel,
@@ -113,13 +112,10 @@ import {
 import { buscarTarifaPorClasse } from './utils/tarifasPorClasse'
 import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcResultado } from './utils/multiUc'
 import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
-import {
-  calcularComposicaoUFV,
-  type BasePercentualComissao,
-  type ComissaoTipo,
-  type MargemTipo,
-  type RegimeTributario,
-} from './lib/venda/calcComposicaoUFV'
+import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
+import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
+import type { MargemOrigem } from './types/vendasConfig'
+import { calcularComposicaoUFV, type RegimeTributario } from './lib/venda/calcComposicaoUFV'
 import {
   uploadBudgetFile,
   BudgetUploadError,
@@ -1486,10 +1482,32 @@ export default function App() {
   const [composicaoSolo, setComposicaoSolo] = useState<UfvComposicaoSoloValores>(() =>
     createInitialComposicaoSolo(),
   )
-  const [composicaoConfig, setComposicaoConfig] = useState<UfvComposicaoConfiguracao>(() =>
-    createInitialComposicaoConfig(),
-  )
+  const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
+  const vendasSimulacao = useVendasSimulacoesStore((state) => state.simulations[currentBudgetId])
+  const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
+  const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
 
+  useEffect(() => {
+    initializeVendasSimulacao(currentBudgetId, {
+      origem: vendasConfig.origem_margem_operacional,
+      margemManual: vendasConfig.origem_margem_operacional === 'manual' ? 0 : undefined,
+    })
+  }, [currentBudgetId, vendasConfig.origem_margem_operacional, initializeVendasSimulacao])
+
+  const margemOrigemAtual: MargemOrigem =
+    vendasSimulacao?.margemOrigem ?? vendasConfig.origem_margem_operacional
+  const margemManualValor = Math.max(0, vendasSimulacao?.margemManualValor ?? 0)
+  const descontosValor = Math.max(0, vendasSimulacao?.descontos ?? 0)
+  const arredondarPasso = useMemo(() => {
+    const raw = Number(vendasConfig.arredondar_venda_para)
+    return raw === 1 || raw === 10 || raw === 50 || raw === 100 ? (raw as 1 | 10 | 50 | 100) : 100
+  }, [vendasConfig.arredondar_venda_para])
+  const aprovadoresResumo = useMemo(() => {
+    if (!Array.isArray(vendasConfig.aprovadores) || vendasConfig.aprovadores.length === 0) {
+      return ''
+    }
+    return vendasConfig.aprovadores.join(', ')
+  }, [vendasConfig.aprovadores])
   const [multiUcAtivo, setMultiUcAtivo] = useState(INITIAL_VALUES.multiUcAtivo)
   const [multiUcRows, setMultiUcRows] = useState<MultiUcRowState[]>(() =>
     INITIAL_VALUES.multiUcUcs.map((uc, index) => ({
@@ -2348,8 +2366,11 @@ export default function App() {
         }
         return { ...prev, [campo]: finalValue }
       })
+      if (campo === 'lucroBruto') {
+        updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
+      }
     },
-    [],
+    [currentBudgetId, updateVendasSimulacao],
   )
 
   const handleComposicaoSoloChange = useCallback(
@@ -2363,8 +2384,33 @@ export default function App() {
         }
         return { ...prev, [campo]: finalValue }
       })
+      if (campo === 'lucroBruto') {
+        updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
+      }
     },
-    [],
+    [currentBudgetId, updateVendasSimulacao],
+  )
+
+  const handleMargemManualInput = useCallback(
+    (valor: string) => {
+      const parsed = parseNumericInput(valor)
+      const normalizado = normalizeCurrencyNumber(parsed)
+      const finalValue = normalizado === null ? 0 : normalizado
+      updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
+      setComposicaoTelhado((prev) => (prev.lucroBruto === finalValue ? prev : { ...prev, lucroBruto: finalValue }))
+      setComposicaoSolo((prev) => (prev.lucroBruto === finalValue ? prev : { ...prev, lucroBruto: finalValue }))
+    },
+    [currentBudgetId, updateVendasSimulacao],
+  )
+
+  const handleDescontosConfigChange = useCallback(
+    (valor: string) => {
+      const parsed = parseNumericInput(valor)
+      const normalizado = normalizeCurrencyNumber(parsed)
+      const finalValue = normalizado === null ? 0 : normalizado
+      updateVendasSimulacao(currentBudgetId, { descontos: finalValue })
+    },
+    [currentBudgetId, updateVendasSimulacao],
   )
 
   const validateVendaForm = useCallback((form: VendaForm) => {
@@ -4068,19 +4114,48 @@ export default function App() {
       art: toNumberSafe(composicaoTelhado.art),
       placa: toNumberSafe(composicaoTelhado.placa),
       comissao_liquida_input: toNumberSafe(composicaoTelhado.comissaoLiquida),
-      comissao_tipo: composicaoConfig.comissaoTipo,
-      comissao_percent_base: composicaoConfig.comissaoBase,
-      margem_operacional: toNumberSafe(composicaoTelhado.lucroBruto),
-      margem_tipo: composicaoConfig.margemTipo,
-      descontos: toNumberSafe(composicaoConfig.descontos),
-      regime: composicaoConfig.regime,
-      imposto_retido_aliquota: toNumberSafe(composicaoConfig.impostoRetidoAliquota),
-      incluirImpostosNoCAPEX: composicaoConfig.incluirImpostosNoCapex,
-      impostosRegime: undefined,
+      comissao_tipo: vendasConfig.comissao_default_tipo,
+      comissao_percent_base: vendasConfig.comissao_percent_base,
+      teto_comissao_percent: vendasConfig.teto_comissao_percent,
+      margem_origem: margemOrigemAtual,
+      margem_operacional_padrao_percent: vendasConfig.margem_operacional_padrao_percent,
+      margem_manual_valor: margemManualValor,
+      descontos: toNumberSafe(descontosValor),
+      preco_minimo_percent_sobre_capex: vendasConfig.preco_minimo_percent_sobre_capex,
+      arredondar_venda_para: arredondarPasso,
+      desconto_max_percent_sem_aprovacao: vendasConfig.desconto_max_percent_sem_aprovacao,
+      workflow_aprovacao_ativo: vendasConfig.workflow_aprovacao_ativo,
+      regime: vendasConfig.regime_tributario_default,
+      imposto_retido_aliquota: toNumberSafe(vendasConfig.imposto_retido_aliquota_default),
+      incluirImpostosNoCAPEX: vendasConfig.incluirImpostosNoCAPEX_default,
+      impostosRegime: vendasConfig.impostosRegime_overrides,
     }
 
     return calcularComposicaoUFV(input)
-  }, [composicaoTelhado, composicaoConfig])
+  }, [
+    arredondarPasso,
+    composicaoTelhado.art,
+    composicaoTelhado.crea,
+    composicaoTelhado.instalacao,
+    composicaoTelhado.materialCa,
+    composicaoTelhado.placa,
+    composicaoTelhado.projeto,
+    composicaoTelhado.comissaoLiquida,
+    descontosValor,
+    margemManualValor,
+    margemOrigemAtual,
+    vendasConfig.comissao_default_tipo,
+    vendasConfig.comissao_percent_base,
+    vendasConfig.teto_comissao_percent,
+    vendasConfig.margem_operacional_padrao_percent,
+    vendasConfig.preco_minimo_percent_sobre_capex,
+    vendasConfig.desconto_max_percent_sem_aprovacao,
+    vendasConfig.workflow_aprovacao_ativo,
+    vendasConfig.regime_tributario_default,
+    vendasConfig.imposto_retido_aliquota_default,
+    vendasConfig.impostosRegime_overrides,
+    vendasConfig.incluirImpostosNoCAPEX_default,
+  ])
 
   const composicaoSoloCalculo = useMemo(() => {
     const extrasSolo =
@@ -4102,19 +4177,68 @@ export default function App() {
       art: toNumberSafe(composicaoSolo.art),
       placa: toNumberSafe(composicaoSolo.placa),
       comissao_liquida_input: toNumberSafe(composicaoSolo.comissaoLiquida),
-      comissao_tipo: composicaoConfig.comissaoTipo,
-      comissao_percent_base: composicaoConfig.comissaoBase,
-      margem_operacional: toNumberSafe(composicaoSolo.lucroBruto),
-      margem_tipo: composicaoConfig.margemTipo,
-      descontos: toNumberSafe(composicaoConfig.descontos),
-      regime: composicaoConfig.regime,
-      imposto_retido_aliquota: toNumberSafe(composicaoConfig.impostoRetidoAliquota),
-      incluirImpostosNoCAPEX: composicaoConfig.incluirImpostosNoCapex,
-      impostosRegime: undefined,
+      comissao_tipo: vendasConfig.comissao_default_tipo,
+      comissao_percent_base: vendasConfig.comissao_percent_base,
+      teto_comissao_percent: vendasConfig.teto_comissao_percent,
+      margem_origem: margemOrigemAtual,
+      margem_operacional_padrao_percent: vendasConfig.margem_operacional_padrao_percent,
+      margem_manual_valor: margemManualValor,
+      descontos: toNumberSafe(descontosValor),
+      preco_minimo_percent_sobre_capex: vendasConfig.preco_minimo_percent_sobre_capex,
+      arredondar_venda_para: arredondarPasso,
+      desconto_max_percent_sem_aprovacao: vendasConfig.desconto_max_percent_sem_aprovacao,
+      workflow_aprovacao_ativo: vendasConfig.workflow_aprovacao_ativo,
+      regime: vendasConfig.regime_tributario_default,
+      imposto_retido_aliquota: toNumberSafe(vendasConfig.imposto_retido_aliquota_default),
+      incluirImpostosNoCAPEX: vendasConfig.incluirImpostosNoCAPEX_default,
+      impostosRegime: vendasConfig.impostosRegime_overrides,
     }
 
     return calcularComposicaoUFV(input)
-  }, [composicaoSolo, composicaoConfig])
+  }, [
+    arredondarPasso,
+    composicaoSolo.art,
+    composicaoSolo.crea,
+    composicaoSolo.instalacao,
+    composicaoSolo.materialCa,
+    composicaoSolo.placa,
+    composicaoSolo.projeto,
+    composicaoSolo.comissaoLiquida,
+    composicaoSolo.estruturaSolo,
+    composicaoSolo.tela,
+    composicaoSolo.portaoTela,
+    composicaoSolo.maoObraTela,
+    composicaoSolo.casaInversor,
+    composicaoSolo.brita,
+    composicaoSolo.terraplanagem,
+    composicaoSolo.trafo,
+    composicaoSolo.rede,
+    descontosValor,
+    margemManualValor,
+    margemOrigemAtual,
+    vendasConfig.comissao_default_tipo,
+    vendasConfig.comissao_percent_base,
+    vendasConfig.teto_comissao_percent,
+    vendasConfig.margem_operacional_padrao_percent,
+    vendasConfig.preco_minimo_percent_sobre_capex,
+    vendasConfig.desconto_max_percent_sem_aprovacao,
+    vendasConfig.workflow_aprovacao_ativo,
+    vendasConfig.regime_tributario_default,
+    vendasConfig.imposto_retido_aliquota_default,
+    vendasConfig.impostosRegime_overrides,
+    vendasConfig.incluirImpostosNoCAPEX_default,
+  ])
+
+  const margemCalculadaAtual = useMemo(() => {
+    if (tipoInstalacao === 'SOLO') {
+      return composicaoSoloCalculo?.margem_operacional_valor ?? 0
+    }
+    return composicaoTelhadoCalculo?.margem_operacional_valor ?? 0
+  }, [
+    tipoInstalacao,
+    composicaoSoloCalculo?.margem_operacional_valor,
+    composicaoTelhadoCalculo?.margem_operacional_valor,
+  ])
 
   useEffect(() => {
     const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
@@ -4135,14 +4259,9 @@ export default function App() {
     vendaActions.updateComposicao({
       ...valores,
       regime_breakdown: valores.regime_breakdown.map((item) => ({ ...item })),
-      descontos: toNumberSafe(composicaoConfig.descontos),
+      descontos: toNumberSafe(descontosValor),
     })
-  }, [
-    composicaoConfig.descontos,
-    composicaoSoloCalculo,
-    composicaoTelhadoCalculo,
-    tipoInstalacao,
-  ])
+  }, [descontosValor, composicaoSoloCalculo, composicaoTelhadoCalculo, tipoInstalacao])
 
   const composicaoTelhadoTotal = useMemo(() => {
     if (composicaoTelhadoCalculo) {
@@ -4216,32 +4335,25 @@ export default function App() {
   )
 
   useEffect(() => {
-    if (composicaoConfig.margemTipo !== 'valor') {
-      return
-    }
-    setComposicaoTelhado((prev) => {
-      const subtotalSemLucro = sumComposicaoValoresExcluding(prev, ['lucroBruto'])
-      const lucroCalculado = calcularLucroBrutoPadrao(valorOrcamentoConsiderado, subtotalSemLucro)
-      if (numbersAreClose(prev.lucroBruto, lucroCalculado)) {
-        return prev
-      }
-      return { ...prev, lucroBruto: lucroCalculado }
-    })
-  }, [composicaoConfig.margemTipo, valorOrcamentoConsiderado, composicaoTelhadoSubtotalSemLucro])
-
-  useEffect(() => {
-    if (composicaoConfig.margemTipo !== 'valor') {
-      return
-    }
-    setComposicaoSolo((prev) => {
-      const subtotalSemLucro = sumComposicaoValoresExcluding(prev, ['lucroBruto'])
-      const lucroCalculado = calcularLucroBrutoPadrao(valorOrcamentoConsiderado, subtotalSemLucro)
-      if (numbersAreClose(prev.lucroBruto, lucroCalculado)) {
-        return prev
-      }
-      return { ...prev, lucroBruto: lucroCalculado }
-    })
-  }, [composicaoConfig.margemTipo, valorOrcamentoConsiderado, composicaoSoloSubtotalSemLucro])
+    const margemCalculada =
+      margemOrigemAtual === 'manual'
+        ? margemManualValor
+        : (tipoInstalacao === 'SOLO'
+            ? composicaoSoloCalculo?.margem_operacional_valor
+            : composicaoTelhadoCalculo?.margem_operacional_valor) ?? 0
+    setComposicaoTelhado((prev) =>
+      numbersAreClose(prev.lucroBruto, margemCalculada) ? prev : { ...prev, lucroBruto: margemCalculada },
+    )
+    setComposicaoSolo((prev) =>
+      numbersAreClose(prev.lucroBruto, margemCalculada) ? prev : { ...prev, lucroBruto: margemCalculada },
+    )
+  }, [
+    margemManualValor,
+    margemOrigemAtual,
+    composicaoTelhadoCalculo?.margem_operacional_valor,
+    composicaoSoloCalculo?.margem_operacional_valor,
+    tipoInstalacao,
+  ])
 
   const valorVendaAtual = tipoInstalacao === 'SOLO' ? valorVendaSolo : valorVendaTelhado
 
@@ -4792,6 +4904,20 @@ export default function App() {
         valorTotal: Number.isFinite(item.precoTotal) ? Number(item.precoTotal) : null,
       }))
 
+      const composicaoConfiguracaoResumo: UfvComposicaoConfiguracao = {
+        comissaoTipo: vendasConfig.comissao_default_tipo,
+        comissaoBase: vendasConfig.comissao_percent_base,
+        margemOrigem: margemOrigemAtual,
+        margemPadraoPercent: vendasConfig.margem_operacional_padrao_percent,
+        margemManualValor,
+        descontos: toNumberSafe(descontosValor),
+        regime: vendasConfig.regime_tributario_default,
+        impostoRetidoAliquota: toNumberSafe(vendasConfig.imposto_retido_aliquota_default),
+        incluirImpostosNoCapex: vendasConfig.incluirImpostosNoCAPEX_default,
+        precoMinimoPercent: vendasConfig.preco_minimo_percent_sobre_capex,
+        arredondarPasso: arredondarPasso,
+      }
+
       const composicaoResumo: UfvComposicaoResumo = {
         telhado: { ...composicaoTelhado },
         solo: { ...composicaoSolo },
@@ -4813,7 +4939,17 @@ export default function App() {
               regime_breakdown: composicaoSoloCalculo.regime_breakdown.map((item) => ({ ...item })),
             }
           : undefined,
-        configuracao: { ...composicaoConfig },
+        configuracao: composicaoConfiguracaoResumo,
+      }
+
+      const printableVendasConfig = {
+        exibir_precos_unitarios: vendasConfig.exibir_precos_unitarios,
+        exibir_margem: vendasConfig.exibir_margem,
+        exibir_comissao: vendasConfig.exibir_comissao,
+        exibir_impostos: vendasConfig.exibir_impostos,
+        mostrar_quebra_impostos_no_pdf_cliente:
+          vendasConfig.mostrar_quebra_impostos_no_pdf_cliente,
+        observacao_padrao_proposta: vendasConfig.observacao_padrao_proposta,
       }
 
       return {
@@ -4861,6 +4997,8 @@ export default function App() {
         composicaoUfv: composicaoResumo,
         vendaSnapshot,
         multiUcResumo: multiUcPrintableResumo,
+        vendasConfigSnapshot: printableVendasConfig,
+        informacoesImportantesObservacao: vendasConfig.observacao_padrao_proposta,
       }
     },
     [
@@ -4870,7 +5008,27 @@ export default function App() {
       composicaoTelhadoTotal,
       composicaoSoloCalculo,
       composicaoTelhadoCalculo,
-      composicaoConfig,
+      vendasConfig.comissao_default_tipo,
+      vendasConfig.comissao_percent_base,
+      vendasConfig.teto_comissao_percent,
+      vendasConfig.margem_operacional_padrao_percent,
+      vendasConfig.preco_minimo_percent_sobre_capex,
+      vendasConfig.desconto_max_percent_sem_aprovacao,
+      vendasConfig.workflow_aprovacao_ativo,
+      vendasConfig.regime_tributario_default,
+      vendasConfig.imposto_retido_aliquota_default,
+      vendasConfig.impostosRegime_overrides,
+      vendasConfig.incluirImpostosNoCAPEX_default,
+      vendasConfig.exibir_precos_unitarios,
+      vendasConfig.exibir_margem,
+      vendasConfig.exibir_comissao,
+      vendasConfig.exibir_impostos,
+      vendasConfig.mostrar_quebra_impostos_no_pdf_cliente,
+      vendasConfig.observacao_padrao_proposta,
+      margemOrigemAtual,
+      margemManualValor,
+      descontosValor,
+      arredondarPasso,
       areaInstalacao,
       currentBudgetId,
       anosArray,
@@ -9889,13 +10047,10 @@ export default function App() {
 
   const renderComposicaoUfvSection = () => {
     const comissaoLabel =
-      composicaoConfig.comissaoTipo === 'percentual'
+      vendasConfig.comissao_default_tipo === 'percentual'
         ? 'Comissão líquida (%)'
         : 'Comissão líquida (R$)'
-    const margemLabel =
-      composicaoConfig.margemTipo === 'percentual'
-        ? 'Margem operacional (%)'
-        : 'Margem operacional (R$)'
+    const margemLabel = 'Margem operacional (R$)'
     const telhadoCampos: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
       { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
       { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
@@ -9951,28 +10106,37 @@ export default function App() {
     ]
 
     const isTelhado = tipoInstalacao === 'TELHADO'
-    const descontoValor = toNumberSafe(composicaoConfig.descontos)
-    const impostoRetidoPct = toNumberSafe(composicaoConfig.impostoRetidoAliquota)
+    const descontoValor = toNumberSafe(descontosValor)
+    const impostoRetidoPct = toNumberSafe(vendasConfig.imposto_retido_aliquota_default)
+    const impostoRetidoPercentLabel = formatPercentBRWithDigits(impostoRetidoPct / 100, 2)
+    const workflowAtivo = Boolean(vendasConfig.workflow_aprovacao_ativo)
     const calculoAtual = isTelhado ? composicaoTelhadoCalculo : composicaoSoloCalculo
     const regimeBreakdown = calculoAtual?.regime_breakdown ?? []
     const currencyValue = (valor?: number) => (Number.isFinite(valor) ? currency(Number(valor)) : '—')
     const percentValue = (valor?: number) =>
-      Number.isFinite(valor)
-        ? `${formatNumberBRWithOptions(Number(valor), {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}%`
-        : '—'
-    const comissaoBaseOptions: { value: BasePercentualComissao; label: string }[] = [
-      { value: 'venda_total', label: 'Venda total' },
-      { value: 'venda_liquida', label: 'Venda líquida' },
-    ]
-    const regimeOptions: { value: RegimeTributario; label: string }[] = [
-      { value: 'simples', label: REGIME_TRIBUTARIO_LABELS.simples },
-      { value: 'lucro_presumido', label: REGIME_TRIBUTARIO_LABELS.lucro_presumido },
-      { value: 'lucro_real', label: REGIME_TRIBUTARIO_LABELS.lucro_real },
-    ]
-
+      Number.isFinite(valor) ? formatPercentBRWithDigits(Number(valor) / 100, 2) : '—'
+    const precoMinimoAplicadoLabel = calculoAtual
+      ? calculoAtual.preco_minimo_aplicado
+        ? 'Sim'
+        : 'Não'
+      : '—'
+    const aprovacaoLabel = (() => {
+      if (!workflowAtivo) {
+        return 'Workflow desativado'
+      }
+      if (!calculoAtual) {
+        return '—'
+      }
+      if (!calculoAtual.desconto_requer_aprovacao) {
+        return 'Não'
+      }
+      return aprovadoresResumo ? `Sim — ${aprovadoresResumo}` : 'Sim'
+    })()
+    const workflowStatusLabel = workflowAtivo ? 'Ativo' : 'Desativado'
+    const margemOrigemLabel =
+      margemOrigemAtual === 'manual'
+        ? 'Manual (valor customizado)'
+        : 'Automática (configuração global)'
     return (
       <section className="card">
         <div className="card-header">
@@ -10001,18 +10165,22 @@ export default function App() {
                 ))}
               </div>
               <div className="grid g3">
-                {resumoCamposTelhado.map(({ key, label, tooltip }) => (
-                  <Field key={`telhado-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
-                      onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                ))}
+                {resumoCamposTelhado.map(({ key, label, tooltip }) => {
+                  const isMargemField = key === 'lucroBruto'
+                  return (
+                    <Field key={`telhado-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                        onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
+                        onFocus={selectNumberInputOnFocus}
+                        disabled={isMargemField && margemOrigemAtual !== 'manual'}
+                      />
+                    </Field>
+                  )
+                })}
               </div>
             </div>
           ) : (
@@ -10033,81 +10201,72 @@ export default function App() {
                 ))}
               </div>
               <div className="grid g3">
-                {resumoCamposSolo.map(({ key, label, tooltip }) => (
-                  <Field key={`solo-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
-                      onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                ))}
+                {resumoCamposSolo.map(({ key, label, tooltip }) => {
+                  const isMargemField = key === 'lucroBruto'
+                  return (
+                    <Field key={`solo-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                        onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
+                        onFocus={selectNumberInputOnFocus}
+                        disabled={isMargemField && margemOrigemAtual !== 'manual'}
+                      />
+                    </Field>
+                  )
+                })}
               </div>
             </div>
           )}
         </div>
         <div className="composicao-ufv-config">
-          <h3>Parâmetros comerciais</h3>
+          <h3>Ajustes comerciais</h3>
           <div className="grid g3">
             <Field
               label={labelWithTooltip(
-                'Tipo de comissão',
-                'Define se o campo de comissão será interpretado como valor (R$) ou percentual.',
+                'Origem da margem',
+                'Use cálculo automático ou valor manual por simulação.',
               )}
             >
               <select
-                value={composicaoConfig.comissaoTipo}
-                onChange={(event) =>
-                  setComposicaoConfig((prev) => ({ ...prev, comissaoTipo: event.target.value as ComissaoTipo }))
-                }
+                value={margemOrigemAtual}
+                onChange={(event) => {
+                  const origemSelecionada = event.target.value as MargemOrigem
+                  updateVendasSimulacao(currentBudgetId, {
+                    margemOrigem: origemSelecionada,
+                    margemManualValor:
+                      origemSelecionada === 'manual'
+                        ? Math.max(0, margemCalculadaAtual)
+                        : undefined,
+                  })
+                }}
               >
-                <option value="valor">Valor (R$)</option>
-                <option value="percentual">Percentual</option>
+                <option value="automatica">Automática (configuração global)</option>
+                <option value="manual">Manual por proposta</option>
               </select>
             </Field>
             <Field
               label={labelWithTooltip(
-                'Base da comissão',
-                'Quando em percentual, define se a comissão incide sobre a venda total ou a venda líquida (após descontos).',
+                'Margem Operacional (R$)',
+                'Valor manual da margem desta proposta. Se automatizado nas Configurações, este campo ficará bloqueado.',
               )}
             >
-              <select
-                value={composicaoConfig.comissaoBase}
-                onChange={(event) =>
-                  setComposicaoConfig((prev) => ({
-                    ...prev,
-                    comissaoBase: event.target.value as BasePercentualComissao,
-                  }))
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={
+                  margemOrigemAtual === 'manual'
+                    ? (Number.isFinite(margemManualValor) ? margemManualValor : 0)
+                    : margemCalculadaAtual
                 }
-              >
-                {comissaoBaseOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(event) => handleMargemManualInput(event.target.value)}
+                onFocus={selectNumberInputOnFocus}
+                disabled={margemOrigemAtual !== 'manual'}
+              />
             </Field>
-            <Field
-              label={labelWithTooltip(
-                'Tipo de margem operacional',
-                'Escolha se a margem será informada como valor absoluto (R$) ou percentual sobre o CAPEX base.',
-              )}
-            >
-              <select
-                value={composicaoConfig.margemTipo}
-                onChange={(event) =>
-                  setComposicaoConfig((prev) => ({ ...prev, margemTipo: event.target.value as MargemTipo }))
-                }
-              >
-                <option value="valor">Valor (R$)</option>
-                <option value="percentual">Percentual</option>
-              </select>
-            </Field>
-          </div>
-          <div className="grid g3">
             <Field
               label={labelWithTooltip(
                 'Descontos comerciais (R$)',
@@ -10118,18 +10277,13 @@ export default function App() {
                 type="number"
                 min={0}
                 step="0.01"
-                value={Number.isFinite(composicaoConfig.descontos) ? composicaoConfig.descontos : 0}
-                onChange={(event) => {
-                  const parsed = parseNumericInput(event.target.value)
-                  const normalized = normalizeCurrencyNumber(parsed)
-                  setComposicaoConfig((prev) => ({
-                    ...prev,
-                    descontos: normalized === null ? 0 : normalized,
-                  }))
-                }}
+                value={Number.isFinite(descontosValor) ? descontosValor : 0}
+                onChange={(event) => handleDescontosConfigChange(event.target.value)}
                 onFocus={selectNumberInputOnFocus}
               />
             </Field>
+          </div>
+          <div className="grid g3">
             <Field
               label={labelWithTooltip(
                 'Imposto retido (%)',
@@ -10137,43 +10291,23 @@ export default function App() {
               )}
             >
               <input
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
-                value={Number.isFinite(composicaoConfig.impostoRetidoAliquota) ? composicaoConfig.impostoRetidoAliquota : 0}
-                onChange={(event) => {
-                  const parsed = parseNumericInput(event.target.value)
-                  const normalized = parsed === null ? 0 : Math.min(100, Math.max(0, parsed))
-                  setComposicaoConfig((prev) => ({
-                    ...prev,
-                    impostoRetidoAliquota: normalized,
-                  }))
-                }}
-                onFocus={selectNumberInputOnFocus}
+                type="text"
+                readOnly
+                value={impostoRetidoPercentLabel}
               />
             </Field>
             <Field
               label={labelWithTooltip(
                 'Regime tributário',
-                'Selecione o regime para aplicar a carga tributária padrão sobre a venda total.',
+                'Preset fiscal usado no cálculo; confirme com a contabilidade.',
               )}
             >
-              <select
-                value={composicaoConfig.regime}
-                onChange={(event) =>
-                  setComposicaoConfig((prev) => ({ ...prev, regime: event.target.value as RegimeTributario }))
-                }
-              >
-                {regimeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <input
+                type="text"
+                readOnly
+                value={REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? '—'}
+              />
             </Field>
-          </div>
-          <div className="grid g2">
             <Field
               label={labelWithTooltip(
                 'Incluir impostos no CAPEX',
@@ -10181,17 +10315,8 @@ export default function App() {
               )}
             >
               <label className="inline-checkbox">
-                <input
-                  type="checkbox"
-                  checked={composicaoConfig.incluirImpostosNoCapex}
-                  onChange={(event) =>
-                    setComposicaoConfig((prev) => ({
-                      ...prev,
-                      incluirImpostosNoCapex: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Somar impostos ao CAPEX base.</span>
+                <input type="checkbox" checked={vendasConfig.incluirImpostosNoCAPEX_default} readOnly disabled />
+                <span>Somar impostos ao CAPEX base (configuração global).</span>
               </label>
             </Field>
           </div>
@@ -10232,22 +10357,44 @@ export default function App() {
             </Field>
           </div>
           <div className="grid g3">
-            <Field label="Descontos comerciais">
+            <Field label="Descontos comerciais (R$)">
               <input type="text" readOnly value={currencyValue(descontoValor)} />
             </Field>
-            <Field label="Imposto retido (%)">
-              <input type="text" readOnly value={percentValue(impostoRetidoPct)} />
+            <Field label="Preço mínimo (R$)">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.preco_minimo)} />
             </Field>
-            <Field label="Regime tributário">
-              <input
-                type="text"
-                readOnly
-                value={REGIME_TRIBUTARIO_LABELS[composicaoConfig.regime] ?? '—'}
-              />
+            <Field label="Venda sem guardrails (R$)">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.venda_total_sem_guardrails)} />
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field label="Ajuste por arredondamento (R$)">
+              <input type="text" readOnly value={currencyValue(calculoAtual?.arredondamento_aplicado)} />
+            </Field>
+            <Field label="Desconto aplicado (%)">
+              <input type="text" readOnly value={percentValue(calculoAtual?.desconto_percentual)} />
+            </Field>
+            <Field label="Aprovação necessária?">
+              <input type="text" readOnly value={aprovacaoLabel} />
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field label="Preço mínimo aplicado?">
+              <input type="text" readOnly value={precoMinimoAplicadoLabel} />
+            </Field>
+            <Field label="Workflow de aprovação">
+              <input type="text" readOnly value={workflowStatusLabel} />
+            </Field>
+            <Field label="Origem da margem">
+              <input type="text" readOnly value={margemOrigemLabel} />
             </Field>
           </div>
           <div className="composicao-ufv-breakdown">
-            <h4>Detalhamento do regime tributário</h4>
+            <h4>
+              Detalhamento do regime tributário (
+              {REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? '—'}
+              )
+            </h4>
             {regimeBreakdown.length ? (
               <div className="grid g3">
                 {regimeBreakdown.map((item) => (

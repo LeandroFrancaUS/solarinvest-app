@@ -45,6 +45,7 @@ function PrintableProposalInner(
     orcamentoItens,
     composicaoUfv,
     vendaSnapshot,
+    vendasConfigSnapshot,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -117,6 +118,15 @@ function PrintableProposalInner(
     const trimmed = value.trim()
     return trimmed ? trimmed : null
   }
+  const pdfConfig = {
+    exibirMargem: vendasConfigSnapshot?.exibir_margem ?? false,
+    exibirComissao: vendasConfigSnapshot?.exibir_comissao ?? false,
+    exibirImpostos: vendasConfigSnapshot?.exibir_impostos ?? false,
+    exibirPrecosUnitarios: vendasConfigSnapshot?.exibir_precos_unitarios ?? false,
+    mostrarQuebraImpostos: vendasConfigSnapshot?.mostrar_quebra_impostos_no_pdf_cliente ?? false,
+    observacaoPadrao: normalizeDisplayText(vendasConfigSnapshot?.observacao_padrao_proposta ?? null),
+  }
+  let resumoPropostaBreakdown: Array<{ nome: string; aliquota: number; valor: number }> = []
   const pickPositive = (...values: (number | null | undefined)[]): number | null => {
     for (const value of values) {
       if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
@@ -821,11 +831,17 @@ function PrintableProposalInner(
                   addRow('kit', 'Kit Fotovoltaico', kitValor)
                 }
                 addRow('capex-base', 'CAPEX base', snapshotComposicao.capex_base)
-                addRow('comissao', 'Comissão líquida', snapshotComposicao.comissao_liquida_valor)
-                addRow('margem', 'Margem Operacional', snapshotComposicao.margem_operacional_valor)
-                addRow('imposto-retido', 'Imposto retido', snapshotComposicao.imposto_retido_valor)
-                addRow('impostos-regime', 'Impostos do regime', snapshotComposicao.impostos_regime_valor)
-                addRow('impostos-totais', 'Impostos totais', snapshotComposicao.impostos_totais_valor)
+                if (pdfConfig.exibirComissao) {
+                  addRow('comissao', 'Comissão líquida', snapshotComposicao.comissao_liquida_valor)
+                }
+                if (pdfConfig.exibirMargem) {
+                  addRow('margem', 'Margem Operacional', snapshotComposicao.margem_operacional_valor)
+                }
+                if (pdfConfig.exibirImpostos) {
+                  addRow('imposto-retido', 'Imposto retido', snapshotComposicao.imposto_retido_valor)
+                  addRow('impostos-regime', 'Impostos do regime', snapshotComposicao.impostos_regime_valor)
+                  addRow('impostos-totais', 'Impostos totais', snapshotComposicao.impostos_totais_valor)
+                }
                 addRow('capex-total', 'CAPEX considerado (sem kit)', snapshotComposicao.capex_total)
 
                 const descontosSnapshot = Number.isFinite(snapshotComposicao.descontos)
@@ -834,6 +850,10 @@ function PrintableProposalInner(
                 if (descontosSnapshot > 0) {
                   addRow('descontos', 'Descontos comerciais', -descontosSnapshot)
                 }
+
+                resumoPropostaBreakdown = pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos
+                  ? (snapshotComposicao.regime_breakdown ?? []).map((item) => ({ ...item }))
+                  : []
 
                 const vendaTotal = Number.isFinite(snapshotComposicao.venda_total)
                   ? Number(snapshotComposicao.venda_total)
@@ -920,11 +940,17 @@ function PrintableProposalInner(
 
               if (resumoCalculo) {
                 addRow('capex-base', 'CAPEX base', resumoCalculo.capex_base)
-                addRow('comissao', 'Comissão líquida', resumoCalculo.comissao_liquida_valor)
-                addRow('margem', 'Margem Operacional', resumoCalculo.margem_operacional_valor)
-                addRow('imposto-retido', 'Imposto retido', resumoCalculo.imposto_retido_valor)
-                addRow('impostos-regime', 'Impostos do regime', resumoCalculo.impostos_regime_valor)
-                addRow('impostos-totais', 'Impostos totais', resumoCalculo.impostos_totais_valor)
+                if (pdfConfig.exibirComissao) {
+                  addRow('comissao', 'Comissão líquida', resumoCalculo.comissao_liquida_valor)
+                }
+                if (pdfConfig.exibirMargem) {
+                  addRow('margem', 'Margem Operacional', resumoCalculo.margem_operacional_valor)
+                }
+                if (pdfConfig.exibirImpostos) {
+                  addRow('imposto-retido', 'Imposto retido', resumoCalculo.imposto_retido_valor)
+                  addRow('impostos-regime', 'Impostos do regime', resumoCalculo.impostos_regime_valor)
+                  addRow('impostos-totais', 'Impostos totais', resumoCalculo.impostos_totais_valor)
+                }
                 addRow('capex-total', 'CAPEX considerado (sem kit)', resumoCalculo.capex_total)
 
                 const vendaTotal = Number.isFinite(resumoCalculo.venda_total)
@@ -938,6 +964,10 @@ function PrintableProposalInner(
                 if (descontosConfiguracao > 0) {
                   addRow('descontos', 'Descontos comerciais', -descontosConfiguracao)
                 }
+
+                resumoPropostaBreakdown = pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos
+                  ? (resumoCalculo.regime_breakdown ?? []).map((item) => ({ ...item }))
+                  : []
 
                 const totalBruto = vendaTotal != null ? kitValor + vendaTotal : null
                 if (totalBruto != null && totalBruto > 0) {
@@ -965,6 +995,8 @@ function PrintableProposalInner(
                 addRow('descontos', 'Descontos comerciais', -descontosConfiguracao)
               }
 
+              resumoPropostaBreakdown = []
+
               return rows.length
                 ? rows.map((row) => (
                     <tr key={row.key} className={row.emphasize ? 'print-table__row--total' : undefined}>
@@ -981,6 +1013,26 @@ function PrintableProposalInner(
             })()}
           </tbody>
         </table>
+        {pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos && resumoPropostaBreakdown.length ? (
+          <table className="print-table no-break-inside">
+            <thead>
+              <tr>
+                <th>Imposto</th>
+                <th>Alíquota</th>
+                <th>Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resumoPropostaBreakdown.map((item) => (
+                <tr key={`breakdown-${item.nome}`}>
+                  <td>{item.nome}</td>
+                  <td>{formatPercentBRWithDigits((item.aliquota ?? 0) / 100, 2)}</td>
+                  <td>{currency(item.valor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
       </section>
 
       {isVendaDireta ? (
@@ -1276,6 +1328,9 @@ function PrintableProposalInner(
             </>
           )}
         </ul>
+        {pdfConfig.observacaoPadrao ? (
+          <p className="print-important__observation no-break-inside">{pdfConfig.observacaoPadrao}</p>
+        ) : null}
       </section>
 
       <section className="print-section print-cta no-break-inside">

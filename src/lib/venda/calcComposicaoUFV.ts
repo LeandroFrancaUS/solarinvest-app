@@ -8,6 +8,8 @@
 
 export type ComissaoTipo = "valor" | "percentual";
 export type BasePercentualComissao = "venda_total" | "venda_liquida";
+export type MargemOrigem = "automatica" | "manual";
+export type ArredondarPasso = 1 | 10 | 50 | 100;
 
 // Observação: "ME" e "LTDA" são naturezas jurídicas;
 // tributariamente, normalmente caem em Simples, Presumido ou Real.
@@ -27,27 +29,30 @@ export interface Inputs {
   comissao_liquida_input: number; // valor em R$ ou % (conforme tipo)
   comissao_tipo: ComissaoTipo;
   comissao_percent_base: BasePercentualComissao;
+  teto_comissao_percent?: number; // teto aplicado quando comissão for percentual
 
   // Margem operacional
-  margem_operacional: number; // valor em R$ ou % (conforme tipo)
-  margem_tipo: "valor" | "percentual";
+  margem_origem: MargemOrigem;
+  margem_operacional_padrao_percent: number;
+  margem_manual_valor: number;
 
   // Descontos comerciais
   descontos: number;
 
+  // Guardrails comerciais
+  preco_minimo_percent_sobre_capex: number;
+  arredondar_venda_para: ArredondarPasso;
+  desconto_max_percent_sem_aprovacao: number;
+  workflow_aprovacao_ativo: boolean;
+
   // Impostos
   regime: RegimeTributario;
-  // Imposto retido na fonte (ex.: IRRF/ISS/INSS retido pelo tomador)
   imposto_retido_aliquota: number; // %
-
-  // Parametrização de regime (opcional; se não vier, usamos defaults abaixo)
   impostosRegime?: Partial<ImpostosRegimeConfig>;
 
   // Flag: somar impostos ao CAPEX
   incluirImpostosNoCAPEX: boolean;
 }
-
-export type MargemTipo = Inputs["margem_tipo"];
 
 export interface Outputs {
   capex_base: number;
@@ -68,6 +73,15 @@ export interface Outputs {
 
   // Quebra por componentes do regime (para exibir)
   regime_breakdown: Array<{ nome: string; aliquota: number; valor: number }>;
+
+  // Guardrails
+  preco_minimo: number;
+  venda_total_sem_guardrails: number;
+  preco_minimo_aplicado: boolean;
+  arredondamento_aplicado: number;
+  desconto_percentual: number;
+  desconto_requer_aprovacao: boolean;
+  margem_origem_utilizada: MargemOrigem;
 }
 
 // =========================
@@ -139,55 +153,100 @@ function mergeImpostosRegime(
 // Núcleo do cálculo
 // =========================
 
+const clampRange = (valor: number, min: number, max: number): number => {
+  if (!Number.isFinite(valor)) {
+    return min;
+  }
+  if (valor < min) return min;
+  if (valor > max) return max;
+  return valor;
+};
+
+const arredondarValor = (valor: number, passo: ArredondarPasso): number => {
+  if (!Number.isFinite(valor) || passo <= 0) {
+    return 0;
+  }
+  return Math.round(valor / passo) * passo;
+};
+
 export function calcularComposicaoUFV(i: Inputs): Outputs {
-  // 1) CAPEX Base
   const capex_base =
-    nz(i.projeto) +
-    nz(i.instalacao) +
-    nz(i.material_ca) +
-    nz(i.crea) +
-    nz(i.art) +
-    nz(i.placa);
+    nz(i.projeto) + nz(i.instalacao) + nz(i.material_ca) + nz(i.crea) + nz(i.art) + nz(i.placa);
 
-  // 2) Margem operacional (valor)
-  const margem_operacional_valor =
-    i.margem_tipo === "percentual"
-      ? capex_base * pct(i.margem_operacional)
-      : nz(i.margem_operacional);
+  const descontos = Math.max(0, nz(i.descontos));
+  const margemPercent = clampRange(i.margem_operacional_padrao_percent ?? 0, 0, 80);
+  const margemOrigem: MargemOrigem = i.margem_origem === 'manual' ? 'manual' : 'automatica';
+  const margemManualValor = Math.max(0, nz(i.margem_manual_valor));
+  const margemBaseValor =
+    margemOrigem === 'manual' ? margemManualValor : capex_base * (margemPercent / 100);
 
-  // 3) Comissão (trata circularidade quando %)
-  const descontos = nz(i.descontos);
-  let venda_total: number;
-  let venda_liquida: number;
-  let comissao_liquida_valor: number;
+  let venda_total_base = 0;
+  let venda_liquida_base = 0;
+  let comissao_liquida_base = 0;
+  let comissaoPercentual = 0;
 
-  if (i.comissao_tipo === "percentual") {
-    const c = pct(i.comissao_liquida_input);
-    const P = capex_base + margem_operacional_valor;
+  if (i.comissao_tipo === 'percentual') {
+    const teto = clampRange(i.teto_comissao_percent ?? 100, 0, 100);
+    const comissaoFracInput = pct(i.comissao_liquida_input);
+    const tetoFrac = pct(teto);
+    const comissaoFrac = teto < 100 ? Math.min(comissaoFracInput, tetoFrac) : comissaoFracInput;
+    const base = capex_base + margemBaseValor;
+    const divisor = Math.max(1 - comissaoFrac, 0.000001);
 
-    if (i.comissao_percent_base === "venda_total") {
-      // venda_total = P / (1 - c)
-      venda_total = P / (1 - c);
-      comissao_liquida_valor = venda_total * c;
-      venda_liquida = Math.max(venda_total - descontos, 0);
+    if (i.comissao_percent_base === 'venda_total') {
+      venda_total_base = base / divisor;
+      comissao_liquida_base = venda_total_base * comissaoFrac;
+      venda_liquida_base = Math.max(venda_total_base - descontos, 0);
     } else {
-      // base = venda_liquida
-      // venda_total = (P + c*d) / (1 - c)
-      venda_total = (P + c * descontos) / (1 - c);
-      venda_liquida = Math.max(venda_total - descontos, 0);
-      comissao_liquida_valor = c * venda_liquida;
+      venda_total_base = (base + comissaoFrac * descontos) / divisor;
+      venda_liquida_base = Math.max(venda_total_base - descontos, 0);
+      comissao_liquida_base = venda_liquida_base * comissaoFrac;
     }
+
+    comissaoPercentual = comissaoFrac;
   } else {
-    // comissão valor fixo
-    comissao_liquida_valor = nz(i.comissao_liquida_input);
-    venda_total = capex_base + margem_operacional_valor + comissao_liquida_valor;
-    venda_liquida = Math.max(venda_total - descontos, 0);
+    comissao_liquida_base = Math.max(0, nz(i.comissao_liquida_input));
+    venda_total_base = capex_base + margemBaseValor + comissao_liquida_base;
+    venda_liquida_base = Math.max(venda_total_base - descontos, 0);
   }
 
-  // 4) Impostos — Retido na fonte
-  const imposto_retido_valor = venda_total * pct(i.imposto_retido_aliquota);
+  const precoMinPercent = clampRange(i.preco_minimo_percent_sobre_capex ?? 0, 0, 100);
+  const preco_minimo = capex_base * (1 + precoMinPercent / 100);
+  const venda_pos_minimo = Math.max(venda_total_base, preco_minimo);
+  const passoArredondamento = i.arredondar_venda_para ?? 100;
+  let venda_total = arredondarValor(venda_pos_minimo, passoArredondamento);
+  if (venda_total < preco_minimo) {
+    venda_total = Math.ceil(preco_minimo / passoArredondamento) * passoArredondamento;
+  }
 
-  // 5) Impostos por Regime
+  const venda_total_sem_guardrails = venda_total_base;
+  const preco_minimo_aplicado = venda_total_base < preco_minimo - 0.0001;
+  const arredondamento_aplicado = venda_total - venda_pos_minimo;
+
+  let comissao_liquida_valor = 0;
+  let venda_liquida = Math.max(venda_total - descontos, 0);
+  let margem_operacional_valor = 0;
+
+  if (i.comissao_tipo === 'percentual') {
+    const frac = Math.max(0, Math.min(1, comissaoPercentual));
+    if (i.comissao_percent_base === 'venda_total') {
+      comissao_liquida_valor = venda_total * frac;
+      venda_liquida = Math.max(venda_total - descontos, 0);
+      margem_operacional_valor = Math.max(venda_total * (1 - frac) - capex_base, 0);
+    } else {
+      venda_liquida = Math.max(venda_total - descontos, 0);
+      comissao_liquida_valor = venda_liquida * frac;
+      margem_operacional_valor = Math.max(
+        venda_total * (1 - frac) - capex_base - frac * descontos,
+        0,
+      );
+    }
+  } else {
+    comissao_liquida_valor = comissao_liquida_base;
+    margem_operacional_valor = Math.max(venda_total - capex_base - comissao_liquida_valor, 0);
+  }
+
+  const imposto_retido_valor = venda_total * pct(i.imposto_retido_aliquota);
   const tabelaRegime = mergeImpostosRegime(DEFAULT_IMPOSTOS_REGIME, i.impostosRegime);
   const componentes: RegimeComponent[] = tabelaRegime[i.regime];
 
@@ -201,16 +260,13 @@ export function calcularComposicaoUFV(i: Inputs): Outputs {
     regime_breakdown.push({ nome: comp.nome, aliquota: aliq, valor });
   }
 
-  // 6) Impostos totais
   const impostos_totais_valor = imposto_retido_valor + impostos_regime_valor;
-
-  // 7) CAPEX Total (com ou sem impostos, conforme flag)
-  const capex_total = i.incluirImpostosNoCAPEX
-    ? capex_base + impostos_totais_valor
-    : capex_base;
-
-  // 8) Total do contrato (mantemos venda_total como preço bruto antes de descontos)
+  const capex_total = i.incluirImpostosNoCAPEX ? capex_base + impostos_totais_valor : capex_base;
   const total_contrato_R$ = venda_total;
+
+  const desconto_percentual = venda_total > 0 ? (descontos / venda_total) * 100 : 0;
+  const desconto_requer_aprovacao = Boolean(i.workflow_aprovacao_ativo) &&
+    desconto_percentual > clampRange(i.desconto_max_percent_sem_aprovacao ?? 0, 0, 100);
 
   return {
     capex_base,
@@ -229,6 +285,14 @@ export function calcularComposicaoUFV(i: Inputs): Outputs {
     total_contrato_R$,
 
     regime_breakdown,
+
+    preco_minimo,
+    venda_total_sem_guardrails,
+    preco_minimo_aplicado,
+    arredondamento_aplicado,
+    desconto_percentual,
+    desconto_requer_aprovacao,
+    margem_origem_utilizada: margemOrigem,
   };
 }
 
@@ -247,14 +311,20 @@ const out = calcularComposicaoUFV({
   comissao_liquida_input: 3,          // 3%
   comissao_tipo: "percentual",
   comissao_percent_base: "venda_total",
+  teto_comissao_percent: 8,
 
-  margem_operacional: 20,             // 20% sobre CAPEX base
-  margem_tipo: "percentual",
+  margem_origem: "automatica",
+  margem_operacional_padrao_percent: 29,
+  margem_manual_valor: 0,
 
   descontos: 0,
+  preco_minimo_percent_sobre_capex: 10,
+  arredondar_venda_para: 100,
+  desconto_max_percent_sem_aprovacao: 5,
+  workflow_aprovacao_ativo: true,
 
   regime: "lucro_presumido",
-  imposto_retido_aliquota: 6,         // 6% retido
+  imposto_retido_aliquota: 6,
 
   // Sobrescrever defaults (opcional):
   impostosRegime: {

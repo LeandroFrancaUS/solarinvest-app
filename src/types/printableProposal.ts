@@ -3,10 +3,12 @@ import type { RetornoProjetado, TipoSistema, VendaForm } from '../lib/finance/ro
 import type {
   BasePercentualComissao,
   ComissaoTipo,
-  MargemTipo,
+  ArredondarPasso,
+  MargemOrigem,
   Outputs as UfvComposicaoCalc,
   RegimeTributario,
 } from '../lib/venda/calcComposicaoUFV'
+import type { VendasConfig } from './vendasConfig'
 import type { VendaSnapshot } from '../store/useVendaStore'
 import type { MultiUcClasse } from './multiUc'
 
@@ -53,12 +55,26 @@ export type UfvComposicaoResumo = {
 export type UfvComposicaoConfiguracao = {
   comissaoTipo: ComissaoTipo
   comissaoBase: BasePercentualComissao
-  margemTipo: MargemTipo
+  margemOrigem: MargemOrigem
+  margemPadraoPercent: number
+  margemManualValor: number
   descontos: number
   regime: RegimeTributario
   impostoRetidoAliquota: number
   incluirImpostosNoCapex: boolean
+  precoMinimoPercent: number
+  arredondarPasso: ArredondarPasso
 }
+
+export type PrintableVendasConfig = Pick<
+  VendasConfig,
+  | 'exibir_precos_unitarios'
+  | 'exibir_margem'
+  | 'exibir_comissao'
+  | 'exibir_impostos'
+  | 'mostrar_quebra_impostos_no_pdf_cliente'
+  | 'observacao_padrao_proposta'
+>
 
 export type ClienteDados = {
   nome: string
@@ -190,4 +206,5 @@ export type PrintableProposalProps = {
   vendaSnapshot?: VendaSnapshot | undefined
   informacoesImportantesObservacao?: string | null | undefined
   multiUcResumo?: PrintableMultiUcResumo | null | undefined
+  vendasConfigSnapshot?: PrintableVendasConfig | undefined
 }
