@@ -3816,34 +3816,6 @@ export default function App() {
   }, [geracaoMensalKwh, kcKwhMes])
 
   useEffect(() => {
-    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
-    const valores = calculoAtual ?? {
-      capex_base: 0,
-      margem_operacional_valor: 0,
-      venda_total: 0,
-      venda_liquida: 0,
-      comissao_liquida_valor: 0,
-      imposto_retido_valor: 0,
-      impostos_regime_valor: 0,
-      impostos_totais_valor: 0,
-      capex_total: 0,
-      total_contrato_R$: 0,
-      regime_breakdown: [],
-    }
-
-    vendaActions.updateComposicao({
-      ...valores,
-      regime_breakdown: valores.regime_breakdown.map((item) => ({ ...item })),
-      descontos: toNumberSafe(composicaoConfig.descontos),
-    })
-  }, [
-    composicaoConfig.descontos,
-    composicaoSoloCalculo,
-    composicaoTelhadoCalculo,
-    tipoInstalacao,
-  ])
-
-  useEffect(() => {
     const itensNormalizados = budgetStructuredItems.map((item) => {
       const normalizado: VendaKitItem = {
         produto: item.produto ?? '',
@@ -4143,6 +4115,34 @@ export default function App() {
 
     return calcularComposicaoUFV(input)
   }, [composicaoSolo, composicaoConfig])
+
+  useEffect(() => {
+    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
+    const valores = calculoAtual ?? {
+      capex_base: 0,
+      margem_operacional_valor: 0,
+      venda_total: 0,
+      venda_liquida: 0,
+      comissao_liquida_valor: 0,
+      imposto_retido_valor: 0,
+      impostos_regime_valor: 0,
+      impostos_totais_valor: 0,
+      capex_total: 0,
+      total_contrato_R$: 0,
+      regime_breakdown: [],
+    }
+
+    vendaActions.updateComposicao({
+      ...valores,
+      regime_breakdown: valores.regime_breakdown.map((item) => ({ ...item })),
+      descontos: toNumberSafe(composicaoConfig.descontos),
+    })
+  }, [
+    composicaoConfig.descontos,
+    composicaoSoloCalculo,
+    composicaoTelhadoCalculo,
+    tipoInstalacao,
+  ])
 
   const composicaoTelhadoTotal = useMemo(() => {
     if (composicaoTelhadoCalculo) {
