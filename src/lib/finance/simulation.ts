@@ -1,4 +1,6 @@
 import type { TipoSistema } from './roi'
+import { calcTusdNaoCompensavel } from './tusd'
+import type { TipoClienteTUSD, TUSDSaida, TUSDInput } from './tusd'
 
 export type PerfilConsumo = 'residencial' | 'comercial'
 
@@ -21,6 +23,11 @@ export type Simulacao = {
   obs?: string
   subtrair_tusd_contrato?: boolean
   subtrair_tusd_pos_contrato?: boolean
+  tusd_tipo_cliente?: TipoClienteTUSD | null
+  tusd_subtipo?: string | null
+  tusd_simultaneidade?: number | null
+  tusd_tarifa_r_kwh?: number | null
+  tusd_ano_referencia?: number | null
 }
 
 export type SimulationKPIs = {
@@ -30,9 +37,16 @@ export type SimulationKPIs = {
   roi: number
   paybackMeses: number
   retornoMensalBruto: number
+  tusd_nao_comp_r_kwh: number
+  custo_tusd_mes_r: number
+  kwh_instantaneo: number
+  kwh_compensado: number
+  simultaneidade_usada: number
+  fator_ano_tusd: number
 }
 
 const MONTHS_IN_YEAR = 12
+const DEFAULT_TUSD_ANO_REFERENCIA = 2025
 const SEGURO_REAJUSTE_ANUAL = 0.012
 const VALOR_MERCADO_MULTIPLICADOR = 1.29
 
@@ -45,7 +59,7 @@ const monthsFromYears = (anos: number): number => {
   return Math.max(0, Math.round(anos * MONTHS_IN_YEAR))
 }
 
-export const defaultTUSD = (perfil: PerfilConsumo): number => (perfil === 'comercial' ? 25 : 65)
+export const defaultTUSD = (perfil: PerfilConsumo): number => (perfil === 'comercial' ? 27 : 27)
 
 export const makeSimId = (): string => `SIM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
 
@@ -71,11 +85,73 @@ export const projectTarifaCheia = (
   return base * Math.pow(1 + crescimentoMensal, mesIndex - 1)
 }
 
-export const calcTUSDValue = (kc: number, tarifaCheia: number, tusd_pct: number): number => {
-  const consumo = clampNumber(kc)
+const resolveTusdTipoCliente = (sim: Simulacao): TipoClienteTUSD => {
+  if (sim.tusd_tipo_cliente) {
+    return sim.tusd_tipo_cliente
+  }
+
+  if (sim.tipo_sistema === 'HIBRIDO') {
+    return 'hibrido'
+  }
+
+  return sim.perfil_consumo === 'comercial' ? 'comercial' : 'residencial'
+}
+
+const resolveTusdSubtipo = (sim: Simulacao): string | null => {
+  const raw = typeof sim.tusd_subtipo === 'string' ? sim.tusd_subtipo.trim() : ''
+  return raw.length > 0 ? raw : null
+}
+
+const resolveTusdOpcional = (value?: number | null): number | null => {
+  if (!Number.isFinite(value ?? Number.NaN)) {
+    return null
+  }
+  return Number(value)
+}
+
+const resolveTusdAnoBase = (sim: Simulacao): number => {
+  const ano = resolveTusdOpcional(sim.tusd_ano_referencia)
+  if (typeof ano === 'number' && ano > 0) {
+    return Math.trunc(ano)
+  }
+  return DEFAULT_TUSD_ANO_REFERENCIA
+}
+
+const resolveTusdAnoParaMes = (sim: Simulacao, mes: number): number => {
+  const indiceMes = Number.isFinite(mes) ? Math.max(1, Math.trunc(mes)) : 1
+  const offsetMeses = indiceMes - 1
+  const anosAdicionais = Math.floor(offsetMeses / MONTHS_IN_YEAR)
+  return resolveTusdAnoBase(sim) + anosAdicionais
+}
+
+const makeTusdInput = (sim: Simulacao, mes: number, tarifaCheia: number): TUSDInput => {
+  const consumo = clampNumber(sim.kc_kwh_mes)
   const tarifa = clampNumber(tarifaCheia)
-  const tusdFrac = clampNumber(tusd_pct) / 100
-  return consumo * tarifa * tusdFrac
+
+  return {
+    ano: resolveTusdAnoParaMes(sim, mes),
+    tipoCliente: resolveTusdTipoCliente(sim),
+    subTipo: resolveTusdSubtipo(sim),
+    consumoMensal_kWh: consumo,
+    tarifaCheia_R_kWh: tarifa,
+    tusd_R_kWh: resolveTusdOpcional(sim.tusd_tarifa_r_kwh),
+    pesoTUSD: resolveTusdOpcional(sim.tusd_pct),
+    simultaneidadePadrao: resolveTusdOpcional(sim.tusd_simultaneidade),
+  }
+}
+
+export const calcTusdDetalhesMensal = (
+  sim: Simulacao,
+  mes: number,
+  tarifaCheia: number,
+): TUSDSaida => {
+  const input = makeTusdInput(sim, mes, tarifaCheia)
+  return calcTusdNaoCompensavel(input)
+}
+
+export const calcTusdEncargo = (sim: Simulacao, mes: number): TUSDSaida => {
+  const tarifaCheia = projectTarifaCheia(sim.tarifa_cheia_r_kwh_m1, sim.inflacao_energetica_pct, mes)
+  return calcTusdDetalhesMensal(sim, mes, tarifaCheia)
 }
 
 type SimulationContext = {
@@ -92,7 +168,6 @@ type SimulationContext = {
   kc: number
   tarifaInicial: number
   inflacaoEnergeticaPct: number
-  tusdPct: number
   subtrairTusdContrato: boolean
   subtrairTusdPosContrato: boolean
 }
@@ -101,7 +176,6 @@ const computeSimulationContext = (sim: Simulacao): SimulationContext => {
   const mesesContrato = monthsFromYears(sim.anos_contrato)
   const descontoPct = clampNumber(sim.desconto_pct)
   const kc = clampNumber(sim.kc_kwh_mes)
-  const tusdPct = clampNumber(sim.tusd_pct)
   const tarifaInicial = clampNumber(sim.tarifa_cheia_r_kwh_m1)
   const inflacaoEnergetica = clampNumber(sim.inflacao_energetica_pct)
   const valorMercado = calcValorMercado(clampNumber(sim.capex_solarinvest))
@@ -123,7 +197,8 @@ const computeSimulationContext = (sim: Simulacao): SimulationContext => {
   for (let mes = 1; mes <= mesesContrato; mes += 1) {
     const tarifaCheia = projectTarifaCheia(tarifaInicial, inflacaoEnergetica, mes)
     const tarifaDesconto = calcTarifaComDesconto(tarifaCheia, descontoPct)
-    const tusdValor = calcTUSDValue(kc, tarifaCheia, tusdPct)
+    const tusdDetalhes = calcTusdDetalhesMensal(sim, mes, tarifaCheia)
+    const tusdValor = tusdDetalhes.custoTUSD_Mes_R
     const receita = kc * tarifaDesconto
     const anoCorrente = Math.ceil(mes / MONTHS_IN_YEAR)
     const seguroAnualReajustado = seguroAnualBase * Math.pow(1 + SEGURO_REAJUSTE_ANUAL, Math.max(0, anoCorrente - 1))
@@ -156,7 +231,6 @@ const computeSimulationContext = (sim: Simulacao): SimulationContext => {
     kc,
     tarifaInicial,
     inflacaoEnergeticaPct: inflacaoEnergetica,
-    tusdPct,
     subtrairTusdContrato,
     subtrairTusdPosContrato,
   }
@@ -179,7 +253,8 @@ export const calcEconomiaHorizonte = (sim: Simulacao, anos: number): number => {
   let economiaPosContrato = 0
   for (let mes = contexto.mesesContrato + 1; mes <= mesesTotal; mes += 1) {
     const tarifaCheia = projectTarifaCheia(contexto.tarifaInicial, contexto.inflacaoEnergeticaPct, mes)
-    const tusdValor = calcTUSDValue(contexto.kc, tarifaCheia, contexto.tusdPct)
+    const tusdDetalhes = calcTusdDetalhesMensal(sim, mes, tarifaCheia)
+    const tusdValor = tusdDetalhes.custoTUSD_Mes_R
     const economia = contexto.kc * tarifaCheia - (contexto.subtrairTusdPosContrato ? tusdValor : 0)
     economiaPosContrato += economia
   }
@@ -219,6 +294,7 @@ export const calcKPIs = (sim: Simulacao): SimulationKPIs => {
   const receitaTotal = contexto.somaReceita
   const custosVariaveis = contexto.somaOpex
   const lucroLiquido = receitaTotal - capex - custosVariaveis
+  const tusdResumoMes1 = calcTusdEncargo(sim, 1)
 
   let roi: number
   if (capex === 0) {
@@ -245,5 +321,11 @@ export const calcKPIs = (sim: Simulacao): SimulationKPIs => {
     roi,
     paybackMeses,
     retornoMensalBruto,
+    tusd_nao_comp_r_kwh: tusdResumoMes1.tusdNaoComp_R_kWh,
+    custo_tusd_mes_r: tusdResumoMes1.custoTUSD_Mes_R,
+    kwh_instantaneo: tusdResumoMes1.kWhInstantaneo,
+    kwh_compensado: tusdResumoMes1.kWhCompensado,
+    simultaneidade_usada: tusdResumoMes1.simultaneidadeUsada,
+    fator_ano_tusd: tusdResumoMes1.fatorAno,
   }
 }

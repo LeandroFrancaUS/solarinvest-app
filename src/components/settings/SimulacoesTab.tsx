@@ -5,7 +5,7 @@ import {
   calcEconomiaHorizonte,
   calcKPIs,
   calcTarifaComDesconto,
-  calcTUSDValue,
+  calcTusdEncargo,
   calcValorMercado,
   defaultTUSD,
   makeSimId,
@@ -219,10 +219,23 @@ export function SimulacoesTab({
     () => calcTarifaComDesconto(current.tarifa_cheia_r_kwh_m1, current.desconto_pct),
     [current.tarifa_cheia_r_kwh_m1, current.desconto_pct],
   )
-  const encargoTusdMes1 = useMemo(
-    () => calcTUSDValue(current.kc_kwh_mes, current.tarifa_cheia_r_kwh_m1, current.tusd_pct),
-    [current.kc_kwh_mes, current.tarifa_cheia_r_kwh_m1, current.tusd_pct],
+  const tusdResumoMes1 = useMemo(
+    () => calcTusdEncargo(current, 1),
+    [
+      current.kc_kwh_mes,
+      current.tarifa_cheia_r_kwh_m1,
+      current.tusd_pct,
+      current.tusd_tipo_cliente,
+      current.tusd_subtipo,
+      current.tusd_simultaneidade,
+      current.tusd_tarifa_r_kwh,
+      current.tusd_ano_referencia,
+      current.perfil_consumo,
+      current.tipo_sistema,
+      current.inflacao_energetica_pct,
+    ],
   )
+  const encargoTusdMes1 = tusdResumoMes1.custoTUSD_Mes_R
   const seguroAnualBase = useMemo(
     () => valorMercado * (Number.isFinite(current.seguro_pct) ? current.seguro_pct / 100 : 0),
     [valorMercado, current.seguro_pct],
@@ -245,7 +258,8 @@ export function SimulacoesTab({
   const comparisonRows = useMemo(() => {
     return selectedSimulations.map((sim) => {
       const tarifaDesconto = calcTarifaComDesconto(sim.tarifa_cheia_r_kwh_m1, sim.desconto_pct)
-      const encargoTusd = calcTUSDValue(sim.kc_kwh_mes, sim.tarifa_cheia_r_kwh_m1, sim.tusd_pct)
+      const tusdResumo = calcTusdEncargo(sim, 1)
+      const encargoTusd = tusdResumo.custoTUSD_Mes_R
       const indicadores = calcKPIs(sim)
       const economiaContratoSim = calcEconomiaContrato(sim)
       const economiaHorizon = calcEconomiaHorizonte(sim, comparisonHorizon)
@@ -253,6 +267,7 @@ export function SimulacoesTab({
         sim,
         tarifaDesconto,
         encargoTusd,
+        tusdResumo,
         indicadores,
         economiaContratoSim,
         economiaHorizon,
@@ -722,6 +737,11 @@ export function SimulacoesTab({
               <div className="simulations-summary-card">
                 <span>Encargo TUSD (mês 1)</span>
                 <strong>{formatMoneyBR(encargoTusdMes1)}</strong>
+                <small>
+                  Simultaneidade {formatPercentBR(tusdResumoMes1.simultaneidadeUsada)} • Fator ano{' '}
+                  {formatPercentBR(tusdResumoMes1.fatorAno)} •{' '}
+                  {formatNumberBR(tusdResumoMes1.kWhCompensado)} kWh compensados
+                </small>
               </div>
               <div className="simulations-summary-card">
                 <span>Economia acumulada no contrato</span>
