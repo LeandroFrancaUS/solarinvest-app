@@ -1504,9 +1504,155 @@ export default function App() {
   const [composicaoSolo, setComposicaoSolo] = useState<UfvComposicaoSoloValores>(() =>
     createInitialComposicaoSolo(),
   )
-  const consumoAnteriorRef = useRef(kcKwhMes)
+
+  const [multiUcAtivo, setMultiUcAtivo] = useState(INITIAL_VALUES.multiUcAtivo)
+  const [multiUcRows, setMultiUcRows] = useState<MultiUcRowState[]>(() =>
+    INITIAL_VALUES.multiUcUcs.map((uc, index) => ({
+      ...uc,
+      id: uc.id || `UC-${index + 1}`,
+    })),
+  )
+  const [multiUcRateioModo, setMultiUcRateioModo] = useState<MultiUcRateioModo>(
+    INITIAL_VALUES.multiUcRateioModo,
+  )
+  const [multiUcEnergiaGeradaKWh, setMultiUcEnergiaGeradaKWhState] = useState(
+    INITIAL_VALUES.multiUcEnergiaGeradaKWh,
+  )
+  const [multiUcEnergiaGeradaTouched, setMultiUcEnergiaGeradaTouched] = useState(false)
+  const [multiUcAnoVigencia, setMultiUcAnoVigencia] = useState(INITIAL_VALUES.multiUcAnoVigencia)
+  const [multiUcOverrideEscalonamento, setMultiUcOverrideEscalonamento] = useState(
+    INITIAL_VALUES.multiUcOverrideEscalonamento,
+  )
+  const [multiUcEscalonamentoCustomPercent, setMultiUcEscalonamentoCustomPercent] = useState<
+    number | null
+  >(INITIAL_VALUES.multiUcEscalonamentoCustomPercent)
+  const multiUcEscalonamentoPadrao = INITIAL_VALUES.multiUcEscalonamentoPadrao
+  const multiUcReferenciaData = useMemo(
+    () => new Date(Math.max(0, multiUcAnoVigencia), 0, 1),
+    [multiUcAnoVigencia],
+  )
+  const multiUcConsumoTotal = useMemo(
+    () => multiUcRows.reduce((acc, row) => acc + Math.max(0, row.consumoKWh), 0),
+    [multiUcRows],
+  )
+  const multiUcRateioPercentualTotal = useMemo(
+    () => multiUcRows.reduce((acc, row) => acc + Math.max(0, row.rateioPercentual || 0), 0),
+    [multiUcRows],
+  )
+  const multiUcRateioManualTotal = useMemo(
+    () => multiUcRows.reduce((acc, row) => acc + Math.max(0, row.manualRateioKWh ?? 0), 0),
+    [multiUcRows],
+  )
+  const multiUcEscalonamentoPercentual = useMemo(() => {
+    if (multiUcOverrideEscalonamento && multiUcEscalonamentoCustomPercent != null) {
+      return Math.max(0, multiUcEscalonamentoCustomPercent) / 100
+    }
+    const padrao = multiUcEscalonamentoPadrao[multiUcAnoVigencia] ?? 0
+    return Math.max(0, padrao) / 100
+  }, [
+    multiUcAnoVigencia,
+    multiUcEscalonamentoPadrao,
+    multiUcOverrideEscalonamento,
+    multiUcEscalonamentoCustomPercent,
+  ])
+  const multiUcEscalonamentoTabela = useMemo(
+    () =>
+      Object.entries(multiUcEscalonamentoPadrao)
+        .map(([ano, valor]) => ({ ano: Number(ano), valor }))
+        .sort((a, b) => a.ano - b.ano),
+    [multiUcEscalonamentoPadrao],
+  )
+  const multiUcResultado = useMemo<MultiUcCalculoResultado | null>(() => {
+    if (!multiUcAtivo) {
+      return null
+    }
+    return calcularMultiUc({
+      energiaGeradaTotalKWh: multiUcEnergiaGeradaKWh,
+      distribuicaoPorPercentual: multiUcRateioModo === 'percentual',
+      ucs: multiUcRows.map((row) => ({
+        id: row.id,
+        classe: row.classe,
+        consumoKWh: row.consumoKWh,
+        rateioPercentual: row.rateioPercentual,
+        manualRateioKWh: row.manualRateioKWh,
+        tarifas: {
+          TE: row.te,
+          TUSD_total: row.tusdTotal,
+          TUSD_FioB: row.tusdFioB,
+        },
+        observacoes: row.observacoes,
+      })),
+      parametrosMLGD: {
+        anoVigencia: multiUcAnoVigencia,
+        escalonamentoPadrao: multiUcEscalonamentoPadrao,
+        overrideEscalonamento: multiUcOverrideEscalonamento,
+        escalonamentoCustomPercent: multiUcEscalonamentoCustomPercent,
+      },
+    })
+  }, [
+    multiUcAtivo,
+    multiUcRows,
+    multiUcEnergiaGeradaKWh,
+    multiUcRateioModo,
+    multiUcAnoVigencia,
+    multiUcEscalonamentoPadrao,
+    multiUcOverrideEscalonamento,
+    multiUcEscalonamentoCustomPercent,
+  ])
+  const multiUcResultadoPorId = useMemo(() => {
+    const map = new Map<string, MultiUcCalculoUcResultado>()
+    if (multiUcResultado) {
+      multiUcResultado.ucs.forEach((uc) => {
+        map.set(uc.id, uc)
+      })
+    }
+    return map
+  }, [multiUcResultado])
+  const multiUcWarnings = multiUcResultado?.warnings ?? []
+  const multiUcErrors = multiUcResultado?.errors ?? []
+  const multiUcPrintableResumo = useMemo<PrintableMultiUcResumo | null>(() => {
+    if (!multiUcAtivo || !multiUcResultado || multiUcErrors.length > 0) {
+      return null
+    }
+    return {
+      energiaGeradaTotalKWh: multiUcResultado.energiaGeradaTotalKWh,
+      energiaGeradaUtilizadaKWh: multiUcResultado.energiaGeradaUtilizadaKWh,
+      sobraCreditosKWh: multiUcResultado.sobraCreditosKWh,
+      escalonamentoPercentual: multiUcResultado.escalonamentoPercentual,
+      totalTusd: multiUcResultado.totalTusd,
+      totalTe: multiUcResultado.totalTe,
+      totalContrato: multiUcResultado.totalContrato,
+      distribuicaoPorPercentual: multiUcRateioModo === 'percentual',
+      anoVigencia: multiUcAnoVigencia,
+      ucs: multiUcResultado.ucs.map((uc) => ({
+        id: uc.id,
+        classe: uc.classe,
+        consumoKWh: uc.consumoKWh,
+        rateioPercentual: uc.rateioPercentual,
+        manualRateioKWh: uc.manualRateioKWh ?? null,
+        creditosKWh: uc.creditosKWh,
+        kWhFaturados: uc.kWhFaturados,
+        kWhCompensados: uc.kWhCompensados,
+        te: uc.tarifas.TE,
+        tusdTotal: uc.tarifas.TUSD_total,
+        tusdFioB: uc.tarifas.TUSD_FioB,
+        tusdOutros: uc.tusdOutros,
+        tusdMensal: uc.tusdMensal,
+        teMensal: uc.teMensal,
+        totalMensal: uc.totalMensal,
+        observacoes: uc.observacoes ?? null,
+      })),
+    }
+  }, [
+    multiUcAtivo,
+    multiUcResultado,
+    multiUcErrors,
+    multiUcRateioModo,
+    multiUcAnoVigencia,
+  ])
   const multiUcConsumoAnteriorRef = useRef<number | null>(null)
   const multiUcIdCounterRef = useRef<number>(multiUcRows.length + 1)
+  const consumoAnteriorRef = useRef(kcKwhMes)
 
   type PageSharedSettings = {
     kcKwhMes: number
@@ -1855,35 +2001,6 @@ export default function App() {
       }
     },
     [multiUcEnergiaGeradaKWh],
-  )
-
-  const handleMultiUcToggle = useCallback(
-    (checked: boolean) => {
-      setMultiUcAtivo(checked)
-      if (checked) {
-        multiUcConsumoAnteriorRef.current = kcKwhMes
-        setMultiUcEnergiaGeradaTouched(false)
-        setMultiUcRows((prev) => {
-          if (prev.length > 0) {
-            return prev
-          }
-          const novoId = multiUcIdCounterRef.current
-          multiUcIdCounterRef.current += 1
-          return [applyTarifasAutomaticas(createDefaultMultiUcRow(novoId), undefined, true)]
-        })
-        const sugeridoBase = geracaoMensalKwh > 0 ? geracaoMensalKwh : kcKwhMes
-        if (sugeridoBase > 0) {
-          setMultiUcEnergiaGeradaKWhState((prev) => (prev > 0 ? prev : Math.max(0, sugeridoBase)))
-        }
-      } else {
-        setMultiUcEnergiaGeradaTouched(false)
-        if (multiUcConsumoAnteriorRef.current != null) {
-          setKcKwhMes(multiUcConsumoAnteriorRef.current, 'auto')
-        }
-        multiUcConsumoAnteriorRef.current = null
-      }
-    },
-    [applyTarifasAutomaticas, geracaoMensalKwh, kcKwhMes, setKcKwhMes],
   )
 
   const setPotenciaModulo = useCallback(
@@ -3100,149 +3217,6 @@ export default function App() {
   const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(
     INITIAL_VALUES.tabelaVisivel,
   )
-  const [multiUcAtivo, setMultiUcAtivo] = useState(INITIAL_VALUES.multiUcAtivo)
-  const [multiUcRows, setMultiUcRows] = useState<MultiUcRowState[]>(() =>
-    INITIAL_VALUES.multiUcUcs.map((uc, index) => ({
-      ...uc,
-      id: uc.id || `UC-${index + 1}`,
-    })),
-  )
-  const [multiUcRateioModo, setMultiUcRateioModo] = useState<MultiUcRateioModo>(INITIAL_VALUES.multiUcRateioModo)
-  const [multiUcEnergiaGeradaKWh, setMultiUcEnergiaGeradaKWhState] = useState(
-    INITIAL_VALUES.multiUcEnergiaGeradaKWh,
-  )
-  const [multiUcEnergiaGeradaTouched, setMultiUcEnergiaGeradaTouched] = useState(false)
-  const [multiUcAnoVigencia, setMultiUcAnoVigencia] = useState(INITIAL_VALUES.multiUcAnoVigencia)
-  const [multiUcOverrideEscalonamento, setMultiUcOverrideEscalonamento] = useState(
-    INITIAL_VALUES.multiUcOverrideEscalonamento,
-  )
-  const [multiUcEscalonamentoCustomPercent, setMultiUcEscalonamentoCustomPercent] = useState<number | null>(
-    INITIAL_VALUES.multiUcEscalonamentoCustomPercent,
-  )
-  const multiUcEscalonamentoPadrao = INITIAL_VALUES.multiUcEscalonamentoPadrao
-  const multiUcReferenciaData = useMemo(
-    () => new Date(Math.max(0, multiUcAnoVigencia), 0, 1),
-    [multiUcAnoVigencia],
-  )
-  const multiUcConsumoTotal = useMemo(
-    () => multiUcRows.reduce((acc, row) => acc + Math.max(0, row.consumoKWh), 0),
-    [multiUcRows],
-  )
-  const multiUcRateioPercentualTotal = useMemo(
-    () => multiUcRows.reduce((acc, row) => acc + Math.max(0, row.rateioPercentual || 0), 0),
-    [multiUcRows],
-  )
-  const multiUcRateioManualTotal = useMemo(
-    () => multiUcRows.reduce((acc, row) => acc + Math.max(0, row.manualRateioKWh ?? 0), 0),
-    [multiUcRows],
-  )
-  const multiUcEscalonamentoPercentual = useMemo(() => {
-    if (multiUcOverrideEscalonamento && multiUcEscalonamentoCustomPercent != null) {
-      return Math.max(0, multiUcEscalonamentoCustomPercent) / 100
-    }
-    const padrao = multiUcEscalonamentoPadrao[multiUcAnoVigencia] ?? 0
-    return Math.max(0, padrao) / 100
-  }, [
-    multiUcAnoVigencia,
-    multiUcEscalonamentoPadrao,
-    multiUcOverrideEscalonamento,
-    multiUcEscalonamentoCustomPercent,
-  ])
-  const multiUcEscalonamentoTabela = useMemo(
-    () =>
-      Object.entries(multiUcEscalonamentoPadrao)
-        .map(([ano, valor]) => ({ ano: Number(ano), valor }))
-        .sort((a, b) => a.ano - b.ano),
-    [multiUcEscalonamentoPadrao],
-  )
-  const multiUcResultado = useMemo<MultiUcCalculoResultado | null>(() => {
-    if (!multiUcAtivo) {
-      return null
-    }
-    return calcularMultiUc({
-      energiaGeradaTotalKWh: multiUcEnergiaGeradaKWh,
-      distribuicaoPorPercentual: multiUcRateioModo === 'percentual',
-      ucs: multiUcRows.map((row) => ({
-        id: row.id,
-        classe: row.classe,
-        consumoKWh: row.consumoKWh,
-        rateioPercentual: row.rateioPercentual,
-        manualRateioKWh: row.manualRateioKWh,
-        tarifas: {
-          TE: row.te,
-          TUSD_total: row.tusdTotal,
-          TUSD_FioB: row.tusdFioB,
-        },
-        observacoes: row.observacoes,
-      })),
-      parametrosMLGD: {
-        anoVigencia: multiUcAnoVigencia,
-        escalonamentoPadrao: multiUcEscalonamentoPadrao,
-        overrideEscalonamento: multiUcOverrideEscalonamento,
-        escalonamentoCustomPercent: multiUcEscalonamentoCustomPercent,
-      },
-    })
-  }, [
-    multiUcAtivo,
-    multiUcRows,
-    multiUcEnergiaGeradaKWh,
-    multiUcRateioModo,
-    multiUcAnoVigencia,
-    multiUcEscalonamentoPadrao,
-    multiUcOverrideEscalonamento,
-    multiUcEscalonamentoCustomPercent,
-  ])
-  const multiUcResultadoPorId = useMemo(() => {
-    const map = new Map<string, MultiUcCalculoUcResultado>()
-    if (multiUcResultado) {
-      multiUcResultado.ucs.forEach((uc) => {
-        map.set(uc.id, uc)
-      })
-    }
-    return map
-  }, [multiUcResultado])
-  const multiUcWarnings = multiUcResultado?.warnings ?? []
-  const multiUcErrors = multiUcResultado?.errors ?? []
-  const multiUcPrintableResumo = useMemo<PrintableMultiUcResumo | null>(() => {
-    if (!multiUcAtivo || !multiUcResultado || multiUcErrors.length > 0) {
-      return null
-    }
-    return {
-      energiaGeradaTotalKWh: multiUcResultado.energiaGeradaTotalKWh,
-      energiaGeradaUtilizadaKWh: multiUcResultado.energiaGeradaUtilizadaKWh,
-      sobraCreditosKWh: multiUcResultado.sobraCreditosKWh,
-      escalonamentoPercentual: multiUcResultado.escalonamentoPercentual,
-      totalTusd: multiUcResultado.totalTusd,
-      totalTe: multiUcResultado.totalTe,
-      totalContrato: multiUcResultado.totalContrato,
-      distribuicaoPorPercentual: multiUcRateioModo === 'percentual',
-      anoVigencia: multiUcAnoVigencia,
-      ucs: multiUcResultado.ucs.map((uc) => ({
-        id: uc.id,
-        classe: uc.classe,
-        consumoKWh: uc.consumoKWh,
-        rateioPercentual: uc.rateioPercentual,
-        manualRateioKWh: uc.manualRateioKWh ?? null,
-        creditosKWh: uc.creditosKWh,
-        kWhFaturados: uc.kWhFaturados,
-        kWhCompensados: uc.kWhCompensados,
-        te: uc.tarifas.TE,
-        tusdTotal: uc.tarifas.TUSD_total,
-        tusdFioB: uc.tarifas.TUSD_FioB,
-        tusdOutros: uc.tusdOutros,
-        tusdMensal: uc.tusdMensal,
-        teMensal: uc.teMensal,
-        totalMensal: uc.totalMensal,
-        observacoes: uc.observacoes ?? null,
-      })),
-    }
-  }, [
-    multiUcAtivo,
-    multiUcResultado,
-    multiUcErrors,
-    multiUcRateioModo,
-    multiUcAnoVigencia,
-  ])
   const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
@@ -3307,22 +3281,6 @@ export default function App() {
       return changed ? atualizadas : prev
     })
   }, [applyTarifasAutomaticas, multiUcAtivo])
-
-  useEffect(() => {
-    if (!multiUcAtivo) {
-      return
-    }
-    const sugerido = Math.max(0, geracaoMensalKwh)
-    setMultiUcEnergiaGeradaKWhState((prev) => {
-      if (multiUcEnergiaGeradaTouched && prev > 0) {
-        return prev
-      }
-      if (sugerido > 0 && Math.abs(prev - sugerido) > 0.1) {
-        return sugerido
-      }
-      return prev
-    })
-  }, [geracaoMensalKwh, multiUcAtivo, multiUcEnergiaGeradaTouched])
 
   useEffect(() => {
     if (!multiUcAtivo) {
@@ -3637,6 +3595,56 @@ export default function App() {
     })
     return estimada > 0 ? estimada : 0
   }, [baseIrradiacao, diasMesNormalizado, eficienciaNormalizada, potenciaInstaladaKwp])
+
+  const handleMultiUcToggle = useCallback(
+    (checked: boolean) => {
+      setMultiUcAtivo(checked)
+      if (checked) {
+        multiUcConsumoAnteriorRef.current = kcKwhMes
+        setMultiUcEnergiaGeradaTouched(false)
+        setMultiUcRows((prev) => {
+          if (prev.length > 0) {
+            return prev
+          }
+          const novoId = multiUcIdCounterRef.current
+          multiUcIdCounterRef.current += 1
+          return [applyTarifasAutomaticas(createDefaultMultiUcRow(novoId), undefined, true)]
+        })
+        const sugeridoBase = geracaoMensalKwh > 0 ? geracaoMensalKwh : kcKwhMes
+        if (sugeridoBase > 0) {
+          setMultiUcEnergiaGeradaKWhState((prev) => (prev > 0 ? prev : Math.max(0, sugeridoBase)))
+        }
+      } else {
+        setMultiUcEnergiaGeradaTouched(false)
+        if (multiUcConsumoAnteriorRef.current != null) {
+          setKcKwhMes(multiUcConsumoAnteriorRef.current, 'auto')
+        }
+        multiUcConsumoAnteriorRef.current = null
+      }
+    },
+    [
+      applyTarifasAutomaticas,
+      geracaoMensalKwh,
+      kcKwhMes,
+      setKcKwhMes,
+    ],
+  )
+
+  useEffect(() => {
+    if (!multiUcAtivo) {
+      return
+    }
+    const sugerido = Math.max(0, geracaoMensalKwh)
+    setMultiUcEnergiaGeradaKWhState((prev) => {
+      if (multiUcEnergiaGeradaTouched && prev > 0) {
+        return prev
+      }
+      if (sugerido > 0 && Math.abs(prev - sugerido) > 0.1) {
+        return sugerido
+      }
+      return prev
+    })
+  }, [geracaoMensalKwh, multiUcAtivo, multiUcEnergiaGeradaTouched])
 
   const diasMesConsiderado = diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO
 
