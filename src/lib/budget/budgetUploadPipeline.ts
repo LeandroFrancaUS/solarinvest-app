@@ -1,4 +1,5 @@
 import { recognizeImageData } from '../ocr/workerPool'
+import { toUint8 } from '../ocr/input'
 import type { RecognizeImageDataOptions } from '../ocr/workerPool'
 import {
   parseStructuredBudget,
@@ -188,8 +189,8 @@ async function pdfToText(
   options: { onProgress?: (progress: BudgetUploadProgress) => void; dpi: number },
 ): Promise<PdfToTextResult> {
   const pdfjs = await loadPdfJs()
-  const buffer = await file.arrayBuffer()
-  const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buffer) })
+  const pdfBytes = await toUint8(file)
+  const loadingTask = pdfjs.getDocument({ data: pdfBytes })
   const pdf = await loadingTask.promise
   const totalPages = pdf.numPages
 

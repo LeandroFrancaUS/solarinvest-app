@@ -1,6 +1,7 @@
 import tsPlugin from '@typescript-eslint/eslint-plugin'
 import tsParser from '@typescript-eslint/parser'
 import importPlugin from 'eslint-plugin-import'
+import reactHooksPlugin from './scripts/eslint/react-hooks-plugin.js'
 
 const projectRoot = new URL('.', import.meta.url)
 const tsRecommended = tsPlugin.configs['recommended-type-checked']
@@ -16,6 +17,7 @@ const sharedRules = {
     'error',
     { name: 'event', message: 'Use parâmetros de evento em vez do global implícito.' },
   ],
+  'no-undef': 'error',
 }
 
 export default [
@@ -37,6 +39,7 @@ export default [
     plugins: {
       '@typescript-eslint': tsPlugin,
       import: importPlugin,
+      'react-hooks': reactHooksPlugin,
     },
     rules: {
       ...tsRecommended.rules,
@@ -53,8 +56,11 @@ export default [
           objectLiteralTypeAssertions: 'allow-as-parameter',
         },
       ],
+      '@typescript-eslint/consistent-type-imports': 'warn',
       'import/no-cycle': 'error',
       'no-use-before-define': 'off',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
     },
   },
   {

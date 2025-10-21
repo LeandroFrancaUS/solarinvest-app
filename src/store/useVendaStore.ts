@@ -1,5 +1,6 @@
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback } from 'react'
 import type { TipoSistema } from '../lib/finance/roi'
+import { useSafeStore } from '../lib/react/safeStore'
 
 export type VendaClienteInfo = {
   nome: string
@@ -229,7 +230,7 @@ export const vendaStore = {
 export function useVendaStore<T>(selector: (state: VendaState) => T): T {
   const subscribe = useCallback((listener: Listener) => vendaStore.subscribe(listener), [])
   const getSnapshot = useCallback(() => selector(vendaStore.getState()), [selector])
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  return useSafeStore(subscribe, getSnapshot)
 }
 
 export const vendaActions = {
