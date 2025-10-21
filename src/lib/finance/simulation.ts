@@ -45,6 +45,18 @@ export type SimulationKPIs = {
   fator_ano_tusd: number
 }
 
+export type SimulationMonthlyDetail = {
+  mes: number
+  tarifaCheia: number
+  tarifaComDesconto: number
+  encargoTusd: number
+  receita: number
+  custosVariaveis: number
+  economiaBruta: number
+  economiaLiquida: number
+  economiaLiquidaAcumulada: number
+}
+
 const MONTHS_IN_YEAR = 12
 const DEFAULT_TUSD_ANO_REFERENCIA = 2025
 const SEGURO_REAJUSTE_ANUAL = 0.012
@@ -172,7 +184,18 @@ type SimulationContext = {
   subtrairTusdPosContrato: boolean
 }
 
-const computeSimulationContext = (sim: Simulacao): SimulationContext => {
+type SimulationMonthlyComputation = {
+  mesesContrato: number
+  valorMercado: number
+  kc: number
+  tarifaInicial: number
+  inflacaoEnergeticaPct: number
+  subtrairTusdContrato: boolean
+  subtrairTusdPosContrato: boolean
+  monthly: SimulationMonthlyDetail[]
+}
+
+const buildSimulationMonthlyData = (sim: Simulacao): SimulationMonthlyComputation => {
   const mesesContrato = monthsFromYears(sim.anos_contrato)
   const descontoPct = clampNumber(sim.desconto_pct)
   const kc = clampNumber(sim.kc_kwh_mes)
@@ -184,42 +207,69 @@ const computeSimulationContext = (sim: Simulacao): SimulationContext => {
   const subtrairTusdContrato = sim.subtrair_tusd_contrato ?? true
   const subtrairTusdPosContrato = sim.subtrair_tusd_pos_contrato ?? true
 
-  const receitaMensal: number[] = []
-  const opexMensal: number[] = []
-  const economiaLiquidaMensal: number[] = []
-  const tusdMensal: number[] = []
-
-  let somaReceita = 0
-  let somaOpex = 0
-  let somaEconomiaLiquida = 0
-  let somaTusd = 0
+  const monthly: SimulationMonthlyDetail[] = []
+  let economiaAcumulada = 0
 
   for (let mes = 1; mes <= mesesContrato; mes += 1) {
     const tarifaCheia = projectTarifaCheia(tarifaInicial, inflacaoEnergetica, mes)
     const tarifaDesconto = calcTarifaComDesconto(tarifaCheia, descontoPct)
     const tusdDetalhes = calcTusdDetalhesMensal(sim, mes, tarifaCheia)
-    const tusdValor = tusdDetalhes.custoTUSD_Mes_R
+    const encargoTusd = tusdDetalhes.custoTUSD_Mes_R
     const receita = kc * tarifaDesconto
     const anoCorrente = Math.ceil(mes / MONTHS_IN_YEAR)
-    const seguroAnualReajustado = seguroAnualBase * Math.pow(1 + SEGURO_REAJUSTE_ANUAL, Math.max(0, anoCorrente - 1))
-    const opex = seguroAnualReajustado / MONTHS_IN_YEAR
+    const seguroAnualReajustado =
+      seguroAnualBase * Math.pow(1 + SEGURO_REAJUSTE_ANUAL, Math.max(0, anoCorrente - 1))
+    const custosVariaveis = seguroAnualReajustado / MONTHS_IN_YEAR
     const economiaBruta = kc * (tarifaCheia - tarifaDesconto)
-    const economiaLiquida = subtrairTusdContrato ? economiaBruta - tusdValor : economiaBruta
+    const economiaLiquida = subtrairTusdContrato ? economiaBruta - encargoTusd : economiaBruta
 
-    receitaMensal.push(receita)
-    opexMensal.push(opex)
-    economiaLiquidaMensal.push(economiaLiquida)
-    tusdMensal.push(tusdValor)
+    economiaAcumulada += economiaLiquida
 
-    somaReceita += receita
-    somaOpex += opex
-    somaEconomiaLiquida += economiaLiquida
-    somaTusd += tusdValor
+    monthly.push({
+      mes,
+      tarifaCheia,
+      tarifaComDesconto: tarifaDesconto,
+      encargoTusd,
+      receita,
+      custosVariaveis,
+      economiaBruta,
+      economiaLiquida,
+      economiaLiquidaAcumulada: economiaAcumulada,
+    })
   }
 
   return {
     mesesContrato,
     valorMercado,
+    kc,
+    tarifaInicial,
+    inflacaoEnergeticaPct: inflacaoEnergetica,
+    subtrairTusdContrato,
+    subtrairTusdPosContrato,
+    monthly,
+  }
+}
+
+export const calcSimulacaoDetalhesMensais = (sim: Simulacao): SimulationMonthlyDetail[] => {
+  return buildSimulationMonthlyData(sim).monthly
+}
+
+const computeSimulationContext = (sim: Simulacao): SimulationContext => {
+  const base = buildSimulationMonthlyData(sim)
+
+  const receitaMensal = base.monthly.map((detalhe) => detalhe.receita)
+  const opexMensal = base.monthly.map((detalhe) => detalhe.custosVariaveis)
+  const economiaLiquidaMensal = base.monthly.map((detalhe) => detalhe.economiaLiquida)
+  const tusdMensal = base.monthly.map((detalhe) => detalhe.encargoTusd)
+
+  const somaReceita = receitaMensal.reduce((total, valor) => total + valor, 0)
+  const somaOpex = opexMensal.reduce((total, valor) => total + valor, 0)
+  const somaEconomiaLiquida = economiaLiquidaMensal.reduce((total, valor) => total + valor, 0)
+  const somaTusd = tusdMensal.reduce((total, valor) => total + valor, 0)
+
+  return {
+    mesesContrato: base.mesesContrato,
+    valorMercado: base.valorMercado,
     receitaMensal,
     opexMensal,
     economiaLiquidaMensal,
@@ -228,11 +278,11 @@ const computeSimulationContext = (sim: Simulacao): SimulationContext => {
     somaOpex,
     somaEconomiaLiquida,
     somaTusd,
-    kc,
-    tarifaInicial,
-    inflacaoEnergeticaPct: inflacaoEnergetica,
-    subtrairTusdContrato,
-    subtrairTusdPosContrato,
+    kc: base.kc,
+    tarifaInicial: base.tarifaInicial,
+    inflacaoEnergeticaPct: base.inflacaoEnergeticaPct,
+    subtrairTusdContrato: base.subtrairTusdContrato,
+    subtrairTusdPosContrato: base.subtrairTusdPosContrato,
   }
 }
 

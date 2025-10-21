@@ -4,6 +4,7 @@ import {
   calcEconomiaContrato,
   calcEconomiaHorizonte,
   calcKPIs,
+  calcSimulacaoDetalhesMensais,
   calcTarifaComDesconto,
   calcTusdEncargo,
   calcValorMercado,
@@ -12,6 +13,7 @@ import {
   projectTarifaCheia,
   type PerfilConsumo,
   type Simulacao,
+  type SimulationMonthlyDetail,
 } from '../../lib/finance/simulation'
 import type { TipoSistema } from '../../lib/finance/roi'
 import {
@@ -153,6 +155,7 @@ export function SimulacoesTab({
   )
   const [tusdTouched, setTusdTouched] = useState(false)
   const [comparisonHorizon, setComparisonHorizon] = useState<number>(30)
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
   const defaultsRef = useRef(
     normalizeSimulationDefaults({ consumoKwhMes, valorInvestimento, prazoLeasingAnos, tipoSistema }),
   )
@@ -263,6 +266,7 @@ export function SimulacoesTab({
       const indicadores = calcKPIs(sim)
       const economiaContratoSim = calcEconomiaContrato(sim)
       const economiaHorizon = calcEconomiaHorizonte(sim, comparisonHorizon)
+      const detalhesMensais = calcSimulacaoDetalhesMensais(sim)
       return {
         sim,
         tarifaDesconto,
@@ -271,9 +275,34 @@ export function SimulacoesTab({
         indicadores,
         economiaContratoSim,
         economiaHorizon,
+        detalhesMensais,
       }
     })
   }, [comparisonHorizon, selectedSimulations])
+
+  useEffect(() => {
+    setExpandedRows((prev) => {
+      const next: Record<string, boolean> = {}
+      for (const sim of selectedSimulations) {
+        if (prev[sim.id]) {
+          next[sim.id] = true
+        }
+      }
+      return next
+    })
+  }, [selectedSimulations])
+
+  const toggleExpandedRow = (id: string) => {
+    setExpandedRows((prev) => {
+      const next = { ...prev }
+      if (next[id]) {
+        delete next[id]
+      } else {
+        next[id] = true
+      }
+      return next
+    })
+  }
 
   const handleNumberChange = (field: keyof Simulacao) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const parsed = toNumberFlexible(event.target.value)
@@ -836,6 +865,7 @@ export function SimulacoesTab({
             <table>
               <thead>
                 <tr>
+                  <th className="simulations-expand-header" aria-label="Expandir" />
                   <th>Cenário</th>
                   <th>Desconto</th>
                   <th>Prazo (meses)</th>
@@ -855,40 +885,140 @@ export function SimulacoesTab({
                 </tr>
               </thead>
               <tbody>
-                {comparisonRows.map(({ sim, tarifaDesconto, encargoTusd, indicadores, economiaContratoSim, economiaHorizon }) => {
-                  const prazo = Math.max(0, Math.round(sim.anos_contrato * 12))
-                  const tarifaCheia = projectTarifaCheia(sim.tarifa_cheia_r_kwh_m1, sim.inflacao_energetica_pct, 1)
-                  return (
-                    <tr key={sim.id}>
-                      <td>{sim.nome?.trim() || sim.id}</td>
-                      <td>{formatPercentBR(sim.desconto_pct / 100)}</td>
-                      <td>
-                        {formatNumberBRWithOptions(prazo, {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0,
-                        })}
-                      </td>
-                      <td>{formatNumberBR(sim.kc_kwh_mes)}</td>
-                      <td>{formatMoneyBR(tarifaCheia)}</td>
-                      <td>{formatMoneyBR(tarifaDesconto)}</td>
-                      <td>{formatMoneyBR(encargoTusd)}</td>
-                      <td>{formatMoneyBR(indicadores.custosVariaveis)}</td>
-                      <td>{formatMoneyBR(indicadores.receitaTotal)}</td>
-                      <td>{formatMoneyBR(indicadores.lucroLiquido)}</td>
-                      <td>{formatPercentValue(indicadores.roi)}</td>
-                      <td>{formatPayback(indicadores.paybackMeses)}</td>
-                      <td>{formatPercentValue(indicadores.retornoMensalBruto)}</td>
-                      <td>{formatMoneyBR(economiaHorizon)}</td>
-                      <td>{formatMoneyBR(economiaContratoSim)}</td>
-                      <td>{sim.obs?.trim() || '—'}</td>
-                    </tr>
-                  )
-                })}
+                {comparisonRows.map(
+                  ({
+                    sim,
+                    tarifaDesconto,
+                    encargoTusd,
+                    indicadores,
+                    economiaContratoSim,
+                    economiaHorizon,
+                    detalhesMensais,
+                  }) => {
+                    const prazo = Math.max(0, Math.round(sim.anos_contrato * 12))
+                    const tarifaCheia = projectTarifaCheia(sim.tarifa_cheia_r_kwh_m1, sim.inflacao_energetica_pct, 1)
+                    const isExpanded = Boolean(expandedRows[sim.id])
+                    const detailRowId = `sim-details-${sim.id}`
+                    return (
+                      <React.Fragment key={sim.id}>
+                        <tr className={isExpanded ? 'expanded' : undefined}>
+                          <td className="simulations-expand-cell">
+                            <button
+                              type="button"
+                              className="simulations-expand-button"
+                              onClick={() => toggleExpandedRow(sim.id)}
+                              aria-expanded={isExpanded}
+                              aria-controls={detailRowId}
+                              aria-label={`${isExpanded ? 'Recolher' : 'Expandir'} cenário`}
+                            >
+                              {isExpanded ? '−' : '+'}
+                            </button>
+                          </td>
+                          <td className="simulations-scenario-cell">{sim.nome?.trim() || sim.id}</td>
+                          <td>{formatPercentBR(sim.desconto_pct / 100)}</td>
+                          <td>
+                            {formatNumberBRWithOptions(prazo, {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0,
+                            })}
+                          </td>
+                          <td>{formatNumberBR(sim.kc_kwh_mes)}</td>
+                          <td>{formatMoneyBR(tarifaCheia)}</td>
+                          <td>{formatMoneyBR(tarifaDesconto)}</td>
+                          <td>{formatMoneyBR(encargoTusd)}</td>
+                          <td>{formatMoneyBR(indicadores.custosVariaveis)}</td>
+                          <td>{formatMoneyBR(indicadores.receitaTotal)}</td>
+                          <td>{formatMoneyBR(indicadores.lucroLiquido)}</td>
+                          <td>{formatPercentValue(indicadores.roi)}</td>
+                          <td>{formatPayback(indicadores.paybackMeses)}</td>
+                          <td>{formatPercentValue(indicadores.retornoMensalBruto)}</td>
+                          <td>{formatMoneyBR(economiaHorizon)}</td>
+                          <td>{formatMoneyBR(economiaContratoSim)}</td>
+                          <td>{sim.obs?.trim() || '—'}</td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="simulation-details-row">
+                            <td className="simulations-expand-cell" />
+                            <td colSpan={16} id={detailRowId}>
+                              <SimulationDetailsTable detalhes={detalhesMensais} prazo={prazo} />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  },
+                )}
               </tbody>
             </table>
           </div>
         )}
       </section>
+    </div>
+  )
+}
+
+type SimulationDetailsTableProps = {
+  detalhes: SimulationMonthlyDetail[]
+  prazo: number
+}
+
+function SimulationDetailsTable({ detalhes, prazo }: SimulationDetailsTableProps): JSX.Element {
+  const prazoLabel = formatNumberBRWithOptions(prazo, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+
+  if (detalhes.length === 0) {
+    return (
+      <div className="simulation-details">
+        <p className="simulation-details-empty">{`Nenhum mês disponível para o prazo de ${prazoLabel} meses.`}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="simulation-details">
+      <div className="simulation-details-header">
+        <strong>Detalhamento mensal</strong>
+        <span>{`Prazo (meses): ${prazoLabel}`}</span>
+      </div>
+      <div className="simulation-details-table-wrapper">
+        <table className="simulation-details-table">
+          <thead>
+            <tr>
+              <th>Mês</th>
+              <th>Tarifa cheia</th>
+              <th>Tarifa c/ desconto</th>
+              <th>Encargo TUSD</th>
+              <th>Receita</th>
+              <th>Custos variáveis</th>
+              <th>Economia bruta</th>
+              <th>Economia líquida</th>
+              <th>Economia líquida acumulada</th>
+            </tr>
+          </thead>
+          <tbody>
+            {detalhes.map((detalhe) => (
+              <tr key={detalhe.mes}>
+                <td>
+                  {formatNumberBRWithOptions(detalhe.mes, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })}
+                </td>
+                <td>{formatMoneyBR(detalhe.tarifaCheia)}</td>
+                <td>{formatMoneyBR(detalhe.tarifaComDesconto)}</td>
+                <td>{formatMoneyBR(detalhe.encargoTusd)}</td>
+                <td>{formatMoneyBR(detalhe.receita)}</td>
+                <td>{formatMoneyBR(detalhe.custosVariaveis)}</td>
+                <td>{formatMoneyBR(detalhe.economiaBruta)}</td>
+                <td>{formatMoneyBR(detalhe.economiaLiquida)}</td>
+                <td>{formatMoneyBR(detalhe.economiaLiquidaAcumulada)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
