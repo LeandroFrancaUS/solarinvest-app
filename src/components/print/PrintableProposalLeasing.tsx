@@ -23,6 +23,8 @@ import type { PrintableProposalProps } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
+import { anosAlvoEconomia } from '../../lib/finance/years'
+import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -64,9 +66,9 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /pot[êe]ncia\s+do\s+sistema/i,
 ]
 
-const FALLBACK_ECONOMIA_MARCOS = [5, 6, 10, 15, 20, 30]
-const EXTRA_ECONOMIA_MARCOS = [10, 15, 20, 30]
 const DEFAULT_CHART_COLORS = ['#2563EB', '#0f172a'] as const
+
+const formatAnoDescricao = (ano: number): string => `${ano} ${ano === 1 ? 'ano' : 'anos'}`
 
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
   if (!Number.isFinite(value)) {
@@ -448,55 +450,36 @@ function PrintableProposalLeasingInner(
     })
   }, [descontoFracao, energiaContratadaBase, inflacaoEnergiaFracao, tarifaCheiaBase])
 
+  const prazoEconomiaMeses = prazoContratual > 0 ? prazoContratual : 60
+
   const economiaMarcos = useMemo(() => {
-    const maxAnoDisponivel = anos.length > 0 ? Math.max(...anos) : 30
+    const alvos = anosAlvoEconomia(prazoEconomiaMeses)
 
-    const marcosCandidatos: number[] = []
-
-    if (Number.isFinite(prazoContratual) && prazoContratual > 0) {
-      const prazoEmAnos = Math.max(1, Math.round((prazoContratual ?? 0) / 12))
-      const prazoLimitado = Math.min(prazoEmAnos, maxAnoDisponivel)
-      marcosCandidatos.push(prazoLimitado)
-
-      const proximoAno = prazoLimitado + 1
-      if (proximoAno <= maxAnoDisponivel) {
-        marcosCandidatos.push(proximoAno)
-      }
+    if (anos.length === 0) {
+      return alvos
     }
 
-    EXTRA_ECONOMIA_MARCOS.forEach((ano) => {
-      if (ano <= maxAnoDisponivel) {
-        marcosCandidatos.push(ano)
-      }
-    })
+    const anosDisponiveis = new Set(anos)
+    const filtrados = alvos.filter((ano) => anosDisponiveis.has(ano))
 
-    const marcosUnicos = marcosCandidatos.filter((ano, index) => marcosCandidatos.indexOf(ano) === index)
-    if (marcosUnicos.length > 0) {
-      return marcosUnicos
-    }
-
-    const fallback = FALLBACK_ECONOMIA_MARCOS.filter((ano) => ano <= maxAnoDisponivel)
-    if (fallback.length > 0) {
-      return fallback
-    }
-
-    return anos.slice(0, Math.min(anos.length, 6))
-  }, [anos, prazoContratual])
+    return filtrados.length > 0 ? filtrados : alvos
+  }, [anos, prazoEconomiaMeses])
 
   const economiaProjetada = useMemo(() => {
-    return economiaMarcos.map((ano) => {
-      if (!anos.includes(ano)) {
-        return null
-      }
-      const acumulado = leasingROI[ano - 1] ?? 0
-      const anterior = ano > 1 ? leasingROI[ano - 2] ?? 0 : 0
+    const serie = calcularEconomiaAcumuladaPorAnos(
+      economiaMarcos,
+      (ano) => leasingROI[ano - 1] ?? 0,
+    )
+
+    return serie.map((row, index) => {
+      const acumuladoAnterior = index > 0 ? serie[index - 1].economiaAcumulada : 0
       return {
-        ano,
-        acumulado,
-        economiaAnual: acumulado - anterior,
+        ano: row.ano,
+        acumulado: row.economiaAcumulada,
+        economiaAnual: row.economiaAcumulada - acumuladoAnterior,
       }
-    }).filter((row): row is { ano: number; acumulado: number; economiaAnual: number } => row !== null)
-  }, [anos, economiaMarcos, leasingROI])
+    })
+  }, [economiaMarcos, leasingROI])
 
   const economiaChartData = useMemo(
     () =>
@@ -838,11 +821,11 @@ function PrintableProposalLeasingInner(
                   axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
                   tickLine={false}
                   width={120}
-                  tickFormatter={(valor) => `${valor}º ano`}
+                  tickFormatter={(valor) => formatAnoDescricao(Number(valor))}
                 />
                 <Tooltip
                   formatter={(value: number) => currency(Number(value))}
-                  labelFormatter={(value) => `${value}º ano`}
+                  labelFormatter={(value) => formatAnoDescricao(Number(value))}
                   contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', padding: 12 }}
                   wrapperStyle={{ zIndex: 1000 }}
                 />
@@ -871,7 +854,7 @@ function PrintableProposalLeasingInner(
               const row = economiaProjetada.find((item) => item.ano === ano)
               return (
                 <li key={`economia-${ano}`}>
-                  <span className="print-chart-highlights__year">{`${ano}º ano`}</span>
+                  <span className="print-chart-highlights__year">{formatAnoDescricao(ano)}</span>
                   <div className="print-chart-highlights__values">
                     <span className="print-chart-highlights__value" style={{ color: primaryChartColor }}>
                       Economia acumulada: {row ? currency(row.acumulado) : '—'}
