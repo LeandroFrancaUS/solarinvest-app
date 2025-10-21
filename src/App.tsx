@@ -4073,6 +4073,7 @@ export default function App() {
   const entradaConsiderada = isVendaDiretaTab ? 0 : entradaRs
   const descontoConsiderado = isVendaDiretaTab ? 0 : desconto
   const prazoMesesConsiderado = isVendaDiretaTab ? 0 : prazoMeses
+  const leasingPrazoConsiderado = isVendaDiretaTab ? 0 : leasingPrazo
 
   const modoEntradaNormalizado = useMemo<EntradaModo>(() => {
     if (!entradaConsiderada || entradaConsiderada <= 0) return 'NONE'
@@ -4207,12 +4208,15 @@ export default function App() {
     const valorMercadoBase = Math.max(0, capex)
     const descontoDecimal = Math.max(0, Math.min(descontoConsiderado / 100, 1))
     const inflacaoAnual = Math.max(-0.99, inflacaoAa / 100)
+    const prazoContratualMeses = Math.max(0, Math.floor(prazoMesesConsiderado))
+    const prazoLeasingMeses = Math.max(0, Math.floor(leasingPrazoConsiderado * 12))
+    const prazoMensalidades = Math.max(prazoContratualMeses, prazoLeasingMeses)
     return {
       kcKwhMes: Math.max(0, kcKwhMes),
       tarifaCheia: Math.max(0, tarifaCheia),
       desconto: descontoDecimal,
       inflacaoAa: inflacaoAnual,
-      prazoMeses: Math.max(0, Math.floor(prazoMesesConsiderado)),
+      prazoMeses: prazoMensalidades,
       taxaMinima: Math.max(0, taxaMinima),
       encargosFixos,
       entradaRs: Math.max(0, entradaConsiderada),
@@ -4250,6 +4254,7 @@ export default function App() {
     opexM,
     pagosAcumAteM,
     prazoMesesConsiderado,
+    leasingPrazoConsiderado,
     seguroM,
     tarifaCheia,
     taxaMinima,
@@ -4285,8 +4290,6 @@ export default function App() {
       simulationState.mesReajuste,
       simulationState.mesReferencia,
     )
-
-  const leasingPrazoConsiderado = isVendaDiretaTab ? 0 : leasingPrazo
 
   const leasingBeneficios = useMemo(() => {
     const valorInvestimento = Math.max(0, vm0)
@@ -4399,7 +4402,11 @@ export default function App() {
     const margemMinima = Math.max(0, simulationState.taxaMinima) + Math.max(0, simulationState.encargosFixos)
     const manutencaoPrevencaoSeguroMensal =
       leasingAtivo ? Math.max(0, (simulationState.vm0 * 0.015) / 12) : 0
-    mensalidades.forEach((mensalidade, index) => {
+    const limiteMeses = Math.max(0, Math.floor(leasingPrazoConsiderado * 12))
+    const mesesConsiderados = limiteMeses > 0 ? Math.min(mensalidades.length, limiteMeses) : mensalidades.length
+
+    for (let index = 0; index < mesesConsiderados; index += 1) {
+      const mensalidade = mensalidades[index]
       const mes = index + 1
       const tarifaCheiaMes = tarifaProjetadaCheia(
         simulationState.tarifaCheia,
@@ -4422,7 +4429,7 @@ export default function App() {
         mensalidade: Number(mensalidade.toFixed(2)),
         totalAcumulado: Number(totalAcumulado.toFixed(2)),
       })
-    })
+    }
 
     return {
       lista,
@@ -4430,7 +4437,7 @@ export default function App() {
       kcAjustado,
       creditoMensal: creditoEntradaMensal,
       margemMinima: simulationState.taxaMinima + simulationState.encargosFixos,
-      prazoEfetivo: mensalidades.length,
+      prazoEfetivo: mesesConsiderados,
       totalPago: lista.length > 0 ? lista[lista.length - 1].totalAcumulado : 0,
       inflacaoMensal,
     }
@@ -4439,10 +4446,27 @@ export default function App() {
     inflacaoMensal,
     kcAjustado,
     mensalidades,
+    leasingPrazoConsiderado,
     simulationState,
   ])
 
-  const leasingMensalidades = mensalidadesPorAno
+  const leasingMensalidades = useMemo(() => {
+    if (leasingPrazoConsiderado <= 0) {
+      return []
+    }
+    if (mensalidadesPorAno.length === 0) {
+      return []
+    }
+
+    return Array.from({ length: leasingPrazoConsiderado }, (_, index) => {
+      const valor = mensalidadesPorAno[index]
+      if (typeof valor === 'number') {
+        return valor
+      }
+      const ultimo = mensalidadesPorAno[mensalidadesPorAno.length - 1]
+      return typeof ultimo === 'number' ? ultimo : 0
+    })
+  }, [leasingPrazoConsiderado, mensalidadesPorAno])
 
   const chartData = useMemo(() => {
     return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
