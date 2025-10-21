@@ -2111,6 +2111,51 @@ table tbody tr:hover {
 }
 
 .simulations-table table td:first-child {
+  width: 44px;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.simulations-expand-header {
+  width: 44px;
+}
+
+.simulations-expand-cell {
+  width: 44px;
+  text-align: center;
+}
+
+.simulations-expand-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.simulations-expand-button:hover,
+.simulations-expand-button:focus-visible {
+  border-color: rgba(148, 163, 184, 0.6);
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--title);
+}
+
+.simulations-expand-button[aria-expanded='true'] {
+  border-color: rgba(255, 140, 0, 0.6);
+  background: rgba(255, 140, 0, 0.18);
+  color: var(--title);
+}
+
+.simulations-scenario-cell {
   font-weight: 600;
   color: var(--title);
 }
@@ -2122,6 +2167,77 @@ table tbody tr:hover {
 
 .simulations-table table tbody tr:hover {
   background: rgba(148, 163, 184, 0.08);
+}
+
+.simulations-table table tr.expanded {
+  background: rgba(255, 140, 0, 0.08);
+}
+
+.simulation-details-row:hover {
+  background: transparent;
+}
+
+.simulation-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 4px 4px;
+}
+
+.simulation-details-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.simulation-details-header strong {
+  color: var(--title);
+  font-size: 13px;
+}
+
+.simulation-details-header span {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.simulation-details-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.simulation-details-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.simulation-details-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.simulation-details-table thead tr {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.simulation-details-table th,
+.simulation-details-table td {
+  font-size: 12px;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.simulation-details-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.simulation-details-table tbody tr:hover {
+  background: rgba(148, 163, 184, 0.05);
 }
 
 .simulations-empty {
