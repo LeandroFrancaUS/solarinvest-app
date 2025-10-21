@@ -471,12 +471,12 @@ function PrintableProposalLeasingInner(
       (ano) => leasingROI[ano - 1] ?? 0,
     )
 
-    return serie.map((row, index) => {
-      const acumuladoAnterior = index > 0 ? serie[index - 1].economiaAcumulada : 0
+    return serie.map((row) => {
+      const acumuladoAnoAnterior = row.ano > 1 ? leasingROI[row.ano - 2] ?? 0 : 0
       return {
         ano: row.ano,
         acumulado: row.economiaAcumulada,
-        economiaAnual: row.economiaAcumulada - acumuladoAnterior,
+        economiaAnual: row.economiaAcumulada - acumuladoAnoAnterior,
       }
     })
   }, [economiaMarcos, leasingROI])
