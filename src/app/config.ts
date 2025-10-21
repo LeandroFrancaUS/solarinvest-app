@@ -9,7 +9,13 @@ import type { SegmentoCliente, TipoSistema, VendaForm } from '../lib/finance/roi
 
 export type TabKey = 'leasing' | 'vendas'
 
-export type SettingsTabKey = 'mercado' | 'leasing' | 'financiamento' | 'buyout' | 'outros'
+export type SettingsTabKey =
+  | 'mercado'
+  | 'simulacoes'
+  | 'leasing'
+  | 'financiamento'
+  | 'buyout'
+  | 'outros'
 
 export type SeguroModo = 'A' | 'B'
 
@@ -47,6 +53,7 @@ export const UF_LABELS: Record<string, string> = {
 
 export const SETTINGS_TABS: { id: SettingsTabKey; label: string }[] = [
   { id: 'mercado', label: 'Mercado & Energia' },
+  { id: 'simulacoes', label: 'Simulações' },
   { id: 'leasing', label: 'Leasing Parâmetros' },
   { id: 'financiamento', label: 'Financiamento Parâmetros' },
   { id: 'buyout', label: 'Buyout Parâmetros' },

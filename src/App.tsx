@@ -78,6 +78,7 @@ import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode }
 import { printStyles, simplePrintStyles } from './styles/printTheme'
 import { AppRoutes } from './app/Routes'
 import { Providers } from './app/Providers'
+import { SimulacoesTab } from './components/settings/SimulacoesTab'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -7076,10 +7077,7 @@ export default function App() {
     setKitBudget(createEmptyKitBudget())
     setIsBudgetProcessing(false)
     setBudgetProcessingError(null)
-    setPageSharedState({
-      leasing: createPageSharedSettings(),
-      vendas: createPageSharedSettings(),
-    })
+    setPageSharedState(createPageSharedSettings())
     if (budgetUploadInputRef.current) {
       budgetUploadInputRef.current.value = ''
     }
@@ -9690,6 +9688,22 @@ export default function App() {
                         />
                       </Field>
                     </div>
+                  </section>
+                  <section
+                    id="settings-panel-simulacoes"
+                    role="tabpanel"
+                    aria-labelledby="settings-tab-simulacoes"
+                    className={`settings-panel${settingsTab === 'simulacoes' ? ' active' : ''}`}
+                    hidden={settingsTab !== 'simulacoes'}
+                    aria-hidden={settingsTab !== 'simulacoes'}
+                  >
+                    <div className="settings-panel-header">
+                      <h4>Simulações financeiras</h4>
+                      <p className="settings-panel-description">
+                        Monte cenários de leasing com diferentes descontos, prazos e custos para comparar KPIs lado a lado.
+                      </p>
+                    </div>
+                    <SimulacoesTab />
                   </section>
                   <section
                     id="settings-panel-leasing"
