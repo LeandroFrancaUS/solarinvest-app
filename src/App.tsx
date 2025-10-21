@@ -8453,7 +8453,8 @@ export default function App() {
                 checked={multiUcAtivo}
                 onChange={(event) => handleMultiUcToggle(event.target.checked)}
               />
-              <span>Ativar modo multi-UC</span>
+              <span className="multi-uc-toggle-indicator" aria-hidden="true" />
+              <span className="multi-uc-toggle-text">Ativar modo multi-UC</span>
             </label>
           </div>
           {multiUcAtivo ? (
