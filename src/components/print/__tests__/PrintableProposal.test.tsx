@@ -284,4 +284,20 @@ describe('PrintableProposal (leasing)', () => {
     expect(markup).toContain('R$\u00a0120.000,00')
     expect(markup).toContain('Informações Importantes')
   })
+
+  it('exibe mensalidades para todos os anos configurados no prazo do leasing', () => {
+    const prazoAnos = 10
+    const props = createPrintableProps({
+      tipoProposta: 'LEASING',
+      leasingPrazoContratualMeses: prazoAnos * 12,
+      leasingInflacaoEnergiaAa: 6,
+      descontoContratualPct: 15,
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    const linhasAno = markup.match(/<td>\d+º ano<\/td>/g) ?? []
+    expect(linhasAno.length).toBe(prazoAnos)
+    expect(markup).toContain('<td>10º ano</td>')
+  })
 })
