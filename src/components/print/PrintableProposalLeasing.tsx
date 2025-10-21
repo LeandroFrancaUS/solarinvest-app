@@ -452,7 +452,10 @@ function PrintableProposalLeasingInner(
   ]
 
   const mensalidadesPorAno = useMemo(() => {
-    const anosConsiderados = [1, 2, 3, 4, 5]
+    const totalAnosContrato =
+      prazoContratual > 0 ? Math.max(1, Math.ceil(prazoContratual / 12)) : 5
+    const anosConsiderados = Array.from({ length: totalAnosContrato }, (_, index) => index + 1)
+
     return anosConsiderados.map((ano) => {
       const fator = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, ano - 1))
       const tarifaAno = tarifaCheiaBase * fator
@@ -467,7 +470,13 @@ function PrintableProposalLeasingInner(
         mensalidade,
       }
     })
-  }, [descontoFracao, energiaContratadaBase, inflacaoEnergiaFracao, tarifaCheiaBase])
+  }, [
+    descontoFracao,
+    energiaContratadaBase,
+    inflacaoEnergiaFracao,
+    tarifaCheiaBase,
+    prazoContratual,
+  ])
 
   const prazoEconomiaMeses = prazoContratual > 0 ? prazoContratual : 60
 
