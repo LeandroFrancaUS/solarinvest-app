@@ -511,19 +511,79 @@ button.secondary.danger:focus-visible {
 }
 
 .multi-uc-toggle {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   font-weight: 600;
   cursor: pointer;
   color: var(--title);
+  user-select: none;
 }
 
 .multi-uc-toggle input[type='checkbox'] {
-  width: 48px;
-  height: 26px;
-  accent-color: var(--accent);
-  cursor: pointer;
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+}
+
+.multi-uc-toggle-indicator {
+  position: relative;
+  flex-shrink: 0;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.32);
+  box-shadow: inset 0 2px 4px rgba(7, 14, 28, 0.4);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.multi-uc-toggle-indicator::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.35);
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.multi-uc-toggle:hover input[type='checkbox'] + .multi-uc-toggle-indicator {
+  background: rgba(148, 163, 184, 0.42);
+}
+
+.multi-uc-toggle input[type='checkbox']:checked + .multi-uc-toggle-indicator {
+  background: rgba(255, 140, 0, 0.45);
+  box-shadow: inset 0 2px 6px rgba(255, 140, 0, 0.35);
+}
+
+.multi-uc-toggle:hover input[type='checkbox']:checked + .multi-uc-toggle-indicator {
+  background: rgba(255, 140, 0, 0.55);
+}
+
+.multi-uc-toggle input[type='checkbox']:checked + .multi-uc-toggle-indicator::after {
+  transform: translateX(16px);
+  background: var(--accent);
+  box-shadow: 0 4px 12px rgba(255, 140, 0, 0.35);
+}
+
+.multi-uc-toggle input[type='checkbox']:focus-visible + .multi-uc-toggle-indicator,
+.multi-uc-toggle input[type='checkbox']:checked:focus-visible + .multi-uc-toggle-indicator {
+  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.45);
+}
+
+.multi-uc-toggle-text {
+  font-size: var(--font-m);
+  letter-spacing: 0.1px;
 }
 
 .multi-uc-disabled-hint {
@@ -2400,6 +2460,26 @@ table tbody tr:hover {
 
 #settings-panel-simulacoes .inline-field input {
   flex: 1 1 auto;
+}
+
+#settings-panel-simulacoes button.primary,
+#settings-panel-simulacoes button.secondary {
+  height: var(--sim-control-height);
+  min-height: var(--sim-control-height);
+  padding: 0 16px;
+  font-size: var(--sim-font-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#settings-panel-simulacoes button.primary {
+  font-size: var(--sim-font-lg);
+}
+
+#settings-panel-simulacoes .inline-field button.secondary {
+  padding: 0 12px;
+  white-space: nowrap;
 }
 
 #settings-panel-simulacoes .simulations-summary-grid,
