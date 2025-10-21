@@ -785,46 +785,82 @@ function PrintableProposalInner(
           </thead>
           <tbody>
             {(() => {
-              const linhas: { label: string; valor: number }[] = []
-              if (snapshotComposicao) {
-                const pushValor = (label: string, valor: number | null | undefined) => {
-                  if (Number.isFinite(valor) && (valor ?? 0) > 0) {
-                    linhas.push({ label, valor: Number(valor) })
-                  }
+              type Row = { key: string; label: string; valor: number; emphasize?: boolean }
+              const rows: Row[] = []
+              const addRow = (key: string, label: string, valor: number | null | undefined, emphasize = false) => {
+                if (!Number.isFinite(valor)) {
+                  return
                 }
-                const valorKit = Number.isFinite(vendaSnapshot?.orcamento.valor_total_orcamento)
-                  ? Number(vendaSnapshot?.orcamento.valor_total_orcamento)
-                  : null
-                if (valorKit && valorKit > 0) {
-                  linhas.push({ label: 'Kit Fotovoltaico', valor: valorKit })
+                const numero = Number(valor)
+                if (Math.abs(numero) <= 0.0001) {
+                  return
                 }
-                pushValor('Projeto', snapshotComposicao.projeto)
-                pushValor('Instalação', snapshotComposicao.instalacao)
-                pushValor('Material CA', snapshotComposicao.material_ca)
-                pushValor('ART', snapshotComposicao.art)
-                pushValor('CREA', snapshotComposicao.crea)
-                pushValor('Placa', snapshotComposicao.placa)
-                pushValor('OPEX', snapshotComposicao.opex)
-                pushValor('Comissão líquida', snapshotComposicao.comissao_liquida)
-                pushValor('Margem Operacional', snapshotComposicao.margem_operacional)
-                pushValor('Imposto retido', snapshotComposicao.imposto_retido)
+                rows.push({ key, label, valor: numero, emphasize })
+              }
+              const addTotalRow = (key: string, label: string, valor: number | null | undefined) => {
+                if (!Number.isFinite(valor)) {
+                  return
+                }
+                const numero = Number(valor)
+                if (Math.abs(numero) <= 0.0001) {
+                  return
+                }
+                rows.push({ key, label, valor: numero, emphasize: true })
+              }
 
-                const subtotal = linhas.reduce((acc, item) => acc + item.valor, 0)
-                const linhasRender = linhas.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td>{currency(item.valor)}</td>
+              const kitFromSnapshot = Number.isFinite(vendaSnapshot?.orcamento.valor_total_orcamento)
+                ? Number(vendaSnapshot?.orcamento.valor_total_orcamento)
+                : 0
+              const kitFromResumo = Number.isFinite(composicaoUfv?.valorOrcamento)
+                ? Number(composicaoUfv?.valorOrcamento)
+                : 0
+
+              if (snapshotComposicao) {
+                const kitValor = kitFromSnapshot > 0 ? kitFromSnapshot : kitFromResumo
+                if (kitValor > 0) {
+                  addRow('kit', 'Kit Fotovoltaico', kitValor)
+                }
+                addRow('capex-base', 'CAPEX base', snapshotComposicao.capex_base)
+                addRow('comissao', 'Comissão líquida', snapshotComposicao.comissao_liquida_valor)
+                addRow('margem', 'Margem Operacional', snapshotComposicao.margem_operacional_valor)
+                addRow('imposto-retido', 'Imposto retido', snapshotComposicao.imposto_retido_valor)
+                addRow('impostos-regime', 'Impostos do regime', snapshotComposicao.impostos_regime_valor)
+                addRow('impostos-totais', 'Impostos totais', snapshotComposicao.impostos_totais_valor)
+                addRow('capex-total', 'CAPEX considerado (sem kit)', snapshotComposicao.capex_total)
+
+                const descontosSnapshot = Number.isFinite(snapshotComposicao.descontos)
+                  ? Number(snapshotComposicao.descontos)
+                  : 0
+                if (descontosSnapshot > 0) {
+                  addRow('descontos', 'Descontos comerciais', -descontosSnapshot)
+                }
+
+                const vendaTotal = Number.isFinite(snapshotComposicao.venda_total)
+                  ? Number(snapshotComposicao.venda_total)
+                  : null
+                const vendaLiquida = Number.isFinite(snapshotComposicao.venda_liquida)
+                  ? Number(snapshotComposicao.venda_liquida)
+                  : null
+                const totalBruto = vendaTotal != null ? kitValor + vendaTotal : null
+                const totalLiquido = vendaLiquida != null ? kitValor + vendaLiquida : null
+
+                if (totalBruto != null && totalBruto > 0) {
+                  addTotalRow('total-bruto', 'Total do contrato (bruto)', totalBruto)
+                }
+                if (
+                  totalLiquido != null &&
+                  totalLiquido > 0 &&
+                  (totalBruto == null || Math.abs(totalLiquido - totalBruto) > 0.01)
+                ) {
+                  addTotalRow('total-liquido', 'Total do contrato (líquido)', totalLiquido)
+                }
+
+                return rows.map((row) => (
+                  <tr key={row.key} className={row.emphasize ? 'print-table__row--total' : undefined}>
+                    <td>{row.label}</td>
+                    <td>{currency(row.valor)}</td>
                   </tr>
                 ))
-
-                linhasRender.push(
-                  <tr key="total-capex">
-                    <td>Investimento Total do Projeto</td>
-                    <td>{subtotal > 0 ? currency(subtotal) : '—'}</td>
-                  </tr>,
-                )
-
-                return linhasRender
               }
 
               const composicaoAtual = composicaoUfv ?? null
@@ -837,63 +873,111 @@ function PrintableProposalInner(
                 ]
               }
 
-              const itens: { label: string; valor: number }[] = []
-              const pushIfPositivo = (label: string, valor: number | null | undefined) => {
+              const tipoResumo = composicaoAtual.tipoAtual ?? tipoInstalacao
+              const kitValor = kitFromResumo > 0 ? kitFromResumo : kitFromSnapshot
+              if (kitValor > 0) {
+                addRow('kit', 'Kit Fotovoltaico', kitValor)
+              }
+
+              const pushDireto = (key: string, label: string, valor: number | null | undefined) => {
                 if (Number.isFinite(valor) && (valor ?? 0) > 0) {
-                  itens.push({ label, valor: Number(valor) })
+                  addRow(`direto-${key}`, label, Number(valor))
                 }
               }
-              const tipoResumo = composicaoAtual.tipoAtual ?? tipoInstalacao
-              const kitValor = Number.isFinite(composicaoAtual.valorOrcamento)
-                ? Number(composicaoAtual.valorOrcamento)
-                : null
-              if (kitValor && kitValor > 0) {
-                itens.push({ label: 'Kit Fotovoltaico', valor: kitValor })
-              }
+
               if (tipoResumo === 'TELHADO') {
                 const telhadoValores = composicaoAtual.telhado
-                pushIfPositivo('Projeto', telhadoValores?.projeto)
-                pushIfPositivo('Instalação', telhadoValores?.instalacao)
-                pushIfPositivo('Material CA', telhadoValores?.materialCa)
-                pushIfPositivo('ART', (telhadoValores as { art?: number })?.art ?? null)
-                pushIfPositivo('CREA', telhadoValores?.crea)
-                pushIfPositivo('Placa', telhadoValores?.placa)
-                pushIfPositivo('Comissão líquida', telhadoValores?.comissaoLiquida)
-                pushIfPositivo('Margem Operacional', telhadoValores?.lucroBruto)
-                pushIfPositivo('Imposto retido', telhadoValores?.impostoRetido)
+                pushDireto('projeto', 'Projeto', telhadoValores?.projeto)
+                pushDireto('instalacao', 'Instalação', telhadoValores?.instalacao)
+                pushDireto('material-ca', 'Material CA', telhadoValores?.materialCa)
+                pushDireto('art', 'ART', (telhadoValores as { art?: number })?.art ?? null)
+                pushDireto('crea', 'CREA', telhadoValores?.crea)
+                pushDireto('placa', 'Placa', telhadoValores?.placa)
               } else {
                 const soloValores = composicaoAtual.solo
-                pushIfPositivo('Projeto', soloValores?.projeto)
-                pushIfPositivo('Instalação', soloValores?.instalacao)
-                pushIfPositivo('Material CA', soloValores?.materialCa)
-                pushIfPositivo('ART', (soloValores as { art?: number })?.art ?? null)
-                pushIfPositivo('CREA', soloValores?.crea)
-                pushIfPositivo('Placa', soloValores?.placa)
-                pushIfPositivo('TELA', soloValores?.tela)
-                pushIfPositivo('M. OBRA - TELA', soloValores?.maoObraTela)
-                pushIfPositivo('PORTÃO - TELA', soloValores?.portaoTela)
-                pushIfPositivo('CASA INVERSOR', soloValores?.casaInversor)
-                pushIfPositivo('TRAFO', soloValores?.trafo)
-                pushIfPositivo('BRITA', soloValores?.brita)
-                pushIfPositivo('TERRAPLANAGEM', soloValores?.terraplanagem)
-                pushIfPositivo('Comissão líquida', soloValores?.comissaoLiquida)
-                pushIfPositivo('Margem Operacional', soloValores?.lucroBruto)
-                pushIfPositivo('Imposto retido', soloValores?.impostoRetido)
+                pushDireto('projeto', 'Projeto', soloValores?.projeto)
+                pushDireto('instalacao', 'Instalação', soloValores?.instalacao)
+                pushDireto('material-ca', 'Material CA', soloValores?.materialCa)
+                pushDireto('art', 'ART', (soloValores as { art?: number })?.art ?? null)
+                pushDireto('crea', 'CREA', soloValores?.crea)
+                pushDireto('placa', 'Placa', soloValores?.placa)
+                pushDireto('tela', 'TELA', soloValores?.tela)
+                pushDireto('mao-obra-tela', 'M. OBRA - TELA', soloValores?.maoObraTela)
+                pushDireto('portao-tela', 'PORTÃO - TELA', soloValores?.portaoTela)
+                pushDireto('casa-inversor', 'CASA INVERSOR', soloValores?.casaInversor)
+                pushDireto('trafo', 'TRAFO', soloValores?.trafo)
+                pushDireto('brita', 'BRITA', soloValores?.brita)
+                pushDireto('terraplanagem', 'TERRAPLANAGEM', soloValores?.terraplanagem)
               }
-              const subtotal = itens.reduce((acc, item) => acc + item.valor, 0)
-              const linhasRender = itens.map((item) => (
-                <tr key={item.label}>
-                  <td>{item.label}</td>
-                  <td>{currency(item.valor)}</td>
-                </tr>
-              ))
-              linhasRender.push(
-                <tr key="total-capex">
-                  <td>Investimento Total do Projeto</td>
-                  <td>{subtotal > 0 ? currency(subtotal) : '—'}</td>
-                </tr>,
-              )
-              return linhasRender
+
+              const resumoCalculo =
+                tipoResumo === 'TELHADO'
+                  ? composicaoAtual.calculoTelhado
+                  : composicaoAtual.calculoSolo
+              const descontosConfiguracao = Number.isFinite(composicaoAtual.configuracao?.descontos)
+                ? Number(composicaoAtual.configuracao?.descontos)
+                : 0
+
+              if (resumoCalculo) {
+                addRow('capex-base', 'CAPEX base', resumoCalculo.capex_base)
+                addRow('comissao', 'Comissão líquida', resumoCalculo.comissao_liquida_valor)
+                addRow('margem', 'Margem Operacional', resumoCalculo.margem_operacional_valor)
+                addRow('imposto-retido', 'Imposto retido', resumoCalculo.imposto_retido_valor)
+                addRow('impostos-regime', 'Impostos do regime', resumoCalculo.impostos_regime_valor)
+                addRow('impostos-totais', 'Impostos totais', resumoCalculo.impostos_totais_valor)
+                addRow('capex-total', 'CAPEX considerado (sem kit)', resumoCalculo.capex_total)
+
+                const vendaTotal = Number.isFinite(resumoCalculo.venda_total)
+                  ? Number(resumoCalculo.venda_total)
+                  : null
+                const vendaLiquida = Number.isFinite(resumoCalculo.venda_liquida)
+                  ? Number(resumoCalculo.venda_liquida)
+                  : vendaTotal != null
+                  ? vendaTotal - descontosConfiguracao
+                  : null
+                if (descontosConfiguracao > 0) {
+                  addRow('descontos', 'Descontos comerciais', -descontosConfiguracao)
+                }
+
+                const totalBruto = vendaTotal != null ? kitValor + vendaTotal : null
+                if (totalBruto != null && totalBruto > 0) {
+                  addTotalRow('total-bruto', 'Total do contrato (bruto)', totalBruto)
+                }
+
+                const totalLiquido = vendaLiquida != null ? kitValor + vendaLiquida : null
+                if (
+                  totalLiquido != null &&
+                  totalLiquido > 0 &&
+                  (totalBruto == null || Math.abs(totalLiquido - totalBruto) > 0.01)
+                ) {
+                  addTotalRow('total-liquido', 'Total do contrato (líquido)', totalLiquido)
+                }
+
+                return rows.map((row) => (
+                  <tr key={row.key} className={row.emphasize ? 'print-table__row--total' : undefined}>
+                    <td>{row.label}</td>
+                    <td>{currency(row.valor)}</td>
+                  </tr>
+                ))
+              }
+
+              if (descontosConfiguracao > 0) {
+                addRow('descontos', 'Descontos comerciais', -descontosConfiguracao)
+              }
+
+              return rows.length
+                ? rows.map((row) => (
+                    <tr key={row.key} className={row.emphasize ? 'print-table__row--total' : undefined}>
+                      <td>{row.label}</td>
+                      <td>{currency(row.valor)}</td>
+                    </tr>
+                  ))
+                : [
+                    <tr key="total-capex">
+                      <td>Investimento Total do Projeto</td>
+                      <td>—</td>
+                    </tr>,
+                  ]
             })()}
           </tbody>
         </table>

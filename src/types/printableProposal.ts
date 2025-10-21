@@ -1,5 +1,12 @@
 import type { ParsedVendaPdfData } from '../lib/pdf/extractVendas'
 import type { RetornoProjetado, TipoSistema, VendaForm } from '../lib/finance/roi'
+import type {
+  BasePercentualComissao,
+  ComissaoTipo,
+  MargemTipo,
+  Outputs as UfvComposicaoCalc,
+  RegimeTributario,
+} from '../lib/venda/calcComposicaoUFV'
 import type { VendaSnapshot } from '../store/useVendaStore'
 import type { MultiUcClasse } from './multiUc'
 
@@ -38,6 +45,19 @@ export type UfvComposicaoResumo = {
   valorVendaTelhado: number
   valorVendaSolo: number
   tipoAtual: TipoInstalacao
+  calculoTelhado?: UfvComposicaoCalc | undefined
+  calculoSolo?: UfvComposicaoCalc | undefined
+  configuracao?: UfvComposicaoConfiguracao | undefined
+}
+
+export type UfvComposicaoConfiguracao = {
+  comissaoTipo: ComissaoTipo
+  comissaoBase: BasePercentualComissao
+  margemTipo: MargemTipo
+  descontos: number
+  regime: RegimeTributario
+  impostoRetidoAliquota: number
+  incluirImpostosNoCapex: boolean
 }
 
 export type ClienteDados = {
