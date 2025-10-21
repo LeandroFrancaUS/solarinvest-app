@@ -1,4 +1,5 @@
 import { cwd } from 'node:process'
+import { fileURLToPath, URL } from 'node:url'
 
 import react from '@vitejs/plugin-react'
 import type { Plugin, ViteDevServer } from 'vite'
@@ -34,6 +35,14 @@ export default defineConfig(({ mode }) => {
     build: { sourcemap: true },
     server: {
       host: true,
+    },
+    resolve: {
+      alias: {
+        zustand: fileURLToPath(new URL('./src/lib/zustand-shim.ts', import.meta.url)),
+        'zustand/middleware': fileURLToPath(
+          new URL('./src/lib/zustand-middleware-shim.ts', import.meta.url),
+        ),
+      },
     },
     esbuild: {},
   }
