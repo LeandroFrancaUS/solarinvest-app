@@ -8,6 +8,8 @@ import type {
 import type { SegmentoCliente, TipoSistema, VendaForm } from '../lib/finance/roi'
 import type { MultiUcClasse } from '../types/multiUc'
 import { ESCALONAMENTO_PADRAO } from '../utils/multiUc'
+import { DEFAULT_TUSD_ANO_REFERENCIA } from '../lib/finance/tusd'
+import type { TipoClienteTUSD } from '../lib/finance/tusd'
 
 export type TabKey = 'leasing' | 'vendas'
 
@@ -152,6 +154,12 @@ export const INITIAL_VALUES = {
   desconto: 20,
   taxaMinima: 95,
   encargosFixosExtras: 0,
+  tusdPercent: 27,
+  tusdTipoCliente: 'residencial' as TipoClienteTUSD,
+  tusdSubtipo: '',
+  tusdSimultaneidade: null as number | null,
+  tusdTarifaRkwh: null as number | null,
+  tusdAnoReferencia: DEFAULT_TUSD_ANO_REFERENCIA,
   leasingPrazo: LEASING_PRAZO_OPCOES[0] as LeasingPrazoAnos,
   potenciaModulo: 600,
   tipoInstalacao: 'TELHADO' as TipoInstalacao,
@@ -220,6 +228,12 @@ export const VENDA_FORM_DEFAULT: VendaForm = {
   taxa_mdr_credito_vista_pct: 0,
   taxa_mdr_credito_parcelado_pct: 0,
   entrada_financiamento: 0,
+  tusd_percentual: INITIAL_VALUES.tusdPercent,
+  tusd_tipo_cliente: INITIAL_VALUES.tusdTipoCliente,
+  tusd_subtipo: INITIAL_VALUES.tusdSubtipo || undefined,
+  tusd_simultaneidade: INITIAL_VALUES.tusdSimultaneidade ?? undefined,
+  tusd_tarifa_r_kwh: INITIAL_VALUES.tusdTarifaRkwh ?? undefined,
+  tusd_ano_referencia: INITIAL_VALUES.tusdAnoReferencia,
 }
 
 export function createInitialVendaForm(): VendaForm {

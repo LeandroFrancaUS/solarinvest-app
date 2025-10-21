@@ -8,6 +8,7 @@ import {
   valorCompraCliente,
   type EntradaModo,
 } from './utils/calcs'
+import type { TipoClienteTUSD } from './lib/finance/tusd'
 
 export interface SimulationState {
   kcKwhMes: number
@@ -33,6 +34,12 @@ export interface SimulationState {
   geracaoMensalKwh: number
   mesReajuste: number
   mesReferencia: number
+  tusdPercent: number
+  tusdTipoCliente: TipoClienteTUSD
+  tusdSubtipo: string | null
+  tusdSimultaneidade: number | null
+  tusdTarifaRkwh: number | null
+  tusdAnoReferencia: number
 }
 
 export interface BuyoutLinha {
@@ -75,6 +82,14 @@ export function selectMensalidades(state: SimulationState): number[] {
       modoEntrada: state.modoEntrada,
       mesReajuste: state.mesReajuste,
       mesReferencia: state.mesReferencia,
+      tusdConfig: {
+        percent: state.tusdPercent,
+        tipoCliente: state.tusdTipoCliente,
+        subTipo: state.tusdSubtipo,
+        simultaneidade: state.tusdSimultaneidade,
+        tarifaRkwh: state.tusdTarifaRkwh,
+        anoReferencia: state.tusdAnoReferencia,
+      },
     }),
   )
 }
