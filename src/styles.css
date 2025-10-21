@@ -760,6 +760,20 @@ button.secondary.danger:focus-visible {
   letter-spacing: 0.4px;
 }
 
+.field-label-with-tooltip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.field-label-with-tooltip > label {
+  flex: 1;
+}
+
+.field-label-with-tooltip .info-tooltip {
+  flex-shrink: 0;
+}
+
 .field small {
   color: var(--muted);
   font-size: calc(var(--font-s) - 1px);
@@ -1969,6 +1983,20 @@ table tbody tr:hover {
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
+}
+
+.checkbox-with-tooltip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.checkbox-with-tooltip .checkbox {
+  flex: 1;
+}
+
+.checkbox-with-tooltip .info-tooltip {
+  flex-shrink: 0;
 }
 
 .simulations-toggles input[type='checkbox'] {
