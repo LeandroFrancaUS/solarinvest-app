@@ -1,3 +1,5 @@
+import type { TipoSistema } from './roi'
+
 export type PerfilConsumo = 'residencial' | 'comercial'
 
 export type Simulacao = {
@@ -15,6 +17,7 @@ export type Simulacao = {
   perfil_consumo: PerfilConsumo
   tusd_pct: number
   seguro_pct: number
+  tipo_sistema?: TipoSistema
   obs?: string
   subtrair_tusd_contrato?: boolean
   subtrair_tusd_pos_contrato?: boolean
@@ -30,6 +33,7 @@ export type SimulationKPIs = {
 }
 
 const MONTHS_IN_YEAR = 12
+const SEGURO_REAJUSTE_ANUAL = 0.012
 const VALOR_MERCADO_MULTIPLICADOR = 1.29
 
 const clampNumber = (value: number): number => (Number.isFinite(value) ? value : 0)
@@ -77,7 +81,6 @@ export const calcTUSDValue = (kc: number, tarifaCheia: number, tusd_pct: number)
 type SimulationContext = {
   mesesContrato: number
   valorMercado: number
-  seguroMensal: number
   receitaMensal: number[]
   opexMensal: number[]
   economiaLiquidaMensal: number[]
@@ -102,7 +105,8 @@ const computeSimulationContext = (sim: Simulacao): SimulationContext => {
   const tarifaInicial = clampNumber(sim.tarifa_cheia_r_kwh_m1)
   const inflacaoEnergetica = clampNumber(sim.inflacao_energetica_pct)
   const valorMercado = calcValorMercado(clampNumber(sim.capex_solarinvest))
-  const seguroMensal = valorMercado * (clampNumber(sim.seguro_pct) / 100)
+  const seguroPctAnual = clampNumber(sim.seguro_pct)
+  const seguroAnualBase = valorMercado * (seguroPctAnual / 100)
   const subtrairTusdContrato = sim.subtrair_tusd_contrato ?? true
   const subtrairTusdPosContrato = sim.subtrair_tusd_pos_contrato ?? true
 
@@ -121,7 +125,9 @@ const computeSimulationContext = (sim: Simulacao): SimulationContext => {
     const tarifaDesconto = calcTarifaComDesconto(tarifaCheia, descontoPct)
     const tusdValor = calcTUSDValue(kc, tarifaCheia, tusdPct)
     const receita = kc * tarifaDesconto
-    const opex = seguroMensal
+    const anoCorrente = Math.ceil(mes / MONTHS_IN_YEAR)
+    const seguroAnualReajustado = seguroAnualBase * Math.pow(1 + SEGURO_REAJUSTE_ANUAL, Math.max(0, anoCorrente - 1))
+    const opex = seguroAnualReajustado / MONTHS_IN_YEAR
     const economiaBruta = kc * (tarifaCheia - tarifaDesconto)
     const economiaLiquida = subtrairTusdContrato ? economiaBruta - tusdValor : economiaBruta
 
@@ -139,7 +145,6 @@ const computeSimulationContext = (sim: Simulacao): SimulationContext => {
   return {
     mesesContrato,
     valorMercado,
-    seguroMensal,
     receitaMensal,
     opexMensal,
     economiaLiquidaMensal,

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   calcEconomiaContrato,
@@ -13,6 +13,7 @@ import {
   type PerfilConsumo,
   type Simulacao,
 } from '../../lib/finance/simulation'
+import type { TipoSistema } from '../../lib/finance/roi'
 import {
   formatMoneyBR,
   formatNumberBR,
@@ -27,6 +28,13 @@ const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short',
   timeStyle: 'short',
 })
+
+const TIPO_SISTEMA_OPTIONS: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID']
+const TIPO_SISTEMA_LABELS: Record<TipoSistema, string> = {
+  ON_GRID: 'On-grid',
+  HIBRIDO: 'Híbrido',
+  OFF_GRID: 'Off-grid',
+}
 
 const formatUpdatedAt = (timestamp: number | undefined): string => {
   if (!timestamp) {
@@ -53,24 +61,55 @@ const formatPayback = (payback: number): string => {
   return formatNumberBRWithOptions(payback, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
-const createDefaultSimulation = (): Simulacao => {
+type SimulationDefaults = {
+  consumoKwhMes: number
+  valorInvestimento: number
+  prazoLeasingAnos: number
+  tipoSistema: TipoSistema
+}
+
+const normalizeSimulationDefaults = ({
+  consumoKwhMes,
+  valorInvestimento,
+  prazoLeasingAnos,
+  tipoSistema,
+}: SimulationDefaults) => {
+  const consumo = Number.isFinite(consumoKwhMes) ? Math.max(0, consumoKwhMes) : 0
+  const capex = Number.isFinite(valorInvestimento) ? Math.max(0, valorInvestimento) : 0
+  const prazo = Number.isFinite(prazoLeasingAnos) ? Math.max(0, prazoLeasingAnos) : 0
+  return { consumo, capex, prazo, tipoSistema }
+}
+
+const createDefaultSimulation = ({
+  consumoKwhMes,
+  valorInvestimento,
+  prazoLeasingAnos,
+  tipoSistema,
+}: SimulationDefaults): Simulacao => {
   const now = Date.now()
   const perfil: PerfilConsumo = 'residencial'
+  const { consumo, capex, prazo, tipoSistema: tipo } = normalizeSimulationDefaults({
+    consumoKwhMes,
+    valorInvestimento,
+    prazoLeasingAnos,
+    tipoSistema,
+  })
   return {
     id: makeSimId(),
     nome: 'Nova simulação',
     createdAt: now,
     updatedAt: now,
     desconto_pct: 20,
-    capex_solarinvest: 40000,
-    anos_contrato: 5,
+    capex_solarinvest: capex,
+    anos_contrato: prazo,
     inflacao_energetica_pct: 8,
     inflacao_ipca_pct: 4,
     tarifa_cheia_r_kwh_m1: 1,
-    kc_kwh_mes: 400,
+    kc_kwh_mes: consumo,
     perfil_consumo: perfil,
     tusd_pct: defaultTUSD(perfil),
     seguro_pct: 0.8,
+    tipo_sistema: tipo,
     obs: '',
     subtrair_tusd_contrato: true,
     subtrair_tusd_pos_contrato: true,
@@ -81,7 +120,19 @@ const cloneSimulation = (sim: Simulacao): Simulacao => ({ ...sim })
 
 const ECONOMIA_ANOS_OPTIONS = [15, 20, 30] as const
 
-export function SimulacoesTab(): JSX.Element {
+type SimulacoesTabProps = {
+  consumoKwhMes: number
+  valorInvestimento: number
+  tipoSistema: TipoSistema
+  prazoLeasingAnos: number
+}
+
+export function SimulacoesTab({
+  consumoKwhMes,
+  valorInvestimento,
+  tipoSistema,
+  prazoLeasingAnos,
+}: SimulacoesTabProps): JSX.Element {
   const simulations = useSimulationsStore(simulationsSelectors.list)
   const itemsById = useSimulationsStore((state) => state.items)
   const selectedIds = useSimulationsStore((state) => state.selectedIds)
@@ -92,9 +143,19 @@ export function SimulacoesTab(): JSX.Element {
   const selectSimulations = useSimulationsStore((state) => state.select)
   const clearSelection = useSimulationsStore((state) => state.clearSelection)
 
-  const [current, setCurrent] = useState<Simulacao>(() => createDefaultSimulation())
+  const [current, setCurrent] = useState<Simulacao>(() =>
+    createDefaultSimulation({
+      consumoKwhMes,
+      valorInvestimento,
+      prazoLeasingAnos,
+      tipoSistema,
+    }),
+  )
   const [tusdTouched, setTusdTouched] = useState(false)
   const [comparisonHorizon, setComparisonHorizon] = useState<number>(30)
+  const defaultsRef = useRef(
+    normalizeSimulationDefaults({ consumoKwhMes, valorInvestimento, prazoLeasingAnos, tipoSistema }),
+  )
 
   const isSaved = Boolean(itemsById[current.id])
 
@@ -103,6 +164,55 @@ export function SimulacoesTab(): JSX.Element {
       setCurrent((prev) => ({ ...prev, tusd_pct: defaultTUSD(prev.perfil_consumo) }))
     }
   }, [current.perfil_consumo, current.tusd_pct, tusdTouched])
+
+  useEffect(() => {
+    if (!current.tipo_sistema) {
+      setCurrent((prev) => ({ ...prev, tipo_sistema: tipoSistema }))
+    }
+  }, [current.tipo_sistema, tipoSistema])
+
+  useEffect(() => {
+    const normalized = normalizeSimulationDefaults({
+      consumoKwhMes,
+      valorInvestimento,
+      prazoLeasingAnos,
+      tipoSistema,
+    })
+    const previous = defaultsRef.current ?? normalized
+    defaultsRef.current = normalized
+
+    if (isSaved) {
+      return
+    }
+
+    setCurrent((prev) => {
+      const patch: Partial<Simulacao> = {}
+      if (prev.kc_kwh_mes === previous.consumo && prev.kc_kwh_mes !== normalized.consumo) {
+        patch.kc_kwh_mes = normalized.consumo
+      }
+      if (
+        prev.capex_solarinvest === previous.capex &&
+        prev.capex_solarinvest !== normalized.capex
+      ) {
+        patch.capex_solarinvest = normalized.capex
+      }
+      if (prev.anos_contrato === previous.prazo && prev.anos_contrato !== normalized.prazo) {
+        patch.anos_contrato = normalized.prazo
+      }
+      if (
+        (!prev.tipo_sistema || prev.tipo_sistema === previous.tipoSistema) &&
+        prev.tipo_sistema !== normalized.tipoSistema
+      ) {
+        patch.tipo_sistema = normalized.tipoSistema
+      }
+
+      if (Object.keys(patch).length === 0) {
+        return prev
+      }
+
+      return { ...prev, ...patch }
+    })
+  }, [consumoKwhMes, valorInvestimento, prazoLeasingAnos, tipoSistema, isSaved])
 
   const valorMercado = useMemo(() => calcValorMercado(current.capex_solarinvest), [current.capex_solarinvest])
   const tarifaComDesconto = useMemo(
@@ -113,7 +223,7 @@ export function SimulacoesTab(): JSX.Element {
     () => calcTUSDValue(current.kc_kwh_mes, current.tarifa_cheia_r_kwh_m1, current.tusd_pct),
     [current.kc_kwh_mes, current.tarifa_cheia_r_kwh_m1, current.tusd_pct],
   )
-  const seguroMensal = useMemo(
+  const seguroAnualBase = useMemo(
     () => valorMercado * (Number.isFinite(current.seguro_pct) ? current.seguro_pct / 100 : 0),
     [valorMercado, current.seguro_pct],
   )
@@ -183,6 +293,13 @@ export function SimulacoesTab(): JSX.Element {
     })
   }
 
+  const handleTipoSistemaChange = (novoTipo: TipoSistema) => {
+    setCurrent((prev) => ({
+      ...prev,
+      tipo_sistema: novoTipo,
+    }))
+  }
+
   const handleToggle = (field: 'subtrair_tusd_contrato' | 'subtrair_tusd_pos_contrato') =>
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setCurrent((prev) => ({
@@ -192,7 +309,14 @@ export function SimulacoesTab(): JSX.Element {
     }
 
   const handleNewSimulation = () => {
-    setCurrent(createDefaultSimulation())
+    setCurrent(
+      createDefaultSimulation({
+        consumoKwhMes,
+        valorInvestimento,
+        prazoLeasingAnos,
+        tipoSistema,
+      }),
+    )
     setTusdTouched(false)
   }
 
@@ -291,6 +415,7 @@ export function SimulacoesTab(): JSX.Element {
 
   const prazoMeses = Math.max(0, Math.round(current.anos_contrato * 12))
   const tarifaCheiaMes1 = projectTarifaCheia(current.tarifa_cheia_r_kwh_m1, current.inflacao_energetica_pct, 1)
+  const tipoSistemaAtual = current.tipo_sistema ?? tipoSistema
 
   return (
     <div className="simulations-tab">
@@ -404,7 +529,7 @@ export function SimulacoesTab(): JSX.Element {
                   onChange={handleNumberChange('anos_contrato')}
                   onFocus={selectNumberInputOnFocus}
                   min={1}
-                  step="1"
+                  step="0.5"
                 />
               </div>
 
@@ -448,9 +573,9 @@ export function SimulacoesTab(): JSX.Element {
               </div>
 
               <div className="field">
-                <label htmlFor="sim-kc">KC (kWh/mês)</label>
+                <label htmlFor="sim-consumo">Consumo (kWh/mês)</label>
                 <input
-                  id="sim-kc"
+                  id="sim-consumo"
                   type="number"
                   value={current.kc_kwh_mes}
                   onChange={handleNumberChange('kc_kwh_mes')}
@@ -458,6 +583,23 @@ export function SimulacoesTab(): JSX.Element {
                   min={0}
                   step="10"
                 />
+              </div>
+
+              <div className="field">
+                <label htmlFor="sim-tipo-sistema">Tipo de sistema</label>
+                <select
+                  id="sim-tipo-sistema"
+                  value={tipoSistemaAtual}
+                  onChange={(event) =>
+                    handleTipoSistemaChange(event.target.value as TipoSistema)
+                  }
+                >
+                  {TIPO_SISTEMA_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {TIPO_SISTEMA_LABELS[option]}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="field">
@@ -512,7 +654,7 @@ export function SimulacoesTab(): JSX.Element {
               </div>
 
               <div className="field">
-                <label htmlFor="sim-seguro">Seguro mensal (% valor de mercado)</label>
+                <label htmlFor="sim-seguro">Seguro anual (% valor de mercado)</label>
                 <input
                   id="sim-seguro"
                   type="number"
@@ -574,8 +716,8 @@ export function SimulacoesTab(): JSX.Element {
                 <strong>{formatMoneyBR(valorMercado)}</strong>
               </div>
               <div className="simulations-summary-card">
-                <span>Seguro mensal</span>
-                <strong>{formatMoneyBR(seguroMensal)}</strong>
+                <span>Seguro anual (1º ano)</span>
+                <strong>{formatMoneyBR(seguroAnualBase)}</strong>
               </div>
               <div className="simulations-summary-card">
                 <span>Encargo TUSD (mês 1)</span>
@@ -677,7 +819,7 @@ export function SimulacoesTab(): JSX.Element {
                   <th>Cenário</th>
                   <th>Desconto</th>
                   <th>Prazo (meses)</th>
-                  <th>KC (kWh/mês)</th>
+                  <th>Consumo (kWh/mês)</th>
                   <th>Tarifa cheia (mês 1)</th>
                   <th>Tarifa com desconto (mês 1)</th>
                   <th>Encargo TUSD</th>
