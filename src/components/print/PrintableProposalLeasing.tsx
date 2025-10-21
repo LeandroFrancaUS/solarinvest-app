@@ -172,6 +172,7 @@ function PrintableProposalLeasingInner(
     leasingInflacaoEnergiaAa,
     orcamentoItens,
     informacoesImportantesObservacao,
+    multiUcResumo,
   } = props
 
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
@@ -225,6 +226,22 @@ function PrintableProposalLeasingInner(
     Number.isFinite(leasingValorDeMercadoEstimado) && (leasingValorDeMercadoEstimado ?? 0) > 0
       ? formatMoneyBR(leasingValorDeMercadoEstimado ?? 0)
       : '—'
+
+  const multiUcResumoDados = multiUcResumo && multiUcResumo.ucs.length > 0 ? multiUcResumo : null
+  const multiUcEscalonamentoTexto = multiUcResumoDados
+    ? formatPercentBRWithDigits(multiUcResumoDados.escalonamentoPercentual, 0)
+    : null
+  const multiUcRateioDescricao = multiUcResumoDados
+    ? multiUcResumoDados.distribuicaoPorPercentual
+      ? 'Percentual (%) informado por UC'
+      : 'Manual (kWh) informado por UC'
+    : null
+
+  const formatKwhValor = (valor: number, fractionDigits = 2): string =>
+    `${formatNumberBRWithOptions(valor, {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    })} kWh`
 
   const resumoCampos: ClientInfoField[] = [
     { label: 'Cliente', value: nomeCliente || '—' },
@@ -625,6 +642,100 @@ function PrintableProposalLeasingInner(
           </tbody>
         </table>
       </section>
+
+      {multiUcResumoDados ? (
+        <section id="multi-uc" className="print-section keep-together">
+          <h2 className="section-title keep-with-next">Cenário Misto (Multi-UC)</h2>
+          <p className="section-subtitle keep-with-next">
+            Distribuição dos créditos de energia entre unidades consumidoras
+          </p>
+          <div className="print-key-values">
+            <p>
+              <strong>Energia gerada total</strong>
+              {formatKwhValor(multiUcResumoDados.energiaGeradaTotalKWh, 0)}
+            </p>
+            <p>
+              <strong>Energia compensada</strong>
+              {formatKwhValor(multiUcResumoDados.energiaGeradaUtilizadaKWh, 0)}
+            </p>
+            <p>
+              <strong>Créditos remanescentes</strong>
+              {formatKwhValor(multiUcResumoDados.sobraCreditosKWh)}
+            </p>
+            <p>
+              <strong>{`Escalonamento Fio B (${multiUcResumoDados.anoVigencia})`}</strong>
+              {multiUcEscalonamentoTexto ?? '—'}
+            </p>
+            <p>
+              <strong>Encargo TUSD (R$/mês)</strong>
+              {currency(multiUcResumoDados.totalTusd)}
+            </p>
+            <p>
+              <strong>Encargo TE (R$/mês)</strong>
+              {currency(multiUcResumoDados.totalTe)}
+            </p>
+            <p>
+              <strong>Custo total mensal (R$)</strong>
+              {currency(multiUcResumoDados.totalContrato)}
+            </p>
+            <p>
+              <strong>Modo de rateio</strong>
+              {multiUcRateioDescricao ?? '—'}
+            </p>
+          </div>
+          <table className="no-break-inside">
+            <thead>
+              <tr>
+                <th>UC</th>
+                <th>Classe</th>
+                <th>Consumo (kWh)</th>
+                <th>Créditos (kWh)</th>
+                <th>kWh faturados</th>
+                <th>kWh compensados</th>
+                <th>TE (R$/kWh)</th>
+                <th>TUSD total (R$/kWh)</th>
+                <th>TUSD Fio B (R$/kWh)</th>
+                <th>TUSD mensal (R$)</th>
+                <th>TE mensal (R$)</th>
+                <th>Total mensal (R$)</th>
+                <th>Observações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {multiUcResumoDados.ucs.map((uc) => (
+                <tr key={uc.id}>
+                  <td>{uc.id}</td>
+                  <td>{uc.classe}</td>
+                  <td className="leasing-table-value">{formatKwhValor(uc.consumoKWh)}</td>
+                  <td className="leasing-table-value">
+                    <div>{formatKwhValor(uc.creditosKWh)}</div>
+                    <small className="muted">
+                      {multiUcResumoDados.distribuicaoPorPercentual
+                        ? `Rateio: ${formatPercentBRWithDigits((uc.rateioPercentual ?? 0) / 100, 2)}`
+                        : uc.manualRateioKWh != null
+                        ? `Manual: ${formatKwhValor(uc.manualRateioKWh)}`
+                        : '—'}
+                    </small>
+                  </td>
+                  <td className="leasing-table-value">{formatKwhValor(uc.kWhFaturados)}</td>
+                  <td className="leasing-table-value">{formatKwhValor(uc.kWhCompensados)}</td>
+                  <td className="leasing-table-value">{tarifaCurrency(uc.te)}</td>
+                  <td className="leasing-table-value">{tarifaCurrency(uc.tusdTotal)}</td>
+                  <td className="leasing-table-value">{tarifaCurrency(uc.tusdFioB)}</td>
+                  <td className="leasing-table-value">{currency(uc.tusdMensal)}</td>
+                  <td className="leasing-table-value">{currency(uc.teMensal)}</td>
+                  <td className="leasing-table-value">{currency(uc.totalMensal)}</td>
+                  <td className="leasing-table-value">{uc.observacoes?.trim() || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="muted no-break-inside">
+            TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
+            escalonamento vigente.
+          </p>
+        </section>
+      ) : null}
 
       <section className="print-section keep-together">
         <h2 className="section-title keep-with-next">Evolução das Mensalidades e Economia</h2>
