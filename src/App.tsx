@@ -10046,69 +10046,8 @@ export default function App() {
   )
 
   const renderComposicaoUfvSection = () => {
-    const comissaoLabel =
-      vendasConfig.comissao_default_tipo === 'percentual'
-        ? 'Comissão líquida (%)'
-        : 'Comissão líquida (R$)'
-    const margemLabel = 'Margem operacional (R$)'
-    const telhadoCampos: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
-      { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
-      { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
-      { key: 'materialCa', label: 'Material CA', tooltip: 'Materiais elétricos do lado CA (cabos, disjuntores, quadros).' },
-      { key: 'crea', label: 'CREA', tooltip: 'Taxas do conselho de engenharia necessárias para o projeto.' },
-      { key: 'art', label: 'ART', tooltip: 'Valor da Anotação de Responsabilidade Técnica do responsável.' },
-      { key: 'placa', label: 'Placa', tooltip: 'Investimento nos módulos fotovoltaicos utilizados no sistema.' },
-    ]
-    const resumoCamposTelhado: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
-      {
-        key: 'comissaoLiquida',
-        label: comissaoLabel,
-        tooltip:
-          'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
-      },
-      {
-        key: 'lucroBruto',
-        label: margemLabel,
-        tooltip:
-          'Margem de lucro prevista sobre o CAPEX base. Defina se será informada em valor ou percentual nos parâmetros.',
-      },
-    ]
-    const soloCamposPrincipais: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
-      { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
-      { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
-      { key: 'materialCa', label: 'Material CA', tooltip: 'Materiais elétricos do lado CA (cabos, disjuntores, quadros).' },
-      { key: 'crea', label: 'CREA', tooltip: 'Taxas do conselho de engenharia necessárias para o projeto.' },
-      { key: 'art', label: 'ART', tooltip: 'Valor da Anotação de Responsabilidade Técnica do responsável.' },
-      { key: 'placa', label: 'Placa', tooltip: 'Investimento nos módulos fotovoltaicos utilizados no sistema.' },
-      { key: 'estruturaSolo', label: 'Estrutura solo', tooltip: 'Estruturas e fundações específicas para montagem em solo.' },
-      { key: 'tela', label: 'Tela', tooltip: 'Material de cercamento (telas de proteção) para o parque solar.' },
-      { key: 'portaoTela', label: 'Portão tela', tooltip: 'Portões e acessos associados ao cercamento em tela.' },
-      { key: 'maoObraTela', label: 'Mão de obra tela', tooltip: 'Equipe dedicada à instalação da tela e portões.' },
-      { key: 'casaInversor', label: 'Casa inversor', tooltip: 'Construção ou abrigo para inversores e painéis elétricos.' },
-      { key: 'brita', label: 'Brita', tooltip: 'Lastro de brita utilizado para nivelamento e drenagem do solo.' },
-      { key: 'terraplanagem', label: 'Terraplanagem', tooltip: 'Serviços de preparo e nivelamento do terreno.' },
-      { key: 'trafo', label: 'Trafo', tooltip: 'Custo de transformadores ou adequações de tensão.' },
-      { key: 'rede', label: 'Rede', tooltip: 'Adequações de rede, cabeamento e conexões externas.' },
-    ]
-    const resumoCamposSolo: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
-      {
-        key: 'comissaoLiquida',
-        label: comissaoLabel,
-        tooltip:
-          'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
-      },
-      {
-        key: 'lucroBruto',
-        label: margemLabel,
-        tooltip:
-          'Margem de lucro prevista sobre o CAPEX base. Defina se será informada em valor ou percentual nos parâmetros.',
-      },
-    ]
-
     const isTelhado = tipoInstalacao === 'TELHADO'
     const descontoValor = toNumberSafe(descontosValor)
-    const impostoRetidoPct = toNumberSafe(vendasConfig.imposto_retido_aliquota_default)
-    const impostoRetidoPercentLabel = formatPercentBRWithDigits(impostoRetidoPct / 100, 2)
     const workflowAtivo = Boolean(vendasConfig.workflow_aprovacao_ativo)
     const calculoAtual = isTelhado ? composicaoTelhadoCalculo : composicaoSoloCalculo
     const regimeBreakdown = calculoAtual?.regime_breakdown ?? []
@@ -10137,190 +10076,23 @@ export default function App() {
       margemOrigemAtual === 'manual'
         ? 'Manual (valor customizado)'
         : 'Automática (configuração global)'
+    const abrirParametrosVendas = () => {
+      setSettingsTab('vendas')
+      setIsSettingsOpen(true)
+    }
     return (
       <section className="card">
         <div className="card-header">
           <h2>Composição da UFV</h2>
+          <button type="button" className="ghost with-icon" onClick={abrirParametrosVendas}>
+            <span aria-hidden="true">⚙︎</span>
+            Ajustar parâmetros internos
+          </button>
         </div>
         <p className="muted">
-          Informe os componentes adicionais do projeto e configure comissão, margem e impostos para calcular o valor de
-          venda da usina.
+          Consulte abaixo os valores consolidados da proposta. Custos e ajustes comerciais podem ser
+          atualizados em Configurações → Parâmetros de Vendas.
         </p>
-        <div className="composicao-ufv-groups">
-          {isTelhado ? (
-            <div className="composicao-ufv-group">
-              <h3>Projeto em Telhado</h3>
-              <div className="grid g3">
-                {telhadoCampos.map(({ key, label, tooltip }) => (
-                  <Field key={`telhado-${key}`} label={labelWithTooltip(label, tooltip)}>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
-                      onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                ))}
-              </div>
-              <div className="grid g3">
-                {resumoCamposTelhado.map(({ key, label, tooltip }) => {
-                  const isMargemField = key === 'lucroBruto'
-                  return (
-                    <Field key={`telhado-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
-                        onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
-                        onFocus={selectNumberInputOnFocus}
-                        disabled={isMargemField && margemOrigemAtual !== 'manual'}
-                      />
-                    </Field>
-                  )
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="composicao-ufv-group">
-              <h3>Projeto em Solo</h3>
-              <div className="grid g3">
-                {soloCamposPrincipais.map(({ key, label, tooltip }) => (
-                  <Field key={`solo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
-                      onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                ))}
-              </div>
-              <div className="grid g3">
-                {resumoCamposSolo.map(({ key, label, tooltip }) => {
-                  const isMargemField = key === 'lucroBruto'
-                  return (
-                    <Field key={`solo-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
-                        onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
-                        onFocus={selectNumberInputOnFocus}
-                        disabled={isMargemField && margemOrigemAtual !== 'manual'}
-                      />
-                    </Field>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="composicao-ufv-config">
-          <h3>Ajustes comerciais</h3>
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Origem da margem',
-                'Use cálculo automático ou valor manual por simulação.',
-              )}
-            >
-              <select
-                value={margemOrigemAtual}
-                onChange={(event) => {
-                  const origemSelecionada = event.target.value as MargemOrigem
-                  updateVendasSimulacao(currentBudgetId, {
-                    margemOrigem: origemSelecionada,
-                    margemManualValor:
-                      origemSelecionada === 'manual'
-                        ? Math.max(0, margemCalculadaAtual)
-                        : undefined,
-                  })
-                }}
-              >
-                <option value="automatica">Automática (configuração global)</option>
-                <option value="manual">Manual por proposta</option>
-              </select>
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Margem Operacional (R$)',
-                'Valor manual da margem desta proposta. Se automatizado nas Configurações, este campo ficará bloqueado.',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={
-                  margemOrigemAtual === 'manual'
-                    ? (Number.isFinite(margemManualValor) ? margemManualValor : 0)
-                    : margemCalculadaAtual
-                }
-                onChange={(event) => handleMargemManualInput(event.target.value)}
-                onFocus={selectNumberInputOnFocus}
-                disabled={margemOrigemAtual !== 'manual'}
-              />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Descontos comerciais (R$)',
-                'Valor de descontos concedidos ao cliente. Utilizado para calcular a venda líquida.',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={Number.isFinite(descontosValor) ? descontosValor : 0}
-                onChange={(event) => handleDescontosConfigChange(event.target.value)}
-                onFocus={selectNumberInputOnFocus}
-              />
-            </Field>
-          </div>
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Imposto retido (%)',
-                'Percentual de impostos retidos na fonte aplicados sobre a venda total.',
-              )}
-            >
-              <input
-                type="text"
-                readOnly
-                value={impostoRetidoPercentLabel}
-              />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Regime tributário',
-                'Preset fiscal usado no cálculo; confirme com a contabilidade.',
-              )}
-            >
-              <input
-                type="text"
-                readOnly
-                value={REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? '—'}
-              />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Incluir impostos no CAPEX',
-                'Quando marcado, soma impostos retidos e do regime ao CAPEX considerado nas análises.',
-              )}
-            >
-              <label className="inline-checkbox">
-                <input type="checkbox" checked={vendasConfig.incluirImpostosNoCAPEX_default} readOnly disabled />
-                <span>Somar impostos ao CAPEX base (configuração global).</span>
-              </label>
-            </Field>
-          </div>
-        </div>
         <div className="composicao-ufv-summary">
           <h3>Resumo do cálculo</h3>
           <div className="grid g3">
@@ -10415,6 +10187,250 @@ export default function App() {
           </div>
         </div>
       </section>
+    )
+  }
+
+  const renderVendasParametrosInternosSettings = () => {
+    const comissaoLabel =
+      vendasConfig.comissao_default_tipo === 'percentual'
+        ? 'Comissão líquida (%)'
+        : 'Comissão líquida (R$)'
+    const margemLabel = 'Margem operacional (R$)'
+    const telhadoCampos: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
+      { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
+      { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
+      { key: 'materialCa', label: 'Material CA', tooltip: 'Materiais elétricos do lado CA (cabos, disjuntores, quadros).' },
+      { key: 'crea', label: 'CREA', tooltip: 'Taxas do conselho de engenharia necessárias para o projeto.' },
+      { key: 'art', label: 'ART', tooltip: 'Valor da Anotação de Responsabilidade Técnica do responsável.' },
+      { key: 'placa', label: 'Placa', tooltip: 'Investimento nos módulos fotovoltaicos utilizados no sistema.' },
+    ]
+    const resumoCamposTelhado: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
+      {
+        key: 'comissaoLiquida',
+        label: comissaoLabel,
+        tooltip:
+          'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
+      },
+      {
+        key: 'lucroBruto',
+        label: margemLabel,
+        tooltip:
+          'Margem de lucro prevista sobre o CAPEX base. Defina se será informada em valor ou percentual nos parâmetros.',
+      },
+    ]
+    const soloCamposPrincipais: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
+      { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
+      { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
+      { key: 'materialCa', label: 'Material CA', tooltip: 'Materiais elétricos do lado CA (cabos, disjuntores, quadros).' },
+      { key: 'crea', label: 'CREA', tooltip: 'Taxas do conselho de engenharia necessárias para o projeto.' },
+      { key: 'art', label: 'ART', tooltip: 'Valor da Anotação de Responsabilidade Técnica do responsável.' },
+      { key: 'placa', label: 'Placa', tooltip: 'Investimento nos módulos fotovoltaicos utilizados no sistema.' },
+      { key: 'estruturaSolo', label: 'Estrutura solo', tooltip: 'Estruturas e fundações específicas para montagem em solo.' },
+      { key: 'tela', label: 'Tela', tooltip: 'Material de cercamento (telas de proteção) para o parque solar.' },
+      { key: 'portaoTela', label: 'Portão tela', tooltip: 'Portões e acessos associados ao cercamento em tela.' },
+      { key: 'maoObraTela', label: 'Mão de obra tela', tooltip: 'Equipe dedicada à instalação da tela e portões.' },
+      { key: 'casaInversor', label: 'Casa inversor', tooltip: 'Construção ou abrigo para inversores e painéis elétricos.' },
+      { key: 'brita', label: 'Brita', tooltip: 'Lastro de brita utilizado para nivelamento e drenagem do solo.' },
+      { key: 'terraplanagem', label: 'Terraplanagem', tooltip: 'Serviços de preparo e nivelamento do terreno.' },
+      { key: 'trafo', label: 'Trafo', tooltip: 'Custo de transformadores ou adequações de tensão.' },
+      { key: 'rede', label: 'Rede', tooltip: 'Adequações de rede, cabeamento e conexões externas.' },
+    ]
+    const resumoCamposSolo: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
+      {
+        key: 'comissaoLiquida',
+        label: comissaoLabel,
+        tooltip:
+          'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
+      },
+      {
+        key: 'lucroBruto',
+        label: margemLabel,
+        tooltip:
+          'Margem de lucro prevista sobre o CAPEX base. Defina se será informada em valor ou percentual nos parâmetros.',
+      },
+    ]
+
+    const isTelhado = tipoInstalacao === 'TELHADO'
+    const impostoRetidoPct = toNumberSafe(vendasConfig.imposto_retido_aliquota_default)
+    const impostoRetidoPercentLabel = formatPercentBRWithDigits(impostoRetidoPct / 100, 2)
+
+    return (
+      <div className="settings-vendas-parametros">
+        <p className="muted">
+          Ajuste os custos internos da usina e os parâmetros comerciais utilizados no cálculo da proposta.
+        </p>
+        <div className="composicao-ufv-groups">
+          {isTelhado ? (
+            <div className="composicao-ufv-group">
+              <h3>Projeto em Telhado</h3>
+              <div className="grid g3">
+                {telhadoCampos.map(({ key, label, tooltip }) => (
+                  <Field key={`settings-telhado-${key}`} label={labelWithTooltip(label, tooltip)}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                      onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <div className="grid g3">
+                {resumoCamposTelhado.map(({ key, label, tooltip }) => {
+                  const isMargemField = key === 'lucroBruto'
+                  return (
+                    <Field key={`settings-telhado-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                        onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
+                        onFocus={selectNumberInputOnFocus}
+                        disabled={isMargemField && margemOrigemAtual !== 'manual'}
+                      />
+                    </Field>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="composicao-ufv-group">
+              <h3>Projeto em Solo</h3>
+              <div className="grid g3">
+                {soloCamposPrincipais.map(({ key, label, tooltip }) => (
+                  <Field key={`settings-solo-${key}`} label={labelWithTooltip(label, tooltip)}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                      onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <div className="grid g3">
+                {resumoCamposSolo.map(({ key, label, tooltip }) => {
+                  const isMargemField = key === 'lucroBruto'
+                  return (
+                    <Field key={`settings-solo-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                        onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
+                        onFocus={selectNumberInputOnFocus}
+                        disabled={isMargemField && margemOrigemAtual !== 'manual'}
+                      />
+                    </Field>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="composicao-ufv-config">
+          <h3>Ajustes comerciais</h3>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Origem da margem',
+                'Use cálculo automático ou valor manual por simulação.',
+              )}
+            >
+              <select
+                value={margemOrigemAtual}
+                onChange={(event) => {
+                  const origemSelecionada = event.target.value as MargemOrigem
+                  updateVendasSimulacao(currentBudgetId, {
+                    margemOrigem: origemSelecionada,
+                    margemManualValor:
+                      origemSelecionada === 'manual'
+                        ? Math.max(0, margemCalculadaAtual)
+                        : undefined,
+                  })
+                }}
+              >
+                <option value="automatica">Automática (configuração global)</option>
+                <option value="manual">Manual por proposta</option>
+              </select>
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Margem Operacional (R$)',
+                'Valor manual da margem desta proposta. Se automatizado nas Configurações, este campo ficará bloqueado.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={
+                  margemOrigemAtual === 'manual'
+                    ? (Number.isFinite(margemManualValor) ? margemManualValor : 0)
+                    : margemCalculadaAtual
+                }
+                onChange={(event) => handleMargemManualInput(event.target.value)}
+                onFocus={selectNumberInputOnFocus}
+                disabled={margemOrigemAtual !== 'manual'}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Descontos comerciais (R$)',
+                'Valor de descontos concedidos ao cliente. Utilizado para calcular a venda líquida.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={Number.isFinite(descontosValor) ? descontosValor : 0}
+                onChange={(event) => handleDescontosConfigChange(event.target.value)}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Imposto retido (%)',
+                'Percentual de impostos retidos na fonte aplicados sobre a venda total.',
+              )}
+            >
+              <input type="text" readOnly value={impostoRetidoPercentLabel} />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Regime tributário',
+                'Preset fiscal usado no cálculo; confirme com a contabilidade.',
+              )}
+            >
+              <input
+                type="text"
+                readOnly
+                value={REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? '—'}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Incluir impostos no CAPEX',
+                'Quando marcado, soma impostos retidos e do regime ao CAPEX considerado nas análises.',
+              )}
+            >
+              <label className="inline-checkbox">
+                <input type="checkbox" checked={vendasConfig.incluirImpostosNoCAPEX_default} readOnly disabled />
+                <span>Somar impostos ao CAPEX base (configuração global).</span>
+              </label>
+            </Field>
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -11777,6 +11793,22 @@ export default function App() {
                       tipoSistema={tipoSistema}
                       prazoLeasingAnos={leasingPrazo}
                     />
+                  </section>
+                  <section
+                    id="settings-panel-vendas"
+                    role="tabpanel"
+                    aria-labelledby="settings-tab-vendas"
+                    className={`settings-panel${settingsTab === 'vendas' ? ' active' : ''}`}
+                    hidden={settingsTab !== 'vendas'}
+                    aria-hidden={settingsTab !== 'vendas'}
+                  >
+                    <div className="settings-panel-header">
+                      <h4>Parâmetros de vendas</h4>
+                      <p className="settings-panel-description">
+                        Configure custos, margens e impostos utilizados nos cálculos comerciais.
+                      </p>
+                    </div>
+                    {renderVendasParametrosInternosSettings()}
                   </section>
                   <section
                     id="settings-panel-leasing"
