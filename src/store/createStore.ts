@@ -70,14 +70,17 @@ export const createStore = <T>(initializer: (set: SetState<T>, get: GetState<T>)
     const selectorRef = useRef(select)
     const equalityRef = useRef(equalityFn)
 
+    const hasSelectorChanged = selectorRef.current !== select
+    const hasEqualityChanged = equalityRef.current !== equalityFn
+
     selectorRef.current = select
     equalityRef.current = equalityFn
 
-    const getSelectedState = () => {
-      const selected = selectorRef.current(state)
-      sliceRef.current = selected
-      return selected
+    if (hasSelectorChanged || hasEqualityChanged) {
+      sliceRef.current = select(state)
     }
+
+    const getSelectedState = () => sliceRef.current
 
     const subscribeToStore = (notify: () => void) =>
       subscribe((nextState) => {
@@ -85,7 +88,9 @@ export const createStore = <T>(initializer: (set: SetState<T>, get: GetState<T>)
         if (!equalityRef.current(selected, sliceRef.current)) {
           sliceRef.current = selected
           notify()
+          return
         }
+        sliceRef.current = selected
       })
 
     return useSyncExternalStore(subscribeToStore, getSelectedState, getSelectedState)
