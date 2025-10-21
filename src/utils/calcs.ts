@@ -1,3 +1,5 @@
+import { calcTusdEncargoMensal, type TipoClienteTUSD } from '../lib/finance/tusd'
+
 /**
  * Conversões e cálculos centrais compartilhados entre leasing e buyout.
  * O objetivo é manter uma única implementação por regra de negócio.
@@ -130,6 +132,16 @@ export interface MensalidadeLiquidaInput {
   modoEntrada: EntradaModo
   mesReajuste: number
   mesReferencia: number
+  tusdConfig?: TusdConfigInput
+}
+
+export interface TusdConfigInput {
+  percent?: number | null
+  tipoCliente?: TipoClienteTUSD | null
+  subTipo?: string | null
+  simultaneidade?: number | null
+  tarifaRkwh?: number | null
+  anoReferencia?: number | null
 }
 
 /**
@@ -150,6 +162,7 @@ export function mensalidadeLiquida({
   modoEntrada,
   mesReajuste,
   mesReferencia,
+  tusdConfig,
 }: MensalidadeLiquidaInput): number {
   if (m <= 0 || prazoMeses <= 0) return 0
 
@@ -160,6 +173,13 @@ export function mensalidadeLiquida({
 
   if (kcContratado <= 0) return 0
 
+  const tarifaCheiaMes = tarifaProjetadaCheia(
+    tarifaCheia,
+    inflacaoAa,
+    m,
+    mesReajuste,
+    mesReferencia,
+  )
   const tarifaComDesconto = tarifaDescontada(
     tarifaCheia,
     desconto,
@@ -172,7 +192,18 @@ export function mensalidadeLiquida({
   const encargosAdicionais = Math.max(0, encargosFixos)
   const taxaMinimaPositiva = Math.max(0, taxaMinima)
   const margemMinima = taxaMinimaPositiva + encargosAdicionais
-  const valorBase = energiaComDesconto + margemMinima
+  const tusdMensal = calcTusdEncargoMensal({
+    consumoMensal_kWh: kcContratado,
+    tarifaCheia_R_kWh: tarifaCheiaMes,
+    mes: m,
+    anoReferencia: tusdConfig?.anoReferencia ?? null,
+    tipoCliente: tusdConfig?.tipoCliente ?? null,
+    subTipo: tusdConfig?.subTipo ?? null,
+    pesoTUSD: tusdConfig?.percent ?? null,
+    tusd_R_kWh: tusdConfig?.tarifaRkwh ?? null,
+    simultaneidadePadrao: tusdConfig?.simultaneidade ?? null,
+  })
+  const valorBase = energiaComDesconto + margemMinima + tusdMensal
 
   const credito =
     modoEntrada === 'CREDITO'

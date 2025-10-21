@@ -8,6 +8,7 @@ import {
   toMonthly,
   valorCompraCliente,
 } from './calcs'
+import type { TipoClienteTUSD } from '../lib/finance/tusd'
 
 describe('calcs utilitários', () => {
   it('converte taxa anual para mensal composto', () => {
@@ -116,6 +117,11 @@ describe('calcs utilitários', () => {
       modoEntrada: 'NONE' as const,
       mesReajuste: 6,
       mesReferencia: 1,
+      tusdConfig: {
+        percent: 0,
+        tipoCliente: 'residencial' as TipoClienteTUSD,
+        anoReferencia: 2025,
+      },
     }
     const mensalidade = mensalidadeLiquida(params)
     const tarifa = tarifaDescontada(
@@ -128,5 +134,40 @@ describe('calcs utilitários', () => {
     )
     const esperado = Math.max(params.taxaMinima, params.kcKwhMes * tarifa + params.encargosFixos)
     expect(mensalidade).toBeCloseTo(esperado, 6)
+  })
+
+  it('adiciona encargo de TUSD quando configurado', () => {
+    const baseParams = {
+      kcKwhMes: 500,
+      tarifaCheia: 0.92,
+      desconto: 0.12,
+      inflacaoAa: 0.05,
+      m: 1,
+      taxaMinima: 100,
+      encargosFixos: 25,
+      entradaRs: 0,
+      prazoMeses: 60,
+      modoEntrada: 'NONE' as const,
+      mesReajuste: 6,
+      mesReferencia: 1,
+    }
+    const semTusd = mensalidadeLiquida({
+      ...baseParams,
+      tusdConfig: {
+        percent: 0,
+        tipoCliente: 'residencial',
+        anoReferencia: 2025,
+      },
+    })
+    const comTusd = mensalidadeLiquida({
+      ...baseParams,
+      tusdConfig: {
+        percent: 30,
+        tipoCliente: 'residencial' as TipoClienteTUSD,
+        anoReferencia: 2025,
+      },
+    })
+
+    expect(comTusd).toBeGreaterThan(semTusd)
   })
 })

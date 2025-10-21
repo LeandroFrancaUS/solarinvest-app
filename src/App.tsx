@@ -52,6 +52,8 @@ import {
   type TipoSistema,
   type VendaForm,
 } from './lib/finance/roi'
+import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
+import type { TipoClienteTUSD } from './lib/finance/tusd'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh, kwpFromWpQty } from './lib/energy/generation'
 import {
   parseVendaPdfText,
@@ -194,6 +196,14 @@ const formatLeasingPrazoAnos = (valor: number) => {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   })
+}
+
+const TUSD_TIPO_OPTIONS: TipoClienteTUSD[] = ['residencial', 'comercial', 'industrial', 'hibrido']
+const TUSD_TIPO_LABELS: Record<TipoClienteTUSD, string> = {
+  residencial: 'Residencial',
+  comercial: 'Comercial',
+  industrial: 'Industrial',
+  hibrido: 'Híbrido',
 }
 
 const emailValido = (valor: string) => {
@@ -1423,6 +1433,20 @@ export default function App() {
   const [taxaMinima, setTaxaMinimaState] = useState(INITIAL_VALUES.taxaMinima)
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(
     INITIAL_VALUES.encargosFixosExtras,
+  )
+  const [tusdPercent, setTusdPercent] = useState(INITIAL_VALUES.tusdPercent)
+  const [tusdTipoCliente, setTusdTipoCliente] = useState<TipoClienteTUSD>(
+    INITIAL_VALUES.tusdTipoCliente,
+  )
+  const [tusdSubtipo, setTusdSubtipo] = useState(INITIAL_VALUES.tusdSubtipo)
+  const [tusdSimultaneidade, setTusdSimultaneidade] = useState<number | null>(
+    INITIAL_VALUES.tusdSimultaneidade,
+  )
+  const [tusdTarifaRkwh, setTusdTarifaRkwh] = useState<number | null>(
+    INITIAL_VALUES.tusdTarifaRkwh,
+  )
+  const [tusdAnoReferencia, setTusdAnoReferencia] = useState(
+    INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
   )
   const [leasingPrazo, setLeasingPrazo] = useState<LeasingPrazoAnos>(INITIAL_VALUES.leasingPrazo)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
@@ -4158,6 +4182,13 @@ export default function App() {
     const prazoContratualMeses = Math.max(0, Math.floor(prazoMesesConsiderado))
     const prazoLeasingMeses = Math.max(0, Math.floor(leasingPrazoConsiderado * 12))
     const prazoMensalidades = Math.max(prazoContratualMeses, prazoLeasingMeses)
+    const tusdPercentual = Math.max(0, tusdPercent)
+    const tusdSubtipoNormalizado = tusdSubtipo.trim()
+    const tusdSimValue = tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null
+    const tusdTarifaValue = tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null
+    const tusdAno = Number.isFinite(tusdAnoReferencia)
+      ? Math.max(1, Math.trunc(tusdAnoReferencia))
+      : DEFAULT_TUSD_ANO_REFERENCIA
     return {
       kcKwhMes: Math.max(0, kcKwhMes),
       tarifaCheia: Math.max(0, tarifaCheia),
@@ -4182,6 +4213,12 @@ export default function App() {
       geracaoMensalKwh: Math.max(0, geracaoMensalKwh),
       mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
       mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
+      tusdPercent: tusdPercentual,
+      tusdTipoCliente,
+      tusdSubtipo: tusdSubtipoNormalizado.length > 0 ? tusdSubtipoNormalizado : null,
+      tusdSimultaneidade: tusdSimValue,
+      tusdTarifaRkwh: tusdTarifaValue,
+      tusdAnoReferencia: tusdAno,
     }
   }, [
     bandeiraEncargo,
@@ -4209,6 +4246,12 @@ export default function App() {
     encargosFixosExtras,
     depreciacaoAa,
     duracaoMeses,
+    tusdPercent,
+    tusdTipoCliente,
+    tusdSubtipo,
+    tusdSimultaneidade,
+    tusdTarifaRkwh,
+    tusdAnoReferencia,
   ])
 
   const vm0 = simulationState.vm0
@@ -4228,31 +4271,61 @@ export default function App() {
       simulationState.mesReajuste,
       simulationState.mesReferencia,
     )
-  const tarifaDescontadaAno = (ano: number) =>
-    tarifaDescontadaCalc(
-      simulationState.tarifaCheia,
-      simulationState.desconto,
-      simulationState.inflacaoAa,
-      (ano - 1) * 12 + 1,
-      simulationState.mesReajuste,
-      simulationState.mesReferencia,
-    )
-
   const leasingBeneficios = useMemo(() => {
     const valorInvestimento = Math.max(0, vm0)
     const prazoLeasingValido = leasingPrazoConsiderado > 0 ? leasingPrazoConsiderado : null
     const economiaOpexAnual = prazoLeasingValido ? valorInvestimento * 0.015 : 0
     const investimentoDiluirAnual = prazoLeasingValido ? valorInvestimento / prazoLeasingValido : 0
 
+    const contratoMeses = Math.max(0, Math.floor(leasingPrazoConsiderado * 12))
+    const tusdTipoAtual = simulationState.tusdTipoCliente
+    const tusdSubtipoAtual = simulationState.tusdSubtipo
+    const tusdPercentAtual = simulationState.tusdPercent
+    const tusdSimAtual = simulationState.tusdSimultaneidade
+    const tusdTarifaAtual = simulationState.tusdTarifaRkwh
+    const tusdAnoAtual = simulationState.tusdAnoReferencia
+
     return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
       const ano = i + 1
-      const tarifaCheiaProj = tarifaAno(ano)
-      const tarifaDescontadaProj = tarifaDescontadaAno(ano)
-      const custoSemSistema = kcKwhMes * tarifaCheiaProj + encargosFixos + taxaMinima
+      const inicioMes = (ano - 1) * 12 + 1
+      const fimMes = inicioMes + 11
+      let economiaEnergia = 0
+
+      for (let mes = inicioMes; mes <= fimMes; mes += 1) {
+        const tarifaCheiaMes = tarifaProjetadaCheia(
+          simulationState.tarifaCheia,
+          simulationState.inflacaoAa,
+          mes,
+          simulationState.mesReajuste,
+          simulationState.mesReferencia,
+        )
+        const tarifaDescontadaMes = tarifaDescontadaCalc(
+          simulationState.tarifaCheia,
+          simulationState.desconto,
+          simulationState.inflacaoAa,
+          mes,
+          simulationState.mesReajuste,
+          simulationState.mesReferencia,
+        )
+        const custoSemSistemaMes = kcKwhMes * tarifaCheiaMes + encargosFixos + taxaMinima
+        const dentroPrazoMes = contratoMeses > 0 ? mes <= contratoMeses : false
+        const custoComSistemaEnergiaMes = dentroPrazoMes ? kcKwhMes * tarifaDescontadaMes : 0
+        const custoComSistemaBaseMes = custoComSistemaEnergiaMes + encargosFixos + taxaMinima
+        const tusdMes = calcTusdEncargoMensal({
+          consumoMensal_kWh: kcKwhMes,
+          tarifaCheia_R_kWh: tarifaCheiaMes,
+          mes,
+          anoReferencia: tusdAnoAtual,
+          tipoCliente: tusdTipoAtual,
+          subTipo: tusdSubtipoAtual,
+          pesoTUSD: tusdPercentAtual,
+          tusd_R_kWh: tusdTarifaAtual,
+          simultaneidadePadrao: tusdSimAtual,
+        })
+        economiaEnergia += custoSemSistemaMes - (custoComSistemaBaseMes + tusdMes)
+      }
+
       const dentroPrazoLeasing = prazoLeasingValido ? ano <= leasingPrazoConsiderado : false
-      const custoComSistema =
-        (dentroPrazoLeasing ? kcKwhMes * tarifaDescontadaProj : 0) + encargosFixos + taxaMinima
-      const economiaEnergia = 12 * (custoSemSistema - custoComSistema)
       const beneficioOpex = dentroPrazoLeasing ? economiaOpexAnual : 0
       const beneficioInvestimento = dentroPrazoLeasing ? investimentoDiluirAnual : 0
       return economiaEnergia + beneficioOpex + beneficioInvestimento
@@ -7603,6 +7676,12 @@ export default function App() {
     setDesconto(INITIAL_VALUES.desconto)
     setTaxaMinima(INITIAL_VALUES.taxaMinima)
     setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
+    setTusdPercent(INITIAL_VALUES.tusdPercent)
+    setTusdTipoCliente(INITIAL_VALUES.tusdTipoCliente)
+    setTusdSubtipo(INITIAL_VALUES.tusdSubtipo)
+    setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
+    setTusdTarifaRkwh(INITIAL_VALUES.tusdTarifaRkwh)
+    setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
     setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
     setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
     setPotenciaModuloDirty(false)
@@ -8217,6 +8296,148 @@ export default function App() {
     </section>
   )
 
+  const renderTusdParameterFields = () => (
+    <>
+      <Field
+        label={labelWithTooltip(
+          'TUSD (%)',
+          'Percentual do fio B aplicado sobre a energia compensada. Valores superiores a 1 são interpretados como percentuais (ex.: 27 = 27%).',
+        )}
+      >
+        <input
+          type="number"
+          min={0}
+          step="0.1"
+          value={tusdPercent}
+          onChange={(event) => {
+            const parsed = Number(event.target.value)
+            const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+            setTusdPercent(normalized)
+            applyVendaUpdates({ tusd_percentual: normalized })
+            resetRetorno()
+          }}
+          onFocus={selectNumberInputOnFocus}
+        />
+      </Field>
+      <Field
+        label={labelWithTooltip(
+          'Tipo de cliente TUSD',
+          'Categoria utilizada para determinar simultaneidade padrão e fator ano da TUSD.',
+        )}
+      >
+        <select
+          value={tusdTipoCliente}
+          onChange={(event) => {
+            const value = event.target.value as TipoClienteTUSD
+            setTusdTipoCliente(value)
+            applyVendaUpdates({ tusd_tipo_cliente: value })
+            resetRetorno()
+          }}
+        >
+          {TUSD_TIPO_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {TUSD_TIPO_LABELS[option]}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field
+        label={labelWithTooltip(
+          'Subtipo TUSD (opcional)',
+          'Permite refinar a simultaneidade padrão conforme o perfil da unidade consumidora.',
+        )}
+      >
+        <input
+          type="text"
+          value={tusdSubtipo}
+          onChange={(event) => {
+            const value = event.target.value
+            setTusdSubtipo(value)
+            applyVendaUpdates({ tusd_subtipo: value || undefined })
+            resetRetorno()
+          }}
+        />
+      </Field>
+      <Field
+        label={labelWithTooltip(
+          'Simultaneidade (%)',
+          'Percentual de consumo instantâneo considerado na TUSD. Informe em fração (0-1) ou percentual (0-100).',
+        )}
+      >
+        <input
+          type="number"
+          min={0}
+          step="0.1"
+          value={tusdSimultaneidade ?? ''}
+          onChange={(event) => {
+            const { value } = event.target
+            if (value === '') {
+              setTusdSimultaneidade(null)
+              applyVendaUpdates({ tusd_simultaneidade: undefined })
+            } else {
+              const parsed = Number(value)
+              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              setTusdSimultaneidade(normalized)
+              applyVendaUpdates({ tusd_simultaneidade: normalized })
+            }
+            resetRetorno()
+          }}
+          onFocus={selectNumberInputOnFocus}
+        />
+      </Field>
+      <Field
+        label={labelWithTooltip(
+          'TUSD informado (R$/kWh)',
+          'Informe o valor em R$/kWh quando desejar substituir o percentual por uma tarifa fixa de TUSD.',
+        )}
+      >
+        <input
+          type="number"
+          min={0}
+          step="0.001"
+          value={tusdTarifaRkwh ?? ''}
+          onChange={(event) => {
+            const { value } = event.target
+            if (value === '') {
+              setTusdTarifaRkwh(null)
+              applyVendaUpdates({ tusd_tarifa_r_kwh: undefined })
+            } else {
+              const parsed = Number(value)
+              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              setTusdTarifaRkwh(normalized)
+              applyVendaUpdates({ tusd_tarifa_r_kwh: normalized })
+            }
+            resetRetorno()
+          }}
+          onFocus={selectNumberInputOnFocus}
+        />
+      </Field>
+      <Field
+        label={labelWithTooltip(
+          'Ano de referência TUSD',
+          'Define o ano-base para aplicar o fator de escalonamento da TUSD conforme a Lei 14.300.',
+        )}
+      >
+        <input
+          type="number"
+          min={2000}
+          step="1"
+          value={tusdAnoReferencia}
+          onChange={(event) => {
+            const parsed = Number(event.target.value)
+            const normalized = Number.isFinite(parsed)
+              ? Math.max(1, Math.trunc(parsed))
+              : DEFAULT_TUSD_ANO_REFERENCIA
+            setTusdAnoReferencia(normalized)
+            applyVendaUpdates({ tusd_ano_referencia: normalized })
+            resetRetorno()
+          }}
+          onFocus={selectNumberInputOnFocus}
+        />
+      </Field>
+    </>
+  )
+
   const renderParametrosPrincipaisSection = () => {
     const rateioPercentualDiff = Math.abs(multiUcRateioPercentualTotal - 100)
     const rateioPercentualValido =
@@ -8370,6 +8591,7 @@ export default function App() {
             />
           </Field>
         </div>
+        {renderTusdParameterFields()}
         <div className="multi-uc-section" id="multi-uc">
           <div className="multi-uc-header">
             <div>
@@ -9156,6 +9378,7 @@ export default function App() {
           />
           <FieldError message={vendaFormErrors.taxa_minima_mensal} />
         </Field>
+        {renderTusdParameterFields()}
       </div>
       <div className="grid g3">
         <Field

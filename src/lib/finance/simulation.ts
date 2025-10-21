@@ -1,5 +1,5 @@
 import type { TipoSistema } from './roi'
-import { calcTusdNaoCompensavel } from './tusd'
+import { calcTusdNaoCompensavel, DEFAULT_TUSD_ANO_REFERENCIA } from './tusd'
 import type { TipoClienteTUSD, TUSDSaida, TUSDInput } from './tusd'
 
 export type PerfilConsumo = 'residencial' | 'comercial'
@@ -58,7 +58,6 @@ export type SimulationMonthlyDetail = {
 }
 
 const MONTHS_IN_YEAR = 12
-const DEFAULT_TUSD_ANO_REFERENCIA = 2025
 const SEGURO_REAJUSTE_ANUAL = 0.012
 const VALOR_MERCADO_MULTIPLICADOR = 1.29
 

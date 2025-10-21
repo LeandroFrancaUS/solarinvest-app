@@ -1,5 +1,7 @@
 export type TipoClienteTUSD = 'residencial' | 'comercial' | 'industrial' | 'hibrido'
 
+export const DEFAULT_TUSD_ANO_REFERENCIA = 2025
+
 export interface TUSDInput {
   ano: number
   tipoCliente: TipoClienteTUSD
@@ -170,4 +172,72 @@ export const calcTusdNaoCompensavel = (
     tusdNaoComp_R_kWh,
     custoTUSD_Mes_R,
   }
+}
+
+const resolverAnoReferencia = (ano?: number | null): number => {
+  if (!Number.isFinite(ano ?? Number.NaN)) {
+    return DEFAULT_TUSD_ANO_REFERENCIA
+  }
+
+  const numero = Math.trunc(Number(ano))
+  if (numero <= 0) {
+    return DEFAULT_TUSD_ANO_REFERENCIA
+  }
+
+  return numero
+}
+
+const resolverAnoPorMes = (anoBase: number, mes: number): number => {
+  if (!Number.isFinite(mes)) {
+    return anoBase
+  }
+
+  const indice = Math.max(1, Math.trunc(mes)) - 1
+  if (indice <= 0) {
+    return anoBase
+  }
+
+  const anosExtras = Math.floor(indice / 12)
+  return anoBase + anosExtras
+}
+
+export const calcTusdEncargoMensal = ({
+  consumoMensal_kWh,
+  tarifaCheia_R_kWh,
+  mes,
+  anoReferencia,
+  tipoCliente,
+  subTipo,
+  pesoTUSD,
+  tusd_R_kWh,
+  simultaneidadePadrao,
+}: {
+  consumoMensal_kWh: number
+  tarifaCheia_R_kWh: number
+  mes: number
+  anoReferencia?: number | null
+  tipoCliente?: TipoClienteTUSD | null
+  subTipo?: string | null
+  pesoTUSD?: number | null
+  tusd_R_kWh?: number | null
+  simultaneidadePadrao?: number | null
+}): number => {
+  if (!Number.isFinite(mes) || mes <= 0) {
+    return 0
+  }
+
+  const anoBase = resolverAnoReferencia(anoReferencia)
+  const ano = resolverAnoPorMes(anoBase, mes)
+  const input: TUSDInput = {
+    ano,
+    tipoCliente: tipoCliente ?? 'residencial',
+    subTipo: subTipo ?? null,
+    consumoMensal_kWh,
+    tarifaCheia_R_kWh,
+    tusd_R_kWh: tusd_R_kWh ?? null,
+    pesoTUSD: pesoTUSD ?? null,
+    simultaneidadePadrao: simultaneidadePadrao ?? null,
+  }
+
+  return calcTusdNaoCompensavel(input).custoTUSD_Mes_R
 }

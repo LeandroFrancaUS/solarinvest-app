@@ -1,3 +1,6 @@
+import { calcTusdEncargoMensal } from './tusd'
+import type { TipoClienteTUSD } from './tusd'
+
 export type PagamentoCondicao = 'AVISTA' | 'PARCELADO' | 'FINANCIAMENTO'
 export type ModoPagamento = 'PIX' | 'DEBITO' | 'CREDITO'
 
@@ -47,6 +50,13 @@ export interface VendaForm {
   validade_proposta?: string | undefined
   prazo_execucao?: string | undefined
   condicoes_adicionais?: string | undefined
+
+  tusd_percentual?: number | undefined
+  tusd_tipo_cliente?: TipoClienteTUSD | undefined
+  tusd_subtipo?: string | undefined
+  tusd_simultaneidade?: number | undefined
+  tusd_tarifa_r_kwh?: number | undefined
+  tusd_ano_referencia?: number | undefined
 }
 
 export interface RetornoProjetado {
@@ -101,7 +111,7 @@ const sanitizeNumber = (value?: number | null, fallback = 0): number => {
 }
 
 export function computeROI(form: VendaForm): RetornoProjetado {
-  const economiaMensalBase = (() => {
+  const economia = (() => {
     const geracao = clampNonNegative(sanitizeNumber(form.geracao_estimada_kwh_mes, 0))
     const consumo = clampNonNegative(sanitizeNumber(form.consumo_kwh_mes, 0))
     const baseEnergia = geracao > 0 ? geracao : consumo
@@ -111,10 +121,29 @@ export function computeROI(form: VendaForm): RetornoProjetado {
     const taxaMinima = clampNonNegative(
       sanitizeNumber(form.taxa_minima_r_mes, sanitizeNumber(form.taxa_minima_mensal, 0)),
     )
-    return Math.max(0, baseEnergia * tarifa - taxaMinima)
+    const economiaBruta = Math.max(0, baseEnergia * tarifa - taxaMinima)
+
+    const economia = Array.from({ length: HORIZON_MONTHS }, (_, index) =>
+      Math.max(
+        0,
+        economiaBruta -
+          calcTusdEncargoMensal({
+            consumoMensal_kWh: baseEnergia,
+            tarifaCheia_R_kWh: tarifa,
+            mes: index + 1,
+            anoReferencia: form.tusd_ano_referencia ?? null,
+            tipoCliente: form.tusd_tipo_cliente ?? null,
+            subTipo: form.tusd_subtipo ?? null,
+            pesoTUSD: form.tusd_percentual ?? null,
+            tusd_R_kWh: form.tusd_tarifa_r_kwh ?? null,
+            simultaneidadePadrao: form.tusd_simultaneidade ?? null,
+          }),
+      ),
+    )
+
+    return economia
   })()
 
-  const economia: number[] = Array(HORIZON_MONTHS).fill(economiaMensalBase)
   const pagamentoMensal: number[] = Array(HORIZON_MONTHS).fill(0)
   const fluxo: number[] = Array(HORIZON_MONTHS).fill(0)
   const saldo: number[] = Array(HORIZON_MONTHS).fill(0)

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  DEFAULT_TUSD_ANO_REFERENCIA,
   PESO_TUSD_PADRAO,
   SIMULTANEIDADE_PADRAO,
+  calcTusdEncargoMensal,
   calcTusdNaoCompensavel,
   fatorAnoTUSD,
   type TUSDInput,
@@ -136,5 +138,44 @@ describe('calcTusdNaoCompensavel', () => {
         },
       }
     `)
+  })
+})
+
+describe('calcTusdEncargoMensal', () => {
+  it('aplica o fator de ano conforme o mês informado', () => {
+    const base = calcTusdEncargoMensal({
+      consumoMensal_kWh: 600,
+      tarifaCheia_R_kWh: 0.964,
+      mes: 1,
+      tipoCliente: 'residencial',
+      pesoTUSD: 27,
+      anoReferencia: 2025,
+    })
+    const mesFuturo = calcTusdEncargoMensal({
+      consumoMensal_kWh: 600,
+      tarifaCheia_R_kWh: 0.964,
+      mes: 25,
+      tipoCliente: 'residencial',
+      pesoTUSD: 27,
+      anoReferencia: 2025,
+    })
+
+    expect(mesFuturo).toBeGreaterThan(base)
+  })
+
+  it('utiliza o ano padrão quando nenhum é fornecido', () => {
+    const valor = calcTusdEncargoMensal({
+      consumoMensal_kWh: 600,
+      tarifaCheia_R_kWh: 0.964,
+      mes: 1,
+    })
+    const esperado = calcTusdEncargoMensal({
+      consumoMensal_kWh: 600,
+      tarifaCheia_R_kWh: 0.964,
+      mes: 1,
+      anoReferencia: DEFAULT_TUSD_ANO_REFERENCIA,
+    })
+
+    expect(valor).toBeCloseTo(esperado, 6)
   })
 })
