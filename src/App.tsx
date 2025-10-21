@@ -9729,7 +9729,12 @@ export default function App() {
                         Monte cenários de leasing com diferentes descontos, prazos e custos para comparar KPIs lado a lado.
                       </p>
                     </div>
-                    <SimulacoesTab />
+                    <SimulacoesTab
+                      consumoKwhMes={kcKwhMes}
+                      valorInvestimento={capex}
+                      tipoSistema={tipoSistema}
+                      prazoLeasingAnos={leasingPrazo}
+                    />
                   </section>
                   <section
                     id="settings-panel-leasing"
