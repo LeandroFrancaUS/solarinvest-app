@@ -282,6 +282,48 @@ button.link.danger:focus-visible {
   color: #fecaca;
 }
 
+button.secondary {
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--title);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  padding: var(--space-2) calc(var(--space-3) + var(--space-1));
+  border-radius: 999px;
+  font-weight: 600;
+  min-height: var(--control-h);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button.secondary:hover,
+button.secondary:focus-visible {
+  background: rgba(148, 163, 184, 0.26);
+  border-color: rgba(148, 163, 184, 0.45);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.28);
+  outline: none;
+}
+
+button.secondary:active {
+  background: rgba(148, 163, 184, 0.32);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.28);
+}
+
+button.secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+button.secondary.danger {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+button.secondary.danger:hover,
+button.secondary.danger:focus-visible {
+  background: rgba(248, 113, 113, 0.16);
+  border-color: rgba(248, 113, 113, 0.6);
+  color: #fecaca;
+}
+
 .tabs {
   position: sticky;
   top: var(--header-h);
@@ -1432,6 +1474,326 @@ table th {
 
 table tbody tr:hover {
   background: rgba(15, 22, 36, 0.45);
+}
+
+.simulations-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.simulations-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.simulations-sidebar {
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 140, 0, 0.18);
+  background: rgba(15, 22, 36, 0.86);
+  box-shadow: 0 18px 40px rgba(8, 12, 24, 0.4);
+}
+
+.simulations-sidebar-header h5 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--title);
+}
+
+.simulations-sidebar-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.simulations-scenario-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.simulations-scenario-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.7);
+  color: var(--ink);
+  font-weight: 600;
+  text-align: left;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.simulations-scenario-button small {
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: none;
+}
+
+.simulations-scenario-button:hover,
+.simulations-scenario-button:focus-visible {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.simulations-scenario-button.active {
+  border-color: rgba(255, 140, 0, 0.75);
+  background: linear-gradient(140deg, rgba(255, 140, 0, 0.32), rgba(255, 140, 0, 0.12));
+  color: var(--title);
+  box-shadow: 0 14px 28px rgba(255, 140, 0, 0.22);
+}
+
+.simulations-sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.simulations-form-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.simulations-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+label.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+label.checkbox input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.simulations-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.simulations-results {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.simulations-kpi-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+}
+
+.simulations-kpi-card {
+  background: rgba(15, 22, 36, 0.82);
+  border: 1px solid rgba(255, 140, 0, 0.16);
+  border-radius: 18px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 16px 34px rgba(8, 12, 24, 0.38);
+}
+
+.simulations-kpi-card span {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.simulations-kpi-card strong {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--title);
+}
+
+.simulations-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px 24px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(8, 13, 24, 0.9);
+  box-shadow: 0 20px 36px rgba(8, 12, 24, 0.4);
+}
+
+.simulations-chart header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.simulations-chart header h5 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--title);
+}
+
+.simulations-chart header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.simulations-chart .chart-wrapper {
+  width: 100%;
+  height: 320px;
+}
+
+.simulations-chart-tooltip {
+  background: rgba(13, 20, 34, 0.92);
+  border: 1px solid rgba(255, 140, 0, 0.28);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 12px 24px rgba(8, 12, 24, 0.38);
+  font-size: 12px;
+}
+
+.simulations-chart-tooltip strong {
+  color: var(--title);
+}
+
+.simulations-chart-tooltip ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.simulations-chart-tooltip li span {
+  margin-right: 4px;
+}
+
+.simulations-table {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.simulations-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.simulations-table-header h5 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--title);
+}
+
+.simulations-table-header p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.simulations-table-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.simulations-table-actions label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+}
+
+.simulations-table table tr.active,
+.simulations-table table tr.active:hover {
+  background: rgba(255, 140, 0, 0.16);
+}
+
+.simulations-empty {
+  text-align: center;
+  font-size: 14px;
+}
+
+@media (max-width: 1100px) {
+  .simulations-layout {
+    flex-direction: column;
+  }
+
+  .simulations-sidebar {
+    width: 100%;
+    flex: none;
+    flex-direction: row;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .simulations-sidebar-header {
+    flex: 1 1 200px;
+  }
+
+  .simulations-scenario-list {
+    flex: 2 1 260px;
+    max-width: none;
+  }
+
+  .simulations-sidebar-actions {
+    flex: 1 1 200px;
+  }
+}
+
+@media (max-width: 900px) {
+  .simulations-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .simulations-table-header {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .simulations-table-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .simulations-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .muted {
