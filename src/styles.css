@@ -2019,6 +2019,13 @@ table tbody tr:hover {
   color: var(--title);
 }
 
+.simulations-summary-card small,
+.simulations-kpi-card small {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 .simulations-table {
   display: flex;
   flex-direction: column;
@@ -2300,6 +2307,11 @@ table tbody tr:hover {
 #settings-panel-simulacoes .simulations-summary-card strong,
 #settings-panel-simulacoes .simulations-kpi-card strong {
   font-size: calc(var(--sim-font-lg) + 1px);
+}
+
+#settings-panel-simulacoes .simulations-summary-card small,
+#settings-panel-simulacoes .simulations-kpi-card small {
+  font-size: calc(var(--sim-font-xs) - 1px);
 }
 
 #settings-panel-simulacoes .simulations-table {
