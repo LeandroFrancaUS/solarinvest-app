@@ -7,7 +7,6 @@ import type {
 } from '../types/printableProposal'
 import type { SegmentoCliente, TipoSistema, VendaForm } from '../lib/finance/roi'
 import type { MultiUcClasse } from '../types/multiUc'
-import type { UfvComposicaoConfiguracao } from '../types/printableProposal'
 import { ESCALONAMENTO_PADRAO } from '../utils/multiUc'
 import { DEFAULT_TUSD_ANO_REFERENCIA } from '../lib/finance/tusd'
 import type { TipoClienteTUSD } from '../lib/finance/tusd'
@@ -141,20 +140,6 @@ export function createInitialComposicaoSolo(): UfvComposicaoSoloValores {
   return { ...COMPOSICAO_SOLO_BASE }
 }
 
-const COMPOSICAO_CONFIG_BASE: UfvComposicaoConfiguracao = {
-  comissaoTipo: 'valor',
-  comissaoBase: 'venda_total',
-  margemTipo: 'valor',
-  descontos: 0,
-  regime: 'simples',
-  impostoRetidoAliquota: 0,
-  incluirImpostosNoCapex: false,
-}
-
-export const createInitialComposicaoConfig = (): UfvComposicaoConfiguracao => ({
-  ...COMPOSICAO_CONFIG_BASE,
-})
-
 export const LEASING_PRAZO_OPCOES = [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10] as const
 export type LeasingPrazoAnos = (typeof LEASING_PRAZO_OPCOES)[number]
 
@@ -217,7 +202,6 @@ export const INITIAL_VALUES = {
   pagosAcumManual: 0,
   composicaoTelhado: createInitialComposicaoTelhado(),
   composicaoSolo: createInitialComposicaoSolo(),
-  composicaoConfig: createInitialComposicaoConfig(),
   multiUcAtivo: false,
   multiUcUcs: [createDefaultMultiUcRow()],
   multiUcRateioModo: 'percentual' as MultiUcRateioModo,
