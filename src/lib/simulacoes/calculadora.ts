@@ -1,3 +1,5 @@
+export type SegmentoCliente = 'residencial' | 'comercial'
+
 export type SimulationInput = {
   id: string
   label?: string
@@ -13,6 +15,8 @@ export type SimulationInput = {
   omMensal?: number
   seguroMensal?: number
   inicioYYYYMM?: string
+  segmento: SegmentoCliente
+  tusdPercentEnergia: number
 }
 
 export type SimulationMonth = {
@@ -39,6 +43,12 @@ export type SimulationKPI = {
   retornoMesBrutoPercent: number
   economiaClienteMes1: number
   economiaClienteAcumulada: number
+  valorMercadoUsina: number
+  opexTotal: number
+  economiaAcumuladaContrato: number
+  economia15Anos: number
+  economia20Anos: number
+  economia30Anos: number
   tusdTotal: number
 }
 
@@ -48,68 +58,9 @@ export type SimulationResult = {
   kpi: SimulationKPI
 }
 
-export type TusdConfig = {
-  baseFactor: number
-  percentByYear: Record<number, number>
-  /** Percentual utilizado para anos anteriores ao primeiro configurado. */
-  fallbackPercent?: number
-  /** Percentual utilizado para anos posteriores ao último configurado. */
-  defaultPercent?: number
-}
-
-export const DEFAULT_TUSD_CONFIG: TusdConfig = {
-  baseFactor: 0.27,
-  percentByYear: {
-    2025: 0.45,
-    2026: 0.6,
-    2027: 0.75,
-    2028: 0.9,
-    2029: 1,
-  },
-  fallbackPercent: 0,
-  defaultPercent: 1,
-}
-
 type YearMonth = { year: number; month: number }
 
 const clamp01 = (value: number) => (value < 0 ? 0 : value > 1 ? 1 : value)
-
-export function percentualTUSD(ano: number, config: TusdConfig = DEFAULT_TUSD_CONFIG): number {
-  const explicit = config.percentByYear[ano]
-  if (typeof explicit === 'number') {
-    return clamp01(explicit)
-  }
-
-  const years = Object.keys(config.percentByYear)
-    .map((y) => Number.parseInt(y, 10))
-    .filter((y) => Number.isFinite(y))
-    .sort((a, b) => a - b)
-
-  if (years.length === 0) {
-    return clamp01(config.defaultPercent ?? 0)
-  }
-
-  const minYear = years[0]
-  const maxYear = years[years.length - 1]
-
-  if (ano < minYear) {
-    return clamp01(config.fallbackPercent ?? 0)
-  }
-
-  if (ano > maxYear) {
-    return clamp01(config.defaultPercent ?? config.percentByYear[maxYear] ?? 1)
-  }
-
-  const closest = years.reduce((closestYear, current) => {
-    if (current <= ano) {
-      return current
-    }
-    return closestYear
-  }, years[0])
-
-  const percent = config.percentByYear[closest]
-  return clamp01(typeof percent === 'number' ? percent : config.defaultPercent ?? 1)
-}
 
 export function parseYYYYMM(value?: string | null): YearMonth | null {
   if (!value) return null
@@ -199,32 +150,55 @@ function findPaybackMeses(meses: SimulationMonth[], capex: number): number | nul
 
 const sum = (values: number[]) => values.reduce((acc, value) => acc + value, 0)
 
-export function runSimulation(
+const clampPercent = (value: number) => (Number.isFinite(value) ? clamp01(value) : 0)
+
+const computeValorMercadoUsina = (capex: number) => capex * 1.29
+
+const computeEconomiaMensalSemOpex = (
+  mesIndex: number,
   input: SimulationInput,
-  tusdConfig: TusdConfig = DEFAULT_TUSD_CONFIG,
-): SimulationResult {
+  inicio: YearMonth,
+  tusdPercent: number,
+) => {
+  const { year: ano } = addMonths(inicio, mesIndex - 1)
+  const tarifaCheia = computeTarifaCheia(input.tarifaCheiaInicial, input.inflacaoEnergeticaAA, mesIndex)
+  const tarifaDesconto = computeTarifaDesconto({
+    tarifaCheia,
+    desconto: input.desconto,
+    ...(input.tarifaComDesconto !== undefined ? { tarifaComDescontoInicial: input.tarifaComDesconto } : {}),
+    indexar: input.indexarTarifaComDesconto ?? true,
+    inflacaoEnergeticaAA: input.inflacaoEnergeticaAA,
+    mesIndex,
+  })
+
+  const encargoTUSDporKWh = tarifaCheia * tusdPercent
+  const custoTUSDmensal = input.kcKWhMes * encargoTUSDporKWh
+  const custoBaseCliente = input.kcKWhMes * tarifaCheia
+  const custoCliente = input.kcKWhMes * tarifaDesconto + custoTUSDmensal
+  const economiaCliente = custoBaseCliente - custoCliente
+
+  return {
+    ano,
+    tarifaCheia,
+    tarifaDesconto,
+    encargoTUSDporKWh,
+    custoTUSDmensal,
+    economiaCliente,
+  }
+}
+
+export function runSimulation(input: SimulationInput): SimulationResult {
   const mesesTotais = Math.max(1, Math.round(input.anos * 12))
   const inicio = parseYYYYMM(input.inicioYYYYMM) ?? getCurrentYearMonth()
   const meses: SimulationMonth[] = []
   let acumuladoLiquido = 0
+  const tusdPercent = clampPercent(input.tusdPercentEnergia)
+  const valorMercadoUsina = computeValorMercadoUsina(input.capex)
 
   for (let m = 1; m <= mesesTotais; m += 1) {
-    const { year: ano } = addMonths(inicio, m - 1)
-    const tarifaCheia = computeTarifaCheia(input.tarifaCheiaInicial, input.inflacaoEnergeticaAA, m)
-    const tarifaDesconto = computeTarifaDesconto({
-      tarifaCheia,
-      desconto: input.desconto,
-      ...(input.tarifaComDesconto !== undefined
-        ? { tarifaComDescontoInicial: input.tarifaComDesconto }
-        : {}),
-      indexar: input.indexarTarifaComDesconto ?? true,
-      inflacaoEnergeticaAA: input.inflacaoEnergeticaAA,
-      mesIndex: m,
-    })
-
-    const percentual = percentualTUSD(ano, tusdConfig)
-    const encargoTUSDporKWh = tarifaCheia * tusdConfig.baseFactor * percentual
-    const custoTUSDmensal = input.kcKWhMes * encargoTUSDporKWh
+    const dadosMensais = computeEconomiaMensalSemOpex(m, input, inicio, tusdPercent)
+    const { ano, tarifaCheia, tarifaDesconto, encargoTUSDporKWh, custoTUSDmensal, economiaCliente } =
+      dadosMensais
 
     const fatorIPCA = Math.pow(1 + (input.ipcaAA ?? 0), Math.floor((m - 1) / 12))
     const om = (input.omMensal ?? 0) * fatorIPCA
@@ -233,10 +207,6 @@ export function runSimulation(
     const receitaBruta = input.kcKWhMes * tarifaDesconto
     const fluxoLiquido = receitaBruta - om - seguro
     acumuladoLiquido += fluxoLiquido
-
-    const custoBaseCliente = input.kcKWhMes * tarifaCheia
-    const custoCliente = input.kcKWhMes * tarifaDesconto + custoTUSDmensal
-    const economiaCliente = custoBaseCliente - custoCliente
 
     meses.push({
       mesIndex: m,
@@ -257,12 +227,29 @@ export function runSimulation(
   const receitaTotal = sum(meses.map((item) => item.receitaBruta))
   const custosVariaveisTotais = sum(meses.map((item) => item.om + item.seguro))
   const tusdTotal = sum(meses.map((item) => item.custoTUSDmensal))
+  const opexTotal = custosVariaveisTotais
   const lucroLiquido = receitaTotal - input.capex - custosVariaveisTotais
   const roiPercent = input.capex > 0 ? (lucroLiquido / input.capex) * 100 : 0
   const paybackMeses = input.capex > 0 ? findPaybackMeses(meses, input.capex) : null
   const retornoMesBrutoPercent = input.capex > 0 ? (receitaTotal / meses.length / input.capex) * 100 : 0
   const economiaClienteMes1 = meses[0]?.economiaCliente ?? 0
   const economiaClienteAcumulada = sum(meses.map((item) => item.economiaCliente))
+  const economiaAcumuladaContrato = economiaClienteAcumulada + valorMercadoUsina + opexTotal
+
+  const computeEconomiaHorizonte = (anos: number) => {
+    const horizonteMeses = Math.max(mesesTotais, Math.round(anos * 12))
+    if (horizonteMeses <= mesesTotais) {
+      return economiaAcumuladaContrato
+    }
+
+    let economiaExtra = 0
+    for (let m = mesesTotais + 1; m <= horizonteMeses; m += 1) {
+      const dadosMensais = computeEconomiaMensalSemOpex(m, input, inicio, tusdPercent)
+      economiaExtra += dadosMensais.economiaCliente
+    }
+
+    return economiaAcumuladaContrato + economiaExtra
+  }
 
   return {
     input,
@@ -276,15 +263,18 @@ export function runSimulation(
       retornoMesBrutoPercent,
       economiaClienteMes1,
       economiaClienteAcumulada,
+      valorMercadoUsina,
+      opexTotal,
+      economiaAcumuladaContrato,
+      economia15Anos: computeEconomiaHorizonte(15),
+      economia20Anos: computeEconomiaHorizonte(20),
+      economia30Anos: computeEconomiaHorizonte(30),
       tusdTotal,
     },
   }
 }
 
-export function runSimulations(
-  inputs: SimulationInput[],
-  tusdConfig: TusdConfig = DEFAULT_TUSD_CONFIG,
-): SimulationResult[] {
-  return inputs.map((input) => runSimulation(input, tusdConfig))
+export function runSimulations(inputs: SimulationInput[]): SimulationResult[] {
+  return inputs.map((input) => runSimulation(input))
 }
 

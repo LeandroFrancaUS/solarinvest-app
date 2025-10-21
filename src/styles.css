@@ -1574,6 +1574,25 @@ table tbody tr:hover {
   gap: 20px;
 }
 
+.field-reset-button {
+  margin-top: 6px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent, #38bdf8);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  align-self: flex-start;
+}
+
+.field-reset-button:disabled {
+  color: rgba(148, 163, 184, 0.6);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
 label.checkbox {
   display: inline-flex;
   align-items: center;
