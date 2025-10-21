@@ -115,7 +115,11 @@ import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { MargemOrigem } from './types/vendasConfig'
-import { calcularComposicaoUFV, type RegimeTributario } from './lib/venda/calcComposicaoUFV'
+import {
+  calcularComposicaoUFV,
+  type ImpostosRegimeConfig,
+  type RegimeTributario,
+} from './lib/venda/calcComposicaoUFV'
 import {
   uploadBudgetFile,
   BudgetUploadError,
@@ -389,6 +393,21 @@ const parseNumericInput = (value: string): number | null => {
 
 const normalizeCurrencyNumber = (value: number | null) =>
   value === null ? null : Math.round(value * 100) / 100
+
+const cloneImpostosOverrides = (
+  overrides?: Partial<ImpostosRegimeConfig>,
+): Partial<ImpostosRegimeConfig> => {
+  if (!overrides) {
+    return {}
+  }
+  const cloned: Partial<ImpostosRegimeConfig> = {}
+  for (const regime of ['simples', 'lucro_presumido', 'lucro_real'] as const) {
+    if (Array.isArray(overrides[regime])) {
+      cloned[regime] = overrides[regime]!.map((item) => ({ ...item }))
+    }
+  }
+  return cloned
+}
 
 const describeBudgetProgress = (progress: BudgetUploadProgress | null) => {
   if (!progress) {
@@ -1483,9 +1502,22 @@ export default function App() {
     createInitialComposicaoSolo(),
   )
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
+  const updateVendasConfig = useVendasConfigStore((state) => state.update)
+  const [aprovadoresText, setAprovadoresText] = useState(() => vendasConfig.aprovadores.join('\n'))
+  const [impostosOverridesDraft, setImpostosOverridesDraft] = useState<
+    Partial<ImpostosRegimeConfig>
+  >(() => cloneImpostosOverrides(vendasConfig.impostosRegime_overrides))
   const vendasSimulacao = useVendasSimulacoesStore((state) => state.simulations[currentBudgetId])
   const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
+
+  useEffect(() => {
+    setAprovadoresText(vendasConfig.aprovadores.join('\n'))
+  }, [vendasConfig.aprovadores])
+
+  useEffect(() => {
+    setImpostosOverridesDraft(cloneImpostosOverrides(vendasConfig.impostosRegime_overrides))
+  }, [vendasConfig.impostosRegime_overrides])
 
   useEffect(() => {
     initializeVendasSimulacao(currentBudgetId, {
@@ -10093,6 +10125,66 @@ export default function App() {
           Consulte abaixo os valores consolidados da proposta. Custos e ajustes comerciais podem ser
           atualizados em Configurações → Parâmetros de Vendas.
         </p>
+        <div className="composicao-ufv-controls">
+          <h3>Ajustes desta proposta</h3>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Origem da margem',
+                'Se automática, usa o % definido nas Configurações. Se manual, usa o valor informado nesta simulação.',
+              )}
+            >
+              <select
+                value={margemOrigemAtual}
+                onChange={(event) => {
+                  const origemSelecionada = event.target.value as MargemOrigem
+                  updateVendasSimulacao(currentBudgetId, {
+                    margemOrigem: origemSelecionada,
+                    margemManualValor:
+                      origemSelecionada === 'manual'
+                        ? Math.max(0, margemCalculadaAtual)
+                        : undefined,
+                  })
+                }}
+              >
+                <option value="automatica">Automática (configuração global)</option>
+                <option value="manual">Manual (personalizar esta proposta)</option>
+              </select>
+            </Field>
+            {margemOrigemAtual === 'manual' ? (
+              <Field
+                label={labelWithTooltip(
+                  'Margem operacional (R$)',
+                  'Defina o valor da margem desta proposta. Se a origem estiver automática, o cálculo usa o percentual configurado.',
+                )}
+              >
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={Number.isFinite(margemManualValor) ? margemManualValor : 0}
+                  onChange={(event) => handleMargemManualInput(event.target.value)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+            ) : null}
+            <Field
+              label={labelWithTooltip(
+                'Descontos comerciais (R$)',
+                'Valor de descontos concedidos ao cliente. Utilizado para calcular a venda líquida.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={Number.isFinite(descontosValor) ? descontosValor : 0}
+                onChange={(event) => handleDescontosConfigChange(event.target.value)}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+          </div>
+        </div>
         <div className="composicao-ufv-summary">
           <h3>Resumo do cálculo</h3>
           <div className="grid g3">
@@ -10195,7 +10287,6 @@ export default function App() {
       vendasConfig.comissao_default_tipo === 'percentual'
         ? 'Comissão líquida (%)'
         : 'Comissão líquida (R$)'
-    const margemLabel = 'Margem operacional (R$)'
     const telhadoCampos: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
       { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
       { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
@@ -10210,12 +10301,6 @@ export default function App() {
         label: comissaoLabel,
         tooltip:
           'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
-      },
-      {
-        key: 'lucroBruto',
-        label: margemLabel,
-        tooltip:
-          'Margem de lucro prevista sobre o CAPEX base. Defina se será informada em valor ou percentual nos parâmetros.',
       },
     ]
     const soloCamposPrincipais: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
@@ -10242,17 +10327,111 @@ export default function App() {
         tooltip:
           'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
       },
-      {
-        key: 'lucroBruto',
-        label: margemLabel,
-        tooltip:
-          'Margem de lucro prevista sobre o CAPEX base. Defina se será informada em valor ou percentual nos parâmetros.',
-      },
     ]
 
     const isTelhado = tipoInstalacao === 'TELHADO'
-    const impostoRetidoPct = toNumberSafe(vendasConfig.imposto_retido_aliquota_default)
-    const impostoRetidoPercentLabel = formatPercentBRWithDigits(impostoRetidoPct / 100, 2)
+    const regimes: RegimeTributario[] = ['simples', 'lucro_presumido', 'lucro_real']
+    const comissaoDefaultLabel =
+      vendasConfig.comissao_default_tipo === 'percentual'
+        ? 'Comissão padrão (%)'
+        : 'Comissão padrão (R$)'
+    const aprovadoresHint = 'Separe múltiplos e-mails por linha ou vírgula.'
+
+    const sanitizeOverridesDraft = (
+      draft: Partial<ImpostosRegimeConfig>,
+    ): Partial<ImpostosRegimeConfig> | undefined => {
+      const sanitized: Partial<ImpostosRegimeConfig> = {}
+      for (const regime of regimes) {
+        const lista = draft[regime]
+        if (!lista || lista.length === 0) {
+          continue
+        }
+        const cleaned = lista
+          .map((item) => ({
+            nome: (item.nome ?? '').trim(),
+            aliquota_percent: Number.isFinite(item.aliquota_percent)
+              ? Number(item.aliquota_percent)
+              : 0,
+          }))
+          .filter((item) => item.nome.length > 0)
+        if (cleaned.length > 0) {
+          sanitized[regime] = cleaned
+        }
+      }
+      return Object.keys(sanitized).length > 0 ? sanitized : undefined
+    }
+
+    const handleOverrideFieldChange = (
+      regime: RegimeTributario,
+      index: number,
+      field: 'nome' | 'aliquota_percent',
+      value: string,
+    ) => {
+      setImpostosOverridesDraft((prev) => {
+        const next = cloneImpostosOverrides(prev)
+        const lista = next[regime] ? [...next[regime]!] : []
+        const atual = lista[index] ?? { nome: '', aliquota_percent: 0 }
+        if (field === 'nome') {
+          lista[index] = { ...atual, nome: value }
+        } else {
+          const parsed = parseNumericInput(value)
+          const aliquota = parsed == null ? 0 : Number(parsed)
+          lista[index] = {
+            ...atual,
+            aliquota_percent: Number.isFinite(aliquota) ? aliquota : 0,
+          }
+        }
+        next[regime] = lista
+        return next
+      })
+    }
+
+    const handleOverrideAdd = (regime: RegimeTributario) => {
+      setImpostosOverridesDraft((prev) => {
+        const next = cloneImpostosOverrides(prev)
+        const lista = next[regime] ? [...next[regime]!] : []
+        lista.push({ nome: '', aliquota_percent: 0 })
+        next[regime] = lista
+        return next
+      })
+    }
+
+    const handleOverrideRemove = (regime: RegimeTributario, index: number) => {
+      setImpostosOverridesDraft((prev) => {
+        const next = cloneImpostosOverrides(prev)
+        const lista = next[regime] ? [...next[regime]!] : []
+        lista.splice(index, 1)
+        if (lista.length > 0) {
+          next[regime] = lista
+        } else {
+          delete next[regime]
+        }
+        return next
+      })
+    }
+
+    const handleApplyOverrides = () => {
+      const sanitized = sanitizeOverridesDraft(impostosOverridesDraft)
+      updateVendasConfig({ impostosRegime_overrides: sanitized })
+    }
+
+    const handleResetOverrides = (regime: RegimeTributario) => {
+      setImpostosOverridesDraft((prev) => {
+        const next = cloneImpostosOverrides(prev)
+        delete next[regime]
+        const sanitized = sanitizeOverridesDraft(next)
+        updateVendasConfig({ impostosRegime_overrides: sanitized })
+        return next
+      })
+    }
+
+    const handleAprovadoresBlur = () => {
+      const emails = aprovadoresText
+        .split(/[\n,;]+/)
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+      updateVendasConfig({ aprovadores: emails })
+    }
 
     return (
       <div className="settings-vendas-parametros">
@@ -10278,22 +10457,18 @@ export default function App() {
                 ))}
               </div>
               <div className="grid g3">
-                {resumoCamposTelhado.map(({ key, label, tooltip }) => {
-                  const isMargemField = key === 'lucroBruto'
-                  return (
-                    <Field key={`settings-telhado-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
-                        onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
-                        onFocus={selectNumberInputOnFocus}
-                        disabled={isMargemField && margemOrigemAtual !== 'manual'}
-                      />
-                    </Field>
-                  )
-                })}
+                {resumoCamposTelhado.map(({ key, label, tooltip }) => (
+                  <Field key={`settings-telhado-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                      onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                ))}
               </div>
             </div>
           ) : (
@@ -10314,84 +10489,82 @@ export default function App() {
                 ))}
               </div>
               <div className="grid g3">
-                {resumoCamposSolo.map(({ key, label, tooltip }) => {
-                  const isMargemField = key === 'lucroBruto'
-                  return (
-                    <Field key={`settings-solo-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
-                        onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
-                        onFocus={selectNumberInputOnFocus}
-                        disabled={isMargemField && margemOrigemAtual !== 'manual'}
-                      />
-                    </Field>
-                  )
-                })}
+                {resumoCamposSolo.map(({ key, label, tooltip }) => (
+                  <Field key={`settings-solo-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                      onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                ))}
               </div>
             </div>
           )}
         </div>
-        <div className="composicao-ufv-config">
-          <h3>Ajustes comerciais</h3>
+        <div className="settings-subsection">
+          <h3>Parâmetros padrão de preço e margem</h3>
           <div className="grid g3">
             <Field
               label={labelWithTooltip(
-                'Origem da margem',
-                'Use cálculo automático ou valor manual por simulação.',
+                'Origem da margem operacional',
+                'Define se a margem padrão é calculada automaticamente ou informada manualmente.',
               )}
             >
               <select
-                value={margemOrigemAtual}
-                onChange={(event) => {
-                  const origemSelecionada = event.target.value as MargemOrigem
-                  updateVendasSimulacao(currentBudgetId, {
-                    margemOrigem: origemSelecionada,
-                    margemManualValor:
-                      origemSelecionada === 'manual'
-                        ? Math.max(0, margemCalculadaAtual)
-                        : undefined,
+                value={vendasConfig.origem_margem_operacional}
+                onChange={(event) =>
+                  updateVendasConfig({
+                    origem_margem_operacional: event.target.value as MargemOrigem,
                   })
-                }}
+                }
               >
-                <option value="automatica">Automática (configuração global)</option>
-                <option value="manual">Manual por proposta</option>
+                <option value="automatica">Automática (percentual padrão)</option>
+                <option value="manual">Manual (valor por proposta)</option>
               </select>
             </Field>
             <Field
               label={labelWithTooltip(
-                'Margem Operacional (R$)',
-                'Valor manual da margem desta proposta. Se automatizado nas Configurações, este campo ficará bloqueado.',
+                'Margem operacional padrão (%)',
+                'Percentual aplicado sobre o CAPEX base quando a margem é automática.',
               )}
             >
               <input
                 type="number"
                 min={0}
-                step="0.01"
-                value={
-                  margemOrigemAtual === 'manual'
-                    ? (Number.isFinite(margemManualValor) ? margemManualValor : 0)
-                    : margemCalculadaAtual
-                }
-                onChange={(event) => handleMargemManualInput(event.target.value)}
+                max={80}
+                step="0.1"
+                value={vendasConfig.margem_operacional_padrao_percent}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  updateVendasConfig({
+                    margem_operacional_padrao_percent: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
+                  })
+                }}
                 onFocus={selectNumberInputOnFocus}
-                disabled={margemOrigemAtual !== 'manual'}
               />
             </Field>
             <Field
               label={labelWithTooltip(
-                'Descontos comerciais (R$)',
-                'Valor de descontos concedidos ao cliente. Utilizado para calcular a venda líquida.',
+                'Preço mínimo (% sobre CAPEX)',
+                'Percentual mínimo aplicado ao CAPEX base para validar a proposta.',
               )}
             >
               <input
                 type="number"
                 min={0}
-                step="0.01"
-                value={Number.isFinite(descontosValor) ? descontosValor : 0}
-                onChange={(event) => handleDescontosConfigChange(event.target.value)}
+                max={100}
+                step="0.1"
+                value={vendasConfig.preco_minimo_percent_sobre_capex}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  updateVendasConfig({
+                    preco_minimo_percent_sobre_capex: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
+                  })
+                }}
                 onFocus={selectNumberInputOnFocus}
               />
             </Field>
@@ -10399,36 +10572,399 @@ export default function App() {
           <div className="grid g3">
             <Field
               label={labelWithTooltip(
-                'Imposto retido (%)',
-                'Percentual de impostos retidos na fonte aplicados sobre a venda total.',
+                'Arredondamento da venda',
+                'Passo utilizado para arredondar o valor final da proposta.',
               )}
             >
-              <input type="text" readOnly value={impostoRetidoPercentLabel} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Regime tributário',
-                'Preset fiscal usado no cálculo; confirme com a contabilidade.',
-              )}
-            >
-              <input
-                type="text"
-                readOnly
-                value={REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? '—'}
-              />
+              <select
+                value={vendasConfig.arredondar_venda_para}
+                onChange={(event) =>
+                  updateVendasConfig({
+                    arredondar_venda_para: event.target.value as '1' | '10' | '50' | '100',
+                  })
+                }
+              >
+                <option value="1">R$ 1</option>
+                <option value="10">R$ 10</option>
+                <option value="50">R$ 50</option>
+                <option value="100">R$ 100</option>
+              </select>
             </Field>
             <Field
               label={labelWithTooltip(
                 'Incluir impostos no CAPEX',
-                'Quando marcado, soma impostos retidos e do regime ao CAPEX considerado nas análises.',
+                'Quando ativo, soma impostos retidos e do regime ao CAPEX considerado nas análises.',
               )}
             >
               <label className="inline-checkbox">
-                <input type="checkbox" checked={vendasConfig.incluirImpostosNoCAPEX_default} readOnly disabled />
-                <span>Somar impostos ao CAPEX base (configuração global).</span>
+                <input
+                  type="checkbox"
+                  checked={vendasConfig.incluirImpostosNoCAPEX_default}
+                  onChange={(event) =>
+                    updateVendasConfig({ incluirImpostosNoCAPEX_default: event.target.checked })
+                  }
+                />
+                <span>Somar impostos ao CAPEX base.</span>
               </label>
             </Field>
           </div>
+        </div>
+        <div className="settings-subsection">
+          <h3>Comissão & incentivos</h3>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Tipo de comissão padrão',
+                'Defina se a comissão é aplicada como valor em reais ou percentual sobre a base selecionada.',
+              )}
+            >
+              <select
+                value={vendasConfig.comissao_default_tipo}
+                onChange={(event) =>
+                  updateVendasConfig({
+                    comissao_default_tipo: event.target.value as 'valor' | 'percentual',
+                  })
+                }
+              >
+                <option value="percentual">Percentual</option>
+                <option value="valor">Valor absoluto</option>
+              </select>
+            </Field>
+            <Field label={comissaoDefaultLabel}>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={vendasConfig.comissao_default_percent}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  updateVendasConfig({
+                    comissao_default_percent: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
+                  })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Base do percentual de comissão',
+                'Escolha se a comissão percentual incide sobre a venda total ou sobre a venda líquida.',
+              )}
+            >
+              <select
+                value={vendasConfig.comissao_percent_base}
+                onChange={(event) =>
+                  updateVendasConfig({
+                    comissao_percent_base: event.target.value as 'venda_total' | 'venda_liquida',
+                  })
+                }
+              >
+                <option value="venda_total">Venda total</option>
+                <option value="venda_liquida">Venda líquida</option>
+              </select>
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Bônus de indicação (%)',
+                'Percentual adicional reservado para indicações comerciais.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.1"
+                value={vendasConfig.bonus_indicacao_percent}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  updateVendasConfig({
+                    bonus_indicacao_percent: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
+                  })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Teto de comissão (%)',
+                'Limite máximo aplicado quando a comissão for percentual.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.1"
+                value={vendasConfig.teto_comissao_percent}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  updateVendasConfig({
+                    teto_comissao_percent: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
+                  })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+          </div>
+        </div>
+        <div className="settings-subsection">
+          <h3>Descontos & aprovação</h3>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Desconto máximo sem aprovação (%)',
+                'Percentual de desconto permitido antes de acionar o workflow de aprovação.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.1"
+                value={vendasConfig.desconto_max_percent_sem_aprovacao}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  updateVendasConfig({
+                    desconto_max_percent_sem_aprovacao: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
+                  })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+            <Field label="Workflow de aprovação ativo">
+              <label className="inline-checkbox">
+                <input
+                  type="checkbox"
+                  checked={vendasConfig.workflow_aprovacao_ativo}
+                  onChange={(event) =>
+                    updateVendasConfig({ workflow_aprovacao_ativo: event.target.checked })
+                  }
+                />
+                <span>Exigir aprovação para descontos acima do limite.</span>
+              </label>
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Validade padrão da proposta (dias)',
+                'Quantidade de dias utilizada como validade padrão nas propostas geradas.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={vendasConfig.validade_proposta_dias}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  const normalizado = Number.isFinite(parsed ?? NaN) ? Math.max(0, Math.floor(Number(parsed))) : 0
+                  updateVendasConfig({ validade_proposta_dias: normalizado })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+          </div>
+          <Field label="Aprovadores" hint={aprovadoresHint}>
+            <textarea
+              rows={3}
+              value={aprovadoresText}
+              onChange={(event) => setAprovadoresText(event.target.value)}
+              onBlur={handleAprovadoresBlur}
+            />
+          </Field>
+        </div>
+        <div className="settings-subsection">
+          <h3>Tributação</h3>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Regime tributário padrão',
+                'Preset fiscal aplicado por padrão nos cálculos comerciais.',
+              )}
+            >
+              <select
+                value={vendasConfig.regime_tributario_default}
+                onChange={(event) =>
+                  updateVendasConfig({
+                    regime_tributario_default: event.target.value as RegimeTributario,
+                  })
+                }
+              >
+                <option value="simples">Simples nacional</option>
+                <option value="lucro_presumido">Lucro presumido</option>
+                <option value="lucro_real">Lucro real</option>
+              </select>
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Imposto retido padrão (%)',
+                'Percentual de impostos retidos na fonte aplicado sobre a venda total.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.1"
+                value={vendasConfig.imposto_retido_aliquota_default}
+                onChange={(event) => {
+                  const parsed = parseNumericInput(event.target.value)
+                  updateVendasConfig({
+                    imposto_retido_aliquota_default: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
+                  })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+            <Field label="Mostrar quebra de impostos no PDF">
+              <label className="inline-checkbox">
+                <input
+                  type="checkbox"
+                  checked={vendasConfig.mostrar_quebra_impostos_no_pdf_cliente}
+                  onChange={(event) =>
+                    updateVendasConfig({
+                      mostrar_quebra_impostos_no_pdf_cliente: event.target.checked,
+                    })
+                  }
+                />
+                <span>Exibir detalhamento dos impostos para o cliente.</span>
+              </label>
+            </Field>
+          </div>
+          {regimes.map((regime) => {
+            const lista = impostosOverridesDraft[regime] ?? []
+            const label = REGIME_TRIBUTARIO_LABELS[regime] ?? regime
+            return (
+              <div key={regime} className="settings-subsection">
+                <div className="table-controls">
+                  <span className="muted">Overrides — {label}</span>
+                  <div>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => handleOverrideAdd(regime)}
+                    >
+                      Adicionar imposto
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => handleResetOverrides(regime)}
+                      disabled={lista.length === 0}
+                    >
+                      Restaurar preset
+                    </button>
+                  </div>
+                </div>
+                {lista.length ? (
+                  lista.map((item, index) => (
+                    <div key={`${regime}-${index}`} className="grid g3">
+                      <Field label="Nome do imposto">
+                        <input
+                          type="text"
+                          value={item.nome ?? ''}
+                          onChange={(event) =>
+                            handleOverrideFieldChange(regime, index, 'nome', event.target.value)
+                          }
+                        />
+                      </Field>
+                      <Field label="Alíquota (%)">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.01"
+                          value={
+                            Number.isFinite(item.aliquota_percent)
+                              ? Number(item.aliquota_percent)
+                              : 0
+                          }
+                          onChange={(event) =>
+                            handleOverrideFieldChange(regime, index, 'aliquota_percent', event.target.value)
+                          }
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
+                      <div className="field">
+                        <label>&nbsp;</label>
+                        <button
+                          type="button"
+                          className="ghost danger"
+                          onClick={() => handleOverrideRemove(regime, index)}
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="muted">Sem overrides — usando preset padrão.</p>
+                )}
+              </div>
+            )
+          })}
+          <div className="table-controls">
+            <button type="button" className="primary" onClick={handleApplyOverrides}>
+              Aplicar overrides
+            </button>
+          </div>
+        </div>
+        <div className="settings-subsection">
+          <h3>Exibição no PDF (cliente)</h3>
+          <div className="grid g3">
+            <Field label="Exibir preços unitários">
+              <label className="inline-checkbox">
+                <input
+                  type="checkbox"
+                  checked={vendasConfig.exibir_precos_unitarios}
+                  onChange={(event) =>
+                    updateVendasConfig({ exibir_precos_unitarios: event.target.checked })
+                  }
+                />
+                <span>Mostrar valores unitários dos itens na proposta.</span>
+              </label>
+            </Field>
+            <Field label="Exibir margem">
+              <label className="inline-checkbox">
+                <input
+                  type="checkbox"
+                  checked={vendasConfig.exibir_margem}
+                  onChange={(event) => updateVendasConfig({ exibir_margem: event.target.checked })}
+                />
+                <span>Mostrar margem operacional no PDF.</span>
+              </label>
+            </Field>
+            <Field label="Exibir comissão">
+              <label className="inline-checkbox">
+                <input
+                  type="checkbox"
+                  checked={vendasConfig.exibir_comissao}
+                  onChange={(event) => updateVendasConfig({ exibir_comissao: event.target.checked })}
+                />
+                <span>Exibir comissão líquida para o cliente.</span>
+              </label>
+            </Field>
+            <Field label="Exibir impostos">
+              <label className="inline-checkbox">
+                <input
+                  type="checkbox"
+                  checked={vendasConfig.exibir_impostos}
+                  onChange={(event) => updateVendasConfig({ exibir_impostos: event.target.checked })}
+                />
+                <span>Mostrar valores de impostos no PDF.</span>
+              </label>
+            </Field>
+          </div>
+          <Field label="Observação padrão da proposta">
+            <textarea
+              rows={4}
+              value={vendasConfig.observacao_padrao_proposta}
+              onChange={(event) =>
+                updateVendasConfig({ observacao_padrao_proposta: event.target.value })
+              }
+            />
+          </Field>
         </div>
       </div>
     )
