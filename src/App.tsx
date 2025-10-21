@@ -3786,15 +3786,23 @@ export default function App() {
   const leasingPrazoConsiderado = isVendaDiretaTab ? 0 : leasingPrazo
 
   const leasingBeneficios = useMemo(() => {
+    const valorInvestimento = Math.max(0, vm0)
+    const prazoLeasingValido = leasingPrazoConsiderado > 0 ? leasingPrazoConsiderado : null
+    const economiaOpexAnual = prazoLeasingValido ? valorInvestimento * 0.015 : 0
+    const investimentoDiluirAnual = prazoLeasingValido ? valorInvestimento / prazoLeasingValido : 0
+
     return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
       const ano = i + 1
       const tarifaCheiaProj = tarifaAno(ano)
       const tarifaDescontadaProj = tarifaDescontadaAno(ano)
       const custoSemSistema = kcKwhMes * tarifaCheiaProj + encargosFixos + taxaMinima
+      const dentroPrazoLeasing = prazoLeasingValido ? ano <= leasingPrazoConsiderado : false
       const custoComSistema =
-        (ano <= leasingPrazoConsiderado ? kcKwhMes * tarifaDescontadaProj : 0) + encargosFixos + taxaMinima
-      const beneficio = 12 * (custoSemSistema - custoComSistema)
-      return beneficio
+        (dentroPrazoLeasing ? kcKwhMes * tarifaDescontadaProj : 0) + encargosFixos + taxaMinima
+      const economiaEnergia = 12 * (custoSemSistema - custoComSistema)
+      const beneficioOpex = dentroPrazoLeasing ? economiaOpexAnual : 0
+      const beneficioInvestimento = dentroPrazoLeasing ? investimentoDiluirAnual : 0
+      return economiaEnergia + beneficioOpex + beneficioInvestimento
     })
   }, [
     ANALISE_ANOS_PADRAO,
@@ -3807,6 +3815,7 @@ export default function App() {
     simulationState.mesReferencia,
     simulationState.tarifaCheia,
     taxaMinima,
+    vm0,
   ])
 
   const leasingROI = useMemo(() => {
