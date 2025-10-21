@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { labelWithTooltip } from '../InfoTooltip'
 
 import {
   calcEconomiaContrato,
@@ -526,7 +527,12 @@ export function SimulacoesTab({
             </header>
             <div className="simulations-form-grid">
               <div className="field">
-                <label htmlFor="sim-nome">Nome do cenário</label>
+                <label htmlFor="sim-nome">
+                  {labelWithTooltip(
+                    'Nome do cenário',
+                    'Identificação do cenário exibida na lista lateral e no comparativo de resultados.',
+                  )}
+                </label>
                 <input
                   id="sim-nome"
                   type="text"
@@ -538,7 +544,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-desconto">Desconto SolarInvest (%)</label>
+                <label htmlFor="sim-desconto">
+                  {labelWithTooltip(
+                    'Desconto SolarInvest (%)',
+                    'Percentual de abatimento aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
+                  )}
+                </label>
                 <input
                   id="sim-desconto"
                   type="number"
@@ -552,7 +563,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-capex">CAPEX SolarInvest (R$)</label>
+                <label htmlFor="sim-capex">
+                  {labelWithTooltip(
+                    'CAPEX SolarInvest (R$)',
+                    'Investimento total previsto para o projeto. Valor de mercado estimado = CAPEX × 1,29.',
+                  )}
+                </label>
                 <input
                   id="sim-capex"
                   type="number"
@@ -565,7 +581,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-anos">Anos de contrato</label>
+                <label htmlFor="sim-anos">
+                  {labelWithTooltip(
+                    'Anos de contrato',
+                    'Prazo do contrato em anos. Meses simulados = Anos de contrato × 12.',
+                  )}
+                </label>
                 <input
                   id="sim-anos"
                   type="number"
@@ -578,7 +599,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-inflacao-energetica">Inflação energética anual (% a.a.)</label>
+                <label htmlFor="sim-inflacao-energetica">
+                  {labelWithTooltip(
+                    'Inflação energética anual (% a.a.)',
+                    'Reajuste esperado para a tarifa cheia. Tarifa projetada no mês m = Tarifa cheia mês 1 × (1 + inflação)^{(m-1)/12}.',
+                  )}
+                </label>
                 <input
                   id="sim-inflacao-energetica"
                   type="number"
@@ -591,7 +617,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-inflacao-ipca">Inflação IPCA anual (% a.a.)</label>
+                <label htmlFor="sim-inflacao-ipca">
+                  {labelWithTooltip(
+                    'Inflação IPCA anual (% a.a.)',
+                    'Premissa macroeconômica registrada junto ao cenário para análises externas e exportações. Valor informativo, sem impacto direto nos cálculos automáticos.',
+                  )}
+                </label>
                 <input
                   id="sim-inflacao-ipca"
                   type="number"
@@ -604,7 +635,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-tarifa-cheia">Tarifa cheia (R$/kWh) - Mês 1</label>
+                <label htmlFor="sim-tarifa-cheia">
+                  {labelWithTooltip(
+                    'Tarifa cheia (R$/kWh) - Mês 1',
+                    'Tarifa sem desconto considerada no primeiro mês da simulação; ponto de partida para reajustes e cálculos de economia.',
+                  )}
+                </label>
                 <input
                   id="sim-tarifa-cheia"
                   type="number"
@@ -617,7 +653,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-consumo">Consumo (kWh/mês)</label>
+                <label htmlFor="sim-consumo">
+                  {labelWithTooltip(
+                    'Consumo (kWh/mês)',
+                    'Consumo médio mensal compensado pelo leasing. Receita mensal = Consumo × Tarifa com desconto; economia bruta = Consumo × (Tarifa cheia - Tarifa com desconto).',
+                  )}
+                </label>
                 <input
                   id="sim-consumo"
                   type="number"
@@ -630,7 +671,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-tipo-sistema">Tipo de sistema</label>
+                <label htmlFor="sim-tipo-sistema">
+                  {labelWithTooltip(
+                    'Tipo de sistema',
+                    'Classificação técnica do projeto (on-grid, híbrido ou off-grid). Ajuda a definir parâmetros de TUSD e regras de compensação.',
+                  )}
+                </label>
                 <select
                   id="sim-tipo-sistema"
                   value={tipoSistemaAtual}
@@ -647,7 +693,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label>Perfil de consumo</label>
+                <label>
+                  {labelWithTooltip(
+                    'Perfil de consumo',
+                    'Categoria da unidade consumidora. Define o TUSD padrão sugerido e influencia simultaneidade e fator ano na TUSD.',
+                  )}
+                </label>
                 <div className="radio-group">
                   <label>
                     <input
@@ -673,7 +724,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-tusd">TUSD (%)</label>
+                <label htmlFor="sim-tusd">
+                  {labelWithTooltip(
+                    'TUSD (%)',
+                    'Percentual do fio B aplicado sobre a energia compensada. Encargo TUSD ≈ Consumo × Tarifa cheia × (TUSD ÷ 100) ajustado por simultaneidade e fator ano.',
+                  )}
+                </label>
                 <div className="inline-field">
                   <input
                     id="sim-tusd"
@@ -698,7 +754,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field">
-                <label htmlFor="sim-seguro">Seguro anual (% valor de mercado)</label>
+                <label htmlFor="sim-seguro">
+                  {labelWithTooltip(
+                    'Seguro anual (% valor de mercado)',
+                    'Percentual aplicado sobre o valor de mercado estimado. Seguro anual = Valor de mercado × (% ÷ 100); seguro mensal é rateado em 12 meses com reajuste de 1,2% a.a.',
+                  )}
+                </label>
                 <input
                   id="sim-seguro"
                   type="number"
@@ -711,7 +772,12 @@ export function SimulacoesTab({
               </div>
 
               <div className="field field-textarea">
-                <label htmlFor="sim-obs">Observações</label>
+                <label htmlFor="sim-obs">
+                  {labelWithTooltip(
+                    'Observações',
+                    'Notas internas exibidas na tabela comparativa para contextualizar o cenário.',
+                  )}
+                </label>
                 <textarea
                   id="sim-obs"
                   value={current.obs ?? ''}
@@ -729,7 +795,12 @@ export function SimulacoesTab({
                   checked={current.subtrair_tusd_contrato !== false}
                   onChange={handleToggle('subtrair_tusd_contrato')}
                 />
-                Subtrair TUSD da economia durante o contrato
+                <span>
+                  {labelWithTooltip(
+                    'Subtrair TUSD da economia durante o contrato',
+                    'Quando ativo, a economia líquida mensal considera Encargo TUSD = Economia bruta - Encargo TUSD calculado para cada mês do contrato.',
+                  )}
+                </span>
               </label>
               <label className="checkbox">
                 <input
@@ -737,7 +808,12 @@ export function SimulacoesTab({
                   checked={current.subtrair_tusd_pos_contrato !== false}
                   onChange={handleToggle('subtrair_tusd_pos_contrato')}
                 />
-                Subtrair TUSD no pós-contrato
+                <span>
+                  {labelWithTooltip(
+                    'Subtrair TUSD no pós-contrato',
+                    'Define se o comparativo após o término do leasing deduz a TUSD projetada (Economia pós-contrato = Consumo × Tarifa cheia - TUSD quando marcado).',
+                  )}
+                </span>
               </label>
             </div>
           </section>
@@ -748,23 +824,48 @@ export function SimulacoesTab({
             </header>
             <div className="simulations-summary-grid">
               <div className="simulations-summary-card">
-                <span>Tarifa cheia (mês 1)</span>
+                <span>
+                  {labelWithTooltip(
+                    'Tarifa cheia (mês 1)',
+                    'Tarifa sem desconto considerada no primeiro mês antes dos reajustes mensais compostos.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(tarifaCheiaMes1)}</strong>
               </div>
               <div className="simulations-summary-card">
-                <span>Tarifa com desconto (mês 1)</span>
+                <span>
+                  {labelWithTooltip(
+                    'Tarifa com desconto (mês 1)',
+                    'Resultado da fórmula Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(tarifaComDesconto)}</strong>
               </div>
               <div className="simulations-summary-card">
-                <span>Valor de mercado</span>
+                <span>
+                  {labelWithTooltip(
+                    'Valor de mercado',
+                    'Estimativa para recompra ao fim do contrato: Valor de mercado = CAPEX × 1,29.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(valorMercado)}</strong>
               </div>
               <div className="simulations-summary-card">
-                <span>Seguro anual (1º ano)</span>
+                <span>
+                  {labelWithTooltip(
+                    'Seguro anual (1º ano)',
+                    'Prêmio anual calculado a partir do percentual de seguro: Seguro anual = Valor de mercado × (% ÷ 100).',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(seguroAnualBase)}</strong>
               </div>
               <div className="simulations-summary-card">
-                <span>Encargo TUSD (mês 1)</span>
+                <span>
+                  {labelWithTooltip(
+                    'Encargo TUSD (mês 1)',
+                    'Encargo calculado para o mês inicial considerando consumo, simultaneidade e peso TUSD.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(encargoTusdMes1)}</strong>
                 <small>
                   Simultaneidade {formatPercentBR(tusdResumoMes1.simultaneidadeUsada)} • Fator ano{' '}
@@ -773,7 +874,12 @@ export function SimulacoesTab({
                 </small>
               </div>
               <div className="simulations-summary-card">
-                <span>Economia acumulada no contrato</span>
+                <span>
+                  {labelWithTooltip(
+                    'Economia acumulada no contrato',
+                    'Somatório da economia líquida dos meses do contrato + Valor de mercado + Custos variáveis recuperados.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(economiaContrato)}</strong>
               </div>
             </div>
@@ -785,15 +891,30 @@ export function SimulacoesTab({
             </header>
             <div className="simulations-summary-grid">
               <div className="simulations-summary-card">
-                <span>Economia em 15 anos</span>
+                <span>
+                  {labelWithTooltip(
+                    'Economia em 15 anos',
+                    'Projeção de calcEconomiaHorizonte para 15 anos: economia do contrato + economia pós-contrato até o ano 15, respeitando a opção de subtrair TUSD.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(economia15)}</strong>
               </div>
               <div className="simulations-summary-card">
-                <span>Economia em 20 anos</span>
+                <span>
+                  {labelWithTooltip(
+                    'Economia em 20 anos',
+                    'Cálculo idêntico ao de 15 anos, estendendo a projeção até o ano 20.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(economia20)}</strong>
               </div>
               <div className="simulations-summary-card">
-                <span>Economia em 30 anos</span>
+                <span>
+                  {labelWithTooltip(
+                    'Economia em 30 anos',
+                    'Economia contratual somada à economia projetada para o pós-contrato até completar 30 anos.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(economia30)}</strong>
               </div>
             </div>
@@ -805,27 +926,54 @@ export function SimulacoesTab({
             </header>
             <div className="simulations-kpi-grid">
               <div className="simulations-kpi-card">
-                <span>Receita total</span>
+                <span>
+                  {labelWithTooltip(
+                    'Receita total',
+                    'Somatório da receita mensal: Receita mês = Consumo × Tarifa com desconto.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(kpis.receitaTotal)}</strong>
               </div>
               <div className="simulations-kpi-card">
-                <span>Custos variáveis (OPEX)</span>
+                <span>
+                  {labelWithTooltip(
+                    'Custos variáveis (OPEX)',
+                    'Despesa operacional acumulada, majoritariamente seguro mensal reajustado ano a ano.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(kpis.custosVariaveis)}</strong>
               </div>
               <div className="simulations-kpi-card">
-                <span>Lucro líquido</span>
+                <span>
+                  {labelWithTooltip(
+                    'Lucro líquido',
+                    'Lucro líquido = Receita total - CAPEX - Custos variáveis.',
+                  )}
+                </span>
                 <strong>{formatMoneyBR(kpis.lucroLiquido)}</strong>
               </div>
               <div className="simulations-kpi-card">
-                <span>ROI</span>
+                <span>
+                  {labelWithTooltip('ROI', 'Retorno sobre o investimento: ROI = Lucro líquido ÷ CAPEX.')}
+                </span>
                 <strong>{formatPercentValue(kpis.roi)}</strong>
               </div>
               <div className="simulations-kpi-card">
-                <span>Payback (meses)</span>
+                <span>
+                  {labelWithTooltip(
+                    'Payback (meses)',
+                    'Menor mês em que o acumulado de (Receita mensal - OPEX mensal) atinge o CAPEX investido.',
+                  )}
+                </span>
                 <strong>{formatPayback(kpis.paybackMeses)}</strong>
               </div>
               <div className="simulations-kpi-card">
-                <span>Retorno a.m. bruto</span>
+                <span>
+                  {labelWithTooltip(
+                    'Retorno a.m. bruto',
+                    'Taxa equivalente mensal do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
+                  )}
+                </span>
                 <strong>{formatPercentValue(kpis.retornoMensalBruto)}</strong>
               </div>
             </div>
@@ -840,7 +988,12 @@ export function SimulacoesTab({
             <p>Selecione os cenários desejados para gerar o comparativo.</p>
           </div>
           <div className="simulations-table-actions">
-            <label htmlFor="economy-horizon">Economia (anos)</label>
+            <label htmlFor="economy-horizon">
+              {labelWithTooltip(
+                'Economia (anos)',
+                'Seleciona o horizonte usado para calcular a coluna "Economia (N anos)" no comparativo.',
+              )}
+            </label>
             <select
               id="economy-horizon"
               value={comparisonHorizon}
@@ -866,22 +1019,63 @@ export function SimulacoesTab({
               <thead>
                 <tr>
                   <th className="simulations-expand-header" aria-label="Expandir" />
-                  <th>Cenário</th>
-                  <th>Desconto</th>
-                  <th>Prazo (meses)</th>
-                  <th>Consumo (kWh/mês)</th>
-                  <th>Tarifa cheia (mês 1)</th>
-                  <th>Tarifa com desconto (mês 1)</th>
-                  <th>Encargo TUSD</th>
-                  <th>Custos variáveis</th>
-                  <th>Receita total</th>
-                  <th>Lucro líquido</th>
-                  <th>ROI</th>
-                  <th>Payback</th>
-                  <th>Retorno a.m. bruto</th>
-                  <th>{`Economia (${comparisonHorizon} anos)`}</th>
-                  <th>Economia acumulada</th>
-                  <th>Observações</th>
+                  <th>{labelWithTooltip('Cenário', 'Nome do cenário salvo usado para identificar cada linha do comparativo.')}</th>
+                  <th>
+                    {labelWithTooltip(
+                      'Desconto',
+                      'Percentual de desconto aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
+                    )}
+                  </th>
+                  <th>
+                    {labelWithTooltip('Prazo (meses)', 'Prazo total do contrato em meses: Anos × 12.')}
+                  </th>
+                  <th>
+                    {labelWithTooltip('Consumo (kWh/mês)', 'Consumo médio mensal utilizado em todas as projeções financeiras.')}
+                  </th>
+                  <th>
+                    {labelWithTooltip('Tarifa cheia (mês 1)', 'Tarifa sem desconto considerada no primeiro mês.')}
+                  </th>
+                  <th>
+                    {labelWithTooltip(
+                      'Tarifa com desconto (mês 1)',
+                      'Tarifa cheia do mês 1 com o desconto contratado aplicado.',
+                    )}
+                  </th>
+                  <th>
+                    {labelWithTooltip('Encargo TUSD', 'Encargo TUSD projetado para o primeiro mês da simulação.')}
+                  </th>
+                  <th>
+                    {labelWithTooltip('Custos variáveis', 'Total de OPEX do cenário, composto principalmente pelo seguro.')}
+                  </th>
+                  <th>
+                    {labelWithTooltip('Receita total', 'Soma das receitas mensais obtidas com a venda de energia.')}
+                  </th>
+                  <th>
+                    {labelWithTooltip('Lucro líquido', 'Lucro líquido = Receita total - CAPEX - Custos variáveis.')}
+                  </th>
+                  <th>{labelWithTooltip('ROI', 'Lucro líquido dividido pelo CAPEX investido.')}</th>
+                  <th>
+                    {labelWithTooltip('Payback', 'Menor mês em que o fluxo acumulado iguala ou supera o CAPEX investido.')}
+                  </th>
+                  <th>
+                    {labelWithTooltip(
+                      'Retorno a.m. bruto',
+                      'Taxa mensal equivalente do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
+                    )}
+                  </th>
+                  <th>
+                    {labelWithTooltip(
+                      `Economia (${comparisonHorizon} anos)`,
+                      'Resultado de calcEconomiaHorizonte usando o horizonte selecionado acima.',
+                    )}
+                  </th>
+                  <th>
+                    {labelWithTooltip(
+                      'Economia acumulada',
+                      'Valor retornado por calcEconomiaContrato: economia líquida do contrato + valor de mercado + OPEX recuperado.',
+                    )}
+                  </th>
+                  <th>{labelWithTooltip('Observações', 'Notas livres registradas no cenário.')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -979,22 +1173,54 @@ function SimulationDetailsTable({ detalhes, prazo }: SimulationDetailsTableProps
   return (
     <div className="simulation-details">
       <div className="simulation-details-header">
-        <strong>Detalhamento mensal</strong>
-        <span>{`Prazo (meses): ${prazoLabel}`}</span>
+        <strong>
+          {labelWithTooltip(
+            'Detalhamento mensal',
+            'Tabela com os fluxos financeiros calculados mês a mês a partir do cenário selecionado.',
+          )}
+        </strong>
+        <span>
+          {labelWithTooltip(
+            `Prazo (meses): ${prazoLabel}`,
+            'Quantidade total de meses considerada no contrato para gerar as linhas abaixo.',
+          )}
+        </span>
       </div>
       <div className="simulation-details-table-wrapper">
         <table className="simulation-details-table">
           <thead>
             <tr>
-              <th>Mês</th>
-              <th>Tarifa cheia</th>
-              <th>Tarifa c/ desconto</th>
-              <th>Encargo TUSD</th>
-              <th>Receita</th>
-              <th>Custos variáveis</th>
-              <th>Economia bruta</th>
-              <th>Economia líquida</th>
-              <th>Economia líquida acumulada</th>
+              <th>{labelWithTooltip('Mês', 'Número sequencial do mês desde o início do contrato.')}</th>
+              <th>
+                {labelWithTooltip('Tarifa cheia', 'Tarifa projetada do mês considerando o reajuste energético informado.')}
+              </th>
+              <th>
+                {labelWithTooltip('Tarifa c/ desconto', 'Tarifa cheia do mês × (1 - desconto ÷ 100).')}
+              </th>
+              <th>
+                {labelWithTooltip('Encargo TUSD', 'Encargo TUSD calculado para o mês correspondente.')}
+              </th>
+              <th>
+                {labelWithTooltip('Receita', 'Receita mensal = Consumo × Tarifa com desconto do mês.')}
+              </th>
+              <th>
+                {labelWithTooltip('Custos variáveis', 'OPEX mensal, principalmente o seguro reajustado proporcionalmente.')}
+              </th>
+              <th>
+                {labelWithTooltip('Economia bruta', 'Economia bruta = Consumo × (Tarifa cheia - Tarifa com desconto).')}
+              </th>
+              <th>
+                {labelWithTooltip(
+                  'Economia líquida',
+                  'Economia líquida = Economia bruta - Encargo TUSD (quando o desconto de TUSD está habilitado).',
+                )}
+              </th>
+              <th>
+                {labelWithTooltip(
+                  'Economia líquida acumulada',
+                  'Somatório da economia líquida mês a mês até o período em questão.',
+                )}
+              </th>
             </tr>
           </thead>
           <tbody>

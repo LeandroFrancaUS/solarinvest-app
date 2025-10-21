@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
 import { createRoot } from 'react-dom/client'
 import {
   LineChart,
@@ -1111,75 +1112,6 @@ const formatBudgetDate = (isoString: string) => {
   }
   return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
-
-function InfoTooltip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false)
-  const containerRef = useRef<HTMLSpanElement | null>(null)
-  const buttonRef = useRef<HTMLButtonElement | null>(null)
-  const tooltipId = useId()
-
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false)
-        buttonRef.current?.focus()
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [open])
-
-  return (
-    <span className="info-tooltip" ref={containerRef}>
-      <button
-        type="button"
-        className={`info-icon${open ? ' open' : ''}`}
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
-        aria-label="Mostrar explicação"
-        aria-haspopup="true"
-        aria-controls={open ? tooltipId : undefined}
-        ref={buttonRef}
-        onBlur={(event) => {
-          const nextFocus = event.relatedTarget as Node | null
-          if (!nextFocus || !containerRef.current?.contains(nextFocus)) {
-            setOpen(false)
-          }
-        }}
-      >
-        ?
-      </button>
-      {open ? (
-        <span role="tooltip" id={tooltipId} className="info-bubble">
-          {text}
-        </span>
-      ) : null}
-    </span>
-  )
-}
-
-const labelWithTooltip = (label: React.ReactNode, text: string) => (
-  <>
-    {label}
-    <InfoTooltip text={text} />
-  </>
-)
 
 type ClientesModalProps = {
   registros: ClienteRegistro[]
