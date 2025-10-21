@@ -102,6 +102,9 @@ export function createInitialComposicaoSolo(): UfvComposicaoSoloValores {
   return { ...COMPOSICAO_SOLO_BASE }
 }
 
+export const LEASING_PRAZO_OPCOES = [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10] as const
+export type LeasingPrazoAnos = (typeof LEASING_PRAZO_OPCOES)[number]
+
 export const INITIAL_VALUES = {
   activeTab: 'leasing' as TabKey,
   settingsTab: 'mercado' as SettingsTabKey,
@@ -113,7 +116,7 @@ export const INITIAL_VALUES = {
   desconto: 20,
   taxaMinima: 95,
   encargosFixosExtras: 0,
-  leasingPrazo: 5 as 5 | 7 | 10,
+  leasingPrazo: LEASING_PRAZO_OPCOES[0] as LeasingPrazoAnos,
   potenciaModulo: 600,
   tipoInstalacao: 'TELHADO' as TipoInstalacao,
   segmentoCliente: 'RESIDENCIAL' as SegmentoCliente,
