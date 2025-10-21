@@ -88,6 +88,28 @@ function PrintableProposalInner(
       maximumFractionDigits: 0,
     })} parcelas`
   }
+  const isMeaningfulText = (value: string | null | undefined): boolean => {
+    if (typeof value !== 'string') {
+      return false
+    }
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return false
+    }
+    return trimmed !== '—'
+  }
+  const normalizeDisplayText = (value: string | null | undefined): string | null =>
+    isMeaningfulText(value) ? value?.trim() ?? null : null
+  const pushRowIfMeaningful = (
+    rows: { label: string; value: string }[],
+    label: string,
+    value: string | null | undefined,
+  ) => {
+    const normalized = normalizeDisplayText(value)
+    if (normalized) {
+      rows.push({ label, value: normalized })
+    }
+  }
   const sanitizeTextField = (value?: string | null) => {
     if (typeof value !== 'string') {
       return null
@@ -103,6 +125,16 @@ function PrintableProposalInner(
     }
     return null
   }
+  const pickNumeric = (...values: (number | null | undefined)[]): number | null => {
+    for (const value of values) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return Number(value)
+      }
+    }
+    return null
+  }
+  const hasNonZero = (value: number | null | undefined): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && Math.abs(value) > 0
   const parsedPdfResumo = parsedPdfVenda ?? null
   const kitPotenciaInstalada = pickPositive(
     snapshotConfig?.potencia_sistema_kwp,
@@ -204,22 +236,26 @@ function PrintableProposalInner(
   const inverterQuantidadeCatalogo = sumItemQuantity(inverterItems)
 
   const inverterNome = firstItemText(inverterItems, (item) => item.produto || item.descricao)
-  const moduleNome = firstItemText(moduleItems, (item) => item.produto || item.descricao)
-
-  const inverterModeloCatalogo = firstItemText(inverterItems, (item) => item.modelo || item.fabricante || null)
-  const moduleModeloCatalogo = firstItemText(moduleItems, (item) => item.modelo || item.fabricante || null)
+  const inverterDescricaoCatalogo = firstItemText(
+    inverterItems,
+    (item) => item.descricao || item.modelo || item.fabricante || item.produto || null,
+  )
+  const moduleDescricaoCatalogo = firstItemText(
+    moduleItems,
+    (item) => item.descricao || item.modelo || item.fabricante || item.produto || null,
+  )
 
   const inverterModelo = pickFirstText(
     snapshotConfig?.modelo_inversor,
     vendaFormResumo?.modelo_inversor,
     parsedPdfResumo?.modelo_inversor,
-    inverterModeloCatalogo,
+    inverterDescricaoCatalogo,
   )
   const moduleModelo = pickFirstText(
     snapshotConfig?.modelo_modulo,
     vendaFormResumo?.modelo_modulo,
     parsedPdfResumo?.modelo_modulo,
-    moduleModeloCatalogo,
+    moduleDescricaoCatalogo,
   )
 
   const inverterQuantidade = pickPositive(inverterQuantidadeCatalogo)
@@ -245,14 +281,14 @@ function PrintableProposalInner(
     quantidade: string | null
   }): string => {
     const partes: string[] = []
-    if (nome) {
-      partes.push(`Nome: ${nome}`)
+    if (isMeaningfulText(nome)) {
+      partes.push(`Nome: ${nome?.trim()}`)
     }
-    if (modelo) {
-      partes.push(`Modelo: ${modelo}`)
+    if (isMeaningfulText(modelo)) {
+      partes.push(`Modelo: ${modelo?.trim()}`)
     }
-    if (quantidade) {
-      partes.push(`Quantidade: ${quantidade}`)
+    if (isMeaningfulText(quantidade)) {
+      partes.push(`Quantidade: ${quantidade?.trim()}`)
     }
     if (partes.length === 0) {
       return '—'
@@ -308,6 +344,32 @@ function PrintableProposalInner(
       ? formatPercentBRWithDigits((autonomiaPct ?? 0) / 100, 1)
       : '—'
 
+  const inverterNomeLabel = normalizeDisplayText(inverterNome)
+  const inverterModeloLabel = normalizeDisplayText(inverterModelo)
+  const inverterQuantidadeLabel = formatEquipmentQuantidade(inverterQuantidade, 'inversores')
+
+  const moduleModeloLabel = normalizeDisplayText(moduleModelo)
+  const moduleQuantidadeNumero =
+    Number.isFinite(moduleQuantidade) && (moduleQuantidade ?? 0) > 0
+      ? Math.round(moduleQuantidade ?? 0)
+      : null
+  const moduleQuantidadeLabel =
+    moduleQuantidadeNumero != null
+      ? formatNumberBRWithOptions(moduleQuantidadeNumero, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        })
+      : null
+  const moduleDetalhe = (() => {
+    if (moduleModeloLabel && moduleQuantidadeLabel) {
+      return `${moduleQuantidadeLabel} - ${moduleModeloLabel}`
+    }
+    if (moduleModeloLabel) {
+      return moduleModeloLabel
+    }
+    return null
+  })()
+
   const detalhamentoCampos = [
     { label: 'Potência do sistema', value: formatKwpDetalhe(kitPotenciaInstalada ?? null) },
     { label: 'Produção média mensal', value: formatKwhMes(kitGeracao ?? undefined) },
@@ -315,23 +377,19 @@ function PrintableProposalInner(
     {
       label: 'Inversores',
       value: formatEquipmentDetail({
-        nome: inverterNome,
-        modelo: inverterModelo,
-        quantidade: formatEquipmentQuantidade(inverterQuantidade, 'inversores'),
+        nome: inverterNomeLabel,
+        modelo: inverterModeloLabel,
+        quantidade: inverterQuantidadeLabel,
       }),
     },
     {
       label: 'Módulos',
-      value: formatEquipmentDetail({
-        nome: moduleNome,
-        modelo: moduleModelo,
-        quantidade: formatEquipmentQuantidade(moduleQuantidade, 'módulos'),
-      }),
+      value: moduleDetalhe ?? '—',
     },
     { label: 'Potência dos módulos', value: formatModuloDetalhe(potenciaModuloDetalhe ?? null) },
     { label: 'Tarifa atual (distribuidora)', value: formatTarifaDetalhe(tarifaProjeto ?? null) },
     { label: 'Autonomia (%)', value: autonomiaLabel },
-  ]
+  ].filter((campo) => isMeaningfulText(campo.value))
   const duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
   const mostrarDetalhamento = detalhamentoCampos.length > 0
@@ -398,7 +456,44 @@ function PrintableProposalInner(
     }
     return condicaoLabel
   })()
-  const consumoResumo = formatKwhMes(snapshotParametros?.consumo_kwh_mes ?? vendaFormResumo?.consumo_kwh_mes)
+  const capexTotalCalculado = (() => {
+    let total = 0
+    let hasValor = false
+    const adicionarValor = (valor: number | null | undefined) => {
+      if (hasNonZero(valor)) {
+        total += Number(valor)
+        hasValor = true
+      }
+    }
+    const valorTotalOrcamento = pickNumeric(
+      vendaSnapshot?.orcamento?.valor_total_orcamento,
+      composicaoUfv?.valorOrcamento,
+    )
+    adicionarValor(valorTotalOrcamento)
+
+    if (composicaoUfv) {
+      const tipoAtual = composicaoUfv.tipoAtual ?? tipoInstalacao
+      const bucket = tipoAtual === 'SOLO' ? composicaoUfv.solo : composicaoUfv.telhado
+      Object.values(bucket).forEach((valor) => adicionarValor(valor as number))
+    } else if (snapshotComposicao) {
+      Object.values(snapshotComposicao).forEach((valor) => adicionarValor(valor as number))
+    }
+
+    if (hasValor) {
+      return total
+    }
+
+    if (hasNonZero(capex)) {
+      return Number(capex)
+    }
+
+    return null
+  })()
+  const investimentoCapexLabel = hasNonZero(capexTotalCalculado)
+    ? currency(capexTotalCalculado ?? 0)
+    : hasNonZero(capex)
+    ? currency(capex)
+    : '—'
   const tarifaInicialResumo = (() => {
     const valor = pickPositive(snapshotParametros?.tarifa_r_kwh, vendaFormResumo?.tarifa_cheia_r_kwh)
     return Number.isFinite(valor) && (valor ?? 0) > 0 ? tarifaCurrency(valor ?? 0) : tarifaCheiaResumo
@@ -423,28 +518,39 @@ function PrintableProposalInner(
   const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
   const jurosCartaoAmResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_am_pct)
   const jurosCartaoAaResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_aa_pct)
-  const mdrPixResumo = formatPercentFromPct(
-    Number.isFinite(snapshotPagamento?.mdr_pix) ? snapshotPagamento?.mdr_pix : vendaFormResumo?.taxa_mdr_pix_pct,
-  )
-  const mdrDebitoResumo = formatPercentFromPct(
-    Number.isFinite(snapshotPagamento?.mdr_debito) ? snapshotPagamento?.mdr_debito : vendaFormResumo?.taxa_mdr_debito_pct,
-  )
-  const mdrCreditoVistaResumo = formatPercentFromPct(
-    Number.isFinite(snapshotPagamento?.mdr_credito_avista)
-      ? snapshotPagamento?.mdr_credito_avista
-      : vendaFormResumo?.taxa_mdr_credito_vista_pct,
-  )
-  const mdrCreditoParceladoResumo = formatPercentFromPct(
-    vendaFormResumo?.taxa_mdr_credito_parcelado_pct,
-  )
+  const mdrPixValor = pickNumeric(snapshotPagamento?.mdr_pix, vendaFormResumo?.taxa_mdr_pix_pct)
+  const mdrDebitoValor = pickNumeric(snapshotPagamento?.mdr_debito, vendaFormResumo?.taxa_mdr_debito_pct)
+  const mdrCreditoVistaValor = pickNumeric(snapshotPagamento?.mdr_credito_avista, vendaFormResumo?.taxa_mdr_credito_vista_pct)
+  const mdrCreditoParceladoValor = pickNumeric(vendaFormResumo?.taxa_mdr_credito_parcelado_pct)
+  const mdrPixLabel = hasNonZero(mdrPixValor) ? formatPercentFromPct(mdrPixValor) : null
+  const mdrDebitoLabel = hasNonZero(mdrDebitoValor) ? formatPercentFromPct(mdrDebitoValor) : null
+  const mdrCreditoVistaLabel = hasNonZero(mdrCreditoVistaValor)
+    ? formatPercentFromPct(mdrCreditoVistaValor)
+    : null
+  const mdrCreditoParceladoLabel = hasNonZero(mdrCreditoParceladoValor)
+    ? formatPercentFromPct(mdrCreditoParceladoValor)
+    : null
   const encargosFinanceirosLabel = (() => {
+    const partes: string[] = []
     if (isCondicaoAvista) {
-      return `Pix: ${mdrPixResumo} | Débito: ${mdrDebitoResumo} | Crédito à vista: ${mdrCreditoVistaResumo}`
+      if (mdrPixLabel) {
+        partes.push(`Pix: ${mdrPixLabel}`)
+      }
+      if (mdrDebitoLabel) {
+        partes.push(`Débito: ${mdrDebitoLabel}`)
+      }
+      if (mdrCreditoVistaLabel) {
+        partes.push(`Crédito à vista: ${mdrCreditoVistaLabel}`)
+      }
+    } else if (isCondicaoParcelado) {
+      if (mdrCreditoParceladoLabel) {
+        partes.push(`Crédito parcelado: ${mdrCreditoParceladoLabel}`)
+      }
     }
-    if (isCondicaoParcelado) {
-      return `Crédito parcelado: ${mdrCreditoParceladoResumo}`
+    if (partes.length === 0) {
+      return null
     }
-    return '—'
+    return partes.join(' | ')
   })()
   const entradaResumo = Number.isFinite(vendaFormResumo?.entrada_financiamento)
     ? currency(vendaFormResumo?.entrada_financiamento ?? 0)
@@ -490,6 +596,44 @@ function PrintableProposalInner(
     sanitizeTextField(snapshotPagamento?.condicoes_adicionais_txt) ??
     sanitizeTextField(vendaFormResumo?.condicoes_adicionais) ??
     '—'
+  const condicoesPagamentoRows: { label: string; value: string }[] = []
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Forma de pagamento', formaPagamentoLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Investimento total (CAPEX)', investimentoCapexLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Validade da proposta', validadePropostaLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Prazo de execução', prazoExecucaoLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Encargos financeiros (MDR)', encargosFinanceirosLabel ?? undefined)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Condições adicionais', condicoesAdicionaisLabel)
+  const condicoesParceladoRows: { label: string; value: string }[] = []
+  if (isCondicaoParcelado) {
+    pushRowIfMeaningful(condicoesParceladoRows, 'Número de parcelas', parcelasResumo)
+    pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.m.)', jurosCartaoAmResumo)
+    pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.a.)', jurosCartaoAaResumo)
+  }
+  const condicoesFinanciamentoRows: { label: string; value: string }[] = []
+  if (isCondicaoFinanciamento) {
+    pushRowIfMeaningful(condicoesFinanciamentoRows, 'Entrada', entradaResumo)
+    pushRowIfMeaningful(condicoesFinanciamentoRows, 'Número de parcelas', parcelasFinResumo)
+    pushRowIfMeaningful(condicoesFinanciamentoRows, 'Juros do financiamento (% a.m.)', jurosFinAmResumo)
+    pushRowIfMeaningful(condicoesFinanciamentoRows, 'Juros do financiamento (% a.a.)', jurosFinAaResumo)
+  }
+  const parametrosEconomiaRows: { label: string; value: string }[] = []
+  pushRowIfMeaningful(parametrosEconomiaRows, 'Tarifa inicial', tarifaInicialResumo)
+  pushRowIfMeaningful(parametrosEconomiaRows, 'Inflação de energia (a.a.)', inflacaoResumo)
+  pushRowIfMeaningful(parametrosEconomiaRows, 'Taxa mínima mensal', taxaMinimaResumo)
+  pushRowIfMeaningful(parametrosEconomiaRows, 'Iluminação pública', iluminacaoPublicaResumo)
+  if (!isVendaDireta) {
+    pushRowIfMeaningful(parametrosEconomiaRows, 'Horizonte de análise', horizonteAnaliseResumo)
+  }
+  pushRowIfMeaningful(parametrosEconomiaRows, 'Taxa de desconto (a.a.)', taxaDescontoResumo ?? undefined)
+  const mostrarCondicoesPagamento = condicoesPagamentoRows.length > 0
+  const mostrarCondicoesParcelado = condicoesParceladoRows.length > 0
+  const mostrarCondicoesFinanciamento = condicoesFinanciamentoRows.length > 0
+  const mostrarParametrosEconomia = parametrosEconomiaRows.length > 0
+  const temAlgumaCondicao =
+    mostrarCondicoesPagamento || mostrarCondicoesParcelado || mostrarCondicoesFinanciamento || mostrarParametrosEconomia
+  const totalCondicoesLinhas =
+    condicoesPagamentoRows.length + condicoesParceladoRows.length + condicoesFinanciamentoRows.length
+  const mostrarTabelaCondicoes = totalCondicoesLinhas > 0
   const heroTitle = isVendaDireta ? 'Proposta de Venda Solar' : 'Proposta de Leasing Solar'
   const heroTagline = isVendaDireta
     ? 'Energia inteligente, patrimônio garantido'
@@ -759,121 +903,65 @@ function PrintableProposalInner(
         <section className="print-section no-break-inside">
           <h2 className="keep-with-next">Condições Comerciais e de Pagamento</h2>
           {snapshotPagamento || vendaFormResumo ? (
-            <>
-              <table className="print-table no-break-inside">
-                <thead>
-                  <tr>
-                    <th>Parâmetro</th>
-                    <th>Valor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Forma de pagamento</td>
-                    <td>{formaPagamentoLabel}</td>
-                  </tr>
-                  <tr>
-                    <td>Investimento total (CAPEX)</td>
-                    <td>{currency(capex)}</td>
-                  </tr>
-                  <tr>
-                    <td>Validade da proposta</td>
-                    <td>{validadePropostaLabel}</td>
-                  </tr>
-                  <tr>
-                    <td>Prazo de execução</td>
-                    <td>{prazoExecucaoLabel}</td>
-                  </tr>
-                  <tr>
-                    <td>Encargos financeiros (MDR)</td>
-                    <td>{encargosFinanceirosLabel}</td>
-                  </tr>
-                  <tr>
-                    <td>Condições adicionais</td>
-                    <td>{condicoesAdicionaisLabel}</td>
-                  </tr>
-                  {isCondicaoParcelado ? (
-                    <>
+            temAlgumaCondicao ? (
+              <>
+                {mostrarTabelaCondicoes ? (
+                  <table className="print-table no-break-inside">
+                    <thead>
                       <tr>
-                        <td>Número de parcelas</td>
-                        <td>{parcelasResumo}</td>
+                        <th>Parâmetro</th>
+                        <th>Valor</th>
                       </tr>
-                      <tr>
-                        <td>Juros do cartão (% a.m.)</td>
-                        <td>{jurosCartaoAmResumo}</td>
-                      </tr>
-                      <tr>
-                        <td>Juros do cartão (% a.a.)</td>
-                        <td>{jurosCartaoAaResumo}</td>
-                      </tr>
-                    </>
-                  ) : null}
-                  {isCondicaoFinanciamento ? (
-                    <>
-                      <tr>
-                        <td>Entrada</td>
-                        <td>{entradaResumo}</td>
-                      </tr>
-                      <tr>
-                        <td>Número de parcelas</td>
-                        <td>{parcelasFinResumo}</td>
-                      </tr>
-                      <tr>
-                        <td>Juros do financiamento (% a.m.)</td>
-                        <td>{jurosFinAmResumo}</td>
-                      </tr>
-                      <tr>
-                        <td>Juros do financiamento (% a.a.)</td>
-                        <td>{jurosFinAaResumo}</td>
-                      </tr>
-                    </>
-                  ) : null}
-                </tbody>
-              </table>
-              <h3 className="print-subheading keep-with-next">Parâmetros de economia</h3>
-              <table className="print-table no-break-inside">
-                <thead>
-                  <tr>
-                    <th>Parâmetro</th>
-                    <th>Valor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Consumo considerado</td>
-                    <td>{consumoResumo}</td>
-                  </tr>
-                  <tr>
-                    <td>Tarifa inicial</td>
-                    <td>{tarifaInicialResumo}</td>
-                  </tr>
-                  <tr>
-                    <td>Inflação de energia (a.a.)</td>
-                    <td>{inflacaoResumo}</td>
-                  </tr>
-                  <tr>
-                    <td>Taxa mínima mensal</td>
-                    <td>{taxaMinimaResumo}</td>
-                  </tr>
-                  <tr>
-                    <td>Iluminação pública</td>
-                    <td>{iluminacaoPublicaResumo}</td>
-                  </tr>
-                  {!isVendaDireta ? (
-                    <tr>
-                      <td>Horizonte de análise</td>
-                      <td>{horizonteAnaliseResumo}</td>
-                    </tr>
-                  ) : null}
-                  {taxaDescontoResumo ? (
-                    <tr>
-                      <td>Taxa de desconto (a.a.)</td>
-                      <td>{taxaDescontoResumo}</td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </>
+                    </thead>
+                    <tbody>
+                      {condicoesPagamentoRows.map((row) => (
+                        <tr key={`condicao-geral-${row.label}`}>
+                          <td>{row.label}</td>
+                          <td>{row.value}</td>
+                        </tr>
+                      ))}
+                      {condicoesParceladoRows.map((row) => (
+                        <tr key={`condicao-parcelado-${row.label}`}>
+                          <td>{row.label}</td>
+                          <td>{row.value}</td>
+                        </tr>
+                      ))}
+                      {condicoesFinanciamentoRows.map((row) => (
+                        <tr key={`condicao-financiamento-${row.label}`}>
+                          <td>{row.label}</td>
+                          <td>{row.value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : null}
+                {mostrarParametrosEconomia ? (
+                  <>
+                    <h3 className="print-subheading keep-with-next">Parâmetros de economia</h3>
+                    <table className="print-table no-break-inside">
+                      <thead>
+                        <tr>
+                          <th>Parâmetro</th>
+                          <th>Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parametrosEconomiaRows.map((row) => (
+                          <tr key={`parametro-economia-${row.label}`}>
+                            <td>{row.label}</td>
+                            <td>{row.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <p className="muted no-break-inside">
+                Preencha as condições de pagamento na aba Vendas para exibir os detalhes nesta proposta.
+              </p>
+            )
           ) : (
             <p className="muted no-break-inside">
               Preencha as condições de pagamento na aba Vendas para exibir os detalhes nesta proposta.
