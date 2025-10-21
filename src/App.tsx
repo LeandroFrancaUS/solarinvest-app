@@ -74,6 +74,7 @@ import {
   vendaActions,
   type VendaKitItem,
 } from './store/useVendaStore'
+import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta'
 import { useLeasingValorDeMercadoEstimado } from './store/useLeasingStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
@@ -3785,8 +3786,15 @@ export default function App() {
       ? Number(vendaForm.geracao_estimada_kwh_mes)
       : geracaoMensalKwh
 
+    const potenciaState: PropostaState = {
+      orcamento: {
+        modulo: { potenciaW: potenciaModulo },
+      },
+    }
+    const potenciaModuloSeguro = getPotenciaModuloW(potenciaState)
+
     vendaActions.updateConfiguracao({
-      potencia_modulo_wp: Number.isFinite(potenciaModulo) ? Number(potenciaModulo) : 0,
+      potencia_modulo_wp: potenciaModuloSeguro,
       n_modulos: Number.isFinite(quantidadeFinal) ? Math.max(0, Number(quantidadeFinal)) : 0,
       potencia_sistema_kwp: potenciaSistema > 0 ? potenciaSistema : 0,
       geracao_estimada_kwh_mes: geracaoEstimativa > 0 ? geracaoEstimativa : 0,
@@ -4617,12 +4625,21 @@ export default function App() {
           ? Math.max(0, Number(vendaForm.quantidade_modulos))
           : numeroModulosEstimado
         : numeroModulosEstimado
-      const potenciaModuloSnapshot = vendaSnapshot.configuracao.potencia_modulo_wp
+      const potenciaSnapshotState: PropostaState = {
+        orcamento: {
+          modulo: { potenciaW: vendaSnapshot.configuracao.potencia_modulo_wp },
+        },
+      }
+      const potenciaAtualState: PropostaState = {
+        orcamento: { modulo: { potenciaW: potenciaModulo } },
+      }
+      const potenciaModuloSnapshot = getPotenciaModuloW(potenciaSnapshotState)
+      const potenciaModuloAtual = getPotenciaModuloW(potenciaAtualState)
       const potenciaModuloPrintable = isVendaDiretaTab
         ? potenciaModuloSnapshot > 0
           ? potenciaModuloSnapshot
-          : potenciaModulo
-        : potenciaModulo
+          : potenciaModuloAtual
+        : potenciaModuloAtual
       const tipoSistemaSnapshot = normalizeTipoSistemaValue(
         vendaSnapshot.configuracao.tipo_sistema,
       )

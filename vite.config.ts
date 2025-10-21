@@ -42,6 +42,9 @@ export default defineConfig(({ mode }) => {
         'zustand/middleware': fileURLToPath(
           new URL('./src/lib/zustand-middleware-shim.ts', import.meta.url),
         ),
+        '@testing-library/react': fileURLToPath(
+          new URL('./src/test-utils/testing-library-react.tsx', import.meta.url),
+        ),
       },
     },
     esbuild: {},
