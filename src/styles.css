@@ -1748,6 +1748,14 @@ table tbody tr:hover {
 }
 
 
+#settings-panel-simulacoes {
+  --sim-font-xs: 11px;
+  --sim-font-sm: 12px;
+  --sim-font-md: 13px;
+  --sim-font-lg: 15px;
+  --sim-control-height: 38px;
+}
+
 .simulations-tab {
   display: flex;
   flex-direction: column;
@@ -2113,6 +2121,249 @@ table tbody tr:hover {
   text-align: center;
   font-size: 13px;
   color: var(--muted);
+}
+
+#settings-panel-simulacoes .simulations-tab {
+  gap: 20px;
+  font-size: var(--sim-font-md);
+  line-height: 1.5;
+}
+
+#settings-panel-simulacoes .simulations-layout {
+  gap: 20px;
+}
+
+#settings-panel-simulacoes .simulations-sidebar {
+  padding: 18px;
+  gap: 12px;
+}
+
+#settings-panel-simulacoes .simulations-sidebar-header h5 {
+  font-size: var(--sim-font-lg);
+}
+
+#settings-panel-simulacoes .simulations-sidebar-header p {
+  font-size: var(--sim-font-xs);
+  line-height: 1.45;
+}
+
+#settings-panel-simulacoes .simulations-scenario-list {
+  gap: 8px;
+}
+
+#settings-panel-simulacoes .simulations-scenario-card {
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+#settings-panel-simulacoes .simulations-scenario-button {
+  gap: 2px;
+}
+
+#settings-panel-simulacoes .simulations-scenario-button strong {
+  font-size: var(--sim-font-md);
+}
+
+#settings-panel-simulacoes .simulations-scenario-button small {
+  font-size: var(--sim-font-xs);
+  line-height: 1.35;
+}
+
+#settings-panel-simulacoes .simulations-select {
+  gap: 4px;
+  font-size: var(--sim-font-xs);
+}
+
+#settings-panel-simulacoes .simulations-select input,
+#settings-panel-simulacoes .simulations-toggles input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+}
+
+#settings-panel-simulacoes .simulations-select span {
+  line-height: 1.2;
+}
+
+#settings-panel-simulacoes .simulations-sidebar-actions {
+  gap: 6px;
+}
+
+#settings-panel-simulacoes .simulations-sidebar-actions button {
+  min-height: var(--sim-control-height);
+  font-size: var(--sim-font-sm);
+  padding: 8px 12px;
+}
+
+#settings-panel-simulacoes .simulations-form-area {
+  gap: 18px;
+}
+
+#settings-panel-simulacoes .simulations-form-card,
+#settings-panel-simulacoes .simulations-summary,
+#settings-panel-simulacoes .simulations-economy,
+#settings-panel-simulacoes .simulations-kpis {
+  gap: 14px;
+  padding: 18px;
+}
+
+#settings-panel-simulacoes .simulations-form-grid {
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+#settings-panel-simulacoes .simulations-form-card header,
+#settings-panel-simulacoes .simulations-summary header,
+#settings-panel-simulacoes .simulations-economy header,
+#settings-panel-simulacoes .simulations-kpis header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#settings-panel-simulacoes .simulations-form-card header h4,
+#settings-panel-simulacoes .simulations-summary header h4,
+#settings-panel-simulacoes .simulations-economy header h4,
+#settings-panel-simulacoes .simulations-kpis header h4 {
+  font-size: var(--sim-font-lg);
+}
+
+#settings-panel-simulacoes .simulations-form-card .field label {
+  font-size: var(--sim-font-sm);
+  line-height: 1.4;
+}
+
+#settings-panel-simulacoes .simulations-toggles label {
+  font-size: var(--sim-font-sm);
+  line-height: 1.4;
+  gap: 6px;
+}
+
+#settings-panel-simulacoes .radio-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+#settings-panel-simulacoes .radio-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--sim-font-sm);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+#settings-panel-simulacoes .radio-group input[type='radio'] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+
+#settings-panel-simulacoes .simulations-form-card input,
+#settings-panel-simulacoes .simulations-form-card select,
+#settings-panel-simulacoes .simulations-form-card textarea {
+  min-height: var(--sim-control-height);
+  font-size: var(--sim-font-md);
+  padding: 8px 12px;
+}
+
+#settings-panel-simulacoes .inline-field {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#settings-panel-simulacoes .inline-field input {
+  flex: 1 1 auto;
+}
+
+#settings-panel-simulacoes .simulations-summary-grid,
+#settings-panel-simulacoes .simulations-kpi-grid,
+#settings-panel-simulacoes .simulations-kpi-cards {
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+#settings-panel-simulacoes .simulations-summary-card,
+#settings-panel-simulacoes .simulations-kpi-card {
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+#settings-panel-simulacoes .simulations-summary-card span,
+#settings-panel-simulacoes .simulations-kpi-card span {
+  font-size: var(--sim-font-xs);
+}
+
+#settings-panel-simulacoes .simulations-summary-card strong,
+#settings-panel-simulacoes .simulations-kpi-card strong {
+  font-size: calc(var(--sim-font-lg) + 1px);
+}
+
+#settings-panel-simulacoes .simulations-table {
+  gap: 14px;
+}
+
+#settings-panel-simulacoes .simulations-table-header {
+  padding: 14px 18px;
+  align-items: center;
+  gap: 14px;
+}
+
+#settings-panel-simulacoes .simulations-table-header > div:first-child {
+  flex: 1 1 auto;
+  min-width: 220px;
+}
+
+#settings-panel-simulacoes .simulations-table-header h5 {
+  font-size: var(--sim-font-lg);
+}
+
+#settings-panel-simulacoes .simulations-table-header p {
+  font-size: var(--sim-font-xs);
+  margin-top: 2px;
+}
+
+#settings-panel-simulacoes .simulations-table-actions {
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+#settings-panel-simulacoes .simulations-table-actions label {
+  font-size: var(--sim-font-xs);
+}
+
+#settings-panel-simulacoes .simulations-table-actions select,
+#settings-panel-simulacoes .simulations-table-actions button {
+  min-height: var(--sim-control-height);
+  font-size: var(--sim-font-sm);
+}
+
+#settings-panel-simulacoes .simulations-table-actions select {
+  min-width: 120px;
+}
+
+#settings-panel-simulacoes .simulations-table table {
+  min-width: 620px;
+}
+
+#settings-panel-simulacoes .simulations-table table th {
+  font-size: var(--sim-font-sm);
+}
+
+#settings-panel-simulacoes .simulations-table table td {
+  font-size: var(--sim-font-sm);
+}
+
+#settings-panel-simulacoes .simulations-table table td:first-child {
+  font-size: var(--sim-font-md);
+}
+
+#settings-panel-simulacoes .simulations-empty {
+  font-size: var(--sim-font-sm);
 }
 
 @media (max-width: 1100px) {
