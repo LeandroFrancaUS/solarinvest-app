@@ -4067,29 +4067,35 @@ export default function App() {
       const capexFromStore = calculateCapexFromState(vendaSnapshot)
       const capexPrintable = capexFromStore > 0 ? capexFromStore : capex
       const potenciaInstaladaSnapshot = vendaSnapshot.configuracao.potencia_sistema_kwp
-      const potenciaInstaladaPrintable =
-        potenciaInstaladaSnapshot > 0
+      const potenciaInstaladaPrintable = isVendaDiretaTab
+        ? potenciaInstaladaSnapshot > 0
           ? potenciaInstaladaSnapshot
-          : isVendaDiretaTab && Number.isFinite(vendaForm.potencia_instalada_kwp)
+          : Number.isFinite(vendaForm.potencia_instalada_kwp)
           ? Number(vendaForm.potencia_instalada_kwp)
           : potenciaInstaladaKwp
+        : potenciaInstaladaKwp
       const geracaoMensalSnapshot = vendaSnapshot.configuracao.geracao_estimada_kwh_mes
-      const geracaoMensalPrintable =
-        geracaoMensalSnapshot > 0
+      const geracaoMensalPrintable = isVendaDiretaTab
+        ? geracaoMensalSnapshot > 0
           ? geracaoMensalSnapshot
-          : isVendaDiretaTab && Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
+          : Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
           ? Number(vendaForm.geracao_estimada_kwh_mes)
           : geracaoMensalKwh
+        : geracaoMensalKwh
       const numeroModulosSnapshot = vendaSnapshot.configuracao.n_modulos
-      const numeroModulosPrintable =
-        numeroModulosSnapshot > 0
+      const numeroModulosPrintable = isVendaDiretaTab
+        ? numeroModulosSnapshot > 0
           ? numeroModulosSnapshot
-          : isVendaDiretaTab && Number.isFinite(vendaForm.quantidade_modulos)
+          : Number.isFinite(vendaForm.quantidade_modulos)
           ? Math.max(0, Number(vendaForm.quantidade_modulos))
           : numeroModulosEstimado
+        : numeroModulosEstimado
       const potenciaModuloSnapshot = vendaSnapshot.configuracao.potencia_modulo_wp
-      const potenciaModuloPrintable =
-        potenciaModuloSnapshot > 0 ? potenciaModuloSnapshot : potenciaModulo
+      const potenciaModuloPrintable = isVendaDiretaTab
+        ? potenciaModuloSnapshot > 0
+          ? potenciaModuloSnapshot
+          : potenciaModulo
+        : potenciaModulo
       const tipoSistemaSnapshot = normalizeTipoSistemaValue(
         vendaSnapshot.configuracao.tipo_sistema,
       )

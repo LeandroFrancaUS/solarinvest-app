@@ -114,8 +114,8 @@ const formatKwp = (value?: number) => {
     return '—'
   }
   return `${formatNumberBRWithOptions(value ?? 0, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })} kWp`
 }
 
