@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   CartesianGrid,
   Legend,
@@ -11,11 +11,11 @@ import {
 } from 'recharts'
 
 import {
+  DEFAULT_TUSD_CONFIG,
   formatYYYYMM,
   getCurrentYearMonth,
   parseYYYYMM,
   runSimulations,
-  type SegmentoCliente,
   type SimulationInput,
   type SimulationResult,
 } from '../../lib/simulacoes/calculadora'
@@ -43,11 +43,6 @@ type SimulationScenarioForm = {
   omMensal: string
   seguroMensal: string
   inicioYYYYMM: string
-  segmento: SegmentoCliente
-  tusdPercent: string
-  tarifaComDescontoManual: boolean
-  seguroMensalManual: boolean
-  tusdPercentManual: boolean
 }
 
 type ScenarioFieldKey = keyof SimulationScenarioForm
@@ -55,13 +50,6 @@ type ScenarioFieldKey = keyof SimulationScenarioForm
 type ScenarioErrors = Partial<Record<ScenarioFieldKey, string>>
 
 type SortOption = 'lucroLiquido' | 'roiPercent' | 'paybackMeses' | 'receitaTotal'
-
-const LOCAL_STORAGE_KEY = 'solarinvest-simulacoes'
-const DEFAULT_SEGMENTO: SegmentoCliente = 'residencial'
-const DEFAULT_TUSD_PERCENT: Record<SegmentoCliente, number> = {
-  residencial: 65,
-  comercial: 25,
-}
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'lucroLiquido', label: 'Lucro líquido (maior primeiro)' },
@@ -81,44 +69,12 @@ const DEFAULT_SCENARIO_VALUES = {
   kcKWhMes: '400',
   omMensal: '0',
   seguroMensal: '0',
-  segmento: DEFAULT_SEGMENTO,
-}
-
-const getDefaultTusdPercent = (segmento: SegmentoCliente) =>
-  DEFAULT_TUSD_PERCENT[segmento] ?? DEFAULT_TUSD_PERCENT[DEFAULT_SEGMENTO]
-
-const formatNumberInput = (value: number, decimals = 2) => {
-  if (!Number.isFinite(value)) return ''
-  if (decimals <= 0) {
-    return String(Math.round(value))
-  }
-  return Number(value.toFixed(decimals)).toString()
-}
-
-const computeValorMercadoUsina = (capex: number | null) => (capex ?? 0) * 1.29
-
-const computeSeguroPadrao = (capex: number | null) => computeValorMercadoUsina(capex) * 0.008
-
-const computeTarifaDescontoAuto = (tarifaCheia: number | null, desconto: number | null) => {
-  if (tarifaCheia == null || desconto == null) {
-    return ''
-  }
-  const fator = 1 - desconto / 100
-  return formatNumberInput(tarifaCheia * fator, 4)
 }
 
 const createScenarioId = () => `sim-${Math.random().toString(36).slice(2, 10)}`
 
 const createDefaultScenario = (index: number): SimulationScenarioForm => {
   const defaultDate = formatYYYYMM(getCurrentYearMonth())
-  const capexNumber = toNumberFlexible(DEFAULT_SCENARIO_VALUES.capex) ?? 0
-  const descontoNumber = toNumberFlexible(DEFAULT_SCENARIO_VALUES.desconto) ?? 0
-  const tarifaCheiaNumber = toNumberFlexible(DEFAULT_SCENARIO_VALUES.tarifaCheiaInicial) ?? 0
-  const tarifaAuto = computeTarifaDescontoAuto(tarifaCheiaNumber, descontoNumber)
-  const segmento = DEFAULT_SCENARIO_VALUES.segmento
-  const seguroDefaultNumber = toNumberFlexible(DEFAULT_SCENARIO_VALUES.seguroMensal) ?? 0
-  const possuiSeguroManual =
-    DEFAULT_SCENARIO_VALUES.seguroMensal.trim() !== '' && Math.abs(seguroDefaultNumber) > 0
   return {
     id: createScenarioId(),
     label: `Cenário ${index}`,
@@ -128,99 +84,13 @@ const createDefaultScenario = (index: number): SimulationScenarioForm => {
     inflacaoEnergeticaAA: DEFAULT_SCENARIO_VALUES.inflacaoEnergeticaAA,
     ipcaAA: DEFAULT_SCENARIO_VALUES.ipcaAA,
     tarifaCheiaInicial: DEFAULT_SCENARIO_VALUES.tarifaCheiaInicial,
-    tarifaComDesconto:
-      DEFAULT_SCENARIO_VALUES.tarifaComDesconto || tarifaAuto || DEFAULT_SCENARIO_VALUES.tarifaCheiaInicial,
+    tarifaComDesconto: DEFAULT_SCENARIO_VALUES.tarifaComDesconto,
     indexarTarifaComDesconto: true,
     kcKWhMes: DEFAULT_SCENARIO_VALUES.kcKWhMes,
     omMensal: DEFAULT_SCENARIO_VALUES.omMensal,
-    seguroMensal:
-      DEFAULT_SCENARIO_VALUES.seguroMensal ||
-      formatNumberInput(computeSeguroPadrao(capexNumber), 2) ||
-      DEFAULT_SCENARIO_VALUES.seguroMensal,
+    seguroMensal: DEFAULT_SCENARIO_VALUES.seguroMensal,
     inicioYYYYMM: defaultDate,
-    segmento,
-    tusdPercent: formatNumberInput(getDefaultTusdPercent(segmento), 0),
-    tarifaComDescontoManual: Boolean(DEFAULT_SCENARIO_VALUES.tarifaComDesconto),
-    seguroMensalManual: possuiSeguroManual,
-    tusdPercentManual: false,
   }
-}
-
-const normalizeSegmento = (value: unknown): SegmentoCliente =>
-  value === 'comercial' ? 'comercial' : 'residencial'
-
-const recalculateScenario = (scenario: SimulationScenarioForm): SimulationScenarioForm => {
-  const descontoNumber = toNumberFlexible(scenario.desconto)
-  const tarifaCheiaNumber = toNumberFlexible(scenario.tarifaCheiaInicial)
-  const capexNumber = toNumberFlexible(scenario.capex)
-  const segmento = normalizeSegmento(scenario.segmento)
-  let updated = { ...scenario, segmento }
-
-  if (!updated.tarifaComDescontoManual) {
-    const auto = computeTarifaDescontoAuto(tarifaCheiaNumber ?? null, descontoNumber ?? null)
-    if (auto) {
-      updated = { ...updated, tarifaComDesconto: auto }
-    }
-  }
-
-  if (!updated.seguroMensalManual) {
-    const seguroAuto = formatNumberInput(computeSeguroPadrao(capexNumber ?? null), 2)
-    if (seguroAuto) {
-      updated = { ...updated, seguroMensal: seguroAuto }
-    }
-  }
-
-  if (!updated.tusdPercentManual) {
-    updated = {
-      ...updated,
-      tusdPercent: formatNumberInput(getDefaultTusdPercent(segmento), 0),
-    }
-  }
-
-  return updated
-}
-
-const upgradeScenario = (scenario: any, index: number): SimulationScenarioForm => {
-  const base = createDefaultScenario(index + 1)
-  const segmento = normalizeSegmento(scenario?.segmento ?? base.segmento)
-  const toStringOr = (value: unknown, fallback: string) => {
-    if (value == null) return fallback
-    if (typeof value === 'number') {
-      return Number.isFinite(value) ? value.toString() : fallback
-    }
-    if (typeof value === 'string') {
-      return value
-    }
-    return fallback
-  }
-
-  const upgraded: SimulationScenarioForm = {
-    ...base,
-    id: typeof scenario?.id === 'string' ? scenario.id : createScenarioId(),
-    label: toStringOr(scenario?.label, base.label),
-    desconto: toStringOr(scenario?.desconto, base.desconto),
-    capex: toStringOr(scenario?.capex, base.capex),
-    anos: toStringOr(scenario?.anos, base.anos),
-    inflacaoEnergeticaAA: toStringOr(scenario?.inflacaoEnergeticaAA, base.inflacaoEnergeticaAA),
-    ipcaAA: toStringOr(scenario?.ipcaAA, base.ipcaAA),
-    tarifaCheiaInicial: toStringOr(scenario?.tarifaCheiaInicial, base.tarifaCheiaInicial),
-    tarifaComDesconto: toStringOr(scenario?.tarifaComDesconto, base.tarifaComDesconto),
-    indexarTarifaComDesconto:
-      typeof scenario?.indexarTarifaComDesconto === 'boolean'
-        ? scenario.indexarTarifaComDesconto
-        : base.indexarTarifaComDesconto,
-    kcKWhMes: toStringOr(scenario?.kcKWhMes, base.kcKWhMes),
-    omMensal: toStringOr(scenario?.omMensal, base.omMensal),
-    seguroMensal: toStringOr(scenario?.seguroMensal, base.seguroMensal),
-    inicioYYYYMM: toStringOr(scenario?.inicioYYYYMM, base.inicioYYYYMM),
-    segmento,
-    tusdPercent: toStringOr(scenario?.tusdPercent, base.tusdPercent),
-    tarifaComDescontoManual: Boolean(scenario?.tarifaComDescontoManual),
-    seguroMensalManual: Boolean(scenario?.seguroMensalManual),
-    tusdPercentManual: Boolean(scenario?.tusdPercentManual),
-  }
-
-  return recalculateScenario(upgraded)
 }
 
 const toPercentDisplay = (value: number) =>
@@ -297,20 +167,18 @@ const buildSimulationInput = (
     errors.tarifaCheiaInicial = 'Tarifa cheia inválida.'
   }
 
-  const tarifaComDescontoInformada = scenario.tarifaComDesconto
+  const tarifaComDesconto = scenario.tarifaComDesconto
     ? parsePositiveNumber(scenario.tarifaComDesconto, true)
     : undefined
-  if (scenario.tarifaComDesconto && tarifaComDescontoInformada == null) {
+  if (scenario.tarifaComDesconto && tarifaComDesconto == null) {
     errors.tarifaComDesconto = 'Tarifa com desconto inválida.'
   }
 
-  let tarifaComDesconto = tarifaComDescontoInformada
-
-  if (tarifaComDesconto == null && tarifaCheiaInicial != null && descontoPct != null) {
-    tarifaComDesconto = tarifaCheiaInicial * (1 - descontoPct / 100)
-  }
-
-  if (tarifaCheiaInicial != null && tarifaComDesconto != null && tarifaComDesconto > tarifaCheiaInicial) {
+  if (
+    tarifaCheiaInicial != null &&
+    tarifaComDesconto != null &&
+    tarifaComDesconto > tarifaCheiaInicial
+  ) {
     errors.tarifaComDesconto = 'A tarifa com desconto não pode exceder a tarifa cheia.'
   }
 
@@ -327,15 +195,6 @@ const buildSimulationInput = (
   const seguroMensal = scenario.seguroMensal ? parseNonNegativeNumber(scenario.seguroMensal) : 0
   if (scenario.seguroMensal && seguroMensal == null) {
     errors.seguroMensal = 'Valor do seguro inválido.'
-  }
-
-  const segmento = normalizeSegmento(scenario.segmento)
-
-  const tusdPercent = scenario.tusdPercent ? parseNonNegativeNumber(scenario.tusdPercent) : null
-  if (scenario.tusdPercent && tusdPercent == null) {
-    errors.tusdPercent = 'Informe um percentual válido para a TUSD.'
-  } else if ((tusdPercent ?? 0) > 100) {
-    errors.tusdPercent = 'O percentual de TUSD deve estar entre 0% e 100%.'
   }
 
   const inicio = parseYYYYMM(scenario.inicioYYYYMM)
@@ -363,8 +222,6 @@ const buildSimulationInput = (
     omMensal: omMensal ?? 0,
     seguroMensal: seguroMensal ?? 0,
     inicioYYYYMM: scenario.inicioYYYYMM,
-    segmento,
-    tusdPercentEnergia: ((tusdPercent ?? getDefaultTusdPercent(segmento)) ?? 0) / 100,
   }
 
   if (tarifaComDesconto != null) {
@@ -406,23 +263,8 @@ const sortResults = (results: SimulationResult[], sort: SortOption) => {
 
 const formatEconomiaLabel = (value: number) => formatMoneyBR(value)
 
-const formatEconomiaHorizontes = (result: SimulationResult) =>
-  `15a: ${formatMoneyBR(result.kpi.economia15Anos)} | 20a: ${formatMoneyBR(result.kpi.economia20Anos)} | 30a: ${formatMoneyBR(
-    result.kpi.economia30Anos,
-  )}`
-
-const formatSegmentoLabel = (segmento: SegmentoCliente) =>
-  segmento === 'comercial' ? 'Comercial' : 'Residencial'
-
 const formatObservacoes = (result: SimulationResult) => {
   const partes = [] as string[]
-  partes.push(`Segmento: ${formatSegmentoLabel(result.input.segmento)}`)
-  partes.push(
-    `TUSD %: ${formatNumberBRWithOptions(result.input.tusdPercentEnergia * 100, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    })}%`,
-  )
   partes.push(`Indexa T desc: ${result.input.indexarTarifaComDesconto ? 'sim' : 'não'}`)
   const possuiCustos = (result.input.omMensal ?? 0) > 0 || (result.input.seguroMensal ?? 0) > 0
   partes.push(`O&M/Seguro: ${possuiCustos ? 'sim' : 'não'}`)
@@ -473,74 +315,19 @@ export function SimulacoesTab(): JSX.Element {
   const [sortOption, setSortOption] = useState<SortOption>('lucroLiquido')
   const [results, setResults] = useState<SimulationResult[]>([])
   const [errors, setErrors] = useState<Record<string, ScenarioErrors>>({})
-  const [hasSavedScenarios, setHasSavedScenarios] = useState(false)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    try {
-      const stored = window.localStorage.getItem(LOCAL_STORAGE_KEY)
-      if (!stored) {
-        return
-      }
-
-      const parsed = JSON.parse(stored)
-      if (!Array.isArray(parsed)) {
-        return
-      }
-
-      const upgraded = parsed.map((item, index) => upgradeScenario(item, index))
-      if (upgraded.length > 0) {
-        setScenarios(upgraded)
-        setActiveScenarioId(upgraded[0]?.id ?? '')
-        setHasSavedScenarios(true)
-      }
-    } catch (error) {
-      console.error('Falha ao carregar simulações salvas:', error)
-    }
-  }, [])
 
   const activeScenario = scenarios.find((scenario) => scenario.id === activeScenarioId) ?? scenarios[0]
 
-  const valorMercadoUsinaAtivo = useMemo(() => {
-    const capexNumber = toNumberFlexible(activeScenario?.capex ?? '')
-    return computeValorMercadoUsina(capexNumber ?? 0)
-  }, [activeScenario?.capex])
-
   const handleUpdateScenario = (id: string, field: ScenarioFieldKey, value: string | boolean) => {
     setScenarios((prev) =>
-      prev.map((scenario) => {
-        if (scenario.id !== id) {
-          return scenario
-        }
-
-        let updated: SimulationScenarioForm = {
-          ...scenario,
-          [field]: typeof value === 'boolean' ? value : value,
-        }
-
-        if (field === 'tarifaComDesconto') {
-          updated = { ...updated, tarifaComDescontoManual: true }
-        }
-        if (field === 'seguroMensal') {
-          updated = { ...updated, seguroMensalManual: true }
-        }
-        if (field === 'tusdPercent') {
-          updated = { ...updated, tusdPercentManual: true }
-        }
-
-        if (field === 'segmento') {
-          updated = { ...updated, segmento: normalizeSegmento(value) }
-        }
-
-        if (field === 'desconto' || field === 'tarifaCheiaInicial' || field === 'capex' || field === 'segmento') {
-          updated = recalculateScenario(updated)
-        }
-
-        return updated
-      }),
+      prev.map((scenario) =>
+        scenario.id === id
+          ? {
+              ...scenario,
+              [field]: typeof value === 'boolean' ? value : value,
+            }
+          : scenario,
+      ),
     )
 
     setErrors((prev) => {
@@ -570,60 +357,9 @@ export function SimulacoesTab(): JSX.Element {
         ...base,
         id: createScenarioId(),
         label: `${sanitizeLabel(base.label, 'Cenário')} (cópia)`,
-        tarifaComDescontoManual: base.tarifaComDescontoManual,
-        seguroMensalManual: base.seguroMensalManual,
-        tusdPercentManual: base.tusdPercentManual,
       }
       setActiveScenarioId(novo.id)
       return [...prev, novo]
-    })
-  }
-
-  const handleResetTarifaManual = (id: string) => {
-    setScenarios((prev) =>
-      prev.map((scenario) =>
-        scenario.id === id
-          ? recalculateScenario({ ...scenario, tarifaComDescontoManual: false })
-          : scenario,
-      ),
-    )
-    setErrors((prev) => {
-      const scenarioErrors = prev[id]
-      if (!scenarioErrors) return prev
-      const { tarifaComDesconto: _removed, ...rest } = scenarioErrors
-      return { ...prev, [id]: rest }
-    })
-  }
-
-  const handleResetSeguroManual = (id: string) => {
-    setScenarios((prev) =>
-      prev.map((scenario) =>
-        scenario.id === id
-          ? recalculateScenario({ ...scenario, seguroMensalManual: false })
-          : scenario,
-      ),
-    )
-    setErrors((prev) => {
-      const scenarioErrors = prev[id]
-      if (!scenarioErrors) return prev
-      const { seguroMensal: _removed, ...rest } = scenarioErrors
-      return { ...prev, [id]: rest }
-    })
-  }
-
-  const handleResetTusdManual = (id: string) => {
-    setScenarios((prev) =>
-      prev.map((scenario) =>
-        scenario.id === id
-          ? recalculateScenario({ ...scenario, tusdPercentManual: false })
-          : scenario,
-      ),
-    )
-    setErrors((prev) => {
-      const scenarioErrors = prev[id]
-      if (!scenarioErrors) return prev
-      const { tusdPercent: _removed, ...rest } = scenarioErrors
-      return { ...prev, [id]: rest }
     })
   }
 
@@ -652,30 +388,6 @@ export function SimulacoesTab(): JSX.Element {
     setErrors({})
   }
 
-  const handleSaveScenarios = () => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    try {
-      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(scenarios))
-      setHasSavedScenarios(true)
-    } catch (error) {
-      console.error('Não foi possível salvar as simulações:', error)
-    }
-  }
-
-  const handleDeleteSavedScenarios = () => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    try {
-      window.localStorage.removeItem(LOCAL_STORAGE_KEY)
-      setHasSavedScenarios(false)
-    } catch (error) {
-      console.error('Não foi possível excluir as simulações salvas:', error)
-    }
-  }
-
   const handleRun = () => {
     const aggregateErrors: Record<string, ScenarioErrors> = {}
     const inputs: SimulationInput[] = []
@@ -696,7 +408,7 @@ export function SimulacoesTab(): JSX.Element {
       return
     }
 
-    const computed = runSimulations(inputs)
+    const computed = runSimulations(inputs, DEFAULT_TUSD_CONFIG)
     setResults(computed)
   }
 
@@ -732,22 +444,21 @@ export function SimulacoesTab(): JSX.Element {
       'Kc (kWh/mês)',
       'Tarifa cheia (mês 1)',
       'Tarifa com desconto (mês 1)',
-      'Encargo TUSD (R$)',
-      'Custos variáveis (R$)',
       'Receita total (R$)',
+      'Custos variáveis (R$)',
       'Lucro líquido (R$)',
       'ROI (%)',
       'Payback (meses)',
       'Retorno bruto a.m. (%)',
-      'Economia (x anos)',
-      'Economia acumulada (R$)',
+      'Economia cliente mês 1 (R$)',
+      'Economia cliente acumulada (R$)',
+      'Encargo TUSD total (R$)',
       'Observações',
     ]
 
     const rows = sortedResults.map((result) => {
       const mesesTotais = result.meses.length
       const tarifaDescontoMes1 = result.meses[0]?.tarifaDesconto ?? 0
-      const economiaAnos = formatEconomiaHorizontes(result)
       const linha = [
         sanitizeLabel(result.input.label ?? '', 'Cenário'),
         toPercentDisplay(result.input.desconto * 100),
@@ -755,15 +466,15 @@ export function SimulacoesTab(): JSX.Element {
         formatNumberBR(result.input.kcKWhMes),
         formatMoneyBR(result.input.tarifaCheiaInicial),
         formatMoneyBR(tarifaDescontoMes1),
-        formatMoneyBR(result.kpi.tusdTotal),
-        formatMoneyBR(result.kpi.custosVariaveisTotais),
         formatMoneyBR(result.kpi.receitaTotal),
+        formatMoneyBR(result.kpi.custosVariaveisTotais),
         formatMoneyBR(result.kpi.lucroLiquido),
         toPercentDisplay(result.kpi.roiPercent),
         toMonthsDisplay(result.kpi.paybackMeses, mesesTotais),
         toPercentDisplay(result.kpi.retornoMesBrutoPercent),
-        economiaAnos,
-        formatMoneyBR(result.kpi.economiaAcumuladaContrato),
+        formatMoneyBR(result.kpi.economiaClienteMes1),
+        formatMoneyBR(result.kpi.economiaClienteAcumulada),
+        formatMoneyBR(result.kpi.tusdTotal),
         formatObservacoes(result),
       ]
       return linha.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(';')
@@ -880,56 +591,6 @@ export function SimulacoesTab(): JSX.Element {
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-valor-mercado">Valor de mercado da usina (R$)</label>
-                <input
-                  id="simulation-valor-mercado"
-                  type="text"
-                  value={formatMoneyBR(valorMercadoUsinaAtivo)}
-                  readOnly
-                  disabled
-                  tabIndex={-1}
-                />
-              </div>
-
-              <div className="field">
-                <label htmlFor="simulation-segmento">Segmento do cliente</label>
-                <select
-                  id="simulation-segmento"
-                  value={activeScenario.segmento}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'segmento', event.target.value)}
-                >
-                  <option value="residencial">Residencial</option>
-                  <option value="comercial">Comercial</option>
-                </select>
-              </div>
-
-              <div className="field">
-                <label htmlFor="simulation-tusd">Percentual TUSD sobre energia (%)</label>
-                <input
-                  id="simulation-tusd"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="1"
-                  value={activeScenario.tusdPercent}
-                  onChange={(event) => handleUpdateScenario(activeScenario.id, 'tusdPercent', event.target.value)}
-                  onFocus={selectNumberInputOnFocus}
-                  aria-invalid={Boolean(errors[activeScenario.id]?.tusdPercent)}
-                />
-                {errors[activeScenario.id]?.tusdPercent ? (
-                  <span className="field-error">{errors[activeScenario.id]?.tusdPercent}</span>
-                ) : null}
-                <button
-                  type="button"
-                  className="field-reset-button"
-                  onClick={() => handleResetTusdManual(activeScenario.id)}
-                  disabled={!activeScenario.tusdPercentManual}
-                >
-                  Usar padrão do segmento
-                </button>
-              </div>
-
-              <div className="field">
                 <label htmlFor="simulation-anos">Prazo (anos)</label>
                 <input
                   id="simulation-anos"
@@ -1019,14 +680,6 @@ export function SimulacoesTab(): JSX.Element {
                 {errors[activeScenario.id]?.tarifaComDesconto ? (
                   <span className="field-error">{errors[activeScenario.id]?.tarifaComDesconto}</span>
                 ) : null}
-                <button
-                  type="button"
-                  className="field-reset-button"
-                  onClick={() => handleResetTarifaManual(activeScenario.id)}
-                  disabled={!activeScenario.tarifaComDescontoManual}
-                >
-                  Usar cálculo automático
-                </button>
                 <label className="checkbox">
                   <input
                     type="checkbox"
@@ -1074,7 +727,7 @@ export function SimulacoesTab(): JSX.Element {
               </div>
 
               <div className="field">
-                <label htmlFor="simulation-seguro">Seguro mensal SolarInvest (R$/mês)</label>
+                <label htmlFor="simulation-seguro">Seguro mensal (R$/mês)</label>
                 <input
                   id="simulation-seguro"
                   type="number"
@@ -1088,14 +741,6 @@ export function SimulacoesTab(): JSX.Element {
                 {errors[activeScenario.id]?.seguroMensal ? (
                   <span className="field-error">{errors[activeScenario.id]?.seguroMensal}</span>
                 ) : null}
-                <button
-                  type="button"
-                  className="field-reset-button"
-                  onClick={() => handleResetSeguroManual(activeScenario.id)}
-                  disabled={!activeScenario.seguroMensalManual}
-                >
-                  Usar padrão (0,8%)
-                </button>
               </div>
 
               <div className="field">
@@ -1119,17 +764,6 @@ export function SimulacoesTab(): JSX.Element {
               </button>
               <button type="button" className="secondary" onClick={handleReset}>
                 Limpar
-              </button>
-              <button type="button" className="secondary" onClick={handleSaveScenarios}>
-                Salvar simulações
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={handleDeleteSavedScenarios}
-                disabled={!hasSavedScenarios}
-              >
-                Excluir simulações salvas
               </button>
             </div>
           </div>
@@ -1162,28 +796,12 @@ export function SimulacoesTab(): JSX.Element {
               <strong>{toPercentDisplay(activeResult.kpi.retornoMesBrutoPercent)}</strong>
             </div>
             <div className="simulations-kpi-card">
-              <span>Valor de mercado da usina</span>
-              <strong>{formatMoneyBR(activeResult.kpi.valorMercadoUsina)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Economia acumulada (contrato)</span>
-              <strong>{formatEconomiaLabel(activeResult.kpi.economiaAcumuladaContrato)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Economia em 15 anos</span>
-              <strong>{formatEconomiaLabel(activeResult.kpi.economia15Anos)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Economia em 20 anos</span>
-              <strong>{formatEconomiaLabel(activeResult.kpi.economia20Anos)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
-              <span>Economia em 30 anos</span>
-              <strong>{formatEconomiaLabel(activeResult.kpi.economia30Anos)}</strong>
-            </div>
-            <div className="simulations-kpi-card">
               <span>Economia cliente (mês 1)</span>
               <strong>{formatEconomiaLabel(activeResult.kpi.economiaClienteMes1)}</strong>
+            </div>
+            <div className="simulations-kpi-card">
+              <span>Economia acumulada (prazo)</span>
+              <strong>{formatEconomiaLabel(activeResult.kpi.economiaClienteAcumulada)}</strong>
             </div>
             <div className="simulations-kpi-card">
               <span>Encargo TUSD estimado</span>
@@ -1263,15 +881,15 @@ export function SimulacoesTab(): JSX.Element {
                   <th>Kc (kWh/mês)</th>
                   <th>Tarifa cheia (mês 1)</th>
                   <th>Tarifa com desconto (mês 1)</th>
-                  <th>Encargo TUSD</th>
-                  <th>Custos variáveis</th>
                   <th>Receita total</th>
+                  <th>Custos variáveis</th>
                   <th>Lucro líquido</th>
                   <th>ROI</th>
                   <th>Payback</th>
                   <th>Retorno a.m. bruto</th>
-                  <th>Economia (x anos)</th>
+                  <th>Economia cliente (mês 1)</th>
                   <th>Economia acumulada</th>
+                  <th>Encargo TUSD</th>
                   <th>Observações</th>
                 </tr>
               </thead>
@@ -1279,7 +897,6 @@ export function SimulacoesTab(): JSX.Element {
                 {sortedResults.map((result) => {
                   const mesesTotais = result.meses.length
                   const tarifaDescontoMes1 = result.meses[0]?.tarifaDesconto ?? 0
-                  const economiaAnos = formatEconomiaHorizontes(result)
                   const isActive = result.input.id === activeScenario?.id
                   return (
                     <tr key={result.input.id} className={isActive ? 'active' : undefined}>
@@ -1294,15 +911,15 @@ export function SimulacoesTab(): JSX.Element {
                       <td>{formatNumberBR(result.input.kcKWhMes)}</td>
                       <td>{formatMoneyBR(result.input.tarifaCheiaInicial)}</td>
                       <td>{formatMoneyBR(tarifaDescontoMes1)}</td>
-                      <td>{formatMoneyBR(result.kpi.tusdTotal)}</td>
-                      <td>{formatMoneyBR(result.kpi.custosVariaveisTotais)}</td>
                       <td>{formatMoneyBR(result.kpi.receitaTotal)}</td>
+                      <td>{formatMoneyBR(result.kpi.custosVariaveisTotais)}</td>
                       <td>{formatMoneyBR(result.kpi.lucroLiquido)}</td>
                       <td>{toPercentDisplay(result.kpi.roiPercent)}</td>
                       <td>{toMonthsDisplay(result.kpi.paybackMeses, mesesTotais)}</td>
                       <td>{toPercentDisplay(result.kpi.retornoMesBrutoPercent)}</td>
-                      <td>{economiaAnos}</td>
-                      <td>{formatMoneyBR(result.kpi.economiaAcumuladaContrato)}</td>
+                      <td>{formatMoneyBR(result.kpi.economiaClienteMes1)}</td>
+                      <td>{formatMoneyBR(result.kpi.economiaClienteAcumulada)}</td>
+                      <td>{formatMoneyBR(result.kpi.tusdTotal)}</td>
                       <td>{formatObservacoes(result)}</td>
                     </tr>
                   )
