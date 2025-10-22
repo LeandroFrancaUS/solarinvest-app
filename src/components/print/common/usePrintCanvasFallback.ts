@@ -101,7 +101,12 @@ export const usePrintCanvasFallback = (sectionSelector: string) => {
       return
     }
 
+    const { documentElement, body } = document
     const getSection = () => document.querySelector(sectionSelector)
+    const isPrintModeActive = (mode: string | null | undefined) => mode === 'print' || mode === 'download'
+    const getCurrentPrintMode = () =>
+      documentElement?.getAttribute('data-print-mode') ?? body?.getAttribute('data-print-mode') ?? null
+    let mediaQuery: MediaQueryList | null = null
 
     const swapChartsForImages = () => {
       const section = getSection()
@@ -217,18 +222,27 @@ export const usePrintCanvasFallback = (sectionSelector: string) => {
       })
     }
 
+    const applyModeSnapshot = () => {
+      const mode = getCurrentPrintMode()
+      if (isPrintModeActive(mode)) {
+        swapChartsForImages()
+      } else if (!(mediaQuery?.matches ?? false)) {
+        restoreCharts()
+      }
+    }
+
     const handleBeforePrint = () => {
       swapChartsForImages()
     }
 
     const handleAfterPrint = () => {
       restoreCharts()
+      applyModeSnapshot()
     }
 
     window.addEventListener('beforeprint', handleBeforePrint)
     window.addEventListener('afterprint', handleAfterPrint)
 
-    let mediaQuery: MediaQueryList | null = null
     const handleMediaChange = (event: MediaQueryListEvent) => {
       if (event.matches) {
         handleBeforePrint()
@@ -246,6 +260,47 @@ export const usePrintCanvasFallback = (sectionSelector: string) => {
       }
     }
 
+    applyModeSnapshot()
+
+    let rootObserver: MutationObserver | null = null
+    let bodyObserver: MutationObserver | null = null
+
+    if (typeof MutationObserver === 'function') {
+      if (documentElement) {
+        rootObserver = new MutationObserver((mutations) => {
+          const shouldApply = mutations.some(
+            (mutation) => mutation.type === 'attributes' && mutation.attributeName === 'data-print-mode',
+          )
+
+          if (shouldApply) {
+            applyModeSnapshot()
+          }
+        })
+
+        rootObserver.observe(documentElement, {
+          attributes: true,
+          attributeFilter: ['data-print-mode'],
+        })
+      }
+
+      if (body && body !== documentElement) {
+        bodyObserver = new MutationObserver((mutations) => {
+          const shouldApply = mutations.some(
+            (mutation) => mutation.type === 'attributes' && mutation.attributeName === 'data-print-mode',
+          )
+
+          if (shouldApply) {
+            applyModeSnapshot()
+          }
+        })
+
+        bodyObserver.observe(body, {
+          attributes: true,
+          attributeFilter: ['data-print-mode'],
+        })
+      }
+    }
+
     return () => {
       window.removeEventListener('beforeprint', handleBeforePrint)
       window.removeEventListener('afterprint', handleAfterPrint)
@@ -255,6 +310,12 @@ export const usePrintCanvasFallback = (sectionSelector: string) => {
         } else if (typeof mediaQuery.removeListener === 'function') {
           mediaQuery.removeListener(handleMediaChange)
         }
+      }
+      if (rootObserver) {
+        rootObserver.disconnect()
+      }
+      if (bodyObserver) {
+        bodyObserver.disconnect()
       }
       restoreCharts()
     }

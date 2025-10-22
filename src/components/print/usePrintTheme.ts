@@ -41,12 +41,28 @@ export function usePrintThemeLight(): void {
       }
     }
 
+    const shouldForceForMode = (mode: string | null | undefined) =>
+      mode === 'print' || mode === 'download'
+
+    const applyForcedThemeForMode = () => {
+      const mode = documentElement.getAttribute('data-print-mode')
+      if (shouldForceForMode(mode)) {
+        forceLightTheme()
+      } else {
+        const mediaMatchesPrint = typeof window.matchMedia === 'function' && window.matchMedia('print').matches
+        if (!mediaMatchesPrint) {
+          clearForcedTheme()
+        }
+      }
+    }
+
     const handleBeforePrint = () => {
       forceLightTheme()
     }
 
     const handleAfterPrint = () => {
       clearForcedTheme()
+      applyForcedThemeForMode()
     }
 
     window.addEventListener('beforeprint', handleBeforePrint)
@@ -60,7 +76,7 @@ export function usePrintThemeLight(): void {
         if (event.matches) {
           forceLightTheme()
         } else {
-          clearForcedTheme()
+          applyForcedThemeForMode()
         }
       }
 
@@ -71,9 +87,24 @@ export function usePrintThemeLight(): void {
       removeMediaQueryListener = addMatchMediaListener(mediaQuery, handleMediaChange)
     }
 
-    const printMode = documentElement.getAttribute('data-print-mode')
-    if (printMode === 'print' || printMode === 'download') {
-      forceLightTheme()
+    applyForcedThemeForMode()
+
+    let modeObserver: MutationObserver | null = null
+    if (typeof MutationObserver === 'function') {
+      modeObserver = new MutationObserver((mutations) => {
+        const shouldApply = mutations.some(
+          (mutation) => mutation.type === 'attributes' && mutation.attributeName === 'data-print-mode',
+        )
+
+        if (shouldApply) {
+          applyForcedThemeForMode()
+        }
+      })
+
+      modeObserver.observe(documentElement, {
+        attributes: true,
+        attributeFilter: ['data-print-mode'],
+      })
     }
 
     return () => {
@@ -81,6 +112,9 @@ export function usePrintThemeLight(): void {
       window.removeEventListener('afterprint', handleAfterPrint)
       if (removeMediaQueryListener) {
         removeMediaQueryListener()
+      }
+      if (modeObserver) {
+        modeObserver.disconnect()
       }
       clearForcedTheme()
     }
