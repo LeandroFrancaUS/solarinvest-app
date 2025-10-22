@@ -70,6 +70,7 @@ import {
   formatPercentBRWithDigits,
   toNumberFlexible,
 } from './lib/locale/br-number'
+import { useBRNumberField } from './lib/locale/useBRNumberField'
 import { ensureProposalId, makeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
@@ -168,19 +169,19 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-const formatKwhValue = (value: number | null | undefined, digits = 2) => {
+const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return formatNumberBRWithOptions(value, {
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
     })
   }
-  return '—'
+  return null
 }
 
-const formatKwhWithUnit = (value: number | null | undefined, digits = 2) => {
+const formatKwhWithUnit = (value: number | null | undefined, digits = 2): string | null => {
   const formatted = formatKwhValue(value, digits)
-  return formatted === '—' ? formatted : `${formatted} kWh`
+  return formatted ? `${formatted} kWh` : null
 }
 
 const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
@@ -891,7 +892,7 @@ const diasDesdeDataIso = (isoString: string) => {
 const formatarDataCurta = (isoString: string) => {
   const data = new Date(isoString)
   if (Number.isNaN(data.getTime())) {
-    return '—'
+    return ''
   }
   return data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
@@ -1154,7 +1155,7 @@ const normalizeText = (value: string) =>
 const formatBudgetDate = (isoString: string) => {
   const parsed = new Date(isoString)
   if (Number.isNaN(parsed.getTime())) {
-    return '—'
+    return ''
   }
   return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
@@ -1205,8 +1206,15 @@ function ClientesModal({ registros, onClose, onEditar, onExcluir }: ClientesModa
                     <tbody>
                       {registros.map((registro) => {
                         const { dados } = registro
+                        const nomeCliente = dados.nome?.trim()
+                        const emailCliente = dados.email?.trim()
+                        const documentoCliente = dados.documento?.trim()
                         const cidade = dados.cidade?.trim()
                         const uf = dados.uf?.trim()
+                        const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
+                        const primaryLine = nomeCliente || emailCliente || registro.id
+                        const secondaryLine =
+                          emailCliente && emailCliente !== primaryLine ? emailCliente : null
                         return (
                           <tr key={registro.id}>
                             <td className="clients-table-id">
@@ -1220,18 +1228,12 @@ function ClientesModal({ registros, onClose, onEditar, onExcluir }: ClientesModa
                                 title="Carregar dados do cliente"
                                 aria-label="Carregar dados do cliente"
                               >
-                                <strong>{dados.nome || '—'}</strong>
-                                <span>{dados.email || 'E-mail não informado'}</span>
+                                <strong>{primaryLine}</strong>
+                                {secondaryLine ? <span>{secondaryLine}</span> : null}
                               </button>
                             </td>
-                            <td>{dados.documento || '—'}</td>
-                            <td>
-                              {cidade || uf ? (
-                                <span>{`${cidade || '—'}${uf ? `/${uf}` : ''}`}</span>
-                              ) : (
-                                '—'
-                              )}
-                            </td>
+                            <td>{documentoCliente ? <span>{documentoCliente}</span> : null}</td>
+                            <td>{cidadeUf ? <span>{cidadeUf}</span> : null}</td>
                             <td>{formatBudgetDate(registro.criadoEm)}</td>
                             <td>{formatBudgetDate(registro.atualizadoEm)}</td>
                             <td>
@@ -1275,16 +1277,22 @@ function Field({
   label,
   children,
   hint,
+  htmlFor,
 }: {
   label: React.ReactNode
   children: React.ReactNode
   hint?: React.ReactNode
+  htmlFor?: string
 }) {
   return (
     <div className="field">
-      <label>{label}</label>
-      {children}
-      {hint ? <small>{hint}</small> : null}
+      <label className="field-label" {...(htmlFor ? { htmlFor } : undefined)}>
+        {label}
+      </label>
+      <div className="field-control">
+        {children}
+        {hint ? <small>{hint}</small> : null}
+      </div>
     </div>
   )
 }
@@ -2710,6 +2718,16 @@ export default function App() {
     [resetRetorno],
   )
 
+  const capexMoneyField = useBRNumberField({
+    mode: 'money',
+    value: Number.isFinite(vendaForm.capex_total) ? Number(vendaForm.capex_total) : null,
+    onChange: (valor) => {
+      const normalized = Number.isFinite(valor ?? NaN) ? Math.max(0, Number(valor)) : 0
+      setCapexManualOverride(true)
+      applyVendaUpdates({ capex_total: normalized })
+    },
+  })
+
   const handleSegmentoClienteChange = useCallback(
     (value: SegmentoCliente) => {
       setSegmentoCliente((prev) => (prev === value ? prev : value))
@@ -3100,7 +3118,7 @@ export default function App() {
             quantityWarnings.push(label)
           }
           const unitPrice = normalizeCurrencyNumber(item.precoUnitario)
-          const description = item.descricao?.trim() ? item.descricao.trim() : '—'
+          const description = item.descricao?.trim() ?? ''
           return {
             id: `budget-${timestamp}-${index}`,
             productName: (item.produto ?? '').trim(),
@@ -7549,10 +7567,10 @@ export default function App() {
                           <td>{currency(item.margemBruta)}</td>
                           <td>
                             {item.margemPct === null
-                              ? '—'
+                              ? null
                               : formatPercentBR((item.margemPct ?? 0) / 100)}
                           </td>
-                          <td>{item.roi === null ? '—' : formatPercentBR(item.roi)}</td>
+                          <td>{item.roi === null ? null : formatPercentBR(item.roi)}</td>
                         </tr>
                       ))
                     )}
@@ -7592,7 +7610,7 @@ export default function App() {
                   <strong>
                     {Number.isFinite(crmIndicadoresGerenciais.roiMedio)
                       ? formatPercentBR(crmIndicadoresGerenciais.roiMedio)
-                      : '—'}
+                      : null}
                   </strong>
                 </li>
                 <li>
@@ -8950,21 +8968,26 @@ export default function App() {
     const rateioPercentualResumoTexto =
       multiUcRateioModo === 'percentual'
         ? formatPercentBRWithDigits(multiUcRateioPercentualTotal / 100, 2)
-        : '—'
+        : null
     const rateioManualResumoTexto =
-      multiUcRateioModo === 'manual' ? formatKwhWithUnit(multiUcRateioManualTotal) : '—'
+      multiUcRateioModo === 'manual' ? formatKwhWithUnit(multiUcRateioManualTotal) : null
+    const energiaGeradaTexto = formatKwhWithUnit(multiUcEnergiaGeradaKWh)
+    const energiaCompensadaTexto = formatKwhWithUnit(
+      multiUcResultado?.energiaGeradaUtilizadaKWh ?? null,
+    )
+    const sobraCreditosTexto = formatKwhWithUnit(multiUcResultado?.sobraCreditosKWh ?? null)
     const totalTusdTexto =
       multiUcResultado && Number.isFinite(multiUcResultado.totalTusd)
         ? currency(multiUcResultado.totalTusd)
-        : '—'
+        : null
     const totalTeTexto =
       multiUcResultado && Number.isFinite(multiUcResultado.totalTe)
         ? currency(multiUcResultado.totalTe)
-        : '—'
+        : null
     const totalContratoTexto =
       multiUcResultado && Number.isFinite(multiUcResultado.totalContrato)
         ? currency(multiUcResultado.totalContrato)
-        : '—'
+        : null
 
     return (
       <section className="card">
@@ -9082,7 +9105,7 @@ export default function App() {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })
-                  : '—'
+                  : ''
               }
             />
           </Field>
@@ -9253,42 +9276,58 @@ export default function App() {
                 </Field>
               </div>
               <div className="multi-uc-summary-grid">
-                <div
-                  className={`multi-uc-summary-item${multiUcRateioModo === 'percentual' && !rateioPercentualValido ? ' multi-uc-summary-item--error' : ''}`}
-                >
-                  <span>Soma do rateio (%)</span>
-                  <strong>{rateioPercentualResumoTexto}</strong>
-                </div>
-                <div
-                  className={`multi-uc-summary-item${multiUcRateioModo === 'manual' && !rateioManualValido ? ' multi-uc-summary-item--error' : ''}`}
-                >
-                  <span>Rateio manual (kWh)</span>
-                  <strong>{rateioManualResumoTexto}</strong>
-                </div>
-                <div className="multi-uc-summary-item">
-                  <span>Energia gerada</span>
-                  <strong>{formatKwhWithUnit(multiUcEnergiaGeradaKWh)}</strong>
-                </div>
-                <div className="multi-uc-summary-item">
-                  <span>Energia compensada</span>
-                  <strong>{formatKwhWithUnit(multiUcResultado?.energiaGeradaUtilizadaKWh ?? null)}</strong>
-                </div>
-                <div className="multi-uc-summary-item">
-                  <span>Sobra de créditos</span>
-                  <strong>{formatKwhWithUnit(multiUcResultado?.sobraCreditosKWh ?? null)}</strong>
-                </div>
-                <div className="multi-uc-summary-item">
-                  <span>TUSD mensal total</span>
-                  <strong>{totalTusdTexto}</strong>
-                </div>
-                <div className="multi-uc-summary-item">
-                  <span>TE mensal total</span>
-                  <strong>{totalTeTexto}</strong>
-                </div>
-                <div className="multi-uc-summary-item">
-                  <span>Total contrato</span>
-                  <strong>{totalContratoTexto}</strong>
-                </div>
+                {rateioPercentualResumoTexto ? (
+                  <div
+                    className={`multi-uc-summary-item${multiUcRateioModo === 'percentual' && !rateioPercentualValido ? ' multi-uc-summary-item--error' : ''}`}
+                  >
+                    <span>Soma do rateio (%)</span>
+                    <strong>{rateioPercentualResumoTexto}</strong>
+                  </div>
+                ) : null}
+                {rateioManualResumoTexto ? (
+                  <div
+                    className={`multi-uc-summary-item${multiUcRateioModo === 'manual' && !rateioManualValido ? ' multi-uc-summary-item--error' : ''}`}
+                  >
+                    <span>Rateio manual (kWh)</span>
+                    <strong>{rateioManualResumoTexto}</strong>
+                  </div>
+                ) : null}
+                {energiaGeradaTexto ? (
+                  <div className="multi-uc-summary-item">
+                    <span>Energia gerada</span>
+                    <strong>{energiaGeradaTexto}</strong>
+                  </div>
+                ) : null}
+                {energiaCompensadaTexto ? (
+                  <div className="multi-uc-summary-item">
+                    <span>Energia compensada</span>
+                    <strong>{energiaCompensadaTexto}</strong>
+                  </div>
+                ) : null}
+                {sobraCreditosTexto ? (
+                  <div className="multi-uc-summary-item">
+                    <span>Sobra de créditos</span>
+                    <strong>{sobraCreditosTexto}</strong>
+                  </div>
+                ) : null}
+                {totalTusdTexto ? (
+                  <div className="multi-uc-summary-item">
+                    <span>TUSD mensal total</span>
+                    <strong>{totalTusdTexto}</strong>
+                  </div>
+                ) : null}
+                {totalTeTexto ? (
+                  <div className="multi-uc-summary-item">
+                    <span>TE mensal total</span>
+                    <strong>{totalTeTexto}</strong>
+                  </div>
+                ) : null}
+                {totalContratoTexto ? (
+                  <div className="multi-uc-summary-item">
+                    <span>Total contrato</span>
+                    <strong>{totalContratoTexto}</strong>
+                  </div>
+                ) : null}
               </div>
               <div className="multi-uc-escalonamento">
                 <h4>Tabela de escalonamento Fio B (padrão)</h4>
@@ -9329,7 +9368,7 @@ export default function App() {
                   </button>
                 </div>
                 <span className="muted">
-                  Distribuidora de referência: {distribuidoraTarifa ? distribuidoraTarifa : '—'}
+                  Distribuidora de referência: {distribuidoraTarifa ?? ''}
                 </span>
               </div>
               <div className="table-wrapper multi-uc-table">
@@ -9373,6 +9412,9 @@ export default function App() {
                       const tusdMensal = calculado?.tusdMensal ?? tusdNaoCompensavel + tusdNaoCompensada
                       const teMensal = calculado?.teMensal ?? kWhFaturados * row.te
                       const totalMensal = calculado?.totalMensal ?? tusdMensal + teMensal
+                      const creditosDistribuidosTexto = formatKwhWithUnit(creditosDistribuidos)
+                      const kWhFaturadosTexto = formatKwhWithUnit(kWhFaturados)
+                      const kWhCompensadosTexto = formatKwhWithUnit(kWhCompensados)
 
                       return (
                         <tr key={row.id}>
@@ -9433,9 +9475,9 @@ export default function App() {
                               />
                             )}
                           </td>
-                          <td>{formatKwhWithUnit(creditosDistribuidos)}</td>
-                          <td>{formatKwhWithUnit(kWhFaturados)}</td>
-                          <td>{formatKwhWithUnit(kWhCompensados)}</td>
+                          <td>{creditosDistribuidosTexto}</td>
+                          <td>{kWhFaturadosTexto}</td>
+                          <td>{kWhCompensadosTexto}</td>
                           <td>
                             <input
                               type="number"
@@ -9662,7 +9704,7 @@ export default function App() {
                     minimumFractionDigits: 1,
                     maximumFractionDigits: 1,
                   })
-                : '—'
+                : ''
             }
           />
         </Field>
@@ -9992,7 +10034,7 @@ export default function App() {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })
-                : '—'
+                : ''
             }
           />
         </Field>
@@ -10156,7 +10198,7 @@ export default function App() {
                     minimumFractionDigits: 1,
                     maximumFractionDigits: 1,
                   })
-                : '—'
+                : ''
             }
           />
         </Field>
@@ -10230,7 +10272,7 @@ export default function App() {
           <strong>
             {valorTotalPropostaNormalizado != null
               ? currency(valorTotalPropostaNormalizado)
-              : '—'}
+              : ''}
           </strong>
         </div>
         {economiaEstimativaValorCalculado != null ? (
@@ -10252,20 +10294,20 @@ export default function App() {
     const workflowAtivo = Boolean(vendasConfig.workflow_aprovacao_ativo)
     const calculoAtual = isTelhado ? composicaoTelhadoCalculo : composicaoSoloCalculo
     const regimeBreakdown = calculoAtual?.regime_breakdown ?? []
-    const currencyValue = (valor?: number) => (Number.isFinite(valor) ? currency(Number(valor)) : '—')
+    const currencyValue = (valor?: number) => (Number.isFinite(valor) ? currency(Number(valor)) : '')
     const percentValue = (valor?: number) =>
-      Number.isFinite(valor) ? formatPercentBRWithDigits(Number(valor) / 100, 2) : '—'
+      Number.isFinite(valor) ? formatPercentBRWithDigits(Number(valor) / 100, 2) : ''
     const precoMinimoAplicadoLabel = calculoAtual
       ? calculoAtual.preco_minimo_aplicado
         ? 'Sim'
         : 'Não'
-      : '—'
+      : ''
     const aprovacaoLabel = (() => {
       if (!workflowAtivo) {
         return 'Workflow desativado'
       }
       if (!calculoAtual) {
-        return '—'
+        return ''
       }
       if (!calculoAtual.desconto_requer_aprovacao) {
         return 'Não'
@@ -10391,7 +10433,7 @@ export default function App() {
           <div className="composicao-ufv-breakdown">
             <h4>
               Detalhamento do regime tributário (
-              {REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? '—'}
+              {REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? ''}
               )
             </h4>
             {regimeBreakdown.length ? (
@@ -11150,17 +11192,12 @@ export default function App() {
             )}
           >
             <input
-              type="number"
-              min={0}
-              value={
-                Number.isFinite(vendaForm.capex_total) ? vendaForm.capex_total : ''
-              }
-              onChange={(event) => {
-                const parsed = parseNumericInput(event.target.value)
-                const normalized = parsed && parsed > 0 ? parsed : 0
-                setCapexManualOverride(true)
-                applyVendaUpdates({ capex_total: normalized })
-              }}
+              ref={capexMoneyField.ref}
+              type="text"
+              inputMode="decimal"
+              value={capexMoneyField.text}
+              onChange={capexMoneyField.handleChange}
+              onBlur={capexMoneyField.handleBlur}
               onFocus={selectNumberInputOnFocus}
             />
             <FieldError message={vendaFormErrors.capex_total} />
@@ -11522,9 +11559,9 @@ export default function App() {
           minimumFractionDigits: 1,
           maximumFractionDigits: 1,
         }).format(resultado.roi)
-      : '—'
+      : ''
     const showVpl = Boolean(resultado && typeof resultado.vpl === 'number')
-    const vplLabel = showVpl && resultado ? currency(resultado.vpl as number) : '—'
+    const vplLabel = showVpl && resultado ? currency(resultado.vpl as number) : ''
 
     const kpis: { label: string; value: string }[] = [
       { label: 'Payback (meses)', value: paybackLabel },
@@ -11848,7 +11885,7 @@ export default function App() {
                             <td>{tarifaCurrency(row.tarifa)}</td>
                             <td>{currency(row.prestacaoEfetiva)}</td>
                             <td>{currency(row.cashback)}</td>
-                            <td>{row.valorResidual === null ? '—' : currency(row.valorResidual)}</td>
+                            <td>{row.valorResidual == null ? '' : currency(row.valorResidual)}</td>
                           </tr>
                         ))}
                     </tbody>
@@ -12261,23 +12298,31 @@ export default function App() {
                         </thead>
                         <tbody>
                           {orcamentosFiltrados.map((registro) => {
-                            const documento = registro.clienteDocumento || registro.dados.cliente.documento || ''
-                            const unidadeConsumidora = registro.clienteUc || registro.dados.cliente.uc || ''
-                            const cidade = registro.clienteCidade || registro.dados.cliente.cidade || ''
-                            const uf = registro.clienteUf || registro.dados.cliente.uf || ''
+                            const documento =
+                              registro.clienteDocumento?.trim() ||
+                              registro.dados.cliente.documento?.trim() ||
+                              ''
+                            const unidadeConsumidora =
+                              registro.clienteUc?.trim() || registro.dados.cliente.uc?.trim() || ''
+                            const cidade =
+                              registro.clienteCidade?.trim() || registro.dados.cliente.cidade?.trim() || ''
+                            const uf = registro.clienteUf?.trim() || registro.dados.cliente.uf?.trim() || ''
+                            const nomeCliente =
+                              registro.clienteNome?.trim() ||
+                              registro.dados.cliente.nome?.trim() ||
+                              registro.id
+                            const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
                             return (
                               <tr key={registro.id}>
                                 <td>{registro.id}</td>
                                 <td>
                                   <div className="budget-search-client">
-                                    <strong>{registro.clienteNome || registro.dados.cliente.nome || '—'}</strong>
-                                    <span>
-                                      {cidade ? `${cidade} / ${uf || '—'}` : uf || '—'}
-                                    </span>
+                                    <strong>{nomeCliente}</strong>
+                                    {cidadeUf ? <span>{cidadeUf}</span> : null}
                                   </div>
                                 </td>
-                                <td>{documento || '—'}</td>
-                                <td>{unidadeConsumidora || '—'}</td>
+                                <td>{documento || null}</td>
+                                <td>{unidadeConsumidora || null}</td>
                                 <td>{formatBudgetDate(registro.criadoEm)}</td>
                                 <td>
                                   <div className="budget-search-actions">

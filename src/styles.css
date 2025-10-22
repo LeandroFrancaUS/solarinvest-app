@@ -473,9 +473,54 @@ button.secondary.danger:focus-visible {
 }
 
 .field {
+  --field-label-min: 180px;
+  --field-control-max: clamp(var(--field-label-min), 32vw, 420px);
+  display: grid;
+  grid-template-columns:
+    minmax(var(--field-label-min), max-content)
+    minmax(var(--field-label-min), max-content);
+  align-items: start;
+  gap: var(--space-1) var(--space-3);
+}
+
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-s);
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 0;
+}
+
+.field-control {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-1);
+  min-inline-size: var(--field-label-min);
+  max-inline-size: var(--field-control-max);
+}
+
+.field-control > :where(input, select, textarea) {
+  inline-size: 100%;
+}
+
+.field-control > :where(.inline-checkbox, .inline-field, .radio-group) {
+  inline-size: auto;
+  width: auto;
+}
+
+@media (max-width: 900px) {
+  .field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .field-control {
+    max-inline-size: 100%;
+  }
 }
 
 .multi-uc-section {
@@ -809,18 +854,7 @@ button.secondary.danger:focus-visible {
   }
 }
 
-.field label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--font-s);
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.field small {
+.field-control small {
   color: var(--muted);
   font-size: calc(var(--font-s) - 1px);
 }
@@ -2005,7 +2039,7 @@ table tbody tr:hover {
   gap: 16px;
 }
 
-.simulations-form-card .field label,
+.simulations-form-card .field-label,
 .simulations-form-card label.checkbox {
   text-transform: none;
   letter-spacing: 0;
@@ -2051,7 +2085,7 @@ table tbody tr:hover {
   accent-color: var(--accent);
 }
 
-.field.field-textarea textarea {
+.field.field-textarea .field-control textarea {
   width: 100%;
   min-height: 110px;
   resize: vertical;
@@ -2425,7 +2459,7 @@ table tbody tr:hover {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .simulations-form-card .field label {
+#settings-panel-simulacoes .simulations-form-card .field-label {
   font-size: var(--sim-font-sm);
   line-height: 1.4;
 }
