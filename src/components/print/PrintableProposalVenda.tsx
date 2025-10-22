@@ -118,12 +118,18 @@ function PrintableProposalInner(
   }
   const normalizeDisplayText = (value: string | null | undefined): string | null =>
     isMeaningfulText(value) ? value?.trim() ?? null : null
-  type TableRow = { label: string; value: string; emphasize?: boolean; description?: string }
+  type TableRow = {
+    label: string
+    value: string
+    emphasize?: boolean
+    description?: string
+    labelAnnotation?: string
+  }
   const pushRowIfMeaningful = (
     rows: TableRow[],
     label: string,
     value: string | null | undefined,
-    options?: { emphasize?: boolean; description?: string },
+    options?: { emphasize?: boolean; description?: string; labelAnnotation?: string },
   ) => {
     const normalized = normalizeDisplayText(value)
     if (normalized) {
@@ -559,6 +565,8 @@ function PrintableProposalInner(
     : null
   const kitFotovoltaicoLabel =
     kitFotovoltaicoValorNumero != null ? currency(kitFotovoltaicoValorNumero) : '—'
+  const kitFotovoltaicoAnnotation =
+    '(composto por módulos solares, inversor, estrutura de fixação, cabos, conectores e demais componentes necessários para a instalação completa do sistema)'
   const margemOperacionalNumero = (() => {
     if (composicaoUfv) {
       const tipoResumo = composicaoUfv.tipoAtual ?? tipoInstalacao
@@ -652,7 +660,7 @@ function PrintableProposalInner(
   const valorIntegradoSistemaLabel =
     valorIntegradoSistemaNumero != null ? currency(valorIntegradoSistemaNumero) : '—'
   const valorIntegradoSistemaDescricao =
-    ' (engloba custos de engenharia, aquisição e logística dos equipamentos, instalação e implementação completa, impostos, seguros, suporte técnico, manutenção inicial e margem operacional)'
+    '(engloba custos de engenharia, aquisição e logística dos equipamentos, instalação e implementação completa, impostos, seguros, suporte técnico, manutenção inicial e margem operacional)'
   const inflacaoResumo = formatPercentFromPct(
     snapshotParametros?.inflacao_energia_aa ?? vendaFormResumo?.inflacao_energia_aa_pct,
   )
@@ -755,13 +763,15 @@ function PrintableProposalInner(
   pushRowIfMeaningful(condicoesPagamentoRows, 'Prazo de execução', prazoExecucaoLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Encargos financeiros (MDR)', encargosFinanceirosLabel ?? undefined)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Condições adicionais', condicoesAdicionaisLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Kit fotovoltaico', kitFotovoltaicoLabel, {
+    labelAnnotation: kitFotovoltaicoAnnotation,
+  })
   pushRowIfMeaningful(
     condicoesPagamentoRows,
     'Valor Integrado do Sistema',
     valorIntegradoSistemaLabel,
     { description: valorIntegradoSistemaDescricao },
   )
-  pushRowIfMeaningful(condicoesPagamentoRows, 'Kit fotovoltaico', kitFotovoltaicoLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Valor final', valorTotalPropostaLabel, { emphasize: true })
   const condicoesParceladoRows: TableRow[] = []
   if (!isVendaDireta && isCondicaoParcelado) {
@@ -1265,6 +1275,9 @@ function PrintableProposalInner(
                             <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
                               <span className="print-table__label-text">
                                 {row.emphasize ? <strong>{row.label}</strong> : row.label}
+                                {row.labelAnnotation ? (
+                                  <span className="print-table__label-annotation">{row.labelAnnotation}</span>
+                                ) : null}
                               </span>
                               {row.description ? (
                                 <em className="print-table__description">{row.description}</em>
