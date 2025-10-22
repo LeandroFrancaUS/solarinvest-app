@@ -292,6 +292,15 @@ html[data-print-mode='print'] .print-hero__title h1 {
   display: block;
 }
 
+.print-table__label-annotation {
+  display: inline;
+  margin-left: 4px;
+  font-style: italic;
+  font-size: calc(100% - 2pt);
+  font-weight: 400;
+  color: inherit;
+}
+
 .print-table__description {
   display: block;
   margin-top: 4px;
