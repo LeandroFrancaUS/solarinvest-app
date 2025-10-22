@@ -25,7 +25,7 @@ import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
-import { PRINT_CHART_THEME } from '../../helpers/ChartTheme'
+import { CHART_THEME } from '../../helpers/ChartTheme'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -67,9 +67,9 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /pot[êe]ncia\s+do\s+sistema/i,
 ]
 
-const chartTheme = PRINT_CHART_THEME
+const chartTheme = CHART_THEME.light
 
-const DEFAULT_CHART_COLORS = ['var(--chart-2, #0d47a1)', 'var(--chart-3, #1b5e20)'] as const
+const DEFAULT_CHART_COLORS = ['#2563EB', '#0f172a'] as const
 
 const formatAnoDescricao = (ano: number): string => `${ano} ${ano === 1 ? 'ano' : 'anos'}`
 
@@ -211,8 +211,8 @@ function PrintableProposalLeasingInner(
   const ucCliente = cliente.uc?.trim() || null
   const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
 
-  const primaryChartColor = DEFAULT_CHART_COLORS[0] ?? '#0d47a1'
-  const secondaryChartColor = DEFAULT_CHART_COLORS[1] ?? '#1b5e20'
+  const primaryChartColor = DEFAULT_CHART_COLORS[0] ?? '#2563EB'
+  const secondaryChartColor = DEFAULT_CHART_COLORS[1] ?? '#0f172a'
 
   usePrintCanvasFallback('#economia-30-anos')
 
@@ -835,7 +835,7 @@ function PrintableProposalLeasingInner(
                       stroke={chartTheme.grid}
                       tickFormatter={formatAxis}
                       tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                      axisLine={{ stroke: chartTheme.grid, strokeWidth: 2 }}
+                      axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
                       tickLine={false}
                       domain={[economiaChartDomain.min, economiaChartDomain.max]}
                     >
@@ -851,7 +851,7 @@ function PrintableProposalLeasingInner(
                       dataKey="ano"
                       stroke={chartTheme.grid}
                       tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                      axisLine={{ stroke: chartTheme.grid, strokeWidth: 2 }}
+                      axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
                       tickLine={false}
                       width={120}
                       tickFormatter={(valor) => formatAnoDescricao(Number(valor))}
@@ -870,7 +870,7 @@ function PrintableProposalLeasingInner(
                       labelStyle={{ color: chartTheme.tooltipText }}
                       wrapperStyle={{ zIndex: 1000 }}
                     />
-                    <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={2} />
+                    <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={1} />
                     <Bar
                       dataKey="beneficio"
                       fill={primaryChartColor}
@@ -883,7 +883,7 @@ function PrintableProposalLeasingInner(
                         dataKey="beneficio"
                         position="right"
                         formatter={(value: number) => currency(Number(value))}
-                        fill="#000000"
+                        fill={primaryChartColor}
                         style={{ fontSize: 12, fontWeight: 600 }}
                       />
                     </Bar>

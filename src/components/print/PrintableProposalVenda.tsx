@@ -8,14 +8,14 @@ import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
 import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
-import { PRINT_CHART_THEME } from '../../helpers/ChartTheme'
+import { CHART_THEME } from '../../helpers/ChartTheme'
 
 const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
-  Leasing: 'var(--chart-2, #0d47a1)',
-  Financiamento: 'var(--chart-7, #e65100)',
+  Leasing: '#2563EB',
+  Financiamento: '#10B981',
 }
 
-const chartTheme = PRINT_CHART_THEME
+const chartTheme = CHART_THEME.light
 
 const normalizeObservationKey = (value: string): string =>
   value
@@ -1371,7 +1371,7 @@ function PrintableProposalInner(
                     stroke={chartTheme.grid}
                     tickFormatter={formatAxis}
                     tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                    axisLine={{ stroke: chartTheme.grid, strokeWidth: 2 }}
+                    axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
                     tickLine={false}
                     domain={[chartPrintableDomain.min, chartPrintableDomain.max]}
                   >
@@ -1387,7 +1387,7 @@ function PrintableProposalInner(
                     dataKey="ano"
                     stroke={chartTheme.grid}
                     tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                    axisLine={{ stroke: chartTheme.grid, strokeWidth: 2 }}
+                    axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
                     tickLine={false}
                     width={120}
                     tickFormatter={(valor) => `${valor}º ano`}
@@ -1422,7 +1422,7 @@ function PrintableProposalInner(
                       ]}
                     />
                   ) : null}
-                  <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={2} />
+                  <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={1} />
                   <Bar
                     dataKey="Leasing"
                     fill={DEFAULT_CHART_COLORS.Leasing}
@@ -1435,7 +1435,7 @@ function PrintableProposalInner(
                       dataKey="Leasing"
                       position="right"
                       formatter={(value: number) => currency(Number(value))}
-                      fill="#000000"
+                      fill={DEFAULT_CHART_COLORS.Leasing}
                       style={{ fontSize: 12, fontWeight: 600 }}
                     />
                   </Bar>
@@ -1451,7 +1451,7 @@ function PrintableProposalInner(
                         dataKey="Financiamento"
                         position="right"
                         formatter={(value: number) => currency(Number(value))}
-                        fill="#000000"
+                        fill={DEFAULT_CHART_COLORS.Financiamento}
                         style={{ fontSize: 12, fontWeight: 600 }}
                       />
                     </Bar>
