@@ -1,5 +1,30 @@
 @media print {
   :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --card: #ffffff;
+    --metric-bg: #ffffff;
+    --metric-color: #000000;
+    --text-strong: #000000;
+    --text-base: #000000;
+    --text-muted: #1f2937;
+    --text-inverse: #ffffff;
+    --muted: #1a1a1a;
+    --title: #000000;
+    --ink: #000000;
+    --accent: #0d47a1;
+    --accent-strong: #0b3c86;
+    --accent-dark: #0b3c86;
+    --accent-soft: rgba(13, 71, 161, 0.16);
+    --border: #000000;
+    --border-strong: #000000;
+    --input-bg: #ffffff;
+    --input-placeholder: #1f2937;
+    --ghost-bg: rgba(0, 0, 0, 0.06);
+    --ghost-bg-hover: rgba(0, 0, 0, 0.12);
+    --table-header-bg: rgba(0, 0, 0, 0.08);
+    --table-hover-bg: rgba(13, 71, 161, 0.12);
     --si-bg: #ffffff;
     --si-surface: #ffffff;
     --si-border: #000000;
@@ -20,6 +45,8 @@
     --chart-8: #263238;
     --chart-9: #37474f;
     --chart-10: #424242;
+    --tooltip-bg: #ffffff;
+    --tooltip-text: #000000;
   }
 
   html,
@@ -95,6 +122,27 @@
     border: 1px solid #000000 !important;
   }
 
+  .recharts-cartesian-grid line {
+    stroke: rgba(0, 0, 0, 0.32) !important;
+  }
+
+  .recharts-cartesian-axis-line,
+  .recharts-cartesian-axis-tick-line {
+    stroke: #000000 !important;
+  }
+
+  .recharts-cartesian-axis-tick text,
+  .recharts-legend-item text {
+    fill: #000000 !important;
+    font-weight: 600 !important;
+  }
+
+  .recharts-default-tooltip {
+    background: var(--tooltip-bg) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--tooltip-text) !important;
+  }
+
   img[data-print-swap='1'] {
     background: #ffffff !important;
     border: 1px solid #000000 !important;
@@ -125,6 +173,31 @@
 }
 
 :root[data-forced-print-theme='light'] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --metric-bg: #ffffff;
+  --metric-color: #000000;
+  --text-strong: #000000;
+  --text-base: #000000;
+  --text-muted: #1f2937;
+  --text-inverse: #ffffff;
+  --muted: #1a1a1a;
+  --title: #000000;
+  --ink: #000000;
+  --accent: #0d47a1;
+  --accent-strong: #0b3c86;
+  --accent-dark: #0b3c86;
+  --accent-soft: rgba(13, 71, 161, 0.16);
+  --border: #000000;
+  --border-strong: #000000;
+  --input-bg: #ffffff;
+  --input-placeholder: #1f2937;
+  --ghost-bg: rgba(0, 0, 0, 0.06);
+  --ghost-bg-hover: rgba(0, 0, 0, 0.12);
+  --table-header-bg: rgba(0, 0, 0, 0.08);
+  --table-hover-bg: rgba(13, 71, 161, 0.12);
   --si-bg: #ffffff;
   --si-surface: #ffffff;
   --si-border: #000000;
@@ -145,12 +218,15 @@
   --chart-8: #263238;
   --chart-9: #37474f;
   --chart-10: #424242;
+  --tooltip-bg: #ffffff;
+  --tooltip-text: #000000;
 }
 
 :root[data-forced-print-theme='light'],
 :root[data-forced-print-theme='light'] body {
   background: #ffffff !important;
   color: #000000 !important;
+  color-scheme: light;
 }
 
 :root[data-forced-print-theme='light'] * {
