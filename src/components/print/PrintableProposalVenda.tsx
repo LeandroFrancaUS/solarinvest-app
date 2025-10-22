@@ -1263,7 +1263,9 @@ function PrintableProposalInner(
                         {condicoesPagamentoRows.map((row) => (
                           <tr key={`condicao-geral-${row.label}`}>
                             <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
-                              {row.emphasize ? <strong>{row.label}</strong> : row.label}
+                              <span className="print-table__label-text">
+                                {row.emphasize ? <strong>{row.label}</strong> : row.label}
+                              </span>
                               {row.description ? (
                                 <em className="print-table__description">{row.description}</em>
                               ) : null}
