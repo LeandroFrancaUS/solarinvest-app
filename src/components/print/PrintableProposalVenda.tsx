@@ -529,6 +529,34 @@ function PrintableProposalInner(
     : null
   const kitFotovoltaicoLabel =
     kitFotovoltaicoValorNumero != null ? currency(kitFotovoltaicoValorNumero) : '—'
+  const margemOperacionalNumero = (() => {
+    if (composicaoUfv) {
+      const tipoResumo = composicaoUfv.tipoAtual ?? tipoInstalacao
+      if (tipoResumo === 'SOLO') {
+        if (hasNonZero(composicaoUfv.solo.lucroBruto)) {
+          return Number(composicaoUfv.solo.lucroBruto)
+        }
+        if (hasNonZero(composicaoUfv.calculoSolo?.margem_operacional_valor)) {
+          return Number(composicaoUfv.calculoSolo?.margem_operacional_valor)
+        }
+      } else {
+        if (hasNonZero(composicaoUfv.telhado.lucroBruto)) {
+          return Number(composicaoUfv.telhado.lucroBruto)
+        }
+        if (hasNonZero(composicaoUfv.calculoTelhado?.margem_operacional_valor)) {
+          return Number(composicaoUfv.calculoTelhado?.margem_operacional_valor)
+        }
+      }
+    }
+
+    if (hasNonZero(snapshotComposicao?.margem_operacional_valor)) {
+      return Number(snapshotComposicao?.margem_operacional_valor)
+    }
+
+    return null
+  })()
+  const margemOperacionalLabel =
+    margemOperacionalNumero != null ? currency(margemOperacionalNumero) : '—'
   const custoTecnicoImplantacaoNumero = (() => {
     const sumValores = (bucket: Record<string, unknown>, keys: string[]): number | null => {
       let total = 0
@@ -687,6 +715,7 @@ function PrintableProposalInner(
   pushRowIfMeaningful(condicoesPagamentoRows, 'Prazo de execução', prazoExecucaoLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Encargos financeiros (MDR)', encargosFinanceirosLabel ?? undefined)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Condições adicionais', condicoesAdicionaisLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'MARGEM OPERACIONAL (R$)', margemOperacionalLabel)
   pushRowIfMeaningful(
     condicoesPagamentoRows,
     'Custo Técnico de Implantação',
