@@ -1,0 +1,163 @@
+@media print {
+  :root {
+    --si-bg: #ffffff;
+    --si-surface: #ffffff;
+    --si-border: #000000;
+    --si-text: #000000;
+    --si-muted: #111111;
+    --si-subtle: #333333;
+    --si-accent: #0d47a1;
+    --si-accent-2: #b71c1c;
+    --si-positive: #1b5e20;
+    --si-warning: #e65100;
+    --chart-1: #000000;
+    --chart-2: #0d47a1;
+    --chart-3: #1b5e20;
+    --chart-4: #b71c1c;
+    --chart-5: #4a148c;
+    --chart-6: #004d40;
+    --chart-7: #e65100;
+    --chart-8: #263238;
+    --chart-9: #37474f;
+    --chart-10: #424242;
+  }
+
+  html,
+  body {
+    background: var(--si-bg) !important;
+    color: var(--si-text) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .theme-dark,
+  [data-theme='dark'] {
+    background: var(--si-bg) !important;
+    color: var(--si-text) !important;
+  }
+
+  .card,
+  .table-wrapper,
+  .print-section {
+    background: var(--si-surface) !important;
+    color: var(--si-text) !important;
+    border: 1px solid var(--si-border) !important;
+  }
+
+  h1,
+  h2,
+  h3,
+  .title,
+  .subtitle {
+    color: var(--si-text) !important;
+    -webkit-text-stroke: 0 !important;
+    text-shadow: none !important;
+  }
+
+  a,
+  .link,
+  .accent {
+    color: var(--si-accent) !important;
+  }
+
+  * {
+    mix-blend-mode: normal !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    text-shadow: none !important;
+  }
+
+  table {
+    border-collapse: collapse !important;
+  }
+
+  th,
+  td {
+    border: 1px solid var(--si-border) !important;
+    color: var(--si-text) !important;
+    background: var(--si-surface) !important;
+  }
+
+  .badge,
+  .pill {
+    color: var(--si-text) !important;
+    background: #f0f0f0 !important;
+    border: 1px solid var(--si-border) !important;
+  }
+
+  .chart,
+  .chart-wrapper,
+  canvas,
+  svg {
+    background: #ffffff !important;
+    border: 1px solid #000000 !important;
+  }
+
+  img[data-print-swap='1'] {
+    background: #ffffff !important;
+    border: 1px solid #000000 !important;
+  }
+
+  .bg-surface,
+  .bg-card,
+  .bg-muted,
+  .bg-dark,
+  .surface,
+  .card,
+  .panel,
+  .hero {
+    background: #ffffff !important;
+  }
+
+  .text-muted,
+  .text-on-surface,
+  .text-on-dark {
+    color: #000000 !important;
+  }
+
+  .overlay,
+  .gradient,
+  .backdrop {
+    background: none !important;
+  }
+}
+
+:root[data-forced-print-theme='light'] {
+  --si-bg: #ffffff;
+  --si-surface: #ffffff;
+  --si-border: #000000;
+  --si-text: #000000;
+  --si-muted: #111111;
+  --si-subtle: #333333;
+  --si-accent: #0d47a1;
+  --si-accent-2: #b71c1c;
+  --si-positive: #1b5e20;
+  --si-warning: #e65100;
+  --chart-1: #000000;
+  --chart-2: #0d47a1;
+  --chart-3: #1b5e20;
+  --chart-4: #b71c1c;
+  --chart-5: #4a148c;
+  --chart-6: #004d40;
+  --chart-7: #e65100;
+  --chart-8: #263238;
+  --chart-9: #37474f;
+  --chart-10: #424242;
+}
+
+:root[data-forced-print-theme='light'],
+:root[data-forced-print-theme='light'] body {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+:root[data-forced-print-theme='light'] * {
+  mix-blend-mode: normal !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  text-shadow: none !important;
+}
