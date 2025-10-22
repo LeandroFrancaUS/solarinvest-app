@@ -16,3 +16,11 @@ export const CHART_THEME = {
 } as const
 
 export type ChartThemeKey = keyof typeof CHART_THEME
+
+export const PRINT_CHART_THEME = {
+  grid: '#424242',
+  tick: '#000000',
+  legend: '#000000',
+  tooltipBg: '#ffffff',
+  tooltipText: '#000000',
+} as const
