@@ -288,6 +288,15 @@ html[data-print-mode='print'] .print-hero__title h1 {
   background: rgba(249, 115, 22, 0.12);
 }
 
+.print-table__description {
+  display: block;
+  margin-top: 4px;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.35;
+  color: rgba(12, 22, 44, 0.7);
+}
+
 .print-key-values {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

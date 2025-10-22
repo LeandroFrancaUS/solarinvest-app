@@ -17,6 +17,19 @@ const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
 
 const chartTheme = CHART_THEME.light
 
+const normalizeObservationKey = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+
+const OBSERVACAO_PADRAO_REMOVIDA_CHAVE = normalizeObservationKey(
+  'Valores estimativos; confirmação no contrato definitivo.',
+)
+
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
 function PrintableProposalInner(
   props: PrintableProposalProps,
@@ -105,12 +118,12 @@ function PrintableProposalInner(
   }
   const normalizeDisplayText = (value: string | null | undefined): string | null =>
     isMeaningfulText(value) ? value?.trim() ?? null : null
-  type TableRow = { label: string; value: string; emphasize?: boolean }
+  type TableRow = { label: string; value: string; emphasize?: boolean; description?: string }
   const pushRowIfMeaningful = (
     rows: TableRow[],
     label: string,
     value: string | null | undefined,
-    options?: { emphasize?: boolean },
+    options?: { emphasize?: boolean; description?: string },
   ) => {
     const normalized = normalizeDisplayText(value)
     if (normalized) {
@@ -124,13 +137,21 @@ function PrintableProposalInner(
     const trimmed = value.trim()
     return trimmed ? trimmed : null
   }
+  const observacaoPadraoOriginal = normalizeDisplayText(
+    vendasConfigSnapshot?.observacao_padrao_proposta ?? null,
+  )
+  const observacaoPadrao =
+    observacaoPadraoOriginal &&
+    normalizeObservationKey(observacaoPadraoOriginal) === OBSERVACAO_PADRAO_REMOVIDA_CHAVE
+      ? null
+      : observacaoPadraoOriginal
   const pdfConfig = {
     exibirMargem: vendasConfigSnapshot?.exibir_margem ?? false,
     exibirComissao: vendasConfigSnapshot?.exibir_comissao ?? false,
     exibirImpostos: vendasConfigSnapshot?.exibir_impostos ?? false,
     exibirPrecosUnitarios: vendasConfigSnapshot?.exibir_precos_unitarios ?? false,
     mostrarQuebraImpostos: vendasConfigSnapshot?.mostrar_quebra_impostos_no_pdf_cliente ?? false,
-    observacaoPadrao: normalizeDisplayText(vendasConfigSnapshot?.observacao_padrao_proposta ?? null),
+    observacaoPadrao,
   }
   const hasNonZero = (value: number | null | undefined): value is number =>
     typeof value === 'number' && Number.isFinite(value) && Math.abs(value) > 0
@@ -389,10 +410,14 @@ function PrintableProposalInner(
     return null
   })()
 
+  const energiaSolicitadaLabel = formatKwhMes(kitConsumo ?? undefined)
+  const producaoMediaMensalBase = formatKwhMes(kitGeracao ?? undefined)
+  const producaoMediaMensalLabel =
+    producaoMediaMensalBase !== '—' ? `de até ${producaoMediaMensalBase}` : producaoMediaMensalBase
   const detalhamentoCampos = [
     { label: 'Potência do sistema', value: formatKwpDetalhe(kitPotenciaInstalada ?? null) },
-    { label: 'Produção média mensal', value: formatKwhMes(kitGeracao ?? undefined) },
-    { label: 'Energia solicitada (kWh/mês)', value: formatKwhMes(kitConsumo ?? undefined) },
+    { label: 'Energia solicitada (kWh/mês)', value: energiaSolicitadaLabel },
+    { label: 'Produção média mensal', value: producaoMediaMensalLabel },
     {
       label: 'Inversores',
       value: formatEquipmentDetail({
@@ -560,8 +585,6 @@ function PrintableProposalInner(
 
     return null
   })()
-  const margemOperacionalLabel =
-    margemOperacionalNumero != null ? currency(margemOperacionalNumero) : '—'
   const custoTecnicoImplantacaoNumero = (() => {
     const sumValores = (bucket: Record<string, unknown>, keys: string[]): number | null => {
       let total = 0
@@ -616,8 +639,20 @@ function PrintableProposalInner(
 
     return null
   })()
-  const custoTecnicoImplantacaoLabel =
-    custoTecnicoImplantacaoNumero != null ? currency(custoTecnicoImplantacaoNumero) : '—'
+  const valorIntegradoSistemaNumero = (() => {
+    const valores = [
+      custoTecnicoImplantacaoNumero,
+      margemOperacionalNumero,
+    ].filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor))
+    if (valores.length === 0) {
+      return null
+    }
+    return valores.reduce((total, valor) => total + valor, 0)
+  })()
+  const valorIntegradoSistemaLabel =
+    valorIntegradoSistemaNumero != null ? currency(valorIntegradoSistemaNumero) : '—'
+  const valorIntegradoSistemaDescricao =
+    '(engloba custos de engenharia, aquisição e logística dos equipamentos, instalação e implementação completa, impostos, seguros, suporte técnico, manutenção inicial e margem operacional)'
   const inflacaoResumo = formatPercentFromPct(
     snapshotParametros?.inflacao_energia_aa ?? vendaFormResumo?.inflacao_energia_aa_pct,
   )
@@ -694,7 +729,7 @@ function PrintableProposalInner(
     : 'horizonte analisado'
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
-  validadeData.setDate(validadeData.getDate() + 15)
+  validadeData.setDate(validadeData.getDate() + 3)
   const formatDate = (date: Date) =>
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const emissaoTexto = formatDate(emissaoData)
@@ -702,7 +737,7 @@ function PrintableProposalInner(
   const validadePropostaLabel =
     sanitizeTextField(snapshotPagamento?.validade_proposta_txt) ??
     sanitizeTextField(vendaFormResumo?.validade_proposta) ??
-    `${validadeTexto} (15 dias corridos)`
+    `${validadeTexto} (3 dias corridos)`
   const prazoExecucaoLabel =
     sanitizeTextField(snapshotPagamento?.prazo_execucao_txt) ??
     sanitizeTextField(vendaFormResumo?.prazo_execucao) ??
@@ -720,11 +755,11 @@ function PrintableProposalInner(
   pushRowIfMeaningful(condicoesPagamentoRows, 'Prazo de execução', prazoExecucaoLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Encargos financeiros (MDR)', encargosFinanceirosLabel ?? undefined)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Condições adicionais', condicoesAdicionaisLabel)
-  pushRowIfMeaningful(condicoesPagamentoRows, 'Margem operacional', margemOperacionalLabel)
   pushRowIfMeaningful(
     condicoesPagamentoRows,
-    'Custo Técnico de Implantação',
-    custoTecnicoImplantacaoLabel,
+    'Valor Integrado do Sistema',
+    valorIntegradoSistemaLabel,
+    { description: valorIntegradoSistemaDescricao },
   )
   pushRowIfMeaningful(condicoesPagamentoRows, 'Kit fotovoltaico', kitFotovoltaicoLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Valor final', valorTotalPropostaLabel, { emphasize: true })
@@ -1229,6 +1264,9 @@ function PrintableProposalInner(
                           <tr key={`condicao-geral-${row.label}`}>
                             <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
                               {row.emphasize ? <strong>{row.label}</strong> : row.label}
+                              {row.description ? (
+                                <em className="print-table__description">{row.description}</em>
+                              ) : null}
                             </td>
                             <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
                               {row.emphasize ? <strong>{row.value}</strong> : row.value}
