@@ -413,11 +413,11 @@ function PrintableProposalInner(
   const energiaSolicitadaLabel = formatKwhMes(kitConsumo ?? undefined)
   const producaoMediaMensalBase = formatKwhMes(kitGeracao ?? undefined)
   const producaoMediaMensalLabel =
-    producaoMediaMensalBase !== '—' ? `de até ${producaoMediaMensalBase}` : producaoMediaMensalBase
+    producaoMediaMensalBase !== '—' ? `até ${producaoMediaMensalBase}` : producaoMediaMensalBase
   const detalhamentoCampos = [
     { label: 'Potência do sistema', value: formatKwpDetalhe(kitPotenciaInstalada ?? null) },
     { label: 'Energia solicitada (kWh/mês)', value: energiaSolicitadaLabel },
-    { label: 'Produção média mensal', value: producaoMediaMensalLabel },
+    { label: 'Capacidade de produção média mensal', value: producaoMediaMensalLabel },
     {
       label: 'Inversores',
       value: formatEquipmentDetail({
