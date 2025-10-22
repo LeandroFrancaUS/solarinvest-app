@@ -4525,15 +4525,116 @@ export default function App() {
     })
   }, [vendaForm.quantidade_modulos])
 
-  const valorVendaTelhado = useMemo(
-    () => Math.round((valorOrcamentoConsiderado + composicaoTelhadoTotal) * 100) / 100,
-    [valorOrcamentoConsiderado, composicaoTelhadoTotal],
-  )
+  const valorVendaTelhado = useMemo(() => {
+    const capexBaseCalculadoValor = Number(composicaoTelhadoCalculo?.capex_base)
+    const capexBaseFallback =
+      toNumberSafe(composicaoTelhado.projeto) +
+      toNumberSafe(composicaoTelhado.instalacao) +
+      toNumberSafe(composicaoTelhado.materialCa) +
+      toNumberSafe(composicaoTelhado.crea) +
+      toNumberSafe(composicaoTelhado.art) +
+      toNumberSafe(composicaoTelhado.placa)
+    const capexBase = Number.isFinite(capexBaseCalculadoValor)
+      ? Math.max(0, capexBaseCalculadoValor)
+      : Math.max(0, capexBaseFallback)
 
-  const valorVendaSolo = useMemo(
-    () => Math.round((valorOrcamentoConsiderado + composicaoSoloTotal) * 100) / 100,
-    [valorOrcamentoConsiderado, composicaoSoloTotal],
-  )
+    const margemManualValorNormalizado = Number(margemManualValor)
+    const margemManualNormalizada =
+      margemManualAtiva && Number.isFinite(margemManualValorNormalizado)
+        ? Math.max(0, margemManualValorNormalizado)
+        : null
+    const margemCalculadaValor = Number(
+      composicaoTelhadoCalculo?.margem_operacional_valor,
+    )
+    const margemOperacional =
+      margemManualNormalizada ??
+      (Number.isFinite(margemCalculadaValor)
+        ? Math.max(0, margemCalculadaValor)
+        : Math.max(0, toNumberSafe(composicaoTelhado.lucroBruto)))
+
+    const total =
+      Math.max(0, valorOrcamentoConsiderado) + capexBase + margemOperacional
+
+    return Math.round(total * 100) / 100
+  }, [
+    composicaoTelhado.art,
+    composicaoTelhado.crea,
+    composicaoTelhado.instalacao,
+    composicaoTelhado.lucroBruto,
+    composicaoTelhado.materialCa,
+    composicaoTelhado.placa,
+    composicaoTelhado.projeto,
+    composicaoTelhadoCalculo?.capex_base,
+    composicaoTelhadoCalculo?.margem_operacional_valor,
+    margemManualAtiva,
+    margemManualValor,
+    valorOrcamentoConsiderado,
+  ])
+
+  const valorVendaSolo = useMemo(() => {
+    const capexBaseCalculadoValor = Number(composicaoSoloCalculo?.capex_base)
+    const extrasSolo =
+      toNumberSafe(composicaoSolo.estruturaSolo) +
+      toNumberSafe(composicaoSolo.tela) +
+      toNumberSafe(composicaoSolo.portaoTela) +
+      toNumberSafe(composicaoSolo.maoObraTela) +
+      toNumberSafe(composicaoSolo.casaInversor) +
+      toNumberSafe(composicaoSolo.brita) +
+      toNumberSafe(composicaoSolo.terraplanagem) +
+      toNumberSafe(composicaoSolo.trafo) +
+      toNumberSafe(composicaoSolo.rede)
+    const capexBaseFallback =
+      toNumberSafe(composicaoSolo.projeto) +
+      toNumberSafe(composicaoSolo.instalacao) +
+      (toNumberSafe(composicaoSolo.materialCa) + extrasSolo) +
+      toNumberSafe(composicaoSolo.crea) +
+      toNumberSafe(composicaoSolo.art) +
+      toNumberSafe(composicaoSolo.placa)
+    const capexBase = Number.isFinite(capexBaseCalculadoValor)
+      ? Math.max(0, capexBaseCalculadoValor)
+      : Math.max(0, capexBaseFallback)
+
+    const margemManualValorNormalizado = Number(margemManualValor)
+    const margemManualNormalizada =
+      margemManualAtiva && Number.isFinite(margemManualValorNormalizado)
+        ? Math.max(0, margemManualValorNormalizado)
+        : null
+    const margemCalculadaValor = Number(
+      composicaoSoloCalculo?.margem_operacional_valor,
+    )
+    const margemOperacional =
+      margemManualNormalizada ??
+      (Number.isFinite(margemCalculadaValor)
+        ? Math.max(0, margemCalculadaValor)
+        : Math.max(0, toNumberSafe(composicaoSolo.lucroBruto)))
+
+    const total =
+      Math.max(0, valorOrcamentoConsiderado) + capexBase + margemOperacional
+
+    return Math.round(total * 100) / 100
+  }, [
+    composicaoSolo.art,
+    composicaoSolo.brita,
+    composicaoSolo.casaInversor,
+    composicaoSolo.crea,
+    composicaoSolo.instalacao,
+    composicaoSolo.lucroBruto,
+    composicaoSolo.maoObraTela,
+    composicaoSolo.materialCa,
+    composicaoSolo.placa,
+    composicaoSolo.portaoTela,
+    composicaoSolo.projeto,
+    composicaoSolo.rede,
+    composicaoSolo.estruturaSolo,
+    composicaoSolo.tela,
+    composicaoSolo.terraplanagem,
+    composicaoSolo.trafo,
+    composicaoSoloCalculo?.capex_base,
+    composicaoSoloCalculo?.margem_operacional_valor,
+    margemManualAtiva,
+    margemManualValor,
+    valorOrcamentoConsiderado,
+  ])
 
   useEffect(() => {
     const margemCalculada =
