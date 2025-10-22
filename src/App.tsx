@@ -1450,7 +1450,6 @@ export default function App() {
   const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
-  const estruturaSuporteInputRef = useRef<HTMLInputElement | null>(null)
   const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
   const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
   const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
@@ -3247,15 +3246,6 @@ export default function App() {
 
   const handleMissingInfoUploadClick = useCallback(() => {
     budgetUploadInputRef.current?.click()
-  }, [])
-
-  const handleEstruturaTipoManualEdit = useCallback(() => {
-    const input = estruturaSuporteInputRef.current
-    if (!input) {
-      return
-    }
-    input.focus()
-    input.select?.()
   }, [])
 
   const [jurosFinAa, setJurosFinAa] = useState(INITIAL_VALUES.jurosFinanciamentoAa)
@@ -9625,14 +9615,10 @@ export default function App() {
             <h3>Estrutura utilizada não identificada</h3>
             <p>
               Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
-              <strong>Estrutura utilizada</strong> no documento enviado. Você pode preencher manualmente ou tentar
-              enviar um arquivo em outro formato.
+              <strong>Estrutura utilizada</strong> no documento enviado. Tente enviar um arquivo em outro formato.
             </p>
           </div>
           <div className="estrutura-warning-alert-actions">
-            <button type="button" className="primary" onClick={handleEstruturaTipoManualEdit}>
-              Editar manualmente
-            </button>
             <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
               Enviar outro arquivo
             </button>
@@ -9663,21 +9649,6 @@ export default function App() {
             ref={inverterModelInputRef}
             value={vendaForm.modelo_inversor ?? ''}
             onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Estrutura de fixação',
-            'Tipo de estrutura utilizada para fixar os módulos (perfis, suportes ou trackers).',
-          )}
-        >
-          <input
-            type="text"
-            ref={estruturaSuporteInputRef}
-            value={vendaForm.estrutura_suporte ?? ''}
-            onChange={(event) =>
-              applyVendaUpdates({ estrutura_suporte: event.target.value || undefined })
-            }
           />
         </Field>
       </div>
@@ -10138,14 +10109,10 @@ export default function App() {
             <h3>Estrutura utilizada não identificada</h3>
             <p>
               Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
-              <strong>Estrutura utilizada</strong> no documento enviado. Você pode preencher manualmente ou tentar
-              enviar um arquivo em outro formato.
+              <strong>Estrutura utilizada</strong> no documento enviado. Tente enviar um arquivo em outro formato.
             </p>
           </div>
           <div className="estrutura-warning-alert-actions">
-            <button type="button" className="primary" onClick={handleEstruturaTipoManualEdit}>
-              Editar manualmente
-            </button>
             <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
               Enviar outro arquivo
             </button>
@@ -10176,21 +10143,6 @@ export default function App() {
             ref={inverterModelInputRef}
             value={vendaForm.modelo_inversor ?? ''}
             onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Estrutura de fixação',
-            'Tipo de estrutura utilizada para fixar os módulos (perfis, suportes ou trackers).',
-          )}
-        >
-          <input
-            type="text"
-            ref={estruturaSuporteInputRef}
-            value={vendaForm.estrutura_suporte ?? ''}
-            onChange={(event) =>
-              applyVendaUpdates({ estrutura_suporte: event.target.value || undefined })
-            }
           />
         </Field>
       </div>
