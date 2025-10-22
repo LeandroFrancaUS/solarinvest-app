@@ -3,6 +3,8 @@ import type { TipoSistema } from '../lib/finance/roi'
 import type { Outputs as ComposicaoCalculo } from '../lib/venda/calcComposicaoUFV'
 import { useSafeStore } from '../lib/react/safeStore'
 
+export type ModoVenda = 'direta' | 'leasing'
+
 export type VendaClienteInfo = {
   nome: string
   documento: string
@@ -85,6 +87,14 @@ export type VendaResultadosFinanceiros = {
   energia_contratada_kwh_mes: number | null
 }
 
+export type VendaResumoProposta = {
+  modo_venda: ModoVenda
+  valor_total_proposta: number | null
+  custo_implantacao_referencia: number | null
+  economia_estimativa_valor: number | null
+  economia_estimativa_horizonte_anos: number | null
+}
+
 export type VendaState = {
   cliente: VendaClienteInfo
   parametros: VendaParametrosPrincipais
@@ -94,6 +104,7 @@ export type VendaState = {
   pagamento: VendaPagamentoInfo
   codigos: VendaCodigosInfo
   resultados: VendaResultadosFinanceiros
+  resumoProposta: VendaResumoProposta
 }
 
 type Listener = () => void
@@ -174,6 +185,13 @@ const createInitialState = (): VendaState => ({
     autonomia_frac: null,
     energia_contratada_kwh_mes: null,
   },
+  resumoProposta: {
+    modo_venda: 'direta',
+    valor_total_proposta: null,
+    custo_implantacao_referencia: null,
+    economia_estimativa_valor: null,
+    economia_estimativa_horizonte_anos: null,
+  },
 })
 
 let state: VendaState = createInitialState()
@@ -190,6 +208,7 @@ const cloneState = (input: VendaState): VendaState => ({
   pagamento: { ...input.pagamento },
   codigos: { ...input.codigos },
   resultados: { ...input.resultados },
+  resumoProposta: { ...input.resumoProposta },
 })
 
 const notify = () => {
@@ -283,6 +302,58 @@ export const vendaActions = {
   updateResultados(partial: Partial<VendaResultadosFinanceiros>) {
     setState((draft) => {
       draft.resultados = { ...draft.resultados, ...partial }
+    })
+  },
+  updateResumoProposta(partial: Partial<VendaResumoProposta>) {
+    setState((draft) => {
+      const next: VendaResumoProposta = { ...draft.resumoProposta }
+      let changed = false
+      if ('modo_venda' in partial && partial.modo_venda) {
+        if (next.modo_venda !== partial.modo_venda) {
+          next.modo_venda = partial.modo_venda
+          changed = true
+        }
+      }
+      if ('valor_total_proposta' in partial) {
+        const value = partial.valor_total_proposta ?? null
+        if (
+          (value == null && next.valor_total_proposta != null) ||
+          (value != null && !Number.isNaN(value) && value !== next.valor_total_proposta)
+        ) {
+          next.valor_total_proposta = value
+          changed = true
+        }
+      }
+      if ('custo_implantacao_referencia' in partial) {
+        const value = partial.custo_implantacao_referencia ?? null
+        if (
+          (value == null && next.custo_implantacao_referencia != null) ||
+          (value != null && !Number.isNaN(value) && value !== next.custo_implantacao_referencia)
+        ) {
+          next.custo_implantacao_referencia = value
+          changed = true
+        }
+      }
+      if ('economia_estimativa_valor' in partial) {
+        const value = partial.economia_estimativa_valor ?? null
+        if (
+          (value == null && next.economia_estimativa_valor != null) ||
+          (value != null && !Number.isNaN(value) && value !== next.economia_estimativa_valor)
+        ) {
+          next.economia_estimativa_valor = value
+          changed = true
+        }
+      }
+      if ('economia_estimativa_horizonte_anos' in partial) {
+        const value = partial.economia_estimativa_horizonte_anos ?? null
+        if (value !== next.economia_estimativa_horizonte_anos) {
+          next.economia_estimativa_horizonte_anos = value
+          changed = true
+        }
+      }
+      if (changed) {
+        draft.resumoProposta = next
+      }
     })
   },
 }

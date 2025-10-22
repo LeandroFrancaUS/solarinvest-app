@@ -74,7 +74,9 @@ import { ensureProposalId, makeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
   getVendaSnapshot,
+  useVendaStore,
   vendaActions,
+  type ModoVenda,
   type VendaKitItem,
 } from './store/useVendaStore'
 import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta'
@@ -313,6 +315,8 @@ const PROJETO_POR_MODULOS: ProjetoFaixa[] = [
   { min: 143, max: 152, valor: 4400 },
   { min: 153, max: null, valor: null },
 ]
+
+const ECONOMIA_ESTIMATIVA_PADRAO_ANOS = 5
 
 const calcularLucroBrutoPadrao = (valorOrcamento: number, subtotalSemLucro: number) => {
   const base = Math.max(0, valorOrcamento + subtotalSemLucro)
@@ -1408,6 +1412,12 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
 
 export default function App() {
   const distribuidorasFallback = useMemo(() => getDistribuidorasFallback(), [])
+  const custoImplantacaoReferencia = useVendaStore(
+    (state) => state.resumoProposta.custo_implantacao_referencia,
+  )
+  const valorTotalPropostaState = useVendaStore(
+    (state) => state.resumoProposta.valor_total_proposta,
+  )
   const [activePage, setActivePage] = useState<'app' | 'crm'>(() => {
     if (typeof window === 'undefined') {
       return 'app'
@@ -1425,6 +1435,10 @@ export default function App() {
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
   const isVendaDiretaTab = activeTab === 'vendas'
+  useEffect(() => {
+    const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
+    vendaActions.updateResumoProposta({ modo_venda: modo })
+  }, [isVendaDiretaTab])
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
@@ -2461,7 +2475,7 @@ export default function App() {
       errors.horizonte_meses = 'Informe o horizonte em meses.'
     }
     if (!Number.isFinite(form.capex_total) || form.capex_total <= 0) {
-      errors.capex_total = 'Informe o investimento total (CAPEX).'
+      errors.capex_total = 'Informe o valor total da proposta.'
     }
 
     const condicao = form.condicao
@@ -2566,6 +2580,18 @@ export default function App() {
   const [retornoProjetado, setRetornoProjetado] = useState<RetornoProjetado | null>(null)
   const [retornoStatus, setRetornoStatus] = useState<'idle' | 'calculating'>('idle')
   const [retornoError, setRetornoError] = useState<string | null>(null)
+  const valorTotalPropostaNormalizado =
+    Number.isFinite(vendaForm.capex_total) && (vendaForm.capex_total ?? 0) > 0
+      ? Math.max(0, Number(vendaForm.capex_total))
+      : null
+
+  useEffect(() => {
+    if (!isVendaDiretaTab) {
+      vendaActions.updateResumoProposta({ valor_total_proposta: null })
+      return
+    }
+    vendaActions.updateResumoProposta({ valor_total_proposta: valorTotalPropostaNormalizado })
+  }, [isVendaDiretaTab, valorTotalPropostaNormalizado])
 
   const resetRetorno = useCallback(() => {
     setRetornoProjetado(null)
@@ -4293,7 +4319,19 @@ export default function App() {
       regime_breakdown: valores.regime_breakdown.map((item) => ({ ...item })),
       descontos: toNumberSafe(descontosValor),
     })
-  }, [descontosValor, composicaoSoloCalculo, composicaoTelhadoCalculo, tipoInstalacao])
+    const custoReferencia = Number.isFinite(valores.capex_total)
+      ? Number(valores.capex_total)
+      : null
+    if (custoImplantacaoReferencia == null) {
+      vendaActions.updateResumoProposta({ custo_implantacao_referencia: custoReferencia })
+    }
+  }, [
+    descontosValor,
+    composicaoSoloCalculo,
+    composicaoTelhadoCalculo,
+    custoImplantacaoReferencia,
+    tipoInstalacao,
+  ])
 
   const composicaoTelhadoTotal = useMemo(() => {
     if (composicaoTelhadoCalculo) {
@@ -4862,6 +4900,37 @@ export default function App() {
     }
   }, [isVendaDiretaTab, retornoProjetado, validateVendaForm, vendaForm])
 
+  const economiaEstimativaValorCalculado = useMemo(() => {
+    if (!isVendaDiretaTab) {
+      return null
+    }
+    if (!vendaRetornoAuto || !Array.isArray(vendaRetornoAuto.economia)) {
+      return null
+    }
+    const horizonteMeses = Math.max(1, ECONOMIA_ESTIMATIVA_PADRAO_ANOS * 12)
+    const valores = vendaRetornoAuto.economia.slice(0, horizonteMeses)
+    const total = valores.reduce((acc, valor) => acc + Math.max(0, Number(valor ?? 0)), 0)
+    if (!Number.isFinite(total) || total <= 0) {
+      return null
+    }
+    return total
+  }, [isVendaDiretaTab, vendaRetornoAuto])
+
+  useEffect(() => {
+    if (!isVendaDiretaTab) {
+      vendaActions.updateResumoProposta({
+        economia_estimativa_valor: null,
+        economia_estimativa_horizonte_anos: null,
+      })
+      return
+    }
+    vendaActions.updateResumoProposta({
+      economia_estimativa_valor: economiaEstimativaValorCalculado,
+      economia_estimativa_horizonte_anos:
+        economiaEstimativaValorCalculado != null ? ECONOMIA_ESTIMATIVA_PADRAO_ANOS : null,
+    })
+  }, [economiaEstimativaValorCalculado, isVendaDiretaTab])
+
   const printableData = useMemo<PrintableProposalProps>(
     () => {
       const vendaSnapshot = getVendaSnapshot()
@@ -5301,9 +5370,15 @@ export default function App() {
         window.alert(mensagem)
         return false
       }
+      if (isVendaDiretaTab) {
+        if (valorTotalPropostaNormalizado == null) {
+          window.alert('Informe o Valor total da proposta para concluir a emissão.')
+          return false
+        }
+      }
       return true
     },
-    [cliente],
+    [cliente, isVendaDiretaTab, valorTotalPropostaNormalizado],
   )
 
   const mapClienteRegistroToSyncPayload = (registro: ClienteRegistro): ClienteRegistroSyncPayload => ({
@@ -10077,6 +10152,33 @@ export default function App() {
     </section>
   )
 
+  const renderVendaResumoPublicoSection = () => (
+    <section className="card">
+      <div className="card-header">
+        <h2>Resumo de valores (Página pública)</h2>
+      </div>
+      <div className="kpi-grid">
+        <div className="kpi kpi-highlight">
+          <span>Valor total da proposta</span>
+          <strong>
+            {valorTotalPropostaNormalizado != null
+              ? currency(valorTotalPropostaNormalizado)
+              : '—'}
+          </strong>
+        </div>
+        {economiaEstimativaValorCalculado != null ? (
+          <div className="kpi">
+            <span>{`Economia estimada (${ECONOMIA_ESTIMATIVA_PADRAO_ANOS} anos)`}</span>
+            <strong>{currency(economiaEstimativaValorCalculado)}</strong>
+          </div>
+        ) : null}
+      </div>
+      <p className="muted">
+        Preço final para aquisição da usina completa. Valores técnicos internos não são cobrados do cliente.
+      </p>
+    </section>
+  )
+
   const renderComposicaoUfvSection = () => {
     const isTelhado = tipoInstalacao === 'TELHADO'
     const descontoValor = toNumberSafe(descontosValor)
@@ -10361,6 +10463,18 @@ export default function App() {
       return Object.keys(sanitized).length > 0 ? sanitized : undefined
     }
 
+    const handleCustoImplantacaoReferenciaInput = (value: string) => {
+      if (value === '') {
+        vendaActions.updateResumoProposta({ custo_implantacao_referencia: null })
+        return
+      }
+      const parsed = parseNumericInput(value)
+      const normalizado = Number.isFinite(parsed ?? NaN) ? Math.max(0, Number(parsed)) : 0
+      vendaActions.updateResumoProposta({
+        custo_implantacao_referencia: normalizado > 0 ? normalizado : null,
+      })
+    }
+
     const handleOverrideFieldChange = (
       regime: RegimeTributario,
       index: number,
@@ -10504,6 +10618,26 @@ export default function App() {
               </div>
             </div>
           )}
+        </div>
+        <div className="settings-subsection">
+          <h3>Custos de referência</h3>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Custo técnico de implantação (R$)',
+                'Valor interno estimado da implantação da usina (ex-CAPEX). Utilizado apenas para controle de margem.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={custoImplantacaoReferencia ?? ''}
+                onChange={(event) => handleCustoImplantacaoReferenciaInput(event.target.value)}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+          </div>
         </div>
         <div className="settings-subsection">
           <h3>Parâmetros padrão de preço e margem</h3>
@@ -10994,8 +11128,10 @@ export default function App() {
           </Field>
           <Field
             label={labelWithTooltip(
-              'Investimento (CAPEX total)',
-              'Valor total do projeto fotovoltaico. Serve de base para entradas, parcelas e margens.',
+              isVendaDiretaTab ? 'Valor total da proposta (R$)' : 'Investimento (CAPEX total)',
+              isVendaDiretaTab
+                ? 'Preço final para aquisição da usina completa (equipamentos, instalação, homologação e suporte).'
+                : 'Valor total do projeto fotovoltaico. Serve de base para entradas, parcelas e margens.',
             )}
           >
             <input
@@ -11789,6 +11925,7 @@ export default function App() {
           <>
             {renderVendaParametrosSection()}
             {renderVendaConfiguracaoSection()}
+            {renderVendaResumoPublicoSection()}
             {renderComposicaoUfvSection()}
             <section className="card">
               <h2>Upload de Orçamento</h2>

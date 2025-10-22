@@ -168,6 +168,63 @@ html[data-print-mode='print'] .print-hero__title h1 {
   -webkit-region-break-inside: avoid;
 }
 
+.print-values-section .print-values-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-bottom: 18px;
+}
+
+.print-value-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #f8fafc;
+  box-shadow: 0 18px 42px rgba(12, 22, 44, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.print-value-card--highlight {
+  background: linear-gradient(140deg, #f97316 0%, #fb923c 55%, #1e293b 100%);
+  color: #0b1120;
+  border: none;
+  box-shadow: 0 26px 58px rgba(249, 115, 22, 0.28);
+}
+
+.print-value-card span {
+  font-size: 12px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.72);
+}
+
+.print-value-card--highlight span {
+  color: rgba(15, 23, 42, 0.72);
+}
+
+.print-value-card strong {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: inherit;
+}
+
+.print-value-card--highlight strong {
+  color: #0f172a;
+  text-shadow: 0 12px 28px rgba(249, 115, 22, 0.28);
+}
+
+.print-value-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #475569;
+}
+
 .print-section h2 {
   margin: 0 0 18px;
   color: #0c162c;
