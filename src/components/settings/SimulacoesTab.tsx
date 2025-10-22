@@ -527,264 +527,290 @@ export function SimulacoesTab({
             </header>
             <div className="simulations-form-grid">
               <div className="field">
-                <label htmlFor="sim-nome">
+                <label className="field-label" htmlFor="sim-nome">
                   {labelWithTooltip(
                     'Nome do cenário',
                     'Identificação do cenário exibida na lista lateral e no comparativo de resultados.',
                   )}
                 </label>
-                <input
-                  id="sim-nome"
-                  type="text"
-                  maxLength={80}
-                  value={current.nome ?? ''}
-                  onChange={handleTextChange('nome')}
-                  placeholder="Ex.: Residencial | 60 meses"
-                />
+                <div className="field-control">
+                  <input
+                    id="sim-nome"
+                    type="text"
+                    maxLength={80}
+                    value={current.nome ?? ''}
+                    onChange={handleTextChange('nome')}
+                    placeholder="Ex.: Residencial | 60 meses"
+                  />
+                </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-desconto">
+                <label className="field-label" htmlFor="sim-desconto">
                   {labelWithTooltip(
                     'Desconto SolarInvest (%)',
                     'Percentual de abatimento aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
                   )}
                 </label>
-                <input
-                  id="sim-desconto"
-                  type="number"
-                  value={current.desconto_pct}
-                  onChange={handleNumberChange('desconto_pct')}
-                  onFocus={selectNumberInputOnFocus}
-                  min={0}
-                  max={100}
-                  step="0.1"
-                />
+                <div className="field-control">
+                  <input
+                    id="sim-desconto"
+                    type="number"
+                    value={current.desconto_pct}
+                    onChange={handleNumberChange('desconto_pct')}
+                    onFocus={selectNumberInputOnFocus}
+                    min={0}
+                    max={100}
+                    step="0.1"
+                  />
+                </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-capex">
+                <label className="field-label" htmlFor="sim-capex">
                   {labelWithTooltip(
                     'CAPEX SolarInvest (R$)',
                     'Investimento total previsto para o projeto. Valor de mercado estimado = CAPEX × 1,29.',
                   )}
                 </label>
-                <input
-                  id="sim-capex"
-                  type="number"
-                  value={current.capex_solarinvest}
-                  onChange={handleNumberChange('capex_solarinvest')}
-                  onFocus={selectNumberInputOnFocus}
-                  min={0}
-                  step="100"
-                />
+                <div className="field-control">
+                  <input
+                    id="sim-capex"
+                    type="number"
+                    value={current.capex_solarinvest}
+                    onChange={handleNumberChange('capex_solarinvest')}
+                    onFocus={selectNumberInputOnFocus}
+                    min={0}
+                    step="100"
+                  />
+                </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-anos">
+                <label className="field-label" htmlFor="sim-anos">
                   {labelWithTooltip(
                     'Anos de contrato',
                     'Prazo do contrato em anos. Meses simulados = Anos de contrato × 12.',
                   )}
                 </label>
-                <input
-                  id="sim-anos"
-                  type="number"
-                  value={current.anos_contrato}
-                  onChange={handleNumberChange('anos_contrato')}
-                  onFocus={selectNumberInputOnFocus}
-                  min={1}
-                  step="0.5"
-                />
+                <div className="field-control">
+                  <input
+                    id="sim-anos"
+                    type="number"
+                    value={current.anos_contrato}
+                    onChange={handleNumberChange('anos_contrato')}
+                    onFocus={selectNumberInputOnFocus}
+                    min={1}
+                    step="0.5"
+                  />
+                </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-inflacao-energetica">
+                <label className="field-label" htmlFor="sim-inflacao-energetica">
                   {labelWithTooltip(
                     'Inflação energética anual (% a.a.)',
                     'Reajuste esperado para a tarifa cheia. Tarifa projetada no mês m = Tarifa cheia mês 1 × (1 + inflação)^{(m-1)/12}.',
                   )}
                 </label>
-                <input
-                  id="sim-inflacao-energetica"
-                  type="number"
-                  value={current.inflacao_energetica_pct}
-                  onChange={handleNumberChange('inflacao_energetica_pct')}
-                  onFocus={selectNumberInputOnFocus}
-                  min={0}
-                  step="0.1"
-                />
+                <div className="field-control">
+                  <input
+                    id="sim-inflacao-energetica"
+                    type="number"
+                    value={current.inflacao_energetica_pct}
+                    onChange={handleNumberChange('inflacao_energetica_pct')}
+                    onFocus={selectNumberInputOnFocus}
+                    min={0}
+                    step="0.1"
+                  />
+                </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-inflacao-ipca">
+                <label className="field-label" htmlFor="sim-inflacao-ipca">
                   {labelWithTooltip(
                     'Inflação IPCA anual (% a.a.)',
                     'Premissa macroeconômica registrada junto ao cenário para análises externas e exportações. Valor informativo, sem impacto direto nos cálculos automáticos.',
                   )}
                 </label>
-                <input
-                  id="sim-inflacao-ipca"
-                  type="number"
-                  value={current.inflacao_ipca_pct}
-                  onChange={handleNumberChange('inflacao_ipca_pct')}
-                  onFocus={selectNumberInputOnFocus}
-                  min={0}
-                  step="0.1"
-                />
+                <div className="field-control">
+                  <input
+                    id="sim-inflacao-ipca"
+                    type="number"
+                    value={current.inflacao_ipca_pct}
+                    onChange={handleNumberChange('inflacao_ipca_pct')}
+                    onFocus={selectNumberInputOnFocus}
+                    min={0}
+                    step="0.1"
+                  />
+                </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-tarifa-cheia">
+                <label className="field-label" htmlFor="sim-tarifa-cheia">
                   {labelWithTooltip(
                     'Tarifa cheia (R$/kWh) - Mês 1',
                     'Tarifa sem desconto considerada no primeiro mês da simulação; ponto de partida para reajustes e cálculos de economia.',
                   )}
                 </label>
-                <input
-                  id="sim-tarifa-cheia"
-                  type="number"
-                  value={current.tarifa_cheia_r_kwh_m1}
-                  onChange={handleNumberChange('tarifa_cheia_r_kwh_m1')}
-                  onFocus={selectNumberInputOnFocus}
-                  min={0}
-                  step="0.01"
-                />
+                <div className="field-control">
+                  <input
+                    id="sim-tarifa-cheia"
+                    type="number"
+                    value={current.tarifa_cheia_r_kwh_m1}
+                    onChange={handleNumberChange('tarifa_cheia_r_kwh_m1')}
+                    onFocus={selectNumberInputOnFocus}
+                    min={0}
+                    step="0.01"
+                  />
+                </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-consumo">
+                <label className="field-label" htmlFor="sim-consumo">
                   {labelWithTooltip(
                     'Consumo (kWh/mês)',
                     'Consumo médio mensal compensado pelo leasing. Receita mensal = Consumo × Tarifa com desconto; economia bruta = Consumo × (Tarifa cheia - Tarifa com desconto).',
                   )}
                 </label>
-                <input
-                  id="sim-consumo"
-                  type="number"
-                  value={current.kc_kwh_mes}
-                  onChange={handleNumberChange('kc_kwh_mes')}
-                  onFocus={selectNumberInputOnFocus}
-                  min={0}
-                  step="10"
-                />
+                <div className="field-control">
+                  <input
+                    id="sim-consumo"
+                    type="number"
+                    value={current.kc_kwh_mes}
+                    onChange={handleNumberChange('kc_kwh_mes')}
+                    onFocus={selectNumberInputOnFocus}
+                    min={0}
+                    step="10"
+                  />
+                </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-tipo-sistema">
+                <label className="field-label" htmlFor="sim-tipo-sistema">
                   {labelWithTooltip(
                     'Tipo de sistema',
                     'Classificação técnica do projeto (on-grid, híbrido ou off-grid). Ajuda a definir parâmetros de TUSD e regras de compensação.',
                   )}
                 </label>
-                <select
-                  id="sim-tipo-sistema"
-                  value={tipoSistemaAtual}
-                  onChange={(event) =>
-                    handleTipoSistemaChange(event.target.value as TipoSistema)
-                  }
-                >
-                  {TIPO_SISTEMA_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {TIPO_SISTEMA_LABELS[option]}
-                    </option>
-                  ))}
-                </select>
+                <div className="field-control">
+                  <select
+                    id="sim-tipo-sistema"
+                    value={tipoSistemaAtual}
+                    onChange={(event) =>
+                      handleTipoSistemaChange(event.target.value as TipoSistema)
+                    }
+                  >
+                    {TIPO_SISTEMA_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {TIPO_SISTEMA_LABELS[option]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="field">
-                <label>
+                <label className="field-label">
                   {labelWithTooltip(
                     'Perfil de consumo',
                     'Categoria da unidade consumidora. Define o TUSD padrão sugerido e influencia simultaneidade e fator ano na TUSD.',
                   )}
                 </label>
-                <div className="radio-group">
-                  <label>
-                    <input
-                      type="radio"
-                      name="perfil-consumo"
-                      value="residencial"
-                      checked={current.perfil_consumo === 'residencial'}
-                      onChange={() => handlePerfilChange('residencial')}
-                    />
-                    Residencial
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="perfil-consumo"
-                      value="comercial"
-                      checked={current.perfil_consumo === 'comercial'}
-                      onChange={() => handlePerfilChange('comercial')}
-                    />
-                    Comercial
-                  </label>
+                <div className="field-control">
+                  <div className="radio-group">
+                    <label>
+                      <input
+                        type="radio"
+                        name="perfil-consumo"
+                        value="residencial"
+                        checked={current.perfil_consumo === 'residencial'}
+                        onChange={() => handlePerfilChange('residencial')}
+                      />
+                      Residencial
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="perfil-consumo"
+                        value="comercial"
+                        checked={current.perfil_consumo === 'comercial'}
+                        onChange={() => handlePerfilChange('comercial')}
+                      />
+                      Comercial
+                    </label>
+                  </div>
                 </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-tusd">
+                <label className="field-label" htmlFor="sim-tusd">
                   {labelWithTooltip(
                     'TUSD (%)',
                     'Percentual do fio B aplicado sobre a energia compensada. Encargo TUSD ≈ Consumo × Tarifa cheia × (TUSD ÷ 100) ajustado por simultaneidade e fator ano.',
                   )}
                 </label>
-                <div className="inline-field">
-                  <input
-                    id="sim-tusd"
-                    type="number"
-                    value={current.tusd_pct}
-                    onChange={handleNumberChange('tusd_pct')}
-                    onFocus={selectNumberInputOnFocus}
-                    min={0}
-                    step="0.1"
-                  />
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => {
-                      setCurrent((prev) => ({ ...prev, tusd_pct: defaultTUSD(prev.perfil_consumo) }))
-                      setTusdTouched(false)
-                    }}
-                  >
-                    Aplicar padrão
-                  </button>
+                <div className="field-control">
+                  <div className="inline-field">
+                    <input
+                      id="sim-tusd"
+                      type="number"
+                      value={current.tusd_pct}
+                      onChange={handleNumberChange('tusd_pct')}
+                      onFocus={selectNumberInputOnFocus}
+                      min={0}
+                      step="0.1"
+                    />
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => {
+                        setCurrent((prev) => ({ ...prev, tusd_pct: defaultTUSD(prev.perfil_consumo) }))
+                        setTusdTouched(false)
+                      }}
+                    >
+                      Aplicar padrão
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div className="field">
-                <label htmlFor="sim-seguro">
+                <label className="field-label" htmlFor="sim-seguro">
                   {labelWithTooltip(
                     'Seguro anual (% valor de mercado)',
                     'Percentual aplicado sobre o valor de mercado estimado. Seguro anual = Valor de mercado × (% ÷ 100); seguro mensal é rateado em 12 meses com reajuste de 1,2% a.a.',
                   )}
                 </label>
-                <input
-                  id="sim-seguro"
-                  type="number"
-                  value={current.seguro_pct}
-                  onChange={handleNumberChange('seguro_pct')}
-                  onFocus={selectNumberInputOnFocus}
-                  min={0}
-                  step="0.1"
-                />
+                <div className="field-control">
+                  <input
+                    id="sim-seguro"
+                    type="number"
+                    value={current.seguro_pct}
+                    onChange={handleNumberChange('seguro_pct')}
+                    onFocus={selectNumberInputOnFocus}
+                    min={0}
+                    step="0.1"
+                  />
+                </div>
               </div>
 
               <div className="field field-textarea">
-                <label htmlFor="sim-obs">
+                <label className="field-label" htmlFor="sim-obs">
                   {labelWithTooltip(
                     'Observações',
                     'Notas internas exibidas na tabela comparativa para contextualizar o cenário.',
                   )}
                 </label>
-                <textarea
-                  id="sim-obs"
-                  value={current.obs ?? ''}
-                  onChange={handleTextChange('obs')}
-                  rows={3}
-                  placeholder="Informações adicionais sobre o cenário"
-                />
+                <div className="field-control">
+                  <textarea
+                    id="sim-obs"
+                    value={current.obs ?? ''}
+                    onChange={handleTextChange('obs')}
+                    rows={3}
+                    placeholder="Informações adicionais sobre o cenário"
+                  />
+                </div>
               </div>
             </div>
 
