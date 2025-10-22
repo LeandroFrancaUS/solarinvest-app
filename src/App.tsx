@@ -8944,8 +8944,8 @@ export default function App() {
           </Field>
           <Field
             label={labelWithTooltip(
-              'Taxa mínima (R$/mês)',
-              'Valor mínimo faturado pela distribuidora independentemente da compensação de créditos.',
+              'Custos Fixos da Conta de Energia (R$/MÊS)',
+              'Total de custos fixos cobrados pela distribuidora independentemente da compensação de créditos.',
             )}
           >
             <input
@@ -9775,8 +9775,8 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'Taxa mínima (R$/mês)',
-            'Valor mínimo mensal faturado pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
+            'Custos Fixos da Conta de Energia (R$/MÊS)',
+            'Total de custos fixos mensais cobrados pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
           )}
         >
           <input
