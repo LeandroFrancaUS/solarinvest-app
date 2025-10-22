@@ -1,21 +1,11 @@
 import React, { useMemo } from 'react'
-import { Bar, BarChart, CartesianGrid, Label, LabelList, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import './styles/proposal-venda.css'
-import { currency, formatCpfCnpj, formatAxis } from '../../utils/formatters'
+import { currency, formatCpfCnpj } from '../../utils/formatters'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
-import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
 import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
-import { PRINT_CHART_THEME } from '../../helpers/ChartTheme'
-
-const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
-  Leasing: 'var(--chart-2, #0d47a1)',
-  Financiamento: 'var(--chart-7, #e65100)',
-}
-
-const chartTheme = PRINT_CHART_THEME
 
 const normalizeObservationKey = (value: string): string =>
   value
@@ -813,18 +803,19 @@ function PrintableProposalInner(
   const heroSummaryDescription = isVendaDireta
     ? 'Apresentamos sua proposta personalizada de aquisição da usina fotovoltaica SolarInvest. Nesta modalidade de venda, você investe no sistema, torna-se proprietário desde o primeiro dia e captura 100% da economia gerada, aumentando a previsibilidade de custos e o valor do seu imóvel.'
     : 'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
-  const chartEconomiaIntro = isVendaDireta
+  const economiaIntro = isVendaDireta
     ? 'Retorno que cresce ano após ano.'
     : 'Economia que cresce ano após ano.'
-  const chartExplainerContext = isVendaDireta
+  const economiaContext = isVendaDireta
     ? 'O investimento considera os reajustes anuais de energia, a vida útil projetada dos equipamentos e a propriedade integral do ativo desde o primeiro dia.'
     : 'Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.'
-  const chartFootnoteText = isVendaDireta
+  const economiaFootnote = isVendaDireta
     ? 'Como proprietário do sistema, toda a economia permanece com o cliente ao longo da vida útil do projeto.'
     : 'Após o final do contrato a usina passa a render 100% de economia frente à concessionária para o cliente.'
-  const chartPrimaryLabel = isVendaDireta ? 'Venda' : 'Leasing SolarInvest'
+  const economiaPrimaryLabel = isVendaDireta ? 'Venda' : 'Leasing SolarInvest'
+  const economiaFinanciamentoLabel = 'Financiamento SolarInvest'
 
-  const chartDataPrintable = useMemo(() => {
+  const economiaTabelaDados = useMemo(() => {
     const anosDisponiveis = new Set(anos)
 
     return BENEFICIO_CHART_ANOS.filter((ano) => anosDisponiveis.has(ano)).map((ano) => ({
@@ -833,65 +824,11 @@ function PrintableProposalInner(
       Financiamento: financiamentoROI[ano - 1] ?? 0,
     }))
   }, [anos, financiamentoROI, leasingROI])
-  const beneficioMarcos = useMemo(
-    () =>
-      BENEFICIO_CHART_ANOS.map((ano) => {
-        const dadosAno = chartDataPrintable.find((row) => row.ano === ano)
-        if (!dadosAno) {
-          return null
-        }
-        return {
-          ano,
-          Leasing: dadosAno.Leasing,
-          Financiamento: dadosAno.Financiamento,
-        }
-      }).filter((row): row is { ano: number; Leasing: number; Financiamento: number } => row !== null),
-    [chartDataPrintable],
-  )
-  const chartPrintableDomain = useMemo(() => {
-    let min = Number.POSITIVE_INFINITY
-    let max = Number.NEGATIVE_INFINITY
-
-    chartDataPrintable.forEach((row) => {
-      const valores = [row.Leasing]
-      if (mostrarFinanciamento) {
-        valores.push(row.Financiamento)
-      }
-
-      valores.forEach((valor) => {
-        if (Number.isFinite(valor)) {
-          min = Math.min(min, valor)
-          max = Math.max(max, valor)
-        }
-      })
-    })
-
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      return { min: -1, max: 1 }
-    }
-
-    min = Math.min(min, 0)
-    max = Math.max(max, 0)
-
-    if (min === max) {
-      const padding = Math.max(Math.abs(min) * 0.25, 1)
-      return { min: min - padding, max: max + padding }
-    }
-
-    const range = max - min
-    const padding = range * 0.12
-
-    return {
-      min: min - padding,
-      max: max + padding,
-    }
-  }, [chartDataPrintable, mostrarFinanciamento])
-
+  const economiaTemDados = economiaTabelaDados.length > 0
   const beneficioAno30Printable = useMemo(
-    () => chartDataPrintable.find((row) => row.ano === 30) ?? null,
-    [chartDataPrintable],
+    () => economiaTabelaDados.find((row) => row.ano === 30) ?? null,
+    [economiaTabelaDados],
   )
-  usePrintCanvasFallback('#economia-30-anos')
   return (
     <div ref={ref} className="print-root">
       <section className="print-page">
@@ -1355,159 +1292,63 @@ function PrintableProposalInner(
     
           <section
             id="economia-30-anos"
-            className="print-section print-chart-section keep-together page-break-before"
+            className="print-section keep-together page-break-before"
           >
             <h2 className="keep-with-next">{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
-            <div className="print-chart no-break-inside">
-              <ResponsiveContainer width="50%" height={240}>
-                <BarChart
-                  layout="vertical"
-                  data={chartDataPrintable}
-                  margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
-                >
-                  <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    stroke={chartTheme.grid}
-                    tickFormatter={formatAxis}
-                    tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                    axisLine={{ stroke: chartTheme.grid, strokeWidth: 2 }}
-                    tickLine={false}
-                    domain={[chartPrintableDomain.min, chartPrintableDomain.max]}
-                  >
-                    <Label
-                      value="Benefício acumulado (R$)"
-                      position="insideBottom"
-                      offset={-32}
-                      style={{ fill: chartTheme.legend, fontSize: 13, fontWeight: 700 }}
-                    />
-                  </XAxis>
-                  <YAxis
-                    type="category"
-                    dataKey="ano"
-                    stroke={chartTheme.grid}
-                    tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                    axisLine={{ stroke: chartTheme.grid, strokeWidth: 2 }}
-                    tickLine={false}
-                    width={120}
-                    tickFormatter={(valor) => `${valor}º ano`}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => currency(Number(value))}
-                    labelFormatter={(value) => `${value}º ano`}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: '1px solid var(--border)',
-                      background: chartTheme.tooltipBg,
-                      color: chartTheme.tooltipText,
-                      padding: 12,
-                    }}
-                    itemStyle={{ color: chartTheme.tooltipText }}
-                    labelStyle={{ color: chartTheme.tooltipText }}
-                    wrapperStyle={{ zIndex: 1000 }}
-                  />
-                  {mostrarFinanciamento ? (
-                    <Legend
-                      verticalAlign="top"
-                      align="left"
-                      iconType="circle"
-                      wrapperStyle={{ paddingBottom: 16, color: chartTheme.legend }}
-                      payload={[
-                        {
-                          id: 'Financiamento',
-                          value: 'Financiamento SolarInvest',
-                          type: 'circle',
-                          color: DEFAULT_CHART_COLORS.Financiamento,
-                        },
-                      ]}
-                    />
-                  ) : null}
-                  <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={2} />
-                  <Bar
-                    dataKey="Leasing"
-                    fill={DEFAULT_CHART_COLORS.Leasing}
-                    barSize={14}
-                    radius={[0, 8, 8, 0]}
-                    isAnimationActive={false}
-                    name={chartPrimaryLabel}
-                  >
-                    <LabelList
-                      dataKey="Leasing"
-                      position="right"
-                      formatter={(value: number) => currency(Number(value))}
-                      fill="#000000"
-                      style={{ fontSize: 12, fontWeight: 600 }}
-                    />
-                  </Bar>
-                  {mostrarFinanciamento ? (
-                    <Bar
-                      dataKey="Financiamento"
-                      fill={DEFAULT_CHART_COLORS.Financiamento}
-                      barSize={14}
-                      radius={[0, 8, 8, 0]}
-                      isAnimationActive={false}
-                    >
-                      <LabelList
-                        dataKey="Financiamento"
-                        position="right"
-                        formatter={(value: number) => currency(Number(value))}
-                        fill="#000000"
-                        style={{ fontSize: 12, fontWeight: 600 }}
-                      />
-                    </Bar>
-                  ) : null}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            {!isVendaDireta && beneficioMarcos.length ? (
-              <ul className="print-chart-highlights no-break-inside">
-                {beneficioMarcos.map((marco) => (
-                  <li key={`beneficio-marco-resumo-${marco.ano}`}>
-                    <span className="print-chart-highlights__year">{marco.ano}º ano</span>
-                    <div className="print-chart-highlights__values">
-                      <span className="print-chart-highlights__value" style={{ color: DEFAULT_CHART_COLORS.Leasing }}>
-                        {chartPrimaryLabel}: {currency(marco.Leasing)}
-                      </span>
+            {economiaTemDados ? (
+              <>
+                <p className="no-break-inside">
+                  <strong>{economiaIntro}</strong> A tabela abaixo apresenta os principais marcos de benefício acumulado
+                  projetados pela SolarInvest. {economiaContext}
+                </p>
+                <table className="print-table no-break-inside">
+                  <thead>
+                    <tr>
+                      <th>Ano</th>
+                      <th>{`Benefício acumulado (${economiaPrimaryLabel})`}</th>
                       {mostrarFinanciamento ? (
-                        <span
-                          className="print-chart-highlights__value"
-                          style={{ color: DEFAULT_CHART_COLORS.Financiamento }}
-                        >
-                          Financiamento: {currency(marco.Financiamento)}
-                        </span>
+                        <th>{`Benefício acumulado (${economiaFinanciamentoLabel})`}</th>
                       ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            {!isVendaDireta && beneficioAno30Printable ? (
-              <p className="chart-explainer no-break-inside">
-                <strong>{chartEconomiaIntro}</strong>{' '}
-                Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
-                <strong style={{ color: DEFAULT_CHART_COLORS.Leasing }}>
-                  {' '}
-                  {currency(beneficioAno30Printable.Leasing)}
-                </strong>
-                {mostrarFinanciamento ? (
-                  <>
-                    {' '}
-                    {isVendaDireta ? 'na venda direta e de' : 'no leasing e de'}
-                    <strong style={{ color: DEFAULT_CHART_COLORS.Financiamento }}>
-                      {' '}
-                      {currency(beneficioAno30Printable.Financiamento)}
-                    </strong>{' '}
-                    {isVendaDireta
-                      ? 'com financiamento como alternativa de pagamento.'
-                      : 'com financiamento.'}
-                  </>
-                ) : (
-                  <> comparado à concessionária.</>
-                )}{' '}
-                {chartExplainerContext}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {economiaTabelaDados.map((row) => (
+                      <tr key={`economia-ano-${row.ano}`}>
+                        <td>{`${row.ano}º ano`}</td>
+                        <td>{currency(row.Leasing)}</td>
+                        {mostrarFinanciamento ? <td>{currency(row.Financiamento)}</td> : null}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {beneficioAno30Printable ? (
+                  <p className="chart-explainer no-break-inside">
+                    Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
+                    <strong>{` ${currency(beneficioAno30Printable.Leasing)}`}</strong>
+                    {mostrarFinanciamento ? (
+                      <>
+                        {' '}
+                        {isVendaDireta ? 'na venda direta e de' : 'no leasing e de'}
+                        <strong>{` ${currency(beneficioAno30Printable.Financiamento)}`}</strong>{' '}
+                        {isVendaDireta
+                          ? 'com financiamento como alternativa de pagamento.'
+                          : 'com financiamento.'}
+                      </>
+                    ) : (
+                      <> comparado à concessionária.</>
+                    )}{' '}
+                    {economiaContext}
+                  </p>
+                ) : null}
+                {!isVendaDireta ? (
+                  <p className="print-chart-footnote no-break-inside">{economiaFootnote}</p>
+                ) : null}
+              </>
+            ) : (
+              <p className="muted no-break-inside">
+                Não há dados suficientes para calcular a economia projetada desta proposta.
               </p>
-            ) : null}
-            {!isVendaDireta ? <p className="print-chart-footnote no-break-inside">{chartFootnoteText}</p> : null}
+            )}
           </section>
     
           <section

@@ -1,19 +1,7 @@
 import React, { useMemo } from 'react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Label,
-  LabelList,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 
 import './styles/proposal-leasing.css'
-import { currency, formatAxis, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
+import { currency, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
 import {
   formatMoneyBR,
   formatNumberBRWithOptions,
@@ -22,10 +10,8 @@ import {
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
-import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
-import { PRINT_CHART_THEME } from '../../helpers/ChartTheme'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -66,10 +52,6 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /condi[cç][aã]o\s+de\s+pagamento/i,
   /pot[êe]ncia\s+do\s+sistema/i,
 ]
-
-const chartTheme = PRINT_CHART_THEME
-
-const DEFAULT_CHART_COLORS = ['var(--chart-2, #0d47a1)', 'var(--chart-3, #1b5e20)'] as const
 
 const formatAnoDescricao = (ano: number): string => `${ano} ${ano === 1 ? 'ano' : 'anos'}`
 
@@ -210,11 +192,6 @@ function PrintableProposalLeasingInner(
   const nomeCliente = cliente.nome?.trim() || null
   const ucCliente = cliente.uc?.trim() || null
   const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
-
-  const primaryChartColor = DEFAULT_CHART_COLORS[0] ?? '#0d47a1'
-  const secondaryChartColor = DEFAULT_CHART_COLORS[1] ?? '#1b5e20'
-
-  usePrintCanvasFallback('#economia-30-anos')
 
   const prazoContratual = useMemo(() => {
     if (Number.isFinite(leasingPrazoContratualMeses) && (leasingPrazoContratualMeses ?? 0) > 0) {
@@ -512,52 +489,6 @@ function PrintableProposalLeasingInner(
     })
   }, [economiaMarcos, leasingROI])
 
-  const economiaChartData = useMemo(
-    () =>
-      economiaProjetada.map((item) => ({
-        ano: item.ano,
-        beneficio: item.acumulado,
-      })),
-    [economiaProjetada],
-  )
-
-  const economiaChartDomain = useMemo(() => {
-    if (economiaChartData.length === 0) {
-      return { min: -1, max: 1 }
-    }
-
-    let min = Number.POSITIVE_INFINITY
-    let max = Number.NEGATIVE_INFINITY
-
-    economiaChartData.forEach((row) => {
-      const valor = row.beneficio
-      if (Number.isFinite(valor)) {
-        min = Math.min(min, valor)
-        max = Math.max(max, valor)
-      }
-    })
-
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      return { min: -1, max: 1 }
-    }
-
-    min = Math.min(min, 0)
-    max = Math.max(max, 0)
-
-    if (min === max) {
-      const padding = Math.max(Math.abs(min) * 0.25, 1)
-      return { min: min - padding, max: max + padding }
-    }
-
-    const range = max - min
-    const padding = range * 0.12
-
-    return {
-      min: min - padding,
-      max: max + padding,
-    }
-  }, [economiaChartData])
-
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
   validadeData.setDate(validadeData.getDate() + 15)
@@ -818,101 +749,39 @@ function PrintableProposalLeasingInner(
     
           <section
             id="economia-30-anos"
-            className="print-section print-chart-section keep-together page-break-before"
+            className="print-section keep-together page-break-before"
           >
             <h2 className="section-title keep-with-next">Economia Acumulada ao Longo de 30 Anos</h2>
-            <div className="section-grid print-chart-layout no-break-inside">
-              <div className="print-chart leasing-chart no-break-inside">
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart
-                    layout="vertical"
-                    data={economiaChartData}
-                    margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
-                  >
-                    <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" horizontal={false} />
-                    <XAxis
-                      type="number"
-                      stroke={chartTheme.grid}
-                      tickFormatter={formatAxis}
-                      tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                      axisLine={{ stroke: chartTheme.grid, strokeWidth: 2 }}
-                      tickLine={false}
-                      domain={[economiaChartDomain.min, economiaChartDomain.max]}
-                    >
-                      <Label
-                        value="Benefício acumulado (R$)"
-                        position="insideBottom"
-                        offset={-32}
-                        style={{ fill: chartTheme.legend, fontSize: 13, fontWeight: 700 }}
-                      />
-                    </XAxis>
-                    <YAxis
-                      type="category"
-                      dataKey="ano"
-                      stroke={chartTheme.grid}
-                      tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                      axisLine={{ stroke: chartTheme.grid, strokeWidth: 2 }}
-                      tickLine={false}
-                      width={120}
-                      tickFormatter={(valor) => formatAnoDescricao(Number(valor))}
-                    />
-                    <Tooltip
-                      formatter={(value: number) => currency(Number(value))}
-                      labelFormatter={(value) => formatAnoDescricao(Number(value))}
-                      contentStyle={{
-                        borderRadius: 12,
-                        border: '1px solid var(--border)',
-                        background: chartTheme.tooltipBg,
-                        color: chartTheme.tooltipText,
-                        padding: 12,
-                      }}
-                      itemStyle={{ color: chartTheme.tooltipText }}
-                      labelStyle={{ color: chartTheme.tooltipText }}
-                      wrapperStyle={{ zIndex: 1000 }}
-                    />
-                    <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={2} />
-                    <Bar
-                      dataKey="beneficio"
-                      fill={primaryChartColor}
-                      barSize={14}
-                      radius={[0, 8, 8, 0]}
-                      isAnimationActive={false}
-                      name="Economia acumulada"
-                    >
-                      <LabelList
-                        dataKey="beneficio"
-                        position="right"
-                        formatter={(value: number) => currency(Number(value))}
-                        fill="#000000"
-                        style={{ fontSize: 12, fontWeight: 600 }}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <ul className="print-chart-highlights no-break-inside">
-                {economiaMarcos.map((ano) => {
-                  const row = economiaProjetada.find((item) => item.ano === ano)
-                  return (
-                    <li key={`economia-${ano}`}>
-                      <span className="print-chart-highlights__year">{formatAnoDescricao(ano)}</span>
-                      <div className="print-chart-highlights__values">
-                        <span className="print-chart-highlights__value" style={{ color: primaryChartColor }}>
-                          Economia acumulada: {row ? currency(row.acumulado) : '—'}
-                        </span>
-                        <span
-                          className="print-chart-highlights__value"
-                          style={{ color: secondaryChartColor }}
-                        >
-                          Economia no ano: {row ? currency(row.economiaAnual) : '—'}
-                        </span>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-            <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
+            {economiaProjetada.length ? (
+              <>
+                <p className="section-subtitle keep-with-next">
+                  Confira a evolução da economia acumulada nos principais marcos do contrato de leasing.
+                </p>
+                <table className="no-break-inside">
+                  <thead>
+                    <tr>
+                      <th>Período</th>
+                      <th>Economia acumulada (R$)</th>
+                      <th>Economia no ano (R$)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {economiaProjetada.map((linha) => (
+                      <tr key={`economia-${linha.ano}`}>
+                        <td>{formatAnoDescricao(linha.ano)}</td>
+                        <td className="leasing-table-value">{currency(linha.acumulado)}</td>
+                        <td className="leasing-table-value">{currency(linha.economiaAnual)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
+              </>
+            ) : (
+              <p className="muted no-break-inside">
+                Não há dados suficientes para projetar a economia acumulada desta proposta.
+              </p>
+            )}
           </section>
     
           <section
