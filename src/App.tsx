@@ -4541,7 +4541,7 @@ export default function App() {
     const margemManualValorNormalizado = Number(margemManualValor)
     const margemManualNormalizada =
       margemManualAtiva && Number.isFinite(margemManualValorNormalizado)
-        ? Math.max(0, margemManualValorNormalizado)
+        ? margemManualValorNormalizado
         : null
     const margemCalculadaValor = Number(
       composicaoTelhadoCalculo?.margem_operacional_valor,
@@ -4549,8 +4549,8 @@ export default function App() {
     const margemOperacional =
       margemManualNormalizada ??
       (Number.isFinite(margemCalculadaValor)
-        ? Math.max(0, margemCalculadaValor)
-        : Math.max(0, toNumberSafe(composicaoTelhado.lucroBruto)))
+        ? margemCalculadaValor
+        : toNumberSafe(composicaoTelhado.lucroBruto))
 
     const total =
       Math.max(0, valorOrcamentoConsiderado) + capexBase + margemOperacional
@@ -4597,7 +4597,7 @@ export default function App() {
     const margemManualValorNormalizado = Number(margemManualValor)
     const margemManualNormalizada =
       margemManualAtiva && Number.isFinite(margemManualValorNormalizado)
-        ? Math.max(0, margemManualValorNormalizado)
+        ? margemManualValorNormalizado
         : null
     const margemCalculadaValor = Number(
       composicaoSoloCalculo?.margem_operacional_valor,
@@ -4605,8 +4605,8 @@ export default function App() {
     const margemOperacional =
       margemManualNormalizada ??
       (Number.isFinite(margemCalculadaValor)
-        ? Math.max(0, margemCalculadaValor)
-        : Math.max(0, toNumberSafe(composicaoSolo.lucroBruto)))
+        ? margemCalculadaValor
+        : toNumberSafe(composicaoSolo.lucroBruto))
 
     const total =
       Math.max(0, valorOrcamentoConsiderado) + capexBase + margemOperacional
