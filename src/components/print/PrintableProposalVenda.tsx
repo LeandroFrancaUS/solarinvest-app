@@ -652,7 +652,7 @@ function PrintableProposalInner(
   const valorIntegradoSistemaLabel =
     valorIntegradoSistemaNumero != null ? currency(valorIntegradoSistemaNumero) : '—'
   const valorIntegradoSistemaDescricao =
-    '(engloba custos de engenharia, aquisição e logística dos equipamentos, instalação e implementação completa, impostos, seguros, suporte técnico, manutenção inicial e margem operacional)'
+    ' (engloba custos de engenharia, aquisição e logística dos equipamentos, instalação e implementação completa, impostos, seguros, suporte técnico, manutenção inicial e margem operacional)'
   const inflacaoResumo = formatPercentFromPct(
     snapshotParametros?.inflacao_energia_aa ?? vendaFormResumo?.inflacao_energia_aa_pct,
   )
