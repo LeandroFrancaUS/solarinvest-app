@@ -4340,6 +4340,12 @@ export default function App() {
     simulationState.mesReajuste,
     simulationState.mesReferencia,
     simulationState.tarifaCheia,
+    simulationState.tusdAnoReferencia,
+    simulationState.tusdPercent,
+    simulationState.tusdSimultaneidade,
+    simulationState.tusdSubtipo,
+    simulationState.tusdTarifaRkwh,
+    simulationState.tusdTipoCliente,
     taxaMinima,
     vm0,
   ])
