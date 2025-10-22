@@ -87,12 +87,30 @@ const createProps = (): PrintableProposalProps => ({
 describe('PrintableProposal smoke', () => {
   it('renderiza dentro do Boundary sem lançar erros', () => {
     const props = createProps()
-    const { container } = render(
-      <Boundary>
-        <PrintableProposal {...props} />
-      </Boundary>,
-    )
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    expect(container.textContent ?? '').toContain('Proposta de Venda Solar')
+    try {
+      let renderResult: ReturnType<typeof render> | undefined
+      expect(() => {
+        renderResult = render(
+          <Boundary>
+            <PrintableProposal {...props} />
+          </Boundary>,
+        )
+      }).not.toThrow()
+
+      const container = renderResult?.container
+      expect(container?.textContent ?? '').toContain('Proposta de Venda Solar')
+
+      const hasReferenceError = consoleErrorSpy.mock.calls.some((callArgs) =>
+        callArgs.some(
+          (arg) => typeof arg === 'string' && arg.includes('Cannot access uninitialized variable'),
+        ),
+      )
+
+      expect(hasReferenceError).toBe(false)
+    } finally {
+      consoleErrorSpy.mockRestore()
+    }
   })
 })

@@ -527,11 +527,6 @@ function PrintableProposalInner(
         : null)
   const valorTotalPropostaLabel =
     valorTotalPropostaPrincipalNumero != null ? currency(valorTotalPropostaPrincipalNumero) : '—'
-  const economiaEstimativaTitulo =
-    economiaEstimativaHorizonteLabel != null
-      ? `Economia estimada (${economiaEstimativaHorizonteLabel} anos)`
-      : 'Economia estimada'
-  const mostrarEconomiaEstimativa = economiaEstimativaValorDisplay != null
   const economiaResumo = (() => {
     if (!isVendaDireta) {
       return { valor: null as number | null, anos: null as number | null }
@@ -554,9 +549,14 @@ function PrintableProposalInner(
     return { valor: total, anos: economiaEstimativaHorizonteAnos }
   })()
   const economiaEstimativaValorDisplay = economiaResumo.valor
+  const economiaEstimativaHorizonteLabel = economiaResumo.valor != null ? economiaResumo.anos : null
   const economiaEstimativaLabel =
     economiaEstimativaValorDisplay != null ? currency(economiaEstimativaValorDisplay) : null
-  const economiaEstimativaHorizonteLabel = economiaResumo.valor != null ? economiaResumo.anos : null
+  const economiaEstimativaTitulo =
+    economiaEstimativaHorizonteLabel != null
+      ? `Economia estimada (${economiaEstimativaHorizonteLabel} anos)`
+      : 'Economia estimada'
+  const mostrarEconomiaEstimativa = economiaEstimativaValorDisplay != null
   const tarifaInicialResumo = (() => {
     const valor = pickPositive(snapshotParametros?.tarifa_r_kwh, vendaFormResumo?.tarifa_cheia_r_kwh)
     return Number.isFinite(valor) && (valor ?? 0) > 0 ? tarifaCurrency(valor ?? 0) : tarifaCheiaResumo
