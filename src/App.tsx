@@ -2651,6 +2651,7 @@ export default function App() {
   const [retornoProjetado, setRetornoProjetado] = useState<RetornoProjetado | null>(null)
   const [retornoStatus, setRetornoStatus] = useState<'idle' | 'calculating'>('idle')
   const [retornoError, setRetornoError] = useState<string | null>(null)
+  const [recalcularTick, setRecalcularTick] = useState(0)
   const valorTotalPropostaNormalizado =
     Number.isFinite(vendaForm.capex_total) && (vendaForm.capex_total ?? 0) > 0
       ? Math.max(0, Number(vendaForm.capex_total))
@@ -2662,12 +2663,16 @@ export default function App() {
       return
     }
     vendaActions.updateResumoProposta({ valor_total_proposta: valorTotalPropostaNormalizado })
-  }, [isVendaDiretaTab, valorTotalPropostaNormalizado])
+  }, [isVendaDiretaTab, valorTotalPropostaNormalizado, recalcularTick])
 
   const resetRetorno = useCallback(() => {
     setRetornoProjetado(null)
     setRetornoError(null)
     setRetornoStatus('idle')
+  }, [])
+
+  const handleRecalcularVendas = useCallback(() => {
+    setRecalcularTick((prev) => prev + 1)
   }, [])
 
   const handleCalcularRetorno = useCallback(() => {
@@ -2698,7 +2703,7 @@ export default function App() {
       payback_meses: retornoProjetado?.payback ?? null,
       roi_acumulado_30a: retornoProjetado ? retornoProjetado.roi : null,
     })
-  }, [retornoProjetado])
+  }, [retornoProjetado, recalcularTick])
 
   type VendaFormUpdates = { [K in keyof VendaForm]?: VendaForm[K] | undefined }
 
@@ -3705,7 +3710,7 @@ export default function App() {
     }
     const resolved = Number(quantidade)
     return resolved > 0 ? resolved : null
-  }, [vendaForm.quantidade_modulos])
+  }, [vendaForm.quantidade_modulos, recalcularTick])
 
   const vendaAutoPotenciaKwp = useMemo(
     () => kwpFromWpQty(potenciaModulo, vendaQuantidadeModulos),
@@ -3932,6 +3937,7 @@ export default function App() {
     vendaForm.tarifa_r_kwh,
     vendaForm.taxa_desconto_aa_pct,
     vendaForm.taxa_minima_r_mes,
+    recalcularTick,
   ])
 
   useEffect(() => {
@@ -3981,6 +3987,7 @@ export default function App() {
     vendaForm.estrutura_suporte,
     vendaForm.potencia_instalada_kwp,
     vendaForm.quantidade_modulos,
+    recalcularTick,
   ])
 
   useEffect(() => {
@@ -3989,7 +3996,7 @@ export default function App() {
       autonomia_frac: autonomia,
       energia_contratada_kwh_mes: kcKwhMes > 0 ? kcKwhMes : null,
     })
-  }, [geracaoMensalKwh, kcKwhMes])
+  }, [geracaoMensalKwh, kcKwhMes, recalcularTick])
 
   useEffect(() => {
     const itensNormalizados = budgetStructuredItems.map((item) => {
@@ -4017,7 +4024,7 @@ export default function App() {
         ? Number(kitBudget.total)
         : 0
     vendaActions.updateOrcamento({ itens: itensNormalizados, valor_total_orcamento: valorTotal })
-  }, [budgetStructuredItems, kitBudget.total])
+  }, [budgetStructuredItems, kitBudget.total, recalcularTick])
 
   useEffect(() => {
     vendaActions.updatePagamento({
@@ -4040,6 +4047,7 @@ export default function App() {
     vendaForm.taxa_mdr_debito_pct,
     vendaForm.taxa_mdr_pix_pct,
     vendaForm.validade_proposta,
+    recalcularTick,
   ])
 
   useEffect(() => {
@@ -4084,6 +4092,7 @@ export default function App() {
     potenciaInstaladaKwp,
     resetRetorno,
     vendaForm.quantidade_modulos,
+    recalcularTick,
   ])
 
   useEffect(() => {
@@ -4180,6 +4189,7 @@ export default function App() {
     setKcKwhMes,
     setVendaFormErrors,
     setVendaForm,
+    recalcularTick,
   ])
 
   useEffect(() => {
@@ -4210,7 +4220,7 @@ export default function App() {
 
       return valorAtual
     })
-  }, [kcKwhMes, numeroModulosCalculado])
+  }, [kcKwhMes, numeroModulosCalculado, recalcularTick])
 
   const geracaoDiariaKwh = useMemo(
     () => (geracaoMensalKwh > 0 && diasMesNormalizado > 0 ? geracaoMensalKwh / diasMesNormalizado : 0),
@@ -4467,6 +4477,7 @@ export default function App() {
     composicaoTelhadoCalculo,
     custoImplantacaoReferencia,
     tipoInstalacao,
+    recalcularTick,
   ])
 
   const composicaoTelhadoTotal = useMemo(() => {
@@ -4523,7 +4534,7 @@ export default function App() {
       }
       return { ...prev, projeto: valorProjeto }
     })
-  }, [vendaForm.quantidade_modulos])
+  }, [vendaForm.quantidade_modulos, recalcularTick])
 
   const valorVendaTelhado = useMemo(() => {
     const capexBaseCalculadoValor = Number(composicaoTelhadoCalculo?.capex_base)
@@ -4655,6 +4666,7 @@ export default function App() {
     composicaoTelhadoCalculo?.margem_operacional_valor,
     composicaoSoloCalculo?.margem_operacional_valor,
     tipoInstalacao,
+    recalcularTick,
   ])
 
   const valorVendaAtual = tipoInstalacao === 'SOLO' ? valorVendaSolo : valorVendaTelhado
@@ -4686,7 +4698,7 @@ export default function App() {
       })
       resetRetorno()
     }
-  }, [capexManualOverride, resetRetorno, valorVendaAtual])
+  }, [capexManualOverride, resetRetorno, valorVendaAtual, recalcularTick])
 
   const chartPalette = useMemo(
     () => ({
@@ -5161,7 +5173,7 @@ export default function App() {
       economia_estimativa_horizonte_anos:
         economiaEstimativaValorCalculado != null ? ECONOMIA_ESTIMATIVA_PADRAO_ANOS : null,
     })
-  }, [economiaEstimativaValorCalculado, isVendaDiretaTab])
+  }, [economiaEstimativaValorCalculado, isVendaDiretaTab, recalcularTick])
 
   const printableData = useMemo<PrintableProposalProps>(
     () => {
@@ -11859,6 +11871,11 @@ export default function App() {
                 <button type="button" className="ghost" onClick={handleNovaProposta}>
                   Novo
                 </button>
+                {isVendaDiretaTab ? (
+                  <button type="button" className="ghost" onClick={handleRecalcularVendas}>
+                    Recalcular
+                  </button>
+                ) : null}
                 {podeSalvarProposta ? (
                   <button
                     type="button"
