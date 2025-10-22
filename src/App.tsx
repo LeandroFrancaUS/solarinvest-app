@@ -287,36 +287,6 @@ const sumComposicaoValoresExcluding = <T extends Record<string, number>>(
 const LUCRO_BRUTO_PADRAO = 0.29
 const LUCRO_BRUTO_MULTIPLICADOR = LUCRO_BRUTO_PADRAO / (1 - LUCRO_BRUTO_PADRAO)
 
-type ProjetoFaixa = {
-  min: number
-  max: number | null
-  valor: number | null
-}
-
-const PROJETO_POR_MODULOS: ProjetoFaixa[] = [
-  { min: 0, max: 6, valor: 650 },
-  { min: 7, max: 12, valor: 900 },
-  { min: 13, max: 18, valor: 1100 },
-  { min: 19, max: 24, valor: 1300 },
-  { min: 25, max: 30, valor: 1400 },
-  { min: 31, max: 36, valor: 1500 },
-  { min: 37, max: 42, valor: 1700 },
-  { min: 43, max: 48, valor: 1900 },
-  { min: 49, max: 54, valor: 2100 },
-  { min: 55, max: 60, valor: 2300 },
-  { min: 61, max: 66, valor: 2500 },
-  { min: 67, max: 72, valor: 2600 },
-  { min: 73, max: 82, valor: 2900 },
-  { min: 83, max: 92, valor: 3100 },
-  { min: 93, max: 102, valor: 3400 },
-  { min: 103, max: 112, valor: 3600 },
-  { min: 113, max: 122, valor: 3800 },
-  { min: 123, max: 132, valor: 4000 },
-  { min: 133, max: 142, valor: 4200 },
-  { min: 143, max: 152, valor: 4400 },
-  { min: 153, max: null, valor: null },
-]
-
 const ECONOMIA_ESTIMATIVA_PADRAO_ANOS = 5
 
 const calcularLucroBrutoPadrao = (valorOrcamento: number, subtotalSemLucro: number) => {
@@ -325,15 +295,6 @@ const calcularLucroBrutoPadrao = (valorOrcamento: number, subtotalSemLucro: numb
     return 0
   }
   return Math.round(base * LUCRO_BRUTO_MULTIPLICADOR * 100) / 100
-}
-
-const obterValorProjetoPorModulos = (quantidade?: number | null): number | null => {
-  if (!Number.isFinite(quantidade) || quantidade == null) {
-    return null
-  }
-  const inteiro = Math.max(0, Math.floor(quantidade))
-  const faixa = PROJETO_POR_MODULOS.find(({ min, max }) => inteiro >= min && (max == null || inteiro <= max))
-  return faixa?.valor ?? null
 }
 
 type IbgeMunicipio = {
@@ -4551,28 +4512,6 @@ export default function App() {
       ]),
     [composicaoSolo],
   )
-
-  useEffect(() => {
-    const quantidadeModulos = Number.isFinite(vendaForm.quantidade_modulos)
-      ? Number(vendaForm.quantidade_modulos)
-      : null
-    const valorProjeto = obterValorProjetoPorModulos(quantidadeModulos)
-    if (valorProjeto == null) {
-      return
-    }
-    setComposicaoTelhado((prev) => {
-      if (numbersAreClose(prev.projeto, valorProjeto)) {
-        return prev
-      }
-      return { ...prev, projeto: valorProjeto }
-    })
-    setComposicaoSolo((prev) => {
-      if (numbersAreClose(prev.projeto, valorProjeto)) {
-        return prev
-      }
-      return { ...prev, projeto: valorProjeto }
-    })
-  }, [vendaForm.quantidade_modulos, recalcularTick])
 
   const valorVendaTelhado = useMemo(() => {
     const capexBaseCalculadoValor = Number(composicaoTelhadoCalculo?.capex_base)
