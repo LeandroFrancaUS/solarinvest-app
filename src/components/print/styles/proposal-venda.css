@@ -485,17 +485,18 @@ html[data-print-mode='print'] .print-hero__title h1 {
 }
 
 .print-section.print-important ul {
-  color: #0c162c;
-  font-weight: 500;
+  color: #000000;
+  font-weight: 600;
 }
 
 .print-section.print-important .print-important__observation {
-  color: #0c162c;
+  color: #000000;
 }
 
 .print-section.print-cta .print-cta__box h2,
 .print-section.print-cta .print-cta__box p {
-  color: #0c162c;
+  color: #000000;
+  font-weight: 600;
 }
 
 .print-final-footer {
@@ -504,18 +505,21 @@ html[data-print-mode='print'] .print-hero__title h1 {
   justify-content: space-between;
   gap: 24px;
   align-items: flex-start;
-  color: #0c162c;
+  color: #000000;
+  opacity: 1;
 }
 
 .print-final-footer__dates {
   display: grid;
   gap: 6px;
   font-size: 13px;
-  color: #0c162c;
+  color: #000000;
+  font-weight: 600;
 }
 
 .print-final-footer__dates strong {
-  color: #0c162c;
+  color: inherit;
+  font-weight: 700;
 }
 
 .print-final-footer__signature {
@@ -525,13 +529,20 @@ html[data-print-mode='print'] .print-hero__title h1 {
   gap: 8px;
   min-width: 240px;
   font-size: 12px;
-  color: #0c162c;
+  color: #000000;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.print-final-footer__signature span {
+  color: inherit;
 }
 
 .signature-line {
   width: 100%;
   height: 1px;
-  background: rgba(12, 22, 44, 0.55);
+  background: rgba(0, 0, 0, 0.55);
 }
 
 .print-brand-footer {
@@ -542,13 +553,19 @@ html[data-print-mode='print'] .print-hero__title h1 {
   text-align: center;
   font-size: 11px;
   line-height: 1.4;
-  color: #0c162c;
+  color: #000000;
+  font-weight: 600;
+  opacity: 1;
 }
 
 .print-brand-footer strong {
   font-size: 13px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #0c162c;
+  color: inherit;
+}
+
+.print-brand-footer span {
+  color: inherit;
 }
 
