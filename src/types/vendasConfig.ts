@@ -1,12 +1,10 @@
 import type { ImpostosRegimeConfig, RegimeTributario } from '../lib/venda/calcComposicaoUFV'
 
-export type MargemOrigem = 'automatica' | 'manual'
 export type ArredondarVendaPara = '1' | '10' | '50' | '100'
 export type ComissaoDefaultTipo = 'valor' | 'percentual'
 export type ComissaoPercentBase = 'venda_total' | 'venda_liquida'
 
 export interface VendasConfig {
-  origem_margem_operacional: MargemOrigem
   margem_operacional_padrao_percent: number
   preco_minimo_percent_sobre_capex: number
   arredondar_venda_para: ArredondarVendaPara
@@ -25,7 +23,7 @@ export interface VendasConfig {
 
   regime_tributario_default: RegimeTributario
   imposto_retido_aliquota_default: number
-  impostosRegime_overrides?: Partial<ImpostosRegimeConfig>
+  impostosRegime_overrides?: Partial<ImpostosRegimeConfig> | null
   mostrar_quebra_impostos_no_pdf_cliente: boolean
 
   exibir_precos_unitarios: boolean
@@ -53,7 +51,7 @@ const sanitizeAprovadores = (lista: unknown): string[] => {
 }
 
 const sanitizeOverrides = (
-  overrides?: Partial<ImpostosRegimeConfig>,
+  overrides?: Partial<ImpostosRegimeConfig> | null,
 ): Partial<ImpostosRegimeConfig> | undefined => {
   if (!overrides) {
     return undefined
@@ -87,9 +85,6 @@ const sanitizeOverrides = (
 const isArredondarValue = (valor: string): valor is ArredondarVendaPara =>
   valor === '1' || valor === '10' || valor === '50' || valor === '100'
 
-const isMargemOrigem = (valor: string): valor is MargemOrigem =>
-  valor === 'automatica' || valor === 'manual'
-
 const isComissaoTipo = (valor: string): valor is ComissaoDefaultTipo =>
   valor === 'valor' || valor === 'percentual'
 
@@ -100,7 +95,6 @@ const isRegime = (valor: string): valor is RegimeTributario =>
   valor === 'simples' || valor === 'lucro_presumido' || valor === 'lucro_real'
 
 export const DEFAULT_VENDAS_CONFIG: VendasConfig = {
-  origem_margem_operacional: 'automatica',
   margem_operacional_padrao_percent: 29,
   preco_minimo_percent_sobre_capex: 10,
   arredondar_venda_para: '100',
@@ -119,7 +113,6 @@ export const DEFAULT_VENDAS_CONFIG: VendasConfig = {
 
   regime_tributario_default: 'lucro_presumido',
   imposto_retido_aliquota_default: 6,
-  impostosRegime_overrides: undefined,
   mostrar_quebra_impostos_no_pdf_cliente: false,
 
   exibir_precos_unitarios: false,
@@ -133,11 +126,6 @@ export const normalizeVendasConfig = (
   partial?: Partial<VendasConfig>,
 ): VendasConfig => {
   const base = partial ?? {}
-  const origem =
-    typeof base.origem_margem_operacional === 'string' &&
-    isMargemOrigem(base.origem_margem_operacional)
-      ? base.origem_margem_operacional
-      : DEFAULT_VENDAS_CONFIG.origem_margem_operacional
   const arredondar =
     typeof base.arredondar_venda_para === 'string' &&
     isArredondarValue(base.arredondar_venda_para)
@@ -160,7 +148,6 @@ export const normalizeVendasConfig = (
       : DEFAULT_VENDAS_CONFIG.regime_tributario_default
 
   return {
-    origem_margem_operacional: origem,
     margem_operacional_padrao_percent: clamp(
       Number(base.margem_operacional_padrao_percent) || 0,
       0,
@@ -195,7 +182,7 @@ export const normalizeVendasConfig = (
       0,
       100,
     ),
-    impostosRegime_overrides: sanitizeOverrides(base.impostosRegime_overrides),
+    impostosRegime_overrides: sanitizeOverrides(base.impostosRegime_overrides) ?? null,
     mostrar_quebra_impostos_no_pdf_cliente: Boolean(
       base.mostrar_quebra_impostos_no_pdf_cliente,
     ),

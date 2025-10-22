@@ -16,9 +16,10 @@ const createInput = (overrides: Partial<Inputs> = {}): Inputs => ({
   comissao_tipo: 'percentual',
   comissao_percent_base: 'venda_total',
   teto_comissao_percent: 10,
-  margem_origem: 'automatica',
   margem_operacional_padrao_percent: 30,
   margem_manual_valor: 0,
+  usar_margem_manual: false,
+  valor_total_orcamento: 0,
   descontos: 500,
   preco_minimo_percent_sobre_capex: 0,
   arredondar_venda_para: 1,
@@ -35,15 +36,14 @@ const createInput = (overrides: Partial<Inputs> = {}): Inputs => ({
 
 describe('calcularComposicaoUFV', () => {
   it('aplica margem automática e comissiona sobre a venda total', () => {
-    const input = createInput()
+    const input = createInput({ valor_total_orcamento: 1000 })
     const resultado = calcularComposicaoUFV(input)
 
-    expect(resultado.margem_origem_utilizada).toBe('automatica')
     expect(resultado.capex_base).toBeCloseTo(7000, 4)
-    expect(resultado.margem_operacional_valor).toBeCloseTo(2100, 2)
-    expect(resultado.comissao_liquida_valor).toBeCloseTo(478.95, 2)
-    expect(resultado.venda_total).toBeCloseTo(9578.95, 2)
-    expect(resultado.venda_liquida).toBeCloseTo(9078.95, 2)
+    expect(resultado.margem_operacional_valor).toBeCloseTo(2400, 2)
+    expect(resultado.comissao_liquida_valor).toBeCloseTo(520.99, 2)
+    expect(resultado.venda_total).toBeCloseTo(9880.99, 2)
+    expect(resultado.venda_liquida).toBeCloseTo(9380.99, 2)
     expect(resultado.impostos_regime_valor).toBeCloseTo(resultado.venda_total * 0.02, 2)
     expect(resultado.imposto_retido_valor).toBe(0)
     expect(resultado.desconto_requer_aprovacao).toBe(true)
@@ -53,7 +53,7 @@ describe('calcularComposicaoUFV', () => {
 
   it('usa margem manual e aplica arredondamento e impostos adicionais', () => {
     const input = createInput({
-      margem_origem: 'manual',
+      usar_margem_manual: true,
       margem_manual_valor: 500,
       comissao_tipo: 'valor',
       comissao_liquida_input: 350,
@@ -66,9 +66,8 @@ describe('calcularComposicaoUFV', () => {
 
     const resultado = calcularComposicaoUFV(input)
 
-    expect(resultado.margem_origem_utilizada).toBe('manual')
     expect(resultado.venda_total).toBeCloseTo(7900, 2)
-    expect(resultado.margem_operacional_valor).toBeCloseTo(550, 2)
+    expect(resultado.margem_operacional_valor).toBeCloseTo(500, 2)
     expect(resultado.comissao_liquida_valor).toBeCloseTo(350, 4)
     expect(resultado.venda_total_sem_guardrails).toBeCloseTo(7850, 2)
     expect(resultado.arredondamento_aplicado).toBeCloseTo(50, 2)
