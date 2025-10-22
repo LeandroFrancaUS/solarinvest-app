@@ -542,37 +542,3 @@
   }
 }
 
-@media print {
-  @page {
-    size: A4 portrait;
-    margin: 12mm 16mm;
-  }
-
-  body {
-    background: #ffffff;
-  }
-
-  .print-layout.leasing-print-layout {
-    max-width: 1040px;
-    margin: 0 auto;
-    page-break-after: avoid;
-    background: #050912;
-  }
-
-  .print-section + .print-section {
-    margin-top: 18px;
-  }
-}
-
-@media screen {
-  .print-layout.leasing-print-layout {
-    position: fixed;
-    top: -9999px;
-    left: -9999px;
-    width: 1040px;
-    max-width: 1040px;
-    opacity: 0;
-    pointer-events: none;
-    visibility: hidden;
-  }
-}
