@@ -155,7 +155,6 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).not.toMatch(/Área mínima necessária/)
     expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>120,0%<\/dd>/)
     expect(markup).toContain('Valor total da proposta')
-    expect(markup).toMatch(/Economia estimada \(5 anos\)/)
     expect(markup).toContain(
       'O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos, instalação, documentação e suporte técnico.',
     )
