@@ -4,6 +4,7 @@ const STORAGE_KEY = 'solarinvest:venda-sims:v1'
 export type VendasSimulacao = {
   margemManualValor?: number | null
   descontos?: number
+  capexBaseManual?: number | null
 }
 
 export type VendasSimulacoesState = {
@@ -18,7 +19,10 @@ type PersistedShape = {
   simulations: Record<string, VendasSimulacao>
 }
 
-const clampNonNegative = (value: number | undefined): number | undefined => {
+const clampNonNegative = (value: number | null | undefined): number | undefined => {
+  if (value == null) {
+    return undefined
+  }
   if (!Number.isFinite(value ?? Number.NaN)) {
     return undefined
   }
@@ -42,12 +46,16 @@ const normalizeSimulacao = (sim?: VendasSimulacao): VendasSimulacao | undefined 
   }
   const margemManualValor = sanitizeManualMargin(sim.margemManualValor)
   const descontos = clampNonNegative(sim.descontos)
+  const capexBaseManual = clampNonNegative(sim.capexBaseManual)
   const result: VendasSimulacao = {}
   if (typeof margemManualValor === 'number') {
     result.margemManualValor = margemManualValor
   }
   if (typeof descontos === 'number') {
     result.descontos = descontos
+  }
+  if (typeof capexBaseManual === 'number') {
+    result.capexBaseManual = capexBaseManual
   }
   return Object.keys(result).length > 0 ? result : undefined
 }

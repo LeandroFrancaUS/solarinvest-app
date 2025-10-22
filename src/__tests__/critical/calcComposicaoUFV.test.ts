@@ -98,4 +98,17 @@ describe('calcularComposicaoUFV', () => {
     expect(resultado.margem_operacional_valor).toBeCloseTo(1100, 2)
     expect(resultado.desconto_requer_aprovacao).toBe(false)
   })
+
+  it('permite sobrescrever manualmente o CAPEX base', () => {
+    const input = createInput({
+      capex_base_manual: 12000,
+      valor_total_orcamento: 1000,
+    })
+
+    const resultado = calcularComposicaoUFV(input)
+
+    expect(resultado.capex_base).toBeCloseTo(12000, 4)
+    expect(resultado.margem_operacional_valor).toBeCloseTo(3900, 2)
+    expect(resultado.venda_total).toBeGreaterThan(resultado.capex_base)
+  })
 })
