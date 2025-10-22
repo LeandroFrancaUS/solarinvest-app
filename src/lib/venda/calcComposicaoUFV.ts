@@ -235,11 +235,12 @@ export function calcularComposicaoUFV(i: Inputs): Outputs {
     } else {
       comissao_liquida_valor = venda_liquida * frac;
     }
-    margem_operacional_valor = Math.max(venda_liquida * (1 - frac) - capex_base, 0);
   } else {
     comissao_liquida_valor = comissao_liquida_base;
-    margem_operacional_valor = Math.max(venda_total - capex_base - comissao_liquida_valor, 0);
   }
+
+  const margem_bruta = venda_liquida - comissao_liquida_valor - capex_base;
+  margem_operacional_valor = Math.max(margem_bruta, 0);
 
   const imposto_retido_valor = venda_total * pct(i.imposto_retido_aliquota);
   const tabelaRegime = mergeImpostosRegime(DEFAULT_IMPOSTOS_REGIME, i.impostosRegime);

@@ -40,7 +40,7 @@ describe('calcularComposicaoUFV', () => {
 
     expect(resultado.margem_origem_utilizada).toBe('automatica')
     expect(resultado.capex_base).toBeCloseTo(7000, 4)
-    expect(resultado.margem_operacional_valor).toBeCloseTo(1625, 2)
+    expect(resultado.margem_operacional_valor).toBeCloseTo(1600, 2)
     expect(resultado.comissao_liquida_valor).toBeCloseTo(478.95, 2)
     expect(resultado.venda_total).toBeCloseTo(9578.95, 2)
     expect(resultado.venda_liquida).toBeCloseTo(9078.95, 2)
