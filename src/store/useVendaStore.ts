@@ -163,6 +163,12 @@ const createInitialState = (): VendaState => ({
     capex_total: 0,
     total_contrato_R$: 0,
     regime_breakdown: [],
+    preco_minimo: 0,
+    venda_total_sem_guardrails: 0,
+    preco_minimo_aplicado: false,
+    arredondamento_aplicado: 0,
+    desconto_percentual: 0,
+    desconto_requer_aprovacao: false,
     descontos: 0,
   },
   pagamento: {

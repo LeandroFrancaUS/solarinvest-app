@@ -1,17 +1,14 @@
 import { createStore } from './createStore'
-import type { MargemOrigem } from '../types/vendasConfig'
-
 const STORAGE_KEY = 'solarinvest:venda-sims:v1'
 
 export type VendasSimulacao = {
-  margemOrigem?: MargemOrigem
-  margemManualValor?: number
+  margemManualValor?: number | null
   descontos?: number
 }
 
 export type VendasSimulacoesState = {
   simulations: Record<string, VendasSimulacao>
-  initialize: (id: string, defaults: { origem: MargemOrigem; margemManual?: number }) => void
+  initialize: (id: string, defaults?: { margemManual?: number }) => void
   update: (id: string, patch: Partial<VendasSimulacao>) => void
   remove: (id: string) => void
   clear: () => void
@@ -29,17 +26,23 @@ const clampNonNegative = (value: number | undefined): number | undefined => {
   return parsed >= 0 ? parsed : 0
 }
 
+const sanitizeManualMargin = (value: number | null | undefined): number | undefined => {
+  if (value === null || value === undefined) {
+    return undefined
+  }
+  if (!Number.isFinite(value ?? Number.NaN)) {
+    return undefined
+  }
+  return Number(value)
+}
+
 const normalizeSimulacao = (sim?: VendasSimulacao): VendasSimulacao | undefined => {
   if (!sim) {
     return undefined
   }
-  const margemOrigem = sim.margemOrigem === 'manual' ? 'manual' : sim.margemOrigem === 'automatica' ? 'automatica' : undefined
-  const margemManualValor = clampNonNegative(sim.margemManualValor)
+  const margemManualValor = sanitizeManualMargin(sim.margemManualValor)
   const descontos = clampNonNegative(sim.descontos)
   const result: VendasSimulacao = {}
-  if (margemOrigem) {
-    result.margemOrigem = margemOrigem
-  }
   if (typeof margemManualValor === 'number') {
     result.margemManualValor = margemManualValor
   }
@@ -96,11 +99,13 @@ export const useVendasSimulacoesStore = createStore<VendasSimulacoesState>((set,
       if (state.simulations[id]) {
         return state
       }
-      const next: VendasSimulacao = {
-        margemOrigem: defaults.origem,
-      }
-      if (typeof defaults.margemManual === 'number' && Number.isFinite(defaults.margemManual)) {
-        next.margemManualValor = Math.max(0, defaults.margemManual)
+      const next: VendasSimulacao = {}
+      if (
+        defaults &&
+        typeof defaults.margemManual === 'number' &&
+        Number.isFinite(defaults.margemManual)
+      ) {
+        next.margemManualValor = Number(defaults.margemManual)
       }
       return {
         simulations: {

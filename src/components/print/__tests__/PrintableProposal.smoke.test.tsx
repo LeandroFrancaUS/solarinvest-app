@@ -102,9 +102,10 @@ describe('PrintableProposal smoke', () => {
       const container = renderResult?.container
       expect(container?.textContent ?? '').toContain('Proposta de Venda Solar')
 
-      const hasReferenceError = consoleErrorSpy.mock.calls.some((callArgs) =>
+      const hasReferenceError = consoleErrorSpy.mock.calls.some((callArgs: unknown[]) =>
         callArgs.some(
-          (arg) => typeof arg === 'string' && arg.includes('Cannot access uninitialized variable'),
+          (arg: unknown) =>
+            typeof arg === 'string' && arg.includes('Cannot access uninitialized variable'),
         ),
       )
 

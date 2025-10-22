@@ -8,7 +8,6 @@
 
 export type ComissaoTipo = "valor" | "percentual";
 export type BasePercentualComissao = "venda_total" | "venda_liquida";
-export type MargemOrigem = "automatica" | "manual";
 export type ArredondarPasso = 1 | 10 | 50 | 100;
 
 // Observação: "ME" e "LTDA" são naturezas jurídicas;
@@ -32,9 +31,10 @@ export interface Inputs {
   teto_comissao_percent?: number; // teto aplicado quando comissão for percentual
 
   // Margem operacional
-  margem_origem: MargemOrigem;
   margem_operacional_padrao_percent: number;
-  margem_manual_valor: number;
+  margem_manual_valor?: number | null;
+  usar_margem_manual?: boolean;
+  valor_total_orcamento?: number;
 
   // Descontos comerciais
   descontos: number;
@@ -81,7 +81,6 @@ export interface Outputs {
   arredondamento_aplicado: number;
   desconto_percentual: number;
   desconto_requer_aprovacao: boolean;
-  margem_origem_utilizada: MargemOrigem;
 }
 
 // =========================
@@ -175,10 +174,15 @@ export function calcularComposicaoUFV(i: Inputs): Outputs {
 
   const descontos = Math.max(0, nz(i.descontos));
   const margemPercent = clampRange(i.margem_operacional_padrao_percent ?? 0, 0, 80);
-  const margemOrigem: MargemOrigem = i.margem_origem === 'manual' ? 'manual' : 'automatica';
-  const margemManualValor = Math.max(0, nz(i.margem_manual_valor));
-  const margemBaseValor =
-    margemOrigem === 'manual' ? margemManualValor : capex_base * (margemPercent / 100);
+  const margemManualInformada = Number.isFinite(i.margem_manual_valor ?? Number.NaN)
+    ? Number(i.margem_manual_valor)
+    : 0;
+  const margemManualAtiva = Boolean(i.usar_margem_manual) &&
+    Number.isFinite(i.margem_manual_valor ?? Number.NaN);
+  const valorOrcamentoTotal = Math.max(0, nz(i.valor_total_orcamento ?? 0));
+  const margemBaseValor = margemManualAtiva
+    ? margemManualInformada
+    : (capex_base + valorOrcamentoTotal) * (margemPercent / 100);
 
   let venda_total_base = 0;
   let venda_liquida_base = 0;
@@ -225,25 +229,31 @@ export function calcularComposicaoUFV(i: Inputs): Outputs {
 
   let comissao_liquida_valor = 0;
   let venda_liquida = Math.max(venda_total - descontos, 0);
-  let margem_operacional_valor = 0;
+  let margem_operacional_valor = margemManualAtiva ? margemManualInformada : 0;
 
   if (i.comissao_tipo === 'percentual') {
     const frac = Math.max(0, Math.min(1, comissaoPercentual));
     if (i.comissao_percent_base === 'venda_total') {
       comissao_liquida_valor = venda_total * frac;
       venda_liquida = Math.max(venda_total - descontos, 0);
-      margem_operacional_valor = Math.max(venda_total * (1 - frac) - capex_base, 0);
+      if (!margemManualAtiva) {
+        margem_operacional_valor = Math.max(venda_total * (1 - frac) - capex_base, 0);
+      }
     } else {
       venda_liquida = Math.max(venda_total - descontos, 0);
       comissao_liquida_valor = venda_liquida * frac;
-      margem_operacional_valor = Math.max(
-        venda_total * (1 - frac) - capex_base - frac * descontos,
-        0,
-      );
+      if (!margemManualAtiva) {
+        margem_operacional_valor = Math.max(
+          venda_total * (1 - frac) - capex_base - frac * descontos,
+          0,
+        );
+      }
     }
   } else {
     comissao_liquida_valor = comissao_liquida_base;
-    margem_operacional_valor = Math.max(venda_total - capex_base - comissao_liquida_valor, 0);
+    if (!margemManualAtiva) {
+      margem_operacional_valor = Math.max(venda_total - capex_base - comissao_liquida_valor, 0);
+    }
   }
 
   const imposto_retido_valor = venda_total * pct(i.imposto_retido_aliquota);
@@ -292,7 +302,6 @@ export function calcularComposicaoUFV(i: Inputs): Outputs {
     arredondamento_aplicado,
     desconto_percentual,
     desconto_requer_aprovacao,
-    margem_origem_utilizada: margemOrigem,
   };
 }
 
@@ -313,9 +322,10 @@ const out = calcularComposicaoUFV({
   comissao_percent_base: "venda_total",
   teto_comissao_percent: 8,
 
-  margem_origem: "automatica",
   margem_operacional_padrao_percent: 29,
   margem_manual_valor: 0,
+  usar_margem_manual: false,
+  valor_total_orcamento: 0,
 
   descontos: 0,
   preco_minimo_percent_sobre_capex: 10,

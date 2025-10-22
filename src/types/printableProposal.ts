@@ -4,7 +4,6 @@ import type {
   BasePercentualComissao,
   ComissaoTipo,
   ArredondarPasso,
-  MargemOrigem,
   Outputs as UfvComposicaoCalc,
   RegimeTributario,
 } from '../lib/venda/calcComposicaoUFV'
@@ -55,9 +54,9 @@ export type UfvComposicaoResumo = {
 export type UfvComposicaoConfiguracao = {
   comissaoTipo: ComissaoTipo
   comissaoBase: BasePercentualComissao
-  margemOrigem: MargemOrigem
   margemPadraoPercent: number
-  margemManualValor: number
+  margemManualValor: number | null
+  margemManualAtiva: boolean
   descontos: number
   regime: RegimeTributario
   impostoRetidoAliquota: number

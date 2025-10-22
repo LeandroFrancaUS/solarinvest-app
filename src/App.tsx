@@ -116,7 +116,6 @@ import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcRes
 import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
-import type { MargemOrigem } from './types/vendasConfig'
 import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
@@ -399,7 +398,7 @@ const normalizeCurrencyNumber = (value: number | null) =>
   value === null ? null : Math.round(value * 100) / 100
 
 const cloneImpostosOverrides = (
-  overrides?: Partial<ImpostosRegimeConfig>,
+  overrides?: Partial<ImpostosRegimeConfig> | null,
 ): Partial<ImpostosRegimeConfig> => {
   if (!overrides) {
     return {}
@@ -1536,15 +1535,13 @@ export default function App() {
   }, [vendasConfig.impostosRegime_overrides])
 
   useEffect(() => {
-    initializeVendasSimulacao(currentBudgetId, {
-      origem: vendasConfig.origem_margem_operacional,
-      margemManual: vendasConfig.origem_margem_operacional === 'manual' ? 0 : undefined,
-    })
-  }, [currentBudgetId, vendasConfig.origem_margem_operacional, initializeVendasSimulacao])
+    initializeVendasSimulacao(currentBudgetId)
+  }, [currentBudgetId, initializeVendasSimulacao])
 
-  const margemOrigemAtual: MargemOrigem =
-    vendasSimulacao?.margemOrigem ?? vendasConfig.origem_margem_operacional
-  const margemManualValor = Math.max(0, vendasSimulacao?.margemManualValor ?? 0)
+  const margemManualValorRaw = vendasSimulacao?.margemManualValor
+  const margemManualAtiva =
+    typeof margemManualValorRaw === 'number' && Number.isFinite(margemManualValorRaw)
+  const margemManualValor = margemManualAtiva ? Number(margemManualValorRaw) : undefined
   const descontosValor = Math.max(0, vendasSimulacao?.descontos ?? 0)
   const arredondarPasso = useMemo(() => {
     const raw = Number(vendasConfig.arredondar_venda_para)
@@ -1556,6 +1553,10 @@ export default function App() {
     }
     return vendasConfig.aprovadores.join(', ')
   }, [vendasConfig.aprovadores])
+  const valorOrcamentoConsiderado = useMemo(() => {
+    const total = kitBudget.total
+    return typeof total === 'number' && Number.isFinite(total) ? total : 0
+  }, [kitBudget.total])
   const [multiUcAtivo, setMultiUcAtivo] = useState(INITIAL_VALUES.multiUcAtivo)
   const [multiUcRows, setMultiUcRows] = useState<MultiUcRowState[]>(() =>
     INITIAL_VALUES.multiUcUcs.map((uc, index) => ({
@@ -2460,12 +2461,25 @@ export default function App() {
 
   const handleMargemManualInput = useCallback(
     (valor: string) => {
+      const trimmed = valor.trim()
+      if (!trimmed) {
+        updateVendasSimulacao(currentBudgetId, { margemManualValor: null })
+        return
+      }
       const parsed = parseNumericInput(valor)
       const normalizado = normalizeCurrencyNumber(parsed)
-      const finalValue = normalizado === null ? 0 : normalizado
+      if (normalizado === null) {
+        updateVendasSimulacao(currentBudgetId, { margemManualValor: null })
+        return
+      }
+      const finalValue = normalizado
       updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
-      setComposicaoTelhado((prev) => (prev.lucroBruto === finalValue ? prev : { ...prev, lucroBruto: finalValue }))
-      setComposicaoSolo((prev) => (prev.lucroBruto === finalValue ? prev : { ...prev, lucroBruto: finalValue }))
+      setComposicaoTelhado((prev) =>
+        numbersAreClose(prev.lucroBruto, finalValue) ? prev : { ...prev, lucroBruto: finalValue },
+      )
+      setComposicaoSolo((prev) =>
+        numbersAreClose(prev.lucroBruto, finalValue) ? prev : { ...prev, lucroBruto: finalValue },
+      )
     },
     [currentBudgetId, updateVendasSimulacao],
   )
@@ -4188,9 +4202,11 @@ export default function App() {
       comissao_tipo: vendasConfig.comissao_default_tipo,
       comissao_percent_base: vendasConfig.comissao_percent_base,
       teto_comissao_percent: vendasConfig.teto_comissao_percent,
-      margem_origem: margemOrigemAtual,
       margem_operacional_padrao_percent: vendasConfig.margem_operacional_padrao_percent,
-      margem_manual_valor: margemManualValor,
+      margem_manual_valor:
+        margemManualAtiva && margemManualValor !== undefined ? margemManualValor : null,
+      usar_margem_manual: margemManualAtiva,
+      valor_total_orcamento: valorOrcamentoConsiderado,
       descontos: toNumberSafe(descontosValor),
       preco_minimo_percent_sobre_capex: vendasConfig.preco_minimo_percent_sobre_capex,
       arredondar_venda_para: arredondarPasso,
@@ -4199,7 +4215,9 @@ export default function App() {
       regime: vendasConfig.regime_tributario_default,
       imposto_retido_aliquota: toNumberSafe(vendasConfig.imposto_retido_aliquota_default),
       incluirImpostosNoCAPEX: vendasConfig.incluirImpostosNoCAPEX_default,
-      impostosRegime: vendasConfig.impostosRegime_overrides,
+      ...(vendasConfig.impostosRegime_overrides
+        ? { impostosRegime: vendasConfig.impostosRegime_overrides }
+        : {}),
     }
 
     return calcularComposicaoUFV(input)
@@ -4213,8 +4231,9 @@ export default function App() {
     composicaoTelhado.projeto,
     composicaoTelhado.comissaoLiquida,
     descontosValor,
+    margemManualAtiva,
     margemManualValor,
-    margemOrigemAtual,
+    valorOrcamentoConsiderado,
     vendasConfig.comissao_default_tipo,
     vendasConfig.comissao_percent_base,
     vendasConfig.teto_comissao_percent,
@@ -4251,9 +4270,11 @@ export default function App() {
       comissao_tipo: vendasConfig.comissao_default_tipo,
       comissao_percent_base: vendasConfig.comissao_percent_base,
       teto_comissao_percent: vendasConfig.teto_comissao_percent,
-      margem_origem: margemOrigemAtual,
       margem_operacional_padrao_percent: vendasConfig.margem_operacional_padrao_percent,
-      margem_manual_valor: margemManualValor,
+      margem_manual_valor:
+        margemManualAtiva && margemManualValor !== undefined ? margemManualValor : null,
+      usar_margem_manual: margemManualAtiva,
+      valor_total_orcamento: valorOrcamentoConsiderado,
       descontos: toNumberSafe(descontosValor),
       preco_minimo_percent_sobre_capex: vendasConfig.preco_minimo_percent_sobre_capex,
       arredondar_venda_para: arredondarPasso,
@@ -4262,7 +4283,9 @@ export default function App() {
       regime: vendasConfig.regime_tributario_default,
       imposto_retido_aliquota: toNumberSafe(vendasConfig.imposto_retido_aliquota_default),
       incluirImpostosNoCAPEX: vendasConfig.incluirImpostosNoCAPEX_default,
-      impostosRegime: vendasConfig.impostosRegime_overrides,
+      ...(vendasConfig.impostosRegime_overrides
+        ? { impostosRegime: vendasConfig.impostosRegime_overrides }
+        : {}),
     }
 
     return calcularComposicaoUFV(input)
@@ -4285,8 +4308,9 @@ export default function App() {
     composicaoSolo.trafo,
     composicaoSolo.rede,
     descontosValor,
+    margemManualAtiva,
     margemManualValor,
-    margemOrigemAtual,
+    valorOrcamentoConsiderado,
     vendasConfig.comissao_default_tipo,
     vendasConfig.comissao_percent_base,
     vendasConfig.teto_comissao_percent,
@@ -4301,11 +4325,16 @@ export default function App() {
   ])
 
   const margemCalculadaAtual = useMemo(() => {
+    if (margemManualAtiva && margemManualValor !== undefined) {
+      return margemManualValor
+    }
     if (tipoInstalacao === 'SOLO') {
       return composicaoSoloCalculo?.margem_operacional_valor ?? 0
     }
     return composicaoTelhadoCalculo?.margem_operacional_valor ?? 0
   }, [
+    margemManualAtiva,
+    margemManualValor,
     tipoInstalacao,
     composicaoSoloCalculo?.margem_operacional_valor,
     composicaoTelhadoCalculo?.margem_operacional_valor,
@@ -4313,21 +4342,29 @@ export default function App() {
 
   const handleMargemOperacionalResumoChange = useCallback(
     (valor: string) => {
+      const trimmed = valor.trim()
+      if (!trimmed) {
+        handleMargemManualInput('')
+        return
+      }
       const parsed = parseNumericInput(valor)
       const normalizado = normalizeCurrencyNumber(parsed)
-      const finalValue = normalizado === null ? 0 : normalizado
-
-      if (margemOrigemAtual === 'manual') {
-        handleMargemManualInput(valor)
+      if (normalizado === null) {
+        handleMargemManualInput('')
+        return
       }
+      const finalValue = normalizado
+      handleMargemManualInput(valor)
 
       const capexBaseAtual =
         tipoInstalacao === 'SOLO'
           ? composicaoSoloCalculo?.capex_base
           : composicaoTelhadoCalculo?.capex_base
 
-      if (Number.isFinite(capexBaseAtual) && (capexBaseAtual ?? 0) > 0) {
-        const percent = (finalValue / (capexBaseAtual ?? 1)) * 100
+      const baseComOrcamento = (capexBaseAtual ?? 0) + Math.max(0, valorOrcamentoConsiderado)
+
+      if (Number.isFinite(baseComOrcamento) && baseComOrcamento > 0) {
+        const percent = (finalValue / baseComOrcamento) * 100
         const percentClamped = Math.min(Math.max(percent, 0), 80)
         const percentNormalizado = Math.round(percentClamped * 10000) / 10000
         if (
@@ -4345,9 +4382,9 @@ export default function App() {
       composicaoSoloCalculo?.capex_base,
       composicaoTelhadoCalculo?.capex_base,
       handleMargemManualInput,
-      margemOrigemAtual,
       tipoInstalacao,
       updateVendasConfig,
+      valorOrcamentoConsiderado,
       vendasConfig.margem_operacional_padrao_percent,
     ],
   )
@@ -4443,11 +4480,6 @@ export default function App() {
     })
   }, [vendaForm.quantidade_modulos])
 
-  const valorOrcamentoConsiderado = useMemo(() => {
-    const total = kitBudget.total
-    return typeof total === 'number' && Number.isFinite(total) ? total : 0
-  }, [kitBudget.total])
-
   const valorVendaTelhado = useMemo(
     () => Math.round((valorOrcamentoConsiderado + composicaoTelhadoTotal) * 100) / 100,
     [valorOrcamentoConsiderado, composicaoTelhadoTotal],
@@ -4460,7 +4492,7 @@ export default function App() {
 
   useEffect(() => {
     const margemCalculada =
-      margemOrigemAtual === 'manual'
+      margemManualAtiva && margemManualValor !== undefined
         ? margemManualValor
         : (tipoInstalacao === 'SOLO'
             ? composicaoSoloCalculo?.margem_operacional_valor
@@ -4472,8 +4504,8 @@ export default function App() {
       numbersAreClose(prev.lucroBruto, margemCalculada) ? prev : { ...prev, lucroBruto: margemCalculada },
     )
   }, [
+    margemManualAtiva,
     margemManualValor,
-    margemOrigemAtual,
     composicaoTelhadoCalculo?.margem_operacional_valor,
     composicaoSoloCalculo?.margem_operacional_valor,
     tipoInstalacao,
@@ -5062,9 +5094,9 @@ export default function App() {
       const composicaoConfiguracaoResumo: UfvComposicaoConfiguracao = {
         comissaoTipo: vendasConfig.comissao_default_tipo,
         comissaoBase: vendasConfig.comissao_percent_base,
-        margemOrigem: margemOrigemAtual,
         margemPadraoPercent: vendasConfig.margem_operacional_padrao_percent,
-        margemManualValor,
+        margemManualValor: margemManualAtiva && margemManualValor !== undefined ? margemManualValor : null,
+        margemManualAtiva,
         descontos: toNumberSafe(descontosValor),
         regime: vendasConfig.regime_tributario_default,
         impostoRetidoAliquota: toNumberSafe(vendasConfig.imposto_retido_aliquota_default),
@@ -5192,7 +5224,7 @@ export default function App() {
       vendasConfig.exibir_impostos,
       vendasConfig.mostrar_quebra_impostos_no_pdf_cliente,
       vendasConfig.observacao_padrao_proposta,
-      margemOrigemAtual,
+      margemManualAtiva,
       margemManualValor,
       descontosValor,
       arredondarPasso,
@@ -10241,12 +10273,10 @@ export default function App() {
       return aprovadoresResumo ? `Sim — ${aprovadoresResumo}` : 'Sim'
     })()
     const workflowStatusLabel = workflowAtivo ? 'Ativo' : 'Desativado'
-    const margemOrigemLabel =
-      margemOrigemAtual === 'manual'
-        ? 'Manual (valor customizado)'
-        : 'Automática (configuração global)'
     const margemOperacionalResumoValor: number | '' =
-      calculoAtual && Number.isFinite(calculoAtual.margem_operacional_valor)
+      margemManualAtiva && margemManualValor !== undefined
+        ? margemManualValor
+        : calculoAtual && Number.isFinite(calculoAtual.margem_operacional_valor)
         ? Math.round(calculoAtual.margem_operacional_valor * 100) / 100
         : ''
     const abrirParametrosVendas = () => {
@@ -10269,46 +10299,6 @@ export default function App() {
         <div className="composicao-ufv-controls">
           <h3>Ajustes desta proposta</h3>
           <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Origem da margem',
-                'Se automática, usa o % definido nas Configurações. Se manual, usa o valor informado nesta simulação.',
-              )}
-            >
-              <select
-                value={margemOrigemAtual}
-                onChange={(event) => {
-                  const origemSelecionada = event.target.value as MargemOrigem
-                  updateVendasSimulacao(currentBudgetId, {
-                    margemOrigem: origemSelecionada,
-                    margemManualValor:
-                      origemSelecionada === 'manual'
-                        ? Math.max(0, margemCalculadaAtual)
-                        : undefined,
-                  })
-                }}
-              >
-                <option value="automatica">Automática (configuração global)</option>
-                <option value="manual">Manual (personalizar esta proposta)</option>
-              </select>
-            </Field>
-            {margemOrigemAtual === 'manual' ? (
-              <Field
-                label={labelWithTooltip(
-                  'Margem operacional (R$)',
-                  'Defina o valor da margem desta proposta. Se a origem estiver automática, o cálculo usa o percentual configurado.',
-                )}
-              >
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={Number.isFinite(margemManualValor) ? margemManualValor : 0}
-                  onChange={(event) => handleMargemManualInput(event.target.value)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-            ) : null}
             <Field
               label={labelWithTooltip(
                 'Descontos comerciais (R$)',
@@ -10335,12 +10325,11 @@ export default function App() {
             <Field label="Margem operacional (R$)">
               <input
                 type="number"
-                min={0}
                 step="0.01"
-                value={margemOperacionalResumoValor}
+                value={margemOperacionalResumoValor === '' ? '' : margemOperacionalResumoValor}
                 onChange={(event) => handleMargemOperacionalResumoChange(event.target.value)}
                 onFocus={selectNumberInputOnFocus}
-                placeholder="—"
+                placeholder="Automático (padrão)"
               />
             </Field>
             <Field label="Comissão líquida (R$)">
@@ -10397,9 +10386,6 @@ export default function App() {
             </Field>
             <Field label="Workflow de aprovação">
               <input type="text" readOnly value={workflowStatusLabel} />
-            </Field>
-            <Field label="Origem da margem">
-              <input type="text" readOnly value={margemOrigemLabel} />
             </Field>
           </div>
           <div className="composicao-ufv-breakdown">
@@ -10573,7 +10559,7 @@ export default function App() {
 
     const handleApplyOverrides = () => {
       const sanitized = sanitizeOverridesDraft(impostosOverridesDraft)
-      updateVendasConfig({ impostosRegime_overrides: sanitized })
+      updateVendasConfig({ impostosRegime_overrides: sanitized ?? null })
     }
 
     const handleResetOverrides = (regime: RegimeTributario) => {
@@ -10581,7 +10567,7 @@ export default function App() {
         const next = cloneImpostosOverrides(prev)
         delete next[regime]
         const sanitized = sanitizeOverridesDraft(next)
-        updateVendasConfig({ impostosRegime_overrides: sanitized })
+        updateVendasConfig({ impostosRegime_overrides: sanitized ?? null })
         return next
       })
     }
@@ -10691,26 +10677,8 @@ export default function App() {
           <div className="grid g3">
             <Field
               label={labelWithTooltip(
-                'Origem da margem operacional',
-                'Define se a margem padrão é calculada automaticamente ou informada manualmente.',
-              )}
-            >
-              <select
-                value={vendasConfig.origem_margem_operacional}
-                onChange={(event) =>
-                  updateVendasConfig({
-                    origem_margem_operacional: event.target.value as MargemOrigem,
-                  })
-                }
-              >
-                <option value="automatica">Automática (percentual padrão)</option>
-                <option value="manual">Manual (valor por proposta)</option>
-              </select>
-            </Field>
-            <Field
-              label={labelWithTooltip(
                 'Margem operacional padrão (%)',
-                'Percentual aplicado sobre o CAPEX base quando a margem é automática.',
+                'Percentual aplicado sobre o CAPEX base somado ao valor do orçamento quando a margem está automática.',
               )}
             >
               <input
