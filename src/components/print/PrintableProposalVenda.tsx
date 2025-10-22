@@ -102,14 +102,16 @@ function PrintableProposalInner(
   }
   const normalizeDisplayText = (value: string | null | undefined): string | null =>
     isMeaningfulText(value) ? value?.trim() ?? null : null
+  type TableRow = { label: string; value: string; emphasize?: boolean }
   const pushRowIfMeaningful = (
-    rows: { label: string; value: string }[],
+    rows: TableRow[],
     label: string,
     value: string | null | undefined,
+    options?: { emphasize?: boolean },
   ) => {
     const normalized = normalizeDisplayText(value)
     if (normalized) {
-      rows.push({ label, value: normalized })
+      rows.push({ label, value: normalized, ...(options ?? {}) })
     }
   }
   const sanitizeTextField = (value?: string | null) => {
@@ -706,7 +708,7 @@ function PrintableProposalInner(
     sanitizeTextField(snapshotPagamento?.condicoes_adicionais_txt) ??
     sanitizeTextField(vendaFormResumo?.condicoes_adicionais) ??
     '—'
-  const condicoesPagamentoRows: { label: string; value: string }[] = []
+  const condicoesPagamentoRows: TableRow[] = []
   pushRowIfMeaningful(condicoesPagamentoRows, 'Forma de pagamento', formaPagamentoLabel)
   if (!isVendaDireta) {
     pushRowIfMeaningful(condicoesPagamentoRows, 'Investimento total (CAPEX)', investimentoCapexLabel)
@@ -722,21 +724,21 @@ function PrintableProposalInner(
     custoTecnicoImplantacaoLabel,
   )
   pushRowIfMeaningful(condicoesPagamentoRows, 'Kit fotovoltaico', kitFotovoltaicoLabel)
-  pushRowIfMeaningful(condicoesPagamentoRows, 'Valor final', valorTotalPropostaLabel)
-  const condicoesParceladoRows: { label: string; value: string }[] = []
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Valor final', valorTotalPropostaLabel, { emphasize: true })
+  const condicoesParceladoRows: TableRow[] = []
   if (!isVendaDireta && isCondicaoParcelado) {
     pushRowIfMeaningful(condicoesParceladoRows, 'Número de parcelas', parcelasResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.m.)', jurosCartaoAmResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.a.)', jurosCartaoAaResumo)
   }
-  const condicoesFinanciamentoRows: { label: string; value: string }[] = []
+  const condicoesFinanciamentoRows: TableRow[] = []
   if (!isVendaDireta && isCondicaoFinanciamento) {
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Entrada', entradaResumo)
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Número de parcelas', parcelasFinResumo)
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Juros do financiamento (% a.m.)', jurosFinAmResumo)
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Juros do financiamento (% a.a.)', jurosFinAaResumo)
   }
-  const parametrosEconomiaRows: { label: string; value: string }[] = []
+  const parametrosEconomiaRows: TableRow[] = []
   pushRowIfMeaningful(parametrosEconomiaRows, 'Inflação de energia estimada (a.a.)', inflacaoResumo)
   pushRowIfMeaningful(
     parametrosEconomiaRows,
@@ -1222,8 +1224,12 @@ function PrintableProposalInner(
                       <tbody>
                         {condicoesPagamentoRows.map((row) => (
                           <tr key={`condicao-geral-${row.label}`}>
-                            <td>{row.label}</td>
-                            <td>{row.value}</td>
+                            <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
+                              {row.emphasize ? <strong>{row.label}</strong> : row.label}
+                            </td>
+                            <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
+                              {row.emphasize ? <strong>{row.value}</strong> : row.value}
+                            </td>
                           </tr>
                         ))}
                         {condicoesParceladoRows.map((row) => (

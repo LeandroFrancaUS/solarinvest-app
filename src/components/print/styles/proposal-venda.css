@@ -282,6 +282,12 @@ html[data-print-mode='print'] .print-hero__title h1 {
   text-transform: uppercase;
 }
 
+.print-table__cell--emphasis {
+  font-weight: 700;
+  color: #0c162c;
+  background: rgba(249, 115, 22, 0.12);
+}
+
 .print-key-values {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
