@@ -1477,6 +1477,9 @@ export default function App() {
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
   const [taxaMinima, setTaxaMinimaState] = useState(INITIAL_VALUES.taxaMinima)
+  const [taxaMinimaInputEmpty, setTaxaMinimaInputEmpty] = useState(
+    () => INITIAL_VALUES.taxaMinima === 0,
+  )
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(
     INITIAL_VALUES.encargosFixosExtras,
   )
@@ -1812,6 +1815,7 @@ export default function App() {
       const nextRaw = resolveStateUpdate(valueOrUpdater, taxaMinima)
       const normalized = Number.isFinite(nextRaw) ? Math.max(0, nextRaw) : 0
       setTaxaMinimaState(normalized)
+      setTaxaMinimaInputEmpty((prev) => (normalized === 0 ? prev : false))
       updatePageSharedState((current) => {
         if (current.taxaMinima === normalized) {
           return current
@@ -1819,7 +1823,24 @@ export default function App() {
         return { ...current, taxaMinima: normalized }
       })
     },
-    [taxaMinima, updatePageSharedState],
+    [setTaxaMinimaInputEmpty, taxaMinima, updatePageSharedState],
+  )
+
+  const normalizeTaxaMinimaInputValue = useCallback(
+    (rawValue: string) => {
+      if (rawValue === '') {
+        setTaxaMinimaInputEmpty(true)
+        setTaxaMinima(0)
+        return 0
+      }
+
+      const parsed = Number(rawValue)
+      const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+      setTaxaMinimaInputEmpty(false)
+      setTaxaMinima(normalized)
+      return normalized
+    },
+    [setTaxaMinima, setTaxaMinimaInputEmpty],
   )
 
   const setUfTarifa = useCallback(
@@ -2154,6 +2175,7 @@ export default function App() {
     setKcKwhMesState((prev) => (prev === snapshot.kcKwhMes ? prev : snapshot.kcKwhMes))
     setTarifaCheiaState((prev) => (prev === snapshot.tarifaCheia ? prev : snapshot.tarifaCheia))
     setTaxaMinimaState((prev) => (prev === snapshot.taxaMinima ? prev : snapshot.taxaMinima))
+    setTaxaMinimaInputEmpty((prev) => (snapshot.taxaMinima > 0 ? false : prev))
     setUfTarifaState((prev) => (prev === snapshot.ufTarifa ? prev : snapshot.ufTarifa))
     setDistribuidoraTarifaState((prev) =>
       prev === snapshot.distribuidoraTarifa ? prev : snapshot.distribuidoraTarifa,
@@ -8113,6 +8135,7 @@ export default function App() {
     setTarifaCheia(INITIAL_VALUES.tarifaCheia)
     setDesconto(INITIAL_VALUES.desconto)
     setTaxaMinima(INITIAL_VALUES.taxaMinima)
+    setTaxaMinimaInputEmpty(INITIAL_VALUES.taxaMinima === 0)
     setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
     setTusdPercent(INITIAL_VALUES.tusdPercent)
     setTusdTipoCliente(INITIAL_VALUES.tusdTipoCliente)
@@ -8950,8 +8973,11 @@ export default function App() {
           >
             <input
               type="number"
-              value={taxaMinima}
-              onChange={(e) => setTaxaMinima(Number(e.target.value) || 0)}
+              min={0}
+              value={taxaMinimaInputEmpty ? '' : taxaMinima}
+              onChange={(event) => {
+                normalizeTaxaMinimaInputValue(event.target.value)
+              }}
               onFocus={selectNumberInputOnFocus}
             />
           </Field>
@@ -9773,28 +9799,28 @@ export default function App() {
           />
           <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
         </Field>
-        <Field
-          label={labelWithTooltip(
-            'Custos Fixos da Conta de Energia (R$/MÊS)',
-            'Total de custos fixos mensais cobrados pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
-          )}
-        >
-          <input
-            type="number"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.taxa_minima_mensal)
-                ? vendaForm.taxa_minima_mensal
-                : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setTaxaMinima(normalized)
-              applyVendaUpdates({ taxa_minima_mensal: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
+          <Field
+            label={labelWithTooltip(
+              'Custos Fixos da Conta de Energia (R$/MÊS)',
+              'Total de custos fixos mensais cobrados pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
+            )}
+          >
+            <input
+              type="number"
+              min={0}
+              value={
+                taxaMinimaInputEmpty
+                  ? ''
+                  : Number.isFinite(vendaForm.taxa_minima_mensal)
+                  ? vendaForm.taxa_minima_mensal
+                  : taxaMinima
+              }
+              onChange={(event) => {
+                const normalized = normalizeTaxaMinimaInputValue(event.target.value)
+                applyVendaUpdates({ taxa_minima_mensal: normalized })
+              }}
+              onFocus={selectNumberInputOnFocus}
+            />
           <FieldError message={vendaFormErrors.taxa_minima_mensal} />
         </Field>
         {renderTusdParameterFields()}
