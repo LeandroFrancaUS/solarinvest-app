@@ -15,8 +15,6 @@ const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
 }
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
-const ECONOMIA_ESTIMATIVA_PADRAO_ANOS = 5
-
 function PrintableProposalInner(
   props: PrintableProposalProps,
   ref: React.ForwardedRef<HTMLDivElement>,
@@ -48,8 +46,6 @@ function PrintableProposalInner(
     vendaSnapshot,
     vendasConfigSnapshot,
     valorTotalProposta: valorTotalPropostaProp,
-    economiaEstimativaValor: economiaEstimativaValorProp,
-    economiaEstimativaHorizonteAnos: economiaEstimativaHorizonteAnosProp,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -135,12 +131,6 @@ function PrintableProposalInner(
   const valorTotalPropostaNumero = hasNonZero(valorTotalPropostaProp)
     ? Number(valorTotalPropostaProp)
     : null
-  const economiaEstimativaHorizonteAnos =
-    typeof economiaEstimativaHorizonteAnosProp === 'number' &&
-    Number.isFinite(economiaEstimativaHorizonteAnosProp) &&
-    economiaEstimativaHorizonteAnosProp > 0
-      ? Math.round(economiaEstimativaHorizonteAnosProp)
-      : ECONOMIA_ESTIMATIVA_PADRAO_ANOS
   let resumoPropostaBreakdown: Array<{ nome: string; aliquota: number; valor: number }> = []
   const pickPositive = (...values: (number | null | undefined)[]): number | null => {
     for (const value of values) {
@@ -527,36 +517,6 @@ function PrintableProposalInner(
         : null)
   const valorTotalPropostaLabel =
     valorTotalPropostaPrincipalNumero != null ? currency(valorTotalPropostaPrincipalNumero) : '—'
-  const economiaResumo = (() => {
-    if (!isVendaDireta) {
-      return { valor: null as number | null, anos: null as number | null }
-    }
-    if (hasNonZero(economiaEstimativaValorProp)) {
-      return {
-        valor: Number(economiaEstimativaValorProp),
-        anos: economiaEstimativaHorizonteAnos,
-      }
-    }
-    if (!retornoVenda || !Array.isArray(retornoVenda.economia) || retornoVenda.economia.length === 0) {
-      return { valor: null as number | null, anos: null as number | null }
-    }
-    const horizonteMeses = Math.max(1, economiaEstimativaHorizonteAnos * 12)
-    const valores = retornoVenda.economia.slice(0, horizonteMeses)
-    const total = valores.reduce((acc, valor) => acc + Math.max(0, Number(valor ?? 0)), 0)
-    if (!Number.isFinite(total) || total <= 0) {
-      return { valor: null as number | null, anos: null as number | null }
-    }
-    return { valor: total, anos: economiaEstimativaHorizonteAnos }
-  })()
-  const economiaEstimativaValorDisplay = economiaResumo.valor
-  const economiaEstimativaHorizonteLabel = economiaResumo.valor != null ? economiaResumo.anos : null
-  const economiaEstimativaLabel =
-    economiaEstimativaValorDisplay != null ? currency(economiaEstimativaValorDisplay) : null
-  const economiaEstimativaTitulo =
-    economiaEstimativaHorizonteLabel != null
-      ? `Economia estimada (${economiaEstimativaHorizonteLabel} anos)`
-      : 'Economia estimada'
-  const mostrarEconomiaEstimativa = economiaEstimativaValorDisplay != null
   const tarifaInicialResumo = (() => {
     const valor = pickPositive(snapshotParametros?.tarifa_r_kwh, vendaFormResumo?.tarifa_cheia_r_kwh)
     return Number.isFinite(valor) && (valor ?? 0) > 0 ? tarifaCurrency(valor ?? 0) : tarifaCheiaResumo
@@ -814,12 +774,6 @@ function PrintableProposalInner(
               <span>Valor total da proposta</span>
               <strong>{valorTotalPropostaLabel}</strong>
             </div>
-            {mostrarEconomiaEstimativa ? (
-              <div className="print-value-card">
-                <span>{economiaEstimativaTitulo}</span>
-                <strong>{economiaEstimativaLabel}</strong>
-              </div>
-            ) : null}
           </div>
           <p className="print-value-note">
             O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos,
@@ -1121,36 +1075,6 @@ function PrintableProposalInner(
           {snapshotPagamento || vendaFormResumo ? (
             temAlgumaCondicao ? (
               <>
-                {mostrarTabelaCondicoes ? (
-                  <table className="print-table no-break-inside">
-                    <thead>
-                      <tr>
-                        <th>Parâmetro</th>
-                        <th>Valor</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {condicoesPagamentoRows.map((row) => (
-                        <tr key={`condicao-geral-${row.label}`}>
-                          <td>{row.label}</td>
-                          <td>{row.value}</td>
-                        </tr>
-                      ))}
-                      {condicoesParceladoRows.map((row) => (
-                        <tr key={`condicao-parcelado-${row.label}`}>
-                          <td>{row.label}</td>
-                          <td>{row.value}</td>
-                        </tr>
-                      ))}
-                      {condicoesFinanciamentoRows.map((row) => (
-                        <tr key={`condicao-financiamento-${row.label}`}>
-                          <td>{row.label}</td>
-                          <td>{row.value}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : null}
                 {mostrarParametrosEconomia ? (
                   <>
                     <h3 className="print-subheading keep-with-next">Parâmetros de economia</h3>
@@ -1164,6 +1088,39 @@ function PrintableProposalInner(
                       <tbody>
                         {parametrosEconomiaRows.map((row) => (
                           <tr key={`parametro-economia-${row.label}`}>
+                            <td>{row.label}</td>
+                            <td>{row.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                ) : null}
+                {mostrarTabelaCondicoes ? (
+                  <>
+                    <h3 className="print-subheading keep-with-next">Detalhe da proposta</h3>
+                    <table className="print-table no-break-inside">
+                      <thead>
+                        <tr>
+                          <th>Parâmetro</th>
+                          <th>Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {condicoesPagamentoRows.map((row) => (
+                          <tr key={`condicao-geral-${row.label}`}>
+                            <td>{row.label}</td>
+                            <td>{row.value}</td>
+                          </tr>
+                        ))}
+                        {condicoesParceladoRows.map((row) => (
+                          <tr key={`condicao-parcelado-${row.label}`}>
+                            <td>{row.label}</td>
+                            <td>{row.value}</td>
+                          </tr>
+                        ))}
+                        {condicoesFinanciamentoRows.map((row) => (
+                          <tr key={`condicao-financiamento-${row.label}`}>
                             <td>{row.label}</td>
                             <td>{row.value}</td>
                           </tr>

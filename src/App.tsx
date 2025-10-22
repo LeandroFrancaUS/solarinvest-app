@@ -5100,6 +5100,7 @@ export default function App() {
         multiUcResumo: multiUcPrintableResumo,
         vendasConfigSnapshot: printableVendasConfig,
         informacoesImportantesObservacao: vendasConfig.observacao_padrao_proposta,
+        valorTotalProposta: valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? null,
       }
     },
     [
@@ -5164,6 +5165,8 @@ export default function App() {
       budgetStructuredItems,
       leasingValorDeMercadoEstimado,
       multiUcPrintableResumo,
+      valorTotalPropostaNormalizado,
+      valorTotalPropostaState,
     ],
   )
 
