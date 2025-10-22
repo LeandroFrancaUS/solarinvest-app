@@ -206,6 +206,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
   color: rgba(15, 23, 42, 0.72);
 }
 
+.print-value-card__label {
+  font-weight: 700;
+}
+
 .print-value-card strong {
   font-size: 28px;
   font-weight: 700;

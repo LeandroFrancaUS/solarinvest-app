@@ -868,7 +868,7 @@ function PrintableProposalInner(
           <h2 className="keep-with-next">Valores da proposta</h2>
           <div className="print-values-grid">
             <div className="print-value-card print-value-card--highlight">
-              <span>
+              <span className="print-value-card__label">
                 Valor final da proposta:{' '}
                 <strong>{valorTotalPropostaLabel}</strong>
               </span>
