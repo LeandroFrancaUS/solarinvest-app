@@ -706,7 +706,7 @@ function PrintableProposalInner(
   const prazoExecucaoLabel =
     sanitizeTextField(snapshotPagamento?.prazo_execucao_txt) ??
     sanitizeTextField(vendaFormResumo?.prazo_execucao) ??
-    'Até 60 dias após assinatura do contrato'
+    'Aproximadamente 30 dias úteis após a assinatura do contrato e entrega integral do material.'
   const condicoesAdicionaisLabel =
     sanitizeTextField(snapshotPagamento?.condicoes_adicionais_txt) ??
     sanitizeTextField(vendaFormResumo?.condicoes_adicionais) ??
