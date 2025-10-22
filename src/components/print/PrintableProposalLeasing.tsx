@@ -25,6 +25,7 @@ import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
+import { CHART_THEME } from '../../helpers/ChartTheme'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -65,6 +66,8 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /condi[cç][aã]o\s+de\s+pagamento/i,
   /pot[êe]ncia\s+do\s+sistema/i,
 ]
+
+const chartTheme = CHART_THEME.light
 
 const DEFAULT_CHART_COLORS = ['#2563EB', '#0f172a'] as const
 
@@ -824,13 +827,13 @@ function PrintableProposalLeasingInner(
                 data={economiaChartData}
                 margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
               >
-                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
+                <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" horizontal={false} />
                 <XAxis
                   type="number"
-                  stroke="#0f172a"
+                  stroke={chartTheme.grid}
                   tickFormatter={formatAxis}
-                  tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
-                  axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                  tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                  axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
                   tickLine={false}
                   domain={[economiaChartDomain.min, economiaChartDomain.max]}
                 >
@@ -838,15 +841,15 @@ function PrintableProposalLeasingInner(
                     value="Benefício acumulado (R$)"
                     position="insideBottom"
                     offset={-32}
-                    style={{ fill: '#0f172a', fontSize: 13, fontWeight: 700 }}
+                    style={{ fill: chartTheme.legend, fontSize: 13, fontWeight: 700 }}
                   />
                 </XAxis>
                 <YAxis
                   type="category"
                   dataKey="ano"
-                  stroke="#0f172a"
-                  tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
-                  axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                  stroke={chartTheme.grid}
+                  tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                  axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
                   tickLine={false}
                   width={120}
                   tickFormatter={(valor) => formatAnoDescricao(Number(valor))}
@@ -854,10 +857,18 @@ function PrintableProposalLeasingInner(
                 <Tooltip
                   formatter={(value: number) => currency(Number(value))}
                   labelFormatter={(value) => formatAnoDescricao(Number(value))}
-                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', padding: 12 }}
+                  contentStyle={{
+                    borderRadius: 12,
+                    border: '1px solid var(--border)',
+                    background: chartTheme.tooltipBg,
+                    color: chartTheme.tooltipText,
+                    padding: 12,
+                  }}
+                  itemStyle={{ color: chartTheme.tooltipText }}
+                  labelStyle={{ color: chartTheme.tooltipText }}
                   wrapperStyle={{ zIndex: 1000 }}
                 />
-                <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
+                <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={1} />
                 <Bar
                   dataKey="beneficio"
                   fill={primaryChartColor}

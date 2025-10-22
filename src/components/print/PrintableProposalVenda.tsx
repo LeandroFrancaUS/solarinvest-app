@@ -8,11 +8,14 @@ import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
 import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
+import { CHART_THEME } from '../../helpers/ChartTheme'
 
 const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
   Leasing: '#2563EB',
   Financiamento: '#10B981',
 }
+
+const chartTheme = CHART_THEME.light
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
 function PrintableProposalInner(
@@ -1305,13 +1308,13 @@ function PrintableProposalInner(
               data={chartDataPrintable}
               margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
             >
-              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
+              <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" horizontal={false} />
               <XAxis
                 type="number"
-                stroke="#0f172a"
+                stroke={chartTheme.grid}
                 tickFormatter={formatAxis}
-                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
-                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
                 tickLine={false}
                 domain={[chartPrintableDomain.min, chartPrintableDomain.max]}
               >
@@ -1319,15 +1322,15 @@ function PrintableProposalInner(
                   value="Benefício acumulado (R$)"
                   position="insideBottom"
                   offset={-32}
-                  style={{ fill: '#0f172a', fontSize: 13, fontWeight: 700 }}
+                  style={{ fill: chartTheme.legend, fontSize: 13, fontWeight: 700 }}
                 />
               </XAxis>
               <YAxis
                 type="category"
                 dataKey="ano"
-                stroke="#0f172a"
-                tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 600 }}
-                axisLine={{ stroke: '#0f172a', strokeWidth: 1 }}
+                stroke={chartTheme.grid}
+                tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
                 tickLine={false}
                 width={120}
                 tickFormatter={(valor) => `${valor}º ano`}
@@ -1335,7 +1338,15 @@ function PrintableProposalInner(
               <Tooltip
                 formatter={(value: number) => currency(Number(value))}
                 labelFormatter={(value) => `${value}º ano`}
-                contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', padding: 12 }}
+                contentStyle={{
+                  borderRadius: 12,
+                  border: '1px solid var(--border)',
+                  background: chartTheme.tooltipBg,
+                  color: chartTheme.tooltipText,
+                  padding: 12,
+                }}
+                itemStyle={{ color: chartTheme.tooltipText }}
+                labelStyle={{ color: chartTheme.tooltipText }}
                 wrapperStyle={{ zIndex: 1000 }}
               />
               {mostrarFinanciamento ? (
@@ -1343,7 +1354,7 @@ function PrintableProposalInner(
                   verticalAlign="top"
                   align="left"
                   iconType="circle"
-                  wrapperStyle={{ paddingBottom: 16 }}
+                  wrapperStyle={{ paddingBottom: 16, color: chartTheme.legend }}
                   payload={[
                     {
                       id: 'Financiamento',
@@ -1354,7 +1365,7 @@ function PrintableProposalInner(
                   ]}
                 />
               ) : null}
-              <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
+              <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={1} />
               <Bar
                 dataKey="Leasing"
                 fill={DEFAULT_CHART_COLORS.Leasing}

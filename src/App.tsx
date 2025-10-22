@@ -86,6 +86,7 @@ import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode }
 import { printStyles, simplePrintStyles } from './styles/printTheme'
 import { AppRoutes } from './app/Routes'
 import { Providers } from './app/Providers'
+import { CHART_THEME } from './helpers/ChartTheme'
 import { SimulacoesTab } from './components/settings/SimulacoesTab'
 import {
   ANALISE_ANOS_PADRAO,
@@ -1425,6 +1426,32 @@ export default function App() {
   const valorTotalPropostaState = useVendaStore(
     (state) => state.resumoProposta.valor_total_proposta,
   )
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') {
+      return 'light'
+    }
+
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const applyTheme = (matches: boolean) => {
+      const nextTheme: 'light' | 'dark' = matches ? 'dark' : 'light'
+      document.documentElement.setAttribute('data-theme', nextTheme)
+      document.documentElement.style.colorScheme = nextTheme
+      setTheme(nextTheme)
+    }
+
+    applyTheme(mediaQuery.matches)
+    const handleChange = (event: MediaQueryListEvent) => applyTheme(event.matches)
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+  const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
   const [activePage, setActivePage] = useState<'app' | 'crm'>(() => {
     if (typeof window === 'undefined') {
       return 'app'
@@ -7508,19 +7535,32 @@ export default function App() {
                 ) : (
                   <ResponsiveContainer width="100%" height={240}>
                     <LineChart data={crmFinanceiroResumo.fluxoOrdenado}>
-                      <CartesianGrid stroke="rgba(148, 163, 184, 0.15)" strokeDasharray="6 6" />
-                      <XAxis dataKey="data" tickFormatter={(valor) => valor.slice(5)} stroke="#94a3b8" />
-                      <YAxis stroke="#94a3b8" tickFormatter={formatAxis} width={90} />
+                      <CartesianGrid stroke={chartTheme.grid} strokeDasharray="6 6" />
+                      <XAxis
+                        dataKey="data"
+                        tickFormatter={(valor) => valor.slice(5)}
+                        tick={{ fill: chartTheme.tick, fontSize: 12 }}
+                        stroke={chartTheme.grid}
+                      />
+                      <YAxis
+                        stroke={chartTheme.grid}
+                        tick={{ fill: chartTheme.tick, fontSize: 12 }}
+                        tickFormatter={formatAxis}
+                        width={90}
+                      />
                       <Tooltip
                         formatter={(value: number) => currency(value)}
                         labelFormatter={(label) => `Dia ${label}`}
                         contentStyle={{
-                          background: 'rgba(15,22,36,0.96)',
+                          background: chartTheme.tooltipBg,
                           borderRadius: 12,
-                          border: '1px solid rgba(148,163,184,0.2)',
+                          border: '1px solid var(--border)',
+                          color: chartTheme.tooltipText,
                         }}
+                        itemStyle={{ color: chartTheme.tooltipText }}
+                        labelStyle={{ color: chartTheme.tooltipText }}
                       />
-                      <Legend verticalAlign="top" height={36} />
+                      <Legend verticalAlign="top" height={36} wrapperStyle={{ color: chartTheme.legend }} />
                       <Line type="monotone" dataKey="entradas" name="Entradas" stroke="#22c55e" strokeWidth={2} dot={false} />
                       <Line type="monotone" dataKey="saidas" name="Saídas" stroke="#ef4444" strokeWidth={2} dot={false} />
                       <Line
@@ -11931,24 +11971,50 @@ export default function App() {
                   ) : null}
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 16, right: 24, bottom: 20, left: 12 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis
                         dataKey="ano"
-                        stroke="#E2E8F0"
-                        tick={{ fill: '#E2E8F0', fontWeight: 600 }}
-                        label={{ value: 'Anos', position: 'insideBottomRight', offset: -5, fill: '#F8FAFC', fontWeight: 700 }}
+                        stroke={chartTheme.grid}
+                        tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                        label={{
+                          value: 'Anos',
+                          position: 'insideBottomRight',
+                          offset: -5,
+                          fill: chartTheme.legend,
+                          fontWeight: 700,
+                        }}
                       />
                       <YAxis
-                        stroke="#E2E8F0"
-                        tick={{ fill: '#E2E8F0', fontWeight: 600 }}
+                        stroke={chartTheme.grid}
+                        tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
                         tickFormatter={formatAxis}
                         domain={yDomain}
                         width={92}
-                        label={{ value: 'Beneficio em Reais', angle: -90, position: 'insideLeft', offset: 12, fill: '#F8FAFC', fontWeight: 700 }}
+                        label={{
+                          value: 'Beneficio em Reais',
+                          angle: -90,
+                          position: 'insideLeft',
+                          offset: 12,
+                          fill: chartTheme.legend,
+                          fontWeight: 700,
+                        }}
                       />
-                      <Tooltip formatter={(value: number) => currency(Number(value))} contentStyle={{ background: '#0b1220', border: '1px solid #1f2b40' }} />
-                      <Legend verticalAlign="bottom" align="right" wrapperStyle={{ paddingTop: 16 }} />
-                      <ReferenceLine y={0} stroke="#475569" />
+                      <Tooltip
+                        formatter={(value: number) => currency(Number(value))}
+                        contentStyle={{
+                          background: chartTheme.tooltipBg,
+                          border: '1px solid var(--border)',
+                          color: chartTheme.tooltipText,
+                        }}
+                        itemStyle={{ color: chartTheme.tooltipText }}
+                        labelStyle={{ color: chartTheme.tooltipText }}
+                      />
+                      <Legend
+                        verticalAlign="bottom"
+                        align="right"
+                        wrapperStyle={{ paddingTop: 16, color: chartTheme.legend }}
+                      />
+                      <ReferenceLine y={0} stroke={theme === 'dark' ? 'rgba(239,68,68,0.45)' : 'rgba(239,68,68,0.35)'} />
                       {exibirLeasingLinha ? (
                         <Line
                           type="monotone"
