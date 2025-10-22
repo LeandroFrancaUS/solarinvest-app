@@ -484,3 +484,17 @@ html[data-print-mode='print'] .print-hero__title h1 {
   padding-bottom: 32px;
 }
 
+.print-section.print-important ul {
+  color: #0c162c;
+  font-weight: 500;
+}
+
+.print-section.print-important .print-important__observation {
+  color: #0c162c;
+}
+
+.print-section.print-cta .print-cta__box h2,
+.print-section.print-cta .print-cta__box p {
+  color: #0c162c;
+}
+
