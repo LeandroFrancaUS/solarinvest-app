@@ -2694,10 +2694,15 @@ export default function App() {
     }
   }, [validateVendaForm, vendaForm])
 
+  const handleCalcularRetornoRef = useRef(handleCalcularRetorno)
+
+  useEffect(() => {
+    handleCalcularRetornoRef.current = handleCalcularRetorno
+  }, [handleCalcularRetorno])
+
   const handleRecalcularVendas = useCallback(() => {
     setRecalcularTick((prev) => prev + 1)
-    handleCalcularRetorno()
-  }, [handleCalcularRetorno])
+  }, [])
 
   useEffect(() => {
     vendaActions.updateResultados({
@@ -5175,6 +5180,18 @@ export default function App() {
         economiaEstimativaValorCalculado != null ? ECONOMIA_ESTIMATIVA_PADRAO_ANOS : null,
     })
   }, [economiaEstimativaValorCalculado, isVendaDiretaTab, recalcularTick])
+
+  useEffect(() => {
+    if (recalcularTick === 0) {
+      return
+    }
+    const timeoutId = setTimeout(() => {
+      handleCalcularRetornoRef.current()
+    }, 0)
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [recalcularTick])
 
   const printableData = useMemo<PrintableProposalProps>(
     () => {
