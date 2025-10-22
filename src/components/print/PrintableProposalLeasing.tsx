@@ -588,399 +588,403 @@ function PrintableProposalLeasingInner(
   }, [informacoesImportantesObservacao])
 
   return (
-    <div ref={ref} className="print-layout leasing-print-layout">
-      <header className="print-hero">
-        <div className="print-hero__header">
-          <div className="print-hero__identity">
-            <div className="print-logo">
-              <img src="/logo.svg" alt="SolarInvest" />
+    <div ref={ref} className="print-root">
+      <section className="print-page">
+        <div className="print-layout leasing-print-layout">
+          <header className="print-hero">
+            <div className="print-hero__header">
+              <div className="print-hero__identity">
+                <div className="print-logo">
+                  <img src="/logo.svg" alt="SolarInvest" />
+                </div>
+                <div className="print-hero__title">
+                  <span className="print-hero__eyebrow">SolarInvest</span>
+                  <h1>Proposta de Leasing Solar</h1>
+                  <p className="print-hero__tagline">Energia inteligente, sustentável e sem investimento inicial.</p>
+                </div>
+              </div>
             </div>
-            <div className="print-hero__title">
-              <span className="print-hero__eyebrow">SolarInvest</span>
-              <h1>Proposta de Leasing Solar</h1>
-              <p className="print-hero__tagline">Energia inteligente, sustentável e sem investimento inicial.</p>
+            <div className="print-hero__meta">
+              <div className="print-hero__meta-item">
+                <small>Código do orçamento: </small>
+                <strong>{codigoOrcamento || '—'}</strong>
+              </div>
+              <div className="print-hero__meta-item">
+                <small>Data de emissão: </small>
+                <strong>{emissaoTexto}</strong>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="print-hero__meta">
-          <div className="print-hero__meta-item">
-            <small>Código do orçamento: </small>
-            <strong>{codigoOrcamento || '—'}</strong>
-          </div>
-          <div className="print-hero__meta-item">
-            <small>Data de emissão: </small>
-            <strong>{emissaoTexto}</strong>
-          </div>
-        </div>
-        <div className="print-hero__summary no-break-inside">
-          <p>{heroSummary}</p>
-        </div>
-      </header>
-
-      <section className="print-section keep-together">
-        <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
-        <ClientInfoGrid
-          fields={resumoCampos}
-          className="print-client-grid no-break-inside"
-          fieldClassName="print-client-field"
-          wideFieldClassName="print-client-field--wide"
-        />
-      </section>
-
-      <section id="resumo-proposta" className="print-section keep-together page-break-before">
-        <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
-        <p className="section-subtitle keep-with-next">Visão geral dos parâmetros comerciais e técnicos</p>
-        <table className="no-break-inside">
-          <thead>
-            <tr>
-              <th>Parâmetro</th>
-              <th>Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {resumoProposta.map((item) => (
-              <tr key={item.label}>
-                <td>{item.label}</td>
-                <td className="leasing-table-value">{item.value}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="print-section keep-together">
-        <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
-        <p className="section-subtitle keep-with-next">Configuração técnica do sistema proposto</p>
-        <table className="no-break-inside">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {especificacoesUsina.map((item) => (
-              <tr key={item.label}>
-                <td>{item.label}</td>
-                <td className="leasing-table-value">{item.value}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section
-        id="condicoes-financeiras"
-        className="print-section keep-together page-break-before"
-      >
-        <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
-        <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
-        <table className="no-break-inside">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {condicoesFinanceiras.map((item) => (
-              <tr key={item.label}>
-                <td>{item.label}</td>
-                <td className="leasing-table-value">{item.value}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      {multiUcResumoDados ? (
-        <section id="multi-uc" className="print-section keep-together">
-          <h2 className="section-title keep-with-next">Cenário Misto (Multi-UC)</h2>
-          <p className="section-subtitle keep-with-next">
-            Distribuição dos créditos de energia entre unidades consumidoras
-          </p>
-          <div className="print-key-values">
-            <p>
-              <strong>Energia gerada total</strong>
-              {formatKwhValor(multiUcResumoDados.energiaGeradaTotalKWh, 0)}
-            </p>
-            <p>
-              <strong>Energia compensada</strong>
-              {formatKwhValor(multiUcResumoDados.energiaGeradaUtilizadaKWh, 0)}
-            </p>
-            <p>
-              <strong>Créditos remanescentes</strong>
-              {formatKwhValor(multiUcResumoDados.sobraCreditosKWh)}
-            </p>
-            <p>
-              <strong>{`Escalonamento Fio B (${multiUcResumoDados.anoVigencia})`}</strong>
-              {multiUcEscalonamentoTexto ?? '—'}
-            </p>
-            <p>
-              <strong>Encargo TUSD (R$/mês)</strong>
-              {currency(multiUcResumoDados.totalTusd)}
-            </p>
-            <p>
-              <strong>Encargo TE (R$/mês)</strong>
-              {currency(multiUcResumoDados.totalTe)}
-            </p>
-            <p>
-              <strong>Custo total mensal (R$)</strong>
-              {currency(multiUcResumoDados.totalContrato)}
-            </p>
-            <p>
-              <strong>Modo de rateio</strong>
-              {multiUcRateioDescricao ?? '—'}
-            </p>
-          </div>
-          <table className="no-break-inside">
-            <thead>
-              <tr>
-                <th>UC</th>
-                <th>Classe</th>
-                <th>Consumo (kWh)</th>
-                <th>Créditos (kWh)</th>
-                <th>kWh faturados</th>
-                <th>kWh compensados</th>
-                <th>TE (R$/kWh)</th>
-                <th>TUSD total (R$/kWh)</th>
-                <th>TUSD Fio B (R$/kWh)</th>
-                <th>TUSD mensal (R$)</th>
-                <th>TE mensal (R$)</th>
-                <th>Total mensal (R$)</th>
-                <th>Observações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {multiUcResumoDados.ucs.map((uc) => (
-                <tr key={uc.id}>
-                  <td>{uc.id}</td>
-                  <td>{uc.classe}</td>
-                  <td className="leasing-table-value">{formatKwhValor(uc.consumoKWh)}</td>
-                  <td className="leasing-table-value">
-                    <div>{formatKwhValor(uc.creditosKWh)}</div>
-                    <small className="muted">
-                      {multiUcResumoDados.distribuicaoPorPercentual
-                        ? `Rateio: ${formatPercentBRWithDigits((uc.rateioPercentual ?? 0) / 100, 2)}`
-                        : uc.manualRateioKWh != null
-                        ? `Manual: ${formatKwhValor(uc.manualRateioKWh)}`
-                        : '—'}
-                    </small>
-                  </td>
-                  <td className="leasing-table-value">{formatKwhValor(uc.kWhFaturados)}</td>
-                  <td className="leasing-table-value">{formatKwhValor(uc.kWhCompensados)}</td>
-                  <td className="leasing-table-value">{tarifaCurrency(uc.te)}</td>
-                  <td className="leasing-table-value">{tarifaCurrency(uc.tusdTotal)}</td>
-                  <td className="leasing-table-value">{tarifaCurrency(uc.tusdFioB)}</td>
-                  <td className="leasing-table-value">{currency(uc.tusdMensal)}</td>
-                  <td className="leasing-table-value">{currency(uc.teMensal)}</td>
-                  <td className="leasing-table-value">{currency(uc.totalMensal)}</td>
-                  <td className="leasing-table-value">{uc.observacoes?.trim() || '—'}</td>
+            <div className="print-hero__summary no-break-inside">
+              <p>{heroSummary}</p>
+            </div>
+          </header>
+    
+          <section className="print-section keep-together">
+            <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
+            <ClientInfoGrid
+              fields={resumoCampos}
+              className="print-client-grid no-break-inside"
+              fieldClassName="print-client-field"
+              wideFieldClassName="print-client-field--wide"
+            />
+          </section>
+    
+          <section id="resumo-proposta" className="print-section keep-together page-break-before">
+            <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
+            <p className="section-subtitle keep-with-next">Visão geral dos parâmetros comerciais e técnicos</p>
+            <table className="no-break-inside">
+              <thead>
+                <tr>
+                  <th>Parâmetro</th>
+                  <th>Valor</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="muted no-break-inside">
-            TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
-            escalonamento vigente.
-          </p>
-        </section>
-      ) : null}
-
-      <section className="print-section keep-together">
-        <h2 className="section-title keep-with-next">Evolução das Mensalidades e Economia</h2>
-        <p className="section-subtitle keep-with-next">Comparativo anual entre tarifa convencional e SolarInvest</p>
-        <table className="no-break-inside">
-          <thead>
-            <tr>
-              <th>Período</th>
-              <th>Tarifa cheia média</th>
-              <th>Tarifa com desconto média</th>
-              <th>Conta distribuidora (R$)</th>
-              <th>Mensalidade SolarInvest (R$)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mensalidadesPorAno.map((linha) => (
-              <tr key={`mensalidade-${linha.ano}`}>
-                <td>{`${linha.ano}º ano`}</td>
-                <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
-                <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
-                <td className="leasing-table-value">{currency(linha.contaDistribuidora)}</td>
-                <td className="leasing-table-value">{currency(linha.mensalidade)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section
-        id="economia-30-anos"
-        className="print-section print-chart-section keep-together page-break-before"
-      >
-        <h2 className="section-title keep-with-next">Economia Acumulada ao Longo de 30 Anos</h2>
-        <div className="section-grid print-chart-layout no-break-inside">
-          <div className="print-chart leasing-chart no-break-inside">
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart
-                layout="vertical"
-                data={economiaChartData}
-                margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
-              >
-                <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" horizontal={false} />
-                <XAxis
-                  type="number"
-                  stroke={chartTheme.grid}
-                  tickFormatter={formatAxis}
-                  tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                  axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
-                  tickLine={false}
-                  domain={[economiaChartDomain.min, economiaChartDomain.max]}
-                >
-                  <Label
-                    value="Benefício acumulado (R$)"
-                    position="insideBottom"
-                    offset={-32}
-                    style={{ fill: chartTheme.legend, fontSize: 13, fontWeight: 700 }}
-                  />
-                </XAxis>
-                <YAxis
-                  type="category"
-                  dataKey="ano"
-                  stroke={chartTheme.grid}
-                  tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                  axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
-                  tickLine={false}
-                  width={120}
-                  tickFormatter={(valor) => formatAnoDescricao(Number(valor))}
-                />
-                <Tooltip
-                  formatter={(value: number) => currency(Number(value))}
-                  labelFormatter={(value) => formatAnoDescricao(Number(value))}
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: '1px solid var(--border)',
-                    background: chartTheme.tooltipBg,
-                    color: chartTheme.tooltipText,
-                    padding: 12,
-                  }}
-                  itemStyle={{ color: chartTheme.tooltipText }}
-                  labelStyle={{ color: chartTheme.tooltipText }}
-                  wrapperStyle={{ zIndex: 1000 }}
-                />
-                <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={1} />
-                <Bar
-                  dataKey="beneficio"
-                  fill={primaryChartColor}
-                  barSize={14}
-                  radius={[0, 8, 8, 0]}
-                  isAnimationActive={false}
-                  name="Economia acumulada"
-                >
-                  <LabelList
-                    dataKey="beneficio"
-                    position="right"
-                    formatter={(value: number) => currency(Number(value))}
-                    fill={primaryChartColor}
-                    style={{ fontSize: 12, fontWeight: 600 }}
-                  />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <ul className="print-chart-highlights no-break-inside">
-            {economiaMarcos.map((ano) => {
-              const row = economiaProjetada.find((item) => item.ano === ano)
-              return (
-                <li key={`economia-${ano}`}>
-                  <span className="print-chart-highlights__year">{formatAnoDescricao(ano)}</span>
-                  <div className="print-chart-highlights__values">
-                    <span className="print-chart-highlights__value" style={{ color: primaryChartColor }}>
-                      Economia acumulada: {row ? currency(row.acumulado) : '—'}
-                    </span>
-                    <span
-                      className="print-chart-highlights__value"
-                      style={{ color: secondaryChartColor }}
+              </thead>
+              <tbody>
+                {resumoProposta.map((item) => (
+                  <tr key={item.label}>
+                    <td>{item.label}</td>
+                    <td className="leasing-table-value">{item.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+    
+          <section className="print-section keep-together">
+            <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
+            <p className="section-subtitle keep-with-next">Configuração técnica do sistema proposto</p>
+            <table className="no-break-inside">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {especificacoesUsina.map((item) => (
+                  <tr key={item.label}>
+                    <td>{item.label}</td>
+                    <td className="leasing-table-value">{item.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+    
+          <section
+            id="condicoes-financeiras"
+            className="print-section keep-together page-break-before"
+          >
+            <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
+            <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
+            <table className="no-break-inside">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {condicoesFinanceiras.map((item) => (
+                  <tr key={item.label}>
+                    <td>{item.label}</td>
+                    <td className="leasing-table-value">{item.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+    
+          {multiUcResumoDados ? (
+            <section id="multi-uc" className="print-section keep-together">
+              <h2 className="section-title keep-with-next">Cenário Misto (Multi-UC)</h2>
+              <p className="section-subtitle keep-with-next">
+                Distribuição dos créditos de energia entre unidades consumidoras
+              </p>
+              <div className="print-key-values">
+                <p>
+                  <strong>Energia gerada total</strong>
+                  {formatKwhValor(multiUcResumoDados.energiaGeradaTotalKWh, 0)}
+                </p>
+                <p>
+                  <strong>Energia compensada</strong>
+                  {formatKwhValor(multiUcResumoDados.energiaGeradaUtilizadaKWh, 0)}
+                </p>
+                <p>
+                  <strong>Créditos remanescentes</strong>
+                  {formatKwhValor(multiUcResumoDados.sobraCreditosKWh)}
+                </p>
+                <p>
+                  <strong>{`Escalonamento Fio B (${multiUcResumoDados.anoVigencia})`}</strong>
+                  {multiUcEscalonamentoTexto ?? '—'}
+                </p>
+                <p>
+                  <strong>Encargo TUSD (R$/mês)</strong>
+                  {currency(multiUcResumoDados.totalTusd)}
+                </p>
+                <p>
+                  <strong>Encargo TE (R$/mês)</strong>
+                  {currency(multiUcResumoDados.totalTe)}
+                </p>
+                <p>
+                  <strong>Custo total mensal (R$)</strong>
+                  {currency(multiUcResumoDados.totalContrato)}
+                </p>
+                <p>
+                  <strong>Modo de rateio</strong>
+                  {multiUcRateioDescricao ?? '—'}
+                </p>
+              </div>
+              <table className="no-break-inside">
+                <thead>
+                  <tr>
+                    <th>UC</th>
+                    <th>Classe</th>
+                    <th>Consumo (kWh)</th>
+                    <th>Créditos (kWh)</th>
+                    <th>kWh faturados</th>
+                    <th>kWh compensados</th>
+                    <th>TE (R$/kWh)</th>
+                    <th>TUSD total (R$/kWh)</th>
+                    <th>TUSD Fio B (R$/kWh)</th>
+                    <th>TUSD mensal (R$)</th>
+                    <th>TE mensal (R$)</th>
+                    <th>Total mensal (R$)</th>
+                    <th>Observações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {multiUcResumoDados.ucs.map((uc) => (
+                    <tr key={uc.id}>
+                      <td>{uc.id}</td>
+                      <td>{uc.classe}</td>
+                      <td className="leasing-table-value">{formatKwhValor(uc.consumoKWh)}</td>
+                      <td className="leasing-table-value">
+                        <div>{formatKwhValor(uc.creditosKWh)}</div>
+                        <small className="muted">
+                          {multiUcResumoDados.distribuicaoPorPercentual
+                            ? `Rateio: ${formatPercentBRWithDigits((uc.rateioPercentual ?? 0) / 100, 2)}`
+                            : uc.manualRateioKWh != null
+                            ? `Manual: ${formatKwhValor(uc.manualRateioKWh)}`
+                            : '—'}
+                        </small>
+                      </td>
+                      <td className="leasing-table-value">{formatKwhValor(uc.kWhFaturados)}</td>
+                      <td className="leasing-table-value">{formatKwhValor(uc.kWhCompensados)}</td>
+                      <td className="leasing-table-value">{tarifaCurrency(uc.te)}</td>
+                      <td className="leasing-table-value">{tarifaCurrency(uc.tusdTotal)}</td>
+                      <td className="leasing-table-value">{tarifaCurrency(uc.tusdFioB)}</td>
+                      <td className="leasing-table-value">{currency(uc.tusdMensal)}</td>
+                      <td className="leasing-table-value">{currency(uc.teMensal)}</td>
+                      <td className="leasing-table-value">{currency(uc.totalMensal)}</td>
+                      <td className="leasing-table-value">{uc.observacoes?.trim() || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="muted no-break-inside">
+                TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
+                escalonamento vigente.
+              </p>
+            </section>
+          ) : null}
+    
+          <section className="print-section keep-together">
+            <h2 className="section-title keep-with-next">Evolução das Mensalidades e Economia</h2>
+            <p className="section-subtitle keep-with-next">Comparativo anual entre tarifa convencional e SolarInvest</p>
+            <table className="no-break-inside">
+              <thead>
+                <tr>
+                  <th>Período</th>
+                  <th>Tarifa cheia média</th>
+                  <th>Tarifa com desconto média</th>
+                  <th>Conta distribuidora (R$)</th>
+                  <th>Mensalidade SolarInvest (R$)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mensalidadesPorAno.map((linha) => (
+                  <tr key={`mensalidade-${linha.ano}`}>
+                    <td>{`${linha.ano}º ano`}</td>
+                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
+                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
+                    <td className="leasing-table-value">{currency(linha.contaDistribuidora)}</td>
+                    <td className="leasing-table-value">{currency(linha.mensalidade)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+    
+          <section
+            id="economia-30-anos"
+            className="print-section print-chart-section keep-together page-break-before"
+          >
+            <h2 className="section-title keep-with-next">Economia Acumulada ao Longo de 30 Anos</h2>
+            <div className="section-grid print-chart-layout no-break-inside">
+              <div className="print-chart leasing-chart no-break-inside">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart
+                    layout="vertical"
+                    data={economiaChartData}
+                    margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
+                  >
+                    <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      stroke={chartTheme.grid}
+                      tickFormatter={formatAxis}
+                      tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                      axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
+                      tickLine={false}
+                      domain={[economiaChartDomain.min, economiaChartDomain.max]}
                     >
-                      Economia no ano: {row ? currency(row.economiaAnual) : '—'}
-                    </span>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                      <Label
+                        value="Benefício acumulado (R$)"
+                        position="insideBottom"
+                        offset={-32}
+                        style={{ fill: chartTheme.legend, fontSize: 13, fontWeight: 700 }}
+                      />
+                    </XAxis>
+                    <YAxis
+                      type="category"
+                      dataKey="ano"
+                      stroke={chartTheme.grid}
+                      tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                      axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
+                      tickLine={false}
+                      width={120}
+                      tickFormatter={(valor) => formatAnoDescricao(Number(valor))}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => currency(Number(value))}
+                      labelFormatter={(value) => formatAnoDescricao(Number(value))}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: '1px solid var(--border)',
+                        background: chartTheme.tooltipBg,
+                        color: chartTheme.tooltipText,
+                        padding: 12,
+                      }}
+                      itemStyle={{ color: chartTheme.tooltipText }}
+                      labelStyle={{ color: chartTheme.tooltipText }}
+                      wrapperStyle={{ zIndex: 1000 }}
+                    />
+                    <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={1} />
+                    <Bar
+                      dataKey="beneficio"
+                      fill={primaryChartColor}
+                      barSize={14}
+                      radius={[0, 8, 8, 0]}
+                      isAnimationActive={false}
+                      name="Economia acumulada"
+                    >
+                      <LabelList
+                        dataKey="beneficio"
+                        position="right"
+                        formatter={(value: number) => currency(Number(value))}
+                        fill={primaryChartColor}
+                        style={{ fontSize: 12, fontWeight: 600 }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <ul className="print-chart-highlights no-break-inside">
+                {economiaMarcos.map((ano) => {
+                  const row = economiaProjetada.find((item) => item.ano === ano)
+                  return (
+                    <li key={`economia-${ano}`}>
+                      <span className="print-chart-highlights__year">{formatAnoDescricao(ano)}</span>
+                      <div className="print-chart-highlights__values">
+                        <span className="print-chart-highlights__value" style={{ color: primaryChartColor }}>
+                          Economia acumulada: {row ? currency(row.acumulado) : '—'}
+                        </span>
+                        <span
+                          className="print-chart-highlights__value"
+                          style={{ color: secondaryChartColor }}
+                        >
+                          Economia no ano: {row ? currency(row.economiaAnual) : '—'}
+                        </span>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+            <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
+          </section>
+    
+          <section
+            id="infos-importantes"
+            className="print-section print-important keep-together page-break-before"
+          >
+            <h2 className="section-title keep-with-next">Informações Importantes</h2>
+            <p className="section-subtitle keep-with-next">
+              <strong>Responsabilidades, garantias e condições gerais</strong>
+            </p>
+            <ul className="no-break-inside">
+              <li>
+                Durante toda a vigência do contrato, a SolarInvest é responsável pela{' '}
+                <strong>operação, manutenção, suporte técnico, limpeza e seguro integral</strong> da usina.
+              </li>
+              <li>
+                As tarifas de energia apresentadas são{' '}
+                <strong>projeções baseadas nas condições atuais de mercado</strong> e podem variar conforme{' '}
+                <strong>reajustes autorizados pela ANEEL</strong>, aplicação de <strong>bandeiras tarifárias</strong> ou{' '}
+                <strong>mudanças na matriz energética</strong>.
+              </li>
+              <li>
+                Todos os equipamentos fornecidos possuem <strong>certificação INMETRO</strong> e atendem às{' '}
+                <strong>normas técnicas vigentes</strong>.
+              </li>
+              <li>
+                A <strong>tabela de compra antecipada</strong> da usina está disponível mediante solicitação ao consultor{' '}
+                SolarInvest.
+              </li>
+              <li>
+                Os <strong>valores, taxas, tarifas e mensalidades</strong> exibidos representam{' '}
+                <strong>simulações preliminares</strong>, calculadas com base em estimativas de consumo, tarifas vigentes e{' '}
+                parâmetros técnicos médios.
+              </li>
+              <li>
+                Essas <strong>simulações não constituem valores contratuais finais</strong> e poderão sofrer ajustes após a{' '}
+                <strong>análise técnica</strong>, <strong>vistoria</strong>, <strong>alterações tarifárias</strong> ou{' '}
+                <strong>atualizações comerciais da SolarInvest</strong>.
+              </li>
+              <li>
+                A <strong>formalização definitiva</strong> dos valores e condições ocorrerá{' '}
+                <strong>somente no momento da assinatura do contrato</strong>.
+              </li>
+            </ul>
+            {informacoesImportantesObservacaoTexto ? (
+              <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
+            ) : null}
+          </section>
+    
+          <footer className="print-final-footer no-break-inside">
+            <div className="print-final-footer__dates">
+              <p>
+                <strong>Data de emissão da proposta:</strong> {emissaoTexto}
+              </p>
+              <p>
+                <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
+              </p>
+            </div>
+            <div className="print-final-footer__signature">
+              <div className="signature-line" />
+              <span>Assinatura do cliente</span>
+            </div>
+          </footer>
+    
+          <div className="print-brand-footer no-break-inside">
+            <strong>SOLARINVEST</strong>
+            <span>CNPJ: 60.434.015/0001-90</span>
+            <span>Anápolis-GO</span>
+            <span>Solarinvest.info</span>
+          </div>
         </div>
-        <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
       </section>
-
-      <section
-        id="infos-importantes"
-        className="print-section print-important keep-together page-break-before"
-      >
-        <h2 className="section-title keep-with-next">Informações Importantes</h2>
-        <p className="section-subtitle keep-with-next">
-          <strong>Responsabilidades, garantias e condições gerais</strong>
-        </p>
-        <ul className="no-break-inside">
-          <li>
-            Durante toda a vigência do contrato, a SolarInvest é responsável pela{' '}
-            <strong>operação, manutenção, suporte técnico, limpeza e seguro integral</strong> da usina.
-          </li>
-          <li>
-            As tarifas de energia apresentadas são{' '}
-            <strong>projeções baseadas nas condições atuais de mercado</strong> e podem variar conforme{' '}
-            <strong>reajustes autorizados pela ANEEL</strong>, aplicação de <strong>bandeiras tarifárias</strong> ou{' '}
-            <strong>mudanças na matriz energética</strong>.
-          </li>
-          <li>
-            Todos os equipamentos fornecidos possuem <strong>certificação INMETRO</strong> e atendem às{' '}
-            <strong>normas técnicas vigentes</strong>.
-          </li>
-          <li>
-            A <strong>tabela de compra antecipada</strong> da usina está disponível mediante solicitação ao consultor{' '}
-            SolarInvest.
-          </li>
-          <li>
-            Os <strong>valores, taxas, tarifas e mensalidades</strong> exibidos representam{' '}
-            <strong>simulações preliminares</strong>, calculadas com base em estimativas de consumo, tarifas vigentes e{' '}
-            parâmetros técnicos médios.
-          </li>
-          <li>
-            Essas <strong>simulações não constituem valores contratuais finais</strong> e poderão sofrer ajustes após a{' '}
-            <strong>análise técnica</strong>, <strong>vistoria</strong>, <strong>alterações tarifárias</strong> ou{' '}
-            <strong>atualizações comerciais da SolarInvest</strong>.
-          </li>
-          <li>
-            A <strong>formalização definitiva</strong> dos valores e condições ocorrerá{' '}
-            <strong>somente no momento da assinatura do contrato</strong>.
-          </li>
-        </ul>
-        {informacoesImportantesObservacaoTexto ? (
-          <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
-        ) : null}
-      </section>
-
-      <footer className="print-final-footer no-break-inside">
-        <div className="print-final-footer__dates">
-          <p>
-            <strong>Data de emissão da proposta:</strong> {emissaoTexto}
-          </p>
-          <p>
-            <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
-          </p>
-        </div>
-        <div className="print-final-footer__signature">
-          <div className="signature-line" />
-          <span>Assinatura do cliente</span>
-        </div>
-      </footer>
-
-      <div className="print-brand-footer no-break-inside">
-        <strong>SOLARINVEST</strong>
-        <span>CNPJ: 60.434.015/0001-90</span>
-        <span>Anápolis-GO</span>
-        <span>Solarinvest.info</span>
-      </div>
     </div>
   )
 }

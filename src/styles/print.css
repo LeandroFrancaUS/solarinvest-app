@@ -1,0 +1,308 @@
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+html[data-print-mode],
+body[data-print-mode] {
+  margin: 0;
+  padding: 0;
+}
+
+html[data-print-mode='print'],
+body[data-print-mode='print'],
+html[data-print-mode='download'],
+body[data-print-mode='download'] {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+html[data-print-mode='print'] .print-page,
+body[data-print-mode='print'] .print-page,
+html[data-print-mode='download'] .print-page,
+body[data-print-mode='download'] .print-page {
+  box-shadow: none !important;
+}
+
+html[data-print-mode='print'] .preview-toolbar,
+body[data-print-mode='print'] .preview-toolbar,
+html[data-print-mode='download'] .preview-toolbar,
+body[data-print-mode='download'] .preview-toolbar {
+  display: none !important;
+}
+
+html[data-print-mode='print'] .print-hero,
+body[data-print-mode='print'] .print-hero,
+html[data-print-mode='download'] .print-hero,
+body[data-print-mode='download'] .print-hero,
+html[data-print-mode='print'] .print-hero__summary,
+body[data-print-mode='print'] .print-hero__summary,
+html[data-print-mode='download'] .print-hero__summary,
+body[data-print-mode='download'] .print-hero__summary,
+html[data-print-mode='print'] .print-section,
+body[data-print-mode='print'] .print-section,
+html[data-print-mode='download'] .print-section,
+body[data-print-mode='download'] .print-section,
+html[data-print-mode='print'] .print-card,
+body[data-print-mode='print'] .print-card,
+html[data-print-mode='download'] .print-card,
+body[data-print-mode='download'] .print-card,
+html[data-print-mode='print'] .print-cta__box,
+body[data-print-mode='print'] .print-cta__box,
+html[data-print-mode='download'] .print-cta__box,
+body[data-print-mode='download'] .print-cta__box,
+html[data-print-mode='print'] .print-final-footer,
+body[data-print-mode='print'] .print-final-footer,
+html[data-print-mode='download'] .print-final-footer,
+body[data-print-mode='download'] .print-final-footer,
+html[data-print-mode='print'] .print-value-card,
+body[data-print-mode='print'] .print-value-card,
+html[data-print-mode='download'] .print-value-card,
+body[data-print-mode='download'] .print-value-card,
+html[data-print-mode='print'] .print-chart,
+body[data-print-mode='print'] .print-chart,
+html[data-print-mode='download'] .print-chart,
+body[data-print-mode='download'] .print-chart,
+html[data-print-mode='print'] .print-yearly-payments__item,
+body[data-print-mode='print'] .print-yearly-payments__item,
+html[data-print-mode='download'] .print-yearly-payments__item,
+body[data-print-mode='download'] .print-yearly-payments__item {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.28) !important;
+  box-shadow: none !important;
+}
+
+html[data-print-mode='print'] .print-hero::after,
+body[data-print-mode='print'] .print-hero::after,
+html[data-print-mode='download'] .print-hero::after,
+body[data-print-mode='download'] .print-hero::after,
+html[data-print-mode='print'] .print-chart::after,
+body[data-print-mode='print'] .print-chart::after,
+html[data-print-mode='download'] .print-chart::after,
+body[data-print-mode='download'] .print-chart::after {
+  display: none !important;
+}
+
+html[data-print-mode='print'] .print-logo,
+body[data-print-mode='print'] .print-logo,
+html[data-print-mode='download'] .print-logo,
+body[data-print-mode='download'] .print-logo {
+  background: transparent !important;
+  border: 1px solid rgba(15, 23, 42, 0.2) !important;
+  box-shadow: none !important;
+}
+
+html[data-print-mode='print'] .print-logo img,
+body[data-print-mode='print'] .print-logo img,
+html[data-print-mode='download'] .print-logo img,
+body[data-print-mode='download'] .print-logo img {
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+@media print {
+  html,
+  body {
+    height: auto !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    image-rendering: crisp-edges;
+  }
+
+  body {
+    font-family: 'Inter', 'Roboto', sans-serif;
+  }
+
+  * {
+    box-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    text-shadow: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+  [style*='transform'],
+  [class*='transform'] {
+    transform: none !important;
+  }
+
+  .print-root {
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .print-page {
+    width: calc(210mm - 24mm);
+    max-width: 100%;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: none !important;
+    transform: none !important;
+    zoom: 1 !important;
+    overflow: visible !important;
+    page-break-after: always;
+    break-after: page;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-page:last-of-type {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .print-layout {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: transparent !important;
+    color: inherit !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  .print-hero,
+  .print-hero__summary,
+  .print-section,
+  .print-card,
+  .print-cta__box,
+  .print-final-footer,
+  .print-value-card,
+  .print-chart,
+  .print-chart-highlights li,
+  .print-yearly-payments__item,
+  .print-avoid-break,
+  .keep-together,
+  .no-break-inside,
+  .keep-with-next {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-hero::after,
+  .print-chart::after {
+    display: none !important;
+  }
+
+  .print-logo,
+  .print-logo img {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: avoid;
+  }
+
+  th,
+  td {
+    border: 1px solid rgba(15, 23, 42, 0.4) !important;
+    padding: 6px 8px !important;
+    color: #0f172a !important;
+    background: #ffffff !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  tr,
+  thead,
+  tbody {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  img,
+  svg,
+  canvas {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid;
+  }
+
+  .app-header,
+  .site-header,
+  .tabs,
+  .tabs-bar,
+  .page-actions,
+  .chart-explainer {
+    position: static !important;
+    top: auto !important;
+    bottom: auto !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .topbar,
+  .tabs,
+  .page-actions,
+  .legend-toggle,
+  .collapse-toggle,
+  .crm-button,
+  .clients-table-action,
+  .preview-toolbar,
+  .preview-toolbar-actions {
+    display: none !important;
+  }
+
+  .modal-body,
+  .content,
+  .table-wrapper,
+  .card,
+  .print-section,
+  .print-page,
+  .print-layout {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+}
+
+@media screen {
+  html:not([data-print-mode]) .print-root {
+    position: fixed;
+    top: -9999px;
+    left: -9999px;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .print-page {
+    width: 794px;
+    max-width: 100%;
+    margin: 24px auto;
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+  }
+
+  .print-root {
+    padding: 24px 0;
+    background: transparent;
+  }
+}

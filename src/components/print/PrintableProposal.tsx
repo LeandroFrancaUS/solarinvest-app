@@ -1,5 +1,7 @@
 import React from 'react'
 
+import '../../styles/print.css'
+
 import type { PrintableProposalProps } from '../../types/printableProposal'
 
 import PrintableProposalLeasing from './PrintableProposalLeasing'
