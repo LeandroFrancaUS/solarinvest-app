@@ -9738,13 +9738,14 @@ export default function App() {
         >
           <input
             type="number"
-            min={1}
+            min={0}
+            step={1}
             ref={moduleQuantityInputRef}
             value={
               numeroModulosManual === ''
                 ? numeroModulosEstimado > 0
                   ? numeroModulosEstimado
-                  : ''
+                  : 0
                 : numeroModulosManual
             }
             onChange={(event) => {
@@ -10229,13 +10230,14 @@ export default function App() {
         >
           <input
             type="number"
-            min={1}
+            min={0}
+            step={1}
             ref={moduleQuantityInputRef}
             value={
               numeroModulosManual === ''
                 ? numeroModulosEstimado > 0
                   ? numeroModulosEstimado
-                  : ''
+                  : 0
                 : numeroModulosManual
             }
             onChange={(event) => {
