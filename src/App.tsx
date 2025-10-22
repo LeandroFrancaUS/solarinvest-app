@@ -1561,6 +1561,12 @@ export default function App() {
   const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
 
+  const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
+  const capexBaseManualValor =
+    typeof capexBaseManualValorRaw === 'number' && Number.isFinite(capexBaseManualValorRaw)
+      ? Math.max(0, capexBaseManualValorRaw)
+      : undefined
+
   useEffect(() => {
     setAprovadoresText(vendasConfig.aprovadores.join('\n'))
   }, [vendasConfig.aprovadores])
@@ -2530,6 +2536,18 @@ export default function App() {
     [currentBudgetId, updateVendasSimulacao],
   )
 
+  const handleCapexBaseResumoChange = useCallback(
+    (valor: number | null) => {
+      if (valor === null) {
+        updateVendasSimulacao(currentBudgetId, { capexBaseManual: null })
+        return
+      }
+      const sanitized = Number.isFinite(valor) ? Math.max(0, Number(valor)) : 0
+      updateVendasSimulacao(currentBudgetId, { capexBaseManual: sanitized })
+    },
+    [currentBudgetId, updateVendasSimulacao],
+  )
+
   const validateVendaForm = useCallback((form: VendaForm) => {
     const errors: Record<string, string> = {}
 
@@ -2652,10 +2670,9 @@ export default function App() {
   const [retornoStatus, setRetornoStatus] = useState<'idle' | 'calculating'>('idle')
   const [retornoError, setRetornoError] = useState<string | null>(null)
   const [recalcularTick, setRecalcularTick] = useState(0)
-  const valorTotalPropostaNormalizado =
-    Number.isFinite(vendaForm.capex_total) && (vendaForm.capex_total ?? 0) > 0
-      ? Math.max(0, Number(vendaForm.capex_total))
-      : null
+  const valorTotalPropostaNormalizado = Number.isFinite(vendaForm.capex_total)
+    ? Math.max(0, Number(vendaForm.capex_total))
+    : 0
 
   useEffect(() => {
     if (!isVendaDiretaTab) {
@@ -4253,6 +4270,7 @@ export default function App() {
       crea: toNumberSafe(composicaoTelhado.crea),
       art: toNumberSafe(composicaoTelhado.art),
       placa: toNumberSafe(composicaoTelhado.placa),
+      capex_base_manual: capexBaseManualValor,
       comissao_liquida_input: toNumberSafe(composicaoTelhado.comissaoLiquida),
       comissao_tipo: vendasConfig.comissao_default_tipo,
       comissao_percent_base: vendasConfig.comissao_percent_base,
@@ -4277,6 +4295,7 @@ export default function App() {
 
     return calcularComposicaoUFV(input)
   }, [
+    capexBaseManualValor,
     arredondarPasso,
     composicaoTelhado.art,
     composicaoTelhado.crea,
@@ -4300,6 +4319,7 @@ export default function App() {
     vendasConfig.imposto_retido_aliquota_default,
     vendasConfig.impostosRegime_overrides,
     vendasConfig.incluirImpostosNoCAPEX_default,
+    recalcularTick,
   ])
 
   const composicaoSoloCalculo = useMemo(() => {
@@ -4321,6 +4341,7 @@ export default function App() {
       crea: toNumberSafe(composicaoSolo.crea),
       art: toNumberSafe(composicaoSolo.art),
       placa: toNumberSafe(composicaoSolo.placa),
+      capex_base_manual: capexBaseManualValor,
       comissao_liquida_input: toNumberSafe(composicaoSolo.comissaoLiquida),
       comissao_tipo: vendasConfig.comissao_default_tipo,
       comissao_percent_base: vendasConfig.comissao_percent_base,
@@ -4345,6 +4366,7 @@ export default function App() {
 
     return calcularComposicaoUFV(input)
   }, [
+    capexBaseManualValor,
     arredondarPasso,
     composicaoSolo.art,
     composicaoSolo.crea,
@@ -4377,7 +4399,23 @@ export default function App() {
     vendasConfig.imposto_retido_aliquota_default,
     vendasConfig.impostosRegime_overrides,
     vendasConfig.incluirImpostosNoCAPEX_default,
+    recalcularTick,
   ])
+
+  const capexBaseResumoValor = useMemo(() => {
+    if (typeof capexBaseManualValor === 'number') {
+      return capexBaseManualValor
+    }
+    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
+    const valor = calculoAtual?.capex_base
+    return Number.isFinite(valor ?? Number.NaN) ? Math.max(0, Number(valor)) : 0
+  }, [capexBaseManualValor, tipoInstalacao, composicaoSoloCalculo, composicaoTelhadoCalculo])
+
+  const capexBaseResumoField = useBRNumberField({
+    mode: 'money',
+    value: capexBaseResumoValor,
+    onChange: handleCapexBaseResumoChange,
+  })
 
   const margemCalculadaAtual = useMemo(() => {
     if (margemManualAtiva && margemManualValor !== undefined) {
@@ -10424,11 +10462,7 @@ export default function App() {
       <div className="kpi-grid">
         <div className="kpi kpi-highlight">
           <span>Valor total da proposta</span>
-          <strong>
-            {valorTotalPropostaNormalizado != null
-              ? currency(valorTotalPropostaNormalizado)
-              : ''}
-          </strong>
+          <strong>{currency(valorTotalPropostaNormalizado)}</strong>
         </div>
         {economiaEstimativaValorCalculado != null ? (
           <div className="kpi">
@@ -10517,7 +10551,18 @@ export default function App() {
           <h3>Resumo do cálculo</h3>
           <div className="grid g3">
             <Field label="CAPEX base">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.capex_base)} />
+              <input
+                ref={capexBaseResumoField.ref}
+                type="text"
+                inputMode="decimal"
+                value={capexBaseResumoField.text}
+                onChange={capexBaseResumoField.handleChange}
+                onBlur={(event) => {
+                  capexBaseResumoField.handleBlur(event)
+                  capexBaseResumoField.setText(formatMoneyBR(capexBaseResumoValor))
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
             </Field>
             <Field label="Margem operacional (R$)">
               <input
@@ -11401,7 +11446,7 @@ export default function App() {
           </Field>
           <Field
             label={labelWithTooltip(
-              isVendaDiretaTab ? 'Valor total da proposta (R$)' : 'Investimento (CAPEX total)',
+              isVendaDiretaTab ? 'VALOR TOTAL DA PROPOSTA (R$)' : 'Investimento (CAPEX total)',
               isVendaDiretaTab
                 ? 'Preço final para aquisição da usina completa (equipamentos, instalação, homologação e suporte).'
                 : 'Valor total do projeto fotovoltaico. Serve de base para entradas, parcelas e margens.',
@@ -11413,7 +11458,10 @@ export default function App() {
               inputMode="decimal"
               value={capexMoneyField.text}
               onChange={capexMoneyField.handleChange}
-              onBlur={capexMoneyField.handleBlur}
+              onBlur={(event) => {
+                capexMoneyField.handleBlur(event)
+                capexMoneyField.setText(formatMoneyBR(valorTotalPropostaNormalizado))
+              }}
               onFocus={selectNumberInputOnFocus}
             />
             <FieldError message={vendaFormErrors.capex_total} />

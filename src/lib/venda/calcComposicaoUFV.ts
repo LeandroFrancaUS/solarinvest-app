@@ -24,6 +24,9 @@ export interface Inputs {
   art: number;
   placa: number;
 
+  // Sobrescrita manual do CAPEX base (opcional)
+  capex_base_manual?: number | null;
+
   // Comissão
   comissao_liquida_input: number; // valor em R$ ou % (conforme tipo)
   comissao_tipo: ComissaoTipo;
@@ -169,8 +172,14 @@ const arredondarValor = (valor: number, passo: ArredondarPasso): number => {
 };
 
 export function calcularComposicaoUFV(i: Inputs): Outputs {
-  const capex_base =
+  const capex_base_calculado =
     nz(i.projeto) + nz(i.instalacao) + nz(i.material_ca) + nz(i.crea) + nz(i.art) + nz(i.placa);
+
+  const capex_base_manual = Number.isFinite(i.capex_base_manual ?? Number.NaN)
+    ? Math.max(0, Number(i.capex_base_manual))
+    : null;
+
+  const capex_base = capex_base_manual ?? capex_base_calculado;
 
   const descontos = Math.max(0, nz(i.descontos));
   const margemPercent = clampRange(i.margem_operacional_padrao_percent ?? 0, 0, 80);
