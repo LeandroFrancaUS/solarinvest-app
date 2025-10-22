@@ -36,7 +36,7 @@ export function toNumberFlexible(input: unknown): number | null {
 
 /** Formata número genérico no padrão pt-BR. */
 export function formatNumberBR(n: number | null | undefined): string {
-  if (!isFiniteNumber(n)) return '—'
+  if (!isFiniteNumber(n)) return ''
   return fmtNumber.format(n)
 }
 
@@ -45,13 +45,13 @@ export function formatNumberBRWithOptions(
   n: number | null | undefined,
   options: Intl.NumberFormatOptions,
 ): string {
-  if (!isFiniteNumber(n)) return '—'
+  if (!isFiniteNumber(n)) return ''
   return new Intl.NumberFormat('pt-BR', options).format(n)
 }
 
 /** Formata moeda (BRL). */
 export function formatMoneyBR(n: number | null | undefined): string {
-  if (!isFiniteNumber(n)) return '—'
+  if (!isFiniteNumber(n)) return ''
   return fmtMoney.format(n)
 }
 
@@ -60,7 +60,7 @@ export function formatMoneyBRWithDigits(
   n: number | null | undefined,
   fractionDigits: number,
 ): string {
-  if (!isFiniteNumber(n)) return '—'
+  if (!isFiniteNumber(n)) return ''
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -71,7 +71,7 @@ export function formatMoneyBRWithDigits(
 
 /** Formata percentual (0.105 -> "10,5%"). */
 export function formatPercentBR(frac: number | null | undefined): string {
-  if (!isFiniteNumber(frac)) return '—'
+  if (!isFiniteNumber(frac)) return ''
   return fmtPerc.format(frac)
 }
 
@@ -79,7 +79,7 @@ export function formatPercentBRWithDigits(
   frac: number | null | undefined,
   fractionDigits: number,
 ): string {
-  if (!isFiniteNumber(frac)) return '—'
+  if (!isFiniteNumber(frac)) return ''
   return new Intl.NumberFormat('pt-BR', {
     style: 'percent',
     minimumFractionDigits: fractionDigits,
@@ -89,8 +89,8 @@ export function formatPercentBRWithDigits(
 
 // Unidades técnicas
 export const fmt = {
-  kwhMes: (n?: number | null) => (!isFiniteNumber(n) ? '—' : `${fmtNumber.format(n)} kWh/mês`),
-  kwp: (n?: number | null) => (!isFiniteNumber(n) ? '—' : `${fmtNumber.format(n)} kWp`),
-  wp: (n?: number | null) => (!isFiniteNumber(n) ? '—' : `${fmtNumber.format(n)} Wp`),
-  m2: (n?: number | null) => (!isFiniteNumber(n) ? '—' : `${fmtNumber.format(n)} m²`),
+  kwhMes: (n?: number | null) => (!isFiniteNumber(n) ? '' : `${fmtNumber.format(n)} kWh/mês`),
+  kwp: (n?: number | null) => (!isFiniteNumber(n) ? '' : `${fmtNumber.format(n)} kWp`),
+  wp: (n?: number | null) => (!isFiniteNumber(n) ? '' : `${fmtNumber.format(n)} Wp`),
+  m2: (n?: number | null) => (!isFiniteNumber(n) ? '' : `${fmtNumber.format(n)} m²`),
 }
