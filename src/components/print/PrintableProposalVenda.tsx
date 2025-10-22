@@ -749,7 +749,7 @@ function PrintableProposalInner(
   const prazoExecucaoLabel =
     sanitizeTextField(snapshotPagamento?.prazo_execucao_txt) ??
     sanitizeTextField(vendaFormResumo?.prazo_execucao) ??
-    'Até 30 dias úteis após a assinatura do contrato e entrega integral do material.'
+    'Até 30 dias úteis após a assinatura do contrato e entrega integral do material'
   const condicoesAdicionaisLabel =
     sanitizeTextField(snapshotPagamento?.condicoes_adicionais_txt) ??
     sanitizeTextField(vendaFormResumo?.condicoes_adicionais) ??
@@ -1262,7 +1262,7 @@ function PrintableProposalInner(
                 {mostrarTabelaCondicoes ? (
                   <>
                     <h3 className="print-subheading keep-with-next">Detalhe da proposta</h3>
-                    <table className="print-table no-break-inside">
+                    <table className="print-table print-table--detalhe-proposta no-break-inside">
                       <thead>
                         <tr>
                           <th>Parâmetro</th>
@@ -1273,7 +1273,9 @@ function PrintableProposalInner(
                         {condicoesPagamentoRows.map((row) => (
                           <tr key={`condicao-geral-${row.label}`}>
                             <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
-                              <span className="print-table__label-text">
+                              <span
+                                className={`print-table__label-text${row.labelAnnotation ? ' print-table__label-text--annotated' : ''}`}
+                              >
                                 {row.emphasize ? <strong>{row.label}</strong> : row.label}
                                 {row.labelAnnotation ? (
                                   <span className="print-table__label-annotation">{row.labelAnnotation}</span>
