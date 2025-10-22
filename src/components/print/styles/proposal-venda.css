@@ -292,6 +292,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
   display: block;
 }
 
+.print-table__label-text--annotated {
+  font-style: italic;
+}
+
 .print-table__label-annotation {
   display: inline;
   margin-left: 4px;
@@ -299,6 +303,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
   font-size: calc(100% - 2pt);
   font-weight: 400;
   color: inherit;
+}
+
+.print-table__label-text--annotated .print-table__label-annotation {
+  font-style: inherit;
 }
 
 .print-table__description {
@@ -336,6 +344,16 @@ html[data-print-mode='print'] .print-hero__title h1 {
   text-transform: uppercase;
   color: #0c162c;
   margin-bottom: 6px;
+}
+
+.print-table--detalhe-proposta th:first-child,
+.print-table--detalhe-proposta td:first-child {
+  width: 58%;
+}
+
+.print-table--detalhe-proposta th:nth-child(2),
+.print-table--detalhe-proposta td:nth-child(2) {
+  width: 42%;
 }
 
 .print-summary-grid {
