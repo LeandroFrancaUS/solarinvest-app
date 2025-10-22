@@ -2449,6 +2449,7 @@ export default function App() {
     [currentBudgetId, updateVendasSimulacao],
   )
 
+
   const handleDescontosConfigChange = useCallback(
     (valor: string) => {
       const parsed = parseNumericInput(valor)
@@ -4297,6 +4298,47 @@ export default function App() {
     composicaoSoloCalculo?.margem_operacional_valor,
     composicaoTelhadoCalculo?.margem_operacional_valor,
   ])
+
+  const handleMargemOperacionalResumoChange = useCallback(
+    (valor: string) => {
+      const parsed = parseNumericInput(valor)
+      const normalizado = normalizeCurrencyNumber(parsed)
+      const finalValue = normalizado === null ? 0 : normalizado
+
+      if (margemOrigemAtual === 'manual') {
+        handleMargemManualInput(valor)
+      }
+
+      const capexBaseAtual =
+        tipoInstalacao === 'SOLO'
+          ? composicaoSoloCalculo?.capex_base
+          : composicaoTelhadoCalculo?.capex_base
+
+      if (Number.isFinite(capexBaseAtual) && (capexBaseAtual ?? 0) > 0) {
+        const percent = (finalValue / (capexBaseAtual ?? 1)) * 100
+        const percentClamped = Math.min(Math.max(percent, 0), 80)
+        const percentNormalizado = Math.round(percentClamped * 10000) / 10000
+        if (
+          !numbersAreClose(
+            percentNormalizado,
+            vendasConfig.margem_operacional_padrao_percent,
+            0.0001,
+          )
+        ) {
+          updateVendasConfig({ margem_operacional_padrao_percent: percentNormalizado })
+        }
+      }
+    },
+    [
+      composicaoSoloCalculo?.capex_base,
+      composicaoTelhadoCalculo?.capex_base,
+      handleMargemManualInput,
+      margemOrigemAtual,
+      tipoInstalacao,
+      updateVendasConfig,
+      vendasConfig.margem_operacional_padrao_percent,
+    ],
+  )
 
   useEffect(() => {
     const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
@@ -10225,6 +10267,10 @@ export default function App() {
       margemOrigemAtual === 'manual'
         ? 'Manual (valor customizado)'
         : 'Automática (configuração global)'
+    const margemOperacionalResumoValor: number | '' =
+      calculoAtual && Number.isFinite(calculoAtual.margem_operacional_valor)
+        ? Math.round(calculoAtual.margem_operacional_valor * 100) / 100
+        : ''
     const abrirParametrosVendas = () => {
       setSettingsTab('vendas')
       setIsSettingsOpen(true)
@@ -10309,7 +10355,15 @@ export default function App() {
               <input type="text" readOnly value={currencyValue(calculoAtual?.capex_base)} />
             </Field>
             <Field label="Margem operacional (R$)">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.margem_operacional_valor)} />
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={margemOperacionalResumoValor}
+                onChange={(event) => handleMargemOperacionalResumoChange(event.target.value)}
+                onFocus={selectNumberInputOnFocus}
+                placeholder="—"
+              />
             </Field>
             <Field label="Comissão líquida (R$)">
               <input type="text" readOnly value={currencyValue(calculoAtual?.comissao_liquida_valor)} />
