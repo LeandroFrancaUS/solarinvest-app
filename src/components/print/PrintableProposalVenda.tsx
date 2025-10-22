@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { Bar, BarChart, CartesianGrid, Label, LabelList, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import './styles/proposal-venda.css'
-import { currency, formatCpfCnpj, formatAxis, tarifaCurrency } from '../../utils/formatters'
+import { currency, formatCpfCnpj, formatAxis } from '../../utils/formatters'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { usePrintCanvasFallback } from './common/usePrintCanvasFallback'
 import { classifyBudgetItem } from '../../utils/moduleDetection'
@@ -387,7 +387,7 @@ function PrintableProposalInner(
   const detalhamentoCampos = [
     { label: 'Potência do sistema', value: formatKwpDetalhe(kitPotenciaInstalada ?? null) },
     { label: 'Produção média mensal', value: formatKwhMes(kitGeracao ?? undefined) },
-    { label: 'Energia contratada (kWh/mês)', value: formatKwhMes(kitConsumo ?? undefined) },
+    { label: 'Energia solicitada (kWh/mês)', value: formatKwhMes(kitConsumo ?? undefined) },
     {
       label: 'Inversores',
       value: formatEquipmentDetail({
@@ -430,8 +430,6 @@ function PrintableProposalInner(
     { label: 'Cidade / UF', value: cidadeUfLabel },
     { label: 'Endereço', value: enderecoLabel, wide: true },
   ]
-  const tarifaCheiaValor = pickPositive(snapshotParametros?.tarifa_r_kwh, tarifaCheia)
-  const tarifaCheiaResumo = tarifaCheiaValor ? tarifaCurrency(tarifaCheiaValor) : '—'
   const descontoResumo =
     !isVendaDireta && Number.isFinite(descontoContratualPct)
       ? formatPercentBR((descontoContratualPct ?? 0) / 100)
@@ -587,10 +585,6 @@ function PrintableProposalInner(
   })()
   const custoTecnicoImplantacaoLabel =
     custoTecnicoImplantacaoNumero != null ? currency(custoTecnicoImplantacaoNumero) : '—'
-  const tarifaInicialResumo = (() => {
-    const valor = pickPositive(snapshotParametros?.tarifa_r_kwh, vendaFormResumo?.tarifa_cheia_r_kwh)
-    return Number.isFinite(valor) && (valor ?? 0) > 0 ? tarifaCurrency(valor ?? 0) : tarifaCheiaResumo
-  })()
   const inflacaoResumo = formatPercentFromPct(
     snapshotParametros?.inflacao_energia_aa ?? vendaFormResumo?.inflacao_energia_aa_pct,
   )
@@ -684,7 +678,7 @@ function PrintableProposalInner(
   const prazoExecucaoLabel =
     sanitizeTextField(snapshotPagamento?.prazo_execucao_txt) ??
     sanitizeTextField(vendaFormResumo?.prazo_execucao) ??
-    'Sob consulta'
+    'Até 60 dias após assinatura do contrato'
   const condicoesAdicionaisLabel =
     sanitizeTextField(snapshotPagamento?.condicoes_adicionais_txt) ??
     sanitizeTextField(vendaFormResumo?.condicoes_adicionais) ??
@@ -703,8 +697,13 @@ function PrintableProposalInner(
     'Custo Técnico de Implantação',
     custoTecnicoImplantacaoLabel,
   )
+  pushRowIfMeaningful(
+    condicoesPagamentoRows,
+    'Custos Fixos da Conta de Energia (CID, TUSD, encargos setoriais e subsídio, tributos e outros)',
+    taxaMinimaResumo,
+  )
   pushRowIfMeaningful(condicoesPagamentoRows, 'Kit fotovoltaico', kitFotovoltaicoLabel)
-  pushRowIfMeaningful(condicoesPagamentoRows, 'Valor total', valorTotalPropostaLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Valor final', valorTotalPropostaLabel)
   const condicoesParceladoRows: { label: string; value: string }[] = []
   if (!isVendaDireta && isCondicaoParcelado) {
     pushRowIfMeaningful(condicoesParceladoRows, 'Número de parcelas', parcelasResumo)
@@ -719,8 +718,7 @@ function PrintableProposalInner(
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Juros do financiamento (% a.a.)', jurosFinAaResumo)
   }
   const parametrosEconomiaRows: { label: string; value: string }[] = []
-  pushRowIfMeaningful(parametrosEconomiaRows, 'Tarifa inicial', tarifaInicialResumo)
-  pushRowIfMeaningful(parametrosEconomiaRows, 'Inflação de energia (a.a.)', inflacaoResumo)
+  pushRowIfMeaningful(parametrosEconomiaRows, 'Inflação de energia estimada (a.a.)', inflacaoResumo)
   pushRowIfMeaningful(parametrosEconomiaRows, 'Taxa mínima mensal', taxaMinimaResumo)
   pushRowIfMeaningful(parametrosEconomiaRows, 'Iluminação pública', iluminacaoPublicaResumo)
   if (!isVendaDireta) {
@@ -849,15 +847,14 @@ function PrintableProposalInner(
           <div className="print-values-grid">
             <div className="print-value-card print-value-card--highlight">
               <span>
-                Valor total da proposta:{' '}
+                Valor final da proposta:{' '}
                 <strong>{valorTotalPropostaLabel}</strong>
               </span>
             </div>
           </div>
           <p className="print-value-note">
             O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos,
-            instalação, documentação e suporte técnico. O custo técnico de implantação é referência interna e
-            não representa um valor a ser pago pelo cliente.
+            instalação, documentação, garantia e suporte técnico.
           </p>
         </section>
       ) : null}
