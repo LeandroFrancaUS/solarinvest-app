@@ -229,18 +229,13 @@ export function calcularComposicaoUFV(i: Inputs): Outputs {
 
   if (i.comissao_tipo === 'percentual') {
     const frac = Math.max(0, Math.min(1, comissaoPercentual));
+    venda_liquida = Math.max(venda_total - descontos, 0);
     if (i.comissao_percent_base === 'venda_total') {
       comissao_liquida_valor = venda_total * frac;
-      venda_liquida = Math.max(venda_total - descontos, 0);
-      margem_operacional_valor = Math.max(venda_total * (1 - frac) - capex_base, 0);
     } else {
-      venda_liquida = Math.max(venda_total - descontos, 0);
       comissao_liquida_valor = venda_liquida * frac;
-      margem_operacional_valor = Math.max(
-        venda_total * (1 - frac) - capex_base - frac * descontos,
-        0,
-      );
     }
+    margem_operacional_valor = Math.max(venda_liquida * (1 - frac) - capex_base, 0);
   } else {
     comissao_liquida_valor = comissao_liquida_base;
     margem_operacional_valor = Math.max(venda_total - capex_base - comissao_liquida_valor, 0);
