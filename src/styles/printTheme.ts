@@ -1,5 +1,4 @@
 import printBaseStyles from './print.css?raw'
-import printColorStyles from './print-colors.css?raw'
 import vendaStyles from '../components/print/styles/proposal-venda.css?raw'
 import leasingStyles from '../components/print/styles/proposal-leasing.css?raw'
 
@@ -17,8 +16,6 @@ body[data-print-mode='preview'] .print-page {
 
 export const printStyles = `
 ${printBaseStyles}
-
-${printColorStyles}
 
 ${vendaStyles}
 
