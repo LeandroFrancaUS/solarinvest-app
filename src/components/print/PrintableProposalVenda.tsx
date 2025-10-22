@@ -1423,7 +1423,7 @@ function PrintableProposalInner(
           </footer>
     
           <div className="print-brand-footer no-break-inside">
-            <strong>SOLARINVEST</strong>
+            <strong>S O L A R I N V E S T</strong>
             <span>CNPJ: 60.434.015/0001-90</span>
             <span>Anápolis-GO</span>
             <span>Solarinvest.info</span>
