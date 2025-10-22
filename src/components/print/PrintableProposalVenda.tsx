@@ -46,6 +46,7 @@ function PrintableProposalInner(
     vendaSnapshot,
     vendasConfigSnapshot,
     valorTotalProposta: valorTotalPropostaProp,
+    custoImplantacaoReferencia,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -517,6 +518,75 @@ function PrintableProposalInner(
         : null)
   const valorTotalPropostaLabel =
     valorTotalPropostaPrincipalNumero != null ? currency(valorTotalPropostaPrincipalNumero) : '—'
+  const kitValorOrcamentoSnapshot = Number.isFinite(vendaSnapshot?.orcamento?.valor_total_orcamento)
+    ? Number(vendaSnapshot?.orcamento?.valor_total_orcamento)
+    : null
+  const kitValorOrcamentoResumo = Number.isFinite(composicaoUfv?.valorOrcamento)
+    ? Number(composicaoUfv?.valorOrcamento)
+    : null
+  const kitFotovoltaicoValorNumero = hasNonZero(kitValorOrcamentoResumo)
+    ? Number(kitValorOrcamentoResumo)
+    : hasNonZero(kitValorOrcamentoSnapshot)
+    ? Number(kitValorOrcamentoSnapshot)
+    : null
+  const kitFotovoltaicoLabel =
+    kitFotovoltaicoValorNumero != null ? currency(kitFotovoltaicoValorNumero) : '—'
+  const custoTecnicoImplantacaoNumero = (() => {
+    const sumValores = (bucket: Record<string, unknown>, keys: string[]): number | null => {
+      let total = 0
+      let added = false
+      keys.forEach((key) => {
+        const valor = bucket[key]
+        if (typeof valor === 'number' && Number.isFinite(valor) && Math.abs(valor) > 0) {
+          total += Number(valor)
+          added = true
+        }
+      })
+      return added ? total : null
+    }
+
+    if (composicaoUfv) {
+      const tipoResumo = composicaoUfv.tipoAtual ?? tipoInstalacao
+      const baseKeys = ['projeto', 'instalacao', 'materialCa', 'crea', 'art', 'placa']
+      if (tipoResumo === 'SOLO') {
+        const bucket = composicaoUfv.solo as Record<string, unknown>
+        const total = sumValores(bucket, [
+          ...baseKeys,
+          'estruturaSolo',
+          'tela',
+          'portaoTela',
+          'maoObraTela',
+          'casaInversor',
+          'brita',
+          'terraplanagem',
+          'trafo',
+          'rede',
+          'outros',
+        ])
+        if (total != null) {
+          return total
+        }
+      } else {
+        const bucket = composicaoUfv.telhado as Record<string, unknown>
+        const total = sumValores(bucket, baseKeys)
+        if (total != null) {
+          return total
+        }
+      }
+    }
+
+    if (hasNonZero(custoImplantacaoReferencia)) {
+      return Number(custoImplantacaoReferencia)
+    }
+
+    if (hasNonZero(snapshotComposicao?.capex_total)) {
+      return Number(snapshotComposicao?.capex_total)
+    }
+
+    return null
+  })()
+  const custoTecnicoImplantacaoLabel =
+    custoTecnicoImplantacaoNumero != null ? currency(custoTecnicoImplantacaoNumero) : '—'
   const tarifaInicialResumo = (() => {
     const valor = pickPositive(snapshotParametros?.tarifa_r_kwh, vendaFormResumo?.tarifa_cheia_r_kwh)
     return Number.isFinite(valor) && (valor ?? 0) > 0 ? tarifaCurrency(valor ?? 0) : tarifaCheiaResumo
@@ -628,6 +698,13 @@ function PrintableProposalInner(
   pushRowIfMeaningful(condicoesPagamentoRows, 'Prazo de execução', prazoExecucaoLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Encargos financeiros (MDR)', encargosFinanceirosLabel ?? undefined)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Condições adicionais', condicoesAdicionaisLabel)
+  pushRowIfMeaningful(
+    condicoesPagamentoRows,
+    'Custo Técnico de Implantação',
+    custoTecnicoImplantacaoLabel,
+  )
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Kit fotovoltaico', kitFotovoltaicoLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Valor total', valorTotalPropostaLabel)
   const condicoesParceladoRows: { label: string; value: string }[] = []
   if (!isVendaDireta && isCondicaoParcelado) {
     pushRowIfMeaningful(condicoesParceladoRows, 'Número de parcelas', parcelasResumo)
@@ -771,8 +848,10 @@ function PrintableProposalInner(
           <h2 className="keep-with-next">Valores da proposta</h2>
           <div className="print-values-grid">
             <div className="print-value-card print-value-card--highlight">
-              <span>Valor total da proposta</span>
-              <strong>{valorTotalPropostaLabel}</strong>
+              <span>
+                Valor total da proposta:{' '}
+                <strong>{valorTotalPropostaLabel}</strong>
+              </span>
             </div>
           </div>
           <p className="print-value-note">
@@ -851,15 +930,19 @@ function PrintableProposalInner(
                 rows.push({ key, label, valor: numero, emphasize: true })
               }
 
-              const kitFromSnapshot = Number.isFinite(vendaSnapshot?.orcamento.valor_total_orcamento)
-                ? Number(vendaSnapshot?.orcamento.valor_total_orcamento)
-                : 0
-              const kitFromResumo = Number.isFinite(composicaoUfv?.valorOrcamento)
-                ? Number(composicaoUfv?.valorOrcamento)
-                : 0
-
               if (snapshotComposicao) {
-                const kitValor = kitFromSnapshot > 0 ? kitFromSnapshot : kitFromResumo
+                const kitValor = (() => {
+                  if (kitFotovoltaicoValorNumero != null) {
+                    return kitFotovoltaicoValorNumero
+                  }
+                  if (Number.isFinite(kitValorOrcamentoResumo) && (kitValorOrcamentoResumo ?? 0) > 0) {
+                    return Number(kitValorOrcamentoResumo)
+                  }
+                  if (Number.isFinite(kitValorOrcamentoSnapshot) && (kitValorOrcamentoSnapshot ?? 0) > 0) {
+                    return Number(kitValorOrcamentoSnapshot)
+                  }
+                  return 0
+                })()
                 if (kitValor > 0) {
                   addRow('kit', 'Kit Fotovoltaico', kitValor)
                 }
@@ -927,7 +1010,18 @@ function PrintableProposalInner(
               }
 
               const tipoResumo = composicaoAtual.tipoAtual ?? tipoInstalacao
-              const kitValor = kitFromResumo > 0 ? kitFromResumo : kitFromSnapshot
+              const kitValor = (() => {
+                if (kitFotovoltaicoValorNumero != null) {
+                  return kitFotovoltaicoValorNumero
+                }
+                if (Number.isFinite(kitValorOrcamentoResumo) && (kitValorOrcamentoResumo ?? 0) > 0) {
+                  return Number(kitValorOrcamentoResumo)
+                }
+                if (Number.isFinite(kitValorOrcamentoSnapshot) && (kitValorOrcamentoSnapshot ?? 0) > 0) {
+                  return Number(kitValorOrcamentoSnapshot)
+                }
+                return 0
+              })()
               if (kitValor > 0) {
                 addRow('kit', 'Kit Fotovoltaico', kitValor)
               }
