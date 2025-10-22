@@ -5101,6 +5101,17 @@ export default function App() {
         vendasConfigSnapshot: printableVendasConfig,
         informacoesImportantesObservacao: vendasConfig.observacao_padrao_proposta,
         valorTotalProposta: valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? null,
+        custoImplantacaoReferencia: (() => {
+          const snapshotValor = Number(vendaSnapshot.resumoProposta.custo_implantacao_referencia ?? 0)
+          if (Number.isFinite(snapshotValor) && snapshotValor > 0) {
+            return snapshotValor
+          }
+          const referenciaValor = Number(custoImplantacaoReferencia ?? 0)
+          if (Number.isFinite(referenciaValor) && referenciaValor > 0) {
+            return referenciaValor
+          }
+          return null
+        })(),
       }
     },
     [
@@ -5167,6 +5178,7 @@ export default function App() {
       multiUcPrintableResumo,
       valorTotalPropostaNormalizado,
       valorTotalPropostaState,
+      custoImplantacaoReferencia,
     ],
   )
 
