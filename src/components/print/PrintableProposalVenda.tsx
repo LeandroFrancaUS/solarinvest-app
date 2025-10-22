@@ -597,11 +597,6 @@ function PrintableProposalInner(
     ? currency(vendaFormResumo?.taxa_minima_r_mes ?? 0)
     : '—'
   const horizonteAnaliseResumo = formatMeses(snapshotParametros?.horizonte_meses ?? vendaFormResumo?.horizonte_meses)
-  const taxaDescontoResumo = Number.isFinite(snapshotParametros?.taxa_desconto_aa)
-    ? formatPercentFromPct(snapshotParametros?.taxa_desconto_aa)
-    : Number.isFinite(vendaFormResumo?.taxa_desconto_aa_pct)
-    ? formatPercentFromPct(vendaFormResumo?.taxa_desconto_aa_pct)
-    : null
   const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
   const jurosCartaoAmResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_am_pct)
   const jurosCartaoAaResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_aa_pct)
@@ -697,11 +692,6 @@ function PrintableProposalInner(
     'Custo Técnico de Implantação',
     custoTecnicoImplantacaoLabel,
   )
-  pushRowIfMeaningful(
-    condicoesPagamentoRows,
-    'Custos Fixos da Conta de Energia (CID, TUSD, encargos setoriais e subsídio, tributos e outros)',
-    taxaMinimaResumo,
-  )
   pushRowIfMeaningful(condicoesPagamentoRows, 'Kit fotovoltaico', kitFotovoltaicoLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Valor final', valorTotalPropostaLabel)
   const condicoesParceladoRows: { label: string; value: string }[] = []
@@ -719,12 +709,15 @@ function PrintableProposalInner(
   }
   const parametrosEconomiaRows: { label: string; value: string }[] = []
   pushRowIfMeaningful(parametrosEconomiaRows, 'Inflação de energia estimada (a.a.)', inflacaoResumo)
-  pushRowIfMeaningful(parametrosEconomiaRows, 'Taxa mínima mensal', taxaMinimaResumo)
+  pushRowIfMeaningful(
+    parametrosEconomiaRows,
+    'Custos Fixos da Conta de Energia (CID, TUSD, encargos setoriais e subsídio, tributos e outros)',
+    taxaMinimaResumo,
+  )
   pushRowIfMeaningful(parametrosEconomiaRows, 'Iluminação pública', iluminacaoPublicaResumo)
   if (!isVendaDireta) {
     pushRowIfMeaningful(parametrosEconomiaRows, 'Horizonte de análise', horizonteAnaliseResumo)
   }
-  pushRowIfMeaningful(parametrosEconomiaRows, 'Taxa de desconto (a.a.)', taxaDescontoResumo ?? undefined)
   const mostrarCondicoesPagamento = condicoesPagamentoRows.length > 0
   const mostrarCondicoesParcelado = condicoesParceladoRows.length > 0
   const mostrarCondicoesFinanciamento = condicoesFinanciamentoRows.length > 0

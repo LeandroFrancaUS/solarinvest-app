@@ -126,8 +126,7 @@ export const DEFAULT_VENDAS_CONFIG: VendasConfig = {
   exibir_margem: false,
   exibir_comissao: false,
   exibir_impostos: false,
-  observacao_padrao_proposta:
-    'Valores estimativos; confirmação no contrato definitivo.',
+  observacao_padrao_proposta: '',
 }
 
 export const normalizeVendasConfig = (
