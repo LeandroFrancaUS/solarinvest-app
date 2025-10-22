@@ -893,63 +893,55 @@ function PrintableProposalInner(
   )
   usePrintCanvasFallback('#economia-30-anos')
   return (
-    <div ref={ref} className="print-layout">
-      <header className="print-hero">
-        <div className="print-hero__header">
-          <div className="print-hero__identity">
-            <div className="print-logo">
-              <img src="/logo.svg" alt="SolarInvest" />
-            </div>
-            <div className="print-hero__title">
-              <span className="print-hero__eyebrow">SolarInvest</span>
+    <div ref={ref} className="print-layout print-layout--venda">
+      <section className="venda-print__page venda-print__page--cover">
+        <header className="venda-print__header">
+          <div className="venda-print__brand">
+            <img src="/logo.svg" alt="SolarInvest" className="venda-print__logo" />
+            <div className="venda-print__heading">
+              <span className="venda-print__eyebrow">SolarInvest</span>
               <h1>{heroTitle}</h1>
-              <p className="print-hero__tagline">{heroTagline}</p>
+              <p className="venda-print__tagline">{heroTagline}</p>
             </div>
           </div>
-        </div>
-        <div className="print-hero__summary no-break-inside">
-          <h2 className="keep-with-next">Sumário executivo</h2>
+        </header>
+
+        <div className="venda-print__section venda-print__section--summary">
+          <h2>Sumário executivo</h2>
           <p>{heroSummaryDescription}</p>
         </div>
-      </header>
 
-      {isVendaDireta ? (
-        <section className="print-section keep-together print-values-section">
-          <h2 className="keep-with-next">Valores da proposta</h2>
-          <div className="print-values-grid">
-            <div className="print-value-card print-value-card--highlight">
-              <span className="print-value-card__label">
-                Valor final da proposta:{' '}
-                <strong>{valorTotalPropostaLabel}</strong>
-              </span>
-            </div>
+        {isVendaDireta ? (
+          <div className="venda-print__highlight">
+            <span className="venda-print__highlight-label">Valor final da proposta</span>
+            <strong>{valorTotalPropostaLabel}</strong>
+            <p className="venda-print__highlight-note">
+              O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos, instalação,
+              documentação, garantia e suporte técnico.
+            </p>
           </div>
-          <p className="print-value-note">
-            O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos,
-            instalação, documentação, garantia e suporte técnico.
-          </p>
-        </section>
-      ) : null}
+        ) : null}
 
-      <section className="print-section keep-together">
-        <h2 className="keep-with-next">Identificação do cliente</h2>
-        <ClientInfoGrid
-          fields={clienteCampos}
-          className="print-client-grid no-break-inside"
-          fieldClassName="print-client-field"
-          wideFieldClassName="print-client-field--wide"
-        />
+        <div className="venda-print__section">
+          <h2>Dados do cliente</h2>
+          <ClientInfoGrid
+            fields={clienteCampos}
+            className="venda-print__info-grid"
+            fieldClassName="venda-print__info-item"
+            wideFieldClassName="venda-print__info-item--wide"
+          />
+        </div>
       </section>
 
-      {mostrarDetalhamento ? (
-        <section className="print-section keep-together">
-          <h2 className="keep-with-next">Detalhamento do Projeto</h2>
-          {detalhamentoCampos.length > 0 ? (
-            <table className="print-table no-break-inside">
+      <section className="venda-print__page">
+        {mostrarDetalhamento ? (
+          <div className="venda-print__section">
+            <h2>Resumo técnico do projeto</h2>
+            <table className="venda-print__table venda-print__table--striped">
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th>Valor/Descrição</th>
+                  <th>Valor / descrição</th>
                 </tr>
               </thead>
               <tbody>
@@ -961,633 +953,598 @@ function PrintableProposalInner(
                 ))}
               </tbody>
             </table>
-          ) : null}
-        </section>
-      ) : null}
-      {!isVendaDireta ? (
-        <section id="resumo-proposta" className="print-section keep-together page-break-before">
-          <h2 className="keep-with-next">Resumo de Custos e Investimento</h2>
-          <table className="print-table no-break-inside">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Valor/Descrição</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(() => {
-              type Row = { key: string; label: string; valor: number; emphasize?: boolean }
-              const rows: Row[] = []
-              const addRow = (key: string, label: string, valor: number | null | undefined, emphasize = false) => {
-                if (!Number.isFinite(valor)) {
-                  return
-                }
-                const numero = Number(valor)
-                if (Math.abs(numero) <= 0.0001) {
-                  return
-                }
-                rows.push({ key, label, valor: numero, emphasize })
-              }
-              const addTotalRow = (key: string, label: string, valor: number | null | undefined) => {
-                if (!Number.isFinite(valor)) {
-                  return
-                }
-                const numero = Number(valor)
-                if (Math.abs(numero) <= 0.0001) {
-                  return
-                }
-                rows.push({ key, label, valor: numero, emphasize: true })
-              }
+          </div>
+        ) : null}
 
-              if (snapshotComposicao) {
-                const kitValor = (() => {
-                  if (kitFotovoltaicoValorNumero != null) {
-                    return kitFotovoltaicoValorNumero
-                  }
-                  if (Number.isFinite(kitValorOrcamentoResumo) && (kitValorOrcamentoResumo ?? 0) > 0) {
-                    return Number(kitValorOrcamentoResumo)
-                  }
-                  if (Number.isFinite(kitValorOrcamentoSnapshot) && (kitValorOrcamentoSnapshot ?? 0) > 0) {
-                    return Number(kitValorOrcamentoSnapshot)
-                  }
-                  return 0
-                })()
-                if (kitValor > 0) {
-                  addRow('kit', 'Kit Fotovoltaico', kitValor)
-                }
-                addRow('capex-base', 'CAPEX base', snapshotComposicao.capex_base)
-                if (pdfConfig.exibirComissao) {
-                  addRow('comissao', 'Comissão líquida', snapshotComposicao.comissao_liquida_valor)
-                }
-                if (pdfConfig.exibirMargem) {
-                  addRow('margem', 'Margem Operacional', snapshotComposicao.margem_operacional_valor)
-                }
-                if (pdfConfig.exibirImpostos) {
-                  addRow('imposto-retido', 'Imposto retido', snapshotComposicao.imposto_retido_valor)
-                  addRow('impostos-regime', 'Impostos do regime', snapshotComposicao.impostos_regime_valor)
-                  addRow('impostos-totais', 'Impostos totais', snapshotComposicao.impostos_totais_valor)
-                }
-                addRow('capex-total', 'CAPEX considerado (sem kit)', snapshotComposicao.capex_total)
-
-                const descontosSnapshot = Number.isFinite(snapshotComposicao.descontos)
-                  ? Number(snapshotComposicao.descontos)
-                  : 0
-                if (descontosSnapshot > 0) {
-                  addRow('descontos', 'Descontos comerciais', -descontosSnapshot)
-                }
-
-                resumoPropostaBreakdown = pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos
-                  ? (snapshotComposicao.regime_breakdown ?? []).map((item) => ({ ...item }))
-                  : []
-
-                const vendaTotal = Number.isFinite(snapshotComposicao.venda_total)
-                  ? Number(snapshotComposicao.venda_total)
-                  : null
-                const vendaLiquida = Number.isFinite(snapshotComposicao.venda_liquida)
-                  ? Number(snapshotComposicao.venda_liquida)
-                  : null
-                const totalBruto = vendaTotal != null ? kitValor + vendaTotal : null
-                const totalLiquido = vendaLiquida != null ? kitValor + vendaLiquida : null
-
-                if (totalBruto != null && totalBruto > 0) {
-                  addTotalRow('total-bruto', 'Total do contrato (bruto)', totalBruto)
-                }
-                if (
-                  totalLiquido != null &&
-                  totalLiquido > 0 &&
-                  (totalBruto == null || Math.abs(totalLiquido - totalBruto) > 0.01)
-                ) {
-                  addTotalRow('total-liquido', 'Total do contrato (líquido)', totalLiquido)
-                }
-
-                return rows.map((row) => (
-                  <tr key={row.key} className={row.emphasize ? 'print-table__row--total' : undefined}>
-                    <td>{row.label}</td>
-                    <td>{currency(row.valor)}</td>
-                  </tr>
-                ))
-              }
-
-              const composicaoAtual = composicaoUfv ?? null
-              if (!composicaoAtual) {
-                return [
-                  <tr key="total-capex">
-                    <td>Investimento Total do Projeto</td>
-                    <td>—</td>
-                  </tr>,
-                ]
-              }
-
-              const tipoResumo = composicaoAtual.tipoAtual ?? tipoInstalacao
-              const kitValor = (() => {
-                if (kitFotovoltaicoValorNumero != null) {
-                  return kitFotovoltaicoValorNumero
-                }
-                if (Number.isFinite(kitValorOrcamentoResumo) && (kitValorOrcamentoResumo ?? 0) > 0) {
-                  return Number(kitValorOrcamentoResumo)
-                }
-                if (Number.isFinite(kitValorOrcamentoSnapshot) && (kitValorOrcamentoSnapshot ?? 0) > 0) {
-                  return Number(kitValorOrcamentoSnapshot)
-                }
-                return 0
-              })()
-              if (kitValor > 0) {
-                addRow('kit', 'Kit Fotovoltaico', kitValor)
-              }
-
-              const pushDireto = (key: string, label: string, valor: number | null | undefined) => {
-                if (Number.isFinite(valor) && (valor ?? 0) > 0) {
-                  addRow(`direto-${key}`, label, Number(valor))
-                }
-              }
-
-              if (tipoResumo === 'TELHADO') {
-                const telhadoValores = composicaoAtual.telhado
-                pushDireto('projeto', 'Projeto', telhadoValores?.projeto)
-                pushDireto('instalacao', 'Instalação', telhadoValores?.instalacao)
-                pushDireto('material-ca', 'Material CA', telhadoValores?.materialCa)
-                pushDireto('art', 'ART', (telhadoValores as { art?: number })?.art ?? null)
-                pushDireto('crea', 'CREA', telhadoValores?.crea)
-                pushDireto('placa', 'Placa', telhadoValores?.placa)
-              } else {
-                const soloValores = composicaoAtual.solo
-                pushDireto('projeto', 'Projeto', soloValores?.projeto)
-                pushDireto('instalacao', 'Instalação', soloValores?.instalacao)
-                pushDireto('material-ca', 'Material CA', soloValores?.materialCa)
-                pushDireto('art', 'ART', (soloValores as { art?: number })?.art ?? null)
-                pushDireto('crea', 'CREA', soloValores?.crea)
-                pushDireto('placa', 'Placa', soloValores?.placa)
-                pushDireto('tela', 'TELA', soloValores?.tela)
-                pushDireto('mao-obra-tela', 'M. OBRA - TELA', soloValores?.maoObraTela)
-                pushDireto('portao-tela', 'PORTÃO - TELA', soloValores?.portaoTela)
-                pushDireto('casa-inversor', 'CASA INVERSOR', soloValores?.casaInversor)
-                pushDireto('trafo', 'TRAFO', soloValores?.trafo)
-                pushDireto('brita', 'BRITA', soloValores?.brita)
-                pushDireto('terraplanagem', 'TERRAPLANAGEM', soloValores?.terraplanagem)
-              }
-
-              const resumoCalculo =
-                tipoResumo === 'TELHADO'
-                  ? composicaoAtual.calculoTelhado
-                  : composicaoAtual.calculoSolo
-              const descontosConfiguracao = Number.isFinite(composicaoAtual.configuracao?.descontos)
-                ? Number(composicaoAtual.configuracao?.descontos)
-                : 0
-
-              if (resumoCalculo) {
-                addRow('capex-base', 'CAPEX base', resumoCalculo.capex_base)
-                if (pdfConfig.exibirComissao) {
-                  addRow('comissao', 'Comissão líquida', resumoCalculo.comissao_liquida_valor)
-                }
-                if (pdfConfig.exibirMargem) {
-                  addRow('margem', 'Margem Operacional', resumoCalculo.margem_operacional_valor)
-                }
-                if (pdfConfig.exibirImpostos) {
-                  addRow('imposto-retido', 'Imposto retido', resumoCalculo.imposto_retido_valor)
-                  addRow('impostos-regime', 'Impostos do regime', resumoCalculo.impostos_regime_valor)
-                  addRow('impostos-totais', 'Impostos totais', resumoCalculo.impostos_totais_valor)
-                }
-                addRow('capex-total', 'CAPEX considerado (sem kit)', resumoCalculo.capex_total)
-
-                const vendaTotal = Number.isFinite(resumoCalculo.venda_total)
-                  ? Number(resumoCalculo.venda_total)
-                  : null
-                const vendaLiquida = Number.isFinite(resumoCalculo.venda_liquida)
-                  ? Number(resumoCalculo.venda_liquida)
-                  : vendaTotal != null
-                  ? vendaTotal - descontosConfiguracao
-                  : null
-                if (descontosConfiguracao > 0) {
-                  addRow('descontos', 'Descontos comerciais', -descontosConfiguracao)
-                }
-
-                resumoPropostaBreakdown = pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos
-                  ? (resumoCalculo.regime_breakdown ?? []).map((item) => ({ ...item }))
-                  : []
-
-                const totalBruto = vendaTotal != null ? kitValor + vendaTotal : null
-                if (totalBruto != null && totalBruto > 0) {
-                  addTotalRow('total-bruto', 'Total do contrato (bruto)', totalBruto)
-                }
-
-                const totalLiquido = vendaLiquida != null ? kitValor + vendaLiquida : null
-                if (
-                  totalLiquido != null &&
-                  totalLiquido > 0 &&
-                  (totalBruto == null || Math.abs(totalLiquido - totalBruto) > 0.01)
-                ) {
-                  addTotalRow('total-liquido', 'Total do contrato (líquido)', totalLiquido)
-                }
-
-                return rows.map((row) => (
-                  <tr key={row.key} className={row.emphasize ? 'print-table__row--total' : undefined}>
-                    <td>{row.label}</td>
-                    <td>{currency(row.valor)}</td>
-                  </tr>
-                ))
-              }
-
-              if (descontosConfiguracao > 0) {
-                addRow('descontos', 'Descontos comerciais', -descontosConfiguracao)
-              }
-
-              resumoPropostaBreakdown = []
-
-              return rows.length
-                ? rows.map((row) => (
-                    <tr key={row.key} className={row.emphasize ? 'print-table__row--total' : undefined}>
-                      <td>{row.label}</td>
-                      <td>{currency(row.valor)}</td>
-                    </tr>
-                  ))
-                : [
-                    <tr key="total-capex">
-                      <td>Investimento Total do Projeto</td>
-                      <td>—</td>
-                    </tr>,
-                  ]
-            })()}
-          </tbody>
-        </table>
-          {pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos && resumoPropostaBreakdown.length ? (
-            <table className="print-table no-break-inside">
-            <thead>
-              <tr>
-                <th>Imposto</th>
-                <th>Alíquota</th>
-                <th>Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resumoPropostaBreakdown.map((item) => (
-                <tr key={`breakdown-${item.nome}`}>
-                  <td>{item.nome}</td>
-                  <td>{formatPercentBRWithDigits((item.aliquota ?? 0) / 100, 2)}</td>
-                  <td>{currency(item.valor)}</td>
+        {!isVendaDireta ? (
+          <div id="resumo-proposta" className="venda-print__section">
+            <h2>Resumo de custos e investimento</h2>
+            <table className="venda-print__table venda-print__table--striped">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Valor / descrição</th>
                 </tr>
-              ))}
-            </tbody>
+              </thead>
+              <tbody>
+                {(() => {
+                  type Row = { key: string; label: string; valor: number; emphasize?: boolean }
+                  const rows: Row[] = []
+                  const addRow = (key: string, label: string, valor: number | null | undefined, emphasize = false) => {
+                    if (!Number.isFinite(valor)) {
+                      return
+                    }
+                    const numero = Number(valor)
+                    if (Math.abs(numero) <= 0.0001) {
+                      return
+                    }
+                    rows.push({ key, label, valor: numero, emphasize })
+                  }
+                  const addTotalRow = (key: string, label: string, valor: number | null | undefined) => {
+                    if (!Number.isFinite(valor)) {
+                      return
+                    }
+                    const numero = Number(valor)
+                    if (Math.abs(numero) <= 0.0001) {
+                      return
+                    }
+                    rows.push({ key, label, valor: numero, emphasize: true })
+                  }
+
+                  if (snapshotComposicao) {
+                    const kitValor = Number.isFinite(snapshotComposicao.kit_fotovoltaico_total)
+                      ? Number(snapshotComposicao.kit_fotovoltaico_total)
+                      : kitFotovoltaicoValorNumero ?? 0
+
+                    if (kitValor > 0) {
+                      addRow('kit', 'Kit Fotovoltaico', kitValor)
+                    }
+
+                    const custosDiretos = snapshotComposicao.custos_diretos ?? []
+                    for (const item of custosDiretos) {
+                      addRow(`direto-${item.nome}`, item.nome ?? 'Item', item.valor)
+                    }
+
+                    const custoImplantacao = Number.isFinite(snapshotComposicao.custo_implantacao)
+                      ? Number(snapshotComposicao.custo_implantacao)
+                      : Number.isFinite(custoImplantacaoReferencia)
+                      ? Number(custoImplantacaoReferencia)
+                      : null
+                    addRow('implantacao', 'Custo de implantação', custoImplantacao ?? undefined)
+
+                    if (pdfConfig.exibirComissao) {
+                      addRow('comissao', 'Comissão líquida', snapshotComposicao.comissao_liquida_valor)
+                    }
+                    if (pdfConfig.exibirMargem) {
+                      addRow('margem', 'Margem operacional', snapshotComposicao.margem_operacional_valor)
+                    }
+                    if (pdfConfig.exibirImpostos) {
+                      addRow('imposto-retido', 'Imposto retido', snapshotComposicao.imposto_retido_valor)
+                      addRow('impostos-regime', 'Impostos do regime', snapshotComposicao.impostos_regime_valor)
+                      addRow('impostos-totais', 'Impostos totais', snapshotComposicao.impostos_totais_valor)
+                    }
+
+                    addRow('capex-total', 'CAPEX considerado (sem kit)', snapshotComposicao.capex_total)
+
+                    resumoPropostaBreakdown =
+                      pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos
+                        ? (snapshotComposicao.regime_breakdown ?? []).map((item) => ({ ...item }))
+                        : []
+
+                    const vendaTotal = Number.isFinite(snapshotComposicao.venda_total)
+                      ? Number(snapshotComposicao.venda_total)
+                      : null
+                    const vendaLiquida = Number.isFinite(snapshotComposicao.venda_liquida)
+                      ? Number(snapshotComposicao.venda_liquida)
+                      : null
+                    const totalBruto = vendaTotal != null ? kitValor + vendaTotal : null
+                    const totalLiquido = vendaLiquida != null ? kitValor + vendaLiquida : null
+
+                    if (totalBruto != null && totalBruto > 0) {
+                      addTotalRow('total-bruto', 'Total do contrato (bruto)', totalBruto)
+                    }
+                    if (
+                      totalLiquido != null &&
+                      totalLiquido > 0 &&
+                      (totalBruto == null || Math.abs(totalLiquido - totalBruto) > 0.01)
+                    ) {
+                      addTotalRow('total-liquido', 'Total do contrato (líquido)', totalLiquido)
+                    }
+
+                    return rows.map((row) => (
+                      <tr key={row.key} className={row.emphasize ? 'venda-print__row--total' : undefined}>
+                        <td>{row.label}</td>
+                        <td className="venda-print__cell--numeric">{currency(row.valor)}</td>
+                      </tr>
+                    ))
+                  }
+
+                  const composicaoAtual = composicaoUfv ?? null
+                  if (!composicaoAtual) {
+                    return [
+                      <tr key="total-capex">
+                        <td>Investimento total do projeto</td>
+                        <td className="venda-print__cell--numeric">—</td>
+                      </tr>,
+                    ]
+                  }
+
+                  const tipoResumo = composicaoAtual.tipoAtual ?? tipoInstalacao
+                  const kitValor = (() => {
+                    if (kitFotovoltaicoValorNumero != null) {
+                      return kitFotovoltaicoValorNumero
+                    }
+                    if (Number.isFinite(kitValorOrcamentoResumo) && (kitValorOrcamentoResumo ?? 0) > 0) {
+                      return Number(kitValorOrcamentoResumo)
+                    }
+                    if (Number.isFinite(kitValorOrcamentoSnapshot) && (kitValorOrcamentoSnapshot ?? 0) > 0) {
+                      return Number(kitValorOrcamentoSnapshot)
+                    }
+                    return 0
+                  })()
+                  if (kitValor > 0) {
+                    addRow('kit', 'Kit Fotovoltaico', kitValor)
+                  }
+
+                  const pushDireto = (key: string, label: string, valor: number | null | undefined) => {
+                    if (Number.isFinite(valor) && (valor ?? 0) > 0) {
+                      addRow(`direto-${key}`, label, Number(valor))
+                    }
+                  }
+
+                  if (tipoResumo === 'TELHADO') {
+                    const telhadoValores = composicaoAtual.telhado
+                    pushDireto('projeto', 'Projeto', telhadoValores?.projeto)
+                    pushDireto('instalacao', 'Instalação', telhadoValores?.instalacao)
+                    pushDireto('material-ca', 'Material CA', telhadoValores?.materialCa)
+                    pushDireto('art', 'ART', (telhadoValores as { art?: number })?.art ?? null)
+                    pushDireto('crea', 'CREA', telhadoValores?.crea)
+                    pushDireto('placa', 'Placa', telhadoValores?.placa)
+                  } else {
+                    const soloValores = composicaoAtual.solo
+                    pushDireto('projeto', 'Projeto', soloValores?.projeto)
+                    pushDireto('instalacao', 'Instalação', soloValores?.instalacao)
+                    pushDireto('material-ca', 'Material CA', soloValores?.materialCa)
+                    pushDireto('art', 'ART', (soloValores as { art?: number })?.art ?? null)
+                    pushDireto('crea', 'CREA', soloValores?.crea)
+                    pushDireto('placa', 'Placa', soloValores?.placa)
+                    pushDireto('tela', 'Tela', soloValores?.tela)
+                    pushDireto('mao-obra-tela', 'Mão de obra - tela', soloValores?.maoObraTela)
+                    pushDireto('portao-tela', 'Portão - tela', soloValores?.portaoTela)
+                    pushDireto('casa-inversor', 'Casa do inversor', soloValores?.casaInversor)
+                    pushDireto('trafo', 'Transformador', soloValores?.trafo)
+                    pushDireto('brita', 'Brita', soloValores?.brita)
+                    pushDireto('terraplanagem', 'Terraplanagem', soloValores?.terraplanagem)
+                  }
+
+                  const resumoCalculo =
+                    tipoResumo === 'TELHADO' ? composicaoAtual.calculoTelhado : composicaoAtual.calculoSolo
+                  const descontosConfiguracao = Number.isFinite(composicaoAtual.configuracao?.descontos)
+                    ? Number(composicaoAtual.configuracao?.descontos)
+                    : 0
+
+                  if (resumoCalculo) {
+                    addRow('capex-base', 'CAPEX base', resumoCalculo.capex_base)
+                    if (pdfConfig.exibirComissao) {
+                      addRow('comissao', 'Comissão líquida', resumoCalculo.comissao_liquida_valor)
+                    }
+                    if (pdfConfig.exibirMargem) {
+                      addRow('margem', 'Margem operacional', resumoCalculo.margem_operacional_valor)
+                    }
+                    if (pdfConfig.exibirImpostos) {
+                      addRow('imposto-retido', 'Imposto retido', resumoCalculo.imposto_retido_valor)
+                      addRow('impostos-regime', 'Impostos do regime', resumoCalculo.impostos_regime_valor)
+                      addRow('impostos-totais', 'Impostos totais', resumoCalculo.impostos_totais_valor)
+                    }
+                    addRow('capex-total', 'CAPEX considerado (sem kit)', resumoCalculo.capex_total)
+
+                    const vendaTotal = Number.isFinite(resumoCalculo.venda_total)
+                      ? Number(resumoCalculo.venda_total)
+                      : null
+                    const vendaLiquida = Number.isFinite(resumoCalculo.venda_liquida)
+                      ? Number(resumoCalculo.venda_liquida)
+                      : vendaTotal != null
+                      ? vendaTotal - descontosConfiguracao
+                      : null
+                    if (descontosConfiguracao > 0) {
+                      addRow('descontos', 'Descontos comerciais', -descontosConfiguracao)
+                    }
+
+                    resumoPropostaBreakdown =
+                      pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos
+                        ? (resumoCalculo.regime_breakdown ?? []).map((item) => ({ ...item }))
+                        : []
+
+                    const totalBruto = vendaTotal != null ? kitValor + vendaTotal : null
+                    if (totalBruto != null && totalBruto > 0) {
+                      addTotalRow('total-bruto', 'Total do contrato (bruto)', totalBruto)
+                    }
+
+                    const totalLiquido = vendaLiquida != null ? kitValor + vendaLiquida : null
+                    if (
+                      totalLiquido != null &&
+                      totalLiquido > 0 &&
+                      (totalBruto == null || Math.abs(totalLiquido - totalBruto) > 0.01)
+                    ) {
+                      addTotalRow('total-liquido', 'Total do contrato (líquido)', totalLiquido)
+                    }
+
+                    return rows.map((row) => (
+                      <tr key={row.key} className={row.emphasize ? 'venda-print__row--total' : undefined}>
+                        <td>{row.label}</td>
+                        <td className="venda-print__cell--numeric">{currency(row.valor)}</td>
+                      </tr>
+                    ))
+                  }
+
+                  if (descontosConfiguracao > 0) {
+                    addRow('descontos', 'Descontos comerciais', -descontosConfiguracao)
+                  }
+
+                  resumoPropostaBreakdown = []
+
+                  return rows.length
+                    ? rows.map((row) => (
+                        <tr key={row.key} className={row.emphasize ? 'venda-print__row--total' : undefined}>
+                          <td>{row.label}</td>
+                          <td className="venda-print__cell--numeric">{currency(row.valor)}</td>
+                        </tr>
+                      ))
+                    : [
+                        <tr key="total-capex">
+                          <td>Investimento total do projeto</td>
+                          <td className="venda-print__cell--numeric">—</td>
+                        </tr>,
+                      ]
+                })()}
+              </tbody>
             </table>
-          ) : null}
-        </section>
-      ) : null}
+            {pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos && resumoPropostaBreakdown.length ? (
+              <table className="venda-print__table venda-print__table--striped venda-print__table--compact">
+                <thead>
+                  <tr>
+                    <th>Imposto</th>
+                    <th>Alíquota</th>
+                    <th>Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumoPropostaBreakdown.map((item) => (
+                    <tr key={`breakdown-${item.nome}`}>
+                      <td>{item.nome}</td>
+                      <td className="venda-print__cell--numeric">
+                        {formatPercentBRWithDigits((item.aliquota ?? 0) / 100, 2)}
+                      </td>
+                      <td className="venda-print__cell--numeric">{currency(item.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       {isVendaDireta ? (
-        <section className="print-section no-break-inside">
-          <h2 className="keep-with-next">Condições Comerciais e de Pagamento</h2>
-          {snapshotPagamento || vendaFormResumo ? (
-            temAlgumaCondicao ? (
-              <>
-                {mostrarParametrosEconomia ? (
-                  <>
-                    <h3 className="print-subheading keep-with-next">Parâmetros de economia</h3>
-                    <table className="print-table no-break-inside">
-                      <thead>
-                        <tr>
-                          <th>Parâmetro</th>
-                          <th>Valor</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {parametrosEconomiaRows.map((row) => (
-                          <tr key={`parametro-economia-${row.label}`}>
-                            <td>{row.label}</td>
-                            <td>{row.value}</td>
+        <section className="venda-print__page">
+          <div id="condicoes-comerciais" className="venda-print__section">
+            <h2>Condições comerciais e de pagamento</h2>
+            {snapshotPagamento || vendaFormResumo ? (
+              temAlgumaCondicao ? (
+                <>
+                  {mostrarParametrosEconomia ? (
+                    <div className="venda-print__subsection">
+                      <h3>Parâmetros de economia</h3>
+                      <table className="venda-print__table venda-print__table--striped">
+                        <thead>
+                          <tr>
+                            <th>Parâmetro</th>
+                            <th>Valor</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                ) : null}
-                {mostrarTabelaCondicoes ? (
-                  <>
-                    <h3 className="print-subheading keep-with-next">Detalhe da proposta</h3>
-                    <table className="print-table print-table--detalhe-proposta no-break-inside">
-                      <thead>
-                        <tr>
-                          <th>Parâmetro</th>
-                          <th>Valor</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {condicoesPagamentoRows.map((row) => (
-                          <tr key={`condicao-geral-${row.label}`}>
-                            <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
-                              <span
-                                className={`print-table__label-text${row.labelAnnotation ? ' print-table__label-text--annotated' : ''}`}
-                              >
-                                {row.emphasize ? <strong>{row.label}</strong> : row.label}
-                                {row.labelAnnotation ? (
-                                  <span className="print-table__label-annotation">{row.labelAnnotation}</span>
+                        </thead>
+                        <tbody>
+                          {parametrosEconomiaRows.map((row) => (
+                            <tr key={`parametro-economia-${row.label}`}>
+                              <td>{row.label}</td>
+                              <td className="venda-print__cell--numeric">{row.value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                  {mostrarTabelaCondicoes ? (
+                    <div className="venda-print__subsection">
+                      <h3>Detalhes da proposta</h3>
+                      <table className="venda-print__table venda-print__table--striped">
+                        <thead>
+                          <tr>
+                            <th>Parâmetro</th>
+                            <th>Valor</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {condicoesPagamentoRows.map((row) => (
+                            <tr key={`condicao-geral-${row.label}`}>
+                              <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
+                                <span
+                                  className={`print-table__label-text${
+                                    row.labelAnnotation ? ' print-table__label-text--annotated' : ''
+                                  }`}
+                                >
+                                  {row.emphasize ? <strong>{row.label}</strong> : row.label}
+                                  {row.labelAnnotation ? (
+                                    <span className="print-table__label-annotation">{row.labelAnnotation}</span>
+                                  ) : null}
+                                </span>
+                                {row.description ? (
+                                  <span className="print-table__description">{row.description}</span>
                                 ) : null}
-                              </span>
-                              {row.description ? (
-                                <em className="print-table__description">{row.description}</em>
-                              ) : null}
-                            </td>
-                            <td className={row.emphasize ? 'print-table__cell--emphasis' : undefined}>
-                              {row.emphasize ? <strong>{row.value}</strong> : row.value}
-                            </td>
-                          </tr>
-                        ))}
-                        {condicoesParceladoRows.map((row) => (
-                          <tr key={`condicao-parcelado-${row.label}`}>
-                            <td>{row.label}</td>
-                            <td>{row.value}</td>
-                          </tr>
-                        ))}
-                        {condicoesFinanciamentoRows.map((row) => (
-                          <tr key={`condicao-financiamento-${row.label}`}>
-                            <td>{row.label}</td>
-                            <td>{row.value}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                ) : null}
-              </>
+                              </td>
+                              <td className={`venda-print__cell--numeric${row.emphasize ? ' venda-print__cell--total' : ''}`}>
+                                {row.value}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="venda-print__muted">
+                  Preencha as condições de pagamento na aba Vendas para exibir os detalhes nesta proposta.
+                </p>
+              )
             ) : (
-              <p className="muted no-break-inside">
+              <p className="venda-print__muted">
                 Preencha as condições de pagamento na aba Vendas para exibir os detalhes nesta proposta.
               </p>
-            )
-          ) : (
-            <p className="muted no-break-inside">
-              Preencha as condições de pagamento na aba Vendas para exibir os detalhes nesta proposta.
-            </p>
-          )}
-        </section>
-      ) : null}
+            )}
+          </div>
 
-      {isVendaDireta ? (
-        <section
-          id="condicoes-financeiras"
-          className="print-section keep-together page-break-before"
-        >
-          <h2 className="keep-with-next">{isVendaDireta ? 'Retorno Financeiro (Venda)' : 'Retorno projetado'}</h2>
-          {snapshotResultados || retornoVenda ? (
-            <div className="print-kpi-grid no-break-inside">
-              <div className="print-kpi no-break-inside">
-                <span>Payback estimado</span>
-                <strong>{paybackLabelResumo}</strong>
-              </div>
-              <div className="print-kpi no-break-inside">
-                <span>ROI acumulado ({roiHorizonteResumo})</span>
-                <strong>{roiLabelResumo}</strong>
-              </div>
-              {typeof retornoVenda?.vpl === 'number' ? (
-                <div className="print-kpi no-break-inside">
-                  <span>VPL</span>
-                  <strong>{vplResumo}</strong>
+          <div id="condicoes-financeiras" className="venda-print__section">
+            <h2>Retorno financeiro (venda)</h2>
+            {snapshotResultados || retornoVenda ? (
+              <div className="venda-print__kpi-grid">
+                <div className="venda-print__kpi">
+                  <span>Payback estimado</span>
+                  <strong>{paybackLabelResumo}</strong>
                 </div>
-              ) : null}
-            </div>
-          ) : (
-            <p className="muted no-break-inside">
-              Informe os parâmetros financeiros na aba Vendas para calcular o retorno projetado.
-            </p>
-          )}
+                <div className="venda-print__kpi">
+                  <span>ROI acumulado ({roiHorizonteResumo})</span>
+                  <strong>{roiLabelResumo}</strong>
+                </div>
+                {typeof retornoVenda?.vpl === 'number' ? (
+                  <div className="venda-print__kpi">
+                    <span>VPL</span>
+                    <strong>{vplResumo}</strong>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="venda-print__muted">
+                Informe os parâmetros financeiros na aba Vendas para calcular o retorno projetado.
+              </p>
+            )}
+          </div>
         </section>
       ) : null}
 
-      <section
-        id="economia-30-anos"
-        className="print-section print-chart-section keep-together page-break-before"
-      >
-        <h2 className="keep-with-next">{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
-        <div className="print-chart no-break-inside">
-          <ResponsiveContainer width="50%" height={240}>
-            <BarChart
-              layout="vertical"
-              data={chartDataPrintable}
-              margin={{ top: 5, right: 6, bottom: 7, left: 6 }}
-            >
-              <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" horizontal={false} />
-              <XAxis
-                type="number"
-                stroke={chartTheme.grid}
-                tickFormatter={formatAxis}
-                tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
-                tickLine={false}
-                domain={[chartPrintableDomain.min, chartPrintableDomain.max]}
-              >
-                <Label
-                  value="Benefício acumulado (R$)"
-                  position="insideBottom"
-                  offset={-32}
-                  style={{ fill: chartTheme.legend, fontSize: 13, fontWeight: 700 }}
+      <section className="venda-print__page venda-print__page--closing">
+        <div id="economia-30-anos" className="venda-print__section venda-print__section--chart">
+          <h2>{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
+          <div className="venda-print__chart-container no-break-inside">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart layout="vertical" data={chartDataPrintable} margin={{ top: 5, right: 6, bottom: 7, left: 6 }}>
+                <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" horizontal={false} />
+                <XAxis
+                  type="number"
+                  stroke={chartTheme.grid}
+                  tickFormatter={formatAxis}
+                  tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                  axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
+                  tickLine={false}
+                  domain={[chartPrintableDomain.min, chartPrintableDomain.max]}
+                >
+                  <Label
+                    value="Benefício acumulado (R$)"
+                    position="insideBottom"
+                    offset={-20}
+                    style={{ fill: chartTheme.legend, fontSize: 12, fontWeight: 600 }}
+                  />
+                </XAxis>
+                <YAxis
+                  type="category"
+                  dataKey="ano"
+                  stroke={chartTheme.grid}
+                  tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                  axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
+                  tickLine={false}
+                  width={120}
+                  tickFormatter={(valor) => `${valor}º ano`}
                 />
-              </XAxis>
-              <YAxis
-                type="category"
-                dataKey="ano"
-                stroke={chartTheme.grid}
-                tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                axisLine={{ stroke: chartTheme.grid, strokeWidth: 1 }}
-                tickLine={false}
-                width={120}
-                tickFormatter={(valor) => `${valor}º ano`}
-              />
-              <Tooltip
-                formatter={(value: number) => currency(Number(value))}
-                labelFormatter={(value) => `${value}º ano`}
-                contentStyle={{
-                  borderRadius: 12,
-                  border: '1px solid var(--border)',
-                  background: chartTheme.tooltipBg,
-                  color: chartTheme.tooltipText,
-                  padding: 12,
-                }}
-                itemStyle={{ color: chartTheme.tooltipText }}
-                labelStyle={{ color: chartTheme.tooltipText }}
-                wrapperStyle={{ zIndex: 1000 }}
-              />
-              {mostrarFinanciamento ? (
-                <Legend
-                  verticalAlign="top"
-                  align="left"
-                  iconType="circle"
-                  wrapperStyle={{ paddingBottom: 16, color: chartTheme.legend }}
-                  payload={[
-                    {
-                      id: 'Financiamento',
-                      value: 'Financiamento SolarInvest',
-                      type: 'circle',
-                      color: DEFAULT_CHART_COLORS.Financiamento,
-                    },
-                  ]}
-                />
-              ) : null}
-              <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={1} />
-              <Bar
-                dataKey="Leasing"
-                fill={DEFAULT_CHART_COLORS.Leasing}
-                barSize={14}
-                radius={[0, 8, 8, 0]}
-                isAnimationActive={false}
-                name={chartPrimaryLabel}
-              >
-                <LabelList
-                  dataKey="Leasing"
-                  position="right"
+                <Tooltip
                   formatter={(value: number) => currency(Number(value))}
-                  fill={DEFAULT_CHART_COLORS.Leasing}
-                  style={{ fontSize: 12, fontWeight: 600 }}
+                  labelFormatter={(value) => `${value}º ano`}
+                  contentStyle={{
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: chartTheme.tooltipBg,
+                    color: chartTheme.tooltipText,
+                    padding: 12,
+                  }}
+                  itemStyle={{ color: chartTheme.tooltipText }}
+                  labelStyle={{ color: chartTheme.tooltipText }}
+                  wrapperStyle={{ zIndex: 1000 }}
                 />
-              </Bar>
-              {mostrarFinanciamento ? (
+                {mostrarFinanciamento ? (
+                  <Legend
+                    verticalAlign="top"
+                    align="left"
+                    iconType="circle"
+                    wrapperStyle={{ paddingBottom: 12, color: chartTheme.legend }}
+                    payload={[
+                      {
+                        id: 'Financiamento',
+                        value: 'Financiamento SolarInvest',
+                        type: 'circle',
+                        color: DEFAULT_CHART_COLORS.Financiamento,
+                      },
+                    ]}
+                  />
+                ) : null}
+                <ReferenceLine x={0} stroke={chartTheme.grid} strokeDasharray="4 4" strokeWidth={1} />
                 <Bar
-                  dataKey="Financiamento"
-                  fill={DEFAULT_CHART_COLORS.Financiamento}
+                  dataKey="Leasing"
+                  fill={DEFAULT_CHART_COLORS.Leasing}
                   barSize={14}
                   radius={[0, 8, 8, 0]}
                   isAnimationActive={false}
+                  name={chartPrimaryLabel}
                 >
                   <LabelList
-                    dataKey="Financiamento"
+                    dataKey="Leasing"
                     position="right"
                     formatter={(value: number) => currency(Number(value))}
-                    fill={DEFAULT_CHART_COLORS.Financiamento}
+                    fill={DEFAULT_CHART_COLORS.Leasing}
                     style={{ fontSize: 12, fontWeight: 600 }}
                   />
                 </Bar>
-              ) : null}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        {!isVendaDireta && beneficioMarcos.length ? (
-          <ul className="print-chart-highlights no-break-inside">
-            {beneficioMarcos.map((marco) => (
-              <li key={`beneficio-marco-resumo-${marco.ano}`}>
-                <span className="print-chart-highlights__year">{marco.ano}º ano</span>
-                <div className="print-chart-highlights__values">
-                  <span className="print-chart-highlights__value" style={{ color: DEFAULT_CHART_COLORS.Leasing }}>
-                    {chartPrimaryLabel}: {currency(marco.Leasing)}
-                  </span>
-                  {mostrarFinanciamento ? (
-                    <span
-                      className="print-chart-highlights__value"
-                      style={{ color: DEFAULT_CHART_COLORS.Financiamento }}
-                    >
-                      Financiamento: {currency(marco.Financiamento)}
+                {mostrarFinanciamento ? (
+                  <Bar
+                    dataKey="Financiamento"
+                    fill={DEFAULT_CHART_COLORS.Financiamento}
+                    barSize={14}
+                    radius={[0, 8, 8, 0]}
+                    isAnimationActive={false}
+                    name="Financiamento SolarInvest"
+                  >
+                    <LabelList
+                      dataKey="Financiamento"
+                      position="right"
+                      formatter={(value: number) => currency(Number(value))}
+                      fill={DEFAULT_CHART_COLORS.Financiamento}
+                      style={{ fontSize: 12, fontWeight: 600 }}
+                    />
+                  </Bar>
+                ) : null}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {!isVendaDireta && beneficioMarcos.length ? (
+            <ul className="print-chart-highlights no-break-inside">
+              {beneficioMarcos.map((marco) => (
+                <li key={`beneficio-marco-resumo-${marco.ano}`}>
+                  <span className="print-chart-highlights__year">{marco.ano}º ano</span>
+                  <div className="print-chart-highlights__values">
+                    <span className="print-chart-highlights__value" style={{ color: DEFAULT_CHART_COLORS.Leasing }}>
+                      {chartPrimaryLabel}: {currency(marco.Leasing)}
                     </span>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {!isVendaDireta && beneficioAno30Printable ? (
-          <p className="chart-explainer no-break-inside">
-            <strong>{chartEconomiaIntro}</strong>{' '}
-            Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
-            <strong style={{ color: DEFAULT_CHART_COLORS.Leasing }}>
-              {' '}
-              {currency(beneficioAno30Printable.Leasing)}
-            </strong>
-            {mostrarFinanciamento ? (
-              <>
-                {' '}
-                {isVendaDireta ? 'na venda direta e de' : 'no leasing e de'}
-                <strong style={{ color: DEFAULT_CHART_COLORS.Financiamento }}>
+                    {mostrarFinanciamento ? (
+                      <span className="print-chart-highlights__value" style={{ color: DEFAULT_CHART_COLORS.Financiamento }}>
+                        Financiamento: {currency(marco.Financiamento)}
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {!isVendaDireta && beneficioAno30Printable ? (
+            <p className="chart-explainer no-break-inside">
+              <strong>{chartEconomiaIntro}</strong>{' '}
+              Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
+              <strong style={{ color: DEFAULT_CHART_COLORS.Leasing }}> {currency(beneficioAno30Printable.Leasing)}</strong>
+              {mostrarFinanciamento ? (
+                <>
                   {' '}
-                  {currency(beneficioAno30Printable.Financiamento)}
-                </strong>{' '}
-                {isVendaDireta
-                  ? 'com financiamento como alternativa de pagamento.'
-                  : 'com financiamento.'}
+                  {isVendaDireta ? 'na venda direta e de' : 'no leasing e de'}
+                  <strong style={{ color: DEFAULT_CHART_COLORS.Financiamento }}>
+                    {' '}
+                    {currency(beneficioAno30Printable.Financiamento)}
+                  </strong>{' '}
+                  {isVendaDireta ? 'com financiamento como alternativa de pagamento.' : 'com financiamento.'}
+                </>
+              ) : (
+                <> comparado à concessionária.</>
+              )}{' '}
+              {chartExplainerContext}
+            </p>
+          ) : null}
+          {!isVendaDireta ? <p className="print-chart-footnote no-break-inside">{chartFootnoteText}</p> : null}
+        </div>
+
+        <div id="infos-importantes" className="venda-print__section venda-print__section--important">
+          <h2>Informações importantes</h2>
+          <ul className="venda-print__list no-break-inside">
+            {isVendaDireta ? (
+              <>
+                <li>Esta proposta refere-se à venda do sistema fotovoltaico (não inclui serviços de leasing).</li>
+                <li>Todos os equipamentos utilizados possuem certificação INMETRO (ou equivalente) e seguem as normas técnicas aplicáveis.</li>
+                <li>Os valores, condições de pagamento e prazos apresentados são estimativas preliminares e podem ser ajustados na contratação definitiva.</li>
+                <li>A projeção de economia considera: produção estimada, tarifa de energia inicial e inflação de energia informadas, e a taxa mínima aplicável em sistemas on-grid.</li>
+                <li>As parcelas/encargos de cartão e/ou financiamento impactam o fluxo de caixa e o ROI projetado.</li>
+                <li>O cronograma de entrega e instalação está sujeito a vistoria técnica e disponibilidade de estoque.</li>
+                <li>Garantias dos fabricantes seguem seus termos. Manutenção preventiva/corretiva e seguros podem ser contratados à parte (se aplicável).</li>
+                <li>
+                  Não é de responsabilidade da SolarInvest Solutions cálculo e reforço/modificações de estrutura; reforço/modificações na rede elétrica; mudança/adaptação de transformador; armazenamento/seguro de material; segurança local; autorização ambiental; autorização de autoridades/autarquias municipais/estaduais além da distribuidora de energia; e ajuste de tensão com troca de padrão junto à distribuidora. O prazo de entrega da instalação será de acordo com contrato assinado e condicionado às intempéries climáticas, podendo ser de aproximadamente 30 dias úteis após a entrega integral do material.
+                </li>
+                <li>
+                  É de responsabilidade da SolarInvest Solutions: dimensionamento do sistema; elaboração do projeto; relação dos equipamentos e materiais necessários; acompanhamento junto à distribuidora; instalação do sistema; supervisão e gerenciamento da obra. Será realizada visita técnica antes da assinatura do contrato e o dimensionamento poderá ser ajustado conforme a posição da cobertura, pois as estimativas consideram a instalação dos módulos orientados para o norte, inclinados a 17° e livres de sombreamento.
+                </li>
               </>
             ) : (
-              <> comparado à concessionária.</>
-            )}{' '}
-            {chartExplainerContext}
-          </p>
-        ) : null}
-        {!isVendaDireta ? <p className="print-chart-footnote no-break-inside">{chartFootnoteText}</p> : null}
-      </section>
+              <>
+                <li>Desconto contratual aplicado: {descontoResumo} sobre a tarifa da distribuidora.</li>
+                <li>Prazo de vigência: conforme especificado na proposta (ex.: 60 meses).</li>
+                <li>Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.</li>
+                <li>Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e seguro sinistro da usina.</li>
+                <li>Transferência da usina ao cliente ao final do contrato sem custo adicional, desde que obrigações contratuais estejam cumpridas.</li>
+                <li>Tabela de compra antecipada disponível mediante solicitação.</li>
+                <li>Equipamentos utilizados possuem certificação INMETRO.</li>
+                <li>Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer ajustes no contrato definitivo.</li>
+              </>
+            )}
+          </ul>
+          {pdfConfig.observacaoPadrao ? (
+            <p className="print-important__observation no-break-inside">{pdfConfig.observacaoPadrao}</p>
+          ) : null}
+        </div>
 
-      <section
-        id="infos-importantes"
-        className="print-section print-important keep-together page-break-before"
-      >
-        <h2 className="keep-with-next">Informações importantes</h2>
-        <ul className="no-break-inside">
-          {isVendaDireta ? (
-            <>
-              <li>Esta proposta refere-se à venda do sistema fotovoltaico (não inclui serviços de leasing).</li>
-              <li>Todos os equipamentos utilizados possuem certificação INMETRO (ou equivalente) e seguem as normas técnicas aplicáveis.</li>
-              <li>Os valores, condições de pagamento e prazos apresentados são estimativas preliminares e podem ser ajustados na contratação definitiva.</li>
-              <li>A projeção de economia considera: produção estimada, tarifa de energia inicial e inflação de energia informadas, e a taxa mínima aplicável em sistemas on-grid.</li>
-              <li>As parcelas/encargos de cartão e/ou financiamento impactam o fluxo de caixa e o ROI projetado.</li>
-              <li>O cronograma de entrega e instalação está sujeito a vistoria técnica e disponibilidade de estoque.</li>
-              <li>Garantias dos fabricantes seguem seus termos. Manutenção preventiva/corretiva e seguros podem ser contratados à parte (se aplicável).</li>
-              <li>
-                Não é de responsabilidade da SolarInvest Solutions cálculo e reforço/modificações de estrutura; reforço/modificações na rede elétrica; mudança/adaptação de transformador; armazenamento/seguro de material; segurança local; autorização ambiental; autorização de autoridades/autarquias municipais/estaduais além da distribuidora de energia; e ajuste de tensão com troca de padrão junto à distribuidora. O prazo de entrega da instalação será de acordo com contrato assinado e condicionado às intempéries climáticas, podendo ser de aproximadamente 30 dias úteis após a entrega integral do material.
-              </li>
-              <li>
-                É de responsabilidade da SolarInvest Solutions: dimensionamento do sistema; elaboração do projeto; relação dos equipamentos e materiais necessários; acompanhamento junto à distribuidora; instalação do sistema; supervisão e gerenciamento da obra. Será realizada visita técnica antes da assinatura do contrato e o dimensionamento poderá ser ajustado conforme a posição da cobertura, pois as estimativas consideram a instalação dos módulos orientados para o norte, inclinados a 17° e livres de sombreamento.
-              </li>
-            </>
-          ) : (
-            <>
-              <li>Desconto contratual aplicado: {descontoResumo} sobre a tarifa da distribuidora.</li>
-              <li>Prazo de vigência: conforme especificado na proposta (ex.: 60 meses).</li>
-              <li>Tarifas por kWh são projeções, podendo variar conforme reajustes autorizados pela ANEEL.</li>
-              <li>
-                Durante o contrato, a SolarInvest é responsável por manutenção, suporte técnico, limpeza e seguro sinistro da usina.
-              </li>
-              <li>
-                Transferência da usina ao cliente ao final do contrato sem custo adicional, desde que obrigações contratuais estejam
-                cumpridas.
-              </li>
-              <li>Tabela de compra antecipada disponível mediante solicitação.</li>
-              <li>Equipamentos utilizados possuem certificação INMETRO.</li>
-              <li>
-                Os valores apresentados nesta proposta são estimativas preliminares e poderão sofrer ajustes no contrato definitivo.
-              </li>
-            </>
-          )}
-        </ul>
-        {pdfConfig.observacaoPadrao ? (
-          <p className="print-important__observation no-break-inside">{pdfConfig.observacaoPadrao}</p>
-        ) : null}
-      </section>
-
-      <section className="print-section print-cta no-break-inside">
-        <div className="print-cta__box no-break-inside">
-          <h2 className="keep-with-next">Vamos avançar?</h2>
+        <div className="venda-print__section venda-print__cta no-break-inside">
+          <h2>Vamos avançar?</h2>
           <p>
             Agende uma visita técnica gratuita com nossa equipe para confirmar a viabilidade e formalizar a proposta definitiva.
           </p>
         </div>
+
+        <footer className="print-final-footer no-break-inside">
+          <div className="print-final-footer__dates">
+            <p>
+              <strong>Data de emissão da proposta:</strong> {emissaoTexto}
+            </p>
+            <p>
+              <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
+            </p>
+          </div>
+          <div className="print-final-footer__signature">
+            <div className="signature-line" />
+            <span>Assinatura do cliente</span>
+          </div>
+        </footer>
+
+        <div className="print-brand-footer no-break-inside">
+          <strong>SOLARINVEST</strong>
+          <span>CNPJ: 60.434.015/0001-90</span>
+          <span>Anápolis-GO</span>
+          <span>Solarinvest.info</span>
+        </div>
       </section>
-
-      <footer className="print-final-footer no-break-inside">
-        <div className="print-final-footer__dates">
-          <p>
-            <strong>Data de emissão da proposta:</strong> {emissaoTexto}
-          </p>
-          <p>
-            <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
-          </p>
-        </div>
-        <div className="print-final-footer__signature">
-          <div className="signature-line" />
-          <span>Assinatura do cliente</span>
-        </div>
-      </footer>
-
-      <div className="print-brand-footer no-break-inside">
-        <strong>SOLARINVEST</strong>
-        <span>CNPJ: 60.434.015/0001-90</span>
-        <span>Anápolis-GO</span>
-        <span>Solarinvest.info</span>
-      </div>
     </div>
   )
 }
+
 
 export const PrintableProposalVenda = React.forwardRef<HTMLDivElement, PrintableProposalProps>(PrintableProposalInner)
 
