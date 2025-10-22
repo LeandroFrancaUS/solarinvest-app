@@ -2671,10 +2671,6 @@ export default function App() {
     setRetornoStatus('idle')
   }, [])
 
-  const handleRecalcularVendas = useCallback(() => {
-    setRecalcularTick((prev) => prev + 1)
-  }, [])
-
   const handleCalcularRetorno = useCallback(() => {
     const errors = validateVendaForm(vendaForm)
     setVendaFormErrors(errors)
@@ -2697,6 +2693,11 @@ export default function App() {
       setRetornoStatus('idle')
     }
   }, [validateVendaForm, vendaForm])
+
+  const handleRecalcularVendas = useCallback(() => {
+    setRecalcularTick((prev) => prev + 1)
+    handleCalcularRetorno()
+  }, [handleCalcularRetorno])
 
   useEffect(() => {
     vendaActions.updateResultados({
