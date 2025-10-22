@@ -9,7 +9,7 @@ import type {
   RegimeTributario,
 } from '../lib/venda/calcComposicaoUFV'
 import type { VendasConfig } from './vendasConfig'
-import type { VendaSnapshot } from '../store/useVendaStore'
+import type { ModoVenda, VendaSnapshot } from '../store/useVendaStore'
 import type { MultiUcClasse } from './multiUc'
 
 export type TipoInstalacao = 'TELHADO' | 'SOLO'
@@ -207,4 +207,9 @@ export type PrintableProposalProps = {
   informacoesImportantesObservacao?: string | null | undefined
   multiUcResumo?: PrintableMultiUcResumo | null | undefined
   vendasConfigSnapshot?: PrintableVendasConfig | undefined
+  valorTotalProposta?: number | null | undefined
+  economiaEstimativaValor?: number | null | undefined
+  economiaEstimativaHorizonteAnos?: number | null | undefined
+  custoImplantacaoReferencia?: number | null | undefined
+  modoVenda?: ModoVenda | undefined
 }

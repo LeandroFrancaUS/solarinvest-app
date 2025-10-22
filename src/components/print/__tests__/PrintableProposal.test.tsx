@@ -154,8 +154,15 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).toMatch(/Inversores<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).not.toMatch(/Área mínima necessária/)
     expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>120,0%<\/dd>/)
-    expect(markup).toContain('>Item<')
-    expect(markup).toContain('Investimento Total do Projeto')
+    expect(markup).toContain('Valor total da proposta')
+    expect(markup).toMatch(/Economia estimada \(5 anos\)/)
+    expect(markup).toContain(
+      'O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos, instalação, documentação e suporte técnico.',
+    )
+    expect(markup).toContain(
+      'O custo técnico de implantação é referência interna e não representa um valor a ser pago pelo cliente.',
+    )
+    expect(markup).not.toMatch(/Total do contrato/)
     expect(markup).toMatch(/<span>VPL<\/span>\s*<strong>/)
   })
 

@@ -15,6 +15,7 @@ const DEFAULT_CHART_COLORS: Record<'Leasing' | 'Financiamento', string> = {
 }
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
+const ECONOMIA_ESTIMATIVA_PADRAO_ANOS = 5
 
 function PrintableProposalInner(
   props: PrintableProposalProps,
@@ -46,6 +47,9 @@ function PrintableProposalInner(
     composicaoUfv,
     vendaSnapshot,
     vendasConfigSnapshot,
+    valorTotalProposta: valorTotalPropostaProp,
+    economiaEstimativaValor: economiaEstimativaValorProp,
+    economiaEstimativaHorizonteAnos: economiaEstimativaHorizonteAnosProp,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -126,6 +130,17 @@ function PrintableProposalInner(
     mostrarQuebraImpostos: vendasConfigSnapshot?.mostrar_quebra_impostos_no_pdf_cliente ?? false,
     observacaoPadrao: normalizeDisplayText(vendasConfigSnapshot?.observacao_padrao_proposta ?? null),
   }
+  const hasNonZero = (value: number | null | undefined): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && Math.abs(value) > 0
+  const valorTotalPropostaNumero = hasNonZero(valorTotalPropostaProp)
+    ? Number(valorTotalPropostaProp)
+    : null
+  const economiaEstimativaHorizonteAnos =
+    typeof economiaEstimativaHorizonteAnosProp === 'number' &&
+    Number.isFinite(economiaEstimativaHorizonteAnosProp) &&
+    economiaEstimativaHorizonteAnosProp > 0
+      ? Math.round(economiaEstimativaHorizonteAnosProp)
+      : ECONOMIA_ESTIMATIVA_PADRAO_ANOS
   let resumoPropostaBreakdown: Array<{ nome: string; aliquota: number; valor: number }> = []
   const pickPositive = (...values: (number | null | undefined)[]): number | null => {
     for (const value of values) {
@@ -143,8 +158,6 @@ function PrintableProposalInner(
     }
     return null
   }
-  const hasNonZero = (value: number | null | undefined): value is number =>
-    typeof value === 'number' && Number.isFinite(value) && Math.abs(value) > 0
   const parsedPdfResumo = parsedPdfVenda ?? null
   const kitPotenciaInstalada = pickPositive(
     snapshotConfig?.potencia_sistema_kwp,
@@ -504,6 +517,46 @@ function PrintableProposalInner(
     : hasNonZero(capex)
     ? currency(capex)
     : '—'
+  const valorTotalPropostaPrincipalNumero = isVendaDireta
+    ? valorTotalPropostaNumero
+    : valorTotalPropostaNumero ??
+      (hasNonZero(capexTotalCalculado)
+        ? Number(capexTotalCalculado)
+        : hasNonZero(capex)
+        ? Number(capex)
+        : null)
+  const valorTotalPropostaLabel =
+    valorTotalPropostaPrincipalNumero != null ? currency(valorTotalPropostaPrincipalNumero) : '—'
+  const economiaEstimativaTitulo =
+    economiaEstimativaHorizonteLabel != null
+      ? `Economia estimada (${economiaEstimativaHorizonteLabel} anos)`
+      : 'Economia estimada'
+  const mostrarEconomiaEstimativa = economiaEstimativaValorDisplay != null
+  const economiaResumo = (() => {
+    if (!isVendaDireta) {
+      return { valor: null as number | null, anos: null as number | null }
+    }
+    if (hasNonZero(economiaEstimativaValorProp)) {
+      return {
+        valor: Number(economiaEstimativaValorProp),
+        anos: economiaEstimativaHorizonteAnos,
+      }
+    }
+    if (!retornoVenda || !Array.isArray(retornoVenda.economia) || retornoVenda.economia.length === 0) {
+      return { valor: null as number | null, anos: null as number | null }
+    }
+    const horizonteMeses = Math.max(1, economiaEstimativaHorizonteAnos * 12)
+    const valores = retornoVenda.economia.slice(0, horizonteMeses)
+    const total = valores.reduce((acc, valor) => acc + Math.max(0, Number(valor ?? 0)), 0)
+    if (!Number.isFinite(total) || total <= 0) {
+      return { valor: null as number | null, anos: null as number | null }
+    }
+    return { valor: total, anos: economiaEstimativaHorizonteAnos }
+  })()
+  const economiaEstimativaValorDisplay = economiaResumo.valor
+  const economiaEstimativaLabel =
+    economiaEstimativaValorDisplay != null ? currency(economiaEstimativaValorDisplay) : null
+  const economiaEstimativaHorizonteLabel = economiaResumo.valor != null ? economiaResumo.anos : null
   const tarifaInicialResumo = (() => {
     const valor = pickPositive(snapshotParametros?.tarifa_r_kwh, vendaFormResumo?.tarifa_cheia_r_kwh)
     return Number.isFinite(valor) && (valor ?? 0) > 0 ? tarifaCurrency(valor ?? 0) : tarifaCheiaResumo
@@ -608,19 +661,21 @@ function PrintableProposalInner(
     '—'
   const condicoesPagamentoRows: { label: string; value: string }[] = []
   pushRowIfMeaningful(condicoesPagamentoRows, 'Forma de pagamento', formaPagamentoLabel)
-  pushRowIfMeaningful(condicoesPagamentoRows, 'Investimento total (CAPEX)', investimentoCapexLabel)
+  if (!isVendaDireta) {
+    pushRowIfMeaningful(condicoesPagamentoRows, 'Investimento total (CAPEX)', investimentoCapexLabel)
+  }
   pushRowIfMeaningful(condicoesPagamentoRows, 'Validade da proposta', validadePropostaLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Prazo de execução', prazoExecucaoLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Encargos financeiros (MDR)', encargosFinanceirosLabel ?? undefined)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Condições adicionais', condicoesAdicionaisLabel)
   const condicoesParceladoRows: { label: string; value: string }[] = []
-  if (isCondicaoParcelado) {
+  if (!isVendaDireta && isCondicaoParcelado) {
     pushRowIfMeaningful(condicoesParceladoRows, 'Número de parcelas', parcelasResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.m.)', jurosCartaoAmResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.a.)', jurosCartaoAaResumo)
   }
   const condicoesFinanciamentoRows: { label: string; value: string }[] = []
-  if (isCondicaoFinanciamento) {
+  if (!isVendaDireta && isCondicaoFinanciamento) {
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Entrada', entradaResumo)
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Número de parcelas', parcelasFinResumo)
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Juros do financiamento (% a.m.)', jurosFinAmResumo)
@@ -751,6 +806,29 @@ function PrintableProposalInner(
         </div>
       </header>
 
+      {isVendaDireta ? (
+        <section className="print-section keep-together print-values-section">
+          <h2 className="keep-with-next">Valores da proposta</h2>
+          <div className="print-values-grid">
+            <div className="print-value-card print-value-card--highlight">
+              <span>Valor total da proposta</span>
+              <strong>{valorTotalPropostaLabel}</strong>
+            </div>
+            {mostrarEconomiaEstimativa ? (
+              <div className="print-value-card">
+                <span>{economiaEstimativaTitulo}</span>
+                <strong>{economiaEstimativaLabel}</strong>
+              </div>
+            ) : null}
+          </div>
+          <p className="print-value-note">
+            O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos,
+            instalação, documentação e suporte técnico. O custo técnico de implantação é referência interna e
+            não representa um valor a ser pago pelo cliente.
+          </p>
+        </section>
+      ) : null}
+
       <section className="print-section keep-together">
         <h2 className="keep-with-next">Identificação do cliente</h2>
         <ClientInfoGrid
@@ -784,9 +862,10 @@ function PrintableProposalInner(
           ) : null}
         </section>
       ) : null}
-      <section id="resumo-proposta" className="print-section keep-together page-break-before">
-        <h2 className="keep-with-next">Resumo de Custos e Investimento</h2>
-        <table className="print-table no-break-inside">
+      {!isVendaDireta ? (
+        <section id="resumo-proposta" className="print-section keep-together page-break-before">
+          <h2 className="keep-with-next">Resumo de Custos e Investimento</h2>
+          <table className="print-table no-break-inside">
           <thead>
             <tr>
               <th>Item</th>
@@ -1013,8 +1092,8 @@ function PrintableProposalInner(
             })()}
           </tbody>
         </table>
-        {pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos && resumoPropostaBreakdown.length ? (
-          <table className="print-table no-break-inside">
+          {pdfConfig.exibirImpostos && pdfConfig.mostrarQuebraImpostos && resumoPropostaBreakdown.length ? (
+            <table className="print-table no-break-inside">
             <thead>
               <tr>
                 <th>Imposto</th>
@@ -1031,9 +1110,10 @@ function PrintableProposalInner(
                 </tr>
               ))}
             </tbody>
-          </table>
-        ) : null}
-      </section>
+            </table>
+          ) : null}
+        </section>
+      ) : null}
 
       {isVendaDireta ? (
         <section className="print-section no-break-inside">
