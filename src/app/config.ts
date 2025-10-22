@@ -154,7 +154,7 @@ export const INITIAL_VALUES = {
   kcKwhMes: 0,
   tarifaCheia: 0.964,
   desconto: 20,
-  taxaMinima: 95,
+  taxaMinima: 0,
   encargosFixosExtras: 0,
   tusdPercent: 27,
   tusdTipoCliente: 'residencial' as TipoClienteTUSD,
