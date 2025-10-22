@@ -715,7 +715,7 @@ function PrintableProposalInner(
   pushRowIfMeaningful(condicoesPagamentoRows, 'Prazo de execução', prazoExecucaoLabel)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Encargos financeiros (MDR)', encargosFinanceirosLabel ?? undefined)
   pushRowIfMeaningful(condicoesPagamentoRows, 'Condições adicionais', condicoesAdicionaisLabel)
-  pushRowIfMeaningful(condicoesPagamentoRows, 'MARGEM OPERACIONAL (R$)', margemOperacionalLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Margem operacional', margemOperacionalLabel)
   pushRowIfMeaningful(
     condicoesPagamentoRows,
     'Custo Técnico de Implantação',
