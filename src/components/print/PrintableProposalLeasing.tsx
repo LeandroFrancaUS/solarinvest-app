@@ -438,6 +438,39 @@ function PrintableProposalLeasingInner(
 
   const tarifaInicialProjetada = tarifaCheiaBase > 0 ? tarifaCheiaBase * (1 - descontoFracao) : 0
 
+  const tusdMedioPorAno = useMemo<Record<number, number>>(() => {
+    if (!Array.isArray(parcelasLeasing) || parcelasLeasing.length === 0) {
+      return {}
+    }
+
+    const acumulado: Record<number, { soma: number; quantidade: number }> = {}
+
+    parcelasLeasing.forEach((parcela) => {
+      const mes = Number.isFinite(parcela?.mes) ? Math.max(1, Math.floor(parcela.mes)) : NaN
+      if (!Number.isFinite(mes)) {
+        return
+      }
+
+      const ano = Math.ceil(mes / 12)
+      if (!Number.isFinite(ano) || ano <= 0) {
+        return
+      }
+
+      const tusd = Number.isFinite(parcela?.tusd) ? Math.max(0, parcela.tusd) : 0
+      const grupo = acumulado[ano] ?? { soma: 0, quantidade: 0 }
+      grupo.soma += tusd
+      grupo.quantidade += 1
+      acumulado[ano] = grupo
+    })
+
+    return Object.keys(acumulado).reduce<Record<number, number>>((acc, chave) => {
+      const ano = Number(chave)
+      const { soma, quantidade } = acumulado[ano]
+      acc[ano] = quantidade > 0 ? soma / quantidade : 0
+      return acc
+    }, {})
+  }, [parcelasLeasing])
+
   const condicoesFinanceiras = [
     {
       label: 'Investimento estimado da SolarInvest (R$)',
@@ -474,7 +507,8 @@ function PrintableProposalLeasingInner(
       const fator = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, ano - 1))
       const tarifaAno = tarifaCheiaBase * fator
       const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
-      const mensalidade = energiaContratadaBase * tarifaComDesconto
+      const tusdMedio = tusdMedioPorAno[ano] ?? 0
+      const mensalidade = energiaContratadaBase * tarifaComDesconto + tusdMedio
       const contaDistribuidora = energiaContratadaBase * tarifaAno
       return {
         ano,
@@ -488,6 +522,8 @@ function PrintableProposalLeasingInner(
     descontoFracao,
     energiaContratadaBase,
     inflacaoEnergiaFracao,
+    parcelasLeasing,
+    tusdMedioPorAno,
     tarifaCheiaBase,
     prazoContratual,
   ])
