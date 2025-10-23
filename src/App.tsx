@@ -2576,14 +2576,19 @@ export default function App() {
 
 
   const handleDescontosConfigChange = useCallback(
-    (valor: string) => {
-      const parsed = parseNumericInput(valor)
-      const normalizado = normalizeCurrencyNumber(parsed)
-      const finalValue = normalizado === null ? 0 : normalizado
-      updateVendasSimulacao(currentBudgetId, { descontos: finalValue })
+    (valor: number | null) => {
+      const sanitized =
+        typeof valor === 'number' && Number.isFinite(valor) ? Math.max(0, valor) : 0
+      updateVendasSimulacao(currentBudgetId, { descontos: sanitized })
     },
     [currentBudgetId, updateVendasSimulacao],
   )
+
+  const descontosMoneyField = useBRNumberField({
+    mode: 'money',
+    value: Number.isFinite(descontosValor) ? Number(descontosValor) : null,
+    onChange: handleDescontosConfigChange,
+  })
 
   const handleCapexBaseResumoChange = useCallback(
     (valor: number | null) => {
@@ -4744,10 +4749,12 @@ export default function App() {
     if (capexManualOverride) {
       return
     }
-    const normalizedCapex = Number.isFinite(valorVendaAtual) && valorVendaAtual > 0 ? valorVendaAtual : 0
+    const valorVendaBruto =
+      Number.isFinite(valorVendaAtual) && valorVendaAtual > 0 ? valorVendaAtual : 0
+    const normalizedCapex = Math.max(valorVendaBruto - descontosValor, 0)
     let changed = false
     setVendaForm((prev) => {
-      if (Math.abs((prev.capex_total ?? 0) - normalizedCapex) < 0.5) {
+      if (Math.abs((prev.capex_total ?? 0) - normalizedCapex) < 0.005) {
         return prev
       }
       changed = true
@@ -4763,7 +4770,13 @@ export default function App() {
       })
       resetRetorno()
     }
-  }, [capexManualOverride, resetRetorno, valorVendaAtual, recalcularTick])
+  }, [
+    capexManualOverride,
+    descontosValor,
+    resetRetorno,
+    valorVendaAtual,
+    recalcularTick,
+  ])
 
   const chartPalette = useMemo(
     () => ({
@@ -10532,11 +10545,12 @@ export default function App() {
               )}
             >
               <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={Number.isFinite(descontosValor) ? descontosValor : 0}
-                onChange={(event) => handleDescontosConfigChange(event.target.value)}
+                ref={descontosMoneyField.ref}
+                type="text"
+                inputMode="decimal"
+                value={descontosMoneyField.text}
+                onChange={descontosMoneyField.handleChange}
+                onBlur={descontosMoneyField.handleBlur}
                 onFocus={selectNumberInputOnFocus}
               />
             </Field>
