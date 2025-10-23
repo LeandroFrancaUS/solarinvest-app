@@ -489,7 +489,7 @@ export function SimulacoesTab({
                       <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
                     </button>
                     <label className={`simulations-select${isSelected ? ' checked' : ''}`}>
-                      <input
+                      <input 
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelection(sim.id)}
@@ -526,15 +526,15 @@ export function SimulacoesTab({
               <h4>Configurações da simulação</h4>
             </header>
             <div className="simulations-form-grid">
-              <div className="field">
-                <label className="field-label" htmlFor="sim-nome">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-nome">
                   {labelWithTooltip(
                     'Nome do cenário',
                     'Identificação do cenário exibida na lista lateral e no comparativo de resultados.',
                   )}
                 </label>
-                <div className="field-control">
-                  <input
+                <div className="field-control cfg-control">
+                  <input className="cfg-input"
                     id="sim-nome"
                     type="text"
                     maxLength={80}
@@ -545,15 +545,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-desconto">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-desconto">
                   {labelWithTooltip(
                     'Desconto SolarInvest (%)',
                     'Percentual de abatimento aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
                   )}
                 </label>
-                <div className="field-control">
-                  <input
+                <div className="field-control cfg-control">
+                  <input className="cfg-input"
                     id="sim-desconto"
                     type="number"
                     value={current.desconto_pct}
@@ -566,15 +566,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-capex">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-capex">
                   {labelWithTooltip(
                     'CAPEX SolarInvest (R$)',
                     'Investimento total previsto para o projeto. Valor de mercado estimado = CAPEX × 1,29.',
                   )}
                 </label>
-                <div className="field-control">
-                  <input
+                <div className="field-control cfg-control">
+                  <input className="cfg-input"
                     id="sim-capex"
                     type="number"
                     value={current.capex_solarinvest}
@@ -586,15 +586,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-anos">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-anos">
                   {labelWithTooltip(
                     'Anos de contrato',
                     'Prazo do contrato em anos. Meses simulados = Anos de contrato × 12.',
                   )}
                 </label>
-                <div className="field-control">
-                  <input
+                <div className="field-control cfg-control">
+                  <input className="cfg-input"
                     id="sim-anos"
                     type="number"
                     value={current.anos_contrato}
@@ -606,15 +606,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-inflacao-energetica">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-inflacao-energetica">
                   {labelWithTooltip(
                     'Inflação energética anual (% a.a.)',
                     'Reajuste esperado para a tarifa cheia. Tarifa projetada no mês m = Tarifa cheia mês 1 × (1 + inflação)^{(m-1)/12}.',
                   )}
                 </label>
-                <div className="field-control">
-                  <input
+                <div className="field-control cfg-control">
+                  <input className="cfg-input"
                     id="sim-inflacao-energetica"
                     type="number"
                     value={current.inflacao_energetica_pct}
@@ -626,15 +626,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-inflacao-ipca">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-inflacao-ipca">
                   {labelWithTooltip(
                     'Inflação IPCA anual (% a.a.)',
                     'Premissa macroeconômica registrada junto ao cenário para análises externas e exportações. Valor informativo, sem impacto direto nos cálculos automáticos.',
                   )}
                 </label>
-                <div className="field-control">
-                  <input
+                <div className="field-control cfg-control">
+                  <input className="cfg-input"
                     id="sim-inflacao-ipca"
                     type="number"
                     value={current.inflacao_ipca_pct}
@@ -646,15 +646,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-tarifa-cheia">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-tarifa-cheia">
                   {labelWithTooltip(
                     'Tarifa cheia (R$/kWh) - Mês 1',
                     'Tarifa sem desconto considerada no primeiro mês da simulação; ponto de partida para reajustes e cálculos de economia.',
                   )}
                 </label>
-                <div className="field-control">
-                  <input
+                <div className="field-control cfg-control">
+                  <input className="cfg-input"
                     id="sim-tarifa-cheia"
                     type="number"
                     value={current.tarifa_cheia_r_kwh_m1}
@@ -666,15 +666,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-consumo">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-consumo">
                   {labelWithTooltip(
                     'Consumo (kWh/mês)',
                     'Consumo médio mensal compensado pelo leasing. Receita mensal = Consumo × Tarifa com desconto; economia bruta = Consumo × (Tarifa cheia - Tarifa com desconto).',
                   )}
                 </label>
-                <div className="field-control">
-                  <input
+                <div className="field-control cfg-control">
+                  <input className="cfg-input"
                     id="sim-consumo"
                     type="number"
                     value={current.kc_kwh_mes}
@@ -686,15 +686,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-tipo-sistema">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-tipo-sistema">
                   {labelWithTooltip(
                     'Tipo de sistema',
                     'Classificação técnica do projeto (on-grid, híbrido ou off-grid). Ajuda a definir parâmetros de TUSD e regras de compensação.',
                   )}
                 </label>
-                <div className="field-control">
-                  <select
+                <div className="field-control cfg-control">
+                  <select className="cfg-input"
                     id="sim-tipo-sistema"
                     value={tipoSistemaAtual}
                     onChange={(event) =>
@@ -710,17 +710,17 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label">
                   {labelWithTooltip(
                     'Perfil de consumo',
                     'Categoria da unidade consumidora. Define o TUSD padrão sugerido e influencia simultaneidade e fator ano na TUSD.',
                   )}
                 </label>
-                <div className="field-control">
+                <div className="field-control cfg-control">
                   <div className="radio-group">
                     <label>
-                      <input
+                      <input 
                         type="radio"
                         name="perfil-consumo"
                         value="residencial"
@@ -730,7 +730,7 @@ export function SimulacoesTab({
                       Residencial
                     </label>
                     <label>
-                      <input
+                      <input 
                         type="radio"
                         name="perfil-consumo"
                         value="comercial"
@@ -743,16 +743,16 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-tusd">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-tusd">
                   {labelWithTooltip(
                     'TUSD (%)',
                     'Percentual do fio B aplicado sobre a energia compensada. Encargo TUSD ≈ Consumo × Tarifa cheia × (TUSD ÷ 100) ajustado por simultaneidade e fator ano.',
                   )}
                 </label>
-                <div className="field-control">
+                <div className="field-control cfg-control">
                   <div className="inline-field">
-                    <input
+                    <input className="cfg-input"
                       id="sim-tusd"
                       type="number"
                       value={current.tusd_pct}
@@ -775,15 +775,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="sim-seguro">
+              <div className="field cfg-field">
+                <label className="field-label cfg-label" htmlFor="sim-seguro">
                   {labelWithTooltip(
                     'Seguro anual (% valor de mercado)',
                     'Percentual aplicado sobre o valor de mercado estimado. Seguro anual = Valor de mercado × (% ÷ 100); seguro mensal é rateado em 12 meses com reajuste de 1,2% a.a.',
                   )}
                 </label>
-                <div className="field-control">
-                  <input
+                <div className="field-control cfg-control">
+                  <input className="cfg-input"
                     id="sim-seguro"
                     type="number"
                     value={current.seguro_pct}
@@ -795,15 +795,15 @@ export function SimulacoesTab({
                 </div>
               </div>
 
-              <div className="field field-textarea">
-                <label className="field-label" htmlFor="sim-obs">
+              <div className="field cfg-field field-textarea">
+                <label className="field-label cfg-label" htmlFor="sim-obs">
                   {labelWithTooltip(
                     'Observações',
                     'Notas internas exibidas na tabela comparativa para contextualizar o cenário.',
                   )}
                 </label>
-                <div className="field-control">
-                  <textarea
+                <div className="field-control cfg-control">
+                  <textarea className="cfg-input"
                     id="sim-obs"
                     value={current.obs ?? ''}
                     onChange={handleTextChange('obs')}
@@ -816,7 +816,7 @@ export function SimulacoesTab({
 
             <div className="simulations-toggles">
               <label className="checkbox">
-                <input
+                <input 
                   type="checkbox"
                   checked={current.subtrair_tusd_contrato !== false}
                   onChange={handleToggle('subtrair_tusd_contrato')}
@@ -829,7 +829,7 @@ export function SimulacoesTab({
                 </span>
               </label>
               <label className="checkbox">
-                <input
+                <input 
                   type="checkbox"
                   checked={current.subtrair_tusd_pos_contrato !== false}
                   onChange={handleToggle('subtrair_tusd_pos_contrato')}
@@ -1020,7 +1020,7 @@ export function SimulacoesTab({
                 'Seleciona o horizonte usado para calcular a coluna "Economia (N anos)" no comparativo.',
               )}
             </label>
-            <select
+            <select className="cfg-input"
               id="economy-horizon"
               value={comparisonHorizon}
               onChange={(event) => setComparisonHorizon(Number(event.target.value))}

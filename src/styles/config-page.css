@@ -1,0 +1,299 @@
+/* === TOKENS DE COR (alto contraste) === */
+:root {
+  --cfg-bg: #f8fafc;
+  --cfg-surface: #ffffff;
+  --cfg-border: #e5e7eb;
+  --cfg-text: #0f172a;
+  --cfg-muted: #475569;
+  --cfg-subtle: #64748b;
+  --cfg-accent: #0d47a1;
+  --cfg-accent-contrast: #ffffff;
+  --cfg-accent-soft: #e8f0fe;
+  --cfg-focus: #2563eb;
+  --cfg-danger: #b91c1c;
+}
+
+/* === RESET LOCAL PARA EVITAR FOG/FROSTED NESTA PÁGINA === */
+.config-page,
+.config-page * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+}
+
+/* === LAYOUT GERAL === */
+.config-page {
+  background: var(--cfg-bg);
+  color: var(--cfg-text);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  --bg: var(--cfg-bg);
+  --surface: var(--cfg-surface);
+  --card: var(--cfg-surface);
+  --border: var(--cfg-border);
+  --border-strong: var(--cfg-border);
+  --shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
+  --text-strong: var(--cfg-text);
+  --text-base: var(--cfg-text);
+  --text-muted: var(--cfg-muted);
+  --title: var(--cfg-text);
+  --muted: var(--cfg-muted);
+  --accent: var(--cfg-accent);
+  --accent-strong: var(--cfg-accent);
+  --accent-dark: var(--cfg-accent);
+  --accent-soft: var(--cfg-accent-soft);
+  --input-bg: #ffffff;
+  --input-placeholder: #9ca3af;
+}
+
+.config-card {
+  background: var(--cfg-surface);
+  border: 1px solid var(--cfg-border);
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
+}
+
+.config-page .config-card {
+  padding: 24px;
+}
+
+.config-page .config-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.config-page .settings-panel {
+  display: none;
+  background: var(--cfg-surface);
+  border: 1px solid var(--cfg-border);
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
+  padding: 24px;
+}
+
+.config-page .settings-panel.active {
+  display: block;
+}
+
+/* === TABS / ABAS === */
+.cfg-tabs {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+  background: var(--cfg-surface);
+  border: 1px solid var(--cfg-border);
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.08);
+  overflow-x: auto;
+}
+
+.cfg-tabs::-webkit-scrollbar {
+  height: 0;
+}
+
+.cfg-tab {
+  position: relative;
+  appearance: none;
+  user-select: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: transparent;
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
+}
+
+.cfg-tab:hover {
+  background: var(--cfg-accent-soft);
+  color: var(--cfg-text);
+}
+
+.cfg-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35);
+}
+
+.cfg-tab[aria-selected='true'],
+.cfg-tab.is-active {
+  background: var(--cfg-accent);
+  color: var(--cfg-accent-contrast);
+  border-color: var(--cfg-accent);
+  box-shadow: 0 6px 14px rgba(13, 71, 161, 0.35);
+}
+
+.cfg-tab[aria-disabled='true'] {
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.cfg-tab::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 6px;
+  height: 2px;
+  background: transparent;
+  border-radius: 2px;
+  transition: background 0.2s ease;
+}
+
+.cfg-tab[aria-selected='true']::after {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.cfg-tab:hover::after {
+  background: rgba(13, 71, 161, 0.55);
+}
+
+/* === TIPOGRAFIA DOS GRUPOS === */
+.cfg-panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.cfg-section-title {
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--cfg-text);
+  margin: 0;
+}
+
+.cfg-section-subtitle {
+  font-size: 13px;
+  color: var(--cfg-muted);
+  margin: 0;
+}
+
+/* === FORM / CAMPOS === */
+.cfg-field {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.cfg-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cfg-text);
+  text-transform: none;
+}
+
+.cfg-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cfg-help {
+  font-size: 12px;
+  color: var(--cfg-subtle);
+}
+
+.cfg-input:not([type='checkbox']):not([type='radio']) {
+  appearance: none;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--cfg-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--cfg-text);
+  box-shadow: 0 1px 0 rgba(2, 6, 23, 0.02) inset;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cfg-input::placeholder {
+  color: #9ca3af;
+}
+
+.cfg-input:focus-visible {
+  outline: none;
+  border-color: var(--cfg-focus);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+/* === CARTÕES INTERNOS === */
+.config-page .settings-vendas-card,
+.config-page .simulations-sidebar,
+.config-page .simulations-form-card,
+.config-page .simulations-summary,
+.config-page .simulations-economy,
+.config-page .simulations-kpis,
+.config-page .simulations-scenario-card {
+  background: var(--cfg-surface);
+  border: 1px solid var(--cfg-border);
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
+}
+
+.config-page .settings-vendas-card {
+  border-radius: 14px;
+}
+
+.config-page .settings-vendas-card-header h3,
+.config-page .simulations-form-card header h4,
+.config-page .simulations-summary header h4,
+.config-page .simulations-economy header h4,
+.config-page .simulations-kpis header h4 {
+  color: var(--cfg-text);
+}
+
+.config-page .settings-vendas-card-description,
+.config-page .settings-panel-description,
+.config-page .simulations-sidebar-header p,
+.config-page .simulations-scenario-button small {
+  color: var(--cfg-muted);
+}
+
+.config-page .settings-subheading {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cfg-muted);
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.config-page .simulations-select.checked {
+  color: var(--cfg-accent);
+}
+
+.config-page .simulations-select input,
+.config-page .simulations-toggles input[type='checkbox'] {
+  accent-color: var(--cfg-accent);
+}
+
+.config-page .table-controls.settings-vendas-overrides-header > span,
+.config-page .muted {
+  color: var(--cfg-muted);
+}
+
+.config-page .table-controls.settings-vendas-overrides-header {
+  border-bottom: 1px solid var(--cfg-border);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+/* === SAFARI: hard override para texto não “lavar” nas abas === */
+.is-safari .cfg-tab,
+.is-safari .cfg-tabs,
+.is-safari .config-card {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+}
