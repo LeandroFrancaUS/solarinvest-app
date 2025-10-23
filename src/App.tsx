@@ -5214,8 +5214,8 @@ export default function App() {
     return rows
   }, [buyoutLinhas, inflacaoMensal, simulationState])
   const duracaoMesesNormalizada = Math.max(0, Math.floor(duracaoMeses))
-  const duracaoMesesExibicao = Math.max(7, duracaoMesesNormalizada)
   const buyoutMesAceiteFinal = duracaoMesesNormalizada + 1
+  const duracaoMesesExibicao = Math.max(7, buyoutMesAceiteFinal)
   const buyoutAceiteFinal = tabelaBuyout.find((row) => row.mes === buyoutMesAceiteFinal) ?? null
   const buyoutReceitaRows = useMemo(
     () => tabelaBuyout.filter((row) => row.mes >= 7 && row.mes <= duracaoMesesNormalizada),
@@ -12273,7 +12273,7 @@ export default function App() {
                     </thead>
                     <tbody>
                       {tabelaBuyout
-                        .filter((row) => row.mes >= 7 && row.mes <= duracaoMesesNormalizada)
+                        .filter((row) => row.mes >= 7 && row.mes <= buyoutMesAceiteFinal)
                         .map((row) => (
                           <tr key={row.mes}>
                             <td>{row.mes}</td>
