@@ -2,7 +2,9 @@ import type { FocusEvent } from 'react'
 
 /**
  * Selects the full value of a focused numeric input so the user can overwrite it without
- * keeping the default "0" prefix. Only applies to editable inputs.
+ * keeping the default "0" prefix. When the value is formatted as currency (e.g., "R$ 1,00"),
+ * the caret automatically snaps before the decimal separator after typing so new digits
+ * append to the integer portion without manual cursor adjustments. Only applies to editable inputs.
  */
 export function selectNumberInputOnFocus(event: FocusEvent<HTMLInputElement>): void {
   const input = event.currentTarget
@@ -31,9 +33,54 @@ export function selectNumberInputOnFocus(event: FocusEvent<HTMLInputElement>): v
     }
   }
 
-  ['mouseup', 'pointerup', 'touchend'].forEach(eventName => {
+  ['mouseup', 'pointerup', 'touchend'].forEach((eventName) => {
     input.addEventListener(eventName, preventSelectionOverride, { once: true })
   })
+
+  const handleCaretForCurrency = () => {
+    window.requestAnimationFrame(() => {
+      if (document.activeElement !== input) {
+        return
+      }
+
+      const value = input.value
+      if (!value || !value.includes('R$')) {
+        return
+      }
+
+      const { selectionStart, selectionEnd } = input
+      if (selectionStart == null || selectionEnd == null) {
+        return
+      }
+
+      const isCaretAtEnd = selectionStart === value.length && selectionEnd === value.length
+      if (!isCaretAtEnd) {
+        return
+      }
+
+      const decimalIndex = Math.max(value.lastIndexOf(','), value.lastIndexOf('.'))
+      if (decimalIndex < 0) {
+        return
+      }
+
+      try {
+        input.setSelectionRange(decimalIndex, decimalIndex)
+      } catch {
+        // Ignore selection errors on unsupported input types.
+      }
+    })
+  }
+
+  const handleInput = () => {
+    handleCaretForCurrency()
+  }
+
+  const handleBlur = () => {
+    input.removeEventListener('input', handleInput)
+  }
+
+  input.addEventListener('input', handleInput)
+  input.addEventListener('blur', handleBlur, { once: true })
 
   // `select()` must run after the browser applies focus; requestAnimationFrame ensures that.
   window.requestAnimationFrame(() => {
