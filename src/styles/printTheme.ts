@@ -76,6 +76,16 @@ export const simplePrintStyles = `
   [data-print-variant='simple'] .print-yearly-payments__year{color:#000!important;font-size:18px;}
   [data-print-variant='simple'] .print-yearly-payments__year-label{color:#000!important;font-size:10px;}
   [data-print-variant='simple'] .print-yearly-payments__metrics dd{font-size:12px;}
+  [data-print-variant='simple'] .print-chart{background:#fff!important;border:1px solid #000!important;border-radius:4px;padding:16px 18px;box-shadow:none!important;}
+  [data-print-variant='simple'] .print-chart::after{display:none!important;}
+  [data-print-variant='simple'] .print-chart svg{filter:grayscale(100%) contrast(1.2)!important;}
+  [data-print-variant='simple'] .print-chart .recharts-cartesian-grid line{stroke:#000!important;stroke-opacity:0.18;}
+  [data-print-variant='simple'] .print-chart .recharts-cartesian-axis-line,[data-print-variant='simple'] .print-chart .recharts-cartesian-axis-tick-line{stroke:#000!important;}
+  [data-print-variant='simple'] .print-chart .recharts-cartesian-axis-tick text,[data-print-variant='simple'] .print-chart .recharts-legend-item text{fill:#000!important;font-weight:600;}
+  [data-print-variant='simple'] .print-chart-highlights{gap:10px;}
+  [data-print-variant='simple'] .print-chart-highlights li{background:#fff!important;border:1px solid #000!important;border-radius:4px;padding:10px 12px;}
+  [data-print-variant='simple'] .print-chart-highlights__year{font-size:11px;letter-spacing:0.12em;}
+  [data-print-variant='simple'] .print-chart-highlights__values{font-size:11px;}
   [data-print-variant='simple'] .chart-title{color:#000!important;font-size:16px;letter-spacing:0.12em;}
   [data-print-variant='simple'] .chart-explainer{background:#fff!important;border:1px solid #000!important;border-radius:4px;padding:12px 14px;color:#000!important;}
   [data-print-variant='simple'] .chart-explainer strong{color:#000!important;}
