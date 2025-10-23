@@ -7,6 +7,22 @@ import { computeROI, type VendaForm } from '../../../lib/finance/roi'
 import type { PrintableProposalProps } from '../../../types/printableProposal'
 import type { ParsedVendaPdfData } from '../../../lib/pdf/extractVendas'
 
+vi.mock('recharts', () => ({
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  BarChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Bar: () => null,
+  CartesianGrid: () => null,
+  Label: () => null,
+  LabelList: () => null,
+  Legend: () => null,
+  Line: () => null,
+  LineChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ReferenceLine: () => null,
+  Tooltip: () => null,
+  XAxis: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  YAxis: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
+
 const anosBase = Array.from({ length: 30 }, (_, index) => index + 1)
 const createParsedVenda = (overrides: Partial<ParsedVendaPdfData> = {}): ParsedVendaPdfData => ({
   capex_total: null,

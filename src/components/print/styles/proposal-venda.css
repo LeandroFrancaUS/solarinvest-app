@@ -481,6 +481,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-header,
 .print-summary,
 .print-notes,
+.print-chart-section {
   break-inside: avoid-page;
   page-break-inside: avoid;
   -webkit-column-break-inside: avoid;
