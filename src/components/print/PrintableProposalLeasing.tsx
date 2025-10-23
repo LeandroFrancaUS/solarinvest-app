@@ -270,10 +270,23 @@ function PrintableProposalLeasingInner(
     },
   ]
 
+  const emissaoData = new Date()
+  const validadeData = new Date(emissaoData.getTime())
+  validadeData.setDate(validadeData.getDate() + 15)
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+  const emissaoTexto = formatDate(emissaoData)
+  const validadeTexto = formatDate(validadeData)
+
   const resumoProposta = [
     {
       label: 'Modalidade de contratação',
       value: 'Leasing SolarInvest',
+    },
+    {
+      label: 'Prazo de validade da proposta',
+      value: `15 dias · Até ${validadeTexto}`,
     },
     {
       label: 'Início estimado da operação',
@@ -490,14 +503,6 @@ function PrintableProposalLeasingInner(
     })
   }, [economiaMarcos, leasingROI])
 
-  const emissaoData = new Date()
-  const validadeData = new Date(emissaoData.getTime())
-  validadeData.setDate(validadeData.getDate() + 15)
-  const formatDate = (date: Date) =>
-    date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-  const emissaoTexto = formatDate(emissaoData)
-  const validadeTexto = formatDate(validadeData)
   const heroSummary =
     'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
