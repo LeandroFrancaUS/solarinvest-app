@@ -290,7 +290,7 @@ function valorCompraBase({
   cashbackPct,
   duracaoMeses,
 }: ValorCompraClienteInput): number {
-  if (m < 7 || m >= duracaoMeses) return 0
+  if (m < 7 || m > duracaoMeses) return 0
 
   const valorReposicaoMes = valorReposicao({ vm0, depreciacaoAa, m })
   const custos = custosRestantes({
@@ -378,7 +378,7 @@ export function valorCompraCliente({
 export function valorCompraClienteLinear({ duracaoMeses, ...rest }: ValorCompraClienteInput): number {
   const inicio = 7
   const mes = rest.m
-  if (mes >= duracaoMeses) return 0
+  if (mes > duracaoMeses) return 0
   if (duracaoMeses <= inicio) return 0
   if (mes < inicio) return 0
 

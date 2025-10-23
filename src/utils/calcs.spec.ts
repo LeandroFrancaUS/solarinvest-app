@@ -45,9 +45,8 @@ describe('calcs utilitários', () => {
     expect(ajustado).toBeLessThanOrEqual(kcOriginal)
   })
 
-  it('zera valor de compra no mês final do contrato', () => {
-    const valor = valorCompraCliente({
-      m: 60,
+  it('mantém valor de compra positivo até o último mês e zera no mês de aceite', () => {
+    const params = {
       vm0: 120_000,
       depreciacaoAa: 0.1,
       ipcaAa: 0.04,
@@ -59,8 +58,13 @@ describe('calcs utilitários', () => {
       pagosAcumAteM: 50_000,
       cashbackPct: 0.1,
       duracaoMeses: 60,
-    })
-    expect(valor).toBe(0)
+    }
+
+    const ultimoMes = valorCompraCliente({ ...params, m: 60 })
+    const mesAceite = valorCompraCliente({ ...params, m: 61 })
+
+    expect(ultimoMes).toBeGreaterThan(0)
+    expect(mesAceite).toBe(0)
   })
 
   it('não calcula valor de compra antes do mês 7', () => {
