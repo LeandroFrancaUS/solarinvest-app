@@ -1709,7 +1709,6 @@ tbody tr:hover {
   gap: 22px;
 }
 
-.crm-flow-chart,
 .crm-margins {
   background: rgba(95, 99, 107, 0.44);
   border-radius: 20px;
@@ -1717,7 +1716,6 @@ tbody tr:hover {
   padding: 18px;
 }
 
-.crm-flow-chart h3,
 .crm-margins h3,
 .crm-post-column h3,
 .crm-insight-panel h3 {
@@ -1890,52 +1888,6 @@ tbody tr:hover {
   margin: 0;
   color: var(--muted);
   font-size: calc(var(--font-s) - 1px);
-}
-
-.chart {
-  height: 300px;
-  position: relative;
-}
-
-.chart-explainer {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  max-width: 260px;
-  background: rgba(95, 97, 103, 0.62);
-  border: 1px solid rgba(37, 99, 235, 0.24);
-  border-radius: 12px;
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: var(--title);
-  font-size: 12px;
-  line-height: 1.3;
-}
-
-.chart-explainer strong {
-  font-size: 13px;
-}
-
-.legend-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.legend-toggle label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.legend-toggle input {
-  width: 16px;
-  height: 16px;
 }
 
 .table-controls {
@@ -3937,7 +3889,6 @@ i:hover {
   .crm-card,
   .crm-post-column,
   .crm-insight-panel,
-  .print-chart,
   .print-cta__box,
   .print-final-footer,
   .preview-content,
@@ -3975,7 +3926,6 @@ i:hover {
     table-layout: auto !important;
   }
 
-  .chart,
   img,
   svg,
   canvas {
@@ -3988,7 +3938,6 @@ i:hover {
   button,
   .page-actions,
   .table-controls,
-  .legend-toggle,
   .modal,
   .modal-backdrop,
   .crm-button,

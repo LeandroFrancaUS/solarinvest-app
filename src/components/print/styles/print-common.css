@@ -282,14 +282,6 @@
     html[data-print-mode='download'],
     body[data-print-mode='download'],
     [data-print-mode='download']
-  ) .legend-toggle,
-:where(
-    html[data-print-mode='print'],
-    body[data-print-mode='print'],
-    [data-print-mode='print'],
-    html[data-print-mode='download'],
-    body[data-print-mode='download'],
-    [data-print-mode='download']
   ) .collapse-toggle,
 :where(
     html[data-print-mode='print'],
@@ -430,14 +422,9 @@
   select,
   .page-actions,
   .top-actions,
-  .legend-toggle,
   .collapse-toggle,
   .crm-button,
   button {
-    display: none !important;
-  }
-
-  .chart {
     display: none !important;
   }
 

@@ -1,17 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
 import { createRoot } from 'react-dom/client'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  ReferenceLine,
-  CartesianGrid,
-} from 'recharts'
 
 import {
   selectCreditoMensal,
@@ -89,7 +78,6 @@ import './styles/config-page.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { Providers } from './app/Providers'
-import { CHART_THEME } from './helpers/ChartTheme'
 import { SimulacoesTab } from './components/settings/SimulacoesTab'
 import {
   ANALISE_ANOS_PADRAO,
@@ -148,7 +136,6 @@ import type {
 } from './types/printableProposal'
 import {
   currency,
-  formatAxis,
   formatCep,
   formatCpfCnpj,
   formatTelefone,
@@ -1350,20 +1337,6 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
         let attempts = 0
         const maxAttempts = 8
 
-        const chartIsReady = (containerEl: HTMLDivElement | null) => {
-          if (!containerEl) {
-            return false
-          }
-          const chartSvg = containerEl.querySelector('.print-chart svg')
-          if (!chartSvg) {
-            return false
-          }
-          if (chartSvg.childNodes.length === 0) {
-            return false
-          }
-          return true
-        }
-
         const attemptCapture = (root: ReturnType<typeof createRoot> | null) => {
           if (resolved) {
             return
@@ -1371,7 +1344,7 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
 
           const containerEl = wrapperRef.current
 
-          if (containerEl && chartIsReady(containerEl)) {
+          if (containerEl) {
             resolved = true
             resolve(containerEl.outerHTML)
             cleanup(root)
@@ -1427,7 +1400,7 @@ export default function App() {
   const valorTotalPropostaState = useVendaStore(
     (state) => state.resumoProposta.valor_total_proposta,
   )
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+  const [, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
       return 'light'
     }
@@ -1506,7 +1479,6 @@ export default function App() {
     mediaQuery.addEventListener('change', handleChange)
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
-  const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
   const [activePage, setActivePage] = useState<'app' | 'crm'>(() => {
     if (typeof window === 'undefined') {
       return 'app'
@@ -3460,7 +3432,6 @@ export default function App() {
   const [mostrarFinanciamento, setMostrarFinanciamento] = useState(
     INITIAL_VALUES.mostrarFinanciamento,
   )
-  const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_VALUES.mostrarGrafico)
   const [density, setDensity] = useState<DensityMode>(() => {
     if (typeof window === 'undefined') {
       return DEFAULT_DENSITY
@@ -3512,10 +3483,6 @@ export default function App() {
     INITIAL_VALUES.seguroPercentualB,
   )
 
-  const [exibirLeasingLinha, setExibirLeasingLinha] = useState(
-    INITIAL_VALUES.exibirLeasingLinha,
-  )
-  const [exibirFinLinha, setExibirFinLinha] = useState(INITIAL_VALUES.exibirFinanciamentoLinha)
 
   const [cashbackPct, setCashbackPct] = useState(INITIAL_VALUES.cashbackPct)
   const [depreciacaoAa, setDepreciacaoAa] = useState(INITIAL_VALUES.depreciacaoAa)
@@ -4842,14 +4809,6 @@ export default function App() {
     recalcularTick,
   ])
 
-  const chartPalette = useMemo(
-    () => ({
-      Leasing: '#38BDF8',
-      Financiamento: '#F97316',
-    }),
-    [],
-  )
-
   const simulationState = useMemo<SimulationState>(() => {
     // Mantemos o valor de mercado (vm0) amarrado ao CAPEX calculado neste mesmo memo para
     // evitar dependências de ordem que poderiam reaparecer em merges futuros. Assim garantimos
@@ -5178,27 +5137,6 @@ export default function App() {
       return typeof ultimo === 'number' ? ultimo : 0
     })
   }, [leasingPrazoConsiderado, mensalidadesPorAno])
-
-  const chartData = useMemo(() => {
-    return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
-      const ano = i + 1
-      return {
-        ano,
-        Leasing: leasingROI[i] ?? 0,
-        Financiamento: financiamentoROI[i] ?? 0,
-      }
-    })
-  }, [financiamentoROI, leasingROI])
-  const beneficioAno30 = useMemo(
-    () => chartData.find((row) => row.ano === 30) ?? null,
-    [chartData],
-  )
-
-  const valoresGrafico = chartData.flatMap((row) => [row.Leasing, row.Financiamento])
-  const minY = Math.min(...valoresGrafico, 0)
-  const maxY = Math.max(...valoresGrafico, 0)
-  const padding = Math.max(5_000, Math.round((maxY - minY) * 0.1))
-  const yDomain: [number, number] = [Math.floor((minY - padding) / 1000) * 1000, Math.ceil((maxY + padding) / 1000) * 1000]
 
   const tabelaBuyout = useMemo<BuyoutRow[]>(() => {
     const horizonte = Math.max(60, Math.floor(simulationState.duracaoMeses))
@@ -7809,54 +7747,6 @@ export default function App() {
             </div>
             {/* Coluna 2: painéis analíticos que resumem fluxo de caixa e margens. */}
             <div className="crm-finance-analytics">
-              <div className="crm-flow-chart">
-                <h3>Fluxo de caixa consolidado</h3>
-                {crmFinanceiroResumo.fluxoOrdenado.length === 0 ? (
-                  <p className="crm-empty">Cadastre lançamentos para visualizar o fluxo de caixa.</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={240}>
-                    <LineChart data={crmFinanceiroResumo.fluxoOrdenado}>
-                      <CartesianGrid stroke={chartTheme.grid} strokeDasharray="6 6" />
-                      <XAxis
-                        dataKey="data"
-                        tickFormatter={(valor) => valor.slice(5)}
-                        tick={{ fill: chartTheme.tick, fontSize: 12 }}
-                        stroke={chartTheme.grid}
-                      />
-                      <YAxis
-                        stroke={chartTheme.grid}
-                        tick={{ fill: chartTheme.tick, fontSize: 12 }}
-                        tickFormatter={formatAxis}
-                        width={90}
-                      />
-                      <Tooltip
-                        formatter={(value: number) => currency(value)}
-                        labelFormatter={(label) => `Dia ${label}`}
-                        contentStyle={{
-                          background: chartTheme.tooltipBg,
-                          borderRadius: 12,
-                          border: '1px solid var(--border)',
-                          color: chartTheme.tooltipText,
-                        }}
-                        itemStyle={{ color: chartTheme.tooltipText }}
-                        labelStyle={{ color: chartTheme.tooltipText }}
-                      />
-                      <Legend verticalAlign="top" height={36} wrapperStyle={{ color: chartTheme.legend }} />
-                      <Line type="monotone" dataKey="entradas" name="Entradas" stroke="#22c55e" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="saidas" name="Saídas" stroke="#ef4444" strokeWidth={2} dot={false} />
-                      <Line
-                        type="monotone"
-                        dataKey="saldoAcumulado"
-                        name="Saldo acumulado"
-                        stroke="#38bdf8"
-                        strokeWidth={3}
-                        dot={false}
-                      />
-                      <ReferenceLine y={0} stroke="rgba(239,68,68,0.45)" strokeDasharray="4 4" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
               <div className="crm-margins">
                 <h3>ROI e margens por lead</h3>
                 <table className="crm-table">
@@ -8571,7 +8461,6 @@ export default function App() {
     setPrazoFinMeses(INITIAL_VALUES.prazoFinanciamentoMeses)
     setEntradaFinPct(INITIAL_VALUES.entradaFinanciamentoPct)
     setMostrarFinanciamento(INITIAL_VALUES.mostrarFinanciamento)
-    setMostrarGrafico(INITIAL_VALUES.mostrarGrafico)
 
     setPrazoMeses(INITIAL_VALUES.prazoMeses)
     setBandeiraEncargo(INITIAL_VALUES.bandeiraEncargo)
@@ -8590,8 +8479,6 @@ export default function App() {
     setSeguroReajuste(INITIAL_VALUES.seguroReajuste)
     setSeguroValorA(INITIAL_VALUES.seguroValorA)
     setSeguroPercentualB(INITIAL_VALUES.seguroPercentualB)
-    setExibirLeasingLinha(INITIAL_VALUES.exibirLeasingLinha)
-    setExibirFinLinha(INITIAL_VALUES.exibirFinanciamentoLinha)
 
     setCashbackPct(INITIAL_VALUES.cashbackPct)
     setDepreciacaoAa(INITIAL_VALUES.depreciacaoAa)
@@ -8635,7 +8522,6 @@ export default function App() {
     setMultiUcRows,
   ])
 
-  const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
   const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
@@ -12417,111 +12303,7 @@ export default function App() {
                 </div>
               ) : null}
             </section>
-            {mostrarGrafico ? (
-              <section className="card">
-                <div className="card-header">
-                  <h2>Beneficio acumulado em 30 anos</h2>
-                  <div className="legend-toggle">
-                    <label>
-                      <input type="checkbox" checked={exibirLeasingLinha} onChange={(e) => setExibirLeasingLinha(e.target.checked)} />
-                      <span style={{ color: chartPalette.Leasing }}>Leasing</span>
-                    </label>
-                    {mostrarFinanciamento ? (
-                      <label>
-                        <input type="checkbox" checked={exibirFinLinha} onChange={(e) => setExibirFinLinha(e.target.checked)} />
-                        <span style={{ color: chartPalette.Financiamento }}>Financiamento</span>
-                      </label>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="chart">
-                  {!allCurvesHidden ? (
-                    <div className="chart-explainer">
-                      <strong>ROI Leasing – Benefício financeiro</strong>
-                      <span>Economia acumulada versus concessionária.</span>
-                      {beneficioAno30 ? (
-                        <span className="chart-highlight">
-                          <strong>Beneficio acumulado em 30 anos:</strong>{' '}
-                          <strong style={{ color: chartPalette.Leasing }}>{currency(beneficioAno30.Leasing)}</strong>
-                          {mostrarFinanciamento && exibirFinLinha ? (
-                            <>
-                              {' • '}Financiamento:{' '}
-                              <strong style={{ color: chartPalette.Financiamento }}>{currency(beneficioAno30.Financiamento)}</strong>
-                            </>
-                          ) : null}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 16, right: 24, bottom: 20, left: 12 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                      <XAxis
-                        dataKey="ano"
-                        stroke={chartTheme.grid}
-                        tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                        label={{
-                          value: 'Anos',
-                          position: 'insideBottomRight',
-                          offset: -5,
-                          fill: chartTheme.legend,
-                          fontWeight: 700,
-                        }}
-                      />
-                      <YAxis
-                        stroke={chartTheme.grid}
-                        tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                        tickFormatter={formatAxis}
-                        domain={yDomain}
-                        width={92}
-                        label={{
-                          value: 'Beneficio em Reais',
-                          angle: -90,
-                          position: 'insideLeft',
-                          offset: 12,
-                          fill: chartTheme.legend,
-                          fontWeight: 700,
-                        }}
-                      />
-                      <Tooltip
-                        formatter={(value: number) => currency(Number(value))}
-                        contentStyle={{
-                          background: chartTheme.tooltipBg,
-                          border: '1px solid var(--border)',
-                          color: chartTheme.tooltipText,
-                        }}
-                        itemStyle={{ color: chartTheme.tooltipText }}
-                        labelStyle={{ color: chartTheme.tooltipText }}
-                      />
-                      <Legend
-                        verticalAlign="bottom"
-                        align="right"
-                        wrapperStyle={{ paddingTop: 16, color: chartTheme.legend }}
-                      />
-                      <ReferenceLine y={0} stroke={theme === 'dark' ? 'rgba(239,68,68,0.45)' : 'rgba(239,68,68,0.35)'} />
-                      {exibirLeasingLinha ? (
-                        <Line
-                          type="monotone"
-                          dataKey="Leasing"
-                          stroke={chartPalette.Leasing}
-                          strokeWidth={2}
-                          dot
-                        />
-                      ) : null}
-                      {mostrarFinanciamento && exibirFinLinha ? (
-                        <Line
-                          type="monotone"
-                          dataKey="Financiamento"
-                          stroke={chartPalette.Financiamento}
-                          strokeWidth={2}
-                          dot
-                        />
-                      ) : null}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </section>
-            ) : null}
+            
           </>
         ) : (
           <>
@@ -13585,17 +13367,6 @@ export default function App() {
                             <option value="compact">Compacto</option>
                             <option value="cozy">Acolhedor</option>
                             <option value="comfortable">Confortável</option>
-                          </select>
-                        </Field>
-                        <Field
-                          label={labelWithTooltip(
-                            'Mostrar gráfico ROI',
-                            'Liga ou desliga a visualização do gráfico de retorno sobre investimento.',
-                          )}
-                        >
-                          <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
-                            <option value="1">Sim</option>
-                            <option value="0">Não</option>
                           </select>
                         </Field>
                         <Field

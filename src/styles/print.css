@@ -113,15 +113,6 @@
     body[data-print-mode='download'],
     [data-print-mode='download']
   )
-  .print-chart,
-:where(
-    html[data-print-mode='print'],
-    body[data-print-mode='print'],
-    [data-print-mode='print'],
-    html[data-print-mode='download'],
-    body[data-print-mode='download'],
-    [data-print-mode='download']
-  )
   .print-yearly-payments__item {
   background: #ffffff !important;
   color: #0f172a !important;
@@ -137,16 +128,7 @@
     body[data-print-mode='download'],
     [data-print-mode='download']
   )
-  .print-hero::after,
-:where(
-    html[data-print-mode='print'],
-    body[data-print-mode='print'],
-    [data-print-mode='print'],
-    html[data-print-mode='download'],
-    body[data-print-mode='download'],
-    [data-print-mode='download']
-  )
-  .print-chart::after {
+  .print-hero::after {
   display: none !important;
 }
 
@@ -259,8 +241,6 @@
   .print-cta__box,
   .print-final-footer,
   .print-value-card,
-  .print-chart,
-  .print-chart-highlights li,
   .print-yearly-payments__item,
   .print-avoid-break,
   .keep-together,
@@ -270,8 +250,7 @@
     page-break-inside: avoid;
   }
 
-  .print-hero::after,
-  .print-chart::after {
+  .print-hero::after {
     display: none !important;
   }
 
@@ -335,7 +314,6 @@
   .topbar,
   .tabs,
   .page-actions,
-  .legend-toggle,
   .collapse-toggle,
   .crm-button,
   .clients-table-action,
