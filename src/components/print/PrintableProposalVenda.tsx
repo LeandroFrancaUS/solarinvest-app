@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
 
+import './styles/print-common.css'
 import './styles/proposal-venda.css'
 import { currency, formatCpfCnpj } from '../../utils/formatters'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
@@ -831,29 +832,31 @@ function PrintableProposalInner(
   )
   return (
     <div ref={ref} className="print-root">
-      <section className="print-page">
-        <div className="print-layout">
-          <header className="print-hero">
-            <div className="print-hero__header">
-              <div className="print-hero__identity">
-                <div className="print-logo">
-                  <img src="/logo.svg" alt="SolarInvest" />
-                </div>
-                <div className="print-hero__title">
-                  <span className="print-hero__eyebrow">SolarInvest</span>
-                  <h1>{heroTitle}</h1>
-                  <p className="print-hero__tagline">{heroTagline}</p>
+      <div className="print-layout">
+        <div className="print-page">
+          <section className="print-section print-section--hero avoid-break">
+            <div className="print-hero">
+              <div className="print-hero__header">
+                <div className="print-hero__identity">
+                  <div className="print-logo">
+                    <img src="/logo.svg" alt="SolarInvest" />
+                  </div>
+                  <div className="print-hero__title">
+                    <span className="print-hero__eyebrow">SolarInvest</span>
+                    <h1>{heroTitle}</h1>
+                    <p className="print-hero__tagline">{heroTagline}</p>
+                  </div>
                 </div>
               </div>
+              <div className="print-hero__summary no-break-inside">
+                <h2 className="keep-with-next">Sumário executivo</h2>
+                <p>{heroSummaryDescription}</p>
+              </div>
             </div>
-            <div className="print-hero__summary no-break-inside">
-              <h2 className="keep-with-next">Sumário executivo</h2>
-              <p>{heroSummaryDescription}</p>
-            </div>
-          </header>
+          </section>
     
           {isVendaDireta ? (
-            <section className="print-section keep-together print-values-section">
+            <section className="print-section keep-together avoid-break print-values-section">
               <h2 className="keep-with-next">Valores da proposta</h2>
               <div className="print-values-grid">
                 <div className="print-value-card print-value-card--highlight">
@@ -870,7 +873,7 @@ function PrintableProposalInner(
             </section>
           ) : null}
     
-          <section className="print-section keep-together">
+          <section className="print-section keep-together avoid-break">
             <h2 className="keep-with-next">Identificação do cliente</h2>
             <ClientInfoGrid
               fields={clienteCampos}
@@ -881,7 +884,7 @@ function PrintableProposalInner(
           </section>
     
           {mostrarDetalhamento ? (
-            <section className="print-section keep-together">
+            <section className="print-section keep-together avoid-break">
               <h2 className="keep-with-next">Detalhamento do Projeto</h2>
               {detalhamentoCampos.length > 0 ? (
                 <table className="print-table no-break-inside">
@@ -904,7 +907,7 @@ function PrintableProposalInner(
             </section>
           ) : null}
           {!isVendaDireta ? (
-            <section id="resumo-proposta" className="print-section keep-together page-break-before">
+            <section id="resumo-proposta" className="print-section keep-together page-break-before break-after">
               <h2 className="keep-with-next">Resumo de Custos e Investimento</h2>
               <table className="print-table no-break-inside">
               <thead>
@@ -1262,7 +1265,7 @@ function PrintableProposalInner(
           {isVendaDireta ? (
             <section
               id="condicoes-financeiras"
-              className="print-section keep-together page-break-before"
+              className="print-section keep-together page-break-before break-after"
             >
               <h2 className="keep-with-next">{isVendaDireta ? 'Retorno Financeiro (Venda)' : 'Retorno projetado'}</h2>
               {snapshotResultados || retornoVenda ? (
@@ -1292,7 +1295,7 @@ function PrintableProposalInner(
     
           <section
             id="economia-30-anos"
-            className="print-section keep-together page-break-before"
+            className="print-section keep-together page-break-before break-after"
           >
             <h2 className="keep-with-next">{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
             {economiaTemDados ? (
@@ -1353,7 +1356,7 @@ function PrintableProposalInner(
     
           <section
             id="infos-importantes"
-            className="print-section print-important keep-together page-break-before"
+            className="print-section print-important keep-together page-break-before break-after"
           >
             <h2 className="keep-with-next">Informações importantes</h2>
             <ul className="no-break-inside">
@@ -1398,7 +1401,7 @@ function PrintableProposalInner(
             ) : null}
           </section>
     
-          <section className="print-section print-cta no-break-inside">
+          <section className="print-section print-cta no-break-inside avoid-break">
             <div className="print-cta__box no-break-inside">
               <h2 className="keep-with-next">Vamos avançar?</h2>
               <p>
@@ -1406,30 +1409,32 @@ function PrintableProposalInner(
               </p>
             </div>
           </section>
-    
-          <footer className="print-final-footer no-break-inside">
-            <div className="print-final-footer__dates">
-              <p>
-                <strong>Data de emissão da proposta:</strong> {emissaoTexto}
-              </p>
-              <p>
-                <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
-              </p>
+
+          <section className="print-section print-section--footer no-break-inside avoid-break">
+            <footer className="print-final-footer no-break-inside">
+              <div className="print-final-footer__dates">
+                <p>
+                  <strong>Data de emissão da proposta:</strong> {emissaoTexto}
+                </p>
+                <p>
+                  <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
+                </p>
+              </div>
+              <div className="print-final-footer__signature">
+                <div className="signature-line" />
+                <span>Assinatura do cliente</span>
+              </div>
+            </footer>
+
+            <div className="print-brand-footer no-break-inside">
+              <strong>S O L A R I N V E S T</strong>
+              <span>CNPJ: 60.434.015/0001-90</span>
+              <span>Anápolis-GO</span>
+              <span>Solarinvest.info</span>
             </div>
-            <div className="print-final-footer__signature">
-              <div className="signature-line" />
-              <span>Assinatura do cliente</span>
-            </div>
-          </footer>
-    
-          <div className="print-brand-footer no-break-inside">
-            <strong>S O L A R I N V E S T</strong>
-            <span>CNPJ: 60.434.015/0001-90</span>
-            <span>Anápolis-GO</span>
-            <span>Solarinvest.info</span>
-          </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
