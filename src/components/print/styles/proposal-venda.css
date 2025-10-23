@@ -498,7 +498,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
   color: #0c162c;
 }
 
-.print-final-footer {
+.print-proposal--venda .print-final-footer {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -507,18 +507,18 @@ html[data-print-mode='print'] .print-hero__title h1 {
   color: #0c162c;
 }
 
-.print-final-footer__dates {
+.print-proposal--venda .print-final-footer__dates {
   display: grid;
   gap: 6px;
   font-size: 13px;
   color: #0c162c;
 }
 
-.print-final-footer__dates strong {
+.print-proposal--venda .print-final-footer__dates strong {
   color: #0c162c;
 }
 
-.print-final-footer__signature {
+.print-proposal--venda .print-final-footer__signature {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -528,13 +528,13 @@ html[data-print-mode='print'] .print-hero__title h1 {
   color: #0c162c;
 }
 
-.signature-line {
+.print-proposal--venda .signature-line {
   width: 100%;
   height: 1px;
   background: rgba(12, 22, 44, 0.55);
 }
 
-.print-brand-footer {
+.print-proposal--venda .print-brand-footer {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -545,7 +545,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
   color: #0c162c;
 }
 
-.print-brand-footer strong {
+.print-proposal--venda .print-brand-footer strong {
   font-size: 13px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
