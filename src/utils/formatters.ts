@@ -4,20 +4,6 @@ export const currency = (value: number) => formatMoneyBR(value)
 
 export const tarifaCurrency = (value: number) => formatMoneyBRWithDigits(value, 3)
 
-export const formatAxis = (value: number) => {
-  const absolute = Math.abs(value)
-  if (absolute >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(1)}B`
-  }
-  if (absolute >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`
-  }
-  if (absolute >= 10_000) {
-    return `${Math.round(value / 1000)}k`
-  }
-  return currency(value)
-}
-
 export const normalizeNumbers = (value: string) => value.replace(/\D+/g, '')
 
 export const formatCpfCnpj = (value: string) => {

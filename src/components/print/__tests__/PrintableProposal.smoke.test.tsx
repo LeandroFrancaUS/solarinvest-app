@@ -6,22 +6,6 @@ import { Boundary } from '../../../app/Boundary'
 import PrintableProposal from '../PrintableProposal'
 import type { PrintableProposalProps } from '../../../types/printableProposal'
 
-vi.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  BarChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Bar: () => null,
-  CartesianGrid: () => null,
-  Label: () => null,
-  LabelList: () => null,
-  Legend: () => null,
-  Line: () => null,
-  LineChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  ReferenceLine: () => null,
-  Tooltip: () => null,
-  XAxis: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  YAxis: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
-
 const createProps = (): PrintableProposalProps => ({
   cliente: {
     nome: 'Cliente Teste',

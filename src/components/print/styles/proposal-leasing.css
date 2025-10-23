@@ -218,7 +218,6 @@
 }
 
 .print-section:first-of-type .section-title,
-.print-section.print-chart-section .section-title,
 .print-section.print-important .section-title {
   margin-top: 0;
 }
@@ -330,40 +329,20 @@
 }
 
 
-.print-chart-section {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.print-chart {
-  height: 320px;
-  background: rgba(8, 15, 30, 0.75);
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  padding: 24px;
-  margin-top: 24px;
-}
-
-.print-chart-layout {
+ 
   align-items: stretch;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
 }
 
-.print-chart-layout .print-chart {
   margin-top: 0;
 }
 
-.print-chart-layout .print-chart,
-.print-chart-layout .print-chart-highlights {
   height: 100%;
 }
 
-.print-chart-layout .print-chart-highlights {
   align-self: stretch;
 }
 
-.print-chart-highlights {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -371,7 +350,6 @@
   gap: 16px;
 }
 
-.print-chart-highlights li {
   display: grid;
   gap: 8px;
   padding: 16px 20px;
@@ -380,7 +358,6 @@
   border: 1px solid rgba(37, 99, 235, 0.12);
 }
 
-.print-chart-highlights__year {
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -425,11 +402,9 @@
   margin: 0;
 }
 
-.leasing-chart .recharts-cartesian-grid line {
   stroke: #e2e8f0;
 }
 
-.print-chart-highlights__value {
   font-size: 13px;
   font-weight: 600;
   color: #f8fafc;
@@ -887,7 +862,6 @@
     grid-template-columns: 1fr;
   }
 
-  .print-chart-layout {
     grid-template-columns: 1fr;
   }
 }
