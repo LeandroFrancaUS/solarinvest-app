@@ -5118,12 +5118,25 @@ export default function App() {
       const mensalidadeCheia = Number(
         Math.max(0, energiaCheia + margemMinima + manutencaoPrevencaoSeguroMensal).toFixed(2),
       )
+      const tusdMensal = calcTusdEncargoMensal({
+        consumoMensal_kWh: kcContratado,
+        tarifaCheia_R_kWh: tarifaCheiaMes,
+        mes,
+        anoReferencia: simulationState.tusdAnoReferencia ?? null,
+        tipoCliente: simulationState.tusdTipoCliente ?? null,
+        subTipo: simulationState.tusdSubtipo ?? null,
+        pesoTUSD: simulationState.tusdPercent ?? null,
+        tusd_R_kWh: simulationState.tusdTarifaRkwh ?? null,
+        simultaneidadePadrao: simulationState.tusdSimultaneidade ?? null,
+      })
+      const tusdValor = Number(Math.max(0, tusdMensal).toFixed(2))
       totalAcumulado += mensalidade
       lista.push({
         mes,
         tarifaCheia: tarifaCheiaMes,
         tarifaDescontada: tarifaDescontadaMes,
         mensalidadeCheia,
+        tusd: tusdValor,
         mensalidade: Number(mensalidade.toFixed(2)),
         totalAcumulado: Number(totalAcumulado.toFixed(2)),
       })
@@ -12290,6 +12303,7 @@ export default function App() {
                               <th>Tarifa por kWh</th>
                               <th>Tarifa c/ desconto (R$/kWh)</th>
                               <th>MENSALIDADE CHEIA</th>
+                              <th>TUSD (R$)</th>
                               <th>MENSALIDADE COM LEASING</th>
                             </tr>
                           </thead>
@@ -12301,12 +12315,13 @@ export default function App() {
                                   <td>{tarifaCurrency(row.tarifaCheia)}</td>
                                   <td>{tarifaCurrency(row.tarifaDescontada)}</td>
                                   <td>{currency(row.mensalidadeCheia)}</td>
+                                  <td>{currency(row.tusd)}</td>
                                   <td>{currency(row.mensalidade)}</td>
                                 </tr>
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={5} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
+                                <td colSpan={6} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
                               </tr>
                             )}
                           </tbody>
