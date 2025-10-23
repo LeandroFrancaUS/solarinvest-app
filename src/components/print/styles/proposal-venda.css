@@ -578,6 +578,236 @@ html[data-print-mode='print'] .print-hero__title h1 {
   color: inherit !important;
 }
 
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-layout {
+  background: #ffffff !important;
+  color: #111827 !important;
+  padding: 0 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-section {
+  background: #ffffff !important;
+  border-radius: 4px !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+  padding: 8mm !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section--hero,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section--footer {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-hero {
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-hero::after {
+  display: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-hero__summary {
+  background: transparent !important;
+  border: 0 !important;
+  color: #111827 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-section h2::after {
+  display: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-value-card,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-value-card--highlight,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-card,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-yearly-payments__item,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-key-values p {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-value-card--highlight strong,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-value-card--highlight span {
+  color: #111827 !important;
+  text-shadow: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-table,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-table th,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-table td {
+  box-shadow: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-final-footer,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-brand-footer {
+  color: #111827 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-logo {
+  display: none !important;
+}
+
 @media print {
   .print-layout {
     background: #ffffff !important;

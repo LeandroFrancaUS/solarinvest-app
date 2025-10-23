@@ -532,6 +532,261 @@
   text-transform: uppercase;
 }
 
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-layout.leasing-print-layout {
+  background: #ffffff !important;
+  color: #111827 !important;
+  padding: 0 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-section {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+  padding: 8mm !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section--hero,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section--footer {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-hero {
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-hero::after,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-logo {
+  display: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-hero__meta,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-hero__summary {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section
+  .section-title,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section
+  .section-subtitle,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section h2,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section p,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section li {
+  color: #111827 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section
+  .section-title strong,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section
+  .section-subtitle strong {
+  color: inherit !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-key-values p,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-yearly-payments__item {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) table,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) th,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) td {
+  box-shadow: none !important;
+  color: #111827 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-final-footer,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-brand-footer {
+  color: #111827 !important;
+}
+
 @media print {
   .print-layout.leasing-print-layout {
     background: #ffffff !important;

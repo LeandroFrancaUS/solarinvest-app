@@ -3,100 +3,176 @@
   margin: 12mm;
 }
 
-html[data-print-mode],
-body[data-print-mode] {
+:where(html[data-print-mode], body[data-print-mode], [data-print-mode]) {
   margin: 0;
   padding: 0;
 }
 
-html[data-print-mode='print'],
-body[data-print-mode='print'],
-html[data-print-mode='download'],
-body[data-print-mode='download'] {
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) {
   background: #ffffff !important;
   color: #0f172a !important;
 }
 
-html[data-print-mode='print'] .print-page,
-body[data-print-mode='print'] .print-page,
-html[data-print-mode='download'] .print-page,
-body[data-print-mode='download'] .print-page {
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-page {
   box-shadow: none !important;
 }
 
-html[data-print-mode='print'] .preview-toolbar,
-body[data-print-mode='print'] .preview-toolbar,
-html[data-print-mode='download'] .preview-toolbar,
-body[data-print-mode='download'] .preview-toolbar {
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .preview-toolbar {
   display: none !important;
 }
 
-html[data-print-mode='print'] .print-hero,
-body[data-print-mode='print'] .print-hero,
-html[data-print-mode='download'] .print-hero,
-body[data-print-mode='download'] .print-hero,
-html[data-print-mode='print'] .print-hero__summary,
-body[data-print-mode='print'] .print-hero__summary,
-html[data-print-mode='download'] .print-hero__summary,
-body[data-print-mode='download'] .print-hero__summary,
-html[data-print-mode='print'] .print-section,
-body[data-print-mode='print'] .print-section,
-html[data-print-mode='download'] .print-section,
-body[data-print-mode='download'] .print-section,
-html[data-print-mode='print'] .print-card,
-body[data-print-mode='print'] .print-card,
-html[data-print-mode='download'] .print-card,
-body[data-print-mode='download'] .print-card,
-html[data-print-mode='print'] .print-cta__box,
-body[data-print-mode='print'] .print-cta__box,
-html[data-print-mode='download'] .print-cta__box,
-body[data-print-mode='download'] .print-cta__box,
-html[data-print-mode='print'] .print-final-footer,
-body[data-print-mode='print'] .print-final-footer,
-html[data-print-mode='download'] .print-final-footer,
-body[data-print-mode='download'] .print-final-footer,
-html[data-print-mode='print'] .print-value-card,
-body[data-print-mode='print'] .print-value-card,
-html[data-print-mode='download'] .print-value-card,
-body[data-print-mode='download'] .print-value-card,
-html[data-print-mode='print'] .print-chart,
-body[data-print-mode='print'] .print-chart,
-html[data-print-mode='download'] .print-chart,
-body[data-print-mode='download'] .print-chart,
-html[data-print-mode='print'] .print-yearly-payments__item,
-body[data-print-mode='print'] .print-yearly-payments__item,
-html[data-print-mode='download'] .print-yearly-payments__item,
-body[data-print-mode='download'] .print-yearly-payments__item {
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-hero,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-hero__summary,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-section,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-card,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-cta__box,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-final-footer,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-value-card,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-chart,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-yearly-payments__item {
   background: #ffffff !important;
   color: #0f172a !important;
   border-color: rgba(15, 23, 42, 0.28) !important;
   box-shadow: none !important;
 }
 
-html[data-print-mode='print'] .print-hero::after,
-body[data-print-mode='print'] .print-hero::after,
-html[data-print-mode='download'] .print-hero::after,
-body[data-print-mode='download'] .print-hero::after,
-html[data-print-mode='print'] .print-chart::after,
-body[data-print-mode='print'] .print-chart::after,
-html[data-print-mode='download'] .print-chart::after,
-body[data-print-mode='download'] .print-chart::after {
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-hero::after,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-chart::after {
   display: none !important;
 }
 
-html[data-print-mode='print'] .print-logo,
-body[data-print-mode='print'] .print-logo,
-html[data-print-mode='download'] .print-logo,
-body[data-print-mode='download'] .print-logo {
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-logo {
   background: transparent !important;
   border: 1px solid rgba(15, 23, 42, 0.2) !important;
   box-shadow: none !important;
 }
 
-html[data-print-mode='print'] .print-logo img,
-body[data-print-mode='print'] .print-logo img,
-html[data-print-mode='download'] .print-logo img,
-body[data-print-mode='download'] .print-logo img {
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-logo img {
   filter: none !important;
   opacity: 1 !important;
 }
