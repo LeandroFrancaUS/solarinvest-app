@@ -10509,6 +10509,18 @@ export default function App() {
       setSettingsTab('vendas')
       setIsSettingsOpen(true)
     }
+    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
+    let margemOperacionalResumoValor: number | null = null
+    if (margemManualAtiva && margemManualValor !== undefined) {
+      margemOperacionalResumoValor = margemManualValor
+    } else if (Number.isFinite(calculoAtual?.margem_operacional_valor ?? Number.NaN)) {
+      margemOperacionalResumoValor = Math.round(Number(calculoAtual?.margem_operacional_valor ?? 0) * 100) / 100
+    }
+    const capexBaseLabel = Number.isFinite(capexBaseResumoValor) ? currency(capexBaseResumoValor) : '—'
+    const margemOperacionalLabel =
+      typeof margemOperacionalResumoValor === 'number' && Number.isFinite(margemOperacionalResumoValor)
+        ? currency(margemOperacionalResumoValor)
+        : '—'
     return (
       <section className="card">
         <div className="card-header">
@@ -10539,6 +10551,28 @@ export default function App() {
                 onChange={(event) => handleDescontosConfigChange(event.target.value)}
                 onFocus={selectNumberInputOnFocus}
               />
+            </Field>
+          </div>
+        </div>
+        <div className="composicao-ufv-summary">
+          <h3>Referências internas</h3>
+          <p className="muted">Valores herdados de Configurações → Parâmetros de Vendas.</p>
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'CAPEX base (R$)',
+                'CAPEX base considerado após os custos internos e impostos configurados.',
+              )}
+            >
+              <input type="text" readOnly value={capexBaseLabel} />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Margem operacional (R$)',
+                'Margem operacional calculada a partir do CAPEX base e dos ajustes comerciais desta proposta.',
+              )}
+            >
+              <input type="text" readOnly value={margemOperacionalLabel} />
             </Field>
           </div>
         </div>

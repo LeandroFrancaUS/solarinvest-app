@@ -3727,6 +3727,27 @@ i:hover {
   font-size: 1.05rem;
 }
 
+.composicao-ufv-summary {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.composicao-ufv-summary h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.composicao-ufv-summary p {
+  margin: 0;
+  color: var(--muted);
+}
+
 
 
 
