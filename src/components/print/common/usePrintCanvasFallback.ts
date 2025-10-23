@@ -153,11 +153,7 @@ export const usePrintCanvasFallback = (sectionSelector: string) => {
           return
         }
 
-        const chartContainer =
-          svg.closest('.recharts-wrapper') ||
-          svg.closest('[data-chart-root]') ||
-          svg.closest('[data-chart-container]') ||
-          svg.closest('[data-print-chart]')
+        const chartContainer = svg.closest('.recharts-wrapper')
 
         if (!chartContainer) {
           return

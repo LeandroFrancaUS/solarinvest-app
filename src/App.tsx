@@ -90,6 +90,7 @@ import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { Providers } from './app/Providers'
 import { CHART_THEME } from './helpers/ChartTheme'
+import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/settings/SimulacoesTab'
 import {
   ANALISE_ANOS_PADRAO,
@@ -1354,14 +1355,15 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
           if (!containerEl) {
             return false
           }
-          const chartSvg = containerEl.querySelector('.print-chart svg')
+          const chartWrapper = containerEl.querySelector('.recharts-wrapper')
+          if (!chartWrapper) {
+            return true
+          }
+          const chartSvg = chartWrapper.querySelector('svg')
           if (!chartSvg) {
             return false
           }
-          if (chartSvg.childNodes.length === 0) {
-            return false
-          }
-          return true
+          return chartSvg.childNodes.length > 0
         }
 
         const attemptCapture = (root: ReturnType<typeof createRoot> | null) => {
@@ -4842,14 +4844,6 @@ export default function App() {
     recalcularTick,
   ])
 
-  const chartPalette = useMemo(
-    () => ({
-      Leasing: '#38BDF8',
-      Financiamento: '#F97316',
-    }),
-    [],
-  )
-
   const simulationState = useMemo<SimulationState>(() => {
     // Mantemos o valor de mercado (vm0) amarrado ao CAPEX calculado neste mesmo memo para
     // evitar dependências de ordem que poderiam reaparecer em merges futuros. Assim garantimos
@@ -5178,27 +5172,6 @@ export default function App() {
       return typeof ultimo === 'number' ? ultimo : 0
     })
   }, [leasingPrazoConsiderado, mensalidadesPorAno])
-
-  const chartData = useMemo(() => {
-    return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
-      const ano = i + 1
-      return {
-        ano,
-        Leasing: leasingROI[i] ?? 0,
-        Financiamento: financiamentoROI[i] ?? 0,
-      }
-    })
-  }, [financiamentoROI, leasingROI])
-  const beneficioAno30 = useMemo(
-    () => chartData.find((row) => row.ano === 30) ?? null,
-    [chartData],
-  )
-
-  const valoresGrafico = chartData.flatMap((row) => [row.Leasing, row.Financiamento])
-  const minY = Math.min(...valoresGrafico, 0)
-  const maxY = Math.max(...valoresGrafico, 0)
-  const padding = Math.max(5_000, Math.round((maxY - minY) * 0.1))
-  const yDomain: [number, number] = [Math.floor((minY - padding) / 1000) * 1000, Math.ceil((maxY + padding) / 1000) * 1000]
 
   const tabelaBuyout = useMemo<BuyoutRow[]>(() => {
     const horizonte = Math.max(60, Math.floor(simulationState.duracaoMeses))
@@ -8635,7 +8608,6 @@ export default function App() {
     setMultiUcRows,
   ])
 
-  const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
   const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
@@ -12418,109 +12390,19 @@ export default function App() {
               ) : null}
             </section>
             {mostrarGrafico ? (
-              <section className="card">
-                <div className="card-header">
-                  <h2>Beneficio acumulado em 30 anos</h2>
-                  <div className="legend-toggle">
-                    <label>
-                      <input type="checkbox" checked={exibirLeasingLinha} onChange={(e) => setExibirLeasingLinha(e.target.checked)} />
-                      <span style={{ color: chartPalette.Leasing }}>Leasing</span>
-                    </label>
-                    {mostrarFinanciamento ? (
-                      <label>
-                        <input type="checkbox" checked={exibirFinLinha} onChange={(e) => setExibirFinLinha(e.target.checked)} />
-                        <span style={{ color: chartPalette.Financiamento }}>Financiamento</span>
-                      </label>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="chart">
-                  {!allCurvesHidden ? (
-                    <div className="chart-explainer">
-                      <strong>ROI Leasing – Benefício financeiro</strong>
-                      <span>Economia acumulada versus concessionária.</span>
-                      {beneficioAno30 ? (
-                        <span className="chart-highlight">
-                          <strong>Beneficio acumulado em 30 anos:</strong>{' '}
-                          <strong style={{ color: chartPalette.Leasing }}>{currency(beneficioAno30.Leasing)}</strong>
-                          {mostrarFinanciamento && exibirFinLinha ? (
-                            <>
-                              {' • '}Financiamento:{' '}
-                              <strong style={{ color: chartPalette.Financiamento }}>{currency(beneficioAno30.Financiamento)}</strong>
-                            </>
-                          ) : null}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 16, right: 24, bottom: 20, left: 12 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                      <XAxis
-                        dataKey="ano"
-                        stroke={chartTheme.grid}
-                        tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                        label={{
-                          value: 'Anos',
-                          position: 'insideBottomRight',
-                          offset: -5,
-                          fill: chartTheme.legend,
-                          fontWeight: 700,
-                        }}
-                      />
-                      <YAxis
-                        stroke={chartTheme.grid}
-                        tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
-                        tickFormatter={formatAxis}
-                        domain={yDomain}
-                        width={92}
-                        label={{
-                          value: 'Beneficio em Reais',
-                          angle: -90,
-                          position: 'insideLeft',
-                          offset: 12,
-                          fill: chartTheme.legend,
-                          fontWeight: 700,
-                        }}
-                      />
-                      <Tooltip
-                        formatter={(value: number) => currency(Number(value))}
-                        contentStyle={{
-                          background: chartTheme.tooltipBg,
-                          border: '1px solid var(--border)',
-                          color: chartTheme.tooltipText,
-                        }}
-                        itemStyle={{ color: chartTheme.tooltipText }}
-                        labelStyle={{ color: chartTheme.tooltipText }}
-                      />
-                      <Legend
-                        verticalAlign="bottom"
-                        align="right"
-                        wrapperStyle={{ paddingTop: 16, color: chartTheme.legend }}
-                      />
-                      <ReferenceLine y={0} stroke={theme === 'dark' ? 'rgba(239,68,68,0.45)' : 'rgba(239,68,68,0.35)'} />
-                      {exibirLeasingLinha ? (
-                        <Line
-                          type="monotone"
-                          dataKey="Leasing"
-                          stroke={chartPalette.Leasing}
-                          strokeWidth={2}
-                          dot
-                        />
-                      ) : null}
-                      {mostrarFinanciamento && exibirFinLinha ? (
-                        <Line
-                          type="monotone"
-                          dataKey="Financiamento"
-                          stroke={chartPalette.Financiamento}
-                          strokeWidth={2}
-                          dot
-                        />
-                      ) : null}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </section>
+              <LeasingBeneficioChart
+                leasingROI={leasingROI}
+                financiamentoROI={financiamentoROI}
+                mostrarFinanciamento={mostrarFinanciamento}
+                exibirLeasingLinha={exibirLeasingLinha}
+                onToggleLeasing={setExibirLeasingLinha}
+                exibirFinLinha={exibirFinLinha}
+                onToggleFinanciamento={setExibirFinLinha}
+                chartTheme={chartTheme}
+                theme={theme}
+                currency={currency}
+                formatAxis={formatAxis}
+              />
             ) : null}
           </>
         ) : (
