@@ -431,7 +431,7 @@
   margin: 16px 0 0;
   font-size: 13px;
   line-height: 1.6;
-  color: rgba(226, 232, 240, 0.72);
+  color: #334155;
 }
 
 .print-important ul {
@@ -439,7 +439,7 @@
   padding-left: 18px;
   display: grid;
   gap: 10px;
-  color: rgba(226, 232, 240, 0.82);
+  color: #1e293b;
   font-size: 13px;
   line-height: 1.7;
 }
@@ -448,7 +448,7 @@
   margin-top: 12px;
   font-size: 12px;
   line-height: 1.6;
-  color: rgba(226, 232, 240, 0.7);
+  color: #475569;
 }
 
 .print-cta__box {
