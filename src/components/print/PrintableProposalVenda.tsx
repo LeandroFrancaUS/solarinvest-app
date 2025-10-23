@@ -1,17 +1,12 @@
 import React, { useMemo } from 'react'
 
 import './styles/print-common.css'
-import './styles/benefit-chart.css'
 import './styles/proposal-venda.css'
 import { currency, formatCpfCnpj } from '../../utils/formatters'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
-import BenefitBarChart, {
-  type BenefitChartHighlight,
-  type BenefitChartPoint,
-} from './BenefitBarChart'
 
 const normalizeObservationKey = (value: string): string =>
   value
@@ -820,121 +815,6 @@ function PrintableProposalInner(
     : 'Após o final do contrato a usina passa a render 100% de economia frente à concessionária para o cliente.'
   const economiaPrimaryLabel = isVendaDireta ? 'Venda' : 'Leasing SolarInvest'
   const economiaFinanciamentoLabel = 'Financiamento SolarInvest'
-  const investimentoInicialConsiderado = Number.isFinite(retornoVenda?.investimentoInicial)
-    ? Math.max(0, retornoVenda?.investimentoInicial ?? 0)
-    : Math.max(0, capex ?? 0)
-  const beneficioVendaPoints = useMemo<BenefitChartPoint[]>(() => {
-    if (retornoVenda?.saldo && retornoVenda.saldo.length > 0) {
-      return BENEFICIO_CHART_ANOS.map((ano) => {
-        const indice = ano * 12 - 1
-        const valor = retornoVenda.saldo[indice]
-        if (!Number.isFinite(valor)) {
-          return null
-        }
-        return {
-          ano,
-          label: `${ano}º ano`,
-          value: valor,
-        }
-      }).filter((item): item is BenefitChartPoint => item != null)
-    }
-
-    if (financiamentoROI.length > 0) {
-      const anosDisponiveis = new Set(anos)
-      return BENEFICIO_CHART_ANOS.filter((ano) => anosDisponiveis.has(ano)).map((ano) => ({
-        ano,
-        label: `${ano}º ano`,
-        value: financiamentoROI[ano - 1] ?? 0,
-      }))
-    }
-
-    return []
-  }, [anos, financiamentoROI, retornoVenda])
-  const paybackMesesCalculado = useMemo(() => {
-    if (Number.isFinite(retornoVenda?.payback) && (retornoVenda?.payback ?? 0) > 0) {
-      return retornoVenda?.payback ?? null
-    }
-    if (retornoVenda?.saldo && retornoVenda.saldo.length > 0) {
-      const indice = retornoVenda.saldo.findIndex((valor) => Number.isFinite(valor) && (valor ?? 0) >= 0)
-      if (indice >= 0) {
-        return indice + 1
-      }
-    }
-    return null
-  }, [retornoVenda])
-  const paybackAnoEstimado = paybackMesesCalculado != null ? Math.ceil(paybackMesesCalculado / 12) : null
-  const paybackMarkerYear = useMemo(() => {
-    if (paybackAnoEstimado == null) {
-      return null
-    }
-    const ponto = beneficioVendaPoints.find((item) => item.ano >= paybackAnoEstimado)
-    return ponto?.ano ?? null
-  }, [beneficioVendaPoints, paybackAnoEstimado])
-  const beneficioVendaPointsComPayback = useMemo<BenefitChartPoint[]>(() => {
-    if (!paybackMarkerYear) {
-      return beneficioVendaPoints
-    }
-    return beneficioVendaPoints.map((ponto) =>
-      ponto.ano === paybackMarkerYear ? { ...ponto, marker: 'Payback' } : ponto,
-    )
-  }, [beneficioVendaPoints, paybackMarkerYear])
-  const beneficioVendaHighlights = useMemo<BenefitChartHighlight[]>(() => {
-    const items: BenefitChartHighlight[] = []
-
-    if (investimentoInicialConsiderado > 0) {
-      items.push({
-        label: 'Investimento inicial considerado',
-        value: currency(-investimentoInicialConsiderado),
-        description: 'Pagamento à vista da usina no início do projeto.',
-      })
-    }
-
-    if (beneficioVendaPoints.length > 0) {
-      if (paybackMesesCalculado != null) {
-        const paybackAnos = Math.ceil(paybackMesesCalculado / 12)
-        if (paybackAnos <= 30) {
-          items.push({
-            label: 'Payback estimado',
-            value: `${paybackAnos}º ano (${paybackMesesCalculado}º mês)`,
-            description: 'A partir desse marco o saldo acumulado passa a ser positivo.',
-          })
-        } else {
-          items.push({
-            label: 'Payback estimado',
-            value: 'Não atingido em 30 anos',
-            description: 'O fluxo projetado permanece negativo no horizonte exibido.',
-          })
-        }
-      } else {
-        items.push({
-          label: 'Payback estimado',
-          value: 'Não atingido em 30 anos',
-          description: 'O fluxo projetado permanece negativo no horizonte exibido.',
-        })
-      }
-    }
-
-    const ponto30 = beneficioVendaPoints.find((ponto) => ponto.ano === 30)
-    if (ponto30) {
-      items.push({
-        label: 'Benefício acumulado (30 anos)',
-        value: currency(ponto30.value),
-      })
-    }
-
-    return items
-  }, [beneficioVendaPoints, investimentoInicialConsiderado, paybackMesesCalculado])
-  const beneficioVendaNote = (
-    <p>
-      <strong>Como calculamos:</strong> saldo anual = economia projetada frente à distribuidora − desembolsos da usina.
-      {investimentoInicialConsiderado > 0 ? (
-        <>
-          {' '}Consideramos o investimento inicial de <strong>{currency(investimentoInicialConsiderado)}</strong> no primeiro mês.
-        </>
-      ) : null}{' '}
-      A marcação de payback indica o ano em que o saldo passa a representar lucro estimado.
-    </p>
-  )
 
   const economiaTabelaDados = useMemo(() => {
     const anosDisponiveis = new Set(anos)
@@ -1473,21 +1353,7 @@ function PrintableProposalInner(
               </p>
             )}
           </section>
-
-          {isVendaDireta ? (
-            <BenefitBarChart
-              id="beneficio-acumulado"
-              title="Benefício acumulado em 30 anos"
-              subtitle="Saldo líquido após considerar o investimento inicial e a economia anual projetada."
-              points={beneficioVendaPointsComPayback}
-              highlights={beneficioVendaHighlights}
-              formatValue={currency}
-              emptyMessage="Não há dados suficientes para projetar o benefício acumulado desta proposta."
-              note={beneficioVendaNote}
-              variant="venda"
-            />
-          ) : null}
-
+    
           <section
             id="infos-importantes"
             className="print-section print-important keep-together page-break-before break-after"
