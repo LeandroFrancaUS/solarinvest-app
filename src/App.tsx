@@ -11,6 +11,8 @@ import {
   Legend,
   ReferenceLine,
   CartesianGrid,
+  BarChart,
+  Bar,
 } from 'recharts'
 
 import {
@@ -12076,6 +12078,77 @@ export default function App() {
       kpis.push({ label: 'VPL', value: vplLabel })
     }
 
+    const horizonteAnos = [5, 10, 15, 20, 30] as const
+    const horizonteTicks = horizonteAnos.map((ano) => ano)
+    const capexAvista = Number.isFinite(vendaForm.capex_total) ? vendaForm.capex_total : 0
+    const beneficioChartData = resultado
+      ? horizonteAnos.map((anos) => {
+          const meses = Math.min(anos * 12, resultado.economia.length)
+          const economiaAcumulada = resultado.economia
+            .slice(0, meses)
+            .reduce((acc, valor) => acc + valor, -capexAvista)
+          return {
+            anos,
+            label: `${anos} anos`,
+            beneficio: economiaAcumulada,
+          }
+        })
+      : []
+
+    let paybackMesesAvista: number | null = null
+    if (resultado) {
+      let saldo = -capexAvista
+      if (saldo >= 0) {
+        paybackMesesAvista = 0
+      } else {
+        for (let mes = 0; mes < resultado.economia.length; mes += 1) {
+          saldo += resultado.economia[mes] ?? 0
+          if (saldo >= 0) {
+            paybackMesesAvista = mes + 1
+            break
+          }
+        }
+      }
+    }
+
+    const paybackAnosDecimal =
+      paybackMesesAvista != null ? paybackMesesAvista / 12 : null
+    let paybackDescricao = 'Payback não alcançado em 30 anos considerando compra à vista.'
+    let paybackLabelGrafico: string | null = null
+    if (paybackMesesAvista != null) {
+      if (paybackMesesAvista === 0) {
+        paybackDescricao = 'Payback imediato considerando compra à vista.'
+        paybackLabelGrafico = 'Payback imediato'
+      } else {
+        const anosInteiros = Math.floor(paybackMesesAvista / 12)
+        const mesesRestantes = paybackMesesAvista % 12
+        const partes: string[] = []
+        if (anosInteiros > 0) {
+          partes.push(`${anosInteiros} ${anosInteiros === 1 ? 'ano' : 'anos'}`)
+        }
+        if (mesesRestantes > 0) {
+          partes.push(`${mesesRestantes} ${mesesRestantes === 1 ? 'mês' : 'meses'}`)
+        }
+        const resumo = `Payback em ${partes.join(' e ')}`
+        paybackDescricao = `${resumo} considerando compra à vista.`
+        paybackLabelGrafico = resumo
+      }
+    }
+
+    const beneficioMinMax = beneficioChartData.reduce(
+      (acc, item) => {
+        return {
+          min: Math.min(acc.min, item.beneficio),
+          max: Math.max(acc.max, item.beneficio),
+        }
+      },
+      { min: 0, max: 0 },
+    )
+
+    const yDomain: [number | 'auto', number | 'auto'] = beneficioChartData.length
+      ? [Math.min(0, beneficioMinMax.min), Math.max(0, beneficioMinMax.max)]
+      : ['auto', 'auto']
+
     return (
       <section className="card">
         <div className="card-header">
@@ -12104,6 +12177,84 @@ export default function App() {
                 </div>
               ))}
             </div>
+            <div className="chart" style={{ marginTop: '1.5rem', height: 280 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={beneficioChartData}
+                  margin={{ top: 16, right: 24, bottom: 16, left: 12 }}
+                  barCategoryGap={24}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                  <XAxis
+                    type="number"
+                    dataKey="anos"
+                    domain={[0, 30]}
+                    ticks={horizonteTicks}
+                    stroke={chartTheme.grid}
+                    tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                    label={{
+                      value: 'Anos',
+                      position: 'insideBottomRight',
+                      offset: -5,
+                      fill: chartTheme.legend,
+                      fontWeight: 700,
+                    }}
+                  />
+                  <YAxis
+                    stroke={chartTheme.grid}
+                    tick={{ fill: chartTheme.tick, fontSize: 12, fontWeight: 600 }}
+                    tickFormatter={formatAxis}
+                    width={110}
+                    label={{
+                      value: 'Benefício acumulado (R$)',
+                      angle: -90,
+                      position: 'insideLeft',
+                      offset: 12,
+                      fill: chartTheme.legend,
+                      fontWeight: 700,
+                    }}
+                    domain={yDomain}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => currency(Number(value))}
+                    labelFormatter={(value: number) => `${value} anos`}
+                    contentStyle={{
+                      background: chartTheme.tooltipBg,
+                      border: '1px solid var(--border)',
+                      color: chartTheme.tooltipText,
+                    }}
+                    itemStyle={{ color: chartTheme.tooltipText }}
+                    labelStyle={{ color: chartTheme.tooltipText }}
+                  />
+                  <ReferenceLine
+                    y={0}
+                    stroke={theme === 'dark' ? 'rgba(239,68,68,0.45)' : 'rgba(239,68,68,0.35)'}
+                  />
+                  {paybackAnosDecimal != null && paybackAnosDecimal > 0 && paybackAnosDecimal <= 30 &&
+                  paybackLabelGrafico ? (
+                    <ReferenceLine
+                      x={paybackAnosDecimal}
+                      stroke="#22c55e"
+                      strokeDasharray="4 4"
+                      label={{
+                        value: paybackLabelGrafico,
+                        position: 'insideTopRight',
+                        fill: chartTheme.legend,
+                        fontWeight: 600,
+                      }}
+                    />
+                  ) : null}
+                  <Bar
+                    dataKey="beneficio"
+                    fill={theme === 'dark' ? '#60a5fa' : 'var(--accent, #0d47a1)'}
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="muted" style={{ marginTop: '0.75rem' }}>
+              {paybackDescricao}
+            </p>
           </>
         ) : retornoStatus === 'calculating' ? (
           <p className="muted">Calculando projeções…</p>
