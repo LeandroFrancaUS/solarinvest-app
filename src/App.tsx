@@ -10798,10 +10798,11 @@ export default function App() {
                     {telhadoCampos.map(({ key, label, tooltip }) => (
                       <Field key={`settings-telhado-${key}`} label={labelWithTooltip(label, tooltip)}>
                         <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                          type="text"
+                          inputMode="decimal"
+                          value={formatCurrencyInputValue(
+                            Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0,
+                          )}
                           onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
                           onFocus={selectNumberInputOnFocus}
                         />
@@ -10812,10 +10813,11 @@ export default function App() {
                     {resumoCamposTelhado.map(({ key, label, tooltip }) => (
                       <Field key={`settings-telhado-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
                         <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0}
+                          type="text"
+                          inputMode="decimal"
+                          value={formatCurrencyInputValue(
+                            Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0,
+                          )}
                           onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
                           onFocus={selectNumberInputOnFocus}
                         />
@@ -10830,10 +10832,11 @@ export default function App() {
                     {soloCamposPrincipais.map(({ key, label, tooltip }) => (
                       <Field key={`settings-solo-${key}`} label={labelWithTooltip(label, tooltip)}>
                         <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                          type="text"
+                          inputMode="decimal"
+                          value={formatCurrencyInputValue(
+                            Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0,
+                          )}
                           onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
                           onFocus={selectNumberInputOnFocus}
                         />
@@ -10844,10 +10847,11 @@ export default function App() {
                     {resumoCamposSolo.map(({ key, label, tooltip }) => (
                       <Field key={`settings-solo-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
                         <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0}
+                          type="text"
+                          inputMode="decimal"
+                          value={formatCurrencyInputValue(
+                            Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0,
+                          )}
                           onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
                           onFocus={selectNumberInputOnFocus}
                         />
