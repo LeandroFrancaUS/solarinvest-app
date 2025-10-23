@@ -85,6 +85,7 @@ import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta
 import { useLeasingValorDeMercadoEstimado } from './store/useLeasingStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
+import './styles/config-page.css'
 import { AppRoutes } from './app/Routes'
 import { Providers } from './app/Providers'
 import { CHART_THEME } from './helpers/ChartTheme'
@@ -1247,14 +1248,42 @@ function Field({
   hint?: React.ReactNode
   htmlFor?: string
 }) {
+  const enhancedChildren = React.Children.map(children, (child) => {
+    if (!React.isValidElement(child)) {
+      return child
+    }
+
+    if (typeof child.type === 'string') {
+      if (child.type === 'input') {
+        const inputType = (child.props as { type?: string }).type
+        if (inputType === 'checkbox' || inputType === 'radio') {
+          return child
+        }
+      }
+
+      if (child.type === 'input' || child.type === 'select' || child.type === 'textarea') {
+        const existingClassName = (child.props as { className?: string }).className ?? ''
+        const classes = existingClassName.split(' ').filter(Boolean)
+        if (!classes.includes('cfg-input')) {
+          classes.push('cfg-input')
+        }
+        return React.cloneElement(child, {
+          className: classes.join(' '),
+        })
+      }
+    }
+
+    return child
+  })
+
   return (
-    <div className="field">
-      <label className="field-label" {...(htmlFor ? { htmlFor } : undefined)}>
+    <div className="field cfg-field">
+      <label className="field-label cfg-label" {...(htmlFor ? { htmlFor } : undefined)}>
         {label}
       </label>
-      <div className="field-control">
-        {children}
-        {hint ? <small>{hint}</small> : null}
+      <div className="field-control cfg-control">
+        {enhancedChildren}
+        {hint ? <small className="cfg-help">{hint}</small> : null}
       </div>
     </div>
   )
@@ -1402,6 +1431,22 @@ export default function App() {
     removeFogOverlays()
     const disconnect = watchFogReinjection()
     return disconnect
+  }, [])
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || typeof document === 'undefined') {
+      return
+    }
+
+    const safari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+    if (!safari) {
+      document.documentElement.classList.remove('is-safari')
+      return
+    }
+
+    document.documentElement.classList.add('is-safari')
+    return () => {
+      document.documentElement.classList.remove('is-safari')
+    }
   }, [])
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -10776,7 +10821,7 @@ export default function App() {
           Ajuste os custos internos da usina e os parâmetros comerciais utilizados no cálculo da proposta.
         </p>
 
-        <section className="settings-vendas-card settings-vendas-card--full">
+        <section className="settings-vendas-card config-card settings-vendas-card--full">
           <div className="settings-vendas-card-header">
             <div>
               <h3>Composição da UFV</h3>
@@ -10857,7 +10902,7 @@ export default function App() {
         </section>
 
         <div className="settings-vendas-columns">
-          <section className="settings-vendas-card">
+          <section className="settings-vendas-card config-card">
             <div className="settings-vendas-card-header">
               <div>
                 <h3>Custos &amp; precificação</h3>
@@ -10977,7 +11022,7 @@ export default function App() {
             </div>
           </section>
 
-          <section className="settings-vendas-card">
+          <section className="settings-vendas-card config-card">
             <div className="settings-vendas-card-header">
               <div>
                 <h3>Comercial &amp; aprovação</h3>
@@ -11159,7 +11204,7 @@ export default function App() {
           </section>
         </div>
 
-        <section className="settings-vendas-card settings-vendas-card--full">
+        <section className="settings-vendas-card config-card settings-vendas-card--full">
           <div className="settings-vendas-card-header">
             <div>
               <h3>Tributação</h3>
@@ -11301,7 +11346,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="settings-vendas-card settings-vendas-card--full">
+        <section className="settings-vendas-card config-card settings-vendas-card--full">
           <div className="settings-vendas-card-header">
             <div>
               <h3>Exibição no PDF (cliente)</h3>
@@ -12621,39 +12666,35 @@ export default function App() {
               <button className="icon" onClick={() => setIsSettingsOpen(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <div className="settings-tabs">
-                <nav
-                  className="settings-tabs-nav"
-                  role="tablist"
-                  aria-label="Configurações da simulação"
-                >
+              <div className="config-page">
+                <div className="cfg-tabs" role="tablist" aria-label="Seções de Configuração">
                   {SETTINGS_TABS.map((tab) => (
                     <button
                       key={tab.id}
                       type="button"
-                      className={`settings-tab${settingsTab === tab.id ? ' active' : ''}`}
                       role="tab"
-                      id={`settings-tab-${tab.id}`}
+                      id={`cfg-tab-${tab.id}`}
                       aria-selected={settingsTab === tab.id}
                       aria-controls={`settings-panel-${tab.id}`}
+                      className={`cfg-tab${settingsTab === tab.id ? ' is-active' : ''}`}
                       onClick={() => setSettingsTab(tab.id)}
                     >
                       {tab.label}
                     </button>
                   ))}
-                </nav>
-                <div className="settings-panels">
+                </div>
+                <div className="config-panels">
                   <section
                     id="settings-panel-mercado"
                     role="tabpanel"
-                    aria-labelledby="settings-tab-mercado"
-                    className={`settings-panel${settingsTab === 'mercado' ? ' active' : ''}`}
+                    aria-labelledby="cfg-tab-mercado"
+                    className={`settings-panel config-card${settingsTab === 'mercado' ? ' active' : ''}`}
                     hidden={settingsTab !== 'mercado'}
                     aria-hidden={settingsTab !== 'mercado'}
                   >
-                    <div className="settings-panel-header">
-                      <h4>Mercado & energia</h4>
-                      <p className="settings-panel-description">
+                    <div className="cfg-panel-header">
+                      <h2 className="cfg-section-title">Mercado & energia</h2>
+                      <p className="settings-panel-description cfg-section-subtitle">
                         Ajuste as premissas macroeconômicas da projeção.
                       </p>
                     </div>
@@ -12752,14 +12793,14 @@ export default function App() {
                   <section
                     id="settings-panel-simulacoes"
                     role="tabpanel"
-                    aria-labelledby="settings-tab-simulacoes"
-                    className={`settings-panel${settingsTab === 'simulacoes' ? ' active' : ''}`}
+                    aria-labelledby="cfg-tab-simulacoes"
+                    className={`settings-panel config-card${settingsTab === 'simulacoes' ? ' active' : ''}`}
                     hidden={settingsTab !== 'simulacoes'}
                     aria-hidden={settingsTab !== 'simulacoes'}
                   >
-                    <div className="settings-panel-header">
-                      <h4>Simulações financeiras</h4>
-                      <p className="settings-panel-description">
+                    <div className="cfg-panel-header">
+                      <h2 className="cfg-section-title">Simulações financeiras</h2>
+                      <p className="settings-panel-description cfg-section-subtitle">
                         Monte cenários de leasing com diferentes descontos, prazos e custos para comparar KPIs lado a lado.
                       </p>
                     </div>
@@ -12773,14 +12814,14 @@ export default function App() {
                   <section
                     id="settings-panel-vendas"
                     role="tabpanel"
-                    aria-labelledby="settings-tab-vendas"
-                    className={`settings-panel${settingsTab === 'vendas' ? ' active' : ''}`}
+                    aria-labelledby="cfg-tab-vendas"
+                    className={`settings-panel config-card${settingsTab === 'vendas' ? ' active' : ''}`}
                     hidden={settingsTab !== 'vendas'}
                     aria-hidden={settingsTab !== 'vendas'}
                   >
-                    <div className="settings-panel-header">
-                      <h4>Parâmetros de vendas</h4>
-                      <p className="settings-panel-description">
+                    <div className="cfg-panel-header">
+                      <h2 className="cfg-section-title">Parâmetros de vendas</h2>
+                      <p className="settings-panel-description cfg-section-subtitle">
                         Configure custos, margens e impostos utilizados nos cálculos comerciais.
                       </p>
                     </div>
@@ -12789,14 +12830,14 @@ export default function App() {
                   <section
                     id="settings-panel-leasing"
                     role="tabpanel"
-                    aria-labelledby="settings-tab-leasing"
-                    className={`settings-panel${settingsTab === 'leasing' ? ' active' : ''}`}
+                    aria-labelledby="cfg-tab-leasing"
+                    className={`settings-panel config-card${settingsTab === 'leasing' ? ' active' : ''}`}
                     hidden={settingsTab !== 'leasing'}
                     aria-hidden={settingsTab !== 'leasing'}
                   >
-                    <div className="settings-panel-header">
-                      <h4>Leasing parâmetros</h4>
-                      <p className="settings-panel-description">
+                    <div className="cfg-panel-header">
+                      <h2 className="cfg-section-title">Leasing parâmetros</h2>
+                      <p className="settings-panel-description cfg-section-subtitle">
                         Personalize as condições do contrato de leasing.
                       </p>
                     </div>
@@ -12914,14 +12955,14 @@ export default function App() {
                   <section
                     id="settings-panel-financiamento"
                     role="tabpanel"
-                    aria-labelledby="settings-tab-financiamento"
-                    className={`settings-panel${settingsTab === 'financiamento' ? ' active' : ''}`}
+                    aria-labelledby="cfg-tab-financiamento"
+                    className={`settings-panel config-card${settingsTab === 'financiamento' ? ' active' : ''}`}
                     hidden={settingsTab !== 'financiamento'}
                     aria-hidden={settingsTab !== 'financiamento'}
                   >
-                    <div className="settings-panel-header">
-                      <h4>Financiamento parâmetros</h4>
-                      <p className="settings-panel-description">
+                    <div className="cfg-panel-header">
+                      <h2 className="cfg-section-title">Financiamento parâmetros</h2>
+                      <p className="settings-panel-description cfg-section-subtitle">
                         Defina as variáveis financeiras do cenário financiado.
                       </p>
                     </div>
@@ -12972,14 +13013,14 @@ export default function App() {
                   <section
                     id="settings-panel-buyout"
                     role="tabpanel"
-                    aria-labelledby="settings-tab-buyout"
-                    className={`settings-panel${settingsTab === 'buyout' ? ' active' : ''}`}
+                    aria-labelledby="cfg-tab-buyout"
+                    className={`settings-panel config-card${settingsTab === 'buyout' ? ' active' : ''}`}
                     hidden={settingsTab !== 'buyout'}
                     aria-hidden={settingsTab !== 'buyout'}
                   >
-                    <div className="settings-panel-header">
-                      <h4>Buyout parâmetros</h4>
-                      <p className="settings-panel-description">
+                    <div className="cfg-panel-header">
+                      <h2 className="cfg-section-title">Buyout parâmetros</h2>
+                      <p className="settings-panel-description cfg-section-subtitle">
                         Configure premissas de recompra e fluxo residual.
                       </p>
                     </div>
@@ -13170,14 +13211,14 @@ export default function App() {
                   <section
                     id="settings-panel-outros"
                     role="tabpanel"
-                    aria-labelledby="settings-tab-outros"
-                    className={`settings-panel${settingsTab === 'outros' ? ' active' : ''}`}
+                    aria-labelledby="cfg-tab-outros"
+                    className={`settings-panel config-card${settingsTab === 'outros' ? ' active' : ''}`}
                     hidden={settingsTab !== 'outros'}
                     aria-hidden={settingsTab !== 'outros'}
                   >
-                    <div className="settings-panel-header">
-                      <h4>Outros</h4>
-                      <p className="settings-panel-description">
+                    <div className="cfg-panel-header">
+                      <h2 className="cfg-section-title">Outros</h2>
+                      <p className="settings-panel-description cfg-section-subtitle">
                         Controles complementares de operação e apresentação.
                       </p>
                     </div>
