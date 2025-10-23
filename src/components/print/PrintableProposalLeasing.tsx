@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 
 import './styles/print-common.css'
+import './styles/benefit-chart.css'
 import './styles/proposal-leasing.css'
 import { currency, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
 import {
@@ -13,6 +14,10 @@ import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
+import BenefitBarChart, {
+  type BenefitChartHighlight,
+  type BenefitChartPoint,
+} from './BenefitBarChart'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -418,6 +423,8 @@ function PrintableProposalLeasingInner(
 
   const tarifaInicialProjetada = tarifaCheiaBase > 0 ? tarifaCheiaBase * (1 - descontoFracao) : 0
 
+  const prazoContratualDescricaoTexto = prazoContratual > 0 ? formatPrazoContratual(prazoContratual) : null
+
   const condicoesFinanceiras = [
     {
       label: 'Investimento estimado da SolarInvest (R$)',
@@ -514,6 +521,70 @@ function PrintableProposalLeasingInner(
     </>
   ) : (
     <>Economia que cresce ano após ano. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.</>
+  )
+  const beneficioChartPoints = useMemo<BenefitChartPoint[]>(
+    () =>
+      economiaProjetada.map((item) => ({
+        ano: item.ano,
+        label: formatAnoDescricao(item.ano),
+        value: item.acumulado,
+      })),
+    [economiaProjetada],
+  )
+  const beneficioChartHighlights = useMemo<BenefitChartHighlight[]>(() => {
+    const items: BenefitChartHighlight[] = []
+    const contratoAno = prazoContratual > 0 ? Math.ceil(prazoContratual / 12) : null
+
+    if (contratoAno != null) {
+      const pontoContrato = beneficioChartPoints.find((ponto) => ponto.ano === contratoAno)
+      if (pontoContrato) {
+        items.push({
+          label: `Fim do leasing (${formatAnoDescricao(pontoContrato.ano)})`,
+          value: currency(pontoContrato.value),
+        })
+      }
+
+      const pontoPosContrato = beneficioChartPoints.find((ponto) => ponto.ano === contratoAno + 1)
+      if (pontoPosContrato) {
+        items.push({
+          label: `Primeiro ano pós-leasing (${formatAnoDescricao(pontoPosContrato.ano)})`,
+          value: currency(pontoPosContrato.value),
+          description: 'Benefício já sem mensalidades, mantendo apenas a economia frente à distribuidora.',
+        })
+      }
+    }
+
+    const ponto30 = beneficioChartPoints.find((ponto) => ponto.ano === 30)
+    if (ponto30) {
+      items.push({
+        label: 'Benefício acumulado (30 anos)',
+        value: currency(ponto30.value),
+      })
+    }
+
+    if (valorMercadoProjetado > 0) {
+      items.push({
+        label: 'Valor de mercado da usina considerado',
+        value: currency(valorMercadoProjetado),
+        description: 'Patrimônio transferido ao cliente e diluído durante o período do leasing.',
+      })
+    }
+
+    return items
+  }, [beneficioChartPoints, prazoContratual, valorMercadoProjetado])
+  const beneficioChartNote = (
+    <p>
+      <strong>Como calculamos:</strong> economia projetada frente à distribuidora, benefícios operacionais e{' '}
+      {valorMercadoProjetado > 0 ? (
+        <>
+          o valor de mercado estimado da usina (<strong>{currency(valorMercadoProjetado)}</strong>) diluído
+          {prazoContratualDescricaoTexto ? ` ao longo de ${prazoContratualDescricaoTexto}` : ' ao longo do contrato'}
+        </>
+      ) : (
+        'o valor de mercado estimado da usina diluído ao longo do contrato'
+      )}
+      . Após a transferência da usina, toda a economia permanece com o cliente.
+    </p>
   )
   const informacoesImportantesObservacaoTexto = useMemo(() => {
     if (typeof informacoesImportantesObservacao !== 'string') {
@@ -790,7 +861,19 @@ function PrintableProposalLeasingInner(
               </p>
             )}
           </section>
-    
+
+          <BenefitBarChart
+            id="beneficio-acumulado"
+            title="Benefício acumulado em 30 anos"
+            subtitle="Evolução do benefício líquido considerando economia projetada, OPEX coberto e a transferência da usina."
+            points={beneficioChartPoints}
+            highlights={beneficioChartHighlights}
+            formatValue={currency}
+            emptyMessage="Não há dados suficientes para projetar o benefício acumulado desta proposta."
+            note={beneficioChartNote}
+            variant="leasing"
+          />
+
           <section
             id="infos-importantes"
             className="print-section print-important keep-together page-break-before break-after"
