@@ -10505,38 +10505,6 @@ export default function App() {
   )
 
   const renderComposicaoUfvSection = () => {
-    const isTelhado = tipoInstalacao === 'TELHADO'
-    const descontoValor = toNumberSafe(descontosValor)
-    const workflowAtivo = Boolean(vendasConfig.workflow_aprovacao_ativo)
-    const calculoAtual = isTelhado ? composicaoTelhadoCalculo : composicaoSoloCalculo
-    const regimeBreakdown = calculoAtual?.regime_breakdown ?? []
-    const currencyValue = (valor?: number) => (Number.isFinite(valor) ? currency(Number(valor)) : '')
-    const percentValue = (valor?: number) =>
-      Number.isFinite(valor) ? formatPercentBRWithDigits(Number(valor) / 100, 2) : ''
-    const precoMinimoAplicadoLabel = calculoAtual
-      ? calculoAtual.preco_minimo_aplicado
-        ? 'Sim'
-        : 'Não'
-      : ''
-    const aprovacaoLabel = (() => {
-      if (!workflowAtivo) {
-        return 'Workflow desativado'
-      }
-      if (!calculoAtual) {
-        return ''
-      }
-      if (!calculoAtual.desconto_requer_aprovacao) {
-        return 'Não'
-      }
-      return aprovadoresResumo ? `Sim — ${aprovadoresResumo}` : 'Sim'
-    })()
-    const workflowStatusLabel = workflowAtivo ? 'Ativo' : 'Desativado'
-    const margemOperacionalResumoValor: number | '' =
-      margemManualAtiva && margemManualValor !== undefined
-        ? margemManualValor
-        : calculoAtual && Number.isFinite(calculoAtual.margem_operacional_valor)
-        ? Math.round(calculoAtual.margem_operacional_valor * 100) / 100
-        : ''
     const abrirParametrosVendas = () => {
       setSettingsTab('vendas')
       setIsSettingsOpen(true)
@@ -10572,114 +10540,6 @@ export default function App() {
                 onFocus={selectNumberInputOnFocus}
               />
             </Field>
-          </div>
-        </div>
-        <div className="composicao-ufv-summary">
-          <h3>Resumo do cálculo</h3>
-          <div className="grid g3">
-            <Field label="CAPEX base">
-              <input
-                ref={capexBaseResumoField.ref}
-                type="text"
-                inputMode="decimal"
-                value={capexBaseResumoField.text}
-                onChange={capexBaseResumoField.handleChange}
-                onBlur={(event) => {
-                  capexBaseResumoField.handleBlur(event)
-                  capexBaseResumoField.setText(formatMoneyBR(capexBaseResumoValor))
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-            </Field>
-            <Field label="Margem operacional (R$)">
-              <input
-                type="number"
-                step="0.01"
-                value={margemOperacionalResumoValor === '' ? '' : margemOperacionalResumoValor}
-                onChange={(event) => handleMargemOperacionalResumoChange(event.target.value)}
-                onFocus={selectNumberInputOnFocus}
-                placeholder="Automático (padrão)"
-              />
-            </Field>
-            <Field label="Comissão líquida (R$)">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.comissao_liquida_valor)} />
-            </Field>
-          </div>
-          <div className="grid g3">
-            <Field label="Imposto retido (R$)">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.imposto_retido_valor)} />
-            </Field>
-            <Field label="Impostos do regime (R$)">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.impostos_regime_valor)} />
-            </Field>
-            <Field label="Impostos totais (R$)">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.impostos_totais_valor)} />
-            </Field>
-          </div>
-          <div className="grid g3">
-            <Field label="CAPEX considerado">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.capex_total)} />
-            </Field>
-            <Field label="Venda total (bruta)">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.venda_total)} />
-            </Field>
-            <Field label="Venda líquida">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.venda_liquida)} />
-            </Field>
-          </div>
-          <div className="grid g3">
-            <Field label="Descontos comerciais (R$)">
-              <input type="text" readOnly value={currencyValue(descontoValor)} />
-            </Field>
-            <Field label="Preço mínimo (R$)">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.preco_minimo)} />
-            </Field>
-            <Field label="Venda sem guardrails (R$)">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.venda_total_sem_guardrails)} />
-            </Field>
-          </div>
-          <div className="grid g3">
-            <Field label="Ajuste por arredondamento (R$)">
-              <input type="text" readOnly value={currencyValue(calculoAtual?.arredondamento_aplicado)} />
-            </Field>
-            <Field label="Desconto aplicado (%)">
-              <input type="text" readOnly value={percentValue(calculoAtual?.desconto_percentual)} />
-            </Field>
-            <Field label="Aprovação necessária?">
-              <input type="text" readOnly value={aprovacaoLabel} />
-            </Field>
-          </div>
-          <div className="grid g3">
-            <Field label="Preço mínimo aplicado?">
-              <input type="text" readOnly value={precoMinimoAplicadoLabel} />
-            </Field>
-            <Field label="Workflow de aprovação">
-              <input type="text" readOnly value={workflowStatusLabel} />
-            </Field>
-          </div>
-          <div className="composicao-ufv-breakdown">
-            <h4>
-              Detalhamento do regime tributário (
-              {REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? ''}
-              )
-            </h4>
-            {regimeBreakdown.length ? (
-              <div className="grid g3">
-                {regimeBreakdown.map((item) => (
-                  <Field
-                    key={item.nome}
-                    label={`${item.nome} (${formatNumberBRWithOptions(item.aliquota, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}%)`}
-                  >
-                    <input type="text" readOnly value={currencyValue(item.valor)} />
-                  </Field>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">Sem impostos adicionais para o regime selecionado.</p>
-            )}
           </div>
         </div>
       </section>
@@ -10740,6 +10600,37 @@ export default function App() {
         ? 'Comissão padrão (%)'
         : 'Comissão padrão (R$)'
     const aprovadoresHint = 'Separe múltiplos e-mails por linha ou vírgula.'
+    const calculoAtual = isTelhado ? composicaoTelhadoCalculo : composicaoSoloCalculo
+    const regimeBreakdown = calculoAtual?.regime_breakdown ?? []
+    const currencyValue = (valor?: number) => (Number.isFinite(valor) ? currency(Number(valor)) : '')
+    const percentValue = (valor?: number) =>
+      Number.isFinite(valor) ? formatPercentBRWithDigits(Number(valor) / 100, 2) : ''
+    const precoMinimoAplicadoLabel = calculoAtual
+      ? calculoAtual.preco_minimo_aplicado
+        ? 'Sim'
+        : 'Não'
+      : ''
+    const workflowAtivo = Boolean(vendasConfig.workflow_aprovacao_ativo)
+    const aprovacaoLabel = (() => {
+      if (!workflowAtivo) {
+        return 'Workflow desativado'
+      }
+      if (!calculoAtual) {
+        return ''
+      }
+      if (!calculoAtual.desconto_requer_aprovacao) {
+        return 'Não'
+      }
+      return aprovadoresResumo ? `Sim — ${aprovadoresResumo}` : 'Sim'
+    })()
+    const workflowStatusLabel = workflowAtivo ? 'Ativo' : 'Desativado'
+    const margemOperacionalResumoValor: number | '' =
+      margemManualAtiva && margemManualValor !== undefined
+        ? margemManualValor
+        : calculoAtual && Number.isFinite(calculoAtual.margem_operacional_valor)
+        ? Math.round(calculoAtual.margem_operacional_valor * 100) / 100
+        : ''
+    const descontoValor = toNumberSafe(descontosValor)
 
     const sanitizeOverridesDraft = (
       draft: Partial<ImpostosRegimeConfig>,
@@ -11052,6 +10943,122 @@ export default function App() {
                     </label>
                   </Field>
                 </div>
+              </div>
+              <div className="settings-subsection">
+                <h4 className="settings-subheading">Resumo do cálculo</h4>
+                <p className="muted">
+                  Valores consolidados da proposta atual. Ajuste o CAPEX base ou a margem manual para recalcular
+                  automaticamente as demais métricas.
+                </p>
+                <div className="grid g3">
+                  <Field label="CAPEX base">
+                    <input
+                      ref={capexBaseResumoField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={capexBaseResumoField.text}
+                      onChange={capexBaseResumoField.handleChange}
+                      onBlur={(event) => {
+                        capexBaseResumoField.handleBlur(event)
+                        capexBaseResumoField.setText(formatMoneyBR(capexBaseResumoValor))
+                      }}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                  <Field label="Margem operacional (R$)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={margemOperacionalResumoValor === '' ? '' : margemOperacionalResumoValor}
+                      onChange={(event) => handleMargemOperacionalResumoChange(event.target.value)}
+                      onFocus={selectNumberInputOnFocus}
+                      placeholder="Automático (padrão)"
+                    />
+                  </Field>
+                  <Field label="Comissão líquida (R$)">
+                    <input type="text" readOnly value={currencyValue(calculoAtual?.comissao_liquida_valor)} />
+                  </Field>
+                </div>
+                <div className="grid g3">
+                  <Field label="Imposto retido (R$)">
+                    <input type="text" readOnly value={currencyValue(calculoAtual?.imposto_retido_valor)} />
+                  </Field>
+                  <Field label="Impostos do regime (R$)">
+                    <input type="text" readOnly value={currencyValue(calculoAtual?.impostos_regime_valor)} />
+                  </Field>
+                  <Field label="Impostos totais (R$)">
+                    <input type="text" readOnly value={currencyValue(calculoAtual?.impostos_totais_valor)} />
+                  </Field>
+                </div>
+                <div className="grid g3">
+                  <Field label="CAPEX considerado">
+                    <input type="text" readOnly value={currencyValue(calculoAtual?.capex_total)} />
+                  </Field>
+                  <Field label="Venda total (bruta)">
+                    <input type="text" readOnly value={currencyValue(calculoAtual?.venda_total)} />
+                  </Field>
+                  <Field label="Venda líquida">
+                    <input type="text" readOnly value={currencyValue(calculoAtual?.venda_liquida)} />
+                  </Field>
+                </div>
+                <div className="grid g3">
+                  <Field label="Descontos comerciais (R$)">
+                    <input type="text" readOnly value={currencyValue(descontoValor)} />
+                  </Field>
+                  <Field label="Preço mínimo (R$)">
+                    <input type="text" readOnly value={currencyValue(calculoAtual?.preco_minimo)} />
+                  </Field>
+                  <Field label="Venda sem guardrails (R$)">
+                    <input
+                      type="text"
+                      readOnly
+                      value={currencyValue(calculoAtual?.venda_total_sem_guardrails)}
+                    />
+                  </Field>
+                </div>
+                <div className="grid g3">
+                  <Field label="Ajuste por arredondamento (R$)">
+                    <input type="text" readOnly value={currencyValue(calculoAtual?.arredondamento_aplicado)} />
+                  </Field>
+                  <Field label="Desconto aplicado (%)">
+                    <input type="text" readOnly value={percentValue(calculoAtual?.desconto_percentual)} />
+                  </Field>
+                  <Field label="Aprovação necessária?">
+                    <input type="text" readOnly value={aprovacaoLabel} />
+                  </Field>
+                </div>
+                <div className="grid g3">
+                  <Field label="Preço mínimo aplicado?">
+                    <input type="text" readOnly value={precoMinimoAplicadoLabel} />
+                  </Field>
+                  <Field label="Workflow de aprovação">
+                    <input type="text" readOnly value={workflowStatusLabel} />
+                  </Field>
+                </div>
+              </div>
+              <div className="settings-subsection">
+                <h4 className="settings-subheading">
+                  Detalhamento do regime tributário (
+                  {REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? ''}
+                  )
+                </h4>
+                {regimeBreakdown.length ? (
+                  <div className="grid g3">
+                    {regimeBreakdown.map((item) => (
+                      <Field
+                        key={item.nome}
+                        label={`${item.nome} (${formatNumberBRWithOptions(item.aliquota, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}%)`}
+                      >
+                        <input type="text" readOnly value={currencyValue(item.valor)} />
+                      </Field>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">Sem impostos adicionais para o regime selecionado.</p>
+                )}
               </div>
             </div>
           </section>
