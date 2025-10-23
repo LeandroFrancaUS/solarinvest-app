@@ -4,6 +4,7 @@ import App from './App'
 import { Boundary } from './app/Boundary'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode } from './constants/ui'
 import './styles.css'
+import './styles/anti-overlay.css'
 
 const storedDensity =
   typeof window !== 'undefined' ? window.localStorage.getItem(DENSITY_STORAGE_KEY) : null
