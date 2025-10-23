@@ -1977,7 +1977,7 @@ tbody tr:hover {
 }
 
 table thead tr {
-  background: rgba(15, 22, 36, 0.75);
+  background: rgba(15, 22, 36, 0.375);
 }
 
 table th,
