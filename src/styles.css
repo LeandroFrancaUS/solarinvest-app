@@ -229,7 +229,6 @@ body {
   box-shadow: 0 16px 32px color-mix(in srgb, var(--accent) 24%, transparent);
   margin: var(--space-3) 0 var(--space-4) auto;
   z-index: 5;
-  backdrop-filter: blur(14px);
   align-self: flex-end;
 }
 
@@ -1164,8 +1163,7 @@ tbody tr:hover {
   position: sticky;
   top: 0;
   z-index: 1200;
-  backdrop-filter: blur(12px);
-  background: rgba(96, 99, 104, 0.6);
+  background: rgba(96, 99, 104, 0.9);
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
@@ -2817,8 +2815,7 @@ table tbody tr:hover {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: var(--backdrop);
-  backdrop-filter: blur(8px);
+  background: transparent;
 }
 
 .modal-content {
@@ -3171,10 +3168,9 @@ i:hover {
   gap: 12px;
   padding: 16px;
   border-radius: 20px;
-  background: rgba(103, 108, 120, 0.58);
+  background: rgba(103, 108, 120, 0.82);
   border: 1px solid rgba(37, 99, 235, 0.18);
   box-shadow: 0 18px 34px rgba(52, 60, 76, 0.26);
-  backdrop-filter: blur(16px);
 }
 
 .settings-tab {
