@@ -283,8 +283,8 @@ html[data-print-mode='print'] .print-hero__title h1 {
 }
 
 .print-section th {
-  background: #0c162c;
-  color: #f8fafc;
+  background: #f1f5f9;
+  color: #0c162c;
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
