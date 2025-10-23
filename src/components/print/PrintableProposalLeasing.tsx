@@ -188,9 +188,12 @@ function PrintableProposalLeasingInner(
     leasingPrazoContratualMeses,
     leasingValorMercadoProjetado,
     leasingInflacaoEnergiaAa,
+    leasingModeloInversor,
+    leasingModeloModulo,
     orcamentoItens,
     informacoesImportantesObservacao,
     multiUcResumo,
+    vendaSnapshot,
   } = props
 
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
@@ -319,7 +322,7 @@ function PrintableProposalLeasingInner(
     },
   ]
 
-  const { modeloModulo, modeloInversor } = useMemo(() => {
+  const modelosCatalogo = useMemo(() => {
     if (!orcamentoItens || orcamentoItens.length === 0) {
       return { modeloModulo: null, modeloInversor: null }
     }
@@ -374,6 +377,13 @@ function PrintableProposalLeasingInner(
       modeloInversor: formatModelo(agrupado.Hardware.Inversores[0]),
     }
   }, [orcamentoItens])
+
+  const modeloModuloManual = sanitizeItemText(leasingModeloModulo)
+  const modeloInversorManual = sanitizeItemText(leasingModeloInversor)
+  const modeloModuloSnapshot = sanitizeItemText(vendaSnapshot?.configuracao?.modelo_modulo)
+  const modeloInversorSnapshot = sanitizeItemText(vendaSnapshot?.configuracao?.modelo_inversor)
+  const modeloModulo = modeloModuloManual ?? modeloModuloSnapshot ?? modelosCatalogo.modeloModulo
+  const modeloInversor = modeloInversorManual ?? modeloInversorSnapshot ?? modelosCatalogo.modeloInversor
 
   const especificacoesUsina = [
     {
