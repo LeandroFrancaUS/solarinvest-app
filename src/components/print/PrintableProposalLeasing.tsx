@@ -547,10 +547,6 @@ function PrintableProposalLeasingInner(
                   <small>Código do orçamento: </small>
                   <strong>{codigoOrcamento || '—'}</strong>
                 </div>
-                <div className="print-hero__meta-item">
-                  <small>Data de emissão: </small>
-                  <strong>{emissaoTexto}</strong>
-                </div>
               </div>
               <div className="print-hero__summary no-break-inside">
                 <p>{heroSummary}</p>
