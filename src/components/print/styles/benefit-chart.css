@@ -1,0 +1,212 @@
+.print-benefit-chart {
+  --benefit-chart-background: #f8fafc;
+  --benefit-chart-border: rgba(15, 23, 42, 0.08);
+  --benefit-chart-track-bg: rgba(15, 23, 42, 0.05);
+  --benefit-chart-axis-color: rgba(15, 23, 42, 0.25);
+  --benefit-chart-bar-positive: #15803d;
+  --benefit-chart-bar-negative: #dc2626;
+  --benefit-chart-value-color: #0f172a;
+  --benefit-chart-label-color: rgba(15, 23, 42, 0.68);
+  --benefit-chart-marker-bg: #0f766e;
+  --benefit-chart-marker-color: #ffffff;
+  --benefit-chart-highlight-bg: #f1f5f9;
+  --benefit-chart-highlight-border: rgba(15, 23, 42, 0.08);
+  --benefit-chart-highlight-label: rgba(15, 23, 42, 0.6);
+  --benefit-chart-highlight-value: #0f172a;
+  --benefit-chart-note-color: rgba(15, 23, 42, 0.68);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.print-benefit-chart .print-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-radius: 18px;
+  border: 1px solid var(--benefit-chart-border);
+  background: var(--benefit-chart-background);
+  padding: 24px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.print-benefit-chart__layout {
+  align-items: stretch;
+}
+
+.print-benefit-chart__bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  min-height: 220px;
+}
+
+.print-benefit-chart__bar {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.print-benefit-chart__bar-track {
+  width: 100%;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  background: var(--benefit-chart-track-bg);
+  border-radius: 14px;
+  padding: 12px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+.print-benefit-chart__positive-zone,
+.print-benefit-chart__negative-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+.print-benefit-chart__positive-zone {
+  justify-content: flex-end;
+}
+
+.print-benefit-chart__negative-zone {
+  justify-content: flex-start;
+}
+
+.print-benefit-chart__axis {
+  width: 100%;
+  height: 2px;
+  background: var(--benefit-chart-axis-color);
+  opacity: 0.85;
+  margin: 6px 0;
+  flex: 0 0 auto;
+}
+
+.print-benefit-chart__bar-fill {
+  width: 100%;
+  background: var(--benefit-chart-bar-positive);
+  border-radius: 10px 10px 0 0;
+  transition: none;
+}
+
+.print-benefit-chart__bar-fill--negative {
+  background: var(--benefit-chart-bar-negative);
+  border-radius: 0 0 10px 10px;
+}
+
+.print-benefit-chart__marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: var(--benefit-chart-marker-bg);
+  color: var(--benefit-chart-marker-color);
+  font-weight: 700;
+}
+
+.print-benefit-chart__value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--benefit-chart-value-color);
+  text-align: center;
+}
+
+.print-benefit-chart__label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--benefit-chart-label-color);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.print-benefit-chart__highlights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.print-benefit-chart__highlights-item {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--benefit-chart-highlight-bg);
+  border: 1px solid var(--benefit-chart-highlight-border);
+}
+
+.print-benefit-chart__highlights-label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--benefit-chart-highlight-label);
+}
+
+.print-benefit-chart__highlights-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--benefit-chart-highlight-value);
+}
+
+.print-benefit-chart__highlights-description {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--benefit-chart-highlight-label);
+}
+
+.print-benefit-chart__note {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--benefit-chart-note-color);
+}
+
+.print-benefit-chart--leasing {
+  --benefit-chart-background: rgba(8, 15, 30, 0.82);
+  --benefit-chart-border: rgba(148, 163, 184, 0.24);
+  --benefit-chart-track-bg: rgba(15, 23, 42, 0.55);
+  --benefit-chart-axis-color: rgba(226, 232, 240, 0.4);
+  --benefit-chart-bar-positive: #38bdf8;
+  --benefit-chart-bar-negative: #f87171;
+  --benefit-chart-value-color: #f8fafc;
+  --benefit-chart-label-color: rgba(226, 232, 240, 0.75);
+  --benefit-chart-marker-bg: rgba(14, 165, 233, 0.85);
+  --benefit-chart-marker-color: #021627;
+  --benefit-chart-highlight-bg: rgba(15, 23, 42, 0.72);
+  --benefit-chart-highlight-border: rgba(148, 163, 184, 0.32);
+  --benefit-chart-highlight-label: rgba(226, 232, 240, 0.7);
+  --benefit-chart-highlight-value: #f8fafc;
+  --benefit-chart-note-color: rgba(226, 232, 240, 0.78);
+}
+
+.print-benefit-chart--venda {
+  --benefit-chart-bar-positive: #0d9488;
+  --benefit-chart-marker-bg: #166534;
+  --benefit-chart-marker-color: #ffffff;
+}
+
+@media screen and (max-width: 900px) {
+  .print-benefit-chart__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .print-benefit-chart__highlights {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
