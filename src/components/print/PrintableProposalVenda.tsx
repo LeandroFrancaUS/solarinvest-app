@@ -830,7 +830,7 @@ function PrintableProposalInner(
     [economiaTabelaDados],
   )
   return (
-    <div ref={ref} className="print-root">
+    <div ref={ref} className="print-root print-proposal--venda">
       <section className="print-page">
         <div className="print-layout">
           <header className="print-hero">
