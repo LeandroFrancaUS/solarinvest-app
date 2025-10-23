@@ -6,6 +6,7 @@ import PrintableProposal from '../PrintableProposal'
 import { computeROI, type VendaForm } from '../../../lib/finance/roi'
 import type { PrintableProposalProps } from '../../../types/printableProposal'
 import type { ParsedVendaPdfData } from '../../../lib/pdf/extractVendas'
+import { currency } from '../../../utils/formatters'
 
 const anosBase = Array.from({ length: 30 }, (_, index) => index + 1)
 const createParsedVenda = (overrides: Partial<ParsedVendaPdfData> = {}): ParsedVendaPdfData => ({
@@ -317,6 +318,38 @@ describe('PrintableProposal (leasing)', () => {
     const linhasAno = markup.match(/<td>\d+º ano<\/td>/g) ?? []
     expect(linhasAno.length).toBe(prazoAnos)
     expect(markup).toContain('<td>10º ano</td>')
+  })
+
+  it('soma a TUSD média anual ao valor exibido da mensalidade quando disponível', () => {
+    const tusdMensal = 50
+    const energiaContratada = 500
+    const desconto = 10
+
+    const parcelas = Array.from({ length: 24 }, (_, index) => ({
+      mes: index + 1,
+      tarifaCheia: 1,
+      tarifaDescontada: 0.9,
+      mensalidadeCheia: 0,
+      tusd: tusdMensal,
+      mensalidade: 0,
+      totalAcumulado: 0,
+    }))
+
+    const props = createPrintableProps({
+      tipoProposta: 'LEASING',
+      energiaContratadaKwh: energiaContratada,
+      tarifaCheia: 1,
+      descontoContratualPct: desconto,
+      leasingInflacaoEnergiaAa: 0,
+      leasingPrazoContratualMeses: 24,
+      parcelasLeasing: parcelas,
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+    const linhaPrimeiroAno = markup.match(/<td>1º ano<\/td>(.*?)<\/tr>/s)?.[1] ?? ''
+
+    expect(linhaPrimeiroAno).toContain(currency(energiaContratada * (1 - desconto / 100) + tusdMensal))
+    expect(linhaPrimeiroAno).not.toContain(currency(energiaContratada * (1 - desconto / 100)))
   })
 
   it('prioriza os modelos informados manualmente na configuração da usina', () => {
