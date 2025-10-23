@@ -2590,19 +2590,16 @@ export default function App() {
   )
 
   const handleMargemManualInput = useCallback(
-    (valor: string) => {
-      const trimmed = valor.trim()
-      if (!trimmed) {
+    (valor: number | null) => {
+      if (valor === null || !Number.isFinite(valor)) {
         updateVendasSimulacao(currentBudgetId, { margemManualValor: null })
         return
       }
-      const parsed = parseNumericInput(valor)
-      const normalizado = normalizeCurrencyNumber(parsed)
-      if (normalizado === null) {
+      const finalValue = normalizeCurrencyNumber(valor)
+      if (finalValue === null) {
         updateVendasSimulacao(currentBudgetId, { margemManualValor: null })
         return
       }
-      const finalValue = normalizado
       updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
       setComposicaoTelhado((prev) =>
         numbersAreClose(prev.lucroBruto, finalValue) ? prev : { ...prev, lucroBruto: finalValue },
@@ -4364,7 +4361,7 @@ export default function App() {
       crea: toNumberSafe(composicaoTelhado.crea),
       art: toNumberSafe(composicaoTelhado.art),
       placa: toNumberSafe(composicaoTelhado.placa),
-      capex_base_manual: capexBaseManualValor,
+      capex_base_manual: capexBaseManualValor ?? null,
       comissao_liquida_input: toNumberSafe(composicaoTelhado.comissaoLiquida),
       comissao_tipo: vendasConfig.comissao_default_tipo,
       comissao_percent_base: vendasConfig.comissao_percent_base,
@@ -4435,7 +4432,7 @@ export default function App() {
       crea: toNumberSafe(composicaoSolo.crea),
       art: toNumberSafe(composicaoSolo.art),
       placa: toNumberSafe(composicaoSolo.placa),
-      capex_base_manual: capexBaseManualValor,
+      capex_base_manual: capexBaseManualValor ?? null,
       comissao_liquida_input: toNumberSafe(composicaoSolo.comissaoLiquida),
       comissao_tipo: vendasConfig.comissao_default_tipo,
       comissao_percent_base: vendasConfig.comissao_percent_base,
@@ -4505,20 +4502,16 @@ export default function App() {
     return Number.isFinite(valor ?? Number.NaN) ? Math.max(0, Number(valor)) : 0
   }, [capexBaseManualValor, tipoInstalacao, composicaoSoloCalculo, composicaoTelhadoCalculo])
 
-  const capexBaseResumoField = useBRNumberField({
-    mode: 'money',
-    value: capexBaseResumoValor,
-    onChange: handleCapexBaseResumoChange,
-  })
-
-  const margemCalculadaAtual = useMemo(() => {
+  const margemOperacionalResumoValor = useMemo(() => {
     if (margemManualAtiva && margemManualValor !== undefined) {
       return margemManualValor
     }
-    if (tipoInstalacao === 'SOLO') {
-      return composicaoSoloCalculo?.margem_operacional_valor ?? 0
+    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
+    const valor = calculoAtual?.margem_operacional_valor
+    if (!Number.isFinite(valor ?? Number.NaN)) {
+      return null
     }
-    return composicaoTelhadoCalculo?.margem_operacional_valor ?? 0
+    return Math.round(Number(valor) * 100) / 100
   }, [
     margemManualAtiva,
     margemManualValor,
@@ -4528,20 +4521,17 @@ export default function App() {
   ])
 
   const handleMargemOperacionalResumoChange = useCallback(
-    (valor: string) => {
-      const trimmed = valor.trim()
-      if (!trimmed) {
-        handleMargemManualInput('')
+    (valor: number | null) => {
+      if (valor === null || !Number.isFinite(valor)) {
+        handleMargemManualInput(null)
         return
       }
-      const parsed = parseNumericInput(valor)
-      const normalizado = normalizeCurrencyNumber(parsed)
-      if (normalizado === null) {
-        handleMargemManualInput('')
+      const finalValue = normalizeCurrencyNumber(valor)
+      if (finalValue === null) {
+        handleMargemManualInput(null)
         return
       }
-      const finalValue = normalizado
-      handleMargemManualInput(valor)
+      handleMargemManualInput(finalValue)
 
       const capexBaseAtual =
         tipoInstalacao === 'SOLO'
@@ -4575,6 +4565,30 @@ export default function App() {
       vendasConfig.margem_operacional_padrao_percent,
     ],
   )
+
+  const capexBaseResumoField = useBRNumberField({
+    mode: 'money',
+    value: capexBaseResumoValor,
+    onChange: handleCapexBaseResumoChange,
+  })
+
+  const capexBaseResumoSettingsField = useBRNumberField({
+    mode: 'money',
+    value: capexBaseResumoValor,
+    onChange: handleCapexBaseResumoChange,
+  })
+
+  const margemOperacionalResumoField = useBRNumberField({
+    mode: 'money',
+    value: margemOperacionalResumoValor ?? null,
+    onChange: handleMargemOperacionalResumoChange,
+  })
+
+  const margemOperacionalResumoSettingsField = useBRNumberField({
+    mode: 'money',
+    value: margemOperacionalResumoValor ?? null,
+    onChange: handleMargemOperacionalResumoChange,
+  })
 
   useEffect(() => {
     const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
@@ -10562,18 +10576,6 @@ export default function App() {
       setSettingsTab('vendas')
       setIsSettingsOpen(true)
     }
-    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
-    let margemOperacionalResumoValor: number | null = null
-    if (margemManualAtiva && margemManualValor !== undefined) {
-      margemOperacionalResumoValor = margemManualValor
-    } else if (Number.isFinite(calculoAtual?.margem_operacional_valor ?? Number.NaN)) {
-      margemOperacionalResumoValor = Math.round(Number(calculoAtual?.margem_operacional_valor ?? 0) * 100) / 100
-    }
-    const capexBaseLabel = Number.isFinite(capexBaseResumoValor) ? currency(capexBaseResumoValor) : '—'
-    const margemOperacionalLabel =
-      typeof margemOperacionalResumoValor === 'number' && Number.isFinite(margemOperacionalResumoValor)
-        ? currency(margemOperacionalResumoValor)
-        : '—'
     return (
       <section className="card">
         <div className="card-header">
@@ -10618,7 +10620,21 @@ export default function App() {
                 'CAPEX base considerado após os custos internos e impostos configurados.',
               )}
             >
-              <input type="text" readOnly value={capexBaseLabel} />
+              <input
+                ref={capexBaseResumoField.ref}
+                type="text"
+                inputMode="decimal"
+                value={capexBaseResumoField.text}
+                onChange={capexBaseResumoField.handleChange}
+                onBlur={() => {
+                  capexBaseResumoField.handleBlur()
+                  capexBaseResumoField.setText(formatMoneyBR(capexBaseResumoValor))
+                }}
+                onFocus={selectNumberInputOnFocus}
+                placeholder={
+                  typeof capexBaseManualValor === 'number' ? undefined : 'Automático (calculado)'
+                }
+              />
             </Field>
             <Field
               label={labelWithTooltip(
@@ -10626,7 +10642,16 @@ export default function App() {
                 'Margem operacional calculada a partir do CAPEX base e dos ajustes comerciais desta proposta.',
               )}
             >
-              <input type="text" readOnly value={margemOperacionalLabel} />
+              <input
+                ref={margemOperacionalResumoField.ref}
+                type="text"
+                inputMode="decimal"
+                value={margemOperacionalResumoField.text}
+                onChange={margemOperacionalResumoField.handleChange}
+                onBlur={() => margemOperacionalResumoField.handleBlur()}
+                onFocus={selectNumberInputOnFocus}
+                placeholder={margemManualAtiva ? undefined : 'Automático (padrão)'}
+              />
             </Field>
           </div>
         </div>
@@ -10712,12 +10737,6 @@ export default function App() {
       return aprovadoresResumo ? `Sim — ${aprovadoresResumo}` : 'Sim'
     })()
     const workflowStatusLabel = workflowAtivo ? 'Ativo' : 'Desativado'
-    const margemOperacionalResumoValor: number | '' =
-      margemManualAtiva && margemManualValor !== undefined
-        ? margemManualValor
-        : calculoAtual && Number.isFinite(calculoAtual.margem_operacional_valor)
-        ? Math.round(calculoAtual.margem_operacional_valor * 100) / 100
-        : ''
     const descontoValor = toNumberSafe(descontosValor)
 
     const sanitizeOverridesDraft = (
@@ -11045,26 +11064,31 @@ export default function App() {
                 <div className="grid g3">
                   <Field label="CAPEX base">
                     <input
-                      ref={capexBaseResumoField.ref}
+                      ref={capexBaseResumoSettingsField.ref}
                       type="text"
                       inputMode="decimal"
-                      value={capexBaseResumoField.text}
-                      onChange={capexBaseResumoField.handleChange}
-                      onBlur={(event) => {
-                        capexBaseResumoField.handleBlur(event)
-                        capexBaseResumoField.setText(formatMoneyBR(capexBaseResumoValor))
+                      value={capexBaseResumoSettingsField.text}
+                      onChange={capexBaseResumoSettingsField.handleChange}
+                      onBlur={() => {
+                        capexBaseResumoSettingsField.handleBlur()
+                        capexBaseResumoSettingsField.setText(formatMoneyBR(capexBaseResumoValor))
                       }}
                       onFocus={selectNumberInputOnFocus}
+                      placeholder={
+                        typeof capexBaseManualValor === 'number' ? undefined : 'Automático (calculado)'
+                      }
                     />
                   </Field>
                   <Field label="Margem operacional (R$)">
                     <input
-                      type="number"
-                      step="0.01"
-                      value={margemOperacionalResumoValor === '' ? '' : margemOperacionalResumoValor}
-                      onChange={(event) => handleMargemOperacionalResumoChange(event.target.value)}
+                      ref={margemOperacionalResumoSettingsField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={margemOperacionalResumoSettingsField.text}
+                      onChange={margemOperacionalResumoSettingsField.handleChange}
+                      onBlur={() => margemOperacionalResumoSettingsField.handleBlur()}
                       onFocus={selectNumberInputOnFocus}
-                      placeholder="Automático (padrão)"
+                      placeholder={margemManualAtiva ? undefined : 'Automático (padrão)'}
                     />
                   </Field>
                   <Field label="Comissão líquida (R$)">
@@ -11584,8 +11608,8 @@ export default function App() {
               inputMode="decimal"
               value={capexMoneyField.text}
               onChange={capexMoneyField.handleChange}
-              onBlur={(event) => {
-                capexMoneyField.handleBlur(event)
+              onBlur={() => {
+                capexMoneyField.handleBlur()
                 capexMoneyField.setText(formatMoneyBR(valorTotalPropostaNormalizado))
               }}
               onFocus={selectNumberInputOnFocus}
