@@ -56,6 +56,16 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
 
 const formatAnoDescricao = (ano: number): string => `${ano} ${ano === 1 ? 'ano' : 'anos'}`
 
+const formatAnosDetalhado = (valor: number): string => {
+  const fractionDigits = Number.isInteger(valor) ? 0 : 1
+  const numero = formatNumberBRWithOptions(valor, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })
+  const singular = Math.abs(valor - 1) < 1e-6
+  return `${numero} ${singular ? 'ano' : 'anos'}`
+}
+
 const formatPrazoContratual = (meses: number): string => {
   if (!Number.isFinite(meses) || meses <= 0) {
     return '—'
@@ -503,6 +513,81 @@ function PrintableProposalLeasingInner(
     })
   }, [economiaMarcos, leasingROI])
 
+  const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
+  const valorMercadoUsina = useMemo(
+    () =>
+      Number.isFinite(leasingValorDeMercadoEstimado)
+        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
+        : 0,
+    [leasingValorDeMercadoEstimado],
+  )
+
+  const economiaProjetadaGrafico = useMemo(() => {
+    if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
+      return []
+    }
+
+    const totalAnos = leasingROI.length
+    const obterBeneficioPorAno = (ano: number): number => {
+      if (!Number.isFinite(ano) || ano <= 0) {
+        return 0
+      }
+
+      const indice = Math.min(totalAnos, Math.max(1, Math.ceil(ano))) - 1
+      return leasingROI[indice] ?? 0
+    }
+
+    const destinos: Array<{ ano: number; tipo: 'prazo' | 'posPrazo' | 'marco' }> = []
+
+    if (prazoContratualAnos > 0) {
+      destinos.push({ ano: prazoContratualAnos, tipo: 'prazo' })
+      destinos.push({ ano: prazoContratualAnos + 1, tipo: 'posPrazo' })
+    }
+
+    destinos.push(
+      { ano: 10, tipo: 'marco' },
+      { ano: 15, tipo: 'marco' },
+      { ano: 20, tipo: 'marco' },
+      { ano: 30, tipo: 'marco' },
+    )
+
+    const vistos = new Set<number>()
+
+    return destinos.reduce<{ ano: number; label: string; acumulado: number }[]>((acc, destino) => {
+      const { ano, tipo } = destino
+      if (!Number.isFinite(ano) || ano <= 0) {
+        return acc
+      }
+
+      const chave = Number(ano.toFixed(4))
+      if (vistos.has(chave)) {
+        return acc
+      }
+
+      vistos.add(chave)
+
+      const beneficioBase = obterBeneficioPorAno(ano)
+      const deveAdicionarUsina = valorMercadoUsina > 0 && prazoContratualAnos > 0 && ano >= prazoContratualAnos
+      const beneficioTotal = deveAdicionarUsina ? beneficioBase + valorMercadoUsina : beneficioBase
+
+      let label = formatAnosDetalhado(ano)
+
+      if (tipo === 'prazo') {
+        label = `${label} (prazo do leasing)`
+      } else if (tipo === 'posPrazo') {
+        label = `${label} (após o prazo)`
+      }
+
+      acc.push({ ano, label, acumulado: Math.max(0, beneficioTotal) })
+      return acc
+    }, [])
+  }, [leasingROI, prazoContratualAnos, valorMercadoUsina])
+
+  const maxBeneficioGrafico = useMemo(
+    () => economiaProjetadaGrafico.reduce((maior, item) => Math.max(maior, item.acumulado), 0),
+    [economiaProjetadaGrafico],
+  )
+
   const heroSummary =
     'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
@@ -789,6 +874,41 @@ function PrintableProposalLeasingInner(
                     ))}
                   </tbody>
                 </table>
+                {economiaProjetadaGrafico.length ? (
+                  <div
+                    className="leasing-horizontal-chart no-break-inside"
+                    role="img"
+                    aria-label="Economia projetada em 30 anos"
+                  >
+                    <div className="leasing-horizontal-chart__header">
+                      <strong>Economia projetada em 30 anos</strong>
+                    </div>
+                    <div className="leasing-horizontal-chart__header-row">
+                      <span className="leasing-horizontal-chart__axis-y-label">Tempo (anos)</span>
+                      <span className="leasing-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
+                    </div>
+                    <div className="leasing-horizontal-chart__rows">
+                      {economiaProjetadaGrafico.map((linha) => {
+                        const percentual = maxBeneficioGrafico > 0 ? (linha.acumulado / maxBeneficioGrafico) * 100 : 0
+                        return (
+                          <div
+                            className="leasing-horizontal-chart__row"
+                            key={`grafico-economia-${linha.ano.toFixed(2)}`}
+                          >
+                            <div className="leasing-horizontal-chart__y-value">{linha.label}</div>
+                            <div className="leasing-horizontal-chart__bar-track" aria-hidden="true">
+                              <div
+                                className="leasing-horizontal-chart__bar"
+                                style={{ width: `${percentual}%` }}
+                              />
+                            </div>
+                            <div className="leasing-horizontal-chart__value">{formatMoneyBR(linha.acumulado)}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
                 <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
               </>
             ) : (
