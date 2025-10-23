@@ -1,0 +1,106 @@
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  .print-layout,
+  .leasing-print-layout {
+    background: #fff !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    padding: 0 !important;
+  }
+
+  .print-page,
+  .print-section {
+    background: #fff !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 10mm 8mm !important;
+    break-inside: avoid;
+  }
+
+  .print-hero {
+    background: #fff !important;
+    color: #111 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .print-hero::before,
+  .print-hero::after,
+  .print-logo {
+    display: none !important;
+  }
+
+  .site-header,
+  .app-header,
+  .tabs,
+  .table-header.sticky,
+  .chart-explainer {
+    position: static !important;
+    top: auto !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tr,
+  td,
+  th {
+    break-inside: avoid !important;
+    word-break: break-word;
+    hyphens: auto;
+    border-color: #ddd !important;
+  }
+
+  .card,
+  .kpi,
+  .pill,
+  .notice,
+  .crm-card,
+  .crm-kanban-column {
+    background: #fff !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+  }
+
+  input,
+  select,
+  .page-actions,
+  .top-actions,
+  .legend-toggle,
+  .collapse-toggle,
+  .crm-button,
+  button {
+    display: none !important;
+  }
+
+  .chart {
+    display: none !important;
+  }
+
+  .break-after {
+    break-after: page;
+  }
+
+  .avoid-break {
+    break-inside: avoid;
+  }
+}

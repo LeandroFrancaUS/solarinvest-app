@@ -168,6 +168,14 @@ html[data-print-mode='print'] .print-hero__title h1 {
   -webkit-region-break-inside: avoid;
 }
 
+.print-section--hero,
+.print-section--footer {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
 .print-values-section .print-values-grid {
   display: grid;
   gap: 20px;
@@ -568,5 +576,83 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-brand-footer span {
   color: inherit !important;
+}
+
+@media print {
+  .print-layout {
+    background: #ffffff !important;
+    color: #111827 !important;
+    padding: 0 !important;
+  }
+
+  .print-section {
+    background: #ffffff !important;
+    border-radius: 4px !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    padding: 8mm !important;
+  }
+
+  .print-section--hero,
+  .print-section--footer {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .print-hero {
+    background: #ffffff !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+  }
+
+  .print-hero::after {
+    display: none !important;
+  }
+
+  .print-hero__summary {
+    background: transparent !important;
+    border: 0 !important;
+    color: #111827 !important;
+  }
+
+  .print-section h2::after {
+    display: none !important;
+  }
+
+  .print-value-card,
+  .print-value-card--highlight,
+  .print-card,
+  .print-yearly-payments__item,
+  .print-key-values p {
+    background: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+  }
+
+  .print-value-card--highlight strong,
+  .print-value-card--highlight span {
+    color: #111827 !important;
+    text-shadow: none !important;
+  }
+
+  .print-table,
+  .print-table th,
+  .print-table td {
+    box-shadow: none !important;
+  }
+
+  .print-final-footer,
+  .print-brand-footer {
+    color: #111827 !important;
+  }
+
+  .print-logo {
+    display: none !important;
+  }
 }
 

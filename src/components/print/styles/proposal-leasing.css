@@ -185,6 +185,14 @@
   -webkit-region-break-inside: avoid;
 }
 
+.print-section--hero,
+.print-section--footer {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
 .print-section + .print-section {
   margin-top: 24px;
 }
@@ -522,6 +530,85 @@
   color: #f8fafc;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+@media print {
+  .print-layout.leasing-print-layout {
+    background: #ffffff !important;
+    color: #111827 !important;
+    padding: 0 !important;
+  }
+
+  .print-section {
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+    padding: 8mm !important;
+  }
+
+  .print-section--hero,
+  .print-section--footer {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .print-hero {
+    background: #ffffff !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+  }
+
+  .print-hero::after,
+  .print-logo {
+    display: none !important;
+  }
+
+  .print-hero__meta,
+  .print-hero__summary {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+  }
+
+  .print-section .section-title,
+  .print-section .section-subtitle,
+  .print-section h2,
+  .print-section p,
+  .print-section li {
+    color: #111827 !important;
+  }
+
+  .print-section .section-title strong,
+  .print-section .section-subtitle strong {
+    color: inherit !important;
+  }
+
+  .print-key-values p,
+  .print-yearly-payments__item {
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+  }
+
+  table,
+  th,
+  td {
+    box-shadow: none !important;
+    color: #111827 !important;
+  }
+
+  .print-final-footer,
+  .print-brand-footer {
+    color: #111827 !important;
+  }
 }
 
 @media (max-width: 920px) {

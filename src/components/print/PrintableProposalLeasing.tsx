@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
 
+import './styles/print-common.css'
 import './styles/proposal-leasing.css'
 import { currency, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
 import {
@@ -520,37 +521,39 @@ function PrintableProposalLeasingInner(
 
   return (
     <div ref={ref} className="print-root">
-      <section className="print-page">
-        <div className="print-layout leasing-print-layout">
-          <header className="print-hero">
-            <div className="print-hero__header">
-              <div className="print-hero__identity">
-                <div className="print-logo">
-                  <img src="/logo.svg" alt="SolarInvest" />
+      <div className="print-layout leasing-print-layout">
+        <div className="print-page">
+          <section className="print-section print-section--hero avoid-break">
+            <div className="print-hero">
+              <div className="print-hero__header">
+                <div className="print-hero__identity">
+                  <div className="print-logo">
+                    <img src="/logo.svg" alt="SolarInvest" />
+                  </div>
+                  <div className="print-hero__title">
+                    <span className="print-hero__eyebrow">SolarInvest</span>
+                    <h1>Proposta de Leasing Solar</h1>
+                    <p className="print-hero__tagline">Energia inteligente, sustentável e sem investimento inicial.</p>
+                  </div>
                 </div>
-                <div className="print-hero__title">
-                  <span className="print-hero__eyebrow">SolarInvest</span>
-                  <h1>Proposta de Leasing Solar</h1>
-                  <p className="print-hero__tagline">Energia inteligente, sustentável e sem investimento inicial.</p>
+              </div>
+              <div className="print-hero__meta">
+                <div className="print-hero__meta-item">
+                  <small>Código do orçamento: </small>
+                  <strong>{codigoOrcamento || '—'}</strong>
+                </div>
+                <div className="print-hero__meta-item">
+                  <small>Data de emissão: </small>
+                  <strong>{emissaoTexto}</strong>
                 </div>
               </div>
-            </div>
-            <div className="print-hero__meta">
-              <div className="print-hero__meta-item">
-                <small>Código do orçamento: </small>
-                <strong>{codigoOrcamento || '—'}</strong>
-              </div>
-              <div className="print-hero__meta-item">
-                <small>Data de emissão: </small>
-                <strong>{emissaoTexto}</strong>
+              <div className="print-hero__summary no-break-inside">
+                <p>{heroSummary}</p>
               </div>
             </div>
-            <div className="print-hero__summary no-break-inside">
-              <p>{heroSummary}</p>
-            </div>
-          </header>
+          </section>
     
-          <section className="print-section keep-together">
+          <section className="print-section keep-together avoid-break">
             <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
             <ClientInfoGrid
               fields={resumoCampos}
@@ -560,7 +563,10 @@ function PrintableProposalLeasingInner(
             />
           </section>
     
-          <section id="resumo-proposta" className="print-section keep-together page-break-before">
+          <section
+            id="resumo-proposta"
+            className="print-section keep-together avoid-break page-break-before break-after"
+          >
             <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
             <p className="section-subtitle keep-with-next">Visão geral dos parâmetros comerciais e técnicos</p>
             <table className="no-break-inside">
@@ -581,7 +587,7 @@ function PrintableProposalLeasingInner(
             </table>
           </section>
     
-          <section className="print-section keep-together">
+          <section className="print-section keep-together avoid-break">
             <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
             <p className="section-subtitle keep-with-next">Configuração técnica do sistema proposto</p>
             <table className="no-break-inside">
@@ -604,7 +610,7 @@ function PrintableProposalLeasingInner(
     
           <section
             id="condicoes-financeiras"
-            className="print-section keep-together page-break-before"
+            className="print-section keep-together avoid-break page-break-before break-after"
           >
             <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
             <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
@@ -720,7 +726,7 @@ function PrintableProposalLeasingInner(
             </section>
           ) : null}
     
-          <section className="print-section keep-together">
+          <section className="print-section keep-together avoid-break">
             <h2 className="section-title keep-with-next">Evolução das Mensalidades e Economia</h2>
             <p className="section-subtitle keep-with-next">Comparativo anual entre tarifa convencional e SolarInvest</p>
             <table className="no-break-inside">
@@ -749,7 +755,7 @@ function PrintableProposalLeasingInner(
     
           <section
             id="economia-30-anos"
-            className="print-section keep-together page-break-before"
+            className="print-section keep-together page-break-before break-after"
           >
             <h2 className="section-title keep-with-next">Economia Acumulada ao Longo de 30 Anos</h2>
             {economiaProjetada.length ? (
@@ -786,7 +792,7 @@ function PrintableProposalLeasingInner(
     
           <section
             id="infos-importantes"
-            className="print-section print-important keep-together page-break-before"
+            className="print-section print-important keep-together page-break-before break-after"
           >
             <h2 className="section-title keep-with-next">Informações Importantes</h2>
             <p className="section-subtitle keep-with-next">
@@ -831,29 +837,31 @@ function PrintableProposalLeasingInner(
             ) : null}
           </section>
     
-          <footer className="print-final-footer no-break-inside">
-            <div className="print-final-footer__dates">
-              <p>
-                <strong>Data de emissão da proposta:</strong> {emissaoTexto}
-              </p>
-              <p>
-                <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
-              </p>
+          <section className="print-section print-section--footer no-break-inside avoid-break">
+            <footer className="print-final-footer no-break-inside">
+              <div className="print-final-footer__dates">
+                <p>
+                  <strong>Data de emissão da proposta:</strong> {emissaoTexto}
+                </p>
+                <p>
+                  <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
+                </p>
+              </div>
+              <div className="print-final-footer__signature">
+                <div className="signature-line" />
+                <span>Assinatura do cliente</span>
+              </div>
+            </footer>
+
+            <div className="print-brand-footer no-break-inside">
+              <strong>SOLARINVEST</strong>
+              <span>CNPJ: 60.434.015/0001-90</span>
+              <span>Anápolis-GO</span>
+              <span>Solarinvest.info</span>
             </div>
-            <div className="print-final-footer__signature">
-              <div className="signature-line" />
-              <span>Assinatura do cliente</span>
-            </div>
-          </footer>
-    
-          <div className="print-brand-footer no-break-inside">
-            <strong>SOLARINVEST</strong>
-            <span>CNPJ: 60.434.015/0001-90</span>
-            <span>Anápolis-GO</span>
-            <span>Solarinvest.info</span>
-          </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
