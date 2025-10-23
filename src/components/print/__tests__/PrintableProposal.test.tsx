@@ -57,6 +57,8 @@ const createPrintableProps = (
     endereco: 'Rua das Flores, 100',
     cidade: 'Curitiba',
     uf: 'PR',
+    temIndicacao: false,
+    indicacaoNome: '',
   },
   budgetId: 'ORC123',
   anos: anosBase,

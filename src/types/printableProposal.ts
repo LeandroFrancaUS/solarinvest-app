@@ -86,6 +86,8 @@ export type ClienteDados = {
   endereco: string
   cidade: string
   uf: string
+  temIndicacao: boolean
+  indicacaoNome: string
 }
 
 export type MensalidadeRow = {

@@ -612,7 +612,11 @@ type OrcamentoSalvo = {
   dados: PrintableProposalProps
 }
 
-const CAMPOS_CLIENTE_OBRIGATORIOS: { key: keyof ClienteDados; label: string }[] = [
+type ClienteCampoTexto = {
+  [K in keyof ClienteDados]: ClienteDados[K] extends string ? K : never
+}[keyof ClienteDados]
+
+const CAMPOS_CLIENTE_OBRIGATORIOS: { key: ClienteCampoTexto; label: string }[] = [
   { key: 'nome', label: 'Nome do cliente' },
   { key: 'cidade', label: 'Cidade' },
   { key: 'uf', label: 'Estado' },
@@ -639,6 +643,8 @@ const CLIENTE_INICIAL: ClienteDados = {
   endereco: '',
   cidade: 'Anápolis',
   uf: 'GO',
+  temIndicacao: false,
+  indicacaoNome: '',
 }
 
 const generateBudgetId = (existingIds: Set<string> = new Set()) => {
@@ -2295,6 +2301,8 @@ export default function App() {
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const [isClientesModalOpen, setIsClientesModalOpen] = useState(false)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+  const clienteIndicacaoCheckboxId = useId()
+  const clienteIndicacaoNomeId = useId()
 
   useEffect(() => {
     vendaActions.updateCliente({
@@ -2307,6 +2315,8 @@ export default function App() {
       endereco: cliente.endereco ?? '',
       uc: cliente.uc ?? '',
       distribuidora: cliente.distribuidora ?? '',
+      temIndicacao: cliente.temIndicacao ?? false,
+      indicacaoNome: cliente.indicacaoNome ?? '',
     })
   }, [cliente])
   const [verificandoCidade, setVerificandoCidade] = useState(false)
@@ -5809,6 +5819,17 @@ export default function App() {
           houveAtualizacaoIds = true
         }
 
+        const temIndicacaoRaw = (dados as { temIndicacao?: unknown }).temIndicacao
+        const indicacaoNomeRaw = (dados as { indicacaoNome?: unknown }).indicacaoNome
+        const temIndicacaoNormalizado =
+          typeof temIndicacaoRaw === 'boolean'
+            ? temIndicacaoRaw
+            : typeof temIndicacaoRaw === 'string'
+            ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
+            : false
+        const indicacaoNomeNormalizado =
+          typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
+
         const normalizado: ClienteRegistro = {
           id: idNormalizado,
           criadoEm: registro.criadoEm ?? agora,
@@ -5824,6 +5845,8 @@ export default function App() {
             endereco: dados?.endereco ?? '',
             cidade: dados?.cidade ?? '',
             uf: dados?.uf ?? '',
+            temIndicacao: temIndicacaoNormalizado,
+            indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
           },
         }
         return normalizado
@@ -8197,6 +8220,17 @@ export default function App() {
         const registro = item as Partial<OrcamentoSalvo> & { clienteID?: string }
         const dados = registro.dados as PrintableProposalProps
         const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
+        const temIndicacaoRaw = (clienteDados as { temIndicacao?: unknown }).temIndicacao
+        const indicacaoNomeRaw = (clienteDados as { indicacaoNome?: unknown }).indicacaoNome
+        const temIndicacaoNormalizado =
+          typeof temIndicacaoRaw === 'boolean'
+            ? temIndicacaoRaw
+            : typeof temIndicacaoRaw === 'string'
+            ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
+            : false
+        const indicacaoNomeNormalizado =
+          typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
+
         const clienteNormalizado: ClienteDados = {
           nome: clienteDados.nome ?? '',
           documento: clienteDados.documento ?? '',
@@ -8208,6 +8242,8 @@ export default function App() {
           endereco: clienteDados.endereco ?? '',
           cidade: clienteDados.cidade ?? '',
           uf: clienteDados.uf ?? '',
+          temIndicacao: temIndicacaoNormalizado,
+          indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
         }
 
         const dadosNormalizados: PrintableProposalProps = {
@@ -8589,21 +8625,27 @@ export default function App() {
   const allCurvesHidden = !exibirLeasingLinha && (!mostrarFinanciamento || !exibirFinLinha)
   const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
 
-  const handleClienteChange = (key: keyof ClienteDados, value: string) => {
-    let nextValue = value
-
-    if (key === 'documento') {
-      nextValue = formatCpfCnpj(value)
-    } else if (key === 'email') {
-      nextValue = value.trim()
-    } else if (key === 'telefone') {
-      nextValue = formatTelefone(value)
-    } else if (key === 'cep') {
-      nextValue = formatCep(value)
-    } else if (key === 'uf') {
-      nextValue = value.toUpperCase()
+  const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
+    if (key === 'temIndicacao') {
+      const checked = Boolean(rawValue)
       setCliente((prev) => {
-        const ufNormalizada = nextValue
+        if (prev.temIndicacao === checked) {
+          if (!checked && prev.indicacaoNome) {
+            return { ...prev, temIndicacao: false, indicacaoNome: '' }
+          }
+          return prev
+        }
+        return checked
+          ? { ...prev, temIndicacao: true }
+          : { ...prev, temIndicacao: false, indicacaoNome: '' }
+      })
+      return
+    }
+
+    if (key === 'uf' && typeof rawValue === 'string') {
+      const value = rawValue.toUpperCase()
+      setCliente((prev) => {
+        const ufNormalizada = value
         const listaDistribuidoras = distribuidorasPorUf[ufNormalizada] ?? []
         let proximaDistribuidora = prev.distribuidora
 
@@ -8622,9 +8664,28 @@ export default function App() {
       return
     }
 
-    setCliente((prev) => ({ ...prev, [key]: nextValue }))
+    let nextValue = rawValue
 
-    if (key === 'email') {
+    if (typeof rawValue === 'string') {
+      if (key === 'documento') {
+        nextValue = formatCpfCnpj(rawValue) as ClienteDados[K]
+      } else if (key === 'email') {
+        nextValue = rawValue.trim() as ClienteDados[K]
+      } else if (key === 'telefone') {
+        nextValue = formatTelefone(rawValue) as ClienteDados[K]
+      } else if (key === 'cep') {
+        nextValue = formatCep(rawValue) as ClienteDados[K]
+      }
+    }
+
+    setCliente((prev) => {
+      if (prev[key] === nextValue) {
+        return prev
+      }
+      return { ...prev, [key]: nextValue }
+    })
+
+    if (key === 'email' && typeof nextValue === 'string') {
       const trimmed = nextValue.trim()
       setClienteMensagens((prev) => ({
         ...prev,
@@ -9079,6 +9140,35 @@ export default function App() {
               </option>
             ) : null}
           </select>
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Indicação',
+            'Marque quando o cliente tiver sido indicado e registre quem realizou a indicação para controle comercial.',
+          )}
+          hint={cliente.temIndicacao ? 'Informe o nome do responsável pela indicação.' : undefined}
+        >
+          <div className="cliente-indicacao-group">
+            <label className="cliente-indicacao-toggle" htmlFor={clienteIndicacaoCheckboxId}>
+              <input
+                id={clienteIndicacaoCheckboxId}
+                type="checkbox"
+                checked={cliente.temIndicacao}
+                onChange={(event) => handleClienteChange('temIndicacao', event.target.checked)}
+              />
+              <span>Cliente indicado por parceiro</span>
+            </label>
+            {cliente.temIndicacao ? (
+              <input
+                id={clienteIndicacaoNomeId}
+                className="cfg-input"
+                value={cliente.indicacaoNome}
+                onChange={(event) => handleClienteChange('indicacaoNome', event.target.value)}
+                placeholder="Nome de quem indicou"
+                aria-label="Nome de quem indicou"
+              />
+            ) : null}
+          </div>
         </Field>
       </div>
       <div className="card-actions">
