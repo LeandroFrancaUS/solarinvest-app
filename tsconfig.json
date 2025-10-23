@@ -8,6 +8,7 @@
       "DOM.Iterable"
     ],
     "module": "ESNext",
+    "baseUrl": ".",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
@@ -25,6 +26,7 @@
       "./src/types"
     ],
     "paths": {
+      "@/*": ["./src/*"],
       "zustand": ["./src/lib/zustand-shim"],
       "zustand/middleware": ["./src/lib/zustand-middleware-shim"],
       "@testing-library/react": ["./src/test-utils/testing-library-react"]
