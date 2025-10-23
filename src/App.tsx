@@ -1305,6 +1305,7 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
     }
 
     const PrintableHost: React.FC = () => {
+      const wrapperRef = useRef<HTMLDivElement>(null)
       const localRef = useRef<HTMLDivElement>(null)
 
       useEffect(() => {
@@ -1331,7 +1332,7 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
             return
           }
 
-          const containerEl = localRef.current
+          const containerEl = wrapperRef.current
 
           if (containerEl && chartIsReady(containerEl)) {
             resolved = true
@@ -1368,9 +1369,11 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
       }, [])
 
       return (
-        <React.Suspense fallback={null}>
-          <PrintableProposal ref={localRef} {...dados} />
-        </React.Suspense>
+        <div ref={wrapperRef} data-print-mode="download" data-print-variant="standard">
+          <React.Suspense fallback={null}>
+            <PrintableProposal ref={localRef} {...dados} />
+          </React.Suspense>
+        </div>
       )
     }
 

@@ -1,3 +1,348 @@
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-layout,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .leasing-print-layout {
+  background: #fff !important;
+  color: #111 !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  padding: 0 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-page,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-section {
+  background: #fff !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 10mm 8mm !important;
+  break-inside: avoid;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-hero {
+  background: #fff !important;
+  color: #111 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-hero::before,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-hero::after,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-logo {
+  display: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .site-header,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .app-header,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .tabs,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .table-header.sticky,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .chart-explainer {
+  position: static !important;
+  top: auto !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) thead {
+  display: table-header-group !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) tr,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) td,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) th {
+  break-inside: avoid !important;
+  word-break: break-word;
+  hyphens: auto;
+  border-color: #ddd !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .card,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .kpi,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .pill,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .notice,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .crm-card,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .crm-kanban-column {
+  background: #fff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) input,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) select,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .page-actions,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .top-actions,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .legend-toggle,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .collapse-toggle,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .crm-button,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) button {
+  display: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .chart {
+  display: none !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .break-after {
+  break-after: page;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .avoid-break {
+  break-inside: avoid;
+}
+
 @media print {
   @page {
     size: A4;
