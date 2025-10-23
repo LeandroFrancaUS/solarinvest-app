@@ -43,7 +43,7 @@ import {
   sumModuleQuantities,
   type EssentialInfoSummary,
 } from './utils/moduleDetection'
-import { removeGlobalOverlays } from './utils/antiOverlay'
+import { removeFogOverlays, watchFogReinjection } from './utils/antiOverlay'
 import {
   computeROI,
   type ModoPagamento,
@@ -1399,7 +1399,9 @@ export default function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
   useEffect(() => {
-    removeGlobalOverlays()
+    removeFogOverlays()
+    const disconnect = watchFogReinjection()
+    return disconnect
   }, [])
   useEffect(() => {
     if (typeof window === 'undefined') {

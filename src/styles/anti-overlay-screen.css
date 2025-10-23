@@ -1,0 +1,28 @@
+@media screen {
+  html, body, #root, .app, .layout, .page, main, [class*="page"], [class*="layout"] {
+    opacity: 1 !important;
+    filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    mix-blend-mode: normal !important;
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+  }
+
+  /* derruba camadas típicas de overlay/frosted em screen */
+  .overlay, .backdrop, .frost, .frosted, .frosted-overlay, .glass, .glass-overlay,
+  .page-dim, .dim-layer, .modal-backdrop, .snow-overlay,
+  [class*="overlay"], [class*="backdrop"], [class*="frost"], [class*="glass"], [class*="dim"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  /* pseudo-elementos full-screen comuns */
+  body::before, body::after, #root::before, #root::after,
+  .app::before, .app::after, .layout::before, .layout::after,
+  .page::before, .page::after {
+    content: none !important;
+    display: none !important;
+  }
+}
