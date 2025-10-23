@@ -844,9 +844,6 @@ function PrintableProposalLeasingInner(
                 <p>
                   <strong>Data de emissão da proposta:</strong> {emissaoTexto}
                 </p>
-                <p>
-                  <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
-                </p>
               </div>
               <div className="print-final-footer__signature">
                 <div className="signature-line" />
