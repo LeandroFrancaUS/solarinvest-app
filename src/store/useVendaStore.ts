@@ -15,6 +15,8 @@ export type VendaClienteInfo = {
   endereco: string
   uc: string
   distribuidora: string
+  temIndicacao: boolean
+  indicacaoNome: string
 }
 
 export type VendaParametrosPrincipais = {
@@ -122,6 +124,8 @@ const createInitialState = (): VendaState => ({
     endereco: '',
     uc: '',
     distribuidora: '',
+    temIndicacao: false,
+    indicacaoNome: '',
   },
   parametros: {
     consumo_kwh_mes: 0,

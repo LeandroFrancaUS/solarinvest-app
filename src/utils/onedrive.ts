@@ -19,6 +19,8 @@ export type ClienteRegistroSyncPayload = {
     endereco: string
     cidade: string
     uf: string
+    temIndicacao: boolean
+    indicacaoNome: string
   }
 }
 

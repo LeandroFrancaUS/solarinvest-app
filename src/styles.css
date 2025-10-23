@@ -565,6 +565,29 @@ button.secondary.danger:focus-visible {
   --field-max-width: 100%;
 }
 
+.cliente-indicacao-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cliente-indicacao-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-m);
+  font-weight: 500;
+  color: var(--text-base);
+}
+
+.cliente-indicacao-toggle input[type='checkbox'] {
+  accent-color: var(--accent-strong);
+}
+
+.cliente-indicacao-toggle span {
+  line-height: 1.4;
+}
+
 .field-label,
 .field > label {
   display: inline-flex;
