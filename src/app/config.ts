@@ -10,6 +10,7 @@ import type { MultiUcClasse } from '../types/multiUc'
 import { ESCALONAMENTO_PADRAO } from '../utils/multiUc'
 import { DEFAULT_TUSD_ANO_REFERENCIA } from '../lib/finance/tusd'
 import type { TipoClienteTUSD } from '../lib/finance/tusd'
+import { formatMoneyBR } from '../lib/locale/br-number'
 
 export type TabKey = 'leasing' | 'vendas'
 
@@ -246,9 +247,9 @@ export function createInitialVendaForm(): VendaForm {
 export function createEmptyKitBudget(): KitBudgetState {
   return {
     items: [],
-    total: null,
+    total: 0,
     totalSource: null,
-    totalInput: '',
+    totalInput: formatMoneyBR(0),
     warnings: [],
     missingInfo: null,
     ignoredByNoise: 0,
