@@ -86,6 +86,7 @@ import { useLeasingValorDeMercadoEstimado } from './store/useLeasingStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
 import './styles/config-page.css'
+import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { Providers } from './app/Providers'
 import { CHART_THEME } from './helpers/ChartTheme'
@@ -1437,15 +1438,48 @@ export default function App() {
       return
     }
 
-    const safari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-    if (!safari) {
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+    if (!isSafari) {
       document.documentElement.classList.remove('is-safari')
       return
     }
 
+    const htmlElement = document.documentElement as HTMLElement
+    const bodyElement = document.body as HTMLElement | null
+    const elements: HTMLElement[] = bodyElement ? [htmlElement, bodyElement] : [htmlElement]
+
+    const previousStyles = elements.map((el) => {
+      const style = el.style as CSSStyleDeclaration & { webkitBackdropFilter?: string }
+      return {
+        el,
+        filter: style.filter,
+        opacity: style.opacity,
+        backdropFilter: style.backdropFilter,
+        webkitBackdropFilter: style.webkitBackdropFilter,
+        mixBlendMode: style.mixBlendMode,
+      }
+    })
+
     document.documentElement.classList.add('is-safari')
+    elements.forEach((el) => {
+      const style = el.style as CSSStyleDeclaration & { webkitBackdropFilter?: string }
+      style.filter = 'none'
+      style.opacity = '1'
+      style.backdropFilter = 'none'
+      style.webkitBackdropFilter = 'none'
+      style.mixBlendMode = 'normal'
+    })
+
     return () => {
       document.documentElement.classList.remove('is-safari')
+      previousStyles.forEach((item) => {
+        const style = item.el.style as CSSStyleDeclaration & { webkitBackdropFilter?: string }
+        style.filter = item.filter
+        style.opacity = item.opacity
+        style.backdropFilter = item.backdropFilter
+        style.webkitBackdropFilter = item.webkitBackdropFilter ?? ''
+        style.mixBlendMode = item.mixBlendMode
+      })
     }
   }, [])
   useEffect(() => {
