@@ -15,7 +15,6 @@ body,
 .glass-overlay,
 .page-dim,
 .dim-layer,
-.modal-backdrop,
 .snow-overlay {
   display: none !important;
   visibility: hidden !important;
