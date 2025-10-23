@@ -537,7 +537,14 @@ function PrintableProposalLeasingInner(
                   </div>
                   <div className="print-hero__title">
                     <span className="print-hero__eyebrow">SolarInvest</span>
-                    <h1>Proposta de Leasing Solar</h1>
+                    <div className="print-hero__headline">
+                      <img
+                        className="print-hero__title-logo"
+                        src="/solarinvest-badge.svg"
+                        alt="Marca SolarInvest"
+                      />
+                      <h1>Proposta de Leasing Solar</h1>
+                    </div>
                     <p className="print-hero__tagline">Energia inteligente, sustentável e sem investimento inicial.</p>
                   </div>
                 </div>

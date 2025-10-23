@@ -86,6 +86,13 @@
   text-align: center;
 }
 
+.print-hero__headline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
 .print-hero__eyebrow {
   font-size: 12px;
   letter-spacing: 0.32em;
@@ -96,18 +103,27 @@
 
 .print-hero__title h1 {
   margin: 0;
-  font-size: 36px;
-  line-height: 1.05;
-  font-weight: 700;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   color: inherit;
-  text-shadow: 0 18px 42px rgba(5, 9, 18, 0.55);
+  text-shadow: 0 12px 28px rgba(5, 9, 18, 0.45);
+}
+
+.print-hero__title-logo {
+  height: 5.4em;
+  width: auto;
+  display: block;
+  filter: drop-shadow(0 6px 12px rgba(5, 9, 18, 0.35));
 }
 
 .print-hero__tagline {
-  margin: 0;
-  font-size: 16px;
+  margin: 4px 0 0;
+  font-size: 15px;
   line-height: 1.6;
   color: rgba(248, 250, 252, 0.88);
+  max-width: 420px;
 }
 
 .print-hero__summary {
