@@ -1,0 +1,47 @@
+html,
+body,
+#root,
+.app {
+  opacity: 1 !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.overlay,
+.backdrop,
+.frosted,
+.frosted-overlay,
+.glass,
+.glass-overlay,
+.page-dim,
+.dim-layer,
+.modal-backdrop,
+.snow-overlay {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body::before,
+body::after,
+#root::before,
+#root::after,
+.app::before,
+.app::after {
+  content: none !important;
+  display: none !important;
+}
+
+@media print {
+  *,
+  *::before,
+  *::after {
+    filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+}
