@@ -318,4 +318,33 @@ describe('PrintableProposal (leasing)', () => {
     expect(linhasAno.length).toBe(prazoAnos)
     expect(markup).toContain('<td>10º ano</td>')
   })
+
+  it('prioriza os modelos informados manualmente na configuração da usina', () => {
+    const props = createPrintableProps({
+      tipoProposta: 'LEASING',
+      leasingModeloInversor: 'Inversor Manual X',
+      leasingModeloModulo: 'Modulo Manual Y',
+      orcamentoItens: [
+        {
+          produto: 'Inversor Catálogo',
+          descricao: 'Linha premium',
+          modelo: 'INV-2000',
+          fabricante: 'Fabricante A',
+          quantidade: 1,
+        },
+        {
+          produto: 'Módulo Catálogo',
+          descricao: 'Alta eficiência',
+          modelo: 'MOD-450',
+          fabricante: 'Fabricante B',
+          quantidade: 12,
+        },
+      ],
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain('Inversor Manual X')
+    expect(markup).toContain('Modulo Manual Y')
+  })
 })

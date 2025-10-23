@@ -5456,6 +5456,12 @@ export default function App() {
         leasingDataInicioOperacao: isVendaDiretaTab ? null : null,
         leasingValorMercadoProjetado: isVendaDiretaTab ? null : buyoutResumo.vm0,
         leasingInflacaoEnergiaAa: isVendaDiretaTab ? null : inflacaoAa,
+        leasingModeloInversor: isVendaDiretaTab
+          ? null
+          : sanitizeItemText(vendaForm.modelo_inversor) ?? null,
+        leasingModeloModulo: isVendaDiretaTab
+          ? null
+          : sanitizeItemText(vendaForm.modelo_modulo) ?? null,
         distribuidoraTarifa:
           vendaSnapshot.parametros.distribuidora || distribuidoraTarifa || cliente.distribuidora || '',
         energiaContratadaKwh:

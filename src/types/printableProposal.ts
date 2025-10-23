@@ -195,6 +195,8 @@ export type PrintableProposalProps = {
   leasingDataInicioOperacao?: string | null
   leasingValorMercadoProjetado?: number | null
   leasingInflacaoEnergiaAa?: number | null
+  leasingModeloInversor?: string | null
+  leasingModeloModulo?: string | null
   distribuidoraTarifa: string
   energiaContratadaKwh: number
   tarifaCheia: number
