@@ -1,0 +1,21 @@
+<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="badgeGlow" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#FFDF8B" />
+      <stop offset="45%" stop-color="#FFA63D" />
+      <stop offset="100%" stop-color="#FF7A00" />
+    </radialGradient>
+    <linearGradient id="boltFill" x1="32%" y1="0%" x2="68%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#FFF1D6" stop-opacity="0.9" />
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="80" r="72" fill="url(#badgeGlow)" />
+  <path
+    d="M92 28L40 92h32l-8 60 64-88H96l-4-36z"
+    fill="url(#boltFill)"
+    stroke="#FFFFFF"
+    stroke-width="4"
+    stroke-linejoin="round"
+  />
+</svg>
