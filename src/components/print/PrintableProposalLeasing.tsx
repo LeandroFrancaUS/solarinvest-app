@@ -8,7 +8,7 @@ import {
   formatNumberBRWithOptions,
   formatPercentBRWithDigits,
 } from '../../lib/locale/br-number'
-import type { PrintableProposalProps } from '../../types/printableProposal'
+import type { BuyoutRow, PrintableProposalProps } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
@@ -117,6 +117,8 @@ const hasBudgetItemExclusion = (value: string): boolean => {
   return BUDGET_ITEM_EXCLUSION_PATTERNS.some((pattern) => pattern.test(value) || pattern.test(normalized))
 }
 
+type BuyoutEligibleRow = BuyoutRow & { valorResidual: number }
+
 const formatKwhMes = (value?: number) => {
   if (!Number.isFinite(value) || (value ?? 0) <= 0) {
     return '—'
@@ -178,6 +180,7 @@ function PrintableProposalLeasingInner(
     tipoSistema,
     areaInstalacao,
     buyoutResumo,
+    tabelaBuyout,
     anos,
     leasingROI,
     parcelasLeasing,
@@ -252,6 +255,47 @@ function PrintableProposalLeasingInner(
       ? 'Percentual (%) informado por UC'
       : 'Manual (kWh) informado por UC'
     : null
+
+  const buyoutRowsElegiveis = useMemo<BuyoutEligibleRow[]>(() => {
+    if (!Array.isArray(tabelaBuyout)) {
+      return []
+    }
+
+    const rowsElegiveis = tabelaBuyout
+      .filter((row): row is BuyoutEligibleRow => row.valorResidual != null && Number.isFinite(row.valorResidual))
+      .filter((row) => row.mes >= 7)
+      .map((row) => ({
+        ...row,
+        valorResidual: Math.max(0, row.valorResidual),
+        prestacaoEfetiva: Number.isFinite(row.prestacaoEfetiva) ? Math.max(0, row.prestacaoEfetiva) : 0,
+        prestacaoAcum: Number.isFinite(row.prestacaoAcum) ? Math.max(0, row.prestacaoAcum) : 0,
+        cashback: Number.isFinite(row.cashback) ? Math.max(0, row.cashback) : 0,
+        tarifa: Number.isFinite(row.tarifa) ? Math.max(0, row.tarifa) : 0,
+      }))
+
+    return rowsElegiveis.sort((a, b) => a.mes - b.mes)
+  }, [tabelaBuyout])
+
+  const buyoutPrimeiroRow = buyoutRowsElegiveis.length > 0 ? buyoutRowsElegiveis[0] : null
+  const buyoutUltimoRow = buyoutRowsElegiveis.length > 0 ? buyoutRowsElegiveis[buyoutRowsElegiveis.length - 1] : null
+  const buyoutPrimeiroMesTexto = buyoutPrimeiroRow ? `${buyoutPrimeiroRow.mes}º` : '—'
+  const buyoutUltimoMesTexto = buyoutUltimoRow ? `${buyoutUltimoRow.mes}º` : '—'
+
+  const formatCurrencyOrDash = (value: number | null | undefined): string => {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return '—'
+    }
+    return currency(value)
+  }
+
+  const buyoutJanelaTexto = buyoutPrimeiroRow && buyoutUltimoRow
+    ? `${buyoutPrimeiroRow.mes}º ao ${buyoutUltimoRow.mes}º mês`
+    : '—'
+
+  const buyoutPrestacaoAcumuladaTexto = formatCurrencyOrDash(buyoutUltimoRow?.prestacaoAcum)
+  const buyoutCashbackTexto = formatCurrencyOrDash(buyoutUltimoRow?.cashback)
+  const buyoutPrimeiroValorTexto = formatCurrencyOrDash(buyoutPrimeiroRow?.valorResidual)
+  const buyoutUltimoValorTexto = formatCurrencyOrDash(buyoutUltimoRow?.valorResidual)
 
   const formatKwhValor = (valor: number, fractionDigits = 2): string =>
     `${formatNumberBRWithOptions(valor, {
@@ -636,6 +680,30 @@ function PrintableProposalLeasingInner(
 
   const heroSummary =
     'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
+  const buyoutTabelaDisponivel = buyoutRowsElegiveis.length > 0
+  const buyoutHeroSummary: React.ReactNode = buyoutTabelaDisponivel ? (
+    <>
+      A tabela abaixo apresenta os valores estimados para antecipação de posse entre o{' '}
+      <strong>{buyoutPrimeiroMesTexto}</strong> e o <strong>{buyoutUltimoMesTexto}</strong> mês do contrato de leasing.
+      Os valores já consideram as prestações pagas ({buyoutPrestacaoAcumuladaTexto}) e o cashback acumulado
+      ({buyoutCashbackTexto}). No primeiro mês elegível, o valor de aquisição projetado é{' '}
+      <strong>{buyoutPrimeiroValorTexto}</strong>; ao final do contrato, a projeção é{' '}
+      <strong>{buyoutUltimoValorTexto}</strong>.
+    </>
+  ) : (
+    <>
+      Não há valores calculados para a antecipação de posse desta proposta no momento. Solicite ao consultor
+      SolarInvest a atualização dos dados de buyout para gerar esta tabela.
+    </>
+  )
+  const buyoutResumoIndicadores = [
+    { label: 'Janela de compra considerada', value: buyoutJanelaTexto },
+    { label: 'Valor de mercado estimado (VM0)', value: investimentoSolarinvestFormatado },
+    { label: 'Prestação acumulada até o mês final', value: buyoutPrestacaoAcumuladaTexto },
+    { label: 'Cashback acumulado considerado', value: buyoutCashbackTexto },
+    { label: 'Compra no primeiro mês elegível', value: buyoutPrimeiroValorTexto },
+    { label: 'Compra ao final do contrato', value: buyoutUltimoValorTexto },
+  ]
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
   const economiaExplainer: React.ReactNode = beneficioAno30 ? (
     <>
@@ -657,7 +725,7 @@ function PrintableProposalLeasingInner(
 
   return (
     <div ref={ref} className="print-root">
-      <div className="print-layout leasing-print-layout">
+      <div className="print-layout leasing-print-layout" data-print-section="proposal">
         <div className="print-page">
           <section className="print-section print-section--hero avoid-break">
             <div className="print-hero">
@@ -1021,6 +1089,158 @@ function PrintableProposalLeasingInner(
               <div className="print-final-footer__signature">
                 <div className="signature-line" />
                 <span>Assinatura do cliente</span>
+              </div>
+            </footer>
+
+            <div className="print-brand-footer no-break-inside">
+              <strong>SOLARINVEST</strong>
+              <span>CNPJ: 60.434.015/0001-90</span>
+              <span>Anápolis-GO</span>
+              <span>Solarinvest.info</span>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div
+        className="print-layout leasing-print-layout buyout-print-layout"
+        data-print-section="buyout"
+      >
+        <div className="print-page">
+          <section className="print-section print-section--hero avoid-break">
+            <div className="print-hero">
+              <div className="print-hero__header">
+                <div className="print-hero__identity">
+                  <div className="print-logo">
+                    <img src="/logo.svg" alt="SolarInvest" />
+                  </div>
+                  <div className="print-hero__title">
+                    <span className="print-hero__eyebrow">SolarInvest</span>
+                    <div className="print-hero__headline">
+                      <img
+                        className="print-hero__title-logo"
+                        src="/solarinvest-badge.svg"
+                        alt="Marca SolarInvest"
+                      />
+                      <h1>Tabela para antecipação de posse</h1>
+                    </div>
+                    <p className="print-hero__tagline">
+                      Valores estimados para compra antecipada da usina SolarInvest.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="print-hero__meta">
+                <div className="print-hero__meta-item">
+                  <small>Código do orçamento: </small>
+                  <strong>{codigoOrcamento || '—'}</strong>
+                </div>
+                <div className="print-hero__meta-item">
+                  <small>Prazo contratual: </small>
+                  <strong>{formatPrazoContratual(prazoContratual)}</strong>
+                </div>
+              </div>
+              <div className="print-hero__summary no-break-inside">
+                <p>{buyoutHeroSummary}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="print-section keep-together avoid-break">
+            <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
+            <ClientInfoGrid
+              fields={resumoCampos}
+              className="print-client-grid no-break-inside"
+              fieldClassName="print-client-field"
+              wideFieldClassName="print-client-field--wide"
+            />
+          </section>
+
+          <section className="print-section keep-together avoid-break">
+            <h2 className="section-title keep-with-next">Resumo da antecipação</h2>
+            <p className="section-subtitle keep-with-next">
+              Indicadores considerados para a simulação de compra antecipada
+            </p>
+            <div className="print-key-values no-break-inside">
+              {buyoutResumoIndicadores.map((item) => (
+                <p key={item.label}>
+                  <strong>{item.label}</strong>
+                  {item.value}
+                </p>
+              ))}
+            </div>
+          </section>
+
+          <section className="print-section keep-together avoid-break page-break-before break-after">
+            <h2 className="section-title keep-with-next">Tabela para antecipação de posse</h2>
+            <p className="section-subtitle keep-with-next">
+              Valores estimados considerando prestações pagas e cashback acumulado
+            </p>
+            {buyoutTabelaDisponivel ? (
+              <>
+                <table className="no-break-inside buyout-table">
+                  <thead>
+                    <tr>
+                      <th>Mês</th>
+                      <th>Tarifa projetada (R$/kWh)</th>
+                      <th>Prestação do mês (R$)</th>
+                      <th>Cashback acumulado (R$)</th>
+                      <th>Valor de compra estimado (R$)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {buyoutRowsElegiveis.map((row) => (
+                      <tr key={`buyout-${row.mes}`}>
+                        <td>{`${row.mes}º mês`}</td>
+                        <td className="leasing-table-value">{tarifaCurrency(row.tarifa)}</td>
+                        <td className="leasing-table-value">{currency(row.prestacaoEfetiva)}</td>
+                        <td className="leasing-table-value">{currency(row.cashback)}</td>
+                        <td className="leasing-table-value">{currency(row.valorResidual)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="buyout-footnote no-break-inside">
+                  Os valores de compra já descontam o cashback acumulado da tabela. Quando o valor indicado for R$ 0,00,
+                  a posse é transferida automaticamente ao término do contrato.
+                </p>
+              </>
+            ) : (
+              <p className="muted no-break-inside">
+                Não há valores calculados para a antecipação de posse desta proposta no momento.
+              </p>
+            )}
+          </section>
+
+          <section className="print-section print-section--footer no-break-inside avoid-break">
+            <footer className="print-final-footer no-break-inside buyout-footer">
+              <div className="buyout-footer__text no-break-inside">
+                <p className="buyout-disclaimer">
+                  <strong>Importante:</strong> Os valores podem variar conforme condições de mercado (tarifas de energia,
+                  índices de inflação e disponibilidade de equipamentos), mas refletem a melhor estimativa vigente para a
+                  compra antecipada.
+                </p>
+                <ul className="buyout-footer__list">
+                  <li>
+                    Ao exercer a antecipação de posse, o contrato de leasing é encerrado imediatamente, sem multas ou
+                    juros adicionais.
+                  </li>
+                  <li>
+                    Após a compra, todas as rotinas de limpeza, manutenção, suporte, monitoramento e seguros tornam-se
+                    responsabilidade do proprietário, que pode contratar a SolarInvest para continuar prestando esses
+                    serviços.
+                  </li>
+                </ul>
+              </div>
+              <div className="buyout-footer__meta">
+                <div className="print-final-footer__dates">
+                  <p>
+                    <strong>Data de emissão:</strong> {emissaoTexto}
+                  </p>
+                </div>
+                <div className="print-final-footer__signature">
+                  <div className="signature-line" />
+                  <span>Assinatura do cliente</span>
+                </div>
               </div>
             </footer>
 
