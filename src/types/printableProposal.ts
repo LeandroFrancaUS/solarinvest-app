@@ -95,6 +95,7 @@ export type MensalidadeRow = {
   tarifaCheia: number
   tarifaDescontada: number
   mensalidadeCheia: number
+  tusd: number
   mensalidade: number
   totalAcumulado: number
 }
