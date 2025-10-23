@@ -159,6 +159,18 @@
   opacity: 1 !important;
 }
 
+[data-print-section='buyout'] {
+  display: none;
+}
+
+[data-print-variant='buyout'] [data-print-section='buyout'] {
+  display: block;
+}
+
+[data-print-variant='buyout'] [data-print-section='proposal'] {
+  display: none !important;
+}
+
 @media print {
   html,
   body {

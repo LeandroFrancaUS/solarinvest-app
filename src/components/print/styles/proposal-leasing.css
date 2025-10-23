@@ -553,6 +553,60 @@
   background: rgba(148, 163, 184, 0.4);
 }
 
+.buyout-print-layout .buyout-table th,
+.buyout-print-layout .buyout-table td {
+  text-align: left;
+}
+
+.buyout-print-layout .buyout-table .leasing-table-value {
+  text-align: right;
+}
+
+.buyout-print-layout .buyout-footnote {
+  margin-top: 12px;
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.buyout-print-layout .buyout-footer {
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.buyout-print-layout .buyout-footer__text {
+  flex: 1 1 320px;
+  min-width: 280px;
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.85);
+  display: grid;
+  gap: 10px;
+}
+
+.buyout-print-layout .buyout-footer__text p {
+  margin: 0;
+}
+
+.buyout-print-layout .buyout-disclaimer strong {
+  color: #facc15;
+}
+
+.buyout-print-layout .buyout-footer__list {
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.buyout-print-layout .buyout-footer__list li + li {
+  margin-top: 6px;
+}
+
+.buyout-print-layout .buyout-footer__meta {
+  display: grid;
+  gap: 16px;
+  min-width: 240px;
+}
+
 .print-brand-footer {
   display: flex;
   flex-direction: column;

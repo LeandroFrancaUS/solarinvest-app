@@ -1303,7 +1303,7 @@ function FieldError({ message }: { message?: string }) {
 
 type PrintMode = 'preview' | 'print' | 'download'
 
-type PrintVariant = 'standard' | 'simple'
+type PrintVariant = 'standard' | 'simple' | 'buyout'
 
 type BudgetPreviewOptions = {
   nomeCliente: string
@@ -1313,7 +1313,13 @@ type BudgetPreviewOptions = {
   closeAfterPrint?: boolean | undefined
   initialMode?: PrintMode | undefined
   initialVariant?: PrintVariant | undefined
+  supportsBuyout?: boolean | undefined
 }
+
+const hasPrintableBuyout = (dados: PrintableProposalProps): boolean =>
+  dados.tipoProposta === 'LEASING' &&
+  Array.isArray(dados.tabelaBuyout) &&
+  dados.tabelaBuyout.some((row) => row.valorResidual != null && Number.isFinite(row.valorResidual))
 
 function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<string | null> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
@@ -5571,6 +5577,7 @@ export default function App() {
         closeAfterPrint,
         initialMode,
         initialVariant = 'standard',
+        supportsBuyout = false,
       }: BudgetPreviewOptions,
     ) => {
       if (!layoutHtml) {
@@ -5592,6 +5599,10 @@ export default function App() {
 
       const resolvedInitialMode: PrintMode =
         initialMode || (autoPrint ? (closeAfterPrint ? 'download' : 'print') : 'preview')
+
+      const buyoutButtonHtml = supportsBuyout
+        ? '<button type="button" data-action="buyout" class="secondary" data-label-default="Tabela de Buyout" data-label-active="Voltar à proposta" aria-pressed="false">Tabela de Buyout</button>'
+        : ''
 
       const previewHtml = `<!DOCTYPE html>
         <html data-print-mode="${resolvedInitialMode}" data-print-variant="${initialVariant}">
@@ -5629,6 +5640,7 @@ export default function App() {
               <div class="preview-toolbar-actions">
                 <button type="button" data-action="print">Imprimir</button>
                 <button type="button" data-action="download">Baixar PDF</button>
+                ${buyoutButtonHtml}
                 <button type="button" data-action="toggle-variant" class="secondary" data-label-simple="Versão Simples" data-label-standard="Versão Completa" aria-pressed="${initialVariant === 'simple' ? 'true' : 'false'}">Versão Simples</button>
                 <button type="button" data-action="close" class="secondary">Fechar</button>
               </div>
@@ -5655,8 +5667,16 @@ export default function App() {
                 var downloadBtn = document.querySelector('[data-action=\"download\"]');
                 var closeBtn = document.querySelector('[data-action=\"close\"]');
                 var variantToggleBtn = document.querySelector('[data-action=\"toggle-variant\"]');
+                var buyoutBtn = document.querySelector('[data-action=\"buyout\"]');
+                var buyoutDefaultLabel = buyoutBtn ? (buyoutBtn.getAttribute('data-label-default') || 'Tabela de Buyout') : 'Tabela de Buyout';
+                var buyoutActiveLabel = buyoutBtn ? (buyoutBtn.getAttribute('data-label-active') || 'Voltar à proposta') : 'Voltar à proposta';
+                var previousNonBuyoutVariant = defaultVariant === 'buyout' ? 'standard' : defaultVariant;
                 var setVariant = function(nextVariant){
-                  currentVariant = nextVariant === 'simple' ? 'simple' : 'standard';
+                  var normalized = nextVariant === 'simple' || nextVariant === 'buyout' ? nextVariant : 'standard';
+                  currentVariant = normalized;
+                  if(normalized !== 'buyout'){
+                    previousNonBuyoutVariant = normalized;
+                  }
                   document.body.setAttribute('data-print-variant', currentVariant);
                   document.documentElement.setAttribute('data-print-variant', currentVariant);
                   if(variantToggleBtn){
@@ -5666,6 +5686,12 @@ export default function App() {
                     variantToggleBtn.textContent = isSimple ? standardLabel : simpleLabel;
                     variantToggleBtn.setAttribute('aria-pressed', isSimple ? 'true' : 'false');
                     variantToggleBtn.title = isSimple ? 'Retornar ao layout completo' : 'Visual simplificado para impressão em preto e branco';
+                  }
+                  if(buyoutBtn){
+                    var isBuyout = currentVariant === 'buyout';
+                    buyoutBtn.textContent = isBuyout ? buyoutActiveLabel : buyoutDefaultLabel;
+                    buyoutBtn.setAttribute('aria-pressed', isBuyout ? 'true' : 'false');
+                    buyoutBtn.title = isBuyout ? 'Retornar ao conteúdo da proposta' : 'Visualizar a tabela de compra antecipada (buyout)';
                   }
                 };
                 setVariant(defaultVariant);
@@ -5687,6 +5713,15 @@ export default function App() {
                 if(variantToggleBtn){
                   variantToggleBtn.addEventListener('click', function(){
                     setVariant(currentVariant === 'simple' ? 'standard' : 'simple');
+                  });
+                }
+                if(buyoutBtn){
+                  buyoutBtn.addEventListener('click', function(){
+                    if(currentVariant === 'buyout'){
+                      setVariant(previousNonBuyoutVariant && previousNonBuyoutVariant !== 'buyout' ? previousNonBuyoutVariant : 'standard');
+                    } else {
+                      setVariant('buyout');
+                    }
                   });
                 }
                 window.addEventListener('beforeprint', function(){
@@ -8398,12 +8433,14 @@ export default function App() {
     }
 
     const { html: layoutHtml, dados } = resultado
+    const supportsBuyout = hasPrintableBuyout(dados)
     const nomeCliente = dados.cliente.nome?.trim() || 'SolarInvest'
     openBudgetPreviewWindow(layoutHtml, {
       nomeCliente,
       budgetId: dados.budgetId,
       actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
       initialMode: 'preview',
+      supportsBuyout,
     })
   }
 
@@ -8882,6 +8919,7 @@ export default function App() {
         }
 
         const nomeCliente = registro.dados.cliente.nome?.trim() || 'SolarInvest'
+        const supportsBuyout = hasPrintableBuyout(dadosParaImpressao)
         let actionMessage = 'Revise o conteúdo e utilize as ações para gerar o PDF.'
         if (modo === 'print') {
           actionMessage = 'A janela de impressão será aberta automaticamente. Verifique as preferências antes de confirmar.'
@@ -8897,6 +8935,7 @@ export default function App() {
           autoPrint: modo !== 'preview',
           closeAfterPrint: modo === 'download',
           initialMode: modo === 'download' ? 'download' : modo === 'print' ? 'print' : 'preview',
+          supportsBuyout,
         })
       } catch (error) {
         console.error('Erro ao abrir orçamento salvo.', error)
