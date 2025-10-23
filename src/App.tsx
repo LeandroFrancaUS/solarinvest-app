@@ -2494,19 +2494,59 @@ export default function App() {
       setKitBudget((prev) => {
         const trimmed = value.trim()
         if (!trimmed) {
+          if (budgetItemsTotal !== null) {
+            const formattedCalculated = formatCurrencyInputValue(budgetItemsTotal)
+            if (
+              prev.totalSource === 'calculated' &&
+              numbersAreClose(prev.total, budgetItemsTotal) &&
+              prev.totalInput === formattedCalculated
+            ) {
+              return prev
+            }
+            return {
+              ...prev,
+              totalInput: formattedCalculated,
+              total: budgetItemsTotal,
+              totalSource: 'calculated',
+            }
+          }
+          const formattedZero = formatCurrencyInputValue(0)
+          if (prev.totalSource === null && numbersAreClose(prev.total, 0) && prev.totalInput === formattedZero) {
+            return prev
+          }
           return {
             ...prev,
-            totalInput: '',
-            total: budgetItemsTotal,
-            totalSource: budgetItemsTotal !== null ? 'calculated' : null,
+            totalInput: formattedZero,
+            total: 0,
+            totalSource: null,
           }
         }
         const parsed = normalizeCurrencyNumber(parseNumericInput(trimmed))
+        if (parsed === null) {
+          const formattedZero = formatCurrencyInputValue(0)
+          if (prev.totalSource === null && numbersAreClose(prev.total, 0) && prev.totalInput === formattedZero) {
+            return prev
+          }
+          return {
+            ...prev,
+            totalInput: formattedZero,
+            total: 0,
+            totalSource: null,
+          }
+        }
+        const formatted = formatCurrencyInputValue(parsed)
+        if (
+          prev.totalSource === 'explicit' &&
+          numbersAreClose(prev.total, parsed) &&
+          prev.totalInput === formatted
+        ) {
+          return prev
+        }
         return {
           ...prev,
-          totalInput: value,
+          totalInput: formatted,
           total: parsed,
-          totalSource: trimmed ? 'explicit' : prev.totalSource,
+          totalSource: 'explicit',
         }
       })
     },
@@ -12570,6 +12610,7 @@ export default function App() {
                     inputMode="decimal"
                     value={kitBudget.totalInput}
                     onChange={(event) => handleBudgetTotalChange(event.target.value)}
+                    onFocus={selectNumberInputOnFocus}
                     placeholder="Ex.: 45.000,00"
                   />
                   {kitBudget.totalSource === 'calculated' ? (
