@@ -75,6 +75,14 @@ export type PrintableVendasConfig = Pick<
   | 'observacao_padrao_proposta'
 >
 
+export type PrintableProposalImage = {
+  id: string
+  url: string
+  fileName?: string | null | undefined
+  width?: number | null | undefined
+  height?: number | null | undefined
+}
+
 export type ClienteDados = {
   nome: string
   documento: string
@@ -217,4 +225,5 @@ export type PrintableProposalProps = {
   economiaEstimativaHorizonteAnos?: number | null | undefined
   custoImplantacaoReferencia?: number | null | undefined
   modoVenda?: ModoVenda | undefined
+  imagensInstalacao?: PrintableProposalImage[] | undefined
 }
