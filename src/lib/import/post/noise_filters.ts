@@ -34,6 +34,7 @@ const FOOTER_PATTERNS = [
   /sustent[áa]vel/i,
   /energia inteligente/i,
   /sem investimento inicial/i,
+  /sem desembolso/i,
   /direitos reservados/i,
   /todos os direitos/i,
 ]
