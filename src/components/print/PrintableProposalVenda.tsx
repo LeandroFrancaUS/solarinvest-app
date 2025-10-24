@@ -850,14 +850,14 @@ function PrintableProposalInner(
               <div className="print-hero__header">
                 <div className="print-hero__identity">
                   <div className="print-logo">
-                    <img src="/logo.svg" alt="SolarInvest" />
+                    <img src="/proposal-header-logo.svg" alt="Marca SolarInvest" />
                   </div>
                   <div className="print-hero__title">
                     <span className="print-hero__eyebrow">SolarInvest</span>
                     <div className="print-hero__headline">
                       <img
                         className="print-hero__title-logo"
-                        src="/solarinvest-badge.svg"
+                        src="/proposal-header-logo.svg"
                         alt="Marca SolarInvest"
                       />
                       <h1>{heroTitle}</h1>

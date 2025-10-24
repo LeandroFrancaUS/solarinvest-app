@@ -151,12 +151,16 @@ function PrintableBuyoutTableInner(
               <div className="print-hero__header">
                 <div className="print-hero__identity">
                   <div className="print-logo">
-                    <img src="/logo.svg" alt="SolarInvest" />
+                    <img src="/proposal-header-logo.svg" alt="Marca SolarInvest" />
                   </div>
                   <div className="print-hero__title">
                     <span className="print-hero__eyebrow">SolarInvest</span>
                     <div className="print-hero__headline">
-                      <img className="print-hero__title-logo" src="/solarinvest-badge.svg" alt="Marca SolarInvest" />
+                      <img
+                        className="print-hero__title-logo"
+                        src="/proposal-header-logo.svg"
+                        alt="Marca SolarInvest"
+                      />
                       <h1>Tabela de Valor de Transferência</h1>
                     </div>
                     <p className="print-hero__tagline">Valores estimados para aquisição antecipada da usina SolarInvest.</p>
