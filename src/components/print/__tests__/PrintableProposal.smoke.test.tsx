@@ -86,7 +86,9 @@ describe('PrintableProposal smoke', () => {
       }).not.toThrow()
 
       const container = renderResult?.container
-      expect(container?.textContent ?? '').toContain('Proposta de Venda Solar')
+      expect(container?.textContent ?? '').toContain(
+        'Proposta de Aquisição de Sistema de Energia Solar com a SolarInvest',
+      )
 
       const hasReferenceError = consoleErrorSpy.mock.calls.some((callArgs: unknown[]) =>
         callArgs.some(
