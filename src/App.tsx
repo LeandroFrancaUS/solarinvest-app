@@ -1697,6 +1697,10 @@ export default function App() {
       }
     | null
   >(null)
+  const liberarOrcamentoCarregado = useCallback(() => {
+    setOrcamentoCarregado(null)
+    setOrcamentoCarregadoInfo(null)
+  }, [])
   const [oneDriveIntegrationAvailable, setOneDriveIntegrationAvailable] = useState(() =>
     isOneDriveIntegrationAvailable(),
   )
@@ -8767,65 +8771,65 @@ export default function App() {
 
     setGerandoTabelaTransferencia(true)
 
-      try {
-        const html = await renderPrintableBuyoutTableToHtml({
-          cliente: cloneClienteDados(cliente),
-          budgetId: codigoOrcamento,
-          tabelaBuyout,
-          buyoutResumo,
+    try {
+      const html = await renderPrintableBuyoutTableToHtml({
+        cliente: cloneClienteDados(cliente),
+        budgetId: codigoOrcamento,
+        tabelaBuyout,
+        buyoutResumo,
         prazoContratualMeses: duracaoMeses,
         emissaoIso: new Date().toISOString(),
-        observacaoImportante: printableData.informacoesImportantesObservacao,
+        observacaoImportante: printableData.informacoesImportantesObservacao ?? null,
       })
 
-        if (!html) {
-          throw new Error('Não foi possível preparar o conteúdo da tabela para impressão.')
-        }
+      if (!html) {
+        throw new Error('Não foi possível preparar o conteúdo da tabela para impressão.')
+      }
 
-        const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
-        setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
-        if (!integracaoPdfDisponivel) {
-          adicionarNotificacao(
-            'Configure a integração de PDF para salvar a tabela de valor de transferência automaticamente.',
-            'info',
-          )
-          return
-        }
+      const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
+      setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
+      if (!integracaoPdfDisponivel) {
+        adicionarNotificacao(
+          'Configure a integração de PDF para salvar a tabela de valor de transferência automaticamente.',
+          'info',
+        )
+        return
+      }
 
-        await persistProposalPdf({
-          html,
-          budgetId: codigoOrcamento,
-          clientName: cliente.nome,
-          proposalType: 'LEASING',
-          fileName: `Tabela-Valor-de-Transferencia-${codigoOrcamento}.pdf`,
+      await persistProposalPdf({
+        html,
+        budgetId: codigoOrcamento,
+        clientName: cliente.nome,
+        proposalType: 'LEASING',
+        fileName: `Tabela-Valor-de-Transferencia-${codigoOrcamento}.pdf`,
         metadata: {
           source: 'buyout-table',
           variant: 'transferencia',
         },
       })
 
-        adicionarNotificacao('Tabela de valor de transferência salva em PDF.', 'success')
-      } catch (error) {
-        if (error instanceof ProposalPdfIntegrationMissingError) {
-          setProposalPdfIntegrationAvailable(false)
-          if (typeof console !== 'undefined') {
-            console.info('Integração de PDF indisponível ao salvar tabela de transferência.')
-          }
-          adicionarNotificacao(
-            'Não foi possível salvar a tabela em PDF porque a integração de arquivos não está configurada.',
-            'info',
-          )
-        } else {
-          console.error('Erro ao salvar a tabela de valor de transferência em PDF.', error)
-          const mensagem =
-            error instanceof Error && error.message
-              ? error.message
-              : 'Não foi possível salvar a tabela de valor de transferência. Tente novamente.'
-          adicionarNotificacao(mensagem, 'error')
+      adicionarNotificacao('Tabela de valor de transferência salva em PDF.', 'success')
+    } catch (error) {
+      if (error instanceof ProposalPdfIntegrationMissingError) {
+        setProposalPdfIntegrationAvailable(false)
+        if (typeof console !== 'undefined') {
+          console.info('Integração de PDF indisponível ao salvar tabela de transferência.')
         }
-      } finally {
-        setGerandoTabelaTransferencia(false)
+        adicionarNotificacao(
+          'Não foi possível salvar a tabela em PDF porque a integração de arquivos não está configurada.',
+          'info',
+        )
+      } else {
+        console.error('Erro ao salvar a tabela de valor de transferência em PDF.', error)
+        const mensagem =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Não foi possível salvar a tabela de valor de transferência. Tente novamente.'
+        adicionarNotificacao(mensagem, 'error')
       }
+    } finally {
+      setGerandoTabelaTransferencia(false)
+    }
     }, [
       adicionarNotificacao,
       isProposalPdfIntegrationAvailable,
@@ -9629,11 +9633,6 @@ export default function App() {
     },
     [setActiveTab],
   )
-
-  const liberarOrcamentoCarregado = useCallback(() => {
-    setOrcamentoCarregado(null)
-    setOrcamentoCarregadoInfo(null)
-  }, [])
 
   const abrirPesquisaOrcamentos = () => {
     const registros = carregarOrcamentosSalvos()
