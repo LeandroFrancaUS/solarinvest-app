@@ -2,10 +2,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import util from 'node:util'
-import JSZip from 'jszip'
-import { XMLBuilder, XMLParser } from 'fast-xml-parser'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+
+const DOCX_PART_REGEX = /^word\/(document|header\d*|footer\d*)\.xml$/
 
 const execFilePromise = util.promisify(execFile)
 
@@ -14,17 +12,6 @@ export const CONTRACT_RENDER_PATH = '/api/contracts/render'
 const TEMPLATE_RELATIVE_PATH = 'assets/templates/contratos/CONTRATO_LEASING.dotx'
 const TMP_DIR = path.resolve(process.cwd(), 'tmp')
 const MAX_BODY_SIZE_BYTES = 256 * 1024
-
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  preserveOrder: true,
-  trimValues: false,
-})
-
-const xmlBuilder = new XMLBuilder({
-  ignoreAttributes: false,
-  preserveOrder: true,
-})
 
 class ContractRenderError extends Error {
   /**
@@ -67,28 +54,116 @@ const replaceTagsInValue = (text, data) =>
     .replace(/{unidadeConsumidora}/g, data.unidadeConsumidora ?? '')
     .replace(/{dataAtualExtenso}/g, data.dataAtualExtenso ?? '')
 
-const replaceTagsInNode = (node, data) => {
-  if (typeof node === 'string') {
-    return replaceTagsInValue(node, data)
-  }
-  if (Array.isArray(node)) {
-    return node.map((item) => replaceTagsInNode(item, data))
-  }
-  if (node && typeof node === 'object') {
-    const updated = {}
-    for (const [key, value] of Object.entries(node)) {
-      updated[key] = replaceTagsInNode(value, data)
+const escapeXmlText = (text) =>
+  String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+
+const replaceTagsInRun = (runXml, data) => {
+  const nodes = []
+  const textNodeRegex = /(<w:t\b[^>]*>)([\s\S]*?)(<\/w:t>)/g
+  let cursor = 0
+  let match
+
+  while ((match = textNodeRegex.exec(runXml)) !== null) {
+    if (match.index > cursor) {
+      nodes.push(runXml.slice(cursor, match.index))
     }
-    return updated
+    nodes.push({ open: match[1], text: match[2], close: match[3] })
+    cursor = match.index + match[0].length
   }
-  return node
+
+  if (cursor < runXml.length) {
+    nodes.push(runXml.slice(cursor))
+  }
+
+  const textNodes = nodes.filter((node) => typeof node !== 'string')
+  if (textNodes.length === 0) {
+    return runXml
+  }
+
+  const combined = textNodes.map((node) => node.text).join('')
+  const replaced = replaceTagsInValue(combined, data)
+
+  if (replaced === combined) {
+    return runXml
+  }
+
+  let first = true
+  return nodes
+    .map((node) => {
+      if (typeof node === 'string') {
+        return node
+      }
+      if (first) {
+        first = false
+        return `${node.open}${escapeXmlText(replaced)}${node.close}`
+      }
+      return `${node.open}${node.close}`
+    })
+    .join('')
 }
 
-const replaceTagsInXml = (xmlContent, data) => {
-  const parsed = xmlParser.parse(xmlContent)
-  const replaced = replaceTagsInNode(parsed, data)
-  return xmlBuilder.build(replaced)
+const replaceTagsInXmlContent = (xmlContent, data) => {
+  let updated = xmlContent.replace(/<w:r\b[\s\S]*?<\/w:r>/g, (runXml) => replaceTagsInRun(runXml, data))
+
+  updated = updated.replace(/(<w:instrText\b[^>]*>)([\s\S]*?)(<\/w:instrText>)/g, (match, open, text, close) => {
+    const replaced = replaceTagsInValue(text, data)
+    if (replaced === text) {
+      return match
+    }
+    return `${open}${escapeXmlText(replaced)}${close}`
+  })
+
+  return updated
 }
+
+const extractDocxTemplate = async (templatePath, workDir) => {
+  try {
+    await execFilePromise('unzip', ['-q', templatePath, '-d', workDir])
+  } catch (error) {
+    throw new ContractRenderError(500, 'Falha ao extrair o template do contrato.')
+  }
+}
+
+const rezipDocx = async (sourceDir, destinationFile) => {
+  try {
+    await execFilePromise('zip', ['-qr', destinationFile, '.'], { cwd: sourceDir })
+  } catch (error) {
+    throw new ContractRenderError(500, 'Falha ao compactar o contrato atualizado.')
+  }
+}
+
+const updateDocxParts = async (workDir, data) => {
+  const wordDir = path.join(workDir, 'word')
+  let entries
+  try {
+    entries = await fs.readdir(wordDir)
+  } catch (error) {
+    throw new ContractRenderError(500, 'Estrutura do template de contrato é inválida.')
+  }
+
+  await Promise.all(
+    entries
+      .filter((name) => DOCX_PART_REGEX.test(name))
+      .map(async (name) => {
+        const filePath = path.join(wordDir, name)
+        const xmlContent = await fs.readFile(filePath, 'utf8')
+        const replaced = replaceTagsInXmlContent(xmlContent, data)
+        await fs.writeFile(filePath, replaced, 'utf8')
+      }),
+  )
+}
+
+const formatDateExtenso = (date) =>
+  new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
 
 const readJsonBody = async (req) => {
   let totalLength = 0
@@ -193,16 +268,16 @@ const normalizeClientePayload = (payload) => {
   }
 }
 
-const cleanupTmpFiles = async (...files) => {
+const cleanupTmpFiles = async (...targets) => {
   await Promise.all(
-    files
+    targets
       .filter(Boolean)
-      .map(async (filePath) => {
+      .map(async (target) => {
         try {
-          await fs.unlink(filePath)
+          await fs.rm(target, { recursive: true, force: true })
         } catch (error) {
           if (error && error.code !== 'ENOENT') {
-            console.warn(`[contracts] Não foi possível remover o arquivo temporário ${filePath}:`, error)
+            console.warn(`[contracts] Não foi possível remover o recurso temporário ${target}:`, error)
           }
         }
       }),
@@ -211,37 +286,22 @@ const cleanupTmpFiles = async (...files) => {
 
 const generateContractPdf = async (cliente) => {
   const templatePath = await ensureTemplateExists()
-  const templateBuffer = await fs.readFile(templatePath)
-  const zip = await JSZip.loadAsync(templateBuffer)
-
-  const dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  const dataAtualExtenso = formatDateExtenso(new Date())
   const data = { ...cliente, dataAtualExtenso }
-
-  const partNames = Object.keys(zip.files).filter((name) =>
-    /^word\/(document|header\d*|footer\d*)\.xml$/.test(name),
-  )
-
-  await Promise.all(
-    partNames.map(async (name) => {
-      const file = zip.file(name)
-      if (!file) {
-        return
-      }
-      const xmlContent = await file.async('string')
-      const replaced = replaceTagsInXml(xmlContent, data)
-      zip.file(name, replaced)
-    }),
-  )
 
   await fs.mkdir(TMP_DIR, { recursive: true })
   const uniqueId = `contrato_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+  const workDir = await fs.mkdtemp(path.join(TMP_DIR, `${uniqueId}_`))
+  const extractedDir = path.join(workDir, 'docx')
+  await fs.mkdir(extractedDir, { recursive: true })
   const docxPath = path.join(TMP_DIR, `${uniqueId}.docx`)
   const pdfPath = path.join(TMP_DIR, `${uniqueId}.pdf`)
 
-  const docxBuffer = await zip.generateAsync({ type: 'nodebuffer' })
-  await fs.writeFile(docxPath, docxBuffer)
-
   try {
+    await extractDocxTemplate(templatePath, extractedDir)
+    await updateDocxParts(extractedDir, data)
+    await rezipDocx(extractedDir, docxPath)
+
     await execFilePromise('soffice', [
       '--headless',
       '--convert-to',
@@ -267,7 +327,7 @@ const generateContractPdf = async (cliente) => {
       'Falha ao converter o contrato para PDF. Verifique se o LibreOffice está instalado corretamente.',
     )
   } finally {
-    await cleanupTmpFiles(docxPath, pdfPath)
+    await cleanupTmpFiles(docxPath, pdfPath, workDir)
   }
 }
 
