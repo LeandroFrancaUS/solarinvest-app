@@ -476,6 +476,10 @@ button.secondary.danger:focus-visible {
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-3) + 8px);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
 }
 
 .page-sections.view-only {
@@ -483,7 +487,7 @@ button.secondary.danger:focus-visible {
   opacity: 0.65;
 }
 
-.page-sections.view-only > * {
+.page-sections[disabled] > * {
   pointer-events: none;
 }
 

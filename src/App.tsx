@@ -13061,7 +13061,10 @@ export default function App() {
                   )
                 ) : null}
               </div>
-              <div className={`page-sections${isViewOnlyMode ? ' view-only' : ''}`}>
+              <fieldset
+                className={`page-sections${isViewOnlyMode ? ' view-only' : ''}`}
+                disabled={isViewOnlyMode}
+              >
                 {renderClienteDadosSection()}
                 {activeTab === 'leasing' ? (
                   <>
@@ -13550,7 +13553,7 @@ export default function App() {
             {renderRetornoProjetadoSection()}
           </>
         )}
-        </div>
+        </fieldset>
         </main>
       </div>
 
