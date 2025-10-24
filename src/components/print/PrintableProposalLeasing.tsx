@@ -292,23 +292,28 @@ function PrintableProposalLeasingInner(
   ]
 
   const snapshotPagamento = vendaSnapshot?.pagamento ?? null
-  const validadePropostaDiasPadrao = Number.isFinite(vendasConfigSnapshot?.validade_proposta_dias)
-    ? Math.max(0, Number(vendasConfigSnapshot?.validade_proposta_dias ?? 0))
-    : null
+  const validadePropostaDiasPadrao = (() => {
+    const diasConfig = vendasConfigSnapshot?.validade_proposta_dias
+    if (diasConfig == null) {
+      return 15
+    }
+
+    const diasNumero = Number(diasConfig)
+    if (!Number.isFinite(diasNumero) || diasNumero <= 0) {
+      return 15
+    }
+
+    return diasNumero
+  })()
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
-  if ((validadePropostaDiasPadrao ?? 0) > 0) {
-    validadeData.setDate(validadeData.getDate() + (validadePropostaDiasPadrao ?? 0))
-  }
+  validadeData.setDate(validadeData.getDate() + validadePropostaDiasPadrao)
   const formatDate = (date: Date) =>
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
   const validadeResumoPadrao = (() => {
-    if (validadePropostaDiasPadrao == null || validadePropostaDiasPadrao <= 0) {
-      return `Até ${validadeTexto}`
-    }
     const plural = validadePropostaDiasPadrao === 1 ? 'dia' : 'dias'
     return `${validadePropostaDiasPadrao} ${plural} · Até ${validadeTexto}`
   })()
