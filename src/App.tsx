@@ -1360,6 +1360,15 @@ type PrintMode = 'preview' | 'print' | 'download'
 
 type PrintVariant = 'standard' | 'simple' | 'buyout'
 
+type PendingPreviewData =
+  | { kind: 'proposal'; html: string; dados: PrintableProposalProps }
+  | {
+      kind: 'buyout-table'
+      html: string
+      budgetId: string
+      clientName: string
+    }
+
 type PreviewActionRequest = { action: 'print' | 'download' }
 
 type PreviewActionResponse = {
@@ -1384,6 +1393,9 @@ type BudgetPreviewOptions = {
   closeAfterPrint?: boolean | undefined
   initialMode?: PrintMode | undefined
   initialVariant?: PrintVariant | undefined
+  toolbarTitle?: string | undefined
+  enableVariantToggle?: boolean | undefined
+  enableBuyoutToggle?: boolean | undefined
 }
 
 function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<string | null> {
@@ -5399,7 +5411,7 @@ export default function App() {
   }
 
   const printableRef = useRef<HTMLDivElement>(null)
-  const pendingPreviewDataRef = useRef<{ html: string; dados: PrintableProposalProps } | null>(null)
+  const pendingPreviewDataRef = useRef<PendingPreviewData | null>(null)
 
   const anosArray = useMemo(
     () => Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => i + 1),
@@ -5725,6 +5737,9 @@ export default function App() {
         closeAfterPrint,
         initialMode,
         initialVariant = 'standard',
+        toolbarTitle,
+        enableVariantToggle,
+        enableBuyoutToggle,
       }: BudgetPreviewOptions,
     ) => {
       if (!layoutHtml) {
@@ -5742,8 +5757,27 @@ export default function App() {
         actionMessage || 'Revise o conteúdo e utilize as ações para imprimir ou salvar como PDF.'
       const codigoHtml = `<p class="preview-toolbar-code${budgetId ? '' : ' is-hidden'}">Código do orçamento: <strong>${budgetId ?? ''}</strong></p>`
 
+      const resolvedToolbarTitle =
+        (toolbarTitle ? toolbarTitle.trim() : '') || 'Pré-visualização da proposta'
+
       const resolvedInitialMode: PrintMode =
         initialMode || (autoPrint ? (closeAfterPrint ? 'download' : 'print') : 'preview')
+
+      const showVariantToggle = enableVariantToggle !== false
+      const showBuyoutToggle = enableBuyoutToggle !== false
+      const buyoutToggleButtonHtml = showBuyoutToggle
+        ? `<button
+                  type="button"
+                  data-action="toggle-buyout"
+                  class="secondary"
+                  data-label-default="Tabela de buyout"
+                  data-label-active="Voltar à proposta"
+                  aria-pressed="false"
+                >Tabela de buyout</button>`
+        : ''
+      const variantToggleButtonHtml = showVariantToggle
+        ? `<button type="button" data-action="toggle-variant" class="secondary" data-label-simple="Versão Simples" data-label-standard="Versão Completa" aria-pressed="${initialVariant === 'simple' ? 'true' : 'false'}">Versão Simples</button>`
+        : ''
 
       const previewHtml = `<!DOCTYPE html>
         <html data-print-mode="${resolvedInitialMode}" data-print-variant="${initialVariant}">
@@ -5775,22 +5809,15 @@ export default function App() {
           <body data-print-mode="${resolvedInitialMode}" data-print-variant="${initialVariant}">
             <div class="preview-toolbar">
               <div class="preview-toolbar-info">
-                <h1>Pré-visualização da proposta</h1>
+                <h1>${resolvedToolbarTitle}</h1>
                 <p>${mensagemToolbar}</p>
                 ${codigoHtml}
               </div>
               <div class="preview-toolbar-actions">
                 <button type="button" data-action="print">Imprimir</button>
                 <button type="button" data-action="download">Baixar PDF</button>
-                <button
-                  type="button"
-                  data-action="toggle-buyout"
-                  class="secondary"
-                  data-label-default="Tabela de buyout"
-                  data-label-active="Voltar à proposta"
-                  aria-pressed="false"
-                >Tabela de buyout</button>
-                <button type="button" data-action="toggle-variant" class="secondary" data-label-simple="Versão Simples" data-label-standard="Versão Completa" aria-pressed="${initialVariant === 'simple' ? 'true' : 'false'}">Versão Simples</button>
+                ${buyoutToggleButtonHtml}
+                ${variantToggleButtonHtml}
                 <button type="button" data-action="close" class="secondary">Fechar</button>
               </div>
             </div>
@@ -8662,6 +8689,7 @@ export default function App() {
 
     const { html: layoutHtml, dados } = resultado
     pendingPreviewDataRef.current = {
+      kind: 'proposal',
       html: layoutHtml,
       dados,
     }
@@ -8715,19 +8743,26 @@ export default function App() {
         throw new Error('Não foi possível preparar o conteúdo da tabela para impressão.')
       }
 
-      await persistProposalPdf({
+      const nomeCliente = cliente.nome?.trim() || 'SolarInvest'
+
+      pendingPreviewDataRef.current = {
+        kind: 'buyout-table',
         html,
         budgetId: codigoOrcamento,
-        clientName: cliente.nome,
-        proposalType: 'LEASING',
-        fileName: `Tabela-Valor-de-Transferencia-${codigoOrcamento}.pdf`,
-        metadata: {
-          source: 'buyout-table',
-          variant: 'transferencia',
-        },
-      })
+        clientName: nomeCliente,
+      }
 
-      adicionarNotificacao('Tabela de valor de transferência salva em PDF.', 'success')
+      openBudgetPreviewWindow(html, {
+        nomeCliente,
+        budgetId: codigoOrcamento,
+        actionMessage:
+          'Revise a tabela de valor de transferência e utilize as ações para imprimir ou salvar como PDF.',
+        initialMode: 'preview',
+        initialVariant: 'standard',
+        toolbarTitle: 'Tabela de valor de transferência',
+        enableVariantToggle: false,
+        enableBuyoutToggle: false,
+      })
     } catch (error) {
       console.error('Erro ao salvar a tabela de valor de transferência em PDF.', error)
       const mensagem =
@@ -8747,6 +8782,7 @@ export default function App() {
     printableData.informacoesImportantesObservacao,
     tabelaBuyout,
     buyoutResumo,
+    openBudgetPreviewWindow,
     renderPrintableBuyoutTableToHtml,
   ])
 
@@ -8757,6 +8793,38 @@ export default function App() {
 
       if (!previewData) {
         return { proceed: true }
+      }
+
+      if (previewData.kind === 'buyout-table') {
+        if (_action === 'download') {
+          try {
+            await persistProposalPdf({
+              html: previewData.html,
+              budgetId: previewData.budgetId,
+              clientName: previewData.clientName,
+              proposalType: 'LEASING',
+              fileName: `Tabela-Valor-de-Transferencia-${previewData.budgetId}.pdf`,
+              metadata: {
+                source: 'buyout-table',
+                variant: 'transferencia',
+              },
+            })
+            adicionarNotificacao('Tabela de valor de transferência salva em PDF.', 'success')
+          } catch (error) {
+            console.error('Erro ao salvar a tabela de valor de transferência em PDF.', error)
+            const mensagem =
+              error instanceof Error && error.message
+                ? error.message
+                : 'Não foi possível salvar a tabela de valor de transferência. Tente novamente.'
+            adicionarNotificacao(mensagem, 'error')
+            return { proceed: false }
+          }
+        }
+
+        return {
+          proceed: true,
+          budgetId: previewData.budgetId,
+        }
       }
 
       const { dados } = previewData
