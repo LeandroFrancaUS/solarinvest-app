@@ -9303,63 +9303,41 @@ export default function App() {
         throw new Error('Não foi possível preparar o conteúdo da tabela para impressão.')
       }
 
-      const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
-      setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
-      if (!integracaoPdfDisponivel) {
-        adicionarNotificacao(
-          'Configure a integração de PDF para salvar a tabela de valor de transferência automaticamente.',
-          'info',
-        )
-        return
-      }
+      const nomeCliente = cliente.nome?.trim() || 'SolarInvest'
+      const budgetIdNormalizado = normalizeProposalId(codigoOrcamento)
 
-      await persistProposalPdf({
-        html,
-        budgetId: codigoOrcamento,
-        clientName: cliente.nome,
-        proposalType: 'LEASING',
-        fileName: `Tabela-Valor-de-Transferencia-${codigoOrcamento}.pdf`,
-        metadata: {
-          source: 'buyout-table',
-          variant: 'transferencia',
-        },
+      pendingPreviewDataRef.current = null
+
+      openBudgetPreviewWindow(html, {
+        nomeCliente,
+        budgetId: budgetIdNormalizado || codigoOrcamento,
+        actionMessage:
+          'Revise a tabela e utilize as ações da barra superior para imprimir ou baixar o PDF.',
+        initialMode: 'preview',
+        initialVariant: 'buyout',
       })
-
-      adicionarNotificacao('Tabela de valor de transferência salva em PDF.', 'success')
     } catch (error) {
-      if (error instanceof ProposalPdfIntegrationMissingError) {
-        setProposalPdfIntegrationAvailable(false)
-        if (typeof console !== 'undefined') {
-          console.info('Integração de PDF indisponível ao salvar tabela de transferência.')
-        }
-        adicionarNotificacao(
-          'Não foi possível salvar a tabela em PDF porque a integração de arquivos não está configurada.',
-          'info',
-        )
-      } else {
-        console.error('Erro ao salvar a tabela de valor de transferência em PDF.', error)
-        const mensagem =
-          error instanceof Error && error.message
-            ? error.message
-            : 'Não foi possível salvar a tabela de valor de transferência. Tente novamente.'
-        adicionarNotificacao(mensagem, 'error')
-      }
+      console.error('Erro ao preparar a tabela de valor de transferência para impressão.', error)
+      const mensagem =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Não foi possível abrir a visualização da tabela de valor de transferência. Tente novamente.'
+      adicionarNotificacao(mensagem, 'error')
     } finally {
       setGerandoTabelaTransferencia(false)
     }
-    }, [
-      adicionarNotificacao,
-      isProposalPdfIntegrationAvailable,
-      cliente,
-      duracaoMeses,
-      gerandoTabelaTransferencia,
-      printableData.budgetId,
-      printableData.informacoesImportantesObservacao,
-      tabelaBuyout,
-      buyoutResumo,
-      renderPrintableBuyoutTableToHtml,
-      setProposalPdfIntegrationAvailable,
-    ])
+  }, [
+    adicionarNotificacao,
+    cliente,
+    duracaoMeses,
+    gerandoTabelaTransferencia,
+    openBudgetPreviewWindow,
+    printableData.budgetId,
+    printableData.informacoesImportantesObservacao,
+    renderPrintableBuyoutTableToHtml,
+    tabelaBuyout,
+    buyoutResumo,
+  ])
 
   const handlePreviewActionRequest = useCallback(
     async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
