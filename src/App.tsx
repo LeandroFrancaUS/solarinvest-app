@@ -5695,6 +5695,14 @@ export default function App() {
               <div class="preview-toolbar-actions">
                 <button type="button" data-action="print">Imprimir</button>
                 <button type="button" data-action="download">Baixar PDF</button>
+                <button
+                  type="button"
+                  data-action="toggle-buyout"
+                  class="secondary"
+                  data-label-default="Tabela de buyout"
+                  data-label-active="Voltar à proposta"
+                  aria-pressed="false"
+                >Tabela de buyout</button>
                 <button type="button" data-action="toggle-variant" class="secondary" data-label-simple="Versão Simples" data-label-standard="Versão Completa" aria-pressed="${initialVariant === 'simple' ? 'true' : 'false'}">Versão Simples</button>
                 <button type="button" data-action="close" class="secondary">Fechar</button>
               </div>
@@ -5721,8 +5729,13 @@ export default function App() {
                 var downloadBtn = document.querySelector('[data-action=\"download\"]');
                 var closeBtn = document.querySelector('[data-action=\"close\"]');
                 var variantToggleBtn = document.querySelector('[data-action=\"toggle-variant\"]');
+                var buyoutToggleBtn = document.querySelector('[data-action=\"toggle-buyout\"]');
                 var previewContainer = document.querySelector('.preview-container');
                 var codigoNode = document.querySelector('.preview-toolbar-code');
+                var hasBuyoutSection = Boolean(document.querySelector('[data-print-section=\"buyout\"]'));
+                var buyoutDefaultLabel = buyoutToggleBtn ? (buyoutToggleBtn.getAttribute('data-label-default') || 'Tabela de buyout') : 'Tabela de buyout';
+                var buyoutActiveLabel = buyoutToggleBtn ? (buyoutToggleBtn.getAttribute('data-label-active') || 'Voltar à proposta') : 'Voltar à proposta';
+                var previousNonBuyoutVariant = defaultVariant === 'buyout' ? 'standard' : defaultVariant;
                 var updateToolbarCode = function(code){
                   if(!codigoNode){ return; }
                   var strong = codigoNode.querySelector('strong');
@@ -5772,8 +5785,33 @@ export default function App() {
                     window.print();
                   });
                 };
+                var updateBuyoutToggleState = function(){
+                  if(!buyoutToggleBtn){ return; }
+                  if(!hasBuyoutSection){
+                    buyoutToggleBtn.style.display = 'none';
+                    buyoutToggleBtn.setAttribute('aria-hidden', 'true');
+                    buyoutToggleBtn.setAttribute('tabindex', '-1');
+                    return;
+                  }
+                  buyoutToggleBtn.style.display = '';
+                  buyoutToggleBtn.removeAttribute('aria-hidden');
+                  buyoutToggleBtn.removeAttribute('tabindex');
+                  var isBuyout = currentVariant === 'buyout';
+                  buyoutToggleBtn.setAttribute('aria-pressed', isBuyout ? 'true' : 'false');
+                  buyoutToggleBtn.textContent = isBuyout ? buyoutActiveLabel : buyoutDefaultLabel;
+                };
                 var setVariant = function(nextVariant){
-                  var normalized = nextVariant === 'simple' ? 'simple' : 'standard';
+                  var normalized;
+                  if(nextVariant === 'simple'){
+                    normalized = 'simple';
+                  } else if(nextVariant === 'buyout' && hasBuyoutSection){
+                    normalized = 'buyout';
+                  } else {
+                    normalized = 'standard';
+                  }
+                  if(normalized !== 'buyout'){
+                    previousNonBuyoutVariant = normalized;
+                  }
                   currentVariant = normalized;
                   document.body.setAttribute('data-print-variant', currentVariant);
                   document.documentElement.setAttribute('data-print-variant', currentVariant);
@@ -5785,8 +5823,10 @@ export default function App() {
                     variantToggleBtn.setAttribute('aria-pressed', isSimple ? 'true' : 'false');
                     variantToggleBtn.title = isSimple ? 'Retornar ao layout completo' : 'Visual simplificado para impressão em preto e branco';
                   }
+                  updateBuyoutToggleState();
                 };
                 setVariant(defaultVariant);
+                updateBuyoutToggleState();
                 if(printBtn){
                   printBtn.addEventListener('click', function(){ performAction('print'); });
                 }
@@ -5799,6 +5839,16 @@ export default function App() {
                 if(variantToggleBtn){
                   variantToggleBtn.addEventListener('click', function(){
                     setVariant(currentVariant === 'simple' ? 'standard' : 'simple');
+                  });
+                }
+                if(buyoutToggleBtn && hasBuyoutSection){
+                  buyoutToggleBtn.addEventListener('click', function(){
+                    if(currentVariant === 'buyout'){
+                      var fallbackVariant = previousNonBuyoutVariant && previousNonBuyoutVariant !== 'buyout' ? previousNonBuyoutVariant : (defaultVariant === 'simple' ? 'simple' : 'standard');
+                      setVariant(fallbackVariant);
+                    } else {
+                      setVariant('buyout');
+                    }
                   });
                 }
                 window.addEventListener('beforeprint', function(){
