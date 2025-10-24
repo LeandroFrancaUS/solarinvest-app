@@ -80,6 +80,7 @@ import {
   vendaActions,
   type ModoVenda,
   type VendaKitItem,
+  type VendaSnapshot,
 } from './store/useVendaStore'
 import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta'
 import { useLeasingValorDeMercadoEstimado } from './store/useLeasingStore'
@@ -611,6 +612,7 @@ type OrcamentoSalvo = {
   clienteDocumento?: string | undefined
   clienteUc?: string | undefined
   dados: PrintableProposalProps
+  fingerprint?: string | undefined
 }
 
 type ClienteCampoTexto = {
@@ -737,6 +739,53 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
 
   return clone
 }
+
+const stableStringify = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value)
+  }
+
+  if (Array.isArray(value)) {
+    const serialized = value.map((item) => stableStringify(item === undefined ? null : item))
+    return `[${serialized.join(',')}]`
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, entryValue]) => entryValue !== undefined)
+    .map(([key, entryValue]) => [key, entryValue] as const)
+    .sort(([keyA], [keyB]) => (keyA < keyB ? -1 : keyA > keyB ? 1 : 0))
+
+  const serializedEntries = entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`)
+  return `{${serializedEntries.join(',')}}`
+}
+
+const sanitizeSnapshotForFingerprint = (snapshot: VendaSnapshot | undefined): VendaSnapshot | undefined => {
+  if (!snapshot) {
+    return undefined
+  }
+
+  try {
+    const cloned = JSON.parse(JSON.stringify(snapshot)) as VendaSnapshot
+    if (cloned.codigos) {
+      cloned.codigos.codigo_orcamento_interno = ''
+    }
+    return cloned
+  } catch (error) {
+    console.warn('Falha ao sanitizar snapshot da proposta para fingerprint.', error)
+    return undefined
+  }
+}
+
+const createProposalFingerprint = (dados: PrintableProposalProps): string => {
+  const base = clonePrintableData(dados)
+  delete base.budgetId
+  if (base.vendaSnapshot) {
+    base.vendaSnapshot = sanitizeSnapshotForFingerprint(base.vendaSnapshot)
+  }
+  return stableStringify(base)
+}
+
+type SalvarOrcamentoResultado = { registro: OrcamentoSalvo; reutilizado: boolean }
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
 
@@ -1316,6 +1365,25 @@ type BudgetPreviewOptions = {
   supportsBuyout?: boolean | undefined
 }
 
+type BudgetPreviewActionType = 'print' | 'download' | 'buyout-print'
+
+type BudgetPreviewActionRequest = {
+  type: BudgetPreviewActionType
+}
+
+type BudgetPreviewActionResult = {
+  allow?: boolean
+  budgetId?: string
+  updatedHtml?: string
+  mode?: PrintMode
+}
+
+type BudgetPreviewBridge = {
+  requestAction?: (payload: BudgetPreviewActionRequest) =>
+    | BudgetPreviewActionResult
+    | Promise<BudgetPreviewActionResult>
+}
+
 const hasPrintableBuyout = (dados: PrintableProposalProps): boolean =>
   dados.tipoProposta === 'LEASING' &&
   dados.mostrarTabelaBuyout !== false &&
@@ -1541,7 +1609,9 @@ export default function App() {
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
-  const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => makeProposalId())
+  const [currentProposalKey, setCurrentProposalKey] = useState<string>(() => makeProposalId())
+  const [currentBudgetId, setCurrentBudgetId] = useState<string>('')
+  const [budgetIdAssigned, setBudgetIdAssigned] = useState(false)
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetTableContentId = useId()
@@ -1625,7 +1695,7 @@ export default function App() {
   const [impostosOverridesDraft, setImpostosOverridesDraft] = useState<
     Partial<ImpostosRegimeConfig>
   >(() => cloneImpostosOverrides(vendasConfig.impostosRegime_overrides))
-  const vendasSimulacao = useVendasSimulacoesStore((state) => state.simulations[currentBudgetId])
+  const vendasSimulacao = useVendasSimulacoesStore((state) => state.simulations[currentProposalKey])
   const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
 
@@ -1644,8 +1714,8 @@ export default function App() {
   }, [vendasConfig.impostosRegime_overrides])
 
   useEffect(() => {
-    initializeVendasSimulacao(currentBudgetId)
-  }, [currentBudgetId, initializeVendasSimulacao])
+    initializeVendasSimulacao(currentProposalKey)
+  }, [currentProposalKey, initializeVendasSimulacao])
 
   const margemManualValorRaw = vendasSimulacao?.margemManualValor
   const margemManualAtiva =
@@ -2588,10 +2658,10 @@ export default function App() {
         return { ...prev, [campo]: finalValue }
       })
       if (campo === 'lucroBruto') {
-        updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
+        updateVendasSimulacao(currentProposalKey, { margemManualValor: finalValue })
       }
     },
-    [currentBudgetId, updateVendasSimulacao],
+    [currentProposalKey, updateVendasSimulacao],
   )
 
   const handleComposicaoSoloChange = useCallback(
@@ -2606,24 +2676,24 @@ export default function App() {
         return { ...prev, [campo]: finalValue }
       })
       if (campo === 'lucroBruto') {
-        updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
+        updateVendasSimulacao(currentProposalKey, { margemManualValor: finalValue })
       }
     },
-    [currentBudgetId, updateVendasSimulacao],
+    [currentProposalKey, updateVendasSimulacao],
   )
 
   const handleMargemManualInput = useCallback(
     (valor: number | null) => {
       if (valor === null || !Number.isFinite(valor)) {
-        updateVendasSimulacao(currentBudgetId, { margemManualValor: null })
+        updateVendasSimulacao(currentProposalKey, { margemManualValor: null })
         return
       }
       const finalValue = normalizeCurrencyNumber(valor)
       if (finalValue === null) {
-        updateVendasSimulacao(currentBudgetId, { margemManualValor: null })
+        updateVendasSimulacao(currentProposalKey, { margemManualValor: null })
         return
       }
-      updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
+      updateVendasSimulacao(currentProposalKey, { margemManualValor: finalValue })
       setComposicaoTelhado((prev) =>
         numbersAreClose(prev.lucroBruto, finalValue) ? prev : { ...prev, lucroBruto: finalValue },
       )
@@ -2631,7 +2701,7 @@ export default function App() {
         numbersAreClose(prev.lucroBruto, finalValue) ? prev : { ...prev, lucroBruto: finalValue },
       )
     },
-    [currentBudgetId, updateVendasSimulacao],
+    [currentProposalKey, updateVendasSimulacao],
   )
 
 
@@ -2639,9 +2709,9 @@ export default function App() {
     (valor: number | null) => {
       const sanitized =
         typeof valor === 'number' && Number.isFinite(valor) ? Math.max(0, valor) : 0
-      updateVendasSimulacao(currentBudgetId, { descontos: sanitized })
+      updateVendasSimulacao(currentProposalKey, { descontos: sanitized })
     },
-    [currentBudgetId, updateVendasSimulacao],
+    [currentProposalKey, updateVendasSimulacao],
   )
 
   const descontosMoneyField = useBRNumberField({
@@ -2653,13 +2723,13 @@ export default function App() {
   const handleCapexBaseResumoChange = useCallback(
     (valor: number | null) => {
       if (valor === null) {
-        updateVendasSimulacao(currentBudgetId, { capexBaseManual: null })
+        updateVendasSimulacao(currentProposalKey, { capexBaseManual: null })
         return
       }
       const sanitized = Number.isFinite(valor) ? Math.max(0, Number(valor)) : 0
-      updateVendasSimulacao(currentBudgetId, { capexBaseManual: sanitized })
+      updateVendasSimulacao(currentProposalKey, { capexBaseManual: sanitized })
     },
-    [currentBudgetId, updateVendasSimulacao],
+    [currentProposalKey, updateVendasSimulacao],
   )
 
   const validateVendaForm = useCallback((form: VendaForm) => {
@@ -3349,7 +3419,9 @@ export default function App() {
           ignoredByNoise: result.structured.meta?.ignoredByNoise ?? 0,
         })
         setBudgetStructuredItems(result.structured.itens)
-        setCurrentBudgetId(makeProposalId())
+        setCurrentBudgetId('')
+        setBudgetIdAssigned(false)
+        setCurrentProposalKey(makeProposalId())
         autoFillVendaFromBudget(result.structured, totalValue, result.plainText)
       } catch (error) {
         console.error('Erro ao processar orçamento', error)
@@ -5372,7 +5444,7 @@ export default function App() {
             retorno: vendaRetornoAuto,
           }
         : undefined
-      const sanitizedBudgetId = ensureProposalId(currentBudgetId)
+      const printableBudgetId = budgetIdAssigned && currentBudgetId ? currentBudgetId.trim() : undefined
       const sanitizeItemText = (valor?: string | null) => {
         const trimmed = valor?.toString().trim() ?? ''
         return trimmed && trimmed !== '—' ? trimmed : undefined
@@ -5438,7 +5510,7 @@ export default function App() {
 
       return {
         cliente,
-        budgetId: sanitizedBudgetId,
+        budgetId: printableBudgetId,
         anos: anosArray,
         leasingROI,
         financiamentoFluxo,
@@ -5533,6 +5605,7 @@ export default function App() {
       descontosValor,
       arredondarPasso,
       areaInstalacao,
+      budgetIdAssigned,
       currentBudgetId,
       anosArray,
       buyoutResumo,
@@ -5585,6 +5658,7 @@ export default function App() {
         initialVariant = 'standard',
         supportsBuyout = false,
       }: BudgetPreviewOptions,
+      bridge?: BudgetPreviewBridge,
     ) => {
       if (!layoutHtml) {
         window.alert('Não foi possível preparar a visualização do orçamento selecionado.')
@@ -5596,6 +5670,9 @@ export default function App() {
         window.alert('Não foi possível abrir a visualização. Verifique se o bloqueador de pop-ups está ativo.')
         return
       }
+
+      ;(printWindow as typeof window & { solarinvestPreviewBridge?: BudgetPreviewBridge }).solarinvestPreviewBridge =
+        bridge ?? {}
 
       const mensagemToolbar =
         actionMessage || 'Revise o conteúdo e utilize as ações para imprimir ou salvar como PDF.'
@@ -5719,16 +5796,101 @@ export default function App() {
                   }
                 };
                 setVariant(defaultVariant);
+                var previewBridge = window.solarinvestPreviewBridge || {};
+                var requestAction = typeof previewBridge.requestAction === 'function' ? previewBridge.requestAction : null;
+                var actionInFlight = false;
+                function updateBudgetDisplay(newBudgetId){
+                  if(!newBudgetId){
+                    return;
+                  }
+                  var toolbarInfo = document.querySelector('.preview-toolbar-info');
+                  var codeContainer = document.querySelector('.preview-toolbar-code');
+                  if(!codeContainer && toolbarInfo){
+                    codeContainer = document.createElement('p');
+                    codeContainer.className = 'preview-toolbar-code';
+                    codeContainer.innerHTML = 'Código do orçamento: <strong></strong>';
+                    toolbarInfo.appendChild(codeContainer);
+                  }
+                  if(codeContainer){
+                    codeContainer.style.display = '';
+                    codeContainer.hidden = false;
+                    var strongElement = codeContainer.querySelector('strong');
+                    if(strongElement){
+                      strongElement.textContent = newBudgetId;
+                    }
+                  }
+                  var budgetField = document.querySelector('.print-client-grid .print-client-field:first-child dd');
+                  if(budgetField){
+                    budgetField.textContent = newBudgetId;
+                  }
+                }
+                function replacePreviewContent(nextHtml){
+                  if(!nextHtml){
+                    return;
+                  }
+                  var container = document.querySelector('.preview-container');
+                  if(!container){
+                    return;
+                  }
+                  container.innerHTML = nextHtml;
+                  syncBuyoutVisibility();
+                }
+                function handleAction(actionType, onAllowed){
+                  if(!requestAction){
+                    if(typeof onAllowed === 'function'){
+                      onAllowed(null);
+                    }
+                    return;
+                  }
+                  if(actionInFlight){
+                    return;
+                  }
+                  actionInFlight = true;
+                  var maybeResult;
+                  try {
+                    maybeResult = requestAction({ type: actionType });
+                  } catch (error) {
+                    actionInFlight = false;
+                    console.error('Erro ao solicitar a ação de exportação.', error);
+                    return;
+                  }
+                  Promise.resolve(maybeResult)
+                    .then(function(result){
+                      actionInFlight = false;
+                      if(result && result.allow === false){
+                        return;
+                      }
+                      if(result && typeof result.budgetId === 'string' && result.budgetId){
+                        updateBudgetDisplay(result.budgetId);
+                      }
+                      if(result && typeof result.updatedHtml === 'string' && result.updatedHtml){
+                        replacePreviewContent(result.updatedHtml);
+                      }
+                      if(typeof onAllowed === 'function'){
+                        onAllowed(result && typeof result.mode === 'string' ? result.mode : null);
+                      }
+                    })
+                    .catch(function(error){
+                      actionInFlight = false;
+                      console.error('Erro ao processar a ação de exportação.', error);
+                    });
+                }
                 if(printBtn){
                   printBtn.addEventListener('click', function(){
-                    setPrintMode('print');
-                    window.print();
+                    handleAction('print', function(nextMode){
+                      var modeToUse = nextMode === 'download' ? 'download' : 'print';
+                      setPrintMode(modeToUse);
+                      window.print();
+                    });
                   });
                 }
                 if(downloadBtn){
                   downloadBtn.addEventListener('click', function(){
-                    setPrintMode('download');
-                    window.print();
+                    handleAction('download', function(nextMode){
+                      var modeToUse = nextMode && nextMode !== 'preview' ? nextMode : 'download';
+                      setPrintMode(modeToUse);
+                      window.print();
+                    });
                   });
                 }
                 if(closeBtn){
@@ -5743,9 +5905,20 @@ export default function App() {
                   buyoutBtn.addEventListener('click', function(){
                     if(currentVariant === 'buyout'){
                       setVariant(previousNonBuyoutVariant && previousNonBuyoutVariant !== 'buyout' ? previousNonBuyoutVariant : 'standard');
-                    } else {
-                      setVariant('buyout');
+                      return;
                     }
+                    var previousVariant = currentVariant;
+                    handleAction('buyout-print', function(){
+                      previousNonBuyoutVariant = previousVariant && previousVariant !== 'buyout' ? previousVariant : 'standard';
+                      setVariant('buyout');
+                      window.setTimeout(function(){
+                        setPrintMode('print');
+                        window.print();
+                        window.setTimeout(function(){
+                          setVariant(previousNonBuyoutVariant && previousNonBuyoutVariant !== 'buyout' ? previousNonBuyoutVariant : 'standard');
+                        }, 200);
+                      }, 120);
+                    });
                   });
                 }
                 window.addEventListener('beforeprint', function(){
@@ -8313,6 +8486,14 @@ export default function App() {
           tipoProposta: dados?.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
         }
 
+        let fingerprint = ''
+        try {
+          fingerprint = createProposalFingerprint(dadosNormalizados)
+        } catch (error) {
+          console.warn('Não foi possível gerar a assinatura do orçamento salvo.', error)
+          fingerprint = stableStringify(dadosNormalizados)
+        }
+
         const clienteIdArmazenado =
           sanitizeClienteId(
             registro.clienteId ??
@@ -8356,6 +8537,7 @@ export default function App() {
           clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
           clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
           dados: dadosNormalizados,
+          fingerprint,
         }
       })
     } catch (error) {
@@ -8365,7 +8547,7 @@ export default function App() {
   }, [carregarClientesSalvos])
 
   const salvarOrcamentoLocalmente = useCallback(
-    (dados: PrintableProposalProps): OrcamentoSalvo | null => {
+    (dados: PrintableProposalProps): SalvarOrcamentoResultado | null => {
       if (typeof window === 'undefined') {
         return null
       }
@@ -8373,25 +8555,65 @@ export default function App() {
       try {
         const registrosExistentes = carregarOrcamentosSalvos()
         const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
-        const novoId = generateBudgetId(existingIds)
         const dadosClonados = clonePrintableData(dados)
-        const registro: OrcamentoSalvo = {
-          id: novoId,
-          criadoEm: new Date().toISOString(),
-          clienteId: clienteEmEdicaoId ?? undefined,
-          clienteNome: dados.cliente.nome,
-          clienteCidade: dados.cliente.cidade,
-          clienteUf: dados.cliente.uf,
-          clienteDocumento: dados.cliente.documento,
-          clienteUc: dados.cliente.uc,
-          dados: { ...dadosClonados, budgetId: ensureProposalId(dadosClonados.budgetId ?? novoId) },
+        let fingerprint = ''
+        try {
+          fingerprint = createProposalFingerprint(dadosClonados)
+        } catch (error) {
+          console.warn('Não foi possível gerar a assinatura do orçamento atual.', error)
+          fingerprint = stableStringify(dadosClonados)
         }
 
-        existingIds.add(registro.id)
-        const registrosAtualizados = [registro, ...registrosExistentes]
+        const existente = registrosExistentes.find((registro) => registro.fingerprint === fingerprint)
+        const agoraIso = new Date().toISOString()
+        let registro: OrcamentoSalvo
+        let registrosAtualizados: OrcamentoSalvo[]
+        let reutilizado = false
+
+        if (existente) {
+          reutilizado = true
+          const budgetIdAtualizado = ensureProposalId(
+            dadosClonados.budgetId ?? existente.dados.budgetId ?? existente.id,
+          )
+          dadosClonados.budgetId = budgetIdAtualizado
+          registro = {
+            ...existente,
+            atualizadoEm: agoraIso,
+            clienteId: clienteEmEdicaoId ?? existente.clienteId,
+            clienteNome: dados.cliente.nome,
+            clienteCidade: dados.cliente.cidade,
+            clienteUf: dados.cliente.uf,
+            clienteDocumento: dados.cliente.documento,
+            clienteUc: dados.cliente.uc,
+            dados: dadosClonados,
+            fingerprint,
+          }
+          registrosAtualizados = [
+            registro,
+            ...registrosExistentes.filter((item) => item.id !== existente.id),
+          ]
+        } else {
+          const novoRegistroId = generateBudgetId(existingIds)
+          const budgetIdAtualizado = ensureProposalId(dadosClonados.budgetId ?? makeProposalId())
+          dadosClonados.budgetId = budgetIdAtualizado
+          registro = {
+            id: novoRegistroId,
+            criadoEm: agoraIso,
+            clienteId: clienteEmEdicaoId ?? undefined,
+            clienteNome: dados.cliente.nome,
+            clienteCidade: dados.cliente.cidade,
+            clienteUf: dados.cliente.uf,
+            clienteDocumento: dados.cliente.documento,
+            clienteUc: dados.cliente.uc,
+            dados: dadosClonados,
+            fingerprint,
+          }
+          registrosAtualizados = [registro, ...registrosExistentes]
+        }
+
         window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
         setOrcamentosSalvos(registrosAtualizados)
-        return registro
+        return { registro, reutilizado }
       } catch (error) {
         console.error('Erro ao salvar orçamento localmente.', error)
         window.alert('Não foi possível salvar o orçamento. Tente novamente.')
@@ -8428,6 +8650,31 @@ export default function App() {
     [setOrcamentosSalvos],
   )
 
+  const migrateSimulacaoParaId = useCallback(
+    (novoId: string) => {
+      if (!novoId || novoId === currentProposalKey) {
+        return
+      }
+      const simulacoesState = useVendasSimulacoesStore.getState()
+      const simulacaoAtual = simulacoesState.simulations[currentProposalKey]
+      if (!simulacaoAtual) {
+        setCurrentProposalKey(novoId)
+        return
+      }
+      useVendasSimulacoesStore.setState((state) => {
+        const { [currentProposalKey]: _removido, ...restante } = state.simulations
+        return {
+          simulations: {
+            ...restante,
+            [novoId]: { ...simulacaoAtual },
+          },
+        }
+      })
+      setCurrentProposalKey(novoId)
+    },
+    [currentProposalKey],
+  )
+
   const handleEficienciaInput = (valor: number) => {
     if (!Number.isFinite(valor)) {
       setEficiencia(0)
@@ -8448,15 +8695,6 @@ export default function App() {
       return
     }
 
-    const codigoOrcamento = ensureProposalId(currentBudgetId)
-    if (codigoOrcamento !== currentBudgetId) {
-      setCurrentBudgetId(codigoOrcamento)
-    }
-    vendaActions.updateCodigos({
-      codigo_orcamento_interno: codigoOrcamento,
-      data_emissao: new Date().toISOString().slice(0, 10),
-    })
-
     const resultado = await prepararPropostaParaExportacao({
       incluirTabelaBuyout: isVendaDiretaTab,
     })
@@ -8469,13 +8707,110 @@ export default function App() {
     const { html: layoutHtml, dados } = resultado
     const supportsBuyout = hasPrintableBuyout(dados)
     const nomeCliente = dados.cliente.nome?.trim() || 'SolarInvest'
-    openBudgetPreviewWindow(layoutHtml, {
-      nomeCliente,
-      budgetId: dados.budgetId,
-      actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
-      initialMode: 'preview',
-      supportsBuyout,
-    })
+    let bridgeActionInFlight = false
+
+    const previewBridge: BudgetPreviewBridge = {
+      requestAction: async ({ type }) => {
+        if (!clienteEmEdicaoId) {
+          return {
+            allow: true,
+            budgetId: budgetIdAssigned ? currentBudgetId : undefined,
+          }
+        }
+
+        if (budgetIdAssigned) {
+          return {
+            allow: true,
+            budgetId: currentBudgetId,
+          }
+        }
+
+        if (bridgeActionInFlight) {
+          return { allow: false }
+        }
+
+        const acaoDescricao =
+          type === 'download'
+            ? 'baixar o PDF'
+            : type === 'buyout-print'
+            ? 'imprimir a tabela de buyout'
+            : 'imprimir o documento'
+        const confirmarSalvamento = window.confirm(
+          `Deseja salvar este documento antes de ${acaoDescricao}?`,
+        )
+
+        if (!confirmarSalvamento) {
+          return { allow: true }
+        }
+
+        bridgeActionInFlight = true
+
+        try {
+          const resultadoLocal = salvarOrcamentoLocalmente(dados)
+          if (!resultadoLocal) {
+            window.alert('Não foi possível salvar o orçamento localmente. Tente novamente.')
+            return { allow: false }
+          }
+
+          const { registro } = resultadoLocal
+          const budgetIdFinal = ensureProposalId(registro.dados.budgetId ?? registro.id)
+          setCurrentBudgetId(budgetIdFinal)
+          setBudgetIdAssigned(true)
+          migrateSimulacaoParaId(budgetIdFinal)
+          vendaActions.updateCodigos({
+            codigo_orcamento_interno: budgetIdFinal,
+            data_emissao: new Date().toISOString().slice(0, 10),
+          })
+
+          let htmlAtualizado: string | null = null
+          try {
+            htmlAtualizado = await renderPrintableProposalToHtml(registro.dados)
+          } catch (error) {
+            console.error('Erro ao atualizar o layout para impressão.', error)
+          }
+
+          try {
+            if (!htmlAtualizado) {
+              throw new Error('Conteúdo atualizado indisponível para salvar o PDF.')
+            }
+            const proposalType = registro.dados.tipoProposta
+            await persistProposalPdf({
+              html: htmlAtualizado,
+              budgetId: budgetIdFinal,
+              clientName: registro.dados.cliente.nome,
+              proposalType,
+            })
+          } catch (error) {
+            console.error('Erro ao salvar a proposta durante a impressão.', error)
+            const mensagemErro =
+              error instanceof Error && error.message
+                ? error.message
+                : 'Não foi possível salvar a proposta antes da impressão.'
+            adicionarNotificacao(mensagemErro, 'error')
+          }
+
+          return {
+            allow: true,
+            budgetId: budgetIdFinal,
+            updatedHtml: htmlAtualizado ?? undefined,
+          }
+        } finally {
+          bridgeActionInFlight = false
+        }
+      },
+    }
+
+    openBudgetPreviewWindow(
+      layoutHtml,
+      {
+        nomeCliente,
+        budgetId: dados.budgetId,
+        actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
+        initialMode: 'preview',
+        supportsBuyout,
+      },
+      previewBridge,
+    )
   }
 
   const handleSalvarPropostaPdf = useCallback(async () => {
@@ -8487,18 +8822,12 @@ export default function App() {
       return
     }
 
-    const codigoOrcamento = ensureProposalId(currentBudgetId)
-    if (codigoOrcamento !== currentBudgetId) {
-      setCurrentBudgetId(codigoOrcamento)
+    if (!clienteEmEdicaoId) {
+      window.alert('Salve os dados do cliente antes de salvar a proposta.')
+      return
     }
-    vendaActions.updateCodigos({
-      codigo_orcamento_interno: codigoOrcamento,
-      data_emissao: new Date().toISOString().slice(0, 10),
-    })
 
     setSalvandoPropostaPdf(true)
-
-    let salvouLocalmente = false
 
     try {
       const resultado = await prepararPropostaParaExportacao({
@@ -8510,19 +8839,44 @@ export default function App() {
         return
       }
 
-      const { html, dados } = resultado
-      salvouLocalmente = Boolean(salvarOrcamentoLocalmente(dados))
-      const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
+      const { dados } = resultado
+      const resultadoLocal = salvarOrcamentoLocalmente(dados)
+      if (!resultadoLocal) {
+        window.alert('Não foi possível salvar o orçamento localmente. Tente novamente.')
+        return
+      }
 
+      const { registro, reutilizado } = resultadoLocal
+      const budgetIdFinal = ensureProposalId(registro.dados.budgetId ?? registro.id)
+      setCurrentBudgetId(budgetIdFinal)
+      setBudgetIdAssigned(true)
+      migrateSimulacaoParaId(budgetIdFinal)
+      vendaActions.updateCodigos({
+        codigo_orcamento_interno: budgetIdFinal,
+        data_emissao: new Date().toISOString().slice(0, 10),
+      })
+
+      let htmlAtualizado: string | null = null
+      try {
+        htmlAtualizado = await renderPrintableProposalToHtml(registro.dados)
+      } catch (error) {
+        console.error('Erro ao preparar o conteúdo para o PDF.', error)
+      }
+
+      if (!htmlAtualizado) {
+        throw new Error('Não foi possível preparar o conteúdo atualizado do PDF.')
+      }
+
+      const proposalType = registro.dados.tipoProposta
       await persistProposalPdf({
-        html,
-        budgetId: dados.budgetId,
-        clientName: dados.cliente.nome,
+        html: htmlAtualizado,
+        budgetId: budgetIdFinal,
+        clientName: registro.dados.cliente.nome,
         proposalType,
       })
 
-      const mensagemSucesso = salvouLocalmente
-        ? 'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.'
+      const mensagemSucesso = reutilizado
+        ? 'Proposta atualizada com sucesso. Nenhum novo número de orçamento foi criado.'
         : 'Proposta salva em PDF com sucesso.'
       adicionarNotificacao(mensagemSucesso, 'success')
     } catch (error) {
@@ -8531,18 +8885,15 @@ export default function App() {
         error instanceof Error && error.message
           ? error.message
           : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
-      const mensagemComFallback = salvouLocalmente
-        ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
-        : mensagem
-      adicionarNotificacao(mensagemComFallback, 'error')
+      adicionarNotificacao(mensagem, 'error')
     } finally {
       setSalvandoPropostaPdf(false)
     }
   }, [
-    activeTab,
     adicionarNotificacao,
-    currentBudgetId,
+    clienteEmEdicaoId,
     isVendaDiretaTab,
+    migrateSimulacaoParaId,
     prepararPropostaParaExportacao,
     salvarOrcamentoLocalmente,
     salvandoPropostaPdf,
@@ -8554,7 +8905,9 @@ export default function App() {
     setIsSettingsOpen(false)
     setIsBudgetSearchOpen(false)
     setOrcamentoSearchTerm('')
-    setCurrentBudgetId(makeProposalId())
+    setCurrentBudgetId('')
+    setBudgetIdAssigned(false)
+    setCurrentProposalKey(makeProposalId())
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
     setIsBudgetProcessing(false)
