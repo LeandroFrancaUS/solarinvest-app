@@ -317,3 +317,20 @@ export const handleContractRenderRequest = async (req, res) => {
     res.end(JSON.stringify({ error: message }))
   }
 }
+
+export const createContractRenderMiddleware = () =>
+  async (req, res, next) => {
+    if (!req.url) {
+      next()
+      return
+    }
+
+    const url = new URL(req.url, 'http://localhost')
+    if (url.pathname !== CONTRACT_RENDER_PATH) {
+      next()
+      return
+    }
+
+    await handleContractRenderRequest(req, res)
+    return
+  }
