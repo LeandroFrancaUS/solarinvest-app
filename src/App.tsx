@@ -9469,10 +9469,25 @@ export default function App() {
     setIsBudgetSearchOpen(false)
   }
 
+  const budgetCodeDisplay = useMemo(() => {
+    return normalizeProposalId(printableData.budgetId) || null
+  }, [printableData.budgetId])
+
   const renderClienteDadosSection = () => (
     <section className="card">
       <div className="card-header">
         <h2>Dados do cliente</h2>
+        {budgetCodeDisplay ? (
+          <div
+            className="budget-code-badge"
+            role="status"
+            aria-live="polite"
+            aria-label="Código do orçamento salvo"
+          >
+            <span className="budget-code-badge__label">Orçamento</span>
+            <span className="budget-code-badge__value">{budgetCodeDisplay}</span>
+          </div>
+        ) : null}
       </div>
       <div className="grid g2">
         <Field
