@@ -641,9 +641,15 @@ button.secondary.danger:focus-visible {
 
 .multi-uc-header {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.multi-uc-title-row {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  align-items: center;
   flex-wrap: wrap;
 }
 
@@ -654,7 +660,7 @@ button.secondary.danger:focus-visible {
 }
 
 .multi-uc-header p {
-  margin: 4px 0 0 0;
+  margin: 0;
   max-width: 680px;
   color: var(--muted);
   font-size: var(--font-s);
