@@ -802,7 +802,9 @@ function PrintableProposalInner(
   const totalCondicoesLinhas =
     condicoesPagamentoRows.length + condicoesParceladoRows.length + condicoesFinanciamentoRows.length
   const mostrarTabelaCondicoes = totalCondicoesLinhas > 0
-  const heroTitle = isVendaDireta ? 'Proposta de Venda Solar' : 'Proposta de Leasing Solar'
+  const heroTitle = isVendaDireta
+    ? 'Proposta de Aquisição de Sistema de Energia Solar com a SolarInvest'
+    : 'Proposta de Leasing Solar'
   const heroTagline = isVendaDireta
     ? 'Energia inteligente, patrimônio garantido'
     : 'Energia inteligente, sem desembolso'
