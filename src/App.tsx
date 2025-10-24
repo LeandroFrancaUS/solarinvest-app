@@ -9824,7 +9824,14 @@ export default function App() {
         const url = window.URL.createObjectURL(blob)
         const novaAba = window.open(url, '_blank', 'noopener')
         if (!novaAba) {
-          window.location.href = url
+          const fallbackAnchor = document.createElement('a')
+          fallbackAnchor.href = url
+          fallbackAnchor.target = '_blank'
+          fallbackAnchor.rel = 'noopener'
+          fallbackAnchor.style.display = 'none'
+          document.body.appendChild(fallbackAnchor)
+          fallbackAnchor.click()
+          document.body.removeChild(fallbackAnchor)
         }
         window.setTimeout(() => {
           window.URL.revokeObjectURL(url)
