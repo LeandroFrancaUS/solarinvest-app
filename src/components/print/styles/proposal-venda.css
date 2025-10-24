@@ -71,6 +71,12 @@
   gap: 8px;
 }
 
+.print-hero__headline {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .print-hero__eyebrow {
   font-size: 12px;
   letter-spacing: 0.28em;
@@ -86,6 +92,13 @@
   font-weight: 700;
   color: inherit;
   text-shadow: 0 10px 36px rgba(12, 22, 44, 0.45);
+}
+
+.print-hero__title-logo {
+  height: 5.4em;
+  width: auto;
+  display: block;
+  filter: drop-shadow(0 8px 22px rgba(12, 22, 44, 0.45));
 }
 
 html[data-print-mode='print'] .print-hero__title h1 {
