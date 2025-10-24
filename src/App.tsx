@@ -13704,7 +13704,8 @@ export default function App() {
                   ) : null}
                   {!proposalPdfIntegrationAvailable ? (
                     <span className="muted integration-hint" role="status">
-                      Integração de PDF não configurada. O arquivo será gerado apenas após configurar o conector.
+                      Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção
+                      “Imprimir” para gerar o PDF manualmente.
                     </span>
                   ) : null}
                 </div>
