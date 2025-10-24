@@ -153,7 +153,7 @@ export const INITIAL_VALUES = {
   distribuidoraTarifa: 'Equatorial Goiás',
   mesReajuste: 6,
   kcKwhMes: 0,
-  tarifaCheia: 0.964,
+  tarifaCheia: 1.1446,
   desconto: 20,
   taxaMinima: 0,
   encargosFixosExtras: 0,
