@@ -210,6 +210,11 @@ const cleanupTmpFiles = async (...files) => {
   )
 }
 
+const MACOS_LIBREOFFICE_BINARIES = [
+  '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+  '/Applications/LibreOffice.app/Contents/MacOS/soffice.bin',
+]
+
 const getLibreOfficeCandidates = () => {
   const configured = typeof process.env.LIBREOFFICE_BIN === 'string'
     ? process.env.LIBREOFFICE_BIN.trim()
@@ -218,6 +223,10 @@ const getLibreOfficeCandidates = () => {
   const candidates = []
   if (configured) {
     candidates.push(configured)
+  }
+
+  if (process.platform === 'darwin') {
+    candidates.push(...MACOS_LIBREOFFICE_BINARIES)
   }
 
   candidates.push('soffice', 'libreoffice', 'lowriter')
