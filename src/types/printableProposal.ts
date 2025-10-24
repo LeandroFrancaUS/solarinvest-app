@@ -178,6 +178,7 @@ export type PrintableProposalProps = {
   mostrarFinanciamento: boolean
   tabelaBuyout: BuyoutRow[]
   buyoutResumo: BuyoutResumo
+  mostrarTabelaBuyout?: boolean | undefined
   capex: number
   tipoProposta: PrintableProposalTipo
   geracaoMensalKwh: number
