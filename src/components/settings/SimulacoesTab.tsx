@@ -4,6 +4,7 @@ import { labelWithTooltip } from '../InfoTooltip'
 import {
   calcEconomiaContrato,
   calcEconomiaHorizonte,
+  calcCapexFromValorMercado,
   calcKPIs,
   calcSimulacaoDetalhesMensais,
   calcTarifaComDesconto,
@@ -146,14 +147,18 @@ export function SimulacoesTab({
   const selectSimulations = useSimulationsStore((state) => state.select)
   const clearSelection = useSimulationsStore((state) => state.clearSelection)
 
-  const [current, setCurrent] = useState<Simulacao>(() =>
-    createDefaultSimulation({
+  const capexAutoRef = useRef<number | null>(null)
+
+  const [current, setCurrent] = useState<Simulacao>(() => {
+    const initial = createDefaultSimulation({
       consumoKwhMes,
       valorInvestimento,
       prazoLeasingAnos,
       tipoSistema,
-    }),
-  )
+    })
+    capexAutoRef.current = initial.capex_solarinvest
+    return initial
+  })
   const [tusdTouched, setTusdTouched] = useState(false)
   const [comparisonHorizon, setComparisonHorizon] = useState<number>(30)
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
@@ -214,9 +219,51 @@ export function SimulacoesTab({
         return prev
       }
 
+      if (patch.capex_solarinvest !== undefined) {
+        capexAutoRef.current = patch.capex_solarinvest
+      }
+
       return { ...prev, ...patch }
     })
   }, [consumoKwhMes, valorInvestimento, prazoLeasingAnos, tipoSistema, isSaved])
+
+  useEffect(() => {
+    if (capexAutoRef.current == null) {
+      return
+    }
+
+    const defaults = defaultsRef.current
+    const baseConsumo = defaults?.consumo && defaults.consumo > 0 ? defaults.consumo : consumoKwhMes
+    const baseCapex = defaults?.capex && defaults.capex > 0 ? defaults.capex : valorInvestimento
+
+    if (!Number.isFinite(baseConsumo) || baseConsumo <= 0) {
+      return
+    }
+    if (!Number.isFinite(baseCapex) || baseCapex <= 0) {
+      return
+    }
+    if (!Number.isFinite(current.kc_kwh_mes) || current.kc_kwh_mes <= 0) {
+      return
+    }
+
+    const ratio = baseCapex / baseConsumo
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return
+    }
+
+    const nextCapex = ratio * current.kc_kwh_mes
+    if (!Number.isFinite(nextCapex) || Math.abs(current.capex_solarinvest - nextCapex) < 0.5) {
+      return
+    }
+
+    setCurrent((prev) => {
+      if (Math.abs(prev.capex_solarinvest - nextCapex) < 0.5) {
+        return prev
+      }
+      capexAutoRef.current = nextCapex
+      return { ...prev, capex_solarinvest: nextCapex }
+    })
+  }, [current.kc_kwh_mes, consumoKwhMes, valorInvestimento])
 
   const valorMercado = useMemo(() => calcValorMercado(current.capex_solarinvest), [current.capex_solarinvest])
   const tarifaComDesconto = useMemo(
@@ -317,6 +364,17 @@ export function SimulacoesTab({
     }
   }
 
+  const handleValorMercadoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = toNumberFlexible(event.target.value)
+    const valorMercadoInput = parsed ?? 0
+    const capexNormalizado = calcCapexFromValorMercado(valorMercadoInput)
+    capexAutoRef.current = null
+    setCurrent((prev) => ({
+      ...prev,
+      capex_solarinvest: capexNormalizado,
+    }))
+  }
+
   const handleTextChange = (field: 'nome' | 'obs') => (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -354,14 +412,14 @@ export function SimulacoesTab({
     }
 
   const handleNewSimulation = () => {
-    setCurrent(
-      createDefaultSimulation({
-        consumoKwhMes,
-        valorInvestimento,
-        prazoLeasingAnos,
-        tipoSistema,
-      }),
-    )
+    const next = createDefaultSimulation({
+      consumoKwhMes,
+      valorInvestimento,
+      prazoLeasingAnos,
+      tipoSistema,
+    })
+    capexAutoRef.current = next.capex_solarinvest
+    setCurrent(next)
     setTusdTouched(false)
   }
 
@@ -394,7 +452,9 @@ export function SimulacoesTab({
     if (isSaved) {
       const stored = itemsById[current.id]
       if (stored) {
-        setCurrent(cloneSimulation(stored))
+        const clone = cloneSimulation(stored)
+        capexAutoRef.current = null
+        setCurrent(clone)
         setTusdTouched(true)
         return
       }
@@ -412,7 +472,9 @@ export function SimulacoesTab({
     removeSimulation(current.id)
     const fallback = previousList.filter((sim) => sim.id !== current.id)[Math.max(0, index - 1)]
     if (fallback) {
-      setCurrent(cloneSimulation(fallback))
+      const clone = cloneSimulation(fallback)
+      capexAutoRef.current = null
+      setCurrent(clone)
       setTusdTouched(true)
     } else {
       handleNewSimulation()
@@ -423,7 +485,9 @@ export function SimulacoesTab({
     if (isSaved) {
       const duplicated = duplicateSimulation(current.id)
       if (duplicated) {
-        setCurrent(cloneSimulation(duplicated))
+        const clone = cloneSimulation(duplicated)
+        capexAutoRef.current = null
+        setCurrent(clone)
         setTusdTouched(true)
       }
       return
@@ -437,6 +501,7 @@ export function SimulacoesTab({
       createdAt: now,
       updatedAt: now,
     }
+    capexAutoRef.current = null
     setCurrent(clone)
   }
 
@@ -445,7 +510,9 @@ export function SimulacoesTab({
     if (!stored) {
       return
     }
-    setCurrent(cloneSimulation(stored))
+    const clone = cloneSimulation(stored)
+    capexAutoRef.current = null
+    setCurrent(clone)
     setTusdTouched(true)
   }
 
@@ -521,6 +588,173 @@ export function SimulacoesTab({
         </aside>
 
         <div className="simulations-form-area">
+          <section className="simulations-table">
+            <div className="simulations-table-header">
+              <div>
+                <h5>Comparativo de cenários</h5>
+                <p>Selecione os cenários desejados para gerar o comparativo.</p>
+              </div>
+              <div className="simulations-table-actions">
+                <label htmlFor="economy-horizon">
+                  {labelWithTooltip(
+                    'Economia (anos)',
+                    'Seleciona o horizonte usado para calcular a coluna "Economia (N anos)" no comparativo.',
+                  )}
+                </label>
+                <select className="cfg-input"
+                  id="economy-horizon"
+                  value={comparisonHorizon}
+                  onChange={(event) => setComparisonHorizon(Number(event.target.value))}
+                >
+                  {ECONOMIA_ANOS_OPTIONS.map((anos) => (
+                    <option key={anos} value={anos}>
+                      {anos} anos
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="secondary" onClick={clearSelection} disabled={selectedIds.length === 0}>
+                  Limpar seleção
+                </button>
+              </div>
+            </div>
+
+            {comparisonRows.length === 0 ? (
+              <p className="muted simulations-empty">Selecione ao menos uma simulação salva para comparar.</p>
+            ) : (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th className="simulations-expand-header" aria-label="Expandir" />
+                      <th>{labelWithTooltip('Cenário', 'Nome do cenário salvo usado para identificar cada linha do comparativo.')}</th>
+                      <th>
+                        {labelWithTooltip(
+                          'Desconto',
+                          'Percentual de desconto aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
+                        )}
+                      </th>
+                      <th>
+                        {labelWithTooltip('Prazo (meses)', 'Prazo total do contrato em meses: Anos × 12.')}
+                      </th>
+                      <th>
+                        {labelWithTooltip('Consumo (kWh/mês)', 'Consumo médio mensal utilizado em todas as projeções financeiras.')}
+                      </th>
+                      <th>
+                        {labelWithTooltip('Tarifa cheia (mês 1)', 'Tarifa sem desconto considerada no primeiro mês.')}
+                      </th>
+                      <th>
+                        {labelWithTooltip(
+                          'Tarifa com desconto (mês 1)',
+                          'Tarifa cheia do mês 1 com o desconto contratado aplicado.',
+                        )}
+                      </th>
+                      <th>
+                        {labelWithTooltip('Encargo TUSD', 'Encargo TUSD projetado para o primeiro mês da simulação.')}
+                      </th>
+                      <th>
+                        {labelWithTooltip('Custos variáveis', 'Total de OPEX do cenário, composto principalmente pelo seguro.')}
+                      </th>
+                      <th>
+                        {labelWithTooltip('Receita total', 'Soma das receitas mensais obtidas com a venda de energia.')}
+                      </th>
+                      <th>
+                        {labelWithTooltip('Lucro líquido', 'Lucro líquido = Receita total - CAPEX - Custos variáveis.')}
+                      </th>
+                      <th>{labelWithTooltip('ROI', 'Lucro líquido dividido pelo CAPEX investido.')}</th>
+                      <th>
+                        {labelWithTooltip('Payback', 'Menor mês em que o fluxo acumulado iguala ou supera o CAPEX investido.')}
+                      </th>
+                      <th>
+                        {labelWithTooltip(
+                          'Retorno a.m. bruto',
+                          'Taxa mensal equivalente do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
+                        )}
+                      </th>
+                      <th>
+                        {labelWithTooltip(
+                          `Economia (${comparisonHorizon} anos)`,
+                          'Resultado de calcEconomiaHorizonte usando o horizonte selecionado acima.',
+                        )}
+                      </th>
+                      <th>
+                        {labelWithTooltip(
+                          'Economia acumulada',
+                          'Valor retornado por calcEconomiaContrato: economia líquida do contrato + valor de mercado + OPEX recuperado.',
+                        )}
+                      </th>
+                      <th>{labelWithTooltip('Observações', 'Notas livres registradas no cenário.')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparisonRows.map(
+                      ({
+                        sim,
+                        tarifaDesconto,
+                        encargoTusd,
+                        indicadores,
+                        economiaContratoSim,
+                        economiaHorizon,
+                        detalhesMensais,
+                      }) => {
+                        const prazo = Math.max(0, Math.round(sim.anos_contrato * 12))
+                        const tarifaCheia = projectTarifaCheia(sim.tarifa_cheia_r_kwh_m1, sim.inflacao_energetica_pct, 1)
+                        const isExpanded = Boolean(expandedRows[sim.id])
+                        const detailRowId = `sim-details-${sim.id}`
+                        return (
+                          <React.Fragment key={sim.id}>
+                            <tr className={isExpanded ? 'expanded' : undefined}>
+                              <td className="simulations-expand-cell">
+                                <button
+                                  type="button"
+                                  className="simulations-expand-button"
+                                  onClick={() => toggleExpandedRow(sim.id)}
+                                  aria-expanded={isExpanded}
+                                  aria-controls={detailRowId}
+                                  aria-label={`${isExpanded ? 'Recolher' : 'Expandir'} cenário`}
+                                >
+                                  {isExpanded ? '−' : '+'}
+                                </button>
+                              </td>
+                              <td className="simulations-scenario-cell">{sim.nome?.trim() || sim.id}</td>
+                              <td>{formatPercentBR(sim.desconto_pct / 100)}</td>
+                              <td>
+                                {formatNumberBRWithOptions(prazo, {
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0,
+                                })}
+                              </td>
+                              <td>{formatNumberBR(sim.kc_kwh_mes)}</td>
+                              <td>{formatMoneyBR(tarifaCheia)}</td>
+                              <td>{formatMoneyBR(tarifaDesconto)}</td>
+                              <td>{formatMoneyBR(encargoTusd)}</td>
+                              <td>{formatMoneyBR(indicadores.custosVariaveis)}</td>
+                              <td>{formatMoneyBR(indicadores.receitaTotal)}</td>
+                              <td>{formatMoneyBR(indicadores.lucroLiquido)}</td>
+                              <td>{formatPercentValue(indicadores.roi)}</td>
+                              <td>{formatPayback(indicadores.paybackMeses)}</td>
+                              <td>{formatPercentValue(indicadores.retornoMensalBruto)}</td>
+                              <td>{formatMoneyBR(economiaHorizon)}</td>
+                              <td>{formatMoneyBR(economiaContratoSim)}</td>
+                              <td>{sim.obs?.trim() || '—'}</td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className="simulation-details-row">
+                                <td className="simulations-expand-cell" />
+                                <td colSpan={16} id={detailRowId}>
+                                  <SimulationDetailsTable detalhes={detalhesMensais} prazo={prazo} />
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        )
+                      },
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
           <section className="simulations-form-card">
             <header>
               <h4>Configurações da simulação</h4>
@@ -567,18 +801,18 @@ export function SimulacoesTab({
               </div>
 
               <div className="field cfg-field">
-                <label className="field-label cfg-label" htmlFor="sim-capex">
+                <label className="field-label cfg-label" htmlFor="sim-valor-mercado">
                   {labelWithTooltip(
-                    'CAPEX SolarInvest (R$)',
-                    'Investimento total previsto para o projeto. Valor de mercado estimado = CAPEX × 1,29.',
+                    'Valor de Mercado (R$)',
+                    'Estimativa de recompra da usina. CAPEX considerado nos cálculos = Valor de mercado ÷ 1,29.',
                   )}
                 </label>
                 <div className="field-control cfg-control">
                   <input className="cfg-input"
-                    id="sim-capex"
+                    id="sim-valor-mercado"
                     type="number"
-                    value={current.capex_solarinvest}
-                    onChange={handleNumberChange('capex_solarinvest')}
+                    value={valorMercado}
+                    onChange={handleValorMercadoChange}
                     onFocus={selectNumberInputOnFocus}
                     min={0}
                     step="100"
@@ -871,7 +1105,7 @@ export function SimulacoesTab({
                 <span>
                   {labelWithTooltip(
                     'Valor de mercado',
-                    'Estimativa para recompra ao fim do contrato: Valor de mercado = CAPEX × 1,29.',
+                    'Estimativa para recompra ao fim do contrato. CAPEX considerado nos cálculos = Valor de mercado ÷ 1,29.',
                   )}
                 </span>
                 <strong>{formatMoneyBR(valorMercado)}</strong>
@@ -1007,172 +1241,6 @@ export function SimulacoesTab({
         </div>
       </div>
 
-      <section className="simulations-table">
-        <div className="simulations-table-header">
-          <div>
-            <h5>Comparativo de cenários</h5>
-            <p>Selecione os cenários desejados para gerar o comparativo.</p>
-          </div>
-          <div className="simulations-table-actions">
-            <label htmlFor="economy-horizon">
-              {labelWithTooltip(
-                'Economia (anos)',
-                'Seleciona o horizonte usado para calcular a coluna "Economia (N anos)" no comparativo.',
-              )}
-            </label>
-            <select className="cfg-input"
-              id="economy-horizon"
-              value={comparisonHorizon}
-              onChange={(event) => setComparisonHorizon(Number(event.target.value))}
-            >
-              {ECONOMIA_ANOS_OPTIONS.map((anos) => (
-                <option key={anos} value={anos}>
-                  {anos} anos
-                </option>
-              ))}
-            </select>
-            <button type="button" className="secondary" onClick={clearSelection} disabled={selectedIds.length === 0}>
-              Limpar seleção
-            </button>
-          </div>
-        </div>
-
-        {comparisonRows.length === 0 ? (
-          <p className="muted simulations-empty">Selecione ao menos uma simulação salva para comparar.</p>
-        ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th className="simulations-expand-header" aria-label="Expandir" />
-                  <th>{labelWithTooltip('Cenário', 'Nome do cenário salvo usado para identificar cada linha do comparativo.')}</th>
-                  <th>
-                    {labelWithTooltip(
-                      'Desconto',
-                      'Percentual de desconto aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
-                    )}
-                  </th>
-                  <th>
-                    {labelWithTooltip('Prazo (meses)', 'Prazo total do contrato em meses: Anos × 12.')}
-                  </th>
-                  <th>
-                    {labelWithTooltip('Consumo (kWh/mês)', 'Consumo médio mensal utilizado em todas as projeções financeiras.')}
-                  </th>
-                  <th>
-                    {labelWithTooltip('Tarifa cheia (mês 1)', 'Tarifa sem desconto considerada no primeiro mês.')}
-                  </th>
-                  <th>
-                    {labelWithTooltip(
-                      'Tarifa com desconto (mês 1)',
-                      'Tarifa cheia do mês 1 com o desconto contratado aplicado.',
-                    )}
-                  </th>
-                  <th>
-                    {labelWithTooltip('Encargo TUSD', 'Encargo TUSD projetado para o primeiro mês da simulação.')}
-                  </th>
-                  <th>
-                    {labelWithTooltip('Custos variáveis', 'Total de OPEX do cenário, composto principalmente pelo seguro.')}
-                  </th>
-                  <th>
-                    {labelWithTooltip('Receita total', 'Soma das receitas mensais obtidas com a venda de energia.')}
-                  </th>
-                  <th>
-                    {labelWithTooltip('Lucro líquido', 'Lucro líquido = Receita total - CAPEX - Custos variáveis.')}
-                  </th>
-                  <th>{labelWithTooltip('ROI', 'Lucro líquido dividido pelo CAPEX investido.')}</th>
-                  <th>
-                    {labelWithTooltip('Payback', 'Menor mês em que o fluxo acumulado iguala ou supera o CAPEX investido.')}
-                  </th>
-                  <th>
-                    {labelWithTooltip(
-                      'Retorno a.m. bruto',
-                      'Taxa mensal equivalente do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
-                    )}
-                  </th>
-                  <th>
-                    {labelWithTooltip(
-                      `Economia (${comparisonHorizon} anos)`,
-                      'Resultado de calcEconomiaHorizonte usando o horizonte selecionado acima.',
-                    )}
-                  </th>
-                  <th>
-                    {labelWithTooltip(
-                      'Economia acumulada',
-                      'Valor retornado por calcEconomiaContrato: economia líquida do contrato + valor de mercado + OPEX recuperado.',
-                    )}
-                  </th>
-                  <th>{labelWithTooltip('Observações', 'Notas livres registradas no cenário.')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comparisonRows.map(
-                  ({
-                    sim,
-                    tarifaDesconto,
-                    encargoTusd,
-                    indicadores,
-                    economiaContratoSim,
-                    economiaHorizon,
-                    detalhesMensais,
-                  }) => {
-                    const prazo = Math.max(0, Math.round(sim.anos_contrato * 12))
-                    const tarifaCheia = projectTarifaCheia(sim.tarifa_cheia_r_kwh_m1, sim.inflacao_energetica_pct, 1)
-                    const isExpanded = Boolean(expandedRows[sim.id])
-                    const detailRowId = `sim-details-${sim.id}`
-                    return (
-                      <React.Fragment key={sim.id}>
-                        <tr className={isExpanded ? 'expanded' : undefined}>
-                          <td className="simulations-expand-cell">
-                            <button
-                              type="button"
-                              className="simulations-expand-button"
-                              onClick={() => toggleExpandedRow(sim.id)}
-                              aria-expanded={isExpanded}
-                              aria-controls={detailRowId}
-                              aria-label={`${isExpanded ? 'Recolher' : 'Expandir'} cenário`}
-                            >
-                              {isExpanded ? '−' : '+'}
-                            </button>
-                          </td>
-                          <td className="simulations-scenario-cell">{sim.nome?.trim() || sim.id}</td>
-                          <td>{formatPercentBR(sim.desconto_pct / 100)}</td>
-                          <td>
-                            {formatNumberBRWithOptions(prazo, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0,
-                            })}
-                          </td>
-                          <td>{formatNumberBR(sim.kc_kwh_mes)}</td>
-                          <td>{formatMoneyBR(tarifaCheia)}</td>
-                          <td>{formatMoneyBR(tarifaDesconto)}</td>
-                          <td>{formatMoneyBR(encargoTusd)}</td>
-                          <td>{formatMoneyBR(indicadores.custosVariaveis)}</td>
-                          <td>{formatMoneyBR(indicadores.receitaTotal)}</td>
-                          <td>{formatMoneyBR(indicadores.lucroLiquido)}</td>
-                          <td>{formatPercentValue(indicadores.roi)}</td>
-                          <td>{formatPayback(indicadores.paybackMeses)}</td>
-                          <td>{formatPercentValue(indicadores.retornoMensalBruto)}</td>
-                          <td>{formatMoneyBR(economiaHorizon)}</td>
-                          <td>{formatMoneyBR(economiaContratoSim)}</td>
-                          <td>{sim.obs?.trim() || '—'}</td>
-                        </tr>
-                        {isExpanded && (
-                          <tr className="simulation-details-row">
-                            <td className="simulations-expand-cell" />
-                            <td colSpan={16} id={detailRowId}>
-                              <SimulationDetailsTable detalhes={detalhesMensais} prazo={prazo} />
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    )
-                  },
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
     </div>
   )
 }
