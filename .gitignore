@@ -2,4 +2,7 @@ node_modules/
 .DS_Store
 /dist
 .env*
+# Ignorar contratos e documentos binários
+/assets/templates/contratos/*.dotx
+/assets/templates/contratos/*.docx
 
