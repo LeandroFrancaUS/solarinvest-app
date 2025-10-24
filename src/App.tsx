@@ -9826,7 +9826,8 @@ export default function App() {
         if (!novaAba) {
           const fallbackAnchor = document.createElement('a')
           fallbackAnchor.href = url
-          fallbackAnchor.target = '_blank'
+          fallbackAnchor.download = `${templateLabel}.pdf`
+          fallbackAnchor.target = '_self'
           fallbackAnchor.rel = 'noopener'
           fallbackAnchor.style.display = 'none'
           document.body.appendChild(fallbackAnchor)
