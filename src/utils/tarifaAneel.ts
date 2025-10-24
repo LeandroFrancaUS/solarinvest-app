@@ -283,7 +283,7 @@ const fetchTarifaFromCsv = async (uf: string): Promise<number | null> => {
 }
 
 const UF_PADRAO_TARIFA: Record<string, number> = {
-  GO: 0.964,
+  GO: 1.1446,
 }
 
 const finalFallback = (uf: string): number => {
