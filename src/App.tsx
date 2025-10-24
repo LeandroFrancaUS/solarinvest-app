@@ -1400,6 +1400,24 @@ type ClientesModalProps = {
   onExcluir: (registro: ClienteRegistro) => void
 }
 
+type ClienteContratoPayload = {
+  nomeCompleto: string
+  cpfCnpj: string
+  enderecoCompleto: string
+  unidadeConsumidora: string
+}
+
+type ContractTemplatesModalProps = {
+  templates: string[]
+  selectedTemplates: string[]
+  isLoading: boolean
+  errorMessage: string | null
+  onToggleTemplate: (template: string) => void
+  onSelectAll: (selectAll: boolean) => void
+  onConfirm: () => void
+  onClose: () => void
+}
+
 function ClientesModal({ registros, onClose, onEditar, onExcluir }: ClientesModalProps) {
   const modalTitleId = useId()
 
@@ -1500,6 +1518,97 @@ function ClientesModal({ registros, onClose, onEditar, onExcluir }: ClientesModa
               </div>
             )}
           </section>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ContractTemplatesModal({
+  templates,
+  selectedTemplates,
+  isLoading,
+  errorMessage,
+  onToggleTemplate,
+  onSelectAll,
+  onConfirm,
+  onClose,
+}: ContractTemplatesModalProps) {
+  const modalTitleId = useId()
+  const checkboxBaseId = useId()
+  const allSelected = templates.length > 0 && selectedTemplates.length === templates.length
+  const hasSelection = selectedTemplates.length > 0
+
+  return (
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby={modalTitleId}>
+      <div className="modal-backdrop" onClick={onClose} />
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3 id={modalTitleId}>Gerar contratos</h3>
+          <button className="icon" onClick={onClose} aria-label="Fechar seleção de contratos">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body">
+          <p>Selecione os modelos de contrato que deseja gerar.</p>
+          {isLoading ? (
+            <p className="muted">Carregando modelos disponíveis…</p>
+          ) : errorMessage ? (
+            <p className="muted">{errorMessage}</p>
+          ) : templates.length === 0 ? (
+            <p className="muted">Nenhum modelo de contrato disponível no momento.</p>
+          ) : (
+            <>
+              <div className="contract-template-actions">
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => onSelectAll(!allSelected)}
+                >
+                  {allSelected ? 'Desmarcar todos' : 'Selecionar todos'}
+                </button>
+              </div>
+              <ul className="contract-template-list">
+                {templates.map((template, index) => {
+                  const checkboxId = `${checkboxBaseId}-${index}`
+                  const label = template.replace(/\.docx$/i, '')
+                  const checked = selectedTemplates.includes(template)
+                  return (
+                    <li key={template} className="contract-template-item">
+                      <label htmlFor={checkboxId}>
+                        <input
+                          id={checkboxId}
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => onToggleTemplate(template)}
+                        />
+                        <span>
+                          <strong>{label}</strong>
+                          <span className="filename">{template}</span>
+                        </span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
+          {!isLoading && !errorMessage && templates.length > 0 && !hasSelection ? (
+            <p className="muted">Selecione ao menos um modelo para gerar.</p>
+          ) : null}
+          <div className="modal-actions">
+            <button type="button" className="ghost" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="primary"
+              onClick={onConfirm}
+              disabled={isLoading || templates.length === 0 || !hasSelection}
+            >
+              Gerar contratos selecionados
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -3936,6 +4045,12 @@ export default function App() {
   )
   const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
   const [gerandoContratoPdf, setGerandoContratoPdf] = useState(false)
+  const [isContractTemplatesModalOpen, setIsContractTemplatesModalOpen] = useState(false)
+  const [contractTemplates, setContractTemplates] = useState<string[]>([])
+  const [selectedContractTemplates, setSelectedContractTemplates] = useState<string[]>([])
+  const [contractTemplatesLoading, setContractTemplatesLoading] = useState(false)
+  const [contractTemplatesError, setContractTemplatesError] = useState<string | null>(null)
+  const contratoClientePayloadRef = useRef<ClienteContratoPayload | null>(null)
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
   const [oemInflacao, setOemInflacao] = useState(INITIAL_VALUES.oemInflacao)
@@ -9492,11 +9607,7 @@ export default function App() {
     }
   }, [handlePreviewActionRequest])
 
-  const handleGerarContratoLeasing = useCallback(async () => {
-    if (gerandoContratoPdf) {
-      return
-    }
-
+  const prepararDadosContratoCliente = useCallback((): ClienteContratoPayload | null => {
     const nomeCompleto = cliente.nome?.trim() ?? ''
     const cpfCnpj = cliente.documento?.trim() ?? ''
     const unidadeConsumidora = cliente.uc?.trim() ?? ''
@@ -9533,28 +9644,28 @@ export default function App() {
       const prefixo = pendencias.slice(0, -1)
       const campos = prefixo.length > 0 ? `${prefixo.join(', ')} e ${ultima}` : ultima
       adicionarNotificacao(`Preencha ${campos} para gerar o contrato.`, 'error')
-      return
+      return null
     }
 
-    setGerandoContratoPdf(true)
+    return { nomeCompleto, cpfCnpj, enderecoCompleto, unidadeConsumidora }
+  }, [
+    adicionarNotificacao,
+    cliente.cidade,
+    cliente.cep,
+    cliente.documento,
+    cliente.endereco,
+    cliente.nome,
+    cliente.uc,
+    cliente.uf,
+  ])
 
+  const carregarTemplatesContrato = useCallback(async () => {
+    setContractTemplatesLoading(true)
+    setContractTemplatesError(null)
     try {
-      const response = await fetch('/api/contracts/render', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          template: 'leasing',
-          cliente: {
-            nomeCompleto,
-            cpfCnpj,
-            enderecoCompleto,
-            unidadeConsumidora,
-          },
-        }),
-      })
-
+      const response = await fetch('/api/contracts/templates')
       if (!response.ok) {
-        let mensagemErro = 'Não foi possível gerar o contrato. Tente novamente.'
+        let mensagemErro = 'Não foi possível listar os templates de contrato.'
         const contentType = response.headers.get('content-type') ?? ''
         try {
           if (contentType.includes('application/json')) {
@@ -9569,26 +9680,163 @@ export default function App() {
             }
           }
         } catch (error) {
-          console.warn('Não foi possível interpretar o erro ao gerar contrato.', error)
+          console.warn('Não foi possível interpretar o erro ao listar templates.', error)
         }
         throw new Error(mensagemErro)
       }
 
-      if (typeof window === 'undefined') {
-        throw new Error('Recurso disponível apenas no navegador.')
+      const payload = (await response.json()) as { templates?: unknown }
+      const listaBruta = Array.isArray(payload.templates) ? payload.templates : []
+      const nomes = listaBruta
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => item.trim())
+      if (nomes.length === 0) {
+        throw new Error('Nenhum template de contrato disponível.')
       }
 
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const novaAba = window.open(url, '_blank', 'noopener')
-      if (!novaAba) {
-        window.location.href = url
-      }
-      window.setTimeout(() => {
-        window.URL.revokeObjectURL(url)
-      }, 60_000)
+      const unicos = Array.from(new Set(nomes))
+      setContractTemplates(unicos)
+      setSelectedContractTemplates((prev) => {
+        const ativos = prev.filter((item) => unicos.includes(item))
+        return ativos.length > 0 ? ativos : unicos
+      })
+    } catch (error) {
+      const mensagem =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Não foi possível listar os templates de contrato.'
+      console.error('Não foi possível carregar os templates de contrato.', error)
+      setContractTemplatesError(mensagem)
+      setContractTemplates([])
+      setSelectedContractTemplates([])
+      adicionarNotificacao(mensagem, 'error')
+    } finally {
+      setContractTemplatesLoading(false)
+    }
+  }, [adicionarNotificacao])
 
-      adicionarNotificacao('Contrato de leasing gerado.', 'success')
+  const handleToggleContractTemplate = useCallback((template: string) => {
+    setSelectedContractTemplates((prev) => {
+      if (prev.includes(template)) {
+        return prev.filter((item) => item !== template)
+      }
+      return [...prev, template]
+    })
+  }, [])
+
+  const handleSelectAllContractTemplates = useCallback(
+    (selectAll: boolean) => {
+      setSelectedContractTemplates(selectAll ? contractTemplates : [])
+    },
+    [contractTemplates],
+  )
+
+  const handleFecharModalContratos = useCallback(() => {
+    setIsContractTemplatesModalOpen(false)
+    contratoClientePayloadRef.current = null
+  }, [])
+
+  const handleGerarContratoLeasing = useCallback(() => {
+    if (gerandoContratoPdf) {
+      return
+    }
+
+    const payload = prepararDadosContratoCliente()
+    if (!payload) {
+      return
+    }
+
+    contratoClientePayloadRef.current = payload
+    setIsContractTemplatesModalOpen(true)
+    setContractTemplatesError(null)
+    void carregarTemplatesContrato()
+  }, [
+    carregarTemplatesContrato,
+    gerandoContratoPdf,
+    prepararDadosContratoCliente,
+  ])
+
+  const handleConfirmarGeracaoContratos = useCallback(async () => {
+    const payload = contratoClientePayloadRef.current
+    if (!payload) {
+      adicionarNotificacao(
+        'Não foi possível preparar os dados do contrato. Abra a seleção novamente.',
+        'error',
+      )
+      handleFecharModalContratos()
+      return
+    }
+
+    if (selectedContractTemplates.length === 0) {
+      adicionarNotificacao('Selecione ao menos um modelo de contrato.', 'error')
+      return
+    }
+
+    if (typeof window === 'undefined') {
+      adicionarNotificacao('Recurso disponível apenas no navegador.', 'error')
+      return
+    }
+
+    setIsContractTemplatesModalOpen(false)
+    setGerandoContratoPdf(true)
+
+    const extrairErro = async (response: Response, template: string) => {
+      let mensagemErro = `Não foi possível gerar o contrato (${template}). Tente novamente.`
+      const contentType = response.headers.get('content-type') ?? ''
+      try {
+        if (contentType.includes('application/json')) {
+          const data = (await response.json()) as { error?: string } | undefined
+          if (data?.error) {
+            mensagemErro = data.error
+          }
+        } else {
+          const texto = await response.text()
+          if (texto.trim()) {
+            mensagemErro = texto.trim()
+          }
+        }
+      } catch (error) {
+        console.warn('Não foi possível interpretar o erro ao gerar contrato.', error)
+      }
+      return mensagemErro
+    }
+
+    let sucesso = 0
+
+    try {
+      for (const template of selectedContractTemplates) {
+        const templateLabel = template.replace(/\.docx$/i, '')
+        const response = await fetch('/api/contracts/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template,
+            cliente: payload,
+          }),
+        })
+
+        if (!response.ok) {
+          const mensagemErro = await extrairErro(response, templateLabel)
+          throw new Error(mensagemErro)
+        }
+
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const novaAba = window.open(url, '_blank', 'noopener')
+        if (!novaAba) {
+          window.location.href = url
+        }
+        window.setTimeout(() => {
+          window.URL.revokeObjectURL(url)
+        }, 60_000)
+        sucesso += 1
+      }
+
+      if (sucesso > 0) {
+        const mensagem =
+          sucesso === 1 ? 'Contrato gerado.' : `${sucesso} contratos gerados.`
+        adicionarNotificacao(mensagem, 'success')
+      }
     } catch (error) {
       console.error('Erro ao gerar contrato de leasing', error)
       const mensagem =
@@ -9598,17 +9846,12 @@ export default function App() {
       adicionarNotificacao(mensagem, 'error')
     } finally {
       setGerandoContratoPdf(false)
+      contratoClientePayloadRef.current = null
     }
   }, [
     adicionarNotificacao,
-    cliente.cidade,
-    cliente.cep,
-    cliente.documento,
-    cliente.endereco,
-    cliente.nome,
-    cliente.uc,
-    cliente.uf,
-    gerandoContratoPdf,
+    handleFecharModalContratos,
+    selectedContractTemplates,
   ])
 
   const handleSalvarPropostaPdf = useCallback(async () => {
@@ -13843,7 +14086,7 @@ export default function App() {
                         onClick={handleGerarContratoLeasing}
                         disabled={gerandoContratoPdf}
                       >
-                        {gerandoContratoPdf ? 'Gerando…' : 'Gerar contrato'}
+                        {gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos'}
                       </button>
                     </div>
 
@@ -14274,6 +14517,19 @@ export default function App() {
           onClose={fecharClientesModal}
           onEditar={handleEditarCliente}
           onExcluir={handleExcluirCliente}
+        />
+      ) : null}
+
+      {isContractTemplatesModalOpen ? (
+        <ContractTemplatesModal
+          templates={contractTemplates}
+          selectedTemplates={selectedContractTemplates}
+          isLoading={contractTemplatesLoading}
+          errorMessage={contractTemplatesError}
+          onToggleTemplate={handleToggleContractTemplate}
+          onSelectAll={handleSelectAllContractTemplates}
+          onConfirm={handleConfirmarGeracaoContratos}
+          onClose={handleFecharModalContratos}
         />
       ) : null}
 

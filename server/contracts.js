@@ -11,9 +11,12 @@ import { ptBR } from 'date-fns/locale'
 const execFilePromise = util.promisify(execFile)
 
 export const CONTRACT_RENDER_PATH = '/api/contracts/render'
+export const CONTRACT_TEMPLATES_PATH = '/api/contracts/templates'
 
 const TEMPLATE_RELATIVE_PATH =
   'assets/templates/contratos/CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx'
+const CONTRACT_TEMPLATES_DIR_RELATIVE = 'assets/templates/contratos'
+const DEFAULT_TEMPLATE_FILE = path.basename(TEMPLATE_RELATIVE_PATH)
 const TMP_DIR = path.resolve(process.cwd(), 'tmp')
 const MAX_BODY_SIZE_BYTES = 256 * 1024
 
@@ -71,7 +74,7 @@ class GoogleDriveConversionError extends Error {
  */
 const setCorsHeaders = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   res.setHeader('Access-Control-Max-Age', '600')
 }
@@ -87,13 +90,30 @@ const maskCpfCnpj = (value) => {
   return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
 }
 
-const replaceTagsInValue = (text, data) =>
-  text
-    .replace(/{nomeCompleto}/g, data.nomeCompleto ?? '')
-    .replace(/{cpfCnpj}/g, maskCpfCnpj(data.cpfCnpj))
-    .replace(/{enderecoCompleto}/g, data.enderecoCompleto ?? '')
-    .replace(/{unidadeConsumidora}/g, data.unidadeConsumidora ?? '')
-    .replace(/{dataAtualExtenso}/g, data.dataAtualExtenso ?? '')
+const replaceTagsInValue = (text, data) => {
+  const replaceTag = (input, key, value) =>
+    input
+      .replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value ?? '')
+      .replace(new RegExp(`\\{${key}\\}`, 'g'), value ?? '')
+
+  return replaceTag(
+    replaceTag(
+      replaceTag(
+        replaceTag(
+          replaceTag(text, 'nomeCompleto', data.nomeCompleto ?? ''),
+          'cpfCnpj',
+          maskCpfCnpj(data.cpfCnpj),
+        ),
+        'enderecoCompleto',
+        data.enderecoCompleto ?? '',
+      ),
+      'unidadeConsumidora',
+      data.unidadeConsumidora ?? '',
+    ),
+    'dataAtualExtenso',
+    data.dataAtualExtenso ?? '',
+  )
+}
 
 const replaceTagsInNode = (node, data) => {
   if (typeof node === 'string') {
@@ -153,8 +173,12 @@ const readJsonBody = async (req) => {
   })
 }
 
-const ensureTemplateExists = async () => {
-  const absolutePath = path.resolve(process.cwd(), TEMPLATE_RELATIVE_PATH)
+const resolveTemplatePath = async (templateName) => {
+  const trimmed = typeof templateName === 'string' ? templateName.trim() : ''
+  const templateFileName =
+    trimmed && trimmed !== 'leasing' ? path.basename(trimmed) : DEFAULT_TEMPLATE_FILE
+  const baseDir = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE)
+  const absolutePath = path.resolve(baseDir, templateFileName)
   try {
     await fs.access(absolutePath)
   } catch (error) {
@@ -163,7 +187,7 @@ const ensureTemplateExists = async () => {
     }
     throw new ContractRenderError(500, 'Não foi possível acessar o template do contrato.')
   }
-  return absolutePath
+  return { absolutePath, fileName: templateFileName }
 }
 
 const buildEnderecoCompleto = (cliente) => {
@@ -503,8 +527,9 @@ const convertDocxToPdf = async (docxPath, pdfPath) => {
   }
 }
 
-const generateContractPdf = async (cliente) => {
-  const templatePath = await ensureTemplateExists()
+const generateContractPdf = async (cliente, templateName) => {
+  const { absolutePath: templatePath, fileName: templateFileName } =
+    await resolveTemplatePath(templateName)
   const templateBuffer = await fs.readFile(templatePath)
   const zip = await JSZip.loadAsync(templateBuffer)
 
@@ -538,7 +563,7 @@ const generateContractPdf = async (cliente) => {
   try {
     await convertDocxToPdf(docxPath, pdfPath)
     const pdfBuffer = await fs.readFile(pdfPath)
-    return pdfBuffer
+    return { pdfBuffer, templateFileName }
   } catch (error) {
     if (error instanceof ContractRenderError) {
       throw error
@@ -555,6 +580,21 @@ const generateContractPdf = async (cliente) => {
   } finally {
     await cleanupTmpFiles(docxPath, pdfPath)
   }
+}
+
+const sanitizeTemplateDownloadName = (templateFileName) => {
+  const withoutExtension = templateFileName.replace(/\.docx$/i, '')
+  const normalized = withoutExtension.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/_+/g, '_')
+  return normalized || 'Contrato'
+}
+
+const listAvailableTemplates = async () => {
+  const baseDir = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE)
+  const entries = await fs.readdir(baseDir, { withFileTypes: true })
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.docx'))
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
 }
 
 export const handleContractRenderRequest = async (req, res) => {
@@ -575,16 +615,15 @@ export const handleContractRenderRequest = async (req, res) => {
 
   try {
     const body = await readJsonBody(req)
-    if (!body || body.template !== 'leasing') {
-      throw new ContractRenderError(400, 'Template de contrato inválido.')
-    }
+    const template = typeof body?.template === 'string' ? body.template.trim() : ''
 
     const cliente = normalizeClientePayload(body.cliente)
-    const pdfBuffer = await generateContractPdf(cliente)
+    const { pdfBuffer, templateFileName } = await generateContractPdf(cliente, template)
+    const downloadName = sanitizeTemplateDownloadName(templateFileName)
 
     res.statusCode = 200
     res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', 'inline; filename="Contrato_Leasing.pdf"')
+    res.setHeader('Content-Disposition', `inline; filename="${downloadName}.pdf"`)
     res.setHeader('Cache-Control', 'no-store, max-age=0')
     res.end(pdfBuffer)
   } catch (error) {
@@ -612,11 +651,44 @@ export const createContractRenderMiddleware = () =>
     }
 
     const url = new URL(req.url, 'http://localhost')
-    if (url.pathname !== CONTRACT_RENDER_PATH) {
-      next()
+    if (url.pathname === CONTRACT_RENDER_PATH) {
+      await handleContractRenderRequest(req, res)
       return
     }
 
-    await handleContractRenderRequest(req, res)
+    if (url.pathname === CONTRACT_TEMPLATES_PATH) {
+      await handleContractTemplatesRequest(req, res)
+      return
+    }
+
+    next()
+  }
+
+export const handleContractTemplatesRequest = async (req, res) => {
+  setCorsHeaders(res)
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204
+    res.end()
     return
   }
+
+  if (!req.method || req.method !== 'GET') {
+    res.statusCode = 405
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.end(JSON.stringify({ error: 'Método não permitido. Utilize GET.' }))
+    return
+  }
+
+  try {
+    const templates = await listAvailableTemplates()
+    res.statusCode = 200
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.end(JSON.stringify({ templates }))
+  } catch (error) {
+    console.error('[contracts] Não foi possível listar templates de contrato:', error)
+    res.statusCode = 500
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.end(JSON.stringify({ error: 'Não foi possível listar os templates de contrato.' }))
+  }
+}
