@@ -557,7 +557,7 @@ function PrintableProposalLeasingInner(
                         src="/solarinvest-badge.svg"
                         alt="Marca SolarInvest"
                       />
-                      <h1>Proposta de Leasing Solar</h1>
+                      <h1>Proposta de Energia Solar com Leasing SolarInvest</h1>
                     </div>
                     <p className="print-hero__tagline">Energia inteligente, sustentável e sem investimento inicial.</p>
                   </div>
