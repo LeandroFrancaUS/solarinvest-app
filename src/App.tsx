@@ -9857,7 +9857,7 @@ export default function App() {
     </section>
   )
 
-  const renderTusdParametersSection = () => {
+  function renderTusdParametersSection() {
     const tusdPercentLabel = formatNumberBRWithOptions(tusdPercent, {
       maximumFractionDigits: 2,
       minimumFractionDigits: Number.isInteger(tusdPercent) ? 0 : 2,
