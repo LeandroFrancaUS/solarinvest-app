@@ -660,7 +660,8 @@ button.secondary.danger:focus-visible {
   font-size: var(--font-s);
 }
 
-.multi-uc-toggle {
+.multi-uc-toggle,
+.tusd-options-toggle {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -671,7 +672,8 @@ button.secondary.danger:focus-visible {
   user-select: none;
 }
 
-.multi-uc-toggle input[type='checkbox'] {
+.multi-uc-toggle input[type='checkbox'],
+.tusd-options-toggle input[type='checkbox'] {
   position: absolute;
   opacity: 0;
   width: 1px;
@@ -683,7 +685,8 @@ button.secondary.danger:focus-visible {
   clip-path: inset(50%);
 }
 
-.multi-uc-toggle-indicator {
+.multi-uc-toggle-indicator,
+.tusd-options-toggle-indicator {
   position: relative;
   flex-shrink: 0;
   width: 42px;
@@ -694,7 +697,8 @@ button.secondary.danger:focus-visible {
   transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.multi-uc-toggle-indicator::after {
+.multi-uc-toggle-indicator::after,
+.tusd-options-toggle-indicator::after {
   content: '';
   position: absolute;
   top: 3px;
@@ -707,33 +711,68 @@ button.secondary.danger:focus-visible {
   transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.multi-uc-toggle:hover input[type='checkbox'] + .multi-uc-toggle-indicator {
+.multi-uc-toggle:hover input[type='checkbox'] + .multi-uc-toggle-indicator,
+.tusd-options-toggle:hover input[type='checkbox'] + .tusd-options-toggle-indicator {
   background: rgba(148, 163, 184, 0.42);
 }
 
-.multi-uc-toggle input[type='checkbox']:checked + .multi-uc-toggle-indicator {
+.multi-uc-toggle input[type='checkbox']:checked + .multi-uc-toggle-indicator,
+.tusd-options-toggle input[type='checkbox']:checked + .tusd-options-toggle-indicator {
   background: rgba(37, 99, 235, 0.45);
   box-shadow: inset 0 2px 6px rgba(37, 99, 235, 0.2);
 }
 
-.multi-uc-toggle:hover input[type='checkbox']:checked + .multi-uc-toggle-indicator {
+.multi-uc-toggle:hover input[type='checkbox']:checked + .multi-uc-toggle-indicator,
+.tusd-options-toggle:hover input[type='checkbox']:checked + .tusd-options-toggle-indicator {
   background: rgba(37, 99, 235, 0.55);
 }
 
-.multi-uc-toggle input[type='checkbox']:checked + .multi-uc-toggle-indicator::after {
+.multi-uc-toggle input[type='checkbox']:checked + .multi-uc-toggle-indicator::after,
+.tusd-options-toggle input[type='checkbox']:checked + .tusd-options-toggle-indicator::after {
   transform: translateX(16px);
   background: var(--accent);
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 .multi-uc-toggle input[type='checkbox']:focus-visible + .multi-uc-toggle-indicator,
-.multi-uc-toggle input[type='checkbox']:checked:focus-visible + .multi-uc-toggle-indicator {
+.multi-uc-toggle input[type='checkbox']:checked:focus-visible + .multi-uc-toggle-indicator,
+.tusd-options-toggle input[type='checkbox']:focus-visible + .tusd-options-toggle-indicator,
+.tusd-options-toggle input[type='checkbox']:checked:focus-visible + .tusd-options-toggle-indicator {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.multi-uc-toggle-text {
+.multi-uc-toggle-text,
+.tusd-options-toggle-text {
   font-size: var(--font-m);
   letter-spacing: 0.1px;
+}
+
+.tusd-options {
+  margin-top: var(--space-4);
+}
+
+.tusd-options-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tusd-options-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--title);
+}
+
+.tusd-options-header p {
+  margin: 4px 0 0 0;
+  color: var(--muted);
+  font-size: var(--font-s);
+}
+
+.tusd-options-grid {
+  margin-top: var(--space-2);
 }
 
 .multi-uc-disabled-hint {

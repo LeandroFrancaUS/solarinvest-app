@@ -1545,6 +1545,9 @@ export default function App() {
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetTableContentId = useId()
+  const tusdOptionsTitleId = useId()
+  const tusdOptionsToggleId = useId()
+  const tusdOptionsContentId = useId()
   const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
@@ -1595,6 +1598,7 @@ export default function App() {
   const [tusdAnoReferencia, setTusdAnoReferencia] = useState(
     INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
   )
+  const [tusdOpcoesExpandidas, setTusdOpcoesExpandidas] = useState(false)
   const [leasingPrazo, setLeasingPrazo] = useState<LeasingPrazoAnos>(INITIAL_VALUES.leasingPrazo)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
@@ -8576,6 +8580,7 @@ export default function App() {
     setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
     setTusdTarifaRkwh(INITIAL_VALUES.tusdTarifaRkwh)
     setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
+    setTusdOpcoesExpandidas(false)
     setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
     setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
     setPotenciaModuloDirty(false)
@@ -9245,147 +9250,203 @@ export default function App() {
     </section>
   )
 
-  const renderTusdParameterFields = () => (
-    <>
-      <Field
-        label={labelWithTooltip(
-          'TUSD (%)',
-          'Percentual do fio B aplicado sobre a energia compensada. Valores superiores a 1 são interpretados como percentuais (ex.: 27 = 27%).',
-        )}
-      >
-        <input
-          type="number"
-          min={0}
-          step="0.1"
-          value={tusdPercent}
-          onChange={(event) => {
-            const parsed = Number(event.target.value)
-            const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-            setTusdPercent(normalized)
-            applyVendaUpdates({ tusd_percentual: normalized })
-            resetRetorno()
-          }}
-          onFocus={selectNumberInputOnFocus}
-        />
-      </Field>
-      <Field
-        label={labelWithTooltip(
-          'Tipo de cliente TUSD',
-          'Categoria utilizada para determinar simultaneidade padrão e fator ano da TUSD.',
-        )}
-      >
-        <select
-          value={tusdTipoCliente}
-          onChange={(event) => {
-            const value = event.target.value as TipoClienteTUSD
-            setTusdTipoCliente(value)
-            applyVendaUpdates({ tusd_tipo_cliente: value })
-            resetRetorno()
-          }}
+  const renderTusdParametersSection = () => {
+    const tusdPercentLabel = formatNumberBRWithOptions(tusdPercent, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: Number.isInteger(tusdPercent) ? 0 : 2,
+    })
+    const resumoPartes: string[] = [
+      `${tusdPercentLabel}% • ${TUSD_TIPO_LABELS[tusdTipoCliente]}`,
+    ]
+    const subtipoAtual = tusdSubtipo.trim()
+    if (subtipoAtual !== '') {
+      resumoPartes.push(subtipoAtual)
+    }
+    if (tusdSimultaneidade != null) {
+      const simultaneidadeLabel = formatNumberBRWithOptions(tusdSimultaneidade, {
+        maximumFractionDigits: 2,
+        minimumFractionDigits: Number.isInteger(tusdSimultaneidade) ? 0 : 2,
+      })
+      resumoPartes.push(`Simultaneidade ${simultaneidadeLabel}`)
+    }
+    if (tusdTarifaRkwh != null) {
+      resumoPartes.push(`Tarifa ${currency(tusdTarifaRkwh)}/kWh`)
+    }
+    if (tusdAnoReferencia !== DEFAULT_TUSD_ANO_REFERENCIA) {
+      resumoPartes.push(`Ano ${tusdAnoReferencia}`)
+    }
+
+    return (
+      <section className="tusd-options" aria-labelledby={tusdOptionsTitleId}>
+        <div className="tusd-options-header">
+          <div>
+            <h3 id={tusdOptionsTitleId}>Opções de TUSD</h3>
+            <p className="tusd-options-description">
+              Configuração atual: {resumoPartes.join(' • ')}
+            </p>
+          </div>
+          <label className="tusd-options-toggle" htmlFor={tusdOptionsToggleId}>
+            <input
+              id={tusdOptionsToggleId}
+              type="checkbox"
+              checked={tusdOpcoesExpandidas}
+              onChange={(event) => setTusdOpcoesExpandidas(event.target.checked)}
+              aria-expanded={tusdOpcoesExpandidas}
+              aria-controls={tusdOptionsContentId}
+            />
+            <span className="tusd-options-toggle-indicator" aria-hidden="true" />
+            <span className="tusd-options-toggle-text">
+              {tusdOpcoesExpandidas ? 'Ocultar opções' : 'Exibir opções'}
+            </span>
+          </label>
+        </div>
+        <div
+          className="grid g3 tusd-options-grid"
+          id={tusdOptionsContentId}
+          hidden={!tusdOpcoesExpandidas}
+          aria-hidden={!tusdOpcoesExpandidas}
         >
-          {TUSD_TIPO_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {TUSD_TIPO_LABELS[option]}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field
-        label={labelWithTooltip(
-          'Subtipo TUSD (opcional)',
-          'Permite refinar a simultaneidade padrão conforme o perfil da unidade consumidora.',
-        )}
-      >
-        <input
-          type="text"
-          value={tusdSubtipo}
-          onChange={(event) => {
-            const value = event.target.value
-            setTusdSubtipo(value)
-            applyVendaUpdates({ tusd_subtipo: value || undefined })
-            resetRetorno()
-          }}
-        />
-      </Field>
-      <Field
-        label={labelWithTooltip(
-          'Simultaneidade (%)',
-          'Percentual de consumo instantâneo considerado na TUSD. Informe em fração (0-1) ou percentual (0-100).',
-        )}
-      >
-        <input
-          type="number"
-          min={0}
-          step="0.1"
-          value={tusdSimultaneidade ?? ''}
-          onChange={(event) => {
-            const { value } = event.target
-            if (value === '') {
-              setTusdSimultaneidade(null)
-              applyVendaUpdates({ tusd_simultaneidade: undefined })
-            } else {
-              const parsed = Number(value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setTusdSimultaneidade(normalized)
-              applyVendaUpdates({ tusd_simultaneidade: normalized })
-            }
-            resetRetorno()
-          }}
-          onFocus={selectNumberInputOnFocus}
-        />
-      </Field>
-      <Field
-        label={labelWithTooltip(
-          'TUSD informado (R$/kWh)',
-          'Informe o valor em R$/kWh quando desejar substituir o percentual por uma tarifa fixa de TUSD.',
-        )}
-      >
-        <input
-          type="number"
-          min={0}
-          step="0.001"
-          value={tusdTarifaRkwh ?? ''}
-          onChange={(event) => {
-            const { value } = event.target
-            if (value === '') {
-              setTusdTarifaRkwh(null)
-              applyVendaUpdates({ tusd_tarifa_r_kwh: undefined })
-            } else {
-              const parsed = Number(value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setTusdTarifaRkwh(normalized)
-              applyVendaUpdates({ tusd_tarifa_r_kwh: normalized })
-            }
-            resetRetorno()
-          }}
-          onFocus={selectNumberInputOnFocus}
-        />
-      </Field>
-      <Field
-        label={labelWithTooltip(
-          'Ano de referência TUSD',
-          'Define o ano-base para aplicar o fator de escalonamento da TUSD conforme a Lei 14.300.',
-        )}
-      >
-        <input
-          type="number"
-          min={2000}
-          step="1"
-          value={tusdAnoReferencia}
-          onChange={(event) => {
-            const parsed = Number(event.target.value)
-            const normalized = Number.isFinite(parsed)
-              ? Math.max(1, Math.trunc(parsed))
-              : DEFAULT_TUSD_ANO_REFERENCIA
-            setTusdAnoReferencia(normalized)
-            applyVendaUpdates({ tusd_ano_referencia: normalized })
-            resetRetorno()
-          }}
-          onFocus={selectNumberInputOnFocus}
-        />
-      </Field>
-    </>
-  )
+          <Field
+            label={labelWithTooltip(
+              'TUSD (%)',
+              'Percentual do fio B aplicado sobre a energia compensada. Valores superiores a 1 são interpretados como percentuais (ex.: 27 = 27%).',
+            )}
+          >
+            <input
+              type="number"
+              min={0}
+              step="0.1"
+              value={tusdPercent}
+              onChange={(event) => {
+                const parsed = Number(event.target.value)
+                const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+                setTusdPercent(normalized)
+                applyVendaUpdates({ tusd_percentual: normalized })
+                resetRetorno()
+              }}
+              onFocus={selectNumberInputOnFocus}
+            />
+          </Field>
+          <Field
+            label={labelWithTooltip(
+              'Tipo de cliente TUSD',
+              'Categoria utilizada para determinar simultaneidade padrão e fator ano da TUSD.',
+            )}
+          >
+            <select
+              value={tusdTipoCliente}
+              onChange={(event) => {
+                const value = event.target.value as TipoClienteTUSD
+                setTusdTipoCliente(value)
+                applyVendaUpdates({ tusd_tipo_cliente: value })
+                resetRetorno()
+              }}
+            >
+              {TUSD_TIPO_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {TUSD_TIPO_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field
+            label={labelWithTooltip(
+              'Subtipo TUSD (opcional)',
+              'Permite refinar a simultaneidade padrão conforme o perfil da unidade consumidora.',
+            )}
+          >
+            <input
+              type="text"
+              value={tusdSubtipo}
+              onChange={(event) => {
+                const value = event.target.value
+                setTusdSubtipo(value)
+                applyVendaUpdates({ tusd_subtipo: value || undefined })
+                resetRetorno()
+              }}
+            />
+          </Field>
+          <Field
+            label={labelWithTooltip(
+              'Simultaneidade (%)',
+              'Percentual de consumo instantâneo considerado na TUSD. Informe em fração (0-1) ou percentual (0-100).',
+            )}
+          >
+            <input
+              type="number"
+              min={0}
+              step="0.1"
+              value={tusdSimultaneidade ?? ''}
+              onChange={(event) => {
+                const { value } = event.target
+                if (value === '') {
+                  setTusdSimultaneidade(null)
+                  applyVendaUpdates({ tusd_simultaneidade: undefined })
+                } else {
+                  const parsed = Number(value)
+                  const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+                  setTusdSimultaneidade(normalized)
+                  applyVendaUpdates({ tusd_simultaneidade: normalized })
+                }
+                resetRetorno()
+              }}
+              onFocus={selectNumberInputOnFocus}
+            />
+          </Field>
+          <Field
+            label={labelWithTooltip(
+              'TUSD informado (R$/kWh)',
+              'Informe o valor em R$/kWh quando desejar substituir o percentual por uma tarifa fixa de TUSD.',
+            )}
+          >
+            <input
+              type="number"
+              min={0}
+              step="0.001"
+              value={tusdTarifaRkwh ?? ''}
+              onChange={(event) => {
+                const { value } = event.target
+                if (value === '') {
+                  setTusdTarifaRkwh(null)
+                  applyVendaUpdates({ tusd_tarifa_r_kwh: undefined })
+                } else {
+                  const parsed = Number(value)
+                  const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+                  setTusdTarifaRkwh(normalized)
+                  applyVendaUpdates({ tusd_tarifa_r_kwh: normalized })
+                }
+                resetRetorno()
+              }}
+              onFocus={selectNumberInputOnFocus}
+            />
+          </Field>
+          <Field
+            label={labelWithTooltip(
+              'Ano de referência TUSD',
+              'Define o ano-base para aplicar o fator de escalonamento da TUSD conforme a Lei 14.300.',
+            )}
+          >
+            <input
+              type="number"
+              min={2000}
+              step="1"
+              value={tusdAnoReferencia}
+              onChange={(event) => {
+                const parsed = Number(event.target.value)
+                const normalized = Number.isFinite(parsed)
+                  ? Math.max(1, Math.trunc(parsed))
+                  : DEFAULT_TUSD_ANO_REFERENCIA
+                setTusdAnoReferencia(normalized)
+                applyVendaUpdates({ tusd_ano_referencia: normalized })
+                resetRetorno()
+              }}
+              onFocus={selectNumberInputOnFocus}
+            />
+          </Field>
+        </div>
+      </section>
+    )
+  }
 
   const renderParametrosPrincipaisSection = () => {
     const rateioPercentualDiff = Math.abs(multiUcRateioPercentualTotal - 100)
@@ -9548,7 +9609,7 @@ export default function App() {
             />
           </Field>
         </div>
-        {renderTusdParameterFields()}
+        {renderTusdParametersSection()}
         <div className="multi-uc-section" id="multi-uc">
           <div className="multi-uc-header">
             <div>
@@ -10312,32 +10373,32 @@ export default function App() {
           />
           <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
         </Field>
-          <Field
-            label={labelWithTooltip(
-              'Custos Fixos da Conta de Energia (R$/MÊS)',
-              'Total de custos fixos mensais cobrados pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
-            )}
-          >
-            <input
-              type="number"
-              min={0}
-              value={
-                taxaMinimaInputEmpty
-                  ? ''
-                  : Number.isFinite(vendaForm.taxa_minima_mensal)
-                  ? vendaForm.taxa_minima_mensal
-                  : taxaMinima
-              }
-              onChange={(event) => {
-                const normalized = normalizeTaxaMinimaInputValue(event.target.value)
-                applyVendaUpdates({ taxa_minima_mensal: normalized })
-              }}
-              onFocus={selectNumberInputOnFocus}
-            />
+        <Field
+          label={labelWithTooltip(
+            'Custos Fixos da Conta de Energia (R$/MÊS)',
+            'Total de custos fixos mensais cobrados pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
+          )}
+        >
+          <input
+            type="number"
+            min={0}
+            value={
+              taxaMinimaInputEmpty
+                ? ''
+                : Number.isFinite(vendaForm.taxa_minima_mensal)
+                ? vendaForm.taxa_minima_mensal
+                : taxaMinima
+            }
+            onChange={(event) => {
+              const normalized = normalizeTaxaMinimaInputValue(event.target.value)
+              applyVendaUpdates({ taxa_minima_mensal: normalized })
+            }}
+            onFocus={selectNumberInputOnFocus}
+          />
           <FieldError message={vendaFormErrors.taxa_minima_mensal} />
         </Field>
-        {renderTusdParameterFields()}
       </div>
+      {renderTusdParametersSection()}
       <div className="grid g3">
         <Field
           label={
