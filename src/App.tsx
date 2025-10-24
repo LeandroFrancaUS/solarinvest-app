@@ -34,8 +34,17 @@ import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
 import { getTarifaCheia } from './utils/tarifaAneel'
 import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
-import { persistClienteRegistroToOneDrive, type ClienteRegistroSyncPayload } from './utils/onedrive'
-import { persistProposalPdf } from './utils/proposalPdf'
+import {
+  persistClienteRegistroToOneDrive,
+  type ClienteRegistroSyncPayload,
+  isOneDriveIntegrationAvailable,
+  OneDriveIntegrationMissingError,
+} from './utils/onedrive'
+import {
+  persistProposalPdf,
+  isProposalPdfIntegrationAvailable,
+  ProposalPdfIntegrationMissingError,
+} from './utils/proposalPdf'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
   analyzeEssentialInfo,
@@ -1688,6 +1697,16 @@ export default function App() {
       }
     | null
   >(null)
+  const [oneDriveIntegrationAvailable, setOneDriveIntegrationAvailable] = useState(() =>
+    isOneDriveIntegrationAvailable(),
+  )
+  const [proposalPdfIntegrationAvailable, setProposalPdfIntegrationAvailable] = useState(() =>
+    isProposalPdfIntegrationAvailable(),
+  )
+  useEffect(() => {
+    setOneDriveIntegrationAvailable(isOneDriveIntegrationAvailable())
+    setProposalPdfIntegrationAvailable(isProposalPdfIntegrationAvailable())
+  }, [])
   const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
@@ -8328,12 +8347,29 @@ export default function App() {
     let sincronizadoComSucesso = false
     let erroSincronizacao: unknown = null
 
-    try {
-      await persistClienteRegistroToOneDrive(mapClienteRegistroToSyncPayload(registroConfirmado))
-      sincronizadoComSucesso = true
-    } catch (error) {
-      erroSincronizacao = error
-      console.error('Erro ao sincronizar cliente com o OneDrive.', error)
+    const integracaoOneDriveAtiva = isOneDriveIntegrationAvailable()
+    setOneDriveIntegrationAvailable(integracaoOneDriveAtiva)
+
+    if (!integracaoOneDriveAtiva) {
+      erroSincronizacao = new OneDriveIntegrationMissingError()
+      if (typeof console !== 'undefined') {
+        console.info('Sincronização com o OneDrive ignorada: integração não configurada.')
+      }
+    } else {
+      try {
+        await persistClienteRegistroToOneDrive(mapClienteRegistroToSyncPayload(registroConfirmado))
+        sincronizadoComSucesso = true
+      } catch (error) {
+        erroSincronizacao = error
+        if (error instanceof OneDriveIntegrationMissingError) {
+          setOneDriveIntegrationAvailable(false)
+          if (typeof console !== 'undefined') {
+            console.warn('Integração com o OneDrive indisponível.', error)
+          }
+        } else {
+          console.error('Erro ao sincronizar cliente com o OneDrive.', error)
+        }
+      }
     }
 
     setClienteEmEdicaoId(registroConfirmado.id)
@@ -8346,20 +8382,29 @@ export default function App() {
         'success',
       )
     } else {
-      const mensagemErro =
-        erroSincronizacao instanceof Error && erroSincronizacao.message
-          ? erroSincronizacao.message
-          : 'Erro desconhecido ao sincronizar com o OneDrive.'
-      adicionarNotificacao(
-        `Cliente salvo localmente, mas houve erro ao sincronizar com o OneDrive. ${mensagemErro}`,
-        'error',
-      )
+      if (erroSincronizacao instanceof OneDriveIntegrationMissingError) {
+        adicionarNotificacao(
+          'Cliente salvo localmente. Configure a integração com o OneDrive para sincronizar automaticamente.',
+          'info',
+        )
+      } else {
+        const mensagemErro =
+          erroSincronizacao instanceof Error && erroSincronizacao.message
+            ? erroSincronizacao.message
+            : 'Erro desconhecido ao sincronizar com o OneDrive.'
+        adicionarNotificacao(
+          `Cliente salvo localmente, mas houve erro ao sincronizar com o OneDrive. ${mensagemErro}`,
+          'error',
+        )
+      }
     }
   }, [
     adicionarNotificacao,
     cliente,
     clienteEmEdicaoId,
+    isOneDriveIntegrationAvailable,
     persistClienteRegistroToOneDrive,
+    setOneDriveIntegrationAvailable,
     setClienteEmEdicaoId,
     validarCamposObrigatorios,
   ])
@@ -8722,55 +8767,78 @@ export default function App() {
 
     setGerandoTabelaTransferencia(true)
 
-    try {
-      const html = await renderPrintableBuyoutTableToHtml({
-        cliente: cloneClienteDados(cliente),
-        budgetId: codigoOrcamento,
-        tabelaBuyout,
-        buyoutResumo,
+      try {
+        const html = await renderPrintableBuyoutTableToHtml({
+          cliente: cloneClienteDados(cliente),
+          budgetId: codigoOrcamento,
+          tabelaBuyout,
+          buyoutResumo,
         prazoContratualMeses: duracaoMeses,
         emissaoIso: new Date().toISOString(),
         observacaoImportante: printableData.informacoesImportantesObservacao,
       })
 
-      if (!html) {
-        throw new Error('Não foi possível preparar o conteúdo da tabela para impressão.')
-      }
+        if (!html) {
+          throw new Error('Não foi possível preparar o conteúdo da tabela para impressão.')
+        }
 
-      await persistProposalPdf({
-        html,
-        budgetId: codigoOrcamento,
-        clientName: cliente.nome,
-        proposalType: 'LEASING',
-        fileName: `Tabela-Valor-de-Transferencia-${codigoOrcamento}.pdf`,
+        const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
+        setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
+        if (!integracaoPdfDisponivel) {
+          adicionarNotificacao(
+            'Configure a integração de PDF para salvar a tabela de valor de transferência automaticamente.',
+            'info',
+          )
+          return
+        }
+
+        await persistProposalPdf({
+          html,
+          budgetId: codigoOrcamento,
+          clientName: cliente.nome,
+          proposalType: 'LEASING',
+          fileName: `Tabela-Valor-de-Transferencia-${codigoOrcamento}.pdf`,
         metadata: {
           source: 'buyout-table',
           variant: 'transferencia',
         },
       })
 
-      adicionarNotificacao('Tabela de valor de transferência salva em PDF.', 'success')
-    } catch (error) {
-      console.error('Erro ao salvar a tabela de valor de transferência em PDF.', error)
-      const mensagem =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Não foi possível salvar a tabela de valor de transferência. Tente novamente.'
-      adicionarNotificacao(mensagem, 'error')
-    } finally {
-      setGerandoTabelaTransferencia(false)
-    }
-  }, [
-    adicionarNotificacao,
-    cliente,
-    duracaoMeses,
-    gerandoTabelaTransferencia,
-    printableData.budgetId,
-    printableData.informacoesImportantesObservacao,
-    tabelaBuyout,
-    buyoutResumo,
-    renderPrintableBuyoutTableToHtml,
-  ])
+        adicionarNotificacao('Tabela de valor de transferência salva em PDF.', 'success')
+      } catch (error) {
+        if (error instanceof ProposalPdfIntegrationMissingError) {
+          setProposalPdfIntegrationAvailable(false)
+          if (typeof console !== 'undefined') {
+            console.info('Integração de PDF indisponível ao salvar tabela de transferência.')
+          }
+          adicionarNotificacao(
+            'Não foi possível salvar a tabela em PDF porque a integração de arquivos não está configurada.',
+            'info',
+          )
+        } else {
+          console.error('Erro ao salvar a tabela de valor de transferência em PDF.', error)
+          const mensagem =
+            error instanceof Error && error.message
+              ? error.message
+              : 'Não foi possível salvar a tabela de valor de transferência. Tente novamente.'
+          adicionarNotificacao(mensagem, 'error')
+        }
+      } finally {
+        setGerandoTabelaTransferencia(false)
+      }
+    }, [
+      adicionarNotificacao,
+      isProposalPdfIntegrationAvailable,
+      cliente,
+      duracaoMeses,
+      gerandoTabelaTransferencia,
+      printableData.budgetId,
+      printableData.informacoesImportantesObservacao,
+      tabelaBuyout,
+      buyoutResumo,
+      renderPrintableBuyoutTableToHtml,
+      setProposalPdfIntegrationAvailable,
+    ])
 
   const handlePreviewActionRequest = useCallback(
     async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
@@ -8838,16 +8906,39 @@ export default function App() {
 
         try {
           const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
-          await persistProposalPdf({
-            html: htmlAtualizado,
-            budgetId: registro.id,
-            clientName: dados.cliente.nome,
-            proposalType,
-          })
-          adicionarNotificacao(
-            'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.',
-            'success',
-          )
+            const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
+            setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
+            if (integracaoPdfDisponivel) {
+              try {
+                await persistProposalPdf({
+                  html: htmlAtualizado,
+                  budgetId: registro.id,
+                  clientName: dados.cliente.nome,
+                  proposalType,
+                })
+                adicionarNotificacao(
+                  'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.',
+                  'success',
+                )
+              } catch (error) {
+                if (error instanceof ProposalPdfIntegrationMissingError) {
+                  setProposalPdfIntegrationAvailable(false)
+                  adicionarNotificacao(
+                    'Proposta preparada, mas a integração para salvar PDF não está configurada.',
+                    'info',
+                  )
+                } else {
+                  console.error('Erro ao salvar a proposta em PDF durante a impressão.', error)
+                  window.alert('Não foi possível salvar a proposta em PDF. Tente novamente.')
+                  return { proceed: false }
+                }
+              }
+            } else {
+              adicionarNotificacao(
+                'Proposta preparada, mas a integração para salvar PDF não está configurada.',
+                'info',
+              )
+            }
         } catch (error) {
           console.error('Erro ao salvar a proposta em PDF durante a impressão.', error)
           window.alert('Não foi possível salvar a proposta em PDF. Tente novamente.')
@@ -8867,16 +8958,18 @@ export default function App() {
         return { proceed: false }
       }
     },
-    [
-      activeTab,
-      adicionarNotificacao,
-      clienteEmEdicaoId,
-      currentBudgetId,
-      renameVendasSimulacao,
-      salvarOrcamentoLocalmente,
-      setCurrentBudgetId,
-    ],
-  )
+      [
+        activeTab,
+        adicionarNotificacao,
+        clienteEmEdicaoId,
+        currentBudgetId,
+        isProposalPdfIntegrationAvailable,
+        renameVendasSimulacao,
+        salvarOrcamentoLocalmente,
+        setCurrentBudgetId,
+        setProposalPdfIntegrationAvailable,
+      ],
+    )
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -8951,42 +9044,62 @@ export default function App() {
 
       const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
 
-      await persistProposalPdf({
-        html: htmlComCodigo,
-        budgetId: registroSalvo.id,
-        clientName: dados.cliente.nome,
-        proposalType,
-      })
+        const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
+        setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
+        if (!integracaoPdfDisponivel) {
+          adicionarNotificacao(
+            'Proposta armazenada localmente. Configure a integração de PDF para gerar o arquivo automaticamente.',
+            'info',
+          )
+          return
+        }
 
-      const mensagemSucesso = salvouLocalmente
-        ? 'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.'
-        : 'Proposta salva em PDF com sucesso.'
-      adicionarNotificacao(mensagemSucesso, 'success')
-    } catch (error) {
-      console.error('Erro ao salvar a proposta em PDF.', error)
-      const mensagem =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
-      const mensagemComFallback = salvouLocalmente
-        ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
-        : mensagem
-      adicionarNotificacao(mensagemComFallback, 'error')
-    } finally {
-      setSalvandoPropostaPdf(false)
-    }
-  }, [
-    activeTab,
-    adicionarNotificacao,
-    clienteEmEdicaoId,
-    currentBudgetId,
-    isVendaDiretaTab,
-    prepararPropostaParaExportacao,
-    renameVendasSimulacao,
-    salvarOrcamentoLocalmente,
-    salvandoPropostaPdf,
-    validarCamposObrigatorios,
-  ])
+        await persistProposalPdf({
+          html: htmlComCodigo,
+          budgetId: registroSalvo.id,
+          clientName: dados.cliente.nome,
+          proposalType,
+        })
+
+        const mensagemSucesso = salvouLocalmente
+          ? 'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.'
+          : 'Proposta salva em PDF com sucesso.'
+        adicionarNotificacao(mensagemSucesso, 'success')
+      } catch (error) {
+        if (error instanceof ProposalPdfIntegrationMissingError) {
+          setProposalPdfIntegrationAvailable(false)
+          adicionarNotificacao(
+            'Proposta armazenada localmente, mas a integração de PDF não está configurada.',
+            'info',
+          )
+        } else {
+          console.error('Erro ao salvar a proposta em PDF.', error)
+          const mensagem =
+            error instanceof Error && error.message
+              ? error.message
+              : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
+          const mensagemComFallback = salvouLocalmente
+            ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
+            : mensagem
+          adicionarNotificacao(mensagemComFallback, 'error')
+        }
+      } finally {
+        setSalvandoPropostaPdf(false)
+      }
+    }, [
+      activeTab,
+      adicionarNotificacao,
+      clienteEmEdicaoId,
+      currentBudgetId,
+      isProposalPdfIntegrationAvailable,
+      isVendaDiretaTab,
+      prepararPropostaParaExportacao,
+      renameVendasSimulacao,
+      salvarOrcamentoLocalmente,
+      salvandoPropostaPdf,
+      setProposalPdfIntegrationAvailable,
+      validarCamposObrigatorios,
+    ])
 
   const handleNovaProposta = useCallback(() => {
     setSettingsTab(INITIAL_VALUES.settingsTab)
@@ -9736,6 +9849,11 @@ export default function App() {
           Ver clientes
         </button>
       </div>
+      {!oneDriveIntegrationAvailable ? (
+        <p className="muted integration-hint" role="status">
+          Sincronização automática com o OneDrive indisponível. Configure a integração para habilitar o envio.
+        </p>
+      ) : null}
     </section>
   )
 
@@ -12960,25 +13078,35 @@ export default function App() {
                     className={`ghost${activeTab === 'leasing' ? ' solid' : ''}`}
                     onClick={handleNovaProposta}
                   >
-                  Novo
-                </button>
-                {isVendaDiretaTab ? (
-                  <button type="button" className="ghost" onClick={handleRecalcularVendas}>
-                    Recalcular
+                    Novo
                   </button>
-                ) : null}
-                {podeSalvarProposta ? (
-                  <button
-                    type="button"
-                    className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                    onClick={handleSalvarPropostaPdf}
-                    disabled={salvandoPropostaPdf}
-                  >
-                    {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
-                  </button>
-                ) : null}
-              </div>
-              {renderClienteDadosSection()}
+                  {isVendaDiretaTab ? (
+                    <button type="button" className="ghost" onClick={handleRecalcularVendas}>
+                      Recalcular
+                    </button>
+                  ) : null}
+                  {podeSalvarProposta ? (
+                    <button
+                      type="button"
+                      className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
+                      onClick={handleSalvarPropostaPdf}
+                      disabled={salvandoPropostaPdf}
+                      title={
+                        !proposalPdfIntegrationAvailable
+                          ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
+                          : undefined
+                      }
+                    >
+                      {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
+                    </button>
+                  ) : null}
+                  {!proposalPdfIntegrationAvailable ? (
+                    <span className="muted integration-hint" role="status">
+                      Integração de PDF não configurada. O arquivo será gerado apenas após configurar o conector.
+                    </span>
+                  ) : null}
+                </div>
+                {renderClienteDadosSection()}
               {activeTab === 'leasing' ? (
                 <>
                   {renderParametrosPrincipaisSection()}

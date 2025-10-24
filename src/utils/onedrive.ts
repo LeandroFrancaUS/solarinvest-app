@@ -100,6 +100,23 @@ const resolveOneDriveBridge = (): OneDriveBridge | null => {
   return candidates.find((candidate): candidate is OneDriveBridge => typeof candidate === 'function') ?? null
 }
 
+const getOneDriveEndpoint = () => import.meta.env?.VITE_ONEDRIVE_SYNC_ENDPOINT?.trim() || ''
+
+export const isOneDriveIntegrationAvailable = (): boolean => {
+  if (typeof window !== 'undefined' && resolveOneDriveBridge()) {
+    return true
+  }
+
+  return getOneDriveEndpoint().length > 0
+}
+
+export class OneDriveIntegrationMissingError extends Error {
+  constructor(message = 'Nenhuma integração com o OneDrive foi encontrada. Configure o conector desktop ou defina a variável VITE_ONEDRIVE_SYNC_ENDPOINT.') {
+    super(message)
+    this.name = 'OneDriveIntegrationMissingError'
+  }
+}
+
 const formatUnknownError = (error: unknown) => {
   if (error instanceof Error) {
     return error.message
@@ -146,7 +163,7 @@ export const persistClienteRegistroToOneDrive = async (
     }
   }
 
-  const endpoint = import.meta.env?.VITE_ONEDRIVE_SYNC_ENDPOINT?.trim()
+  const endpoint = getOneDriveEndpoint()
   if (endpoint) {
     try {
       const response = await fetch(endpoint, {
@@ -169,7 +186,5 @@ export const persistClienteRegistroToOneDrive = async (
     }
   }
 
-  throw new Error(
-    'Nenhuma integração com o OneDrive foi encontrada. Configure o conector desktop ou defina a variável VITE_ONEDRIVE_SYNC_ENDPOINT.',
-  )
+  throw new OneDriveIntegrationMissingError()
 }
