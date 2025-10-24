@@ -2293,6 +2293,8 @@ tbody tr:hover {
 .table-controls {
   display: flex;
   justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .collapse-toggle {
