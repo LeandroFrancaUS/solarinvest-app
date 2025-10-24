@@ -141,6 +141,7 @@ import type {
   MensalidadeRow,
   PrintableMultiUcResumo,
   PrintableProposalProps,
+  PrintableProposalTipo,
   TipoInstalacao,
   UfvComposicaoResumo,
   UfvComposicaoSoloValores,
@@ -625,7 +626,11 @@ const CAMPOS_CLIENTE_OBRIGATORIOS: { key: ClienteCampoTexto; label: string }[] =
 
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
-const BUDGET_ID_PREFIX = 'SLRINVST-'
+const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
+  VENDA_DIRETA: 'SLRINVST-VND-',
+  LEASING: 'SLRINVST-LSE-',
+}
+const DEFAULT_BUDGET_ID_PREFIX = BUDGET_ID_PREFIXES.LEASING
 const BUDGET_ID_SUFFIX_LENGTH = 8
 const BUDGET_ID_MAX_ATTEMPTS = 1000
 const CLIENTE_ID_LENGTH = 5
@@ -648,14 +653,18 @@ const CLIENTE_INICIAL: ClienteDados = {
   indicacaoNome: '',
 }
 
-const generateBudgetId = (existingIds: Set<string> = new Set()) => {
+const generateBudgetId = (
+  existingIds: Set<string> = new Set(),
+  tipoProposta: PrintableProposalTipo = 'LEASING',
+) => {
   let attempts = 0
 
   while (attempts < BUDGET_ID_MAX_ATTEMPTS) {
     attempts += 1
     const randomNumber = Math.floor(Math.random() * 10 ** BUDGET_ID_SUFFIX_LENGTH)
     const suffix = randomNumber.toString().padStart(BUDGET_ID_SUFFIX_LENGTH, '0')
-    const candidate = `${BUDGET_ID_PREFIX}${suffix}`
+    const prefix = BUDGET_ID_PREFIXES[tipoProposta] ?? DEFAULT_BUDGET_ID_PREFIX
+    const candidate = `${prefix}${suffix}`
 
     if (!existingIds.has(candidate)) {
       return candidate
@@ -8490,7 +8499,7 @@ export default function App() {
         const novoId =
           candidatoInformado && !existingIds.has(candidatoInformado)
             ? candidatoInformado
-            : generateBudgetId(existingIds)
+            : generateBudgetId(existingIds, dadosClonados.tipoProposta)
         const registro: OrcamentoSalvo = {
           id: novoId,
           criadoEm: new Date().toISOString(),
