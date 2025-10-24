@@ -435,6 +435,11 @@ button.secondary.danger:focus-visible {
   margin-top: 0;
 }
 
+.page-content.vendas {
+  --ghost-bg: var(--surface);
+  --ghost-bg-hover: color-mix(in srgb, var(--surface) 85%, var(--accent) 15%);
+}
+
 .table-header.sticky {
   top: calc(var(--header-h) + var(--tabs-h, 48px));
 }
