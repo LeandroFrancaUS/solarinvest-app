@@ -680,7 +680,9 @@ function PrintableProposalLeasingInner(
                       />
                       <h1>Proposta de Energia Solar com Leasing SolarInvest</h1>
                     </div>
-                    <p className="print-hero__tagline">Energia inteligente, sustentável e sem investimento inicial.</p>
+                    <p className="print-hero__tagline">
+                      Energia inteligente, sustentável e sem desembolso.
+                    </p>
                   </div>
                 </div>
               </div>

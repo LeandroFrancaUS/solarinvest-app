@@ -119,11 +119,12 @@
 }
 
 .print-hero__tagline {
-  margin: 4px 0 0;
+  margin: 4px auto 0;
   font-size: 15px;
   line-height: 1.6;
   color: rgba(248, 250, 252, 0.88);
   max-width: 420px;
+  text-align: center;
 }
 
 .print-hero__summary {

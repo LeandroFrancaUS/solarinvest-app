@@ -296,7 +296,7 @@ describe('PrintableProposal (leasing)', () => {
 
     expect(markup).toContain('Proposta de Leasing Solar')
     expect(markup).toContain('Quadro Comercial Resumido')
-    expect(markup).toContain('Energia inteligente, sustentável e sem investimento inicial.')
+    expect(markup).toContain('Energia inteligente, sustentável e sem desembolso.')
     expect(markup).toContain('Investimento Estimado da SolarInvest')
     expect(markup).toContain('R$\u00a0120.000,00')
     expect(markup).toContain('Informações Importantes')
