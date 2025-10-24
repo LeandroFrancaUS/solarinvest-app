@@ -147,6 +147,7 @@ import type {
   UfvComposicaoTelhadoValores,
   UfvComposicaoConfiguracao,
 } from './types/printableProposal'
+import type { PrintableBuyoutTableProps } from './components/print/PrintableBuyoutTable'
 import {
   currency,
   formatAxis,
@@ -158,6 +159,7 @@ import {
 } from './utils/formatters'
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
+const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
 
@@ -1477,6 +1479,73 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
     }
 
     const rootInstance = createRoot(container)
+    rootInstance.render(<PrintableHost />)
+  })
+}
+
+function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Promise<string | null> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return Promise.resolve(null)
+  }
+
+  return new Promise((resolve) => {
+    const container = document.createElement('div')
+    container.style.position = 'fixed'
+    container.style.top = '-9999px'
+    container.style.left = '-9999px'
+    container.style.width = '672px'
+    container.style.padding = '0'
+    container.style.background = '#f8fafc'
+    container.style.zIndex = '-1'
+    document.body.appendChild(container)
+
+    let resolved = false
+    let rootInstance: ReturnType<typeof createRoot> | null = null
+
+    const cleanup = () => {
+      if (rootInstance) {
+        rootInstance.unmount()
+      }
+      if (container.parentElement) {
+        container.parentElement.removeChild(container)
+      }
+    }
+
+    const finalize = (html: string | null) => {
+      if (resolved) {
+        return
+      }
+      resolved = true
+      resolve(html)
+      cleanup()
+    }
+
+    const PrintableHost: React.FC = () => {
+      const wrapperRef = useRef<HTMLDivElement>(null)
+
+      useEffect(() => {
+        const timeoutId = window.setTimeout(() => {
+          const html = wrapperRef.current ? wrapperRef.current.outerHTML : null
+          finalize(html)
+        }, 220)
+
+        return () => {
+          window.clearTimeout(timeoutId)
+          const html = wrapperRef.current ? wrapperRef.current.outerHTML : null
+          finalize(html)
+        }
+      }, [])
+
+      return (
+        <div ref={wrapperRef} data-print-mode="download" data-print-variant="buyout">
+          <React.Suspense fallback={null}>
+            <PrintableBuyoutTable {...dados} />
+          </React.Suspense>
+        </div>
+      )
+    }
+
+    rootInstance = createRoot(container)
     rootInstance.render(<PrintableHost />)
   })
 }
@@ -3562,6 +3631,7 @@ export default function App() {
     INITIAL_VALUES.tabelaVisivel,
   )
   const [mostrarTabelaBuyout, setMostrarTabelaBuyout] = useState(INITIAL_VALUES.tabelaVisivel)
+  const [gerandoTabelaTransferencia, setGerandoTabelaTransferencia] = useState(false)
   const [mostrarTabelaParcelasConfig, setMostrarTabelaParcelasConfig] = useState(
     INITIAL_VALUES.tabelaVisivel,
   )
@@ -8588,6 +8658,81 @@ export default function App() {
     })
   }
 
+  const handleImprimirTabelaTransferencia = useCallback(async () => {
+    if (gerandoTabelaTransferencia) {
+      return
+    }
+
+    const codigoOrcamento = printableData.budgetId?.trim()
+    if (!codigoOrcamento) {
+      window.alert(
+        'Associe um número de orçamento ao cliente antes de imprimir a tabela de valor de transferência.',
+      )
+      return
+    }
+
+    const possuiValoresTransferencia = tabelaBuyout.some(
+      (row) => row.valorResidual != null && Number.isFinite(row.valorResidual) && row.mes >= 7,
+    )
+    if (!possuiValoresTransferencia) {
+      window.alert(
+        'Não há valores calculados para a compra antecipada desta proposta. Atualize a simulação antes de imprimir a tabela.',
+      )
+      return
+    }
+
+    setGerandoTabelaTransferencia(true)
+
+    try {
+      const html = await renderPrintableBuyoutTableToHtml({
+        cliente: cloneClienteDados(cliente),
+        budgetId: codigoOrcamento,
+        tabelaBuyout,
+        buyoutResumo,
+        prazoContratualMeses: duracaoMeses,
+        emissaoIso: new Date().toISOString(),
+        observacaoImportante: printableData.informacoesImportantesObservacao,
+      })
+
+      if (!html) {
+        throw new Error('Não foi possível preparar o conteúdo da tabela para impressão.')
+      }
+
+      await persistProposalPdf({
+        html,
+        budgetId: codigoOrcamento,
+        clientName: cliente.nome,
+        proposalType: 'LEASING',
+        fileName: `Tabela-Valor-de-Transferencia-${codigoOrcamento}.pdf`,
+        metadata: {
+          source: 'buyout-table',
+          variant: 'transferencia',
+        },
+      })
+
+      adicionarNotificacao('Tabela de valor de transferência salva em PDF.', 'success')
+    } catch (error) {
+      console.error('Erro ao salvar a tabela de valor de transferência em PDF.', error)
+      const mensagem =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Não foi possível salvar a tabela de valor de transferência. Tente novamente.'
+      adicionarNotificacao(mensagem, 'error')
+    } finally {
+      setGerandoTabelaTransferencia(false)
+    }
+  }, [
+    adicionarNotificacao,
+    cliente,
+    duracaoMeses,
+    gerandoTabelaTransferencia,
+    printableData.budgetId,
+    printableData.informacoesImportantesObservacao,
+    tabelaBuyout,
+    buyoutResumo,
+    renderPrintableBuyoutTableToHtml,
+  ])
+
   const handlePreviewActionRequest = useCallback(
     async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
       const previewData = pendingPreviewDataRef.current
@@ -12897,6 +13042,14 @@ export default function App() {
                 <span className="muted">Valores entre o mês 7 e o mês {duracaoMesesExibicao}.</span>
               </div>
               <div className="table-controls">
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={handleImprimirTabelaTransferencia}
+                  disabled={gerandoTabelaTransferencia}
+                >
+                  {gerandoTabelaTransferencia ? 'Gerando PDF…' : 'Imprimir tabela'}
+                </button>
                 <button
                   type="button"
                   className="collapse-toggle"
