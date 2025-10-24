@@ -745,24 +745,27 @@ function PrintableProposalInner(
     : Number.isFinite(vendaFormResumo?.horizonte_meses) && (vendaFormResumo?.horizonte_meses ?? 0) > 0
     ? `${Math.round(vendaFormResumo?.horizonte_meses ?? 0)} meses`
     : 'horizonte analisado'
-  const validadePropostaDiasPadrao = Number.isFinite(
-    vendasConfigSnapshot?.validade_proposta_dias,
-  )
-    ? Math.max(0, Number(vendasConfigSnapshot?.validade_proposta_dias ?? 0))
-    : null
+  const validadePropostaDiasPadrao = (() => {
+    const diasConfig = vendasConfigSnapshot?.validade_proposta_dias
+    if (diasConfig == null) {
+      return 3
+    }
+
+    const diasNumero = Number(diasConfig)
+    if (!Number.isFinite(diasNumero) || diasNumero <= 0) {
+      return 3
+    }
+
+    return diasNumero
+  })()
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
-  if ((validadePropostaDiasPadrao ?? 0) > 0) {
-    validadeData.setDate(validadeData.getDate() + (validadePropostaDiasPadrao ?? 0))
-  }
+  validadeData.setDate(validadeData.getDate() + validadePropostaDiasPadrao)
   const formatDate = (date: Date) =>
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
   const validadePadraoDescricao = (() => {
-    if (validadePropostaDiasPadrao == null || validadePropostaDiasPadrao <= 0) {
-      return validadeTexto
-    }
     const plural = validadePropostaDiasPadrao === 1 ? 'dia' : 'dias'
     return `${validadeTexto} (${validadePropostaDiasPadrao} ${plural} corridos)`
   })()
