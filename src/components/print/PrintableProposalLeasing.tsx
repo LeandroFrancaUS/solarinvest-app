@@ -54,8 +54,6 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /pot[êe]ncia\s+do\s+sistema/i,
 ]
 
-const formatAnoDescricao = (ano: number): string => `${ano} ${ano === 1 ? 'ano' : 'anos'}`
-
 const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
   'Valores estimativos; confirmação no contrato definitivo.'
 
@@ -903,64 +901,41 @@ function PrintableProposalLeasingInner(
             className="print-section keep-together page-break-before break-after"
           >
             <h2 className="section-title keep-with-next">Economia Acumulada ao Longo de 30 Anos</h2>
-            {economiaProjetada.length ? (
+            {economiaProjetadaGrafico.length ? (
               <>
                 <p className="section-subtitle keep-with-next">
                   Confira a evolução da economia acumulada nos principais marcos do contrato de leasing.
                 </p>
-                <table className="no-break-inside">
-                  <thead>
-                    <tr>
-                      <th>Período</th>
-                      <th>Economia acumulada (R$)</th>
-                      <th>Economia no ano (R$)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {economiaProjetada.map((linha) => (
-                      <tr key={`economia-${linha.ano}`}>
-                        <td>{formatAnoDescricao(linha.ano)}</td>
-                        <td className="leasing-table-value">{currency(linha.acumulado)}</td>
-                        <td className="leasing-table-value">{currency(linha.economiaAnual)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {economiaProjetadaGrafico.length ? (
-                  <div
-                    className="leasing-horizontal-chart no-break-inside"
-                    role="img"
-                    aria-label="Economia projetada em 30 anos"
-                  >
-                    <div className="leasing-horizontal-chart__header">
-                      <strong>Economia projetada em 30 anos</strong>
-                    </div>
-                    <div className="leasing-horizontal-chart__header-row">
-                      <span className="leasing-horizontal-chart__axis-y-label">Tempo (anos)</span>
-                      <span className="leasing-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
-                    </div>
-                    <div className="leasing-horizontal-chart__rows">
-                      {economiaProjetadaGrafico.map((linha) => {
-                        const percentual = maxBeneficioGrafico > 0 ? (linha.acumulado / maxBeneficioGrafico) * 100 : 0
-                        return (
-                          <div
-                            className="leasing-horizontal-chart__row"
-                            key={`grafico-economia-${linha.ano.toFixed(2)}`}
-                          >
-                            <div className="leasing-horizontal-chart__y-value">{linha.label}</div>
-                            <div className="leasing-horizontal-chart__bar-track" aria-hidden="true">
-                              <div
-                                className="leasing-horizontal-chart__bar"
-                                style={{ width: `${percentual}%` }}
-                              />
-                            </div>
-                            <div className="leasing-horizontal-chart__value">{formatMoneyBR(linha.acumulado)}</div>
-                          </div>
-                        )
-                      })}
-                    </div>
+                <div
+                  className="leasing-horizontal-chart no-break-inside"
+                  role="img"
+                  aria-label="Economia projetada em 30 anos"
+                >
+                  <div className="leasing-horizontal-chart__header-row">
+                    <span className="leasing-horizontal-chart__axis-y-label">Tempo (anos)</span>
+                    <span className="leasing-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
                   </div>
-                ) : null}
+                  <div className="leasing-horizontal-chart__rows">
+                    {economiaProjetadaGrafico.map((linha) => {
+                      const percentual = maxBeneficioGrafico > 0 ? (linha.acumulado / maxBeneficioGrafico) * 100 : 0
+                      return (
+                        <div
+                          className="leasing-horizontal-chart__row"
+                          key={`grafico-economia-${linha.ano.toFixed(2)}`}
+                        >
+                          <div className="leasing-horizontal-chart__y-value">{linha.label}</div>
+                          <div className="leasing-horizontal-chart__bar-track" aria-hidden="true">
+                            <div
+                              className="leasing-horizontal-chart__bar"
+                              style={{ width: `${percentual}%` }}
+                            />
+                          </div>
+                          <div className="leasing-horizontal-chart__value">{formatMoneyBR(linha.acumulado)}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
                 <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
               </>
             ) : (
