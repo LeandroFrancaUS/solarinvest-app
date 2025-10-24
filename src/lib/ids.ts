@@ -1,5 +1,13 @@
 const PROPOSAL_ID_PREFIX = 'SLRINVST-'
-const PROPOSAL_ID_PATTERN = /^SLRINVST-[A-Z0-9]{6}$/
+const PROPOSAL_ID_PATTERNS = [
+  /^SLRINVST-[A-Z0-9]{6}$/,
+  /^SLRINVST-\d{8}$/,
+  /^SLRINVST-VND-\d{8}$/,
+  /^SLRINVST-LSE-\d{8}$/,
+]
+
+const isValidProposalId = (candidate: string): boolean =>
+  PROPOSAL_ID_PATTERNS.some((pattern) => pattern.test(candidate))
 
 export function makeProposalId(): string {
   const random = Math.random().toString(36).slice(2, 8).toUpperCase()
@@ -8,7 +16,7 @@ export function makeProposalId(): string {
 
 export function ensureProposalId(candidate?: string | null): string {
   const normalized = candidate?.toString().trim().toUpperCase() ?? ''
-  if (PROPOSAL_ID_PATTERN.test(normalized)) {
+  if (isValidProposalId(normalized)) {
     return normalized
   }
   return makeProposalId()
@@ -16,5 +24,5 @@ export function ensureProposalId(candidate?: string | null): string {
 
 export function normalizeProposalId(candidate?: string | null): string {
   const normalized = candidate?.toString().trim().toUpperCase() ?? ''
-  return PROPOSAL_ID_PATTERN.test(normalized) ? normalized : ''
+  return isValidProposalId(normalized) ? normalized : ''
 }
