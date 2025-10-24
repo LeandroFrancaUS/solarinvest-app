@@ -8,7 +8,7 @@ type PrintableProposalImagesProps = {
 
 const PrintableProposalImages: React.FC<PrintableProposalImagesProps> = ({
   images,
-  heading = 'Imagens reais do local de instalação',
+  heading = 'Projeção do Layout de Instalação Fotovoltaica',
 }) => {
   const validImages = Array.isArray(images)
     ? images.filter((image) => image && typeof image.url === 'string' && image.url.trim().length > 0)
