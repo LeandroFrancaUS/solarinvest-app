@@ -1407,7 +1407,10 @@ type ClienteContratoPayload = {
   unidadeConsumidora: string
 }
 
+type ContractTemplateCategory = 'leasing' | 'vendas'
+
 type ContractTemplatesModalProps = {
+  title: string
   templates: string[]
   selectedTemplates: string[]
   isLoading: boolean
@@ -1525,6 +1528,7 @@ function ClientesModal({ registros, onClose, onEditar, onExcluir }: ClientesModa
 }
 
 function ContractTemplatesModal({
+  title,
   templates,
   selectedTemplates,
   isLoading,
@@ -1540,11 +1544,16 @@ function ContractTemplatesModal({
   const hasSelection = selectedTemplates.length > 0
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-labelledby={modalTitleId}>
+    <div
+      className="modal contract-templates-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={modalTitleId}
+    >
       <div className="modal-backdrop" onClick={onClose} />
-      <div className="modal-content">
+      <div className="modal-content contract-templates-modal__content">
         <div className="modal-header">
-          <h3 id={modalTitleId}>Gerar contratos</h3>
+          <h3 id={modalTitleId}>{title}</h3>
           <button className="icon" onClick={onClose} aria-label="Fechar seleção de contratos">
             ✕
           </button>
@@ -1571,7 +1580,8 @@ function ContractTemplatesModal({
               <ul className="contract-template-list">
                 {templates.map((template, index) => {
                   const checkboxId = `${checkboxBaseId}-${index}`
-                  const label = template.replace(/\.docx$/i, '')
+                  const fileName = template.split(/[\\/]/).pop() ?? template
+                  const label = fileName.replace(/\.docx$/i, '')
                   const checked = selectedTemplates.includes(template)
                   return (
                     <li key={template} className="contract-template-item">
@@ -1584,7 +1594,7 @@ function ContractTemplatesModal({
                         />
                         <span>
                           <strong>{label}</strong>
-                          <span className="filename">{template}</span>
+                          <span className="filename">{fileName}</span>
                         </span>
                       </label>
                     </li>
@@ -4046,6 +4056,7 @@ export default function App() {
   const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
   const [gerandoContratoPdf, setGerandoContratoPdf] = useState(false)
   const [isContractTemplatesModalOpen, setIsContractTemplatesModalOpen] = useState(false)
+  const [contractTemplatesCategory, setContractTemplatesCategory] = useState<ContractTemplateCategory>('leasing')
   const [contractTemplates, setContractTemplates] = useState<string[]>([])
   const [selectedContractTemplates, setSelectedContractTemplates] = useState<string[]>([])
   const [contractTemplatesLoading, setContractTemplatesLoading] = useState(false)
@@ -9659,61 +9670,65 @@ export default function App() {
     cliente.uf,
   ])
 
-  const carregarTemplatesContrato = useCallback(async () => {
-    setContractTemplatesLoading(true)
-    setContractTemplatesError(null)
-    try {
-      const response = await fetch('/api/contracts/templates')
-      if (!response.ok) {
-        let mensagemErro = 'Não foi possível listar os templates de contrato.'
-        const contentType = response.headers.get('content-type') ?? ''
-        try {
-          if (contentType.includes('application/json')) {
-            const data = (await response.json()) as { error?: string } | undefined
-            if (data?.error) {
-              mensagemErro = data.error
+  const carregarTemplatesContrato = useCallback(
+    async (category: ContractTemplateCategory) => {
+      setContractTemplatesLoading(true)
+      setContractTemplatesError(null)
+      try {
+        const params = new URLSearchParams({ categoria: category })
+        const response = await fetch(`/api/contracts/templates?${params.toString()}`)
+        if (!response.ok) {
+          let mensagemErro = 'Não foi possível listar os templates de contrato.'
+          const contentType = response.headers.get('content-type') ?? ''
+          try {
+            if (contentType.includes('application/json')) {
+              const data = (await response.json()) as { error?: string } | undefined
+              if (data?.error) {
+                mensagemErro = data.error
+              }
+            } else {
+              const texto = await response.text()
+              if (texto.trim()) {
+                mensagemErro = texto.trim()
+              }
             }
-          } else {
-            const texto = await response.text()
-            if (texto.trim()) {
-              mensagemErro = texto.trim()
-            }
+          } catch (error) {
+            console.warn('Não foi possível interpretar o erro ao listar templates.', error)
           }
-        } catch (error) {
-          console.warn('Não foi possível interpretar o erro ao listar templates.', error)
+          throw new Error(mensagemErro)
         }
-        throw new Error(mensagemErro)
-      }
 
-      const payload = (await response.json()) as { templates?: unknown }
-      const listaBruta = Array.isArray(payload.templates) ? payload.templates : []
-      const nomes = listaBruta
-        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-        .map((item) => item.trim())
-      if (nomes.length === 0) {
-        throw new Error('Nenhum template de contrato disponível.')
-      }
+        const payload = (await response.json()) as { templates?: unknown }
+        const listaBruta = Array.isArray(payload.templates) ? payload.templates : []
+        const nomes = listaBruta
+          .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+          .map((item) => item.trim())
+        if (nomes.length === 0) {
+          throw new Error('Nenhum template de contrato disponível.')
+        }
 
-      const unicos = Array.from(new Set(nomes))
-      setContractTemplates(unicos)
-      setSelectedContractTemplates((prev) => {
-        const ativos = prev.filter((item) => unicos.includes(item))
-        return ativos.length > 0 ? ativos : unicos
-      })
-    } catch (error) {
-      const mensagem =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Não foi possível listar os templates de contrato.'
-      console.error('Não foi possível carregar os templates de contrato.', error)
-      setContractTemplatesError(mensagem)
-      setContractTemplates([])
-      setSelectedContractTemplates([])
-      adicionarNotificacao(mensagem, 'error')
-    } finally {
-      setContractTemplatesLoading(false)
-    }
-  }, [adicionarNotificacao])
+        const unicos = Array.from(new Set(nomes))
+        setContractTemplates(unicos)
+        setSelectedContractTemplates((prev) => {
+          const ativos = prev.filter((item) => unicos.includes(item))
+          return ativos.length > 0 ? ativos : unicos
+        })
+      } catch (error) {
+        const mensagem =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Não foi possível listar os templates de contrato.'
+        console.error('Não foi possível carregar os templates de contrato.', error)
+        setContractTemplatesError(mensagem)
+        setContractTemplates([])
+        setSelectedContractTemplates([])
+        adicionarNotificacao(mensagem, 'error')
+      } finally {
+        setContractTemplatesLoading(false)
+      }
+    },
+    [adicionarNotificacao],
+  )
 
   const handleToggleContractTemplate = useCallback((template: string) => {
     setSelectedContractTemplates((prev) => {
@@ -9736,25 +9751,33 @@ export default function App() {
     contratoClientePayloadRef.current = null
   }, [])
 
+  const abrirSelecaoContratos = useCallback(
+    (category: ContractTemplateCategory) => {
+      if (gerandoContratoPdf) {
+        return
+      }
+
+      const payload = prepararDadosContratoCliente()
+      if (!payload) {
+        return
+      }
+
+      contratoClientePayloadRef.current = payload
+      setContractTemplatesCategory(category)
+      setIsContractTemplatesModalOpen(true)
+      setContractTemplatesError(null)
+      void carregarTemplatesContrato(category)
+    },
+    [carregarTemplatesContrato, gerandoContratoPdf, prepararDadosContratoCliente],
+  )
+
   const handleGerarContratoLeasing = useCallback(() => {
-    if (gerandoContratoPdf) {
-      return
-    }
+    abrirSelecaoContratos('leasing')
+  }, [abrirSelecaoContratos])
 
-    const payload = prepararDadosContratoCliente()
-    if (!payload) {
-      return
-    }
-
-    contratoClientePayloadRef.current = payload
-    setIsContractTemplatesModalOpen(true)
-    setContractTemplatesError(null)
-    void carregarTemplatesContrato()
-  }, [
-    carregarTemplatesContrato,
-    gerandoContratoPdf,
-    prepararDadosContratoCliente,
-  ])
+  const handleGerarContratoVendas = useCallback(() => {
+    abrirSelecaoContratos('vendas')
+  }, [abrirSelecaoContratos])
 
   const handleConfirmarGeracaoContratos = useCallback(async () => {
     const payload = contratoClientePayloadRef.current
@@ -9805,7 +9828,7 @@ export default function App() {
 
     try {
       for (const template of selectedContractTemplates) {
-        const templateLabel = template.replace(/\.docx$/i, '')
+        const templateLabel = (template.split(/[\\/]/).pop() ?? template).replace(/\.docx$/i, '')
         const response = await fetch('/api/contracts/render', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -14024,54 +14047,62 @@ export default function App() {
               <div className={`page-editable${isViewOnlyMode ? ' is-readonly' : ''}`}>
                 <div ref={editableContentRef} className="page-editable-body">
                   <div className="page-actions">
-                  <button
-                    type="button"
-                    className={`ghost${activeTab === 'leasing' ? ' solid' : ''}`}
-                    onClick={handleNovaProposta}
-                  >
-                    Novo
-                  </button>
-                  {isVendaDiretaTab ? (
-                    <button type="button" className="ghost" onClick={handleRecalcularVendas}>
-                      Recalcular
-                    </button>
-                  ) : null}
-                  {orcamentoCarregado ? (
                     <button
                       type="button"
-                      className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                      onClick={duplicarOrcamentoCarregado}
-                      disabled={!orcamentoCarregadoRegistro?.snapshot}
-                      title={
-                        orcamentoCarregadoRegistro?.snapshot
-                          ? undefined
-                          : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
-                      }
+                      className={`ghost${activeTab === 'leasing' ? ' solid' : ''}`}
+                      onClick={handleNovaProposta}
                     >
-                      Duplicar
+                      Novo
                     </button>
-                  ) : podeSalvarProposta ? (
+                    {isVendaDiretaTab ? (
+                      <button type="button" className="ghost" onClick={handleRecalcularVendas}>
+                        Recalcular
+                      </button>
+                    ) : null}
+                    {orcamentoCarregado ? (
+                      <button
+                        type="button"
+                        className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
+                        onClick={duplicarOrcamentoCarregado}
+                        disabled={!orcamentoCarregadoRegistro?.snapshot}
+                        title={
+                          orcamentoCarregadoRegistro?.snapshot
+                            ? undefined
+                            : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
+                        }
+                      >
+                        Duplicar
+                      </button>
+                    ) : podeSalvarProposta ? (
+                      <button
+                        type="button"
+                        className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
+                        onClick={handleSalvarPropostaPdf}
+                        disabled={salvandoPropostaPdf}
+                        title={
+                          !proposalPdfIntegrationAvailable
+                            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
+                            : undefined
+                        }
+                      >
+                        {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
-                      className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                      onClick={handleSalvarPropostaPdf}
-                      disabled={salvandoPropostaPdf}
-                      title={
-                        !proposalPdfIntegrationAvailable
-                          ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
-                          : undefined
-                      }
+                      className="ghost"
+                      onClick={isVendaDiretaTab ? handleGerarContratoVendas : handleGerarContratoLeasing}
+                      disabled={gerandoContratoPdf}
                     >
-                      {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
+                      {gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos'}
                     </button>
-                  ) : null}
-                  {!proposalPdfIntegrationAvailable ? (
-                    <span className="muted integration-hint" role="status">
-                      Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção
-                      “Imprimir” para gerar o PDF manualmente.
-                    </span>
-                  ) : null}
-                </div>
+                    {!proposalPdfIntegrationAvailable ? (
+                      <span className="muted integration-hint" role="status">
+                        Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção
+                        “Imprimir” para gerar o PDF manualmente.
+                      </span>
+                    ) : null}
+                  </div>
                 {renderClienteDadosSection()}
               {activeTab === 'leasing' ? (
                 <>
@@ -14080,14 +14111,6 @@ export default function App() {
                   <section className="card">
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={handleGerarContratoLeasing}
-                        disabled={gerandoContratoPdf}
-                      >
-                        {gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos'}
-                      </button>
                     </div>
 
                     <div className="grid g3">
@@ -14524,6 +14547,7 @@ export default function App() {
         <ContractTemplatesModal
           templates={contractTemplates}
           selectedTemplates={selectedContractTemplates}
+          title={contractTemplatesCategory === 'vendas' ? 'Gerar contratos de vendas' : 'Gerar contratos de leasing'}
           isLoading={contractTemplatesLoading}
           errorMessage={contractTemplatesError}
           onToggleTemplate={handleToggleContractTemplate}
