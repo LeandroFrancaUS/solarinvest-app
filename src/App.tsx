@@ -6065,10 +6065,10 @@ export default function App() {
                   type="button"
                   data-action="toggle-buyout"
                   class="secondary"
-                  data-label-default="Tabela de buyout"
+                  data-label-default="Tabela de Valor de Transferencia Antecipada"
                   data-label-active="Voltar à proposta"
                   aria-pressed="false"
-                >Tabela de buyout</button>
+                >Tabela de Valor de Transferencia Antecipada</button>
                 <button type="button" data-action="toggle-variant" class="secondary" data-label-simple="Versão Simples" data-label-standard="Versão Completa" aria-pressed="${initialVariant === 'simple' ? 'true' : 'false'}">Versão Simples</button>
                 <button type="button" data-action="close" class="secondary">Fechar</button>
               </div>
@@ -6099,7 +6099,7 @@ export default function App() {
                 var previewContainer = document.querySelector('.preview-container');
                 var codigoNode = document.querySelector('.preview-toolbar-code');
                 var hasBuyoutSection = Boolean(document.querySelector('[data-print-section=\"buyout\"]'));
-                var buyoutDefaultLabel = buyoutToggleBtn ? (buyoutToggleBtn.getAttribute('data-label-default') || 'Tabela de buyout') : 'Tabela de buyout';
+                var buyoutDefaultLabel = buyoutToggleBtn ? (buyoutToggleBtn.getAttribute('data-label-default') || 'Tabela de Valor de Transferencia Antecipada') : 'Tabela de Valor de Transferencia Antecipada';
                 var buyoutActiveLabel = buyoutToggleBtn ? (buyoutToggleBtn.getAttribute('data-label-active') || 'Voltar à proposta') : 'Voltar à proposta';
                 var previousNonBuyoutVariant = defaultVariant === 'buyout' ? 'standard' : defaultVariant;
                 var updateToolbarCode = function(code){
@@ -13528,7 +13528,9 @@ export default function App() {
           aria-expanded={mostrarTabelaBuyout}
           aria-controls="compra-antecipada-tabela"
         >
-          {mostrarTabelaBuyout ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
+          {mostrarTabelaBuyout
+            ? 'Ocultar Tabela de Valor de Transferencia Antecipada'
+            : 'Exibir Tabela de Valor de Transferencia Antecipada'}
         </button>
       </div>
       {mostrarTabelaBuyout ? (
@@ -14867,7 +14869,9 @@ export default function App() {
                           aria-expanded={mostrarTabelaBuyoutConfig}
                           aria-controls="config-buyout-receita"
                         >
-                          {mostrarTabelaBuyoutConfig ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
+                          {mostrarTabelaBuyoutConfig
+                            ? 'Ocultar Tabela de Valor de Transferencia Antecipada'
+                            : 'Exibir Tabela de Valor de Transferencia Antecipada'}
                         </button>
                       </div>
                       {mostrarTabelaBuyoutConfig ? (
