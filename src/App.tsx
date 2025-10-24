@@ -36,6 +36,8 @@ import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/dist
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { persistClienteRegistroToOneDrive, type ClienteRegistroSyncPayload } from './utils/onedrive'
 import { persistProposalPdf } from './utils/proposalPdf'
+import { persistBudgetSnapshot } from './utils/budgetSnapshot'
+import type { PersistBudgetSnapshotResult } from './types/budgetSnapshot'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
   analyzeEssentialInfo,
@@ -80,9 +82,10 @@ import {
   vendaActions,
   type ModoVenda,
   type VendaKitItem,
+  type VendaSnapshot,
 } from './store/useVendaStore'
 import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta'
-import { useLeasingValorDeMercadoEstimado } from './store/useLeasingStore'
+import { getLeasingSnapshot, useLeasingValorDeMercadoEstimado, type LeasingState } from './store/useLeasingStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
 import './styles/config-page.css'
@@ -158,6 +161,8 @@ import {
   normalizeNumbers,
   tarifaCurrency,
 } from './utils/formatters'
+import type { PageSharedSettingsSnapshot } from './types/pageSharedSettings'
+import type { VendasConfig } from './types/vendasConfig'
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
@@ -604,6 +609,14 @@ type CrmIntegrationMode = 'local' | 'remote'
 type CrmBackendStatus = 'idle' | 'success' | 'error'
 type CrmFiltroOperacao = 'all' | 'LEASING' | 'VENDA_DIRETA'
 
+type OrcamentoSnapshot = {
+  printable: PrintableProposalProps
+  pageState: PageSharedSettings
+  vendaState: VendaSnapshot
+  leasingState: LeasingState
+  vendasConfig: VendasConfig
+}
+
 type OrcamentoSalvo = {
   id: string
   criadoEm: string
@@ -614,6 +627,12 @@ type OrcamentoSalvo = {
   clienteDocumento?: string | undefined
   clienteUc?: string | undefined
   dados: PrintableProposalProps
+  snapshot?: OrcamentoSnapshot | undefined
+}
+
+type OrcamentoPersistResult = {
+  registro: OrcamentoSalvo
+  persistencia: PersistBudgetSnapshotResult
 }
 
 type ClienteCampoTexto = {
@@ -787,10 +806,26 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
   return clone
 }
 
-const createBudgetFingerprint = (dados: PrintableProposalProps): string => {
+const createBudgetFingerprint = (
+  dados: PrintableProposalProps,
+  extras?: Pick<OrcamentoSnapshot, 'pageState' | 'vendaState' | 'leasingState' | 'vendasConfig'>,
+): string => {
   const clone = clonePrintableData(dados)
   delete clone.budgetId
-  return stableStringify(clone)
+
+  if (!extras) {
+    return stableStringify(clone)
+  }
+
+  const normalized = {
+    printable: clone,
+    pageState: { ...extras.pageState },
+    vendaState: { ...extras.vendaState },
+    leasingState: { ...extras.leasingState },
+    vendasConfig: JSON.parse(JSON.stringify(extras.vendasConfig)),
+  }
+
+  return stableStringify(normalized)
 }
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
@@ -1955,21 +1990,7 @@ export default function App() {
   const multiUcIdCounterRef = useRef<number>(multiUcRows.length + 1)
   const consumoAnteriorRef = useRef(kcKwhMes)
 
-  type PageSharedSettings = {
-    kcKwhMes: number
-    tarifaCheia: number
-    taxaMinima: number
-    ufTarifa: string
-    distribuidoraTarifa: string
-    potenciaModulo: number
-    numeroModulosManual: number | ''
-    segmentoCliente: SegmentoCliente
-    tipoInstalacao: TipoInstalacao
-    tipoSistema: TipoSistema
-    consumoManual: boolean
-    potenciaModuloDirty: boolean
-    tipoInstalacaoDirty: boolean
-  }
+  type PageSharedSettings = PageSharedSettingsSnapshot
 
   const createPageSharedSettings = useCallback((): PageSharedSettings => ({
     kcKwhMes: INITIAL_VALUES.kcKwhMes,
@@ -3655,7 +3676,8 @@ export default function App() {
   const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(
     INITIAL_VALUES.tabelaVisivel,
   )
-  const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
+  const [salvandoOrcamento, setSalvandoOrcamento] = useState(false)
+  const [isViewOnlyMode, setIsViewOnlyMode] = useState(false)
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
   const [oemInflacao, setOemInflacao] = useState(INITIAL_VALUES.oemInflacao)
@@ -8535,6 +8557,31 @@ export default function App() {
             ? registro.criadoEm
             : new Date().toISOString()
 
+        const snapshotRaw = (registro as { snapshot?: OrcamentoSnapshot | undefined }).snapshot
+        let snapshotNormalizado: OrcamentoSnapshot | undefined
+        if (snapshotRaw && typeof snapshotRaw === 'object') {
+          const pageStateBase = createPageSharedSettings()
+          const printableSnapshot = clonePrintableData(snapshotRaw.printable ?? dadosNormalizados)
+          const pageStateSnapshot = { ...pageStateBase, ...(snapshotRaw.pageState ?? {}) }
+          const vendaStateSnapshot = snapshotRaw.vendaState
+            ? (JSON.parse(JSON.stringify(snapshotRaw.vendaState)) as VendaSnapshot)
+            : getVendaSnapshot()
+          const leasingStateSnapshot = snapshotRaw.leasingState
+            ? (JSON.parse(JSON.stringify(snapshotRaw.leasingState)) as LeasingState)
+            : getLeasingSnapshot()
+          const vendasConfigSnapshot = JSON.parse(
+            JSON.stringify(snapshotRaw.vendasConfig ?? useVendasConfigStore.getState().config),
+          ) as VendasConfig
+
+          snapshotNormalizado = {
+            printable: printableSnapshot,
+            pageState: pageStateSnapshot,
+            vendaState: vendaStateSnapshot,
+            leasingState: leasingStateSnapshot,
+            vendasConfig: vendasConfigSnapshot,
+          }
+        }
+
         return {
           id,
           criadoEm,
@@ -8545,16 +8592,29 @@ export default function App() {
           clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
           clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
           dados: dadosNormalizados,
+          snapshot: snapshotNormalizado,
         }
       })
     } catch (error) {
       console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
       return []
     }
-  }, [carregarClientesSalvos])
+  }, [carregarClientesSalvos, createPageSharedSettings])
 
   const salvarOrcamentoLocalmente = useCallback(
-    (dados: PrintableProposalProps): OrcamentoSalvo | null => {
+    async ({
+      dados,
+      pageState,
+      vendaState,
+      leasingState,
+      vendasConfig: vendasConfigSnapshot,
+    }: {
+      dados: PrintableProposalProps
+      pageState: PageSharedSettings
+      vendaState: VendaSnapshot
+      leasingState: LeasingState
+      vendasConfig: VendasConfig
+    }): Promise<OrcamentoPersistResult | null> => {
       if (typeof window === 'undefined') {
         return null
       }
@@ -8562,39 +8622,101 @@ export default function App() {
       try {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
-        const fingerprint = createBudgetFingerprint(dadosClonados)
-        const registroExistente = registrosExistentes.find(
-          (registro) => createBudgetFingerprint(registro.dados) === fingerprint,
-        )
+        const fingerprint = createBudgetFingerprint(dadosClonados, {
+          pageState,
+          vendaState,
+          leasingState,
+          vendasConfig: vendasConfigSnapshot,
+        })
+        const registroExistenteIndex = registrosExistentes.findIndex((registro) => {
+          const extras = registro.snapshot
+            ? {
+                pageState: registro.snapshot.pageState,
+                vendaState: registro.snapshot.vendaState,
+                leasingState: registro.snapshot.leasingState,
+                vendasConfig: registro.snapshot.vendasConfig,
+              }
+            : undefined
+          return createBudgetFingerprint(registro.dados, extras) === fingerprint
+        })
 
-        if (registroExistente) {
-          setOrcamentosSalvos(registrosExistentes)
-          return registroExistente
+        const nowIso = new Date().toISOString()
+        const snapshotAtualizado: OrcamentoSnapshot = {
+          printable: { ...dadosClonados },
+          pageState: { ...pageState },
+          vendaState: JSON.parse(JSON.stringify(vendaState)) as VendaSnapshot,
+          leasingState: JSON.parse(JSON.stringify(leasingState)) as LeasingState,
+          vendasConfig: JSON.parse(JSON.stringify(vendasConfigSnapshot)) as VendasConfig,
         }
 
-        const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
-        const candidatoInformado = normalizeProposalId(dadosClonados.budgetId)
-        const novoId =
-          candidatoInformado && !existingIds.has(candidatoInformado)
-            ? candidatoInformado
-            : generateBudgetId(existingIds, dadosClonados.tipoProposta)
-        const registro: OrcamentoSalvo = {
-          id: novoId,
-          criadoEm: new Date().toISOString(),
-          clienteId: clienteEmEdicaoId ?? undefined,
-          clienteNome: dados.cliente.nome,
-          clienteCidade: dados.cliente.cidade,
-          clienteUf: dados.cliente.uf,
-          clienteDocumento: dados.cliente.documento,
-          clienteUc: dados.cliente.uc,
-          dados: { ...dadosClonados, budgetId: novoId },
+        const ensureRegistroDados = (registro: OrcamentoSalvo, id: string): PrintableProposalProps => ({
+          ...clonePrintableData(registro.dados),
+          budgetId: id,
+        })
+
+        let registroAtualizado: OrcamentoSalvo
+        let registrosAtualizados: OrcamentoSalvo[]
+
+        if (registroExistenteIndex >= 0) {
+          const existente = registrosExistentes[registroExistenteIndex]
+          const dadosComId = ensureRegistroDados({ ...existente, dados: dadosClonados }, existente.id)
+          const snapshotComId: OrcamentoSnapshot = {
+            ...snapshotAtualizado,
+            printable: dadosComId,
+          }
+          registroAtualizado = {
+            ...existente,
+            dados: dadosComId,
+            snapshot: snapshotComId,
+          }
+          registrosAtualizados = [...registrosExistentes]
+          registrosAtualizados.splice(registroExistenteIndex, 1, registroAtualizado)
+        } else {
+          const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
+          const candidatoInformado = normalizeProposalId(dadosClonados.budgetId)
+          const novoId =
+            candidatoInformado && !existingIds.has(candidatoInformado)
+              ? candidatoInformado
+              : generateBudgetId(existingIds, dadosClonados.tipoProposta)
+          const dadosComId: PrintableProposalProps = { ...dadosClonados, budgetId: novoId }
+          registroAtualizado = {
+            id: novoId,
+            criadoEm: nowIso,
+            clienteId: clienteEmEdicaoId ?? undefined,
+            clienteNome: dados.cliente.nome,
+            clienteCidade: dados.cliente.cidade,
+            clienteUf: dados.cliente.uf,
+            clienteDocumento: dados.cliente.documento,
+            clienteUc: dados.cliente.uc,
+            dados: dadosComId,
+            snapshot: {
+              ...snapshotAtualizado,
+              printable: dadosComId,
+            },
+          }
+          registrosAtualizados = [registroAtualizado, ...registrosExistentes]
         }
 
-        existingIds.add(registro.id)
-        const registrosAtualizados = [registro, ...registrosExistentes]
         window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
         setOrcamentosSalvos(registrosAtualizados)
-        return registro
+
+        const persistencia = await persistBudgetSnapshot({
+          id: registroAtualizado.id,
+          savedAt: registroAtualizado.criadoEm,
+          clientId: registroAtualizado.clienteId ?? clienteEmEdicaoId ?? null,
+          clientDocument: registroAtualizado.clienteDocumento ?? null,
+          clientName: registroAtualizado.clienteNome,
+          clientCity: registroAtualizado.clienteCidade,
+          clientState: registroAtualizado.clienteUf,
+          clientUc: registroAtualizado.clienteUc ?? null,
+          printable: registroAtualizado.snapshot?.printable ?? registroAtualizado.dados,
+          pageState: registroAtualizado.snapshot?.pageState ?? pageState,
+          vendaState: registroAtualizado.snapshot?.vendaState ?? vendaState,
+          leasingState: registroAtualizado.snapshot?.leasingState ?? leasingState,
+          vendasConfig: registroAtualizado.snapshot?.vendasConfig ?? vendasConfigSnapshot,
+        })
+
+        return { registro: registroAtualizado, persistencia }
       } catch (error) {
         console.error('Erro ao salvar orçamento localmente.', error)
         window.alert('Não foi possível salvar o orçamento. Tente novamente.')
@@ -8786,9 +8908,20 @@ export default function App() {
       }
 
       try {
-        const registro = salvarOrcamentoLocalmente(dados)
-        if (!registro) {
+        const resultado = await salvarOrcamentoLocalmente({
+          dados,
+          pageState: pageSharedState,
+          vendaState: getVendaSnapshot(),
+          leasingState: getLeasingSnapshot(),
+          vendasConfig,
+        })
+        if (!resultado) {
           return { proceed: false }
+        }
+
+        const { registro, persistencia } = resultado
+        if (!persistencia.persisted && persistencia.message) {
+          adicionarNotificacao(persistencia.message, 'warning')
         }
 
         dados.budgetId = registro.id
@@ -8802,6 +8935,7 @@ export default function App() {
           codigo_orcamento_interno: registro.id,
           data_emissao: emissaoIso,
         })
+        setIsViewOnlyMode(true)
 
         let htmlAtualizado = previewData.html
         try {
@@ -8825,6 +8959,10 @@ export default function App() {
           adicionarNotificacao(
             'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.',
             'success',
+          )
+          adicionarNotificacao(
+            'Modo somente leitura ativado. Use “Duplicar” para gerar uma cópia editável.',
+            'info',
           )
         } catch (error) {
           console.error('Erro ao salvar a proposta em PDF durante a impressão.', error)
@@ -8850,9 +8988,12 @@ export default function App() {
       adicionarNotificacao,
       clienteEmEdicaoId,
       currentBudgetId,
+      pageSharedState,
       renameVendasSimulacao,
       salvarOrcamentoLocalmente,
       setCurrentBudgetId,
+      setIsViewOnlyMode,
+      vendasConfig,
     ],
   )
 
@@ -8869,12 +9010,12 @@ export default function App() {
     }
   }, [handlePreviewActionRequest])
 
-  const handleSalvarPropostaPdf = useCallback(async () => {
-    if (salvandoPropostaPdf) {
+  const handleSalvarOrcamento = useCallback(async () => {
+    if (salvandoOrcamento) {
       return
     }
 
-    if (!validarCamposObrigatorios('salvar a proposta')) {
+    if (!validarCamposObrigatorios('salvar o orçamento')) {
       return
     }
 
@@ -8883,88 +9024,84 @@ export default function App() {
       return
     }
 
-    setSalvandoPropostaPdf(true)
-
-    let salvouLocalmente = false
+    setSalvandoOrcamento(true)
 
     try {
-      const resultado = await prepararPropostaParaExportacao({
-        incluirTabelaBuyout: isVendaDiretaTab,
+      const dadosClonados = clonePrintableData(printableData)
+      const resultado = await salvarOrcamentoLocalmente({
+        dados: dadosClonados,
+        pageState: pageSharedState,
+        vendaState: getVendaSnapshot(),
+        leasingState: getLeasingSnapshot(),
+        vendasConfig,
       })
 
       if (!resultado) {
-        window.alert('Não foi possível preparar a proposta para salvar em PDF. Tente novamente.')
         return
       }
 
-      const { html, dados } = resultado
-      const registroSalvo = salvarOrcamentoLocalmente(dados)
-      if (!registroSalvo) {
-        return
-      }
-
-      salvouLocalmente = true
-      dados.budgetId = registroSalvo.id
+      const { registro, persistencia } = resultado
 
       const emissaoIso = new Date().toISOString().slice(0, 10)
-      if (currentBudgetId !== registroSalvo.id) {
-        renameVendasSimulacao(currentBudgetId, registroSalvo.id)
-        setCurrentBudgetId(registroSalvo.id)
+      if (currentBudgetId !== registro.id) {
+        renameVendasSimulacao(currentBudgetId, registro.id)
+        setCurrentBudgetId(registro.id)
       }
 
       vendaActions.updateCodigos({
-        codigo_orcamento_interno: registroSalvo.id,
+        codigo_orcamento_interno: registro.id,
         data_emissao: emissaoIso,
       })
 
-      let htmlComCodigo = html
-      try {
-        const atualizado = await renderPrintableProposalToHtml(dados)
-        if (atualizado) {
-          htmlComCodigo = atualizado
-        }
-      } catch (error) {
-        console.warn('Não foi possível atualizar o HTML com o código do orçamento.', error)
-      }
+      setIsViewOnlyMode(true)
 
-      const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
-
-      await persistProposalPdf({
-        html: htmlComCodigo,
-        budgetId: registroSalvo.id,
-        clientName: dados.cliente.nome,
-        proposalType,
-      })
-
-      const mensagemSucesso = salvouLocalmente
-        ? 'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.'
-        : 'Proposta salva em PDF com sucesso.'
-      adicionarNotificacao(mensagemSucesso, 'success')
+      const mensagemBase = persistencia.persisted
+        ? 'Orçamento salvo como snapshot no banco de dados.'
+        : persistencia.message ??
+          'Snapshot armazenado localmente. Configure a integração para sincronizar com o banco de dados.'
+      const mensagemCompleta =
+        `${mensagemBase} Modo somente leitura ativado. Use “Duplicar” para gerar uma cópia editável.`
+      adicionarNotificacao(mensagemCompleta, persistencia.persisted ? 'success' : 'warning')
     } catch (error) {
-      console.error('Erro ao salvar a proposta em PDF.', error)
+      console.error('Erro ao salvar o orçamento.', error)
       const mensagem =
         error instanceof Error && error.message
           ? error.message
-          : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
-      const mensagemComFallback = salvouLocalmente
-        ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
-        : mensagem
-      adicionarNotificacao(mensagemComFallback, 'error')
+          : 'Não foi possível salvar o orçamento. Tente novamente.'
+      adicionarNotificacao(mensagem, 'error')
     } finally {
-      setSalvandoPropostaPdf(false)
+      setSalvandoOrcamento(false)
     }
   }, [
-    activeTab,
     adicionarNotificacao,
     clienteEmEdicaoId,
     currentBudgetId,
-    isVendaDiretaTab,
-    prepararPropostaParaExportacao,
+    pageSharedState,
+    printableData,
     renameVendasSimulacao,
+    salvandoOrcamento,
     salvarOrcamentoLocalmente,
-    salvandoPropostaPdf,
+    setCurrentBudgetId,
     validarCamposObrigatorios,
+    vendasConfig,
   ])
+
+  const handleDuplicarOrcamento = useCallback(() => {
+    const novoId = createDraftBudgetId()
+    const simulacoesState = useVendasSimulacoesStore.getState()
+    const simulacaoAtual = simulacoesState.simulations[currentBudgetId]
+    if (simulacaoAtual) {
+      useVendasSimulacoesStore.setState((state) => ({
+        simulations: {
+          ...state.simulations,
+          [novoId]: { ...simulacaoAtual },
+        },
+      }))
+    }
+    setCurrentBudgetId(novoId)
+    setIsViewOnlyMode(false)
+    vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
+  }, [currentBudgetId, setCurrentBudgetId, setIsViewOnlyMode])
 
   const handleNovaProposta = useCallback(() => {
     setSettingsTab(INITIAL_VALUES.settingsTab)
@@ -9053,7 +9190,8 @@ export default function App() {
     setMostrarTabelaBuyout(INITIAL_VALUES.tabelaVisivel)
     setMostrarTabelaParcelasConfig(INITIAL_VALUES.tabelaVisivel)
     setMostrarTabelaBuyoutConfig(INITIAL_VALUES.tabelaVisivel)
-    setSalvandoPropostaPdf(false)
+    setSalvandoOrcamento(false)
+    setIsViewOnlyMode(false)
 
     setOemBase(INITIAL_VALUES.oemBase)
     setOemInflacao(INITIAL_VALUES.oemInflacao)
@@ -12897,44 +13035,60 @@ export default function App() {
                     Recalcular
                   </button>
                 ) : null}
+                {isViewOnlyMode ? (
+                  <span className="view-only-indicator" role="status" aria-live="polite">
+                    Somente leitura
+                  </span>
+                ) : null}
                 {podeSalvarProposta ? (
-                  <button
-                    type="button"
-                    className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                    onClick={handleSalvarPropostaPdf}
-                    disabled={salvandoPropostaPdf}
-                  >
-                    {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
-                  </button>
+                  isViewOnlyMode ? (
+                    <button
+                      type="button"
+                      className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
+                      onClick={handleDuplicarOrcamento}
+                    >
+                      Duplicar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
+                      onClick={handleSalvarOrcamento}
+                      disabled={salvandoOrcamento}
+                    >
+                      {salvandoOrcamento ? 'Salvando…' : 'Salvar'}
+                    </button>
+                  )
                 ) : null}
               </div>
-              {renderClienteDadosSection()}
-              {activeTab === 'leasing' ? (
-                <>
-                  {renderParametrosPrincipaisSection()}
-                  {renderConfiguracaoUsinaSection()}
-                  <section className="card">
-                    <div className="card-header">
-                      <h2>SolarInvest Leasing</h2>
-                    </div>
+              <div className={`page-sections${isViewOnlyMode ? ' view-only' : ''}`}>
+                {renderClienteDadosSection()}
+                {activeTab === 'leasing' ? (
+                  <>
+                    {renderParametrosPrincipaisSection()}
+                    {renderConfiguracaoUsinaSection()}
+                    <section className="card">
+                      <div className="card-header">
+                        <h2>SolarInvest Leasing</h2>
+                      </div>
 
-                    <div className="grid g3">
-                      <Field
-                        label={labelWithTooltip(
-                          'Entrada (R$)',
-                          'Entrada inicial do leasing. Pode gerar crédito mensal: Entrada ÷ Prazo contratual (meses).',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={entradaRs}
-                          onChange={(e) => {
-                            const parsed = Number(e.target.value)
-                            setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                          }}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
+                      <div className="grid g3">
+                        <Field
+                          label={labelWithTooltip(
+                            'Entrada (R$)',
+                            'Entrada inicial do leasing. Pode gerar crédito mensal: Entrada ÷ Prazo contratual (meses).',
+                          )}
+                        >
+                          <input
+                            type="number"
+                            value={entradaRs}
+                            onChange={(e) => {
+                              const parsed = Number(e.target.value)
+                              setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                            }}
+                            onFocus={selectNumberInputOnFocus}
+                          />
+                        </Field>
                       <Field
                         label={labelWithTooltip(
                           'Desconto contratual (%)',
@@ -13396,6 +13550,7 @@ export default function App() {
             {renderRetornoProjetadoSection()}
           </>
         )}
+        </div>
         </main>
       </div>
 

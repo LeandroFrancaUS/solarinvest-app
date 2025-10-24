@@ -472,6 +472,36 @@ button.secondary.danger:focus-visible {
   --ghost-bg-hover: color-mix(in srgb, var(--surface) 85%, var(--accent) 15%);
 }
 
+.page-sections {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-3) + 8px);
+}
+
+.page-sections.view-only {
+  position: relative;
+  opacity: 0.65;
+}
+
+.page-sections.view-only > * {
+  pointer-events: none;
+}
+
+.view-only-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
 .table-header.sticky {
   top: calc(var(--header-h) + var(--tabs-h, 48px));
 }
