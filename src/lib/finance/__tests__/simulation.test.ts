@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  calcCapexFromValorMercado,
   calcEconomiaContrato,
   calcKPIs,
   calcTarifaComDesconto,
@@ -42,6 +43,10 @@ describe('simulation finance helpers', () => {
 
   it('calcula valor de mercado como 1,29x o CAPEX', () => {
     expect(calcValorMercado(100000)).toBe(129000)
+  })
+
+  it('converte valor de mercado de volta para CAPEX', () => {
+    expect(calcCapexFromValorMercado(129000)).toBeCloseTo(100000, 6)
   })
 
   it('projeta tarifa cheia com inflação anual convertida para mensal', () => {

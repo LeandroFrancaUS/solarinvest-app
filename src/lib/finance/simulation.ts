@@ -59,7 +59,7 @@ export type SimulationMonthlyDetail = {
 
 const MONTHS_IN_YEAR = 12
 const SEGURO_REAJUSTE_ANUAL = 0.012
-const VALOR_MERCADO_MULTIPLICADOR = 1.29
+export const VALOR_MERCADO_MULTIPLICADOR = 1.29
 
 const clampNumber = (value: number): number => (Number.isFinite(value) ? value : 0)
 
@@ -75,6 +75,9 @@ export const defaultTUSD = (perfil: PerfilConsumo): number => (perfil === 'comer
 export const makeSimId = (): string => `SIM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
 
 export const calcValorMercado = (capex: number): number => clampNumber(capex) * VALOR_MERCADO_MULTIPLICADOR
+
+export const calcCapexFromValorMercado = (valorMercado: number): number =>
+  clampNumber(valorMercado) / VALOR_MERCADO_MULTIPLICADOR
 
 export const calcTarifaComDesconto = (tarifaCheia: number, desconto_pct: number): number => {
   const tarifa = clampNumber(tarifaCheia)
