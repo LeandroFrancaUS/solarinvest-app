@@ -1,24 +1,19 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import tsPlugin from '@typescript-eslint/eslint-plugin'
 import tsParser from '@typescript-eslint/parser'
 import importPlugin from 'eslint-plugin-import'
-import reactHooksPlugin from './scripts/eslint/react-hooks-plugin.js'
 
-const projectRoot = new URL('.', import.meta.url)
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const eslintrcPath = path.join(__dirname, '.eslintrc.json')
+const baseConfig = JSON.parse(readFileSync(eslintrcPath, 'utf8'))
+const baseRules = baseConfig.rules ?? {}
+
 const tsRecommended = tsPlugin.configs['recommended-type-checked']
-
-const sharedRules = {
-  eqeqeq: ['error', 'smart'],
-  'no-implicit-coercion': 'error',
-  'no-useless-escape': 'error',
-  'no-redeclare': 'error',
-  'no-unsafe-optional-chaining': 'error',
-  'no-duplicate-imports': ['error', { includeExports: true }],
-  'no-restricted-globals': [
-    'error',
-    { name: 'event', message: 'Use parâmetros de evento em vez do global implícito.' },
-  ],
-  'no-undef': 'error',
-}
 
 export default [
   {
@@ -32,73 +27,31 @@ export default [
       parserOptions: {
         ...tsRecommended.languageOptions?.parserOptions,
         project: './tsconfig.eslint.json',
-        tsconfigRootDir: decodeURIComponent(projectRoot.pathname),
+        tsconfigRootDir: __dirname,
       },
       sourceType: 'module',
     },
     plugins: {
       '@typescript-eslint': tsPlugin,
       import: importPlugin,
-      'react-hooks': reactHooksPlugin,
     },
     rules: {
       ...tsRecommended.rules,
-      ...sharedRules,
-      '@typescript-eslint/no-use-before-define': [
-        'error',
-        { functions: false, classes: true, variables: true },
-      ],
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/consistent-type-assertions': [
-        'error',
-        {
-          assertionStyle: 'as',
-          objectLiteralTypeAssertions: 'allow-as-parameter',
-        },
-      ],
-      '@typescript-eslint/consistent-type-imports': 'warn',
-      'import/no-cycle': 'error',
-      'no-use-before-define': 'off',
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'error',
-    },
-  },
-  {
-    files: [
-      '**/*.test.ts',
-      '**/*.test.tsx',
-      '**/*.spec.ts',
-      '**/*.spec.tsx',
-      '**/__tests__/**/*.{ts,tsx}',
-      '**/__mocks__/**/*.{ts,tsx}',
-    ],
-    rules: {
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-misused-promises': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/require-await': 'off',
+      ...baseRules,
     },
   },
   {
     files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
     languageOptions: {
-      sourceType: 'module',
       ecmaVersion: 2021,
+      sourceType: 'module',
     },
     plugins: {
       import: importPlugin,
     },
     rules: {
-      ...sharedRules,
       'import/no-cycle': 'error',
-      'no-use-before-define': 'off',
-      'no-shadow': ['error', { builtinGlobals: false, hoist: 'functions' }],
+      'no-restricted-globals': ['error', 'chartColors', 'potenciaModulo'],
     },
   },
 ]

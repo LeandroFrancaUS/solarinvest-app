@@ -13,7 +13,7 @@ export type PersistOptions<T> = {
   storage?: StateStorage
   partialize?: (state: T) => unknown
   version?: number
-  merge?: (persistedState: any, currentState: T) => T
+  merge?: (persistedState: Partial<T>, currentState: T) => T
   skipHydration?: boolean
 }
 

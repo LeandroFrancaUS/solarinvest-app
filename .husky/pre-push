@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+echo "→ Verificando lint, tipos, ciclos e testes…"
+npm run prepush

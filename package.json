@@ -8,13 +8,15 @@
     "build": "node scripts/build.mjs",
     "preview": "vite preview",
     "start": "node server/index.js",
-    "test": "node scripts/run-vitest.mjs",
-    "lint": "eslint .",
+    "test": "vitest run",
+    "lint": "eslint --max-warnings=0 .",
     "typecheck": "tsc --noEmit",
     "e2e:headless": "node scripts/run-e2e-placeholder.mjs",
     "qa:full": "npm run typecheck && npm run lint && npm run test && npm run e2e:headless",
     "check:cycles": "node scripts/find-circular-deps.mjs",
-    "check:locale": "bash -lc 'if grep -R \"toLocaleString(\" src | grep -v \"pt-BR\"; then echo \"toLocaleString sem locale pt-BR encontrado\" >&2; exit 1; fi'"
+    "check:locale": "bash -lc 'if grep -R \"toLocaleString(\" src | grep -v \"pt-BR\"; then echo \"toLocaleString sem locale pt-BR encontrado\" >&2; exit 1; fi'",
+    "check:printables": "vitest run --reporter=basic -t \"printable\"",
+    "prepush": "npm run lint && npm run typecheck && npm run check:cycles && npm run test"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -30,6 +32,7 @@
     "esbuild": "^0.21.5",
     "eslint": "^9.14.0",
     "eslint-plugin-import": "^2.31.0",
+    "husky": "^9.1.6",
     "madge": "^8.0.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
