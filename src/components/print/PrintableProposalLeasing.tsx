@@ -732,7 +732,11 @@ function PrintableProposalLeasingInner(
 
   return (
     <div ref={ref} className="print-root">
-      <div className="print-layout leasing-print-layout" data-print-section="proposal">
+      <div
+        className="print-layout leasing-print-layout"
+        data-print-section="proposal"
+        aria-hidden="false"
+      >
         <div className="print-page">
           <section className="print-section print-section--hero avoid-break">
             <div className="print-hero">
@@ -1117,6 +1121,8 @@ function PrintableProposalLeasingInner(
       <div
         className="print-layout leasing-print-layout buyout-print-layout"
         data-print-section="buyout"
+        aria-hidden="true"
+        hidden
       >
         <div className="print-page">
           <section className="print-section print-section--hero avoid-break">

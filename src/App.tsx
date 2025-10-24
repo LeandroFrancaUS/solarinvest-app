@@ -5671,6 +5671,23 @@ export default function App() {
                 var buyoutDefaultLabel = buyoutBtn ? (buyoutBtn.getAttribute('data-label-default') || 'Tabela de Buyout') : 'Tabela de Buyout';
                 var buyoutActiveLabel = buyoutBtn ? (buyoutBtn.getAttribute('data-label-active') || 'Voltar à proposta') : 'Voltar à proposta';
                 var previousNonBuyoutVariant = defaultVariant === 'buyout' ? 'standard' : defaultVariant;
+                var syncBuyoutVisibility = function(){
+                  var showBuyout = currentVariant === 'buyout';
+                  var proposalSections = document.querySelectorAll('[data-print-section=\\"proposal\\"]');
+                  var buyoutSections = document.querySelectorAll('[data-print-section=\\"buyout\\"]');
+                  Array.prototype.forEach.call(proposalSections, function(section){
+                    if(section instanceof HTMLElement){
+                      section.hidden = showBuyout;
+                      section.setAttribute('aria-hidden', showBuyout ? 'true' : 'false');
+                    }
+                  });
+                  Array.prototype.forEach.call(buyoutSections, function(section){
+                    if(section instanceof HTMLElement){
+                      section.hidden = !showBuyout;
+                      section.setAttribute('aria-hidden', showBuyout ? 'false' : 'true');
+                    }
+                  });
+                };
                 var setVariant = function(nextVariant){
                   var normalized = nextVariant === 'simple' || nextVariant === 'buyout' ? nextVariant : 'standard';
                   currentVariant = normalized;
@@ -5679,6 +5696,7 @@ export default function App() {
                   }
                   document.body.setAttribute('data-print-variant', currentVariant);
                   document.documentElement.setAttribute('data-print-variant', currentVariant);
+                  syncBuyoutVisibility();
                   if(variantToggleBtn){
                     var isSimple = currentVariant === 'simple';
                     var simpleLabel = variantToggleBtn.getAttribute('data-label-simple') || 'Versão Simples';
