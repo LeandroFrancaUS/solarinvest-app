@@ -9609,22 +9609,22 @@ export default function App() {
         {renderTusdParametersSection()}
         <div className="multi-uc-section" id="multi-uc">
           <div className="multi-uc-header">
-            <div>
+            <div className="multi-uc-title-row">
               <h3>Cenário de múltiplas unidades consumidoras (Multi-UC)</h3>
-              <p>
-                Cadastre várias UCs de classes distintas, defina o rateio dos créditos de energia e acompanhe a TUSD
-                não compensável escalonada pela Lei 14.300.
-              </p>
+              <label className="multi-uc-toggle">
+                <input
+                  type="checkbox"
+                  checked={multiUcAtivo}
+                  onChange={(event) => handleMultiUcToggle(event.target.checked)}
+                />
+                <span className="multi-uc-toggle-indicator" aria-hidden="true" />
+                <span className="multi-uc-toggle-text">Ativar modo multi-UC</span>
+              </label>
             </div>
-            <label className="multi-uc-toggle">
-              <input
-                type="checkbox"
-                checked={multiUcAtivo}
-                onChange={(event) => handleMultiUcToggle(event.target.checked)}
-              />
-              <span className="multi-uc-toggle-indicator" aria-hidden="true" />
-              <span className="multi-uc-toggle-text">Ativar modo multi-UC</span>
-            </label>
+            <p>
+              Cadastre várias UCs de classes distintas, defina o rateio dos créditos de energia e acompanhe a TUSD não
+              compensável escalonada pela Lei 14.300.
+            </p>
           </div>
           {multiUcAtivo ? (
             <div className="multi-uc-body">
