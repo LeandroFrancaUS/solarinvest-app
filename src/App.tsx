@@ -72,7 +72,7 @@ import {
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { useBRNumberField } from './lib/locale/useBRNumberField'
-import { ensureProposalId, makeProposalId } from './lib/ids'
+import { ensureProposalId, normalizeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
   getVendaSnapshot,
@@ -665,6 +665,44 @@ const generateBudgetId = (existingIds: Set<string> = new Set()) => {
   throw new Error('Não foi possível gerar um código de orçamento único.')
 }
 
+const createDraftBudgetId = () => `DRAFT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
+
+const stableStringify = (value: unknown): string => {
+  const seen = new WeakSet<object>()
+
+  const normalize = (input: unknown): unknown => {
+    if (input === null || typeof input !== 'object') {
+      return input
+    }
+
+    if (seen.has(input as object)) {
+      return null
+    }
+
+    seen.add(input as object)
+
+    if (Array.isArray(input)) {
+      return input.map((item) => normalize(item))
+    }
+
+    const entries = Object.entries(input as Record<string, unknown>).sort(([a], [b]) =>
+      a.localeCompare(b),
+    )
+
+    const normalized: Record<string, unknown> = {}
+    entries.forEach(([key, val]) => {
+      const normalizedValue = normalize(val)
+      if (normalizedValue !== undefined) {
+        normalized[key] = normalizedValue
+      }
+    })
+
+    return normalized
+  }
+
+  return JSON.stringify(normalize(value))
+}
+
 const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalProps => {
   const clone: PrintableProposalProps = {
     ...dados,
@@ -736,6 +774,12 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
   }
 
   return clone
+}
+
+const createBudgetFingerprint = (dados: PrintableProposalProps): string => {
+  const clone = clonePrintableData(dados)
+  delete clone.budgetId
+  return stableStringify(clone)
 }
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
@@ -1305,6 +1349,22 @@ type PrintMode = 'preview' | 'print' | 'download'
 
 type PrintVariant = 'standard' | 'simple' | 'buyout'
 
+type PreviewActionRequest = { action: 'print' | 'download' }
+
+type PreviewActionResponse = {
+  proceed?: boolean | undefined
+  budgetId?: string | undefined
+  updatedHtml?: string | undefined
+}
+
+declare global {
+  interface Window {
+    __solarinvestOnPreviewAction?: (
+      request: PreviewActionRequest,
+    ) => PreviewActionResponse | void | Promise<PreviewActionResponse | void>
+  }
+}
+
 type BudgetPreviewOptions = {
   nomeCliente: string
   budgetId?: string | undefined
@@ -1313,14 +1373,7 @@ type BudgetPreviewOptions = {
   closeAfterPrint?: boolean | undefined
   initialMode?: PrintMode | undefined
   initialVariant?: PrintVariant | undefined
-  supportsBuyout?: boolean | undefined
 }
-
-const hasPrintableBuyout = (dados: PrintableProposalProps): boolean =>
-  dados.tipoProposta === 'LEASING' &&
-  dados.mostrarTabelaBuyout !== false &&
-  Array.isArray(dados.tabelaBuyout) &&
-  dados.tabelaBuyout.some((row) => row.valorResidual != null && Number.isFinite(row.valorResidual))
 
 function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<string | null> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
@@ -1541,7 +1594,7 @@ export default function App() {
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
-  const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => makeProposalId())
+  const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetTableContentId = useId()
@@ -1628,6 +1681,7 @@ export default function App() {
   const vendasSimulacao = useVendasSimulacoesStore((state) => state.simulations[currentBudgetId])
   const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
+  const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
 
   const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
   const capexBaseManualValor =
@@ -3349,7 +3403,7 @@ export default function App() {
           ignoredByNoise: result.structured.meta?.ignoredByNoise ?? 0,
         })
         setBudgetStructuredItems(result.structured.itens)
-        setCurrentBudgetId(makeProposalId())
+        setCurrentBudgetId(createDraftBudgetId())
         autoFillVendaFromBudget(result.structured, totalValue, result.plainText)
       } catch (error) {
         console.error('Erro ao processar orçamento', error)
@@ -5258,6 +5312,7 @@ export default function App() {
   }
 
   const printableRef = useRef<HTMLDivElement>(null)
+  const pendingPreviewDataRef = useRef<{ html: string; dados: PrintableProposalProps } | null>(null)
 
   const anosArray = useMemo(
     () => Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => i + 1),
@@ -5372,7 +5427,7 @@ export default function App() {
             retorno: vendaRetornoAuto,
           }
         : undefined
-      const sanitizedBudgetId = ensureProposalId(currentBudgetId)
+      const sanitizedBudgetId = normalizeProposalId(currentBudgetId)
       const sanitizeItemText = (valor?: string | null) => {
         const trimmed = valor?.toString().trim() ?? ''
         return trimmed && trimmed !== '—' ? trimmed : undefined
@@ -5583,7 +5638,6 @@ export default function App() {
         closeAfterPrint,
         initialMode,
         initialVariant = 'standard',
-        supportsBuyout = false,
       }: BudgetPreviewOptions,
     ) => {
       if (!layoutHtml) {
@@ -5599,16 +5653,10 @@ export default function App() {
 
       const mensagemToolbar =
         actionMessage || 'Revise o conteúdo e utilize as ações para imprimir ou salvar como PDF.'
-      const codigoHtml = budgetId
-        ? `<p class="preview-toolbar-code">Código do orçamento: <strong>${budgetId}</strong></p>`
-        : ''
+      const codigoHtml = `<p class="preview-toolbar-code${budgetId ? '' : ' is-hidden'}">Código do orçamento: <strong>${budgetId ?? ''}</strong></p>`
 
       const resolvedInitialMode: PrintMode =
         initialMode || (autoPrint ? (closeAfterPrint ? 'download' : 'print') : 'preview')
-
-      const buyoutButtonHtml = supportsBuyout
-        ? '<button type="button" data-action="buyout" class="secondary" data-label-default="Tabela de Buyout" data-label-active="Voltar à proposta" aria-pressed="false">Tabela de Buyout</button>'
-        : ''
 
       const previewHtml = `<!DOCTYPE html>
         <html data-print-mode="${resolvedInitialMode}" data-print-variant="${initialVariant}">
@@ -5624,6 +5672,7 @@ export default function App() {
               .preview-toolbar-info h1{margin:0;font-size:18px;color:#0f172a;}
               .preview-toolbar-info p{margin:0;font-size:13px;color:#475569;}
               .preview-toolbar-code strong{color:#0f172a;}
+              .preview-toolbar-code.is-hidden{display:none;}
               .preview-toolbar-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
               .preview-toolbar-actions button{background:#0f172a;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;}
               .preview-toolbar-actions button:hover{background:#1e293b;}
@@ -5646,7 +5695,6 @@ export default function App() {
               <div class="preview-toolbar-actions">
                 <button type="button" data-action="print">Imprimir</button>
                 <button type="button" data-action="download">Baixar PDF</button>
-                ${buyoutButtonHtml}
                 <button type="button" data-action="toggle-variant" class="secondary" data-label-simple="Versão Simples" data-label-standard="Versão Completa" aria-pressed="${initialVariant === 'simple' ? 'true' : 'false'}">Versão Simples</button>
                 <button type="button" data-action="close" class="secondary">Fechar</button>
               </div>
@@ -5673,36 +5721,62 @@ export default function App() {
                 var downloadBtn = document.querySelector('[data-action=\"download\"]');
                 var closeBtn = document.querySelector('[data-action=\"close\"]');
                 var variantToggleBtn = document.querySelector('[data-action=\"toggle-variant\"]');
-                var buyoutBtn = document.querySelector('[data-action=\"buyout\"]');
-                var buyoutDefaultLabel = buyoutBtn ? (buyoutBtn.getAttribute('data-label-default') || 'Tabela de Buyout') : 'Tabela de Buyout';
-                var buyoutActiveLabel = buyoutBtn ? (buyoutBtn.getAttribute('data-label-active') || 'Voltar à proposta') : 'Voltar à proposta';
-                var previousNonBuyoutVariant = defaultVariant === 'buyout' ? 'standard' : defaultVariant;
-                var syncBuyoutVisibility = function(){
-                  var showBuyout = currentVariant === 'buyout';
-                  var proposalSections = document.querySelectorAll('[data-print-section=\\"proposal\\"]');
-                  var buyoutSections = document.querySelectorAll('[data-print-section=\\"buyout\\"]');
-                  Array.prototype.forEach.call(proposalSections, function(section){
-                    if(section instanceof HTMLElement){
-                      section.hidden = showBuyout;
-                      section.setAttribute('aria-hidden', showBuyout ? 'true' : 'false');
+                var previewContainer = document.querySelector('.preview-container');
+                var codigoNode = document.querySelector('.preview-toolbar-code');
+                var updateToolbarCode = function(code){
+                  if(!codigoNode){ return; }
+                  var strong = codigoNode.querySelector('strong');
+                  var texto = (code || '').toString().trim();
+                  if(strong){ strong.textContent = texto; }
+                  if(texto){
+                    codigoNode.classList.remove('is-hidden');
+                  } else {
+                    codigoNode.classList.add('is-hidden');
+                  }
+                };
+                var replacePreviewContent = function(html){
+                  if(!previewContainer || typeof html !== 'string'){ return; }
+                  previewContainer.innerHTML = html;
+                };
+                var requestAction = function(mode){
+                  try {
+                    if(!window.opener){
+                      return Promise.resolve({ proceed: true });
                     }
-                  });
-                  Array.prototype.forEach.call(buyoutSections, function(section){
-                    if(section instanceof HTMLElement){
-                      section.hidden = !showBuyout;
-                      section.setAttribute('aria-hidden', showBuyout ? 'false' : 'true');
+                    var handler = window.opener.__solarinvestOnPreviewAction;
+                    if(typeof handler !== 'function'){
+                      return Promise.resolve({ proceed: true });
                     }
+                    var result = handler({ action: mode });
+                    return Promise.resolve(result);
+                  } catch (error) {
+                    console.warn('Não foi possível comunicar com a janela principal.', error);
+                    return Promise.resolve({ proceed: true });
+                  }
+                };
+                var performAction = function(mode){
+                  requestAction(mode).then(function(response){
+                    if(response && typeof response === 'object'){
+                      if(typeof response.updatedHtml === 'string' && response.updatedHtml){
+                        replacePreviewContent(response.updatedHtml);
+                      }
+                      if(typeof response.budgetId === 'string'){
+                        updateToolbarCode(response.budgetId);
+                      }
+                      if(response.proceed === false){
+                        resetPrintMode();
+                        return;
+                      }
+                    }
+                    setPrintMode(mode === 'download' ? 'download' : 'print');
+                    window.print();
                   });
                 };
                 var setVariant = function(nextVariant){
-                  var normalized = nextVariant === 'simple' || nextVariant === 'buyout' ? nextVariant : 'standard';
+                  var normalized = nextVariant === 'simple' ? 'simple' : 'standard';
                   currentVariant = normalized;
-                  if(normalized !== 'buyout'){
-                    previousNonBuyoutVariant = normalized;
-                  }
                   document.body.setAttribute('data-print-variant', currentVariant);
                   document.documentElement.setAttribute('data-print-variant', currentVariant);
-                  syncBuyoutVisibility();
                   if(variantToggleBtn){
                     var isSimple = currentVariant === 'simple';
                     var simpleLabel = variantToggleBtn.getAttribute('data-label-simple') || 'Versão Simples';
@@ -5711,25 +5785,13 @@ export default function App() {
                     variantToggleBtn.setAttribute('aria-pressed', isSimple ? 'true' : 'false');
                     variantToggleBtn.title = isSimple ? 'Retornar ao layout completo' : 'Visual simplificado para impressão em preto e branco';
                   }
-                  if(buyoutBtn){
-                    var isBuyout = currentVariant === 'buyout';
-                    buyoutBtn.textContent = isBuyout ? buyoutActiveLabel : buyoutDefaultLabel;
-                    buyoutBtn.setAttribute('aria-pressed', isBuyout ? 'true' : 'false');
-                    buyoutBtn.title = isBuyout ? 'Retornar ao conteúdo da proposta' : 'Visualizar a tabela de compra antecipada (buyout)';
-                  }
                 };
                 setVariant(defaultVariant);
                 if(printBtn){
-                  printBtn.addEventListener('click', function(){
-                    setPrintMode('print');
-                    window.print();
-                  });
+                  printBtn.addEventListener('click', function(){ performAction('print'); });
                 }
                 if(downloadBtn){
-                  downloadBtn.addEventListener('click', function(){
-                    setPrintMode('download');
-                    window.print();
-                  });
+                  downloadBtn.addEventListener('click', function(){ performAction('download'); });
                 }
                 if(closeBtn){
                   closeBtn.addEventListener('click', function(){ window.close(); });
@@ -5737,15 +5799,6 @@ export default function App() {
                 if(variantToggleBtn){
                   variantToggleBtn.addEventListener('click', function(){
                     setVariant(currentVariant === 'simple' ? 'standard' : 'simple');
-                  });
-                }
-                if(buyoutBtn){
-                  buyoutBtn.addEventListener('click', function(){
-                    if(currentVariant === 'buyout'){
-                      setVariant(previousNonBuyoutVariant && previousNonBuyoutVariant !== 'buyout' ? previousNonBuyoutVariant : 'standard');
-                    } else {
-                      setVariant('buyout');
-                    }
                   });
                 }
                 window.addEventListener('beforeprint', function(){
@@ -5764,8 +5817,7 @@ export default function App() {
                   window.addEventListener('load', function(){
                     window.setTimeout(function(){
                       var autoMode = defaultMode && defaultMode !== 'preview' ? defaultMode : (shouldCloseAfterPrint ? 'download' : 'print');
-                      setPrintMode(autoMode);
-                      window.print();
+                      performAction(autoMode === 'download' ? 'download' : 'print');
                     }, 320);
                   });
                 }
@@ -8372,9 +8424,23 @@ export default function App() {
 
       try {
         const registrosExistentes = carregarOrcamentosSalvos()
-        const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
-        const novoId = generateBudgetId(existingIds)
         const dadosClonados = clonePrintableData(dados)
+        const fingerprint = createBudgetFingerprint(dadosClonados)
+        const registroExistente = registrosExistentes.find(
+          (registro) => createBudgetFingerprint(registro.dados) === fingerprint,
+        )
+
+        if (registroExistente) {
+          setOrcamentosSalvos(registrosExistentes)
+          return registroExistente
+        }
+
+        const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
+        const candidatoInformado = normalizeProposalId(dadosClonados.budgetId)
+        const novoId =
+          candidatoInformado && !existingIds.has(candidatoInformado)
+            ? candidatoInformado
+            : generateBudgetId(existingIds)
         const registro: OrcamentoSalvo = {
           id: novoId,
           criadoEm: new Date().toISOString(),
@@ -8384,7 +8450,7 @@ export default function App() {
           clienteUf: dados.cliente.uf,
           clienteDocumento: dados.cliente.documento,
           clienteUc: dados.cliente.uc,
-          dados: { ...dadosClonados, budgetId: ensureProposalId(dadosClonados.budgetId ?? novoId) },
+          dados: { ...dadosClonados, budgetId: novoId },
         }
 
         existingIds.add(registro.id)
@@ -8448,15 +8514,6 @@ export default function App() {
       return
     }
 
-    const codigoOrcamento = ensureProposalId(currentBudgetId)
-    if (codigoOrcamento !== currentBudgetId) {
-      setCurrentBudgetId(codigoOrcamento)
-    }
-    vendaActions.updateCodigos({
-      codigo_orcamento_interno: codigoOrcamento,
-      data_emissao: new Date().toISOString().slice(0, 10),
-    })
-
     const resultado = await prepararPropostaParaExportacao({
       incluirTabelaBuyout: isVendaDiretaTab,
     })
@@ -8467,16 +8524,138 @@ export default function App() {
     }
 
     const { html: layoutHtml, dados } = resultado
-    const supportsBuyout = hasPrintableBuyout(dados)
+    pendingPreviewDataRef.current = {
+      html: layoutHtml,
+      dados,
+    }
     const nomeCliente = dados.cliente.nome?.trim() || 'SolarInvest'
+    const budgetId = normalizeProposalId(dados.budgetId)
     openBudgetPreviewWindow(layoutHtml, {
       nomeCliente,
-      budgetId: dados.budgetId,
+      budgetId,
       actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
       initialMode: 'preview',
-      supportsBuyout,
     })
   }
+
+  const handlePreviewActionRequest = useCallback(
+    async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
+      const previewData = pendingPreviewDataRef.current
+      const budgetIdAtual = normalizeProposalId(currentBudgetId)
+
+      if (!previewData) {
+        return { proceed: true }
+      }
+
+      const { dados } = previewData
+      const idExistente = normalizeProposalId(dados.budgetId ?? budgetIdAtual)
+      if (idExistente) {
+        const emissaoIso = new Date().toISOString().slice(0, 10)
+        if (currentBudgetId !== idExistente) {
+          renameVendasSimulacao(currentBudgetId, idExistente)
+          setCurrentBudgetId(idExistente)
+        }
+        vendaActions.updateCodigos({
+          codigo_orcamento_interno: idExistente,
+          data_emissao: emissaoIso,
+        })
+        return { proceed: true, budgetId: idExistente }
+      }
+
+      if (!clienteEmEdicaoId) {
+        return { proceed: true, budgetId: '' }
+      }
+
+      const confirmarSalvar = window.confirm(
+        'Deseja salvar este documento antes de imprimir ou baixar? Ele será armazenado no histórico do cliente.',
+      )
+      if (!confirmarSalvar) {
+        return { proceed: true, budgetId: '' }
+      }
+
+      try {
+        const registro = salvarOrcamentoLocalmente(dados)
+        if (!registro) {
+          return { proceed: false }
+        }
+
+        dados.budgetId = registro.id
+        const emissaoIso = new Date().toISOString().slice(0, 10)
+        if (currentBudgetId !== registro.id) {
+          renameVendasSimulacao(currentBudgetId, registro.id)
+          setCurrentBudgetId(registro.id)
+        }
+
+        vendaActions.updateCodigos({
+          codigo_orcamento_interno: registro.id,
+          data_emissao: emissaoIso,
+        })
+
+        let htmlAtualizado = previewData.html
+        try {
+          const reprocessado = await renderPrintableProposalToHtml(dados)
+          if (reprocessado) {
+            htmlAtualizado = reprocessado
+            previewData.html = reprocessado
+          }
+        } catch (error) {
+          console.warn('Não foi possível atualizar o HTML antes da impressão.', error)
+        }
+
+        try {
+          const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
+          await persistProposalPdf({
+            html: htmlAtualizado,
+            budgetId: registro.id,
+            clientName: dados.cliente.nome,
+            proposalType,
+          })
+          adicionarNotificacao(
+            'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.',
+            'success',
+          )
+        } catch (error) {
+          console.error('Erro ao salvar a proposta em PDF durante a impressão.', error)
+          window.alert('Não foi possível salvar a proposta em PDF. Tente novamente.')
+          return { proceed: false }
+        }
+
+        previewData.dados = dados
+
+        return {
+          proceed: true,
+          budgetId: registro.id,
+          updatedHtml: htmlAtualizado,
+        }
+      } catch (error) {
+        console.error('Erro ao preparar o salvamento antes da impressão.', error)
+        window.alert('Não foi possível salvar o documento. Tente novamente.')
+        return { proceed: false }
+      }
+    },
+    [
+      activeTab,
+      adicionarNotificacao,
+      clienteEmEdicaoId,
+      currentBudgetId,
+      renameVendasSimulacao,
+      salvarOrcamentoLocalmente,
+      setCurrentBudgetId,
+    ],
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.__solarinvestOnPreviewAction = handlePreviewActionRequest
+    return () => {
+      if (window.__solarinvestOnPreviewAction === handlePreviewActionRequest) {
+        delete window.__solarinvestOnPreviewAction
+      }
+    }
+  }, [handlePreviewActionRequest])
 
   const handleSalvarPropostaPdf = useCallback(async () => {
     if (salvandoPropostaPdf) {
@@ -8487,14 +8666,10 @@ export default function App() {
       return
     }
 
-    const codigoOrcamento = ensureProposalId(currentBudgetId)
-    if (codigoOrcamento !== currentBudgetId) {
-      setCurrentBudgetId(codigoOrcamento)
+    if (!clienteEmEdicaoId) {
+      window.alert('Salve os dados do cliente antes de salvar o orçamento.')
+      return
     }
-    vendaActions.updateCodigos({
-      codigo_orcamento_interno: codigoOrcamento,
-      data_emissao: new Date().toISOString().slice(0, 10),
-    })
 
     setSalvandoPropostaPdf(true)
 
@@ -8511,12 +8686,40 @@ export default function App() {
       }
 
       const { html, dados } = resultado
-      salvouLocalmente = Boolean(salvarOrcamentoLocalmente(dados))
+      const registroSalvo = salvarOrcamentoLocalmente(dados)
+      if (!registroSalvo) {
+        return
+      }
+
+      salvouLocalmente = true
+      dados.budgetId = registroSalvo.id
+
+      const emissaoIso = new Date().toISOString().slice(0, 10)
+      if (currentBudgetId !== registroSalvo.id) {
+        renameVendasSimulacao(currentBudgetId, registroSalvo.id)
+        setCurrentBudgetId(registroSalvo.id)
+      }
+
+      vendaActions.updateCodigos({
+        codigo_orcamento_interno: registroSalvo.id,
+        data_emissao: emissaoIso,
+      })
+
+      let htmlComCodigo = html
+      try {
+        const atualizado = await renderPrintableProposalToHtml(dados)
+        if (atualizado) {
+          htmlComCodigo = atualizado
+        }
+      } catch (error) {
+        console.warn('Não foi possível atualizar o HTML com o código do orçamento.', error)
+      }
+
       const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
 
       await persistProposalPdf({
-        html,
-        budgetId: dados.budgetId,
+        html: htmlComCodigo,
+        budgetId: registroSalvo.id,
         clientName: dados.cliente.nome,
         proposalType,
       })
@@ -8541,9 +8744,11 @@ export default function App() {
   }, [
     activeTab,
     adicionarNotificacao,
+    clienteEmEdicaoId,
     currentBudgetId,
     isVendaDiretaTab,
     prepararPropostaParaExportacao,
+    renameVendasSimulacao,
     salvarOrcamentoLocalmente,
     salvandoPropostaPdf,
     validarCamposObrigatorios,
@@ -8554,7 +8759,7 @@ export default function App() {
     setIsSettingsOpen(false)
     setIsBudgetSearchOpen(false)
     setOrcamentoSearchTerm('')
-    setCurrentBudgetId(makeProposalId())
+    setCurrentBudgetId(createDraftBudgetId())
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
     setIsBudgetProcessing(false)
@@ -8957,7 +9162,6 @@ export default function App() {
         }
 
         const nomeCliente = registro.dados.cliente.nome?.trim() || 'SolarInvest'
-        const supportsBuyout = hasPrintableBuyout(dadosParaImpressao)
         let actionMessage = 'Revise o conteúdo e utilize as ações para gerar o PDF.'
         if (modo === 'print') {
           actionMessage = 'A janela de impressão será aberta automaticamente. Verifique as preferências antes de confirmar.'
@@ -8973,7 +9177,6 @@ export default function App() {
           autoPrint: modo !== 'preview',
           closeAfterPrint: modo === 'download',
           initialMode: modo === 'download' ? 'download' : modo === 'print' ? 'print' : 'preview',
-          supportsBuyout,
         })
       } catch (error) {
         console.error('Erro ao abrir orçamento salvo.', error)
