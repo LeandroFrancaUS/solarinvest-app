@@ -1887,18 +1887,21 @@ export default function App() {
     | null
   >(null)
   const [orcamentoCarregado, setOrcamentoCarregado] = useState<PrintableProposalProps | null>(null)
+  const [orcamentoDisponivelParaDuplicar, setOrcamentoDisponivelParaDuplicar] =
+    useState<OrcamentoSalvo | null>(null)
   const [orcamentoCarregadoInfo, setOrcamentoCarregadoInfo] = useState<
-    | {
-        id: string
-        cliente: string
-      }
-    | null
+      | {
+          id: string
+          cliente: string
+        }
+      | null
   >(null)
   const [orcamentoCarregadoRegistro, setOrcamentoCarregadoRegistro] = useState<OrcamentoSalvo | null>(null)
   const limparOrcamentoCarregado = useCallback(() => {
     setOrcamentoCarregado(null)
     setOrcamentoCarregadoInfo(null)
     setOrcamentoCarregadoRegistro(null)
+    setOrcamentoDisponivelParaDuplicar(null)
   }, [])
   const entrarModoSomenteLeitura = useCallback(
     (registro: OrcamentoSalvo) => {
@@ -1917,6 +1920,7 @@ export default function App() {
         cliente: clienteNome,
       })
       setOrcamentoCarregadoRegistro(cloneOrcamentoSalvo(registro))
+      setOrcamentoDisponivelParaDuplicar(cloneOrcamentoSalvo(registro))
       setIsBudgetSearchOpen(false)
       setOrcamentoVisualizado(null)
       setOrcamentoVisualizadoInfo(null)
@@ -9750,11 +9754,12 @@ export default function App() {
   ])
 
   const duplicarOrcamentoCarregado = () => {
-    if (!orcamentoCarregadoRegistro) {
+    const registroParaDuplicar = orcamentoCarregadoRegistro ?? orcamentoDisponivelParaDuplicar
+    if (!registroParaDuplicar) {
       return
     }
 
-    if (!orcamentoCarregadoRegistro.snapshot) {
+    if (!registroParaDuplicar.snapshot) {
       window.alert(
         'Não foi possível duplicar este orçamento automaticamente. Abra e salve novamente para gerar um snapshot completo.',
       )
@@ -9762,7 +9767,7 @@ export default function App() {
     }
 
     const novoBudgetId = createDraftBudgetId()
-    aplicarSnapshot(orcamentoCarregadoRegistro.snapshot, { budgetIdOverride: novoBudgetId })
+    aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
     limparOrcamentoCarregado()
     setIsBudgetSearchOpen(false)
     adicionarNotificacao(
