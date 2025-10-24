@@ -9770,7 +9770,8 @@ export default function App() {
     )
   }
 
-  const podeSalvarProposta = !orcamentoCarregado && (activeTab === 'leasing' || activeTab === 'vendas')
+  const isViewOnlyMode = Boolean(orcamentoCarregado)
+  const podeSalvarProposta = !isViewOnlyMode && (activeTab === 'leasing' || activeTab === 'vendas')
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
     if (key === 'temIndicacao') {
@@ -13581,7 +13582,7 @@ export default function App() {
               ) : null}
               <div
                 ref={editableContentRef}
-                className={`page-editable${orcamentoCarregado ? ' is-readonly' : ''}`}
+                className={`page-editable${isViewOnlyMode ? ' is-readonly' : ''}`}
               >
                 <div className="page-actions">
                   <button
@@ -13819,14 +13820,16 @@ export default function App() {
                 <span className="muted">Valores entre o mês 7 e o mês {duracaoMesesExibicao}.</span>
               </div>
               <div className="table-controls">
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={handleImprimirTabelaTransferencia}
-                  disabled={gerandoTabelaTransferencia}
-                >
-                  {gerandoTabelaTransferencia ? 'Gerando PDF…' : 'Imprimir tabela'}
-                </button>
+                {isViewOnlyMode ? (
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={handleImprimirTabelaTransferencia}
+                    disabled={gerandoTabelaTransferencia}
+                  >
+                    {gerandoTabelaTransferencia ? 'Gerando PDF…' : 'Imprimir tabela'}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="collapse-toggle"
