@@ -13504,6 +13504,80 @@ export default function App() {
     )
   }
 
+  const leasingBuyoutSection = (
+    <section className="card">
+      <div className="card-header">
+        <h2>Compra antecipada (Buyout)</h2>
+        <span className="muted">Valores entre o mês 7 e o mês {duracaoMesesExibicao}.</span>
+      </div>
+      <div className="table-controls">
+        {isViewOnlyMode ? (
+          <button
+            type="button"
+            className="ghost"
+            onClick={handleImprimirTabelaTransferencia}
+            disabled={gerandoTabelaTransferencia}
+          >
+            {gerandoTabelaTransferencia ? 'Gerando PDF…' : 'Imprimir tabela'}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="collapse-toggle"
+          onClick={() => setMostrarTabelaBuyout((prev) => !prev)}
+          aria-expanded={mostrarTabelaBuyout}
+          aria-controls="compra-antecipada-tabela"
+        >
+          {mostrarTabelaBuyout ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
+        </button>
+      </div>
+      {mostrarTabelaBuyout ? (
+        <div className="table-wrapper">
+          <table id="compra-antecipada-tabela">
+            <thead>
+              <tr>
+                <th>Mês</th>
+                <th>Tarifa projetada</th>
+                <th>Prestação efetiva</th>
+                <th>Cashback</th>
+                <th>Valor de compra</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tabelaBuyout
+                .filter((row) => row.mes >= 7 && row.mes <= buyoutMesAceiteFinal)
+                .map((row) => (
+                  <tr key={row.mes}>
+                    <td>{row.mes}</td>
+                    <td>{tarifaCurrency(row.tarifa)}</td>
+                    <td>{currency(row.prestacaoEfetiva)}</td>
+                    <td>{currency(row.cashback)}</td>
+                    <td>{row.valorResidual == null ? '' : currency(row.valorResidual)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </section>
+  )
+
+  const leasingChartSection = mostrarGrafico ? (
+    <LeasingBeneficioChart
+      leasingROI={leasingROI}
+      financiamentoROI={financiamentoROI}
+      mostrarFinanciamento={mostrarFinanciamento}
+      exibirLeasingLinha={exibirLeasingLinha}
+      onToggleLeasing={setExibirLeasingLinha}
+      exibirFinLinha={exibirFinLinha}
+      onToggleFinanciamento={setExibirFinLinha}
+      chartTheme={chartTheme}
+      theme={theme}
+      currency={currency}
+      formatAxis={formatAxis}
+    />
+  ) : null
+
   return (
     <Providers>
       <AppRoutes>
@@ -13586,11 +13660,9 @@ export default function App() {
                   </div>
                 </section>
               ) : null}
-              <div
-                ref={editableContentRef}
-                className={`page-editable${isViewOnlyMode ? ' is-readonly' : ''}`}
-              >
-                <div className="page-actions">
+              <div className={`page-editable${isViewOnlyMode ? ' is-readonly' : ''}`}>
+                <div ref={editableContentRef} className="page-editable-body">
+                  <div className="page-actions">
                   <button
                     type="button"
                     className={`ghost${activeTab === 'leasing' ? ' solid' : ''}`}
@@ -13820,76 +13892,6 @@ export default function App() {
               </section>
             </div>
 
-            <section className="card">
-              <div className="card-header">
-                <h2>Compra antecipada (Buyout)</h2>
-                <span className="muted">Valores entre o mês 7 e o mês {duracaoMesesExibicao}.</span>
-              </div>
-              <div className="table-controls">
-                {isViewOnlyMode ? (
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={handleImprimirTabelaTransferencia}
-                    disabled={gerandoTabelaTransferencia}
-                  >
-                    {gerandoTabelaTransferencia ? 'Gerando PDF…' : 'Imprimir tabela'}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="collapse-toggle"
-                  onClick={() => setMostrarTabelaBuyout((prev) => !prev)}
-                  aria-expanded={mostrarTabelaBuyout}
-                  aria-controls="compra-antecipada-tabela"
-                >
-                  {mostrarTabelaBuyout ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
-                </button>
-              </div>
-              {mostrarTabelaBuyout ? (
-                <div className="table-wrapper">
-                  <table id="compra-antecipada-tabela">
-                    <thead>
-                      <tr>
-                        <th>Mês</th>
-                        <th>Tarifa projetada</th>
-                        <th>Prestação efetiva</th>
-                        <th>Cashback</th>
-                        <th>Valor de compra</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tabelaBuyout
-                        .filter((row) => row.mes >= 7 && row.mes <= buyoutMesAceiteFinal)
-                        .map((row) => (
-                          <tr key={row.mes}>
-                            <td>{row.mes}</td>
-                            <td>{tarifaCurrency(row.tarifa)}</td>
-                            <td>{currency(row.prestacaoEfetiva)}</td>
-                            <td>{currency(row.cashback)}</td>
-                            <td>{row.valorResidual == null ? '' : currency(row.valorResidual)}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </section>
-            {mostrarGrafico ? (
-              <LeasingBeneficioChart
-                leasingROI={leasingROI}
-                financiamentoROI={financiamentoROI}
-                mostrarFinanciamento={mostrarFinanciamento}
-                exibirLeasingLinha={exibirLeasingLinha}
-                onToggleLeasing={setExibirLeasingLinha}
-                exibirFinLinha={exibirFinLinha}
-                onToggleFinanciamento={setExibirFinLinha}
-                chartTheme={chartTheme}
-                theme={theme}
-                currency={currency}
-                formatAxis={formatAxis}
-              />
-            ) : null}
           </>
         ) : (
           <>
@@ -14128,6 +14130,13 @@ export default function App() {
             {renderRetornoProjetadoSection()}
           </>
         )}
+                </div>
+                {activeTab === 'leasing' ? (
+                  <>
+                    {leasingBuyoutSection}
+                    {leasingChartSection}
+                  </>
+                ) : null}
               </div>
             </main>
       </div>

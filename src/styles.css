@@ -3619,6 +3619,10 @@ i:hover {
   transition: opacity 0.2s ease;
 }
 
+.page-editable-body {
+  display: contents;
+}
+
 .page-editable.is-readonly {
   opacity: 0.55;
 }
