@@ -218,6 +218,7 @@ export type PrintableProposalProps = {
   composicaoUfv?: UfvComposicaoResumo | undefined
   vendaSnapshot?: VendaSnapshot | undefined
   informacoesImportantesObservacao?: string | null | undefined
+  configuracaoUsinaObservacoes?: string | null | undefined
   multiUcResumo?: PrintableMultiUcResumo | null | undefined
   vendasConfigSnapshot?: PrintableVendasConfig | undefined
   valorTotalProposta?: number | null | undefined

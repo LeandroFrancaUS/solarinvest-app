@@ -57,6 +57,7 @@ function PrintableProposalInner(
     valorTotalProposta: valorTotalPropostaProp,
     custoImplantacaoReferencia,
     imagensInstalacao,
+    configuracaoUsinaObservacoes,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -153,6 +154,17 @@ function PrintableProposalInner(
     mostrarQuebraImpostos: vendasConfigSnapshot?.mostrar_quebra_impostos_no_pdf_cliente ?? false,
     observacaoPadrao,
   }
+  const configuracaoUsinaObservacoesTexto = sanitizeTextField(configuracaoUsinaObservacoes)
+  const configuracaoUsinaObservacoesParagrafos = useMemo(() => {
+    if (!configuracaoUsinaObservacoesTexto) {
+      return []
+    }
+
+    return configuracaoUsinaObservacoesTexto
+      .split(/\r?\n\r?\n+/)
+      .map((paragrafo) => paragrafo.trim())
+      .filter(Boolean)
+  }, [configuracaoUsinaObservacoesTexto])
   const hasNonZero = (value: number | null | undefined): value is number =>
     typeof value === 'number' && Number.isFinite(value) && Math.abs(value) > 0
   const valorTotalPropostaNumero = hasNonZero(valorTotalPropostaProp)
@@ -1379,6 +1391,35 @@ function PrintableProposalInner(
           </section>
 
           <PrintableProposalImages images={imagensInstalacao} />
+
+          {configuracaoUsinaObservacoesParagrafos.length > 0 ? (
+            <section
+              id="observacoes-configuracao"
+              className="print-section keep-together avoid-break"
+            >
+              <h2 className="section-title keep-with-next">Observações sobre a configuração</h2>
+              <div className="print-observacoes no-break-inside">
+                {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
+                  const linhas = paragrafo.split(/\r?\n/)
+                  return (
+                    <p
+                      key={`observacao-configuracao-${index}`}
+                      className="print-observacoes__paragraph"
+                    >
+                      {linhas.map((linha, linhaIndex) => (
+                        <React.Fragment
+                          key={`observacao-configuracao-${index}-linha-${linhaIndex}`}
+                        >
+                          {linha}
+                          {linhaIndex < linhas.length - 1 ? <br /> : null}
+                        </React.Fragment>
+                      ))}
+                    </p>
+                  )
+                })}
+              </div>
+            </section>
+          ) : null}
 
           <section
             id="infos-importantes"

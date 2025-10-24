@@ -449,3 +449,16 @@
     break-inside: avoid;
   }
 }
+
+.print-observacoes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #1f2937;
+}
+
+.print-observacoes__paragraph {
+  margin: 0;
+}

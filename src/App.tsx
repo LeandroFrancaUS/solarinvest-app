@@ -2141,6 +2141,7 @@ export default function App() {
   const tusdOptionsTitleId = useId()
   const tusdOptionsToggleId = useId()
   const tusdOptionsContentId = useId()
+  const configuracaoUsinaObservacoesBaseId = useId()
   const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
   const imagensUploadInputRef = useRef<HTMLInputElement | null>(null)
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
@@ -2208,6 +2209,15 @@ export default function App() {
   const [numeroModulosManual, setNumeroModulosManualState] = useState<number | ''>(
     INITIAL_VALUES.numeroModulosManual,
   )
+  const [configuracaoUsinaObservacoes, setConfiguracaoUsinaObservacoes] = useState(
+    INITIAL_VALUES.configuracaoUsinaObservacoes,
+  )
+  const [configuracaoUsinaObservacoesExpanded, setConfiguracaoUsinaObservacoesExpanded] =
+    useState(false)
+  const configuracaoUsinaObservacoesLeasingId = `${configuracaoUsinaObservacoesBaseId}-leasing`
+  const configuracaoUsinaObservacoesVendaId = `${configuracaoUsinaObservacoesBaseId}-venda`
+  const configuracaoUsinaObservacoesLeasingContainerId = `${configuracaoUsinaObservacoesBaseId}-leasing-container`
+  const configuracaoUsinaObservacoesVendaContainerId = `${configuracaoUsinaObservacoesBaseId}-venda-container`
   const [composicaoTelhado, setComposicaoTelhado] = useState<UfvComposicaoTelhadoValores>(
     () => createInitialComposicaoTelhado(),
   )
@@ -6110,6 +6120,10 @@ export default function App() {
         multiUcResumo: multiUcPrintableResumo,
         vendasConfigSnapshot: printableVendasConfig,
         informacoesImportantesObservacao: vendasConfig.observacao_padrao_proposta,
+        configuracaoUsinaObservacoes:
+          configuracaoUsinaObservacoes.trim()
+            ? configuracaoUsinaObservacoes.trim()
+            : null,
         valorTotalProposta: valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? null,
         custoImplantacaoReferencia: (() => {
           const snapshotValor = Number(vendaSnapshot.resumoProposta.custo_implantacao_referencia ?? 0)
@@ -6191,6 +6205,7 @@ export default function App() {
       valorTotalPropostaState,
       custoImplantacaoReferencia,
       propostaImagens,
+      configuracaoUsinaObservacoes,
     ],
   )
 
@@ -10147,6 +10162,8 @@ export default function App() {
     setTipoSistema(INITIAL_VALUES.tipoSistema)
     setSegmentoCliente(INITIAL_VALUES.segmentoCliente)
     setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
+    setConfiguracaoUsinaObservacoes(INITIAL_VALUES.configuracaoUsinaObservacoes)
+    setConfiguracaoUsinaObservacoesExpanded(false)
     setComposicaoTelhado(createInitialComposicaoTelhado())
     setComposicaoSolo(createInitialComposicaoSolo())
     setCapexManualOverride(INITIAL_VALUES.capexManualOverride)
@@ -11660,8 +11677,41 @@ export default function App() {
   }
 
   const renderConfiguracaoUsinaSection = () => (
-    <section className="card">
-      <h2>Configuração da Usina Fotovoltaica</h2>
+    <section className="card configuracao-usina-card">
+      <div className="configuracao-usina-card__header">
+        <h2>Configuração da Usina Fotovoltaica</h2>
+        <button
+          type="button"
+          className="configuracao-usina-card__toggle"
+          aria-expanded={configuracaoUsinaObservacoesExpanded}
+          aria-controls={configuracaoUsinaObservacoesLeasingContainerId}
+          onClick={() =>
+            setConfiguracaoUsinaObservacoesExpanded((previous) => !previous)
+          }
+        >
+          {configuracaoUsinaObservacoesExpanded
+            ? 'Ocultar observações'
+            : configuracaoUsinaObservacoes.trim()
+            ? 'Editar observações'
+            : 'Adicionar observações'}
+        </button>
+      </div>
+      <div
+        id={configuracaoUsinaObservacoesLeasingContainerId}
+        className="configuracao-usina-card__observacoes"
+        hidden={!configuracaoUsinaObservacoesExpanded}
+      >
+        <label className="configuracao-usina-card__observacoes-label" htmlFor={configuracaoUsinaObservacoesLeasingId}>
+          Observações
+        </label>
+        <textarea
+          id={configuracaoUsinaObservacoesLeasingId}
+          value={configuracaoUsinaObservacoes}
+          onChange={(event) => setConfiguracaoUsinaObservacoes(event.target.value)}
+          placeholder="Inclua observações relevantes sobre a configuração da usina"
+          rows={3}
+        />
+      </div>
       <div className="grid g4">
         <Field
           label={labelWithTooltip(
@@ -12150,8 +12200,41 @@ export default function App() {
   )
 
   const renderVendaConfiguracaoSection = () => (
-    <section className="card">
-      <h2>Configuração da Usina Fotovoltaica</h2>
+    <section className="card configuracao-usina-card">
+      <div className="configuracao-usina-card__header">
+        <h2>Configuração da Usina Fotovoltaica</h2>
+        <button
+          type="button"
+          className="configuracao-usina-card__toggle"
+          aria-expanded={configuracaoUsinaObservacoesExpanded}
+          aria-controls={configuracaoUsinaObservacoesVendaContainerId}
+          onClick={() =>
+            setConfiguracaoUsinaObservacoesExpanded((previous) => !previous)
+          }
+        >
+          {configuracaoUsinaObservacoesExpanded
+            ? 'Ocultar observações'
+            : configuracaoUsinaObservacoes.trim()
+            ? 'Editar observações'
+            : 'Adicionar observações'}
+        </button>
+      </div>
+      <div
+        id={configuracaoUsinaObservacoesVendaContainerId}
+        className="configuracao-usina-card__observacoes"
+        hidden={!configuracaoUsinaObservacoesExpanded}
+      >
+        <label className="configuracao-usina-card__observacoes-label" htmlFor={configuracaoUsinaObservacoesVendaId}>
+          Observações
+        </label>
+        <textarea
+          id={configuracaoUsinaObservacoesVendaId}
+          value={configuracaoUsinaObservacoes}
+          onChange={(event) => setConfiguracaoUsinaObservacoes(event.target.value)}
+          placeholder="Inclua observações relevantes sobre a configuração da usina"
+          rows={3}
+        />
+      </div>
       <div className="grid g4">
         <Field
           label={labelWithTooltip(

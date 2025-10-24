@@ -199,6 +199,59 @@
   gap: 6px;
 }
 
+.configuracao-usina-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.configuracao-usina-card__toggle {
+  appearance: none;
+  border: 1px solid var(--cfg-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cfg-text);
+  background: #fff;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.configuracao-usina-card__toggle:hover,
+.configuracao-usina-card__toggle:focus-visible {
+  border-color: var(--cfg-accent);
+  color: var(--cfg-accent);
+  box-shadow: 0 0 0 2px rgba(13, 71, 161, 0.15);
+  outline: none;
+}
+
+.configuracao-usina-card__observacoes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.configuracao-usina-card__observacoes[hidden] {
+  display: none;
+}
+
+.configuracao-usina-card__observacoes textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+}
+
+.configuracao-usina-card__observacoes-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cfg-muted);
+}
+
 .cfg-help {
   font-size: 12px;
   color: var(--cfg-subtle);

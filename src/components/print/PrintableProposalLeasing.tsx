@@ -194,6 +194,7 @@ function PrintableProposalLeasingInner(
     leasingModeloModulo,
     orcamentoItens,
     informacoesImportantesObservacao,
+    configuracaoUsinaObservacoes,
     imagensInstalacao,
     multiUcResumo,
     vendaSnapshot,
@@ -656,6 +657,24 @@ function PrintableProposalLeasingInner(
 
     return texto
   }, [informacoesImportantesObservacao])
+  const configuracaoUsinaObservacoesTexto = useMemo(() => {
+    if (typeof configuracaoUsinaObservacoes !== 'string') {
+      return null
+    }
+
+    const texto = configuracaoUsinaObservacoes.trim()
+    return texto || null
+  }, [configuracaoUsinaObservacoes])
+  const configuracaoUsinaObservacoesParagrafos = useMemo(() => {
+    if (!configuracaoUsinaObservacoesTexto) {
+      return []
+    }
+
+    return configuracaoUsinaObservacoesTexto
+      .split(/\r?\n\r?\n+/)
+      .map((paragrafo) => paragrafo.trim())
+      .filter(Boolean)
+  }, [configuracaoUsinaObservacoesTexto])
 
   return (
     <div ref={ref} className="print-root">
@@ -950,6 +969,35 @@ function PrintableProposalLeasingInner(
           </section>
 
           <PrintableProposalImages images={imagensInstalacao} />
+
+          {configuracaoUsinaObservacoesParagrafos.length > 0 ? (
+            <section
+              id="observacoes-configuracao"
+              className="print-section keep-together avoid-break"
+            >
+              <h2 className="section-title keep-with-next">Observações sobre a Configuração</h2>
+              <div className="print-observacoes no-break-inside">
+                {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
+                  const linhas = paragrafo.split(/\r?\n/)
+                  return (
+                    <p
+                      key={`observacao-configuracao-${index}`}
+                      className="print-observacoes__paragraph"
+                    >
+                      {linhas.map((linha, linhaIndex) => (
+                        <React.Fragment
+                          key={`observacao-configuracao-${index}-linha-${linhaIndex}`}
+                        >
+                          {linha}
+                          {linhaIndex < linhas.length - 1 ? <br /> : null}
+                        </React.Fragment>
+                      ))}
+                    </p>
+                  )
+                })}
+              </div>
+            </section>
+          ) : null}
 
           <section
             id="infos-importantes"
