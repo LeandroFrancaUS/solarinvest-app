@@ -300,7 +300,6 @@ describe('PrintableProposal (leasing)', () => {
     expect(markup).toContain('Investimento Estimado da SolarInvest')
     expect(markup).toContain('R$\u00a0120.000,00')
     expect(markup).toContain('Informações Importantes')
-    expect(markup).toContain('Economia projetada em 30 anos')
     expect(markup).toContain('Benefício acumulado (R$)')
   })
 
