@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { analyzeEssentialInfo, classifyBudgetItem, sumModuleQuantities } from '../moduleDetection'
+import type { StructuredItem } from '../structuredBudgetParser'
 
 describe('moduleDetection utilities', () => {
   it('classifyBudgetItem identifica módulos e inversores', () => {
@@ -41,13 +42,17 @@ describe('moduleDetection utilities', () => {
   })
 
   it('sumModuleQuantities soma apenas itens de módulos', () => {
-    const structured = [
+    const structured: StructuredItem[] = [
       {
         produto: 'Módulo 550W',
         descricao: 'Módulo monocristalino',
         modelo: 'XYZ',
         fabricante: 'SolarX',
         quantidade: 8,
+        codigo: null,
+        unidade: null,
+        precoUnitario: null,
+        precoTotal: null,
       },
       {
         produto: 'Estrutura modular',
@@ -55,6 +60,10 @@ describe('moduleDetection utilities', () => {
         modelo: null,
         fabricante: null,
         quantidade: 20,
+        codigo: null,
+        unidade: null,
+        precoUnitario: null,
+        precoTotal: null,
       },
       {
         produto: 'Inversor Solar',
@@ -62,8 +71,12 @@ describe('moduleDetection utilities', () => {
         modelo: null,
         fabricante: null,
         quantidade: 1,
+        codigo: null,
+        unidade: null,
+        precoUnitario: null,
+        precoTotal: null,
       },
-    ] as any
+    ]
 
     expect(sumModuleQuantities(structured)).toBe(8)
   })

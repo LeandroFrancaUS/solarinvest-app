@@ -21,6 +21,7 @@
     "exactOptionalPropertyTypes": true,
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": true,
+    "noUncheckedIndexedAccess": true,
     "typeRoots": [
       "./node_modules/@types",
       "./src/types"

@@ -3260,17 +3260,18 @@ export default function App() {
       setVendaForm((prev) => {
         let changed = false
         const next: VendaForm = { ...prev }
+        const nextMutable = next as Record<keyof VendaForm, VendaForm[keyof VendaForm] | undefined>
         Object.entries(updates).forEach(([rawKey, value]) => {
           const key = rawKey as keyof VendaForm
           if (value === undefined) {
             if (next[key] !== undefined) {
-              ;(next as any)[key] = value
+              nextMutable[key] = value as VendaForm[typeof key] | undefined
               changed = true
             }
             return
           }
           if (next[key] !== value) {
-            ;(next as any)[key] = value
+            nextMutable[key] = value as VendaForm[typeof key]
             changed = true
           }
         })

@@ -1,16 +1,17 @@
 // Minimal Vitest type stubs to allow TypeScript checking in offline environments.
-type VitestFn = (...args: any[]) => any;
+type VitestCallable = (...args: unknown[]) => unknown;
+type VitestExpectation = VitestCallable & Record<string, VitestExpectation>;
 
 declare module 'vitest' {
-  export const describe: VitestFn;
-  export const it: VitestFn;
-  export const test: VitestFn;
-  export const expect: VitestFn;
-  export const beforeAll: VitestFn;
-  export const beforeEach: VitestFn;
-  export const afterAll: VitestFn;
-  export const afterEach: VitestFn;
-  export const vi: Record<string, VitestFn> & VitestFn;
+  export const describe: VitestCallable;
+  export const it: VitestCallable;
+  export const test: VitestCallable;
+  export const expect: VitestExpectation;
+  export const beforeAll: VitestCallable;
+  export const beforeEach: VitestCallable;
+  export const afterAll: VitestCallable;
+  export const afterEach: VitestCallable;
+  export const vi: Record<string, VitestCallable> & VitestCallable;
 }
 
 declare module 'vitest/globals' {
@@ -18,15 +19,15 @@ declare module 'vitest/globals' {
 }
 
 declare global {
-  // Provide the global testing APIs as `any` to prevent type errors where
+  // Provide the global testing APIs with loose types to prevent type errors where
   // Vitest globals are referenced without explicit imports.
-  const describe: VitestFn;
-  const it: VitestFn;
-  const test: VitestFn;
-  const expect: VitestFn;
-  const beforeAll: VitestFn;
-  const beforeEach: VitestFn;
-  const afterAll: VitestFn;
-  const afterEach: VitestFn;
-  const vi: Record<string, VitestFn> & VitestFn;
+  const describe: VitestCallable;
+  const it: VitestCallable;
+  const test: VitestCallable;
+  const expect: VitestExpectation;
+  const beforeAll: VitestCallable;
+  const beforeEach: VitestCallable;
+  const afterAll: VitestCallable;
+  const afterEach: VitestCallable;
+  const vi: Record<string, VitestCallable> & VitestCallable;
 }

@@ -22,6 +22,7 @@ const OBSERVACAO_PADRAO_REMOVIDA_CHAVE = normalizeObservationKey(
 )
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
+const DEFAULT_CHART_COLORS = ['#FFA500', '#FF7F50', '#FFD700'] as const
 function PrintableProposalInner(
   props: PrintableProposalProps,
   ref: React.ForwardedRef<HTMLDivElement>,
@@ -173,6 +174,9 @@ function PrintableProposalInner(
     return null
   }
   const parsedPdfResumo = parsedPdfVenda ?? null
+  const potenciaModuloSeguro = Number(
+    pickPositive(potenciaModuloProp, snapshotConfig?.potencia_modulo_wp, parsedPdfResumo?.potencia_da_placa_wp) ?? 0,
+  ) || 0
   const kitPotenciaInstalada = pickPositive(
     snapshotConfig?.potencia_sistema_kwp,
     vendaFormResumo?.potencia_instalada_kwp,
@@ -344,6 +348,7 @@ function PrintableProposalInner(
     snapshotConfig?.potencia_modulo_wp,
     parsedPdfResumo?.potencia_da_placa_wp,
     potenciaModuloProp,
+    potenciaModuloSeguro,
   )
   const formatModuloDetalhe = (valor: number | null) => {
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
@@ -830,6 +835,12 @@ function PrintableProposalInner(
     () => economiaTabelaDados.find((row) => row.ano === 30) ?? null,
     [economiaTabelaDados],
   )
+  const chartPalette = DEFAULT_CHART_COLORS
+  const chartPaletteStyles = {
+    '--print-chart-color-primary': chartPalette[0],
+    '--print-chart-color-secondary': chartPalette[1],
+    '--print-chart-color-tertiary': chartPalette[2],
+  } as React.CSSProperties
   return (
     <div ref={ref} className="print-root">
       <div className="print-layout">
@@ -1296,6 +1307,8 @@ function PrintableProposalInner(
           <section
             id="economia-30-anos"
             className="print-section keep-together page-break-before break-after"
+            data-chart-palette={chartPalette.join(',')}
+            style={chartPaletteStyles}
           >
             <h2 className="keep-with-next">{isVendaDireta ? 'Retorno projetado (30 anos)' : 'Economia projetada (30 anos)'}</h2>
             {economiaTemDados ? (
