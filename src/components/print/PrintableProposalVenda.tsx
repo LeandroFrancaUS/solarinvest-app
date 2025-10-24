@@ -382,10 +382,10 @@ function PrintableProposalInner(
   }
 
   const tarifaProjeto = pickPositive(
-    snapshotParametros?.tarifa_r_kwh,
+    tarifaCheia,
     vendaFormResumo?.tarifa_cheia_r_kwh,
     parsedPdfResumo?.tarifa_cheia_r_kwh,
-    tarifaCheia,
+    snapshotParametros?.tarifa_r_kwh,
   )
 
   const autonomiaSnapshotPct =
