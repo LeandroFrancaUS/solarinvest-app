@@ -283,6 +283,21 @@ button.primary:disabled {
   box-shadow: none;
 }
 
+button.primary.solid {
+  background: var(--accent-strong);
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--accent-strong) 45%, transparent);
+}
+
+button.primary.solid:hover,
+button.primary.solid:focus-visible {
+  filter: brightness(1.06);
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--accent-strong) 52%, transparent);
+}
+
+button.primary.solid:active {
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent-strong) 36%, transparent);
+}
+
 button.ghost {
   background: var(--ghost-bg);
   color: var(--text-base);
@@ -292,6 +307,23 @@ button.ghost {
   font-weight: 600;
   min-height: var(--control-h);
   transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+button.ghost.solid {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--border-strong) 70%, var(--text-base) 30%);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+button.ghost.solid:hover,
+button.ghost.solid:focus-visible {
+  background: color-mix(in srgb, var(--surface) 85%, var(--accent) 15%);
+  border-color: color-mix(in srgb, var(--border-strong) 55%, var(--accent) 45%);
+}
+
+button.ghost.solid:active {
+  background: color-mix(in srgb, var(--surface) 78%, var(--accent) 22%);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
 button.ghost.with-icon {
