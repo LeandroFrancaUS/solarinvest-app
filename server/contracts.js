@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { execFile } from 'node:child_process'
 import util from 'node:util'
 import JSZip from 'jszip'
@@ -36,6 +37,32 @@ class ContractRenderError extends Error {
     super(message)
     this.statusCode = statusCode
     this.name = 'ContractRenderError'
+  }
+}
+
+class LibreOfficeConversionError extends Error {
+  /**
+   * @param {string} message
+   * @param {{ tried?: Array<{ binary: string, error: unknown }> }} [details]
+   */
+  constructor(message, details = undefined) {
+    super(message)
+    this.name = 'LibreOfficeConversionError'
+    this.details = details
+  }
+}
+
+class GoogleDriveConversionError extends Error {
+  /**
+   * @param {string} message
+   * @param {unknown} [cause]
+   */
+  constructor(message, cause = undefined) {
+    super(message)
+    this.name = 'GoogleDriveConversionError'
+    if (cause) {
+      this.cause = cause
+    }
   }
 }
 
@@ -234,7 +261,7 @@ const getLibreOfficeCandidates = () => {
   return [...new Set(candidates)]
 }
 
-const convertDocxToPdf = async (docxPath) => {
+const convertDocxToPdfUsingLibreOffice = async (docxPath) => {
   const args = ['--headless', '--convert-to', 'pdf', '--outdir', TMP_DIR, docxPath]
 
   const tried = []
@@ -258,12 +285,222 @@ const convertDocxToPdf = async (docxPath) => {
     )
     .join('; ')
 
-  throw new ContractRenderError(
-    500,
+  throw new LibreOfficeConversionError(
     details
-      ? `Falha ao converter o contrato para PDF (tentativas: ${details}). Verifique se o LibreOffice está instalado corretamente.`
-      : 'Falha ao converter o contrato para PDF. Verifique se o LibreOffice está instalado corretamente.',
+      ? `Falha ao converter o contrato para PDF com o LibreOffice (tentativas: ${details}).`
+      : 'Falha ao converter o contrato para PDF com o LibreOffice.',
+    { tried },
   )
+}
+
+const GOOGLE_DRIVE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
+
+const base64UrlEncode = (value) =>
+  Buffer.from(value)
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+
+const getGoogleDriveCredentials = () => {
+  const clientEmail = typeof process.env.GOOGLE_DRIVE_CLIENT_EMAIL === 'string'
+    ? process.env.GOOGLE_DRIVE_CLIENT_EMAIL.trim()
+    : ''
+  const privateKeyRaw = typeof process.env.GOOGLE_DRIVE_PRIVATE_KEY === 'string'
+    ? process.env.GOOGLE_DRIVE_PRIVATE_KEY.trim()
+    : ''
+
+  if (!clientEmail || !privateKeyRaw) {
+    return undefined
+  }
+
+  const privateKey = privateKeyRaw.replace(/\\n/g, '\n')
+
+  return { clientEmail, privateKey }
+}
+
+const requestGoogleDriveAccessToken = async (clientEmail, privateKey) => {
+  const headerSegment = base64UrlEncode(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
+  const now = Math.floor(Date.now() / 1000)
+  const payloadSegment = base64UrlEncode(
+    JSON.stringify({
+      iss: clientEmail,
+      scope: GOOGLE_DRIVE_SCOPE,
+      aud: GOOGLE_DRIVE_TOKEN_URL,
+      exp: now + 3600,
+      iat: now,
+    }),
+  )
+
+  const toSign = `${headerSegment}.${payloadSegment}`
+  const signer = crypto.createSign('RSA-SHA256')
+  signer.update(toSign)
+  signer.end()
+  const signature = signer.sign(privateKey)
+  const signatureSegment = base64UrlEncode(signature)
+
+  const assertion = `${toSign}.${signatureSegment}`
+
+  const params = new URLSearchParams()
+  params.set('grant_type', 'urn:ietf:params:oauth:grant-type:jwt-bearer')
+  params.set('assertion', assertion)
+
+  const response = await fetch(GOOGLE_DRIVE_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    throw new GoogleDriveConversionError(
+      `Falha ao obter token de acesso do Google Drive (${response.status}).`,
+      errorBody,
+    )
+  }
+
+  const json = await response.json()
+  if (!json || typeof json.access_token !== 'string') {
+    throw new GoogleDriveConversionError('Resposta inválida ao obter token de acesso do Google Drive.', json)
+  }
+
+  return json.access_token
+}
+
+const uploadDocxToGoogleDrive = async (docxBuffer, accessToken) => {
+  const boundary = `boundary_${Date.now()}_${Math.random().toString(16).slice(2)}`
+  const metadata = {
+    name: `contrato_${Date.now()}.docx`,
+    mimeType: 'application/vnd.google-apps.document',
+  }
+
+  const preamble = Buffer.from(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`,
+  )
+  const middle = Buffer.from(
+    `--${boundary}\r\nContent-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document\r\n\r\n`,
+  )
+  const closing = Buffer.from(`\r\n--${boundary}--\r\n`)
+
+  const body = Buffer.concat([preamble, middle, docxBuffer, closing])
+
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    },
+  )
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    throw new GoogleDriveConversionError(
+      `Falha ao enviar documento para o Google Drive (${response.status}).`,
+      errorBody,
+    )
+  }
+
+  const json = await response.json()
+  if (!json || typeof json.id !== 'string') {
+    throw new GoogleDriveConversionError('Resposta inválida ao enviar documento para o Google Drive.', json)
+  }
+
+  return json.id
+}
+
+const exportGoogleDriveFileToPdf = async (fileId, accessToken) => {
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=application/pdf&supportsAllDrives=true`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  )
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    throw new GoogleDriveConversionError(
+      `Falha ao exportar documento do Google Drive (${response.status}).`,
+      errorBody,
+    )
+  }
+
+  const arrayBuffer = await response.arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+
+const deleteGoogleDriveFile = async (fileId, accessToken) => {
+  try {
+    await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    )
+  } catch (error) {
+    console.warn('[contracts] Falha ao remover arquivo temporário do Google Drive:', error)
+  }
+}
+
+const convertDocxToPdfUsingGoogleDrive = async (docxPath, pdfPath) => {
+  const credentials = getGoogleDriveCredentials()
+  if (!credentials) {
+    throw new GoogleDriveConversionError('Credenciais do Google Drive não configuradas.')
+  }
+
+  const accessToken = await requestGoogleDriveAccessToken(credentials.clientEmail, credentials.privateKey)
+  const docxBuffer = await fs.readFile(docxPath)
+  const fileId = await uploadDocxToGoogleDrive(docxBuffer, accessToken)
+
+  try {
+    const pdfBuffer = await exportGoogleDriveFileToPdf(fileId, accessToken)
+    await fs.writeFile(pdfPath, pdfBuffer)
+  } finally {
+    await deleteGoogleDriveFile(fileId, accessToken)
+  }
+}
+
+const convertDocxToPdf = async (docxPath, pdfPath) => {
+  try {
+    await convertDocxToPdfUsingLibreOffice(docxPath)
+    return
+  } catch (error) {
+    if (!(error instanceof LibreOfficeConversionError)) {
+      throw error
+    }
+
+    console.warn('[contracts] Falha na conversão via LibreOffice, tentando Google Drive...', error)
+
+    try {
+      await convertDocxToPdfUsingGoogleDrive(docxPath, pdfPath)
+    } catch (driveError) {
+      console.error('[contracts] Falha na conversão via Google Drive:', driveError)
+
+      if (driveError instanceof GoogleDriveConversionError && driveError.message.includes('Credenciais')) {
+        throw new ContractRenderError(
+          500,
+          'Falha ao converter o contrato para PDF com o LibreOffice. Configure as credenciais do Google Drive para usar o fallback.',
+        )
+      }
+
+      throw new ContractRenderError(
+        500,
+        'Falha ao converter o contrato para PDF. Verifique o LibreOffice ou as credenciais do Google Drive.',
+      )
+    }
+  }
 }
 
 const generateContractPdf = async (cliente) => {
@@ -299,7 +536,7 @@ const generateContractPdf = async (cliente) => {
   await fs.writeFile(docxPath, docxBuffer)
 
   try {
-    await convertDocxToPdf(docxPath)
+    await convertDocxToPdf(docxPath, pdfPath)
     const pdfBuffer = await fs.readFile(pdfPath)
     return pdfBuffer
   } catch (error) {
