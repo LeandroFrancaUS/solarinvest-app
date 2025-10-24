@@ -161,7 +161,7 @@ function PrintableBuyoutTableInner(
                         src="/proposal-header-logo.svg"
                         alt="Marca SolarInvest"
                       />
-                      <h1>Tabela de Valor de Transferência</h1>
+                      <h1>Tabela de Valor de Transferencia Antecipada</h1>
                     </div>
                     <p className="print-hero__tagline">Valores estimados para aquisição antecipada da usina SolarInvest.</p>
                   </div>
@@ -207,7 +207,7 @@ function PrintableBuyoutTableInner(
           </section>
 
           <section className="print-section keep-together avoid-break page-break-before break-after">
-            <h2 className="section-title keep-with-next">Tabela de valor de transferência</h2>
+            <h2 className="section-title keep-with-next">Tabela de Valor de Transferencia Antecipada</h2>
             <p className="section-subtitle keep-with-next">
               Valores estimados entre o mês 7 e o mês {duracaoMesesExibicao}, considerando prestações pagas acumuladas
             </p>
