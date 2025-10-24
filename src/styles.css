@@ -3324,6 +3324,115 @@ table tbody tr:hover {
   word-break: break-word;
 }
 
+.contract-templates-modal .modal-backdrop {
+  background: rgba(15, 23, 42, 0.75);
+}
+
+.contract-templates-modal__content {
+  width: min(480px, calc(100% - 32px));
+  max-height: min(80vh, 560px);
+  margin: 64px auto;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #0f172a, #1b2943);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  box-shadow: 0 32px 64px rgba(15, 23, 42, 0.45);
+}
+
+.contract-templates-modal__content .modal-header {
+  background: transparent;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: none;
+  padding: 28px 32px 20px;
+}
+
+.contract-templates-modal__content .modal-header h3 {
+  color: #f8fafc;
+}
+
+.contract-templates-modal__content .modal-header .icon {
+  color: #f1f5f9;
+}
+
+.contract-templates-modal__content .modal-body {
+  background: transparent;
+  color: #e2e8f0;
+  padding: 24px 32px 32px;
+  gap: 20px;
+}
+
+.contract-templates-modal__content .modal-body p {
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.contract-templates-modal__content .muted {
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.contract-templates-modal__content .contract-template-actions {
+  justify-content: flex-start;
+}
+
+.contract-templates-modal__content .contract-template-actions .link {
+  color: #93c5fd;
+}
+
+.contract-templates-modal__content .contract-template-actions .link:hover {
+  color: #bfdbfe;
+}
+
+.contract-templates-modal__content .contract-template-list {
+  max-height: min(45vh, 260px);
+}
+
+.contract-templates-modal__content .contract-template-item label {
+  color: #f8fafc;
+}
+
+.contract-templates-modal__content .contract-template-item strong {
+  color: #f8fafc;
+}
+
+.contract-templates-modal__content .contract-template-item .filename {
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.contract-templates-modal__content .modal-actions {
+  padding: 0 32px 32px;
+}
+
+.contract-templates-modal__content .modal-actions .ghost {
+  background: rgba(148, 163, 184, 0.16);
+  color: #e2e8f0;
+}
+
+.contract-templates-modal__content .modal-actions .ghost:hover {
+  background: rgba(148, 163, 184, 0.26);
+}
+
+.contract-templates-modal__content .modal-actions .primary {
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.35);
+}
+
+@media (max-width: 540px) {
+  .contract-templates-modal__content {
+    width: calc(100% - 24px);
+    margin: 40px auto;
+  }
+
+  .contract-templates-modal__content .modal-header {
+    padding: 24px 24px 18px;
+  }
+
+  .contract-templates-modal__content .modal-body {
+    padding: 20px 24px 24px;
+  }
+
+  .contract-templates-modal__content .modal-actions {
+    padding: 0 24px 24px;
+  }
+}
+
 .tooltip {
   background: var(--surface);
   color: var(--text-base);

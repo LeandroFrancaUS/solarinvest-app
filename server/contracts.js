@@ -13,10 +13,11 @@ const execFilePromise = util.promisify(execFile)
 export const CONTRACT_RENDER_PATH = '/api/contracts/render'
 export const CONTRACT_TEMPLATES_PATH = '/api/contracts/templates'
 
-const TEMPLATE_RELATIVE_PATH =
-  'assets/templates/contratos/CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx'
+const CONTRACT_TEMPLATE_CATEGORIES = new Set(['leasing', 'vendas'])
+const DEFAULT_TEMPLATE_CATEGORY = 'leasing'
+const DEFAULT_TEMPLATE_FILE_NAME = 'CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx'
 const CONTRACT_TEMPLATES_DIR_RELATIVE = 'assets/templates/contratos'
-const DEFAULT_TEMPLATE_FILE = path.basename(TEMPLATE_RELATIVE_PATH)
+const DEFAULT_TEMPLATE_FILE = path.join(DEFAULT_TEMPLATE_CATEGORY, DEFAULT_TEMPLATE_FILE_NAME)
 const TMP_DIR = path.resolve(process.cwd(), 'tmp')
 const MAX_BODY_SIZE_BYTES = 256 * 1024
 
@@ -173,12 +174,43 @@ const readJsonBody = async (req) => {
   })
 }
 
+const sanitizeTemplateCategory = (value) => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const normalized = value.trim().toLowerCase()
+  return CONTRACT_TEMPLATE_CATEGORIES.has(normalized) ? normalized : null
+}
+
 const resolveTemplatePath = async (templateName) => {
   const trimmed = typeof templateName === 'string' ? templateName.trim() : ''
-  const templateFileName =
-    trimmed && trimmed !== 'leasing' ? path.basename(trimmed) : DEFAULT_TEMPLATE_FILE
-  const baseDir = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE)
-  const absolutePath = path.resolve(baseDir, templateFileName)
+  let relativePath = DEFAULT_TEMPLATE_FILE
+
+  if (trimmed) {
+    const normalized = path.posix.normalize(trimmed.replace(/\\/g, '/'))
+    const segments = normalized.split('/').filter(Boolean)
+    if (segments.length === 1) {
+      const fileName = path.basename(segments[0])
+      if (!fileName.toLowerCase().endsWith('.docx')) {
+        throw new ContractRenderError(400, 'Template de contrato inválido.')
+      }
+      relativePath = path.join(DEFAULT_TEMPLATE_CATEGORY, fileName)
+    } else if (segments.length === 2) {
+      const category = sanitizeTemplateCategory(segments[0])
+      if (!category) {
+        throw new ContractRenderError(400, 'Categoria de template inválida.')
+      }
+      const fileName = path.basename(segments[1])
+      if (!fileName.toLowerCase().endsWith('.docx')) {
+        throw new ContractRenderError(400, 'Template de contrato inválido.')
+      }
+      relativePath = path.join(category, fileName)
+    } else {
+      throw new ContractRenderError(400, 'Caminho de template inválido.')
+    }
+  }
+
+  const absolutePath = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE, relativePath)
   try {
     await fs.access(absolutePath)
   } catch (error) {
@@ -187,7 +219,7 @@ const resolveTemplatePath = async (templateName) => {
     }
     throw new ContractRenderError(500, 'Não foi possível acessar o template do contrato.')
   }
-  return { absolutePath, fileName: templateFileName }
+  return { absolutePath, fileName: path.basename(relativePath) }
 }
 
 const buildEnderecoCompleto = (cliente) => {
@@ -588,12 +620,20 @@ const sanitizeTemplateDownloadName = (templateFileName) => {
   return normalized || 'Contrato'
 }
 
-const listAvailableTemplates = async () => {
-  const baseDir = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE)
-  const entries = await fs.readdir(baseDir, { withFileTypes: true })
+const listAvailableTemplates = async (category) => {
+  const directory = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE, category)
+  let entries = []
+  try {
+    entries = await fs.readdir(directory, { withFileTypes: true })
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return []
+    }
+    throw error
+  }
   return entries
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.docx'))
-    .map((entry) => entry.name)
+    .map((entry) => `${category}/${entry.name}`)
     .sort((a, b) => a.localeCompare(b, 'pt-BR'))
 }
 
@@ -681,7 +721,10 @@ export const handleContractTemplatesRequest = async (req, res) => {
   }
 
   try {
-    const templates = await listAvailableTemplates()
+    const requestUrl = req.url ? new URL(req.url, 'http://localhost') : null
+    const categoryParam = requestUrl?.searchParams.get('categoria') ?? ''
+    const category = sanitizeTemplateCategory(categoryParam) ?? DEFAULT_TEMPLATE_CATEGORY
+    const templates = await listAvailableTemplates(category)
     res.statusCode = 200
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
     res.end(JSON.stringify({ templates }))
