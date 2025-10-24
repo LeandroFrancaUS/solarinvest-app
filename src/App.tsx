@@ -1680,6 +1680,14 @@ export default function App() {
       }
     | null
   >(null)
+  const [orcamentoCarregado, setOrcamentoCarregado] = useState<PrintableProposalProps | null>(null)
+  const [orcamentoCarregadoInfo, setOrcamentoCarregadoInfo] = useState<
+    | {
+        id: string
+        cliente: string
+      }
+    | null
+  >(null)
   const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
@@ -1690,6 +1698,7 @@ export default function App() {
   const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
+  const editableContentRef = useRef<HTMLDivElement | null>(null)
   const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
   const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
   const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
@@ -2448,6 +2457,19 @@ export default function App() {
       prev === snapshot.tipoInstalacaoDirty ? prev : snapshot.tipoInstalacaoDirty,
     )
   }, [activeTab, pageSharedState])
+
+  useEffect(() => {
+    const node = editableContentRef.current
+    if (!node) {
+      return
+    }
+
+    if (orcamentoCarregado) {
+      node.setAttribute('inert', '')
+    } else {
+      node.removeAttribute('inert')
+    }
+  }, [orcamentoCarregado])
 
   const [cliente, setCliente] = useState<ClienteDados>({ ...CLIENTE_INICIAL })
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
@@ -8971,6 +8993,7 @@ export default function App() {
     setIsSettingsOpen(false)
     setIsBudgetSearchOpen(false)
     setOrcamentoSearchTerm('')
+    liberarOrcamentoCarregado()
     setCurrentBudgetId(createDraftBudgetId())
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
@@ -9104,6 +9127,7 @@ export default function App() {
     setMultiUcEnergiaGeradaTouched,
     setMultiUcAtivo,
     setMultiUcRows,
+    liberarOrcamentoCarregado,
   ])
 
   const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
@@ -9476,14 +9500,27 @@ export default function App() {
       const idNormalizado = normalizeProposalId(dados.budgetId ?? registro.id)
       const idParaExibir = idNormalizado || registro.id
 
-      setOrcamentoVisualizado(dados)
-      setOrcamentoVisualizadoInfo({
+      setOrcamentoCarregado(dados)
+      setOrcamentoCarregadoInfo({
         id: idParaExibir,
         cliente: clienteNome,
       })
+      setIsBudgetSearchOpen(false)
+      setOrcamentoVisualizado(null)
+      setOrcamentoVisualizadoInfo(null)
+      if (dados.tipoProposta === 'VENDA_DIRETA') {
+        setActiveTab('vendas')
+      } else {
+        setActiveTab('leasing')
+      }
     },
-    [],
+    [setActiveTab],
   )
+
+  const liberarOrcamentoCarregado = useCallback(() => {
+    setOrcamentoCarregado(null)
+    setOrcamentoCarregadoInfo(null)
+  }, [])
 
   const abrirPesquisaOrcamentos = () => {
     const registros = carregarOrcamentosSalvos()
@@ -12884,12 +12921,45 @@ export default function App() {
             </nav>
 
             <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
-              <div className="page-actions">
-                <button
-                  type="button"
-                  className={`ghost${activeTab === 'leasing' ? ' solid' : ''}`}
-                  onClick={handleNovaProposta}
-                >
+              {orcamentoCarregado ? (
+                <section className="card loaded-budget-viewer">
+                  <div className="card-header loaded-budget-header">
+                    <h2>
+                      Orçamento{' '}
+                      <strong>{orcamentoCarregadoInfo?.id ?? '—'}</strong>
+                    </h2>
+                    <div className="loaded-budget-actions">
+                      <span>
+                        Dados somente leitura para{' '}
+                        <strong>{orcamentoCarregadoInfo?.cliente ?? 'o cliente selecionado'}</strong>
+                      </span>
+                      <button type="button" className="ghost" onClick={liberarOrcamentoCarregado}>
+                        Liberar edição
+                      </button>
+                    </div>
+                  </div>
+                  <p className="loaded-budget-subtitle">
+                    Os campos da proposta estão bloqueados para edição enquanto esta visualização estiver ativa.
+                  </p>
+                  <div className="loaded-budget-body">
+                    <React.Suspense fallback={<p className="budget-search-empty">Carregando orçamento selecionado…</p>}>
+                      <div className="loaded-budget-content">
+                        <PrintableProposal {...orcamentoCarregado} />
+                      </div>
+                    </React.Suspense>
+                  </div>
+                </section>
+              ) : null}
+              <div
+                ref={editableContentRef}
+                className={`page-editable${orcamentoCarregado ? ' is-readonly' : ''}`}
+              >
+                <div className="page-actions">
+                  <button
+                    type="button"
+                    className={`ghost${activeTab === 'leasing' ? ' solid' : ''}`}
+                    onClick={handleNovaProposta}
+                  >
                   Novo
                 </button>
                 {isVendaDiretaTab ? (
@@ -13396,7 +13466,8 @@ export default function App() {
             {renderRetornoProjetadoSection()}
           </>
         )}
-        </main>
+              </div>
+            </main>
       </div>
 
       {isClientesModalOpen ? (
