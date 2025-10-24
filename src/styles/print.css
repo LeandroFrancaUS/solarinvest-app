@@ -244,12 +244,16 @@
     [data-print-mode='download']
   )
   .print-logo {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   background: transparent !important;
   border: 1px solid rgba(15, 23, 42, 0.2) !important;
   box-shadow: none !important;
   width: 96px !important;
   height: 96px !important;
   aspect-ratio: 1 / 1 !important;
+  padding: 0 !important;
 }
 
 :where(
@@ -264,8 +268,10 @@
   filter: none !important;
   opacity: 1 !important;
   max-width: 72px !important;
-  width: 100% !important;
+  width: auto !important;
   height: auto !important;
+  object-fit: contain !important;
+  margin: 0 !important;
 }
 
 :where(
