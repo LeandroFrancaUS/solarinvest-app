@@ -911,9 +911,6 @@ function PrintableProposalLeasingInner(
                   role="img"
                   aria-label="Economia projetada em 30 anos"
                 >
-                  <div className="leasing-horizontal-chart__header">
-                    <strong>Economia projetada em 30 anos</strong>
-                  </div>
                   <div className="leasing-horizontal-chart__header-row">
                     <span className="leasing-horizontal-chart__axis-y-label">Tempo (anos)</span>
                     <span className="leasing-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
