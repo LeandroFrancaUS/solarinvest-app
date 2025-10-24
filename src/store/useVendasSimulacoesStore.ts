@@ -11,6 +11,7 @@ export type VendasSimulacoesState = {
   simulations: Record<string, VendasSimulacao>
   initialize: (id: string, defaults?: { margemManual?: number }) => void
   update: (id: string, patch: Partial<VendasSimulacao>) => void
+  rename: (prevId: string, nextId: string) => void
   remove: (id: string) => void
   clear: () => void
 }
@@ -134,6 +135,24 @@ export const useVendasSimulacoesStore = createStore<VendasSimulacoesState>((set,
         simulations: {
           ...state.simulations,
           [id]: merged,
+        },
+      }
+    })
+  },
+  rename(prevId, nextId) {
+    if (!prevId || !nextId || prevId === nextId) {
+      return
+    }
+    set((state) => {
+      const existente = state.simulations[prevId]
+      if (!existente) {
+        return state
+      }
+      const { [prevId]: _removed, ...rest } = state.simulations
+      return {
+        simulations: {
+          ...rest,
+          [nextId]: existente,
         },
       }
     })

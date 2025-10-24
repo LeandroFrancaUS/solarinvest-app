@@ -13,3 +13,8 @@ export function ensureProposalId(candidate?: string | null): string {
   }
   return makeProposalId()
 }
+
+export function normalizeProposalId(candidate?: string | null): string {
+  const normalized = candidate?.toString().trim().toUpperCase() ?? ''
+  return PROPOSAL_ID_PATTERN.test(normalized) ? normalized : ''
+}
