@@ -198,6 +198,7 @@ function PrintableProposalLeasingInner(
     leasingModeloModulo,
     orcamentoItens,
     informacoesImportantesObservacao,
+    mostrarTabelaBuyout = true,
     multiUcResumo,
     vendaSnapshot,
   } = props
@@ -1118,160 +1119,162 @@ function PrintableProposalLeasingInner(
           </section>
         </div>
       </div>
-      <div
-        className="print-layout leasing-print-layout buyout-print-layout"
-        data-print-section="buyout"
-        aria-hidden="true"
-        hidden
-      >
-        <div className="print-page">
-          <section className="print-section print-section--hero avoid-break">
-            <div className="print-hero">
-              <div className="print-hero__header">
-                <div className="print-hero__identity">
-                  <div className="print-logo">
-                    <img src="/logo.svg" alt="SolarInvest" />
-                  </div>
-                  <div className="print-hero__title">
-                    <span className="print-hero__eyebrow">SolarInvest</span>
-                    <div className="print-hero__headline">
-                      <img
-                        className="print-hero__title-logo"
-                        src="/solarinvest-badge.svg"
-                        alt="Marca SolarInvest"
-                      />
-                      <h1>Tabela para antecipação de posse</h1>
+      {mostrarTabelaBuyout ? (
+        <div
+          className="print-layout leasing-print-layout buyout-print-layout"
+          data-print-section="buyout"
+          aria-hidden="true"
+          hidden
+        >
+          <div className="print-page">
+            <section className="print-section print-section--hero avoid-break">
+              <div className="print-hero">
+                <div className="print-hero__header">
+                  <div className="print-hero__identity">
+                    <div className="print-logo">
+                      <img src="/logo.svg" alt="SolarInvest" />
                     </div>
-                    <p className="print-hero__tagline">
-                      Valores estimados para compra antecipada da usina SolarInvest.
+                    <div className="print-hero__title">
+                      <span className="print-hero__eyebrow">SolarInvest</span>
+                      <div className="print-hero__headline">
+                        <img
+                          className="print-hero__title-logo"
+                          src="/solarinvest-badge.svg"
+                          alt="Marca SolarInvest"
+                        />
+                        <h1>Tabela para antecipação de posse</h1>
+                      </div>
+                      <p className="print-hero__tagline">
+                        Valores estimados para compra antecipada da usina SolarInvest.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="print-hero__meta">
+                  <div className="print-hero__meta-item">
+                    <small>Código do orçamento: </small>
+                    <strong>{codigoOrcamento || '—'}</strong>
+                  </div>
+                  <div className="print-hero__meta-item">
+                    <small>Prazo contratual: </small>
+                    <strong>{formatPrazoContratual(prazoContratual)}</strong>
+                  </div>
+                </div>
+                <div className="print-hero__summary no-break-inside">
+                  <p>{buyoutHeroSummary}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="print-section keep-together avoid-break">
+              <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
+              <ClientInfoGrid
+                fields={resumoCampos}
+                className="print-client-grid no-break-inside"
+                fieldClassName="print-client-field"
+                wideFieldClassName="print-client-field--wide"
+              />
+            </section>
+
+            <section className="print-section keep-together avoid-break">
+              <h2 className="section-title keep-with-next">Resumo da antecipação</h2>
+              <p className="section-subtitle keep-with-next">
+                Indicadores considerados para a simulação de compra antecipada
+              </p>
+              <div className="print-key-values no-break-inside">
+                {buyoutResumoIndicadores.map((item) => (
+                  <p key={item.label}>
+                    <strong>{item.label}</strong>
+                    {item.value}
+                  </p>
+                ))}
+              </div>
+            </section>
+
+            <section className="print-section keep-together avoid-break page-break-before break-after">
+              <h2 className="section-title keep-with-next">Tabela para antecipação de posse</h2>
+              <p className="section-subtitle keep-with-next">
+                Valores estimados considerando prestações pagas e cashback acumulado
+              </p>
+              {buyoutTabelaDisponivel ? (
+                <>
+                  <table className="no-break-inside buyout-table">
+                    <thead>
+                      <tr>
+                        <th>Mês</th>
+                        <th>Tarifa projetada (R$/kWh)</th>
+                        <th>Prestação do mês (R$)</th>
+                        <th>Cashback acumulado (R$)</th>
+                        <th>Valor de compra estimado (R$)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {buyoutRowsElegiveis.map((row) => (
+                        <tr key={`buyout-${row.mes}`}>
+                          <td>{`${row.mes}º mês`}</td>
+                          <td className="leasing-table-value">{tarifaCurrency(row.tarifa)}</td>
+                          <td className="leasing-table-value">{currency(row.prestacaoEfetiva)}</td>
+                          <td className="leasing-table-value">{currency(row.cashback)}</td>
+                          <td className="leasing-table-value">{currency(row.valorResidual)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="buyout-footnote no-break-inside">
+                    Os valores de compra já descontam o cashback acumulado da tabela. Quando o valor indicado for R$ 0,00,
+                    a posse é transferida automaticamente ao término do contrato.
+                  </p>
+                </>
+              ) : (
+                <p className="muted no-break-inside">
+                  Não há valores calculados para a antecipação de posse desta proposta no momento.
+                </p>
+              )}
+            </section>
+
+            <section className="print-section print-section--footer no-break-inside avoid-break">
+              <footer className="print-final-footer no-break-inside buyout-footer">
+                <div className="buyout-footer__text no-break-inside">
+                  <p className="buyout-disclaimer">
+                    <strong>Importante:</strong> Os valores podem variar conforme condições de mercado (tarifas de energia,
+                    índices de inflação e disponibilidade de equipamentos), mas refletem a melhor estimativa vigente para a
+                    compra antecipada.
+                  </p>
+                  <ul className="buyout-footer__list">
+                    <li>
+                      Ao exercer a antecipação de posse, o contrato de leasing é encerrado imediatamente, sem multas ou
+                      juros adicionais.
+                    </li>
+                    <li>
+                      Após a compra, todas as rotinas de limpeza, manutenção, suporte, monitoramento e seguros tornam-se
+                      responsabilidade do proprietário, que pode contratar a SolarInvest para continuar prestando esses
+                      serviços.
+                    </li>
+                  </ul>
+                </div>
+                <div className="buyout-footer__meta">
+                  <div className="print-final-footer__dates">
+                    <p>
+                      <strong>Data de emissão:</strong> {emissaoTexto}
                     </p>
                   </div>
+                  <div className="print-final-footer__signature">
+                    <div className="signature-line" />
+                    <span>Assinatura do cliente</span>
+                  </div>
                 </div>
-              </div>
-              <div className="print-hero__meta">
-                <div className="print-hero__meta-item">
-                  <small>Código do orçamento: </small>
-                  <strong>{codigoOrcamento || '—'}</strong>
-                </div>
-                <div className="print-hero__meta-item">
-                  <small>Prazo contratual: </small>
-                  <strong>{formatPrazoContratual(prazoContratual)}</strong>
-                </div>
-              </div>
-              <div className="print-hero__summary no-break-inside">
-                <p>{buyoutHeroSummary}</p>
-              </div>
-            </div>
-          </section>
+              </footer>
 
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
-            <ClientInfoGrid
-              fields={resumoCampos}
-              className="print-client-grid no-break-inside"
-              fieldClassName="print-client-field"
-              wideFieldClassName="print-client-field--wide"
-            />
-          </section>
-
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Resumo da antecipação</h2>
-            <p className="section-subtitle keep-with-next">
-              Indicadores considerados para a simulação de compra antecipada
-            </p>
-            <div className="print-key-values no-break-inside">
-              {buyoutResumoIndicadores.map((item) => (
-                <p key={item.label}>
-                  <strong>{item.label}</strong>
-                  {item.value}
-                </p>
-              ))}
-            </div>
-          </section>
-
-          <section className="print-section keep-together avoid-break page-break-before break-after">
-            <h2 className="section-title keep-with-next">Tabela para antecipação de posse</h2>
-            <p className="section-subtitle keep-with-next">
-              Valores estimados considerando prestações pagas e cashback acumulado
-            </p>
-            {buyoutTabelaDisponivel ? (
-              <>
-                <table className="no-break-inside buyout-table">
-                  <thead>
-                    <tr>
-                      <th>Mês</th>
-                      <th>Tarifa projetada (R$/kWh)</th>
-                      <th>Prestação do mês (R$)</th>
-                      <th>Cashback acumulado (R$)</th>
-                      <th>Valor de compra estimado (R$)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {buyoutRowsElegiveis.map((row) => (
-                      <tr key={`buyout-${row.mes}`}>
-                        <td>{`${row.mes}º mês`}</td>
-                        <td className="leasing-table-value">{tarifaCurrency(row.tarifa)}</td>
-                        <td className="leasing-table-value">{currency(row.prestacaoEfetiva)}</td>
-                        <td className="leasing-table-value">{currency(row.cashback)}</td>
-                        <td className="leasing-table-value">{currency(row.valorResidual)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="buyout-footnote no-break-inside">
-                  Os valores de compra já descontam o cashback acumulado da tabela. Quando o valor indicado for R$ 0,00,
-                  a posse é transferida automaticamente ao término do contrato.
-                </p>
-              </>
-            ) : (
-              <p className="muted no-break-inside">
-                Não há valores calculados para a antecipação de posse desta proposta no momento.
-              </p>
-            )}
-          </section>
-
-          <section className="print-section print-section--footer no-break-inside avoid-break">
-            <footer className="print-final-footer no-break-inside buyout-footer">
-              <div className="buyout-footer__text no-break-inside">
-                <p className="buyout-disclaimer">
-                  <strong>Importante:</strong> Os valores podem variar conforme condições de mercado (tarifas de energia,
-                  índices de inflação e disponibilidade de equipamentos), mas refletem a melhor estimativa vigente para a
-                  compra antecipada.
-                </p>
-                <ul className="buyout-footer__list">
-                  <li>
-                    Ao exercer a antecipação de posse, o contrato de leasing é encerrado imediatamente, sem multas ou
-                    juros adicionais.
-                  </li>
-                  <li>
-                    Após a compra, todas as rotinas de limpeza, manutenção, suporte, monitoramento e seguros tornam-se
-                    responsabilidade do proprietário, que pode contratar a SolarInvest para continuar prestando esses
-                    serviços.
-                  </li>
-                </ul>
+              <div className="print-brand-footer no-break-inside">
+                <strong>SOLARINVEST</strong>
+                <span>CNPJ: 60.434.015/0001-90</span>
+                <span>Anápolis-GO</span>
+                <span>Solarinvest.info</span>
               </div>
-              <div className="buyout-footer__meta">
-                <div className="print-final-footer__dates">
-                  <p>
-                    <strong>Data de emissão:</strong> {emissaoTexto}
-                  </p>
-                </div>
-                <div className="print-final-footer__signature">
-                  <div className="signature-line" />
-                  <span>Assinatura do cliente</span>
-                </div>
-              </div>
-            </footer>
-
-            <div className="print-brand-footer no-break-inside">
-              <strong>SOLARINVEST</strong>
-              <span>CNPJ: 60.434.015/0001-90</span>
-              <span>Anápolis-GO</span>
-              <span>Solarinvest.info</span>
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

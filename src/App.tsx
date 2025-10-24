@@ -1318,6 +1318,7 @@ type BudgetPreviewOptions = {
 
 const hasPrintableBuyout = (dados: PrintableProposalProps): boolean =>
   dados.tipoProposta === 'LEASING' &&
+  dados.mostrarTabelaBuyout !== false &&
   Array.isArray(dados.tabelaBuyout) &&
   dados.tabelaBuyout.some((row) => row.valorResidual != null && Number.isFinite(row.valorResidual))
 
@@ -5441,6 +5442,7 @@ export default function App() {
         mostrarFinanciamento,
         tabelaBuyout,
         buyoutResumo,
+        mostrarTabelaBuyout: true,
         capex: capexPrintable,
         tipoProposta: isVendaDiretaTab ? 'VENDA_DIRETA' : 'LEASING',
         geracaoMensalKwh: geracaoMensalPrintable,
@@ -5777,8 +5779,11 @@ export default function App() {
     [],
   )
 
-  const prepararPropostaParaExportacao = useCallback(async () => {
+  const prepararPropostaParaExportacao = useCallback(async (options?: { incluirTabelaBuyout?: boolean }) => {
     const dadosParaImpressao = clonePrintableData(printableData)
+    if (options?.incluirTabelaBuyout === false) {
+      dadosParaImpressao.mostrarTabelaBuyout = false
+    }
     let layoutHtml: string | null = null
 
     try {
@@ -5791,6 +5796,11 @@ export default function App() {
       const node = printableRef.current
       if (node) {
         const clone = node.cloneNode(true) as HTMLElement
+        if (options?.incluirTabelaBuyout === false) {
+          clone.querySelectorAll('[data-print-section="buyout"]').forEach((element) => {
+            element.parentElement?.removeChild(element)
+          })
+        }
         const codigoDd = clone.querySelector('.print-client-grid .print-client-field:first-child dd')
         if (codigoDd && dadosParaImpressao.budgetId) {
           codigoDd.textContent = dadosParaImpressao.budgetId
@@ -8443,7 +8453,9 @@ export default function App() {
       data_emissao: new Date().toISOString().slice(0, 10),
     })
 
-    const resultado = await prepararPropostaParaExportacao()
+    const resultado = await prepararPropostaParaExportacao({
+      incluirTabelaBuyout: isVendaDiretaTab,
+    })
 
     if (!resultado) {
       window.alert('Não foi possível gerar a visualização para impressão. Tente novamente.')
@@ -8485,7 +8497,9 @@ export default function App() {
     let salvouLocalmente = false
 
     try {
-      const resultado = await prepararPropostaParaExportacao()
+      const resultado = await prepararPropostaParaExportacao({
+        incluirTabelaBuyout: isVendaDiretaTab,
+      })
 
       if (!resultado) {
         window.alert('Não foi possível preparar a proposta para salvar em PDF. Tente novamente.')
@@ -8524,6 +8538,7 @@ export default function App() {
     activeTab,
     adicionarNotificacao,
     currentBudgetId,
+    isVendaDiretaTab,
     prepararPropostaParaExportacao,
     salvarOrcamentoLocalmente,
     salvandoPropostaPdf,
