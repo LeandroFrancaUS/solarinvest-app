@@ -7,6 +7,7 @@ import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
+import PrintableProposalImages from './PrintableProposalImages'
 
 const normalizeObservationKey = (value: string): string =>
   value
@@ -55,6 +56,7 @@ function PrintableProposalInner(
     vendasConfigSnapshot,
     valorTotalProposta: valorTotalPropostaProp,
     custoImplantacaoReferencia,
+    imagensInstalacao,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -1375,7 +1377,9 @@ function PrintableProposalInner(
               </p>
             )}
           </section>
-    
+
+          <PrintableProposalImages images={imagensInstalacao} />
+
           <section
             id="infos-importantes"
             className="print-section print-important keep-together page-break-before break-after"

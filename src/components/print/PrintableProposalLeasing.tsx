@@ -9,6 +9,7 @@ import {
   formatPercentBRWithDigits,
 } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
+import PrintableProposalImages from './PrintableProposalImages'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
@@ -193,6 +194,7 @@ function PrintableProposalLeasingInner(
     leasingModeloModulo,
     orcamentoItens,
     informacoesImportantesObservacao,
+    imagensInstalacao,
     multiUcResumo,
     vendaSnapshot,
   } = props
@@ -946,7 +948,9 @@ function PrintableProposalLeasingInner(
               </p>
             )}
           </section>
-    
+
+          <PrintableProposalImages images={imagensInstalacao} />
+
           <section
             id="infos-importantes"
             className="print-section print-important keep-together page-break-before break-after"

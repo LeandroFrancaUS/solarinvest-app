@@ -155,6 +155,7 @@ import type {
   BuyoutResumo,
   BuyoutRow,
   ClienteDados,
+  PrintableProposalImage,
   MensalidadeRow,
   PrintableMultiUcResumo,
   PrintableProposalProps,
@@ -652,6 +653,7 @@ type OrcamentoSnapshotData = {
   budgetStructuredItems: StructuredItem[]
   kitBudget: KitBudgetState
   budgetProcessing: OrcamentoSnapshotBudgetState
+  propostaImagens: PrintableProposalImage[]
   ufTarifa: string
   distribuidoraTarifa: string
   ufsDisponiveis: string[]
@@ -806,6 +808,65 @@ const generateBudgetId = (
 
 const createDraftBudgetId = () => `DRAFT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
 
+const createPrintableImageId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `imagem-${crypto.randomUUID()}`
+  }
+
+  const aleatorio = Math.floor(Math.random() * 1_000_000)
+  return `imagem-${Date.now()}-${aleatorio.toString().padStart(6, '0')}`
+}
+
+const loadImageDimensions = (src: string): Promise<{ width: number | null; height: number | null }> =>
+  new Promise((resolve) => {
+    if (typeof Image === 'undefined') {
+      resolve({ width: null, height: null })
+      return
+    }
+
+    const img = new Image()
+    img.onload = () => {
+      resolve({ width: img.naturalWidth, height: img.naturalHeight })
+    }
+    img.onerror = () => {
+      resolve({ width: null, height: null })
+    }
+    img.src = src
+  })
+
+const readPrintableImageFromFile = (file: File): Promise<PrintableProposalImage | null> => {
+  if (typeof FileReader === 'undefined') {
+    return Promise.resolve(null)
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const result = reader.result
+      if (typeof result !== 'string') {
+        resolve(null)
+        return
+      }
+
+      const dimensions = await loadImageDimensions(result)
+      resolve({
+        id: createPrintableImageId(),
+        url: result,
+        fileName: file.name || null,
+        width: dimensions.width,
+        height: dimensions.height,
+      })
+    }
+    reader.onerror = () => resolve(null)
+    reader.onabort = () => resolve(null)
+    try {
+      reader.readAsDataURL(file)
+    } catch (error) {
+      resolve(null)
+    }
+  })
+}
+
 const stableStringify = (value: unknown): string => {
   const seen = new WeakSet<object>()
 
@@ -912,6 +973,12 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
     delete clone.multiUcResumo
   }
 
+  if (Array.isArray(dados.imagensInstalacao)) {
+    clone.imagensInstalacao = dados.imagensInstalacao.map((imagem) => ({ ...imagem }))
+  } else {
+    delete clone.imagensInstalacao
+  }
+
   return clone
 }
 
@@ -961,6 +1028,9 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
   cliente: cloneClienteDados(snapshot.cliente),
   clienteMensagens: snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : undefined,
   pageShared: { ...snapshot.pageShared },
+  propostaImagens: Array.isArray(snapshot.propostaImagens)
+    ? snapshot.propostaImagens.map((imagem) => ({ ...imagem }))
+    : [],
   budgetStructuredItems: cloneStructuredItems(snapshot.budgetStructuredItems),
   kitBudget: cloneKitBudgetState(snapshot.kitBudget),
   budgetProcessing: {
@@ -2016,6 +2086,7 @@ export default function App() {
       | null
   >(null)
   const [orcamentoCarregadoRegistro, setOrcamentoCarregadoRegistro] = useState<OrcamentoSalvo | null>(null)
+  const [propostaImagens, setPropostaImagens] = useState<PrintableProposalImage[]>([])
   const limparOrcamentoCarregado = useCallback(() => {
     setOrcamentoCarregado(null)
     setOrcamentoCarregadoInfo(null)
@@ -2071,6 +2142,7 @@ export default function App() {
   const tusdOptionsToggleId = useId()
   const tusdOptionsContentId = useId()
   const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
+  const imagensUploadInputRef = useRef<HTMLInputElement | null>(null)
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
   const editableContentRef = useRef<HTMLDivElement | null>(null)
@@ -6050,6 +6122,7 @@ export default function App() {
           }
           return null
         })(),
+        imagensInstalacao: propostaImagens.map((imagem) => ({ ...imagem })),
       }
     },
     [
@@ -6117,6 +6190,7 @@ export default function App() {
       valorTotalPropostaNormalizado,
       valorTotalPropostaState,
       custoImplantacaoReferencia,
+      propostaImagens,
     ],
   )
 
@@ -9022,6 +9096,7 @@ export default function App() {
         isTableCollapsed: isBudgetTableCollapsed,
         ocrDpi,
       },
+      propostaImagens: propostaImagens.map((imagem) => ({ ...imagem })),
       ufTarifa,
       distribuidoraTarifa,
       ufsDisponiveis: [...ufsDisponiveis],
@@ -9129,6 +9204,11 @@ export default function App() {
     setCurrentBudgetId(budgetId)
     setBudgetStructuredItems(cloneStructuredItems(snapshot.budgetStructuredItems))
     setKitBudget(cloneKitBudgetState(snapshot.kitBudget))
+    setPropostaImagens(
+      Array.isArray(snapshot.propostaImagens)
+        ? snapshot.propostaImagens.map((imagem) => ({ ...imagem }))
+        : [],
+    )
     setIsBudgetProcessing(snapshot.budgetProcessing.isProcessing)
     setBudgetProcessingError(snapshot.budgetProcessing.error)
     setBudgetProcessingProgress(cloneBudgetUploadProgress(snapshot.budgetProcessing.progress))
@@ -9349,6 +9429,30 @@ export default function App() {
       })
     },
     [setOrcamentosSalvos],
+  )
+
+  const handleAbrirUploadImagens = useCallback(() => {
+    imagensUploadInputRef.current?.click()
+  }, [])
+
+  const handleImagensSelecionadas = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const arquivos = Array.from(event.target.files ?? [])
+      if (!arquivos.length) {
+        event.target.value = ''
+        return
+      }
+
+      const imagens = await Promise.all(arquivos.map((arquivo) => readPrintableImageFromFile(arquivo)))
+      const imagensValidas = imagens.filter(
+        (imagem): imagem is PrintableProposalImage => Boolean(imagem && imagem.url),
+      )
+      if (imagensValidas.length > 0) {
+        setPropostaImagens((prev) => [...prev, ...imagensValidas])
+      }
+      event.target.value = ''
+    },
+    [setPropostaImagens],
   )
 
   const handleEficienciaInput = (valor: number) => {
@@ -10012,6 +10116,11 @@ export default function App() {
     if (budgetUploadInputRef.current) {
       budgetUploadInputRef.current.value = ''
     }
+    if (imagensUploadInputRef.current) {
+      imagensUploadInputRef.current.value = ''
+    }
+
+    setPropostaImagens([])
 
     setUfTarifa(INITIAL_VALUES.ufTarifa)
     setDistribuidoraTarifa(INITIAL_VALUES.distribuidoraTarifa)
@@ -13987,6 +14096,15 @@ export default function App() {
                   Central CRM
                 </button>
                 <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
+                <button className="ghost" onClick={handleAbrirUploadImagens}>Incluir imagens</button>
+                <input
+                  ref={imagensUploadInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImagensSelecionadas}
+                  style={{ display: 'none' }}
+                />
                 <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
                 <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
               </div>

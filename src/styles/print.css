@@ -128,6 +128,109 @@
     body[data-print-mode='download'],
     [data-print-mode='download']
   )
+  .print-images {
+  padding-top: 16px !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-images__grid {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  justify-content: center !important;
+  align-items: stretch !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-images__grid--multiple
+  .print-images__item {
+  flex: 1 1 calc(50% - 6px) !important;
+  max-width: calc(50% - 6px) !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-images__grid--single
+  .print-images__item {
+  flex: 0 1 auto !important;
+  max-width: 100% !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-images__item {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  align-items: center !important;
+  text-align: center !important;
+  margin: 0 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-images__item img {
+  display: block !important;
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18) !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
+  .print-images__item figcaption {
+  font-size: 0.9rem !important;
+  color: #475569 !important;
+  margin: 0 !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  )
   .print-hero::after {
   display: none !important;
 }
