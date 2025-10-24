@@ -210,6 +210,53 @@ const cleanupTmpFiles = async (...files) => {
   )
 }
 
+const getLibreOfficeCandidates = () => {
+  const configured = typeof process.env.LIBREOFFICE_BIN === 'string'
+    ? process.env.LIBREOFFICE_BIN.trim()
+    : ''
+
+  const candidates = []
+  if (configured) {
+    candidates.push(configured)
+  }
+
+  candidates.push('soffice', 'libreoffice', 'lowriter')
+
+  return [...new Set(candidates)]
+}
+
+const convertDocxToPdf = async (docxPath) => {
+  const args = ['--headless', '--convert-to', 'pdf', '--outdir', TMP_DIR, docxPath]
+
+  const tried = []
+  for (const binary of getLibreOfficeCandidates()) {
+    try {
+      await execFilePromise(binary, args)
+      return
+    } catch (error) {
+      tried.push({ binary, error })
+
+      // Se for erro diferente de binário inexistente, não há motivo para tentar outros
+      if (!(error && error.code === 'ENOENT')) {
+        break
+      }
+    }
+  }
+
+  const details = tried
+    .map(({ binary, error }) =>
+      `${binary}: ${error && error.code ? error.code : 'falha desconhecida'}`,
+    )
+    .join('; ')
+
+  throw new ContractRenderError(
+    500,
+    details
+      ? `Falha ao converter o contrato para PDF (tentativas: ${details}). Verifique se o LibreOffice está instalado corretamente.`
+      : 'Falha ao converter o contrato para PDF. Verifique se o LibreOffice está instalado corretamente.',
+  )
+}
+
 const generateContractPdf = async (cliente) => {
   const templatePath = await ensureTemplateExists()
   const templateBuffer = await fs.readFile(templatePath)
@@ -243,15 +290,7 @@ const generateContractPdf = async (cliente) => {
   await fs.writeFile(docxPath, docxBuffer)
 
   try {
-    await execFilePromise('soffice', [
-      '--headless',
-      '--convert-to',
-      'pdf',
-      '--outdir',
-      TMP_DIR,
-      docxPath,
-    ])
-
+    await convertDocxToPdf(docxPath)
     const pdfBuffer = await fs.readFile(pdfPath)
     return pdfBuffer
   } catch (error) {
