@@ -11,7 +11,8 @@ const execFilePromise = util.promisify(execFile)
 
 export const CONTRACT_RENDER_PATH = '/api/contracts/render'
 
-const TEMPLATE_RELATIVE_PATH = 'assets/templates/contratos/CONTRATO_LEASING.dotx'
+const TEMPLATE_RELATIVE_PATH =
+  'assets/templates/contratos/CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx'
 const TMP_DIR = path.resolve(process.cwd(), 'tmp')
 const MAX_BODY_SIZE_BYTES = 256 * 1024
 
