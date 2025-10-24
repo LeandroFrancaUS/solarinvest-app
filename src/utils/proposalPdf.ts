@@ -90,6 +90,23 @@ const resolveProposalPdfBridge = (): ProposalPdfBridge | null => {
   return candidates.find((candidate): candidate is ProposalPdfBridge => typeof candidate === 'function') ?? null
 }
 
+const getProposalPdfEndpoint = () => import.meta.env?.VITE_PROPOSAL_PDF_ENDPOINT?.trim() || ''
+
+export const isProposalPdfIntegrationAvailable = (): boolean => {
+  if (typeof window !== 'undefined' && resolveProposalPdfBridge()) {
+    return true
+  }
+
+  return getProposalPdfEndpoint().length > 0
+}
+
+export class ProposalPdfIntegrationMissingError extends Error {
+  constructor(message = 'Nenhuma integração para salvar o PDF da proposta foi encontrada. Configure o conector desktop ou defina a variável VITE_PROPOSAL_PDF_ENDPOINT.') {
+    super(message)
+    this.name = 'ProposalPdfIntegrationMissingError'
+  }
+}
+
 export type PersistProposalPdfInput = {
   html: string
   budgetId?: string | undefined
@@ -162,7 +179,7 @@ export const persistProposalPdf = async ({
     }
   }
 
-  const endpoint = import.meta.env?.VITE_PROPOSAL_PDF_ENDPOINT?.trim()
+  const endpoint = getProposalPdfEndpoint()
   if (endpoint) {
     try {
       const body: Record<string, unknown> = {
@@ -201,7 +218,5 @@ export const persistProposalPdf = async ({
     }
   }
 
-  throw new Error(
-    'Nenhuma integração para salvar o PDF da proposta foi encontrada. Configure o conector desktop ou defina a variável VITE_PROPOSAL_PDF_ENDPOINT.',
-  )
+  throw new ProposalPdfIntegrationMissingError()
 }
