@@ -56,6 +56,9 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
 
 const formatAnoDescricao = (ano: number): string => `${ano} ${ano === 1 ? 'ano' : 'anos'}`
 
+const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
+  'Valores estimativos; confirmação no contrato definitivo.'
+
 const formatAnosDetalhado = (valor: number): string => {
   const fractionDigits = Number.isInteger(valor) ? 0 : 1
   const numero = formatNumberBRWithOptions(valor, {
@@ -720,7 +723,11 @@ function PrintableProposalLeasingInner(
     }
 
     const texto = informacoesImportantesObservacao.trim()
-    return texto ? texto : null
+    if (!texto || texto === INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO) {
+      return null
+    }
+
+    return texto
   }, [informacoesImportantesObservacao])
 
   return (
@@ -1050,6 +1057,12 @@ function PrintableProposalLeasingInner(
                 <strong>projeções baseadas nas condições atuais de mercado</strong> e podem variar conforme{' '}
                 <strong>reajustes autorizados pela ANEEL</strong>, aplicação de <strong>bandeiras tarifárias</strong> ou{' '}
                 <strong>mudanças na matriz energética</strong>.
+              </li>
+              <li>
+                <strong>Disponibilidade do kit fotovoltaico:</strong> O conjunto de equipamentos descrito (módulos,
+                inversores e demais componentes) está sujeito à disponibilidade comercial no momento da compra. Caso
+                algum item não esteja disponível, será fornecido sistema equivalente ou superior, tecnicamente compatível
+                e de desempenho igual ou superior ao especificado, sem prejuízo ao contratante.
               </li>
               <li>
                 Todos os equipamentos fornecidos possuem <strong>certificação INMETRO</strong> e atendem às{' '}
