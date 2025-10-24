@@ -1672,6 +1672,14 @@ export default function App() {
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
+  const [orcamentoVisualizado, setOrcamentoVisualizado] = useState<PrintableProposalProps | null>(null)
+  const [orcamentoVisualizadoInfo, setOrcamentoVisualizadoInfo] = useState<
+    | {
+        id: string
+        cliente: string
+      }
+    | null
+  >(null)
   const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
@@ -9457,6 +9465,26 @@ export default function App() {
   const totalOrcamentos = orcamentosSalvos.length
   const totalResultados = orcamentosFiltrados.length
 
+  const carregarOrcamentoSalvo = useCallback(
+    (registro: OrcamentoSalvo) => {
+      const dados = clonePrintableData(registro.dados)
+      const clienteNome =
+        registro.clienteNome?.trim() ||
+        registro.dados.cliente.nome?.trim() ||
+        dados.cliente.nome?.trim() ||
+        registro.id
+      const idNormalizado = normalizeProposalId(dados.budgetId ?? registro.id)
+      const idParaExibir = idNormalizado || registro.id
+
+      setOrcamentoVisualizado(dados)
+      setOrcamentoVisualizadoInfo({
+        id: idParaExibir,
+        cliente: clienteNome,
+      })
+    },
+    [],
+  )
+
   const abrirPesquisaOrcamentos = () => {
     const registros = carregarOrcamentosSalvos()
     setOrcamentosSalvos(registros)
@@ -9467,6 +9495,8 @@ export default function App() {
 
   const fecharPesquisaOrcamentos = () => {
     setIsBudgetSearchOpen(false)
+    setOrcamentoVisualizado(null)
+    setOrcamentoVisualizadoInfo(null)
   }
 
   const renderClienteDadosSection = () => (
@@ -13453,10 +13483,27 @@ export default function App() {
                               registro.clienteNome?.trim() ||
                               registro.dados.cliente.nome?.trim() ||
                               registro.id
+                            const registroIdPadronizado = normalizeProposalId(registro.id) || registro.id
                             const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
                             return (
-                              <tr key={registro.id}>
-                                <td>{registro.id}</td>
+                              <tr
+                                key={registro.id}
+                                className={
+                                  orcamentoVisualizadoInfo?.id === registroIdPadronizado
+                                    ? 'is-selected'
+                                    : undefined
+                                }
+                              >
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="budget-search-code"
+                                    onClick={() => carregarOrcamentoSalvo(registro)}
+                                    title="Visualizar orçamento salvo"
+                                  >
+                                    {registro.id}
+                                  </button>
+                                </td>
                                 <td>
                                   <div className="budget-search-client">
                                     <strong>{nomeCliente}</strong>
@@ -13468,6 +13515,15 @@ export default function App() {
                                 <td>{formatBudgetDate(registro.criadoEm)}</td>
                                 <td>
                                   <div className="budget-search-actions">
+                                    <button
+                                      type="button"
+                                      className="budget-search-action"
+                                      onClick={() => carregarOrcamentoSalvo(registro)}
+                                      aria-label="Carregar orçamento salvo"
+                                      title="Carregar orçamento"
+                                    >
+                                      📂
+                                    </button>
                                     <button
                                       type="button"
                                       className="budget-search-action"
@@ -13506,6 +13562,36 @@ export default function App() {
                   </div>
                 )}
               </section>
+              {orcamentoVisualizado ? (
+                <section className="budget-search-panel budget-search-viewer">
+                  <div className="budget-search-header">
+                    <h4>
+                      Visualizando orçamento{' '}
+                      <strong>{orcamentoVisualizadoInfo?.id ?? '—'}</strong>
+                    </h4>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => {
+                        setOrcamentoVisualizado(null)
+                        setOrcamentoVisualizadoInfo(null)
+                      }}
+                    >
+                      Fechar visualização
+                    </button>
+                  </div>
+                  <p className="budget-viewer-subtitle">
+                    Dados somente leitura para {orcamentoVisualizadoInfo?.cliente ?? 'o cliente selecionado'}.
+                  </p>
+                  <div className="budget-viewer-body">
+                    <React.Suspense fallback={<p className="budget-search-empty">Carregando orçamento selecionado…</p>}>
+                      <div className="budget-viewer-content">
+                        <PrintableProposal {...orcamentoVisualizado} />
+                      </div>
+                    </React.Suspense>
+                  </div>
+                </section>
+              ) : null}
             </div>
           </div>
         </div>
