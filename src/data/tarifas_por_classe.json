@@ -6,20 +6,596 @@
         "data_inicio": "2024-07-01",
         "data_fim": "2025-06-30",
         "classes": {
-          "B1_Residencial": { "TE": 0.4312, "TUSD_total": 0.3841, "TUSD_FioB": 0.247 },
-          "B2_Rural": { "TE": 0.3985, "TUSD_total": 0.3428, "TUSD_FioB": 0.212 },
-          "B3_Comercial": { "TE": 0.521, "TUSD_total": 0.4125, "TUSD_FioB": 0.273 },
-          "B4_Iluminacao": { "TE": 0.4652, "TUSD_total": 0.3784, "TUSD_FioB": 0.2412 }
+          "B1_Residencial": {
+            "TE": 0.4312,
+            "TUSD_total": 0.3841,
+            "TUSD_FioB": 0.247
+          },
+          "B2_Rural": {
+            "TE": 0.3985,
+            "TUSD_total": 0.3428,
+            "TUSD_FioB": 0.212
+          },
+          "B3_Comercial": {
+            "TE": 0.521,
+            "TUSD_total": 0.4125,
+            "TUSD_FioB": 0.273
+          },
+          "B4_Iluminacao": {
+            "TE": 0.4652,
+            "TUSD_total": 0.3784,
+            "TUSD_FioB": 0.2412
+          }
         }
       },
       {
         "data_inicio": "2025-07-01",
         "data_fim": null,
         "classes": {
-          "B1_Residencial": { "TE": 0.4475, "TUSD_total": 0.3952, "TUSD_FioB": 0.256 },
-          "B2_Rural": { "TE": 0.4124, "TUSD_total": 0.353, "TUSD_FioB": 0.221 },
-          "B3_Comercial": { "TE": 0.5388, "TUSD_total": 0.426, "TUSD_FioB": 0.284 },
-          "B4_Iluminacao": { "TE": 0.4821, "TUSD_total": 0.3895, "TUSD_FioB": 0.252 }
+          "B1_Residencial": {
+            "TE": 0.4475,
+            "TUSD_total": 0.3952,
+            "TUSD_FioB": 0.256
+          },
+          "B2_Rural": {
+            "TE": 0.4124,
+            "TUSD_total": 0.353,
+            "TUSD_FioB": 0.221
+          },
+          "B3_Comercial": {
+            "TE": 0.5388,
+            "TUSD_total": 0.426,
+            "TUSD_FioB": 0.284
+          },
+          "B4_Iluminacao": {
+            "TE": 0.4821,
+            "TUSD_total": 0.3895,
+            "TUSD_FioB": 0.252
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Amazonas Energia",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.5432,
+            "TUSD_total": 0.4981,
+            "TUSD_FioB": 0.322
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Boa Vista Energia",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.6025,
+            "TUSD_total": 0.5754,
+            "TUSD_FioB": 0.3921
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Equatorial Amapá",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4778,
+            "TUSD_total": 0.4512,
+            "TUSD_FioB": 0.2943
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Equatorial Alagoas",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4863,
+            "TUSD_total": 0.3985,
+            "TUSD_FioB": 0.2578
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Equatorial Maranhão",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4687,
+            "TUSD_total": 0.4073,
+            "TUSD_FioB": 0.2627
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Equatorial Pará",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4526,
+            "TUSD_total": 0.4136,
+            "TUSD_FioB": 0.269
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Equatorial Piauí",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4761,
+            "TUSD_total": 0.3921,
+            "TUSD_FioB": 0.251
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Enel Ceará",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4549,
+            "TUSD_total": 0.3817,
+            "TUSD_FioB": 0.2447
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Enel Rio",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4867,
+            "TUSD_total": 0.4112,
+            "TUSD_FioB": 0.2632
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Enel São Paulo",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4629,
+            "TUSD_total": 0.3975,
+            "TUSD_FioB": 0.254
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Light",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4945,
+            "TUSD_total": 0.4181,
+            "TUSD_FioB": 0.2739
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Neoenergia Coelba",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4782,
+            "TUSD_total": 0.4035,
+            "TUSD_FioB": 0.261
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Neoenergia Pernambuco",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4694,
+            "TUSD_total": 0.3968,
+            "TUSD_FioB": 0.256
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Neoenergia Cosern",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.466,
+            "TUSD_total": 0.3897,
+            "TUSD_FioB": 0.2511
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Neoenergia Brasília",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4518,
+            "TUSD_total": 0.3724,
+            "TUSD_FioB": 0.239
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Neoenergia Elektro",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4495,
+            "TUSD_total": 0.371,
+            "TUSD_FioB": 0.2375
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "EDP Espírito Santo",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4571,
+            "TUSD_total": 0.3792,
+            "TUSD_FioB": 0.244
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "EDP São Paulo",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4515,
+            "TUSD_total": 0.3759,
+            "TUSD_FioB": 0.241
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Cemig",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4442,
+            "TUSD_total": 0.3648,
+            "TUSD_FioB": 0.234
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Copel",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4365,
+            "TUSD_total": 0.3584,
+            "TUSD_FioB": 0.23
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Celesc",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4398,
+            "TUSD_total": 0.3611,
+            "TUSD_FioB": 0.232
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "RGE Sul",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4416,
+            "TUSD_total": 0.3642,
+            "TUSD_FioB": 0.233
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "CPFL Paulista",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4462,
+            "TUSD_total": 0.3687,
+            "TUSD_FioB": 0.236
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "CPFL Piratininga",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4498,
+            "TUSD_total": 0.3715,
+            "TUSD_FioB": 0.238
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "CPFL Santa Cruz",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4521,
+            "TUSD_total": 0.3736,
+            "TUSD_FioB": 0.239
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "CPFL Sul Paulista",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4487,
+            "TUSD_total": 0.3704,
+            "TUSD_FioB": 0.237
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Energisa Acre",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.5094,
+            "TUSD_total": 0.4327,
+            "TUSD_FioB": 0.284
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Energisa Rondônia",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.5013,
+            "TUSD_total": 0.4258,
+            "TUSD_FioB": 0.28
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Energisa Mato Grosso",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4875,
+            "TUSD_total": 0.4094,
+            "TUSD_FioB": 0.268
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Energisa Mato Grosso do Sul",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4812,
+            "TUSD_total": 0.4023,
+            "TUSD_FioB": 0.263
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Energisa Minas Gerais",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4726,
+            "TUSD_total": 0.3945,
+            "TUSD_FioB": 0.258
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Energisa Paraíba",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4698,
+            "TUSD_total": 0.3927,
+            "TUSD_FioB": 0.252
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Energisa Sergipe",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4715,
+            "TUSD_total": 0.3961,
+            "TUSD_FioB": 0.255
+          }
+        }
+      }
+    ]
+  },
+  {
+    "distribuidora": "Energisa Tocantins",
+    "vigencias": [
+      {
+        "data_inicio": "2024-07-01",
+        "data_fim": null,
+        "classes": {
+          "B1_Residencial": {
+            "TE": 0.4831,
+            "TUSD_total": 0.4052,
+            "TUSD_FioB": 0.266
+          }
         }
       }
     ]
@@ -31,10 +607,26 @@
         "data_inicio": "2024-01-01",
         "data_fim": null,
         "classes": {
-          "B1_Residencial": { "TE": 0.42, "TUSD_total": 0.36, "TUSD_FioB": 0.23 },
-          "B2_Rural": { "TE": 0.39, "TUSD_total": 0.33, "TUSD_FioB": 0.2 },
-          "B3_Comercial": { "TE": 0.51, "TUSD_total": 0.4, "TUSD_FioB": 0.26 },
-          "B4_Iluminacao": { "TE": 0.46, "TUSD_total": 0.37, "TUSD_FioB": 0.24 }
+          "B1_Residencial": {
+            "TE": 0.42,
+            "TUSD_total": 0.36,
+            "TUSD_FioB": 0.23
+          },
+          "B2_Rural": {
+            "TE": 0.39,
+            "TUSD_total": 0.33,
+            "TUSD_FioB": 0.2
+          },
+          "B3_Comercial": {
+            "TE": 0.51,
+            "TUSD_total": 0.4,
+            "TUSD_FioB": 0.26
+          },
+          "B4_Iluminacao": {
+            "TE": 0.46,
+            "TUSD_total": 0.37,
+            "TUSD_FioB": 0.24
+          }
         }
       }
     ]
