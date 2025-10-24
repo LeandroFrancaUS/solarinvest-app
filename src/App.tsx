@@ -12634,7 +12634,7 @@ export default function App() {
               </div>
             </nav>
 
-            <main className="content page-content">
+            <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
               <div className="page-actions">
                 <button type="button" className="ghost" onClick={handleNovaProposta}>
                   Novo
