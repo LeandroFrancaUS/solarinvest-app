@@ -9279,26 +9279,26 @@ export default function App() {
     return (
       <section className="tusd-options" aria-labelledby={tusdOptionsTitleId}>
         <div className="tusd-options-header">
-          <div>
+          <div className="tusd-options-title-row">
             <h3 id={tusdOptionsTitleId}>Opções de TUSD</h3>
-            <p className="tusd-options-description">
-              Configuração atual: {resumoPartes.join(' • ')}
-            </p>
+            <label className="tusd-options-toggle" htmlFor={tusdOptionsToggleId}>
+              <input
+                id={tusdOptionsToggleId}
+                type="checkbox"
+                checked={tusdOpcoesExpandidas}
+                onChange={(event) => setTusdOpcoesExpandidas(event.target.checked)}
+                aria-expanded={tusdOpcoesExpandidas}
+                aria-controls={tusdOpcoesExpandidas ? tusdOptionsContentId : undefined}
+              />
+              <span className="tusd-options-toggle-indicator" aria-hidden="true" />
+              <span className="tusd-options-toggle-text">
+                {tusdOpcoesExpandidas ? 'Ocultar opções' : 'Exibir opções'}
+              </span>
+            </label>
           </div>
-          <label className="tusd-options-toggle" htmlFor={tusdOptionsToggleId}>
-            <input
-              id={tusdOptionsToggleId}
-              type="checkbox"
-              checked={tusdOpcoesExpandidas}
-              onChange={(event) => setTusdOpcoesExpandidas(event.target.checked)}
-              aria-expanded={tusdOpcoesExpandidas}
-              aria-controls={tusdOpcoesExpandidas ? tusdOptionsContentId : undefined}
-            />
-            <span className="tusd-options-toggle-indicator" aria-hidden="true" />
-            <span className="tusd-options-toggle-text">
-              {tusdOpcoesExpandidas ? 'Ocultar opções' : 'Exibir opções'}
-            </span>
-          </label>
+          <p className="tusd-options-description">
+            Configuração atual: {resumoPartes.join(' • ')}
+          </p>
         </div>
         {tusdOpcoesExpandidas ? (
           <div className="grid g3 tusd-options-grid" id={tusdOptionsContentId} aria-hidden={false}>
