@@ -203,6 +203,7 @@ export const INITIAL_VALUES = {
   seguroM: 0,
   duracaoMeses: 60,
   pagosAcumManual: 0,
+  configuracaoUsinaObservacoes: '',
   composicaoTelhado: createInitialComposicaoTelhado(),
   composicaoSolo: createInitialComposicaoSolo(),
   multiUcAtivo: false,

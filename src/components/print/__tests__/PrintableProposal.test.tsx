@@ -205,6 +205,18 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).toContain('Não é de responsabilidade da SolarInvest Solutions')
   })
 
+  it('renderiza observações da configuração quando informadas', () => {
+    const props = createPrintableProps({
+      configuracaoUsinaObservacoes: 'Observação linha 1\n\nObservação linha 2',
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain('Observações sobre a configuração')
+    expect(markup).toContain('Observação linha 1')
+    expect(markup).toContain('Observação linha 2')
+  })
+
   it('não renderiza a tabela de itens do orçamento', () => {
     const props = createPrintableProps({
       orcamentoItens: [
@@ -378,5 +390,22 @@ describe('PrintableProposal (leasing)', () => {
 
     expect(markup).toContain('Inversor Manual X')
     expect(markup).toContain('Modulo Manual Y')
+  })
+
+  it('exibe as observações da configuração antes das informações importantes', () => {
+    const props = createPrintableProps({
+      tipoProposta: 'LEASING',
+      configuracaoUsinaObservacoes: 'Detalhes técnicos adicionais',
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    const observacoesIndex = markup.indexOf('Observações sobre a Configuração')
+    const informacoesIndex = markup.indexOf('Informações Importantes')
+
+    expect(observacoesIndex).toBeGreaterThan(-1)
+    expect(informacoesIndex).toBeGreaterThan(-1)
+    expect(observacoesIndex).toBeLessThan(informacoesIndex)
+    expect(markup).toContain('Detalhes técnicos adicionais')
   })
 })
