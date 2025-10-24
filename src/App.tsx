@@ -12636,7 +12636,11 @@ export default function App() {
 
             <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
               <div className="page-actions">
-                <button type="button" className="ghost" onClick={handleNovaProposta}>
+                <button
+                  type="button"
+                  className={`ghost${activeTab === 'leasing' ? ' solid' : ''}`}
+                  onClick={handleNovaProposta}
+                >
                   Novo
                 </button>
                 {isVendaDiretaTab ? (
@@ -12647,7 +12651,7 @@ export default function App() {
                 {podeSalvarProposta ? (
                   <button
                     type="button"
-                    className="primary"
+                    className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
                     onClick={handleSalvarPropostaPdf}
                     disabled={salvandoPropostaPdf}
                   >
