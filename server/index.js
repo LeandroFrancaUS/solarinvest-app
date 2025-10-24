@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handleAneelProxyRequest, DEFAULT_PROXY_BASE } from './aneelProxy.js'
+import { CONTRACT_RENDER_PATH, handleContractRenderRequest } from './contracts.js'
 
 const PORT = Number.parseInt(process.env.PORT ?? '3000', 10)
 
@@ -28,7 +29,7 @@ const MIME_TYPES = {
   '.woff2': 'font/woff2',
 }
 
-const isApiRequest = (pathname) => pathname === DEFAULT_PROXY_BASE
+const isAneelProxyRequest = (pathname) => pathname === DEFAULT_PROXY_BASE
 
 const safeResolve = (targetPath) => {
   let decoded
@@ -75,7 +76,12 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost')
   const { pathname } = url
 
-  if (isApiRequest(pathname)) {
+  if (pathname === CONTRACT_RENDER_PATH) {
+    await handleContractRenderRequest(req, res)
+    return
+  }
+
+  if (isAneelProxyRequest(pathname)) {
     await handleAneelProxyRequest(req, res)
     return
   }

@@ -3935,6 +3935,7 @@ export default function App() {
     INITIAL_VALUES.tabelaVisivel,
   )
   const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
+  const [gerandoContratoPdf, setGerandoContratoPdf] = useState(false)
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
   const [oemInflacao, setOemInflacao] = useState(INITIAL_VALUES.oemInflacao)
@@ -9491,6 +9492,125 @@ export default function App() {
     }
   }, [handlePreviewActionRequest])
 
+  const handleGerarContratoLeasing = useCallback(async () => {
+    if (gerandoContratoPdf) {
+      return
+    }
+
+    const nomeCompleto = cliente.nome?.trim() ?? ''
+    const cpfCnpj = cliente.documento?.trim() ?? ''
+    const unidadeConsumidora = cliente.uc?.trim() ?? ''
+
+    const enderecoPartes: string[] = []
+    const enderecoPrincipal = cliente.endereco?.trim() ?? ''
+    const cidade = cliente.cidade?.trim() ?? ''
+    const uf = cliente.uf?.trim() ?? ''
+    const cep = cliente.cep?.trim() ?? ''
+
+    if (enderecoPrincipal) {
+      enderecoPartes.push(enderecoPrincipal)
+    }
+
+    const cidadeUf = [cidade, uf].filter(Boolean).join('/')
+    if (cidadeUf) {
+      enderecoPartes.push(cidadeUf)
+    }
+
+    if (cep) {
+      enderecoPartes.push(cep)
+    }
+
+    const enderecoCompleto = enderecoPartes.join(', ')
+
+    const pendencias: string[] = []
+    if (!nomeCompleto) pendencias.push('nome completo')
+    if (!cpfCnpj) pendencias.push('CPF ou CNPJ')
+    if (!enderecoCompleto) pendencias.push('endereço completo')
+    if (!unidadeConsumidora) pendencias.push('unidade consumidora (UC)')
+
+    if (pendencias.length > 0) {
+      const ultima = pendencias[pendencias.length - 1]
+      const prefixo = pendencias.slice(0, -1)
+      const campos = prefixo.length > 0 ? `${prefixo.join(', ')} e ${ultima}` : ultima
+      adicionarNotificacao(`Preencha ${campos} para gerar o contrato.`, 'error')
+      return
+    }
+
+    setGerandoContratoPdf(true)
+
+    try {
+      const response = await fetch('/api/contracts/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template: 'leasing',
+          cliente: {
+            nomeCompleto,
+            cpfCnpj,
+            enderecoCompleto,
+            unidadeConsumidora,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        let mensagemErro = 'Não foi possível gerar o contrato. Tente novamente.'
+        const contentType = response.headers.get('content-type') ?? ''
+        try {
+          if (contentType.includes('application/json')) {
+            const data = (await response.json()) as { error?: string } | undefined
+            if (data?.error) {
+              mensagemErro = data.error
+            }
+          } else {
+            const texto = await response.text()
+            if (texto.trim()) {
+              mensagemErro = texto.trim()
+            }
+          }
+        } catch (error) {
+          console.warn('Não foi possível interpretar o erro ao gerar contrato.', error)
+        }
+        throw new Error(mensagemErro)
+      }
+
+      if (typeof window === 'undefined') {
+        throw new Error('Recurso disponível apenas no navegador.')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const novaAba = window.open(url, '_blank', 'noopener')
+      if (!novaAba) {
+        window.location.href = url
+      }
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(url)
+      }, 60_000)
+
+      adicionarNotificacao('Contrato de leasing gerado.', 'success')
+    } catch (error) {
+      console.error('Erro ao gerar contrato de leasing', error)
+      const mensagem =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Não foi possível gerar o contrato. Tente novamente.'
+      adicionarNotificacao(mensagem, 'error')
+    } finally {
+      setGerandoContratoPdf(false)
+    }
+  }, [
+    adicionarNotificacao,
+    cliente.cidade,
+    cliente.cep,
+    cliente.documento,
+    cliente.endereco,
+    cliente.nome,
+    cliente.uc,
+    cliente.uf,
+    gerandoContratoPdf,
+  ])
+
   const handleSalvarPropostaPdf = useCallback(async () => {
     if (salvandoPropostaPdf) {
       return
@@ -13717,6 +13837,14 @@ export default function App() {
                   <section className="card">
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={handleGerarContratoLeasing}
+                        disabled={gerandoContratoPdf}
+                      >
+                        {gerandoContratoPdf ? 'Gerando…' : 'Gerar contrato'}
+                      </button>
                     </div>
 
                     <div className="grid g3">

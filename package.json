@@ -19,6 +19,9 @@
     "prepush": "npm run lint && npm run typecheck && npm run check:cycles && npm run test"
   },
   "dependencies": {
+    "date-fns": "^3.3.1",
+    "fast-xml-parser": "^4.4.0",
+    "jszip": "^3.10.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7"
