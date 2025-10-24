@@ -13539,7 +13539,6 @@ export default function App() {
                 <th>Mês</th>
                 <th>Tarifa projetada</th>
                 <th>Prestação efetiva</th>
-                <th>Cashback</th>
                 <th>Valor de compra</th>
               </tr>
             </thead>
@@ -13551,7 +13550,6 @@ export default function App() {
                     <td>{row.mes}</td>
                     <td>{tarifaCurrency(row.tarifa)}</td>
                     <td>{currency(row.prestacaoEfetiva)}</td>
-                    <td>{currency(row.cashback)}</td>
                     <td>{row.valorResidual == null ? '' : currency(row.valorResidual)}</td>
                   </tr>
                 ))}

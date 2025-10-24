@@ -97,7 +97,6 @@ function PrintableBuyoutTableInner(
       ? `${buyoutPrimeiroRow.mes}º ao ${buyoutUltimoRow.mes}º mês`
       : '—'
   const buyoutPrestacaoAcumuladaTexto = formatCurrencyOrDash(buyoutUltimoRow?.prestacaoAcum)
-  const buyoutCashbackTexto = formatCurrencyOrDash(buyoutUltimoRow?.cashback)
   const buyoutPrimeiroValorTexto = formatCurrencyOrDash(buyoutPrimeiroRow?.valorResidual)
   const buyoutUltimoValorTexto = formatCurrencyOrDash(buyoutUltimoRow?.valorResidual)
 
@@ -105,8 +104,8 @@ function PrintableBuyoutTableInner(
     <>
       A tabela a seguir apresenta os valores estimados para transferir a posse da usina entre o{' '}
       <strong>{buyoutPrimeiroMesTexto}</strong> e o <strong>{buyoutUltimoMesTexto}</strong> mês do contrato de leasing.
-      Os valores consideram as prestações pagas ({buyoutPrestacaoAcumuladaTexto}) e o cashback acumulado
-      ({buyoutCashbackTexto}). No primeiro mês elegível, o valor projetado é{' '}
+      Os valores consideram as prestações pagas ({buyoutPrestacaoAcumuladaTexto}). No primeiro mês elegível, o valor
+      projetado é{' '}
       <strong>{buyoutPrimeiroValorTexto}</strong>; ao final do contrato, a projeção é{' '}
       <strong>{buyoutUltimoValorTexto}</strong>.
     </>
@@ -137,7 +136,6 @@ function PrintableBuyoutTableInner(
     { label: 'Janela considerada', value: buyoutJanelaTexto },
     { label: 'Valor de mercado estimado (VM0)', value: investimentoSolarinvestFormatado },
     { label: 'Prestação acumulada até o mês final', value: buyoutPrestacaoAcumuladaTexto },
-    { label: 'Cashback acumulado considerado', value: buyoutCashbackTexto },
     { label: 'Compra no primeiro mês elegível', value: buyoutPrimeiroValorTexto },
     { label: 'Compra ao final do contrato', value: buyoutUltimoValorTexto },
   ]
@@ -207,8 +205,7 @@ function PrintableBuyoutTableInner(
           <section className="print-section keep-together avoid-break page-break-before break-after">
             <h2 className="section-title keep-with-next">Tabela de valor de transferência</h2>
             <p className="section-subtitle keep-with-next">
-              Valores estimados entre o mês 7 e o mês {duracaoMesesExibicao}, considerando prestações pagas e cashback
-              acumulado
+              Valores estimados entre o mês 7 e o mês {duracaoMesesExibicao}, considerando prestações pagas acumuladas
             </p>
             {buyoutTabelaDisponivel ? (
               <>
@@ -218,7 +215,6 @@ function PrintableBuyoutTableInner(
                       <th>Mês</th>
                       <th>Tarifa projetada (R$/kWh)</th>
                       <th>Prestação do mês (R$)</th>
-                      <th>Cashback acumulado (R$)</th>
                       <th>Valor de compra estimado (R$)</th>
                     </tr>
                   </thead>
@@ -228,14 +224,13 @@ function PrintableBuyoutTableInner(
                         <td>{`${row.mes}º mês`}</td>
                         <td className="leasing-table-value">{tarifaCurrency(row.tarifa)}</td>
                         <td className="leasing-table-value">{currency(row.prestacaoEfetiva)}</td>
-                        <td className="leasing-table-value">{currency(row.cashback)}</td>
                         <td className="leasing-table-value">{currency(row.valorResidual)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 <p className="buyout-footnote no-break-inside">
-                  Os valores consideram o cashback acumulado deduzido do preço de compra. Quando o valor indicado for R$ 0,00,
+                  Os valores consideram as prestações pagas deduzidas do preço de compra. Quando o valor indicado for R$ 0,00,
                   a transferência é concluída automaticamente no término do contrato.
                 </p>
               </>
