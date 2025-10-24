@@ -131,6 +131,7 @@ describe('PrintableProposal (venda direta)', () => {
       energiaContratadaKwh: 500,
       vendaResumo: { form: vendaForm, retorno },
       parsedPdfVenda: createParsedVenda({ potencia_da_placa_wp: 610 }),
+      tarifaCheia: vendaForm.tarifa_cheia_r_kwh,
     })
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)

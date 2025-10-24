@@ -6108,10 +6108,25 @@ export default function App() {
           vendaSnapshot.parametros.distribuidora || distribuidoraTarifa || cliente.distribuidora || '',
         energiaContratadaKwh:
           vendaSnapshot.resultados.energia_contratada_kwh_mes ?? vendaSnapshot.parametros.consumo_kwh_mes ?? kcKwhMes,
-        tarifaCheia:
-          vendaSnapshot.parametros.tarifa_r_kwh > 0
-            ? vendaSnapshot.parametros.tarifa_r_kwh
-            : tarifaCheia,
+        tarifaCheia: (() => {
+          const formulario = Number.isFinite(vendaForm.tarifa_cheia_r_kwh)
+            ? Math.max(0, Number(vendaForm.tarifa_cheia_r_kwh ?? 0))
+            : null
+          if (formulario != null) {
+            return formulario
+          }
+
+          const atual = Number.isFinite(tarifaCheia) ? Math.max(0, Number(tarifaCheia ?? 0)) : null
+          if (atual != null) {
+            return atual
+          }
+
+          const snapshotTarifa = Number.isFinite(vendaSnapshot.parametros.tarifa_r_kwh)
+            ? Math.max(0, Number(vendaSnapshot.parametros.tarifa_r_kwh ?? 0))
+            : null
+
+          return snapshotTarifa ?? 0
+        })(),
         vendaResumo,
         parsedPdfVenda: parsedVendaPdf ? { ...parsedVendaPdf } : null,
         orcamentoItens: printableBudgetItems,
