@@ -619,6 +619,8 @@ button.secondary.danger:focus-visible {
 
 .cliente-indicacao-toggle input[type='checkbox'] {
   accent-color: var(--accent-strong);
+  inline-size: 1rem;
+  block-size: 1rem;
 }
 
 .cliente-indicacao-toggle span {

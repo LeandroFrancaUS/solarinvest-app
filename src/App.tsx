@@ -9631,7 +9631,7 @@ export default function App() {
                 checked={cliente.temIndicacao}
                 onChange={(event) => handleClienteChange('temIndicacao', event.target.checked)}
               />
-              <span>Cliente indicado por parceiro</span>
+              <span>Indicação</span>
             </label>
             {cliente.temIndicacao ? (
               <input
