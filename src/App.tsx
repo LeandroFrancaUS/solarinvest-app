@@ -6064,6 +6064,7 @@ export default function App() {
         mostrar_quebra_impostos_no_pdf_cliente:
           vendasConfig.mostrar_quebra_impostos_no_pdf_cliente,
         observacao_padrao_proposta: vendasConfig.observacao_padrao_proposta,
+        validade_proposta_dias: vendasConfig.validade_proposta_dias,
       }
 
       return {

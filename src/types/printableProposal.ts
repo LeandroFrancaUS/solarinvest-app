@@ -73,6 +73,7 @@ export type PrintableVendasConfig = Pick<
   | 'exibir_impostos'
   | 'mostrar_quebra_impostos_no_pdf_cliente'
   | 'observacao_padrao_proposta'
+  | 'validade_proposta_dias'
 >
 
 export type PrintableProposalImage = {

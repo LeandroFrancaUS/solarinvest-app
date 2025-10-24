@@ -745,17 +745,31 @@ function PrintableProposalInner(
     : Number.isFinite(vendaFormResumo?.horizonte_meses) && (vendaFormResumo?.horizonte_meses ?? 0) > 0
     ? `${Math.round(vendaFormResumo?.horizonte_meses ?? 0)} meses`
     : 'horizonte analisado'
+  const validadePropostaDiasPadrao = Number.isFinite(
+    vendasConfigSnapshot?.validade_proposta_dias,
+  )
+    ? Math.max(0, Number(vendasConfigSnapshot?.validade_proposta_dias ?? 0))
+    : null
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
-  validadeData.setDate(validadeData.getDate() + 3)
+  if ((validadePropostaDiasPadrao ?? 0) > 0) {
+    validadeData.setDate(validadeData.getDate() + (validadePropostaDiasPadrao ?? 0))
+  }
   const formatDate = (date: Date) =>
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const emissaoTexto = formatDate(emissaoData)
   const validadeTexto = formatDate(validadeData)
+  const validadePadraoDescricao = (() => {
+    if (validadePropostaDiasPadrao == null || validadePropostaDiasPadrao <= 0) {
+      return validadeTexto
+    }
+    const plural = validadePropostaDiasPadrao === 1 ? 'dia' : 'dias'
+    return `${validadeTexto} (${validadePropostaDiasPadrao} ${plural} corridos)`
+  })()
   const validadePropostaLabel =
     sanitizeTextField(snapshotPagamento?.validade_proposta_txt) ??
     sanitizeTextField(vendaFormResumo?.validade_proposta) ??
-    `${validadeTexto} (3 dias corridos)`
+    validadePadraoDescricao
   const prazoExecucaoLabel =
     sanitizeTextField(snapshotPagamento?.prazo_execucao_txt) ??
     sanitizeTextField(vendaFormResumo?.prazo_execucao) ??
@@ -1484,7 +1498,7 @@ function PrintableProposalInner(
                   <strong>Data de emissão da proposta:</strong> {emissaoTexto}
                 </p>
                 <p>
-                  <strong>Validade da proposta:</strong> {validadeTexto} (15 dias corridos)
+                  <strong>Validade da proposta:</strong> {validadePropostaLabel}
                 </p>
               </div>
               <div className="print-final-footer__signature">
