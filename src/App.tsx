@@ -87,11 +87,18 @@ import {
   getVendaSnapshot,
   useVendaStore,
   vendaActions,
+  vendaStore,
   type ModoVenda,
   type VendaKitItem,
+  type VendaSnapshot,
 } from './store/useVendaStore'
 import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta'
-import { useLeasingValorDeMercadoEstimado } from './store/useLeasingStore'
+import {
+  getLeasingSnapshot,
+  leasingActions,
+  useLeasingValorDeMercadoEstimado,
+  type LeasingState,
+} from './store/useLeasingStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
 import './styles/config-page.css'
@@ -131,6 +138,7 @@ import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcRes
 import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
+import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
 import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
@@ -157,6 +165,7 @@ import type {
   UfvComposicaoTelhadoValores,
   UfvComposicaoConfiguracao,
 } from './types/printableProposal'
+import type { VendasConfig } from './types/vendasConfig'
 import type { PrintableBuyoutTableProps } from './components/print/PrintableBuyoutTable'
 import {
   currency,
@@ -613,6 +622,115 @@ type CrmIntegrationMode = 'local' | 'remote'
 type CrmBackendStatus = 'idle' | 'success' | 'error'
 type CrmFiltroOperacao = 'all' | 'LEASING' | 'VENDA_DIRETA'
 
+type OrcamentoSnapshotBudgetState = {
+  isProcessing: boolean
+  error: string | null
+  progress: BudgetUploadProgress | null
+  isTableCollapsed: boolean
+  ocrDpi: number
+}
+
+type OrcamentoSnapshotMultiUcState = {
+  ativo: boolean
+  rows: MultiUcRowState[]
+  rateioModo: MultiUcRateioModo
+  energiaGeradaKWh: number
+  energiaGeradaTouched: boolean
+  anoVigencia: number
+  overrideEscalonamento: boolean
+  escalonamentoCustomPercent: number | null
+}
+
+type OrcamentoSnapshotData = {
+  activeTab: TabKey
+  settingsTab: SettingsTabKey
+  cliente: ClienteDados
+  clienteEmEdicaoId: string | null
+  clienteMensagens?: ClienteMensagens | undefined
+  pageShared: PageSharedSettings
+  currentBudgetId: string
+  budgetStructuredItems: StructuredItem[]
+  kitBudget: KitBudgetState
+  budgetProcessing: OrcamentoSnapshotBudgetState
+  ufTarifa: string
+  distribuidoraTarifa: string
+  ufsDisponiveis: string[]
+  distribuidorasPorUf: Record<string, string[]>
+  mesReajuste: number
+  kcKwhMes: number
+  consumoManual: boolean
+  tarifaCheia: number
+  desconto: number
+  taxaMinima: number
+  taxaMinimaInputEmpty: boolean
+  encargosFixosExtras: number
+  tusdPercent: number
+  tusdTipoCliente: TipoClienteTUSD
+  tusdSubtipo: string
+  tusdSimultaneidade: number | null
+  tusdTarifaRkwh: number | null
+  tusdAnoReferencia: number
+  tusdOpcoesExpandidas: boolean
+  leasingPrazo: LeasingPrazoAnos
+  potenciaModulo: number
+  potenciaModuloDirty: boolean
+  tipoInstalacao: TipoInstalacao
+  tipoInstalacaoDirty: boolean
+  tipoSistema: TipoSistema
+  segmentoCliente: SegmentoCliente
+  numeroModulosManual: number | ''
+  composicaoTelhado: UfvComposicaoTelhadoValores
+  composicaoSolo: UfvComposicaoSoloValores
+  aprovadoresText: string
+  impostosOverridesDraft: Partial<ImpostosRegimeConfig>
+  vendasConfig: VendasConfig
+  vendasSimulacoes: Record<string, VendasSimulacao>
+  multiUc: OrcamentoSnapshotMultiUcState
+  precoPorKwp: number
+  irradiacao: number
+  eficiencia: number
+  diasMes: number
+  inflacaoAa: number
+  vendaForm: VendaForm
+  capexManualOverride: boolean
+  parsedVendaPdf: ParsedVendaPdfData | null
+  estruturaTipoWarning: EstruturaUtilizadaTipoWarning | null
+  jurosFinAa: number
+  prazoFinMeses: number
+  entradaFinPct: number
+  mostrarFinanciamento: boolean
+  mostrarGrafico: boolean
+  prazoMeses: number
+  bandeiraEncargo: number
+  cipEncargo: number
+  entradaRs: number
+  entradaModo: EntradaModoLabel
+  mostrarTabelaParcelas: boolean
+  mostrarTabelaBuyout: boolean
+  mostrarTabelaParcelasConfig: boolean
+  mostrarTabelaBuyoutConfig: boolean
+  oemBase: number
+  oemInflacao: number
+  seguroModo: SeguroModo
+  seguroReajuste: number
+  seguroValorA: number
+  seguroPercentualB: number
+  exibirLeasingLinha: boolean
+  exibirFinLinha: boolean
+  cashbackPct: number
+  depreciacaoAa: number
+  inadimplenciaAa: number
+  tributosAa: number
+  ipcaAa: number
+  custosFixosM: number
+  opexM: number
+  seguroM: number
+  duracaoMeses: number
+  pagosAcumAteM: number
+  vendaSnapshot: VendaSnapshot
+  leasingSnapshot: LeasingState
+}
+
 type OrcamentoSalvo = {
   id: string
   criadoEm: string
@@ -623,6 +741,7 @@ type OrcamentoSalvo = {
   clienteDocumento?: string | undefined
   clienteUc?: string | undefined
   dados: PrintableProposalProps
+  snapshot?: OrcamentoSnapshotData | undefined
 }
 
 type ClienteCampoTexto = {
@@ -795,6 +914,84 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
 
   return clone
 }
+
+const cloneBudgetUploadProgress = (
+  progress: BudgetUploadProgress | null,
+): BudgetUploadProgress | null => (progress ? { ...progress } : null)
+
+const cloneEssentialCategoryInfo = (info: EssentialInfoSummary['modules']) => ({
+  ...info,
+  missingFields: [...info.missingFields],
+})
+
+const cloneKitBudgetMissingInfo = (
+  info: KitBudgetMissingInfo,
+): KitBudgetMissingInfo => {
+  if (!info) {
+    return null
+  }
+  return {
+    modules: cloneEssentialCategoryInfo(info.modules),
+    inverter: cloneEssentialCategoryInfo(info.inverter),
+  }
+}
+
+const cloneKitBudgetState = (state: KitBudgetState): KitBudgetState => ({
+  ...state,
+  items: state.items.map((item) => ({ ...item })),
+  warnings: [...state.warnings],
+  missingInfo: cloneKitBudgetMissingInfo(state.missingInfo),
+})
+
+const cloneStructuredItems = (items: StructuredItem[]): StructuredItem[] =>
+  items.map((item) => ({ ...item }))
+
+const cloneDistribuidorasMapa = (mapa: Record<string, string[]>): Record<string, string[]> =>
+  Object.fromEntries(Object.entries(mapa).map(([uf, lista]) => [uf, [...lista]]))
+
+const cloneVendasSimulacoes = (
+  simulations: Record<string, VendasSimulacao>,
+): Record<string, VendasSimulacao> =>
+  Object.fromEntries(
+    Object.entries(simulations).map(([id, sim]) => [id, { ...sim }]),
+  )
+
+const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotData => ({
+  ...snapshot,
+  cliente: cloneClienteDados(snapshot.cliente),
+  clienteMensagens: snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : undefined,
+  pageShared: { ...snapshot.pageShared },
+  budgetStructuredItems: cloneStructuredItems(snapshot.budgetStructuredItems),
+  kitBudget: cloneKitBudgetState(snapshot.kitBudget),
+  budgetProcessing: {
+    ...snapshot.budgetProcessing,
+    progress: cloneBudgetUploadProgress(snapshot.budgetProcessing.progress),
+  },
+  ufsDisponiveis: [...snapshot.ufsDisponiveis],
+  distribuidorasPorUf: cloneDistribuidorasMapa(snapshot.distribuidorasPorUf),
+  multiUc: {
+    ...snapshot.multiUc,
+    rows: snapshot.multiUc.rows.map((row) => ({ ...row })),
+  },
+  composicaoTelhado: { ...snapshot.composicaoTelhado },
+  composicaoSolo: { ...snapshot.composicaoSolo },
+  impostosOverridesDraft: cloneImpostosOverrides(snapshot.impostosOverridesDraft),
+  vendasConfig: JSON.parse(JSON.stringify(snapshot.vendasConfig)) as VendasConfig,
+  vendasSimulacoes: cloneVendasSimulacoes(snapshot.vendasSimulacoes),
+  vendaForm: { ...snapshot.vendaForm },
+  parsedVendaPdf: snapshot.parsedVendaPdf
+    ? (JSON.parse(JSON.stringify(snapshot.parsedVendaPdf)) as ParsedVendaPdfData)
+    : null,
+  estruturaTipoWarning: snapshot.estruturaTipoWarning ?? null,
+  vendaSnapshot: JSON.parse(JSON.stringify(snapshot.vendaSnapshot)) as VendaSnapshot,
+  leasingSnapshot: JSON.parse(JSON.stringify(snapshot.leasingSnapshot)) as LeasingState,
+})
+
+const cloneOrcamentoSalvo = (registro: OrcamentoSalvo): OrcamentoSalvo => ({
+  ...registro,
+  dados: clonePrintableData(registro.dados),
+  snapshot: registro.snapshot ? cloneSnapshotData(registro.snapshot) : undefined,
+})
 
 const createBudgetFingerprint = (dados: PrintableProposalProps): string => {
   const clone = clonePrintableData(dados)
@@ -1697,10 +1894,42 @@ export default function App() {
       }
     | null
   >(null)
-  const liberarOrcamentoCarregado = useCallback(() => {
+  const [orcamentoCarregadoRegistro, setOrcamentoCarregadoRegistro] = useState<OrcamentoSalvo | null>(null)
+  const limparOrcamentoCarregado = useCallback(() => {
     setOrcamentoCarregado(null)
     setOrcamentoCarregadoInfo(null)
+    setOrcamentoCarregadoRegistro(null)
   }, [])
+  const entrarModoSomenteLeitura = useCallback(
+    (registro: OrcamentoSalvo) => {
+      const dadosClonados = clonePrintableData(registro.dados)
+      const clienteNome =
+        registro.clienteNome?.trim() ||
+        registro.dados.cliente.nome?.trim() ||
+        dadosClonados.cliente.nome?.trim() ||
+        registro.id
+      const idNormalizado = normalizeProposalId(dadosClonados.budgetId ?? registro.id)
+      const idParaExibir = idNormalizado || registro.id
+
+      setOrcamentoCarregado(dadosClonados)
+      setOrcamentoCarregadoInfo({
+        id: idParaExibir,
+        cliente: clienteNome,
+      })
+      setOrcamentoCarregadoRegistro(cloneOrcamentoSalvo(registro))
+      setIsBudgetSearchOpen(false)
+      setOrcamentoVisualizado(null)
+      setOrcamentoVisualizadoInfo(null)
+
+      if (dadosClonados.tipoProposta === 'VENDA_DIRETA') {
+        setActiveTab('vendas')
+      } else {
+        setActiveTab('leasing')
+      }
+    },
+    [setActiveTab],
+  )
+
   const [oneDriveIntegrationAvailable, setOneDriveIntegrationAvailable] = useState(() =>
     isOneDriveIntegrationAvailable(),
   )
@@ -8606,6 +8835,19 @@ export default function App() {
             ? registro.criadoEm
             : new Date().toISOString()
 
+        let snapshotNormalizado: OrcamentoSnapshotData | undefined
+        if (registro.snapshot && typeof registro.snapshot === 'object') {
+          try {
+            snapshotNormalizado = cloneSnapshotData(registro.snapshot as OrcamentoSnapshotData)
+            if (snapshotNormalizado.currentBudgetId !== id) {
+              snapshotNormalizado.currentBudgetId = id
+            }
+          } catch (error) {
+            console.warn('Não foi possível interpretar o snapshot do orçamento salvo.', error)
+            snapshotNormalizado = undefined
+          }
+        }
+
         return {
           id,
           criadoEm,
@@ -8616,6 +8858,7 @@ export default function App() {
           clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
           clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
           dados: dadosNormalizados,
+          snapshot: snapshotNormalizado,
         }
       })
     } catch (error) {
@@ -8624,6 +8867,244 @@ export default function App() {
     }
   }, [carregarClientesSalvos])
 
+  const getCurrentSnapshot = (): OrcamentoSnapshotData => {
+    const vendasConfigState = useVendasConfigStore.getState()
+    const vendasSimState = useVendasSimulacoesStore.getState()
+    const vendaSnapshotAtual = getVendaSnapshot()
+    const leasingSnapshotAtual = getLeasingSnapshot()
+
+    return {
+      activeTab,
+      settingsTab,
+      cliente: cloneClienteDados(cliente),
+      clienteEmEdicaoId,
+      clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
+      pageShared: { ...pageSharedState },
+      currentBudgetId,
+      budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
+      kitBudget: cloneKitBudgetState(kitBudget),
+      budgetProcessing: {
+        isProcessing: isBudgetProcessing,
+        error: budgetProcessingError ?? null,
+        progress: cloneBudgetUploadProgress(budgetProcessingProgress),
+        isTableCollapsed: isBudgetTableCollapsed,
+        ocrDpi,
+      },
+      ufTarifa,
+      distribuidoraTarifa,
+      ufsDisponiveis: [...ufsDisponiveis],
+      distribuidorasPorUf: cloneDistribuidorasMapa(distribuidorasPorUf),
+      mesReajuste,
+      kcKwhMes,
+      consumoManual,
+      tarifaCheia,
+      desconto,
+      taxaMinima,
+      taxaMinimaInputEmpty,
+      encargosFixosExtras,
+      tusdPercent,
+      tusdTipoCliente,
+      tusdSubtipo,
+      tusdSimultaneidade,
+      tusdTarifaRkwh,
+      tusdAnoReferencia,
+      tusdOpcoesExpandidas,
+      leasingPrazo,
+      potenciaModulo,
+      potenciaModuloDirty,
+      tipoInstalacao,
+      tipoInstalacaoDirty,
+      tipoSistema,
+      segmentoCliente,
+      numeroModulosManual,
+      composicaoTelhado: { ...composicaoTelhado },
+      composicaoSolo: { ...composicaoSolo },
+      aprovadoresText,
+      impostosOverridesDraft: cloneImpostosOverrides(impostosOverridesDraft),
+      vendasConfig: JSON.parse(JSON.stringify(vendasConfigState.config)) as VendasConfig,
+      vendasSimulacoes: cloneVendasSimulacoes(vendasSimState.simulations),
+      multiUc: {
+        ativo: multiUcAtivo,
+        rows: multiUcRows.map((row) => ({ ...row })),
+        rateioModo: multiUcRateioModo,
+        energiaGeradaKWh: multiUcEnergiaGeradaKWh,
+        energiaGeradaTouched: multiUcEnergiaGeradaTouched,
+        anoVigencia: multiUcAnoVigencia,
+        overrideEscalonamento: multiUcOverrideEscalonamento,
+        escalonamentoCustomPercent: multiUcEscalonamentoCustomPercent,
+      },
+      precoPorKwp,
+      irradiacao,
+      eficiencia,
+      diasMes,
+      inflacaoAa,
+      vendaForm: { ...vendaForm },
+      capexManualOverride,
+      parsedVendaPdf: parsedVendaPdf
+        ? (JSON.parse(JSON.stringify(parsedVendaPdf)) as ParsedVendaPdfData)
+        : null,
+      estruturaTipoWarning: estruturaTipoWarning ?? null,
+      jurosFinAa,
+      prazoFinMeses,
+      entradaFinPct,
+      mostrarFinanciamento,
+      mostrarGrafico,
+      prazoMeses,
+      bandeiraEncargo,
+      cipEncargo,
+      entradaRs,
+      entradaModo,
+      mostrarTabelaParcelas,
+      mostrarTabelaBuyout,
+      mostrarTabelaParcelasConfig,
+      mostrarTabelaBuyoutConfig,
+      oemBase,
+      oemInflacao,
+      seguroModo,
+      seguroReajuste,
+      seguroValorA,
+      seguroPercentualB,
+      exibirLeasingLinha,
+      exibirFinLinha,
+      cashbackPct,
+      depreciacaoAa,
+      inadimplenciaAa,
+      tributosAa,
+      ipcaAa,
+      custosFixosM,
+      opexM,
+      seguroM,
+      duracaoMeses,
+      pagosAcumAteM,
+      vendaSnapshot: vendaSnapshotAtual,
+      leasingSnapshot: leasingSnapshotAtual,
+    }
+  }
+
+  const aplicarSnapshot = (
+    snapshotEntrada: OrcamentoSnapshotData,
+    options?: { budgetIdOverride?: string },
+  ) => {
+    const snapshot = cloneSnapshotData(snapshotEntrada)
+    const budgetId = options?.budgetIdOverride ?? snapshot.currentBudgetId
+
+    setActiveTab(snapshot.activeTab)
+    setSettingsTab(snapshot.settingsTab)
+    setCliente(cloneClienteDados(snapshot.cliente))
+    setClienteEmEdicaoId(snapshot.clienteEmEdicaoId)
+    setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
+    setPageSharedState({ ...snapshot.pageShared })
+    setCurrentBudgetId(budgetId)
+    setBudgetStructuredItems(cloneStructuredItems(snapshot.budgetStructuredItems))
+    setKitBudget(cloneKitBudgetState(snapshot.kitBudget))
+    setIsBudgetProcessing(snapshot.budgetProcessing.isProcessing)
+    setBudgetProcessingError(snapshot.budgetProcessing.error)
+    setBudgetProcessingProgress(cloneBudgetUploadProgress(snapshot.budgetProcessing.progress))
+    setIsBudgetTableCollapsed(snapshot.budgetProcessing.isTableCollapsed)
+    setOcrDpi(snapshot.budgetProcessing.ocrDpi)
+    setUfTarifa(snapshot.ufTarifa)
+    setDistribuidoraTarifa(snapshot.distribuidoraTarifa)
+    setUfsDisponiveis([...snapshot.ufsDisponiveis])
+    setDistribuidorasPorUf(cloneDistribuidorasMapa(snapshot.distribuidorasPorUf))
+    setMesReajuste(snapshot.mesReajuste)
+    mesReferenciaRef.current = snapshot.mesReajuste
+    setConsumoManual(snapshot.consumoManual)
+    setKcKwhMes(snapshot.kcKwhMes, snapshot.consumoManual ? 'user' : 'auto')
+    setTarifaCheia(snapshot.tarifaCheia)
+    setDesconto(snapshot.desconto)
+    setTaxaMinima(snapshot.taxaMinima)
+    setTaxaMinimaInputEmpty(snapshot.taxaMinimaInputEmpty)
+    setEncargosFixosExtras(snapshot.encargosFixosExtras)
+    setTusdPercent(snapshot.tusdPercent)
+    setTusdTipoCliente(snapshot.tusdTipoCliente)
+    setTusdSubtipo(snapshot.tusdSubtipo)
+    setTusdSimultaneidade(snapshot.tusdSimultaneidade)
+    setTusdTarifaRkwh(snapshot.tusdTarifaRkwh)
+    setTusdAnoReferencia(snapshot.tusdAnoReferencia)
+    setTusdOpcoesExpandidas(snapshot.tusdOpcoesExpandidas)
+    setLeasingPrazo(snapshot.leasingPrazo)
+    setPotenciaModulo(snapshot.potenciaModulo)
+    setPotenciaModuloDirty(snapshot.potenciaModuloDirty)
+    setTipoInstalacao(snapshot.tipoInstalacao)
+    setTipoInstalacaoDirty(snapshot.tipoInstalacaoDirty)
+    setTipoSistema(snapshot.tipoSistema)
+    setSegmentoCliente(snapshot.segmentoCliente)
+    setNumeroModulosManual(snapshot.numeroModulosManual)
+    setComposicaoTelhado({ ...snapshot.composicaoTelhado })
+    setComposicaoSolo({ ...snapshot.composicaoSolo })
+    setAprovadoresText(snapshot.aprovadoresText)
+    setImpostosOverridesDraft(cloneImpostosOverrides(snapshot.impostosOverridesDraft))
+    useVendasConfigStore.getState().replace(snapshot.vendasConfig)
+    const simulacoesClonadas = cloneVendasSimulacoes(snapshot.vendasSimulacoes)
+    useVendasSimulacoesStore.setState({ simulations: simulacoesClonadas })
+    if (
+      options?.budgetIdOverride &&
+      snapshot.currentBudgetId &&
+      snapshot.currentBudgetId !== options.budgetIdOverride
+    ) {
+      useVendasSimulacoesStore.getState().rename(snapshot.currentBudgetId, options.budgetIdOverride)
+    }
+    setMultiUcAtivo(snapshot.multiUc.ativo)
+    setMultiUcRows(snapshot.multiUc.rows.map((row) => ({ ...row })))
+    setMultiUcRateioModo(snapshot.multiUc.rateioModo)
+    setMultiUcEnergiaGeradaKWh(snapshot.multiUc.energiaGeradaKWh, 'auto')
+    setMultiUcEnergiaGeradaTouched(snapshot.multiUc.energiaGeradaTouched)
+    setMultiUcAnoVigencia(snapshot.multiUc.anoVigencia)
+    setMultiUcOverrideEscalonamento(snapshot.multiUc.overrideEscalonamento)
+    setMultiUcEscalonamentoCustomPercent(snapshot.multiUc.escalonamentoCustomPercent)
+    multiUcConsumoAnteriorRef.current = snapshot.kcKwhMes
+    multiUcIdCounterRef.current = snapshot.multiUc.rows.length + 1
+    setPrecoPorKwp(snapshot.precoPorKwp)
+    setIrradiacao(snapshot.irradiacao)
+    setEficiencia(snapshot.eficiencia)
+    setDiasMes(snapshot.diasMes)
+    setInflacaoAa(snapshot.inflacaoAa)
+    setVendaForm({ ...snapshot.vendaForm })
+    setCapexManualOverride(snapshot.capexManualOverride)
+    setParsedVendaPdf(snapshot.parsedVendaPdf)
+    setEstruturaTipoWarning(snapshot.estruturaTipoWarning)
+    setJurosFinAa(snapshot.jurosFinAa)
+    setPrazoFinMeses(snapshot.prazoFinMeses)
+    setEntradaFinPct(snapshot.entradaFinPct)
+    setMostrarFinanciamento(snapshot.mostrarFinanciamento)
+    setMostrarGrafico(snapshot.mostrarGrafico)
+    setPrazoMeses(snapshot.prazoMeses)
+    setBandeiraEncargo(snapshot.bandeiraEncargo)
+    setCipEncargo(snapshot.cipEncargo)
+    setEntradaRs(snapshot.entradaRs)
+    setEntradaModo(snapshot.entradaModo)
+    setMostrarTabelaParcelas(snapshot.mostrarTabelaParcelas)
+    setMostrarTabelaBuyout(snapshot.mostrarTabelaBuyout)
+    setMostrarTabelaParcelasConfig(snapshot.mostrarTabelaParcelasConfig)
+    setMostrarTabelaBuyoutConfig(snapshot.mostrarTabelaBuyoutConfig)
+    setOemBase(snapshot.oemBase)
+    setOemInflacao(snapshot.oemInflacao)
+    setSeguroModo(snapshot.seguroModo)
+    setSeguroReajuste(snapshot.seguroReajuste)
+    setSeguroValorA(snapshot.seguroValorA)
+    setSeguroPercentualB(snapshot.seguroPercentualB)
+    setExibirLeasingLinha(snapshot.exibirLeasingLinha)
+    setExibirFinLinha(snapshot.exibirFinLinha)
+    setCashbackPct(snapshot.cashbackPct)
+    setDepreciacaoAa(snapshot.depreciacaoAa)
+    setInadimplenciaAa(snapshot.inadimplenciaAa)
+    setTributosAa(snapshot.tributosAa)
+    setIpcaAa(snapshot.ipcaAa)
+    setCustosFixosM(snapshot.custosFixosM)
+    setOpexM(snapshot.opexM)
+    setSeguroM(snapshot.seguroM)
+    setDuracaoMeses(snapshot.duracaoMeses)
+    setPagosAcumAteM(snapshot.pagosAcumAteM)
+
+    vendaStore.setState((draft) => {
+      Object.assign(draft, JSON.parse(JSON.stringify(snapshot.vendaSnapshot)) as VendaSnapshot)
+    })
+    leasingActions.update(snapshot.leasingSnapshot)
+
+    if (options?.budgetIdOverride) {
+      vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
+    }
+  }
   const salvarOrcamentoLocalmente = useCallback(
     (dados: PrintableProposalProps): OrcamentoSalvo | null => {
       if (typeof window === 'undefined') {
@@ -8634,13 +9115,39 @@ export default function App() {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
         const fingerprint = createBudgetFingerprint(dadosClonados)
-        const registroExistente = registrosExistentes.find(
+        const snapshotAtual = getCurrentSnapshot()
+
+        const registroExistenteIndex = registrosExistentes.findIndex(
           (registro) => createBudgetFingerprint(registro.dados) === fingerprint,
         )
 
-        if (registroExistente) {
-          setOrcamentosSalvos(registrosExistentes)
-          return registroExistente
+        if (registroExistenteIndex >= 0) {
+          const existente = registrosExistentes[registroExistenteIndex]
+          const snapshotAtualizado = cloneSnapshotData(snapshotAtual)
+          snapshotAtualizado.currentBudgetId = existente.id
+          if (snapshotAtualizado.vendaSnapshot.codigos) {
+            snapshotAtualizado.vendaSnapshot.codigos = {
+              ...snapshotAtualizado.vendaSnapshot.codigos,
+              codigo_orcamento_interno: existente.id,
+            }
+          }
+          const registroAtualizado: OrcamentoSalvo = {
+            ...existente,
+            clienteId: clienteEmEdicaoId ?? existente.clienteId,
+            clienteNome: dados.cliente.nome,
+            clienteCidade: dados.cliente.cidade,
+            clienteUf: dados.cliente.uf,
+            clienteDocumento: dados.cliente.documento,
+            clienteUc: dados.cliente.uc,
+            dados: { ...dadosClonados, budgetId: existente.id },
+            snapshot: snapshotAtualizado,
+          }
+
+          const registrosAtualizados = [...registrosExistentes]
+          registrosAtualizados[registroExistenteIndex] = registroAtualizado
+          window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+          setOrcamentosSalvos(registrosAtualizados)
+          return registroAtualizado
         }
 
         const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
@@ -8649,6 +9156,15 @@ export default function App() {
           candidatoInformado && !existingIds.has(candidatoInformado)
             ? candidatoInformado
             : generateBudgetId(existingIds, dadosClonados.tipoProposta)
+        const snapshotParaArmazenar = cloneSnapshotData(snapshotAtual)
+        snapshotParaArmazenar.currentBudgetId = novoId
+        if (snapshotParaArmazenar.vendaSnapshot.codigos) {
+          snapshotParaArmazenar.vendaSnapshot.codigos = {
+            ...snapshotParaArmazenar.vendaSnapshot.codigos,
+            codigo_orcamento_interno: novoId,
+          }
+        }
+
         const registro: OrcamentoSalvo = {
           id: novoId,
           criadoEm: new Date().toISOString(),
@@ -8659,6 +9175,7 @@ export default function App() {
           clienteDocumento: dados.cliente.documento,
           clienteUc: dados.cliente.uc,
           dados: { ...dadosClonados, budgetId: novoId },
+          snapshot: snapshotParaArmazenar,
         }
 
         existingIds.add(registro.id)
@@ -8897,6 +9414,8 @@ export default function App() {
           data_emissao: emissaoIso,
         })
 
+        entrarModoSomenteLeitura(registro)
+
         let htmlAtualizado = previewData.html
         try {
           const reprocessado = await renderPrintableProposalToHtml(dados)
@@ -8967,6 +9486,7 @@ export default function App() {
         adicionarNotificacao,
         clienteEmEdicaoId,
         currentBudgetId,
+        entrarModoSomenteLeitura,
         isProposalPdfIntegrationAvailable,
         renameVendasSimulacao,
         salvarOrcamentoLocalmente,
@@ -9036,6 +9556,8 @@ export default function App() {
         data_emissao: emissaoIso,
       })
 
+      entrarModoSomenteLeitura(registroSalvo)
+
       let htmlComCodigo = html
       try {
         const atualizado = await renderPrintableProposalToHtml(dados)
@@ -9101,6 +9623,7 @@ export default function App() {
       renameVendasSimulacao,
       salvarOrcamentoLocalmente,
       salvandoPropostaPdf,
+      entrarModoSomenteLeitura,
       setProposalPdfIntegrationAvailable,
       validarCamposObrigatorios,
     ])
@@ -9110,7 +9633,7 @@ export default function App() {
     setIsSettingsOpen(false)
     setIsBudgetSearchOpen(false)
     setOrcamentoSearchTerm('')
-    liberarOrcamentoCarregado()
+    limparOrcamentoCarregado()
     setCurrentBudgetId(createDraftBudgetId())
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
@@ -9244,10 +9767,32 @@ export default function App() {
     setMultiUcEnergiaGeradaTouched,
     setMultiUcAtivo,
     setMultiUcRows,
-    liberarOrcamentoCarregado,
+    limparOrcamentoCarregado,
   ])
 
-  const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
+  const duplicarOrcamentoCarregado = () => {
+    if (!orcamentoCarregadoRegistro) {
+      return
+    }
+
+    if (!orcamentoCarregadoRegistro.snapshot) {
+      window.alert(
+        'Não foi possível duplicar este orçamento automaticamente. Abra e salve novamente para gerar um snapshot completo.',
+      )
+      return
+    }
+
+    const novoBudgetId = createDraftBudgetId()
+    aplicarSnapshot(orcamentoCarregadoRegistro.snapshot, { budgetIdOverride: novoBudgetId })
+    limparOrcamentoCarregado()
+    setIsBudgetSearchOpen(false)
+    adicionarNotificacao(
+      'Uma cópia do orçamento foi carregada para edição. Salve para gerar um novo número.',
+      'info',
+    )
+  }
+
+  const podeSalvarProposta = !orcamentoCarregado && (activeTab === 'leasing' || activeTab === 'vendas')
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
     if (key === 'temIndicacao') {
@@ -9608,30 +10153,9 @@ export default function App() {
 
   const carregarOrcamentoSalvo = useCallback(
     (registro: OrcamentoSalvo) => {
-      const dados = clonePrintableData(registro.dados)
-      const clienteNome =
-        registro.clienteNome?.trim() ||
-        registro.dados.cliente.nome?.trim() ||
-        dados.cliente.nome?.trim() ||
-        registro.id
-      const idNormalizado = normalizeProposalId(dados.budgetId ?? registro.id)
-      const idParaExibir = idNormalizado || registro.id
-
-      setOrcamentoCarregado(dados)
-      setOrcamentoCarregadoInfo({
-        id: idParaExibir,
-        cliente: clienteNome,
-      })
-      setIsBudgetSearchOpen(false)
-      setOrcamentoVisualizado(null)
-      setOrcamentoVisualizadoInfo(null)
-      if (dados.tipoProposta === 'VENDA_DIRETA') {
-        setActiveTab('vendas')
-      } else {
-        setActiveTab('leasing')
-      }
+      entrarModoSomenteLeitura(registro)
     },
-    [setActiveTab],
+    [entrarModoSomenteLeitura],
   )
 
   const abrirPesquisaOrcamentos = () => {
@@ -13045,19 +13569,29 @@ export default function App() {
                       Orçamento{' '}
                       <strong>{orcamentoCarregadoInfo?.id ?? '—'}</strong>
                     </h2>
-                    <div className="loaded-budget-actions">
-                      <span>
-                        Dados somente leitura para{' '}
-                        <strong>{orcamentoCarregadoInfo?.cliente ?? 'o cliente selecionado'}</strong>
-                      </span>
-                      <button type="button" className="ghost" onClick={liberarOrcamentoCarregado}>
-                        Liberar edição
+                  <div className="loaded-budget-actions">
+                    <span>
+                      Dados somente leitura para{' '}
+                      <strong>{orcamentoCarregadoInfo?.cliente ?? 'o cliente selecionado'}</strong>
+                    </span>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={duplicarOrcamentoCarregado}
+                        disabled={!orcamentoCarregadoRegistro?.snapshot}
+                        title={
+                          orcamentoCarregadoRegistro?.snapshot
+                            ? undefined
+                            : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
+                        }
+                      >
+                        Duplicar
                       </button>
-                    </div>
                   </div>
-                  <p className="loaded-budget-subtitle">
-                    Os campos da proposta estão bloqueados para edição enquanto esta visualização estiver ativa.
-                  </p>
+                </div>
+                <p className="loaded-budget-subtitle">
+                  Os campos da proposta estão bloqueados. Use “Duplicar” para gerar uma cópia editável com um novo código.
+                </p>
                   <div className="loaded-budget-body">
                     <React.Suspense fallback={<p className="budget-search-empty">Carregando orçamento selecionado…</p>}>
                       <div className="loaded-budget-content">
@@ -13084,7 +13618,21 @@ export default function App() {
                       Recalcular
                     </button>
                   ) : null}
-                  {podeSalvarProposta ? (
+                  {orcamentoCarregado ? (
+                    <button
+                      type="button"
+                      className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
+                      onClick={duplicarOrcamentoCarregado}
+                      disabled={!orcamentoCarregadoRegistro?.snapshot}
+                      title={
+                        orcamentoCarregadoRegistro?.snapshot
+                          ? undefined
+                          : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
+                      }
+                    >
+                      Duplicar
+                    </button>
+                  ) : podeSalvarProposta ? (
                     <button
                       type="button"
                       className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
