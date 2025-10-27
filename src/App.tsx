@@ -9757,13 +9757,47 @@ export default function App() {
     const nomeCompleto = cliente.nome?.trim() ?? ''
     const cpfCnpj = cliente.documento?.trim() ?? ''
     const unidadeConsumidora = cliente.uc?.trim() ?? ''
-
-    const enderecoPartes: string[] = []
+    const cep = cliente.cep?.trim() ?? ''
     const enderecoPrincipal = cliente.endereco?.trim() ?? ''
     const cidade = cliente.cidade?.trim() ?? ''
-    const uf = cliente.uf?.trim() ?? ''
-    const cep = cliente.cep?.trim() ?? ''
+    const uf = cliente.uf?.trim().toUpperCase() ?? ''
+    const distribuidora = cliente.distribuidora?.trim() ?? ''
+    const temIndicacao = Boolean(cliente.temIndicacao)
+    const indicacaoNome = cliente.indicacaoNome?.trim() ?? ''
 
+    const cpfDigits = normalizeNumbers(cpfCnpj)
+    const cepDigits = normalizeNumbers(cep)
+    const ucDigits = normalizeNumbers(unidadeConsumidora)
+
+    const pendencias: string[] = []
+    if (!nomeCompleto) pendencias.push('nome ou razão social')
+    if (!cpfDigits || (cpfDigits.length !== 11 && cpfDigits.length !== 14)) {
+      pendencias.push('CPF ou CNPJ completo')
+    }
+    if (!cepDigits || cepDigits.length !== 8) {
+      pendencias.push('CEP com 8 dígitos')
+    }
+    if (!enderecoPrincipal) pendencias.push('endereço de instalação')
+    if (!cidade) pendencias.push('cidade')
+    if (!uf) pendencias.push('estado (UF)')
+    if (!distribuidora) pendencias.push('distribuidora (ANEEL)')
+    if (!ucDigits) pendencias.push('código da unidade consumidora (UC)')
+    if (temIndicacao && !indicacaoNome) {
+      pendencias.push('nome de quem indicou')
+    }
+
+    if (pendencias.length > 0) {
+      const ultima = pendencias[pendencias.length - 1]
+      const prefixo = pendencias.slice(0, -1)
+      const campos = prefixo.length > 0 ? `${prefixo.join(', ')} e ${ultima}` : ultima
+      adicionarNotificacao(
+        `Preencha os campos obrigatórios do cliente antes de gerar contratos: ${campos}.`,
+        'error',
+      )
+      return null
+    }
+
+    const enderecoPartes: string[] = []
     if (enderecoPrincipal) {
       enderecoPartes.push(enderecoPrincipal)
     }
@@ -9779,28 +9813,17 @@ export default function App() {
 
     const enderecoCompleto = enderecoPartes.join(', ')
 
-    const pendencias: string[] = []
-    if (!nomeCompleto) pendencias.push('nome completo')
-    if (!cpfCnpj) pendencias.push('CPF ou CNPJ')
-    if (!enderecoCompleto) pendencias.push('endereço completo')
-    if (!unidadeConsumidora) pendencias.push('unidade consumidora (UC)')
-
-    if (pendencias.length > 0) {
-      const ultima = pendencias[pendencias.length - 1]
-      const prefixo = pendencias.slice(0, -1)
-      const campos = prefixo.length > 0 ? `${prefixo.join(', ')} e ${ultima}` : ultima
-      adicionarNotificacao(`Preencha ${campos} para gerar o contrato.`, 'error')
-      return null
-    }
-
     return { nomeCompleto, cpfCnpj, enderecoCompleto, unidadeConsumidora }
   }, [
     adicionarNotificacao,
     cliente.cidade,
     cliente.cep,
+    cliente.distribuidora,
     cliente.documento,
     cliente.endereco,
+    cliente.indicacaoNome,
     cliente.nome,
+    cliente.temIndicacao,
     cliente.uc,
     cliente.uf,
   ])
