@@ -15197,7 +15197,10 @@ export default function App() {
 
       {isBudgetSearchOpen ? (
         <div className="modal" role="dialog" aria-modal="true" aria-labelledby="budget-search-title">
-          <div className="modal-backdrop" onClick={fecharPesquisaOrcamentos} />
+          <div
+            className="modal-backdrop modal-backdrop--opaque"
+            onClick={fecharPesquisaOrcamentos}
+          />
           <div className="modal-content">
             <div className="modal-header">
               <h3 id="budget-search-title">Pesquisar orçamentos</h3>

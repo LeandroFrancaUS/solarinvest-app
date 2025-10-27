@@ -3329,6 +3329,10 @@ table tbody tr:hover {
   background: transparent;
 }
 
+.modal-backdrop--opaque {
+  background: rgba(255, 255, 255, 0.96);
+}
+
 .modal-content {
   position: relative;
   z-index: 1110;
