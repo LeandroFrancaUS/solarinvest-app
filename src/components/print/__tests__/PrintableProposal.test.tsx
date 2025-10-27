@@ -44,6 +44,7 @@ const createPrintableProps = (
     uf: 'PR',
     temIndicacao: false,
     indicacaoNome: '',
+    herdeiros: [''],
   },
   budgetId: 'ORC123',
   anos: anosBase,

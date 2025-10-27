@@ -783,6 +783,7 @@ const CLIENTE_INICIAL: ClienteDados = {
   uf: 'GO',
   temIndicacao: false,
   indicacaoNome: '',
+  herdeiros: [''],
 }
 
 const generateBudgetId = (
@@ -906,7 +907,12 @@ const stableStringify = (value: unknown): string => {
 const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalProps => {
   const clone: PrintableProposalProps = {
     ...dados,
-    cliente: { ...dados.cliente },
+    cliente: {
+      ...dados.cliente,
+      herdeiros: Array.isArray(dados.cliente.herdeiros)
+        ? [...dados.cliente.herdeiros]
+        : [''],
+    },
     anos: [...dados.anos],
     leasingROI: [...dados.leasingROI],
     financiamentoFluxo: [...dados.financiamentoFluxo],
@@ -1069,7 +1075,39 @@ const createBudgetFingerprint = (dados: PrintableProposalProps): string => {
   return stableStringify(clone)
 }
 
-const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({ ...dados })
+const ensureClienteHerdeiros = (valor: unknown): string[] => {
+  if (Array.isArray(valor)) {
+    if (valor.length === 0) {
+      return ['']
+    }
+
+    return valor.map((item) => (typeof item === 'string' ? item : ''))
+  }
+
+  return ['']
+}
+
+const normalizeClienteHerdeiros = (valor: unknown): string[] => {
+  if (Array.isArray(valor)) {
+    const normalizados = valor.map((item) =>
+      typeof item === 'string' ? item.trim() : '',
+    )
+
+    return normalizados.length > 0 ? normalizados : ['']
+  }
+
+  if (typeof valor === 'string') {
+    const trimmed = valor.trim()
+    return trimmed ? [trimmed] : ['']
+  }
+
+  return ['']
+}
+
+const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({
+  ...dados,
+  herdeiros: ensureClienteHerdeiros(dados.herdeiros),
+})
 
 const normalizeClienteIdCandidate = (valor: string | undefined | null) =>
   (valor ?? '')
@@ -2928,13 +2966,15 @@ export default function App() {
     }
   }, [orcamentoCarregado])
 
-  const [cliente, setCliente] = useState<ClienteDados>({ ...CLIENTE_INICIAL })
+  const [cliente, setCliente] = useState<ClienteDados>(() => cloneClienteDados(CLIENTE_INICIAL))
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const [isClientesModalOpen, setIsClientesModalOpen] = useState(false)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const clienteIndicacaoCheckboxId = useId()
   const clienteIndicacaoNomeId = useId()
+  const clienteHerdeirosContentId = useId()
+  const [clienteHerdeirosExpandidos, setClienteHerdeirosExpandidos] = useState(false)
 
   useEffect(() => {
     vendaActions.updateCliente({
@@ -2949,8 +2989,21 @@ export default function App() {
       distribuidora: cliente.distribuidora ?? '',
       temIndicacao: cliente.temIndicacao ?? false,
       indicacaoNome: cliente.indicacaoNome ?? '',
+      herdeiros: Array.isArray(cliente.herdeiros)
+        ? [...cliente.herdeiros]
+        : [''],
     })
   }, [cliente])
+  useEffect(() => {
+    if (clienteHerdeirosExpandidos) {
+      return
+    }
+
+    const lista = Array.isArray(cliente.herdeiros) ? cliente.herdeiros : []
+    if (lista.some((nome) => typeof nome === 'string' && nome.trim().length > 0)) {
+      setClienteHerdeirosExpandidos(true)
+    }
+  }, [cliente.herdeiros, clienteHerdeirosExpandidos])
   const [verificandoCidade, setVerificandoCidade] = useState(false)
   const [buscandoCep, setBuscandoCep] = useState(false)
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
@@ -6545,7 +6598,7 @@ export default function App() {
     id: registro.id,
     criadoEm: registro.criadoEm,
     atualizadoEm: registro.atualizadoEm,
-    dados: { ...registro.dados },
+    dados: cloneClienteDados(registro.dados),
   })
 
   const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
@@ -6589,6 +6642,10 @@ export default function App() {
         const indicacaoNomeNormalizado =
           typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
 
+        const herdeirosNormalizados = normalizeClienteHerdeiros(
+          (dados as { herdeiros?: unknown }).herdeiros,
+        )
+
         const normalizado: ClienteRegistro = {
           id: idNormalizado,
           criadoEm: registro.criadoEm ?? agora,
@@ -6606,6 +6663,7 @@ export default function App() {
             uf: dados?.uf ?? '',
             temIndicacao: temIndicacaoNormalizado,
             indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
+            herdeiros: herdeirosNormalizados,
           },
         }
         return normalizado
@@ -8746,6 +8804,9 @@ export default function App() {
     }
 
     const dadosClonados = cloneClienteDados(cliente)
+    dadosClonados.herdeiros = ensureClienteHerdeiros(dadosClonados.herdeiros).map((item) =>
+      typeof item === 'string' ? item.trim() : '',
+    )
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
@@ -8937,7 +8998,7 @@ export default function App() {
       }
 
       if (removeuEdicaoAtual) {
-        setCliente({ ...CLIENTE_INICIAL })
+        setCliente(cloneClienteDados(CLIENTE_INICIAL))
         setClienteMensagens({})
         setClienteEmEdicaoId(null)
       }
@@ -9016,6 +9077,10 @@ export default function App() {
         const indicacaoNomeNormalizado =
           typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
 
+        const herdeirosNormalizados = normalizeClienteHerdeiros(
+          (clienteDados as { herdeiros?: unknown }).herdeiros,
+        )
+
         const clienteNormalizado: ClienteDados = {
           nome: clienteDados.nome ?? '',
           documento: clienteDados.documento ?? '',
@@ -9029,6 +9094,7 @@ export default function App() {
           uf: clienteDados.uf ?? '',
           temIndicacao: temIndicacaoNormalizado,
           indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
+          herdeiros: herdeirosNormalizados,
         }
 
         const dadosNormalizados: PrintableProposalProps = {
@@ -10487,7 +10553,7 @@ export default function App() {
     setDuracaoMeses(INITIAL_VALUES.duracaoMeses)
     setPagosAcumAteM(INITIAL_VALUES.pagosAcumManual)
 
-    setCliente({ ...CLIENTE_INICIAL })
+    setCliente(cloneClienteDados(CLIENTE_INICIAL))
     setClienteMensagens({})
     setClienteEmEdicaoId(null)
     setIsClientesModalOpen(false)
@@ -10613,6 +10679,50 @@ export default function App() {
       }))
     }
   }
+
+  const handleHerdeiroChange = useCallback((index: number, value: string) => {
+    setCliente((prev) => {
+      const atual = ensureClienteHerdeiros(prev.herdeiros)
+      if (index < 0 || index >= atual.length) {
+        return prev
+      }
+
+      if (atual[index] === value) {
+        return prev
+      }
+
+      const proximo = [...atual]
+      proximo[index] = value
+      return { ...prev, herdeiros: proximo }
+    })
+  }, [])
+
+  const handleAdicionarHerdeiro = useCallback(() => {
+    setCliente((prev) => {
+      const atual = ensureClienteHerdeiros(prev.herdeiros)
+      return { ...prev, herdeiros: [...atual, ''] }
+    })
+    setClienteHerdeirosExpandidos(true)
+  }, [])
+
+  const handleRemoverHerdeiro = useCallback((index: number) => {
+    setCliente((prev) => {
+      const atual = ensureClienteHerdeiros(prev.herdeiros)
+      if (index < 0 || index >= atual.length) {
+        return prev
+      }
+
+      if (atual.length === 1) {
+        if (atual[0] === '') {
+          return prev
+        }
+        return { ...prev, herdeiros: [''] }
+      }
+
+      const proximo = atual.filter((_, idx) => idx !== index)
+      return { ...prev, herdeiros: proximo.length > 0 ? proximo : [''] }
+    })
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -10927,13 +11037,24 @@ export default function App() {
     return normalizeProposalId(printableData.budgetId) || null
   }, [printableData.budgetId])
 
-  const renderClienteDadosSection = () => (
-    <section className="card">
-      <div className="card-header">
-        <h2>Dados do cliente</h2>
-        {budgetCodeDisplay ? (
-          <div
-            className="budget-code-badge"
+  const renderClienteDadosSection = () => {
+    const herdeirosPreenchidos = cliente.herdeiros.filter((nome) => nome.trim().length > 0)
+    const herdeirosResumo =
+      herdeirosPreenchidos.length === 0
+        ? 'Nenhum herdeiro cadastrado'
+        : `${herdeirosPreenchidos.length} ${
+            herdeirosPreenchidos.length === 1
+              ? 'herdeiro cadastrado'
+              : 'herdeiros cadastrados'
+          }`
+
+    return (
+      <section className="card">
+        <div className="card-header">
+          <h2>Dados do cliente</h2>
+          {budgetCodeDisplay ? (
+            <div
+              className="budget-code-badge"
             role="status"
             aria-live="polite"
             aria-label="Código do orçamento salvo"
@@ -11114,6 +11235,66 @@ export default function App() {
             ) : null}
           </div>
         </Field>
+        <Field
+          label={labelWithTooltip(
+            'Herdeiros (opcional)',
+            'Registre os herdeiros do cliente e utilize as tags {{herdeiro#1}}, {{herdeiro#2}} e assim por diante em modelos e textos.',
+          )}
+          hint="As tags seguem o formato {{herdeiro#n}} conforme a ordem dos campos."
+        >
+          <div className="cliente-herdeiros-group">
+            <button
+              type="button"
+              className="cliente-herdeiros-toggle"
+              onClick={() => setClienteHerdeirosExpandidos((prev) => !prev)}
+              aria-expanded={clienteHerdeirosExpandidos}
+              aria-controls={clienteHerdeirosContentId}
+            >
+              {clienteHerdeirosExpandidos ? 'Ocultar herdeiros' : 'Gerenciar herdeiros'}
+            </button>
+            <small className="cliente-herdeiros-summary">{herdeirosResumo}</small>
+            {clienteHerdeirosExpandidos ? (
+              <div
+                className="cliente-herdeiros-content"
+                id={clienteHerdeirosContentId}
+                aria-hidden={false}
+              >
+                {cliente.herdeiros.map((herdeiro, index) => (
+                  <div className="cliente-herdeiro-row" key={`cliente-herdeiro-${index}`}>
+                    <input
+                      value={herdeiro}
+                      onChange={(event) => handleHerdeiroChange(index, event.target.value)}
+                      placeholder={`Nome do herdeiro ${index + 1}`}
+                      aria-label={`Nome do herdeiro ${index + 1}`}
+                    />
+                    <span className="cliente-herdeiro-tag" aria-hidden="true">
+                      {`{{herdeiro#${index + 1}}}`}
+                    </span>
+                    {cliente.herdeiros.length > 1 ? (
+                      <button
+                        type="button"
+                        className="ghost cliente-herdeiro-remove"
+                        onClick={() => handleRemoverHerdeiro(index)}
+                        aria-label={`Remover herdeiro ${index + 1}`}
+                      >
+                        Remover
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+                <div className="cliente-herdeiros-actions">
+                  <button
+                    type="button"
+                    className="ghost cliente-herdeiro-add"
+                    onClick={handleAdicionarHerdeiro}
+                  >
+                    Adicionar herdeiro
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </Field>
       </div>
       <div className="card-actions">
         <button type="button" className="primary" onClick={handleSalvarCliente}>
@@ -11128,8 +11309,9 @@ export default function App() {
           Sincronização automática com o OneDrive indisponível. Configure a integração para habilitar o envio.
         </p>
       ) : null}
-    </section>
-  )
+      </section>
+    )
+  }
 
   function renderTusdParametersSection() {
     const tusdPercentLabel = formatNumberBRWithOptions(tusdPercent, {

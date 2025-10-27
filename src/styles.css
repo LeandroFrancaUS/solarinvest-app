@@ -655,6 +655,100 @@ button.secondary.danger:focus-visible {
   line-height: 1.4;
 }
 
+.cliente-herdeiros-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cliente-herdeiros-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--ghost-bg);
+  color: var(--text-base);
+  font-weight: 600;
+  font-size: var(--font-s);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.cliente-herdeiros-toggle:hover,
+.cliente-herdeiros-toggle:focus-visible {
+  background: var(--ghost-bg-hover);
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
+}
+
+.cliente-herdeiros-toggle:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.cliente-herdeiros-toggle[aria-expanded='true'] {
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
+}
+
+.cliente-herdeiros-summary {
+  color: var(--muted);
+  font-size: var(--font-s);
+}
+
+.cliente-herdeiros-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: calc(var(--radius) / 2);
+  border: 1px dashed var(--border-strong);
+  background: var(--surface);
+}
+
+.cliente-herdeiro-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.cliente-herdeiro-row input {
+  flex: 1 1 220px;
+}
+
+.cliente-herdeiro-tag {
+  flex: 0 0 auto;
+  font-family: 'Fira Code', 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--ghost-bg);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.cliente-herdeiro-remove,
+.cliente-herdeiro-add {
+  flex: 0 0 auto;
+  font-size: var(--font-s);
+  white-space: nowrap;
+}
+
+.cliente-herdeiro-remove {
+  margin-left: auto;
+}
+
+.cliente-herdeiros-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-1);
+}
+
 .field-label,
 .field > label {
   display: inline-flex;

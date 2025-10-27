@@ -21,6 +21,7 @@ export type ClienteRegistroSyncPayload = {
     uf: string
     temIndicacao: boolean
     indicacaoNome: string
+    herdeiros: string[]
   }
 }
 

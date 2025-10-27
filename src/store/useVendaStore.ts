@@ -17,6 +17,7 @@ export type VendaClienteInfo = {
   distribuidora: string
   temIndicacao: boolean
   indicacaoNome: string
+  herdeiros: string[]
 }
 
 export type VendaParametrosPrincipais = {
@@ -126,6 +127,7 @@ const createInitialState = (): VendaState => ({
     distribuidora: '',
     temIndicacao: false,
     indicacaoNome: '',
+    herdeiros: [''],
   },
   parametros: {
     consumo_kwh_mes: 0,
@@ -262,7 +264,11 @@ export function useVendaStore<T>(selector: (state: VendaState) => T): T {
 export const vendaActions = {
   updateCliente(partial: Partial<VendaClienteInfo>) {
     setState((draft) => {
-      draft.cliente = { ...draft.cliente, ...partial }
+      draft.cliente = {
+        ...draft.cliente,
+        ...partial,
+        ...(partial.herdeiros ? { herdeiros: [...partial.herdeiros] } : {}),
+      }
     })
   },
   updateParametros(partial: Partial<VendaParametrosPrincipais>) {
