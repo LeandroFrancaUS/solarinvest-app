@@ -9960,32 +9960,13 @@ export default function App() {
     }
 
     let sucesso = 0
-    const popupWarnings = { mostrado: false }
-
     const templatesSelecionados = selectedContractTemplates.map((template) => {
       const templateLabel = (template.split(/[\\/]/).pop() ?? template).replace(/\.docx$/i, '')
-      const janela = window.open('', '_blank', 'noopener')
-      if (janela && !janela.closed) {
-        try {
-          janela.document.title = `Gerando contrato – ${templateLabel}`
-          janela.document.body.innerHTML = `<p style="font-family: sans-serif;">Gerando contrato "${templateLabel}"…</p>`
-        } catch (error) {
-          console.warn('Não foi possível preparar a janela do contrato.', error)
-        }
-      }
-      return { template, templateLabel, janela }
+      return { template, templateLabel }
     })
 
-    const notificarPopupBloqueado = () => {
-      if (popupWarnings.mostrado) {
-        return
-      }
-      popupWarnings.mostrado = true
-      adicionarNotificacao('Não foi possível abrir nova aba para o contrato. Verifique o bloqueio de pop-ups.', 'warning')
-    }
-
     try {
-      for (const { template, templateLabel, janela } of templatesSelecionados) {
+      for (const { template, templateLabel } of templatesSelecionados) {
         try {
           const response = await fetch('/api/contracts/render', {
             method: 'POST',
@@ -10004,21 +9985,14 @@ export default function App() {
           const blob = await response.blob()
           const url = window.URL.createObjectURL(blob)
 
-          const destino = janela && !janela.closed ? janela : window.open('', '_blank', 'noopener')
-          if (destino && !destino.closed) {
-            destino.location.href = url
-          } else {
-            notificarPopupBloqueado()
-
-            const anchor = document.createElement('a')
-            anchor.href = url
-            anchor.target = '_blank'
-            anchor.rel = 'noopener'
-            anchor.style.display = 'none'
-            document.body.appendChild(anchor)
-            anchor.click()
-            document.body.removeChild(anchor)
-          }
+          const anchor = document.createElement('a')
+          anchor.href = url
+          anchor.download = `${templateLabel || 'contrato'}.docx`
+          anchor.rel = 'noopener'
+          anchor.style.display = 'none'
+          document.body.appendChild(anchor)
+          anchor.click()
+          document.body.removeChild(anchor)
 
           window.setTimeout(() => {
             window.URL.revokeObjectURL(url)
@@ -10026,17 +10000,6 @@ export default function App() {
 
           sucesso += 1
         } catch (error) {
-          if (janela && !janela.closed) {
-            try {
-              janela.document.body.innerHTML = `<p style="font-family: sans-serif; color: #c00;">${
-                error instanceof Error && error.message
-                  ? error.message
-                  : 'Não foi possível gerar o contrato. Feche esta aba e tente novamente.'
-              }</p>`
-            } catch (janelaError) {
-              console.warn('Não foi possível exibir mensagem de erro na janela do contrato.', janelaError)
-            }
-          }
           throw error
         }
       }
