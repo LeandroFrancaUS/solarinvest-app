@@ -225,7 +225,9 @@ body {
   gap: var(--space-3);
   padding: var(--space-2) calc(var(--space-3) + 6px);
   border-radius: 999px;
-  background: var(--accent-soft);
+  background: var(--surface);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--surface));
   box-shadow: 0 16px 32px color-mix(in srgb, var(--accent) 24%, transparent);
   margin: var(--space-3) 0 var(--space-4) auto;
   z-index: 5;
