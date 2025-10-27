@@ -10182,6 +10182,7 @@ export default function App() {
             document.body.removeChild(anchor)
           } else {
             atualizarJanelaMensagem(`Contrato "${templateLabel}" gerado. Preparando próxima visualização…`)
+            renderizarPreviewNaJanela(contratosGerados)
           }
 
           window.setTimeout(() => {
@@ -10197,13 +10198,12 @@ export default function App() {
                 : 'Não foi possível gerar o contrato. Feche esta aba e tente novamente.',
               true,
             )
+            if (contratosGerados.length > 0) {
+              renderizarPreviewNaJanela(contratosGerados)
+            }
           }
           throw error
         }
-      }
-
-      if (contratosGerados.length > 0 && janelaPreview && !janelaPreview.closed) {
-        renderizarPreviewNaJanela(contratosGerados)
       }
 
       if (sucesso > 0) {
