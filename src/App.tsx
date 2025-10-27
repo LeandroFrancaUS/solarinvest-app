@@ -102,6 +102,7 @@ import {
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
 import './styles/config-page.css'
+import './styles/toast.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { Providers } from './app/Providers'
