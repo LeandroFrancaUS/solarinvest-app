@@ -9961,20 +9961,45 @@ export default function App() {
 
     let sucesso = 0
     const popupWarnings = { mostrado: false }
+    let janelaPreview: Window | null = null
 
-    const templatesSelecionados = selectedContractTemplates.map((template) => {
-      const templateLabel = (template.split(/[\\/]/).pop() ?? template).replace(/\.docx$/i, '')
-      const janela = window.open('', '_blank', 'noopener')
-      if (janela && !janela.closed) {
-        try {
-          janela.document.title = `Gerando contrato – ${templateLabel}`
-          janela.document.body.innerHTML = `<p style="font-family: sans-serif;">Gerando contrato "${templateLabel}"…</p>`
-        } catch (error) {
-          console.warn('Não foi possível preparar a janela do contrato.', error)
-        }
+    const atualizarJanelaMensagem = (mensagem: string, isError = false) => {
+      if (!janelaPreview || janelaPreview.closed) {
+        return
       }
-      return { template, templateLabel, janela }
-    })
+
+      try {
+        const doc = janelaPreview.document
+        doc.title = 'Gerando contratos'
+        doc.body.innerHTML = ''
+
+        const paragrafo = doc.createElement('p')
+        paragrafo.textContent = mensagem
+        paragrafo.style.fontFamily = 'sans-serif'
+        if (isError) {
+          paragrafo.style.color = '#c00'
+        }
+
+        doc.body.appendChild(paragrafo)
+      } catch (error) {
+        console.warn('Não foi possível atualizar a janela do contrato.', error)
+      }
+    }
+
+    const garantirJanelaPreview = () => {
+      if (janelaPreview && !janelaPreview.closed) {
+        return janelaPreview
+      }
+
+      janelaPreview = window.open('', '_blank', 'noopener')
+      if (janelaPreview && !janelaPreview.closed) {
+        atualizarJanelaMensagem('Gerando contratos…')
+        return janelaPreview
+      }
+
+      janelaPreview = null
+      return null
+    }
 
     const notificarPopupBloqueado = () => {
       if (popupWarnings.mostrado) {
@@ -9984,8 +10009,148 @@ export default function App() {
       adicionarNotificacao('Não foi possível abrir nova aba para o contrato. Verifique o bloqueio de pop-ups.', 'warning')
     }
 
+    const renderizarPreviewNaJanela = (contratos: Array<{ templateLabel: string; url: string }>) => {
+      if (!janelaPreview || janelaPreview.closed) {
+        return
+      }
+
+      try {
+        const doc = janelaPreview.document
+        const data = JSON.stringify(
+          contratos.map((item) => ({ label: item.templateLabel, url: item.url })),
+        )
+
+        doc.open()
+        doc.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Contratos gerados</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: sans-serif;
+        background: #f6f6f6;
+        color: #111;
+      }
+      .contract-preview {
+        display: flex;
+        height: 100vh;
+        width: 100vw;
+      }
+      .contract-preview__sidebar {
+        width: 280px;
+        background: #ffffff;
+        border-right: 1px solid #e0e0e0;
+        padding: 16px;
+        box-sizing: border-box;
+        overflow-y: auto;
+      }
+      .contract-preview__title {
+        font-size: 18px;
+        margin: 0 0 12px;
+      }
+      .contract-preview__list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .contract-preview__item {
+        appearance: none;
+        border: 1px solid #d0d0d0;
+        background: #ffffff;
+        border-radius: 6px;
+        padding: 10px 12px;
+        text-align: left;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s, border-color 0.2s;
+      }
+      .contract-preview__item:hover {
+        background: #f0f7ff;
+        border-color: #7aa7ff;
+      }
+      .contract-preview__item--active {
+        background: #e6f0ff;
+        border-color: #3273dc;
+      }
+      .contract-preview__content {
+        flex: 1;
+        display: flex;
+        background: #d5d5d5;
+      }
+      .contract-preview__frame {
+        border: 0;
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="contract-preview">
+      <aside class="contract-preview__sidebar">
+        <h1 class="contract-preview__title">Contratos gerados</h1>
+        <div class="contract-preview__list"></div>
+      </aside>
+      <section class="contract-preview__content">
+        <iframe
+          id="contract-preview__frame"
+          class="contract-preview__frame"
+          title="Pré-visualização do contrato"
+        ></iframe>
+      </section>
+    </main>
+    <script>
+      (function () {
+        const data = ${data};
+        const list = document.querySelector('.contract-preview__list');
+        const frame = document.getElementById('contract-preview__frame');
+        if (!list || !frame || !Array.isArray(data)) {
+          return;
+        }
+
+        const setActive = (button) => {
+          document
+            .querySelectorAll('.contract-preview__item--active')
+            .forEach((element) => element.classList.remove('contract-preview__item--active'));
+          if (button) {
+            button.classList.add('contract-preview__item--active');
+          }
+        };
+
+        data.forEach((item, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'contract-preview__item';
+          button.textContent = item.label;
+          button.addEventListener('click', () => {
+            frame.src = item.url;
+            setActive(button);
+          });
+          list.appendChild(button);
+          if (index === 0) {
+            button.click();
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>`)
+        doc.close()
+      } catch (error) {
+        console.warn('Não foi possível exibir a pré-visualização dos contratos.', error)
+      }
+    }
+
+    const contratosGerados: Array<{ templateLabel: string; url: string }> = []
+
     try {
-      for (const { template, templateLabel, janela } of templatesSelecionados) {
+      const janelaInicial = garantirJanelaPreview()
+      if (!janelaInicial) {
+        notificarPopupBloqueado()
+      }
+
+      for (const template of selectedContractTemplates) {
+        const templateLabel = (template.split(/[\\/]/).pop() ?? template).replace(/\.docx$/i, '')
         try {
           const response = await fetch('/api/contracts/render', {
             method: 'POST',
@@ -10004,12 +10169,9 @@ export default function App() {
           const blob = await response.blob()
           const url = window.URL.createObjectURL(blob)
 
-          const destino = janela && !janela.closed ? janela : window.open('', '_blank', 'noopener')
-          if (destino && !destino.closed) {
-            destino.location.href = url
-          } else {
-            notificarPopupBloqueado()
+          contratosGerados.push({ templateLabel, url })
 
+          if (!janelaPreview || janelaPreview.closed) {
             const anchor = document.createElement('a')
             anchor.href = url
             anchor.target = '_blank'
@@ -10018,27 +10180,30 @@ export default function App() {
             document.body.appendChild(anchor)
             anchor.click()
             document.body.removeChild(anchor)
+          } else {
+            atualizarJanelaMensagem(`Contrato "${templateLabel}" gerado. Preparando próxima visualização…`)
           }
 
           window.setTimeout(() => {
             window.URL.revokeObjectURL(url)
-          }, 60_000)
+          }, 10 * 60_000)
 
           sucesso += 1
         } catch (error) {
-          if (janela && !janela.closed) {
-            try {
-              janela.document.body.innerHTML = `<p style="font-family: sans-serif; color: #c00;">${
-                error instanceof Error && error.message
-                  ? error.message
-                  : 'Não foi possível gerar o contrato. Feche esta aba e tente novamente.'
-              }</p>`
-            } catch (janelaError) {
-              console.warn('Não foi possível exibir mensagem de erro na janela do contrato.', janelaError)
-            }
+          if (janelaPreview && !janelaPreview.closed) {
+            atualizarJanelaMensagem(
+              error instanceof Error && error.message
+                ? error.message
+                : 'Não foi possível gerar o contrato. Feche esta aba e tente novamente.',
+              true,
+            )
           }
           throw error
         }
+      }
+
+      if (contratosGerados.length > 0 && janelaPreview && !janelaPreview.closed) {
+        renderizarPreviewNaJanela(contratosGerados)
       }
 
       if (sucesso > 0) {
