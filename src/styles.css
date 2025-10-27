@@ -219,8 +219,8 @@ body {
 
 .page-actions {
   position: sticky;
-  top: calc(var(--header-h) + var(--tabs-h) + var(--space-2));
-  display: inline-flex;
+  top: calc(var(--header-h) + var(--tabs-h));
+  display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) calc(var(--space-3) + 6px);
@@ -229,16 +229,24 @@ body {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--surface));
   box-shadow: 0 16px 32px color-mix(in srgb, var(--accent) 24%, transparent);
-  margin: var(--space-3) 0 var(--space-4) auto;
+  margin: 0 0 var(--space-4) auto;
   z-index: 5;
   align-self: flex-end;
+  width: max-content;
+}
+
+.page-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-h);
 }
 
 @media (max-width: 768px) {
   .page-actions {
     position: sticky;
-    top: calc(var(--header-h) + var(--tabs-h) + var(--space-1));
-    margin: var(--space-2) auto var(--space-3);
+    top: calc(var(--header-h) + var(--tabs-h));
+    margin: 0 auto var(--space-3);
     width: 100%;
     justify-content: flex-end;
   }
