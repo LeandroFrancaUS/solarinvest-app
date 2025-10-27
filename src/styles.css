@@ -3303,12 +3303,15 @@ table tbody tr:hover {
 .contract-template-item label {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 8px;
   cursor: pointer;
 }
 
 .contract-template-item input[type='checkbox'] {
-  margin-top: 4px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin-top: 2px;
 }
 
 .contract-template-item strong {
