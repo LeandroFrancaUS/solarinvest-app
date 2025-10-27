@@ -22,6 +22,7 @@ const createPrintableProps = (overrides: Partial<PrintableProposalProps> = {}): 
     uf: 'PR',
     temIndicacao: false,
     indicacaoNome: '',
+    herdeiros: [''],
   },
   budgetId: 'ORC123',
   anos: Array.from({ length: 30 }, (_, index) => index + 1),

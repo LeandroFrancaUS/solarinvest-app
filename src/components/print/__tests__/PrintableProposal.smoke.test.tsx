@@ -20,6 +20,7 @@ const createProps = (): PrintableProposalProps => ({
     uf: 'PR',
     temIndicacao: false,
     indicacaoNome: '',
+    herdeiros: [''],
   },
   budgetId: 'ORC123',
   anos: [1, 2, 3],
