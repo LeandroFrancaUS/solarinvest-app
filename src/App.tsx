@@ -1110,6 +1110,74 @@ const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({
   herdeiros: ensureClienteHerdeiros(dados.herdeiros),
 })
 
+type NormalizeClienteRegistrosOptions = {
+  existingIds?: Set<string>
+  agoraIso?: string
+}
+
+const normalizeClienteRegistros = (
+  items: unknown[],
+  options: NormalizeClienteRegistrosOptions = {},
+): { registros: ClienteRegistro[]; houveAtualizacaoIds: boolean } => {
+  const agora = options.agoraIso ?? new Date().toISOString()
+  const baseExistingIds = options.existingIds ? Array.from(options.existingIds) : []
+  const existingIds = new Set<string>(baseExistingIds)
+  let houveAtualizacaoIds = false
+
+  const normalizados = items.map((item) => {
+    const registro = item as Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> }
+    const dados = registro.dados ?? (registro as unknown as { cliente?: Partial<ClienteDados> }).cliente ?? {}
+    const rawId = (registro.id ?? '').toString()
+    const sanitizedCandidate = normalizeClienteIdCandidate(rawId)
+    const idNormalizado = ensureClienteId(rawId, existingIds)
+    if (idNormalizado !== sanitizedCandidate || rawId.trim() !== idNormalizado) {
+      houveAtualizacaoIds = true
+    }
+
+    const temIndicacaoRaw = (dados as { temIndicacao?: unknown }).temIndicacao
+    const indicacaoNomeRaw = (dados as { indicacaoNome?: unknown }).indicacaoNome
+    const temIndicacaoNormalizado =
+      typeof temIndicacaoRaw === 'boolean'
+        ? temIndicacaoRaw
+        : typeof temIndicacaoRaw === 'string'
+        ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
+        : false
+    const indicacaoNomeNormalizado =
+      typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
+
+    const herdeirosNormalizados = normalizeClienteHerdeiros(
+      (dados as { herdeiros?: unknown }).herdeiros,
+    )
+
+    const normalizado: ClienteRegistro = {
+      id: idNormalizado,
+      criadoEm: registro.criadoEm ?? agora,
+      atualizadoEm: registro.atualizadoEm ?? registro.criadoEm ?? agora,
+      dados: {
+        nome: dados?.nome ?? '',
+        documento: dados?.documento ?? '',
+        email: dados?.email ?? '',
+        telefone: dados?.telefone ?? '',
+        cep: dados?.cep ?? '',
+        distribuidora: dados?.distribuidora ?? '',
+        uc: dados?.uc ?? '',
+        endereco: dados?.endereco ?? '',
+        cidade: dados?.cidade ?? '',
+        uf: dados?.uf ?? '',
+        temIndicacao: temIndicacaoNormalizado,
+        indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
+        herdeiros: herdeirosNormalizados,
+      },
+    }
+
+    return normalizado
+  })
+
+  const ordenados = normalizados.sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+
+  return { registros: ordenados, houveAtualizacaoIds }
+}
+
 const normalizeClienteIdCandidate = (valor: string | undefined | null) =>
   (valor ?? '')
     .toString()
@@ -1507,6 +1575,9 @@ type ClientesModalProps = {
   onClose: () => void
   onEditar: (registro: ClienteRegistro) => void
   onExcluir: (registro: ClienteRegistro) => void
+  onExportar: () => void
+  onImportar: () => void
+  isImportando: boolean
 }
 
 type ClienteContratoPayload = {
@@ -1530,7 +1601,15 @@ type ContractTemplatesModalProps = {
   onClose: () => void
 }
 
-function ClientesModal({ registros, onClose, onEditar, onExcluir }: ClientesModalProps) {
+function ClientesModal({
+  registros,
+  onClose,
+  onEditar,
+  onExcluir,
+  onExportar,
+  onImportar,
+  isImportando,
+}: ClientesModalProps) {
   const modalTitleId = useId()
 
   return (
@@ -1546,8 +1625,33 @@ function ClientesModal({ registros, onClose, onEditar, onExcluir }: ClientesModa
         <div className="modal-body">
           <section className="budget-search-panel clients-panel">
             <div className="budget-search-header">
-              <h4>Gestão de clientes</h4>
-              <p>Clientes armazenados localmente neste dispositivo.</p>
+              <div className="clients-panel-header">
+                <h4>Gestão de clientes</h4>
+                <p>Clientes armazenados localmente neste dispositivo.</p>
+              </div>
+              <div className="clients-panel-actions">
+                <button
+                  type="button"
+                  className="ghost with-icon"
+                  onClick={onExportar}
+                  disabled={registros.length === 0}
+                  title="Exportar clientes salvos para um arquivo"
+                >
+                  <span aria-hidden="true">⬇️</span>
+                  <span>Exportar</span>
+                </button>
+                <button
+                  type="button"
+                  className="ghost with-icon"
+                  onClick={onImportar}
+                  disabled={isImportando}
+                  aria-busy={isImportando}
+                  title="Importar clientes a partir de um arquivo"
+                >
+                  <span aria-hidden="true">⬆️</span>
+                  <span>{isImportando ? 'Importando…' : 'Importar'}</span>
+                </button>
+              </div>
             </div>
             {registros.length === 0 ? (
               <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
@@ -2976,6 +3080,8 @@ export default function App() {
   const clienteIndicacaoNomeId = useId()
   const clienteHerdeirosContentId = useId()
   const [clienteHerdeirosExpandidos, setClienteHerdeirosExpandidos] = useState(false)
+  const [isImportandoClientes, setIsImportandoClientes] = useState(false)
+  const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     vendaActions.updateCliente({
@@ -6618,69 +6724,17 @@ export default function App() {
         return []
       }
 
-      const agora = new Date().toISOString()
-      const existingIds = new Set<string>()
-      let houveAtualizacaoIds = false
-
-      const normalizados = parsed.map((item) => {
-        const registro = item as Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> }
-        const dados = registro.dados ?? (registro as unknown as { cliente?: Partial<ClienteDados> }).cliente ?? {}
-        const rawId = (registro.id ?? '').toString()
-        const sanitizedCandidate = normalizeClienteIdCandidate(rawId)
-        const idNormalizado = ensureClienteId(rawId, existingIds)
-        if (idNormalizado !== sanitizedCandidate || rawId.trim() !== idNormalizado) {
-          houveAtualizacaoIds = true
-        }
-
-        const temIndicacaoRaw = (dados as { temIndicacao?: unknown }).temIndicacao
-        const indicacaoNomeRaw = (dados as { indicacaoNome?: unknown }).indicacaoNome
-        const temIndicacaoNormalizado =
-          typeof temIndicacaoRaw === 'boolean'
-            ? temIndicacaoRaw
-            : typeof temIndicacaoRaw === 'string'
-            ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
-            : false
-        const indicacaoNomeNormalizado =
-          typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
-
-        const herdeirosNormalizados = normalizeClienteHerdeiros(
-          (dados as { herdeiros?: unknown }).herdeiros,
-        )
-
-        const normalizado: ClienteRegistro = {
-          id: idNormalizado,
-          criadoEm: registro.criadoEm ?? agora,
-          atualizadoEm: registro.atualizadoEm ?? registro.criadoEm ?? agora,
-          dados: {
-            nome: dados?.nome ?? '',
-            documento: dados?.documento ?? '',
-            email: dados?.email ?? '',
-            telefone: dados?.telefone ?? '',
-            cep: dados?.cep ?? '',
-            distribuidora: dados?.distribuidora ?? '',
-            uc: dados?.uc ?? '',
-            endereco: dados?.endereco ?? '',
-            cidade: dados?.cidade ?? '',
-            uf: dados?.uf ?? '',
-            temIndicacao: temIndicacaoNormalizado,
-            indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
-            herdeiros: herdeirosNormalizados,
-          },
-        }
-        return normalizado
-      })
-
-      const ordenados = normalizados.sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+      const { registros, houveAtualizacaoIds } = normalizeClienteRegistros(parsed)
 
       if (houveAtualizacaoIds) {
         try {
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ordenados))
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
         } catch (error) {
           console.warn('Não foi possível atualizar os identificadores dos clientes salvos.', error)
         }
       }
 
-      return ordenados
+      return registros
     } catch (error) {
       console.warn('Não foi possível interpretar os clientes salvos existentes.', error)
       return []
@@ -8794,6 +8848,137 @@ export default function App() {
       </main>
     </div>
   )
+
+  const handleExportarClientes = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const registros = carregarClientesSalvos()
+    setClientesSalvos(registros)
+
+    if (registros.length === 0) {
+      window.alert('Nenhum cliente salvo para exportar.')
+      return
+    }
+
+    try {
+      const payload = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        clientes: registros.map((registro) => ({
+          ...registro,
+          dados: cloneClienteDados(registro.dados),
+        })),
+      }
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json',
+      })
+      const agora = new Date()
+      const pad = (value: number) => value.toString().padStart(2, '0')
+      const fileName = `solarinvest-clientes-${agora.getFullYear()}${pad(agora.getMonth() + 1)}${pad(
+        agora.getDate(),
+      )}-${pad(agora.getHours())}${pad(agora.getMinutes())}${pad(agora.getSeconds())}.json`
+
+      const link = window.document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.href = url
+      link.download = fileName
+      window.document.body.appendChild(link)
+      link.click()
+      window.document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      adicionarNotificacao('Arquivo de clientes exportado com sucesso.', 'success')
+    } catch (error) {
+      console.error('Erro ao exportar clientes salvos.', error)
+      window.alert('Não foi possível exportar os clientes. Tente novamente.')
+    }
+  }, [adicionarNotificacao, carregarClientesSalvos, setClientesSalvos])
+
+  const handleClientesImportarClick = useCallback(() => {
+    if (isImportandoClientes) {
+      return
+    }
+
+    const input = clientesImportInputRef.current
+    if (input) {
+      input.click()
+    }
+  }, [clientesImportInputRef, isImportandoClientes])
+
+  const handleClientesImportarArquivo = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const arquivo = event.target.files?.[0]
+      event.target.value = ''
+
+      if (!arquivo || typeof window === 'undefined') {
+        return
+      }
+
+      setIsImportandoClientes(true)
+
+      try {
+        const conteudo = await arquivo.text()
+        let parsed: unknown
+
+        try {
+          parsed = JSON.parse(conteudo)
+        } catch (error) {
+          throw new Error('invalid-json')
+        }
+
+        const lista = Array.isArray(parsed)
+          ? parsed
+          : parsed && typeof parsed === 'object' && Array.isArray((parsed as { clientes?: unknown }).clientes)
+          ? ((parsed as { clientes?: unknown }).clientes as unknown[])
+          : null
+
+        if (!lista || lista.length === 0) {
+          window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
+          return
+        }
+
+        const existentes = carregarClientesSalvos()
+        const existingIds = new Set(existentes.map((registro) => registro.id))
+        const { registros: importados } = normalizeClienteRegistros(lista, { existingIds })
+
+        if (importados.length === 0) {
+          window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
+          return
+        }
+
+        const combinados = [...importados, ...existentes].sort((a, b) =>
+          a.atualizadoEm < b.atualizadoEm ? 1 : -1,
+        )
+
+        try {
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+        } catch (error) {
+          console.error('Erro ao persistir clientes importados.', error)
+          window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
+          return
+        }
+
+        setClientesSalvos(combinados)
+        adicionarNotificacao('Clientes importados com sucesso.', 'success')
+      } catch (error) {
+        if ((error as Error).message === 'invalid-json') {
+          window.alert('O arquivo selecionado está em um formato inválido.')
+        } else {
+          console.error('Erro ao importar clientes salvos.', error)
+          window.alert('Não foi possível importar os clientes. Verifique o arquivo e tente novamente.')
+        }
+      } finally {
+        setIsImportandoClientes(false)
+      }
+    }, [
+      adicionarNotificacao,
+      carregarClientesSalvos,
+      setClientesSalvos,
+      setIsImportandoClientes,
+    ])
 
   const handleSalvarCliente = useCallback(async () => {
     if (typeof window === 'undefined') {
@@ -15178,8 +15363,19 @@ export default function App() {
           onClose={fecharClientesModal}
           onEditar={handleEditarCliente}
           onExcluir={handleExcluirCliente}
+          onExportar={handleExportarClientes}
+          onImportar={handleClientesImportarClick}
+          isImportando={isImportandoClientes}
         />
       ) : null}
+
+      <input
+        ref={clientesImportInputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: 'none' }}
+        onChange={handleClientesImportarArquivo}
+      />
 
       {isContractTemplatesModalOpen ? (
         <ContractTemplatesModal

@@ -361,6 +361,12 @@ button.ghost:active {
   box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+button.ghost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 button.icon {
   background: var(--surface);
   color: var(--accent-strong);
@@ -3612,6 +3618,23 @@ i:hover {
 .clients-panel p {
   margin: 0;
   color: var(--muted);
+  font-size: 14px;
+}
+
+.clients-panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.clients-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.clients-panel-actions button {
   font-size: 14px;
 }
 
