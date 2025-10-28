@@ -108,6 +108,7 @@ export const PAINEL_OPCOES = [450, 500, 550, 600, 605, 610, 650, 700]
 export const STORAGE_KEYS = {
   activePage: 'solarinvest-active-page',
   activeTab: 'solarinvest-active-tab',
+  proposalPdfReminderAt: 'solarinvest-proposal-pdf-reminder-at',
 }
 
 const COMPOSICAO_TELHADO_BASE: UfvComposicaoTelhadoValores = {
