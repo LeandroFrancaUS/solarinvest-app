@@ -1220,6 +1220,10 @@ const ensureClienteId = (candidate: string | undefined, existingIds: Set<string>
 const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset'
 const CRM_BACKEND_BASE_URL = 'https://crm.solarinvest.app'
 
+const PROPOSAL_PDF_REMINDER_INTERVAL_MS = 15 * 24 * 60 * 60 * 1000
+const PROPOSAL_PDF_REMINDER_MESSAGE =
+  'Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção “Imprimir” para gerar o PDF manualmente.'
+
 const CRM_PIPELINE_STAGES: CrmPipelineStage[] = [
   { id: 'novo-lead', label: 'Novo lead' },
   { id: 'qualificacao', label: 'Qualificação' },
@@ -6855,6 +6859,36 @@ export default function App() {
     },
     [removerNotificacao],
   )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const storageKey = STORAGE_KEYS.proposalPdfReminderAt
+
+    if (proposalPdfIntegrationAvailable) {
+      try {
+        window.localStorage.removeItem(storageKey)
+      } catch (error) {
+        console.warn('Não foi possível limpar o lembrete da integração de PDF.', error)
+      }
+      return
+    }
+
+    try {
+      const raw = window.localStorage.getItem(storageKey)
+      const lastReminder = raw ? Number(raw) : NaN
+      const now = Date.now()
+
+      if (!Number.isFinite(lastReminder) || now - lastReminder >= PROPOSAL_PDF_REMINDER_INTERVAL_MS) {
+        adicionarNotificacao(PROPOSAL_PDF_REMINDER_MESSAGE, 'error')
+        window.localStorage.setItem(storageKey, String(now))
+      }
+    } catch (error) {
+      console.warn('Não foi possível registrar o lembrete da integração de PDF.', error)
+    }
+  }, [proposalPdfIntegrationAvailable, adicionarNotificacao])
 
   /**
    * Centralizamos a persistência do dataset do CRM. Sempre que algo mudar salvamos
@@ -15047,12 +15081,6 @@ export default function App() {
                     >
                       {gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos'}
                     </button>
-                    {!proposalPdfIntegrationAvailable ? (
-                      <span className="muted integration-hint" role="status">
-                        Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção
-                        “Imprimir” para gerar o PDF manualmente.
-                      </span>
-                    ) : null}
                   </div>
                 {renderClienteDadosSection()}
               {activeTab === 'leasing' ? (
