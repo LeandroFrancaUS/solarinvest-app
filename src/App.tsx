@@ -1714,7 +1714,7 @@ function ClientesModal({
                   disabled={registros.length === 0}
                   title="Exportar clientes salvos para um arquivo"
                 >
-                  <span aria-hidden="true">⬇️</span>
+                  <span aria-hidden="true">⬆️</span>
                   <span>Exportar</span>
                 </button>
                 <button
@@ -1725,7 +1725,7 @@ function ClientesModal({
                   aria-busy={isImportando}
                   title="Importar clientes a partir de um arquivo"
                 >
-                  <span aria-hidden="true">⬆️</span>
+                  <span aria-hidden="true">⬇️</span>
                   <span>{isImportando ? 'Importando…' : 'Importar'}</span>
                 </button>
               </div>
