@@ -349,6 +349,8 @@ type ClienteRegistro = {
   dados: ClienteDados
 }
 
+type ClienteDuplicateReason = 'full' | 'documento' | 'uc' | 'telefone' | 'email' | 'endereco'
+
 type ClienteMensagens = {
   email?: string | undefined
   cidade?: string | undefined
@@ -1561,6 +1563,77 @@ const normalizeText = (value: string) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+
+const normalizeClienteString = (value: string) =>
+  normalizeText(value)
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const normalizeClienteEmail = (value: string) => value.trim().toLowerCase()
+
+const normalizeClienteNumbers = (value: string) => normalizeNumbers(value)
+
+const createClienteComparisonData = (dados: ClienteDados) => {
+  const normalized = {
+    nome: normalizeClienteString(dados.nome),
+    documento: normalizeClienteNumbers(dados.documento),
+    email: normalizeClienteEmail(dados.email),
+    telefone: normalizeClienteNumbers(dados.telefone),
+    cep: normalizeClienteNumbers(dados.cep),
+    distribuidora: normalizeClienteString(dados.distribuidora),
+    uc: normalizeClienteNumbers(dados.uc),
+    endereco: normalizeClienteString(dados.endereco),
+    cidade: normalizeClienteString(dados.cidade),
+    uf: normalizeClienteString(dados.uf),
+    temIndicacao: Boolean(dados.temIndicacao),
+    indicacaoNome: normalizeClienteString(dados.indicacaoNome),
+    herdeiros: Array.isArray(dados.herdeiros)
+      ? dados.herdeiros.map((item) => normalizeClienteString(item)).filter(Boolean).sort()
+      : [],
+  }
+
+  return {
+    signature: JSON.stringify(normalized),
+    documento: normalized.documento,
+    uc: normalized.uc,
+    telefone: normalized.telefone,
+    email: normalized.email,
+    endereco: normalized.endereco,
+  }
+}
+
+const CLIENTE_DUPLICATE_REASON_LABELS: Record<Exclude<ClienteDuplicateReason, 'full'>, string> = {
+  documento: 'CPF/CNPJ',
+  uc: 'unidade consumidora (UC)',
+  telefone: 'telefone',
+  email: 'e-mail',
+  endereco: 'endereço',
+}
+
+const formatDuplicateReasonList = (labels: string[]) => {
+  if (labels.length <= 1) {
+    return labels[0] ?? ''
+  }
+  if (labels.length === 2) {
+    return `${labels[0]} e ${labels[1]}`
+  }
+  const rest = labels.slice(0, -1)
+  const last = labels[labels.length - 1]
+  return `${rest.join(', ')} e ${last}`
+}
+
+const buildClienteDuplicateMessage = (reasons: Set<ClienteDuplicateReason>) => {
+  if (reasons.has('full')) {
+    return 'Já existe um cliente cadastrado com exatamente as mesmas informações. Atualize os dados antes de prosseguir.'
+  }
+
+  const labels = Array.from(reasons)
+    .filter((reason): reason is Exclude<ClienteDuplicateReason, 'full'> => reason !== 'full')
+    .map((reason) => CLIENTE_DUPLICATE_REASON_LABELS[reason])
+
+  const lista = formatDuplicateReasonList(labels)
+  return `Já existe um cliente cadastrado com os mesmos dados (${lista}). Atualize as informações antes de prosseguir.`
+}
 
 const formatBudgetDate = (isoString: string) => {
   const parsed = new Date(isoString)
@@ -8997,8 +9070,58 @@ export default function App() {
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
     let houveErro = false
+    let erroDuplicidade: string | null = null
 
     setClientesSalvos((prevRegistros) => {
+      const duplicateReasons = new Set<ClienteDuplicateReason>()
+      const novoComparacao = createClienteComparisonData(dadosClonados)
+
+      for (const registro of prevRegistros) {
+        if (clienteEmEdicaoId && registro.id === clienteEmEdicaoId) {
+          continue
+        }
+
+        const existenteComparacao = createClienteComparisonData(registro.dados)
+
+        if (novoComparacao.signature === existenteComparacao.signature) {
+          duplicateReasons.add('full')
+        } else {
+          if (
+            novoComparacao.documento &&
+            novoComparacao.documento === existenteComparacao.documento
+          ) {
+            duplicateReasons.add('documento')
+          }
+          if (novoComparacao.uc && novoComparacao.uc === existenteComparacao.uc) {
+            duplicateReasons.add('uc')
+          }
+          if (
+            novoComparacao.telefone &&
+            novoComparacao.telefone === existenteComparacao.telefone
+          ) {
+            duplicateReasons.add('telefone')
+          }
+          if (novoComparacao.email && novoComparacao.email === existenteComparacao.email) {
+            duplicateReasons.add('email')
+          }
+          if (
+            novoComparacao.endereco &&
+            novoComparacao.endereco === existenteComparacao.endereco
+          ) {
+            duplicateReasons.add('endereco')
+          }
+        }
+
+        if (duplicateReasons.size > 0) {
+          break
+        }
+      }
+
+      if (duplicateReasons.size > 0) {
+        erroDuplicidade = buildClienteDuplicateMessage(duplicateReasons)
+        return prevRegistros
+      }
+
       const existingIds = new Set(prevRegistros.map((registro) => registro.id))
       let registrosAtualizados: ClienteRegistro[] = prevRegistros
       let registroAtualizado: ClienteRegistro | null = null
@@ -9054,6 +9177,11 @@ export default function App() {
       registroSalvo = registroAtualizado
       return ordenados
     })
+
+    if (erroDuplicidade) {
+      window.alert(erroDuplicidade)
+      return
+    }
 
     const salvo = registroSalvo as ClienteRegistro | null
     if (houveErro || !salvo) {
