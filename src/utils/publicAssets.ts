@@ -30,7 +30,8 @@ function resolveDocumentBaseUrl(): string | null {
     }
     const url = new URL(baseUri)
     const pathname = url.pathname || DEFAULT_BASE_URL
-    if (!pathname || pathname === DEFAULT_BASE_URL) {
+
+    if (!pathname) {
       return DEFAULT_BASE_URL
     }
 
@@ -38,15 +39,8 @@ function resolveDocumentBaseUrl(): string | null {
       return pathname
     }
 
-    const lastSlashIndex = pathname.lastIndexOf('/')
-    const lastSegment = lastSlashIndex >= 0 ? pathname.slice(lastSlashIndex + 1) : pathname
-
-    if (lastSegment.includes('.')) {
-      const directoryPath = pathname.slice(0, lastSlashIndex + 1)
-      return directoryPath || DEFAULT_BASE_URL
-    }
-
-    return ensureTrailingSlash(pathname)
+    const directoryPathname = new URL('.', url).pathname
+    return directoryPathname || DEFAULT_BASE_URL
   } catch (error) {
     return null
   }
