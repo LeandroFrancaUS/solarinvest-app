@@ -40,6 +40,20 @@ function resolveDocumentBaseUrl(): string | null {
     }
 
     const directoryPathname = new URL('.', url).pathname
+
+    if (
+      directoryPathname === DEFAULT_BASE_URL &&
+      pathname !== DEFAULT_BASE_URL &&
+      !pathname.endsWith('/')
+    ) {
+      const segments = pathname.split('/')
+      const lastSegment = segments[segments.length - 1]
+
+      if (lastSegment && !lastSegment.includes('.')) {
+        return ensureTrailingSlash(pathname)
+      }
+    }
+
     return directoryPathname || DEFAULT_BASE_URL
   } catch (error) {
     return null
