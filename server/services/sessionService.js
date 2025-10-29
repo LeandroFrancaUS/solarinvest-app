@@ -4,13 +4,13 @@ import { config } from '../config.js'
 import { hashPassword as hashValue, verifyPassword as verifyValue } from '../security/password.js'
 import { recordAuditEvent } from './audit.js'
 
-export function createSession({ userId, userAgent, ip, deviceId }) {
+export async function createSession({ userId, userAgent, ip, deviceId }) {
   const db = getDb()
   const sessionId = createId()
   const secret = randomBytes(48).toString('base64url')
   const refreshToken = `${sessionId}.${secret}`
   const now = new Date().toISOString()
-  const refreshHash = hashValue(secret)
+  const refreshHash = await hashValue(secret)
   const session = {
     id: sessionId,
     userId,
@@ -30,7 +30,7 @@ export function createSession({ userId, userAgent, ip, deviceId }) {
   return { session, refreshToken }
 }
 
-export function rotateSession(session, { ip, userAgent }) {
+export async function rotateSession(session, { ip, userAgent }) {
   const db = getDb()
   const target = db.sessions.find((item) => item.id === session.id)
   if (!target || target.revokedAt) {
@@ -38,7 +38,7 @@ export function rotateSession(session, { ip, userAgent }) {
   }
   const secret = randomBytes(48).toString('base64url')
   const refreshToken = `${session.id}.${secret}`
-  target.refreshHash = hashValue(secret)
+  target.refreshHash = await hashValue(secret)
   target.rotationCounter += 1
   target.lastSeenAt = new Date().toISOString()
   target.expiresAt = new Date(Date.now() + config.refreshTokenSeconds * 1000).toISOString()
@@ -81,7 +81,7 @@ export function findSessionById(sessionId) {
   return db.sessions.find((session) => session.id === sessionId) || null
 }
 
-export function findSessionByRefreshToken(token) {
+export async function findSessionByRefreshToken(token) {
   const db = getDb()
   if (!token || typeof token !== 'string') {
     return null
@@ -95,7 +95,7 @@ export function findSessionByRefreshToken(token) {
   if (!session || session.revokedAt) {
     return null
   }
-  if (verifyValue(secret, session.refreshHash)) {
+  if (await verifyValue(secret, session.refreshHash)) {
     return session
   }
   return null

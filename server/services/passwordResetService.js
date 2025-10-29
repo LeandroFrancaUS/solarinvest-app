@@ -8,10 +8,10 @@ function generateResetToken() {
   return randomBytes(32).toString('hex')
 }
 
-export function createPasswordReset({ userId, actorIp, userAgent }) {
+export async function createPasswordReset({ userId, actorIp, userAgent }) {
   const db = getDb()
   const token = generateResetToken()
-  const tokenHash = hashToken(token)
+  const tokenHash = await hashToken(token)
   const now = new Date().toISOString()
   const reset = {
     id: createId(),
@@ -27,9 +27,20 @@ export function createPasswordReset({ userId, actorIp, userAgent }) {
   return { reset, token }
 }
 
-export function findPasswordResetByToken(token) {
+export async function findPasswordResetByToken(token) {
   const db = getDb()
-  return db.passwordResets.find((reset) => !reset.usedAt && verifyToken(token, reset.tokenHash)) || null
+  if (!token) {
+    return null
+  }
+  for (const reset of db.passwordResets) {
+    if (reset.usedAt) {
+      continue
+    }
+    if (await verifyToken(token, reset.tokenHash)) {
+      return reset
+    }
+  }
+  return null
 }
 
 export function markPasswordResetUsed(resetId) {
