@@ -105,7 +105,6 @@ import './styles/config-page.css'
 import './styles/toast.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
-import { Providers } from './app/Providers'
 import { AuthGate } from './app/auth/AuthGate'
 import { useAuth } from './app/auth/AuthProvider'
 import { CHART_THEME } from './helpers/ChartTheme'
@@ -14958,9 +14957,8 @@ export default function App() {
   ) : null
 
   return (
-    <Providers>
-      <AuthGate>
-        <AppRoutes>
+    <AuthGate>
+      <AppRoutes>
         {activePage === 'crm' ? (
           renderCrmPage()
         ) : (
@@ -16515,9 +16513,8 @@ export default function App() {
             ))}
           </div>
         ) : null}
-        </AppRoutes>
-      </AuthGate>
-    </Providers>
+      </AppRoutes>
+    </AuthGate>
   )
 }
 
