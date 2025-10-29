@@ -18,14 +18,38 @@ function normalizeBase(base: string): string {
   return withTrailingSlash === '//' ? DEFAULT_BASE_URL : withTrailingSlash
 }
 
+function resolveDocumentBaseUrl(): string | null {
+  if (typeof document === 'undefined') {
+    return null
+  }
+
+  try {
+    const baseUri = document.baseURI
+    if (!baseUri) {
+      return null
+    }
+    const url = new URL('.', baseUri)
+    return url.pathname || DEFAULT_BASE_URL
+  } catch (error) {
+    return null
+  }
+}
+
 function getConfiguredBaseUrl(): string {
+  let base: string | null = null
+
   if (typeof import.meta !== 'undefined' && typeof import.meta.env !== 'undefined') {
-    const base = import.meta.env.BASE_URL
-    if (typeof base === 'string' && base.trim()) {
-      return normalizeBase(base)
+    const envBase = import.meta.env.BASE_URL
+    if (typeof envBase === 'string' && envBase.trim()) {
+      base = envBase
     }
   }
-  return DEFAULT_BASE_URL
+
+  if (!base) {
+    base = resolveDocumentBaseUrl()
+  }
+
+  return normalizeBase(base ?? DEFAULT_BASE_URL)
 }
 
 function normalizeAssetPath(assetPath: string): string {
@@ -54,4 +78,6 @@ export const __private__ = {
   ensureTrailingSlash,
   normalizeBase,
   normalizeAssetPath,
+  resolveDocumentBaseUrl,
+  getConfiguredBaseUrl,
 }

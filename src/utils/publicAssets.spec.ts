@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { __private__, resolvePublicAssetPath } from './publicAssets'
 
-const { ensureLeadingSlash, ensureTrailingSlash, normalizeBase, normalizeAssetPath } = __private__
+const {
+  ensureLeadingSlash,
+  ensureTrailingSlash,
+  normalizeBase,
+  normalizeAssetPath,
+  resolveDocumentBaseUrl,
+} = __private__
 
 describe('publicAssets utils', () => {
   describe('ensureLeadingSlash', () => {
@@ -72,6 +78,24 @@ describe('publicAssets utils', () => {
 
     it('returns normalized base when asset path is empty', () => {
       expect(resolvePublicAssetPath('', '/simulador')).toBe('/simulador/')
+    })
+  })
+
+  describe('resolveDocumentBaseUrl', () => {
+    it('extracts pathname from document.baseURI', () => {
+      const spy = vi.spyOn(document, 'baseURI', 'get').mockReturnValue('https://example.com/me/dashboard')
+
+      expect(resolveDocumentBaseUrl()).toBe('/me/')
+
+      spy.mockRestore()
+    })
+
+    it('returns null when baseURI is missing', () => {
+      const spy = vi.spyOn(document, 'baseURI', 'get').mockReturnValue('')
+
+      expect(resolveDocumentBaseUrl()).toBeNull()
+
+      spy.mockRestore()
     })
   })
 })
