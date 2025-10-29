@@ -3,7 +3,6 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { execFile } from 'node:child_process'
 import util from 'node:util'
-import JSZip from 'jszip'
 import { XMLBuilder, XMLParser } from 'fast-xml-parser'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -68,6 +67,26 @@ class GoogleDriveConversionError extends Error {
       this.cause = cause
     }
   }
+}
+
+let jsZipLoaderPromise
+
+const loadJsZip = async () => {
+  if (!jsZipLoaderPromise) {
+    jsZipLoaderPromise = import('jszip')
+      .then((module) => module.default ?? module)
+      .catch((error) => {
+        jsZipLoaderPromise = undefined
+        if (error && (error.code === 'ERR_MODULE_NOT_FOUND' || error.code === 'MODULE_NOT_FOUND')) {
+          throw new ContractRenderError(
+            500,
+            'Dependência de geração de contratos ausente (jszip). Execute "npm install" para habilitar este recurso.',
+          )
+        }
+        throw error
+      })
+  }
+  return jsZipLoaderPromise
 }
 
 /**
@@ -563,6 +582,7 @@ const generateContractPdf = async (cliente, templateName) => {
   const { absolutePath: templatePath, fileName: templateFileName } =
     await resolveTemplatePath(templateName)
   const templateBuffer = await fs.readFile(templatePath)
+  const JSZip = await loadJsZip()
   const zip = await JSZip.loadAsync(templateBuffer)
 
   const dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
