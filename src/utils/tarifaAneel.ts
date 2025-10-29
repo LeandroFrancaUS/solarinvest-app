@@ -1,9 +1,10 @@
 import { formatNumberBRWithOptions, toNumberFlexible } from '../lib/locale/br-number'
 import { resolveAneelUrl } from './aneelUrl'
+import { resolvePublicAssetPath } from './publicAssets'
 
 const CKAN_SQL_PATH = '/api/3/action/datastore_search_sql'
 const RESOURCE_ID = 'fcf2906c-7c32-4b9b-a637-054e7a5234f4'
-const CSV_FALLBACK = '/tarifas_medias.csv'
+const CSV_FALLBACK = resolvePublicAssetPath('tarifas_medias.csv')
 
 const UF_CANDIDATES = ['UF', 'SIGLA_UF']
 const DISTRIBUIDORA_CANDIDATES = ['DISTRIBUIDORA', 'CONCESSIONARIA', 'AGENTE']

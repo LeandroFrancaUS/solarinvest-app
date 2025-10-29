@@ -1,6 +1,7 @@
 import { toNumberFlexible } from '../lib/locale/br-number'
+import { resolvePublicAssetPath } from './publicAssets'
 
-const CSV_URL = '/tilted_latitude_means.csv'
+const CSV_URL = resolvePublicAssetPath('tilted_latitude_means.csv')
 
 export const IRRADIACAO_FALLBACK = 5
 
