@@ -35,6 +35,49 @@ const contractRenderPlugin = (): Plugin => ({
   },
 })
 
+const DEFAULT_BACKEND_HOST = '127.0.0.1'
+const DEFAULT_BACKEND_PORT = 3000
+
+function resolveBackendOrigin(rawOrigin?: string) {
+  const fallback = new URL(`http://${DEFAULT_BACKEND_HOST}:${DEFAULT_BACKEND_PORT}`)
+  if (!rawOrigin) {
+    return fallback
+  }
+
+  const trimmed = rawOrigin.trim()
+  if (!trimmed) {
+    return fallback
+  }
+
+  const ensureProtocol = (value: string) => {
+    if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value)) {
+      return value
+    }
+    return `http://${value}`
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(ensureProtocol(trimmed))
+  } catch (error) {
+    console.warn(
+      `[@solarinvest/dev-proxy] Valor inválido em VITE_BACKEND_ORIGIN (\"${trimmed}\"). ` +
+        `Usando ${fallback.origin} como destino do proxy.`,
+    )
+    return fallback
+  }
+
+  if (!parsed.port) {
+    parsed.port = String(DEFAULT_BACKEND_PORT)
+  }
+
+  if (parsed.hostname === 'localhost' || parsed.hostname === '0.0.0.0') {
+    parsed.hostname = DEFAULT_BACKEND_HOST
+  }
+
+  return parsed
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, cwd(), '')
   const hasProxyEnv = Object.prototype.hasOwnProperty.call(env, 'VITE_ANEEL_PROXY_BASE')
@@ -46,7 +89,7 @@ export default defineConfig(({ mode }) => {
     plugins.push(aneelProxyPlugin(proxyBase))
   }
 
-  const backendOrigin = env.VITE_BACKEND_ORIGIN?.trim() || 'http://localhost:3000'
+  const backendOrigin = resolveBackendOrigin(env.VITE_BACKEND_ORIGIN).origin
 
   const proxy = ['/auth', '/admin'].reduce<Record<string, { target: string; changeOrigin: true }>>(
     (acc, path) => {
