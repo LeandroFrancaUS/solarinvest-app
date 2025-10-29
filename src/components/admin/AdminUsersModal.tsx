@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useState } from 'react'
 import { useAuth, UserRole } from '../../app/auth/AuthProvider'
-import { apiFetch, ApiError } from '../../app/services/httpClient'
+import { apiFetch, type ApiError } from '../../app/services/httpClient'
 
 interface AdminUsersModalProps {
   isOpen: boolean

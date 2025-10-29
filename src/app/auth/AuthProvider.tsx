@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import { apiFetch, ApiError } from '../services/httpClient'
+import { apiFetch, type ApiError } from '../services/httpClient'
 
 export type UserRole = 'ADMIN' | 'DIRETOR' | 'INTEGRADOR'
 
