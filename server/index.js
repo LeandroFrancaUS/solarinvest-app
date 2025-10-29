@@ -55,8 +55,10 @@ import { rateLimit } from './security/rateLimiter.js'
 import { createCsrfToken, buildCsrfCookie, requireCsrfProtection, extractCsrfToken } from './security/csrf.js'
 import { hasExpired } from './utils/duration.js'
 import { createJwt } from './security/jwt.js'
+import { getScryptParams } from './security/password.js'
 
-ensureInitialAdmin()
+console.info('[AUTH][SCRYPT]', getScryptParams())
+await ensureInitialAdmin()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -173,7 +175,7 @@ async function handleLogin(req, res, ip) {
     respondForbidden(res, 'Conta temporariamente bloqueada devido a tentativas falhas')
     return
   }
-  if (!verifyUserPassword(user, password)) {
+  if (!(await verifyUserPassword(user, password))) {
     incrementFailedLogin(user, { maxAttempts: 10, lockMinutes: 15 })
     recordAuditEvent({
       userId: user.id,
@@ -219,7 +221,7 @@ async function handleLogin(req, res, ip) {
   clearFailedLogin(user)
 
   const userAgent = req.headers['user-agent'] ?? ''
-  const { session, refreshToken } = createSession({
+  const { session, refreshToken } = await createSession({
     userId: user.id,
     userAgent,
     ip,
@@ -285,7 +287,7 @@ async function handleMfaVerify(req, res, ip) {
   })
   clearFailedLogin(user)
   const userAgent = req.headers['user-agent'] ?? ''
-  const { session, refreshToken } = createSession({
+  const { session, refreshToken } = await createSession({
     userId: user.id,
     userAgent,
     ip,
@@ -313,7 +315,7 @@ async function handleRefresh(req, res, ip) {
     respondUnauthorized(res)
     return
   }
-  const session = findSessionByRefreshToken(token)
+  const session = await findSessionByRefreshToken(token)
   if (!session) {
     respondUnauthorized(res)
     return
@@ -328,7 +330,7 @@ async function handleRefresh(req, res, ip) {
     return
   }
   const userAgent = req.headers['user-agent'] ?? ''
-  const newRefreshToken = rotateSession(session, { ip, userAgent })
+  const newRefreshToken = await rotateSession(session, { ip, userAgent })
   markSessionActivity(session.id)
   const accessToken = createJwt(
     {
@@ -412,7 +414,7 @@ async function handleInvite(req, res, actor, ip) {
     respondBadRequest(res, 'Dados inválidos')
     return
   }
-  const { token, invitation } = createInvitation({
+  const { token, invitation } = await createInvitation({
     email,
     role,
     invitedBy: actor.user.id,
@@ -443,7 +445,7 @@ async function handleAcceptInvite(req, res) {
     respondBadRequest(res, 'Dados inválidos')
     return
   }
-  const invitation = findInvitationByToken(token)
+  const invitation = await findInvitationByToken(token)
   if (!invitation) {
     respondBadRequest(res, 'Convite inválido ou expirado')
     return
@@ -454,7 +456,7 @@ async function handleAcceptInvite(req, res) {
   }
   let user = findUserByEmail(invitation.email)
   if (!user) {
-    user = createUser({
+    user = await createUser({
       email: invitation.email,
       role: invitation.role,
       password,
@@ -462,7 +464,7 @@ async function handleAcceptInvite(req, res) {
       requireEmailVerification: false,
     })
   } else {
-    setUserPassword(user.id, password)
+    await setUserPassword(user.id, password)
     updateUser(user.id, { role: invitation.role, status: 'active' })
   }
   markInvitationUsed(invitation.id)
@@ -493,7 +495,7 @@ async function handlePasswordForgot(req, res) {
     respond(res, 200, { ok: true })
     return
   }
-  const { token } = createPasswordReset({
+  const { token } = await createPasswordReset({
     userId: user.id,
     actorIp: req.socket.remoteAddress ?? 'unknown',
     userAgent: req.headers['user-agent'] ?? '',
@@ -514,7 +516,7 @@ async function handlePasswordReset(req, res) {
     respondBadRequest(res, 'Dados inválidos')
     return
   }
-  const reset = findPasswordResetByToken(token)
+  const reset = await findPasswordResetByToken(token)
   if (!reset) {
     respondBadRequest(res, 'Token inválido ou expirado')
     return
@@ -523,7 +525,7 @@ async function handlePasswordReset(req, res) {
     respondBadRequest(res, 'Token expirado')
     return
   }
-  setUserPassword(reset.userId, password)
+  await setUserPassword(reset.userId, password)
   markPasswordResetUsed(reset.id)
   revokeAllSessions(reset.userId, { actorIp: req.socket.remoteAddress ?? 'unknown', userAgent: req.headers['user-agent'] ?? '' })
   respond(res, 200, { ok: true })
@@ -601,7 +603,7 @@ async function handleMfaDisable(req, res, actor) {
     respondBadRequest(res, 'Dados inválidos')
     return
   }
-  if (!verifyUserPassword(actor.user, password)) {
+  if (!(await verifyUserPassword(actor.user, password))) {
     respondUnauthorized(res, 'Senha inválida')
     return
   }

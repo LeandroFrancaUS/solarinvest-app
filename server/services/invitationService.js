@@ -8,10 +8,10 @@ function generateInviteToken() {
   return randomBytes(32).toString('hex')
 }
 
-export function createInvitation({ email, role, invitedBy, actorIp, userAgent }) {
+export async function createInvitation({ email, role, invitedBy, actorIp, userAgent }) {
   const db = getDb()
   const token = generateInviteToken()
-  const tokenHash = hashToken(token)
+  const tokenHash = await hashToken(token)
   const now = new Date().toISOString()
   const invitation = {
     id: createId(),
@@ -35,9 +35,20 @@ export function createInvitation({ email, role, invitedBy, actorIp, userAgent })
   return { invitation, token }
 }
 
-export function findInvitationByToken(token) {
+export async function findInvitationByToken(token) {
   const db = getDb()
-  return db.invitations.find((inv) => !inv.usedAt && verifyToken(token, inv.tokenHash)) || null
+  if (!token) {
+    return null
+  }
+  for (const invitation of db.invitations) {
+    if (invitation.usedAt) {
+      continue
+    }
+    if (await verifyToken(token, invitation.tokenHash)) {
+      return invitation
+    }
+  }
+  return null
 }
 
 export function markInvitationUsed(invitationId) {

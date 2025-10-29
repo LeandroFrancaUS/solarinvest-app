@@ -28,7 +28,14 @@ export function findUserById(id) {
   return db.users.find((user) => user.id === id) || null
 }
 
-export function createUser({ email, role, password, mfaSecret, status = 'active', requireEmailVerification = true }) {
+export async function createUser({
+  email,
+  role,
+  password,
+  mfaSecret,
+  status = 'active',
+  requireEmailVerification = true,
+}) {
   const db = getDb()
   const now = new Date().toISOString()
   const normalizedEmail = email.toLowerCase()
@@ -39,11 +46,12 @@ export function createUser({ email, role, password, mfaSecret, status = 'active'
   if (!passwordStrength.valid) {
     throw new Error(passwordStrength.message)
   }
+  const passwordHash = await hashPassword(password)
   const user = {
     id: createId(),
     email: normalizedEmail,
     role,
-    passwordHash: hashPassword(password),
+    passwordHash,
     mfaEnabled: Boolean(mfaSecret),
     mfaTotpSecret: mfaSecret ? encryptSecret(mfaSecret) : null,
     createdAt: now,
@@ -69,7 +77,7 @@ export function updateUser(userId, updates) {
   return { ...user, passwordHash: undefined, mfaTotpSecret: undefined }
 }
 
-export function setUserPassword(userId, password) {
+export async function setUserPassword(userId, password) {
   const db = getDb()
   const user = db.users.find((item) => item.id === userId)
   if (!user) throw new Error('Usuário não encontrado')
@@ -77,7 +85,7 @@ export function setUserPassword(userId, password) {
   if (!strength.valid) {
     throw new Error(strength.message)
   }
-  user.passwordHash = hashPassword(password)
+  user.passwordHash = await hashPassword(password)
   user.updatedAt = new Date().toISOString()
   user.failedLoginAttempts = 0
   user.lockedUntil = null
@@ -85,7 +93,7 @@ export function setUserPassword(userId, password) {
   recordAuditEvent({ userId, action: 'user.password.updated', actorIp: 'system', userAgent: 'system' })
 }
 
-export function verifyUserPassword(user, password) {
+export async function verifyUserPassword(user, password) {
   if (!user.passwordHash) return false
   return verifyPassword(password, user.passwordHash)
 }
@@ -148,13 +156,13 @@ export function clearFailedLogin(user) {
   saveDatabase()
 }
 
-export function ensureInitialAdmin() {
+export async function ensureInitialAdmin() {
   const db = getDb()
   if (db.users.some((user) => user.role === 'ADMIN')) {
     return
   }
   const password = 'Fotovolt@iaco25'
-  const admin = createUser({
+  const admin = await createUser({
     email: 'brsolarinvest@gmail.com',
     role: 'ADMIN',
     password,
