@@ -106,9 +106,11 @@ import './styles/toast.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { Providers } from './app/Providers'
+import { useAuth } from './app/auth/AuthProvider'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/settings/SimulacoesTab'
+import { AdminUsersModal } from './components/admin/AdminUsersModal'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -2175,6 +2177,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 }
 
 export default function App() {
+  const { user: authUser, canAccess, logout } = useAuth()
   const distribuidorasFallback = useMemo(() => getDistribuidorasFallback(), [])
   const custoImplantacaoReferencia = useVendaStore(
     (state) => state.resumoProposta.custo_implantacao_referencia,
@@ -2283,7 +2286,21 @@ export default function App() {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
+  useEffect(() => {
+    if (!canAccess('admin.users')) {
+      setIsAdminUsersOpen(false)
+    }
+    if (!canAccess('settings')) {
+      setIsSettingsOpen(false)
+    }
+  }, [canAccess])
+  useEffect(() => {
+    if (activePage === 'crm' && !canAccess('crm')) {
+      setActivePage('app')
+    }
+  }, [activePage, canAccess])
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isAdminUsersOpen, setIsAdminUsersOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
@@ -13261,6 +13278,7 @@ export default function App() {
 
   const renderComposicaoUfvSection = () => {
     const abrirParametrosVendas = () => {
+      if (!canAccess('settings')) return
       setSettingsTab('vendas')
       setIsSettingsOpen(true)
     }
@@ -14958,10 +14976,11 @@ export default function App() {
                 </div>
               </div>
               <div className="top-actions">
-                {/* Botão dedicado ao CRM para acesso rápido, mantendo posição à esquerda do buscador de orçamentos. */}
-                <button className="crm-button" onClick={() => setActivePage('crm')}>
-                  Central CRM
-                </button>
+                {canAccess('crm') ? (
+                  <button className="crm-button" onClick={() => setActivePage('crm')}>
+                    Central CRM
+                  </button>
+                ) : null}
                 <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
                 <button className="ghost" onClick={handleAbrirUploadImagens}>Incluir imagens</button>
                 <input
@@ -14973,7 +14992,22 @@ export default function App() {
                   style={{ display: 'none' }}
                 />
                 <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
-                <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">⚙︎</button>
+                {canAccess('settings') ? (
+                  <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">
+                    ⚙︎
+                  </button>
+                ) : null}
+                {canAccess('admin.users') ? (
+                  <button className="ghost" onClick={() => setIsAdminUsersOpen(true)}>
+                    Usuários &amp; Perfis
+                  </button>
+                ) : null}
+                <div className="auth-user-chip">
+                  <span>{authUser?.email ?? 'Conta'}</span>
+                  <button type="button" className="ghost" onClick={() => void logout()}>
+                    Sair
+                  </button>
+                </div>
               </div>
             </div>
           </header>
@@ -15545,6 +15579,10 @@ export default function App() {
           onConfirm={handleConfirmarGeracaoContratos}
           onClose={handleFecharModalContratos}
         />
+      ) : null}
+
+      {canAccess('admin.users') && isAdminUsersOpen ? (
+        <AdminUsersModal isOpen onClose={() => setIsAdminUsersOpen(false)} />
       ) : null}
 
       {isBudgetSearchOpen ? (
