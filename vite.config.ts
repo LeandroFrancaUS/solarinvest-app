@@ -46,11 +46,22 @@ export default defineConfig(({ mode }) => {
     plugins.push(aneelProxyPlugin(proxyBase))
   }
 
+  const backendOrigin = env.VITE_BACKEND_ORIGIN?.trim() || 'http://localhost:3000'
+
+  const proxy = ['/auth', '/admin'].reduce<Record<string, { target: string; changeOrigin: true }>>(
+    (acc, path) => {
+      acc[path] = { target: backendOrigin, changeOrigin: true }
+      return acc
+    },
+    {},
+  )
+
   return {
     plugins,
     build: { sourcemap: true },
     server: {
       host: true,
+      proxy,
     },
     resolve: {
       alias: {
