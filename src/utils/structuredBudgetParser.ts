@@ -124,30 +124,27 @@ function parseHeader(lines: string[]): HeaderData {
   const limit = Math.min(lines.length, 150)
   for (let i = 0; i < limit; i += 1) {
     const line = lines[i]
-    if (typeof line !== 'string') {
-      continue
-    }
     if (!header.numeroOrcamento) {
       const match = line.match(HEADER_PATTERNS.numeroOrcamento)
-      if (match?.[1]) {
+      if (match) {
         header.numeroOrcamento = match[1].trim()
       }
     }
     if (!header.validade) {
       const match = line.match(HEADER_PATTERNS.validade)
-      if (match?.[1]) {
+      if (match) {
         header.validade = toISODate(match[1])
       }
     }
     if (!header.de) {
       const match = line.match(HEADER_PATTERNS.de)
-      if (match?.[1]) {
+      if (match) {
         header.de = match[1].trim()
       }
     }
     if (!header.para) {
       const match = line.match(HEADER_PATTERNS.para)
-      if (match?.[1]) {
+      if (match) {
         header.para = match[1].trim()
       }
     }
@@ -198,7 +195,7 @@ function parseResumo(lines: string[]): ResumoData {
       continue
     }
     const match = line.match(FOOTER_TOTAL_REGEX)
-    if (match?.[1]) {
+    if (match) {
       const value = parseBRL(match[1])
       if (!Number.isNaN(value)) {
         resumo.valorTotal = value
