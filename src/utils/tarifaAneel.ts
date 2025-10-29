@@ -52,29 +52,10 @@ const parseDate = (value: unknown): Date | null => {
   const parts = trimmed.split(/[\/-]/)
   if (parts.length >= 3) {
     const [part1, part2, part3] = parts
-    const [d, m, y] = [part1, part2, part3].map((segment) => {
-      if (typeof segment !== 'string') {
-        return Number.NaN
-      }
-      const normalized = segment.trim()
-      if (!normalized) {
-        return Number.NaN
-      }
-      const parsed = parseInt(normalized, 10)
-      return Number.isFinite(parsed) ? parsed : Number.NaN
-    })
-    if (
-      Number.isFinite(d) &&
-      Number.isFinite(m) &&
-      Number.isFinite(y) &&
-      typeof d === 'number' &&
-      typeof m === 'number' &&
-      typeof y === 'number' &&
-      m >= 1 &&
-      m <= 12
-    ) {
-      const safeYear = y < 100 ? 2000 + y : y
-      const date = new Date(safeYear, m - 1, d)
+    const [d, m, y] = [part1, part2, part3].map((segment) => parseInt(segment, 10))
+    if (Number.isFinite(d) && Number.isFinite(m) && Number.isFinite(y) && m >= 1 && m <= 12) {
+      const year = y < 100 ? 2000 + y : y
+      const date = new Date(year, m - 1, d)
       if (Number.isFinite(date.getTime())) {
         return date
       }
@@ -275,16 +256,8 @@ const fetchTarifaFromCsv = async (uf: string): Promise<number | null> => {
     }
 
     for (let i = 1; i < linhas.length; i += 1) {
-      const linha = linhas[i]
-      if (typeof linha !== 'string' || !linha.trim()) {
-        continue
-      }
-      const partes = linha.split(',').map((parte) => parte.trim())
-      const ufCsv = partes[0]
-      const tarifaCsv = partes[1]
-      if (!ufCsv || !tarifaCsv) {
-        continue
-      }
+      const [ufCsv, tarifaCsv] = linhas[i].split(',').map((parte) => parte.trim())
+      if (!ufCsv || !tarifaCsv) continue
       if (norm(ufCsv) !== uf) continue
 
       const tarifaNumero = toNumberFlexible(tarifaCsv)
