@@ -90,6 +90,22 @@ describe('publicAssets utils', () => {
       spy.mockRestore()
     })
 
+    it('normalizes pathname without trailing slash', () => {
+      const spy = vi.spyOn(document, 'baseURI', 'get').mockReturnValue('https://example.com/me')
+
+      expect(resolveDocumentBaseUrl()).toBe('/me/')
+
+      spy.mockRestore()
+    })
+
+    it('strips file segment from baseURI', () => {
+      const spy = vi.spyOn(document, 'baseURI', 'get').mockReturnValue('https://example.com/app/index.html')
+
+      expect(resolveDocumentBaseUrl()).toBe('/app/')
+
+      spy.mockRestore()
+    })
+
     it('returns null when baseURI is missing', () => {
       const spy = vi.spyOn(document, 'baseURI', 'get').mockReturnValue('')
 

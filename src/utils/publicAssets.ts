@@ -28,8 +28,25 @@ function resolveDocumentBaseUrl(): string | null {
     if (!baseUri) {
       return null
     }
-    const url = new URL('.', baseUri)
-    return url.pathname || DEFAULT_BASE_URL
+    const url = new URL(baseUri)
+    const pathname = url.pathname || DEFAULT_BASE_URL
+    if (!pathname || pathname === DEFAULT_BASE_URL) {
+      return DEFAULT_BASE_URL
+    }
+
+    if (pathname.endsWith('/')) {
+      return pathname
+    }
+
+    const lastSlashIndex = pathname.lastIndexOf('/')
+    const lastSegment = lastSlashIndex >= 0 ? pathname.slice(lastSlashIndex + 1) : pathname
+
+    if (lastSegment.includes('.')) {
+      const directoryPath = pathname.slice(0, lastSlashIndex + 1)
+      return directoryPath || DEFAULT_BASE_URL
+    }
+
+    return ensureTrailingSlash(pathname)
   } catch (error) {
     return null
   }
