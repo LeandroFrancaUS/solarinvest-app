@@ -28,7 +28,7 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>
   canAccess: (permission: Permission) => boolean
   inviteUser: (input: InviteInput) => Promise<{ token: string }>
-  requestPasswordReset: (email: string) => Promise<{ token?: string }>
+  requestPasswordReset: (email: string) => Promise<void>
   resetPassword: (token: string, password: string) => Promise<void>
 }
 
@@ -161,12 +161,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const requestPasswordReset = useCallback(async (email: string) => {
-    const response = await apiFetch<{ token?: string }>('/auth/password/forgot', {
+    await apiFetch('/auth/password/forgot', {
       method: 'POST',
       body: { email },
       skipCsrf: true,
     })
-    return response
   }, [])
 
   const resetPassword = useCallback(async (token: string, password: string) => {

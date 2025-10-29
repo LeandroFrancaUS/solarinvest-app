@@ -10,7 +10,6 @@ export function LoginForm() {
   const [password, setPassword] = useState('')
   const [totp, setTotp] = useState('')
   const [resetToken, setResetToken] = useState('')
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [infoMessage, setInfoMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -24,9 +23,6 @@ export function LoginForm() {
     setTotp('')
     if (nextMode !== 'login') {
       setChallengeId(null)
-    }
-    if (nextMode === 'login') {
-      setGeneratedToken(null)
     }
     if (nextMode !== 'reset') {
       setResetToken('')
@@ -72,17 +68,8 @@ export function LoginForm() {
     setInfoMessage(null)
     setSubmitting(true)
     try {
-      setGeneratedToken(null)
-      const response = await requestPasswordReset(email)
-      const token = response?.token
-      if (token) {
-        setGeneratedToken(token)
-        changeMode('reset')
-        setResetToken(token)
-        setInfoMessage('Token de recuperação gerado para ambientes de teste. Use-o para redefinir sua senha.')
-      } else {
-        setInfoMessage('Se o e-mail estiver cadastrado, enviaremos as instruções de recuperação em instantes.')
-      }
+      await requestPasswordReset(email)
+      setInfoMessage('Se o e-mail estiver cadastrado, enviaremos as instruções de recuperação em instantes.')
     } catch (error) {
       const message = (error as Error).message || 'Não foi possível iniciar a recuperação de senha.'
       setError(message)
@@ -98,7 +85,6 @@ export function LoginForm() {
     setSubmitting(true)
     try {
       await resetPassword(resetToken, password)
-      setGeneratedToken(null)
       changeMode('login')
       setInfoMessage('Senha redefinida com sucesso. Faça login com a nova senha segura.')
     } catch (error) {
@@ -196,12 +182,6 @@ export function LoginForm() {
         {infoMessage ? (
           <p className="auth-info">
             {infoMessage}
-            {generatedToken ? (
-              <>
-                {' '}
-                <span className="auth-token">{generatedToken}</span>
-              </>
-            ) : null}
           </p>
         ) : null}
         {error ? <p className="auth-error">{error}</p> : null}
@@ -226,6 +206,11 @@ export function LoginForm() {
               Voltar para o login
             </button>
           )}
+          {mode === 'forgot' ? (
+            <button type="button" className="link" onClick={() => changeMode('reset')}>
+              Já possui um token?
+            </button>
+          ) : null}
           {mode === 'reset' ? (
             <button type="button" className="link" onClick={() => changeMode('forgot')}>
               Precisa de um novo token?

@@ -186,11 +186,6 @@ async function handleLogin(req, res, ip) {
     return
   }
 
-  if (user.role === 'ADMIN' && !user.mfaEnabled) {
-    respondForbidden(res, 'Ative o MFA (TOTP) antes de prosseguir.')
-    return
-  }
-
   const totpSecret = getUserTotpSecret(user)
   if (user.mfaEnabled) {
     if (!totpCode) {
@@ -481,16 +476,14 @@ async function handlePasswordForgot(req, res) {
     return
   }
   const user = findUserByEmail(email)
-  if (!user) {
-    respond(res, 200, { ok: true })
-    return
+  if (user) {
+    createPasswordReset({
+      userId: user.id,
+      actorIp: req.socket.remoteAddress ?? 'unknown',
+      userAgent: req.headers['user-agent'] ?? '',
+    })
   }
-  const { token } = createPasswordReset({
-    userId: user.id,
-    actorIp: req.socket.remoteAddress ?? 'unknown',
-    userAgent: req.headers['user-agent'] ?? '',
-  })
-  respond(res, 200, { token })
+  respond(res, 200, { ok: true })
 }
 
 async function handlePasswordReset(req, res) {
