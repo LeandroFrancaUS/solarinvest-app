@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useState } from 'react'
-import { useAuth, UserRole } from '../../app/auth/AuthProvider'
+import { useAuth } from '../../app/auth/AuthProvider'
+import type { UserRole } from '../../app/auth/AuthProvider'
 import { apiFetch, type ApiError } from '../../app/services/httpClient'
 
 interface AdminUsersModalProps {
