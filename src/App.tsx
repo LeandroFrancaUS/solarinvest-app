@@ -1222,6 +1222,8 @@ const CRM_BACKEND_BASE_URL = 'https://crm.solarinvest.app'
 const PROPOSAL_PDF_REMINDER_INTERVAL_MS = 15 * 24 * 60 * 60 * 1000
 const PROPOSAL_PDF_REMINDER_MESSAGE =
   'Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção “Imprimir” para gerar o PDF manualmente.'
+const DEFAULT_PREVIEW_TOOLBAR_MESSAGE =
+  'Revise o conteúdo e utilize as ações para imprimir ou salvar como PDF.'
 
 const CRM_PIPELINE_STAGES: CrmPipelineStage[] = [
   { id: 'novo-lead', label: 'Novo lead' },
@@ -6461,6 +6463,23 @@ export default function App() {
     ],
   )
 
+  const resolvePreviewToolbarMessage = useCallback(
+    (customMessage?: string) => {
+      const trimmedMessage = customMessage?.trim()
+
+      if (proposalPdfIntegrationAvailable) {
+        return trimmedMessage || DEFAULT_PREVIEW_TOOLBAR_MESSAGE
+      }
+
+      if (!trimmedMessage || trimmedMessage === PROPOSAL_PDF_REMINDER_MESSAGE) {
+        return PROPOSAL_PDF_REMINDER_MESSAGE
+      }
+
+      return `${trimmedMessage} ${PROPOSAL_PDF_REMINDER_MESSAGE}`
+    },
+    [proposalPdfIntegrationAvailable],
+  )
+
   const openBudgetPreviewWindow = useCallback(
     (
       layoutHtml: string,
@@ -6485,8 +6504,7 @@ export default function App() {
         return
       }
 
-      const mensagemToolbar =
-        actionMessage || 'Revise o conteúdo e utilize as ações para imprimir ou salvar como PDF.'
+      const mensagemToolbar = resolvePreviewToolbarMessage(actionMessage)
       const codigoHtml = `<p class="preview-toolbar-code${budgetId ? '' : ' is-hidden'}">Código do orçamento: <strong>${budgetId ?? ''}</strong></p>`
 
       const resolvedInitialMode: PrintMode =
@@ -6716,7 +6734,7 @@ export default function App() {
       document.close()
       printWindow.focus()
     },
-    [],
+    [resolvePreviewToolbarMessage],
   )
 
   const prepararPropostaParaExportacao = useCallback(async (options?: { incluirTabelaBuyout?: boolean }) => {
