@@ -2,28 +2,15 @@ import fetch from "node-fetch";
 import fs from "fs";
 import path from "path";
 
-/**
- * Proxy to ANEEL CKAN API with fallback to local CSV for energy tariff data.
- */
 export default async function handler(req, res) {
   const { path: apiPath } = req.query;
+  if (!apiPath) return res.status(400).json({ error: "Missing 'path' parameter" });
 
-  // Expect: /api/aneel?path=<CKAN API or resource path>
-  if (!apiPath) {
-    return res.status(400).json({ error: "Missing 'path' parameter" });
-  }
-
-  // Remote CKAN base
   const remoteUrl = `https://dados.aneel.gov.br${apiPath}`;
-
   try {
     const response = await fetch(remoteUrl);
     const contentType = response.headers.get("content-type");
-    if (!response.ok) {
-      throw new Error(`Remote responded ${response.status}`);
-    }
-
-    // JSON or CSV
+    if (!response.ok) throw new Error(`Remote responded ${response.status}`);
     if (contentType && contentType.includes("application/json")) {
       const data = await response.json();
       return res.status(200).json(data);
@@ -35,8 +22,7 @@ export default async function handler(req, res) {
     }
     throw new Error("Remote returned unsupported content type");
   } catch (err) {
-    // Fallback to local file if available
-    console.error("[ANEEL Proxy] Fallback -", err);
+    // fallback to local CSV if you have one
     const fallbackPath = path.join(process.cwd(), "public", "tarifas_medias.csv");
     if (fs.existsSync(fallbackPath)) {
       const csvData = fs.readFileSync(fallbackPath, "utf8");
