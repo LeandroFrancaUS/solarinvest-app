@@ -12,7 +12,15 @@ import {
   handleContractRenderRequest,
   handleContractTemplatesRequest,
 } from './contracts.js'
+import {
+  getStackUser,
+  getTrustedOrigins,
+  isStackAuthEnabled,
+  sanitizeStackUserId,
+} from './auth/stackAuth.js'
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
+import { getDatabaseClient } from './database/neonClient.js'
+import { StorageService } from './database/storageService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -35,11 +43,87 @@ const MIME_TYPES = {
 }
 
 const PORT = Number.parseInt(process.env.PORT ?? '3000', 10)
+const STORAGE_API_PATH = '/api/storage'
+const MAX_JSON_BODY_BYTES = 256 * 1024
+const CORS_ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With'
+const CORS_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS'
+
+const trustedOrigins = getTrustedOrigins()
+const stackAuthEnabled = isStackAuthEnabled()
+
+if (stackAuthEnabled) {
+  console.info('[auth] Stack Auth JWT validation habilitado.')
+} else {
+  console.info('[auth] Stack Auth não configurado. Defina NEXT_PUBLIC_STACK_PROJECT_ID e STACK_JWKS_URL para exigir autenticação.')
+}
+
+const applyCorsHeaders = (req, res) => {
+  if (trustedOrigins.size === 0) {
+    return
+  }
+
+  const originHeader = req.headers?.origin
+  const origin = typeof originHeader === 'string' ? originHeader.trim() : ''
+  if (!origin || (!trustedOrigins.has(origin) && !trustedOrigins.has('*'))) {
+    return
+  }
+
+  res.setHeader('Access-Control-Allow-Origin', origin)
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader('Access-Control-Allow-Headers', CORS_ALLOWED_HEADERS)
+  res.setHeader('Access-Control-Allow-Methods', CORS_ALLOWED_METHODS)
+  res.setHeader('Access-Control-Max-Age', '600')
+  res.setHeader('Vary', 'Origin')
+}
 
 const sendJson = (res, statusCode, payload) => {
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.end(JSON.stringify(payload))
+}
+
+const sendNoContent = (res) => {
+  res.statusCode = 204
+  res.end()
+}
+
+const readJsonBody = async (req) => {
+  if (!req.readable) {
+    return {}
+  }
+
+  let accumulated = ''
+  let totalLength = 0
+
+  req.setEncoding('utf8')
+
+  return new Promise((resolve, reject) => {
+    req.on('data', (chunk) => {
+      totalLength += chunk.length
+      if (totalLength > MAX_JSON_BODY_BYTES) {
+        reject(new Error('Payload acima do limite permitido.'))
+        return
+      }
+      accumulated += chunk
+    })
+
+    req.on('end', () => {
+      if (!accumulated) {
+        resolve({})
+        return
+      }
+      try {
+        const parsed = JSON.parse(accumulated)
+        resolve(parsed)
+      } catch (error) {
+        reject(new Error('JSON inválido na requisição.'))
+      }
+    })
+
+    req.on('error', (error) => {
+      reject(error)
+    })
+  })
 }
 
 const serveStatic = async (pathname, res) => {
@@ -76,10 +160,23 @@ const serveStatic = async (pathname, res) => {
 }
 
 const databaseConfig = getNeonDatabaseConfig()
+const databaseClient = getDatabaseClient()
+let storageService = null
+
 if (!databaseConfig.connectionString) {
-  console.info('[database] Nenhuma conexão Neon configurada. Defina NEON_DATABASE_URL para habilitar persistência.')
+  console.info('[database] Nenhuma conexão Neon configurada. Defina DATABASE_URL para habilitar persistência.')
+} else if (!databaseClient) {
+  console.error('[database] Não foi possível inicializar o cliente Neon. Verifique suas dependências.')
 } else {
-  console.info('[database] Configuração Neon detectada. Integração será inicializada quando implementada.')
+  storageService = new StorageService(databaseClient.sql)
+  storageService
+    .ensureInitialized()
+    .then(() => {
+      console.info('[database] Integração Neon inicializada com sucesso.')
+    })
+    .catch((error) => {
+      console.error('[database] Falha ao inicializar a estrutura do banco de dados:', error)
+    })
 }
 
 const server = createServer(async (req, res) => {
@@ -87,6 +184,8 @@ const server = createServer(async (req, res) => {
     sendJson(res, 400, { error: 'Requisição inválida' })
     return
   }
+
+  applyCorsHeaders(req, res)
 
   const requestUrl = new URL(req.url, 'http://localhost')
   const pathname = requestUrl.pathname
@@ -112,9 +211,76 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  if (pathname === STORAGE_API_PATH) {
+    if (!storageService) {
+      sendJson(res, 503, { error: 'Persistência indisponível' })
+      return
+    }
+
+    const stackUser = await getStackUser(req)
+    const userId = stackAuthEnabled
+      ? sanitizeStackUserId(stackUser && stackUser.payload ? stackUser : null)
+      : sanitizeStackUserId(stackUser)
+
+    try {
+      if (method === 'OPTIONS') {
+        res.setHeader('Allow', CORS_ALLOWED_METHODS)
+        sendNoContent(res)
+        return
+      }
+
+      if (stackAuthEnabled && !userId) {
+        sendJson(res, 401, { error: 'Autenticação obrigatória.' })
+        return
+      }
+
+      if (method === 'GET') {
+        const entries = await storageService.listEntries(userId)
+        sendJson(res, 200, { entries })
+        return
+      }
+
+      if (method === 'PUT' || method === 'POST') {
+        const body = await readJsonBody(req)
+        const key = typeof body.key === 'string' ? body.key.trim() : ''
+        const value = body.value === undefined || body.value === null ? null : String(body.value)
+
+        if (!key) {
+          sendJson(res, 400, { error: 'Chave de armazenamento inválida.' })
+          return
+        }
+
+        await storageService.setEntry(userId, key, value)
+        sendNoContent(res)
+        return
+      }
+
+      if (method === 'DELETE') {
+        const body = await readJsonBody(req)
+        const key = typeof body.key === 'string' ? body.key.trim() : ''
+
+        if (!key) {
+          await storageService.clear(userId)
+          sendNoContent(res)
+          return
+        }
+
+        await storageService.removeEntry(userId, key)
+        sendNoContent(res)
+        return
+      }
+
+      sendJson(res, 405, { error: 'Método não suportado.' })
+    } catch (error) {
+      console.error('[storage] Erro ao manipular persistência Neon:', error)
+      sendJson(res, 500, { error: 'Falha ao acessar armazenamento persistente.' })
+    }
+    return
+  }
+
   if (method === 'OPTIONS') {
-    res.statusCode = 204
-    res.end()
+    res.setHeader('Allow', CORS_ALLOWED_METHODS)
+    sendNoContent(res)
     return
   }
 
