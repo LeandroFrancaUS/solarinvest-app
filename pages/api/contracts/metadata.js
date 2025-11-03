@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
-import unzipper from "unzipper";
-import { parseStringPromise } from "xml2js";
+import { getPropertiesFromFile } from "office-document-properties";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -13,25 +12,13 @@ export default async function handler(req, res) {
     const filename = req.query.filename;
     if (!filename) return res.status(400).json({ error: "Missing filename." });
 
-    const filePath = path.join(process.cwd(), "assets", "templates", "contratos", categoria, filename);
+    const filePath = path.join(process.cwd(), "public", "contracts", categoria, filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File not found" });
 
-    const directory = await unzipper.Open.file(filePath);
-    const corePropsEntry = directory.files.find(e => e.path === "docProps/core.xml");
-    if (!corePropsEntry) return res.status(422).json({ error: "Metadata file not found in docx" });
-    const xmlContent = await corePropsEntry.buffer();
-    const props = await parseStringPromise(xmlContent);
+    const properties = await getPropertiesFromFile(filePath);
 
-    // Extract basic info from XML
-    const core = props["cp:coreProperties"];
     res.status(200).json({
-      title: core["dc:title"]?.[0] || "",
-      subject: core["dc:subject"]?.[0] || "",
-      author: core["dc:creator"]?.[0] || "",
-      keywords: core["cp:keywords"]?.[0] || "",
-      comments: core["dc:description"]?.[0] || "",
-      created: core["dcterms:created"]?.[0]?._ || "",
-      modified: core["dcterms:modified"]?.[0]?._ || "",
+      ...properties,
       categoria,
       filename
     });
