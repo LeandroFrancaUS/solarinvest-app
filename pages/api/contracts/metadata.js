@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import DocxMeta from "@natancabral/docx-meta";
+import { getPropertiesFromFile } from "office-document-properties";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -15,20 +15,12 @@ export default async function handler(req, res) {
 
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File not found" });
 
-    const buffer = fs.readFileSync(filePath);
-    const meta = new DocxMeta(buffer);
+    const properties = await getPropertiesFromFile(filePath);
 
-    // Returns available built-in properties (subject, author, created, modified, etc.)
     res.status(200).json({
-      title: meta.title,
-      subject: meta.subject,
-      author: meta.author,
-      keywords: meta.keywords,
-      comments: meta.comments,
-      created: meta.created,
-      modified: meta.modified,
-      category: categoria,
-      filename,
+      ...properties,
+      categoria,
+      filename
     });
   } catch (err) {
     console.error("[contracts/metadata] Error:", err);
