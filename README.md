@@ -27,3 +27,21 @@ Install dependencies with `npm install` before running the test suite. The proje
 uses [Vitest](https://vitest.dev/) for unit tests, exposed through `npm run test`.
 If your environment blocks access to the public npm registry, mirror the required
 packages or configure an internal registry so Vitest can be installed successfully.
+
+## Neon PostgreSQL storage
+
+The Solarinvest app now persists CRM datasets, budgets and other workspace
+preferences in a Neon PostgreSQL database. The backend automatically provisions
+the `app_storage` table on startup and exposes a `/api/storage` endpoint that the
+frontend transparently uses instead of the browser `localStorage` APIs.
+
+Configure the following variables in your Vercel project (or `.env` file when
+running locally):
+
+- `DATABASE_URL` (or `DATABASE_URL_UNPOOLED`) – full Neon connection string.
+- `PGHOST`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` – optional raw credentials if
+  you prefer to assemble the URI manually.
+
+The backend requires the `@neondatabase/serverless` driver. Run
+`npm install @neondatabase/serverless` so the dependency is available before
+starting the server.
