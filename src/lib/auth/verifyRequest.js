@@ -19,7 +19,18 @@ function getKey(header, callback) {
   });
 }
 
+function normalizePayload(payload) {
+  if (!payload) return null;
+  // prefer sub, then sub_id, then user_id, then email
+  const id = payload.sub || payload.sub_id || payload.user_id || payload.email || null;
+  return {
+    ...payload,
+    id,
+  };
+}
+
 export async function verifyRequest(req) {
+  // 1) Try cookie session (signed by AUTH_COOKIE_SECRET)
   try {
     const cookie = req.headers.cookie || '';
     const match = cookie.match(/solarinvest_session=([^;]+)/);
@@ -27,21 +38,25 @@ export async function verifyRequest(req) {
     if (match && secret) {
       const token = match[1];
       const decoded = jwt.verify(token, secret);
-      return decoded;
+      return normalizePayload(decoded);
     }
-  } catch (e) {}
+  } catch (e) {
+    // fallthrough to bearer
+  }
 
+  // 2) Try Authorization: Bearer <token> with JWKS
   try {
     const auth = (req.headers.authorization || '').trim();
     const m = auth.match(/^Bearer\s+(.+)$/i);
     if (m && jwksClient && AUDIENCE) {
       const token = m[1];
-      return await new Promise((resolve, reject) => {
+      const payload = await new Promise((resolve, reject) => {
         jwt.verify(token, getKey, { audience: AUDIENCE, algorithms: ['RS256'] }, (err, payload) => {
           if (err) return reject(err);
           resolve(payload);
         });
       });
+      return normalizePayload(payload);
     }
   } catch (e) {
     return null;
