@@ -4,9 +4,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
-    environmentMatchGlobs: [
-      ['tests/security/**', 'node'],
-    ],
     coverage: {
       provider: 'v8',
     },

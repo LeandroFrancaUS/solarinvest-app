@@ -2,7 +2,6 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import { Boundary } from './app/Boundary'
-import { AuthGate } from './app/auth/AuthGate'
 import { Providers } from './app/Providers'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode } from './constants/ui'
 import './styles.css'
@@ -22,9 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Boundary>
       <Providers>
-        <AuthGate>
-          <App />
-        </AuthGate>
+        <App />
       </Providers>
     </Boundary>
   </React.StrictMode>,
