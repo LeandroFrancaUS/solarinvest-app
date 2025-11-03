@@ -9,23 +9,29 @@ import './styles.css'
 import './styles/anti-overlay.css'
 import './styles/anti-overlay-screen.css'
 
-await ensureServerStorageSync()
+async function bootstrap() {
+  await ensureServerStorageSync()
 
-const storedDensity =
-  typeof window !== 'undefined' ? window.localStorage.getItem(DENSITY_STORAGE_KEY) : null
+  const storedDensity =
+    typeof window !== 'undefined' ? window.localStorage.getItem(DENSITY_STORAGE_KEY) : null
 
-const initialDensity = storedDensity && isDensityMode(storedDensity) ? storedDensity : DEFAULT_DENSITY
+  const initialDensity = storedDensity && isDensityMode(storedDensity) ? storedDensity : DEFAULT_DENSITY
 
-if (typeof document !== 'undefined') {
-  document.documentElement.dataset.density = initialDensity
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.density = initialDensity
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <Boundary>
+        <Providers>
+          <App />
+        </Providers>
+      </Boundary>
+    </React.StrictMode>,
+  )
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <Boundary>
-      <Providers>
-        <App />
-      </Providers>
-    </Boundary>
-  </React.StrictMode>,
-)
+bootstrap().catch((error) => {
+  console.error('Failed to bootstrap application', error)
+})
