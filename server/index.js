@@ -12,6 +12,12 @@ import {
   handleContractRenderRequest,
   handleContractTemplatesRequest,
 } from './contracts.js'
+import {
+  getStackUser,
+  getTrustedOrigins,
+  isStackAuthEnabled,
+  sanitizeStackUserId,
+} from './auth/stackAuth.js'
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
@@ -39,6 +45,36 @@ const MIME_TYPES = {
 const PORT = Number.parseInt(process.env.PORT ?? '3000', 10)
 const STORAGE_API_PATH = '/api/storage'
 const MAX_JSON_BODY_BYTES = 256 * 1024
+const CORS_ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With'
+const CORS_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS'
+
+const trustedOrigins = getTrustedOrigins()
+const stackAuthEnabled = isStackAuthEnabled()
+
+if (stackAuthEnabled) {
+  console.info('[auth] Stack Auth JWT validation habilitado.')
+} else {
+  console.info('[auth] Stack Auth não configurado. Defina NEXT_PUBLIC_STACK_PROJECT_ID e STACK_JWKS_URL para exigir autenticação.')
+}
+
+const applyCorsHeaders = (req, res) => {
+  if (trustedOrigins.size === 0) {
+    return
+  }
+
+  const originHeader = req.headers?.origin
+  const origin = typeof originHeader === 'string' ? originHeader.trim() : ''
+  if (!origin || (!trustedOrigins.has(origin) && !trustedOrigins.has('*'))) {
+    return
+  }
+
+  res.setHeader('Access-Control-Allow-Origin', origin)
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader('Access-Control-Allow-Headers', CORS_ALLOWED_HEADERS)
+  res.setHeader('Access-Control-Allow-Methods', CORS_ALLOWED_METHODS)
+  res.setHeader('Access-Control-Max-Age', '600')
+  res.setHeader('Vary', 'Origin')
+}
 
 const sendJson = (res, statusCode, payload) => {
   res.statusCode = statusCode
@@ -149,6 +185,8 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  applyCorsHeaders(req, res)
+
   const requestUrl = new URL(req.url, 'http://localhost')
   const pathname = requestUrl.pathname
   const method = req.method?.toUpperCase() ?? 'GET'
@@ -179,12 +217,20 @@ const server = createServer(async (req, res) => {
       return
     }
 
-    const userId = req.headers['x-user-id'] ?? req.headers['x-userid'] ?? null
+    const stackUser = await getStackUser(req)
+    const userId = stackAuthEnabled
+      ? sanitizeStackUserId(stackUser && stackUser.payload ? stackUser : null)
+      : sanitizeStackUserId(stackUser)
 
     try {
       if (method === 'OPTIONS') {
-        res.setHeader('Allow', 'GET,POST,PUT,DELETE,OPTIONS')
+        res.setHeader('Allow', CORS_ALLOWED_METHODS)
         sendNoContent(res)
+        return
+      }
+
+      if (stackAuthEnabled && !userId) {
+        sendJson(res, 401, { error: 'Autenticação obrigatória.' })
         return
       }
 
@@ -233,8 +279,8 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'OPTIONS') {
-    res.statusCode = 204
-    res.end()
+    res.setHeader('Allow', CORS_ALLOWED_METHODS)
+    sendNoContent(res)
     return
   }
 

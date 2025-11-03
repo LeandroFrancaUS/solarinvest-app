@@ -45,3 +45,31 @@ running locally):
 The backend requires the `@neondatabase/serverless` driver. Run
 `npm install @neondatabase/serverless` so the dependency is available before
 starting the server.
+
+## Stack Auth integration
+
+When a Stack Auth project is configured the `/api/storage` endpoint now
+requires authenticated requests using a Bearer token signed by Stack Auth. The
+server validates the JWT against the project's JWKS document and rejects
+unauthorized calls with HTTP 401.
+
+Set the following environment variables:
+
+- `NEXT_PUBLIC_STACK_PROJECT_ID` – Stack Auth project identifier.
+- `NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY` – publishable key used by the
+  frontend client.
+- `STACK_SECRET_SERVER_KEY` – secret server key (required by Stack SDKs).
+- `STACK_JWKS_URL` – JWKS URL published by Stack Auth.
+- `TRUSTED_WEB_ORIGINS` – comma-separated list of allowed origins for CORS. If
+  omitted the server trusts the default Vite dev URLs.
+
+Example `.env` snippet based on the current SolarInvest deployment:
+
+```
+NEXT_PUBLIC_STACK_PROJECT_ID=deead568-c1e6-436c-ba28-85bf3fbebef5
+NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=pck_1t1r87ap8bbrdb9bf42fbzzqr27h7969s6vd3kha76gdr
+STACK_SECRET_SERVER_KEY=ssk_0n5r6c4rjgc6rdx0ymt2kt0bfnp8vv9626f6crjsnypcg
+STACK_JWKS_URL=https://api.stack-auth.com/api/v1/projects/deead568-c1e6-436c-ba28-85bf3fbebef5/.well-known/jwks.json
+TRUSTED_WEB_ORIGINS=https://app.solarinvest.info
+DATABASE_URL=postgresql://neondb_owner:npg_Y6Hrql3hWOum@ep-damp-mouse-ac5zr9v1-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require
+```
