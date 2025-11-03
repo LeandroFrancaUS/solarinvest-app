@@ -11,8 +11,8 @@ pool = global.__pgPool;
 export default async function handler(req, res) {
   try {
     const user = await verifyRequest(req);
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    const userId = user.sub || null;
+    const userId = user?.id || null;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: missing user id in session' });
 
     if (req.method === 'GET') {
       const clientConn = await pool.connect();
