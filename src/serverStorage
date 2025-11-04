@@ -1,0 +1,33 @@
+// Este arquivo faz as chamadas à API /api/storage do backend Next.js
+
+// Função para obter dados do storage do usuário
+export async function getUserStorage(userId: string) {
+  const resp = await fetch("/api/storage", {
+    method: "GET",
+    headers: {
+      "x-user-id": userId,
+      "Content-Type": "application/json"
+    }
+  });
+  if (!resp.ok) {
+    // Retorna null ou lança erro customizado conforme necessidade do app
+    throw new Error(`Falha ao consultar storage (status ${resp.status})`);
+  }
+  return await resp.json();
+}
+
+// Função para salvar/atualizar dados do storage do usuário
+export async function setUserStorage(userId: string, key: string, value: any) {
+  const resp = await fetch("/api/storage", {
+    method: "POST",
+    headers: {
+      "x-user-id": userId,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ key, value })
+  });
+  if (!resp.ok) {
+    throw new Error(`Falha ao salvar storage (status ${resp.status})`);
+  }
+  return await resp.json();
+}
