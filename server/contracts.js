@@ -3,7 +3,6 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { execFile } from 'node:child_process'
 import util from 'node:util'
-import { XMLBuilder, XMLParser } from 'fast-xml-parser'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -25,17 +24,6 @@ const PDF_MARGIN = 72
 const PDF_FONT_SIZE = 11
 const PDF_LINE_HEIGHT = 14
 const PDF_MAX_LINE_LENGTH = 90
-
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  preserveOrder: true,
-  trimValues: false,
-})
-
-const xmlBuilder = new XMLBuilder({
-  ignoreAttributes: false,
-  preserveOrder: true,
-})
 
 class ContractRenderError extends Error {
   /**
@@ -116,53 +104,49 @@ const maskCpfCnpj = (value) => {
   return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
 }
 
-const replaceTagsInValue = (text, data) => {
-  const replaceTag = (input, key, value) =>
-    input
-      .replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value ?? '')
-      .replace(new RegExp(`\\{${key}\\}`, 'g'), value ?? '')
-
-  return replaceTag(
-    replaceTag(
-      replaceTag(
-        replaceTag(
-          replaceTag(text, 'nomeCompleto', data.nomeCompleto ?? ''),
-          'cpfCnpj',
-          maskCpfCnpj(data.cpfCnpj),
-        ),
-        'enderecoCompleto',
-        data.enderecoCompleto ?? '',
-      ),
-      'unidadeConsumidora',
-      data.unidadeConsumidora ?? '',
-    ),
-    'dataAtualExtenso',
-    data.dataAtualExtenso ?? '',
-  )
+const XML_CHAR_ESCAPE_REGEX = /[&<>"']/g
+const XML_CHAR_ESCAPE_MAP = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&apos;',
 }
 
-const replaceTagsInNode = (node, data) => {
-  if (typeof node === 'string') {
-    return replaceTagsInValue(node, data)
+const escapeXmlValue = (value) =>
+  String(value ?? '').replace(XML_CHAR_ESCAPE_REGEX, (char) => XML_CHAR_ESCAPE_MAP[char] ?? char)
+
+const buildPlaceholderMap = (data) => ({
+  nomeCompleto: data.nomeCompleto ?? '',
+  cpfCnpj: maskCpfCnpj(data.cpfCnpj),
+  enderecoCompleto: data.enderecoCompleto ?? '',
+  unidadeConsumidora: data.unidadeConsumidora ?? '',
+  dataAtualExtenso: data.dataAtualExtenso ?? '',
+})
+
+const applyPlaceholderReplacements = (text, data, { escapeXml = false } = {}) => {
+  if (typeof text !== 'string' || !text) {
+    return typeof text === 'string' ? text : ''
   }
-  if (Array.isArray(node)) {
-    return node.map((item) => replaceTagsInNode(item, data))
-  }
-  if (node && typeof node === 'object') {
-    const updated = {}
-    for (const [key, value] of Object.entries(node)) {
-      updated[key] = replaceTagsInNode(value, data)
+
+  const placeholders = buildPlaceholderMap(data)
+  let output = text
+
+  for (const [key, rawValue] of Object.entries(placeholders)) {
+    const replacement = escapeXml ? escapeXmlValue(rawValue) : rawValue ?? ''
+    if (!key) {
+      continue
     }
-    return updated
+    const doublePattern = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
+    const singlePattern = new RegExp(`\\{${key}\\}`, 'g')
+    output = output.replace(doublePattern, replacement)
+    output = output.replace(singlePattern, replacement)
   }
-  return node
+
+  return output
 }
 
-const replaceTagsInXml = (xmlContent, data) => {
-  const parsed = xmlParser.parse(xmlContent)
-  const replaced = replaceTagsInNode(parsed, data)
-  return xmlBuilder.build(replaced)
-}
+const replaceTagsInXml = (xmlContent, data) => applyPlaceholderReplacements(xmlContent, data, { escapeXml: true })
 
 const decodeXmlEntities = (value) =>
   value
@@ -811,19 +795,14 @@ const convertDocxToPdf = async (docxPath, pdfPath) => {
   throw new ContractRenderError(500, message)
 }
 
-const generateContractPdf = async (cliente, templateName) => {
-  const { absolutePath: templatePath, fileName: templateFileName } =
-    await resolveTemplatePath(templateName)
+const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*)\.xml$/
+
+const generateContractPdfFromDocx = async ({ templatePath, templateFileName }, data) => {
   const templateBuffer = await fs.readFile(templatePath)
   const JSZip = await loadJsZip()
   const zip = await JSZip.loadAsync(templateBuffer)
 
-  const dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-  const data = { ...cliente, dataAtualExtenso }
-
-  const partNames = Object.keys(zip.files).filter((name) =>
-    /^word\/(document|header\d*|footer\d*)\.xml$/.test(name),
-  )
+  const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
 
   await Promise.all(
     partNames.map(async (name) => {
@@ -864,6 +843,85 @@ const generateContractPdf = async (cliente, templateName) => {
     )
   } finally {
     await cleanupTmpFiles(docxPath, pdfPath)
+  }
+}
+
+const resolvePlainTextTemplatePath = async (templatePath) => {
+  const textPath = templatePath.replace(/\.docx$/i, '.txt')
+  try {
+    await fs.access(textPath)
+    return textPath
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return null
+    }
+    throw error
+  }
+}
+
+const generateContractPdfFromPlainText = async ({ templatePath, templateFileName }, data) => {
+  const textPath = await resolvePlainTextTemplatePath(templatePath)
+  if (!textPath) {
+    throw new ContractRenderError(
+      500,
+      'Fallback textual de contratos indisponível. Verifique se os templates em texto estão presentes.',
+    )
+  }
+
+  const templateText = await fs.readFile(textPath, 'utf8')
+  const replacedText = applyPlaceholderReplacements(templateText, data)
+  const pdfBuffer = createPdfBufferFromPlainText(replacedText)
+  return { pdfBuffer, templateFileName }
+}
+
+const shouldFallbackToPlainText = (error) => {
+  if (!error) {
+    return false
+  }
+
+  if (error instanceof ContractRenderError) {
+    if (typeof error.statusCode === 'number' && error.statusCode !== 500) {
+      return false
+    }
+    return true
+  }
+
+  if (error && typeof error === 'object') {
+    const code = /** @type {{ code?: string }} */ (error).code
+    if (code === 'MODULE_NOT_FOUND' || code === 'ERR_MODULE_NOT_FOUND') {
+      return true
+    }
+  }
+
+  return true
+}
+
+const generateContractPdf = async (cliente, templateName) => {
+  const { absolutePath: templatePath, fileName: templateFileName } =
+    await resolveTemplatePath(templateName)
+
+  const templateInfo = { templatePath, templateFileName }
+  const dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  const data = { ...cliente, dataAtualExtenso }
+
+  try {
+    return await generateContractPdfFromDocx(templateInfo, data)
+  } catch (error) {
+    if (!shouldFallbackToPlainText(error)) {
+      throw error
+    }
+
+    console.warn(
+      `[contracts] Falha ao gerar contrato utilizando template DOCX (${templateFileName}). Aplicando fallback em modo texto.`,
+      error,
+    )
+
+    try {
+      return await generateContractPdfFromPlainText(templateInfo, data)
+    } catch (fallbackError) {
+      console.error('[contracts] Falha ao gerar contrato via fallback textual:', fallbackError)
+      throw error instanceof Error ? error : new ContractRenderError(500, 'Falha ao gerar contrato PDF.')
+    }
   }
 }
 
