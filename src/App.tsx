@@ -34,6 +34,7 @@ import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
 import { getTarifaCheia } from './utils/tarifaAneel'
 import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
+import { resolveApiUrl } from './utils/apiUrl'
 import {
   persistClienteRegistroToOneDrive,
   type ClienteRegistroSyncPayload,
@@ -10265,7 +10266,9 @@ export default function App() {
       setContractTemplatesError(null)
       try {
         const params = new URLSearchParams({ categoria: category })
-        const response = await fetch(`/api/contracts/templates?${params.toString()}`)
+        const response = await fetch(
+          resolveApiUrl(`/api/contracts/templates?${params.toString()}`),
+        )
         if (!response.ok) {
           let mensagemErro = 'Não foi possível listar os templates de contrato.'
           const contentType = response.headers.get('content-type') ?? ''
@@ -10606,7 +10609,7 @@ export default function App() {
       for (const template of selectedContractTemplates) {
         const templateLabel = (template.split(/[\\/]/).pop() ?? template).replace(/\.docx$/i, '')
         try {
-          const response = await fetch('/api/contracts/render', {
+          const response = await fetch(resolveApiUrl('/api/contracts/render'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

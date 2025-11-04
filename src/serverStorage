@@ -1,8 +1,12 @@
+import { resolveApiUrl } from "./utils/apiUrl";
+
+const STORAGE_ENDPOINT = resolveApiUrl("/api/storage") || "/api/storage";
+
 // Este arquivo faz as chamadas à API /api/storage do backend Next.js
 
 // Função para obter dados do storage do usuário
 export async function getUserStorage(userId: string) {
-  const resp = await fetch("/api/storage", {
+  const resp = await fetch(STORAGE_ENDPOINT, {
     method: "GET",
     headers: {
       "x-user-id": userId,
@@ -18,7 +22,7 @@ export async function getUserStorage(userId: string) {
 
 // Função para salvar/atualizar dados do storage do usuário
 export async function setUserStorage(userId: string, key: string, value: any) {
-  const resp = await fetch("/api/storage", {
+  const resp = await fetch(STORAGE_ENDPOINT, {
     method: "POST",
     headers: {
       "x-user-id": userId,
