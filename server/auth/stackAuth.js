@@ -1,4 +1,4 @@
-import { createPublicKey, createVerify } from 'node:crypto'
+import { createHmac, createPublicKey, createVerify, timingSafeEqual } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
 
 const REQUEST_USER_SYMBOL = Symbol('stackAuthUser')
@@ -45,6 +45,9 @@ const jwksUrl = jwksUrlFromEnv || inferredJwksUrl
 const expectedIssuer = projectId
   ? `https://api.stack-auth.com/api/v1/projects/${projectId}`
   : ''
+
+const authCookieName = sanitizeString(process.env.AUTH_COOKIE_NAME) || 'solarinvest_session'
+const authCookieSecret = sanitizeString(process.env.AUTH_COOKIE_SECRET)
 
 let lastJwksFetch = 0
 let jwksCache = null
@@ -137,6 +140,116 @@ function logStackError(message, error) {
   }
   lastLoggedError = now
   console.warn(message, error)
+}
+
+function verifyHmacJwt(token, secret) {
+  if (!token || !secret) {
+    return null
+  }
+
+  const segments = token.split('.')
+  if (segments.length !== 3) {
+    return null
+  }
+
+  const [encodedHeader, encodedPayload, encodedSignature] = segments
+  const header = decodeSegment(encodedHeader)
+  if (!header || typeof header !== 'object') {
+    return null
+  }
+
+  const algorithm = sanitizeString(header.alg)
+  const supportedAlgorithms = new Map([
+    ['HS256', 'sha256'],
+    ['HS384', 'sha384'],
+    ['HS512', 'sha512'],
+  ])
+
+  const hmacAlgorithm = supportedAlgorithms.get(algorithm)
+  if (!hmacAlgorithm) {
+    return null
+  }
+
+  const payload = decodeSegment(encodedPayload)
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+
+  const hmac = createHmac(hmacAlgorithm, secret)
+  hmac.update(`${encodedHeader}.${encodedPayload}`)
+  const expectedSignature = hmac.digest()
+  const signatureBuffer = base64UrlToBuffer(encodedSignature)
+
+  if (expectedSignature.length !== signatureBuffer.length) {
+    return null
+  }
+
+  if (!timingSafeEqual(expectedSignature, signatureBuffer)) {
+    return null
+  }
+
+  const expiration = typeof payload.exp === 'number' ? payload.exp * 1000 : NaN
+  if (Number.isFinite(expiration) && Date.now() > expiration) {
+    return null
+  }
+
+  const notBefore = typeof payload.nbf === 'number' ? payload.nbf * 1000 : NaN
+  if (Number.isFinite(notBefore) && Date.now() + 500 < notBefore) {
+    return null
+  }
+
+  return payload
+}
+
+function extractCookieValue(cookieHeader, name) {
+  if (!cookieHeader || !name) {
+    return ''
+  }
+
+  return cookieHeader
+    .split(';')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment) => segment.split('='))
+    .filter(([cookieName]) => cookieName && cookieName.trim() === name)
+    .map(([, ...rest]) => rest.join('=') ?? '')
+    .map((value) => {
+      try {
+        return decodeURIComponent(value)
+      } catch (error) {
+        return value
+      }
+    })
+    .find((value) => typeof value === 'string')
+    ?.trim() ?? ''
+}
+
+function resolveSessionCookieUser(req) {
+  if (!authCookieSecret || !authCookieName) {
+    return null
+  }
+
+  const cookieHeader = typeof req.headers?.cookie === 'string' ? req.headers.cookie : ''
+  const token = extractCookieValue(cookieHeader, authCookieName)
+  if (!token) {
+    return null
+  }
+
+  const payload = verifyHmacJwt(token, authCookieSecret)
+  if (!payload) {
+    return null
+  }
+
+  const userId = sanitizeString(payload?.sub ?? payload?.user_id ?? payload?.email ?? '')
+  if (!userId) {
+    return null
+  }
+
+  return {
+    id: userId,
+    email: sanitizeString(payload?.email ?? ''),
+    payload,
+  }
 }
 
 function extractBearerToken(req) {
@@ -282,6 +395,13 @@ export async function getStackUser(req) {
           payload,
         }
       }
+    }
+  }
+
+  if (!resolvedUser) {
+    const cookieUser = resolveSessionCookieUser(req)
+    if (cookieUser) {
+      resolvedUser = cookieUser
     }
   }
 
