@@ -40,7 +40,47 @@ export class StorageService {
       )
     `
 
+    await this.migrateLegacyStorage()
+
     this.initialized = true
+  }
+
+  async migrateLegacyStorage() {
+    const [legacyTable] = await this.sql`
+      SELECT to_regclass('public.app_storage') AS table_name
+    `
+
+    if (!legacyTable || !legacyTable.table_name) {
+      return
+    }
+
+    const legacyRows = await this.sql`
+      SELECT user_id, "key", value
+        FROM app_storage
+    `
+
+    if (legacyRows.length === 0) {
+      return
+    }
+
+    for (const row of legacyRows) {
+      const normalizedValue = normalizeJsonValue(row.value)
+      const serializedValue =
+        normalizedValue === null ? null : JSON.stringify(normalizedValue)
+
+      await this.sql`
+        INSERT INTO storage (user_id, "key", value, created_at, updated_at)
+        VALUES (
+          ${this.resolveUserId(row.user_id)},
+          ${row.key},
+          ${serializedValue}::jsonb,
+          now(),
+          now()
+        )
+        ON CONFLICT (user_id, "key")
+        DO NOTHING
+      `
+    }
   }
 
   resolveUserId(raw) {
