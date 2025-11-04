@@ -44,6 +44,7 @@ const MIME_TYPES = {
 
 const PORT = Number.parseInt(process.env.PORT ?? '3000', 10)
 const STORAGE_API_PATH = '/api/storage'
+const TEST_API_PATH = '/api/test'
 const MAX_JSON_BODY_BYTES = 256 * 1024
 const CORS_ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With'
 const CORS_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS'
@@ -211,6 +212,28 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  if (pathname === TEST_API_PATH) {
+    if (!databaseClient || !databaseConfig.connectionString) {
+      sendJson(res, 503, { error: 'Persistência indisponível' })
+      return
+    }
+
+    try {
+      const result = await databaseClient.sql`SELECT NOW() AS current_time`
+      const row = Array.isArray(result) && result.length > 0 ? result[0] : null
+      const nowValue = row?.current_time ?? row?.now ?? null
+      const serialized =
+        nowValue && typeof nowValue.toISOString === 'function'
+          ? nowValue.toISOString()
+          : nowValue
+      sendJson(res, 200, { now: serialized })
+    } catch (error) {
+      console.error('[database] Falha ao executar teste de conexão Neon:', error)
+      sendJson(res, 500, { error: 'Falha ao consultar o banco de dados.' })
+    }
+    return
+  }
+
   if (pathname === STORAGE_API_PATH) {
     if (!storageService) {
       sendJson(res, 503, { error: 'Persistência indisponível' })
@@ -243,7 +266,7 @@ const server = createServer(async (req, res) => {
       if (method === 'PUT' || method === 'POST') {
         const body = await readJsonBody(req)
         const key = typeof body.key === 'string' ? body.key.trim() : ''
-        const value = body.value === undefined || body.value === null ? null : String(body.value)
+        const value = body.value === undefined ? null : body.value
 
         if (!key) {
           sendJson(res, 400, { error: 'Chave de armazenamento inválida.' })

@@ -1,3 +1,5 @@
+import { resolveApiUrl } from './apiUrl'
+
 const DEFAULT_ANEEL_ORIGIN = 'https://dadosabertos.aneel.gov.br'
 const DEFAULT_PROXY_BASE = '/api/aneel'
 
@@ -71,8 +73,9 @@ export const resolveAneelUrl = (pathOrUrl: string): string => {
   if (proxyBase) {
     const upstreamPath = `${parsed.pathname}${parsed.search}${parsed.hash}`
     const encodedPath = encodeURIComponent(upstreamPath)
-    const separator = proxyBase.includes('?') ? '&' : '?'
-    return `${proxyBase}${separator}path=${encodedPath}`
+    const targetBase = resolveApiUrl(proxyBase)
+    const separator = targetBase.includes('?') ? '&' : '?'
+    return `${targetBase}${separator}path=${encodedPath}`
   }
 
   return parsed.href
@@ -81,7 +84,7 @@ export const resolveAneelUrl = (pathOrUrl: string): string => {
 export const getAneelRequestOrigin = (): string => {
   const proxyBase = getProxyBase()
   if (proxyBase) {
-    return proxyBase
+    return resolveApiUrl(proxyBase)
   }
   return getDirectOrigin()
 }

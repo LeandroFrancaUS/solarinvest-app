@@ -13,6 +13,8 @@ const rawTrustedOrigins = [
   process.env.TRUSTED_WEB_ORIGINS,
   process.env.STACK_TRUSTED_DOMAIN,
   process.env.TRUSTED_DOMAIN,
+  process.env.CORS_ALLOWED_ORIGINS,
+  process.env.ALLOWED_ORIGINS,
 ]
   .map((value) => sanitizeString(value))
   .filter(Boolean)
@@ -31,10 +33,13 @@ if (trustedOrigins.size === 0) {
 }
 
 const projectId = sanitizeString(
-  process.env.NEXT_PUBLIC_STACK_PROJECT_ID ?? process.env.STACK_PROJECT_ID ?? ''
+  process.env.STACK_AUTH_PROJECT_ID ??
+    process.env.NEXT_PUBLIC_STACK_PROJECT_ID ??
+    process.env.STACK_PROJECT_ID ??
+    ''
 )
 
-const jwksUrlFromEnv = sanitizeString(process.env.STACK_JWKS_URL)
+const jwksUrlFromEnv = sanitizeString(process.env.JWKS_URL ?? process.env.STACK_JWKS_URL)
 
 const inferredJwksUrl = projectId
   ? `https://api.stack-auth.com/api/v1/projects/${projectId}/.well-known/jwks.json`
@@ -47,7 +52,9 @@ const expectedIssuer = projectId
   : ''
 
 const authCookieName = sanitizeString(process.env.AUTH_COOKIE_NAME) || 'solarinvest_session'
-const authCookieSecret = sanitizeString(process.env.AUTH_COOKIE_SECRET)
+const authCookieSecret = sanitizeString(
+  process.env.AUTH_COOKIE_SECRET ?? process.env.JWT_SECRET ?? ''
+)
 
 let lastJwksFetch = 0
 let jwksCache = null
