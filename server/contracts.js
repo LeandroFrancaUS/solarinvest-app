@@ -19,6 +19,12 @@ const CONTRACT_TEMPLATES_DIR_RELATIVE = 'assets/templates/contratos'
 const DEFAULT_TEMPLATE_FILE = path.join(DEFAULT_TEMPLATE_CATEGORY, DEFAULT_TEMPLATE_FILE_NAME)
 const TMP_DIR = path.resolve(process.cwd(), 'tmp')
 const MAX_BODY_SIZE_BYTES = 256 * 1024
+const PDF_PAGE_WIDTH = 612
+const PDF_PAGE_HEIGHT = 792
+const PDF_MARGIN = 72
+const PDF_FONT_SIZE = 11
+const PDF_LINE_HEIGHT = 14
+const PDF_MAX_LINE_LENGTH = 90
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -156,6 +162,196 @@ const replaceTagsInXml = (xmlContent, data) => {
   const parsed = xmlParser.parse(xmlContent)
   const replaced = replaceTagsInNode(parsed, data)
   return xmlBuilder.build(replaced)
+}
+
+const decodeXmlEntities = (value) =>
+  value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+
+const extractPlainTextFromWordXml = (xmlContent) => {
+  if (!xmlContent) {
+    return ''
+  }
+
+  const replaced = xmlContent
+    .replace(/<w:tab[^>]*\/>/gi, '\t')
+    .replace(/<w:br[^>]*\/>/gi, '\n')
+    .replace(/<\/w:p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+
+  const decoded = decodeXmlEntities(replaced).replace(/\r/g, '')
+  const rawLines = decoded.split('\n')
+  const cleanedLines = []
+
+  for (const rawLine of rawLines) {
+    const trimmed = rawLine.replace(/\s+/g, ' ').trim()
+    if (trimmed) {
+      cleanedLines.push(trimmed)
+    } else if (cleanedLines.length > 0 && cleanedLines[cleanedLines.length - 1] !== '') {
+      cleanedLines.push('')
+    }
+  }
+
+  return cleanedLines.join('\n').trim()
+}
+
+const wrapLineForPdf = (line) => {
+  if (!line) {
+    return ['']
+  }
+
+  const maxLength = PDF_MAX_LINE_LENGTH
+  if (line.length <= maxLength) {
+    return [line]
+  }
+
+  const words = line.split(/\s+/).filter(Boolean)
+  if (words.length === 0) {
+    return ['']
+  }
+
+  const wrapped = []
+  let current = ''
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (candidate.length <= maxLength) {
+      current = candidate
+    } else {
+      if (current) {
+        wrapped.push(current)
+      }
+      current = word
+    }
+  }
+
+  if (current) {
+    wrapped.push(current)
+  }
+
+  return wrapped.length > 0 ? wrapped : ['']
+}
+
+const normalizeLinesForPdf = (text) => {
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const rawLines = normalized.split('\n')
+  const wrapped = []
+
+  rawLines.forEach((line, index) => {
+    const trimmedLine = line.replace(/\s+$/g, '')
+    if (trimmedLine) {
+      wrapped.push(...wrapLineForPdf(trimmedLine))
+    } else {
+      if (index === rawLines.length - 1) {
+        wrapped.push('')
+      } else if (wrapped.length === 0 || wrapped[wrapped.length - 1] !== '') {
+        wrapped.push('')
+      }
+    }
+  })
+
+  return wrapped.length > 0 ? wrapped : ['']
+}
+
+const escapePdfString = (value) => {
+  const buffer = Buffer.from(value, 'latin1')
+  let escaped = ''
+
+  for (const byte of buffer.values()) {
+    const char = String.fromCharCode(byte)
+    if (char === '\\' || char === '(' || char === ')') {
+      escaped += `\\${char}`
+    } else if (byte < 32 || byte > 126) {
+      escaped += `\\${byte.toString(8).padStart(3, '0')}`
+    } else {
+      escaped += char
+    }
+  }
+
+  return escaped
+}
+
+const createPdfBufferFromPlainText = (text) => {
+  const lines = normalizeLinesForPdf(text)
+  const linesPerPage = Math.max(1, Math.floor((PDF_PAGE_HEIGHT - PDF_MARGIN * 2) / PDF_LINE_HEIGHT))
+  const pages = []
+
+  for (let index = 0; index < lines.length; index += linesPerPage) {
+    pages.push(lines.slice(index, index + linesPerPage))
+  }
+
+  if (pages.length === 0) {
+    pages.push([''])
+  }
+
+  const objects = []
+  const addObject = (content = '') => {
+    const id = objects.length + 1
+    objects.push({ id, content })
+    return id
+  }
+
+  const catalogId = addObject()
+  const pagesId = addObject()
+  const fontId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
+
+  const contentIds = pages.map((pageLines) => {
+    let content = 'BT\n'
+    content += `/F1 ${PDF_FONT_SIZE} Tf\n`
+    content += `${PDF_MARGIN} ${PDF_PAGE_HEIGHT - PDF_MARGIN} Td\n`
+
+    pageLines.forEach((line, index) => {
+      content += `(${escapePdfString(line)}) Tj\n`
+      if (index !== pageLines.length - 1) {
+        content += `0 -${PDF_LINE_HEIGHT} Td\n`
+      }
+    })
+
+    content += 'ET'
+    const length = Buffer.byteLength(content, 'utf8')
+    return addObject(`<< /Length ${length} >>\nstream\n${content}\nendstream`)
+  })
+
+  const pageIds = pages.map(() => addObject())
+
+  pageIds.forEach((pageId, index) => {
+    const contentId = contentIds[index]
+    objects[pageId - 1].content = `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PDF_PAGE_WIDTH} ${PDF_PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`
+  })
+
+  objects[pagesId - 1].content = `<< /Type /Pages /Kids [${pageIds
+    .map((pageId) => `${pageId} 0 R`)
+    .join(' ')}] /Count ${pageIds.length} >>`
+
+  objects[catalogId - 1].content = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`
+
+  const headerBuffer = Buffer.from('%PDF-1.4\n', 'utf8')
+  const bodyChunks = [headerBuffer]
+  let currentOffset = headerBuffer.length
+  const xrefEntries = ['0000000000 65535 f \n']
+
+  objects.forEach(({ id, content }) => {
+    const objectString = `${id} 0 obj\n${content}\nendobj\n`
+    const buffer = Buffer.from(objectString, 'utf8')
+    xrefEntries.push(currentOffset.toString().padStart(10, '0') + ' 00000 n \n')
+    bodyChunks.push(buffer)
+    currentOffset += buffer.length
+  })
+
+  const xrefOffset = currentOffset
+  const xrefHeader = `xref\n0 ${objects.length + 1}\n`
+  const xrefBuffer = Buffer.from(xrefHeader + xrefEntries.join(''), 'utf8')
+  bodyChunks.push(xrefBuffer)
+  currentOffset += xrefBuffer.length
+
+  const trailer = `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+  bodyChunks.push(Buffer.from(trailer, 'utf8'))
+
+  return Buffer.concat(bodyChunks)
 }
 
 const readJsonBody = async (req) => {
@@ -547,6 +743,27 @@ const convertDocxToPdfUsingGoogleDrive = async (docxPath, pdfPath) => {
   }
 }
 
+const convertDocxToPdfUsingTextFallback = async (docxPath, pdfPath) => {
+  const JSZip = await loadJsZip()
+  const docxBuffer = await fs.readFile(docxPath)
+  const zip = await JSZip.loadAsync(docxBuffer)
+  const documentFile = zip.file('word/document.xml')
+
+  if (!documentFile) {
+    throw new Error('Arquivo word/document.xml ausente no DOCX gerado.')
+  }
+
+  const xmlContent = await documentFile.async('string')
+  const plainText = extractPlainTextFromWordXml(xmlContent)
+
+  if (!plainText) {
+    throw new Error('Não foi possível extrair conteúdo textual do contrato gerado.')
+  }
+
+  const pdfBuffer = createPdfBufferFromPlainText(plainText)
+  await fs.writeFile(pdfPath, pdfBuffer)
+}
+
 const convertDocxToPdf = async (docxPath, pdfPath) => {
   try {
     await convertDocxToPdfUsingLibreOffice(docxPath)
@@ -556,26 +773,42 @@ const convertDocxToPdf = async (docxPath, pdfPath) => {
       throw error
     }
 
-    console.warn('[contracts] Falha na conversão via LibreOffice, tentando Google Drive...', error)
+    console.warn('[contracts] Falha na conversão via LibreOffice, tentando fallbacks alternativos...', error)
+  }
 
+  const fallbackErrors = []
+  const driveCredentials = getGoogleDriveCredentials()
+
+  if (driveCredentials) {
     try {
       await convertDocxToPdfUsingGoogleDrive(docxPath, pdfPath)
+      return
     } catch (driveError) {
+      fallbackErrors.push(driveError)
       console.error('[contracts] Falha na conversão via Google Drive:', driveError)
-
-      if (driveError instanceof GoogleDriveConversionError && driveError.message.includes('Credenciais')) {
-        throw new ContractRenderError(
-          500,
-          'Falha ao converter o contrato para PDF com o LibreOffice. Configure as credenciais do Google Drive para usar o fallback.',
-        )
-      }
-
-      throw new ContractRenderError(
-        500,
-        'Falha ao converter o contrato para PDF. Verifique o LibreOffice ou as credenciais do Google Drive.',
-      )
     }
   }
+
+  try {
+    await convertDocxToPdfUsingTextFallback(docxPath, pdfPath)
+    console.warn('[contracts] Contrato convertido via fallback interno em modo texto simplificado.')
+    return
+  } catch (textError) {
+    fallbackErrors.push(textError)
+    console.error('[contracts] Falha no fallback interno de conversão para PDF:', textError)
+  }
+
+  const message = driveCredentials
+    ? 'Falha ao converter o contrato para PDF. Verifique o LibreOffice, o Google Drive ou o fallback interno.'
+    : 'Falha ao converter o contrato para PDF. Verifique a instalação do LibreOffice ou habilite o fallback interno.'
+
+  if (fallbackErrors.length > 0) {
+    fallbackErrors.forEach((err) => {
+      console.error('[contracts] Detalhes adicionais da falha de conversão:', err)
+    })
+  }
+
+  throw new ContractRenderError(500, message)
 }
 
 const generateContractPdf = async (cliente, templateName) => {
