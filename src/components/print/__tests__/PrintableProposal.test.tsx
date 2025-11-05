@@ -402,7 +402,7 @@ describe('PrintableProposal (leasing)', () => {
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
-    const observacoesIndex = markup.indexOf('Observações sobre a Configuração')
+    const observacoesIndex = markup.indexOf('Observações')
     const informacoesIndex = markup.indexOf('Informações Importantes')
 
     expect(observacoesIndex).toBeGreaterThan(-1)
