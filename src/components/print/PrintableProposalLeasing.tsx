@@ -73,18 +73,12 @@ const formatPrazoContratual = (meses: number): string => {
     return '—'
   }
 
-  const anos = meses / 12
-  const fractionDigits = Number.isInteger(anos) ? 0 : 1
-  const anosTexto = formatNumberBRWithOptions(anos, {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  })
   const mesesTexto = formatNumberBRWithOptions(meses, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   })
 
-  return `${anosTexto} anos (${mesesTexto} meses)`
+  return `${mesesTexto} meses – com transferência gratuita após o prazo`
 }
 
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
@@ -196,7 +190,6 @@ function PrintableProposalLeasingInner(
     leasingValorInstalacaoCliente,
     leasingValorDeMercadoEstimado,
     leasingPrazoContratualMeses,
-    leasingValorMercadoProjetado,
     leasingInflacaoEnergiaAa,
     leasingModeloInversor,
     leasingModeloModulo,
@@ -246,9 +239,6 @@ function PrintableProposalLeasingInner(
   const valorInstalacaoCliente = Number.isFinite(leasingValorInstalacaoCliente)
     ? Math.max(0, leasingValorInstalacaoCliente ?? 0)
     : 0
-  const valorMercadoProjetado = Number.isFinite(leasingValorMercadoProjetado)
-    ? Math.max(0, leasingValorMercadoProjetado ?? 0)
-    : Math.max(0, buyoutResumo?.vm0 ?? 0)
   const inicioOperacaoTexto = leasingDataInicioOperacao?.trim() || null
 
   const multiUcResumoDados = multiUcResumo && multiUcResumo.ucs.length > 0 ? multiUcResumo : null
@@ -496,11 +486,15 @@ function PrintableProposalLeasingInner(
 
   const condicoesFinanceiras = [
     {
-      label: 'Investimento estimado da SolarInvest (R$)',
-      value: valorMercadoProjetado > 0 ? currency(valorMercadoProjetado) : '—',
+      label: 'Modelo de contratação',
+      value: 'Leasing SolarInvest — Sem custo para o cliente',
     },
     {
-      label: 'Valor da instalação para o cliente (R$)',
+      label: 'Investimento no sistema fotovoltaico',
+      value: 'Investimento integral realizado pela contratada',
+    },
+    {
+      label: 'Investimento do cliente',
       value: currency(valorInstalacaoCliente),
     },
     {
@@ -918,7 +912,9 @@ function PrintableProposalLeasingInner(
     
           <section className="print-section keep-together avoid-break">
             <h2 className="section-title keep-with-next">Evolução das Mensalidades e Economia</h2>
-            <p className="section-subtitle keep-with-next">Comparativo anual entre tarifa convencional e SolarInvest</p>
+            <p className="section-subtitle keep-with-next">
+              Comparativo anual estimado entre tarifa convencional e SolarInvest
+            </p>
             <table className="no-break-inside">
               <thead>
                 <tr>
@@ -941,6 +937,14 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
+            <p className="muted print-footnote">
+              <strong>
+                <em>
+                  Os valores apresentados acima são simulações e projeções com base em históricos recentes de inflação e
+                  não representam valores exatos para períodos futuros.
+                </em>
+              </strong>
+            </p>
           </section>
     
           <section
