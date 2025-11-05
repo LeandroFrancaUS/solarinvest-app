@@ -226,6 +226,8 @@ export const VENDA_FORM_DEFAULT: VendaForm = {
   capex_total: 0,
   condicao: 'AVISTA',
   modo_pagamento: 'PIX',
+  modelo_modulo: 'Astroenergy ou similares',
+  modelo_inversor: 'Huawei, Deye ou similares',
   segmento_cliente: INITIAL_VALUES.segmentoCliente,
   tipo_sistema: INITIAL_VALUES.tipoSistema,
   taxa_mdr_pix_pct: 0,
