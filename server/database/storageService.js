@@ -1,5 +1,22 @@
 const DEFAULT_USER_ID = 'default'
 
+function normalizeJsonValue(raw) {
+  if (raw === null || raw === undefined) {
+    return null
+  }
+  if (typeof raw === 'object') {
+    return raw
+  }
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw)
+    } catch (error) {
+      return raw
+    }
+  }
+  return raw
+}
+
 export class StorageService {
   constructor(sql) {
     this.sql = sql
@@ -12,17 +29,58 @@ export class StorageService {
     }
 
     await this.sql`
-      CREATE TABLE IF NOT EXISTS app_storage (
-        user_id text NOT NULL DEFAULT 'default',
-        storage_key text NOT NULL,
-        storage_value text,
-        updated_at timestamptz NOT NULL DEFAULT now(),
-        created_at timestamptz NOT NULL DEFAULT now(),
-        PRIMARY KEY (user_id, storage_key)
+      CREATE TABLE IF NOT EXISTS storage (
+        id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        user_id TEXT NOT NULL,
+        "key" TEXT NOT NULL,
+        value JSONB,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now(),
+        UNIQUE (user_id, "key")
       )
     `
 
+    await this.migrateLegacyStorage()
+
     this.initialized = true
+  }
+
+  async migrateLegacyStorage() {
+    const [legacyTable] = await this.sql`
+      SELECT to_regclass('public.app_storage') AS table_name
+    `
+
+    if (!legacyTable || !legacyTable.table_name) {
+      return
+    }
+
+    const legacyRows = await this.sql`
+      SELECT user_id, "key", value
+        FROM app_storage
+    `
+
+    if (legacyRows.length === 0) {
+      return
+    }
+
+    for (const row of legacyRows) {
+      const normalizedValue = normalizeJsonValue(row.value)
+      const serializedValue =
+        normalizedValue === null ? null : JSON.stringify(normalizedValue)
+
+      await this.sql`
+        INSERT INTO storage (user_id, "key", value, created_at, updated_at)
+        VALUES (
+          ${this.resolveUserId(row.user_id)},
+          ${row.key},
+          ${serializedValue}::jsonb,
+          now(),
+          now()
+        )
+        ON CONFLICT (user_id, "key")
+        DO NOTHING
+      `
+    }
   }
 
   resolveUserId(raw) {
@@ -32,14 +90,41 @@ export class StorageService {
 
   async listEntries(userId) {
     await this.ensureInitialized()
+    const normalizedUserId = this.resolveUserId(userId)
+
     const rows = await this.sql`
-      SELECT storage_key, storage_value
-        FROM app_storage
-       WHERE user_id = ${this.resolveUserId(userId)}
-       ORDER BY storage_key ASC
+      SELECT "key" AS key, value
+        FROM storage
+       WHERE user_id = ${normalizedUserId}
+       ORDER BY "key" ASC
     `
 
-    return rows.map((row) => ({ key: row.storage_key, value: row.storage_value }))
+    if (rows.length > 0) {
+      return rows.map((row) => ({ key: row.key, value: normalizeJsonValue(row.value) }))
+    }
+
+    const legacyRows = await this.loadLegacyEntries(normalizedUserId)
+
+    return legacyRows.map((row) => ({ key: row.key, value: normalizeJsonValue(row.value) }))
+  }
+
+  async loadLegacyEntries(userId) {
+    const [legacyTable] = await this.sql`
+      SELECT to_regclass('public.app_storage') AS table_name
+    `
+
+    if (!legacyTable || !legacyTable.table_name) {
+      return []
+    }
+
+    const rows = await this.sql`
+      SELECT "key" AS key, value
+        FROM app_storage
+       WHERE user_id = ${userId}
+       ORDER BY "key" ASC
+    `
+
+    return rows
   }
 
   async setEntry(userId, key, value) {
@@ -48,11 +133,14 @@ export class StorageService {
     }
 
     await this.ensureInitialized()
+    const normalizedValue = value === undefined ? null : value
+    const serializedValue = normalizedValue === null ? null : JSON.stringify(normalizedValue)
+
     await this.sql`
-      INSERT INTO app_storage (user_id, storage_key, storage_value, updated_at)
-      VALUES (${this.resolveUserId(userId)}, ${key}, ${value}, now())
-      ON CONFLICT (user_id, storage_key)
-      DO UPDATE SET storage_value = EXCLUDED.storage_value, updated_at = now()
+      INSERT INTO storage (user_id, "key", value, updated_at)
+      VALUES (${this.resolveUserId(userId)}, ${key}, ${serializedValue}::jsonb, now())
+      ON CONFLICT (user_id, "key")
+      DO UPDATE SET value = EXCLUDED.value, updated_at = now()
     `
   }
 
@@ -63,16 +151,16 @@ export class StorageService {
 
     await this.ensureInitialized()
     await this.sql`
-      DELETE FROM app_storage
+      DELETE FROM storage
       WHERE user_id = ${this.resolveUserId(userId)}
-        AND storage_key = ${key}
+        AND "key" = ${key}
     `
   }
 
   async clear(userId) {
     await this.ensureInitialized()
     await this.sql`
-      DELETE FROM app_storage
+      DELETE FROM storage
       WHERE user_id = ${this.resolveUserId(userId)}
     `
   }

@@ -1,12 +1,14 @@
-const STORAGE_ENDPOINT = '/api/storage'
+import { resolveApiUrl } from '../../utils/apiUrl'
 
-type StorageEntry = {
+const STORAGE_ENDPOINT = resolveApiUrl('/api/storage')
+
+type RemoteStorageEntry = {
   key: string
-  value: string | null
+  value: unknown
 }
 
 type StorageResponse = {
-  entries?: StorageEntry[]
+  entries?: RemoteStorageEntry[]
 }
 
 let initializationPromise: Promise<void> | null = null
@@ -16,6 +18,21 @@ const pendingUploads = new Map<string, AbortController>()
 let syncEnabled = true
 
 const createHeaders = () => new Headers({ 'Content-Type': 'application/json' })
+
+const normalizeRemoteValue = (value: unknown): string | null => {
+  if (value === null || value === undefined) {
+    return null
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  try {
+    return JSON.stringify(value)
+  } catch (error) {
+    console.warn('[serverStorage] Não foi possível serializar valor remoto para string.', error)
+    return null
+  }
+}
 
 const persistPut = (key: string, value: string) => {
   if (!syncEnabled) {
@@ -85,7 +102,7 @@ const persistDelete = (key: string | null) => {
     })
 }
 
-const loadRemoteEntries = async (): Promise<StorageEntry[]> => {
+const loadRemoteEntries = async (): Promise<RemoteStorageEntry[]> => {
   const response = await fetch(STORAGE_ENDPOINT, { credentials: 'include' })
   if (!response.ok) {
     throw new Error(`Falha ao consultar armazenamento (status ${response.status})`)
@@ -114,7 +131,7 @@ const initializeSync = async () => {
     }
   }
 
-  let remoteEntries: StorageEntry[] = []
+  let remoteEntries: RemoteStorageEntry[] = []
   try {
     remoteEntries = await loadRemoteEntries()
   } catch (error) {
@@ -127,12 +144,13 @@ const initializeSync = async () => {
 
   const remoteMap = new Map<string, string>()
   remoteEntries.forEach(({ key, value }) => {
-    if (value !== null && value !== undefined) {
-      remoteMap.set(key, value)
+    const normalized = normalizeRemoteValue(value)
+    if (normalized !== null) {
+      remoteMap.set(key, normalized)
     }
   })
 
-  const missingOnRemote: StorageEntry[] = []
+  const missingOnRemote: { key: string; value: string }[] = []
   existingLocal.forEach((value, key) => {
     if (!remoteMap.has(key)) {
       remoteMap.set(key, value)

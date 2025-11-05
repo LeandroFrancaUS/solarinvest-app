@@ -1,3 +1,5 @@
+import { resolveApiUrl } from '../../utils/apiUrl'
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 const CSRF_COOKIE_NAME = 'solarinvest_csrf'
@@ -54,7 +56,8 @@ export async function apiFetch<TResponse = unknown>(path: string, options: ApiFe
     }
   }
 
-  const response = await fetch(path, init)
+  const targetUrl = resolveApiUrl(path)
+  const response = await fetch(targetUrl, init)
   const contentType = response.headers.get('content-type')
   const isJson = contentType && contentType.includes('application/json')
   const payload = isJson ? await response.json().catch(() => null) : null
