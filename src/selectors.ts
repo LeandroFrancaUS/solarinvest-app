@@ -34,7 +34,7 @@ export interface SimulationState {
   geracaoMensalKwh: number
   mesReajuste: number
   mesReferencia: number
-  tusdPercent: number | null
+  tusdPercent: number
   tusdTipoCliente: TipoClienteTUSD
   tusdSubtipo: string | null
   tusdSimultaneidade: number | null

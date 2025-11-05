@@ -669,7 +669,7 @@ type OrcamentoSnapshotData = {
   taxaMinima: number
   taxaMinimaInputEmpty: boolean
   encargosFixosExtras: number
-  tusdPercent: number | null
+  tusdPercent: number
   tusdTipoCliente: TipoClienteTUSD
   tusdSubtipo: string
   tusdSimultaneidade: number | null
@@ -2402,8 +2402,7 @@ export default function App() {
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(
     INITIAL_VALUES.encargosFixosExtras,
   )
-  const [tusdPercent, setTusdPercent] = useState<number | null>(INITIAL_VALUES.tusdPercent)
-  const [tusdPercentManualOverride, setTusdPercentManualOverride] = useState(false)
+  const [tusdPercent, setTusdPercent] = useState(INITIAL_VALUES.tusdPercent)
   const [tusdTipoCliente, setTusdTipoCliente] = useState<TipoClienteTUSD>(
     INITIAL_VALUES.tusdTipoCliente,
   )
@@ -3740,50 +3739,6 @@ export default function App() {
     },
     [resetRetorno],
   )
-
-  const resolveDefaultTusdPercent = useCallback((tipo: TipoClienteTUSD): number | null => {
-    if (tipo === 'residencial') return 50
-    if (tipo === 'comercial') return 70
-    return null
-  }, [])
-
-  const setTusdPercentFromSource = useCallback(
-    (value: number | null, source: 'auto' | 'manual') => {
-      const isManual = source === 'manual'
-      if (tusdPercent === value) {
-        setTusdPercentManualOverride(isManual)
-        return
-      }
-      setTusdPercent(value)
-      setTusdPercentManualOverride(isManual)
-      if (value == null) {
-        applyVendaUpdates({ tusd_percentual: undefined })
-      } else {
-        applyVendaUpdates({ tusd_percentual: value })
-      }
-    },
-    [applyVendaUpdates, tusdPercent],
-  )
-
-  useEffect(() => {
-    if (!tusdOpcoesExpandidas) {
-      if (tusdPercentManualOverride) {
-        setTusdPercentManualOverride(false)
-      }
-      return
-    }
-    if (tusdPercentManualOverride) {
-      return
-    }
-    const defaultPercent = resolveDefaultTusdPercent(tusdTipoCliente)
-    setTusdPercentFromSource(defaultPercent, 'auto')
-  }, [
-    resolveDefaultTusdPercent,
-    setTusdPercentFromSource,
-    tusdOpcoesExpandidas,
-    tusdPercentManualOverride,
-    tusdTipoCliente,
-  ])
 
   const capexMoneyField = useBRNumberField({
     mode: 'money',
@@ -5778,7 +5733,7 @@ export default function App() {
     const prazoContratualMeses = Math.max(0, Math.floor(prazoMesesConsiderado))
     const prazoLeasingMeses = Math.max(0, Math.floor(leasingPrazoConsiderado * 12))
     const prazoMensalidades = Math.max(prazoContratualMeses, prazoLeasingMeses)
-    const tusdPercentual = tusdPercent != null ? Math.max(0, tusdPercent) : null
+    const tusdPercentual = Math.max(0, tusdPercent)
     const tusdSubtipoNormalizado = tusdSubtipo.trim()
     const tusdSimValue = tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null
     const tusdTarifaValue = tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null
@@ -9751,7 +9706,7 @@ export default function App() {
     setTaxaMinima(snapshot.taxaMinima)
     setTaxaMinimaInputEmpty(snapshot.taxaMinimaInputEmpty)
     setEncargosFixosExtras(snapshot.encargosFixosExtras)
-    setTusdPercent(snapshot.tusdPercent ?? null)
+    setTusdPercent(snapshot.tusdPercent)
     setTusdTipoCliente(snapshot.tusdTipoCliente)
     setTusdSubtipo(snapshot.tusdSubtipo)
     setTusdSimultaneidade(snapshot.tusdSimultaneidade)
@@ -10897,7 +10852,6 @@ export default function App() {
     setTaxaMinimaInputEmpty(INITIAL_VALUES.taxaMinima === 0)
     setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
     setTusdPercent(INITIAL_VALUES.tusdPercent)
-    setTusdPercentManualOverride(false)
     setTusdTipoCliente(INITIAL_VALUES.tusdTipoCliente)
     setTusdSubtipo(INITIAL_VALUES.tusdSubtipo)
     setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
@@ -11744,20 +11698,13 @@ export default function App() {
   }
 
   function renderTusdParametersSection() {
-    const tusdPercentLabel =
-      tusdPercent != null
-        ? formatNumberBRWithOptions(tusdPercent, {
-            maximumFractionDigits: 2,
-            minimumFractionDigits: Number.isInteger(tusdPercent) ? 0 : 2,
-          })
-        : null
-    const resumoPartes: string[] = []
-    if (tusdPercentLabel) {
-      resumoPartes.push(`${tusdPercentLabel}%`)
-    } else {
-      resumoPartes.push('Sem percentual')
-    }
-    resumoPartes.push(TUSD_TIPO_LABELS[tusdTipoCliente])
+    const tusdPercentLabel = formatNumberBRWithOptions(tusdPercent, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: Number.isInteger(tusdPercent) ? 0 : 2,
+    })
+    const resumoPartes: string[] = [
+      `${tusdPercentLabel}% • ${TUSD_TIPO_LABELS[tusdTipoCliente]}`,
+    ]
     const subtipoAtual = tusdSubtipo.trim()
     if (subtipoAtual !== '') {
       resumoPartes.push(subtipoAtual)
@@ -11812,16 +11759,13 @@ export default function App() {
                 type="number"
                 min={0}
                 step="0.1"
-                value={tusdPercent ?? ''}
+                value={tusdPercent}
                 onChange={(event) => {
-                  const { value } = event.target
-                  if (value === '') {
-                    setTusdPercentFromSource(null, 'manual')
-                    return
-                  }
-                  const parsed = Number(value)
+                  const parsed = Number(event.target.value)
                   const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-                  setTusdPercentFromSource(normalized, 'manual')
+                  setTusdPercent(normalized)
+                  applyVendaUpdates({ tusd_percentual: normalized })
+                  resetRetorno()
                 }}
                 onFocus={selectNumberInputOnFocus}
               />
@@ -11836,7 +11780,6 @@ export default function App() {
                 value={tusdTipoCliente}
                 onChange={(event) => {
                   const value = event.target.value as TipoClienteTUSD
-                  setTusdPercentManualOverride(false)
                   setTusdTipoCliente(value)
                   applyVendaUpdates({ tusd_tipo_cliente: value })
                   resetRetorno()
