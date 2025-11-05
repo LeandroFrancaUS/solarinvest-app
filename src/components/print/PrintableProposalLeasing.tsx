@@ -491,10 +491,10 @@ function PrintableProposalLeasingInner(
     },
     {
       label: 'Investimento no sistema fotovoltaico',
-      value: 'Totalmente realizado pela SolarInvest (equipamentos, instalação e O&M)',
+      value: 'Investimento integral realizado pela contratada',
     },
     {
-      label: 'Custo para o cliente',
+      label: 'Investimento do cliente',
       value: currency(valorInstalacaoCliente),
     },
     {
