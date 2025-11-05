@@ -15916,10 +15916,7 @@ export default function App() {
                           step="0.1"
                           min={0.01}
                           value={irradiacao}
-                          onChange={(e) => {
-                            const parsed = Number(e.target.value)
-                            setIrradiacao(Number.isFinite(parsed) && parsed > 0 ? parsed : 0)
-                          }}
+                          readOnly
                           onFocus={selectNumberInputOnFocus}
                         />
                       </Field>

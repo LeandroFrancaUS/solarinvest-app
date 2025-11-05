@@ -1062,6 +1062,11 @@ function PrintableProposalLeasingInner(
                 parâmetros técnicos médios.
               </li>
               <li>
+                <strong>Instalação em solo:</strong> Quando o sistema for instalado em solo, a proposta poderá ser ajustada caso
+                a estrutura de suporte ou fundação não exista no local, ou caso o cliente deseje incluir o custo como parte do
+                leasing, conforme nova avaliação técnica e orçamentária da SolarInvest.
+              </li>
+              <li>
                 Essas <strong>simulações não constituem valores contratuais finais</strong> e poderão sofrer ajustes após a{' '}
                 <strong>análise técnica</strong>, <strong>vistoria</strong>, <strong>alterações tarifárias</strong> ou{' '}
                 <strong>atualizações comerciais da SolarInvest</strong>.

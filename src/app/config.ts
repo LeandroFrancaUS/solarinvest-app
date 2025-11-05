@@ -170,7 +170,7 @@ export const INITIAL_VALUES = {
   segmentoCliente: 'RESIDENCIAL' as SegmentoCliente,
   tipoSistema: 'ON_GRID' as TipoSistema,
   numeroModulosManual: '' as number | '',
-  precoPorKwp: 2470,
+  precoPorKwp: 2700,
   eficiencia: 0.8,
   diasMes: DIAS_MES_PADRAO,
   inflacaoAa: 8,
