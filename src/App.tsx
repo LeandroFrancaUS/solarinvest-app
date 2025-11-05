@@ -197,6 +197,20 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
+const COLLAPSIBLE_SECTION_KEYS = [
+  'venda-parametros',
+  'venda-configuracao',
+  'venda-resumo',
+  'venda-composicao',
+  'leasing-parametros',
+  'leasing-configuracao',
+  'leasing-contrato',
+  'leasing-financiamento',
+  'leasing-mensalidades',
+] as const
+
+type CollapsibleSectionKey = (typeof COLLAPSIBLE_SECTION_KEYS)[number]
+
 const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return formatNumberBRWithOptions(value, {
@@ -2280,6 +2294,77 @@ export default function App() {
     const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
+  const collapsibleContentIdPrefix = useId()
+  const [collapsedSections, setCollapsedSections] = useState<Record<CollapsibleSectionKey, boolean>>(() => {
+    const shouldCollapse =
+      typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+    return COLLAPSIBLE_SECTION_KEYS.reduce<Record<CollapsibleSectionKey, boolean>>((acc, key) => {
+      acc[key] = shouldCollapse
+      return acc
+    }, {} as Record<CollapsibleSectionKey, boolean>)
+  })
+  const toggleSection = useCallback((section: CollapsibleSectionKey) => {
+    setCollapsedSections((previous) => ({
+      ...previous,
+      [section]: !previous[section],
+    }))
+  }, [])
+  const expandSection = useCallback((section: CollapsibleSectionKey) => {
+    setCollapsedSections((previous) => {
+      if (!previous[section]) {
+        return previous
+      }
+      return { ...previous, [section]: false }
+    })
+  }, [])
+  type CollapsibleCardProps = {
+    sectionKey: CollapsibleSectionKey
+    title: React.ReactNode
+    className?: string
+    headerClassName?: string
+    headerActions?: React.ReactNode
+    children: React.ReactNode
+  }
+
+  const CollapsibleCard = ({
+    sectionKey,
+    title,
+    className,
+    headerClassName,
+    headerActions,
+    children,
+  }: CollapsibleCardProps) => {
+    const collapsed = collapsedSections[sectionKey] ?? false
+    const contentId = `${collapsibleContentIdPrefix}-${sectionKey}`
+    const sectionClassName = `card collapsible${collapsed ? ' collapsed' : ''}${
+      className ? ` ${className}` : ''
+    }`
+    const headerClass = `card-header${headerClassName ? ` ${headerClassName}` : ''}`
+    return (
+      <section className={sectionClassName}>
+        <div className={headerClass}>
+          <button
+            type="button"
+            className="card-toggle"
+            onClick={() => toggleSection(sectionKey)}
+            aria-expanded={!collapsed}
+            aria-controls={contentId}
+          >
+            <span className="card-toggle-title" role="heading" aria-level={2}>
+              {title}
+            </span>
+            <span className="card-toggle-icon" aria-hidden="true">
+              {collapsed ? '+' : '−'}
+            </span>
+          </button>
+          {headerActions}
+        </div>
+        <div id={contentId} className="card-content" hidden={collapsed}>
+          {children}
+        </div>
+      </section>
+    )
+  }
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
@@ -11979,8 +12064,7 @@ export default function App() {
         : null
 
     return (
-      <section className="card">
-        <h2>Parâmetros principais</h2>
+      <CollapsibleCard sectionKey="leasing-parametros" title="Parâmetros principais">
         <div className="grid g3">
           <Field
             label={labelWithTooltip(
@@ -12543,17 +12627,21 @@ export default function App() {
   }
 
   const renderConfiguracaoUsinaSection = () => (
-    <section className="card configuracao-usina-card">
-      <div className="configuracao-usina-card__header">
-        <h2>Configuração da Usina Fotovoltaica</h2>
+    <CollapsibleCard
+      sectionKey="leasing-configuracao"
+      title="Configuração da Usina Fotovoltaica"
+      className="configuracao-usina-card"
+      headerClassName="configuracao-usina-card__header"
+      headerActions={
         <button
           type="button"
           className="configuracao-usina-card__toggle"
           aria-expanded={configuracaoUsinaObservacoesExpanded}
           aria-controls={configuracaoUsinaObservacoesLeasingContainerId}
-          onClick={() =>
+          onClick={() => {
+            expandSection('leasing-configuracao')
             setConfiguracaoUsinaObservacoesExpanded((previous) => !previous)
-          }
+          }}
         >
           {configuracaoUsinaObservacoesExpanded
             ? 'Ocultar observações'
@@ -12561,7 +12649,8 @@ export default function App() {
             ? 'Editar observações'
             : 'Adicionar observações'}
         </button>
-      </div>
+      }
+    >
       <div
         id={configuracaoUsinaObservacoesLeasingContainerId}
         className="configuracao-usina-card__observacoes"
@@ -12787,12 +12876,11 @@ export default function App() {
           </strong>
         </span>
       </div>
-    </section>
+    </CollapsibleCard>
   )
 
   const renderVendaParametrosSection = () => (
-    <section className="card">
-      <h2>Parâmetros principais</h2>
+    <CollapsibleCard sectionKey="venda-parametros" title="Parâmetros principais">
       <div className="grid g3">
         <Field
           label={
@@ -13062,21 +13150,25 @@ export default function App() {
           />
         </Field>
       </div>
-    </section>
+    </CollapsibleCard>
   )
 
   const renderVendaConfiguracaoSection = () => (
-    <section className="card configuracao-usina-card">
-      <div className="configuracao-usina-card__header">
-        <h2>Configuração da Usina Fotovoltaica</h2>
+    <CollapsibleCard
+      sectionKey="venda-configuracao"
+      title="Configuração da Usina Fotovoltaica"
+      className="configuracao-usina-card"
+      headerClassName="configuracao-usina-card__header"
+      headerActions={
         <button
           type="button"
           className="configuracao-usina-card__toggle"
           aria-expanded={configuracaoUsinaObservacoesExpanded}
           aria-controls={configuracaoUsinaObservacoesVendaContainerId}
-          onClick={() =>
+          onClick={() => {
+            expandSection('venda-configuracao')
             setConfiguracaoUsinaObservacoesExpanded((previous) => !previous)
-          }
+          }}
         >
           {configuracaoUsinaObservacoesExpanded
             ? 'Ocultar observações'
@@ -13084,7 +13176,8 @@ export default function App() {
             ? 'Editar observações'
             : 'Adicionar observações'}
         </button>
-      </div>
+      }
+    >
       <div
         id={configuracaoUsinaObservacoesVendaContainerId}
         className="configuracao-usina-card__observacoes"
@@ -13315,14 +13408,14 @@ export default function App() {
           </strong>
         </span>
       </div>
-    </section>
+    </CollapsibleCard>
   )
 
   const renderVendaResumoPublicoSection = () => (
-    <section className="card">
-      <div className="card-header">
-        <h2>Resumo de valores (Página pública)</h2>
-      </div>
+    <CollapsibleCard
+      sectionKey="venda-resumo"
+      title="Resumo de valores (Página pública)"
+    >
       <div className="kpi-grid">
         <div className="kpi kpi-highlight">
           <span>Valor total da proposta</span>
@@ -13338,7 +13431,7 @@ export default function App() {
       <p className="muted">
         Preço final para aquisição da usina completa. Valores técnicos internos não são cobrados do cliente.
       </p>
-    </section>
+    </CollapsibleCard>
   )
 
   const renderComposicaoUfvSection = () => {
@@ -13347,14 +13440,16 @@ export default function App() {
       setIsSettingsOpen(true)
     }
     return (
-      <section className="card">
-        <div className="card-header">
-          <h2>Composição da UFV</h2>
+      <CollapsibleCard
+        sectionKey="venda-composicao"
+        title="Composição da UFV"
+        headerActions={
           <button type="button" className="ghost with-icon" onClick={abrirParametrosVendas}>
             <span aria-hidden="true">⚙︎</span>
             Ajustar parâmetros internos
           </button>
-        </div>
+        }
+      >
         <p className="muted">
           Consulte abaixo os valores consolidados da proposta. Custos e ajustes comerciais podem ser
           atualizados em Configurações → Parâmetros de Vendas.
@@ -13425,7 +13520,7 @@ export default function App() {
             </Field>
           </div>
         </div>
-      </section>
+      </CollapsibleCard>
     )
   }
 
@@ -15169,10 +15264,10 @@ export default function App() {
                 <>
                   {renderParametrosPrincipaisSection()}
                   {renderConfiguracaoUsinaSection()}
-                  <section className="card">
-                    <div className="card-header">
-                      <h2>SolarInvest Leasing</h2>
-                    </div>
+                  <CollapsibleCard
+                    sectionKey="leasing-contrato"
+                    title="SolarInvest Leasing"
+                  >
 
                     <div className="grid g3">
                       <Field
@@ -15302,38 +15397,42 @@ export default function App() {
                         </table>
                       </div>
                     ) : null}
-                  </section>
+                    </CollapsibleCard>
 
-            <div className="grid g2">
-              <section className="card">
-                <h2>Leasing — Mensalidades</h2>
-                <div className="list-col">
-                  {leasingMensalidades.map((valor, index) => (
-                    <div className="list-row" key={`leasing-m${index}`}>
-                      <span>Ano {index + 1}</span>
-                      <strong>{currency(valor)}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div className="notice">
-                  <div className="dot" />
-                  <div>
-                    <p className="notice-title">Fim do prazo</p>
-                    <p className="notice-sub">
-                      Após {formatLeasingPrazoAnos(leasingPrazo)} anos a curva acelera: 100% do retorno fica com o cliente.
-                    </p>
-                  </div>
-                </div>
-              </section>
+                  <div className="grid g2">
+                    <CollapsibleCard
+                      sectionKey="leasing-mensalidades"
+                      title="Leasing — Mensalidades"
+                    >
+                      <div className="list-col">
+                        {leasingMensalidades.map((valor, index) => (
+                          <div className="list-row" key={`leasing-m${index}`}>
+                            <span>Ano {index + 1}</span>
+                            <strong>{currency(valor)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="notice">
+                        <div className="dot" />
+                        <div>
+                          <p className="notice-title">Fim do prazo</p>
+                          <p className="notice-sub">
+                            Após {formatLeasingPrazoAnos(leasingPrazo)} anos a curva acelera: 100% do retorno fica com o cliente.
+                          </p>
+                        </div>
+                      </div>
+                    </CollapsibleCard>
 
-              <section className="card">
-                <div className="card-header">
-                  <h2>Financiamento — Mensalidades</h2>
-                  <span className="toggle-label">Coluna ativa: {mostrarFinanciamento ? 'Sim' : 'Não'}</span>
-                </div>
-                {mostrarFinanciamento ? (
-                  <div className="list-col">
-                    {financiamentoMensalidades.map((valor, index) => (
+                    <CollapsibleCard
+                      sectionKey="leasing-financiamento"
+                      title="Financiamento — Mensalidades"
+                      headerActions={
+                        <span className="toggle-label">Coluna ativa: {mostrarFinanciamento ? 'Sim' : 'Não'}</span>
+                      }
+                    >
+                    {mostrarFinanciamento ? (
+                      <div className="list-col">
+                        {financiamentoMensalidades.map((valor, index) => (
                       <div className="list-row" key={`fin-m${index}`}>
                         <span>Ano {index + 1}</span>
                         <strong>{currency(valor)}</strong>
@@ -15343,7 +15442,7 @@ export default function App() {
                 ) : (
                   <p className="muted">Habilite nas configurações para comparar a coluna de financiamento.</p>
                 )}
-              </section>
+              </CollapsibleCard>
             </div>
 
           </>
@@ -15965,7 +16064,7 @@ export default function App() {
                         />
                       </Field>
                     </div>
-                  </section>
+                  </CollapsibleCard>
                   <section
                     id="settings-panel-simulacoes"
                     role="tabpanel"
