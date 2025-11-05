@@ -6306,6 +6306,33 @@ export default function App() {
         validade_proposta_dias: vendasConfig.validade_proposta_dias,
       }
 
+      const sanitizeNonNegativeNumber = (value: unknown): number | null =>
+        Number.isFinite(value) ? Math.max(0, Number(value)) : null
+
+      const sanitizeText = (value?: string | null): string | null => {
+        if (typeof value !== 'string') {
+          return null
+        }
+        const trimmed = value.trim()
+        return trimmed ? trimmed : null
+      }
+
+      const tarifaCheiaAtual = sanitizeNonNegativeNumber(tarifaCheia)
+      const tarifaFormulario = sanitizeNonNegativeNumber(vendaForm.tarifa_cheia_r_kwh)
+      const tarifaSnapshot = sanitizeNonNegativeNumber(vendaSnapshot.parametros.tarifa_r_kwh)
+
+      const energiaContratadaAtual = sanitizeNonNegativeNumber(kcKwhMes)
+      const energiaContratadaSnapshotResultado = sanitizeNonNegativeNumber(
+        vendaSnapshot.resultados.energia_contratada_kwh_mes,
+      )
+      const energiaContratadaSnapshotParametro = sanitizeNonNegativeNumber(
+        vendaSnapshot.parametros.consumo_kwh_mes,
+      )
+
+      const distribuidoraAtual = sanitizeText(distribuidoraTarifa)
+      const clienteDistribuidoraAtual = sanitizeText(cliente.distribuidora)
+      const distribuidoraSnapshot = sanitizeText(vendaSnapshot.parametros.distribuidora)
+
       return {
         cliente,
         budgetId: sanitizedBudgetId,
@@ -6345,28 +6372,17 @@ export default function App() {
           ? null
           : sanitizeItemText(vendaForm.modelo_modulo) ?? null,
         distribuidoraTarifa:
-          vendaSnapshot.parametros.distribuidora || distribuidoraTarifa || cliente.distribuidora || '',
+          distribuidoraAtual ?? clienteDistribuidoraAtual ?? distribuidoraSnapshot ?? '',
         energiaContratadaKwh:
-          vendaSnapshot.resultados.energia_contratada_kwh_mes ?? vendaSnapshot.parametros.consumo_kwh_mes ?? kcKwhMes,
-        tarifaCheia: (() => {
-          const formulario = Number.isFinite(vendaForm.tarifa_cheia_r_kwh)
-            ? Math.max(0, Number(vendaForm.tarifa_cheia_r_kwh ?? 0))
-            : null
-          if (formulario != null) {
-            return formulario
-          }
-
-          const atual = Number.isFinite(tarifaCheia) ? Math.max(0, Number(tarifaCheia ?? 0)) : null
-          if (atual != null) {
-            return atual
-          }
-
-          const snapshotTarifa = Number.isFinite(vendaSnapshot.parametros.tarifa_r_kwh)
-            ? Math.max(0, Number(vendaSnapshot.parametros.tarifa_r_kwh ?? 0))
-            : null
-
-          return snapshotTarifa ?? 0
-        })(),
+          energiaContratadaAtual ??
+          energiaContratadaSnapshotResultado ??
+          energiaContratadaSnapshotParametro ??
+          0,
+        tarifaCheia:
+          tarifaCheiaAtual ??
+          tarifaFormulario ??
+          tarifaSnapshot ??
+          0,
         vendaResumo,
         parsedPdfVenda: parsedVendaPdf ? { ...parsedVendaPdf } : null,
         orcamentoItens: printableBudgetItems,
