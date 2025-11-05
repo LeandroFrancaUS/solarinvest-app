@@ -55,7 +55,7 @@ export class StorageService {
     }
 
     const legacyRows = await this.sql`
-      SELECT user_id, "key", value
+      SELECT user_id, storage_key AS "key", storage_value AS value
         FROM app_storage
     `
 
