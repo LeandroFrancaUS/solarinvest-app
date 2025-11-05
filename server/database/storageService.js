@@ -90,14 +90,41 @@ export class StorageService {
 
   async listEntries(userId) {
     await this.ensureInitialized()
+    const normalizedUserId = this.resolveUserId(userId)
+
     const rows = await this.sql`
       SELECT "key" AS key, value
         FROM storage
-       WHERE user_id = ${this.resolveUserId(userId)}
+       WHERE user_id = ${normalizedUserId}
        ORDER BY "key" ASC
     `
 
-    return rows.map((row) => ({ key: row.key, value: normalizeJsonValue(row.value) }))
+    if (rows.length > 0) {
+      return rows.map((row) => ({ key: row.key, value: normalizeJsonValue(row.value) }))
+    }
+
+    const legacyRows = await this.loadLegacyEntries(normalizedUserId)
+
+    return legacyRows.map((row) => ({ key: row.key, value: normalizeJsonValue(row.value) }))
+  }
+
+  async loadLegacyEntries(userId) {
+    const [legacyTable] = await this.sql`
+      SELECT to_regclass('public.app_storage') AS table_name
+    `
+
+    if (!legacyTable || !legacyTable.table_name) {
+      return []
+    }
+
+    const rows = await this.sql`
+      SELECT "key" AS key, value
+        FROM app_storage
+       WHERE user_id = ${userId}
+       ORDER BY "key" ASC
+    `
+
+    return rows
   }
 
   async setEntry(userId, key, value) {
