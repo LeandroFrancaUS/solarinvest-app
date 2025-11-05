@@ -14,7 +14,7 @@ const createInput = (partial: Partial<TUSDInput> = {}): TUSDInput => ({
   ano: 2025,
   tipoCliente: 'residencial',
   consumoMensal_kWh: 600,
-  tarifaCheia_R_kWh: 1.1446,
+  tarifaCheia_R_kWh: 1.14,
   pesoTUSD: PESO_TUSD_PADRAO,
   ...partial,
 })
@@ -91,21 +91,21 @@ describe('calcTusdNaoCompensavel', () => {
 
     expect(residenciaPadrao.kWhInstantaneo).toBeCloseTo(180, 6)
     expect(residenciaPadrao.kWhCompensado).toBeCloseTo(420, 6)
-    expect(residenciaPadrao.tusdNaoComp_R_kWh).toBeCloseTo(0.1390689, 6)
-    expect(residenciaPadrao.custoTUSD_Mes_R).toBeCloseTo(58.408938, 5)
-    expect(Number(residenciaPadrao.custoTUSD_Mes_R.toFixed(2))).toBeCloseTo(58.41, 2)
+    expect(residenciaPadrao.tusdNaoComp_R_kWh).toBeCloseTo(0.13851, 6)
+    expect(residenciaPadrao.custoTUSD_Mes_R).toBeCloseTo(58.1742, 5)
+    expect(Number(residenciaPadrao.custoTUSD_Mes_R.toFixed(2))).toBeCloseTo(58.17, 2)
 
     expect(comercioDiurno.kWhInstantaneo).toBeCloseTo(420, 6)
     expect(comercioDiurno.kWhCompensado).toBeCloseTo(180, 6)
-    expect(comercioDiurno.tusdNaoComp_R_kWh).toBeCloseTo(0.1390689, 6)
-    expect(comercioDiurno.custoTUSD_Mes_R).toBeCloseTo(25.032402, 5)
-    expect(Number(comercioDiurno.custoTUSD_Mes_R.toFixed(2))).toBeCloseTo(25.03, 2)
+    expect(comercioDiurno.tusdNaoComp_R_kWh).toBeCloseTo(0.13851, 6)
+    expect(comercioDiurno.custoTUSD_Mes_R).toBeCloseTo(24.9318, 5)
+    expect(Number(comercioDiurno.custoTUSD_Mes_R.toFixed(2))).toBeCloseTo(24.93, 2)
 
     expect(residenciaBaterias.kWhInstantaneo).toBeCloseTo(360, 6)
     expect(residenciaBaterias.kWhCompensado).toBeCloseTo(240, 6)
-    expect(residenciaBaterias.tusdNaoComp_R_kWh).toBeCloseTo(0.1390689, 6)
-    expect(residenciaBaterias.custoTUSD_Mes_R).toBeCloseTo(33.376536, 5)
-    expect(Number(residenciaBaterias.custoTUSD_Mes_R.toFixed(2))).toBeCloseTo(33.38, 2)
+    expect(residenciaBaterias.tusdNaoComp_R_kWh).toBeCloseTo(0.13851, 6)
+    expect(residenciaBaterias.custoTUSD_Mes_R).toBeCloseTo(33.2424, 5)
+    expect(Number(residenciaBaterias.custoTUSD_Mes_R.toFixed(2))).toBeCloseTo(33.24, 2)
   })
 
   it('gera snapshot dos exemplos residencial e comercial', () => {
@@ -121,20 +121,20 @@ describe('calcTusdNaoCompensavel', () => {
     expect(snapshot).toMatchInlineSnapshot(`
       {
         "comercioDiurno": {
-          "custoTUSD_Mes_R": 25.032402,
+          "custoTUSD_Mes_R": 24.9318,
           "fatorAno": 0.45,
           "kWhCompensado": 180,
           "kWhInstantaneo": 420,
           "simultaneidadeUsada": 0.7,
-          "tusdNaoComp_R_kWh": 0.1390689,
+          "tusdNaoComp_R_kWh": 0.13851,
         },
         "residenciaPadrao": {
-          "custoTUSD_Mes_R": 58.408938,
+          "custoTUSD_Mes_R": 58.1742,
           "fatorAno": 0.45,
           "kWhCompensado": 420,
           "kWhInstantaneo": 180,
           "simultaneidadeUsada": 0.3,
-          "tusdNaoComp_R_kWh": 0.1390689,
+          "tusdNaoComp_R_kWh": 0.13851,
         },
       }
     `)
@@ -145,7 +145,7 @@ describe('calcTusdEncargoMensal', () => {
   it('aplica o fator de ano conforme o mês informado', () => {
     const base = calcTusdEncargoMensal({
       consumoMensal_kWh: 600,
-      tarifaCheia_R_kWh: 1.1446,
+      tarifaCheia_R_kWh: 1.14,
       mes: 1,
       tipoCliente: 'residencial',
       pesoTUSD: 27,
@@ -153,7 +153,7 @@ describe('calcTusdEncargoMensal', () => {
     })
     const mesFuturo = calcTusdEncargoMensal({
       consumoMensal_kWh: 600,
-      tarifaCheia_R_kWh: 1.1446,
+      tarifaCheia_R_kWh: 1.14,
       mes: 25,
       tipoCliente: 'residencial',
       pesoTUSD: 27,
@@ -166,12 +166,12 @@ describe('calcTusdEncargoMensal', () => {
   it('utiliza o ano padrão quando nenhum é fornecido', () => {
     const valor = calcTusdEncargoMensal({
       consumoMensal_kWh: 600,
-      tarifaCheia_R_kWh: 1.1446,
+      tarifaCheia_R_kWh: 1.14,
       mes: 1,
     })
     const esperado = calcTusdEncargoMensal({
       consumoMensal_kWh: 600,
-      tarifaCheia_R_kWh: 1.1446,
+      tarifaCheia_R_kWh: 1.14,
       mes: 1,
       anoReferencia: DEFAULT_TUSD_ANO_REFERENCIA,
     })
