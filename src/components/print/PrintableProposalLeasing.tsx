@@ -946,8 +946,8 @@ function PrintableProposalLeasingInner(
             <p className="muted print-footnote">
               <strong>
                 <em>
-                  Os valores apresentados são simulações e projeções com base em históricos recentes de inflação e não
-                  representam valores exatos para períodos futuros.
+                  Os valores apresentados acima são simulações e projeções com base em históricos recentes de inflação e
+                  não representam valores exatos para períodos futuros.
                 </em>
               </strong>
             </p>
