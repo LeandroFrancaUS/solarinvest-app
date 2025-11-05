@@ -308,7 +308,7 @@ function PrintableProposalLeasingInner(
   const resumoProposta = [
     {
       label: 'Modalidade de contratação',
-      value: 'Leasing SolarInvest',
+      value: 'Leasing SolarInvest - Sem custo para o cliente',
     },
     {
       label: 'Prazo de validade da proposta',
@@ -485,10 +485,6 @@ function PrintableProposalLeasingInner(
   }, [parcelasLeasing])
 
   const condicoesFinanceiras = [
-    {
-      label: 'Modelo de contratação',
-      value: 'Leasing SolarInvest — Sem custo para o cliente',
-    },
     {
       label: 'Investimento no sistema fotovoltaico',
       value: 'Investimento integral realizado pela contratada',
