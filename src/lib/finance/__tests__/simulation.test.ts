@@ -68,7 +68,7 @@ describe('simulation finance helpers', () => {
 
   it('calcula TUSD não compensável conforme regra de transição', () => {
     const sim = createSimulacao({
-      tarifa_cheia_r_kwh_m1: 1.1446,
+      tarifa_cheia_r_kwh_m1: 1.14,
       inflacao_energetica_pct: 0,
       tusd_pct: 27,
       kc_kwh_mes: 600,
@@ -78,11 +78,11 @@ describe('simulation finance helpers', () => {
     const mes1 = calcTusdEncargo(sim, 1)
     expect(mes1.fatorAno).toBeCloseTo(0.45, 6)
     expect(mes1.kWhCompensado).toBeCloseTo(420, 6)
-    expect(mes1.custoTUSD_Mes_R).toBeCloseTo(58.408938, 4)
+    expect(mes1.custoTUSD_Mes_R).toBeCloseTo(58.1742, 4)
 
     const mes13 = calcTusdEncargo(sim, 13)
     expect(mes13.fatorAno).toBeCloseTo(0.6, 6)
-    expect(mes13.custoTUSD_Mes_R).toBeCloseTo(77.878584, 4)
+    expect(mes13.custoTUSD_Mes_R).toBeCloseTo(77.5656, 4)
   })
 
   it('estima payback finito quando a receita cobre o CAPEX e infinito caso contrário', () => {
