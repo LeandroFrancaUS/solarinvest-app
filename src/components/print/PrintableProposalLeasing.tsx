@@ -395,8 +395,19 @@ function PrintableProposalLeasingInner(
   const modeloInversorManual = sanitizeItemText(leasingModeloInversor)
   const modeloModuloSnapshot = sanitizeItemText(vendaSnapshot?.configuracao?.modelo_modulo)
   const modeloInversorSnapshot = sanitizeItemText(vendaSnapshot?.configuracao?.modelo_inversor)
-  const modeloModulo = modeloModuloManual ?? modeloModuloSnapshot ?? modelosCatalogo.modeloModulo
-  const modeloInversor = modeloInversorManual ?? modeloInversorSnapshot ?? modelosCatalogo.modeloInversor
+  const modeloModuloDefault = 'Astroenergy ou similares'
+  const modeloInversorDefault = 'Huawei, Deye ou similares'
+
+  const modeloModulo =
+    modeloModuloManual ??
+    modeloModuloSnapshot ??
+    modelosCatalogo.modeloModulo ??
+    modeloModuloDefault
+  const modeloInversor =
+    modeloInversorManual ??
+    modeloInversorSnapshot ??
+    modelosCatalogo.modeloInversor ??
+    modeloInversorDefault
 
   const especificacoesUsina = [
     {
