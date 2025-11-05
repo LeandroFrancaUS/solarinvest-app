@@ -15053,9 +15053,7 @@ export default function App() {
                   style={{ display: 'none' }}
                 />
                 <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
-                <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">
-                  ⚙︎
-                </button>
+                {/* Botão de configurações ocultado conforme solicitação */}
               </div>
             </div>
           </header>
