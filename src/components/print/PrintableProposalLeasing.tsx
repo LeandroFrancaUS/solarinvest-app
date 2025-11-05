@@ -757,7 +757,7 @@ function PrintableProposalLeasingInner(
               <thead>
                 <tr>
                   <th>Parâmetro</th>
-                  <th>Valor</th>
+                  <th>Descrição</th>
                 </tr>
               </thead>
               <tbody>
@@ -778,7 +778,7 @@ function PrintableProposalLeasingInner(
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th>Valor</th>
+                  <th>Descrição/Valor</th>
                 </tr>
               </thead>
               <tbody>
@@ -802,7 +802,7 @@ function PrintableProposalLeasingInner(
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th>Valor</th>
+                  <th>Descrição/Valor</th>
                 </tr>
               </thead>
               <tbody>
