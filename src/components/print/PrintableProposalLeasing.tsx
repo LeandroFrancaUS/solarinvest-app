@@ -919,6 +919,10 @@ function PrintableProposalLeasingInner(
           <section className="print-section keep-together avoid-break">
             <h2 className="section-title keep-with-next">Evolução das Mensalidades e Economia</h2>
             <p className="section-subtitle keep-with-next">Comparativo anual entre tarifa convencional e SolarInvest</p>
+            <p className="muted keep-with-next">
+              Os valores apresentados são simulações e projeções com base em históricos recentes de inflação e não
+              representam valores exatos para períodos futuros.
+            </p>
             <table className="no-break-inside">
               <thead>
                 <tr>
