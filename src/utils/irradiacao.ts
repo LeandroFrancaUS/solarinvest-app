@@ -3,7 +3,7 @@ import { resolvePublicAssetPath } from './publicAssets'
 
 const CSV_URL = resolvePublicAssetPath('tilted_latitude_means.csv')
 
-export const IRRADIACAO_FALLBACK = 5
+export const IRRADIACAO_FALLBACK = 5.55
 
 interface IrradiacaoDataset {
   byUf: Map<string, number>
