@@ -16064,7 +16064,7 @@ export default function App() {
                         />
                       </Field>
                     </div>
-                  </CollapsibleCard>
+                  </section>
                   <section
                     id="settings-panel-simulacoes"
                     role="tabpanel"
