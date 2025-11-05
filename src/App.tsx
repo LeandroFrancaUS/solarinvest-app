@@ -106,6 +106,8 @@ import './styles/config-page.css'
 import './styles/toast.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
+import { AppShell } from './layout/AppShell'
+import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/settings/SimulacoesTab'
@@ -2287,6 +2289,26 @@ export default function App() {
   }, [isVendaDiretaTab])
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false)
+  const [isMobileViewport, setIsMobileViewport] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 920px)')
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsMobileViewport(event.matches)
+      if (!event.matches) {
+        setIsSidebarMobileOpen(false)
+      }
+    }
+
+    setIsMobileViewport(mediaQuery.matches)
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [orcamentoVisualizado, setOrcamentoVisualizado] = useState<PrintableProposalProps | null>(null)
@@ -7935,49 +7957,8 @@ export default function App() {
   }, [adicionarNotificacao, crmDataset, persistCrmDataset])
 
   const renderCrmPage = () => (
-    <div className="page crm-page">
-      <header className="topbar crm-header">
-        <div className="container">
-          <div className="brand">
-            <img src="/logo.svg" alt="SolarInvest" />
-            <div className="brand-text">
-              <h1>SolarInvest App</h1>
-              <p>CRM Gestão de Relacionamento e Operações</p>
-            </div>
-          </div>
-          <div className="crm-header-actions">
-            <div className="crm-sync-controls">
-              <label htmlFor="crm-sync-mode">Modo de sincronização</label>
-              <select
-                id="crm-sync-mode"
-                value={crmIntegrationMode}
-                onChange={(event) => setCrmIntegrationMode(event.target.value as CrmIntegrationMode)}
-              >
-                <option value="local">Somente local</option>
-                <option value="remote">Sincronizar com backend</option>
-              </select>
-              <button type="button" className="ghost" onClick={handleSyncCrmManualmente}>
-                Sincronizar agora
-              </button>
-              <small className={`crm-sync-status ${crmBackendStatus}`}>
-                {crmIntegrationMode === 'remote'
-                  ? crmBackendStatus === 'success'
-                    ? `Sincronizado${crmLastSync ? ` em ${crmLastSync.toLocaleString('pt-BR')}` : ''}`
-                    : crmBackendStatus === 'error'
-                      ? crmBackendError ?? 'Erro de sincronização'
-                      : crmIsSaving
-                        ? 'Enviando dados para o backend...'
-                        : 'Aguardando alterações para sincronizar'
-                  : 'Operando somente com dados locais'}
-              </small>
-            </div>
-            <button className="ghost" onClick={() => setActivePage('app')}>
-              Voltar para proposta financeira
-            </button>
-          </div>
-        </div>
-      </header>
-      <main className="crm-main">
+    <div className="crm-page">
+      <div className="crm-main">
         {/* Seção 1 - Captação e qualificação */}
         <section className="crm-card">
           <div className="crm-card-header">
@@ -9031,7 +9012,7 @@ export default function App() {
             </div>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   )
 
@@ -15020,58 +15001,292 @@ export default function App() {
     />
   ) : null
 
+  const handleSidebarMenuToggle = useCallback(() => {
+    setIsSidebarMobileOpen((previous) => !previous)
+  }, [])
+
+  const handleSidebarCollapseToggle = useCallback(() => {
+    setIsSidebarCollapsed((previous) => !previous)
+  }, [])
+
+  const handleSidebarNavigate = useCallback(() => {
+    if (isMobileViewport) {
+      setIsSidebarMobileOpen(false)
+    }
+  }, [isMobileViewport])
+
+  const handleSidebarClose = useCallback(() => {
+    setIsSidebarMobileOpen(false)
+  }, [])
+
+  const topbarActions = (
+    <>
+      <button className="crm-button" onClick={() => setActivePage('crm')}>
+        Central CRM
+      </button>
+      <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
+      <button className="ghost" onClick={handleAbrirUploadImagens}>Incluir imagens</button>
+      <input
+        ref={imagensUploadInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleImagensSelecionadas}
+        style={{ display: 'none' }}
+      />
+      <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
+      <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">
+        ⚙︎
+      </button>
+    </>
+  )
+
+  const crmPageActions = (
+    <div className="crm-header-actions">
+      <div className="crm-sync-controls">
+        <label htmlFor="crm-sync-mode">Modo de sincronização</label>
+        <select
+          id="crm-sync-mode"
+          value={crmIntegrationMode}
+          onChange={(event) => setCrmIntegrationMode(event.target.value as CrmIntegrationMode)}
+        >
+          <option value="local">Somente local</option>
+          <option value="remote">Sincronizar com backend</option>
+        </select>
+        <button type="button" className="ghost" onClick={handleSyncCrmManualmente}>
+          Sincronizar agora
+        </button>
+        <small className={`crm-sync-status ${crmBackendStatus}`}>
+          {crmIntegrationMode === 'remote'
+            ? crmBackendStatus === 'success'
+              ? `Sincronizado${crmLastSync ? ` em ${crmLastSync.toLocaleString('pt-BR')}` : ''}`
+              : crmBackendStatus === 'error'
+                ? crmBackendError ?? 'Erro de sincronização'
+                : crmIsSaving
+                  ? 'Enviando dados para o backend...'
+                  : 'Aguardando alterações para sincronizar'
+            : 'Operando somente com dados locais'}
+        </small>
+      </div>
+      <button className="ghost" onClick={() => setActivePage('app')}>
+        Voltar para proposta financeira
+      </button>
+    </div>
+  )
+
+  const contentActions = activePage === 'crm' ? crmPageActions : null
+  const contentTitle = activePage === 'crm' ? 'Central CRM' : activeTab === 'vendas' ? 'Vendas' : 'Leasing'
+  const contentSubtitle =
+    activePage === 'crm' ? 'CRM Gestão de Relacionamento e Operações' : 'Proposta financeira interativa'
+  const topbarSubtitle = contentSubtitle
+
+  const sidebarGroups: SidebarGroup[] = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      items: [
+        {
+          id: 'dashboard-visao-geral',
+          label: 'Visão geral',
+          icon: '🏠',
+          onSelect: () => {
+            setActivePage('app')
+          },
+        },
+      ],
+    },
+    {
+      id: 'propostas',
+      label: 'Propostas',
+      items: [
+        {
+          id: 'propostas-leasing',
+          label: 'Leasing',
+          icon: '📝',
+          onSelect: () => {
+            setActivePage('app')
+            setActiveTab('leasing')
+          },
+        },
+        {
+          id: 'propostas-vendas',
+          label: 'Vendas',
+          icon: '🧾',
+          onSelect: () => {
+            setActivePage('app')
+            setActiveTab('vendas')
+          },
+        },
+        {
+          id: 'propostas-contratos',
+          label: 'Gerar contratos',
+          icon: '📑',
+          onSelect: () => {
+            setActivePage('app')
+          },
+        },
+      ],
+    },
+    {
+      id: 'orcamentos',
+      label: 'Orçamentos',
+      items: [
+        {
+          id: 'orcamentos-importar',
+          label: 'Importar PDF',
+          icon: '📄',
+          onSelect: () => {
+            abrirPesquisaOrcamentos()
+          },
+        },
+        {
+          id: 'orcamentos-itens',
+          label: 'Itens do orçamento',
+          icon: '🧰',
+          onSelect: () => {
+            setActivePage('app')
+          },
+        },
+      ],
+    },
+    {
+      id: 'crm',
+      label: 'CRM',
+      items: [
+        {
+          id: 'crm-central',
+          label: 'Central CRM',
+          icon: '📇',
+          onSelect: () => {
+            setActivePage('crm')
+          },
+        },
+        {
+          id: 'crm-operacoes',
+          label: 'Operações',
+          icon: '🗂️',
+          items: [
+            {
+              id: 'crm-captura',
+              label: 'Captura de leads',
+              icon: '🛰️',
+              onSelect: () => {
+                setActivePage('crm')
+              },
+            },
+            {
+              id: 'crm-pos-venda',
+              label: 'Pós-venda',
+              icon: '🤝',
+              onSelect: () => {
+                setActivePage('crm')
+              },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'relatorios',
+      label: 'Relatórios',
+      items: [
+        {
+          id: 'relatorios-pdfs',
+          label: 'PDFs gerados',
+          icon: '📂',
+          onSelect: () => {
+            setActivePage('app')
+          },
+        },
+        {
+          id: 'relatorios-exportacoes',
+          label: 'Exportações',
+          icon: '📤',
+          onSelect: () => {
+            setActivePage('app')
+          },
+        },
+      ],
+    },
+    {
+      id: 'configuracoes',
+      label: 'Configurações',
+      items: [
+        {
+          id: 'config-preferencias',
+          label: 'Preferências',
+          icon: '⚙️',
+          onSelect: () => {
+            setIsSettingsOpen(true)
+          },
+        },
+        {
+          id: 'config-chaves',
+          label: 'Chaves de acesso API',
+          icon: '🔑',
+          onSelect: () => {
+            setIsSettingsOpen(true)
+          },
+        },
+        {
+          id: 'config-termos',
+          label: 'Termos e políticas',
+          icon: '📜',
+          onSelect: () => {
+            setIsSettingsOpen(true)
+          },
+        },
+      ],
+    },
+  ]
+
+  const activeSidebarItem =
+    activePage === 'crm' ? 'crm-central' : activeTab === 'vendas' ? 'propostas-vendas' : 'propostas-leasing'
+
+
   return (
     <AppRoutes>
+      <AppShell
+        topbar={{
+          onMenuToggle: handleSidebarMenuToggle,
+          subtitle: topbarSubtitle,
+          actions: topbarActions,
+        }}
+        sidebar={{
+          collapsed: isSidebarCollapsed,
+          mobileOpen: isSidebarMobileOpen,
+          groups: sidebarGroups,
+          activeItemId: activeSidebarItem,
+          onNavigate: handleSidebarNavigate,
+          onCollapseToggle: handleSidebarCollapseToggle,
+          onCloseMobile: handleSidebarClose,
+        }}
+        content={{
+          title: contentTitle,
+          subtitle: contentSubtitle,
+          actions: contentActions ?? undefined,
+        }}
+      >
+        <React.Suspense fallback={null}>
+          <PrintableProposal ref={printableRef} {...printableData} />
+        </React.Suspense>
         {activePage === 'crm' ? (
           renderCrmPage()
         ) : (
           <div className="page">
-            <React.Suspense fallback={null}>
-              <PrintableProposal ref={printableRef} {...printableData} />
-            </React.Suspense>
-          <header className="topbar app-header">
-            <div className="container">
-              <div className="brand">
-                <img src="/logo.svg" alt="SolarInvest" />
-                <div className="brand-text">
-                  <h1>SolarInvest App</h1>
-                  <p>Proposta financeira interativa</p>
+            <div className="app-main">
+              <nav className="tabs tabs-bar">
+                <div className="container">
+                  <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>
+                    Leasing
+                  </button>
+                  <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>
+                    Vendas
+                  </button>
                 </div>
-              </div>
-              <div className="top-actions">
-                <button className="crm-button" onClick={() => setActivePage('crm')}>
-                  Central CRM
-                </button>
-                <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
-                <button className="ghost" onClick={handleAbrirUploadImagens}>Incluir imagens</button>
-                <input
-                  ref={imagensUploadInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImagensSelecionadas}
-                  style={{ display: 'none' }}
-                />
-                <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
-                <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">
-                  ⚙︎
-                </button>
-              </div>
-            </div>
-          </header>
-          <div className="app-main">
-            <nav className="tabs tabs-bar">
-              <div className="container">
-                <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>
-                  Leasing
-                </button>
-                <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>
-                  Vendas
-                </button>
-              </div>
-            </nav>
+              </nav>
 
-            <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
+              <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
               {orcamentoCarregado ? (
                 <section className="card loaded-budget-viewer">
                   <div className="card-header loaded-budget-header">
@@ -15592,9 +15807,12 @@ export default function App() {
                   </>
                 ) : null}
               </div>
-            </main>
-      </div>
 
+              </main>
+            </div>
+          </div>
+        )}
+      </AppShell>
       {isClientesModalOpen ? (
         <ClientesModal
           registros={clientesSalvos}
