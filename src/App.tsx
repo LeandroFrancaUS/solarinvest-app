@@ -2411,8 +2411,6 @@ export default function App() {
   const [tusdSimultaneidade, setTusdSimultaneidade] = useState<number | null>(
     INITIAL_VALUES.tusdSimultaneidade,
   )
-  const [tusdSimultaneidadeManualOverride, setTusdSimultaneidadeManualOverride] =
-    useState(false)
   const [tusdTarifaRkwh, setTusdTarifaRkwh] = useState<number | null>(
     INITIAL_VALUES.tusdTarifaRkwh,
   )
@@ -3749,12 +3747,6 @@ export default function App() {
     return null
   }, [])
 
-  const resolveDefaultTusdSimultaneidade = useCallback((tipo: TipoClienteTUSD): number | null => {
-    if (tipo === 'residencial') return 50
-    if (tipo === 'comercial') return 70
-    return null
-  }, [])
-
   const setTusdPercentFromSource = useCallback(
     (value: number | null, source: 'auto' | 'manual') => {
       const isManual = source === 'manual'
@@ -3771,24 +3763,6 @@ export default function App() {
       }
     },
     [applyVendaUpdates, tusdPercent],
-  )
-
-  const setTusdSimultaneidadeFromSource = useCallback(
-    (value: number | null, source: 'auto' | 'manual') => {
-      const isManual = source === 'manual'
-      if (tusdSimultaneidade === value) {
-        setTusdSimultaneidadeManualOverride(isManual)
-        return
-      }
-      setTusdSimultaneidade(value)
-      setTusdSimultaneidadeManualOverride(isManual)
-      if (value == null) {
-        applyVendaUpdates({ tusd_simultaneidade: undefined })
-      } else {
-        applyVendaUpdates({ tusd_simultaneidade: value })
-      }
-    },
-    [applyVendaUpdates, tusdSimultaneidade],
   )
 
   useEffect(() => {
@@ -3808,26 +3782,6 @@ export default function App() {
     setTusdPercentFromSource,
     tusdOpcoesExpandidas,
     tusdPercentManualOverride,
-    tusdTipoCliente,
-  ])
-
-  useEffect(() => {
-    if (!tusdOpcoesExpandidas) {
-      if (tusdSimultaneidadeManualOverride) {
-        setTusdSimultaneidadeManualOverride(false)
-      }
-      return
-    }
-    if (tusdSimultaneidadeManualOverride) {
-      return
-    }
-    const defaultSimultaneidade = resolveDefaultTusdSimultaneidade(tusdTipoCliente)
-    setTusdSimultaneidadeFromSource(defaultSimultaneidade, 'auto')
-  }, [
-    resolveDefaultTusdSimultaneidade,
-    setTusdSimultaneidadeFromSource,
-    tusdOpcoesExpandidas,
-    tusdSimultaneidadeManualOverride,
     tusdTipoCliente,
   ])
 
@@ -9801,7 +9755,6 @@ export default function App() {
     setTusdTipoCliente(snapshot.tusdTipoCliente)
     setTusdSubtipo(snapshot.tusdSubtipo)
     setTusdSimultaneidade(snapshot.tusdSimultaneidade)
-    setTusdSimultaneidadeManualOverride(snapshot.tusdSimultaneidade != null)
     setTusdTarifaRkwh(snapshot.tusdTarifaRkwh)
     setTusdAnoReferencia(snapshot.tusdAnoReferencia)
     setTusdOpcoesExpandidas(snapshot.tusdOpcoesExpandidas)
@@ -10948,7 +10901,6 @@ export default function App() {
     setTusdTipoCliente(INITIAL_VALUES.tusdTipoCliente)
     setTusdSubtipo(INITIAL_VALUES.tusdSubtipo)
     setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
-    setTusdSimultaneidadeManualOverride(false)
     setTusdTarifaRkwh(INITIAL_VALUES.tusdTarifaRkwh)
     setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
     setTusdOpcoesExpandidas(false)
@@ -11885,7 +11837,6 @@ export default function App() {
                 onChange={(event) => {
                   const value = event.target.value as TipoClienteTUSD
                   setTusdPercentManualOverride(false)
-                  setTusdSimultaneidadeManualOverride(false)
                   setTusdTipoCliente(value)
                   applyVendaUpdates({ tusd_tipo_cliente: value })
                   resetRetorno()
@@ -11929,11 +11880,13 @@ export default function App() {
                 onChange={(event) => {
                   const { value } = event.target
                   if (value === '') {
-                    setTusdSimultaneidadeFromSource(null, 'manual')
+                    setTusdSimultaneidade(null)
+                    applyVendaUpdates({ tusd_simultaneidade: undefined })
                   } else {
                     const parsed = Number(value)
                     const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-                    setTusdSimultaneidadeFromSource(normalized, 'manual')
+                    setTusdSimultaneidade(normalized)
+                    applyVendaUpdates({ tusd_simultaneidade: normalized })
                   }
                   resetRetorno()
                 }}
