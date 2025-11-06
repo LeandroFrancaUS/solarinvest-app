@@ -5011,6 +5011,10 @@ i:hover {
   align-items: stretch;
 }
 
+.app-body.sidebar-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
 .app-topbar {
   position: sticky;
   top: 0;
@@ -5223,6 +5227,10 @@ i:hover {
 
 @media (max-width: 920px) {
   .app-body {
+    grid-template-columns: 1fr;
+  }
+
+  .app-body.sidebar-collapsed {
     grid-template-columns: 1fr;
   }
 

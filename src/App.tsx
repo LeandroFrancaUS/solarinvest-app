@@ -2187,7 +2187,7 @@ export default function App() {
     (state) => state.resumoProposta.valor_total_proposta,
   )
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return 'light'
     }
 
@@ -2252,6 +2252,10 @@ export default function App() {
       return
     }
 
+    if (typeof window.matchMedia !== 'function') {
+      return
+    }
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     const applyTheme = (matches: boolean) => {
       const nextTheme: 'light' | 'dark' = matches ? 'dark' : 'light'
@@ -2294,6 +2298,10 @@ export default function App() {
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   useEffect(() => {
     if (typeof window === 'undefined') {
+      return
+    }
+
+    if (typeof window.matchMedia !== 'function') {
       return
     }
 

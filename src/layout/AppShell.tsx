@@ -12,11 +12,15 @@ export interface AppShellProps {
 
 export function AppShell({ topbar, sidebar, content, children }: AppShellProps) {
   const showBackdrop = sidebar.mobileOpen
+  const bodyClasses = ['app-body']
+  if (sidebar.collapsed) {
+    bodyClasses.push('sidebar-collapsed')
+  }
 
   return (
     <div className="app-shell">
       <Topbar {...topbar} />
-      <div className="app-body">
+      <div className={bodyClasses.join(' ')}>
         {showBackdrop ? (
           <button
             type="button"
