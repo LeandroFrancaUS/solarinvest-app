@@ -6,24 +6,20 @@ export interface TopbarProps {
   actions?: ReactNode
 }
 
-export function Topbar({
-  title = 'SolarInvest App',
-  subtitle,
-  actions,
-}: TopbarProps) {
+export function Topbar({ title, subtitle, actions }: TopbarProps) {
+  const hasHeading = Boolean(title || subtitle)
   const hasActions = actions != null
+
+  if (!hasHeading && !hasActions) {
+    return <header className="topbar app-topbar" aria-hidden="true" />
+  }
 
   return (
     <header className="topbar app-topbar">
       <div className="container topbar-inner">
-        <div className="topbar-left">
-          <div className="brand">
-            <img src="/logo.svg" alt="SolarInvest" />
-            <div className="brand-text">
-              <h1>{title}</h1>
-              {subtitle ? <p>{subtitle}</p> : null}
-            </div>
-          </div>
+        <div className="topbar-heading">
+          {title ? <h1>{title}</h1> : null}
+          {subtitle ? <p>{subtitle}</p> : null}
         </div>
         {hasActions ? <div className="top-actions">{actions}</div> : null}
       </div>

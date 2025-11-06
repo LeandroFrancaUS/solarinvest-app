@@ -15173,7 +15173,7 @@ export default function App() {
       items: [
         {
           id: 'orcamentos-importar',
-          label: 'Consultar orçamentos',
+          label: 'Consultar',
           icon: '📄',
           onSelect: () => {
             abrirPesquisaOrcamentos()
