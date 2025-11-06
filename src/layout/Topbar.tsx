@@ -31,7 +31,11 @@ export function Topbar({
               aria-label={menuButtonLabel ?? 'Alternar menu de navegação'}
               aria-expanded={typeof menuButtonExpanded === 'boolean' ? menuButtonExpanded : undefined}
             >
-              <span aria-hidden="true">☰</span>
+              <span className="menu-toggle-icon" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
             </button>
           ) : null}
           <div className="brand">
