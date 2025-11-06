@@ -4678,6 +4678,8 @@ export default function App() {
       if (tabs) {
         const { height } = tabs.getBoundingClientRect()
         document.documentElement.style.setProperty('--tabs-h', `${Math.round(height)}px`)
+      } else {
+        document.documentElement.style.setProperty('--tabs-h', '0px')
       }
     }
 
@@ -15085,9 +15087,7 @@ export default function App() {
   )
 
   const contentActions = activePage === 'crm' ? crmPageActions : null
-  const contentTitle = activePage === 'crm' ? 'Central CRM' : activeTab === 'vendas' ? 'Vendas' : 'Leasing'
-  const contentSubtitle =
-    activePage === 'crm' ? 'CRM Gestão de Relacionamento e Operações' : 'Proposta financeira interativa'
+  const contentSubtitle = activePage === 'crm' ? 'CRM Gestão de Relacionamento e Operações' : undefined
   const topbarSubtitle = contentSubtitle
 
   const sidebarGroups: SidebarGroup[] = [
@@ -15317,7 +15317,6 @@ export default function App() {
           onCloseMobile: handleSidebarClose,
         }}
         content={{
-          title: contentTitle,
           subtitle: contentSubtitle,
           actions: contentActions ?? undefined,
         }}
@@ -15330,17 +15329,6 @@ export default function App() {
         ) : (
           <div className="page">
             <div className="app-main">
-              <nav className="tabs tabs-bar">
-                <div className="container">
-                  <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>
-                    Leasing
-                  </button>
-                  <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>
-                    Vendas
-                  </button>
-                </div>
-              </nav>
-
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
               {orcamentoCarregado ? (
                 <section className="card loaded-budget-viewer">
