@@ -15027,28 +15027,6 @@ export default function App() {
     setIsSidebarMobileOpen(false)
   }, [])
 
-  const topbarActions = (
-    <>
-      <button className="crm-button" onClick={() => setActivePage('crm')}>
-        Central CRM
-      </button>
-      <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
-      <button className="ghost" onClick={handleAbrirUploadImagens}>Incluir imagens</button>
-      <input
-        ref={imagensUploadInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={handleImagensSelecionadas}
-        style={{ display: 'none' }}
-      />
-      <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
-      <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">
-        ⚙︎
-      </button>
-    </>
-  )
-
   const crmPageActions = (
     <div className="crm-header-actions">
       <div className="crm-sync-controls">
@@ -15133,6 +15111,14 @@ export default function App() {
             setActivePage('app')
           },
         },
+        {
+          id: 'propostas-imagens',
+          label: 'Incluir imagens',
+          icon: '🖼️',
+          onSelect: () => {
+            handleAbrirUploadImagens()
+          },
+        },
       ],
     },
     {
@@ -15214,6 +15200,14 @@ export default function App() {
             setActivePage('app')
           },
         },
+        {
+          id: 'relatorios-exportar-pdf',
+          label: 'Exportar PDF',
+          icon: '🖨️',
+          onSelect: () => {
+            handlePrint()
+          },
+        },
       ],
     },
     {
@@ -15258,7 +15252,6 @@ export default function App() {
         topbar={{
           onMenuToggle: handleSidebarMenuToggle,
           subtitle: topbarSubtitle,
-          actions: topbarActions,
         }}
         sidebar={{
           collapsed: isSidebarCollapsed,
@@ -15821,6 +15814,15 @@ export default function App() {
           </div>
         )}
       </AppShell>
+      <input
+        ref={imagensUploadInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleImagensSelecionadas}
+        style={{ display: 'none' }}
+      />
+
       {isClientesModalOpen ? (
         <ClientesModal
           registros={clientesSalvos}
