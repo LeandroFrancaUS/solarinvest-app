@@ -6,6 +6,8 @@ export interface SidebarItem {
   icon?: React.ReactNode
   onSelect?: () => void
   items?: SidebarItem[]
+  disabled?: boolean
+  title?: string
 }
 
 export interface SidebarGroup {
@@ -50,26 +52,62 @@ export function Sidebar({
   }, [activeItemId, groups])
 
   const [openSubmenus, setOpenSubmenus] = React.useState<Set<string>>(() => new Set(parentIds))
+  const storedSubmenusRef = React.useRef<Set<string>>(new Set(parentIds))
+  const openSubmenusRef = React.useRef(openSubmenus)
 
   React.useEffect(() => {
+    openSubmenusRef.current = openSubmenus
+    if (!collapsed) {
+      storedSubmenusRef.current = new Set(openSubmenus)
+    }
+  }, [collapsed, openSubmenus])
+
+  React.useEffect(() => {
+    if (collapsed) {
+      return
+    }
+
     setOpenSubmenus((previous) => {
       const merged = new Set(previous)
       parentIds.forEach((id) => merged.add(id))
       return merged
     })
-  }, [parentIds])
+  }, [collapsed, parentIds])
 
-  const toggleSubmenu = React.useCallback((id: string) => {
-    setOpenSubmenus((previous) => {
-      const next = new Set(previous)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
+  React.useEffect(() => {
+    if (collapsed) {
+      if (openSubmenusRef.current.size > 0) {
+        storedSubmenusRef.current = new Set(openSubmenusRef.current)
+        setOpenSubmenus(new Set())
       }
-      return next
+      return
+    }
+
+    setOpenSubmenus(() => {
+      const restored = new Set(storedSubmenusRef.current)
+      parentIds.forEach((id) => restored.add(id))
+      return restored
     })
-  }, [])
+  }, [collapsed, parentIds])
+
+  const toggleSubmenu = React.useCallback(
+    (id: string) => {
+      if (collapsed) {
+        return
+      }
+
+      setOpenSubmenus((previous) => {
+        const next = new Set(previous)
+        if (next.has(id)) {
+          next.delete(id)
+        } else {
+          next.add(id)
+        }
+        return next
+      })
+    },
+    [collapsed],
+  )
 
   const handleSelect = React.useCallback(
     (item: SidebarItem) => {
@@ -94,10 +132,14 @@ export function Sidebar({
     const hasChildren = item.items && item.items.length > 0
     const isExpanded = hasChildren && openSubmenus.has(item.id)
     const isActive = item.id === activeItemId
+    const isDisabled = Boolean(item.disabled)
 
     const commonProps = {
-      className: `sidebar-link${isActive ? ' active' : ''}${hasChildren ? ' has-children' : ''}`,
-      title: collapsed ? item.label : undefined,
+      className: `sidebar-link${isActive ? ' active' : ''}${hasChildren ? ' has-children' : ''}${
+        isDisabled ? ' is-disabled' : ''
+      }`,
+      title: item.title ?? (collapsed ? item.label : undefined),
+      'aria-label': collapsed ? item.label : undefined,
     }
 
     if (hasChildren) {
@@ -110,6 +152,7 @@ export function Sidebar({
             onClick={() => toggleSubmenu(item.id)}
             aria-expanded={isExpanded}
             aria-controls={submenuId}
+            disabled={collapsed}
           >
             <span className="icon" aria-hidden="true">
               {item.icon ?? '▾'}
@@ -118,6 +161,11 @@ export function Sidebar({
             <span className="sidebar-chevron" aria-hidden="true">
               {isExpanded ? '▾' : '▸'}
             </span>
+            {collapsed ? (
+              <span className="tooltip" role="tooltip">
+                {item.label}
+              </span>
+            ) : null}
           </button>
           <div id={submenuId} className={`sidebar-submenu${isExpanded ? ' expanded' : ''}`} role="group">
             {item.items?.map((child) => renderItem(child, level + 1))}
@@ -133,11 +181,17 @@ export function Sidebar({
           {...commonProps}
           onClick={() => handleSelect(item)}
           aria-current={isActive ? 'page' : undefined}
+          disabled={isDisabled}
         >
           <span className="icon" aria-hidden="true">
             {item.icon ?? '•'}
           </span>
           <span className="sidebar-label">{item.label}</span>
+          {collapsed ? (
+            <span className="tooltip" role="tooltip">
+              {item.label}
+            </span>
+          ) : null}
         </button>
       </div>
     )
@@ -155,9 +209,19 @@ export function Sidebar({
       </nav>
       <div className="sidebar-footer">
         {onCollapseToggle ? (
-          <button type="button" className="sidebar-collapse" onClick={onCollapseToggle}>
+          <button
+            type="button"
+            className="sidebar-collapse"
+            onClick={onCollapseToggle}
+            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          >
             <span aria-hidden="true">{collapsed ? '⤢' : '⤡'}</span>
             <span className="sidebar-label">{collapsed ? 'Expandir menu' : 'Recolher menu'}</span>
+            {collapsed ? (
+              <span className="tooltip" role="tooltip">
+                {collapsed ? 'Expandir menu' : 'Recolher menu'}
+              </span>
+            ) : null}
           </button>
         ) : null}
       </div>

@@ -2293,9 +2293,33 @@ export default function App() {
   }, [isVendaDiretaTab])
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+
+    return window.innerWidth < 1000
+  })
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false)
   const [isMobileViewport, setIsMobileViewport] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const handleResize = () => {
+      const width = window.innerWidth
+      if (width <= 920) {
+        setIsSidebarCollapsed(false)
+      } else {
+        setIsSidebarCollapsed(width < 1000)
+      }
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
@@ -15104,18 +15128,47 @@ export default function App() {
           },
         },
         {
-          id: 'propostas-contratos',
-          label: 'Gerar contratos',
-          icon: '📑',
+          id: 'propostas-nova',
+          label: 'Nova proposta',
+          icon: '✨',
           onSelect: () => {
             setActivePage('app')
+            handleNovaProposta()
           },
+        },
+        {
+          id: 'propostas-salvar',
+          label: salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta',
+          icon: '💾',
+          onSelect: () => {
+            setActivePage('app')
+            handleSalvarPropostaPdf()
+          },
+          disabled: !podeSalvarProposta || salvandoPropostaPdf,
+          title: !proposalPdfIntegrationAvailable
+            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
+            : undefined,
+        },
+        {
+          id: 'propostas-contratos',
+          label: gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos',
+          icon: '🖋️',
+          onSelect: () => {
+            setActivePage('app')
+            if (isVendaDiretaTab) {
+              handleGerarContratoVendas()
+            } else {
+              handleGerarContratoLeasing()
+            }
+          },
+          disabled: gerandoContratoPdf,
         },
         {
           id: 'propostas-imagens',
           label: 'Incluir imagens',
           icon: '🖼️',
           onSelect: () => {
+            setActivePage('app')
             handleAbrirUploadImagens()
           },
         },
@@ -15205,6 +15258,7 @@ export default function App() {
           label: 'Exportar PDF',
           icon: '🖨️',
           onSelect: () => {
+            setActivePage('app')
             handlePrint()
           },
         },
@@ -15329,58 +15383,31 @@ export default function App() {
               ) : null}
               <div className={`page-editable${isViewOnlyMode ? ' is-readonly' : ''}`}>
                 <div ref={editableContentRef} className="page-editable-body">
-                  <div className="page-actions">
-                    <button
-                      type="button"
-                      className={`ghost${activeTab === 'leasing' ? ' solid' : ''}`}
-                      onClick={handleNovaProposta}
-                    >
-                      Novo
-                    </button>
-                    {isVendaDiretaTab ? (
-                      <button type="button" className="ghost" onClick={handleRecalcularVendas}>
-                        Recalcular
-                      </button>
-                    ) : null}
-                    {orcamentoCarregado ? (
-                      <button
-                        type="button"
-                        className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                        onClick={duplicarOrcamentoCarregado}
-                        disabled={!orcamentoCarregadoRegistro?.snapshot}
-                        title={
-                          orcamentoCarregadoRegistro?.snapshot
-                            ? undefined
-                            : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
-                        }
-                      >
-                        Duplicar
-                      </button>
-                    ) : podeSalvarProposta ? (
-                      <button
-                        type="button"
-                        className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                        onClick={handleSalvarPropostaPdf}
-                        disabled={salvandoPropostaPdf}
-                        title={
-                          !proposalPdfIntegrationAvailable
-                            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
-                            : undefined
-                        }
-                      >
-                        {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={isVendaDiretaTab ? handleGerarContratoVendas : handleGerarContratoLeasing}
-                      disabled={gerandoContratoPdf}
-                    >
-                      {gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos'}
-                    </button>
-                  </div>
-                {renderClienteDadosSection()}
+                  {isVendaDiretaTab || orcamentoCarregado ? (
+                    <div className="page-actions">
+                      {isVendaDiretaTab ? (
+                        <button type="button" className="ghost" onClick={handleRecalcularVendas}>
+                          Recalcular
+                        </button>
+                      ) : null}
+                      {orcamentoCarregado ? (
+                        <button
+                          type="button"
+                          className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
+                          onClick={duplicarOrcamentoCarregado}
+                          disabled={!orcamentoCarregadoRegistro?.snapshot}
+                          title={
+                            orcamentoCarregadoRegistro?.snapshot
+                              ? undefined
+                              : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
+                          }
+                        >
+                          Duplicar
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {renderClienteDadosSection()}
               {activeTab === 'leasing' ? (
                 <>
                   {renderParametrosPrincipaisSection()}
