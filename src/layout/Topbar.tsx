@@ -5,9 +5,18 @@ export interface TopbarProps {
   title?: string
   subtitle?: string
   actions?: ReactNode
+  menuButtonLabel?: string
+  menuButtonExpanded?: boolean
 }
 
-export function Topbar({ onMenuToggle, title = 'SolarInvest App', subtitle, actions }: TopbarProps) {
+export function Topbar({
+  onMenuToggle,
+  title = 'SolarInvest App',
+  subtitle,
+  actions,
+  menuButtonLabel,
+  menuButtonExpanded,
+}: TopbarProps) {
   const hasActions = actions != null
 
   return (
@@ -19,7 +28,8 @@ export function Topbar({ onMenuToggle, title = 'SolarInvest App', subtitle, acti
               type="button"
               className="menu-toggle"
               onClick={onMenuToggle}
-              aria-label="Alternar menu de navegação"
+              aria-label={menuButtonLabel ?? 'Alternar menu de navegação'}
+              aria-expanded={typeof menuButtonExpanded === 'boolean' ? menuButtonExpanded : undefined}
             >
               <span aria-hidden="true">☰</span>
             </button>

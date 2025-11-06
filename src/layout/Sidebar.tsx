@@ -22,7 +22,6 @@ export interface SidebarProps {
   groups: SidebarGroup[]
   activeItemId?: string
   onNavigate?: () => void
-  onCollapseToggle?: () => void
   onCloseMobile?: () => void
 }
 
@@ -32,7 +31,6 @@ export function Sidebar({
   groups,
   activeItemId,
   onNavigate,
-  onCollapseToggle,
   onCloseMobile,
 }: SidebarProps) {
   const parentIds = React.useMemo(() => {
@@ -207,24 +205,6 @@ export function Sidebar({
           </div>
         ))}
       </nav>
-      <div className="sidebar-footer">
-        {onCollapseToggle ? (
-          <button
-            type="button"
-            className="sidebar-collapse"
-            onClick={onCollapseToggle}
-            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          >
-            <span aria-hidden="true">{collapsed ? '⤢' : '⤡'}</span>
-            <span className="sidebar-label">{collapsed ? 'Expandir menu' : 'Recolher menu'}</span>
-            {collapsed ? (
-              <span className="tooltip" role="tooltip">
-                {collapsed ? 'Expandir menu' : 'Recolher menu'}
-              </span>
-            ) : null}
-          </button>
-        ) : null}
-      </div>
     </aside>
   )
 }

@@ -15036,12 +15036,12 @@ export default function App() {
   ) : null
 
   const handleSidebarMenuToggle = useCallback(() => {
-    setIsSidebarMobileOpen((previous) => !previous)
-  }, [])
-
-  const handleSidebarCollapseToggle = useCallback(() => {
-    setIsSidebarCollapsed((previous) => !previous)
-  }, [])
+    if (isMobileViewport) {
+      setIsSidebarMobileOpen((previous) => !previous)
+    } else {
+      setIsSidebarCollapsed((previous) => !previous)
+    }
+  }, [isMobileViewport])
 
   const handleSidebarNavigate = useCallback(() => {
     if (isMobileViewport) {
@@ -15306,6 +15306,14 @@ export default function App() {
         topbar={{
           onMenuToggle: handleSidebarMenuToggle,
           subtitle: topbarSubtitle,
+          menuButtonLabel: isMobileViewport
+            ? isSidebarMobileOpen
+              ? 'Fechar menu de navegação'
+              : 'Abrir menu de navegação'
+            : isSidebarCollapsed
+              ? 'Expandir menu lateral'
+              : 'Recolher menu lateral',
+          menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
         }}
         sidebar={{
           collapsed: isSidebarCollapsed,
@@ -15313,7 +15321,6 @@ export default function App() {
           groups: sidebarGroups,
           activeItemId: activeSidebarItem,
           onNavigate: handleSidebarNavigate,
-          onCollapseToggle: handleSidebarCollapseToggle,
           onCloseMobile: handleSidebarClose,
         }}
         content={{

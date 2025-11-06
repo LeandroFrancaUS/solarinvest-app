@@ -143,7 +143,7 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding-top: var(--header-h);
+  padding-top: 0;
 }
 
 .app-header {
@@ -5045,7 +5045,7 @@ i:hover {
 }
 
 .menu-toggle {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 44px;
@@ -5277,65 +5277,6 @@ i:hover {
   opacity: 1;
 }
 
-.sidebar-footer {
-  margin-top: auto;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.sidebar-collapse {
-  position: relative;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  justify-content: center;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(226, 232, 240, 0.88);
-  cursor: pointer;
-  min-height: 44px;
-  font-size: 13px;
-  font-weight: 500;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.sidebar-collapse:hover,
-.sidebar-collapse:focus-visible {
-  background: rgba(255, 140, 0, 0.12);
-  border-color: rgba(255, 140, 0, 0.35);
-  color: #f8fafc;
-  outline: none;
-  box-shadow: 0 0 0 1px rgba(255, 140, 0, 0.25);
-}
-
-.sidebar-collapse .sidebar-label {
-  flex: 1;
-}
-
-.sidebar.collapsed .sidebar-collapse {
-  justify-content: center;
-}
-
-.sidebar.collapsed .sidebar-collapse .sidebar-label {
-  display: none;
-}
-
-.sidebar.collapsed .sidebar-collapse .tooltip {
-  left: 72px;
-}
-
-.sidebar.collapsed .sidebar-collapse:hover .tooltip,
-.sidebar.collapsed .sidebar-collapse:focus-visible .tooltip {
-  opacity: 1;
-}
-
-.sidebar-collapse .tooltip {
-  left: 72px;
-}
-
 .content-wrap {
   padding: 22px 28px 56px;
   max-width: 1280px;
@@ -5379,10 +5320,6 @@ i:hover {
     grid-template-columns: 1fr;
   }
 
-  .menu-toggle {
-    display: inline-flex;
-  }
-
   .app-topbar .top-actions {
     flex-wrap: wrap;
     justify-content: flex-end;
@@ -5420,10 +5357,9 @@ i:hover {
     margin-right: 8px;
   }
 
-  .sidebar.collapsed .tooltip,
-  .sidebar.collapsed .sidebar-collapse .tooltip {
-    display: none;
-  }
+    .sidebar.collapsed .tooltip {
+      display: none;
+    }
 
   .sidebar-backdrop {
     position: fixed;

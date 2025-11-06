@@ -17,6 +17,15 @@ export function AppShell({ topbar, sidebar, content, children }: AppShellProps) 
     bodyClasses.push('sidebar-collapsed')
   }
 
+  const contentProps: ContentProps = { ...content }
+  if (sidebar.mobileOpen && sidebar.onCloseMobile) {
+    const originalDismiss = content.onInteractOutsideSidebar
+    contentProps.onInteractOutsideSidebar = () => {
+      sidebar.onCloseMobile?.()
+      originalDismiss?.()
+    }
+  }
+
   return (
     <div className="app-shell">
       <Topbar {...topbar} />
@@ -30,7 +39,7 @@ export function AppShell({ topbar, sidebar, content, children }: AppShellProps) 
           />
         ) : null}
         <Sidebar {...sidebar} />
-        <Content {...content}>{children}</Content>
+        <Content {...contentProps}>{children}</Content>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useCallback } from 'react'
 
 export interface ContentProps {
   title?: string
@@ -6,11 +6,26 @@ export interface ContentProps {
   breadcrumbs?: ReactNode
   actions?: ReactNode
   children: ReactNode
+  onInteractOutsideSidebar?: () => void
 }
 
-export function Content({ title, subtitle, breadcrumbs, actions, children }: ContentProps) {
+export function Content({
+  title,
+  subtitle,
+  breadcrumbs,
+  actions,
+  children,
+  onInteractOutsideSidebar,
+}: ContentProps) {
+  const handlePointerDownCapture = useCallback(() => {
+    onInteractOutsideSidebar?.()
+  }, [onInteractOutsideSidebar])
+
   return (
-    <main className="content-wrap">
+    <main
+      className="content-wrap"
+      onPointerDownCapture={onInteractOutsideSidebar ? handlePointerDownCapture : undefined}
+    >
       {breadcrumbs ? <div className="breadcrumbs">{breadcrumbs}</div> : null}
       {title || subtitle || actions ? (
         <header className="content-header">
