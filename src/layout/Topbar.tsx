@@ -12,7 +12,7 @@ export function Topbar({ title, subtitle, actions }: TopbarProps) {
 
   return (
     <header className="topbar app-topbar">
-      <div className="container topbar-inner">
+      <div className="topbar-inner">
         <div className="topbar-brand">
           <img src="/logo.svg" alt="SolarInvest App" />
           <div className="topbar-brand-text">

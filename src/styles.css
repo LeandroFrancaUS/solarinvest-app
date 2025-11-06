@@ -5029,9 +5029,13 @@ i:hover {
   align-items: center;
   justify-content: space-between;
   gap: clamp(12px, 3vw, 28px);
-  padding: 0 clamp(20px, 4vw, 36px);
+  padding-block: 0;
+  padding-inline-start: max(env(safe-area-inset-left), 0px);
+  padding-inline-end: clamp(20px, 4vw, 36px);
   min-height: var(--header-h);
   flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .topbar-brand {
