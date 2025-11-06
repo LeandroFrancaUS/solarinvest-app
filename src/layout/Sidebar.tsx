@@ -23,6 +23,9 @@ export interface SidebarProps {
   activeItemId?: string
   onNavigate?: () => void
   onCloseMobile?: () => void
+  onToggleCollapse?: () => void
+  menuButtonLabel?: string
+  menuButtonExpanded?: boolean
 }
 
 export function Sidebar({
@@ -32,6 +35,9 @@ export function Sidebar({
   activeItemId,
   onNavigate,
   onCloseMobile,
+  onToggleCollapse,
+  menuButtonLabel,
+  menuButtonExpanded,
 }: SidebarProps) {
   const parentIds = React.useMemo(() => {
     const activeParents = new Set<string>()
@@ -198,6 +204,24 @@ export function Sidebar({
   return (
     <aside className={classes.join(' ')} aria-label="Navegação principal">
       <nav>
+        {onToggleCollapse ? (
+          <div className="sidebar-header">
+            <button
+              type="button"
+              className="sidebar-menu-toggle"
+              onClick={onToggleCollapse}
+              aria-label={menuButtonLabel ?? 'Alternar menu de navegação'}
+              aria-expanded={menuButtonExpanded}
+            >
+              <span className="sidebar-menu-icon" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+              <span className="sidebar-menu-text">Menu</span>
+            </button>
+          </div>
+        ) : null}
         {groups.map((group) => (
           <div key={group.id} className="sidebar-group">
             <div className="group">{group.label}</div>

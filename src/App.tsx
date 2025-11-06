@@ -15037,10 +15037,17 @@ export default function App() {
 
   const handleSidebarMenuToggle = useCallback(() => {
     if (isMobileViewport) {
-      setIsSidebarMobileOpen((previous) => !previous)
-    } else {
-      setIsSidebarCollapsed((previous) => !previous)
+      setIsSidebarMobileOpen((previous) => {
+        const next = !previous
+        if (next) {
+          setIsSidebarCollapsed(false)
+        }
+        return next
+      })
+      return
     }
+
+    setIsSidebarCollapsed((previous) => !previous)
   }, [isMobileViewport])
 
   const handleSidebarNavigate = useCallback(() => {
@@ -15091,20 +15098,6 @@ export default function App() {
   const topbarSubtitle = contentSubtitle
 
   const sidebarGroups: SidebarGroup[] = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      items: [
-        {
-          id: 'dashboard-visao-geral',
-          label: 'Visão geral',
-          icon: '🏠',
-          onSelect: () => {
-            setActivePage('app')
-          },
-        },
-      ],
-    },
     {
       id: 'propostas',
       label: 'Propostas',
@@ -15180,18 +15173,10 @@ export default function App() {
       items: [
         {
           id: 'orcamentos-importar',
-          label: 'Importar PDF',
+          label: 'Consultar orçamentos',
           icon: '📄',
           onSelect: () => {
             abrirPesquisaOrcamentos()
-          },
-        },
-        {
-          id: 'orcamentos-itens',
-          label: 'Itens do orçamento',
-          icon: '🧰',
-          onSelect: () => {
-            setActivePage('app')
           },
         },
       ],
@@ -15276,22 +15261,6 @@ export default function App() {
             setIsSettingsOpen(true)
           },
         },
-        {
-          id: 'config-chaves',
-          label: 'Chaves de acesso API',
-          icon: '🔑',
-          onSelect: () => {
-            setIsSettingsOpen(true)
-          },
-        },
-        {
-          id: 'config-termos',
-          label: 'Termos e políticas',
-          icon: '📜',
-          onSelect: () => {
-            setIsSettingsOpen(true)
-          },
-        },
       ],
     },
   ]
@@ -15304,8 +15273,16 @@ export default function App() {
     <AppRoutes>
       <AppShell
         topbar={{
-          onMenuToggle: handleSidebarMenuToggle,
           subtitle: topbarSubtitle,
+        }}
+        sidebar={{
+          collapsed: isSidebarCollapsed,
+          mobileOpen: isSidebarMobileOpen,
+          groups: sidebarGroups,
+          activeItemId: activeSidebarItem,
+          onNavigate: handleSidebarNavigate,
+          onCloseMobile: handleSidebarClose,
+          onToggleCollapse: handleSidebarMenuToggle,
           menuButtonLabel: isMobileViewport
             ? isSidebarMobileOpen
               ? 'Fechar menu de navegação'
@@ -15315,18 +15292,19 @@ export default function App() {
               : 'Recolher menu lateral',
           menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
         }}
-        sidebar={{
-          collapsed: isSidebarCollapsed,
-          mobileOpen: isSidebarMobileOpen,
-          groups: sidebarGroups,
-          activeItemId: activeSidebarItem,
-          onNavigate: handleSidebarNavigate,
-          onCloseMobile: handleSidebarClose,
-        }}
         content={{
           subtitle: contentSubtitle,
           actions: contentActions ?? undefined,
         }}
+        mobileMenuButton={
+          isMobileViewport
+            ? {
+                onToggle: handleSidebarMenuToggle,
+                label: isSidebarMobileOpen ? 'Fechar menu de navegação' : 'Abrir menu de navegação',
+                expanded: isSidebarMobileOpen,
+              }
+            : undefined
+        }
       >
         <React.Suspense fallback={null}>
           <PrintableProposal ref={printableRef} {...printableData} />

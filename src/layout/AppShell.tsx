@@ -8,9 +8,14 @@ export interface AppShellProps {
   sidebar: SidebarProps
   content: ContentProps
   children: ReactNode
+  mobileMenuButton?: {
+    onToggle: () => void
+    label?: string
+    expanded?: boolean
+  }
 }
 
-export function AppShell({ topbar, sidebar, content, children }: AppShellProps) {
+export function AppShell({ topbar, sidebar, content, children, mobileMenuButton }: AppShellProps) {
   const showBackdrop = sidebar.mobileOpen
   const bodyClasses = ['app-body']
   if (sidebar.collapsed) {
@@ -30,6 +35,19 @@ export function AppShell({ topbar, sidebar, content, children }: AppShellProps) 
     <div className="app-shell">
       <Topbar {...topbar} />
       <div className={bodyClasses.join(' ')}>
+        {mobileMenuButton && !sidebar.mobileOpen ? (
+          <button
+            type="button"
+            className="sidebar-floating-toggle"
+            onClick={mobileMenuButton.onToggle}
+            aria-label={mobileMenuButton.label ?? 'Abrir menu de navegação'}
+            aria-expanded={mobileMenuButton.expanded}
+          >
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+          </button>
+        ) : null}
         {showBackdrop ? (
           <button
             type="button"
