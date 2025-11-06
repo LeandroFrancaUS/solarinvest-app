@@ -16750,14 +16750,12 @@ export default function App() {
         </div>
       ) : null}
 
-        </div>
-        )}
-        {notificacoes.length > 0 ? (
-          <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
-            {notificacoes.map((item) => (
-              <div key={item.id} className={`toast-item ${item.tipo}`} role="status">
-                <span className="toast-icon" aria-hidden="true">
-                  {iconeNotificacaoPorTipo[item.tipo]}
+      {notificacoes.length > 0 ? (
+        <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
+          {notificacoes.map((item) => (
+            <div key={item.id} className={`toast-item ${item.tipo}`} role="status">
+              <span className="toast-icon" aria-hidden="true">
+                {iconeNotificacaoPorTipo[item.tipo]}
                 </span>
                 <span className="toast-message">{item.mensagem}</span>
                 <button
