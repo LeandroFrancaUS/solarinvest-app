@@ -5028,9 +5028,43 @@ i:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: clamp(12px, 2vw, 24px);
+  gap: clamp(12px, 3vw, 28px);
   padding: 0 clamp(20px, 4vw, 36px);
   min-height: var(--header-h);
+  flex-wrap: wrap;
+}
+
+.topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.topbar-brand img {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+}
+
+.topbar-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.topbar-brand-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--title);
+  letter-spacing: 0.2px;
+}
+
+.topbar-brand-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.2;
 }
 
 .topbar-heading {
@@ -5040,6 +5074,7 @@ i:hover {
   gap: 4px;
   min-height: var(--header-h);
   padding: 12px 0;
+  flex: 1 1 160px;
 }
 
 .topbar-heading h1 {
@@ -5059,6 +5094,7 @@ i:hover {
   display: inline-flex;
   gap: var(--space-2);
   align-items: center;
+  margin-left: auto;
 }
 
 .menu-toggle {
@@ -5147,48 +5183,15 @@ i:hover {
   position: sticky;
   top: 0;
   display: flex;
-  flex-direction: column;
-  gap: 18px;
-  margin: -24px -16px 8px;
-  padding: 24px 16px 18px;
-  background: linear-gradient(180deg, rgba(11, 13, 18, 0.98), rgba(17, 24, 39, 0.94));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  box-shadow: 0 18px 28px rgba(8, 12, 20, 0.42);
-  z-index: 5;
-}
-
-.sidebar-brand {
-  display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 4px;
-}
-
-.sidebar-brand img {
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  border-radius: 14px;
-  box-shadow: 0 10px 26px rgba(8, 12, 20, 0.45);
-}
-
-.sidebar-brand-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: rgba(226, 232, 240, 0.92);
-}
-
-.sidebar-brand-title {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-}
-
-.sidebar-brand-subtitle {
-  font-size: 12px;
-  font-weight: 500;
-  color: rgba(226, 232, 240, 0.68);
+  justify-content: flex-start;
+  gap: 12px;
+  margin: -24px -16px 12px;
+  padding: 20px 16px 14px;
+  background: linear-gradient(180deg, rgba(11, 13, 18, 0.98), rgba(17, 24, 39, 0.92));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 16px 28px rgba(8, 12, 20, 0.38);
+  z-index: 5;
 }
 
 .sidebar-menu-toggle {
@@ -5198,23 +5201,28 @@ i:hover {
   gap: 10px;
   width: 100%;
   border-radius: 12px;
-  border: 1px solid rgba(255, 140, 0, 0.32);
-  background: linear-gradient(135deg, rgba(255, 140, 0, 0.18), rgba(255, 140, 0, 0.08));
-  color: var(--accent);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: rgba(15, 23, 42, 0.58);
+  color: rgba(226, 232, 240, 0.86);
   padding: 12px 16px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, color 0.2s ease;
 }
 
 .sidebar-menu-toggle:hover,
 .sidebar-menu-toggle:focus-visible {
-  border-color: rgba(255, 140, 0, 0.52);
-  background: linear-gradient(135deg, rgba(255, 140, 0, 0.26), rgba(255, 140, 0, 0.12));
-  box-shadow: 0 16px 32px rgba(255, 140, 0, 0.2);
+  border-color: rgba(255, 140, 0, 0.48);
+  background: rgba(30, 41, 59, 0.78);
+  color: var(--accent);
   outline: none;
   transform: translateY(-1px);
+}
+
+.sidebar-menu-toggle:active {
+  transform: translateY(0);
+  background: rgba(34, 44, 64, 0.88);
 }
 
 .sidebar-menu-icon {
@@ -5429,22 +5437,9 @@ i:hover {
 }
 
 .sidebar.collapsed .sidebar-header {
-  padding: 20px 12px 14px;
-  margin: -24px -16px 6px;
-}
-
-.sidebar.collapsed .sidebar-brand-text {
-  display: none;
-}
-
-.sidebar.collapsed .sidebar-brand {
   justify-content: center;
-  padding: 0;
-}
-
-.sidebar.collapsed .sidebar-brand img {
-  width: 36px;
-  height: 36px;
+  padding: 18px 12px 12px;
+  margin: -24px -16px 6px;
 }
 
 .sidebar.collapsed button.sidebar-link {

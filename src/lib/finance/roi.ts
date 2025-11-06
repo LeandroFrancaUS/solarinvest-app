@@ -4,7 +4,7 @@ import type { TipoClienteTUSD } from './tusd'
 export type PagamentoCondicao = 'AVISTA' | 'PARCELADO' | 'FINANCIAMENTO'
 export type ModoPagamento = 'PIX' | 'DEBITO' | 'CREDITO'
 
-export type SegmentoCliente = 'RESIDENCIAL' | 'COMERCIAL'
+export type SegmentoCliente = 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL' | 'HIBRIDO'
 export type TipoSistema = 'ON_GRID' | 'HIBRIDO' | 'OFF_GRID'
 
 export interface VendaForm {

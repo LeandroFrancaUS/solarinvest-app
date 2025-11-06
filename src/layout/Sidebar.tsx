@@ -204,18 +204,6 @@ export function Sidebar({
   return (
     <aside className={classes.join(' ')} aria-label="Navegação principal">
       <div className="sidebar-header">
-        <div
-          className="sidebar-brand"
-          title="SolarInvest App — Proposta financeira interativa"
-        >
-          <img src="/logo.svg" alt="SolarInvest App" />
-          {!collapsed ? (
-            <div className="sidebar-brand-text">
-              <span className="sidebar-brand-title">SolarInvest App</span>
-              <span className="sidebar-brand-subtitle">Proposta financeira interativa</span>
-            </div>
-          ) : null}
-        </div>
         {onToggleCollapse ? (
           <button
             type="button"

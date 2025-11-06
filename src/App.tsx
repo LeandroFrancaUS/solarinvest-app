@@ -253,6 +253,31 @@ const TUSD_TIPO_LABELS: Record<TipoClienteTUSD, string> = {
   hibrido: 'Híbrido',
 }
 
+const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
+  residencial: 'RESIDENCIAL',
+  comercial: 'COMERCIAL',
+  industrial: 'INDUSTRIAL',
+  hibrido: 'HIBRIDO',
+}
+
+const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
+  RESIDENCIAL: 'residencial',
+  COMERCIAL: 'comercial',
+  INDUSTRIAL: 'industrial',
+  HIBRIDO: 'hibrido',
+}
+
+const SEGMENTO_OPTIONS: SegmentoCliente[] = TUSD_TIPO_OPTIONS.map(
+  (tipo) => TUSD_TO_SEGMENTO[tipo],
+)
+
+const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
+  RESIDENCIAL: TUSD_TIPO_LABELS.residencial,
+  COMERCIAL: TUSD_TIPO_LABELS.comercial,
+  INDUSTRIAL: TUSD_TIPO_LABELS.industrial,
+  HIBRIDO: TUSD_TIPO_LABELS.hibrido,
+}
+
 const emailValido = (valor: string) => {
   if (!valor) {
     return true
@@ -3839,6 +3864,48 @@ export default function App() {
     tusdSimultaneidadeManualOverride,
     tusdTipoCliente,
   ])
+
+  const updateSegmentoCliente = useCallback(
+    (value: SegmentoCliente, options: { updateVenda?: boolean } = {}) => {
+      const shouldUpdateVenda = options.updateVenda ?? true
+      if (segmentoCliente !== value) {
+        setSegmentoCliente(value)
+      }
+      if (shouldUpdateVenda) {
+        applyVendaUpdates({ segmento_cliente: value })
+      }
+    },
+    [applyVendaUpdates, segmentoCliente, setSegmentoCliente],
+  )
+
+  const updateTusdTipoCliente = useCallback(
+    (
+      value: TipoClienteTUSD,
+      options: { reset?: boolean; updateVenda?: boolean } = {},
+    ) => {
+      const shouldReset = options.reset ?? true
+      const shouldUpdateVenda = options.updateVenda ?? true
+      const changed = tusdTipoCliente !== value
+      if (changed) {
+        setTusdSimultaneidadeManualOverride(false)
+        setTusdTipoCliente(value)
+      }
+      if (shouldUpdateVenda) {
+        applyVendaUpdates({ tusd_tipo_cliente: value })
+      }
+      if (changed && shouldReset) {
+        resetRetorno()
+      }
+    },
+    [
+      applyVendaUpdates,
+      resetRetorno,
+      setTusdSimultaneidadeManualOverride,
+      setTusdTipoCliente,
+      tusdTipoCliente,
+    ],
+  )
+
   const capexMoneyField = useBRNumberField({
     mode: 'money',
     value: Number.isFinite(vendaForm.capex_total) ? Number(vendaForm.capex_total) : null,
@@ -3851,10 +3918,13 @@ export default function App() {
 
   const handleSegmentoClienteChange = useCallback(
     (value: SegmentoCliente) => {
-      setSegmentoCliente((prev) => (prev === value ? prev : value))
-      applyVendaUpdates({ segmento_cliente: value })
+      updateSegmentoCliente(value)
+      const mappedTusd = SEGMENTO_TO_TUSD[value]
+      if (mappedTusd) {
+        updateTusdTipoCliente(mappedTusd)
+      }
     },
-    [applyVendaUpdates],
+    [updateSegmentoCliente, updateTusdTipoCliente],
   )
 
   const handleTipoSistemaChange = useCallback(
@@ -4826,15 +4896,32 @@ export default function App() {
   )
 
   useEffect(() => {
-    const segmentoAtual = vendaForm.segmento_cliente
-    if (segmentoAtual && segmentoAtual !== segmentoCliente) {
-      setSegmentoCliente(segmentoAtual)
-      return
-    }
-    if (!segmentoAtual && segmentoCliente !== INITIAL_VALUES.segmentoCliente) {
-      setSegmentoCliente(INITIAL_VALUES.segmentoCliente)
-    }
-  }, [segmentoCliente, vendaForm.segmento_cliente])
+    const tusdBase = vendaForm.tusd_tipo_cliente ?? null
+    const tusdValido: TipoClienteTUSD =
+      tusdBase && TUSD_TO_SEGMENTO[tusdBase as TipoClienteTUSD]
+        ? (tusdBase as TipoClienteTUSD)
+        : INITIAL_VALUES.tusdTipoCliente
+    const segmentoPreferido = TUSD_TO_SEGMENTO[tusdValido] ?? INITIAL_VALUES.segmentoCliente
+    const segmentoAtual = vendaForm.segmento_cliente ?? null
+    const segmentoResolvido: SegmentoCliente =
+      segmentoAtual && SEGMENTO_TO_TUSD[segmentoAtual as SegmentoCliente]
+        ? (segmentoAtual as SegmentoCliente)
+        : segmentoPreferido
+    const tusdResolvido = SEGMENTO_TO_TUSD[segmentoResolvido] ?? INITIAL_VALUES.tusdTipoCliente
+
+    updateSegmentoCliente(segmentoResolvido, {
+      updateVenda: segmentoAtual !== segmentoResolvido,
+    })
+    updateTusdTipoCliente(tusdResolvido, {
+      updateVenda: tusdBase !== tusdResolvido,
+      reset: false,
+    })
+  }, [
+    updateSegmentoCliente,
+    updateTusdTipoCliente,
+    vendaForm.segmento_cliente,
+    vendaForm.tusd_tipo_cliente,
+  ])
 
   useEffect(() => {
     const tipoAtual = normalizeTipoSistemaValue(vendaForm.tipo_sistema)
@@ -11842,10 +11929,11 @@ export default function App() {
                 value={tusdTipoCliente}
                 onChange={(event) => {
                   const value = event.target.value as TipoClienteTUSD
-                  setTusdSimultaneidadeManualOverride(false)
-                  setTusdTipoCliente(value)
-                  applyVendaUpdates({ tusd_tipo_cliente: value })
-                  resetRetorno()
+                  updateTusdTipoCliente(value)
+                  const mappedSegmento = TUSD_TO_SEGMENTO[value]
+                  if (mappedSegmento) {
+                    updateSegmentoCliente(mappedSegmento)
+                  }
                 }}
               >
                 {TUSD_TIPO_OPTIONS.map((option) => (
@@ -12652,7 +12740,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Segmento',
-            'Classificação do cliente (residencial ou comercial), utilizada para relatórios e cálculos de tarifas.',
+            'Classificação do cliente (residencial, comercial, industrial ou híbrido), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
@@ -12661,8 +12749,11 @@ export default function App() {
               handleSegmentoClienteChange(event.target.value as SegmentoCliente)
             }
           >
-            <option value="RESIDENCIAL">Residencial</option>
-            <option value="COMERCIAL">Comercial</option>
+            {SEGMENTO_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {SEGMENTO_LABELS[option]}
+              </option>
+            ))}
           </select>
         </Field>
         <Field
@@ -13180,7 +13271,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Segmento',
-            'Classificação do cliente (residencial ou comercial), utilizada para relatórios e cálculos de tarifas.',
+            'Classificação do cliente (residencial, comercial, industrial ou híbrido), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
@@ -13189,8 +13280,11 @@ export default function App() {
               handleSegmentoClienteChange(event.target.value as SegmentoCliente)
             }
           >
-            <option value="RESIDENCIAL">Residencial</option>
-            <option value="COMERCIAL">Comercial</option>
+            {SEGMENTO_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {SEGMENTO_LABELS[option]}
+              </option>
+            ))}
           </select>
         </Field>
         <Field
@@ -15168,6 +15262,37 @@ export default function App() {
       ],
     },
     {
+      id: 'relatorios',
+      label: 'Relatórios',
+      items: [
+        {
+          id: 'relatorios-pdfs',
+          label: 'PDFs gerados',
+          icon: '📂',
+          onSelect: () => {
+            setActivePage('app')
+          },
+        },
+        {
+          id: 'relatorios-exportacoes',
+          label: 'Exportações',
+          icon: '📤',
+          onSelect: () => {
+            setActivePage('app')
+          },
+        },
+        {
+          id: 'relatorios-exportar-pdf',
+          label: 'Exportar PDF',
+          icon: '🖨️',
+          onSelect: () => {
+            setActivePage('app')
+            handlePrint()
+          },
+        },
+      ],
+    },
+    {
       id: 'orcamentos',
       label: 'Orçamentos',
       items: [
@@ -15215,37 +15340,6 @@ export default function App() {
               },
             },
           ],
-        },
-      ],
-    },
-    {
-      id: 'relatorios',
-      label: 'Relatórios',
-      items: [
-        {
-          id: 'relatorios-pdfs',
-          label: 'PDFs gerados',
-          icon: '📂',
-          onSelect: () => {
-            setActivePage('app')
-          },
-        },
-        {
-          id: 'relatorios-exportacoes',
-          label: 'Exportações',
-          icon: '📤',
-          onSelect: () => {
-            setActivePage('app')
-          },
-        },
-        {
-          id: 'relatorios-exportar-pdf',
-          label: 'Exportar PDF',
-          icon: '🖨️',
-          onSelect: () => {
-            setActivePage('app')
-            handlePrint()
-          },
         },
       ],
     },
