@@ -5572,6 +5572,7 @@ i:hover {
   flex-direction: column;
   gap: 0;
   flex: 1;
+  min-height: 0;
 }
 
 .sidebar-section {
@@ -5589,6 +5590,7 @@ i:hover {
   flex-direction: column;
   gap: 10px;
   scrollbar-width: thin;
+  min-height: 0;
 }
 
 .sidebar-section-scroll::-webkit-scrollbar {
@@ -5610,7 +5612,8 @@ i:hover {
 }
 
 .sidebar.collapsed .sidebar-section-scroll {
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: visible;
   margin: 0;
   padding: 0;
 }
