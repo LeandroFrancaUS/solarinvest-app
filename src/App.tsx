@@ -1709,6 +1709,22 @@ type ContractTemplatesModalProps = {
   onClose: () => void
 }
 
+type PropostaEnvioMetodo = 'whatsapp' | 'whatsapp-business' | 'airdrop' | 'quick-share'
+
+type PropostaEnvioContato = {
+  id: string
+  nome: string
+  telefone: string
+  email?: string | undefined
+  origem: 'cliente-atual' | 'cliente-salvo' | 'crm'
+}
+
+const PROPOSTA_ENVIO_ORIGEM_LABEL: Record<PropostaEnvioContato['origem'], string> = {
+  'cliente-atual': 'Proposta em edição',
+  'cliente-salvo': 'Clientes salvos',
+  crm: 'CRM',
+}
+
 function ClientesModal({
   registros,
   onClose,
@@ -1940,6 +1956,147 @@ function ContractTemplatesModal({
               Gerar contratos selecionados
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type EnviarPropostaModalProps = {
+  contatos: PropostaEnvioContato[]
+  selectedContatoId: string | null
+  onSelectContato: (id: string) => void
+  onEnviar: (metodo: PropostaEnvioMetodo) => void
+  onClose: () => void
+}
+
+function EnviarPropostaModal({
+  contatos,
+  selectedContatoId,
+  onSelectContato,
+  onEnviar,
+  onClose,
+}: EnviarPropostaModalProps) {
+  const modalTitleId = useId()
+  const contactsLegendId = useId()
+  const contatoSelecionado = React.useMemo(() => {
+    return contatos.find((contato) => contato.id === selectedContatoId) ?? null
+  }, [contatos, selectedContatoId])
+  const temContatos = contatos.length > 0
+  const telefoneValido = React.useMemo(() => {
+    if (!contatoSelecionado?.telefone) {
+      return false
+    }
+    const digits = normalizeNumbers(contatoSelecionado.telefone)
+    return digits.length >= 8
+  }, [contatoSelecionado?.telefone])
+
+  const disabledMessage = telefoneValido
+    ? undefined
+    : 'Informe um telefone com DDD para enviar via WhatsApp.'
+
+  return (
+    <div className="modal enviar-proposta-modal" role="dialog" aria-modal="true" aria-labelledby={modalTitleId}>
+      <button
+        type="button"
+        className="modal-backdrop modal-backdrop--opaque"
+        onClick={onClose}
+        aria-label="Fechar envio de proposta"
+      />
+      <div className="modal-content enviar-proposta-modal__content">
+        <div className="modal-header">
+          <h3 id={modalTitleId}>Enviar proposta</h3>
+          <button className="icon" onClick={onClose} aria-label="Fechar envio de proposta">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body enviar-proposta-modal__body">
+          <p className="muted">
+            Escolha um contato da lista e selecione como deseja compartilhar a proposta.
+          </p>
+          <fieldset className="share-contact-selector" aria-labelledby={contactsLegendId}>
+            <legend id={contactsLegendId}>Contatos disponíveis</legend>
+            {temContatos ? (
+              <ul className="share-contact-list">
+                {contatos.map((contato) => {
+                  const origemLabel = PROPOSTA_ENVIO_ORIGEM_LABEL[contato.origem]
+                  const isSelected = contato.id === selectedContatoId
+                  return (
+                    <li key={contato.id} className={`share-contact-item${isSelected ? ' is-selected' : ''}`}>
+                      <label>
+                        <input
+                          type="radio"
+                          name="share-contact"
+                          value={contato.id}
+                          checked={isSelected}
+                          onChange={() => onSelectContato(contato.id)}
+                        />
+                        <span className="share-contact-details">
+                          <span className="share-contact-name">{contato.nome || 'Contato sem nome'}</span>
+                          <span className="share-contact-meta">
+                            {contato.telefone ? contato.telefone : 'Telefone não informado'}
+                          </span>
+                          <span className="share-contact-origin">{origemLabel}</span>
+                          {contato.email ? (
+                            <span className="share-contact-meta">{contato.email}</span>
+                          ) : null}
+                        </span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="muted">
+                Cadastre um cliente ou lead com telefone ou e-mail para disponibilizar o envio da proposta.
+              </p>
+            )}
+          </fieldset>
+          <div className="share-channel-grid" role="group" aria-label="Canais de envio disponíveis">
+            <button
+              type="button"
+              className="share-channel-button whatsapp"
+              onClick={() => onEnviar('whatsapp')}
+              disabled={!temContatos || !contatoSelecionado || !telefoneValido}
+              title={disabledMessage}
+            >
+              <span aria-hidden="true">💬</span>
+              <span>WhatsApp</span>
+            </button>
+            <button
+              type="button"
+              className="share-channel-button whatsapp-business"
+              onClick={() => onEnviar('whatsapp-business')}
+              disabled={!temContatos || !contatoSelecionado || !telefoneValido}
+              title={disabledMessage}
+            >
+              <span aria-hidden="true">🏢</span>
+              <span>WhatsApp Business</span>
+            </button>
+            <button
+              type="button"
+              className="share-channel-button airdrop"
+              onClick={() => onEnviar('airdrop')}
+              disabled={!temContatos || !contatoSelecionado}
+            >
+              <span aria-hidden="true">📡</span>
+              <span>AirDrop</span>
+            </button>
+            <button
+              type="button"
+              className="share-channel-button quick-share"
+              onClick={() => onEnviar('quick-share')}
+              disabled={!temContatos || !contatoSelecionado}
+            >
+              <span aria-hidden="true">⚡</span>
+              <span>Quick Share</span>
+            </button>
+          </div>
+        </div>
+        <div className="modal-actions enviar-proposta-modal__actions">
+          <button type="button" className="ghost" onClick={onClose}>
+            Fechar
+          </button>
         </div>
       </div>
     </div>
@@ -7077,6 +7234,113 @@ export default function App() {
     [removerNotificacao],
   )
 
+  const [isEnviarPropostaModalOpen, setIsEnviarPropostaModalOpen] = useState(false)
+  const [contatoEnvioSelecionadoId, setContatoEnvioSelecionadoId] = useState<string | null>(null)
+  const contatosEnvio = useMemo<PropostaEnvioContato[]>(() => {
+    const mapa = new Map<string, PropostaEnvioContato>()
+
+    const adicionarContato = (
+      contato: Omit<PropostaEnvioContato, 'id'> & { id?: string },
+    ) => {
+      const telefone = contato.telefone?.trim() ?? ''
+      const telefoneDigits = telefone ? normalizeNumbers(telefone) : ''
+      const chave = telefoneDigits ? `fone-${telefoneDigits}` : contato.id ?? ''
+      if (!chave) {
+        return
+      }
+
+      const existente = mapa.get(chave)
+      if (existente) {
+        const nome = contato.nome?.trim()
+        if (nome && !existente.nome) {
+          existente.nome = nome
+        }
+        if (telefone && !existente.telefone) {
+          existente.telefone = telefone
+        }
+        if (contato.email && !existente.email) {
+          existente.email = contato.email
+        }
+        return
+      }
+
+      mapa.set(chave, {
+        id: chave,
+        nome: contato.nome?.trim() || '',
+        telefone,
+        email: contato.email?.trim() || undefined,
+        origem: contato.origem,
+      })
+    }
+
+    const nomeAtual = cliente.nome?.trim()
+    const telefoneAtual = cliente.telefone?.trim()
+    const emailAtual = cliente.email?.trim()
+    if (nomeAtual || telefoneAtual || emailAtual) {
+      adicionarContato({
+        id: 'cliente-atual',
+        nome: nomeAtual || 'Cliente atual',
+        telefone: telefoneAtual || '',
+        email: emailAtual || undefined,
+        origem: 'cliente-atual',
+      })
+    }
+
+    clientesSalvos.forEach((registro) => {
+      const dados = registro.dados
+      const telefone = dados.telefone?.trim() ?? ''
+      const email = dados.email?.trim()
+      const nome = dados.nome?.trim()
+      if (nome || telefone || email) {
+        adicionarContato({
+          id: registro.id,
+          nome: nome || 'Cliente salvo',
+          telefone,
+          email: email || undefined,
+          origem: 'cliente-salvo',
+        })
+      }
+    })
+
+    crmDataset.leads.forEach((lead) => {
+      const nome = lead.nome?.trim()
+      const telefone = lead.telefone?.trim()
+      const email = lead.email?.trim()
+      if (nome || telefone || email) {
+        adicionarContato({
+          id: lead.id,
+          nome: nome || 'Lead sem nome',
+          telefone: telefone || '',
+          email: email || undefined,
+          origem: 'crm',
+        })
+      }
+    })
+
+    return Array.from(mapa.values())
+  }, [cliente, clientesSalvos, crmDataset.leads])
+
+  const contatoEnvioSelecionado = useMemo(() => {
+    if (!contatoEnvioSelecionadoId) {
+      return null
+    }
+    return contatosEnvio.find((contato) => contato.id === contatoEnvioSelecionadoId) ?? null
+  }, [contatoEnvioSelecionadoId, contatosEnvio])
+
+  useEffect(() => {
+    if (contatosEnvio.length === 0) {
+      setContatoEnvioSelecionadoId(null)
+      return
+    }
+
+    setContatoEnvioSelecionadoId((prev) => {
+      if (prev && contatosEnvio.some((contato) => contato.id === prev)) {
+        return prev
+      }
+      return contatosEnvio[0]?.id ?? null
+    })
+  }, [contatosEnvio])
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
@@ -11579,6 +11843,106 @@ export default function App() {
     return normalizeProposalId(printableData.budgetId) || null
   }, [printableData.budgetId])
 
+  const selecionarContatoEnvio = useCallback((id: string) => {
+    setContatoEnvioSelecionadoId(id)
+  }, [])
+
+  const fecharEnvioPropostaModal = useCallback(() => {
+    setIsEnviarPropostaModalOpen(false)
+  }, [])
+
+  const abrirEnvioPropostaModal = useCallback(() => {
+    setActivePage('app')
+    setIsEnviarPropostaModalOpen(true)
+    if (contatosEnvio.length === 0) {
+      adicionarNotificacao(
+        'Cadastre um cliente ou lead com telefone ou e-mail para enviar a proposta.',
+        'info',
+      )
+    }
+  }, [adicionarNotificacao, contatosEnvio.length, setActivePage])
+
+  const handleEnviarProposta = useCallback(
+    async (metodo: PropostaEnvioMetodo) => {
+      const contato = contatoEnvioSelecionado
+      if (!contato) {
+        adicionarNotificacao('Selecione um contato para enviar a proposta.', 'error')
+        return
+      }
+
+      const nomeContato = contato.nome?.trim() || 'cliente'
+      const primeiroNome = nomeContato.split(/\s+/).filter(Boolean)[0] || nomeContato
+      const codigoProposta = budgetCodeDisplay || normalizeProposalId(currentBudgetId) || null
+      const valorReferencia =
+        valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? printableData.valorTotalProposta ?? null
+      const valorTexto =
+        typeof valorReferencia === 'number' && Number.isFinite(valorReferencia)
+          ? currency(valorReferencia)
+          : null
+      const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
+
+      const mensagemBase = [
+        `Olá ${primeiroNome}!`,
+        'Segue a proposta financeira da SolarInvest',
+        codigoProposta ? `código ${codigoProposta}` : null,
+        valorTexto ? `no valor total de ${valorTexto}` : null,
+        'com as condições personalizadas para o seu projeto.',
+      ]
+        .filter(Boolean)
+        .join(' ')
+      const mensagemCompleta = `${mensagemBase}${shareUrl ? ` ${shareUrl}` : ''}`
+
+      if (metodo === 'whatsapp' || metodo === 'whatsapp-business') {
+        const telefoneDigits = contato.telefone ? normalizeNumbers(contato.telefone) : ''
+        if (!telefoneDigits) {
+          adicionarNotificacao(
+            'O contato selecionado não possui um telefone válido para envio via WhatsApp.',
+            'error',
+          )
+          return
+        }
+
+        if (typeof window === 'undefined') {
+          adicionarNotificacao('Abra o aplicativo no navegador para compartilhar via WhatsApp.', 'error')
+          return
+        }
+
+        const whatsappUrl = `https://wa.me/${telefoneDigits}?text=${encodeURIComponent(mensagemCompleta)}`
+        window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+        adicionarNotificacao('Abra o WhatsApp para concluir o envio da proposta.', 'info')
+        setIsEnviarPropostaModalOpen(false)
+        return
+      }
+
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        try {
+          await navigator.share({
+            title: 'Proposta SolarInvest',
+            text: mensagemBase,
+            url: shareUrl || undefined,
+          })
+          adicionarNotificacao('Compartilhamento iniciado no dispositivo.', 'success')
+          setIsEnviarPropostaModalOpen(false)
+        } catch (error) {
+          if (!(error instanceof DOMException) || error.name !== 'AbortError') {
+            adicionarNotificacao('Não foi possível compartilhar a proposta neste dispositivo.', 'error')
+          }
+        }
+      } else {
+        adicionarNotificacao('Compartilhamento nativo indisponível neste dispositivo.', 'error')
+      }
+    },
+    [
+      adicionarNotificacao,
+      budgetCodeDisplay,
+      contatoEnvioSelecionado,
+      currentBudgetId,
+      printableData.valorTotalProposta,
+      valorTotalPropostaNormalizado,
+      valorTotalPropostaState,
+    ],
+  )
+
   const renderClienteDadosSection = () => {
     const herdeirosPreenchidos = cliente.herdeiros.filter((nome) => nome.trim().length > 0)
     const herdeirosResumo =
@@ -15476,6 +15840,19 @@ export default function App() {
             handleAbrirUploadImagens()
           },
         },
+        {
+          id: 'propostas-enviar',
+          label: 'Enviar proposta',
+          icon: '📨',
+          onSelect: () => {
+            abrirEnvioPropostaModal()
+          },
+          disabled: contatosEnvio.length === 0,
+          title:
+            contatosEnvio.length === 0
+              ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
+              : undefined,
+        },
       ],
     },
     {
@@ -17041,6 +17418,16 @@ export default function App() {
         onChange={handleImagensSelecionadas}
         style={{ display: 'none' }}
       />
+
+      {isEnviarPropostaModalOpen ? (
+        <EnviarPropostaModal
+          contatos={contatosEnvio}
+          selectedContatoId={contatoEnvioSelecionadoId}
+          onSelectContato={selecionarContatoEnvio}
+          onEnviar={handleEnviarProposta}
+          onClose={fecharEnvioPropostaModal}
+        />
+      ) : null}
 
       {isClientesModalOpen ? (
         <ClientesModal
