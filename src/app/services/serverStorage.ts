@@ -2,6 +2,8 @@ import { resolveApiUrl } from '../../utils/apiUrl'
 
 const STORAGE_ENDPOINT = resolveApiUrl('/api/storage')
 
+const DEFAULT_INITIALIZATION_TIMEOUT_MS = 2000
+
 type RemoteStorageEntry = {
   key: string
   value: unknown
@@ -16,6 +18,7 @@ let initializationPromise: Promise<void> | null = null
 const cache = new Map<string, string>()
 const pendingUploads = new Map<string, AbortController>()
 let syncEnabled = true
+let initializationWaitPromise: Promise<void> | null = null
 
 const createHeaders = () => new Headers({ 'Content-Type': 'application/json' })
 
@@ -102,8 +105,8 @@ const persistDelete = (key: string | null) => {
     })
 }
 
-const loadRemoteEntries = async (): Promise<RemoteStorageEntry[]> => {
-  const response = await fetch(STORAGE_ENDPOINT, { credentials: 'include' })
+const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEntry[]> => {
+  const response = await fetch(STORAGE_ENDPOINT, { credentials: 'include', signal })
   if (!response.ok) {
     throw new Error(`Falha ao consultar armazenamento (status ${response.status})`)
   }
@@ -111,7 +114,7 @@ const loadRemoteEntries = async (): Promise<RemoteStorageEntry[]> => {
   return payload.entries ?? []
 }
 
-const initializeSync = async () => {
+const initializeSync = async (signal?: AbortSignal) => {
   const storage = window.localStorage
   const originalGetItem = storage.getItem.bind(storage)
   const originalSetItem = storage.setItem.bind(storage)
@@ -133,9 +136,13 @@ const initializeSync = async () => {
 
   let remoteEntries: RemoteStorageEntry[] = []
   try {
-    remoteEntries = await loadRemoteEntries()
+    remoteEntries = await loadRemoteEntries(signal)
   } catch (error) {
-    console.warn('[serverStorage] Não foi possível carregar dados remotos, mantendo armazenamento local.', error)
+    if ((error as DOMException | undefined)?.name === 'AbortError') {
+      console.warn('[serverStorage] Sincronização com backend interrompida por timeout. Mantendo armazenamento local.')
+    } else {
+      console.warn('[serverStorage] Não foi possível carregar dados remotos, mantendo armazenamento local.', error)
+    }
     syncEnabled = false
     return
   }
@@ -210,14 +217,32 @@ const initializeSync = async () => {
   }
 }
 
-export function ensureServerStorageSync(): Promise<void> {
+export function ensureServerStorageSync(options?: { timeoutMs?: number }): Promise<void> {
   if (typeof window === 'undefined') {
     return Promise.resolve()
   }
+  const timeoutMs = Math.max(options?.timeoutMs ?? DEFAULT_INITIALIZATION_TIMEOUT_MS, 0)
   if (!initializationPromise) {
-    initializationPromise = initializeSync().catch((error) => {
+    const controller = new AbortController()
+    initializationPromise = initializeSync(controller.signal).catch((error) => {
       console.error('[serverStorage] Erro ao inicializar sincronização com o backend Neon.', error)
     })
+
+    initializationWaitPromise = (() => {
+      let timeoutId: number | undefined
+      const timeoutPromise = new Promise<void>((resolve) => {
+        timeoutId = window.setTimeout(() => {
+          controller.abort()
+          resolve()
+        }, timeoutMs)
+      })
+
+      return Promise.race([initializationPromise, timeoutPromise]).finally(() => {
+        if (timeoutId !== undefined) {
+          window.clearTimeout(timeoutId)
+        }
+      })
+    })()
   }
-  return initializationPromise
+  return initializationWaitPromise ?? Promise.resolve()
 }
