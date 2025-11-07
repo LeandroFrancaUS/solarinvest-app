@@ -199,7 +199,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'settings'
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings'
 
 const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -1678,7 +1678,7 @@ const formatBudgetDate = (isoString: string) => {
   return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-type ClientesModalProps = {
+type ClientesPanelProps = {
   registros: ClienteRegistro[]
   onClose: () => void
   onEditar: (registro: ClienteRegistro) => void
@@ -1725,7 +1725,7 @@ const PROPOSTA_ENVIO_ORIGEM_LABEL: Record<PropostaEnvioContato['origem'], string
   crm: 'CRM',
 }
 
-function ClientesModal({
+function ClientesPanel({
   registros,
   onClose,
   onEditar,
@@ -1733,132 +1733,140 @@ function ClientesModal({
   onExportar,
   onImportar,
   isImportando,
-}: ClientesModalProps) {
-  const modalTitleId = useId()
+}: ClientesPanelProps) {
+  const panelTitleId = useId()
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-labelledby={modalTitleId}>
-      <div className="modal-backdrop" onClick={onClose} />
-      <div className="modal-content">
-        <div className="modal-header">
-          <h3 id={modalTitleId}>Clientes salvos</h3>
-          <button className="icon" onClick={onClose} aria-label="Fechar listagem de clientes">
-            ✕
-          </button>
+    <div className="budget-search-page clients-page" aria-labelledby={panelTitleId}>
+      <div className="budget-search-page-header">
+        <div>
+          <h2 id={panelTitleId}>Gestão de clientes</h2>
+          <p>Clientes armazenados localmente neste dispositivo.</p>
         </div>
-        <div className="modal-body">
-          <section className="budget-search-panel clients-panel">
-            <div className="budget-search-header">
-              <div className="clients-panel-header">
-                <h4>Gestão de clientes</h4>
-                <p>Clientes armazenados localmente neste dispositivo.</p>
-              </div>
-              <div className="clients-panel-actions">
-                <button
-                  type="button"
-                  className="ghost with-icon"
-                  onClick={onExportar}
-                  disabled={registros.length === 0}
-                  title="Exportar clientes salvos para um arquivo"
-                >
-                  <span aria-hidden="true">⬆️</span>
-                  <span>Exportar</span>
-                </button>
-                <button
-                  type="button"
-                  className="ghost with-icon"
-                  onClick={onImportar}
-                  disabled={isImportando}
-                  aria-busy={isImportando}
-                  title="Importar clientes a partir de um arquivo"
-                >
-                  <span aria-hidden="true">⬇️</span>
-                  <span>{isImportando ? 'Importando…' : 'Importar'}</span>
-                </button>
-              </div>
+        <button type="button" className="ghost" onClick={onClose}>
+          Voltar
+        </button>
+      </div>
+      <div className="budget-search-panels">
+        <section className="budget-search-panel clients-overview-panel" aria-label="Informações sobre clientes salvos">
+          <div className="budget-search-header">
+            <h4>Central de clientes</h4>
+            <p>Sincronize contatos, mantenha a base atualizada e compartilhe dados com o time.</p>
+          </div>
+          <ul className="clients-overview-list">
+            <li>Carregue clientes salvos para editar ou enviar novas propostas.</li>
+            <li>Exporte um arquivo de backup para outras unidades ou dispositivos.</li>
+            <li>Importe registros recebidos por e-mail ou compartilhados pelo time comercial.</li>
+          </ul>
+        </section>
+        <section className="budget-search-panel clients-panel" aria-label="Registros de clientes salvos">
+          <div className="budget-search-header">
+            <h4>Registros salvos</h4>
+            <div className="clients-panel-actions">
+              <button
+                type="button"
+                className="ghost with-icon"
+                onClick={onExportar}
+                disabled={registros.length === 0}
+                title="Exportar clientes salvos para um arquivo"
+              >
+                <span aria-hidden="true">⬆️</span>
+                <span>Exportar</span>
+              </button>
+              <button
+                type="button"
+                className="ghost with-icon"
+                onClick={onImportar}
+                disabled={isImportando}
+                aria-busy={isImportando}
+                title="Importar clientes a partir de um arquivo"
+              >
+                <span aria-hidden="true">⬇️</span>
+                <span>{isImportando ? 'Importando…' : 'Importar'}</span>
+              </button>
             </div>
-            {registros.length === 0 ? (
-              <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
-            ) : (
-              <div className="budget-search-table clients-table">
-                <div className="table-wrapper">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>Cliente</th>
-                        <th>Documento</th>
-                        <th>Cidade/UF</th>
-                        <th>Criado em</th>
-                        <th>Atualizado em</th>
-                        <th>Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {registros.map((registro) => {
-                        const { dados } = registro
-                        const nomeCliente = dados.nome?.trim()
-                        const emailCliente = dados.email?.trim()
-                        const documentoCliente = dados.documento?.trim()
-                        const cidade = dados.cidade?.trim()
-                        const uf = dados.uf?.trim()
-                        const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
-                        const primaryLine = nomeCliente || emailCliente || registro.id
-                        const secondaryLine =
-                          emailCliente && emailCliente !== primaryLine ? emailCliente : null
-                        return (
-                          <tr key={registro.id}>
-                            <td className="clients-table-id">
-                              <code>{registro.id}</code>
-                            </td>
-                            <td>
+          </div>
+          {registros.length === 0 ? (
+            <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
+          ) : (
+            <div className="budget-search-table clients-table">
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Cliente</th>
+                      <th>Documento</th>
+                      <th>Cidade/UF</th>
+                      <th>Criado em</th>
+                      <th>Atualizado em</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registros.map((registro) => {
+                      const { dados } = registro
+                      const nomeCliente = dados.nome?.trim()
+                      const emailCliente = dados.email?.trim()
+                      const documentoCliente = dados.documento?.trim()
+                      const cidade = dados.cidade?.trim()
+                      const uf = dados.uf?.trim()
+                      const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
+                      const primaryLine = nomeCliente || emailCliente || registro.id
+                      const secondaryLine =
+                        emailCliente && emailCliente !== primaryLine ? emailCliente : null
+                      return (
+                        <tr key={registro.id}>
+                          <td className="clients-table-id">
+                            <code>{registro.id}</code>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="clients-table-client clients-table-load"
+                              onClick={() => onEditar(registro)}
+                              title="Carregar dados do cliente"
+                              aria-label="Carregar dados do cliente"
+                            >
+                              <strong>{primaryLine}</strong>
+                              {secondaryLine ? <span>{secondaryLine}</span> : null}
+                            </button>
+                          </td>
+                          <td>{documentoCliente ? <span>{documentoCliente}</span> : null}</td>
+                          <td>{cidadeUf ? <span>{cidadeUf}</span> : null}</td>
+                          <td>{formatBudgetDate(registro.criadoEm)}</td>
+                          <td>{formatBudgetDate(registro.atualizadoEm)}</td>
+                          <td>
+                            <div className="clients-table-actions">
                               <button
                                 type="button"
-                                className="clients-table-client clients-table-load"
+                                className="clients-table-action"
                                 onClick={() => onEditar(registro)}
-                                title="Carregar dados do cliente"
                                 aria-label="Carregar dados do cliente"
+                                title="Carregar dados do cliente"
                               >
-                                <strong>{primaryLine}</strong>
-                                {secondaryLine ? <span>{secondaryLine}</span> : null}
+                                <span aria-hidden="true">📁</span>
                               </button>
-                            </td>
-                            <td>{documentoCliente ? <span>{documentoCliente}</span> : null}</td>
-                            <td>{cidadeUf ? <span>{cidadeUf}</span> : null}</td>
-                            <td>{formatBudgetDate(registro.criadoEm)}</td>
-                            <td>{formatBudgetDate(registro.atualizadoEm)}</td>
-                            <td>
-                              <div className="clients-table-actions">
-                                <button
-                                  type="button"
-                                  className="clients-table-action"
-                                  onClick={() => onEditar(registro)}
-                                  aria-label="Carregar dados do cliente"
-                                  title="Carregar dados do cliente"
-                                >
-                                  <span aria-hidden="true">📁</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="clients-table-action danger"
-                                  onClick={() => onExcluir(registro)}
-                                  aria-label="Excluir cliente salvo"
-                                  title="Excluir cliente salvo"
-                                >
-                                  <span aria-hidden="true">🗑</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                              <button
+                                type="button"
+                                className="clients-table-action danger"
+                                onClick={() => onExcluir(registro)}
+                                aria-label="Excluir cliente salvo"
+                                title="Excluir cliente salvo"
+                              >
+                                <span aria-hidden="true">🗑</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </section>
-        </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )
@@ -2468,6 +2476,7 @@ export default function App() {
       storedPage === 'app' ||
       storedPage === 'crm' ||
       storedPage === 'consultar' ||
+      storedPage === 'clientes' ||
       storedPage === 'settings'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
@@ -3407,7 +3416,6 @@ export default function App() {
   const [cliente, setCliente] = useState<ClienteDados>(() => cloneClienteDados(CLIENTE_INICIAL))
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
-  const [isClientesModalOpen, setIsClientesModalOpen] = useState(false)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const clienteIndicacaoCheckboxId = useId()
   const clienteIndicacaoNomeId = useId()
@@ -3415,6 +3423,9 @@ export default function App() {
   const [clienteHerdeirosExpandidos, setClienteHerdeirosExpandidos] = useState(false)
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
+  const fecharClientesPainel = useCallback(() => {
+    setActivePage(lastPrimaryPageRef.current)
+  }, [setActivePage])
 
   useEffect(() => {
     vendaActions.updateCliente({
@@ -9733,9 +9744,9 @@ export default function App() {
       setCliente(cloneClienteDados(registro.dados))
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
-      setIsClientesModalOpen(false)
+      fecharClientesPainel()
     },
-    [setCliente, setClienteEmEdicaoId, setClienteMensagens, setIsClientesModalOpen],
+    [fecharClientesPainel, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
   const handleExcluirCliente = useCallback(
@@ -9794,15 +9805,11 @@ export default function App() {
     [clienteEmEdicaoId, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
-  const abrirClientesModal = () => {
+  const abrirClientesPainel = useCallback(() => {
     const registros = carregarClientesSalvos()
     setClientesSalvos(registros)
-    setIsClientesModalOpen(true)
-  }
-
-  const fecharClientesModal = () => {
-    setIsClientesModalOpen(false)
-  }
+    setActivePage('clientes')
+  }, [carregarClientesSalvos, setActivePage])
 
   const carregarOrcamentosSalvos = useCallback((): OrcamentoSalvo[] => {
     if (typeof window === 'undefined') {
@@ -11350,7 +11357,7 @@ export default function App() {
     setCliente(cloneClienteDados(CLIENTE_INICIAL))
     setClienteMensagens({})
     setClienteEmEdicaoId(null)
-    setIsClientesModalOpen(false)
+    setActivePage('app')
     setNotificacoes([])
   }, [
     createPageSharedSettings,
@@ -12206,7 +12213,7 @@ export default function App() {
         <button type="button" className="primary" onClick={handleSalvarCliente}>
           {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
         </button>
-        <button type="button" className="ghost" onClick={abrirClientesModal}>
+        <button type="button" className="ghost" onClick={abrirClientesPainel}>
           Ver clientes
         </button>
       </div>
@@ -15741,9 +15748,11 @@ export default function App() {
         ? 'CRM Gestão de Relacionamento e Operações'
         : activePage === 'consultar'
           ? 'Consulta de orçamentos salvos'
-          : activePage === 'settings'
-            ? 'Preferências e integrações da proposta'
-            : undefined
+          : activePage === 'clientes'
+            ? 'Gestão de clientes salvos'
+            : activePage === 'settings'
+              ? 'Preferências e integrações da proposta'
+              : undefined
   const currentPageIndicator =
     activePage === 'dashboard'
       ? 'Dashboard'
@@ -15751,11 +15760,13 @@ export default function App() {
         ? 'Central CRM'
         : activePage === 'consultar'
           ? 'Consultar'
-          : activePage === 'settings'
-            ? 'Configurações'
-            : activeTab === 'vendas'
-              ? 'Vendas'
-              : 'Leasing'
+          : activePage === 'clientes'
+            ? 'Clientes'
+            : activePage === 'settings'
+              ? 'Configurações'
+              : activeTab === 'vendas'
+                ? 'Vendas'
+                : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
   const sidebarGroups: SidebarGroup[] = [
@@ -15910,6 +15921,14 @@ export default function App() {
           icon: '📇',
           onSelect: () => {
             setActivePage('crm')
+          },
+        },
+        {
+          id: 'crm-clientes',
+          label: 'Clientes salvos',
+          icon: '👥',
+          onSelect: () => {
+            abrirClientesPainel()
           },
         },
         {
@@ -16843,16 +16862,30 @@ export default function App() {
     </div>
   )
 
+  const renderClientesPage = () => (
+    <ClientesPanel
+      registros={clientesSalvos}
+      onClose={fecharClientesPainel}
+      onEditar={handleEditarCliente}
+      onExcluir={handleExcluirCliente}
+      onExportar={handleExportarClientes}
+      onImportar={handleClientesImportarClick}
+      isImportando={isImportandoClientes}
+    />
+  )
+
   const activeSidebarItem =
     activePage === 'dashboard'
       ? 'dashboard-home'
       : activePage === 'crm'
         ? 'crm-central'
-        : activePage === 'consultar'
-          ? 'orcamentos-importar'
-          : activePage === 'settings'
-            ? 'config-preferencias'
-            : activeTab === 'vendas'
+        : activePage === 'clientes'
+          ? 'crm-clientes'
+          : activePage === 'consultar'
+            ? 'orcamentos-importar'
+            : activePage === 'settings'
+              ? 'config-preferencias'
+              : activeTab === 'vendas'
               ? 'propostas-vendas'
               : 'propostas-leasing'
 
@@ -16905,6 +16938,8 @@ export default function App() {
           renderCrmPage()
         ) : activePage === 'consultar' ? (
           renderBudgetSearchPage()
+        ) : activePage === 'clientes' ? (
+          renderClientesPage()
         ) : activePage === 'settings' ? (
           renderSettingsPage()
         ) : (
@@ -17426,18 +17461,6 @@ export default function App() {
           onSelectContato={selecionarContatoEnvio}
           onEnviar={handleEnviarProposta}
           onClose={fecharEnvioPropostaModal}
-        />
-      ) : null}
-
-      {isClientesModalOpen ? (
-        <ClientesModal
-          registros={clientesSalvos}
-          onClose={fecharClientesModal}
-          onEditar={handleEditarCliente}
-          onExcluir={handleExcluirCliente}
-          onExportar={handleExportarClientes}
-          onImportar={handleClientesImportarClick}
-          isImportando={isImportandoClientes}
         />
       ) : null}
 
