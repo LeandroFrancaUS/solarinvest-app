@@ -5,7 +5,7 @@ import { Topbar, type TopbarProps } from './Topbar'
 
 export interface AppShellProps {
   topbar: TopbarProps
-  sidebar: SidebarProps
+  sidebar?: SidebarProps
   content: ContentProps
   children: ReactNode
   mobileMenuButton?: {
@@ -13,17 +13,29 @@ export interface AppShellProps {
     label?: string
     expanded?: boolean
   }
+  hideSidebar?: boolean
 }
 
-export function AppShell({ topbar, sidebar, content, children, mobileMenuButton }: AppShellProps) {
-  const showBackdrop = sidebar.mobileOpen
+export function AppShell({
+  topbar,
+  sidebar,
+  content,
+  children,
+  mobileMenuButton,
+  hideSidebar = false,
+}: AppShellProps) {
+  const hasSidebar = Boolean(sidebar && !hideSidebar)
+  const showBackdrop = hasSidebar && Boolean(sidebar?.mobileOpen)
   const bodyClasses = ['app-body']
-  if (sidebar.collapsed) {
+  if (hasSidebar && sidebar?.collapsed) {
     bodyClasses.push('sidebar-collapsed')
+  }
+  if (!hasSidebar) {
+    bodyClasses.push('no-sidebar')
   }
 
   useEffect(() => {
-    if (typeof document === 'undefined') {
+    if (!hasSidebar || !sidebar || typeof document === 'undefined') {
       return
     }
 
@@ -63,10 +75,10 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
         }
       }
     }
-  }, [sidebar.mobileOpen])
+  }, [hasSidebar, sidebar?.mobileOpen])
 
   const contentProps: ContentProps = { ...content }
-  if (sidebar.mobileOpen && sidebar.onCloseMobile) {
+  if (hasSidebar && sidebar?.mobileOpen && sidebar.onCloseMobile) {
     const originalDismiss = content.onInteractOutsideSidebar
     contentProps.onInteractOutsideSidebar = () => {
       sidebar.onCloseMobile?.()
@@ -78,7 +90,7 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
     <div className="app-shell">
       <Topbar {...topbar} />
       <div className={bodyClasses.join(' ')}>
-        {mobileMenuButton && !sidebar.mobileOpen ? (
+        {hasSidebar && sidebar && mobileMenuButton && !sidebar.mobileOpen ? (
           <button
             type="button"
             className="sidebar-floating-toggle"
@@ -99,7 +111,7 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
             aria-label="Fechar menu de navegação"
           />
         ) : null}
-        <Sidebar {...sidebar} />
+        {hasSidebar && sidebar ? <Sidebar {...sidebar} /> : null}
         <Content {...contentProps}>{children}</Content>
       </div>
     </div>

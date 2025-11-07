@@ -15888,7 +15888,7 @@ export default function App() {
         },
         {
           id: 'relatorios-exportar-pdf',
-          label: 'Exportar PDF',
+          label: 'Gerar proposta',
           icon: '🖨️',
           onSelect: () => {
             setActivePage('app')
@@ -16896,6 +16896,7 @@ export default function App() {
         topbar={{
           subtitle: topbarSubtitle,
         }}
+        hideSidebar
         sidebar={{
           collapsed: isSidebarCollapsed,
           mobileOpen: isSidebarMobileOpen,

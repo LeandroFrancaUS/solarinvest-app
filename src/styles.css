@@ -5398,6 +5398,19 @@ i:hover {
   grid-template-columns: 72px minmax(0, 1fr);
 }
 
+.app-body.no-sidebar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-body.no-sidebar > .sidebar {
+  display: none;
+}
+
+.app-body.no-sidebar > .sidebar-floating-toggle,
+.app-body.no-sidebar > .sidebar-backdrop {
+  display: none;
+}
+
 .app-topbar {
   position: sticky;
   top: 0;
