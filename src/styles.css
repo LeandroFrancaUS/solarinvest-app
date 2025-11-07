@@ -122,6 +122,10 @@ body,
   height: 100%;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -130,6 +134,33 @@ body {
   font-size: var(--font-m);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+html.sidebar-mobile-open,
+body.sidebar-mobile-open {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+body.sidebar-mobile-open {
+  touch-action: none;
+}
+
+body.sidebar-mobile-open .sidebar,
+body.sidebar-mobile-open .app-body > .sidebar-backdrop {
+  pointer-events: auto;
+}
+
+body.sidebar-mobile-open .content-wrap,
+body.sidebar-mobile-open .app-body > .sidebar-floating-toggle,
+body.sidebar-mobile-open .app-body > .content-wrap {
+  pointer-events: none;
+}
+
+body.sidebar-mobile-open .app-topbar {
+  pointer-events: none;
 }
 
 .page {
@@ -2598,6 +2629,25 @@ tbody tr:hover {
 .legend-toggle input {
   width: 16px;
   height: 16px;
+}
+
+@media (max-width: 720px) {
+  .chart {
+    height: 260px;
+  }
+
+  .chart-explainer {
+    position: static;
+    margin: 12px 0 0;
+    max-width: none;
+    background: rgba(15, 23, 42, 0.82);
+    border-color: rgba(255, 140, 0, 0.28);
+  }
+
+  .legend-toggle {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
 }
 
 .table-controls {
@@ -5074,6 +5124,7 @@ i:hover {
   min-height: 100vh;
   background: linear-gradient(140deg, #0b0d12 0%, #101827 16%, rgba(248, 250, 252, 0.96) 44%, #ffffff 100%);
   color: var(--ink);
+  overflow-x: hidden;
 }
 
 .app-body {
@@ -5245,6 +5296,8 @@ i:hover {
   color: rgba(226, 232, 240, 0.86);
   transition: width 0.25s ease;
   scrollbar-width: thin;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .sidebar::-webkit-scrollbar {

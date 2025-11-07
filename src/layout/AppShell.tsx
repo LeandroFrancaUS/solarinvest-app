@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { Content, type ContentProps } from './Content'
 import { Sidebar, type SidebarProps } from './Sidebar'
 import { Topbar, type TopbarProps } from './Topbar'
@@ -21,6 +21,49 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
   if (sidebar.collapsed) {
     bodyClasses.push('sidebar-collapsed')
   }
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+
+    const className = 'sidebar-mobile-open'
+    const { body, documentElement } = document
+    const shouldLockScroll = Boolean(sidebar.mobileOpen)
+    let scrollPosition = 0
+    const previousPosition = body.style.position
+    const previousTop = body.style.top
+    const previousWidth = body.style.width
+
+    if (shouldLockScroll) {
+      scrollPosition = typeof window !== 'undefined' ? window.scrollY : 0
+      body.style.position = 'fixed'
+      body.style.top = `-${scrollPosition}px`
+      body.style.width = '100%'
+    }
+
+    if (sidebar.mobileOpen) {
+      body.classList.add(className)
+      documentElement.classList.add(className)
+    } else {
+      body.classList.remove(className)
+      documentElement.classList.remove(className)
+    }
+
+    return () => {
+      body.classList.remove(className)
+      documentElement.classList.remove(className)
+
+      if (shouldLockScroll) {
+        body.style.position = previousPosition
+        body.style.top = previousTop
+        body.style.width = previousWidth
+        if (typeof window !== 'undefined') {
+          window.scrollTo(0, scrollPosition)
+        }
+      }
+    }
+  }, [sidebar.mobileOpen])
 
   const contentProps: ContentProps = { ...content }
   if (sidebar.mobileOpen && sidebar.onCloseMobile) {
