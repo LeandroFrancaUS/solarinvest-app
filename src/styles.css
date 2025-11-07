@@ -3785,6 +3785,49 @@ i:hover {
   box-shadow: 0 26px 46px rgba(52, 60, 76, 0.28);
 }
 
+.budget-search-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.budget-search-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.budget-search-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--title);
+}
+
+.budget-search-page-header p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  max-width: 520px;
+  font-size: 14px;
+}
+
+.budget-search-page-header .ghost {
+  align-self: center;
+}
+
+.budget-search-panels {
+  display: grid;
+  gap: 20px;
+}
+
+@media (min-width: 960px) {
+  .budget-search-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .clients-panel p {
   margin: 0;
   color: var(--muted);
@@ -4190,7 +4233,7 @@ i:hover {
   gap: 24px;
 }
 
-.settings-panel {
+.settings-panel { 
   display: none;
   flex-direction: column;
   gap: 24px;
@@ -4199,6 +4242,38 @@ i:hover {
   border: 1px solid rgba(37, 99, 235, 0.2);
   background: linear-gradient(150deg, rgba(105, 111, 122, 0.6), rgba(100, 105, 116, 0.56));
   box-shadow: 0 32px 48px rgba(52, 60, 76, 0.28);
+}
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.settings-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.settings-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--title);
+}
+
+.settings-page-header p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 520px;
+}
+
+.settings-page-header .ghost {
+  align-self: center;
 }
 
 .settings-panel.active {
@@ -5066,13 +5141,14 @@ i:hover {
 .topbar-brand-title {
   font-size: 18px;
   font-weight: 600;
-  color: var(--title);
+  color: #fff6e5;
   letter-spacing: 0.2px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .topbar-brand-subtitle {
   font-size: 13px;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.72);
   line-height: 1.2;
 }
 
