@@ -106,6 +106,8 @@ import './styles/config-page.css'
 import './styles/toast.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
+import { AppShell } from './layout/AppShell'
+import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/settings/SimulacoesTab'
@@ -197,6 +199,8 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'settings'
+
 const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return formatNumberBRWithOptions(value, {
@@ -249,6 +253,31 @@ const TUSD_TIPO_LABELS: Record<TipoClienteTUSD, string> = {
   comercial: 'Comercial',
   industrial: 'Industrial',
   hibrido: 'Híbrido',
+}
+
+const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
+  residencial: 'RESIDENCIAL',
+  comercial: 'COMERCIAL',
+  industrial: 'INDUSTRIAL',
+  hibrido: 'HIBRIDO',
+}
+
+const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
+  RESIDENCIAL: 'residencial',
+  COMERCIAL: 'comercial',
+  INDUSTRIAL: 'industrial',
+  HIBRIDO: 'hibrido',
+}
+
+const SEGMENTO_OPTIONS: SegmentoCliente[] = TUSD_TIPO_OPTIONS.map(
+  (tipo) => TUSD_TO_SEGMENTO[tipo],
+)
+
+const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
+  RESIDENCIAL: TUSD_TIPO_LABELS.residencial,
+  COMERCIAL: TUSD_TIPO_LABELS.comercial,
+  INDUSTRIAL: TUSD_TIPO_LABELS.industrial,
+  HIBRIDO: TUSD_TIPO_LABELS.hibrido,
 }
 
 const emailValido = (valor: string) => {
@@ -1680,6 +1709,22 @@ type ContractTemplatesModalProps = {
   onClose: () => void
 }
 
+type PropostaEnvioMetodo = 'whatsapp' | 'whatsapp-business' | 'airdrop' | 'quick-share'
+
+type PropostaEnvioContato = {
+  id: string
+  nome: string
+  telefone: string
+  email?: string | undefined
+  origem: 'cliente-atual' | 'cliente-salvo' | 'crm'
+}
+
+const PROPOSTA_ENVIO_ORIGEM_LABEL: Record<PropostaEnvioContato['origem'], string> = {
+  'cliente-atual': 'Proposta em edição',
+  'cliente-salvo': 'Clientes salvos',
+  crm: 'CRM',
+}
+
 function ClientesModal({
   registros,
   onClose,
@@ -1911,6 +1956,147 @@ function ContractTemplatesModal({
               Gerar contratos selecionados
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type EnviarPropostaModalProps = {
+  contatos: PropostaEnvioContato[]
+  selectedContatoId: string | null
+  onSelectContato: (id: string) => void
+  onEnviar: (metodo: PropostaEnvioMetodo) => void
+  onClose: () => void
+}
+
+function EnviarPropostaModal({
+  contatos,
+  selectedContatoId,
+  onSelectContato,
+  onEnviar,
+  onClose,
+}: EnviarPropostaModalProps) {
+  const modalTitleId = useId()
+  const contactsLegendId = useId()
+  const contatoSelecionado = React.useMemo(() => {
+    return contatos.find((contato) => contato.id === selectedContatoId) ?? null
+  }, [contatos, selectedContatoId])
+  const temContatos = contatos.length > 0
+  const telefoneValido = React.useMemo(() => {
+    if (!contatoSelecionado?.telefone) {
+      return false
+    }
+    const digits = normalizeNumbers(contatoSelecionado.telefone)
+    return digits.length >= 8
+  }, [contatoSelecionado?.telefone])
+
+  const disabledMessage = telefoneValido
+    ? undefined
+    : 'Informe um telefone com DDD para enviar via WhatsApp.'
+
+  return (
+    <div className="modal enviar-proposta-modal" role="dialog" aria-modal="true" aria-labelledby={modalTitleId}>
+      <button
+        type="button"
+        className="modal-backdrop modal-backdrop--opaque"
+        onClick={onClose}
+        aria-label="Fechar envio de proposta"
+      />
+      <div className="modal-content enviar-proposta-modal__content">
+        <div className="modal-header">
+          <h3 id={modalTitleId}>Enviar proposta</h3>
+          <button className="icon" onClick={onClose} aria-label="Fechar envio de proposta">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body enviar-proposta-modal__body">
+          <p className="muted">
+            Escolha um contato da lista e selecione como deseja compartilhar a proposta.
+          </p>
+          <fieldset className="share-contact-selector" aria-labelledby={contactsLegendId}>
+            <legend id={contactsLegendId}>Contatos disponíveis</legend>
+            {temContatos ? (
+              <ul className="share-contact-list">
+                {contatos.map((contato) => {
+                  const origemLabel = PROPOSTA_ENVIO_ORIGEM_LABEL[contato.origem]
+                  const isSelected = contato.id === selectedContatoId
+                  return (
+                    <li key={contato.id} className={`share-contact-item${isSelected ? ' is-selected' : ''}`}>
+                      <label>
+                        <input
+                          type="radio"
+                          name="share-contact"
+                          value={contato.id}
+                          checked={isSelected}
+                          onChange={() => onSelectContato(contato.id)}
+                        />
+                        <span className="share-contact-details">
+                          <span className="share-contact-name">{contato.nome || 'Contato sem nome'}</span>
+                          <span className="share-contact-meta">
+                            {contato.telefone ? contato.telefone : 'Telefone não informado'}
+                          </span>
+                          <span className="share-contact-origin">{origemLabel}</span>
+                          {contato.email ? (
+                            <span className="share-contact-meta">{contato.email}</span>
+                          ) : null}
+                        </span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="muted">
+                Cadastre um cliente ou lead com telefone ou e-mail para disponibilizar o envio da proposta.
+              </p>
+            )}
+          </fieldset>
+          <div className="share-channel-grid" role="group" aria-label="Canais de envio disponíveis">
+            <button
+              type="button"
+              className="share-channel-button whatsapp"
+              onClick={() => onEnviar('whatsapp')}
+              disabled={!temContatos || !contatoSelecionado || !telefoneValido}
+              title={disabledMessage}
+            >
+              <span aria-hidden="true">💬</span>
+              <span>WhatsApp</span>
+            </button>
+            <button
+              type="button"
+              className="share-channel-button whatsapp-business"
+              onClick={() => onEnviar('whatsapp-business')}
+              disabled={!temContatos || !contatoSelecionado || !telefoneValido}
+              title={disabledMessage}
+            >
+              <span aria-hidden="true">🏢</span>
+              <span>WhatsApp Business</span>
+            </button>
+            <button
+              type="button"
+              className="share-channel-button airdrop"
+              onClick={() => onEnviar('airdrop')}
+              disabled={!temContatos || !contatoSelecionado}
+            >
+              <span aria-hidden="true">📡</span>
+              <span>AirDrop</span>
+            </button>
+            <button
+              type="button"
+              className="share-channel-button quick-share"
+              onClick={() => onEnviar('quick-share')}
+              disabled={!temContatos || !contatoSelecionado}
+            >
+              <span aria-hidden="true">⚡</span>
+              <span>Quick Share</span>
+            </button>
+          </div>
+        </div>
+        <div className="modal-actions enviar-proposta-modal__actions">
+          <button type="button" className="ghost" onClick={onClose}>
+            Fechar
+          </button>
         </div>
       </div>
     </div>
@@ -2185,7 +2371,7 @@ export default function App() {
     (state) => state.resumoProposta.valor_total_proposta,
   )
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return 'light'
     }
 
@@ -2250,6 +2436,10 @@ export default function App() {
       return
     }
 
+    if (typeof window.matchMedia !== 'function') {
+      return
+    }
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     const applyTheme = (matches: boolean) => {
       const nextTheme: 'light' | 'dark' = matches ? 'dark' : 'light'
@@ -2264,13 +2454,23 @@ export default function App() {
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
   const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
-  const [activePage, setActivePage] = useState<'app' | 'crm'>(() => {
+  const [activePage, setActivePage] = useState<ActivePage>(() => {
     if (typeof window === 'undefined') {
       return 'app'
     }
 
     const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
-    return storedPage === 'crm' ? 'crm' : 'app'
+    if (storedPage === 'dashboard') {
+      return 'app'
+    }
+    const isKnownPage =
+      storedPage === 'dashboard' ||
+      storedPage === 'app' ||
+      storedPage === 'crm' ||
+      storedPage === 'consultar' ||
+      storedPage === 'settings'
+
+    return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window === 'undefined') {
@@ -2285,8 +2485,60 @@ export default function App() {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isBudgetSearchOpen, setIsBudgetSearchOpen] = useState(false)
+  const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm'>('app')
+  useEffect(() => {
+    if (activePage === 'dashboard' || activePage === 'app' || activePage === 'crm') {
+      lastPrimaryPageRef.current = activePage
+    }
+  }, [activePage])
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+
+    return window.innerWidth < 1000
+  })
+  const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false)
+  const [isMobileViewport, setIsMobileViewport] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const handleResize = () => {
+      const width = window.innerWidth
+      if (width <= 920) {
+        setIsSidebarCollapsed(false)
+      } else {
+        setIsSidebarCollapsed(width < 1000)
+      }
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (typeof window.matchMedia !== 'function') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 920px)')
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsMobileViewport(event.matches)
+      if (!event.matches) {
+        setIsSidebarMobileOpen(false)
+      }
+    }
+
+    setIsMobileViewport(mediaQuery.matches)
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [orcamentoVisualizado, setOrcamentoVisualizado] = useState<PrintableProposalProps | null>(null)
@@ -2333,7 +2585,7 @@ export default function App() {
       })
       setOrcamentoCarregadoRegistro(cloneOrcamentoSalvo(registro))
       setOrcamentoDisponivelParaDuplicar(cloneOrcamentoSalvo(registro))
-      setIsBudgetSearchOpen(false)
+      setActivePage('app')
       setOrcamentoVisualizado(null)
       setOrcamentoVisualizadoInfo(null)
 
@@ -3785,6 +4037,48 @@ export default function App() {
     tusdSimultaneidadeManualOverride,
     tusdTipoCliente,
   ])
+
+  const updateSegmentoCliente = useCallback(
+    (value: SegmentoCliente, options: { updateVenda?: boolean } = {}) => {
+      const shouldUpdateVenda = options.updateVenda ?? true
+      if (segmentoCliente !== value) {
+        setSegmentoCliente(value)
+      }
+      if (shouldUpdateVenda) {
+        applyVendaUpdates({ segmento_cliente: value })
+      }
+    },
+    [applyVendaUpdates, segmentoCliente, setSegmentoCliente],
+  )
+
+  const updateTusdTipoCliente = useCallback(
+    (
+      value: TipoClienteTUSD,
+      options: { reset?: boolean; updateVenda?: boolean } = {},
+    ) => {
+      const shouldReset = options.reset ?? true
+      const shouldUpdateVenda = options.updateVenda ?? true
+      const changed = tusdTipoCliente !== value
+      if (changed) {
+        setTusdSimultaneidadeManualOverride(false)
+        setTusdTipoCliente(value)
+      }
+      if (shouldUpdateVenda) {
+        applyVendaUpdates({ tusd_tipo_cliente: value })
+      }
+      if (changed && shouldReset) {
+        resetRetorno()
+      }
+    },
+    [
+      applyVendaUpdates,
+      resetRetorno,
+      setTusdSimultaneidadeManualOverride,
+      setTusdTipoCliente,
+      tusdTipoCliente,
+    ],
+  )
+
   const capexMoneyField = useBRNumberField({
     mode: 'money',
     value: Number.isFinite(vendaForm.capex_total) ? Number(vendaForm.capex_total) : null,
@@ -3797,10 +4091,13 @@ export default function App() {
 
   const handleSegmentoClienteChange = useCallback(
     (value: SegmentoCliente) => {
-      setSegmentoCliente((prev) => (prev === value ? prev : value))
-      applyVendaUpdates({ segmento_cliente: value })
+      updateSegmentoCliente(value)
+      const mappedTusd = SEGMENTO_TO_TUSD[value]
+      if (mappedTusd) {
+        updateTusdTipoCliente(mappedTusd)
+      }
     },
-    [applyVendaUpdates],
+    [updateSegmentoCliente, updateTusdTipoCliente],
   )
 
   const handleTipoSistemaChange = useCallback(
@@ -4624,6 +4921,8 @@ export default function App() {
       if (tabs) {
         const { height } = tabs.getBoundingClientRect()
         document.documentElement.style.setProperty('--tabs-h', `${Math.round(height)}px`)
+      } else {
+        document.documentElement.style.setProperty('--tabs-h', '0px')
       }
     }
 
@@ -4676,27 +4975,6 @@ export default function App() {
       cancelado = true
     }
   }, [clienteUf, ufTarifa])
-
-  useEffect(() => {
-    const { body } = document
-    if (!body) return
-
-    if (isSettingsOpen) {
-      body.style.setProperty('overflow', 'hidden')
-    } else {
-      body.style.removeProperty('overflow')
-    }
-
-    return () => {
-      body.style.removeProperty('overflow')
-    }
-  }, [isSettingsOpen])
-
-  useEffect(() => {
-    if (isSettingsOpen) {
-      setSettingsTab('mercado')
-    }
-  }, [isSettingsOpen])
 
   const eficienciaNormalizada = useMemo(() => {
     if (eficiencia <= 0) return 0
@@ -4770,15 +5048,32 @@ export default function App() {
   )
 
   useEffect(() => {
-    const segmentoAtual = vendaForm.segmento_cliente
-    if (segmentoAtual && segmentoAtual !== segmentoCliente) {
-      setSegmentoCliente(segmentoAtual)
-      return
-    }
-    if (!segmentoAtual && segmentoCliente !== INITIAL_VALUES.segmentoCliente) {
-      setSegmentoCliente(INITIAL_VALUES.segmentoCliente)
-    }
-  }, [segmentoCliente, vendaForm.segmento_cliente])
+    const tusdBase = vendaForm.tusd_tipo_cliente ?? null
+    const tusdValido: TipoClienteTUSD =
+      tusdBase && TUSD_TO_SEGMENTO[tusdBase as TipoClienteTUSD]
+        ? (tusdBase as TipoClienteTUSD)
+        : INITIAL_VALUES.tusdTipoCliente
+    const segmentoPreferido = TUSD_TO_SEGMENTO[tusdValido] ?? INITIAL_VALUES.segmentoCliente
+    const segmentoAtual = vendaForm.segmento_cliente ?? null
+    const segmentoResolvido: SegmentoCliente =
+      segmentoAtual && SEGMENTO_TO_TUSD[segmentoAtual as SegmentoCliente]
+        ? (segmentoAtual as SegmentoCliente)
+        : segmentoPreferido
+    const tusdResolvido = SEGMENTO_TO_TUSD[segmentoResolvido] ?? INITIAL_VALUES.tusdTipoCliente
+
+    updateSegmentoCliente(segmentoResolvido, {
+      updateVenda: segmentoAtual !== segmentoResolvido,
+    })
+    updateTusdTipoCliente(tusdResolvido, {
+      updateVenda: tusdBase !== tusdResolvido,
+      reset: false,
+    })
+  }, [
+    updateSegmentoCliente,
+    updateTusdTipoCliente,
+    vendaForm.segmento_cliente,
+    vendaForm.tusd_tipo_cliente,
+  ])
 
   useEffect(() => {
     const tipoAtual = normalizeTipoSistemaValue(vendaForm.tipo_sistema)
@@ -6939,6 +7234,113 @@ export default function App() {
     [removerNotificacao],
   )
 
+  const [isEnviarPropostaModalOpen, setIsEnviarPropostaModalOpen] = useState(false)
+  const [contatoEnvioSelecionadoId, setContatoEnvioSelecionadoId] = useState<string | null>(null)
+  const contatosEnvio = useMemo<PropostaEnvioContato[]>(() => {
+    const mapa = new Map<string, PropostaEnvioContato>()
+
+    const adicionarContato = (
+      contato: Omit<PropostaEnvioContato, 'id'> & { id?: string },
+    ) => {
+      const telefone = contato.telefone?.trim() ?? ''
+      const telefoneDigits = telefone ? normalizeNumbers(telefone) : ''
+      const chave = telefoneDigits ? `fone-${telefoneDigits}` : contato.id ?? ''
+      if (!chave) {
+        return
+      }
+
+      const existente = mapa.get(chave)
+      if (existente) {
+        const nome = contato.nome?.trim()
+        if (nome && !existente.nome) {
+          existente.nome = nome
+        }
+        if (telefone && !existente.telefone) {
+          existente.telefone = telefone
+        }
+        if (contato.email && !existente.email) {
+          existente.email = contato.email
+        }
+        return
+      }
+
+      mapa.set(chave, {
+        id: chave,
+        nome: contato.nome?.trim() || '',
+        telefone,
+        email: contato.email?.trim() || undefined,
+        origem: contato.origem,
+      })
+    }
+
+    const nomeAtual = cliente.nome?.trim()
+    const telefoneAtual = cliente.telefone?.trim()
+    const emailAtual = cliente.email?.trim()
+    if (nomeAtual || telefoneAtual || emailAtual) {
+      adicionarContato({
+        id: 'cliente-atual',
+        nome: nomeAtual || 'Cliente atual',
+        telefone: telefoneAtual || '',
+        email: emailAtual || undefined,
+        origem: 'cliente-atual',
+      })
+    }
+
+    clientesSalvos.forEach((registro) => {
+      const dados = registro.dados
+      const telefone = dados.telefone?.trim() ?? ''
+      const email = dados.email?.trim()
+      const nome = dados.nome?.trim()
+      if (nome || telefone || email) {
+        adicionarContato({
+          id: registro.id,
+          nome: nome || 'Cliente salvo',
+          telefone,
+          email: email || undefined,
+          origem: 'cliente-salvo',
+        })
+      }
+    })
+
+    crmDataset.leads.forEach((lead) => {
+      const nome = lead.nome?.trim()
+      const telefone = lead.telefone?.trim()
+      const email = lead.email?.trim()
+      if (nome || telefone || email) {
+        adicionarContato({
+          id: lead.id,
+          nome: nome || 'Lead sem nome',
+          telefone: telefone || '',
+          email: email || undefined,
+          origem: 'crm',
+        })
+      }
+    })
+
+    return Array.from(mapa.values())
+  }, [cliente, clientesSalvos, crmDataset.leads])
+
+  const contatoEnvioSelecionado = useMemo(() => {
+    if (!contatoEnvioSelecionadoId) {
+      return null
+    }
+    return contatosEnvio.find((contato) => contato.id === contatoEnvioSelecionadoId) ?? null
+  }, [contatoEnvioSelecionadoId, contatosEnvio])
+
+  useEffect(() => {
+    if (contatosEnvio.length === 0) {
+      setContatoEnvioSelecionadoId(null)
+      return
+    }
+
+    setContatoEnvioSelecionadoId((prev) => {
+      if (prev && contatosEnvio.some((contato) => contato.id === prev)) {
+        return prev
+      }
+      return contatosEnvio[0]?.id ?? null
+    })
+  }, [contatosEnvio])
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
@@ -7935,49 +8337,8 @@ export default function App() {
   }, [adicionarNotificacao, crmDataset, persistCrmDataset])
 
   const renderCrmPage = () => (
-    <div className="page crm-page">
-      <header className="topbar crm-header">
-        <div className="container">
-          <div className="brand">
-            <img src="/logo.svg" alt="SolarInvest" />
-            <div className="brand-text">
-              <h1>SolarInvest App</h1>
-              <p>CRM Gestão de Relacionamento e Operações</p>
-            </div>
-          </div>
-          <div className="crm-header-actions">
-            <div className="crm-sync-controls">
-              <label htmlFor="crm-sync-mode">Modo de sincronização</label>
-              <select
-                id="crm-sync-mode"
-                value={crmIntegrationMode}
-                onChange={(event) => setCrmIntegrationMode(event.target.value as CrmIntegrationMode)}
-              >
-                <option value="local">Somente local</option>
-                <option value="remote">Sincronizar com backend</option>
-              </select>
-              <button type="button" className="ghost" onClick={handleSyncCrmManualmente}>
-                Sincronizar agora
-              </button>
-              <small className={`crm-sync-status ${crmBackendStatus}`}>
-                {crmIntegrationMode === 'remote'
-                  ? crmBackendStatus === 'success'
-                    ? `Sincronizado${crmLastSync ? ` em ${crmLastSync.toLocaleString('pt-BR')}` : ''}`
-                    : crmBackendStatus === 'error'
-                      ? crmBackendError ?? 'Erro de sincronização'
-                      : crmIsSaving
-                        ? 'Enviando dados para o backend...'
-                        : 'Aguardando alterações para sincronizar'
-                  : 'Operando somente com dados locais'}
-              </small>
-            </div>
-            <button className="ghost" onClick={() => setActivePage('app')}>
-              Voltar para proposta financeira
-            </button>
-          </div>
-        </div>
-      </header>
-      <main className="crm-main">
+    <div className="crm-page">
+      <div className="crm-main">
         {/* Seção 1 - Captação e qualificação */}
         <section className="crm-card">
           <div className="crm-card-header">
@@ -9031,7 +9392,7 @@ export default function App() {
             </div>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   )
 
@@ -9437,7 +9798,6 @@ export default function App() {
     const registros = carregarClientesSalvos()
     setClientesSalvos(registros)
     setIsClientesModalOpen(true)
-    setIsSettingsOpen(false)
   }
 
   const fecharClientesModal = () => {
@@ -9596,6 +9956,10 @@ export default function App() {
       return []
     }
   }, [carregarClientesSalvos])
+
+  useEffect(() => {
+    setOrcamentosSalvos(carregarOrcamentosSalvos())
+  }, [carregarOrcamentosSalvos])
 
   const getCurrentSnapshot = (): OrcamentoSnapshotData => {
     const vendasConfigState = useVendasConfigStore.getState()
@@ -10868,8 +11232,7 @@ export default function App() {
 
   const handleNovaProposta = useCallback(() => {
     setSettingsTab(INITIAL_VALUES.settingsTab)
-    setIsSettingsOpen(false)
-    setIsBudgetSearchOpen(false)
+    setActivePage('app')
     setOrcamentoSearchTerm('')
     limparOrcamentoCarregado()
     setCurrentBudgetId(createDraftBudgetId())
@@ -10991,6 +11354,7 @@ export default function App() {
     setNotificacoes([])
   }, [
     createPageSharedSettings,
+    setActivePage,
     applyTarifasAutomaticas,
     resetRetorno,
     setDistribuidoraTarifa,
@@ -11032,7 +11396,7 @@ export default function App() {
     const novoBudgetId = createDraftBudgetId()
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
     limparOrcamentoCarregado()
-    setIsBudgetSearchOpen(false)
+    setActivePage('app')
     adicionarNotificacao(
       'Uma cópia do orçamento foi carregada para edição. Salve para gerar um novo número.',
       'info',
@@ -11454,19 +11818,130 @@ export default function App() {
     const registros = carregarOrcamentosSalvos()
     setOrcamentosSalvos(registros)
     setOrcamentoSearchTerm('')
-    setIsSettingsOpen(false)
-    setIsBudgetSearchOpen(true)
+    setActivePage('consultar')
   }
 
   const fecharPesquisaOrcamentos = () => {
-    setIsBudgetSearchOpen(false)
     setOrcamentoVisualizado(null)
     setOrcamentoVisualizadoInfo(null)
+    voltarParaPaginaPrincipal()
   }
+
+  const abrirConfiguracoes = useCallback(
+    (tab?: SettingsTabKey) => {
+      setSettingsTab(tab ?? 'mercado')
+      setActivePage('settings')
+    },
+    [setActivePage, setSettingsTab],
+  )
+
+  const voltarParaPaginaPrincipal = useCallback(() => {
+    setActivePage(lastPrimaryPageRef.current)
+  }, [setActivePage])
 
   const budgetCodeDisplay = useMemo(() => {
     return normalizeProposalId(printableData.budgetId) || null
   }, [printableData.budgetId])
+
+  const selecionarContatoEnvio = useCallback((id: string) => {
+    setContatoEnvioSelecionadoId(id)
+  }, [])
+
+  const fecharEnvioPropostaModal = useCallback(() => {
+    setIsEnviarPropostaModalOpen(false)
+  }, [])
+
+  const abrirEnvioPropostaModal = useCallback(() => {
+    setActivePage('app')
+    setIsEnviarPropostaModalOpen(true)
+    if (contatosEnvio.length === 0) {
+      adicionarNotificacao(
+        'Cadastre um cliente ou lead com telefone ou e-mail para enviar a proposta.',
+        'info',
+      )
+    }
+  }, [adicionarNotificacao, contatosEnvio.length, setActivePage])
+
+  const handleEnviarProposta = useCallback(
+    async (metodo: PropostaEnvioMetodo) => {
+      const contato = contatoEnvioSelecionado
+      if (!contato) {
+        adicionarNotificacao('Selecione um contato para enviar a proposta.', 'error')
+        return
+      }
+
+      const nomeContato = contato.nome?.trim() || 'cliente'
+      const primeiroNome = nomeContato.split(/\s+/).filter(Boolean)[0] || nomeContato
+      const codigoProposta = budgetCodeDisplay || normalizeProposalId(currentBudgetId) || null
+      const valorReferencia =
+        valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? printableData.valorTotalProposta ?? null
+      const valorTexto =
+        typeof valorReferencia === 'number' && Number.isFinite(valorReferencia)
+          ? currency(valorReferencia)
+          : null
+      const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
+
+      const mensagemBase = [
+        `Olá ${primeiroNome}!`,
+        'Segue a proposta financeira da SolarInvest',
+        codigoProposta ? `código ${codigoProposta}` : null,
+        valorTexto ? `no valor total de ${valorTexto}` : null,
+        'com as condições personalizadas para o seu projeto.',
+      ]
+        .filter(Boolean)
+        .join(' ')
+      const mensagemCompleta = `${mensagemBase}${shareUrl ? ` ${shareUrl}` : ''}`
+
+      if (metodo === 'whatsapp' || metodo === 'whatsapp-business') {
+        const telefoneDigits = contato.telefone ? normalizeNumbers(contato.telefone) : ''
+        if (!telefoneDigits) {
+          adicionarNotificacao(
+            'O contato selecionado não possui um telefone válido para envio via WhatsApp.',
+            'error',
+          )
+          return
+        }
+
+        if (typeof window === 'undefined') {
+          adicionarNotificacao('Abra o aplicativo no navegador para compartilhar via WhatsApp.', 'error')
+          return
+        }
+
+        const whatsappUrl = `https://wa.me/${telefoneDigits}?text=${encodeURIComponent(mensagemCompleta)}`
+        window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+        adicionarNotificacao('Abra o WhatsApp para concluir o envio da proposta.', 'info')
+        setIsEnviarPropostaModalOpen(false)
+        return
+      }
+
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        try {
+          await navigator.share({
+            title: 'Proposta SolarInvest',
+            text: mensagemBase,
+            url: shareUrl || undefined,
+          })
+          adicionarNotificacao('Compartilhamento iniciado no dispositivo.', 'success')
+          setIsEnviarPropostaModalOpen(false)
+        } catch (error) {
+          if (!(error instanceof DOMException) || error.name !== 'AbortError') {
+            adicionarNotificacao('Não foi possível compartilhar a proposta neste dispositivo.', 'error')
+          }
+        }
+      } else {
+        adicionarNotificacao('Compartilhamento nativo indisponível neste dispositivo.', 'error')
+      }
+    },
+    [
+      adicionarNotificacao,
+      budgetCodeDisplay,
+      contatoEnvioSelecionado,
+      currentBudgetId,
+      printableData.valorTotalProposta,
+      valorTotalPropostaNormalizado,
+      valorTotalPropostaState,
+    ],
+  )
 
   const renderClienteDadosSection = () => {
     const herdeirosPreenchidos = cliente.herdeiros.filter((nome) => nome.trim().length > 0)
@@ -11827,10 +12302,11 @@ export default function App() {
                 value={tusdTipoCliente}
                 onChange={(event) => {
                   const value = event.target.value as TipoClienteTUSD
-                  setTusdSimultaneidadeManualOverride(false)
-                  setTusdTipoCliente(value)
-                  applyVendaUpdates({ tusd_tipo_cliente: value })
-                  resetRetorno()
+                  updateTusdTipoCliente(value)
+                  const mappedSegmento = TUSD_TO_SEGMENTO[value]
+                  if (mappedSegmento) {
+                    updateSegmentoCliente(mappedSegmento)
+                  }
                 }}
               >
                 {TUSD_TIPO_OPTIONS.map((option) => (
@@ -12637,7 +13113,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Segmento',
-            'Classificação do cliente (residencial ou comercial), utilizada para relatórios e cálculos de tarifas.',
+            'Classificação do cliente (residencial, comercial, industrial ou híbrido), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
@@ -12646,8 +13122,11 @@ export default function App() {
               handleSegmentoClienteChange(event.target.value as SegmentoCliente)
             }
           >
-            <option value="RESIDENCIAL">Residencial</option>
-            <option value="COMERCIAL">Comercial</option>
+            {SEGMENTO_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {SEGMENTO_LABELS[option]}
+              </option>
+            ))}
           </select>
         </Field>
         <Field
@@ -13165,7 +13644,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Segmento',
-            'Classificação do cliente (residencial ou comercial), utilizada para relatórios e cálculos de tarifas.',
+            'Classificação do cliente (residencial, comercial, industrial ou híbrido), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
@@ -13174,8 +13653,11 @@ export default function App() {
               handleSegmentoClienteChange(event.target.value as SegmentoCliente)
             }
           >
-            <option value="RESIDENCIAL">Residencial</option>
-            <option value="COMERCIAL">Comercial</option>
+            {SEGMENTO_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {SEGMENTO_LABELS[option]}
+              </option>
+            ))}
           </select>
         </Field>
         <Field
@@ -13343,8 +13825,7 @@ export default function App() {
 
   const renderComposicaoUfvSection = () => {
     const abrirParametrosVendas = () => {
-      setSettingsTab('vendas')
-      setIsSettingsOpen(true)
+      abrirConfiguracoes('vendas')
     }
     return (
       <section className="card">
@@ -15020,58 +15501,1416 @@ export default function App() {
     />
   ) : null
 
-  return (
-    <AppRoutes>
-        {activePage === 'crm' ? (
-          renderCrmPage()
-        ) : (
-          <div className="page">
-            <React.Suspense fallback={null}>
-              <PrintableProposal ref={printableRef} {...printableData} />
-            </React.Suspense>
-          <header className="topbar app-header">
-            <div className="container">
-              <div className="brand">
-                <img src="/logo.svg" alt="SolarInvest" />
-                <div className="brand-text">
-                  <h1>SolarInvest App</h1>
-                  <p>Proposta financeira interativa</p>
-                </div>
+  const handleSidebarMenuToggle = useCallback(() => {
+    if (isMobileViewport) {
+      setIsSidebarMobileOpen((previous) => {
+        const next = !previous
+        if (next) {
+          setIsSidebarCollapsed(false)
+        }
+        return next
+      })
+      return
+    }
+
+    setIsSidebarCollapsed((previous) => !previous)
+  }, [isMobileViewport])
+
+  const handleSidebarNavigate = useCallback(() => {
+    if (isMobileViewport) {
+      setIsSidebarMobileOpen(false)
+    }
+  }, [isMobileViewport])
+
+  const handleSidebarClose = useCallback(() => {
+    setIsSidebarMobileOpen(false)
+  }, [])
+
+  const crmPageActions = (
+    <div className="crm-header-actions">
+      <div className="crm-sync-controls">
+        <label htmlFor="crm-sync-mode">Modo de sincronização</label>
+        <select
+          id="crm-sync-mode"
+          value={crmIntegrationMode}
+          onChange={(event) => setCrmIntegrationMode(event.target.value as CrmIntegrationMode)}
+        >
+          <option value="local">Somente local</option>
+          <option value="remote">Sincronizar com backend</option>
+        </select>
+        <button type="button" className="ghost" onClick={handleSyncCrmManualmente}>
+          Sincronizar agora
+        </button>
+        <small className={`crm-sync-status ${crmBackendStatus}`}>
+          {crmIntegrationMode === 'remote'
+            ? crmBackendStatus === 'success'
+              ? `Sincronizado${crmLastSync ? ` em ${crmLastSync.toLocaleString('pt-BR')}` : ''}`
+              : crmBackendStatus === 'error'
+                ? crmBackendError ?? 'Erro de sincronização'
+                : crmIsSaving
+                  ? 'Enviando dados para o backend...'
+                  : 'Aguardando alterações para sincronizar'
+            : 'Operando somente com dados locais'}
+        </small>
+      </div>
+      <button className="ghost" onClick={() => setActivePage('app')}>
+        Voltar para proposta financeira
+      </button>
+    </div>
+  )
+
+  const renderDashboardPage = () => {
+    const leadsAtivos = Math.max(0, crmKpis.totalLeads - crmKpis.leadsFechados)
+    const receitaProjetadaLeasing = crmFinanceiroResumo.previsaoLeasing
+    const receitaProjetadaVendas = crmFinanceiroResumo.previsaoVendas
+    const proximasVisitas = crmPosVendaResumo.proximas.slice(0, 3)
+    const alertasCriticos = crmPosVendaResumo.alertasCriticos.slice(0, 2)
+    const chamadosRecentes = crmPosVendaResumo.chamadosRecentes.slice(0, 4)
+    const margensDestaque = crmFinanceiroResumo.margens.slice(0, 4)
+
+    const formatLeadNome = (leadId: string) => {
+      const lead = crmDataset.leads.find((item) => item.id === leadId)
+      return lead?.nome ?? 'Lead não identificado'
+    }
+
+    return (
+      <div className="dashboard-page">
+        <section className="card dashboard-panel dashboard-kpi-card">
+          <div className="card-header">
+            <h2>Resumo geral</h2>
+            <p>Indicadores consolidados de propostas, CRM e finanças da SolarInvest.</p>
+          </div>
+          <div className="kpi-grid dashboard-kpis">
+            <div className="kpi">
+              <span>Leads ativos</span>
+              <strong>{formatNumberBRWithOptions(leadsAtivos, { maximumFractionDigits: 0 })}</strong>
+            </div>
+            <div className="kpi">
+              <span>Leads fechados</span>
+              <strong>{formatNumberBRWithOptions(crmKpis.leadsFechados, { maximumFractionDigits: 0 })}</strong>
+            </div>
+            <div className="kpi">
+              <span>Orçamentos salvos</span>
+              <strong>{formatNumberBRWithOptions(totalOrcamentos, { maximumFractionDigits: 0 })}</strong>
+            </div>
+            <div className="kpi kpi-highlight">
+              <span>Saldo em caixa</span>
+              <strong>{currency(crmFinanceiroResumo.saldo)}</strong>
+            </div>
+            <div className="kpi">
+              <span>Receita recorrente (leasing)</span>
+              <strong>{currency(receitaProjetadaLeasing)}</strong>
+            </div>
+            <div className="kpi">
+              <span>Receita pontual (vendas)</span>
+              <strong>{currency(receitaProjetadaVendas)}</strong>
+            </div>
+          </div>
+        </section>
+
+        <div className="dashboard-panels">
+          <section className="card dashboard-panel">
+            <div className="card-header">
+              <h3>Próximas manutenções</h3>
+              <p>Visitas técnicas e acompanhamentos previstos para os próximos dias.</p>
+            </div>
+            <ul className="dashboard-list">
+              {proximasVisitas.length > 0 ? (
+                proximasVisitas.map((item) => (
+                  <li key={item.id}>
+                    <div>
+                      <strong>{formatarDataCurta(item.dataIso)}</strong>
+                      <span>{item.tipo}</span>
+                    </div>
+                    <span className="dashboard-list-subtitle">{formatLeadNome(item.leadId)}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="dashboard-empty">Nenhuma manutenção pendente.</li>
+              )}
+            </ul>
+            {alertasCriticos.length > 0 ? (
+              <div className="dashboard-alerts" role="status">
+                {alertasCriticos.map((alerta, index) => (
+                  <span key={index}>{alerta}</span>
+                ))}
               </div>
-              <div className="top-actions">
-                <button className="crm-button" onClick={() => setActivePage('crm')}>
-                  Central CRM
-                </button>
-                <button className="ghost" onClick={abrirPesquisaOrcamentos}>Pesquisar</button>
-                <button className="ghost" onClick={handleAbrirUploadImagens}>Incluir imagens</button>
-                <input
-                  ref={imagensUploadInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImagensSelecionadas}
-                  style={{ display: 'none' }}
-                />
-                <button className="ghost" onClick={handlePrint}>Exportar PDF</button>
-                <button className="icon" onClick={() => setIsSettingsOpen(true)} aria-label="Abrir configurações">
-                  ⚙︎
-                </button>
+            ) : null}
+          </section>
+
+          <section className="card dashboard-panel">
+            <div className="card-header">
+              <h3>Atividades recentes</h3>
+              <p>Últimas anotações registradas pela equipe comercial.</p>
+            </div>
+            <ul className="dashboard-list">
+              {chamadosRecentes.length > 0 ? (
+                chamadosRecentes.map((item) => (
+                  <li key={item.id}>
+                    <div>
+                      <strong>{item.dataFormatada}</strong>
+                      <span>{item.mensagem}</span>
+                    </div>
+                    <span className="dashboard-list-subtitle">{formatLeadNome(item.leadId)}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="dashboard-empty">Nenhuma atividade registrada nesta semana.</li>
+              )}
+            </ul>
+          </section>
+        </div>
+
+        <section className="card dashboard-panel">
+          <div className="card-header">
+            <h3>Indicadores financeiros</h3>
+            <p>Visão rápida do fluxo de caixa e contratos acompanhados.</p>
+          </div>
+          <dl className="dashboard-metrics">
+            <div>
+              <dt>Entradas acumuladas</dt>
+              <dd>{currency(crmFinanceiroResumo.entradas)}</dd>
+            </div>
+            <div>
+              <dt>Saídas acumuladas</dt>
+              <dd>{currency(crmFinanceiroResumo.saidas)}</dd>
+            </div>
+            <div>
+              <dt>Contratos ativos</dt>
+              <dd>{formatNumberBRWithOptions(crmFinanceiroResumo.contratosAtivos, { maximumFractionDigits: 0 })}</dd>
+            </div>
+            <div>
+              <dt>Contratos inadimplentes</dt>
+              <dd>{formatNumberBRWithOptions(crmFinanceiroResumo.inadimplentes, { maximumFractionDigits: 0 })}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="card dashboard-panel">
+          <div className="card-header">
+            <h3>Margens por cliente</h3>
+            <p>Projetos com maior potencial de retorno financeiro.</p>
+          </div>
+          <div className="dashboard-table-wrapper">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th scope="col">Cliente</th>
+                  <th scope="col">Modelo</th>
+                  <th scope="col">Margem</th>
+                  <th scope="col">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {margensDestaque.length > 0 ? (
+                  margensDestaque.map((item) => (
+                    <tr key={item.leadId}>
+                      <td>{formatLeadNome(item.leadId)}</td>
+                      <td>{item.modelo === 'LEASING' ? 'Leasing' : 'Venda direta'}</td>
+                      <td>{currency(item.margemBruta)}</td>
+                      <td>
+                        {typeof item.roi === 'number'
+                          ? `${formatNumberBRWithOptions(item.roi * 100, {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 1,
+                            })}%`
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="dashboard-empty" colSpan={4}>
+                      Nenhuma margem calculada até o momento.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  const contentActions = activePage === 'crm' ? crmPageActions : null
+  const contentSubtitle =
+    activePage === 'dashboard'
+      ? undefined
+      : activePage === 'crm'
+        ? 'CRM Gestão de Relacionamento e Operações'
+        : activePage === 'consultar'
+          ? 'Consulta de orçamentos salvos'
+          : activePage === 'settings'
+            ? 'Preferências e integrações da proposta'
+            : undefined
+  const currentPageIndicator =
+    activePage === 'dashboard'
+      ? 'Dashboard'
+      : activePage === 'crm'
+        ? 'Central CRM'
+        : activePage === 'consultar'
+          ? 'Consultar'
+          : activePage === 'settings'
+            ? 'Configurações'
+            : activeTab === 'vendas'
+              ? 'Vendas'
+              : 'Leasing'
+  const topbarSubtitle = contentSubtitle
+
+  const sidebarGroups: SidebarGroup[] = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      items: [
+        {
+          id: 'dashboard-home',
+          label: 'Dashboard',
+          icon: '📊',
+          onSelect: () => {
+            setActivePage('dashboard')
+          },
+        },
+      ],
+    },
+    {
+      id: 'propostas',
+      label: 'Propostas',
+      items: [
+        {
+          id: 'propostas-leasing',
+          label: 'Leasing',
+          icon: '📝',
+          onSelect: () => {
+            setActivePage('app')
+            setActiveTab('leasing')
+          },
+        },
+        {
+          id: 'propostas-vendas',
+          label: 'Vendas',
+          icon: '🧾',
+          onSelect: () => {
+            setActivePage('app')
+            setActiveTab('vendas')
+          },
+        },
+        {
+          id: 'propostas-nova',
+          label: 'Nova proposta',
+          icon: '✨',
+          onSelect: () => {
+            setActivePage('app')
+            handleNovaProposta()
+          },
+        },
+        {
+          id: 'propostas-salvar',
+          label: salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta',
+          icon: '💾',
+          onSelect: () => {
+            setActivePage('app')
+            handleSalvarPropostaPdf()
+          },
+          disabled: !podeSalvarProposta || salvandoPropostaPdf,
+          title: !proposalPdfIntegrationAvailable
+            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
+            : undefined,
+        },
+        {
+          id: 'propostas-contratos',
+          label: gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos',
+          icon: '🖋️',
+          onSelect: () => {
+            setActivePage('app')
+            if (isVendaDiretaTab) {
+              handleGerarContratoVendas()
+            } else {
+              handleGerarContratoLeasing()
+            }
+          },
+          disabled: gerandoContratoPdf,
+        },
+        {
+          id: 'propostas-imagens',
+          label: 'Incluir imagens',
+          icon: '🖼️',
+          onSelect: () => {
+            setActivePage('app')
+            handleAbrirUploadImagens()
+          },
+        },
+        {
+          id: 'propostas-enviar',
+          label: 'Enviar proposta',
+          icon: '📨',
+          onSelect: () => {
+            abrirEnvioPropostaModal()
+          },
+          disabled: contatosEnvio.length === 0,
+          title:
+            contatosEnvio.length === 0
+              ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
+              : undefined,
+        },
+      ],
+    },
+    {
+      id: 'relatorios',
+      label: 'Relatórios',
+      items: [
+        {
+          id: 'relatorios-pdfs',
+          label: 'PDFs gerados',
+          icon: '📂',
+          onSelect: () => {
+            setActivePage('app')
+          },
+        },
+        {
+          id: 'relatorios-exportacoes',
+          label: 'Exportações',
+          icon: '📤',
+          onSelect: () => {
+            setActivePage('app')
+          },
+        },
+        {
+          id: 'relatorios-exportar-pdf',
+          label: 'Exportar PDF',
+          icon: '🖨️',
+          onSelect: () => {
+            setActivePage('app')
+            handlePrint()
+          },
+        },
+      ],
+    },
+    {
+      id: 'orcamentos',
+      label: 'Orçamentos',
+      items: [
+        {
+          id: 'orcamentos-importar',
+          label: 'Consultar',
+          icon: '📄',
+          onSelect: () => {
+            abrirPesquisaOrcamentos()
+          },
+        },
+      ],
+    },
+    {
+      id: 'crm',
+      label: 'CRM',
+      items: [
+        {
+          id: 'crm-central',
+          label: 'Central CRM',
+          icon: '📇',
+          onSelect: () => {
+            setActivePage('crm')
+          },
+        },
+        {
+          id: 'crm-operacoes',
+          label: 'Operações',
+          icon: '🗂️',
+          items: [
+            {
+              id: 'crm-captura',
+              label: 'Captura de leads',
+              icon: '🛰️',
+              onSelect: () => {
+                setActivePage('crm')
+              },
+            },
+            {
+              id: 'crm-pos-venda',
+              label: 'Pós-venda',
+              icon: '🤝',
+              onSelect: () => {
+                setActivePage('crm')
+              },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'configuracoes',
+      label: 'Configurações',
+      items: [
+        {
+          id: 'config-preferencias',
+          label: 'Preferências',
+          icon: '⚙️',
+          onSelect: () => {
+            abrirConfiguracoes()
+          },
+        },
+      ],
+    },
+  ]
+
+  const renderBudgetSearchPage = () => (
+    <div className="budget-search-page">
+      <div className="budget-search-page-header">
+        <div>
+          <h2>Consultar orçamentos</h2>
+          <p>
+            Localize propostas salvas pelo cliente, documento, unidade consumidora ou código do orçamento e carregue-as
+            novamente na proposta.
+          </p>
+        </div>
+        <button type="button" className="ghost" onClick={fecharPesquisaOrcamentos}>
+          Voltar
+        </button>
+      </div>
+      <div className="budget-search-panels">
+        <section className="budget-search-panel">
+          <div className="budget-search-header">
+            <h4>Consulta rápida</h4>
+            <p>Busque pelo cliente, código interno, CPF/CNPJ ou unidade consumidora.</p>
+          </div>
+          <Field
+            label={labelWithTooltip(
+              'Buscar orçamentos',
+              'Filtra propostas salvas por nome do cliente, documento, UC ou código interno.',
+            )}
+            hint="Procure pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento."
+          >
+            <input
+              id="budget-search-input"
+              type="search"
+              value={orcamentoSearchTerm}
+              onChange={(e) => setOrcamentoSearchTerm(e.target.value)}
+              placeholder="Ex.: ABC12, 123.456.789-00 ou SLRINVST-00001234"
+              autoFocus
+            />
+          </Field>
+          <div className="budget-search-summary">
+            <span>
+              {totalOrcamentos === 0
+                ? 'Nenhum orçamento salvo até o momento.'
+                : `${totalResultados} de ${totalOrcamentos} orçamento(s) exibidos.`}
+            </span>
+            {orcamentoSearchTerm ? (
+              <button type="button" className="link" onClick={() => setOrcamentoSearchTerm('')}>
+                Limpar busca
+              </button>
+            ) : null}
+          </div>
+        </section>
+        <section className="budget-search-panel">
+          <div className="budget-search-header">
+            <h4>Registros salvos</h4>
+          </div>
+          {totalOrcamentos === 0 ? (
+            <p className="budget-search-empty">Nenhum orçamento foi salvo ainda. Gere uma proposta para começar.</p>
+          ) : totalResultados === 0 ? (
+            <p className="budget-search-empty">
+              Nenhum orçamento encontrado para "<strong>{orcamentoSearchTerm}</strong>".
+            </p>
+          ) : (
+            <div className="budget-search-table">
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Cliente</th>
+                      <th>Documento</th>
+                      <th>Unidade consumidora</th>
+                      <th>Criado em</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orcamentosFiltrados.map((registro) => {
+                      const documento =
+                        registro.clienteDocumento?.trim() ||
+                        registro.dados.cliente.documento?.trim() ||
+                        ''
+                      const unidadeConsumidora =
+                        registro.clienteUc?.trim() || registro.dados.cliente.uc?.trim() || ''
+                      const cidade =
+                        registro.clienteCidade?.trim() || registro.dados.cliente.cidade?.trim() || ''
+                      const uf = registro.clienteUf?.trim() || registro.dados.cliente.uf?.trim() || ''
+                      const nomeCliente =
+                        registro.clienteNome?.trim() ||
+                        registro.dados.cliente.nome?.trim() ||
+                        registro.id
+                      const registroIdPadronizado = normalizeProposalId(registro.id) || registro.id
+                      const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
+                      return (
+                        <tr
+                          key={registro.id}
+                          className={
+                            orcamentoVisualizadoInfo?.id === registroIdPadronizado ? 'is-selected' : undefined
+                          }
+                        >
+                          <td>
+                            <button
+                              type="button"
+                              className="budget-search-code"
+                              onClick={() => carregarOrcamentoSalvo(registro)}
+                              title="Visualizar orçamento salvo"
+                            >
+                              {registro.id}
+                            </button>
+                          </td>
+                          <td>
+                            <div className="budget-search-client">
+                              <strong>{nomeCliente}</strong>
+                              {cidadeUf ? <span>{cidadeUf}</span> : null}
+                            </div>
+                          </td>
+                          <td>{documento || null}</td>
+                          <td>{unidadeConsumidora || null}</td>
+                          <td>{formatBudgetDate(registro.criadoEm)}</td>
+                          <td>
+                            <div className="budget-search-actions">
+                              <button
+                                type="button"
+                                className="budget-search-action"
+                                onClick={() => carregarOrcamentoSalvo(registro)}
+                                aria-label="Carregar orçamento salvo"
+                                title="Carregar orçamento"
+                              >
+                                📂
+                              </button>
+                              <button
+                                type="button"
+                                className="budget-search-action"
+                                onClick={() => abrirOrcamentoSalvo(registro, 'preview')}
+                                aria-label="Visualizar orçamento salvo"
+                                title="Visualizar orçamento"
+                              >
+                                👁
+                              </button>
+                              <button
+                                type="button"
+                                className="budget-search-action"
+                                onClick={() => abrirOrcamentoSalvo(registro, 'download')}
+                                aria-label="Baixar orçamento em PDF"
+                                title="Baixar PDF"
+                              >
+                                ⤓
+                              </button>
+                              <button
+                                type="button"
+                                className="budget-search-action danger"
+                                onClick={() => confirmarRemocaoOrcamento(registro)}
+                                aria-label="Excluir orçamento salvo"
+                                title="Excluir orçamento salvo"
+                              >
+                                🗑
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-          </header>
-          <div className="app-main">
-            <nav className="tabs tabs-bar">
-              <div className="container">
-                <button className={activeTab === 'leasing' ? 'active' : ''} onClick={() => setActiveTab('leasing')}>
-                  Leasing
-                </button>
-                <button className={activeTab === 'vendas' ? 'active' : ''} onClick={() => setActiveTab('vendas')}>
-                  Vendas
+          )}
+        </section>
+      </div>
+      {orcamentoVisualizado ? (
+        <section className="budget-search-panel budget-search-viewer">
+          <div className="budget-search-header">
+            <h4>
+              Visualizando orçamento <strong>{orcamentoVisualizadoInfo?.id ?? '—'}</strong>
+            </h4>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setOrcamentoVisualizado(null)
+                setOrcamentoVisualizadoInfo(null)
+              }}
+            >
+              Fechar visualização
+            </button>
+          </div>
+          <p className="budget-viewer-subtitle">
+            Dados somente leitura para {orcamentoVisualizadoInfo?.cliente ?? 'o cliente selecionado'}.
+          </p>
+          <div className="budget-viewer-body">
+            <React.Suspense fallback={<p className="budget-search-empty">Carregando orçamento selecionado…</p>}>
+              <div className="budget-viewer-content">
+                <PrintableProposal {...orcamentoVisualizado} />
+              </div>
+            </React.Suspense>
+          </div>
+        </section>
+      ) : null}
+    </div>
+  )
+
+  const renderSettingsPage = () => (
+    <div className="settings-page">
+      <div className="settings-page-header">
+        <div>
+          <h2>Preferências</h2>
+          <p>Configure parâmetros de mercado, simulações e vendas para personalizar as propostas.</p>
+        </div>
+        <button type="button" className="ghost" onClick={voltarParaPaginaPrincipal}>
+          Voltar
+        </button>
+      </div>
+      <div className="config-page">
+        <div className="cfg-tabs" role="tablist" aria-label="Seções de Configuração">
+          {SETTINGS_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`cfg-tab-${tab.id}`}
+              aria-selected={settingsTab === tab.id}
+              aria-controls={`settings-panel-${tab.id}`}
+              className={`cfg-tab${settingsTab === tab.id ? ' is-active' : ''}`}
+              onClick={() => setSettingsTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="config-panels">
+          <section
+            id="settings-panel-mercado"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-mercado"
+            className={`settings-panel config-card${settingsTab === 'mercado' ? ' active' : ''}`}
+            hidden={settingsTab !== 'mercado'}
+            aria-hidden={settingsTab !== 'mercado'}
+          >
+            <div className="cfg-panel-header">
+              <h2 className="cfg-section-title">Mercado & energia</h2>
+              <p className="settings-panel-description cfg-section-subtitle">
+                Ajuste as premissas macroeconômicas da projeção.
+              </p>
+            </div>
+            <div className="grid g2">
+              <Field
+                label={labelWithTooltip(
+                  'Inflação energética (%)',
+                  'Percentual anual de reajuste tarifário. Tarifa projetada = Tarifa base × (1 + inflação)^ano.',
+                )}
+              >
+                <input
+                  type="number"
+                  step="0.1"
+                  value={inflacaoAa}
+                  onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Preço por kWp (R$)',
+                  'Preço médio de investimento por kWp. CAPEX estimado = Potência (kWp) × Preço por kWp.',
+                )}
+              >
+                <input
+                  type="number"
+                  value={precoPorKwp}
+                  onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Irradiação média (kWh/m²/dia)',
+                  'Valor médio diário usado na estimativa: Geração = kWp × Irradiação × Eficiência × dias.',
+                )}
+              >
+                <input
+                  type="number"
+                  step="0.1"
+                  min={0.01}
+                  value={irradiacao}
+                  readOnly
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Eficiência do sistema',
+                  'Performance ratio global (PR). Impacta diretamente a geração estimada na fórmula acima.',
+                )}
+              >
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0.01}
+                  value={eficiencia}
+                  onChange={(e) => {
+                    if (e.target.value === '') {
+                      setEficiencia(0)
+                      return
+                    }
+                    handleEficienciaInput(Number(e.target.value))
+                  }}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Dias no mês (cálculo)',
+                  'Quantidade de dias considerada por mês na estimativa de geração (padrão: 30).',
+                )}
+              >
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={diasMes > 0 ? diasMes : ''}
+                  onChange={(e) => {
+                    const { value } = e.target
+                    if (value === '') {
+                      setDiasMes(0)
+                      return
+                    }
+                    const parsed = Number(value)
+                    setDiasMes(Number.isFinite(parsed) ? parsed : 0)
+                  }}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+            </div>
+          </section>
+          <section
+            id="settings-panel-simulacoes"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-simulacoes"
+            className={`settings-panel config-card${settingsTab === 'simulacoes' ? ' active' : ''}`}
+            hidden={settingsTab !== 'simulacoes'}
+            aria-hidden={settingsTab !== 'simulacoes'}
+          >
+            <div className="cfg-panel-header">
+              <h2 className="cfg-section-title">Simulações financeiras</h2>
+              <p className="settings-panel-description cfg-section-subtitle">
+                Monte cenários de leasing com diferentes descontos, prazos e custos para comparar KPIs lado a lado.
+              </p>
+            </div>
+            <SimulacoesTab
+              consumoKwhMes={kcKwhMes}
+              valorInvestimento={capex}
+              tipoSistema={tipoSistema}
+              prazoLeasingAnos={leasingPrazo}
+            />
+          </section>
+          <section
+            id="settings-panel-vendas"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-vendas"
+            className={`settings-panel config-card${settingsTab === 'vendas' ? ' active' : ''}`}
+            hidden={settingsTab !== 'vendas'}
+            aria-hidden={settingsTab !== 'vendas'}
+          >
+            <div className="cfg-panel-header">
+              <h2 className="cfg-section-title">Parâmetros de vendas</h2>
+              <p className="settings-panel-description cfg-section-subtitle">
+                Configure custos, margens e impostos utilizados nos cálculos comerciais.
+              </p>
+            </div>
+            {renderVendasParametrosInternosSettings()}
+          </section>
+          <section
+            id="settings-panel-leasing"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-leasing"
+            className={`settings-panel config-card${settingsTab === 'leasing' ? ' active' : ''}`}
+            hidden={settingsTab !== 'leasing'}
+            aria-hidden={settingsTab !== 'leasing'}
+          >
+            <div className="cfg-panel-header">
+              <h2 className="cfg-section-title">Leasing parâmetros</h2>
+              <p className="settings-panel-description cfg-section-subtitle">
+                Personalize as condições do contrato de leasing.
+              </p>
+            </div>
+            <div className="grid g3">
+              <Field
+                label={labelWithTooltip(
+                  'Prazo contratual (meses)',
+                  'Quantidade de meses do contrato de leasing. Utilizada no cálculo das parcelas.',
+                )}
+              >
+                <input
+                  type="number"
+                  min={1}
+                  value={prazoMeses}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value)
+                    setPrazoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                  }}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Bandeira tarifária (R$)',
+                  'Valor adicional por kWh conforme bandeira vigente. Aplicado às tarifas projetadas.',
+                )}
+              >
+                <input
+                  type="number"
+                  value={bandeiraEncargo}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value)
+                    setBandeiraEncargo(Number.isFinite(parsed) ? parsed : 0)
+                  }}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Contribuição CIP (R$)',
+                  'Valor mensal da Contribuição de Iluminação Pública considerado no cenário.',
+                )}
+              >
+                <input
+                  type="number"
+                  value={cipEncargo}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value)
+                    setCipEncargo(Number.isFinite(parsed) ? parsed : 0)
+                  }}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Uso da entrada',
+                  'Define se a entrada gera crédito mensal ou reduz o piso contratado do cliente.',
+                )}
+              >
+                <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModoLabel)}>
+                  <option value="Crédito mensal">Crédito mensal</option>
+                  <option value="Reduz piso contratado">Reduz piso contratado</option>
+                </select>
+              </Field>
+            </div>
+            <div className="info-inline">
+              <span className="pill">
+                Margem mínima: <strong>{currency(parcelasSolarInvest.margemMinima)}</strong>
+              </span>
+              <span className="pill">
+                Total pago no prazo: <strong>{currency(parcelasSolarInvest.totalPago)}</strong>
+              </span>
+            </div>
+            <div className="settings-subsection">
+              <p className="settings-subheading">Parcelas — Total pago acumulado</p>
+              <div className="table-controls">
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  onClick={() => setMostrarTabelaParcelasConfig((prev) => !prev)}
+                  aria-expanded={mostrarTabelaParcelasConfig}
+                  aria-controls="config-parcelas-total"
+                >
+                  {mostrarTabelaParcelasConfig
+                    ? 'Ocultar tabela de parcelas (configurações)'
+                    : 'Exibir tabela de parcelas (configurações)'}
                 </button>
               </div>
-            </nav>
+              {mostrarTabelaParcelasConfig ? (
+                <div className="table-wrapper">
+                  <table id="config-parcelas-total">
+                    <thead>
+                      <tr>
+                        <th>Mês</th>
+                        <th>Mensalidade projetada</th>
+                        <th>TUSD</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parcelasSolarInvest.lista.length > 0 ? (
+                        parcelasSolarInvest.lista.map((row) => (
+                          <tr key={`config-parcela-${row.mes}`}>
+                            <td>{row.mes}</td>
+                            <td>{currency(row.mensalidade)}</td>
+                            <td>{currency(row.tusd)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={3} className="muted">
+                            Defina um prazo contratual para visualizar a tabela configurável de parcelas.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+            <div className="settings-subsection">
+              <p className="settings-subheading">Financiamento</p>
+              <div className="grid g3">
+                <Field
+                  label={labelWithTooltip(
+                    'Juros anuais (%)',
+                    'Taxa de juros anual aplicada na simulação de financiamento para comparação.',
+                  )}
+                >
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={jurosFinAa}
+                    onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Prazo financiamento (meses)',
+                    'Quantidade de meses considerados no cenário de financiamento.',
+                  )}
+                >
+                  <input
+                    type="number"
+                    value={prazoFinMeses}
+                    onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Entrada (%)',
+                    'Percentual de entrada considerado no cenário financiado (Entrada = CAPEX × %).',
+                  )}
+                >
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={entradaFinPct}
+                    onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+              </div>
+            </div>
+          </section>
+          <section
+            id="settings-panel-buyout"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-buyout"
+            className={`settings-panel config-card${settingsTab === 'buyout' ? ' active' : ''}`}
+            hidden={settingsTab !== 'buyout'}
+            aria-hidden={settingsTab !== 'buyout'}
+          >
+            <div className="cfg-panel-header">
+              <h2 className="cfg-section-title">Buyout parâmetros</h2>
+              <p className="settings-panel-description cfg-section-subtitle">
+                Configure premissas de recompra e fluxo residual.
+              </p>
+            </div>
+            <div className="grid g3">
+              <Field
+                label={labelWithTooltip(
+                  'Cashback (%)',
+                  'Percentual devolvido ao cliente em caso de compra antecipada.',
+                )}
+              >
+                <input
+                  type="number"
+                  step="0.1"
+                  value={cashbackPct}
+                  onChange={(e) => setCashbackPct(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Depreciação (%)',
+                  'Taxa anual de depreciação dos ativos considerados no buyout.',
+                )}
+              >
+                <input
+                  type="number"
+                  step="0.1"
+                  value={depreciacaoAa}
+                  onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Inadimplência (%)',
+                  'Percentual anual de inadimplência considerado na projeção.',
+                )}
+              >
+                <input
+                  type="number"
+                  step="0.1"
+                  value={inadimplenciaAa}
+                  onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Tributos (%)',
+                  'Percentual de tributos incidentes sobre o fluxo financeiro do buyout.',
+                )}
+              >
+                <input
+                  type="number"
+                  step="0.1"
+                  value={tributosAa}
+                  onChange={(e) => setTributosAa(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'IPCA (%)',
+                  'Inflação geral (IPCA) para atualizar valores reais ao longo do tempo.',
+                )}
+              >
+                <input
+                  type="number"
+                  step="0.1"
+                  value={ipcaAa}
+                  onChange={(e) => setIpcaAa(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Custos fixos (R$)',
+                  'Custos fixos mensais associados à operação no cenário buyout.',
+                )}
+              >
+                <input
+                  type="number"
+                  value={custosFixosM}
+                  onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'OPEX (R$)',
+                  'Despesas operacionais mensais (manutenção, monitoramento etc.).',
+                )}
+              >
+                <input
+                  type="number"
+                  value={opexM}
+                  onChange={(e) => setOpexM(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Seguro (R$)',
+                  'Prêmio mensal de seguro considerado na simulação.',
+                )}
+              >
+                <input
+                  type="number"
+                  value={seguroM}
+                  onChange={(e) => setSeguroM(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Duração (meses)',
+                  'Janela de tempo analisada para o fluxo residual e compra antecipada.',
+                )}
+              >
+                <input
+                  type="number"
+                  value={duracaoMeses}
+                  onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Pagos acumulados até o mês (R$)',
+                  'Total pago acumulado considerado até o mês de avaliação.',
+                )}
+              >
+                <input
+                  type="number"
+                  value={pagosAcumAteM}
+                  onChange={(e) => setPagosAcumAteM(Number(e.target.value) || 0)}
+                  onFocus={selectNumberInputOnFocus}
+                />
+              </Field>
+            </div>
+            <div className="settings-subsection">
+              <p className="settings-subheading">Buyout — Receita acumulada</p>
+              <div className="table-controls">
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  onClick={() => setMostrarTabelaBuyoutConfig((prev) => !prev)}
+                  aria-expanded={mostrarTabelaBuyoutConfig}
+                  aria-controls="config-buyout-receita"
+                >
+                  {mostrarTabelaBuyoutConfig ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
+                </button>
+              </div>
+              {mostrarTabelaBuyoutConfig ? (
+                <div className="table-wrapper">
+                  <table id="config-buyout-receita">
+                    <thead>
+                      <tr>
+                        <th>Mês</th>
+                        <th>Receita acumulada</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {buyoutReceitaRows.length > 0 ? (
+                        buyoutReceitaRows.map((row) => (
+                          <tr key={`config-buyout-${row.mes}`}>
+                            <td>{row.mes}</td>
+                            <td>{currency(row.prestacaoAcum)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="muted">
+                            Defina os parâmetros para visualizar a receita acumulada.
+                          </td>
+                        </tr>
+                      )}
+                      {buyoutAceiteFinal ? (
+                        <tr>
+                          <td>{buyoutMesAceiteFinal}</td>
+                          <td>{currency(buyoutAceiteFinal.prestacaoAcum)}</td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          </section>
+          <section
+            id="settings-panel-outros"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-outros"
+            className={`settings-panel config-card${settingsTab === 'outros' ? ' active' : ''}`}
+            hidden={settingsTab !== 'outros'}
+            aria-hidden={settingsTab !== 'outros'}
+          >
+            <div className="cfg-panel-header">
+              <h2 className="cfg-section-title">Outros</h2>
+              <p className="settings-panel-description cfg-section-subtitle">
+                Controles complementares de operação e apresentação.
+              </p>
+            </div>
+            <div className="settings-subsection">
+              <p className="settings-subheading">O&M e seguro</p>
+              <div className="grid g3">
+                <Field
+                  label={labelWithTooltip(
+                    'O&M base (R$/kWp)',
+                    'Valor base de contrato de operação e manutenção por kWp instalado.',
+                  )}
+                >
+                  <input
+                    type="number"
+                    value={oemBase}
+                    onChange={(e) => setOemBase(Number(e.target.value) || 0)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Inflação O&M (%)',
+                    'Reajuste anual do contrato de operação e manutenção.',
+                  )}
+                >
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={oemInflacao}
+                    onChange={(e) => setOemInflacao(Number(e.target.value) || 0)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Reajuste seguro (%)',
+                    'Percentual anual de reajuste do seguro quando o modo percentual está ativo.',
+                  )}
+                >
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={seguroReajuste}
+                    onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Modo de seguro',
+                    'Escolha entre valor fixo por kWp (Modo A) ou percentual do valor de mercado (Modo B).',
+                  )}
+                >
+                  <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
+                    <option value="A">Modo A — Potência (R$)</option>
+                    <option value="B">Modo B — % Valor de mercado</option>
+                  </select>
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Base seguro modo A (R$/kWp)',
+                    'Valor aplicado por kWp quando o seguro está configurado no modo A.',
+                  )}
+                >
+                  <input
+                    type="number"
+                    value={seguroValorA}
+                    onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Seguro modo B (%)',
+                    'Percentual aplicado sobre o valor de mercado quando o modo B está ativo.',
+                  )}
+                >
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={seguroPercentualB}
+                    onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)}
+                    onFocus={selectNumberInputOnFocus}
+                  />
+                </Field>
+              </div>
+            </div>
+            <div className="settings-subsection">
+              <p className="settings-subheading">Exibição</p>
+              <div className="grid g2">
+                <Field
+                  label={labelWithTooltip(
+                    'Densidade da interface',
+                    'Ajuste visual dos espaçamentos da interface (compacto, acolhedor ou confortável).',
+                  )}
+                >
+                  <select value={density} onChange={(event) => setDensity(event.target.value as DensityMode)}>
+                    <option value="compact">Compacto</option>
+                    <option value="cozy">Acolhedor</option>
+                    <option value="comfortable">Confortável</option>
+                  </select>
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Mostrar gráfico ROI',
+                    'Liga ou desliga a visualização do gráfico de retorno sobre investimento.',
+                  )}
+                >
+                  <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
+                    <option value="1">Sim</option>
+                    <option value="0">Não</option>
+                  </select>
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Mostrar coluna financiamento',
+                    'Exibe ou oculta a coluna de comparação com financiamento na tela principal.',
+                  )}
+                >
+                  <select
+                    value={mostrarFinanciamento ? '1' : '0'}
+                    onChange={(e) => setMostrarFinanciamento(e.target.value === '1')}
+                  >
+                    <option value="1">Sim</option>
+                    <option value="0">Não</option>
+                  </select>
+                </Field>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  )
 
-            <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
+  const activeSidebarItem =
+    activePage === 'dashboard'
+      ? 'dashboard-home'
+      : activePage === 'crm'
+        ? 'crm-central'
+        : activePage === 'consultar'
+          ? 'orcamentos-importar'
+          : activePage === 'settings'
+            ? 'config-preferencias'
+            : activeTab === 'vendas'
+              ? 'propostas-vendas'
+              : 'propostas-leasing'
+
+
+  return (
+    <AppRoutes>
+      <AppShell
+        topbar={{
+          subtitle: topbarSubtitle,
+        }}
+        sidebar={{
+          collapsed: isSidebarCollapsed,
+          mobileOpen: isSidebarMobileOpen,
+          groups: sidebarGroups,
+          activeItemId: activeSidebarItem,
+          onNavigate: handleSidebarNavigate,
+          onCloseMobile: handleSidebarClose,
+          onToggleCollapse: handleSidebarMenuToggle,
+          menuButtonLabel: isMobileViewport
+            ? isSidebarMobileOpen
+              ? 'Fechar menu Painel SolarInvest'
+              : 'Abrir menu Painel SolarInvest'
+            : 'Painel SolarInvest',
+          menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
+          menuButtonText: 'Painel SolarInvest',
+        }}
+        content={{
+          subtitle: contentSubtitle,
+          actions: contentActions ?? undefined,
+          pageIndicator: currentPageIndicator,
+        }}
+        mobileMenuButton={
+          isMobileViewport
+            ? {
+                onToggle: handleSidebarMenuToggle,
+                label: isSidebarMobileOpen
+                  ? 'Fechar menu Painel SolarInvest'
+                  : 'Abrir menu Painel SolarInvest',
+                expanded: isSidebarMobileOpen,
+              }
+            : undefined
+        }
+      >
+        <React.Suspense fallback={null}>
+          <PrintableProposal ref={printableRef} {...printableData} />
+        </React.Suspense>
+        {activePage === 'dashboard' ? (
+          renderDashboardPage()
+        ) : activePage === 'crm' ? (
+          renderCrmPage()
+        ) : activePage === 'consultar' ? (
+          renderBudgetSearchPage()
+        ) : activePage === 'settings' ? (
+          renderSettingsPage()
+        ) : (
+          <div className="page">
+            <div className="app-main">
+              <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
               {orcamentoCarregado ? (
                 <section className="card loaded-budget-viewer">
                   <div className="card-header loaded-budget-header">
@@ -15113,58 +16952,31 @@ export default function App() {
               ) : null}
               <div className={`page-editable${isViewOnlyMode ? ' is-readonly' : ''}`}>
                 <div ref={editableContentRef} className="page-editable-body">
-                  <div className="page-actions">
-                    <button
-                      type="button"
-                      className={`ghost${activeTab === 'leasing' ? ' solid' : ''}`}
-                      onClick={handleNovaProposta}
-                    >
-                      Novo
-                    </button>
-                    {isVendaDiretaTab ? (
-                      <button type="button" className="ghost" onClick={handleRecalcularVendas}>
-                        Recalcular
-                      </button>
-                    ) : null}
-                    {orcamentoCarregado ? (
-                      <button
-                        type="button"
-                        className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                        onClick={duplicarOrcamentoCarregado}
-                        disabled={!orcamentoCarregadoRegistro?.snapshot}
-                        title={
-                          orcamentoCarregadoRegistro?.snapshot
-                            ? undefined
-                            : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
-                        }
-                      >
-                        Duplicar
-                      </button>
-                    ) : podeSalvarProposta ? (
-                      <button
-                        type="button"
-                        className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                        onClick={handleSalvarPropostaPdf}
-                        disabled={salvandoPropostaPdf}
-                        title={
-                          !proposalPdfIntegrationAvailable
-                            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
-                            : undefined
-                        }
-                      >
-                        {salvandoPropostaPdf ? 'Salvando…' : 'Salvar'}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={isVendaDiretaTab ? handleGerarContratoVendas : handleGerarContratoLeasing}
-                      disabled={gerandoContratoPdf}
-                    >
-                      {gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos'}
-                    </button>
-                  </div>
-                {renderClienteDadosSection()}
+                  {isVendaDiretaTab || orcamentoCarregado ? (
+                    <div className="page-actions">
+                      {isVendaDiretaTab ? (
+                        <button type="button" className="ghost" onClick={handleRecalcularVendas}>
+                          Recalcular
+                        </button>
+                      ) : null}
+                      {orcamentoCarregado ? (
+                        <button
+                          type="button"
+                          className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
+                          onClick={duplicarOrcamentoCarregado}
+                          disabled={!orcamentoCarregadoRegistro?.snapshot}
+                          title={
+                            orcamentoCarregadoRegistro?.snapshot
+                              ? undefined
+                              : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
+                          }
+                        >
+                          Duplicar
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {renderClienteDadosSection()}
               {activeTab === 'leasing' ? (
                 <>
                   {renderParametrosPrincipaisSection()}
@@ -15592,8 +17404,30 @@ export default function App() {
                   </>
                 ) : null}
               </div>
-            </main>
-      </div>
+
+              </main>
+            </div>
+          </div>
+        )}
+      </AppShell>
+      <input
+        ref={imagensUploadInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleImagensSelecionadas}
+        style={{ display: 'none' }}
+      />
+
+      {isEnviarPropostaModalOpen ? (
+        <EnviarPropostaModal
+          contatos={contatosEnvio}
+          selectedContatoId={contatoEnvioSelecionadoId}
+          onSelectContato={selecionarContatoEnvio}
+          onEnviar={handleEnviarProposta}
+          onClose={fecharEnvioPropostaModal}
+        />
+      ) : null}
 
       {isClientesModalOpen ? (
         <ClientesModal
@@ -15629,917 +17463,12 @@ export default function App() {
         />
       ) : null}
 
-      {isBudgetSearchOpen ? (
-        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="budget-search-title">
-          <div
-            className="modal-backdrop modal-backdrop--opaque"
-            onClick={fecharPesquisaOrcamentos}
-          />
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 id="budget-search-title">Pesquisar orçamentos</h3>
-              <button
-                className="icon"
-                onClick={fecharPesquisaOrcamentos}
-                aria-label="Fechar pesquisa de orçamentos"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="modal-body">
-              <section className="budget-search-panel">
-                <div className="budget-search-header">
-                  <h4>Consulta rápida</h4>
-                  <p>Localize propostas salvas pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento.</p>
-                </div>
-                <Field
-                  label={labelWithTooltip(
-                    'Buscar orçamentos',
-                    'Filtra propostas salvas por nome do cliente, documento, UC ou código interno.',
-                  )}
-                  hint="Procure pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento."
-                >
-                  <input
-                    id="budget-search-input"
-                    type="search"
-                    value={orcamentoSearchTerm}
-                    onChange={(e) => setOrcamentoSearchTerm(e.target.value)}
-                    placeholder="Ex.: ABC12, 123.456.789-00 ou SLRINVST-00001234"
-                    autoFocus
-                  />
-                </Field>
-                <div className="budget-search-summary">
-                  <span>
-                    {totalOrcamentos === 0
-                      ? 'Nenhum orçamento salvo até o momento.'
-                      : `${totalResultados} de ${totalOrcamentos} orçamento(s) exibidos.`}
-                  </span>
-                  {orcamentoSearchTerm ? (
-                    <button type="button" className="link" onClick={() => setOrcamentoSearchTerm('')}>
-                      Limpar busca
-                    </button>
-                  ) : null}
-                </div>
-              </section>
-              <section className="budget-search-panel">
-                <div className="budget-search-header">
-                  <h4>Registros salvos</h4>
-                </div>
-                {totalOrcamentos === 0 ? (
-                  <p className="budget-search-empty">
-                    Nenhum orçamento foi salvo ainda. Gere uma proposta para começar.
-                  </p>
-                ) : totalResultados === 0 ? (
-                  <p className="budget-search-empty">
-                    Nenhum orçamento encontrado para "<strong>{orcamentoSearchTerm}</strong>".
-                  </p>
-                ) : (
-                  <div className="budget-search-table">
-                    <div className="table-wrapper">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Código</th>
-                            <th>Cliente</th>
-                            <th>Documento</th>
-                            <th>Unidade consumidora</th>
-                            <th>Criado em</th>
-                            <th>Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {orcamentosFiltrados.map((registro) => {
-                            const documento =
-                              registro.clienteDocumento?.trim() ||
-                              registro.dados.cliente.documento?.trim() ||
-                              ''
-                            const unidadeConsumidora =
-                              registro.clienteUc?.trim() || registro.dados.cliente.uc?.trim() || ''
-                            const cidade =
-                              registro.clienteCidade?.trim() || registro.dados.cliente.cidade?.trim() || ''
-                            const uf = registro.clienteUf?.trim() || registro.dados.cliente.uf?.trim() || ''
-                            const nomeCliente =
-                              registro.clienteNome?.trim() ||
-                              registro.dados.cliente.nome?.trim() ||
-                              registro.id
-                            const registroIdPadronizado = normalizeProposalId(registro.id) || registro.id
-                            const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
-                            return (
-                              <tr
-                                key={registro.id}
-                                className={
-                                  orcamentoVisualizadoInfo?.id === registroIdPadronizado
-                                    ? 'is-selected'
-                                    : undefined
-                                }
-                              >
-                                <td>
-                                  <button
-                                    type="button"
-                                    className="budget-search-code"
-                                    onClick={() => carregarOrcamentoSalvo(registro)}
-                                    title="Visualizar orçamento salvo"
-                                  >
-                                    {registro.id}
-                                  </button>
-                                </td>
-                                <td>
-                                  <div className="budget-search-client">
-                                    <strong>{nomeCliente}</strong>
-                                    {cidadeUf ? <span>{cidadeUf}</span> : null}
-                                  </div>
-                                </td>
-                                <td>{documento || null}</td>
-                                <td>{unidadeConsumidora || null}</td>
-                                <td>{formatBudgetDate(registro.criadoEm)}</td>
-                                <td>
-                                  <div className="budget-search-actions">
-                                    <button
-                                      type="button"
-                                      className="budget-search-action"
-                                      onClick={() => carregarOrcamentoSalvo(registro)}
-                                      aria-label="Carregar orçamento salvo"
-                                      title="Carregar orçamento"
-                                    >
-                                      📂
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="budget-search-action"
-                                      onClick={() => abrirOrcamentoSalvo(registro, 'preview')}
-                                      aria-label="Visualizar orçamento salvo"
-                                      title="Visualizar orçamento"
-                                    >
-                                      👁
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="budget-search-action"
-                                      onClick={() => abrirOrcamentoSalvo(registro, 'download')}
-                                      aria-label="Baixar orçamento em PDF"
-                                      title="Baixar PDF"
-                                    >
-                                      ⤓
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="budget-search-action danger"
-                                      onClick={() => confirmarRemocaoOrcamento(registro)}
-                                      aria-label="Excluir orçamento salvo"
-                                      title="Excluir orçamento salvo"
-                                    >
-                                      🗑
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </section>
-              {orcamentoVisualizado ? (
-                <section className="budget-search-panel budget-search-viewer">
-                  <div className="budget-search-header">
-                    <h4>
-                      Visualizando orçamento{' '}
-                      <strong>{orcamentoVisualizadoInfo?.id ?? '—'}</strong>
-                    </h4>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => {
-                        setOrcamentoVisualizado(null)
-                        setOrcamentoVisualizadoInfo(null)
-                      }}
-                    >
-                      Fechar visualização
-                    </button>
-                  </div>
-                  <p className="budget-viewer-subtitle">
-                    Dados somente leitura para {orcamentoVisualizadoInfo?.cliente ?? 'o cliente selecionado'}.
-                  </p>
-                  <div className="budget-viewer-body">
-                    <React.Suspense fallback={<p className="budget-search-empty">Carregando orçamento selecionado…</p>}>
-                      <div className="budget-viewer-content">
-                        <PrintableProposal {...orcamentoVisualizado} />
-                      </div>
-                    </React.Suspense>
-                  </div>
-                </section>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {isSettingsOpen ? (
-        <div className="modal" role="dialog" aria-modal="true">
-          <div className="modal-backdrop" onClick={() => setIsSettingsOpen(false)} />
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>Configurações</h3>
-              <button className="icon" onClick={() => setIsSettingsOpen(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div className="config-page">
-                <div className="cfg-tabs" role="tablist" aria-label="Seções de Configuração">
-                  {SETTINGS_TABS.map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      id={`cfg-tab-${tab.id}`}
-                      aria-selected={settingsTab === tab.id}
-                      aria-controls={`settings-panel-${tab.id}`}
-                      className={`cfg-tab${settingsTab === tab.id ? ' is-active' : ''}`}
-                      onClick={() => setSettingsTab(tab.id)}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="config-panels">
-                  <section
-                    id="settings-panel-mercado"
-                    role="tabpanel"
-                    aria-labelledby="cfg-tab-mercado"
-                    className={`settings-panel config-card${settingsTab === 'mercado' ? ' active' : ''}`}
-                    hidden={settingsTab !== 'mercado'}
-                    aria-hidden={settingsTab !== 'mercado'}
-                  >
-                    <div className="cfg-panel-header">
-                      <h2 className="cfg-section-title">Mercado & energia</h2>
-                      <p className="settings-panel-description cfg-section-subtitle">
-                        Ajuste as premissas macroeconômicas da projeção.
-                      </p>
-                    </div>
-                    <div className="grid g2">
-                      <Field
-                        label={labelWithTooltip(
-                          'Inflação energética (%)',
-                          'Percentual anual de reajuste tarifário. Tarifa projetada = Tarifa base × (1 + inflação)^ano.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={inflacaoAa}
-                          onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Preço por kWp (R$)',
-                          'Preço médio de investimento por kWp. CAPEX estimado = Potência (kWp) × Preço por kWp.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={precoPorKwp}
-                          onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Irradiação média (kWh/m²/dia)',
-                          'Valor médio diário usado na estimativa: Geração = kWp × Irradiação × Eficiência × dias.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          min={0.01}
-                          value={irradiacao}
-                          readOnly
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Eficiência do sistema',
-                          'Performance ratio global (PR). Impacta diretamente a geração estimada na fórmula acima.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={0.01}
-                          value={eficiencia}
-                          onChange={(e) => {
-                            if (e.target.value === '') {
-                              setEficiencia(0)
-                              return
-                            }
-                            handleEficienciaInput(Number(e.target.value))
-                          }}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Dias no mês (cálculo)',
-                          'Quantidade de dias considerada por mês na estimativa de geração (padrão: 30).',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={diasMes > 0 ? diasMes : ''}
-                          onChange={(e) => {
-                            const { value } = e.target
-                            if (value === '') {
-                              setDiasMes(0)
-                              return
-                            }
-                            const parsed = Number(value)
-                            setDiasMes(Number.isFinite(parsed) ? parsed : 0)
-                          }}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                    </div>
-                  </section>
-                  <section
-                    id="settings-panel-simulacoes"
-                    role="tabpanel"
-                    aria-labelledby="cfg-tab-simulacoes"
-                    className={`settings-panel config-card${settingsTab === 'simulacoes' ? ' active' : ''}`}
-                    hidden={settingsTab !== 'simulacoes'}
-                    aria-hidden={settingsTab !== 'simulacoes'}
-                  >
-                    <div className="cfg-panel-header">
-                      <h2 className="cfg-section-title">Simulações financeiras</h2>
-                      <p className="settings-panel-description cfg-section-subtitle">
-                        Monte cenários de leasing com diferentes descontos, prazos e custos para comparar KPIs lado a lado.
-                      </p>
-                    </div>
-                    <SimulacoesTab
-                      consumoKwhMes={kcKwhMes}
-                      valorInvestimento={capex}
-                      tipoSistema={tipoSistema}
-                      prazoLeasingAnos={leasingPrazo}
-                    />
-                  </section>
-                  <section
-                    id="settings-panel-vendas"
-                    role="tabpanel"
-                    aria-labelledby="cfg-tab-vendas"
-                    className={`settings-panel config-card${settingsTab === 'vendas' ? ' active' : ''}`}
-                    hidden={settingsTab !== 'vendas'}
-                    aria-hidden={settingsTab !== 'vendas'}
-                  >
-                    <div className="cfg-panel-header">
-                      <h2 className="cfg-section-title">Parâmetros de vendas</h2>
-                      <p className="settings-panel-description cfg-section-subtitle">
-                        Configure custos, margens e impostos utilizados nos cálculos comerciais.
-                      </p>
-                    </div>
-                    {renderVendasParametrosInternosSettings()}
-                  </section>
-                  <section
-                    id="settings-panel-leasing"
-                    role="tabpanel"
-                    aria-labelledby="cfg-tab-leasing"
-                    className={`settings-panel config-card${settingsTab === 'leasing' ? ' active' : ''}`}
-                    hidden={settingsTab !== 'leasing'}
-                    aria-hidden={settingsTab !== 'leasing'}
-                  >
-                    <div className="cfg-panel-header">
-                      <h2 className="cfg-section-title">Leasing parâmetros</h2>
-                      <p className="settings-panel-description cfg-section-subtitle">
-                        Personalize as condições do contrato de leasing.
-                      </p>
-                    </div>
-                    <div className="grid g3">
-                      <Field
-                        label={labelWithTooltip(
-                          'Prazo contratual (meses)',
-                          'Quantidade de meses do contrato de leasing. Utilizada no cálculo das parcelas.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          min={1}
-                          value={prazoMeses}
-                          onChange={(e) => {
-                            const parsed = Number(e.target.value)
-                            setPrazoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                          }}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Bandeira tarifária (R$)',
-                          'Valor adicional por kWh conforme bandeira vigente. Aplicado às tarifas projetadas.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={bandeiraEncargo}
-                          onChange={(e) => {
-                            const parsed = Number(e.target.value)
-                            setBandeiraEncargo(Number.isFinite(parsed) ? parsed : 0)
-                          }}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Contribuição CIP (R$)',
-                          'Valor mensal da Contribuição de Iluminação Pública considerado no cenário.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={cipEncargo}
-                          onChange={(e) => {
-                            const parsed = Number(e.target.value)
-                            setCipEncargo(Number.isFinite(parsed) ? parsed : 0)
-                          }}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Uso da entrada',
-                          'Define se a entrada gera crédito mensal ou reduz o piso contratado do cliente.',
-                        )}
-                      >
-                        <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModoLabel)}>
-                          <option value="Crédito mensal">Crédito mensal</option>
-                          <option value="Reduz piso contratado">Reduz piso contratado</option>
-                        </select>
-                      </Field>
-                    </div>
-                    <div className="info-inline">
-                      <span className="pill">
-                        Margem mínima: <strong>{currency(parcelasSolarInvest.margemMinima)}</strong>
-                      </span>
-                      <span className="pill">
-                        Total pago no prazo: <strong>{currency(parcelasSolarInvest.totalPago)}</strong>
-                      </span>
-                    </div>
-                    <div className="settings-subsection">
-                      <p className="settings-subheading">Parcelas — Total pago acumulado</p>
-                      <div className="table-controls">
-                        <button
-                          type="button"
-                          className="collapse-toggle"
-                          onClick={() => setMostrarTabelaParcelasConfig((prev) => !prev)}
-                          aria-expanded={mostrarTabelaParcelasConfig}
-                          aria-controls="config-parcelas-total"
-                        >
-                          {mostrarTabelaParcelasConfig ? 'Ocultar tabela de parcelas' : 'Exibir tabela de parcelas'}
-                        </button>
-                      </div>
-                      {mostrarTabelaParcelasConfig ? (
-                        <div className="table-wrapper">
-                          <table id="config-parcelas-total">
-                            <thead>
-                              <tr>
-                                <th>Mês</th>
-                                <th>Total pago acumulado</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {parcelasSolarInvest.lista.length > 0 ? (
-                                parcelasSolarInvest.lista.map((row) => (
-                                  <tr key={`config-parcela-${row.mes}`}>
-                                    <td>{row.mes}</td>
-                                    <td>{currency(row.totalAcumulado)}</td>
-                                  </tr>
-                                ))
-                              ) : (
-                                <tr>
-                                  <td colSpan={2} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : null}
-                    </div>
-                  </section>
-                  <section
-                    id="settings-panel-financiamento"
-                    role="tabpanel"
-                    aria-labelledby="cfg-tab-financiamento"
-                    className={`settings-panel config-card${settingsTab === 'financiamento' ? ' active' : ''}`}
-                    hidden={settingsTab !== 'financiamento'}
-                    aria-hidden={settingsTab !== 'financiamento'}
-                  >
-                    <div className="cfg-panel-header">
-                      <h2 className="cfg-section-title">Financiamento parâmetros</h2>
-                      <p className="settings-panel-description cfg-section-subtitle">
-                        Defina as variáveis financeiras do cenário financiado.
-                      </p>
-                    </div>
-                    <div className="grid g3">
-                      <Field
-                        label={labelWithTooltip(
-                          'Juros a.a. (%)',
-                          'Taxa de juros anual utilizada no cenário financiado para comparação.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={jurosFinAa}
-                          onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Prazo (meses)',
-                          'Prazo total do financiamento comparado, em meses.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={prazoFinMeses}
-                          onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Entrada (%)',
-                          'Percentual de entrada considerado no cenário financiado (Entrada = CAPEX × %).',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={entradaFinPct}
-                          onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                    </div>
-                  </section>
-                  <section
-                    id="settings-panel-buyout"
-                    role="tabpanel"
-                    aria-labelledby="cfg-tab-buyout"
-                    className={`settings-panel config-card${settingsTab === 'buyout' ? ' active' : ''}`}
-                    hidden={settingsTab !== 'buyout'}
-                    aria-hidden={settingsTab !== 'buyout'}
-                  >
-                    <div className="cfg-panel-header">
-                      <h2 className="cfg-section-title">Buyout parâmetros</h2>
-                      <p className="settings-panel-description cfg-section-subtitle">
-                        Configure premissas de recompra e fluxo residual.
-                      </p>
-                    </div>
-                    <div className="grid g3">
-                      <Field
-                        label={labelWithTooltip(
-                          'Cashback (%)',
-                          'Percentual devolvido ao cliente em caso de compra antecipada.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={cashbackPct}
-                          onChange={(e) => setCashbackPct(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Depreciação (%)',
-                          'Taxa anual de depreciação dos ativos considerados no buyout.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={depreciacaoAa}
-                          onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Inadimplência (%)',
-                          'Percentual anual de inadimplência considerado na projeção.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={inadimplenciaAa}
-                          onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Tributos (%)',
-                          'Percentual de tributos incidentes sobre o fluxo financeiro do buyout.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={tributosAa}
-                          onChange={(e) => setTributosAa(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'IPCA (%)',
-                          'Inflação geral (IPCA) para atualizar valores reais ao longo do tempo.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={ipcaAa}
-                          onChange={(e) => setIpcaAa(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Custos fixos (R$)',
-                          'Custos fixos mensais associados à operação no cenário buyout.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={custosFixosM}
-                          onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'OPEX (R$)',
-                          'Despesas operacionais mensais (manutenção, monitoramento etc.).',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={opexM}
-                          onChange={(e) => setOpexM(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Seguro (R$)',
-                          'Prêmio mensal de seguro considerado na simulação.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={seguroM}
-                          onChange={(e) => setSeguroM(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Duração (meses)',
-                          'Janela de tempo analisada para o fluxo residual e compra antecipada.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={duracaoMeses}
-                          onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Pagos acumulados até o mês (R$)',
-                          'Total pago acumulado considerado até o mês de avaliação.',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={pagosAcumAteM}
-                          onChange={(e) => setPagosAcumAteM(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                    </div>
-                    <div className="settings-subsection">
-                      <p className="settings-subheading">Buyout — Receita acumulada</p>
-                      <div className="table-controls">
-                        <button
-                          type="button"
-                          className="collapse-toggle"
-                          onClick={() => setMostrarTabelaBuyoutConfig((prev) => !prev)}
-                          aria-expanded={mostrarTabelaBuyoutConfig}
-                          aria-controls="config-buyout-receita"
-                        >
-                          {mostrarTabelaBuyoutConfig ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
-                        </button>
-                      </div>
-                      {mostrarTabelaBuyoutConfig ? (
-                        <div className="table-wrapper">
-                          <table id="config-buyout-receita">
-                            <thead>
-                              <tr>
-                                <th>Mês</th>
-                                <th>Receita acumulada</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {buyoutReceitaRows.length > 0 ? (
-                                buyoutReceitaRows.map((row) => (
-                                  <tr key={`config-buyout-${row.mes}`}>
-                                    <td>{row.mes}</td>
-                                    <td>{currency(row.prestacaoAcum)}</td>
-                                  </tr>
-                                ))
-                              ) : (
-                                <tr>
-                                  <td colSpan={2} className="muted">Defina os parâmetros para visualizar a receita acumulada.</td>
-                                </tr>
-                              )}
-                              {buyoutAceiteFinal ? (
-                                <tr>
-                                  <td>{buyoutMesAceiteFinal}</td>
-                                  <td>{currency(buyoutAceiteFinal.prestacaoAcum)}</td>
-                                </tr>
-                              ) : null}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : null}
-                    </div>
-                  </section>
-                  <section
-                    id="settings-panel-outros"
-                    role="tabpanel"
-                    aria-labelledby="cfg-tab-outros"
-                    className={`settings-panel config-card${settingsTab === 'outros' ? ' active' : ''}`}
-                    hidden={settingsTab !== 'outros'}
-                    aria-hidden={settingsTab !== 'outros'}
-                  >
-                    <div className="cfg-panel-header">
-                      <h2 className="cfg-section-title">Outros</h2>
-                      <p className="settings-panel-description cfg-section-subtitle">
-                        Controles complementares de operação e apresentação.
-                      </p>
-                    </div>
-                    <div className="settings-subsection">
-                      <p className="settings-subheading">O&M e seguro</p>
-                      <div className="grid g3">
-                        <Field
-                          label={labelWithTooltip(
-                            'O&M base (R$/kWp)',
-                            'Valor base de contrato de operação e manutenção por kWp instalado.',
-                          )}
-                        >
-                          <input
-                            type="number"
-                            value={oemBase}
-                            onChange={(e) => setOemBase(Number(e.target.value) || 0)}
-                            onFocus={selectNumberInputOnFocus}
-                          />
-                        </Field>
-                        <Field
-                          label={labelWithTooltip(
-                            'Reajuste O&M (%)',
-                            'Percentual anual de reajuste aplicado ao contrato de O&M.',
-                          )}
-                        >
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={oemInflacao}
-                            onChange={(e) => setOemInflacao(Number(e.target.value) || 0)}
-                            onFocus={selectNumberInputOnFocus}
-                          />
-                        </Field>
-                        <Field
-                          label={labelWithTooltip(
-                            'Reajuste seguro (%)',
-                            'Percentual anual de reajuste do prêmio de seguro.',
-                          )}
-                        >
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={seguroReajuste}
-                            onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)}
-                            onFocus={selectNumberInputOnFocus}
-                          />
-                        </Field>
-                        <Field
-                          label={labelWithTooltip(
-                            'Modo de seguro',
-                            'Escolha entre valor fixo por kWp (Modo A) ou percentual do valor de mercado (Modo B).',
-                          )}
-                        >
-                          <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
-                            <option value="A">Modo A — Potência (R$)</option>
-                            <option value="B">Modo B — % Valor de mercado</option>
-                          </select>
-                        </Field>
-                        <Field
-                          label={labelWithTooltip(
-                            'Base seguro modo A (R$/kWp)',
-                            'Valor aplicado por kWp quando o seguro está configurado no modo A.',
-                          )}
-                        >
-                          <input
-                            type="number"
-                            value={seguroValorA}
-                            onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)}
-                            onFocus={selectNumberInputOnFocus}
-                          />
-                        </Field>
-                        <Field
-                          label={labelWithTooltip(
-                            'Seguro modo B (%)',
-                            'Percentual aplicado sobre o valor de mercado quando o modo B está ativo.',
-                          )}
-                        >
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={seguroPercentualB}
-                            onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)}
-                            onFocus={selectNumberInputOnFocus}
-                          />
-                        </Field>
-                      </div>
-                    </div>
-                    <div className="settings-subsection">
-                      <p className="settings-subheading">Exibição</p>
-                      <div className="grid g2">
-                        <Field
-                          label={labelWithTooltip(
-                            'Densidade da interface',
-                            'Ajuste visual dos espaçamentos da interface (compacto, acolhedor ou confortável).',
-                          )}
-                        >
-                          <select
-                            value={density}
-                            onChange={(event) => setDensity(event.target.value as DensityMode)}
-                          >
-                            <option value="compact">Compacto</option>
-                            <option value="cozy">Acolhedor</option>
-                            <option value="comfortable">Confortável</option>
-                          </select>
-                        </Field>
-                        <Field
-                          label={labelWithTooltip(
-                            'Mostrar gráfico ROI',
-                            'Liga ou desliga a visualização do gráfico de retorno sobre investimento.',
-                          )}
-                        >
-                          <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
-                            <option value="1">Sim</option>
-                            <option value="0">Não</option>
-                          </select>
-                        </Field>
-                        <Field
-                          label={labelWithTooltip(
-                            'Mostrar coluna financiamento',
-                            'Exibe ou oculta a coluna de comparação com financiamento na tela principal.',
-                          )}
-                        >
-                          <select value={mostrarFinanciamento ? '1' : '0'} onChange={(e) => setMostrarFinanciamento(e.target.value === '1')}>
-                            <option value="1">Sim</option>
-                            <option value="0">Não</option>
-                          </select>
-                        </Field>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-        </div>
-        )}
-        {notificacoes.length > 0 ? (
-          <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
-            {notificacoes.map((item) => (
-              <div key={item.id} className={`toast-item ${item.tipo}`} role="status">
-                <span className="toast-icon" aria-hidden="true">
-                  {iconeNotificacaoPorTipo[item.tipo]}
+      {notificacoes.length > 0 ? (
+        <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
+          {notificacoes.map((item) => (
+            <div key={item.id} className={`toast-item ${item.tipo}`} role="status">
+              <span className="toast-icon" aria-hidden="true">
+                {iconeNotificacaoPorTipo[item.tipo]}
                 </span>
                 <span className="toast-message">{item.mensagem}</span>
                 <button
