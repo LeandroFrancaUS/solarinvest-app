@@ -7,6 +7,7 @@ export interface ContentProps {
   actions?: ReactNode
   children: ReactNode
   onInteractOutsideSidebar?: () => void
+  pageIndicator?: string
 }
 
 export function Content({
@@ -14,6 +15,7 @@ export function Content({
   subtitle,
   breadcrumbs,
   actions,
+  pageIndicator,
   children,
   onInteractOutsideSidebar,
 }: ContentProps) {
@@ -26,6 +28,11 @@ export function Content({
       className="content-wrap"
       onPointerDownCapture={onInteractOutsideSidebar ? handlePointerDownCapture : undefined}
     >
+      {pageIndicator ? (
+        <div className="page-indicator" role="status" aria-live="polite">
+          <span>{pageIndicator}</span>
+        </div>
+      ) : null}
       {breadcrumbs ? <div className="breadcrumbs">{breadcrumbs}</div> : null}
       {title || subtitle || actions ? (
         <header className="content-header">

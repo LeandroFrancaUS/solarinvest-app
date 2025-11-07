@@ -5671,6 +5671,27 @@ i:hover {
   position: relative;
 }
 
+.page-indicator {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.page-indicator span {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 140, 0, 0.16);
+  border: 1px solid rgba(255, 140, 0, 0.38);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
 .content-header {
   display: flex;
   align-items: flex-start;
@@ -5927,6 +5948,10 @@ i:hover {
     padding: 24px 20px 64px;
     height: auto;
     overflow: visible;
+  }
+
+  .page-indicator {
+    display: inline-flex;
   }
 
   .sidebar-section-scroll {

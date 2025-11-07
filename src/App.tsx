@@ -15380,6 +15380,18 @@ export default function App() {
           : activePage === 'settings'
             ? 'Preferências e integrações da proposta'
             : undefined
+  const currentPageIndicator =
+    activePage === 'dashboard'
+      ? 'Dashboard'
+      : activePage === 'crm'
+        ? 'Central CRM'
+        : activePage === 'consultar'
+          ? 'Consultar'
+          : activePage === 'settings'
+            ? 'Configurações'
+            : activeTab === 'vendas'
+              ? 'Vendas'
+              : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
   const sidebarGroups: SidebarGroup[] = [
@@ -16493,6 +16505,7 @@ export default function App() {
         content={{
           subtitle: contentSubtitle,
           actions: contentActions ?? undefined,
+          pageIndicator: currentPageIndicator,
         }}
         mobileMenuButton={
           isMobileViewport
