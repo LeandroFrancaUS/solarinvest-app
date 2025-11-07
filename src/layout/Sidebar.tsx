@@ -26,6 +26,7 @@ export interface SidebarProps {
   onToggleCollapse?: () => void
   menuButtonLabel?: string
   menuButtonExpanded?: boolean
+  menuButtonText?: string
 }
 
 export function Sidebar({
@@ -38,6 +39,7 @@ export function Sidebar({
   onToggleCollapse,
   menuButtonLabel,
   menuButtonExpanded,
+  menuButtonText,
 }: SidebarProps) {
   const parentIds = React.useMemo(() => {
     const activeParents = new Set<string>()
@@ -220,15 +222,18 @@ export function Sidebar({
             type="button"
             className="sidebar-menu-toggle"
             onClick={onToggleCollapse}
-            aria-label={menuButtonLabel ?? 'Alternar menu de navegação'}
+            aria-label={menuButtonLabel ?? menuButtonText ?? 'Alternar menu de navegação'}
             aria-expanded={menuButtonExpanded}
-            title={menuButtonLabel ?? 'Alternar menu de navegação'}
+            title={menuButtonText ?? menuButtonLabel ?? 'Alternar menu de navegação'}
           >
             <span className="sidebar-menu-icon" aria-hidden="true">
               <span />
               <span />
               <span />
             </span>
+            {!collapsed && menuButtonText ? (
+              <span className="sidebar-menu-text">{menuButtonText}</span>
+            ) : null}
           </button>
         ) : null}
       </div>

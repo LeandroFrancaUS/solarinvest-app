@@ -5288,10 +5288,10 @@ i:hover {
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.05);
   overflow: hidden;
-  padding: 0 14px 24px;
+  padding: 0 14px 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 13px;
   font-weight: 500;
@@ -5325,8 +5325,8 @@ i:hover {
   align-items: center;
   justify-content: flex-start;
   gap: 12px;
-  margin: 0 -14px 10px;
-  padding: 18px 14px 14px;
+  margin: 0 -14px 6px;
+  padding: 16px 14px 12px;
   background: linear-gradient(180deg, rgba(11, 13, 18, 0.98), rgba(17, 24, 39, 0.92));
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 16px 28px rgba(8, 12, 20, 0.38);
@@ -5336,14 +5336,15 @@ i:hover {
 .sidebar-menu-toggle {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.32);
   background: rgba(15, 23, 42, 0.58);
   color: rgba(226, 232, 240, 0.86);
-  padding: 0;
+  padding: 10px 16px;
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, color 0.2s ease;
 }
@@ -5368,6 +5369,12 @@ i:hover {
   gap: 5px;
   width: 18px;
 }
+.sidebar-menu-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.92);
+  white-space: nowrap;
+}
 
 .sidebar-menu-icon span {
   display: block;
@@ -5387,17 +5394,17 @@ i:hover {
 .sidebar-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .sidebar-section-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
   margin: 0 -6px;
-  padding: 0 6px 12px;
+  padding: 0 6px 10px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   scrollbar-width: thin;
 }
 
@@ -5415,6 +5422,10 @@ i:hover {
   flex: 0 0 auto;
 }
 
+.sidebar-section-bottom {
+  margin-top: auto;
+}
+
 .sidebar.collapsed .sidebar-section-scroll {
   overflow: visible;
   margin: 0;
@@ -5424,11 +5435,11 @@ i:hover {
 .sidebar-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .sidebar .group {
-  padding: 12px 12px 6px;
+  padding: 10px 12px 4px;
   color: var(--muted);
   font-weight: 600;
   font-size: 11px;
@@ -5445,16 +5456,16 @@ i:hover {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 10px 12px 10px 20px;
-  border-radius: 14px;
+  padding: 8px 12px 8px 18px;
+  border-radius: 12px;
   border: 1px solid transparent;
   background: transparent;
   color: inherit;
   cursor: pointer;
   text-align: left;
-  min-height: 40px;
+  min-height: 36px;
   line-height: 1.4;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
@@ -5600,6 +5611,10 @@ i:hover {
 .sidebar.collapsed .sidebar-menu-toggle {
   justify-content: center;
   padding: 12px 10px;
+}
+
+.sidebar.collapsed .sidebar-menu-text {
+  display: none;
 }
 
 .sidebar.collapsed .sidebar-header {
@@ -5854,7 +5869,7 @@ i:hover {
     z-index: 1200;
     box-shadow: 24px 0 48px rgba(15, 23, 42, 0.4);
     overflow-y: auto;
-    padding: 0 20px 32px;
+    padding: 0 20px 36px;
   }
 
   .sidebar.open {
@@ -5873,6 +5888,10 @@ i:hover {
 
   .sidebar.collapsed .sidebar-menu-toggle {
     justify-content: flex-start;
+  }
+
+  .sidebar-menu-text {
+    display: none;
   }
 
   .sidebar.collapsed button.sidebar-link {

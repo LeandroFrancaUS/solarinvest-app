@@ -2303,6 +2303,9 @@ export default function App() {
     }
 
     const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
+    if (storedPage === 'dashboard') {
+      return 'app'
+    }
     const isKnownPage =
       storedPage === 'dashboard' ||
       storedPage === 'app' ||
@@ -15369,7 +15372,7 @@ export default function App() {
   const contentActions = activePage === 'crm' ? crmPageActions : null
   const contentSubtitle =
     activePage === 'dashboard'
-      ? 'Painel financeiro e operacional SolarInvest'
+      ? undefined
       : activePage === 'crm'
         ? 'CRM Gestão de Relacionamento e Operações'
         : activePage === 'consultar'
@@ -16481,12 +16484,11 @@ export default function App() {
           onToggleCollapse: handleSidebarMenuToggle,
           menuButtonLabel: isMobileViewport
             ? isSidebarMobileOpen
-              ? 'Fechar menu de navegação'
-              : 'Abrir menu de navegação'
-            : isSidebarCollapsed
-              ? 'Expandir menu lateral'
-              : 'Recolher menu lateral',
+              ? 'Fechar menu Painel SolarInvest'
+              : 'Abrir menu Painel SolarInvest'
+            : 'Painel SolarInvest',
           menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
+          menuButtonText: 'Painel SolarInvest',
         }}
         content={{
           subtitle: contentSubtitle,
@@ -16496,7 +16498,9 @@ export default function App() {
           isMobileViewport
             ? {
                 onToggle: handleSidebarMenuToggle,
-                label: isSidebarMobileOpen ? 'Fechar menu de navegação' : 'Abrir menu de navegação',
+                label: isSidebarMobileOpen
+                  ? 'Fechar menu Painel SolarInvest'
+                  : 'Abrir menu Painel SolarInvest',
                 expanded: isSidebarMobileOpen,
               }
             : undefined
