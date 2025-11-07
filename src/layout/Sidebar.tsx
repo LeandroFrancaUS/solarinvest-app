@@ -201,6 +201,17 @@ export function Sidebar({
     )
   }
 
+  const firstGroup = groups[0]
+  const lastGroup = groups.length > 1 ? groups[groups.length - 1] : undefined
+  const middleGroups = groups.slice(firstGroup ? 1 : 0, lastGroup ? -1 : groups.length)
+
+  const renderGroup = (group: SidebarGroup) => (
+    <div key={group.id} className="sidebar-group">
+      <div className="group">{group.label}</div>
+      <div className="sidebar-group-items">{group.items.map((item) => renderItem(item, 0))}</div>
+    </div>
+  )
+
   return (
     <aside className={classes.join(' ')} aria-label="Navegação principal">
       <div className="sidebar-header">
@@ -223,12 +234,13 @@ export function Sidebar({
         ) : null}
       </div>
       <nav>
-        {groups.map((group) => (
-          <div key={group.id} className="sidebar-group">
-            <div className="group">{group.label}</div>
-            <div className="sidebar-group-items">{group.items.map((item) => renderItem(item, 0))}</div>
+        {firstGroup ? <div className="sidebar-section sidebar-section-top">{renderGroup(firstGroup)}</div> : null}
+        {middleGroups.length > 0 ? (
+          <div className="sidebar-section sidebar-section-scroll">
+            {middleGroups.map((group) => renderGroup(group))}
           </div>
-        ))}
+        ) : null}
+        {lastGroup ? <div className="sidebar-section sidebar-section-bottom">{renderGroup(lastGroup)}</div> : null}
       </nav>
     </aside>
   )

@@ -199,7 +199,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'app' | 'crm' | 'consultar' | 'settings'
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'settings'
 
 const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -2299,13 +2299,18 @@ export default function App() {
   const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
   const [activePage, setActivePage] = useState<ActivePage>(() => {
     if (typeof window === 'undefined') {
-      return 'app'
+      return 'dashboard'
     }
 
     const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
-    return storedPage === 'app' || storedPage === 'crm' || storedPage === 'consultar' || storedPage === 'settings'
-      ? (storedPage as ActivePage)
-      : 'app'
+    const isKnownPage =
+      storedPage === 'dashboard' ||
+      storedPage === 'app' ||
+      storedPage === 'crm' ||
+      storedPage === 'consultar' ||
+      storedPage === 'settings'
+
+    return isKnownPage ? (storedPage as ActivePage) : 'dashboard'
   })
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window === 'undefined') {
@@ -2320,9 +2325,9 @@ export default function App() {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
-  const lastPrimaryPageRef = useRef<'app' | 'crm'>('app')
+  const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm'>('dashboard')
   useEffect(() => {
-    if (activePage === 'app' || activePage === 'crm') {
+    if (activePage === 'dashboard' || activePage === 'app' || activePage === 'crm') {
       lastPrimaryPageRef.current = activePage
     }
   }, [activePage])
@@ -9685,6 +9690,10 @@ export default function App() {
     }
   }, [carregarClientesSalvos])
 
+  useEffect(() => {
+    setOrcamentosSalvos(carregarOrcamentosSalvos())
+  }, [carregarOrcamentosSalvos])
+
   const getCurrentSnapshot = (): OrcamentoSnapshotData => {
     const vendasConfigState = useVendasConfigStore.getState()
     const vendasSimState = useVendasSimulacoesStore.getState()
@@ -15183,18 +15192,208 @@ export default function App() {
     </div>
   )
 
+  const renderDashboardPage = () => {
+    const leadsAtivos = Math.max(0, crmKpis.totalLeads - crmKpis.leadsFechados)
+    const receitaProjetadaLeasing = crmFinanceiroResumo.previsaoLeasing
+    const receitaProjetadaVendas = crmFinanceiroResumo.previsaoVendas
+    const proximasVisitas = crmPosVendaResumo.proximas.slice(0, 3)
+    const alertasCriticos = crmPosVendaResumo.alertasCriticos.slice(0, 2)
+    const chamadosRecentes = crmPosVendaResumo.chamadosRecentes.slice(0, 4)
+    const margensDestaque = crmFinanceiroResumo.margens.slice(0, 4)
+
+    const formatLeadNome = (leadId: string) => {
+      const lead = crmDataset.leads.find((item) => item.id === leadId)
+      return lead?.nome ?? 'Lead não identificado'
+    }
+
+    return (
+      <div className="dashboard-page">
+        <section className="card dashboard-panel dashboard-kpi-card">
+          <div className="card-header">
+            <h2>Resumo geral</h2>
+            <p>Indicadores consolidados de propostas, CRM e finanças da SolarInvest.</p>
+          </div>
+          <div className="kpi-grid dashboard-kpis">
+            <div className="kpi">
+              <span>Leads ativos</span>
+              <strong>{formatNumberBRWithOptions(leadsAtivos, { maximumFractionDigits: 0 })}</strong>
+            </div>
+            <div className="kpi">
+              <span>Leads fechados</span>
+              <strong>{formatNumberBRWithOptions(crmKpis.leadsFechados, { maximumFractionDigits: 0 })}</strong>
+            </div>
+            <div className="kpi">
+              <span>Orçamentos salvos</span>
+              <strong>{formatNumberBRWithOptions(totalOrcamentos, { maximumFractionDigits: 0 })}</strong>
+            </div>
+            <div className="kpi kpi-highlight">
+              <span>Saldo em caixa</span>
+              <strong>{currency(crmFinanceiroResumo.saldo)}</strong>
+            </div>
+            <div className="kpi">
+              <span>Receita recorrente (leasing)</span>
+              <strong>{currency(receitaProjetadaLeasing)}</strong>
+            </div>
+            <div className="kpi">
+              <span>Receita pontual (vendas)</span>
+              <strong>{currency(receitaProjetadaVendas)}</strong>
+            </div>
+          </div>
+        </section>
+
+        <div className="dashboard-panels">
+          <section className="card dashboard-panel">
+            <div className="card-header">
+              <h3>Próximas manutenções</h3>
+              <p>Visitas técnicas e acompanhamentos previstos para os próximos dias.</p>
+            </div>
+            <ul className="dashboard-list">
+              {proximasVisitas.length > 0 ? (
+                proximasVisitas.map((item) => (
+                  <li key={item.id}>
+                    <div>
+                      <strong>{formatarDataCurta(item.dataIso)}</strong>
+                      <span>{item.tipo}</span>
+                    </div>
+                    <span className="dashboard-list-subtitle">{formatLeadNome(item.leadId)}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="dashboard-empty">Nenhuma manutenção pendente.</li>
+              )}
+            </ul>
+            {alertasCriticos.length > 0 ? (
+              <div className="dashboard-alerts" role="status">
+                {alertasCriticos.map((alerta, index) => (
+                  <span key={index}>{alerta}</span>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
+          <section className="card dashboard-panel">
+            <div className="card-header">
+              <h3>Atividades recentes</h3>
+              <p>Últimas anotações registradas pela equipe comercial.</p>
+            </div>
+            <ul className="dashboard-list">
+              {chamadosRecentes.length > 0 ? (
+                chamadosRecentes.map((item) => (
+                  <li key={item.id}>
+                    <div>
+                      <strong>{item.dataFormatada}</strong>
+                      <span>{item.mensagem}</span>
+                    </div>
+                    <span className="dashboard-list-subtitle">{formatLeadNome(item.leadId)}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="dashboard-empty">Nenhuma atividade registrada nesta semana.</li>
+              )}
+            </ul>
+          </section>
+        </div>
+
+        <section className="card dashboard-panel">
+          <div className="card-header">
+            <h3>Indicadores financeiros</h3>
+            <p>Visão rápida do fluxo de caixa e contratos acompanhados.</p>
+          </div>
+          <dl className="dashboard-metrics">
+            <div>
+              <dt>Entradas acumuladas</dt>
+              <dd>{currency(crmFinanceiroResumo.entradas)}</dd>
+            </div>
+            <div>
+              <dt>Saídas acumuladas</dt>
+              <dd>{currency(crmFinanceiroResumo.saidas)}</dd>
+            </div>
+            <div>
+              <dt>Contratos ativos</dt>
+              <dd>{formatNumberBRWithOptions(crmFinanceiroResumo.contratosAtivos, { maximumFractionDigits: 0 })}</dd>
+            </div>
+            <div>
+              <dt>Contratos inadimplentes</dt>
+              <dd>{formatNumberBRWithOptions(crmFinanceiroResumo.inadimplentes, { maximumFractionDigits: 0 })}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="card dashboard-panel">
+          <div className="card-header">
+            <h3>Margens por cliente</h3>
+            <p>Projetos com maior potencial de retorno financeiro.</p>
+          </div>
+          <div className="dashboard-table-wrapper">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th scope="col">Cliente</th>
+                  <th scope="col">Modelo</th>
+                  <th scope="col">Margem</th>
+                  <th scope="col">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {margensDestaque.length > 0 ? (
+                  margensDestaque.map((item) => (
+                    <tr key={item.leadId}>
+                      <td>{formatLeadNome(item.leadId)}</td>
+                      <td>{item.modelo === 'LEASING' ? 'Leasing' : 'Venda direta'}</td>
+                      <td>{currency(item.margemBruta)}</td>
+                      <td>
+                        {typeof item.roi === 'number'
+                          ? `${formatNumberBRWithOptions(item.roi * 100, {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 1,
+                            })}%`
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="dashboard-empty" colSpan={4}>
+                      Nenhuma margem calculada até o momento.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   const contentActions = activePage === 'crm' ? crmPageActions : null
   const contentSubtitle =
-    activePage === 'crm'
-      ? 'CRM Gestão de Relacionamento e Operações'
-      : activePage === 'consultar'
-        ? 'Consulta de orçamentos salvos'
-        : activePage === 'settings'
-          ? 'Preferências e integrações da proposta'
-          : undefined
+    activePage === 'dashboard'
+      ? 'Painel financeiro e operacional SolarInvest'
+      : activePage === 'crm'
+        ? 'CRM Gestão de Relacionamento e Operações'
+        : activePage === 'consultar'
+          ? 'Consulta de orçamentos salvos'
+          : activePage === 'settings'
+            ? 'Preferências e integrações da proposta'
+            : undefined
   const topbarSubtitle = contentSubtitle
 
   const sidebarGroups: SidebarGroup[] = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      items: [
+        {
+          id: 'dashboard-home',
+          label: 'Dashboard',
+          icon: '📊',
+          onSelect: () => {
+            setActivePage('dashboard')
+          },
+        },
+      ],
+    },
     {
       id: 'propostas',
       label: 'Propostas',
@@ -16253,15 +16452,17 @@ export default function App() {
   )
 
   const activeSidebarItem =
-    activePage === 'crm'
-      ? 'crm-central'
-      : activePage === 'consultar'
-        ? 'orcamentos-importar'
-        : activePage === 'settings'
-          ? 'config-preferencias'
-          : activeTab === 'vendas'
-            ? 'propostas-vendas'
-            : 'propostas-leasing'
+    activePage === 'dashboard'
+      ? 'dashboard-home'
+      : activePage === 'crm'
+        ? 'crm-central'
+        : activePage === 'consultar'
+          ? 'orcamentos-importar'
+          : activePage === 'settings'
+            ? 'config-preferencias'
+            : activeTab === 'vendas'
+              ? 'propostas-vendas'
+              : 'propostas-leasing'
 
 
   return (
@@ -16304,7 +16505,9 @@ export default function App() {
         <React.Suspense fallback={null}>
           <PrintableProposal ref={printableRef} {...printableData} />
         </React.Suspense>
-        {activePage === 'crm' ? (
+        {activePage === 'dashboard' ? (
+          renderDashboardPage()
+        ) : activePage === 'crm' ? (
           renderCrmPage()
         ) : activePage === 'consultar' ? (
           renderBudgetSearchPage()
