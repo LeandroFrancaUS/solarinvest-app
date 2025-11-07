@@ -2299,7 +2299,7 @@ export default function App() {
   const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
   const [activePage, setActivePage] = useState<ActivePage>(() => {
     if (typeof window === 'undefined') {
-      return 'dashboard'
+      return 'app'
     }
 
     const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
@@ -2310,7 +2310,7 @@ export default function App() {
       storedPage === 'consultar' ||
       storedPage === 'settings'
 
-    return isKnownPage ? (storedPage as ActivePage) : 'dashboard'
+    return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window === 'undefined') {
@@ -2325,7 +2325,7 @@ export default function App() {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
-  const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm'>('dashboard')
+  const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm'>('app')
   useEffect(() => {
     if (activePage === 'dashboard' || activePage === 'app' || activePage === 'crm') {
       lastPrimaryPageRef.current = activePage

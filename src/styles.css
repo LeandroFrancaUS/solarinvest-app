@@ -5336,16 +5336,14 @@ i:hover {
 .sidebar-menu-toggle {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  width: 100%;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.32);
   background: rgba(15, 23, 42, 0.58);
   color: rgba(226, 232, 240, 0.86);
-  padding: 12px 16px;
-  font-size: 13px;
-  font-weight: 500;
+  padding: 0;
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, color 0.2s ease;
 }
@@ -5377,10 +5375,6 @@ i:hover {
   height: 2px;
   border-radius: 999px;
   background: currentColor;
-}
-
-.sidebar-menu-text {
-  letter-spacing: 0.3px;
 }
 
 .sidebar nav {
@@ -5603,10 +5597,6 @@ i:hover {
   display: none;
 }
 
-.sidebar.collapsed .sidebar-menu-text {
-  display: none;
-}
-
 .sidebar.collapsed .sidebar-menu-toggle {
   justify-content: center;
   padding: 12px 10px;
@@ -5697,6 +5687,10 @@ i:hover {
   gap: 24px;
 }
 
+.dashboard-page > * {
+  max-width: 100%;
+}
+
 .dashboard-panel .card-header h3 {
   margin: 0;
   font-size: 18px;
@@ -5714,12 +5708,12 @@ i:hover {
 }
 
 .dashboard-kpis {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
 }
 
 .dashboard-panels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 20px;
 }
 
@@ -5772,7 +5766,7 @@ i:hover {
 
 .dashboard-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 16px;
   margin: 0;
 }
@@ -5875,10 +5869,6 @@ i:hover {
   .sidebar.collapsed .sidebar-chevron,
   .sidebar.collapsed .group {
     display: block;
-  }
-
-  .sidebar.collapsed .sidebar-menu-text {
-    display: inline;
   }
 
   .sidebar.collapsed .sidebar-menu-toggle {

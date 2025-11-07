@@ -229,7 +229,6 @@ export function Sidebar({
               <span />
               <span />
             </span>
-            {!collapsed ? <span className="sidebar-menu-text">Dashboard</span> : null}
           </button>
         ) : null}
       </div>
