@@ -48,6 +48,10 @@
   --radius: 18px;
   --font-s: 13px;
   --font-m: 15px;
+
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-inline: calc(var(--safe-area-left) + var(--safe-area-right));
 }
 
 :root[data-theme='light'] {
@@ -5420,8 +5424,8 @@ i:hover {
   justify-content: space-between;
   gap: clamp(12px, 3vw, 28px);
   padding-block: 0;
-  padding-inline-start: calc(max(env(safe-area-inset-left), 0px) + 20px);
-  padding-inline-end: clamp(20px, 4vw, 36px);
+  padding-inline-start: clamp(20px, calc(4vw + var(--safe-area-left)), 36px);
+  padding-inline-end: clamp(20px, calc(4vw + var(--safe-area-right)), 36px);
   min-height: var(--header-h);
   flex-wrap: wrap;
   width: 100%;
@@ -5921,9 +5925,14 @@ i:hover {
 }
 
 .content-wrap {
-  padding: 24px clamp(28px, 6vw, 52px) 72px;
+  padding-block-start: 24px;
+  padding-block-end: 72px;
+  padding-inline-start: clamp(20px, calc(6vw + var(--safe-area-left)), 52px);
+  padding-inline-end: clamp(20px, calc(6vw + var(--safe-area-right)), 52px);
   max-width: 1320px;
+  max-width: min(1320px, calc(100vw - var(--safe-area-inline)));
   width: 100%;
+  width: min(100%, calc(100vw - var(--safe-area-inline)));
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -6205,10 +6214,15 @@ i:hover {
   }
 
   .content-wrap {
-    padding: 24px 20px 64px;
+    padding-block: 20px 64px;
+    padding-inline-start: clamp(16px, calc(5vw + var(--safe-area-left)), 28px);
+    padding-inline-end: clamp(16px, calc(5vw + var(--safe-area-right)), 28px);
     height: auto;
     overflow: visible;
     max-width: 100%;
+    width: 100%;
+    width: min(100%, calc(100vw - var(--safe-area-inline)));
+    margin-inline: auto;
   }
 
   .page-indicator {
@@ -6252,7 +6266,7 @@ i:hover {
 .sidebar-floating-toggle {
   position: fixed;
   top: calc(var(--header-h) + 16px);
-  left: clamp(16px, 6vw, 28px);
+  left: clamp(16px, calc(6vw + var(--safe-area-left)), 28px);
   width: 46px;
   height: 46px;
   border-radius: 14px;
