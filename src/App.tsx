@@ -12013,10 +12013,29 @@ export default function App() {
   const totalResultados = orcamentosFiltrados.length
 
   const carregarOrcamentoSalvo = useCallback(
-    (registro: OrcamentoSalvo) => {
+    async (registro: OrcamentoSalvo) => {
+      if (hasUnsavedChanges()) {
+        const confirmarSalvar = window.confirm(
+          'Existem alterações não salvas. Deseja salvar a proposta antes de carregar outro orçamento?',
+        )
+        if (confirmarSalvar) {
+          const salvou = await handleSalvarPropostaPdf()
+          if (!salvou) {
+            return
+          }
+        } else {
+          const confirmarDescartar = window.confirm(
+            'Deseja descartar as alterações atuais e carregar o orçamento selecionado?',
+          )
+          if (!confirmarDescartar) {
+            return
+          }
+        }
+      }
+
       carregarOrcamentoParaEdicao(registro)
     },
-    [carregarOrcamentoParaEdicao],
+    [carregarOrcamentoParaEdicao, handleSalvarPropostaPdf, hasUnsavedChanges],
   )
 
   const abrirPesquisaOrcamentos = () => {
