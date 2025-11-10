@@ -2653,8 +2653,9 @@ export default function App() {
     setOrcamentoDisponivelParaDuplicar(null)
   }, [])
   const scheduleMarkStateAsSaved = useCallback(() => {
+    lastSavedSignatureRef.current = computeSignatureRef.current()
+
     if (typeof window === 'undefined') {
-      lastSavedSignatureRef.current = computeSignatureRef.current()
       return
     }
 
@@ -11273,23 +11274,24 @@ export default function App() {
     selectedContractTemplates,
   ])
 
-  const handleSalvarPropostaPdf = useCallback(async () => {
+  const handleSalvarPropostaPdf = useCallback(async (): Promise<boolean> => {
     if (salvandoPropostaPdf) {
-      return
+      return false
     }
 
     if (!validarCamposObrigatorios('salvar a proposta')) {
-      return
+      return false
     }
 
     if (!clienteEmEdicaoId) {
       window.alert('Salve os dados do cliente antes de salvar o orçamento.')
-      return
+      return false
     }
 
     setSalvandoPropostaPdf(true)
 
     let salvouLocalmente = false
+    let sucesso = false
 
     try {
       const resultado = await prepararPropostaParaExportacao({
@@ -11298,13 +11300,13 @@ export default function App() {
 
       if (!resultado) {
         window.alert('Não foi possível preparar a proposta para salvar em PDF. Tente novamente.')
-        return
+        return false
       }
 
       const { html, dados } = resultado
       const registroSalvo = salvarOrcamentoLocalmente(dados)
       if (!registroSalvo) {
-        return
+        return false
       }
 
       salvouLocalmente = true
@@ -11335,16 +11337,15 @@ export default function App() {
 
       const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
 
-        const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
-        setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
-        if (!integracaoPdfDisponivel) {
-          adicionarNotificacao(
-            'Proposta armazenada localmente. Configure a integração de PDF para gerar o arquivo automaticamente.',
-            'info',
-          )
-          return
-        }
-
+      const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
+      setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
+      if (!integracaoPdfDisponivel) {
+        adicionarNotificacao(
+          'Proposta armazenada localmente. Configure a integração de PDF para gerar o arquivo automaticamente.',
+          'info',
+        )
+        sucesso = true
+      } else {
         await persistProposalPdf({
           html: htmlComCodigo,
           budgetId: registroSalvo.id,
@@ -11356,42 +11357,48 @@ export default function App() {
           ? 'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.'
           : 'Proposta salva em PDF com sucesso.'
         adicionarNotificacao(mensagemSucesso, 'success')
-      } catch (error) {
-        if (error instanceof ProposalPdfIntegrationMissingError) {
-          setProposalPdfIntegrationAvailable(false)
-          adicionarNotificacao(
-            'Proposta armazenada localmente, mas a integração de PDF não está configurada.',
-            'info',
-          )
-        } else {
-          console.error('Erro ao salvar a proposta em PDF.', error)
-          const mensagem =
-            error instanceof Error && error.message
-              ? error.message
-              : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
-          const mensagemComFallback = salvouLocalmente
-            ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
-            : mensagem
-          adicionarNotificacao(mensagemComFallback, 'error')
-        }
-      } finally {
-        setSalvandoPropostaPdf(false)
+        sucesso = true
       }
-    }, [
-      activeTab,
-      adicionarNotificacao,
-      clienteEmEdicaoId,
-      currentBudgetId,
-      isProposalPdfIntegrationAvailable,
-      isVendaDiretaTab,
-      prepararPropostaParaExportacao,
-      renameVendasSimulacao,
-      salvarOrcamentoLocalmente,
-      salvandoPropostaPdf,
-      atualizarOrcamentoAtivo,
-      setProposalPdfIntegrationAvailable,
-      validarCamposObrigatorios,
-    ])
+    } catch (error) {
+      if (error instanceof ProposalPdfIntegrationMissingError) {
+        setProposalPdfIntegrationAvailable(false)
+        adicionarNotificacao(
+          'Proposta armazenada localmente, mas a integração de PDF não está configurada.',
+          'info',
+        )
+        sucesso = salvouLocalmente
+      } else {
+        console.error('Erro ao salvar a proposta em PDF.', error)
+        const mensagem =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
+        const mensagemComFallback = salvouLocalmente
+          ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
+          : mensagem
+        adicionarNotificacao(mensagemComFallback, 'error')
+        sucesso = salvouLocalmente
+      }
+    } finally {
+      setSalvandoPropostaPdf(false)
+    }
+
+    return sucesso
+  }, [
+    activeTab,
+    adicionarNotificacao,
+    clienteEmEdicaoId,
+    currentBudgetId,
+    isProposalPdfIntegrationAvailable,
+    isVendaDiretaTab,
+    prepararPropostaParaExportacao,
+    renameVendasSimulacao,
+    salvarOrcamentoLocalmente,
+    salvandoPropostaPdf,
+    atualizarOrcamentoAtivo,
+    setProposalPdfIntegrationAvailable,
+    validarCamposObrigatorios,
+  ])
 
   const handleNovaProposta = useCallback(async () => {
     if (hasUnsavedChanges()) {
@@ -11399,15 +11406,17 @@ export default function App() {
         'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
       )
       if (confirmarSalvar) {
-        await handleSalvarPropostaPdf()
-        return
-      }
-
-      const confirmarDescartar = window.confirm(
-        'Deseja descartar as alterações atuais e iniciar uma nova proposta?',
-      )
-      if (!confirmarDescartar) {
-        return
+        const salvou = await handleSalvarPropostaPdf()
+        if (!salvou) {
+          return
+        }
+      } else {
+        const confirmarDescartar = window.confirm(
+          'Deseja descartar as alterações atuais e iniciar uma nova proposta?',
+        )
+        if (!confirmarDescartar) {
+          return
+        }
       }
     }
 
