@@ -841,6 +841,81 @@ const generateBudgetId = (
 
 const createDraftBudgetId = () => `DRAFT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
 
+const isQuotaExceededError = (error: unknown) => {
+  if (!error) {
+    return false
+  }
+
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    return (
+      error.name === 'QuotaExceededError' ||
+      error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      error.code === 22 ||
+      error.code === 1014
+    )
+  }
+
+  if (error instanceof Error) {
+    return /quota|storage/i.test(error.message)
+  }
+
+  return false
+}
+
+const persistBudgetsToLocalStorage = (
+  registros: OrcamentoSalvo[],
+): { persisted: OrcamentoSalvo[]; pruned: OrcamentoSalvo[] } => {
+  if (typeof window === 'undefined') {
+    return { persisted: registros, pruned: [] }
+  }
+
+  if (registros.length === 0) {
+    window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
+    return { persisted: [], pruned: [] }
+  }
+
+  const working = [...registros]
+  const pruned: OrcamentoSalvo[] = []
+  let lastError: unknown = null
+
+  while (working.length > 0) {
+    try {
+      window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(working))
+      return { persisted: working, pruned }
+    } catch (error) {
+      lastError = error
+      if (!isQuotaExceededError(error)) {
+        throw error
+      }
+
+      const removed = working.pop()
+      if (!removed) {
+        break
+      }
+      pruned.push(removed)
+    }
+  }
+
+  if (lastError) {
+    throw lastError
+  }
+
+  throw new Error('Falha ao salvar orçamentos no armazenamento local.')
+}
+
+const alertPrunedBudgets = (pruned: OrcamentoSalvo[]) => {
+  if (typeof window === 'undefined' || pruned.length === 0) {
+    return
+  }
+
+  const mensagem =
+    pruned.length === 1
+      ? 'O armazenamento local estava cheio. O orçamento mais antigo foi removido para salvar a versão atual.'
+      : `O armazenamento local estava cheio. ${pruned.length} orçamentos antigos foram removidos para salvar a versão atual.`
+
+  window.alert(mensagem)
+}
+
 const createPrintableImageId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `imagem-${crypto.randomUUID()}`
@@ -2558,25 +2633,37 @@ export default function App() {
       }
     | null
   >(null)
-  const [orcamentoCarregado, setOrcamentoCarregado] = useState<PrintableProposalProps | null>(null)
+  const [orcamentoAtivoInfo, setOrcamentoAtivoInfo] = useState<
+    | {
+        id: string
+        cliente: string
+      }
+    | null
+  >(null)
+  const [orcamentoRegistroBase, setOrcamentoRegistroBase] = useState<OrcamentoSalvo | null>(null)
   const [orcamentoDisponivelParaDuplicar, setOrcamentoDisponivelParaDuplicar] =
     useState<OrcamentoSalvo | null>(null)
-  const [orcamentoCarregadoInfo, setOrcamentoCarregadoInfo] = useState<
-      | {
-          id: string
-          cliente: string
-        }
-      | null
-  >(null)
-  const [orcamentoCarregadoRegistro, setOrcamentoCarregadoRegistro] = useState<OrcamentoSalvo | null>(null)
   const [propostaImagens, setPropostaImagens] = useState<PrintableProposalImage[]>([])
-  const limparOrcamentoCarregado = useCallback(() => {
-    setOrcamentoCarregado(null)
-    setOrcamentoCarregadoInfo(null)
-    setOrcamentoCarregadoRegistro(null)
+  const lastSavedSignatureRef = useRef<string | null>(null)
+  const computeSignatureRef = useRef<() => string>(() => '')
+  const initialSignatureSetRef = useRef(false)
+  const limparOrcamentoAtivo = useCallback(() => {
+    setOrcamentoAtivoInfo(null)
+    setOrcamentoRegistroBase(null)
     setOrcamentoDisponivelParaDuplicar(null)
   }, [])
-  const entrarModoSomenteLeitura = useCallback(
+  const scheduleMarkStateAsSaved = useCallback(() => {
+    lastSavedSignatureRef.current = computeSignatureRef.current()
+
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.setTimeout(() => {
+      lastSavedSignatureRef.current = computeSignatureRef.current()
+    }, 0)
+  }, [])
+  const atualizarOrcamentoAtivo = useCallback(
     (registro: OrcamentoSalvo) => {
       const dadosClonados = clonePrintableData(registro.dados)
       const clienteNome =
@@ -2587,24 +2674,18 @@ export default function App() {
       const idNormalizado = normalizeProposalId(dadosClonados.budgetId ?? registro.id)
       const idParaExibir = idNormalizado || registro.id
 
-      setOrcamentoCarregado(dadosClonados)
-      setOrcamentoCarregadoInfo({
+      setOrcamentoAtivoInfo({
         id: idParaExibir,
         cliente: clienteNome,
       })
-      setOrcamentoCarregadoRegistro(cloneOrcamentoSalvo(registro))
-      setOrcamentoDisponivelParaDuplicar(cloneOrcamentoSalvo(registro))
-      setActivePage('app')
+      const registroClonado = cloneOrcamentoSalvo(registro)
+      setOrcamentoRegistroBase(registroClonado)
+      setOrcamentoDisponivelParaDuplicar(registroClonado)
       setOrcamentoVisualizado(null)
       setOrcamentoVisualizadoInfo(null)
-
-      if (dadosClonados.tipoProposta === 'VENDA_DIRETA') {
-        setActiveTab('vendas')
-      } else {
-        setActiveTab('leasing')
-      }
+      scheduleMarkStateAsSaved()
     },
-    [setActiveTab],
+    [scheduleMarkStateAsSaved],
   )
 
   const [oneDriveIntegrationAvailable, setOneDriveIntegrationAvailable] = useState(() =>
@@ -3399,19 +3480,6 @@ export default function App() {
       prev === snapshot.tipoInstalacaoDirty ? prev : snapshot.tipoInstalacaoDirty,
     )
   }, [activeTab, pageSharedState])
-
-  useEffect(() => {
-    const node = editableContentRef.current
-    if (!node) {
-      return
-    }
-
-    if (orcamentoCarregado) {
-      node.setAttribute('inert', '')
-    } else {
-      node.removeAttribute('inert')
-    }
-  }, [orcamentoCarregado])
 
   const [cliente, setCliente] = useState<ClienteDados>(() => cloneClienteDados(CLIENTE_INICIAL))
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
@@ -10209,10 +10277,31 @@ export default function App() {
     })
     leasingActions.update(snapshot.leasingSnapshot)
 
-    if (options?.budgetIdOverride) {
-      vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
-    }
+  if (options?.budgetIdOverride) {
+    vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
   }
+}
+
+  const carregarOrcamentoParaEdicao = useCallback(
+    (registro: OrcamentoSalvo) => {
+      if (!registro.snapshot) {
+        window.alert(
+          'Este orçamento foi salvo sem histórico completo. Visualize o PDF ou salve novamente para gerar uma cópia editável.',
+        )
+        return
+      }
+
+      aplicarSnapshot(registro.snapshot)
+      setActivePage('app')
+      atualizarOrcamentoAtivo(registro)
+      adicionarNotificacao(
+        'Orçamento carregado para edição. Salve novamente para preservar as alterações.',
+        'info',
+      )
+    },
+    [adicionarNotificacao, aplicarSnapshot, atualizarOrcamentoAtivo, setActivePage],
+  )
+
   const salvarOrcamentoLocalmente = useCallback(
     (dados: PrintableProposalProps): OrcamentoSalvo | null => {
       if (typeof window === 'undefined') {
@@ -10231,6 +10320,10 @@ export default function App() {
 
         if (registroExistenteIndex >= 0) {
           const existente = registrosExistentes[registroExistenteIndex]
+          if (!existente) {
+            console.error('Orçamento salvo não encontrado para atualização.')
+            return null
+          }
           const snapshotAtualizado = cloneSnapshotData(snapshotAtual)
           snapshotAtualizado.currentBudgetId = existente.id
           if (snapshotAtualizado.vendaSnapshot.codigos) {
@@ -10251,11 +10344,14 @@ export default function App() {
             snapshot: snapshotAtualizado,
           }
 
-          const registrosAtualizados = [...registrosExistentes]
-          registrosAtualizados[registroExistenteIndex] = registroAtualizado
-          window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
-          setOrcamentosSalvos(registrosAtualizados)
-          return registroAtualizado
+          const registrosAtualizados = [
+            registroAtualizado,
+            ...registrosExistentes.filter((_, index) => index !== registroExistenteIndex),
+          ]
+          const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
+          setOrcamentosSalvos(persisted)
+          alertPrunedBudgets(pruned)
+          return persisted.find((registro) => registro.id === registroAtualizado.id) ?? registroAtualizado
         }
 
         const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
@@ -10288,9 +10384,10 @@ export default function App() {
 
         existingIds.add(registro.id)
         const registrosAtualizados = [registro, ...registrosExistentes]
-        window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
-        setOrcamentosSalvos(registrosAtualizados)
-        return registro
+        const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
+        setOrcamentosSalvos(persisted)
+        alertPrunedBudgets(pruned)
+        return persisted.find((item) => item.id === registro.id) ?? registro
       } catch (error) {
         console.error('Erro ao salvar orçamento localmente.', error)
         window.alert('Não foi possível salvar o orçamento. Tente novamente.')
@@ -10299,6 +10396,49 @@ export default function App() {
     },
     [carregarOrcamentosSalvos, clienteEmEdicaoId],
   )
+
+  useEffect(() => {
+    computeSignatureRef.current = () => {
+      const snapshot = getCurrentSnapshot()
+      const dadosAtuais = clonePrintableData(printableData)
+      return stableStringify({ snapshot, dados: dadosAtuais })
+    }
+  })
+
+  useEffect(() => {
+    if (initialSignatureSetRef.current) {
+      return
+    }
+
+    initialSignatureSetRef.current = true
+    lastSavedSignatureRef.current = computeSignatureRef.current()
+  })
+
+  const hasUnsavedChanges = useCallback(() => {
+    if (lastSavedSignatureRef.current == null) {
+      return initialSignatureSetRef.current
+    }
+
+    return computeSignatureRef.current() !== lastSavedSignatureRef.current
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges()) {
+        return
+      }
+
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   const removerOrcamentoSalvo = useCallback(
     (id: string) => {
@@ -10310,18 +10450,13 @@ export default function App() {
         const registrosAtualizados = prevRegistros.filter((registro) => registro.id !== id)
 
         try {
-          if (registrosAtualizados.length > 0) {
-            window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
-          } else {
-            window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
-          }
+          const { persisted } = persistBudgetsToLocalStorage(registrosAtualizados)
+          return persisted
         } catch (error) {
           console.error('Erro ao atualizar os orçamentos salvos.', error)
           window.alert('Não foi possível atualizar os orçamentos salvos. Tente novamente.')
           return prevRegistros
         }
-
-        return registrosAtualizados
       })
     },
     [setOrcamentosSalvos],
@@ -10546,7 +10681,7 @@ export default function App() {
           data_emissao: emissaoIso,
         })
 
-        entrarModoSomenteLeitura(registro)
+        atualizarOrcamentoAtivo(registro)
 
         let htmlAtualizado = previewData.html
         try {
@@ -10618,7 +10753,7 @@ export default function App() {
         adicionarNotificacao,
         clienteEmEdicaoId,
         currentBudgetId,
-        entrarModoSomenteLeitura,
+        atualizarOrcamentoAtivo,
         isProposalPdfIntegrationAvailable,
         renameVendasSimulacao,
         salvarOrcamentoLocalmente,
@@ -11139,23 +11274,24 @@ export default function App() {
     selectedContractTemplates,
   ])
 
-  const handleSalvarPropostaPdf = useCallback(async () => {
+  const handleSalvarPropostaPdf = useCallback(async (): Promise<boolean> => {
     if (salvandoPropostaPdf) {
-      return
+      return false
     }
 
     if (!validarCamposObrigatorios('salvar a proposta')) {
-      return
+      return false
     }
 
     if (!clienteEmEdicaoId) {
       window.alert('Salve os dados do cliente antes de salvar o orçamento.')
-      return
+      return false
     }
 
     setSalvandoPropostaPdf(true)
 
     let salvouLocalmente = false
+    let sucesso = false
 
     try {
       const resultado = await prepararPropostaParaExportacao({
@@ -11164,13 +11300,13 @@ export default function App() {
 
       if (!resultado) {
         window.alert('Não foi possível preparar a proposta para salvar em PDF. Tente novamente.')
-        return
+        return false
       }
 
       const { html, dados } = resultado
       const registroSalvo = salvarOrcamentoLocalmente(dados)
       if (!registroSalvo) {
-        return
+        return false
       }
 
       salvouLocalmente = true
@@ -11187,7 +11323,7 @@ export default function App() {
         data_emissao: emissaoIso,
       })
 
-      entrarModoSomenteLeitura(registroSalvo)
+      atualizarOrcamentoAtivo(registroSalvo)
 
       let htmlComCodigo = html
       try {
@@ -11201,16 +11337,15 @@ export default function App() {
 
       const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
 
-        const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
-        setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
-        if (!integracaoPdfDisponivel) {
-          adicionarNotificacao(
-            'Proposta armazenada localmente. Configure a integração de PDF para gerar o arquivo automaticamente.',
-            'info',
-          )
-          return
-        }
-
+      const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
+      setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
+      if (!integracaoPdfDisponivel) {
+        adicionarNotificacao(
+          'Proposta armazenada localmente. Configure a integração de PDF para gerar o arquivo automaticamente.',
+          'info',
+        )
+        sucesso = true
+      } else {
         await persistProposalPdf({
           html: htmlComCodigo,
           budgetId: registroSalvo.id,
@@ -11222,48 +11357,73 @@ export default function App() {
           ? 'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.'
           : 'Proposta salva em PDF com sucesso.'
         adicionarNotificacao(mensagemSucesso, 'success')
-      } catch (error) {
-        if (error instanceof ProposalPdfIntegrationMissingError) {
-          setProposalPdfIntegrationAvailable(false)
-          adicionarNotificacao(
-            'Proposta armazenada localmente, mas a integração de PDF não está configurada.',
-            'info',
-          )
-        } else {
-          console.error('Erro ao salvar a proposta em PDF.', error)
-          const mensagem =
-            error instanceof Error && error.message
-              ? error.message
-              : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
-          const mensagemComFallback = salvouLocalmente
-            ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
-            : mensagem
-          adicionarNotificacao(mensagemComFallback, 'error')
-        }
-      } finally {
-        setSalvandoPropostaPdf(false)
+        sucesso = true
       }
-    }, [
-      activeTab,
-      adicionarNotificacao,
-      clienteEmEdicaoId,
-      currentBudgetId,
-      isProposalPdfIntegrationAvailable,
-      isVendaDiretaTab,
-      prepararPropostaParaExportacao,
-      renameVendasSimulacao,
-      salvarOrcamentoLocalmente,
-      salvandoPropostaPdf,
-      entrarModoSomenteLeitura,
-      setProposalPdfIntegrationAvailable,
-      validarCamposObrigatorios,
-    ])
+    } catch (error) {
+      if (error instanceof ProposalPdfIntegrationMissingError) {
+        setProposalPdfIntegrationAvailable(false)
+        adicionarNotificacao(
+          'Proposta armazenada localmente, mas a integração de PDF não está configurada.',
+          'info',
+        )
+        sucesso = salvouLocalmente
+      } else {
+        console.error('Erro ao salvar a proposta em PDF.', error)
+        const mensagem =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
+        const mensagemComFallback = salvouLocalmente
+          ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
+          : mensagem
+        adicionarNotificacao(mensagemComFallback, 'error')
+        sucesso = salvouLocalmente
+      }
+    } finally {
+      setSalvandoPropostaPdf(false)
+    }
 
-  const handleNovaProposta = useCallback(() => {
+    return sucesso
+  }, [
+    activeTab,
+    adicionarNotificacao,
+    clienteEmEdicaoId,
+    currentBudgetId,
+    isProposalPdfIntegrationAvailable,
+    isVendaDiretaTab,
+    prepararPropostaParaExportacao,
+    renameVendasSimulacao,
+    salvarOrcamentoLocalmente,
+    salvandoPropostaPdf,
+    atualizarOrcamentoAtivo,
+    setProposalPdfIntegrationAvailable,
+    validarCamposObrigatorios,
+  ])
+
+  const handleNovaProposta = useCallback(async () => {
+    if (hasUnsavedChanges()) {
+      const confirmarSalvar = window.confirm(
+        'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
+      )
+      if (confirmarSalvar) {
+        const salvou = await handleSalvarPropostaPdf()
+        if (!salvou) {
+          return
+        }
+      } else {
+        const confirmarDescartar = window.confirm(
+          'Deseja descartar as alterações atuais e iniciar uma nova proposta?',
+        )
+        if (!confirmarDescartar) {
+          return
+        }
+      }
+    }
+
     setSettingsTab(INITIAL_VALUES.settingsTab)
     setActivePage('app')
     setOrcamentoSearchTerm('')
-    limparOrcamentoCarregado()
+    limparOrcamentoAtivo()
     setCurrentBudgetId(createDraftBudgetId())
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
@@ -11381,7 +11541,11 @@ export default function App() {
     setClienteEmEdicaoId(null)
     setActivePage('app')
     setNotificacoes([])
+    scheduleMarkStateAsSaved()
   }, [
+    handleSalvarPropostaPdf,
+    hasUnsavedChanges,
+    scheduleMarkStateAsSaved,
     createPageSharedSettings,
     setActivePage,
     applyTarifasAutomaticas,
@@ -11406,11 +11570,11 @@ export default function App() {
     setMultiUcEnergiaGeradaTouched,
     setMultiUcAtivo,
     setMultiUcRows,
-    limparOrcamentoCarregado,
+    limparOrcamentoAtivo,
   ])
 
-  const duplicarOrcamentoCarregado = () => {
-    const registroParaDuplicar = orcamentoCarregadoRegistro ?? orcamentoDisponivelParaDuplicar
+  const duplicarOrcamentoAtual = () => {
+    const registroParaDuplicar = orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar
     if (!registroParaDuplicar) {
       return
     }
@@ -11424,7 +11588,8 @@ export default function App() {
 
     const novoBudgetId = createDraftBudgetId()
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
-    limparOrcamentoCarregado()
+    limparOrcamentoAtivo()
+    lastSavedSignatureRef.current = null
     setActivePage('app')
     adicionarNotificacao(
       'Uma cópia do orçamento foi carregada para edição. Salve para gerar um novo número.',
@@ -11432,8 +11597,7 @@ export default function App() {
     )
   }
 
-  const isViewOnlyMode = Boolean(orcamentoCarregado)
-  const podeSalvarProposta = !isViewOnlyMode && (activeTab === 'leasing' || activeTab === 'vendas')
+  const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
     if (key === 'temIndicacao') {
@@ -11838,9 +12002,9 @@ export default function App() {
 
   const carregarOrcamentoSalvo = useCallback(
     (registro: OrcamentoSalvo) => {
-      entrarModoSomenteLeitura(registro)
+      carregarOrcamentoParaEdicao(registro)
     },
-    [entrarModoSomenteLeitura],
+    [carregarOrcamentoParaEdicao],
   )
 
   const abrirPesquisaOrcamentos = () => {
@@ -12262,11 +12426,9 @@ export default function App() {
       <section className="card proposal-images-card">
         <div className="card-header">
           <h2>Imagens anexadas à proposta</h2>
-          {!isViewOnlyMode ? (
-            <button type="button" className="ghost" onClick={handleAbrirUploadImagens}>
-              Adicionar imagens
-            </button>
-          ) : null}
+          <button type="button" className="ghost" onClick={handleAbrirUploadImagens}>
+            Adicionar imagens
+          </button>
         </div>
         <p className="muted proposal-images-description">{descricao}</p>
         <div className="proposal-images-grid">
@@ -12284,15 +12446,13 @@ export default function App() {
                 </div>
                 <figcaption>
                   <span title={label}>{label}</span>
-                  {!isViewOnlyMode ? (
-                    <button
-                      type="button"
-                      className="link danger"
-                      onClick={() => handleRemoverPropostaImagem(imagem.id, index)}
-                    >
-                      Remover
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    className="link danger"
+                    onClick={() => handleRemoverPropostaImagem(imagem.id, index)}
+                  >
+                    Remover
+                  </button>
                 </figcaption>
               </figure>
             )
@@ -15519,16 +15679,14 @@ export default function App() {
         <span className="muted">Valores entre o mês 7 e o mês {duracaoMesesExibicao}.</span>
       </div>
       <div className="table-controls">
-        {isViewOnlyMode ? (
-          <button
-            type="button"
-            className="ghost"
-            onClick={handleImprimirTabelaTransferencia}
-            disabled={gerandoTabelaTransferencia}
-          >
-            {gerandoTabelaTransferencia ? 'Gerando PDF…' : 'Imprimir tabela'}
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="ghost"
+          onClick={handleImprimirTabelaTransferencia}
+          disabled={gerandoTabelaTransferencia}
+        >
+          {gerandoTabelaTransferencia ? 'Gerando PDF…' : 'Imprimir tabela'}
+        </button>
         <button
           type="button"
           className="collapse-toggle"
@@ -17022,65 +17180,46 @@ export default function App() {
           <div className="page">
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
-              {orcamentoCarregado ? (
+              {orcamentoAtivoInfo ? (
                 <section className="card loaded-budget-viewer">
                   <div className="card-header loaded-budget-header">
                     <h2>
-                      Orçamento{' '}
-                      <strong>{orcamentoCarregadoInfo?.id ?? '—'}</strong>
+                      Editando orçamento <strong>{orcamentoAtivoInfo.id}</strong>
                     </h2>
-                  <div className="loaded-budget-actions">
-                    <span>
-                      Dados somente leitura para{' '}
-                      <strong>{orcamentoCarregadoInfo?.cliente ?? 'o cliente selecionado'}</strong>
-                    </span>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={duplicarOrcamentoCarregado}
-                        disabled={!orcamentoCarregadoRegistro?.snapshot}
-                        title={
-                          orcamentoCarregadoRegistro?.snapshot
-                            ? undefined
-                            : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
-                        }
-                      >
-                        Duplicar
-                      </button>
+                    <div className="loaded-budget-actions">
+                      <span>
+                        Cliente: <strong>{orcamentoAtivoInfo.cliente}</strong>
+                      </span>
+                      {(orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar)?.snapshot ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={duplicarOrcamentoAtual}
+                        >
+                          Duplicar
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <p className="loaded-budget-subtitle">
-                  Os campos da proposta estão bloqueados. Use “Duplicar” para gerar uma cópia editável com um novo código.
-                </p>
-                  <div className="loaded-budget-body">
-                    <React.Suspense fallback={<p className="budget-search-empty">Carregando orçamento selecionado…</p>}>
-                      <div className="loaded-budget-content">
-                        <PrintableProposal {...orcamentoCarregado} />
-                      </div>
-                    </React.Suspense>
-                  </div>
+                  <p className="loaded-budget-subtitle">
+                    As alterações realizadas abaixo serão mantidas até que você salve a proposta novamente.
+                  </p>
                 </section>
               ) : null}
-              <div className={`page-editable${isViewOnlyMode ? ' is-readonly' : ''}`}>
+              <div className="page-editable">
                 <div ref={editableContentRef} className="page-editable-body">
-                  {isVendaDiretaTab || orcamentoCarregado ? (
+                  {isVendaDiretaTab || orcamentoAtivoInfo ? (
                     <div className="page-actions">
                       {isVendaDiretaTab ? (
                         <button type="button" className="ghost" onClick={handleRecalcularVendas}>
                           Recalcular
                         </button>
                       ) : null}
-                      {orcamentoCarregado ? (
+                      {(orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar)?.snapshot ? (
                         <button
                           type="button"
                           className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                          onClick={duplicarOrcamentoCarregado}
-                          disabled={!orcamentoCarregadoRegistro?.snapshot}
-                          title={
-                            orcamentoCarregadoRegistro?.snapshot
-                              ? undefined
-                              : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
-                          }
+                          onClick={duplicarOrcamentoAtual}
                         >
                           Duplicar
                         </button>
