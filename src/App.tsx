@@ -10049,11 +10049,14 @@ export default function App() {
     const vendaSnapshotAtual = getVendaSnapshot()
     const leasingSnapshotAtual = getLeasingSnapshot()
 
+    const clienteEmEdicaoIdAtual =
+      clienteEmEdicaoIdRef.current ?? clienteEmEdicaoId ?? null
+
     return {
       activeTab,
       settingsTab,
       cliente: cloneClienteDados(cliente),
-      clienteEmEdicaoId,
+      clienteEmEdicaoId: clienteEmEdicaoIdAtual,
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       pageShared: { ...pageSharedState },
       currentBudgetId,
