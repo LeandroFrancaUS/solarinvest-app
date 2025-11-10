@@ -975,9 +975,21 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted no-break-inside">
-              A partir do {`${prazoContratualTotalAnos + 1}º ano`}, a conta da distribuidora passa a contemplar apenas TUSD,
-              taxa mínima e iluminação pública para sistemas on-grid.
+            <p className="muted print-footnote">
+              <strong>
+                <em>
+                  A partir do {`${prazoContratualTotalAnos + 1}º ano`}, a conta da distribuidora passa a contemplar apenas
+                  TUSD, taxa mínima e iluminação pública para sistemas on-grid.
+                </em>
+              </strong>
+            </p>
+            <p className="muted print-footnote">
+              <strong>
+                <em>
+                  A partir do {`${prazoContratualTotalAnos + 1}º ano`}, em caso de uso excedente, o cliente passa a pagar
+                  tarifa cheia para a concessionária.
+                </em>
+              </strong>
             </p>
             <p className="muted print-footnote">
               <strong>
