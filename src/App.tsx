@@ -2558,25 +2558,36 @@ export default function App() {
       }
     | null
   >(null)
-  const [orcamentoCarregado, setOrcamentoCarregado] = useState<PrintableProposalProps | null>(null)
+  const [orcamentoAtivoInfo, setOrcamentoAtivoInfo] = useState<
+    | {
+        id: string
+        cliente: string
+      }
+    | null
+  >(null)
+  const [orcamentoRegistroBase, setOrcamentoRegistroBase] = useState<OrcamentoSalvo | null>(null)
   const [orcamentoDisponivelParaDuplicar, setOrcamentoDisponivelParaDuplicar] =
     useState<OrcamentoSalvo | null>(null)
-  const [orcamentoCarregadoInfo, setOrcamentoCarregadoInfo] = useState<
-      | {
-          id: string
-          cliente: string
-        }
-      | null
-  >(null)
-  const [orcamentoCarregadoRegistro, setOrcamentoCarregadoRegistro] = useState<OrcamentoSalvo | null>(null)
   const [propostaImagens, setPropostaImagens] = useState<PrintableProposalImage[]>([])
-  const limparOrcamentoCarregado = useCallback(() => {
-    setOrcamentoCarregado(null)
-    setOrcamentoCarregadoInfo(null)
-    setOrcamentoCarregadoRegistro(null)
+  const lastSavedSignatureRef = useRef<string | null>(null)
+  const computeSignatureRef = useRef<() => string>(() => '')
+  const initialSignatureSetRef = useRef(false)
+  const limparOrcamentoAtivo = useCallback(() => {
+    setOrcamentoAtivoInfo(null)
+    setOrcamentoRegistroBase(null)
     setOrcamentoDisponivelParaDuplicar(null)
   }, [])
-  const entrarModoSomenteLeitura = useCallback(
+  const scheduleMarkStateAsSaved = useCallback(() => {
+    if (typeof window === 'undefined') {
+      lastSavedSignatureRef.current = computeSignatureRef.current()
+      return
+    }
+
+    window.setTimeout(() => {
+      lastSavedSignatureRef.current = computeSignatureRef.current()
+    }, 0)
+  }, [])
+  const atualizarOrcamentoAtivo = useCallback(
     (registro: OrcamentoSalvo) => {
       const dadosClonados = clonePrintableData(registro.dados)
       const clienteNome =
@@ -2587,24 +2598,18 @@ export default function App() {
       const idNormalizado = normalizeProposalId(dadosClonados.budgetId ?? registro.id)
       const idParaExibir = idNormalizado || registro.id
 
-      setOrcamentoCarregado(dadosClonados)
-      setOrcamentoCarregadoInfo({
+      setOrcamentoAtivoInfo({
         id: idParaExibir,
         cliente: clienteNome,
       })
-      setOrcamentoCarregadoRegistro(cloneOrcamentoSalvo(registro))
-      setOrcamentoDisponivelParaDuplicar(cloneOrcamentoSalvo(registro))
-      setActivePage('app')
+      const registroClonado = cloneOrcamentoSalvo(registro)
+      setOrcamentoRegistroBase(registroClonado)
+      setOrcamentoDisponivelParaDuplicar(registroClonado)
       setOrcamentoVisualizado(null)
       setOrcamentoVisualizadoInfo(null)
-
-      if (dadosClonados.tipoProposta === 'VENDA_DIRETA') {
-        setActiveTab('vendas')
-      } else {
-        setActiveTab('leasing')
-      }
+      scheduleMarkStateAsSaved()
     },
-    [setActiveTab],
+    [scheduleMarkStateAsSaved],
   )
 
   const [oneDriveIntegrationAvailable, setOneDriveIntegrationAvailable] = useState(() =>
@@ -3399,19 +3404,6 @@ export default function App() {
       prev === snapshot.tipoInstalacaoDirty ? prev : snapshot.tipoInstalacaoDirty,
     )
   }, [activeTab, pageSharedState])
-
-  useEffect(() => {
-    const node = editableContentRef.current
-    if (!node) {
-      return
-    }
-
-    if (orcamentoCarregado) {
-      node.setAttribute('inert', '')
-    } else {
-      node.removeAttribute('inert')
-    }
-  }, [orcamentoCarregado])
 
   const [cliente, setCliente] = useState<ClienteDados>(() => cloneClienteDados(CLIENTE_INICIAL))
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
@@ -10209,10 +10201,31 @@ export default function App() {
     })
     leasingActions.update(snapshot.leasingSnapshot)
 
-    if (options?.budgetIdOverride) {
-      vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
-    }
+  if (options?.budgetIdOverride) {
+    vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
   }
+}
+
+  const carregarOrcamentoParaEdicao = useCallback(
+    (registro: OrcamentoSalvo) => {
+      if (!registro.snapshot) {
+        window.alert(
+          'Este orçamento foi salvo sem histórico completo. Visualize o PDF ou salve novamente para gerar uma cópia editável.',
+        )
+        return
+      }
+
+      aplicarSnapshot(registro.snapshot)
+      setActivePage('app')
+      atualizarOrcamentoAtivo(registro)
+      adicionarNotificacao(
+        'Orçamento carregado para edição. Salve novamente para preservar as alterações.',
+        'info',
+      )
+    },
+    [adicionarNotificacao, aplicarSnapshot, atualizarOrcamentoAtivo, setActivePage],
+  )
+
   const salvarOrcamentoLocalmente = useCallback(
     (dados: PrintableProposalProps): OrcamentoSalvo | null => {
       if (typeof window === 'undefined') {
@@ -10299,6 +10312,49 @@ export default function App() {
     },
     [carregarOrcamentosSalvos, clienteEmEdicaoId],
   )
+
+  useEffect(() => {
+    computeSignatureRef.current = () => {
+      const snapshot = getCurrentSnapshot()
+      const dadosAtuais = clonePrintableData(printableData)
+      return stableStringify({ snapshot, dados: dadosAtuais })
+    }
+  })
+
+  useEffect(() => {
+    if (initialSignatureSetRef.current) {
+      return
+    }
+
+    initialSignatureSetRef.current = true
+    lastSavedSignatureRef.current = computeSignatureRef.current()
+  })
+
+  const hasUnsavedChanges = useCallback(() => {
+    if (lastSavedSignatureRef.current == null) {
+      return initialSignatureSetRef.current
+    }
+
+    return computeSignatureRef.current() !== lastSavedSignatureRef.current
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges()) {
+        return
+      }
+
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   const removerOrcamentoSalvo = useCallback(
     (id: string) => {
@@ -10546,7 +10602,7 @@ export default function App() {
           data_emissao: emissaoIso,
         })
 
-        entrarModoSomenteLeitura(registro)
+        atualizarOrcamentoAtivo(registro)
 
         let htmlAtualizado = previewData.html
         try {
@@ -10618,7 +10674,7 @@ export default function App() {
         adicionarNotificacao,
         clienteEmEdicaoId,
         currentBudgetId,
-        entrarModoSomenteLeitura,
+        atualizarOrcamentoAtivo,
         isProposalPdfIntegrationAvailable,
         renameVendasSimulacao,
         salvarOrcamentoLocalmente,
@@ -11187,7 +11243,7 @@ export default function App() {
         data_emissao: emissaoIso,
       })
 
-      entrarModoSomenteLeitura(registroSalvo)
+      atualizarOrcamentoAtivo(registroSalvo)
 
       let htmlComCodigo = html
       try {
@@ -11254,16 +11310,33 @@ export default function App() {
       renameVendasSimulacao,
       salvarOrcamentoLocalmente,
       salvandoPropostaPdf,
-      entrarModoSomenteLeitura,
+      atualizarOrcamentoAtivo,
       setProposalPdfIntegrationAvailable,
       validarCamposObrigatorios,
     ])
 
-  const handleNovaProposta = useCallback(() => {
+  const handleNovaProposta = useCallback(async () => {
+    if (hasUnsavedChanges()) {
+      const confirmarSalvar = window.confirm(
+        'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
+      )
+      if (confirmarSalvar) {
+        await handleSalvarPropostaPdf()
+        return
+      }
+
+      const confirmarDescartar = window.confirm(
+        'Deseja descartar as alterações atuais e iniciar uma nova proposta?',
+      )
+      if (!confirmarDescartar) {
+        return
+      }
+    }
+
     setSettingsTab(INITIAL_VALUES.settingsTab)
     setActivePage('app')
     setOrcamentoSearchTerm('')
-    limparOrcamentoCarregado()
+    limparOrcamentoAtivo()
     setCurrentBudgetId(createDraftBudgetId())
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
@@ -11381,7 +11454,11 @@ export default function App() {
     setClienteEmEdicaoId(null)
     setActivePage('app')
     setNotificacoes([])
+    scheduleMarkStateAsSaved()
   }, [
+    handleSalvarPropostaPdf,
+    hasUnsavedChanges,
+    scheduleMarkStateAsSaved,
     createPageSharedSettings,
     setActivePage,
     applyTarifasAutomaticas,
@@ -11406,11 +11483,11 @@ export default function App() {
     setMultiUcEnergiaGeradaTouched,
     setMultiUcAtivo,
     setMultiUcRows,
-    limparOrcamentoCarregado,
+    limparOrcamentoAtivo,
   ])
 
-  const duplicarOrcamentoCarregado = () => {
-    const registroParaDuplicar = orcamentoCarregadoRegistro ?? orcamentoDisponivelParaDuplicar
+  const duplicarOrcamentoAtual = () => {
+    const registroParaDuplicar = orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar
     if (!registroParaDuplicar) {
       return
     }
@@ -11424,7 +11501,8 @@ export default function App() {
 
     const novoBudgetId = createDraftBudgetId()
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
-    limparOrcamentoCarregado()
+    limparOrcamentoAtivo()
+    lastSavedSignatureRef.current = null
     setActivePage('app')
     adicionarNotificacao(
       'Uma cópia do orçamento foi carregada para edição. Salve para gerar um novo número.',
@@ -11432,8 +11510,7 @@ export default function App() {
     )
   }
 
-  const isViewOnlyMode = Boolean(orcamentoCarregado)
-  const podeSalvarProposta = !isViewOnlyMode && (activeTab === 'leasing' || activeTab === 'vendas')
+  const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
     if (key === 'temIndicacao') {
@@ -11838,9 +11915,9 @@ export default function App() {
 
   const carregarOrcamentoSalvo = useCallback(
     (registro: OrcamentoSalvo) => {
-      entrarModoSomenteLeitura(registro)
+      carregarOrcamentoParaEdicao(registro)
     },
-    [entrarModoSomenteLeitura],
+    [carregarOrcamentoParaEdicao],
   )
 
   const abrirPesquisaOrcamentos = () => {
@@ -12262,11 +12339,9 @@ export default function App() {
       <section className="card proposal-images-card">
         <div className="card-header">
           <h2>Imagens anexadas à proposta</h2>
-          {!isViewOnlyMode ? (
-            <button type="button" className="ghost" onClick={handleAbrirUploadImagens}>
-              Adicionar imagens
-            </button>
-          ) : null}
+          <button type="button" className="ghost" onClick={handleAbrirUploadImagens}>
+            Adicionar imagens
+          </button>
         </div>
         <p className="muted proposal-images-description">{descricao}</p>
         <div className="proposal-images-grid">
@@ -12284,15 +12359,13 @@ export default function App() {
                 </div>
                 <figcaption>
                   <span title={label}>{label}</span>
-                  {!isViewOnlyMode ? (
-                    <button
-                      type="button"
-                      className="link danger"
-                      onClick={() => handleRemoverPropostaImagem(imagem.id, index)}
-                    >
-                      Remover
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    className="link danger"
+                    onClick={() => handleRemoverPropostaImagem(imagem.id, index)}
+                  >
+                    Remover
+                  </button>
                 </figcaption>
               </figure>
             )
@@ -15519,16 +15592,14 @@ export default function App() {
         <span className="muted">Valores entre o mês 7 e o mês {duracaoMesesExibicao}.</span>
       </div>
       <div className="table-controls">
-        {isViewOnlyMode ? (
-          <button
-            type="button"
-            className="ghost"
-            onClick={handleImprimirTabelaTransferencia}
-            disabled={gerandoTabelaTransferencia}
-          >
-            {gerandoTabelaTransferencia ? 'Gerando PDF…' : 'Imprimir tabela'}
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="ghost"
+          onClick={handleImprimirTabelaTransferencia}
+          disabled={gerandoTabelaTransferencia}
+        >
+          {gerandoTabelaTransferencia ? 'Gerando PDF…' : 'Imprimir tabela'}
+        </button>
         <button
           type="button"
           className="collapse-toggle"
@@ -17022,65 +17093,46 @@ export default function App() {
           <div className="page">
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
-              {orcamentoCarregado ? (
+              {orcamentoAtivoInfo ? (
                 <section className="card loaded-budget-viewer">
                   <div className="card-header loaded-budget-header">
                     <h2>
-                      Orçamento{' '}
-                      <strong>{orcamentoCarregadoInfo?.id ?? '—'}</strong>
+                      Editando orçamento <strong>{orcamentoAtivoInfo.id}</strong>
                     </h2>
-                  <div className="loaded-budget-actions">
-                    <span>
-                      Dados somente leitura para{' '}
-                      <strong>{orcamentoCarregadoInfo?.cliente ?? 'o cliente selecionado'}</strong>
-                    </span>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={duplicarOrcamentoCarregado}
-                        disabled={!orcamentoCarregadoRegistro?.snapshot}
-                        title={
-                          orcamentoCarregadoRegistro?.snapshot
-                            ? undefined
-                            : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
-                        }
-                      >
-                        Duplicar
-                      </button>
+                    <div className="loaded-budget-actions">
+                      <span>
+                        Cliente: <strong>{orcamentoAtivoInfo.cliente}</strong>
+                      </span>
+                      {(orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar)?.snapshot ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={duplicarOrcamentoAtual}
+                        >
+                          Duplicar
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <p className="loaded-budget-subtitle">
-                  Os campos da proposta estão bloqueados. Use “Duplicar” para gerar uma cópia editável com um novo código.
-                </p>
-                  <div className="loaded-budget-body">
-                    <React.Suspense fallback={<p className="budget-search-empty">Carregando orçamento selecionado…</p>}>
-                      <div className="loaded-budget-content">
-                        <PrintableProposal {...orcamentoCarregado} />
-                      </div>
-                    </React.Suspense>
-                  </div>
+                  <p className="loaded-budget-subtitle">
+                    As alterações realizadas abaixo serão mantidas até que você salve a proposta novamente.
+                  </p>
                 </section>
               ) : null}
-              <div className={`page-editable${isViewOnlyMode ? ' is-readonly' : ''}`}>
+              <div className="page-editable">
                 <div ref={editableContentRef} className="page-editable-body">
-                  {isVendaDiretaTab || orcamentoCarregado ? (
+                  {isVendaDiretaTab || orcamentoAtivoInfo ? (
                     <div className="page-actions">
                       {isVendaDiretaTab ? (
                         <button type="button" className="ghost" onClick={handleRecalcularVendas}>
                           Recalcular
                         </button>
                       ) : null}
-                      {orcamentoCarregado ? (
+                      {(orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar)?.snapshot ? (
                         <button
                           type="button"
                           className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                          onClick={duplicarOrcamentoCarregado}
-                          disabled={!orcamentoCarregadoRegistro?.snapshot}
-                          title={
-                            orcamentoCarregadoRegistro?.snapshot
-                              ? undefined
-                              : 'Este orçamento foi salvo sem snapshot completo e não pode ser duplicado automaticamente.'
-                          }
+                          onClick={duplicarOrcamentoAtual}
                         >
                           Duplicar
                         </button>
