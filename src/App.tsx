@@ -841,6 +841,81 @@ const generateBudgetId = (
 
 const createDraftBudgetId = () => `DRAFT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
 
+const isQuotaExceededError = (error: unknown) => {
+  if (!error) {
+    return false
+  }
+
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    return (
+      error.name === 'QuotaExceededError' ||
+      error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      error.code === 22 ||
+      error.code === 1014
+    )
+  }
+
+  if (error instanceof Error) {
+    return /quota|storage/i.test(error.message)
+  }
+
+  return false
+}
+
+const persistBudgetsToLocalStorage = (
+  registros: OrcamentoSalvo[],
+): { persisted: OrcamentoSalvo[]; pruned: OrcamentoSalvo[] } => {
+  if (typeof window === 'undefined') {
+    return { persisted: registros, pruned: [] }
+  }
+
+  if (registros.length === 0) {
+    window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
+    return { persisted: [], pruned: [] }
+  }
+
+  const working = [...registros]
+  const pruned: OrcamentoSalvo[] = []
+  let lastError: unknown = null
+
+  while (working.length > 0) {
+    try {
+      window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(working))
+      return { persisted: working, pruned }
+    } catch (error) {
+      lastError = error
+      if (!isQuotaExceededError(error)) {
+        throw error
+      }
+
+      const removed = working.pop()
+      if (!removed) {
+        break
+      }
+      pruned.push(removed)
+    }
+  }
+
+  if (lastError) {
+    throw lastError
+  }
+
+  throw new Error('Falha ao salvar orçamentos no armazenamento local.')
+}
+
+const alertPrunedBudgets = (pruned: OrcamentoSalvo[]) => {
+  if (typeof window === 'undefined' || pruned.length === 0) {
+    return
+  }
+
+  const mensagem =
+    pruned.length === 1
+      ? 'O armazenamento local estava cheio. O orçamento mais antigo foi removido para salvar a versão atual.'
+      : `O armazenamento local estava cheio. ${pruned.length} orçamentos antigos foram removidos para salvar a versão atual.`
+
+  window.alert(mensagem)
+}
+
 const createPrintableImageId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `imagem-${crypto.randomUUID()}`
@@ -10244,6 +10319,10 @@ export default function App() {
 
         if (registroExistenteIndex >= 0) {
           const existente = registrosExistentes[registroExistenteIndex]
+          if (!existente) {
+            console.error('Orçamento salvo não encontrado para atualização.')
+            return null
+          }
           const snapshotAtualizado = cloneSnapshotData(snapshotAtual)
           snapshotAtualizado.currentBudgetId = existente.id
           if (snapshotAtualizado.vendaSnapshot.codigos) {
@@ -10264,11 +10343,14 @@ export default function App() {
             snapshot: snapshotAtualizado,
           }
 
-          const registrosAtualizados = [...registrosExistentes]
-          registrosAtualizados[registroExistenteIndex] = registroAtualizado
-          window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
-          setOrcamentosSalvos(registrosAtualizados)
-          return registroAtualizado
+          const registrosAtualizados = [
+            registroAtualizado,
+            ...registrosExistentes.filter((_, index) => index !== registroExistenteIndex),
+          ]
+          const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
+          setOrcamentosSalvos(persisted)
+          alertPrunedBudgets(pruned)
+          return persisted.find((registro) => registro.id === registroAtualizado.id) ?? registroAtualizado
         }
 
         const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
@@ -10301,9 +10383,10 @@ export default function App() {
 
         existingIds.add(registro.id)
         const registrosAtualizados = [registro, ...registrosExistentes]
-        window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
-        setOrcamentosSalvos(registrosAtualizados)
-        return registro
+        const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
+        setOrcamentosSalvos(persisted)
+        alertPrunedBudgets(pruned)
+        return persisted.find((item) => item.id === registro.id) ?? registro
       } catch (error) {
         console.error('Erro ao salvar orçamento localmente.', error)
         window.alert('Não foi possível salvar o orçamento. Tente novamente.')
@@ -10366,18 +10449,13 @@ export default function App() {
         const registrosAtualizados = prevRegistros.filter((registro) => registro.id !== id)
 
         try {
-          if (registrosAtualizados.length > 0) {
-            window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(registrosAtualizados))
-          } else {
-            window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
-          }
+          const { persisted } = persistBudgetsToLocalStorage(registrosAtualizados)
+          return persisted
         } catch (error) {
           console.error('Erro ao atualizar os orçamentos salvos.', error)
           window.alert('Não foi possível atualizar os orçamentos salvos. Tente novamente.')
           return prevRegistros
         }
-
-        return registrosAtualizados
       })
     },
     [setOrcamentosSalvos],
