@@ -10351,6 +10351,28 @@ export default function App() {
     [setPropostaImagens],
   )
 
+  const handleRemoverPropostaImagem = useCallback(
+    (imagemId: string, fallbackIndex: number) => {
+      setPropostaImagens((prevImagens) => {
+        if (prevImagens.length === 0) {
+          return prevImagens
+        }
+
+        const filtradas = prevImagens.filter((imagem) => imagem.id !== imagemId)
+        if (filtradas.length !== prevImagens.length) {
+          return filtradas
+        }
+
+        if (fallbackIndex >= 0 && fallbackIndex < prevImagens.length) {
+          return prevImagens.filter((_, index) => index !== fallbackIndex)
+        }
+
+        return prevImagens
+      })
+    },
+    [setPropostaImagens],
+  )
+
   const handleEficienciaInput = (valor: number) => {
     if (!Number.isFinite(valor)) {
       setEficiencia(0)
@@ -12222,6 +12244,60 @@ export default function App() {
           Sincronização automática com o OneDrive indisponível. Configure a integração para habilitar o envio.
         </p>
       ) : null}
+      </section>
+    )
+  }
+
+  const renderPropostaImagensSection = () => {
+    if (propostaImagens.length === 0) {
+      return null
+    }
+
+    const descricao =
+      activeTab === 'leasing'
+        ? 'Estas imagens serão exibidas na proposta de leasing. Remova as que não devem aparecer.'
+        : 'Estas imagens serão exibidas na proposta de vendas. Remova as que não devem aparecer.'
+
+    return (
+      <section className="card proposal-images-card">
+        <div className="card-header">
+          <h2>Imagens anexadas à proposta</h2>
+          {!isViewOnlyMode ? (
+            <button type="button" className="ghost" onClick={handleAbrirUploadImagens}>
+              Adicionar imagens
+            </button>
+          ) : null}
+        </div>
+        <p className="muted proposal-images-description">{descricao}</p>
+        <div className="proposal-images-grid">
+          {propostaImagens.map((imagem, index) => {
+            const trimmedName = imagem.fileName?.trim()
+            const label = trimmedName && trimmedName.length > 0 ? trimmedName : `Imagem ${index + 1}`
+            return (
+              <figure
+                key={imagem.id ?? `imagem-${index}`}
+                className="proposal-images-item"
+                aria-label={`Pré-visualização da imagem ${index + 1}`}
+              >
+                <div className="proposal-images-thumb">
+                  <img src={imagem.url} alt={`Imagem anexada: ${label}`} />
+                </div>
+                <figcaption>
+                  <span title={label}>{label}</span>
+                  {!isViewOnlyMode ? (
+                    <button
+                      type="button"
+                      className="link danger"
+                      onClick={() => handleRemoverPropostaImagem(imagem.id, index)}
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </figcaption>
+              </figure>
+            )
+          })}
+        </div>
       </section>
     )
   }
@@ -17012,6 +17088,7 @@ export default function App() {
                     </div>
                   ) : null}
                   {renderClienteDadosSection()}
+                  {renderPropostaImagensSection()}
               {activeTab === 'leasing' ? (
                 <>
                   {renderParametrosPrincipaisSection()}
