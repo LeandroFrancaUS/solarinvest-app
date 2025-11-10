@@ -2722,6 +2722,85 @@ tbody tr:hover {
     flex-wrap: wrap;
     gap: 12px;
   }
+
+  .table-controls {
+    width: 100%;
+    justify-content: stretch;
+    gap: var(--space-1);
+  }
+
+  .table-controls > * {
+    flex: 1 1 140px;
+  }
+
+  .table-wrapper {
+    margin-inline: auto;
+    max-width: 100%;
+    width: min(100%, calc(100vw - var(--safe-area-inline)));
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .table-wrapper table,
+  .card table {
+    min-width: 100%;
+  }
+
+  table th,
+  table td {
+    font-size: calc(var(--font-s) - 1px);
+    padding: var(--space-1) calc(var(--space-1) + 2px);
+  }
+
+  .card {
+    padding: clamp(var(--space-3), 6vw, var(--space-4));
+  }
+
+  .card-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .card-actions > * {
+    flex: 1 1 160px;
+  }
+
+  .budget-search-panel {
+    padding: clamp(20px, 6vw, 28px);
+  }
+
+  .budget-search-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .budget-search-page-header .ghost {
+    align-self: stretch;
+    width: 100%;
+  }
+
+  .clients-panel-actions {
+    width: 100%;
+  }
+
+  .clients-panel-actions .ghost {
+    flex: 1 1 140px;
+  }
+
+  .budget-search-actions,
+  .clients-table-actions {
+    justify-content: stretch;
+  }
+
+  .budget-search-action,
+  .clients-table-action {
+    flex: 1 1 100px;
+    width: auto;
+  }
+
+  .crm-main {
+    padding: 24px clamp(16px, 6vw, 32px) 40px;
+  }
 }
 
 .table-controls {
@@ -2776,6 +2855,7 @@ table td {
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
   min-height: calc(var(--control-h) - var(--space-1));
   font-variant-numeric: tabular-nums;
+  word-break: break-word;
 }
 
 table th {
@@ -5232,7 +5312,7 @@ i:hover {
   }
   .table-wrapper table,
   .card table {
-    min-width: 560px;
+    min-width: min(560px, 100%);
   }
 }
 
