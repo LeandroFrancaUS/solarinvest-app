@@ -2736,6 +2736,9 @@ tbody tr:hover {
   .table-wrapper {
     margin-inline: auto;
     max-width: 100%;
+    width: min(100%, calc(100vw - var(--safe-area-inline)));
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
 
   .table-wrapper table,
@@ -5309,7 +5312,7 @@ i:hover {
   }
   .table-wrapper table,
   .card table {
-    min-width: 560px;
+    min-width: min(560px, 100%);
   }
 }
 
