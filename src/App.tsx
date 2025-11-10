@@ -1683,6 +1683,32 @@ const normalizeClienteEmail = (value: string) => value.trim().toLowerCase()
 
 const normalizeClienteNumbers = (value: string) => normalizeNumbers(value)
 
+const formatWhatsappPhoneNumber = (value: string): string | null => {
+  let digits = normalizeNumbers(value)
+
+  if (!digits) {
+    return null
+  }
+
+  digits = digits.replace(/^0+/, '')
+
+  if (digits.startsWith('55')) {
+    while (digits.length > 2 && digits[2] === '0') {
+      digits = `55${digits.slice(3)}`
+    }
+  } else if (digits.length === 10 || digits.length === 11) {
+    digits = `55${digits}`
+  } else {
+    return null
+  }
+
+  if (digits.length < 12 || digits.length > 13) {
+    return null
+  }
+
+  return digits
+}
+
 const createClienteComparisonData = (dados: ClienteDados) => {
   const normalized = {
     nome: normalizeClienteString(dados.nome),
@@ -2070,8 +2096,7 @@ function EnviarPropostaModal({
     if (!contatoSelecionado?.telefone) {
       return false
     }
-    const digits = normalizeNumbers(contatoSelecionado.telefone)
-    return digits.length >= 8
+    return Boolean(formatWhatsappPhoneNumber(contatoSelecionado.telefone))
   }, [contatoSelecionado?.telefone])
 
   const disabledMessage = telefoneValido
@@ -12117,10 +12142,11 @@ export default function App() {
       const mensagemCompleta = `${mensagemBase}${shareUrl ? ` ${shareUrl}` : ''}`
 
       if (metodo === 'whatsapp' || metodo === 'whatsapp-business') {
-        const telefoneDigits = contato.telefone ? normalizeNumbers(contato.telefone) : ''
-        if (!telefoneDigits) {
+        const telefoneWhatsapp =
+          contato.telefone && formatWhatsappPhoneNumber(contato.telefone)
+        if (!telefoneWhatsapp) {
           adicionarNotificacao(
-            'O contato selecionado não possui um telefone válido para envio via WhatsApp.',
+            'Informe um telefone com DDD para enviar via WhatsApp.',
             'error',
           )
           return
@@ -12131,7 +12157,9 @@ export default function App() {
           return
         }
 
-        const whatsappUrl = `https://wa.me/${telefoneDigits}?text=${encodeURIComponent(mensagemCompleta)}`
+        const whatsappUrl = `https://wa.me/${telefoneWhatsapp}?text=${encodeURIComponent(
+          mensagemCompleta,
+        )}`
         window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
         adicionarNotificacao('Abra o WhatsApp para concluir o envio da proposta.', 'info')
         setIsEnviarPropostaModalOpen(false)
