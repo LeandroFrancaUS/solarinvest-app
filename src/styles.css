@@ -619,6 +619,75 @@ button.secondary.danger:focus-visible {
   padding-bottom: 4px;
 }
 
+.proposal-images-card .card-header {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.proposal-images-card .card-header h2 {
+  flex: 1 1 auto;
+}
+
+.proposal-images-description {
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-s);
+}
+
+.proposal-images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-2);
+}
+
+.proposal-images-item {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 6px);
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.proposal-images-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: color-mix(in srgb, var(--surface) 72%, var(--bg) 28%);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.proposal-images-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.proposal-images-item figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  font-size: var(--font-s);
+  line-height: 1.4;
+}
+
+.proposal-images-item figcaption span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proposal-images-item button.link {
+  flex-shrink: 0;
+}
+
 .budget-code-badge {
   display: inline-flex;
   align-items: center;
