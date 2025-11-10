@@ -3484,7 +3484,12 @@ export default function App() {
   const [cliente, setCliente] = useState<ClienteDados>(() => cloneClienteDados(CLIENTE_INICIAL))
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
+  const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+
+  useEffect(() => {
+    clienteEmEdicaoIdRef.current = clienteEmEdicaoId
+  }, [clienteEmEdicaoId])
   const clienteIndicacaoCheckboxId = useId()
   const clienteIndicacaoNomeId = useId()
   const clienteHerdeirosContentId = useId()
@@ -9770,6 +9775,7 @@ export default function App() {
       }
     }
 
+    clienteEmEdicaoIdRef.current = registroConfirmado.id
     setClienteEmEdicaoId(registroConfirmado.id)
 
     if (sincronizadoComSucesso) {
@@ -9867,6 +9873,7 @@ export default function App() {
       if (removeuEdicaoAtual) {
         setCliente(cloneClienteDados(CLIENTE_INICIAL))
         setClienteMensagens({})
+        clienteEmEdicaoIdRef.current = null
         setClienteEmEdicaoId(null)
       }
     },
@@ -10332,9 +10339,10 @@ export default function App() {
               codigo_orcamento_interno: existente.id,
             }
           }
+          const clienteIdAtual = clienteEmEdicaoIdRef.current
           const registroAtualizado: OrcamentoSalvo = {
             ...existente,
-            clienteId: clienteEmEdicaoId ?? existente.clienteId,
+            clienteId: clienteIdAtual ?? existente.clienteId,
             clienteNome: dados.cliente.nome,
             clienteCidade: dados.cliente.cidade,
             clienteUf: dados.cliente.uf,
@@ -10369,10 +10377,11 @@ export default function App() {
           }
         }
 
+        const clienteIdAtual = clienteEmEdicaoIdRef.current
         const registro: OrcamentoSalvo = {
           id: novoId,
           criadoEm: new Date().toISOString(),
-          clienteId: clienteEmEdicaoId ?? undefined,
+          clienteId: clienteIdAtual ?? undefined,
           clienteNome: dados.cliente.nome,
           clienteCidade: dados.cliente.cidade,
           clienteUf: dados.cliente.uf,
@@ -10394,7 +10403,7 @@ export default function App() {
         return null
       }
     },
-    [carregarOrcamentosSalvos, clienteEmEdicaoId],
+    [carregarOrcamentosSalvos],
   )
 
   useEffect(() => {
@@ -11283,9 +11292,11 @@ export default function App() {
       return false
     }
 
-    if (!clienteEmEdicaoId) {
-      window.alert('Salve os dados do cliente antes de salvar o orçamento.')
-      return false
+    if (!clienteEmEdicaoIdRef.current) {
+      await handleSalvarCliente()
+      if (!clienteEmEdicaoIdRef.current) {
+        return false
+      }
     }
 
     setSalvandoPropostaPdf(true)
@@ -11387,7 +11398,7 @@ export default function App() {
   }, [
     activeTab,
     adicionarNotificacao,
-    clienteEmEdicaoId,
+    handleSalvarCliente,
     currentBudgetId,
     isProposalPdfIntegrationAvailable,
     isVendaDiretaTab,
@@ -11538,6 +11549,7 @@ export default function App() {
 
     setCliente(cloneClienteDados(CLIENTE_INICIAL))
     setClienteMensagens({})
+    clienteEmEdicaoIdRef.current = null
     setClienteEmEdicaoId(null)
     setActivePage('app')
     setNotificacoes([])
