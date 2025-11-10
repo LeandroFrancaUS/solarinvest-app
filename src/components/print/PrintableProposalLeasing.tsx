@@ -251,6 +251,11 @@ function PrintableProposalLeasingInner(
       : 'Manual (kWh) informado por UC'
     : null
 
+  const taxaMinimaMensal = (() => {
+    const valor = vendaSnapshot?.parametros?.taxa_minima_rs_mes
+    return Number.isFinite(valor) ? Math.max(0, valor ?? 0) : 0
+  })()
+
   const formatKwhValor = (valor: number, fractionDigits = 2): string =>
     `${formatNumberBRWithOptions(valor, {
       minimumFractionDigits: fractionDigits,
@@ -511,12 +516,17 @@ function PrintableProposalLeasingInner(
     },
   ]
 
-  const mensalidadesPorAno = useMemo(() => {
-    const totalAnosContrato =
-      prazoContratual > 0 ? Math.max(1, Math.ceil(prazoContratual / 12)) : 5
-    const anosConsiderados = Array.from({ length: totalAnosContrato }, (_, index) => index + 1)
+  const prazoContratualTotalAnos = useMemo(() => {
+    if (prazoContratual > 0) {
+      return Math.max(1, Math.ceil(prazoContratual / 12))
+    }
+    return 5
+  }, [prazoContratual])
 
-    return anosConsiderados.map((ano) => {
+  const mensalidadesPorAno = useMemo(() => {
+    const anosConsiderados = Array.from({ length: prazoContratualTotalAnos }, (_, index) => index + 1)
+
+    const linhas = anosConsiderados.map((ano) => {
       const fator = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, ano - 1))
       const tarifaAno = tarifaCheiaBase * fator
       const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
@@ -531,14 +541,46 @@ function PrintableProposalLeasingInner(
         mensalidade,
       }
     })
+
+    const anosTusdOrdenados = Object.keys(tusdMedioPorAno)
+      .map((chave) => Number(chave))
+      .filter((valor) => Number.isFinite(valor) && valor > 0)
+      .sort((a, b) => a - b)
+
+    let tusdPosContrato = 0
+    for (let index = anosTusdOrdenados.length - 1; index >= 0; index -= 1) {
+      const ano = anosTusdOrdenados[index]
+      if (ano <= prazoContratualTotalAnos) {
+        const valorTusd = tusdMedioPorAno[ano]
+        if (Number.isFinite(valorTusd)) {
+          tusdPosContrato = Math.max(0, valorTusd ?? 0)
+          break
+        }
+      }
+    }
+
+    const anoPosContrato = prazoContratualTotalAnos + 1
+    const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
+    const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
+    const contaDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
+
+    linhas.push({
+      ano: anoPosContrato,
+      tarifaCheiaAno: tarifaAnoPosContrato,
+      tarifaComDesconto: tarifaAnoPosContrato,
+      contaDistribuidora: contaDistribuidoraPosContrato,
+      mensalidade: 0,
+    })
+
+    return linhas
   }, [
     descontoFracao,
     energiaContratadaBase,
     inflacaoEnergiaFracao,
-    parcelasLeasing,
+    prazoContratualTotalAnos,
+    taxaMinimaMensal,
     tusdMedioPorAno,
     tarifaCheiaBase,
-    prazoContratual,
   ])
 
   const prazoEconomiaMeses = prazoContratual > 0 ? prazoContratual : 60
@@ -933,6 +975,10 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
+            <p className="muted no-break-inside">
+              A partir do {`${prazoContratualTotalAnos + 1}º ano`}, a conta da distribuidora passa a contemplar apenas TUSD,
+              taxa mínima e iluminação pública para sistemas on-grid.
+            </p>
             <p className="muted print-footnote">
               <strong>
                 <em>
