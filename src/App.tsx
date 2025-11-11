@@ -11815,12 +11815,13 @@ export default function App() {
   }, [])
 
   const handleAtualizarUcBeneficiaria = useCallback(
-    (id: string, field: 'numero' | 'endereco' | 'rateioPercentual', value: string),
-  ) => {
-    setUcsBeneficiarias((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
-    )
-  }, [])
+    (id: string, field: 'numero' | 'endereco' | 'rateioPercentual', value: string) => {
+      setUcsBeneficiarias((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+      )
+    },
+    [],
+  )
 
   const handleRemoverUcBeneficiaria = useCallback((id: string) => {
     setUcsBeneficiarias((prev) => prev.filter((item) => item.id !== id))
