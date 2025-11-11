@@ -58,54 +58,14 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
 const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
   'Valores estimativos; confirmação no contrato definitivo.'
 
-const formatMesesDetalhado = (valorAnos: number): string => {
-  if (!Number.isFinite(valorAnos) || valorAnos <= 0) {
-    return '—'
-  }
-
-  const meses = valorAnos * 12
-  const fractionDigits = Math.abs(meses - Math.round(meses)) < 1e-6 ? 0 : 1
-  const numero = formatNumberBRWithOptions(meses, {
+const formatAnosDetalhado = (valor: number): string => {
+  const fractionDigits = Number.isInteger(valor) ? 0 : 1
+  const numero = formatNumberBRWithOptions(valor, {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   })
-  const singular = Math.abs(meses - 1) < 1e-6
-  return `${numero} ${singular ? 'mês' : 'meses'}`
-}
-
-const formatOrdinalMes = (mes: number): string => {
-  if (!Number.isFinite(mes) || mes <= 0) {
-    return '—'
-  }
-
-  const numero = formatNumberBRWithOptions(mes, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-  return `${numero}º mês`
-}
-
-const formatIntervaloMeses = (inicio: number, fim: number): string => {
-  if (!Number.isFinite(inicio) || !Number.isFinite(fim) || fim <= 0) {
-    return '—'
-  }
-
-  const inicioNormalizado = Math.max(1, Math.floor(inicio))
-  const fimNormalizado = Math.max(inicioNormalizado, Math.floor(fim))
-
-  if (inicioNormalizado >= fimNormalizado) {
-    return formatOrdinalMes(fimNormalizado)
-  }
-
-  const inicioLabel = formatNumberBRWithOptions(inicioNormalizado, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-  const fimLabel = formatNumberBRWithOptions(fimNormalizado, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-  return `Meses ${inicioLabel}–${fimLabel}`
+  const singular = Math.abs(valor - 1) < 1e-6
+  return `${numero} ${singular ? 'ano' : 'anos'}`
 }
 
 const formatPrazoContratual = (meses: number): string => {
@@ -636,8 +596,6 @@ function PrintableProposalLeasingInner(
       const contaDistribuidora = energiaContratadaBase * tarifaAno
       return {
         ano,
-        mesInicio: (ano - 1) * 12 + 1,
-        mesFim: ano * 12,
         tarifaCheiaAno: tarifaAno,
         tarifaComDesconto,
         contaDistribuidora,
@@ -669,8 +627,6 @@ function PrintableProposalLeasingInner(
 
     linhas.push({
       ano: anoPosContrato,
-      mesInicio: (anoPosContrato - 1) * 12 + 1,
-      mesFim: (anoPosContrato - 1) * 12 + 1,
       tarifaCheiaAno: tarifaAnoPosContrato,
       tarifaComDesconto: tarifaAnoPosContrato,
       contaDistribuidora: contaDistribuidoraPosContrato,
@@ -759,9 +715,7 @@ function PrintableProposalLeasingInner(
 
     const vistos = new Set<number>()
 
-    return destinos.reduce<
-      { ano: number; meses: number; label: string; acumulado: number }[]
-    >((acc, destino) => {
+    return destinos.reduce<{ ano: number; label: string; acumulado: number }[]>((acc, destino) => {
       const { ano, tipo } = destino
       if (!Number.isFinite(ano) || ano <= 0) {
         return acc
@@ -778,8 +732,7 @@ function PrintableProposalLeasingInner(
       const deveAdicionarUsina = valorMercadoUsina > 0 && prazoContratualAnos > 0 && ano >= prazoContratualAnos
       const beneficioTotal = deveAdicionarUsina ? beneficioBase + valorMercadoUsina : beneficioBase
 
-      const meses = ano * 12
-      let label = formatMesesDetalhado(ano)
+      let label = formatAnosDetalhado(ano)
 
       if (tipo === 'prazo') {
         label = `${label} (prazo do leasing)`
@@ -787,7 +740,7 @@ function PrintableProposalLeasingInner(
         label = `${label} (após o prazo)`
       }
 
-      acc.push({ ano, meses, label, acumulado: Math.max(0, beneficioTotal) })
+      acc.push({ ano, label, acumulado: Math.max(0, beneficioTotal) })
       return acc
     }, [])
   }, [leasingROI, prazoContratualAnos, valorMercadoUsina])
@@ -799,21 +752,15 @@ function PrintableProposalLeasingInner(
 
   const heroSummary =
     'Apresentamos sua proposta personalizada de energia solar com leasing da SolarInvest. Nesta modalidade, você gera sua própria energia com economia desde o 1º mês, sem precisar investir nada. Ao final do contrato, a usina é transferida gratuitamente para você, tornando-se um patrimônio durável, valorizando seu imóvel.'
-  const inicioPosContratoMes = useMemo(() => {
-    if (prazoContratual > 0) {
-      return Math.max(1, prazoContratual + 1)
-    }
-    return prazoContratualTotalAnos * 12 + 1
-  }, [prazoContratual, prazoContratualTotalAnos])
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
   const economiaExplainer: React.ReactNode = beneficioAno30 ? (
     <>
-      <strong>Economia acumulada em 360 meses:</strong> Em {formatMesesDetalhado(beneficioAno30.ano)}, a SolarInvest projeta
-      um benefício total de <strong>{currency(beneficioAno30.acumulado)}</strong>. Essa trajetória considera os reajustes
-      projetados de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.
+      <strong>Economia acumulada em 30 anos:</strong> Em {beneficioAno30.ano} anos, a SolarInvest projeta um
+      benefício total de <strong>{currency(beneficioAno30.acumulado)}</strong>. Essa trajetória considera os reajustes
+      anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.
     </>
   ) : (
-    <>Economia que cresce mês após mês. Essa trajetória considera os reajustes projetados de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.</>
+    <>Economia que cresce ano após ano. Essa trajetória considera os reajustes anuais de energia, a previsibilidade contratual e a posse integral da usina ao final do acordo.</>
   )
   const informacoesImportantesObservacaoTexto = useMemo(() => {
     if (typeof informacoesImportantesObservacao !== 'string') {
@@ -1094,7 +1041,7 @@ function PrintableProposalLeasingInner(
           <section className="print-section keep-together avoid-break">
             <h2 className="section-title keep-with-next">Evolução das Mensalidades e Economia</h2>
             <p className="section-subtitle keep-with-next">
-              Comparativo estimado entre tarifa convencional e SolarInvest ao longo dos meses
+              Comparativo anual estimado entre tarifa convencional e SolarInvest
             </p>
             <table className="no-break-inside">
               <thead>
@@ -1109,11 +1056,7 @@ function PrintableProposalLeasingInner(
               <tbody>
                 {mensalidadesPorAno.map((linha) => (
                   <tr key={`mensalidade-${linha.ano}`}>
-                    <td>
-                      {linha.ano > prazoContratualTotalAnos
-                        ? `A partir do ${formatOrdinalMes(linha.mesInicio)}`
-                        : formatIntervaloMeses(linha.mesInicio, linha.mesFim)}
-                    </td>
+                    <td>{`${linha.ano}º ano`}</td>
                     <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
                     <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
                     <td className="leasing-table-value">{currency(linha.contaDistribuidora)}</td>
@@ -1125,16 +1068,16 @@ function PrintableProposalLeasingInner(
             <p className="muted print-footnote">
               <strong>
                 <em>
-                  A partir do {formatOrdinalMes(inicioPosContratoMes)}, a conta da distribuidora passa a contemplar apenas TUSD,
-                  taxa mínima e iluminação pública para sistemas on-grid.
+                  A partir do {`${prazoContratualTotalAnos + 1}º ano`}, a conta da distribuidora passa a contemplar apenas
+                  TUSD, taxa mínima e iluminação pública para sistemas on-grid.
                 </em>
               </strong>
             </p>
             <p className="muted print-footnote">
               <strong>
                 <em>
-                  A partir do {formatOrdinalMes(inicioPosContratoMes)}, em caso de uso excedente, o cliente passa a pagar tarifa
-                  cheia para a concessionária.
+                  A partir do {`${prazoContratualTotalAnos + 1}º ano`}, em caso de uso excedente, o cliente passa a pagar
+                  tarifa cheia para a concessionária.
                 </em>
               </strong>
             </p>
@@ -1149,10 +1092,10 @@ function PrintableProposalLeasingInner(
           </section>
     
           <section
-            id="economia-360-meses"
+            id="economia-30-anos"
             className="print-section keep-together page-break-before break-after"
           >
-            <h2 className="section-title keep-with-next">Economia Acumulada ao Longo de 360 Meses</h2>
+            <h2 className="section-title keep-with-next">Economia Acumulada ao Longo de 30 Anos</h2>
             {economiaProjetadaGrafico.length ? (
               <>
                 <p className="section-subtitle keep-with-next">
@@ -1161,10 +1104,10 @@ function PrintableProposalLeasingInner(
                 <div
                   className="leasing-horizontal-chart no-break-inside"
                   role="img"
-                  aria-label="Economia projetada em 360 meses"
+                  aria-label="Economia projetada em 30 anos"
                 >
                   <div className="leasing-horizontal-chart__header-row">
-                    <span className="leasing-horizontal-chart__axis-y-label">Tempo (meses)</span>
+                    <span className="leasing-horizontal-chart__axis-y-label">Tempo (anos)</span>
                     <span className="leasing-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
                   </div>
                   <div className="leasing-horizontal-chart__rows">
