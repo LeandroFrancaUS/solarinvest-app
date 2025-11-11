@@ -1,6 +1,6 @@
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import PrintableProposal from '../PrintableProposal'
 import { computeROI, type VendaForm } from '../../../lib/finance/roi'
@@ -195,6 +195,62 @@ describe('PrintableProposal (venda direta)', () => {
     )
     expect(markup).not.toMatch(/Total do contrato/)
     expect(markup).toMatch(/<span>VPL<\/span>\s*<strong>/)
+  })
+
+  it('omite detalhes da modalidade e usa validade padrão de 3 dias para pagamento à vista', () => {
+    const vendaForm: VendaForm = {
+      consumo_kwh_mes: 500,
+      tarifa_cheia_r_kwh: 1,
+      inflacao_energia_aa_pct: 0,
+      taxa_minima_mensal: 50,
+      horizonte_meses: 360,
+      capex_total: 28000,
+      condicao: 'AVISTA',
+      modo_pagamento: 'PIX',
+      taxa_mdr_pix_pct: 1.5,
+      taxa_mdr_debito_pct: 0,
+      taxa_mdr_credito_vista_pct: 0,
+      taxa_mdr_credito_parcelado_pct: 0,
+      entrada_financiamento: 0,
+      geracao_estimada_kwh_mes: 600,
+      tarifa_r_kwh: 1,
+      taxa_minima_r_mes: 50,
+      n_parcelas: undefined,
+      juros_cartao_aa_pct: undefined,
+      juros_cartao_am_pct: undefined,
+      n_parcelas_fin: undefined,
+      juros_fin_aa_pct: undefined,
+      juros_fin_am_pct: undefined,
+      taxa_desconto_aa_pct: 8,
+      quantidade_modulos: 12,
+      potencia_instalada_kwp: 6.6,
+      modelo_modulo: undefined,
+      modelo_inversor: undefined,
+      estrutura_suporte: undefined,
+      numero_orcamento_vendor: undefined,
+    }
+
+    const retorno = computeROI(vendaForm)
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2024-01-01T12:00:00Z'))
+    try {
+      const props = createPrintableProps({
+        numeroModulos: 12,
+        energiaContratadaKwh: 500,
+        vendaResumo: { form: vendaForm, retorno },
+        parsedPdfVenda: createParsedVenda({ potencia_da_placa_wp: 610 }),
+        tarifaCheia: vendaForm.tarifa_cheia_r_kwh,
+      })
+
+      const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+      expect(markup).not.toContain('Modalidade comercial')
+      expect(markup).not.toContain('Resumo da modalidade')
+      expect(markup).not.toContain('Destaques da modalidade')
+      expect(markup).toContain('3 dias corridos')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('mostra potência dos módulos como indisponível quando não há dados e oculta VPL sem desconto', () => {
