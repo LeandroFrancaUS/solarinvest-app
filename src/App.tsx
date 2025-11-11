@@ -1212,6 +1212,15 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
   leasingSnapshot: JSON.parse(JSON.stringify(snapshot.leasingSnapshot)) as LeasingState,
 })
 
+const computeSnapshotSignature = (
+  snapshot: OrcamentoSnapshotData,
+  dados: PrintableProposalProps,
+): string =>
+  stableStringify({
+    snapshot: cloneSnapshotData(snapshot),
+    dados: clonePrintableData(dados),
+  })
+
 const cloneOrcamentoSalvo = (registro: OrcamentoSalvo): OrcamentoSalvo => ({
   ...registro,
   dados: clonePrintableData(registro.dados),
@@ -2719,8 +2728,8 @@ export default function App() {
     setOrcamentoRegistroBase(null)
     setOrcamentoDisponivelParaDuplicar(null)
   }, [])
-  const scheduleMarkStateAsSaved = useCallback(() => {
-    lastSavedSignatureRef.current = computeSignatureRef.current()
+  const scheduleMarkStateAsSaved = useCallback((signatureOverride?: string | null) => {
+    lastSavedSignatureRef.current = signatureOverride ?? computeSignatureRef.current()
 
     if (typeof window === 'undefined') {
       return
@@ -2750,7 +2759,10 @@ export default function App() {
       setOrcamentoDisponivelParaDuplicar(registroClonado)
       setOrcamentoVisualizado(null)
       setOrcamentoVisualizadoInfo(null)
-      scheduleMarkStateAsSaved()
+      const signatureOverride = registro.snapshot
+        ? computeSnapshotSignature(registro.snapshot, dadosClonados)
+        : null
+      scheduleMarkStateAsSaved(signatureOverride)
     },
     [scheduleMarkStateAsSaved],
   )
