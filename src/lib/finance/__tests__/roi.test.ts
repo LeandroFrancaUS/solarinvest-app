@@ -108,6 +108,27 @@ describe('computeROI', () => {
     expect(resultado.totalPagamentos).toBeCloseTo(entrada + parcelaEsperada * parcelasFin, 2)
   })
 
+  it('distribui o valor igualmente entre boletos na modalidade boleto', () => {
+    const capex = 18000
+    const boletos = 6
+
+    const formBoleto = createBaseForm({
+      condicao: 'BOLETO',
+      modo_pagamento: undefined,
+      capex_total: capex,
+      n_boletos: boletos,
+    })
+
+    const resultado = computeROI(formBoleto)
+
+    const valorBoleto = capex / boletos
+    for (let indice = 0; indice < boletos; indice += 1) {
+      expect(resultado.pagamentoMensal[indice]).toBeCloseTo(valorBoleto, 2)
+    }
+    expect(resultado.pagamentoMensal[boletos]).toBe(0)
+    expect(resultado.totalPagamentos).toBeCloseTo(capex, 2)
+  })
+
   it('calcula VPL apenas quando há taxa de desconto informada', () => {
     const semDesconto = computeROI(createBaseForm({ taxa_desconto_aa_pct: undefined }))
     const comDesconto = computeROI(createBaseForm({ taxa_desconto_aa_pct: 10 }))
