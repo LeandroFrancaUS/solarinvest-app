@@ -8,6 +8,7 @@ import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import PrintableProposalImages from './PrintableProposalImages'
+import { PMT, toMonthly } from '../../lib/finance/roi'
 import {
   formatCondicaoLabel,
   formatPagamentoLabel,
@@ -97,23 +98,31 @@ function PrintableProposalInner(
       maximumFractionDigits: 0,
     })} meses`
   }
-  const formatParcelas = (value?: number) => {
+  const formatParcelas = (value?: number, parcelaValor?: number | null) => {
     if (!Number.isFinite(value) || (value ?? 0) <= 0) {
       return '—'
     }
-    return `${formatNumberBRWithOptions(value ?? 0, {
+    const parcelasLabel = `${formatNumberBRWithOptions(value ?? 0, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     })} parcelas`
+    if (Number.isFinite(parcelaValor) && (parcelaValor ?? 0) > 0) {
+      return `${parcelasLabel} de ${currency(parcelaValor ?? 0)}`
+    }
+    return parcelasLabel
   }
-  const formatBoletos = (value?: number) => {
+  const formatBoletos = (value?: number, boletoValor?: number | null) => {
     if (!Number.isFinite(value) || (value ?? 0) <= 0) {
       return '—'
     }
-    return `${formatNumberBRWithOptions(value ?? 0, {
+    const boletosLabel = `${formatNumberBRWithOptions(value ?? 0, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     })} boletos`
+    if (Number.isFinite(boletoValor) && (boletoValor ?? 0) > 0) {
+      return `${boletosLabel} de ${currency(boletoValor ?? 0)}`
+    }
+    return boletosLabel
   }
   const formatDebitosAutomaticos = (value?: number) => {
     if (!Number.isFinite(value) || (value ?? 0) <= 0) {
@@ -578,6 +587,21 @@ function PrintableProposalInner(
         : null)
   const valorTotalPropostaLabel =
     valorTotalPropostaPrincipalNumero != null ? currency(valorTotalPropostaPrincipalNumero) : '—'
+  const baseParcelamentoValor = (() => {
+    if (hasNonZero(vendaFormResumo?.capex_total)) {
+      return Number(vendaFormResumo?.capex_total)
+    }
+    if (hasNonZero(valorTotalPropostaPrincipalNumero)) {
+      return Number(valorTotalPropostaPrincipalNumero)
+    }
+    if (hasNonZero(capexTotalCalculado)) {
+      return Number(capexTotalCalculado)
+    }
+    if (hasNonZero(capex)) {
+      return Number(capex)
+    }
+    return null
+  })()
   const kitValorOrcamentoSnapshot = Number.isFinite(vendaSnapshot?.orcamento?.valor_total_orcamento)
     ? Number(vendaSnapshot?.orcamento?.valor_total_orcamento)
     : null
@@ -699,6 +723,30 @@ function PrintableProposalInner(
     ? currency(vendaFormResumo?.taxa_minima_r_mes ?? 0)
     : '—'
   const horizonteAnaliseResumo = formatMeses(snapshotParametros?.horizonte_meses ?? vendaFormResumo?.horizonte_meses)
+  const numeroParcelas = Number.isFinite(vendaFormResumo?.n_parcelas)
+    ? Math.max(0, Math.round(vendaFormResumo?.n_parcelas ?? 0))
+    : null
+  const jurosMensalParcelado = Number.isFinite(vendaFormResumo?.juros_cartao_am_pct)
+    ? (vendaFormResumo?.juros_cartao_am_pct ?? 0) / 100
+    : Number.isFinite(vendaFormResumo?.juros_cartao_aa_pct)
+    ? toMonthly(vendaFormResumo?.juros_cartao_aa_pct)
+    : null
+  const taxaMdrParcelado = Number.isFinite(vendaFormResumo?.taxa_mdr_credito_parcelado_pct)
+    ? (vendaFormResumo?.taxa_mdr_credito_parcelado_pct ?? 0) / 100
+    : 0
+  const parcelaValorNumero =
+    numeroParcelas && numeroParcelas > 0 && hasNonZero(baseParcelamentoValor)
+      ? PMT(jurosMensalParcelado ?? 0, numeroParcelas, baseParcelamentoValor) * (1 + taxaMdrParcelado)
+      : null
+  const parcelasResumo = formatParcelas(numeroParcelas ?? undefined, parcelaValorNumero)
+  const numeroBoletos = Number.isFinite(vendaFormResumo?.n_boletos)
+    ? Math.max(0, Math.round(vendaFormResumo?.n_boletos ?? 0))
+    : null
+  const boletoValorNumero =
+    numeroBoletos && numeroBoletos > 0 && hasNonZero(baseParcelamentoValor)
+      ? baseParcelamentoValor / numeroBoletos
+      : null
+  const boletosResumo = formatBoletos(numeroBoletos ?? undefined, boletoValorNumero)
   const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
   const boletosResumo = formatBoletos(vendaFormResumo?.n_boletos)
   const debitosResumo = formatDebitosAutomaticos(vendaFormResumo?.n_debitos)
@@ -823,13 +871,13 @@ function PrintableProposalInner(
   )
   pushRowIfMeaningful(condicoesPagamentoRows, 'Valor final', valorTotalPropostaLabel, { emphasize: true })
   const condicoesParceladoRows: TableRow[] = []
-  if (!isVendaDireta && isCondicaoParcelado) {
+  if (isCondicaoParcelado) {
     pushRowIfMeaningful(condicoesParceladoRows, 'Número de parcelas', parcelasResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.m.)', jurosCartaoAmResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.a.)', jurosCartaoAaResumo)
   }
   const condicoesBoletoRows: TableRow[] = []
-  if (!isVendaDireta && isCondicaoBoleto) {
+  if (isCondicaoBoleto) {
     pushRowIfMeaningful(condicoesBoletoRows, 'Número de boletos', boletosResumo)
   }
   const condicoesDebitoAutomaticoRows: TableRow[] = []
