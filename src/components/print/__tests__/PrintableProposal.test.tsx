@@ -93,6 +93,49 @@ const createPrintableProps = (
 })
 
 describe('PrintableProposal (venda direta)', () => {
+  it('exibe UC geradora e lista beneficiárias quando presentes', () => {
+    const props = createPrintableProps({
+      ucGeradora: {
+        numero: '998877',
+        endereco: 'Rua Solar, 123 • Bairro Centro • Curitiba / PR • CEP 80000-000',
+      },
+      ucsBeneficiarias: [
+        {
+          numero: '112233',
+          endereco: 'Rua das Palmeiras, 50 — Curitiba / PR',
+          rateioPercentual: 50,
+        },
+        {
+          numero: '445566',
+          endereco: 'Av. Brasil, 99 — Curitiba / PR',
+        },
+      ],
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain('UC Geradora')
+    expect(markup).toContain('UC nº 998877 — Rua Solar, 123 • Bairro Centro • Curitiba / PR • CEP 80000-000')
+    expect(markup).toContain('UCs Beneficiárias')
+    expect(markup).toContain('UC nº 112233 — Rua das Palmeiras, 50 — Curitiba / PR — Rateio: 50%')
+    expect(markup).toContain('UC nº 445566 — Av. Brasil, 99 — Curitiba / PR')
+  })
+
+  it('não exibe seção de beneficiárias quando nenhuma UC extra for fornecida', () => {
+    const props = createPrintableProps({
+      ucGeradora: {
+        numero: '778899',
+        endereco: 'Av. Industrial, 1000 — Londrina / PR',
+      },
+      ucsBeneficiarias: [],
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain('UC Geradora')
+    expect(markup).not.toContain('UCs Beneficiárias')
+  })
+
   it('exibe potência dos módulos a partir do catálogo e autonomia formatada', () => {
     const vendaForm: VendaForm = {
       consumo_kwh_mes: 500,
@@ -243,6 +286,30 @@ describe('PrintableProposal (venda direta)', () => {
 
 
 describe('PrintableProposal (leasing)', () => {
+  it('exibe UC geradora e beneficiárias para propostas de leasing', () => {
+    const props = createPrintableProps({
+      tipoProposta: 'LEASING',
+      ucGeradora: {
+        numero: '554433',
+        endereco: 'Rodovia Solar, Km 10 — Maringá / PR',
+      },
+      ucsBeneficiarias: [
+        {
+          numero: '667788',
+          endereco: 'Rua do Sol, 101 — Maringá / PR',
+          rateioPercentual: 33.5,
+        },
+      ],
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain('UC Geradora')
+    expect(markup).toContain('UC nº 554433 — Rodovia Solar, Km 10 — Maringá / PR')
+    expect(markup).toContain('UCs Beneficiárias')
+    expect(markup).toContain('UC nº 667788 — Rua do Sol, 101 — Maringá / PR — Rateio: 33,5%')
+  })
+
   it('renderiza seções exclusivas de leasing com economia projetada', () => {
     const props = createPrintableProps({
       tipoProposta: 'LEASING',

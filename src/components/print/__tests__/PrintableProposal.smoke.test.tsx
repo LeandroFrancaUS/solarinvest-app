@@ -69,6 +69,22 @@ const createProps = (): PrintableProposalProps => ({
   vendaSnapshot: undefined,
   informacoesImportantesObservacao: null,
   multiUcResumo: null,
+  ucGeradora: {
+    numero: '123456',
+    endereco: 'Rua das Flores, 100 — Curitiba / PR — CEP 80000-000',
+  },
+  ucsBeneficiarias: [
+    {
+      numero: '654321',
+      endereco: 'Av. das Torres, 500 — Curitiba / PR',
+      rateioPercentual: 70,
+    },
+    {
+      numero: '777888',
+      endereco: 'Rua Central, 120 — Londrina / PR',
+      rateioPercentual: 30,
+    },
+  ],
 })
 
 describe('PrintableProposal smoke', () => {
