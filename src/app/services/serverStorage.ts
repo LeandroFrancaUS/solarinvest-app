@@ -13,6 +13,16 @@ type StorageResponse = {
   entries?: RemoteStorageEntry[]
 }
 
+class ServerStorageUnauthorizedError extends Error {
+  status: number
+
+  constructor(status: number) {
+    super(`Falha ao consultar armazenamento (status ${status})`)
+    this.name = 'ServerStorageUnauthorizedError'
+    this.status = status
+  }
+}
+
 let initializationPromise: Promise<void> | null = null
 
 const cache = new Map<string, string>()
@@ -107,6 +117,9 @@ const persistDelete = (key: string | null) => {
 
 const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEntry[]> => {
   const response = await fetch(STORAGE_ENDPOINT, { credentials: 'include', signal })
+  if (response.status === 401 || response.status === 403) {
+    throw new ServerStorageUnauthorizedError(response.status)
+  }
   if (!response.ok) {
     throw new Error(`Falha ao consultar armazenamento (status ${response.status})`)
   }
@@ -140,6 +153,10 @@ const initializeSync = async (signal?: AbortSignal) => {
   } catch (error) {
     if ((error as DOMException | undefined)?.name === 'AbortError') {
       console.warn('[serverStorage] Sincronização com backend interrompida por timeout. Mantendo armazenamento local.')
+    } else if (error instanceof ServerStorageUnauthorizedError) {
+      console.info(
+        '[serverStorage] Sincronização remota desabilitada para sessões não autenticadas. Mantendo armazenamento local.',
+      )
     } else {
       console.warn('[serverStorage] Não foi possível carregar dados remotos, mantendo armazenamento local.', error)
     }
