@@ -759,9 +759,9 @@ function PrintableProposalInner(
     ? currency(vendaFormResumo?.taxa_minima_r_mes ?? 0)
     : '—'
   const horizonteAnaliseResumo = formatMeses(snapshotParametros?.horizonte_meses ?? vendaFormResumo?.horizonte_meses)
-  const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
-  const boletosResumo = formatBoletos(vendaFormResumo?.n_boletos)
-  const debitosResumo = formatDebitosAutomaticos(vendaFormResumo?.n_debitos)
+  const parcelasModalidadeResumo = formatParcelas(vendaFormResumo?.n_parcelas)
+  const boletosModalidadeResumo = formatBoletos(vendaFormResumo?.n_boletos)
+  const debitosModalidadeResumo = formatDebitosAutomaticos(vendaFormResumo?.n_debitos)
   const jurosCartaoAmResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_am_pct)
   const jurosCartaoAaResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_aa_pct)
   const mdrPixValor = pickNumeric(snapshotPagamento?.mdr_pix, vendaFormResumo?.taxa_mdr_pix_pct)
@@ -884,20 +884,24 @@ function PrintableProposalInner(
   pushRowIfMeaningful(condicoesPagamentoRows, 'Valor final', valorTotalPropostaLabel, { emphasize: true })
   const condicoesParceladoRows: TableRow[] = []
   if (!isVendaDireta && isCondicaoParcelado) {
-    pushRowIfMeaningful(condicoesParceladoRows, 'Número de parcelas', parcelasResumo)
+    pushRowIfMeaningful(
+      condicoesParceladoRows,
+      'Número de parcelas',
+      parcelasModalidadeResumo,
+    )
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.m.)', jurosCartaoAmResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.a.)', jurosCartaoAaResumo)
   }
   const condicoesBoletoRows: TableRow[] = []
   if (!isVendaDireta && isCondicaoBoleto) {
-    pushRowIfMeaningful(condicoesBoletoRows, 'Número de boletos', boletosResumo)
+    pushRowIfMeaningful(condicoesBoletoRows, 'Número de boletos', boletosModalidadeResumo)
   }
   const condicoesDebitoAutomaticoRows: TableRow[] = []
   if (!isVendaDireta && isCondicaoDebitoAutomatico) {
     pushRowIfMeaningful(
       condicoesDebitoAutomaticoRows,
       'Duração do débito automático',
-      debitosResumo,
+      debitosModalidadeResumo,
     )
   }
   const condicoesFinanciamentoRows: TableRow[] = []
