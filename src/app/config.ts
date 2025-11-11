@@ -235,6 +235,7 @@ export const VENDA_FORM_DEFAULT: VendaForm = {
   taxa_mdr_credito_vista_pct: 0,
   taxa_mdr_credito_parcelado_pct: 0,
   n_boletos: 12,
+  n_debitos: 12,
   entrada_financiamento: 0,
   tusd_percentual: INITIAL_VALUES.tusdPercent,
   tusd_tipo_cliente: INITIAL_VALUES.tusdTipoCliente,
