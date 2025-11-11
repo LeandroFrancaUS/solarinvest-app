@@ -807,8 +807,6 @@ function PrintableProposalInner(
       ? baseParcelamentoValor / numeroBoletos
       : null
   const boletosResumo = formatBoletos(numeroBoletos ?? undefined, boletoValorNumero)
-  const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
-  const boletosResumo = formatBoletos(vendaFormResumo?.n_boletos)
   const debitosResumo = formatDebitosAutomaticos(vendaFormResumo?.n_debitos)
   const jurosCartaoAmResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_am_pct)
   const jurosCartaoAaResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_aa_pct)
