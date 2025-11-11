@@ -862,13 +862,13 @@ function PrintableProposalInner(
   )
   pushRowIfMeaningful(condicoesPagamentoRows, 'Valor final', valorTotalPropostaLabel, { emphasize: true })
   const condicoesParceladoRows: TableRow[] = []
-  if (!isVendaDireta && isCondicaoParcelado) {
+  if (isCondicaoParcelado) {
     pushRowIfMeaningful(condicoesParceladoRows, 'Número de parcelas', parcelasResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.m.)', jurosCartaoAmResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.a.)', jurosCartaoAaResumo)
   }
   const condicoesBoletoRows: TableRow[] = []
-  if (!isVendaDireta && isCondicaoBoleto) {
+  if (isCondicaoBoleto) {
     pushRowIfMeaningful(condicoesBoletoRows, 'Número de boletos', boletosResumo)
   }
   const condicoesFinanciamentoRows: TableRow[] = []
