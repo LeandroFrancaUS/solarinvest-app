@@ -9,6 +9,11 @@ import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, fo
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import PrintableProposalImages from './PrintableProposalImages'
 import { PMT, toMonthly } from '../../lib/finance/roi'
+import {
+  formatCondicaoLabel,
+  formatPagamentoLabel,
+  formatPagamentoResumo,
+} from '../../constants/pagamento'
 
 const normalizeObservationKey = (value: string): string =>
   value
@@ -118,6 +123,15 @@ function PrintableProposalInner(
       return `${boletosLabel} de ${currency(boletoValor ?? 0)}`
     }
     return boletosLabel
+  }
+  const formatDebitosAutomaticos = (value?: number) => {
+    if (!Number.isFinite(value) || (value ?? 0) <= 0) {
+      return '—'
+    }
+    return `${formatNumberBRWithOptions(value ?? 0, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })} débitos automáticos`
   }
   const isMeaningfulText = (value: string | null | undefined): boolean => {
     if (typeof value !== 'string') {
@@ -503,43 +517,28 @@ function PrintableProposalInner(
       | 'AVISTA'
       | 'PARCELADO'
       | 'BOLETO'
+      | 'DEBITO_AUTOMATICO'
       | 'FINANCIAMENTO'
       | undefined) ??
     vendaFormResumo?.condicao ??
     null
-  const condicaoLabel = (() => {
-    switch (condicaoFonte) {
-      case 'AVISTA':
-        return 'À vista'
-      case 'PARCELADO':
-        return 'Parcelado'
-      case 'BOLETO':
-        return 'Boleto bancário'
-      case 'FINANCIAMENTO':
-        return 'Financiamento'
-      default:
-        return '—'
-    }
-  })()
+  const condicaoLabel = formatCondicaoLabel(condicaoFonte)
   const isCondicaoAvista = condicaoFonte === 'AVISTA'
   const isCondicaoParcelado = condicaoFonte === 'PARCELADO'
   const isCondicaoBoleto = condicaoFonte === 'BOLETO'
+  const isCondicaoDebitoAutomatico = condicaoFonte === 'DEBITO_AUTOMATICO'
   const isCondicaoFinanciamento = condicaoFonte === 'FINANCIAMENTO'
   const modoPagamentoTipo = vendaFormResumo?.modo_pagamento ?? 'PIX'
-  const modoPagamentoLabel =
-    isCondicaoAvista
-      ? modoPagamentoTipo === 'PIX'
-        ? 'Pix'
-        : modoPagamentoTipo === 'DEBITO'
-        ? 'Cartão de débito'
-        : 'Cartão de crédito'
+  const formaPagamentoLabel = formatPagamentoLabel(condicaoFonte, modoPagamentoTipo)
+  const pagamentoResumo = formatPagamentoResumo(condicaoFonte, modoPagamentoTipo)
+  const condicaoHighlightsLabel =
+    pagamentoResumo.highlights.length > 0 ? pagamentoResumo.highlights.join(' • ') : null
+  const condicaoSummaryLabel =
+    pagamentoResumo.summary && pagamentoResumo.summary.trim().length > 0
+      ? pagamentoResumo.summary
       : null
-  const formaPagamentoLabel = (() => {
-    if (isCondicaoAvista && modoPagamentoLabel) {
-      return `${condicaoLabel} • ${modoPagamentoLabel}`
-    }
-    return condicaoLabel
-  })()
+  const condicaoModalidadeLabel =
+    formaPagamentoLabel !== condicaoLabel ? condicaoLabel : null
   const capexTotalCalculado = (() => {
     let total = 0
     let hasValor = false
@@ -748,6 +747,9 @@ function PrintableProposalInner(
       ? baseParcelamentoValor / numeroBoletos
       : null
   const boletosResumo = formatBoletos(numeroBoletos ?? undefined, boletoValorNumero)
+  const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
+  const boletosResumo = formatBoletos(vendaFormResumo?.n_boletos)
+  const debitosResumo = formatDebitosAutomaticos(vendaFormResumo?.n_debitos)
   const jurosCartaoAmResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_am_pct)
   const jurosCartaoAaResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_aa_pct)
   const mdrPixValor = pickNumeric(snapshotPagamento?.mdr_pix, vendaFormResumo?.taxa_mdr_pix_pct)
@@ -844,6 +846,13 @@ function PrintableProposalInner(
     '—'
   const condicoesPagamentoRows: TableRow[] = []
   pushRowIfMeaningful(condicoesPagamentoRows, 'Forma de pagamento', formaPagamentoLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Modalidade comercial', condicaoModalidadeLabel)
+  pushRowIfMeaningful(condicoesPagamentoRows, 'Resumo da modalidade', condicaoSummaryLabel)
+  pushRowIfMeaningful(
+    condicoesPagamentoRows,
+    'Destaques da modalidade',
+    condicaoHighlightsLabel,
+  )
   if (!isVendaDireta) {
     pushRowIfMeaningful(condicoesPagamentoRows, 'Investimento total (CAPEX)', investimentoCapexLabel)
   }
@@ -871,6 +880,14 @@ function PrintableProposalInner(
   if (isCondicaoBoleto) {
     pushRowIfMeaningful(condicoesBoletoRows, 'Número de boletos', boletosResumo)
   }
+  const condicoesDebitoAutomaticoRows: TableRow[] = []
+  if (!isVendaDireta && isCondicaoDebitoAutomatico) {
+    pushRowIfMeaningful(
+      condicoesDebitoAutomaticoRows,
+      'Duração do débito automático',
+      debitosResumo,
+    )
+  }
   const condicoesFinanciamentoRows: TableRow[] = []
   if (!isVendaDireta && isCondicaoFinanciamento) {
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Entrada', entradaResumo)
@@ -892,18 +909,21 @@ function PrintableProposalInner(
   const mostrarCondicoesPagamento = condicoesPagamentoRows.length > 0
   const mostrarCondicoesParcelado = condicoesParceladoRows.length > 0
   const mostrarCondicoesBoleto = condicoesBoletoRows.length > 0
+  const mostrarCondicoesDebitoAutomatico = condicoesDebitoAutomaticoRows.length > 0
   const mostrarCondicoesFinanciamento = condicoesFinanciamentoRows.length > 0
   const mostrarParametrosEconomia = parametrosEconomiaRows.length > 0
   const temAlgumaCondicao =
     mostrarCondicoesPagamento ||
     mostrarCondicoesParcelado ||
     mostrarCondicoesBoleto ||
+    mostrarCondicoesDebitoAutomatico ||
     mostrarCondicoesFinanciamento ||
     mostrarParametrosEconomia
   const totalCondicoesLinhas =
     condicoesPagamentoRows.length +
     condicoesParceladoRows.length +
     condicoesBoletoRows.length +
+    condicoesDebitoAutomaticoRows.length +
     condicoesFinanciamentoRows.length
   const mostrarTabelaCondicoes = totalCondicoesLinhas > 0
   const heroTitle = isVendaDireta
@@ -1364,6 +1384,12 @@ function PrintableProposalInner(
                             ))}
                             {condicoesBoletoRows.map((row) => (
                               <tr key={`condicao-boleto-${row.label}`}>
+                                <td>{row.label}</td>
+                                <td>{row.value}</td>
+                              </tr>
+                            ))}
+                            {condicoesDebitoAutomaticoRows.map((row) => (
+                              <tr key={`condicao-debito-automatico-${row.label}`}>
                                 <td>{row.label}</td>
                                 <td>{row.value}</td>
                               </tr>

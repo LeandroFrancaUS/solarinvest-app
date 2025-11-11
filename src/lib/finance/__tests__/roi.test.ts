@@ -129,6 +129,27 @@ describe('computeROI', () => {
     expect(resultado.totalPagamentos).toBeCloseTo(capex, 2)
   })
 
+  it('divide o valor igualmente ao configurar débito automático', () => {
+    const capex = 36000
+    const debitos = 18
+
+    const formDebitoAutomatico = createBaseForm({
+      condicao: 'DEBITO_AUTOMATICO',
+      modo_pagamento: undefined,
+      capex_total: capex,
+      n_debitos: debitos,
+    })
+
+    const resultado = computeROI(formDebitoAutomatico)
+
+    const valorDebito = capex / debitos
+    for (let indice = 0; indice < debitos; indice += 1) {
+      expect(resultado.pagamentoMensal[indice]).toBeCloseTo(valorDebito, 2)
+    }
+    expect(resultado.pagamentoMensal[debitos]).toBe(0)
+    expect(resultado.totalPagamentos).toBeCloseTo(capex, 2)
+  })
+
   it('calcula VPL apenas quando há taxa de desconto informada', () => {
     const semDesconto = computeROI(createBaseForm({ taxa_desconto_aa_pct: undefined }))
     const comDesconto = computeROI(createBaseForm({ taxa_desconto_aa_pct: 10 }))
