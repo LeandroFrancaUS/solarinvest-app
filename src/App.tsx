@@ -3946,6 +3946,11 @@ export default function App() {
       if (jurosAa !== null && jurosAa < 0) {
         errors.juros_cartao_aa_pct = 'Os juros devem ser zero ou positivos.'
       }
+    } else if (condicao === 'BOLETO') {
+      const boletos = Number.isFinite(form.n_boletos) ? Number(form.n_boletos) : 0
+      if (!boletos || boletos <= 0) {
+        errors.n_boletos = 'Informe a quantidade de boletos.'
+      }
     } else if (condicao === 'FINANCIAMENTO') {
       const parcelasFin = Number.isFinite(form.n_parcelas_fin) ? Number(form.n_parcelas_fin) : 0
       if (!parcelasFin || parcelasFin <= 0) {
@@ -4529,22 +4534,36 @@ export default function App() {
         updates.juros_fin_am_pct = undefined
         updates.juros_fin_aa_pct = undefined
         updates.entrada_financiamento = undefined
+        updates.n_boletos = undefined
       } else if (nextCondicao === 'PARCELADO') {
         updates.modo_pagamento = undefined
         updates.n_parcelas_fin = undefined
         updates.juros_fin_am_pct = undefined
         updates.juros_fin_aa_pct = undefined
         updates.entrada_financiamento = undefined
+        updates.n_boletos = undefined
+      } else if (nextCondicao === 'BOLETO') {
+        updates.modo_pagamento = undefined
+        updates.n_parcelas = undefined
+        updates.juros_cartao_am_pct = undefined
+        updates.juros_cartao_aa_pct = undefined
+        updates.taxa_mdr_credito_parcelado_pct = undefined
+        updates.n_parcelas_fin = undefined
+        updates.juros_fin_am_pct = undefined
+        updates.juros_fin_aa_pct = undefined
+        updates.entrada_financiamento = undefined
+        updates.n_boletos = vendaForm.n_boletos ?? 12
       } else if (nextCondicao === 'FINANCIAMENTO') {
         updates.modo_pagamento = undefined
         updates.n_parcelas = undefined
         updates.juros_cartao_am_pct = undefined
         updates.juros_cartao_aa_pct = undefined
         updates.taxa_mdr_credito_parcelado_pct = undefined
+        updates.n_boletos = undefined
       }
       applyVendaUpdates(updates)
     },
-    [applyVendaUpdates, vendaForm.modo_pagamento],
+    [applyVendaUpdates, vendaForm.modo_pagamento, vendaForm.n_boletos],
   )
 
   const handleBudgetFileChange = useCallback(
@@ -15146,6 +15165,7 @@ export default function App() {
             >
               <option value="AVISTA">À vista</option>
               <option value="PARCELADO">Parcelado</option>
+              <option value="BOLETO">Boleto bancário</option>
               <option value="FINANCIAMENTO">Financiamento</option>
             </select>
             <FieldError message={vendaFormErrors.condicao} />
@@ -15401,6 +15421,35 @@ export default function App() {
                 onFocus={selectNumberInputOnFocus}
               />
               <FieldError message={vendaFormErrors.taxa_mdr_credito_parcelado_pct} />
+            </Field>
+          </div>
+        ) : null}
+        {condicao === 'BOLETO' ? (
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Nº de boletos',
+                'Quantidade de boletos emitidos. O valor total da proposta é dividido igualmente entre eles.',
+              )}
+            >
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={Number.isFinite(vendaForm.n_boletos) ? vendaForm.n_boletos : ''}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    applyVendaUpdates({ n_boletos: undefined })
+                    return
+                  }
+                  const parsed = Number(value)
+                  const normalized = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1
+                  applyVendaUpdates({ n_boletos: normalized })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.n_boletos} />
             </Field>
           </div>
         ) : null}
