@@ -178,6 +178,17 @@ export type PrintableOrcamentoItem = {
   valorTotal?: number | null
 }
 
+export type PrintableUcGeradora = {
+  numero: string
+  endereco: string
+}
+
+export type PrintableUcBeneficiaria = {
+  numero: string
+  endereco: string
+  rateioPercentual?: number | null | undefined
+}
+
 export type PrintableProposalProps = {
   cliente: ClienteDados
   budgetId?: string | undefined
@@ -229,4 +240,6 @@ export type PrintableProposalProps = {
   custoImplantacaoReferencia?: number | null | undefined
   modoVenda?: ModoVenda | undefined
   imagensInstalacao?: PrintableProposalImage[] | undefined
+  ucGeradora?: PrintableUcGeradora | null | undefined
+  ucsBeneficiarias?: PrintableUcBeneficiaria[] | null | undefined
 }
