@@ -102,6 +102,12 @@ import {
 } from './store/useLeasingStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
+import {
+  getPagamentoCondicaoInfo,
+  getPagamentoModoInfo,
+  PAGAMENTO_CONDICAO_INFO,
+  PAGAMENTO_MODO_INFO,
+} from './constants/pagamento'
 import './styles/config-page.css'
 import './styles/toast.css'
 import '@/styles/fix-fog-safari.css'
@@ -3951,6 +3957,11 @@ export default function App() {
       if (!boletos || boletos <= 0) {
         errors.n_boletos = 'Informe a quantidade de boletos.'
       }
+    } else if (condicao === 'DEBITO_AUTOMATICO') {
+      const debitos = Number.isFinite(form.n_debitos) ? Number(form.n_debitos) : 0
+      if (!debitos || debitos <= 0) {
+        errors.n_debitos = 'Informe a duração do débito automático.'
+      }
     } else if (condicao === 'FINANCIAMENTO') {
       const parcelasFin = Number.isFinite(form.n_parcelas_fin) ? Number(form.n_parcelas_fin) : 0
       if (!parcelasFin || parcelasFin <= 0) {
@@ -4535,6 +4546,7 @@ export default function App() {
         updates.juros_fin_aa_pct = undefined
         updates.entrada_financiamento = undefined
         updates.n_boletos = undefined
+        updates.n_debitos = undefined
       } else if (nextCondicao === 'PARCELADO') {
         updates.modo_pagamento = undefined
         updates.n_parcelas_fin = undefined
@@ -4542,6 +4554,7 @@ export default function App() {
         updates.juros_fin_aa_pct = undefined
         updates.entrada_financiamento = undefined
         updates.n_boletos = undefined
+        updates.n_debitos = undefined
       } else if (nextCondicao === 'BOLETO') {
         updates.modo_pagamento = undefined
         updates.n_parcelas = undefined
@@ -4553,6 +4566,19 @@ export default function App() {
         updates.juros_fin_aa_pct = undefined
         updates.entrada_financiamento = undefined
         updates.n_boletos = vendaForm.n_boletos ?? 12
+        updates.n_debitos = undefined
+      } else if (nextCondicao === 'DEBITO_AUTOMATICO') {
+        updates.modo_pagamento = undefined
+        updates.n_parcelas = undefined
+        updates.juros_cartao_am_pct = undefined
+        updates.juros_cartao_aa_pct = undefined
+        updates.taxa_mdr_credito_parcelado_pct = undefined
+        updates.n_parcelas_fin = undefined
+        updates.juros_fin_am_pct = undefined
+        updates.juros_fin_aa_pct = undefined
+        updates.entrada_financiamento = undefined
+        updates.n_boletos = undefined
+        updates.n_debitos = vendaForm.n_debitos ?? vendaForm.n_boletos ?? 12
       } else if (nextCondicao === 'FINANCIAMENTO') {
         updates.modo_pagamento = undefined
         updates.n_parcelas = undefined
@@ -4560,10 +4586,11 @@ export default function App() {
         updates.juros_cartao_aa_pct = undefined
         updates.taxa_mdr_credito_parcelado_pct = undefined
         updates.n_boletos = undefined
+        updates.n_debitos = undefined
       }
       applyVendaUpdates(updates)
     },
-    [applyVendaUpdates, vendaForm.modo_pagamento, vendaForm.n_boletos],
+    [applyVendaUpdates, vendaForm.modo_pagamento, vendaForm.n_boletos, vendaForm.n_debitos],
   )
 
   const handleBudgetFileChange = useCallback(
@@ -15146,6 +15173,21 @@ export default function App() {
 
   const renderCondicoesPagamentoSection = () => {
     const condicao = vendaForm.condicao
+    const condicaoInfo = getPagamentoCondicaoInfo(condicao)
+    const modoInfo =
+      condicao === 'AVISTA'
+        ? getPagamentoModoInfo(vendaForm.modo_pagamento ?? 'PIX')
+        : null
+    const pagamentoCardTitle =
+      condicao === 'AVISTA' && modoInfo
+        ? modoInfo.label
+        : condicaoInfo?.label ?? 'Modalidade de pagamento'
+    const pagamentoCardSummary =
+      condicao === 'AVISTA' && modoInfo ? modoInfo.summary : condicaoInfo?.summary ?? ''
+    const pagamentoCardHighlights =
+      condicao === 'AVISTA' && modoInfo
+        ? modoInfo.highlights
+        : condicaoInfo?.highlights ?? []
     return (
       <section className="card">
         <h2>Condições de Pagamento</h2>
@@ -15160,10 +15202,11 @@ export default function App() {
               value={condicao}
               onChange={(event) => handleCondicaoPagamentoChange(event.target.value as PagamentoCondicao)}
             >
-              <option value="AVISTA">À vista</option>
-              <option value="PARCELADO">Parcelado</option>
-              <option value="BOLETO">Boleto bancário</option>
-              <option value="FINANCIAMENTO">Financiamento</option>
+              <option value="AVISTA">{PAGAMENTO_CONDICAO_INFO.AVISTA.label}</option>
+              <option value="PARCELADO">{PAGAMENTO_CONDICAO_INFO.PARCELADO.label}</option>
+              <option value="BOLETO">{PAGAMENTO_CONDICAO_INFO.BOLETO.label}</option>
+              <option value="DEBITO_AUTOMATICO">{PAGAMENTO_CONDICAO_INFO.DEBITO_AUTOMATICO.label}</option>
+              <option value="FINANCIAMENTO">{PAGAMENTO_CONDICAO_INFO.FINANCIAMENTO.label}</option>
             </select>
             <FieldError message={vendaFormErrors.condicao} />
           </Field>
@@ -15198,21 +15241,39 @@ export default function App() {
             <input readOnly value="BRL" />
           </Field>
         </div>
+        {pagamentoCardSummary || pagamentoCardHighlights.length > 0 ? (
+          <div className="payment-highlight-card">
+            {condicaoInfo ? (
+              <span className="payment-highlight-card__badge">{condicaoInfo.label}</span>
+            ) : null}
+            <strong className="payment-highlight-card__title">{pagamentoCardTitle}</strong>
+            {pagamentoCardSummary ? (
+              <p className="payment-highlight-card__summary">{pagamentoCardSummary}</p>
+            ) : null}
+            {pagamentoCardHighlights.length > 0 ? (
+              <ul className="payment-highlight-card__list">
+                {pagamentoCardHighlights.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
         {condicao === 'AVISTA' ? (
           <div className="grid g3">
             <Field
               label={labelWithTooltip(
                 'Modo de pagamento',
-                'Define o meio de pagamento à vista (Pix, débito ou crédito) e habilita as taxas correspondentes.',
+                'Define o meio de pagamento à vista e ajusta as taxas de MDR quando aplicável.',
               )}
             >
               <select
                 value={vendaForm.modo_pagamento ?? 'PIX'}
                 onChange={(event) => applyVendaUpdates({ modo_pagamento: event.target.value as ModoPagamento })}
               >
-                <option value="PIX">Pix</option>
-                <option value="DEBITO">Cartão de débito</option>
-                <option value="CREDITO">Cartão de crédito</option>
+                <option value="PIX">{PAGAMENTO_MODO_INFO.PIX.label}</option>
+                <option value="DEBITO">{PAGAMENTO_MODO_INFO.DEBITO.label}</option>
+                <option value="CREDITO">{PAGAMENTO_MODO_INFO.CREDITO.label}</option>
               </select>
               <FieldError message={vendaFormErrors.modo_pagamento} />
             </Field>
@@ -15447,6 +15508,35 @@ export default function App() {
                 onFocus={selectNumberInputOnFocus}
               />
               <FieldError message={vendaFormErrors.n_boletos} />
+            </Field>
+          </div>
+        ) : null}
+        {condicao === 'DEBITO_AUTOMATICO' ? (
+          <div className="grid g3">
+            <Field
+              label={labelWithTooltip(
+                'Duração do débito automático (meses)',
+                'Quantidade de meses com débito recorrente em conta. O valor total é dividido igualmente entre os débitos.',
+              )}
+            >
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={Number.isFinite(vendaForm.n_debitos) ? vendaForm.n_debitos : ''}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    applyVendaUpdates({ n_debitos: undefined })
+                    return
+                  }
+                  const parsed = Number(value)
+                  const normalized = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1
+                  applyVendaUpdates({ n_debitos: normalized })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.n_debitos} />
             </Field>
           </div>
         ) : null}

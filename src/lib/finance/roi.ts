@@ -1,7 +1,12 @@
 import { calcTusdEncargoMensal } from './tusd'
 import type { TipoClienteTUSD } from './tusd'
 
-export type PagamentoCondicao = 'AVISTA' | 'PARCELADO' | 'BOLETO' | 'FINANCIAMENTO'
+export type PagamentoCondicao =
+  | 'AVISTA'
+  | 'PARCELADO'
+  | 'BOLETO'
+  | 'DEBITO_AUTOMATICO'
+  | 'FINANCIAMENTO'
 export type ModoPagamento = 'PIX' | 'DEBITO' | 'CREDITO'
 
 export type SegmentoCliente = 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL' | 'HIBRIDO'
@@ -35,6 +40,7 @@ export interface VendaForm {
   taxa_mdr_credito_parcelado_pct?: number | undefined
   n_parcelas?: number | undefined
   n_boletos?: number | undefined
+  n_debitos?: number | undefined
   juros_cartao_aa_pct?: number | undefined
   juros_cartao_am_pct?: number | undefined
 
@@ -183,6 +189,13 @@ export function computeROI(form: VendaForm): RetornoProjetado {
     for (let mes = 1; mes <= boletos && mes <= HORIZON_MONTHS; mes += 1) {
       pagamentoMensal[mes - 1] = valorBoleto
       totalPagamentos += valorBoleto
+    }
+  } else if (condicao === 'DEBITO_AUTOMATICO') {
+    const debitos = Math.max(0, Math.floor(sanitizeNumber(form.n_debitos, 12)))
+    const valorDebito = debitos > 0 ? capex / debitos : 0
+    for (let mes = 1; mes <= debitos && mes <= HORIZON_MONTHS; mes += 1) {
+      pagamentoMensal[mes - 1] = valorDebito
+      totalPagamentos += valorDebito
     }
   } else if (condicao === 'FINANCIAMENTO') {
     const parcelas = Math.max(0, Math.floor(sanitizeNumber(form.n_parcelas_fin, 60)))
