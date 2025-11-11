@@ -241,6 +241,9 @@ describe('PrintableProposal (venda direta)', () => {
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
+    const parcelaEsperada = retorno.pagamentoMensal[0]
+    const parcelasDescricaoEsperada = `12 parcelas de ${currency(parcelaEsperada)}`
+
     expect(markup).toMatch(/Potência dos módulos<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).toMatch(/Energia contratada \(kWh\/mês\)<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>—<\/dd>/)
@@ -248,6 +251,7 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).not.toMatch(/<span>VPL<\/span>/)
     expect(markup).not.toContain('A geração real pode variar')
     expect(markup).toContain('Não é de responsabilidade da SolarInvest Solutions')
+    expect(markup).toContain(parcelasDescricaoEsperada)
   })
 
   it('renderiza observações da configuração quando informadas', () => {
