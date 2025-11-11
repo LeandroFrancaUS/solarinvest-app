@@ -207,6 +207,7 @@ const createInitialState = (): VendaState => ({
 })
 
 let state: VendaState = createInitialState()
+const INITIAL_STATE_SIGNATURE = JSON.stringify(state)
 
 const cloneState = (input: VendaState): VendaState => ({
   cliente: { ...input.cliente },
@@ -254,6 +255,12 @@ export const vendaStore = {
     notify()
   },
 }
+
+const isStatePristine = (input: VendaState): boolean => JSON.stringify(input) === INITIAL_STATE_SIGNATURE
+
+export const isVendaStatePristine = (input: VendaState): boolean => isStatePristine(input)
+
+export const hasVendaStateChanges = (): boolean => !isStatePristine(vendaStore.getState())
 
 export function useVendaStore<T>(selector: (state: VendaState) => T): T {
   const subscribe = useCallback((listener: Listener) => vendaStore.subscribe(listener), [])

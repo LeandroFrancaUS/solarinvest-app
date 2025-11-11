@@ -86,6 +86,7 @@ import { ensureProposalId, normalizeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
   getVendaSnapshot,
+  hasVendaStateChanges,
   useVendaStore,
   vendaActions,
   vendaStore,
@@ -96,6 +97,7 @@ import {
 import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta'
 import {
   getLeasingSnapshot,
+  hasLeasingStateChanges,
   leasingActions,
   useLeasingValorDeMercadoEstimado,
   type LeasingState,
@@ -10500,7 +10502,7 @@ export default function App() {
 }
 
   const carregarOrcamentoParaEdicao = useCallback(
-    (registro: OrcamentoSalvo) => {
+    (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
       if (!registro.snapshot) {
         window.alert(
           'Este orçamento foi salvo sem histórico completo. Visualize o PDF ou salve novamente para gerar uma cópia editável.',
@@ -10512,12 +10514,21 @@ export default function App() {
       setActivePage('app')
       atualizarOrcamentoAtivo(registro)
       adicionarNotificacao(
-        'Orçamento carregado para edição. Salve novamente para preservar as alterações.',
+        options?.notificationMessage ??
+          'Orçamento carregado para edição. Salve novamente para preservar as alterações.',
         'info',
       )
     },
     [adicionarNotificacao, aplicarSnapshot, atualizarOrcamentoAtivo, setActivePage],
   )
+
+  const limparDadosModalidade = useCallback((tipo: PrintableProposalTipo) => {
+    if (tipo === 'VENDA_DIRETA') {
+      vendaStore.reset()
+    } else {
+      leasingActions.reset()
+    }
+  }, [])
 
   const salvarOrcamentoLocalmente = useCallback(
     (dados: PrintableProposalProps): OrcamentoSalvo | null => {
@@ -12241,29 +12252,58 @@ export default function App() {
   const totalResultados = orcamentosFiltrados.length
 
   const carregarOrcamentoSalvo = useCallback(
-    async (registro: OrcamentoSalvo) => {
+    async (registroInicial: OrcamentoSalvo) => {
+      let registro = registroInicial
+
+      if (!registro.snapshot) {
+        carregarOrcamentoParaEdicao(registro)
+        return
+      }
+
+      const assinaturaAtual = computeSignatureRef.current()
+      const assinaturaRegistro = computeSnapshotSignature(registro.snapshot, registro.dados)
+
+      if (assinaturaRegistro === assinaturaAtual) {
+        carregarOrcamentoParaEdicao(registro, {
+          notificationMessage:
+            'Os dados desta proposta já estavam carregados. A versão salva foi reaplicada.',
+        })
+        return
+      }
+
       if (hasUnsavedChanges()) {
-        const confirmarSalvar = window.confirm(
-          'Existem alterações não salvas. Deseja salvar a proposta antes de carregar outro orçamento?',
-        )
-        if (confirmarSalvar) {
-          const salvou = await handleSalvarPropostaPdf()
-          if (!salvou) {
-            return
-          }
-        } else {
-          const confirmarDescartar = window.confirm(
-            'Deseja descartar as alterações atuais e carregar o orçamento selecionado?',
-          )
-          if (!confirmarDescartar) {
-            return
-          }
+        const salvou = await handleSalvarPropostaPdf()
+        if (!salvou) {
+          return
         }
+
+        limparDadosModalidade(printableData.tipoProposta)
+
+        const registrosAtualizados = carregarOrcamentosSalvos()
+        const atualizado = registrosAtualizados.find((item) => item.id === registro.id)
+        if (atualizado?.snapshot) {
+          registro = atualizado
+        }
+      }
+
+      const tipoRegistro = registro.dados.tipoProposta
+      const possuiDadosPreenchidos =
+        tipoRegistro === 'VENDA_DIRETA' ? hasVendaStateChanges() : hasLeasingStateChanges()
+
+      if (possuiDadosPreenchidos) {
+        limparDadosModalidade(tipoRegistro)
       }
 
       carregarOrcamentoParaEdicao(registro)
     },
-    [carregarOrcamentoParaEdicao, handleSalvarPropostaPdf, hasUnsavedChanges],
+    [
+      carregarOrcamentoParaEdicao,
+      carregarOrcamentosSalvos,
+      handleSalvarPropostaPdf,
+      hasUnsavedChanges,
+      limparDadosModalidade,
+      printableData.tipoProposta,
+    ],
   )
 
   const abrirPesquisaOrcamentos = () => {
