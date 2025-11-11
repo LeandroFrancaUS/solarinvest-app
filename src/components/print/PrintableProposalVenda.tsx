@@ -869,11 +869,13 @@ function PrintableProposalInner(
     : Number.isFinite(vendaFormResumo?.horizonte_meses) && (vendaFormResumo?.horizonte_meses ?? 0) > 0
     ? `${Math.round(vendaFormResumo?.horizonte_meses ?? 0)} meses`
     : 'horizonte analisado'
-  const validadePropostaDiasPadrao = Number.isFinite(
-    vendasConfigSnapshot?.validade_proposta_dias,
-  )
+  const validadeConfigPadraoDias = Number.isFinite(vendasConfigSnapshot?.validade_proposta_dias)
     ? Math.max(0, Number(vendasConfigSnapshot?.validade_proposta_dias ?? 0))
     : null
+  const validadeVendaPadraoDias = 3
+  const validadePropostaDiasPadrao = isVendaDireta
+    ? validadeVendaPadraoDias
+    : validadeConfigPadraoDias
   const emissaoData = new Date()
   const validadeData = new Date(emissaoData.getTime())
   if ((validadePropostaDiasPadrao ?? 0) > 0) {
@@ -903,14 +905,17 @@ function PrintableProposalInner(
     sanitizeTextField(vendaFormResumo?.condicoes_adicionais) ??
     '—'
   const condicoesPagamentoRows: TableRow[] = []
+  const mostrarDetalhesModalidade = !isCondicaoAvista
   pushRowIfMeaningful(condicoesPagamentoRows, 'Forma de pagamento', formaPagamentoLabel)
-  pushRowIfMeaningful(condicoesPagamentoRows, 'Modalidade comercial', condicaoModalidadeLabel)
-  pushRowIfMeaningful(condicoesPagamentoRows, 'Resumo da modalidade', condicaoSummaryLabel)
-  pushRowIfMeaningful(
-    condicoesPagamentoRows,
-    'Destaques da modalidade',
-    condicaoHighlightsLabel,
-  )
+  if (mostrarDetalhesModalidade) {
+    pushRowIfMeaningful(condicoesPagamentoRows, 'Modalidade comercial', condicaoModalidadeLabel)
+    pushRowIfMeaningful(condicoesPagamentoRows, 'Resumo da modalidade', condicaoSummaryLabel)
+    pushRowIfMeaningful(
+      condicoesPagamentoRows,
+      'Destaques da modalidade',
+      condicaoHighlightsLabel,
+    )
+  }
   if (!isVendaDireta) {
     pushRowIfMeaningful(condicoesPagamentoRows, 'Investimento total (CAPEX)', investimentoCapexLabel)
   }
