@@ -169,6 +169,8 @@ import type {
   PrintableMultiUcResumo,
   PrintableProposalProps,
   PrintableProposalTipo,
+  PrintableUcBeneficiaria,
+  PrintableUcGeradora,
   TipoInstalacao,
   UfvComposicaoResumo,
   UfvComposicaoSoloValores,
@@ -686,6 +688,7 @@ type OrcamentoSnapshotData = {
   cliente: ClienteDados
   clienteEmEdicaoId: string | null
   clienteMensagens?: ClienteMensagens | undefined
+  ucBeneficiarias: UcBeneficiariaFormState[]
   pageShared: PageSharedSettings
   currentBudgetId: string
   budgetStructuredItems: StructuredItem[]
@@ -788,6 +791,13 @@ type ClienteCampoTexto = {
   [K in keyof ClienteDados]: ClienteDados[K] extends string ? K : never
 }[keyof ClienteDados]
 
+type UcBeneficiariaFormState = {
+  id: string
+  numero: string
+  endereco: string
+  rateioPercentual: string
+}
+
 const CAMPOS_CLIENTE_OBRIGATORIOS: { key: ClienteCampoTexto; label: string }[] = [
   { key: 'nome', label: 'Nome do cliente' },
   { key: 'cidade', label: 'Cidade' },
@@ -846,6 +856,15 @@ const generateBudgetId = (
 }
 
 const createDraftBudgetId = () => `DRAFT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
+
+const createUcBeneficiariaId = () => `UCB-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
+
+const createEmptyUcBeneficiaria = (): UcBeneficiariaFormState => ({
+  id: createUcBeneficiariaId(),
+  numero: '',
+  endereco: '',
+  rateioPercentual: '',
+})
 
 const isQuotaExceededError = (error: unknown) => {
   if (!error) {
@@ -1098,6 +1117,18 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
     delete clone.imagensInstalacao
   }
 
+  if (dados.ucGeradora) {
+    clone.ucGeradora = { ...dados.ucGeradora }
+  } else {
+    delete clone.ucGeradora
+  }
+
+  if (Array.isArray(dados.ucsBeneficiarias)) {
+    clone.ucsBeneficiarias = dados.ucsBeneficiarias.map((uc) => ({ ...uc }))
+  } else {
+    delete clone.ucsBeneficiarias
+  }
+
   return clone
 }
 
@@ -1135,6 +1166,10 @@ const cloneStructuredItems = (items: StructuredItem[]): StructuredItem[] =>
 const cloneDistribuidorasMapa = (mapa: Record<string, string[]>): Record<string, string[]> =>
   Object.fromEntries(Object.entries(mapa).map(([uf, lista]) => [uf, [...lista]]))
 
+const cloneUcBeneficiariasForm = (
+  lista: UcBeneficiariaFormState[],
+): UcBeneficiariaFormState[] => lista.map((item) => ({ ...item }))
+
 const cloneVendasSimulacoes = (
   simulations: Record<string, VendasSimulacao>,
 ): Record<string, VendasSimulacao> =>
@@ -1146,6 +1181,7 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
   ...snapshot,
   cliente: cloneClienteDados(snapshot.cliente),
   clienteMensagens: snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : undefined,
+  ucBeneficiarias: cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []),
   pageShared: { ...snapshot.pageShared },
   propostaImagens: Array.isArray(snapshot.propostaImagens)
     ? snapshot.propostaImagens.map((imagem) => ({ ...imagem }))
@@ -3517,6 +3553,7 @@ export default function App() {
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+  const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
 
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
@@ -6828,6 +6865,69 @@ export default function App() {
       const clienteDistribuidoraAtual = sanitizeText(cliente.distribuidora)
       const distribuidoraSnapshot = sanitizeText(vendaSnapshot.parametros.distribuidora)
 
+      const formatClienteEnderecoCompleto = (): string => {
+        const enderecoPrincipal = sanitizeText(cliente.endereco)
+        const cidade = sanitizeText(cliente.cidade)
+        const uf = sanitizeText(cliente.uf)
+        const cep = sanitizeText(cliente.cep)
+        const partes: string[] = []
+        if (enderecoPrincipal) {
+          partes.push(enderecoPrincipal)
+        }
+        if (cidade || uf) {
+          if (cidade && uf) {
+            partes.push(`${cidade} / ${uf}`)
+          } else if (cidade) {
+            partes.push(cidade)
+          } else if (uf) {
+            partes.push(uf)
+          }
+        }
+        if (cep) {
+          partes.push(`CEP ${cep}`)
+        }
+        return partes.join(' • ')
+      }
+
+      const ucGeradoraNumero = sanitizeText(cliente.uc) ?? ''
+      const ucGeradoraEndereco = formatClienteEnderecoCompleto()
+      const ucGeradoraPrintable: PrintableUcGeradora | null =
+        ucGeradoraNumero || ucGeradoraEndereco
+          ? { numero: ucGeradoraNumero, endereco: ucGeradoraEndereco }
+          : null
+
+      const normalizeRateioPercent = (valor: string): number | null => {
+        if (typeof valor !== 'string') {
+          return null
+        }
+        const trimmed = valor.trim()
+        if (!trimmed) {
+          return null
+        }
+        const normalized = trimmed.replace(/%/g, '').replace(',', '.')
+        const parsed = Number(normalized)
+        if (!Number.isFinite(parsed)) {
+          return null
+        }
+        return parsed
+      }
+
+      const ucsBeneficiariasPrintable: PrintableUcBeneficiaria[] = ucsBeneficiarias
+        .map((item) => {
+          const numero = sanitizeText(item.numero) ?? ''
+          const endereco = sanitizeText(item.endereco) ?? ''
+          const rateio = normalizeRateioPercent(item.rateioPercentual)
+          if (!numero && !endereco && rateio == null) {
+            return null
+          }
+          return {
+            numero,
+            endereco,
+            rateioPercentual: rateio,
+          }
+        })
+        .filter((item): item is PrintableUcBeneficiaria => Boolean(item))
+
       return {
         cliente,
         budgetId: sanitizedBudgetId,
@@ -6903,6 +7003,8 @@ export default function App() {
           return null
         })(),
         imagensInstalacao: propostaImagens.map((imagem) => ({ ...imagem })),
+        ucGeradora: ucGeradoraPrintable,
+        ucsBeneficiarias: ucsBeneficiariasPrintable,
       }
     },
     [
@@ -6972,6 +7074,7 @@ export default function App() {
       custoImplantacaoReferencia,
       propostaImagens,
       configuracaoUsinaObservacoes,
+      ucsBeneficiarias,
     ],
   )
 
@@ -10045,6 +10148,28 @@ export default function App() {
           tipoProposta: dados?.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
         }
 
+        if (dados.ucGeradora && typeof dados.ucGeradora === 'object') {
+          const numero = typeof dados.ucGeradora.numero === 'string' ? dados.ucGeradora.numero : ''
+          const endereco =
+            typeof dados.ucGeradora.endereco === 'string' ? dados.ucGeradora.endereco : ''
+          dadosNormalizados.ucGeradora = { numero, endereco }
+        } else {
+          delete dadosNormalizados.ucGeradora
+        }
+
+        dadosNormalizados.ucsBeneficiarias = Array.isArray(dados.ucsBeneficiarias)
+          ? dados.ucsBeneficiarias
+              .filter((item): item is PrintableUcBeneficiaria => Boolean(item && typeof item === 'object'))
+              .map((item) => ({
+                numero: typeof item.numero === 'string' ? item.numero : '',
+                endereco: typeof item.endereco === 'string' ? item.endereco : '',
+                rateioPercentual:
+                  item.rateioPercentual != null && Number.isFinite(item.rateioPercentual)
+                    ? Number(item.rateioPercentual)
+                    : null,
+              }))
+          : []
+
         const clienteIdArmazenado =
           sanitizeClienteId(
             registro.clienteId ??
@@ -10120,16 +10245,14 @@ export default function App() {
     const vendaSnapshotAtual = getVendaSnapshot()
     const leasingSnapshotAtual = getLeasingSnapshot()
 
-    const clienteEmEdicaoIdAtual =
-      clienteEmEdicaoIdRef.current ?? clienteEmEdicaoId ?? null
-
-    return {
-      activeTab,
-      settingsTab,
-      cliente: cloneClienteDados(cliente),
-      clienteEmEdicaoId: clienteEmEdicaoIdAtual,
-      clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
-      pageShared: { ...pageSharedState },
+  return {
+    activeTab,
+    settingsTab,
+    cliente: cloneClienteDados(cliente),
+    clienteEmEdicaoId,
+    clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
+    ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
+    pageShared: { ...pageSharedState },
       currentBudgetId,
       budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
       kitBudget: cloneKitBudgetState(kitBudget),
@@ -10244,6 +10367,7 @@ export default function App() {
     setCliente(cloneClienteDados(snapshot.cliente))
     setClienteEmEdicaoId(snapshot.clienteEmEdicaoId)
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
+    setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
     setPageSharedState({ ...snapshot.pageShared })
     setCurrentBudgetId(budgetId)
     setBudgetStructuredItems(cloneStructuredItems(snapshot.budgetStructuredItems))
@@ -11523,6 +11647,7 @@ export default function App() {
     }
 
     setPropostaImagens([])
+    setUcsBeneficiarias([])
 
     setUfTarifa(INITIAL_VALUES.ufTarifa)
     setDistribuidoraTarifa(INITIAL_VALUES.distribuidoraTarifa)
@@ -11684,6 +11809,23 @@ export default function App() {
   }
 
   const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
+
+  const handleAdicionarUcBeneficiaria = useCallback(() => {
+    setUcsBeneficiarias((prev) => [...prev, createEmptyUcBeneficiaria()])
+  }, [])
+
+  const handleAtualizarUcBeneficiaria = useCallback(
+    (id: string, field: 'numero' | 'endereco' | 'rateioPercentual', value: string) => {
+      setUcsBeneficiarias((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+      )
+    },
+    [],
+  )
+
+  const handleRemoverUcBeneficiaria = useCallback((id: string) => {
+    setUcsBeneficiarias((prev) => prev.filter((item) => item.id !== id))
+  }, [])
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
     if (key === 'temIndicacao') {
@@ -12362,23 +12504,98 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'Unidade consumidora (UC)',
-            'Código numérico da UC junto à distribuidora, usado para vincular contratos e projeções de consumo.',
+            'UC Geradora (número)',
+            'Código numérico da unidade consumidora geradora junto à distribuidora, usado para vincular contratos e projeções de consumo.',
           )}
         >
-          <input value={cliente.uc} onChange={(e) => handleClienteChange('uc', e.target.value)} />
+          <input
+            value={cliente.uc}
+            onChange={(e) => handleClienteChange('uc', e.target.value)}
+            placeholder="Número da UC geradora"
+          />
         </Field>
         <Field
           label={labelWithTooltip(
-            'Endereço de instalação',
-            'Local onde o sistema será instalado; aparece em propostas, laudos e integrações logísticas.',
+            'Endereço da UC Geradora',
+            'Local completo da unidade geradora; será exibido na proposta e usado em integrações logísticas.',
           )}
         >
           <input
             value={cliente.endereco}
             onChange={(e) => handleClienteChange('endereco', e.target.value)}
             autoComplete="street-address"
+            placeholder="Endereço completo da UC geradora"
           />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'UCs Beneficiárias',
+            'Cadastre as unidades consumidoras que receberão rateio automático dos créditos de energia gerados.',
+          )}
+        >
+          <div className="cliente-ucs-beneficiarias-group">
+            {ucsBeneficiarias.length === 0 ? (
+              <p className="cliente-ucs-beneficiarias-empty">
+                Nenhuma UC beneficiária cadastrada. Utilize o botão abaixo para adicionar.
+              </p>
+            ) : null}
+            {ucsBeneficiarias.map((uc, index) => (
+              <div className="cliente-ucs-beneficiaria-row" key={uc.id}>
+                <span className="cliente-ucs-beneficiaria-index" aria-hidden="true">
+                  UC {index + 1}
+                </span>
+                <input
+                  className="cliente-ucs-beneficiaria-numero"
+                  value={uc.numero}
+                  onChange={(event) =>
+                    handleAtualizarUcBeneficiaria(uc.id, 'numero', event.target.value)
+                  }
+                  placeholder="Número da UC"
+                  aria-label={`Número da UC beneficiária ${index + 1}`}
+                />
+                <input
+                  className="cliente-ucs-beneficiaria-endereco"
+                  value={uc.endereco}
+                  onChange={(event) =>
+                    handleAtualizarUcBeneficiaria(uc.id, 'endereco', event.target.value)
+                  }
+                  placeholder="Endereço completo"
+                  aria-label={`Endereço completo da UC beneficiária ${index + 1}`}
+                />
+                <input
+                  className="cliente-ucs-beneficiaria-rateio"
+                  value={uc.rateioPercentual}
+                  onChange={(event) =>
+                    handleAtualizarUcBeneficiaria(
+                      uc.id,
+                      'rateioPercentual',
+                      event.target.value,
+                    )
+                  }
+                  placeholder="Rateio (%)"
+                  inputMode="decimal"
+                  aria-label={`Rateio percentual da UC beneficiária ${index + 1}`}
+                />
+                <button
+                  type="button"
+                  className="ghost cliente-ucs-beneficiaria-remove"
+                  onClick={() => handleRemoverUcBeneficiaria(uc.id)}
+                  aria-label={`Remover UC beneficiária ${index + 1}`}
+                >
+                  Remover
+                </button>
+              </div>
+            ))}
+            <div className="cliente-ucs-beneficiarias-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={handleAdicionarUcBeneficiaria}
+              >
+                Adicionar UC beneficiária
+              </button>
+            </div>
+          </div>
         </Field>
         <Field
           label={labelWithTooltip(

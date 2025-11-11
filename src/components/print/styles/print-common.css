@@ -190,6 +190,46 @@
   border-color: #ddd !important;
 }
 
+.print-uc-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.print-uc-heading,
+.print-uc-beneficiarias-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.print-uc-text {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.print-uc-beneficiarias-title {
+  margin-top: 4px;
+}
+
+.print-uc-beneficiarias-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.print-uc-beneficiarias-list li {
+  margin: 0;
+  list-style: disc;
+}
+
 :where(
     html[data-print-mode='print'],
     body[data-print-mode='print'],

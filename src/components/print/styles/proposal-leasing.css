@@ -224,6 +224,17 @@
   margin-top: 24px;
 }
 
+.leasing-print-layout .print-uc-heading,
+.leasing-print-layout .print-uc-beneficiarias-title {
+  color: #0c162c;
+}
+
+.leasing-print-layout .print-uc-text,
+.leasing-print-layout .print-uc-beneficiarias-list,
+.leasing-print-layout .print-uc-beneficiarias-list li {
+  color: #1e293b;
+}
+
 .section-title {
   margin: 28px 0 14px;
   color: #ff8c00;

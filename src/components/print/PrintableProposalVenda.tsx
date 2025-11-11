@@ -64,6 +64,8 @@ function PrintableProposalInner(
     custoImplantacaoReferencia,
     imagensInstalacao,
     configuracaoUsinaObservacoes,
+    ucGeradora,
+    ucsBeneficiarias,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -497,6 +499,64 @@ function PrintableProposalInner(
   const enderecoCliente = cliente.endereco?.trim() || ''
   const cidadeUfLabel = cidadeCliente || ufCliente ? `${cidadeCliente || '—'} / ${ufCliente || '—'}` : '—'
   const enderecoLabel = enderecoCliente ? enderecoCliente : cidadeUfLabel
+  const formatClienteEnderecoCompleto = () => {
+    const endereco = cliente.endereco?.trim() || ''
+    const cidade = cliente.cidade?.trim() || ''
+    const uf = cliente.uf?.trim() || ''
+    const cep = cliente.cep?.trim() || ''
+    const partes: string[] = []
+    if (endereco) {
+      partes.push(endereco)
+    }
+    if (cidade || uf) {
+      partes.push([cidade, uf].filter(Boolean).join(' / '))
+    }
+    if (cep) {
+      partes.push(`CEP ${cep}`)
+    }
+    return partes.filter(Boolean).join(' • ')
+  }
+
+  const ucGeradoraNumero = ucGeradora?.numero?.trim() || ucCliente || ''
+  const ucGeradoraEndereco = ucGeradora?.endereco?.trim() || formatClienteEnderecoCompleto()
+
+  const ucsBeneficiariasLista = useMemo(() => {
+    if (!Array.isArray(ucsBeneficiarias)) {
+      return [] as { numero: string; endereco: string; rateioPercentual: number | null }[]
+    }
+    return ucsBeneficiarias
+      .map((item) => {
+        const numero = item?.numero?.trim() || ''
+        const endereco = item?.endereco?.trim() || ''
+        const rateio =
+          item?.rateioPercentual != null && Number.isFinite(item.rateioPercentual)
+            ? Number(item.rateioPercentual)
+            : null
+        if (!numero && !endereco && rateio == null) {
+          return null
+        }
+        return { numero, endereco, rateioPercentual: rateio }
+      })
+      .filter((item): item is { numero: string; endereco: string; rateioPercentual: number | null } =>
+        Boolean(item),
+      )
+  }, [ucsBeneficiarias])
+
+  const formatRateioLabel = (valor: number | null) => {
+    if (valor == null || !Number.isFinite(valor)) {
+      return null
+    }
+    const numero = Number(valor)
+    const texto = formatNumberBRWithOptions(numero, {
+      minimumFractionDigits: Number.isInteger(numero) ? 0 : 2,
+      maximumFractionDigits: 2,
+    })
+    return `${texto}%`
+  }
+
+  const ucGeradoraNumeroLabel = ucGeradoraNumero || '—'
+  const ucGeradoraEnderecoLabel = ucGeradoraEndereco || '—'
+  const hasBeneficiarias = ucsBeneficiariasLista.length > 0
   const clienteCampos: ClientInfoField[] = [
     { label: 'Código do orçamento', value: codigoOrcamento || '—' },
     { label: 'Cliente', value: cliente.nome || '—' },
@@ -1026,7 +1086,36 @@ function PrintableProposalInner(
               wideFieldClassName="print-client-field--wide"
             />
           </section>
-    
+
+          <section className="print-section keep-together avoid-break">
+            <h2 className="keep-with-next">Dados da instalação</h2>
+            <div className="print-uc-details">
+              <div className="print-uc-geradora">
+                <h3 className="print-uc-heading">UC Geradora</h3>
+                <p className="print-uc-text">
+                  UC nº {ucGeradoraNumeroLabel} — {ucGeradoraEnderecoLabel}
+                </p>
+              </div>
+              {hasBeneficiarias ? (
+                <div className="print-uc-beneficiarias">
+                  <h4 className="print-uc-beneficiarias-title">UCs Beneficiárias</h4>
+                  <ul className="print-uc-beneficiarias-list">
+                    {ucsBeneficiariasLista.map((uc, index) => {
+                      const rateioLabel = formatRateioLabel(uc.rateioPercentual)
+                      return (
+                        <li key={`${uc.numero || 'uc'}-${index}`}>
+                          UC nº {uc.numero || '—'}
+                          {uc.endereco ? ` — ${uc.endereco}` : ''}
+                          {rateioLabel ? ` — Rateio: ${rateioLabel}` : ''}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
           {mostrarDetalhamento ? (
             <section className="print-section keep-together avoid-break">
               <h2 className="keep-with-next">Detalhamento do Projeto</h2>

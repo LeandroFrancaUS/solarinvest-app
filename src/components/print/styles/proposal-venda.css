@@ -183,6 +183,17 @@ html[data-print-mode='print'] .print-hero__title h1 {
   -webkit-region-break-inside: avoid;
 }
 
+.print-uc-heading,
+.print-uc-beneficiarias-title {
+  color: #0c162c;
+}
+
+.print-uc-text,
+.print-uc-beneficiarias-list,
+.print-uc-beneficiarias-list li {
+  color: #1e293b;
+}
+
 .print-section--hero,
 .print-section--footer {
   background: transparent;
