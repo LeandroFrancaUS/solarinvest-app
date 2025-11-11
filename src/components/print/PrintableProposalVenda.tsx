@@ -539,8 +539,8 @@ function PrintableProposalInner(
     }
     const numero = Number(valor)
     const texto = formatNumberBRWithOptions(numero, {
-      minimumFractionDigits: Number.isInteger(numero) ? 0 : 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: Number.isInteger(numero) ? 0 : 2,
     })
     return `${texto}%`
   }
