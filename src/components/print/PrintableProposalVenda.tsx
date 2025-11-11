@@ -101,6 +101,15 @@ function PrintableProposalInner(
       maximumFractionDigits: 0,
     })} parcelas`
   }
+  const formatBoletos = (value?: number) => {
+    if (!Number.isFinite(value) || (value ?? 0) <= 0) {
+      return '—'
+    }
+    return `${formatNumberBRWithOptions(value ?? 0, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })} boletos`
+  }
   const isMeaningfulText = (value: string | null | undefined): boolean => {
     if (typeof value !== 'string') {
       return false
@@ -481,7 +490,12 @@ function PrintableProposalInner(
       ? formatPercentBR((descontoContratualPct ?? 0) / 100)
       : '—'
   const condicaoFonte =
-    (snapshotPagamento?.forma_pagamento as 'AVISTA' | 'PARCELADO' | 'FINANCIAMENTO' | undefined) ??
+    (snapshotPagamento?.forma_pagamento as
+      | 'AVISTA'
+      | 'PARCELADO'
+      | 'BOLETO'
+      | 'FINANCIAMENTO'
+      | undefined) ??
     vendaFormResumo?.condicao ??
     null
   const condicaoLabel = (() => {
@@ -490,6 +504,8 @@ function PrintableProposalInner(
         return 'À vista'
       case 'PARCELADO':
         return 'Parcelado'
+      case 'BOLETO':
+        return 'Boleto bancário'
       case 'FINANCIAMENTO':
         return 'Financiamento'
       default:
@@ -498,6 +514,7 @@ function PrintableProposalInner(
   })()
   const isCondicaoAvista = condicaoFonte === 'AVISTA'
   const isCondicaoParcelado = condicaoFonte === 'PARCELADO'
+  const isCondicaoBoleto = condicaoFonte === 'BOLETO'
   const isCondicaoFinanciamento = condicaoFonte === 'FINANCIAMENTO'
   const modoPagamentoTipo = vendaFormResumo?.modo_pagamento ?? 'PIX'
   const modoPagamentoLabel =
@@ -684,6 +701,7 @@ function PrintableProposalInner(
     : '—'
   const horizonteAnaliseResumo = formatMeses(snapshotParametros?.horizonte_meses ?? vendaFormResumo?.horizonte_meses)
   const parcelasResumo = formatParcelas(vendaFormResumo?.n_parcelas)
+  const boletosResumo = formatBoletos(vendaFormResumo?.n_boletos)
   const jurosCartaoAmResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_am_pct)
   const jurosCartaoAaResumo = formatPercentFromPct(vendaFormResumo?.juros_cartao_aa_pct)
   const mdrPixValor = pickNumeric(snapshotPagamento?.mdr_pix, vendaFormResumo?.taxa_mdr_pix_pct)
@@ -803,6 +821,10 @@ function PrintableProposalInner(
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.m.)', jurosCartaoAmResumo)
     pushRowIfMeaningful(condicoesParceladoRows, 'Juros do cartão (% a.a.)', jurosCartaoAaResumo)
   }
+  const condicoesBoletoRows: TableRow[] = []
+  if (!isVendaDireta && isCondicaoBoleto) {
+    pushRowIfMeaningful(condicoesBoletoRows, 'Número de boletos', boletosResumo)
+  }
   const condicoesFinanciamentoRows: TableRow[] = []
   if (!isVendaDireta && isCondicaoFinanciamento) {
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Entrada', entradaResumo)
@@ -823,12 +845,20 @@ function PrintableProposalInner(
   }
   const mostrarCondicoesPagamento = condicoesPagamentoRows.length > 0
   const mostrarCondicoesParcelado = condicoesParceladoRows.length > 0
+  const mostrarCondicoesBoleto = condicoesBoletoRows.length > 0
   const mostrarCondicoesFinanciamento = condicoesFinanciamentoRows.length > 0
   const mostrarParametrosEconomia = parametrosEconomiaRows.length > 0
   const temAlgumaCondicao =
-    mostrarCondicoesPagamento || mostrarCondicoesParcelado || mostrarCondicoesFinanciamento || mostrarParametrosEconomia
+    mostrarCondicoesPagamento ||
+    mostrarCondicoesParcelado ||
+    mostrarCondicoesBoleto ||
+    mostrarCondicoesFinanciamento ||
+    mostrarParametrosEconomia
   const totalCondicoesLinhas =
-    condicoesPagamentoRows.length + condicoesParceladoRows.length + condicoesFinanciamentoRows.length
+    condicoesPagamentoRows.length +
+    condicoesParceladoRows.length +
+    condicoesBoletoRows.length +
+    condicoesFinanciamentoRows.length
   const mostrarTabelaCondicoes = totalCondicoesLinhas > 0
   const heroTitle = isVendaDireta
     ? 'Proposta de Aquisição de Sistema de Energia Solar com a SolarInvest'
@@ -1282,6 +1312,12 @@ function PrintableProposalInner(
                             ))}
                             {condicoesParceladoRows.map((row) => (
                               <tr key={`condicao-parcelado-${row.label}`}>
+                                <td>{row.label}</td>
+                                <td>{row.value}</td>
+                              </tr>
+                            ))}
+                            {condicoesBoletoRows.map((row) => (
+                              <tr key={`condicao-boleto-${row.label}`}>
                                 <td>{row.label}</td>
                                 <td>{row.value}</td>
                               </tr>
