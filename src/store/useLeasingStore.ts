@@ -73,6 +73,7 @@ const createInitialState = (): LeasingState => ({
 })
 
 let state: LeasingState = createInitialState()
+const INITIAL_STATE_SIGNATURE = JSON.stringify(state)
 
 const cloneState = (input: LeasingState): LeasingState => ({
   ...input,
@@ -107,6 +108,12 @@ const leasingStore = {
     return () => listeners.delete(listener)
   },
 }
+
+const isStatePristine = (input: LeasingState): boolean => JSON.stringify(input) === INITIAL_STATE_SIGNATURE
+
+export const isLeasingStatePristine = (input: LeasingState): boolean => isStatePristine(input)
+
+export const hasLeasingStateChanges = (): boolean => !isStatePristine(leasingStore.getState())
 
 export const useLeasingStore = <T,>(selector: (state: LeasingState) => T): T => {
   const getSnapshot = useCallback(() => selector(leasingStore.getState()), [selector])
