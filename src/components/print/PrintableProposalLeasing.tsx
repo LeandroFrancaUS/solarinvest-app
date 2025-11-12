@@ -58,6 +58,8 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
 const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
   'Valores estimativos; confirmação no contrato definitivo.'
 
+const PRAZO_LEASING_PADRAO_MESES = 60
+
 const formatAnosDetalhado = (valor: number): string => {
   const fractionDigits = Number.isInteger(valor) ? 0 : 1
   const numero = formatNumberBRWithOptions(valor, {
@@ -66,6 +68,20 @@ const formatAnosDetalhado = (valor: number): string => {
   })
   const singular = Math.abs(valor - 1) < 1e-6
   return `${numero} ${singular ? 'ano' : 'anos'}`
+}
+
+const formatPrazoContratualMesesCurto = (meses?: number): string => {
+  if (!Number.isFinite(meses) || (meses ?? 0) <= 0) {
+    return formatPrazoContratualMesesCurto(PRAZO_LEASING_PADRAO_MESES)
+  }
+
+  const mesesInteiros = Math.max(1, Math.round(meses ?? 0))
+  const numero = formatNumberBRWithOptions(mesesInteiros, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+  const singular = mesesInteiros === 1
+  return `${numero} ${singular ? 'mês' : 'meses'}`
 }
 
 const formatPrazoContratual = (meses: number): string => {
@@ -649,7 +665,8 @@ function PrintableProposalLeasingInner(
     tarifaCheiaBase,
   ])
 
-  const prazoEconomiaMeses = prazoContratual > 0 ? prazoContratual : 60
+  const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
+  const prazoEconomiaMeses = prazoContratualMeses
 
   const economiaMarcos = useMemo(() => {
     const alvos = anosAlvoEconomia(prazoEconomiaMeses)
@@ -755,8 +772,11 @@ function PrintableProposalLeasingInner(
     [economiaProjetadaGrafico],
   )
 
-  const heroSummary =
-    'Você já paga pela energia todos os meses — agora pode transformar esse gasto em investimento. Com o Leasing SolarInvest, a SolarInvest realiza todo o investimento na sua usina, enquanto você paga apenas pela energia gerada, com desconto e previsibilidade. Desde o primeiro mês, sua conta cai e, ao completar 60 meses, a usina passa a ser 100% sua — um patrimônio que valoriza o seu imóvel e sua liberdade financeira.'
+  const prazoContratualMesesTexto = useMemo(
+    () => formatPrazoContratualMesesCurto(prazoContratualMeses),
+    [prazoContratualMeses],
+  )
+  const heroSummary = `Você já paga pela energia todos os meses — agora pode transformar esse gasto em investimento. Com o Leasing SolarInvest, a SolarInvest realiza todo o investimento na sua usina, enquanto você paga apenas pela energia gerada, com desconto e previsibilidade. Desde o primeiro mês, sua conta cai e, ao completar ${prazoContratualMesesTexto}, a usina passa a ser 100% sua — um patrimônio que valoriza o seu imóvel e sua liberdade financeira.`
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
   const economiaExplainer: React.ReactNode = beneficioAno30 ? (
     <>
@@ -851,7 +871,7 @@ function PrintableProposalLeasingInner(
                       ✅ Manutenção, seguro e suporte inclusos
                     </li>
                     <li>
-                      ✅ Transferência gratuita da usina após 60 meses
+                      ✅ Transferência gratuita da usina após {prazoContratualMesesTexto}
                     </li>
                     <li>
                       ✅ Energia limpa e valorização do seu imóvel
@@ -1150,8 +1170,8 @@ function PrintableProposalLeasingInner(
                   O que antes era custo, agora se transforma em retorno e valorização.
                 </p>
                 <p className="section-intro keep-with-next">
-                  Cada mês de geração representa economia crescente e tranquilidade financeira. Em apenas 60 meses, a usina
-                  será sua, e a economia continuará aumentando por décadas.
+                  Cada mês de geração representa economia crescente e tranquilidade financeira. Em apenas {prazoContratualMesesTexto},
+                  a usina será sua, e a economia continuará aumentando por décadas.
                 </p>
                 <div
                   className="leasing-horizontal-chart no-break-inside"
@@ -1274,8 +1294,8 @@ function PrintableProposalLeasingInner(
                 </p>
               </div>
               <p className="print-final-footer__closing">
-                Com esta proposta, você dá o primeiro passo rumo à independência energética e financeira. Em apenas 60 meses,
-                sua própria usina estará gerando lucro, tranquilidade e valorizando o seu imóvel.
+                Com esta proposta, você dá o primeiro passo rumo à independência energética e financeira. Em apenas{' '}
+                {prazoContratualMesesTexto}, sua própria usina estará gerando lucro, tranquilidade e valorizando o seu imóvel.
               </p>
               <p className="print-final-footer__cta">
                 Vamos transformar sua conta de luz em investimento? Confirme seu interesse e agendaremos sua instalação sem
