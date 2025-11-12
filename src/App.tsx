@@ -81,7 +81,7 @@ import {
   formatPercentBRWithDigits,
   toNumberFlexible,
 } from './lib/locale/br-number'
-import { useBRNumberField } from './lib/locale/useBRNumberField'
+import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
 import { ensureProposalId, normalizeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
@@ -14510,7 +14510,11 @@ export default function App() {
                 value={descontosMoneyField.text}
                 onChange={descontosMoneyField.handleChange}
                 onBlur={descontosMoneyField.handleBlur}
-                onFocus={selectNumberInputOnFocus}
+                onFocus={(event) => {
+                  descontosMoneyField.handleFocus(event)
+                  selectNumberInputOnFocus(event)
+                }}
+                placeholder={MONEY_INPUT_PLACEHOLDER}
               />
             </Field>
           </div>
@@ -14535,9 +14539,14 @@ export default function App() {
                   capexBaseResumoField.handleBlur()
                   capexBaseResumoField.setText(formatMoneyBR(capexBaseResumoValor))
                 }}
-                onFocus={selectNumberInputOnFocus}
+                onFocus={(event) => {
+                  capexBaseResumoField.handleFocus(event)
+                  selectNumberInputOnFocus(event)
+                }}
                 placeholder={
-                  typeof capexBaseManualValor === 'number' ? undefined : 'Automático (calculado)'
+                  typeof capexBaseManualValor === 'number'
+                    ? MONEY_INPUT_PLACEHOLDER
+                    : 'Automático (calculado)'
                 }
               />
             </Field>
@@ -14554,8 +14563,13 @@ export default function App() {
                 value={margemOperacionalResumoField.text}
                 onChange={margemOperacionalResumoField.handleChange}
                 onBlur={() => margemOperacionalResumoField.handleBlur()}
-                onFocus={selectNumberInputOnFocus}
-                placeholder={margemManualAtiva ? undefined : 'Automático (padrão)'}
+                onFocus={(event) => {
+                  margemOperacionalResumoField.handleFocus(event)
+                  selectNumberInputOnFocus(event)
+                }}
+                placeholder={
+                  margemManualAtiva ? MONEY_INPUT_PLACEHOLDER : 'Automático (padrão)'
+                }
               />
             </Field>
           </div>
@@ -14978,9 +14992,14 @@ export default function App() {
                         capexBaseResumoSettingsField.handleBlur()
                         capexBaseResumoSettingsField.setText(formatMoneyBR(capexBaseResumoValor))
                       }}
-                      onFocus={selectNumberInputOnFocus}
+                      onFocus={(event) => {
+                        capexBaseResumoSettingsField.handleFocus(event)
+                        selectNumberInputOnFocus(event)
+                      }}
                       placeholder={
-                        typeof capexBaseManualValor === 'number' ? undefined : 'Automático (calculado)'
+                        typeof capexBaseManualValor === 'number'
+                          ? MONEY_INPUT_PLACEHOLDER
+                          : 'Automático (calculado)'
                       }
                     />
                   </Field>
@@ -14992,8 +15011,13 @@ export default function App() {
                       value={margemOperacionalResumoSettingsField.text}
                       onChange={margemOperacionalResumoSettingsField.handleChange}
                       onBlur={() => margemOperacionalResumoSettingsField.handleBlur()}
-                      onFocus={selectNumberInputOnFocus}
-                      placeholder={margemManualAtiva ? undefined : 'Automático (padrão)'}
+                      onFocus={(event) => {
+                        margemOperacionalResumoSettingsField.handleFocus(event)
+                        selectNumberInputOnFocus(event)
+                      }}
+                      placeholder={
+                        margemManualAtiva ? MONEY_INPUT_PLACEHOLDER : 'Automático (padrão)'
+                      }
                     />
                   </Field>
                   <Field label="Comissão líquida (R$)">
@@ -15534,7 +15558,11 @@ export default function App() {
                 capexMoneyField.handleBlur()
                 capexMoneyField.setText(formatMoneyBR(valorTotalPropostaNormalizado))
               }}
-              onFocus={selectNumberInputOnFocus}
+              onFocus={(event) => {
+                capexMoneyField.handleFocus(event)
+                selectNumberInputOnFocus(event)
+              }}
+              placeholder={MONEY_INPUT_PLACEHOLDER}
             />
             <FieldError message={vendaFormErrors.capex_total} />
           </Field>
