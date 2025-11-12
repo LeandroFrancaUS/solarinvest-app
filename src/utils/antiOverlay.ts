@@ -147,6 +147,141 @@ function resetElementFog(element: HTMLElement) {
   element.style.setProperty('-webkit-mask-image', 'none')
 }
 
+interface FogEvaluation {
+  hasFog: boolean
+  styles: CSSStyleDeclaration | null
+  isFixedOrAbsolute: boolean
+  isInsetFull: boolean
+  isEdgeToEdge: boolean
+  coversViewport: boolean
+}
+
+function evaluateFog(element: HTMLElement): FogEvaluation {
+  if (typeof window === 'undefined') {
+    return {
+      hasFog: false,
+      styles: null,
+      isFixedOrAbsolute: false,
+      isInsetFull: false,
+      isEdgeToEdge: false,
+      coversViewport: false,
+    }
+  }
+
+  const styles = window.getComputedStyle(element)
+  const backdropFilter = styles.getPropertyValue('backdrop-filter')
+  const webkitBackdropFilter = styles.getPropertyValue('-webkit-backdrop-filter')
+  const filterValue = styles.filter ?? ''
+  const filterHasFog =
+    filterValue &&
+    filterValue !== 'none' &&
+    (filterValue.includes('blur') || filterValue.includes('brightness'))
+  const hasFog =
+    (backdropFilter && backdropFilter !== 'none') ||
+    (webkitBackdropFilter && webkitBackdropFilter !== 'none') ||
+    filterHasFog ||
+    styles.opacity !== '1'
+
+  if (!hasFog) {
+    return {
+      hasFog,
+      styles,
+      isFixedOrAbsolute: false,
+      isInsetFull: false,
+      isEdgeToEdge: false,
+      coversViewport: false,
+    }
+  }
+
+  const isFixedOrAbsolute =
+    (styles.position === 'fixed' || styles.position === 'absolute') && styles.zIndex !== 'auto'
+  const inset = styles.inset
+  const isInsetFull = inset === '0px'
+  const isEdgeToEdge =
+    styles.top === '0px' &&
+    styles.left === '0px' &&
+    styles.right === '0px' &&
+    styles.bottom === '0px'
+
+  const coversViewport =
+    element.offsetWidth >= window.innerWidth * COVERAGE_THRESHOLD &&
+    element.offsetHeight >= window.innerHeight * COVERAGE_THRESHOLD
+
+  return {
+    hasFog,
+    styles,
+    isFixedOrAbsolute,
+    isInsetFull,
+    isEdgeToEdge,
+    coversViewport,
+  }
+}
+
+function collectChildElements(
+  parent: Element | Document | DocumentFragment,
+): Element[] {
+  if ('children' in parent) {
+    return Array.from(parent.children) as Element[]
+  }
+
+  return []
+}
+
+function scheduleFogDetection(
+  root: Element | Document | DocumentFragment,
+  options?: { deep?: boolean },
+): void {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const { deep = true } = options ?? {}
+  const queue: Element[] = []
+  const foggyNodes: HTMLElement[] = []
+  const seen = new Set<Element>()
+
+  if (root instanceof Element) {
+    queue.push(root)
+  } else {
+    queue.push(...collectChildElements(root))
+  }
+
+  const process = () => {
+    let processed = 0
+
+    while (queue.length > 0 && processed < 120) {
+      const element = queue.pop()
+      if (!element || seen.has(element)) {
+        continue
+      }
+
+      seen.add(element)
+
+      if (element instanceof HTMLElement) {
+        if (!CANDIDATE_QUERY || !element.matches?.(CANDIDATE_QUERY)) {
+          const evaluation = evaluateFog(element)
+          if (evaluation.hasFog) {
+            foggyNodes.push(element)
+          }
+        }
+      }
+
+      if (deep) {
+        queue.push(...collectChildElements(element))
+      }
+      processed += 1
+    }
+
+    if (queue.length > 0) {
+      scheduleIdle(process)
+    } else if (foggyNodes.length > 0) {
+      scheduleNeutralization(foggyNodes)
+    }
+  }
+
+  process()
+}
+
 export function neutralizeNode(node: Element): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return
@@ -168,37 +303,13 @@ export function neutralizeNode(node: Element): void {
     })
   }
 
-  const styles = window.getComputedStyle(node)
-  const backdropFilter = styles.getPropertyValue('backdrop-filter')
-  const webkitBackdropFilter = styles.getPropertyValue('-webkit-backdrop-filter')
-  const filterValue = styles.filter ?? ''
-  const filterHasFog =
-    filterValue &&
-    filterValue !== 'none' &&
-    (filterValue.includes('blur') || filterValue.includes('brightness'))
-  const hasFog =
-    (backdropFilter && backdropFilter !== 'none') ||
-    (webkitBackdropFilter && webkitBackdropFilter !== 'none') ||
-    filterHasFog ||
-    styles.opacity !== '1'
+  const evaluation = evaluateFog(node)
 
-  if (!hasFog) {
+  if (!evaluation.hasFog) {
     return
   }
 
-  const isFixedOrAbsolute =
-    (styles.position === 'fixed' || styles.position === 'absolute') && styles.zIndex !== 'auto'
-  const inset = styles.inset
-  const isInsetFull = inset === '0px'
-  const isEdgeToEdge =
-    styles.top === '0px' &&
-    styles.left === '0px' &&
-    styles.right === '0px' &&
-    styles.bottom === '0px'
-
-  const coversViewport =
-    node.offsetWidth >= window.innerWidth * COVERAGE_THRESHOLD &&
-    node.offsetHeight >= window.innerHeight * COVERAGE_THRESHOLD
+  const { isFixedOrAbsolute, isInsetFull, isEdgeToEdge, coversViewport } = evaluation
 
   if (isFixedOrAbsolute || isInsetFull || isEdgeToEdge || coversViewport) {
     resetElementFog(node)
@@ -214,6 +325,8 @@ export function removeFogOverlays(): void {
     const candidates = document.querySelectorAll(CANDIDATE_QUERY)
     scheduleNeutralization(Array.from(candidates))
   }
+
+  scheduleFogDetection(document)
 
   ROOT_ELEMENTS.forEach((selector) => {
     document.querySelectorAll(selector).forEach((element) => {
@@ -235,6 +348,11 @@ export function watchFogReinjection(): () => void {
         mutation.addedNodes.forEach((node) => {
           if (node instanceof Element) {
             scheduleNeutralization(collectCandidatesFromNode(node))
+            scheduleFogDetection(node)
+          }
+
+          if (node instanceof DocumentFragment) {
+            scheduleFogDetection(node)
           }
         })
       }
@@ -243,6 +361,8 @@ export function watchFogReinjection(): () => void {
         if (!CANDIDATE_QUERY || mutation.target.matches(CANDIDATE_QUERY)) {
           scheduleNeutralization([mutation.target])
         }
+
+        scheduleFogDetection(mutation.target, { deep: false })
       }
     }
   })
