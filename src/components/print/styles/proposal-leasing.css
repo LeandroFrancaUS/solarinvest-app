@@ -143,6 +143,40 @@
   max-width: 720px;
 }
 
+.print-hero__benefits {
+  margin-top: 22px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: rgba(251, 146, 60, 0.18);
+  border: 1px solid rgba(251, 146, 60, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.25);
+}
+
+.print-hero__benefits-title {
+  margin: 0 0 10px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fefce8;
+}
+
+.print-hero__benefits ul {
+  margin: 0;
+  padding-left: 18px;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.print-hero__benefits li {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(248, 250, 252, 0.94);
+}
+
+.print-hero__benefits strong {
+  color: #fb923c;
+}
+
 .print-hero__summary h2 {
   margin: 0 0 14px;
   font-size: 18px;
@@ -557,6 +591,14 @@
   color: #f8fafc;
 }
 
+.print-final-footer__closing {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: rgba(15, 23, 42, 0.88);
+}
+
 .print-final-footer__signature {
   display: flex;
   flex-direction: column;
@@ -579,15 +621,15 @@
   gap: 6px;
   align-items: center;
   text-align: center;
-  font-size: 11px;
-  line-height: 1.4;
-  color: rgba(226, 232, 240, 0.82);
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(15, 23, 42, 0.82);
 }
 
 .print-brand-footer strong {
-  font-size: 13px;
-  color: #f8fafc;
-  letter-spacing: 0.18em;
+  font-size: 14px;
+  color: #f97316;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
