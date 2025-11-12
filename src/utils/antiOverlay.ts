@@ -17,6 +17,20 @@ const OVERLAY_SELECTORS = [
   '[class*="dim"]',
 ]
 
+const STYLE_BASED_SELECTORS = [
+  '*[style*="backdrop-filter" i]',
+  '*[style*="-webkit-backdrop-filter" i]',
+  '*[style*="filter" i]',
+  '*[style*="opacity" i]',
+  '*[style*="mix-blend-mode" i]',
+  '*[style*="mask" i]',
+  '*[style*="-webkit-mask" i]',
+  '[class*="blur" i]',
+  '[class*="filtro" i]',
+]
+
+const CANDIDATE_SELECTORS = Array.from(new Set([...OVERLAY_SELECTORS, ...STYLE_BASED_SELECTORS]))
+
 const ROOT_ELEMENTS = [
   'html',
   'body',
@@ -29,7 +43,92 @@ const ROOT_ELEMENTS = [
   '[class*="layout"]',
 ]
 const NEUTRALIZE_QUERY = OVERLAY_SELECTORS.join(', ')
+const CANDIDATE_QUERY = CANDIDATE_SELECTORS.join(', ')
 const COVERAGE_THRESHOLD = 0.98
+
+type IdleCallback = (deadline: IdleDeadline) => void
+
+interface IdleDeadline {
+  readonly didTimeout: boolean
+  timeRemaining(): number
+}
+
+type IdleScheduler = (callback: () => void) => void
+
+function createIdleScheduler(): IdleScheduler {
+  if (typeof window === 'undefined') {
+    return () => {}
+  }
+
+  const anyWindow = window as typeof window & {
+    requestIdleCallback?: (callback: IdleCallback) => number
+  }
+
+  if (typeof anyWindow.requestIdleCallback === 'function') {
+    return (callback) => {
+      anyWindow.requestIdleCallback?.(() => callback())
+    }
+  }
+
+  return (callback) => {
+    window.setTimeout(callback, 16)
+  }
+}
+
+const scheduleIdle = createIdleScheduler()
+
+function scheduleNeutralization(nodes: Iterable<Element>): void {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const uniqueNodes: HTMLElement[] = []
+  const seen = new Set<HTMLElement>()
+
+  for (const node of nodes) {
+    if (node instanceof HTMLElement && !seen.has(node)) {
+      seen.add(node)
+      uniqueNodes.push(node)
+    }
+  }
+
+  if (uniqueNodes.length === 0) {
+    return
+  }
+
+  const BATCH_SIZE = 40
+
+  const processBatch = (startIndex: number) => {
+    const endIndex = Math.min(startIndex + BATCH_SIZE, uniqueNodes.length)
+    for (let index = startIndex; index < endIndex; index += 1) {
+      neutralizeNode(uniqueNodes[index])
+    }
+
+    if (endIndex < uniqueNodes.length) {
+      scheduleIdle(() => processBatch(endIndex))
+    }
+  }
+
+  processBatch(0)
+}
+
+function collectCandidatesFromNode(node: Element): Element[] {
+  if (!CANDIDATE_QUERY) {
+    return []
+  }
+
+  const candidates: Element[] = []
+
+  if (node.matches?.(CANDIDATE_QUERY)) {
+    candidates.push(node)
+  }
+
+  node.querySelectorAll?.(CANDIDATE_QUERY).forEach((element) => {
+    candidates.push(element)
+  })
+
+  return candidates
+}
 
 function hideOverlayElement(element: HTMLElement) {
   element.style.display = 'none'
@@ -111,17 +210,10 @@ export function removeFogOverlays(): void {
     return
   }
 
-  OVERLAY_SELECTORS.forEach((selector) => {
-    document.querySelectorAll(selector).forEach((element) => {
-      if (element instanceof HTMLElement) {
-        hideOverlayElement(element)
-      }
-    })
-  })
-
-  document.querySelectorAll('*').forEach((element) => {
-    neutralizeNode(element)
-  })
+  if (CANDIDATE_QUERY) {
+    const candidates = document.querySelectorAll(CANDIDATE_QUERY)
+    scheduleNeutralization(Array.from(candidates))
+  }
 
   ROOT_ELEMENTS.forEach((selector) => {
     document.querySelectorAll(selector).forEach((element) => {
@@ -142,18 +234,15 @@ export function watchFogReinjection(): () => void {
       if (mutation.type === 'childList') {
         mutation.addedNodes.forEach((node) => {
           if (node instanceof Element) {
-            neutralizeNode(node)
-            if (node instanceof HTMLElement) {
-              node.querySelectorAll('*').forEach((child) => {
-                neutralizeNode(child)
-              })
-            }
+            scheduleNeutralization(collectCandidatesFromNode(node))
           }
         })
       }
 
       if (mutation.type === 'attributes' && mutation.target instanceof Element) {
-        neutralizeNode(mutation.target)
+        if (!CANDIDATE_QUERY || mutation.target.matches(CANDIDATE_QUERY)) {
+          scheduleNeutralization([mutation.target])
+        }
       }
     }
   })
