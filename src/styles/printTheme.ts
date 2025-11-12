@@ -85,6 +85,7 @@ export const simplePrintStyles = `
   [data-print-variant='simple'] .print-final-footer{background:#fff!important;border:1px solid #000!important;border-radius:4px;padding:18px 20px;box-shadow:none!important;}
   [data-print-variant='simple'] .print-final-footer__dates strong{color:#000!important;}
   [data-print-variant='simple'] .print-final-footer__signature span{font-size:11px;letter-spacing:0.12em;color:#000!important;}
+  [data-print-variant='simple'] .print-final-footer__signature-note{font-size:10px;letter-spacing:0;text-transform:none;color:#000!important;}
   [data-print-variant='simple'] .signature-line{background:#000!important;height:1px;}
   [data-print-variant='simple'] .print-brand-footer{color:#000!important;letter-spacing:0.18em;}
   [data-print-variant='simple'] .print-brand-footer strong{color:#000!important;}
