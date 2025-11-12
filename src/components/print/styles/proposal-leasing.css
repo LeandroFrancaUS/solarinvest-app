@@ -6,10 +6,10 @@
 .print-layout.leasing-print-layout {
   background:
     linear-gradient(180deg, #fff9f2 0%, #ffffff 65%, #f5f5f5 100%);
-  padding: 32px 40px;
+  padding: 28px 36px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 18px;
   min-height: 100%;
 }
 
@@ -18,8 +18,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
-  padding: 36px 40px;
+  gap: 18px;
+  padding: 30px 34px;
   border-radius: 28px;
   background:
     radial-gradient(160% 140% at 10% 0%, rgba(247, 147, 30, 0.25) 0%, rgba(247, 147, 30, 0) 60%),
@@ -47,7 +47,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  gap: 14px;
   position: relative;
   z-index: 1;
   max-width: 680px;
@@ -58,7 +58,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .print-logo {
@@ -66,15 +66,15 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 96px;
-  height: 96px;
+  width: 120px;
+  height: 120px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 14px 32px rgba(249, 200, 140, 0.42);
 }
 
 .print-logo img {
-  width: 68px;
+  width: 88px;
   max-width: 100%;
   height: auto;
 }
@@ -83,7 +83,7 @@
 .print-hero__title {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
   text-align: center;
 }
@@ -94,7 +94,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .print-hero__eyebrow {
@@ -138,7 +138,7 @@
 
 
 .print-hero__tagline {
-  margin: 4px auto 0;
+  margin: 2px auto 0;
   font-size: 15px;
   line-height: 1.5;
   color: #1f2933;
@@ -151,7 +151,7 @@
 .print-hero__summary {
   position: relative;
   z-index: 1;
-  padding: 22px 26px;
+  padding: 20px 24px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.94);
   font-size: 15px;
@@ -305,7 +305,7 @@
 
 .print-section {
   margin: 0;
-  padding: 24px 28px;
+  padding: 20px 24px;
   border-radius: 18px;
   background: #ffffff;
   border: 1px solid rgba(247, 147, 30, 0.18);
@@ -326,7 +326,7 @@
 }
 
 .print-section + .print-section {
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .leasing-print-layout .print-uc-heading,
@@ -341,7 +341,7 @@
 }
 
 .section-title {
-  margin: 18px 0 10px;
+  margin: 14px 0 8px;
   color: #f7931e;
   font-size: 22px;
   font-family: 'Montserrat', 'Open Sans', sans-serif;
@@ -349,7 +349,7 @@
   letter-spacing: 0.02em;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   text-align: left;
   align-items: flex-start;
 }
@@ -365,13 +365,13 @@
   font-size: 14px;
   font-style: normal;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   letter-spacing: normal;
   text-transform: none;
 }
 
 .section-intro {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-size: 14px;
   line-height: 1.55;
   color: #1f2933;
@@ -388,7 +388,7 @@
 .section-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 24px;
+  gap: 10px 20px;
   align-items: start;
 }
 
@@ -407,7 +407,7 @@
 
 .print-section th,
 .print-section td {
-  padding: 14px 18px;
+  padding: 12px 16px;
   text-align: left;
   font-size: 13px;
   break-inside: avoid-page;
@@ -671,9 +671,9 @@
 .print-final-footer {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 24px;
+  gap: 18px;
   align-items: start;
-  padding: 24px 28px;
+  padding: 20px 24px;
   border-radius: 24px;
   background: #fff9f2;
   border: 1px solid rgba(247, 147, 30, 0.2);
@@ -705,21 +705,6 @@
   line-height: 1.6;
   color: #d97706;
   font-weight: 700;
-}
-
-.print-final-footer__image {
-  margin: 0;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.1);
-  border: 1px solid rgba(247, 147, 30, 0.2);
-  background: #ffffff;
-}
-
-.print-final-footer__image img {
-  display: block;
-  width: 100%;
-  height: auto;
 }
 
 .print-final-footer__signature {

@@ -1278,9 +1278,6 @@ function PrintableProposalLeasingInner(
                   <strong>Data de emissão da proposta:</strong> {emissaoTexto}
                 </p>
               </div>
-              <figure className="print-final-footer__image" aria-hidden="true">
-                <img src="/proposal-closing-family.svg" alt="Família celebrando a conquista da usina SolarInvest" />
-              </figure>
               <p className="print-final-footer__closing">
                 Com esta proposta, você dá o primeiro passo rumo à independência energética e financeira. Em apenas 60 meses,
                 sua própria usina estará gerando lucro, tranquilidade e valorizando o seu imóvel.
