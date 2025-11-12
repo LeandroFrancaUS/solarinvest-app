@@ -713,6 +713,17 @@
   font-size: 12px;
 }
 
+.print-final-footer__signature-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: center;
+  color: #1f2937;
+}
+
 .signature-line {
   width: 100%;
   height: 1px;

@@ -1704,6 +1704,10 @@ function PrintableProposalInner(
               <div className="print-final-footer__signature">
                 <div className="signature-line" />
                 <span>Assinatura do cliente</span>
+                <p className="print-final-footer__signature-note">
+                  Ao assinar esta proposta, o cliente apenas manifesta sua intenção de contratar com a SolarInvest. Este
+                  documento não constitui contrato nem gera obrigações firmes para nenhuma das partes.
+                </p>
               </div>
             </footer>
 
