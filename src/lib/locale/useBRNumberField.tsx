@@ -5,24 +5,33 @@ type Mode = 'number' | 'money' | 'percent'
 
 export const MONEY_INPUT_PLACEHOLDER = 'Ex.: R$ 0,00'
 
-function formatMoneyForEditing(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) {
+function sanitizeMoneyInput(raw: string): string {
+  const cleaned = raw.replace(/[^0-9,.-]/g, '')
+  if (!cleaned) {
     return ''
   }
-  const numeric = Number(value)
-  const [integer, decimals] = Math.abs(numeric).toFixed(2).split('.')
-  const sign = numeric < 0 ? '-' : ''
-  return `${sign}${integer}${decimals ? `,${decimals}` : ''}`
-}
 
-function sanitizeMoneyInput(raw: string): string {
-  const withoutCurrency = raw.replace(/[^0-9,.-]/g, '').replace(/\./g, '')
-  const [integer = '', ...decimalParts] = withoutCurrency.split(',')
-  const decimals = decimalParts.join('')
-  const sanitizedDecimals = decimals ? `,${decimals}` : ''
-  const sign = integer.startsWith('-') ? '-' : ''
-  const absoluteInteger = integer.replace(/^-/, '')
-  return `${sign}${absoluteInteger}${sanitizedDecimals}`
+  const sign = cleaned.startsWith('-') ? '-' : ''
+  const unsigned = cleaned.replace(/-/g, '')
+  const lastComma = unsigned.lastIndexOf(',')
+  const lastDot = unsigned.lastIndexOf('.')
+  const decimalIndex = Math.max(lastComma, lastDot)
+
+  if (decimalIndex === -1) {
+    const integerDigits = unsigned.replace(/[^0-9]/g, '')
+    return `${sign}${integerDigits}`
+  }
+
+  const integerPartRaw = unsigned.slice(0, decimalIndex)
+  const decimalPartRaw = unsigned.slice(decimalIndex + 1)
+  const integerDigits = integerPartRaw.replace(/[^0-9]/g, '')
+  const decimalDigits = decimalPartRaw.replace(/[^0-9]/g, '')
+
+  if (!decimalDigits) {
+    return `${sign}${integerDigits},`
+  }
+
+  return `${sign}${integerDigits},${decimalDigits}`
 }
 
 export function useBRNumberField({
@@ -38,6 +47,9 @@ export function useBRNumberField({
   const [isEditing, setIsEditing] = React.useState(false)
   const latestValueRef = React.useRef<number | null>(
     Number.isFinite(value ?? NaN) ? Number(value) : null,
+  )
+  const editingSessionRef = React.useRef<{ initialValue: number | null; hasTyped: boolean }>(
+    { initialValue: null, hasTyped: false },
   )
 
   const formatValue = React.useCallback(
@@ -94,6 +106,10 @@ export function useBRNumberField({
       const sanitized = sanitizeMoneyInput(raw)
       setText(sanitized)
 
+      if (!editingSessionRef.current.hasTyped && sanitized.length > 0) {
+        editingSessionRef.current.hasTyped = true
+      }
+
       if (!sanitized) {
         onChange?.(null)
         return
@@ -118,12 +134,20 @@ export function useBRNumberField({
 
     if (mode === 'money') {
       if (!text.trim()) {
-        onChange?.(null)
-        setText('')
+        const { initialValue, hasTyped } = editingSessionRef.current
+        if (hasTyped) {
+          onChange?.(null)
+          setText('')
+        } else {
+          const fallback = Number.isFinite(initialValue ?? NaN) ? Number(initialValue) : null
+          setText(formatMoneyBR(fallback))
+        }
+        editingSessionRef.current = { initialValue: null, hasTyped: false }
         return
       }
 
       commitMoneyValue(text)
+      editingSessionRef.current = { initialValue: null, hasTyped: false }
       return
     }
 
@@ -140,18 +164,15 @@ export function useBRNumberField({
 
       setIsEditing(true)
 
-      const numeric = latestValueRef.current
-      if (numeric == null) {
-        setText('')
-        return
+      editingSessionRef.current = {
+        initialValue: latestValueRef.current,
+        hasTyped: false,
       }
 
-      const editingValue = formatMoneyForEditing(numeric)
-      setText(editingValue)
+      setText('')
 
-      // Ensure the DOM input mirrors the latest editing value when focus is triggered programmatically.
-      if (event.currentTarget.value !== editingValue) {
-        event.currentTarget.value = editingValue
+      if (event.currentTarget.value !== '') {
+        event.currentTarget.value = ''
       }
     },
     [mode],
