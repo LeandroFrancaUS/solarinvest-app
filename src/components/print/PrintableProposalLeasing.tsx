@@ -1290,6 +1290,9 @@ function PrintableProposalLeasingInner(
                 <div className="signature-line" />
                 <span>Assinatura do cliente</span>
               </div>
+              <figure className="print-final-footer__art" role="presentation" aria-hidden="true">
+                <img src="/proposal-closing-solarinvest.svg" alt="" />
+              </figure>
             </footer>
 
             <div className="print-brand-footer no-break-inside">
