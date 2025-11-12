@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { labelWithTooltip } from '../InfoTooltip'
 
 import {
@@ -25,6 +25,7 @@ import {
   formatPercentBR,
   toNumberFlexible,
 } from '../../lib/locale/br-number'
+import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useBRNumberField'
 import { selectNumberInputOnFocus } from '../../utils/focusHandlers'
 import { simulationsSelectors, useSimulationsStore } from '../../store/useSimulationsStore'
 
@@ -266,6 +267,11 @@ export function SimulacoesTab({
   }, [current.kc_kwh_mes, consumoKwhMes, valorInvestimento])
 
   const valorMercado = useMemo(() => calcValorMercado(current.capex_solarinvest), [current.capex_solarinvest])
+  const valorMercadoField = useBRNumberField({
+    mode: 'money',
+    value: valorMercado,
+    onChange: handleValorMercadoInputChange,
+  })
   const tarifaComDesconto = useMemo(
     () => calcTarifaComDesconto(current.tarifa_cheia_r_kwh_m1, current.desconto_pct),
     [current.tarifa_cheia_r_kwh_m1, current.desconto_pct],
@@ -364,16 +370,18 @@ export function SimulacoesTab({
     }
   }
 
-  const handleValorMercadoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const parsed = toNumberFlexible(event.target.value)
-    const valorMercadoInput = parsed ?? 0
-    const capexNormalizado = calcCapexFromValorMercado(valorMercadoInput)
-    capexAutoRef.current = null
-    setCurrent((prev) => ({
-      ...prev,
-      capex_solarinvest: capexNormalizado,
-    }))
-  }
+  const handleValorMercadoInputChange = useCallback(
+    (valor: number | null) => {
+      const valorMercadoInput = Number.isFinite(valor ?? NaN) ? Number(valor) : 0
+      const capexNormalizado = calcCapexFromValorMercado(valorMercadoInput)
+      capexAutoRef.current = null
+      setCurrent((prev) => ({
+        ...prev,
+        capex_solarinvest: capexNormalizado,
+      }))
+    },
+    [setCurrent, calcCapexFromValorMercado],
+  )
 
   const handleTextChange = (field: 'nome' | 'obs') => (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -808,14 +816,20 @@ export function SimulacoesTab({
                   )}
                 </label>
                 <div className="field-control cfg-control">
-                  <input className="cfg-input"
+                  <input
+                    ref={valorMercadoField.ref}
+                    className="cfg-input"
                     id="sim-valor-mercado"
-                    type="number"
-                    value={valorMercado}
-                    onChange={handleValorMercadoChange}
-                    onFocus={selectNumberInputOnFocus}
-                    min={0}
-                    step="100"
+                    type="text"
+                    inputMode="decimal"
+                    value={valorMercadoField.text}
+                    onChange={valorMercadoField.handleChange}
+                    onBlur={valorMercadoField.handleBlur}
+                    onFocus={(event) => {
+                      valorMercadoField.handleFocus(event)
+                      selectNumberInputOnFocus(event)
+                    }}
+                    placeholder={MONEY_INPUT_PLACEHOLDER}
                   />
                 </div>
               </div>

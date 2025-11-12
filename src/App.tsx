@@ -81,7 +81,7 @@ import {
   formatPercentBRWithDigits,
   toNumberFlexible,
 } from './lib/locale/br-number'
-import { useBRNumberField } from './lib/locale/useBRNumberField'
+import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
 import { ensureProposalId, normalizeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
@@ -3806,11 +3806,10 @@ export default function App() {
     })
   }, [])
 
-  const handleBudgetTotalChange = useCallback(
-    (value: string) => {
+  const handleBudgetTotalValueChange = useCallback(
+    (value: number | null) => {
       setKitBudget((prev) => {
-        const trimmed = value.trim()
-        if (!trimmed) {
+        if (value === null) {
           if (budgetItemsTotal !== null) {
             const formattedCalculated = formatCurrencyInputValue(budgetItemsTotal)
             if (
@@ -3828,7 +3827,11 @@ export default function App() {
             }
           }
           const formattedZero = formatCurrencyInputValue(0)
-          if (prev.totalSource === null && numbersAreClose(prev.total, 0) && prev.totalInput === formattedZero) {
+          if (
+            prev.totalSource === null &&
+            numbersAreClose(prev.total, 0) &&
+            prev.totalInput === formattedZero
+          ) {
             return prev
           }
           return {
@@ -3838,10 +3841,15 @@ export default function App() {
             totalSource: null,
           }
         }
-        const parsed = normalizeCurrencyNumber(parseNumericInput(trimmed))
-        if (parsed === null) {
+
+        const normalized = normalizeCurrencyNumber(value)
+        if (normalized === null) {
           const formattedZero = formatCurrencyInputValue(0)
-          if (prev.totalSource === null && numbersAreClose(prev.total, 0) && prev.totalInput === formattedZero) {
+          if (
+            prev.totalSource === null &&
+            numbersAreClose(prev.total, 0) &&
+            prev.totalInput === formattedZero
+          ) {
             return prev
           }
           return {
@@ -3851,10 +3859,11 @@ export default function App() {
             totalSource: null,
           }
         }
-        const formatted = formatCurrencyInputValue(parsed)
+
+        const formatted = formatCurrencyInputValue(normalized)
         if (
           prev.totalSource === 'explicit' &&
-          numbersAreClose(prev.total, parsed) &&
+          numbersAreClose(prev.total, normalized) &&
           prev.totalInput === formatted
         ) {
           return prev
@@ -3862,13 +3871,19 @@ export default function App() {
         return {
           ...prev,
           totalInput: formatted,
-          total: parsed,
+          total: normalized,
           totalSource: 'explicit',
         }
       })
     },
     [budgetItemsTotal],
   )
+
+  const budgetTotalField = useBRNumberField({
+    mode: 'money',
+    value: kitBudget.total ?? null,
+    onChange: handleBudgetTotalValueChange,
+  })
 
   const handleComposicaoTelhadoChange = useCallback(
     (campo: keyof UfvComposicaoTelhadoValores, valor: string) => {
@@ -14510,7 +14525,11 @@ export default function App() {
                 value={descontosMoneyField.text}
                 onChange={descontosMoneyField.handleChange}
                 onBlur={descontosMoneyField.handleBlur}
-                onFocus={selectNumberInputOnFocus}
+                onFocus={(event) => {
+                  descontosMoneyField.handleFocus(event)
+                  selectNumberInputOnFocus(event)
+                }}
+                placeholder={MONEY_INPUT_PLACEHOLDER}
               />
             </Field>
           </div>
@@ -14535,9 +14554,14 @@ export default function App() {
                   capexBaseResumoField.handleBlur()
                   capexBaseResumoField.setText(formatMoneyBR(capexBaseResumoValor))
                 }}
-                onFocus={selectNumberInputOnFocus}
+                onFocus={(event) => {
+                  capexBaseResumoField.handleFocus(event)
+                  selectNumberInputOnFocus(event)
+                }}
                 placeholder={
-                  typeof capexBaseManualValor === 'number' ? undefined : 'Automático (calculado)'
+                  typeof capexBaseManualValor === 'number'
+                    ? MONEY_INPUT_PLACEHOLDER
+                    : 'Automático (calculado)'
                 }
               />
             </Field>
@@ -14554,8 +14578,13 @@ export default function App() {
                 value={margemOperacionalResumoField.text}
                 onChange={margemOperacionalResumoField.handleChange}
                 onBlur={() => margemOperacionalResumoField.handleBlur()}
-                onFocus={selectNumberInputOnFocus}
-                placeholder={margemManualAtiva ? undefined : 'Automático (padrão)'}
+                onFocus={(event) => {
+                  margemOperacionalResumoField.handleFocus(event)
+                  selectNumberInputOnFocus(event)
+                }}
+                placeholder={
+                  margemManualAtiva ? MONEY_INPUT_PLACEHOLDER : 'Automático (padrão)'
+                }
               />
             </Field>
           </div>
@@ -14978,9 +15007,14 @@ export default function App() {
                         capexBaseResumoSettingsField.handleBlur()
                         capexBaseResumoSettingsField.setText(formatMoneyBR(capexBaseResumoValor))
                       }}
-                      onFocus={selectNumberInputOnFocus}
+                      onFocus={(event) => {
+                        capexBaseResumoSettingsField.handleFocus(event)
+                        selectNumberInputOnFocus(event)
+                      }}
                       placeholder={
-                        typeof capexBaseManualValor === 'number' ? undefined : 'Automático (calculado)'
+                        typeof capexBaseManualValor === 'number'
+                          ? MONEY_INPUT_PLACEHOLDER
+                          : 'Automático (calculado)'
                       }
                     />
                   </Field>
@@ -14992,8 +15026,13 @@ export default function App() {
                       value={margemOperacionalResumoSettingsField.text}
                       onChange={margemOperacionalResumoSettingsField.handleChange}
                       onBlur={() => margemOperacionalResumoSettingsField.handleBlur()}
-                      onFocus={selectNumberInputOnFocus}
-                      placeholder={margemManualAtiva ? undefined : 'Automático (padrão)'}
+                      onFocus={(event) => {
+                        margemOperacionalResumoSettingsField.handleFocus(event)
+                        selectNumberInputOnFocus(event)
+                      }}
+                      placeholder={
+                        margemManualAtiva ? MONEY_INPUT_PLACEHOLDER : 'Automático (padrão)'
+                      }
                     />
                   </Field>
                   <Field label="Comissão líquida (R$)">
@@ -15534,7 +15573,11 @@ export default function App() {
                 capexMoneyField.handleBlur()
                 capexMoneyField.setText(formatMoneyBR(valorTotalPropostaNormalizado))
               }}
-              onFocus={selectNumberInputOnFocus}
+              onFocus={(event) => {
+                capexMoneyField.handleFocus(event)
+                selectNumberInputOnFocus(event)
+              }}
+              placeholder={MONEY_INPUT_PLACEHOLDER}
             />
             <FieldError message={vendaFormErrors.capex_total} />
           </Field>
@@ -18125,13 +18168,18 @@ export default function App() {
                 <div className="budget-total-field">
                   <label htmlFor="budget-total-input">Valor Total do Orçamento</label>
                   <input
+                    ref={budgetTotalField.ref}
                     id="budget-total-input"
                     type="text"
                     inputMode="decimal"
-                    value={kitBudget.totalInput}
-                    onChange={(event) => handleBudgetTotalChange(event.target.value)}
-                    onFocus={selectNumberInputOnFocus}
-                    placeholder="Ex.: 45.000,00"
+                    value={budgetTotalField.text}
+                    onChange={budgetTotalField.handleChange}
+                    onBlur={budgetTotalField.handleBlur}
+                    onFocus={(event) => {
+                      budgetTotalField.handleFocus(event)
+                      selectNumberInputOnFocus(event)
+                    }}
+                    placeholder={MONEY_INPUT_PLACEHOLDER}
                   />
                   {kitBudget.totalSource === 'calculated' ? (
                     <small className="muted">
