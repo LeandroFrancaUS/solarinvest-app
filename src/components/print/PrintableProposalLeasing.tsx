@@ -809,17 +809,12 @@ function PrintableProposalLeasingInner(
             <div className="print-hero">
               <div className="print-hero__header">
                 <div className="print-hero__identity">
-                  <div className="print-logo">
-                    <img src="/proposal-header-logo.svg" alt="Marca SolarInvest" />
+                  <div className="print-hero__brand">
+                    <img src="/proposal-header-logo.svg" alt="Logo SolarInvest" />
+                    <span className="print-hero__brand-name">SolarInvest</span>
                   </div>
                   <div className="print-hero__title">
-                    <span className="print-hero__eyebrow">SolarInvest</span>
                     <div className="print-hero__headline">
-                      <img
-                        className="print-hero__title-logo"
-                        src="/proposal-header-logo.svg"
-                        alt="Marca SolarInvest"
-                      />
                       <p className="print-hero__aspiration">
                         Transforme sua conta de luz em investimento — sem gastar nada para começar.
                       </p>
@@ -1290,9 +1285,6 @@ function PrintableProposalLeasingInner(
                 <div className="signature-line" />
                 <span>Assinatura do cliente</span>
               </div>
-              <figure className="print-final-footer__art" role="presentation" aria-hidden="true">
-                <img src="/proposal-closing-solarinvest.svg" alt="" />
-              </figure>
             </footer>
 
             <div className="print-brand-footer no-break-inside">
