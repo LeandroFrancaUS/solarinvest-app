@@ -3806,11 +3806,10 @@ export default function App() {
     })
   }, [])
 
-  const handleBudgetTotalChange = useCallback(
-    (value: string) => {
+  const handleBudgetTotalValueChange = useCallback(
+    (value: number | null) => {
       setKitBudget((prev) => {
-        const trimmed = value.trim()
-        if (!trimmed) {
+        if (value === null) {
           if (budgetItemsTotal !== null) {
             const formattedCalculated = formatCurrencyInputValue(budgetItemsTotal)
             if (
@@ -3828,7 +3827,11 @@ export default function App() {
             }
           }
           const formattedZero = formatCurrencyInputValue(0)
-          if (prev.totalSource === null && numbersAreClose(prev.total, 0) && prev.totalInput === formattedZero) {
+          if (
+            prev.totalSource === null &&
+            numbersAreClose(prev.total, 0) &&
+            prev.totalInput === formattedZero
+          ) {
             return prev
           }
           return {
@@ -3838,10 +3841,15 @@ export default function App() {
             totalSource: null,
           }
         }
-        const parsed = normalizeCurrencyNumber(parseNumericInput(trimmed))
-        if (parsed === null) {
+
+        const normalized = normalizeCurrencyNumber(value)
+        if (normalized === null) {
           const formattedZero = formatCurrencyInputValue(0)
-          if (prev.totalSource === null && numbersAreClose(prev.total, 0) && prev.totalInput === formattedZero) {
+          if (
+            prev.totalSource === null &&
+            numbersAreClose(prev.total, 0) &&
+            prev.totalInput === formattedZero
+          ) {
             return prev
           }
           return {
@@ -3851,10 +3859,11 @@ export default function App() {
             totalSource: null,
           }
         }
-        const formatted = formatCurrencyInputValue(parsed)
+
+        const formatted = formatCurrencyInputValue(normalized)
         if (
           prev.totalSource === 'explicit' &&
-          numbersAreClose(prev.total, parsed) &&
+          numbersAreClose(prev.total, normalized) &&
           prev.totalInput === formatted
         ) {
           return prev
@@ -3862,13 +3871,19 @@ export default function App() {
         return {
           ...prev,
           totalInput: formatted,
-          total: parsed,
+          total: normalized,
           totalSource: 'explicit',
         }
       })
     },
     [budgetItemsTotal],
   )
+
+  const budgetTotalField = useBRNumberField({
+    mode: 'money',
+    value: kitBudget.total ?? null,
+    onChange: handleBudgetTotalValueChange,
+  })
 
   const handleComposicaoTelhadoChange = useCallback(
     (campo: keyof UfvComposicaoTelhadoValores, valor: string) => {
@@ -18153,13 +18168,18 @@ export default function App() {
                 <div className="budget-total-field">
                   <label htmlFor="budget-total-input">Valor Total do Orçamento</label>
                   <input
+                    ref={budgetTotalField.ref}
                     id="budget-total-input"
                     type="text"
                     inputMode="decimal"
-                    value={kitBudget.totalInput}
-                    onChange={(event) => handleBudgetTotalChange(event.target.value)}
-                    onFocus={selectNumberInputOnFocus}
-                    placeholder="Ex.: 45.000,00"
+                    value={budgetTotalField.text}
+                    onChange={budgetTotalField.handleChange}
+                    onBlur={budgetTotalField.handleBlur}
+                    onFocus={(event) => {
+                      budgetTotalField.handleFocus(event)
+                      selectNumberInputOnFocus(event)
+                    }}
+                    placeholder={MONEY_INPUT_PLACEHOLDER}
                   />
                   {kitBudget.totalSource === 'calculated' ? (
                     <small className="muted">
