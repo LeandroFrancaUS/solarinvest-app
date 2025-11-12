@@ -78,11 +78,7 @@ const formatPrazoContratual = (meses: number): string => {
     maximumFractionDigits: 0,
   })
 
-  const anos = meses / 12
-  const anosTexto = anos >= 1 ? formatNumberBRWithOptions(anos, { maximumFractionDigits: 1 }) : null
-  const anosLabel = anosTexto ? ` (${anosTexto} anos de economia garantida)` : ''
-
-  return `${mesesTexto} meses${anosLabel}`
+  return `${mesesTexto} meses de economia garantida`
 }
 
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
@@ -838,9 +834,7 @@ function PrintableProposalLeasingInner(
                   </div>
                 </div>
               </div>
-              <figure className="print-hero__image" aria-hidden="true">
-                <img src="/proposal-hero-solar-home.svg" alt="Residência com painéis solares iluminada pelo sol" />
-              </figure>
+              <div className="print-hero__divider" aria-hidden="true" />
               <div className="print-hero__meta">
                 <div className="print-hero__meta-item">
                   <small>Código do orçamento: </small>
@@ -1285,7 +1279,7 @@ function PrintableProposalLeasingInner(
                 </p>
               </div>
               <figure className="print-final-footer__image" aria-hidden="true">
-                <img src="/proposal-closing-family.svg" alt="Família comemorando em casa iluminada" />
+                <img src="/proposal-closing-family.svg" alt="Família celebrando a conquista da usina SolarInvest" />
               </figure>
               <p className="print-final-footer__closing">
                 Com esta proposta, você dá o primeiro passo rumo à independência energética e financeira. Em apenas 60 meses,

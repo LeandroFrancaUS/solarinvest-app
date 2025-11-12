@@ -1,79 +1,62 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 420" role="img" aria-labelledby="title desc">
-  <title id="title">Família celebrando em casa iluminada</title>
-  <desc id="desc">Ilustração de uma família feliz em frente a uma casa com painéis solares ao pôr do sol.</desc>
+  <title id="title">Família celebrando a conquista da usina SolarInvest</title>
+  <desc id="desc">Ilustração minimalista em cores SolarInvest com família comemorando diante de casa com painéis solares.</desc>
   <defs>
-    <linearGradient id="eveningSky" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFE9D6" />
-      <stop offset="60%" stop-color="#FFF7ED" />
-      <stop offset="100%" stop-color="#FFFFFF" />
+    <linearGradient id="backgroundGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3E4" />
+      <stop offset="65%" stop-color="#FFFFFF" />
     </linearGradient>
-    <linearGradient id="familySkin" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#F8CBA6" />
-      <stop offset="100%" stop-color="#F4A261" />
-    </linearGradient>
-    <linearGradient id="familyClothes" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="roofGradient" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#F7931E" />
-      <stop offset="100%" stop-color="#FBBF24" />
+      <stop offset="100%" stop-color="#FDB347" />
     </linearGradient>
-    <linearGradient id="homeGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FDE68A" />
-      <stop offset="100%" stop-color="#FBBF24" />
-    </linearGradient>
-    <linearGradient id="panelBlue" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2563EB" />
+    <linearGradient id="panelGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1D4ED8" />
       <stop offset="100%" stop-color="#3B82F6" />
     </linearGradient>
+    <linearGradient id="groundGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#A9CF46" />
+      <stop offset="100%" stop-color="#7FB03A" />
+    </linearGradient>
   </defs>
-  <rect width="680" height="420" fill="url(#eveningSky)" />
-  <circle cx="540" cy="90" r="70" fill="#FDE68A" opacity="0.6" />
-  <g opacity="0.25" fill="#F7931E">
-    <circle cx="80" cy="110" r="10" />
-    <circle cx="140" cy="70" r="7" />
-    <circle cx="200" cy="120" r="9" />
+  <rect width="680" height="420" fill="url(#backgroundGradient)" rx="36" />
+  <circle cx="560" cy="90" r="70" fill="#FBD34D" opacity="0.7" />
+  <g fill="#F7931E" opacity="0.32">
+    <circle cx="120" cy="90" r="8" />
+    <circle cx="90" cy="140" r="6" />
+    <circle cx="170" cy="130" r="7" />
   </g>
-  <g transform="translate(120 160)">
-    <path d="M0 140 L160 -10 L320 140 V230 H0Z" fill="#FFFFFF" stroke="#F6AD55" stroke-width="6" />
-    <polygon points="40,140 160,20 280,140" fill="url(#homeGlow)" opacity="0.8" />
-    <g transform="translate(90 30) skewX(-10)">
-      <rect x="0" y="0" width="60" height="36" rx="6" fill="url(#panelBlue)" />
-      <rect x="70" y="0" width="60" height="36" rx="6" fill="url(#panelBlue)" />
-      <rect x="140" y="0" width="60" height="36" rx="6" fill="url(#panelBlue)" />
+  <path d="M60 320 Q150 260 280 280 T620 290 Q520 360 360 360 T60 320" fill="url(#groundGradient)" opacity="0.7" />
+  <g transform="translate(150 140)">
+    <path d="M0 150 L100 40 L200 150 V250 H0Z" fill="#FFFFFF" stroke="#F7931E" stroke-width="6" stroke-linejoin="round" />
+    <polygon points="30,150 100,70 170,150" fill="url(#roofGradient)" opacity="0.95" />
+    <g transform="translate(72 70) skewX(-10)">
+      <rect x="0" y="0" width="48" height="28" rx="6" fill="url(#panelGradient)" />
+      <rect x="58" y="0" width="48" height="28" rx="6" fill="url(#panelGradient)" />
+      <rect x="116" y="0" width="48" height="28" rx="6" fill="url(#panelGradient)" />
     </g>
-    <rect x="110" y="110" width="100" height="80" rx="8" fill="#FFFFFF" stroke="#F6AD55" stroke-width="4" />
-    <rect x="30" y="130" width="60" height="80" rx="10" fill="#FFF4E6" stroke="#F4A261" stroke-width="4" />
+    <rect x="76" y="138" width="72" height="70" rx="10" fill="#FFFFFF" stroke="#F7931E" stroke-width="4" />
   </g>
-  <g transform="translate(380 210)">
-    <ellipse cx="90" cy="120" rx="160" ry="36" fill="#A9CF46" opacity="0.35" />
-  </g>
-  <g transform="translate(250 210)">
-    <g>
-      <ellipse cx="180" cy="150" rx="140" ry="32" fill="#A9CF46" opacity="0.35" />
+  <g transform="translate(320 170)">
+    <ellipse cx="120" cy="170" rx="170" ry="36" fill="#A9CF46" opacity="0.4" />
+    <g transform="translate(-40 0)">
+      <path d="M70 150 Q60 100 90 80 T140 90 Q150 120 130 170Z" fill="#FDB347" />
+      <circle cx="110" cy="70" r="28" fill="#FCD5B5" />
+      <path d="M84 74 Q110 50 138 74 Q118 86 96 88Z" fill="#F7931E" />
+    </g>
+    <g transform="translate(56 -10)">
+      <path d="M70 160 Q62 104 96 82 T150 96 Q156 130 138 176Z" fill="#F7931E" />
+      <circle cx="112" cy="68" r="26" fill="#F8CBA6" />
+      <path d="M90 72 Q112 50 138 72 Q120 84 98 86Z" fill="#0F172A" opacity="0.85" />
+    </g>
+    <g transform="translate(146 10)">
+      <path d="M60 152 Q50 108 78 84 T130 96 Q134 126 118 168Z" fill="#A9CF46" />
+      <circle cx="102" cy="72" r="24" fill="#FEE6CC" />
+      <path d="M82 76 Q100 58 122 76 Q106 86 88 88Z" fill="#F7931E" />
     </g>
   </g>
-  <g transform="translate(220 200)">
-    <g transform="translate(0 0)">
-      <path d="M40 130 C30 110 20 80 30 60 C40 44 60 36 80 40 C102 44 118 60 120 78 C124 110 96 150 96 150 Z" fill="url(#familySkin)" />
-      <path d="M60 90 C64 70 90 58 110 64 C128 68 134 84 130 104 C124 130 102 158 102 158 Z" fill="url(#familyClothes)" />
-    </g>
-    <g transform="translate(110 20)">
-      <path d="M40 120 C30 98 22 72 30 56 C40 38 60 28 82 34 C102 38 116 54 118 72 C122 100 100 140 100 140 Z" fill="#FCD34D" />
-      <path d="M60 70 C60 48 84 34 104 40 C124 46 132 62 130 82 C124 114 100 146 100 146 Z" fill="#F97316" />
-    </g>
-    <g transform="translate(210 10)">
-      <path d="M36 118 C28 94 20 70 26 54 C34 36 52 26 70 28 C92 30 110 46 114 66 C118 92 98 130 98 130 Z" fill="#FDBA74" />
-      <path d="M52 74 C60 50 84 40 102 48 C118 56 124 74 120 94 C114 124 96 150 96 150 Z" fill="#2563EB" opacity="0.85" />
-    </g>
-    <g transform="translate(72 -18)">
-      <circle cx="52" cy="36" r="24" fill="#F8CBA6" />
-      <path d="M28 40 C36 32 48 28 60 30 C72 32 84 40 88 54 C72 58 54 60 36 52 Z" fill="#F97316" />
-    </g>
-    <g transform="translate(164 -12)">
-      <circle cx="48" cy="32" r="22" fill="#F8CBA6" />
-      <path d="M28 36 C36 28 48 24 60 26 C70 28 84 34 90 46 C74 52 56 54 40 46 Z" fill="#F6AD55" />
-    </g>
-    <g transform="translate(248 -20)">
-      <circle cx="46" cy="30" r="22" fill="#F8CBA6" />
-      <path d="M24 36 C32 28 44 24 54 26 C66 28 78 34 84 46 C68 50 52 52 36 44 Z" fill="#60A5FA" />
-    </g>
+  <g fill="#F7931E" opacity="0.18">
+    <circle cx="520" cy="300" r="10" />
+    <circle cx="560" cy="330" r="8" />
   </g>
 </svg>

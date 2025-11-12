@@ -6,10 +6,10 @@
 .print-layout.leasing-print-layout {
   background:
     linear-gradient(180deg, #fff9f2 0%, #ffffff 65%, #f5f5f5 100%);
-  padding: 40px 48px;
+  padding: 32px 40px;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
   min-height: 100%;
 }
 
@@ -18,14 +18,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32px;
-  padding: 48px 56px;
-  border-radius: 32px;
+  gap: 24px;
+  padding: 36px 40px;
+  border-radius: 28px;
   background:
     radial-gradient(160% 140% at 10% 0%, rgba(247, 147, 30, 0.25) 0%, rgba(247, 147, 30, 0) 60%),
     linear-gradient(135deg, #fff2dd 0%, #ffe7c2 48%, #fff8ed 100%);
   border: 1px solid rgba(247, 147, 30, 0.38);
-  box-shadow: 0 28px 60px rgba(247, 147, 30, 0.25);
+  box-shadow: 0 18px 46px rgba(247, 147, 30, 0.2);
   overflow: hidden;
   text-align: center;
 }
@@ -41,12 +41,13 @@
   opacity: 0.7;
 }
 
+
 .print-hero__header {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 28px;
+  gap: 20px;
   position: relative;
   z-index: 1;
   max-width: 680px;
@@ -57,7 +58,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
 .print-logo {
@@ -65,33 +66,35 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 110px;
-  height: 110px;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 40px rgba(249, 200, 140, 0.45);
+  width: 96px;
+  height: 96px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 32px rgba(249, 200, 140, 0.42);
 }
 
 .print-logo img {
-  width: 72px;
+  width: 68px;
   max-width: 100%;
   height: auto;
 }
 
+
 .print-hero__title {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   text-align: center;
 }
+
 
 .print-hero__headline {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .print-hero__eyebrow {
@@ -133,51 +136,42 @@
   display: none;
 }
 
+
 .print-hero__tagline {
-  margin: 6px auto 0;
+  margin: 4px auto 0;
   font-size: 15px;
-  line-height: 1.6;
+  line-height: 1.5;
   color: #1f2933;
   max-width: 420px;
   text-align: center;
   font-weight: 600;
 }
 
+
 .print-hero__summary {
   position: relative;
   z-index: 1;
-  padding: 28px 32px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.92);
+  padding: 22px 26px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.6;
   color: #1f2933;
-  border: 1px solid rgba(247, 147, 30, 0.3);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(247, 147, 30, 0.28);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
   max-width: 720px;
 }
 
-.print-hero__image {
-  position: relative;
-  z-index: 1;
+.print-hero__divider {
   width: 100%;
-  max-width: 520px;
-  margin: 0;
-  border-radius: 24px;
-  overflow: hidden;
-  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.16);
-  border: 1px solid rgba(247, 147, 30, 0.24);
-  background: #ffffff;
-}
-
-.print-hero__image img {
-  display: block;
-  width: 100%;
-  height: auto;
+  max-width: 560px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(247, 147, 30, 0), rgba(247, 147, 30, 0.55), rgba(247, 147, 30, 0));
 }
 
 .print-hero__progress {
-  margin-top: 26px;
+  margin-top: 18px;
   display: inline-flex;
   align-items: center;
   gap: 16px;
@@ -223,8 +217,8 @@
 }
 
 .print-hero__benefits {
-  margin-top: 22px;
-  padding: 18px 20px;
+  margin-top: 16px;
+  padding: 16px 18px;
   border-radius: 16px;
   background: rgba(169, 207, 70, 0.18);
   border: 1px solid rgba(169, 207, 70, 0.45);
@@ -260,6 +254,7 @@
   color: #f97316;
 }
 
+
 .print-hero__meta {
   position: relative;
   z-index: 1;
@@ -268,10 +263,11 @@
   align-items: stretch;
   width: 100%;
   max-width: 360px;
-  gap: 10px;
+  gap: 8px;
   text-align: left;
   margin: 0 auto;
 }
+
 
 .print-hero__meta-item {
   display: grid;
@@ -280,11 +276,11 @@
   row-gap: 2px;
   align-items: center;
   min-width: 0;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(247, 147, 30, 0.35);
-  box-shadow: 0 12px 20px rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(247, 147, 30, 0.28);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.1);
 }
 
 .print-hero__meta-item small {
@@ -309,7 +305,7 @@
 
 .print-section {
   margin: 0;
-  padding: 32px 36px;
+  padding: 24px 28px;
   border-radius: 18px;
   background: #ffffff;
   border: 1px solid rgba(247, 147, 30, 0.18);
@@ -330,7 +326,7 @@
 }
 
 .print-section + .print-section {
-  margin-top: 24px;
+  margin-top: 18px;
 }
 
 .leasing-print-layout .print-uc-heading,
@@ -345,7 +341,7 @@
 }
 
 .section-title {
-  margin: 28px 0 14px;
+  margin: 18px 0 10px;
   color: #f7931e;
   font-size: 22px;
   font-family: 'Montserrat', 'Open Sans', sans-serif;
@@ -353,7 +349,7 @@
   letter-spacing: 0.02em;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   text-align: left;
   align-items: flex-start;
 }
@@ -369,15 +365,15 @@
   font-size: 14px;
   font-style: normal;
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   letter-spacing: normal;
   text-transform: none;
 }
 
 .section-intro {
-  margin: 0 0 18px;
+  margin: 0 0 12px;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.55;
   color: #1f2933;
   font-weight: 500;
 }
