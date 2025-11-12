@@ -78,11 +78,7 @@ const formatPrazoContratual = (meses: number): string => {
     maximumFractionDigits: 0,
   })
 
-  const anos = meses / 12
-  const anosTexto = anos >= 1 ? formatNumberBRWithOptions(anos, { maximumFractionDigits: 1 }) : null
-  const anosLabel = anosTexto ? ` (${anosTexto} anos de economia garantida)` : ''
-
-  return `${mesesTexto} meses${anosLabel}`
+  return `${mesesTexto} meses de economia garantida`
 }
 
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
@@ -378,17 +374,18 @@ function PrintableProposalLeasingInner(
   const resumoProposta = [
     {
       label: 'Modalidade de contratação',
-      value: 'Leasing SolarInvest - Sem custo para o cliente',
+      value:
+        'Leasing SolarInvest – Investimento integral realizado pela SolarInvest · Economia desde o 1º mês',
     },
     {
       label: 'Prazo de validade da proposta',
       value: validadeResumoTexto,
     },
     {
-      label: 'Início estimado da operação',
+      label: 'Sua usina começa a gerar energia',
       value: inicioOperacaoTexto
-        ? `${inicioOperacaoTexto} · Até 60 dias após assinatura do contrato`
-        : 'Até 60 dias após assinatura do contrato',
+        ? `${inicioOperacaoTexto} · Até 60 dias após a assinatura`
+        : 'Em até 60 dias após a assinatura',
     },
     {
       label: 'Tipo de instalação',
@@ -557,7 +554,7 @@ function PrintableProposalLeasingInner(
   const condicoesFinanceiras = [
     {
       label: 'Investimento no sistema fotovoltaico',
-      value: 'Investimento 100% feito pela SolarInvest',
+      value: 'Investimento integral feito pela SolarInvest',
     },
     {
       label: 'Investimento do cliente',
@@ -572,8 +569,12 @@ function PrintableProposalLeasingInner(
       value: tarifaInicialProjetada > 0 ? tarifaCurrency(tarifaInicialProjetada) : '—',
     },
     {
-      label: 'Desconto contratual',
-      value: toDisplayPercent(descontoContratualPct),
+      label: '💰 Desconto contratual',
+      value: (
+        <span className="leasing-highlight-value">
+          {toDisplayPercent(descontoContratualPct)} de economia garantida
+        </span>
+      ),
     },
     {
       label: 'Prazo contratual',
@@ -755,13 +756,12 @@ function PrintableProposalLeasingInner(
   )
 
   const heroSummary =
-    'Esta proposta foi feita especialmente para você aproveitar energia solar com desconto garantido desde o primeiro mês — e sem precisar investir nada. A SolarInvest realiza todo o investimento na usina; você só paga pela energia que ela gera, com desconto e previsibilidade. Após 60 meses, a usina passa a ser 100% sua, aumentando o valor do seu imóvel e sua independência energética.'
+    'Você já paga pela energia todos os meses — agora pode transformar esse gasto em investimento. Com o Leasing SolarInvest, a SolarInvest realiza todo o investimento na sua usina, enquanto você paga apenas pela energia gerada, com desconto e previsibilidade. Desde o primeiro mês, sua conta cai e, ao completar 60 meses, a usina passa a ser 100% sua — um patrimônio que valoriza o seu imóvel e sua liberdade financeira.'
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
   const economiaExplainer: React.ReactNode = beneficioAno30 ? (
     <>
-      <strong>Em 30 anos de geração solar:</strong> sua economia pode alcançar{' '}
-      <strong>{currency(beneficioAno30.acumulado)}</strong> — um retorno sustentável e garantido que continua crescendo mesmo
-      após o contrato.
+      Em 30 anos de geração solar, sua economia pode alcançar{' '}
+      <strong>{currency(beneficioAno30.acumulado)}</strong> — um retorno sustentável, previsível e duradouro.
     </>
   ) : (
     <>Economia que continua crescendo mesmo após o contrato, com previsibilidade e segurança para o seu patrimônio energético.</>
@@ -809,25 +809,27 @@ function PrintableProposalLeasingInner(
             <div className="print-hero">
               <div className="print-hero__header">
                 <div className="print-hero__identity">
-                  <div className="print-logo">
-                    <img src="/proposal-header-logo.svg" alt="Marca SolarInvest" />
+                  <div className="print-hero__brand">
+                    <img src="/proposal-header-logo.svg" alt="Logo SolarInvest" />
+                    <span className="print-hero__brand-name">SolarInvest</span>
                   </div>
                   <div className="print-hero__title">
-                    <span className="print-hero__eyebrow">SolarInvest</span>
                     <div className="print-hero__headline">
-                      <img
-                        className="print-hero__title-logo"
-                        src="/proposal-header-logo.svg"
-                        alt="Marca SolarInvest"
-                      />
-                      <h1>Proposta Personalizada de Energia Solar com Leasing SolarInvest</h1>
+                      <p className="print-hero__aspiration">
+                        Transforme sua conta de luz em investimento — sem gastar nada para começar.
+                      </p>
+                      <h1>🌞 SUA PROPOSTA PERSONALIZADA DE ENERGIA SOLAR</h1>
+                      <p className="print-hero__subheadline">
+                        💡 Leasing SolarInvest – Economia imediata e usina 100% sua ao final
+                      </p>
                     </div>
                     <p className="print-hero__tagline">
-                      Economia imediata, sem investimento inicial e com usina 100% sua ao final.
+                      Energia inteligente, sustentável e com economia garantida desde o 1º mês.
                     </p>
                   </div>
                 </div>
               </div>
+              <div className="print-hero__divider" aria-hidden="true" />
               <div className="print-hero__meta">
                 <div className="print-hero__meta-item">
                   <small>Código do orçamento: </small>
@@ -840,21 +842,37 @@ function PrintableProposalLeasingInner(
                   <p className="print-hero__benefits-title">💡 Benefícios SolarInvest</p>
                   <ul>
                     <li>
-                      <strong>✔ Economia garantida</strong> desde o 1º mês
+                      ✅ Economia garantida desde o 1º mês
                     </li>
                     <li>
-                      <strong>✔ Investimento 100% feito pela SolarInvest</strong>
+                      ✅ Investimento 100% feito pela SolarInvest
                     </li>
                     <li>
-                      <strong>✔ Manutenção, seguro e suporte</strong> sempre inclusos
+                      ✅ Manutenção, seguro e suporte inclusos
                     </li>
                     <li>
-                      <strong>✔ Transferência gratuita da usina</strong> ao completar 60 meses
+                      ✅ Transferência gratuita da usina após 60 meses
                     </li>
                     <li>
-                      <strong>✔ Energia limpa e valorização</strong> do seu imóvel
+                      ✅ Energia limpa e valorização do seu imóvel
                     </li>
                   </ul>
+                </div>
+                <div className="print-hero__progress" role="img" aria-label="Etapas até a propriedade da usina">
+                  <div className="print-hero__progress-step">
+                    <span className="print-hero__progress-icon">1</span>
+                    <span className="print-hero__progress-label">Assinatura</span>
+                  </div>
+                  <span className="print-hero__progress-arrow" aria-hidden="true">➜</span>
+                  <div className="print-hero__progress-step">
+                    <span className="print-hero__progress-icon">2</span>
+                    <span className="print-hero__progress-label">Instalação</span>
+                  </div>
+                  <span className="print-hero__progress-arrow" aria-hidden="true">➜</span>
+                  <div className="print-hero__progress-step">
+                    <span className="print-hero__progress-icon">3</span>
+                    <span className="print-hero__progress-label">Propriedade da usina</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -904,7 +922,9 @@ function PrintableProposalLeasingInner(
             className="print-section keep-together avoid-break page-break-before break-after"
           >
             <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
-            <p className="section-subtitle keep-with-next">Visão geral dos parâmetros comerciais e técnicos</p>
+            <p className="section-subtitle keep-with-next">
+              Tudo o que você precisa saber — de forma simples e transparente.
+            </p>
             <table className="no-break-inside">
               <thead>
                 <tr>
@@ -1063,9 +1083,10 @@ function PrintableProposalLeasingInner(
           ) : null}
     
           <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Veja como sua conta cai mês a mês</h2>
+            <h2 className="section-title keep-with-next">Veja como sua conta de luz cai mês a mês</h2>
             <p className="section-subtitle keep-with-next">
-              Comparativo anual estimado entre tarifa convencional e SolarInvest
+              Veja como sua conta de luz cai mês a mês — e como sua economia cresce automaticamente conforme a tarifa da
+              distribuidora aumenta.
             </p>
             <table className="no-break-inside">
               <thead>
@@ -1090,8 +1111,8 @@ function PrintableProposalLeasingInner(
               </tbody>
             </table>
             <p>
-              Com o desconto SolarInvest, sua economia cresce automaticamente conforme a energia da distribuidora encarece.
-              Você economiza todos os meses e ainda garante um ativo energético no seu nome ao final do contrato.
+              A cada mês, você paga menos à distribuidora e caminha rumo à posse integral da sua própria usina de energia.
+              A SolarInvest garante que o desconto contratado permanecerá estável durante toda a vigência.
             </p>
             <p className="muted print-footnote">
               <strong>
@@ -1111,10 +1132,9 @@ function PrintableProposalLeasingInner(
             </p>
             <p className="muted print-footnote">
               <strong>
-                <em>
-                  Os valores são estimativas baseadas nas tarifas atuais e servem para demonstrar sua economia real já no
-                  primeiro mês de uso. A SolarInvest garante que o desconto contratado será mantido durante toda a vigência.
-                </em>
+                Simulações atualizadas com base nas tarifas atuais para demonstrar a sua economia desde o primeiro mês. Após a
+                vistoria técnica, todas as condições ficam registradas no contrato definitivo com o desconto garantido por
+                escrito.
               </strong>
             </p>
           </section>
@@ -1127,8 +1147,11 @@ function PrintableProposalLeasingInner(
             {economiaProjetadaGrafico.length ? (
               <>
                 <p className="section-subtitle keep-with-next">
-                  Cada mês de geração representa economia crescente e valorização do seu imóvel. Ao completar 60 meses, sua
-                  usina estará quitada e 100% em seu nome.
+                  O que antes era custo, agora se transforma em retorno e valorização.
+                </p>
+                <p className="section-intro keep-with-next">
+                  Cada mês de geração representa economia crescente e tranquilidade financeira. Em apenas 60 meses, a usina
+                  será sua, e a economia continuará aumentando por décadas.
                 </p>
                 <div
                   className="leasing-horizontal-chart no-break-inside"
@@ -1208,42 +1231,36 @@ function PrintableProposalLeasingInner(
             <p className="section-subtitle keep-with-next">
               <strong>Responsabilidades, garantias e condições gerais</strong>
             </p>
-            <ul className="no-break-inside">
-              <li>
-                Durante todo o contrato, a SolarInvest cuida de tudo para você —{' '}
-                <strong>operação, manutenção, seguro e suporte técnico completos</strong>. Sua única preocupação será aproveitar a
-                economia.
-              </li>
-              <li>
-                Todas as projeções e valores desta proposta são estimativas baseadas nas tarifas atuais. No contrato final, a
-                SolarInvest confirma os descontos e assegura que sua economia será mantida conforme acordado.
-              </li>
-              <li>
-                Todos os equipamentos são certificados pelo <strong>INMETRO</strong> e atendem rigorosamente às{' '}
-                <strong>normas da ANEEL e ABNT</strong>, garantindo eficiência e durabilidade.
-              </li>
-              <li>
-                <strong>Disponibilidade do kit fotovoltaico:</strong> caso algum item esteja indisponível no momento da compra,
-                fornecemos equipamentos equivalentes ou superiores, mantendo o desempenho projetado.
-              </li>
-              <li>
-                A <strong>tabela de compra antecipada</strong> da usina está disponível mediante solicitação ao consultor
-                SolarInvest.
-              </li>
-              <li>
-                Os <strong>valores, taxas, tarifas e mensalidades</strong> apresentados são simulações preliminares com base em
-                históricos de consumo e parâmetros técnicos atualizados; quaisquer ajustes são alinhados com você após a
-                análise técnica detalhada.
-              </li>
-              <li>
-                <strong>Instalação em solo:</strong> se houver necessidade de estruturas adicionais ou se desejar incluir o custo
-                no leasing, a SolarInvest apresenta a atualização orçamentária correspondente para sua aprovação.
-              </li>
-              <li>
-                Após a vistoria e validação técnica, todos os valores são formalizados no contrato definitivo com os descontos
-                garantidos por escrito.
-              </li>
-            </ul>
+            <div className="print-important__box no-break-inside">
+              <ul className="no-break-inside">
+                <li>
+                  Durante todo o contrato, a SolarInvest cuida de tudo para você —{' '}
+                  <strong>operação, manutenção, seguro e suporte técnico completos</strong>. Sua única preocupação será aproveitar a
+                  economia e o conforto de ter energia limpa e garantida.
+                </li>
+                <li>
+                  Todos os equipamentos são certificados pelo <strong>INMETRO</strong> e seguem rigorosamente as{' '}
+                  <strong>normas da ANEEL e ABNT</strong>, garantindo máxima eficiência e segurança em toda a operação.
+                </li>
+                <li>
+                  <strong>Disponibilidade do kit fotovoltaico:</strong> se algum item estiver indisponível no momento da compra,
+                  fornecemos componentes equivalentes ou superiores, sem custo adicional, mantendo o desempenho projetado.
+                </li>
+                <li>
+                  A <strong>tabela de compra antecipada</strong> da usina está disponível mediante solicitação ao consultor
+                  SolarInvest.
+                </li>
+                <li>
+                  Todos os <strong>valores, taxas, tarifas e mensalidades</strong> apresentados são simulações atualizadas com base
+                  nas tarifas vigentes e no seu histórico de consumo. Após a vistoria técnica, o contrato definitivo formaliza seu
+                  desconto garantido por escrito.
+                </li>
+                <li>
+                  <strong>Instalação em solo:</strong> se houver necessidade de estruturas adicionais ou se desejar incluir o custo
+                  no leasing, a SolarInvest apresenta a atualização orçamentária correspondente para sua aprovação.
+                </li>
+              </ul>
+            </div>
             {informacoesImportantesObservacaoTexto ? (
               <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
             ) : null}
@@ -1257,8 +1274,12 @@ function PrintableProposalLeasingInner(
                 </p>
               </div>
               <p className="print-final-footer__closing">
-                Com esta proposta, você inicia sua jornada rumo à independência energética. Em apenas 60 meses, sua própria
-                usina estará gerando economia, valorizando seu patrimônio e garantindo energia limpa por décadas.
+                Com esta proposta, você dá o primeiro passo rumo à independência energética e financeira. Em apenas 60 meses,
+                sua própria usina estará gerando lucro, tranquilidade e valorizando o seu imóvel.
+              </p>
+              <p className="print-final-footer__cta">
+                Vamos transformar sua conta de luz em investimento? Confirme seu interesse e agendaremos sua instalação sem
+                nenhum custo inicial.
               </p>
               <div className="print-final-footer__signature">
                 <div className="signature-line" />

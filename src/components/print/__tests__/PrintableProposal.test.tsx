@@ -435,9 +435,9 @@ describe('PrintableProposal (leasing)', () => {
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
-    expect(markup).toContain('Proposta de Leasing Solar')
+    expect(markup).toContain('🌞 SUA PROPOSTA PERSONALIZADA DE ENERGIA SOLAR')
     expect(markup).toContain('Quadro Comercial Resumido')
-    expect(markup).toContain('Energia inteligente, sustentável e sem desembolso.')
+    expect(markup).toContain('Energia inteligente, sustentável e com economia garantida desde o 1º mês.')
     expect(markup).toContain('Investimento Estimado da SolarInvest')
     expect(markup).toContain('R$\u00a0120.000,00')
     expect(markup).toContain('Informações Importantes')

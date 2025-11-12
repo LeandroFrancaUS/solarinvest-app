@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 420" role="img" aria-labelledby="title desc">
+  <title id="title">Família celebrando a conquista da usina SolarInvest</title>
+  <desc id="desc">Ilustração minimalista em cores SolarInvest com família comemorando diante de casa com painéis solares.</desc>
+  <defs>
+    <linearGradient id="backgroundGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3E4" />
+      <stop offset="65%" stop-color="#FFFFFF" />
+    </linearGradient>
+    <linearGradient id="roofGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F7931E" />
+      <stop offset="100%" stop-color="#FDB347" />
+    </linearGradient>
+    <linearGradient id="panelGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1D4ED8" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+    <linearGradient id="groundGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#A9CF46" />
+      <stop offset="100%" stop-color="#7FB03A" />
+    </linearGradient>
+  </defs>
+  <rect width="680" height="420" fill="url(#backgroundGradient)" rx="36" />
+  <circle cx="560" cy="90" r="70" fill="#FBD34D" opacity="0.7" />
+  <g fill="#F7931E" opacity="0.32">
+    <circle cx="120" cy="90" r="8" />
+    <circle cx="90" cy="140" r="6" />
+    <circle cx="170" cy="130" r="7" />
+  </g>
+  <path d="M60 320 Q150 260 280 280 T620 290 Q520 360 360 360 T60 320" fill="url(#groundGradient)" opacity="0.7" />
+  <g transform="translate(150 140)">
+    <path d="M0 150 L100 40 L200 150 V250 H0Z" fill="#FFFFFF" stroke="#F7931E" stroke-width="6" stroke-linejoin="round" />
+    <polygon points="30,150 100,70 170,150" fill="url(#roofGradient)" opacity="0.95" />
+    <g transform="translate(72 70) skewX(-10)">
+      <rect x="0" y="0" width="48" height="28" rx="6" fill="url(#panelGradient)" />
+      <rect x="58" y="0" width="48" height="28" rx="6" fill="url(#panelGradient)" />
+      <rect x="116" y="0" width="48" height="28" rx="6" fill="url(#panelGradient)" />
+    </g>
+    <rect x="76" y="138" width="72" height="70" rx="10" fill="#FFFFFF" stroke="#F7931E" stroke-width="4" />
+  </g>
+  <g transform="translate(320 170)">
+    <ellipse cx="120" cy="170" rx="170" ry="36" fill="#A9CF46" opacity="0.4" />
+    <g transform="translate(-40 0)">
+      <path d="M70 150 Q60 100 90 80 T140 90 Q150 120 130 170Z" fill="#FDB347" />
+      <circle cx="110" cy="70" r="28" fill="#FCD5B5" />
+      <path d="M84 74 Q110 50 138 74 Q118 86 96 88Z" fill="#F7931E" />
+    </g>
+    <g transform="translate(56 -10)">
+      <path d="M70 160 Q62 104 96 82 T150 96 Q156 130 138 176Z" fill="#F7931E" />
+      <circle cx="112" cy="68" r="26" fill="#F8CBA6" />
+      <path d="M90 72 Q112 50 138 72 Q120 84 98 86Z" fill="#0F172A" opacity="0.85" />
+    </g>
+    <g transform="translate(146 10)">
+      <path d="M60 152 Q50 108 78 84 T130 96 Q134 126 118 168Z" fill="#A9CF46" />
+      <circle cx="102" cy="72" r="24" fill="#FEE6CC" />
+      <path d="M82 76 Q100 58 122 76 Q106 86 88 88Z" fill="#F7931E" />
+    </g>
+  </g>
+  <g fill="#F7931E" opacity="0.18">
+    <circle cx="520" cy="300" r="10" />
+    <circle cx="560" cy="330" r="8" />
+  </g>
+</svg>
