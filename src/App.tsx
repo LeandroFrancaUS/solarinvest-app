@@ -2275,7 +2275,10 @@ function Field({
   hint?: React.ReactNode
   htmlFor?: string
 }) {
-  const enhancedChildren = React.Children.map(children, (child) => {
+  const generatedId = useId()
+  let firstControlId: string | undefined
+
+  const enhancedChildren = React.Children.map(children, (child, index) => {
     if (!React.isValidElement(child)) {
       return child
     }
@@ -2289,13 +2292,24 @@ function Field({
       }
 
       if (child.type === 'input' || child.type === 'select' || child.type === 'textarea') {
-        const existingClassName = (child.props as { className?: string }).className ?? ''
+        const existingProps = child.props as {
+          className?: string
+          id?: string
+          name?: string
+        }
+        const existingClassName = existingProps.className ?? ''
         const classes = existingClassName.split(' ').filter(Boolean)
         if (!classes.includes('cfg-input')) {
           classes.push('cfg-input')
         }
+        const resolvedId = existingProps.id ?? (index === 0 ? generatedId : `${generatedId}-${index}`)
+        if (!firstControlId) {
+          firstControlId = resolvedId
+        }
         return React.cloneElement(child, {
           className: classes.join(' '),
+          id: existingProps.id ?? resolvedId,
+          name: existingProps.name ?? resolvedId,
         })
       }
     }
@@ -2303,9 +2317,11 @@ function Field({
     return child
   })
 
+  const labelHtmlFor = htmlFor ?? firstControlId
+
   return (
     <div className="field cfg-field">
-      <label className="field-label cfg-label" {...(htmlFor ? { htmlFor } : undefined)}>
+      <label className="field-label cfg-label" {...(labelHtmlFor ? { htmlFor: labelHtmlFor } : undefined)}>
         {label}
       </label>
       <div className="field-control cfg-control">
@@ -8676,6 +8692,8 @@ export default function App() {
                   <label>
                     Nome
                     <input
+                      name="crm-nome"
+                      id="crm-nome"
                       value={crmLeadForm.nome}
                       onChange={(event) => handleCrmLeadFormChange('nome', event.target.value)}
                       placeholder="Nome do contato"
@@ -8685,6 +8703,8 @@ export default function App() {
                   <label>
                     Telefone / WhatsApp
                     <input
+                      name="crm-telefone"
+                      id="crm-telefone"
                       value={crmLeadForm.telefone}
                       onChange={(event) => handleCrmLeadFormChange('telefone', event.target.value)}
                       placeholder="(62) 99999-0000"
@@ -8696,6 +8716,8 @@ export default function App() {
                   <label>
                     Cidade
                     <input
+                      name="crm-cidade"
+                      id="crm-cidade"
                       value={crmLeadForm.cidade}
                       onChange={(event) => handleCrmLeadFormChange('cidade', event.target.value)}
                       placeholder="Cidade do projeto"
@@ -8705,6 +8727,8 @@ export default function App() {
                   <label>
                     Origem do lead
                     <input
+                      name="crm-origem"
+                      id="crm-origem"
                       value={crmLeadForm.origemLead}
                       onChange={(event) => handleCrmLeadFormChange('origemLead', event.target.value)}
                       placeholder="Instagram, WhatsApp, Feira..."
@@ -8715,6 +8739,8 @@ export default function App() {
                   <label>
                     Consumo mensal (kWh)
                     <input
+                      name="crm-consumo-kwh"
+                      id="crm-consumo-kwh"
                       value={crmLeadForm.consumoKwhMes}
                       onChange={(event) => handleCrmLeadFormChange('consumoKwhMes', event.target.value)}
                       placeholder="Ex: 1200"
@@ -8724,6 +8750,8 @@ export default function App() {
                   <label>
                     Valor estimado (R$)
                     <input
+                      name="crm-valor-estimado"
+                      id="crm-valor-estimado"
                       value={crmLeadForm.valorEstimado}
                       onChange={(event) => handleCrmLeadFormChange('valorEstimado', event.target.value)}
                       placeholder="Ex: 250000"
@@ -8735,6 +8763,8 @@ export default function App() {
                   <label>
                     Tipo de imóvel
                     <input
+                      name="crm-tipo-imovel"
+                      id="crm-tipo-imovel"
                       value={crmLeadForm.tipoImovel}
                       onChange={(event) => handleCrmLeadFormChange('tipoImovel', event.target.value)}
                       placeholder="Residencial, Comercial, Condomínio..."
@@ -8743,6 +8773,8 @@ export default function App() {
                   <label>
                     Modelo de operação
                     <select
+                      name="crm-tipo-operacao"
+                      id="crm-tipo-operacao"
                       value={crmLeadForm.tipoOperacao}
                       onChange={(event) =>
                         handleCrmLeadFormChange('tipoOperacao', event.target.value as CrmLeadFormState['tipoOperacao'])
@@ -8756,6 +8788,8 @@ export default function App() {
                 <label className="crm-form-notes">
                   Observações
                   <textarea
+                    name="crm-notas"
+                    id="crm-notas"
                     rows={2}
                     value={crmLeadForm.notas}
                     onChange={(event) => handleCrmLeadFormChange('notas', event.target.value)}
