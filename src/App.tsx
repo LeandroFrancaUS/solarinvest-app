@@ -117,6 +117,7 @@ import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
+import ProposalModal from './components/ProposalModal'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/settings/SimulacoesTab'
 import {
@@ -2721,6 +2722,9 @@ export default function App() {
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [orcamentoVisualizado, setOrcamentoVisualizado] = useState<PrintableProposalProps | null>(null)
+  const [showProposalModal, setShowProposalModal] = useState(false)
+  const [proposalPreviewData, setProposalPreviewData] = useState<PrintableProposalProps | null>(null)
+  const [proposalPreviewVariant, setProposalPreviewVariant] = useState<'standard' | 'simple'>('standard')
   const [orcamentoVisualizadoInfo, setOrcamentoVisualizadoInfo] = useState<
     | {
         id: string
@@ -6706,8 +6710,8 @@ export default function App() {
     duracao: duracaoMeses,
   }
 
-  const printableRef = useRef<HTMLDivElement>(null)
   const pendingPreviewDataRef = useRef<{ html: string; dados: PrintableProposalProps } | null>(null)
+  const proposalPrintRef = useRef<HTMLDivElement | null>(null)
 
   const anosArray = useMemo(
     () => Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => i + 1),
@@ -7413,23 +7417,6 @@ export default function App() {
       layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
     } catch (error) {
       console.error('Erro ao preparar a proposta para exportação.', error)
-    }
-
-    if (!layoutHtml) {
-      const node = printableRef.current
-      if (node) {
-        const clone = node.cloneNode(true) as HTMLElement
-        if (options?.incluirTabelaBuyout === false) {
-          clone.querySelectorAll('[data-print-section="buyout"]').forEach((element) => {
-            element.parentElement?.removeChild(element)
-          })
-        }
-        const codigoDd = clone.querySelector('.print-client-grid .print-client-field:first-child dd')
-        if (codigoDd && dadosParaImpressao.budgetId) {
-          codigoDd.textContent = dadosParaImpressao.budgetId
-        }
-        layoutHtml = clone.outerHTML
-      }
     }
 
     if (!layoutHtml) {
@@ -10809,7 +10796,7 @@ export default function App() {
     }
     setEficiencia(valor)
   }
-  const handlePrint = async () => {
+  const handleOpenProposalModal = useCallback(async () => {
     if (!validarCamposObrigatorios()) {
       return
     }
@@ -10819,24 +10806,108 @@ export default function App() {
     })
 
     if (!resultado) {
-      window.alert('Não foi possível gerar a visualização para impressão. Tente novamente.')
+      window.alert('Não foi possível preparar a proposta. Tente novamente.')
       return
     }
 
-    const { html: layoutHtml, dados } = resultado
+    const { html, dados } = resultado
     pendingPreviewDataRef.current = {
-      html: layoutHtml,
-      dados,
+      html,
+      dados: clonePrintableData(dados),
     }
-    const nomeCliente = dados.cliente.nome?.trim() || 'SolarInvest'
-    const budgetId = normalizeProposalId(dados.budgetId)
-    openBudgetPreviewWindow(layoutHtml, {
-      nomeCliente,
-      budgetId,
-      actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
-      initialMode: 'preview',
-    })
-  }
+
+    setProposalPreviewVariant('standard')
+    setProposalPreviewData(clonePrintableData(dados))
+    setShowProposalModal(true)
+  }, [
+    isVendaDiretaTab,
+    prepararPropostaParaExportacao,
+    validarCamposObrigatorios,
+  ])
+
+  const handleCloseProposalModal = useCallback(() => {
+    setShowProposalModal(false)
+    setProposalPreviewData(null)
+    setProposalPreviewVariant('standard')
+    pendingPreviewDataRef.current = null
+    proposalPrintRef.current = null
+  }, [pendingPreviewDataRef, proposalPrintRef])
+
+  const openProposalPrintWindow = useCallback(
+    (mode: 'print' | 'download') => {
+      if (typeof window === 'undefined' || typeof document === 'undefined') {
+        return
+      }
+
+      const proposalRoot = proposalPrintRef.current || document.getElementById('proposal-print-root')
+      if (!proposalRoot) {
+        window.alert('Não foi possível localizar o conteúdo da proposta para impressão.')
+        return
+      }
+
+      const clone = proposalRoot.cloneNode(true) as HTMLElement
+      const html = clone.outerHTML
+
+      const printWindow = window.open('', '_blank', 'width=1024,height=768')
+      if (!printWindow) {
+        window.alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-ups.')
+        return
+      }
+
+      const documentMode = mode === 'download' ? 'print' : mode
+      const variant = proposalPreviewVariant
+
+      const message =
+        mode === 'download'
+          ? 'Escolha a opção "Salvar como PDF" na janela de impressão para baixar o documento.'
+          : 'Use a janela do navegador para concluir a impressão.'
+
+      const printHtml = `<!DOCTYPE html>
+        <html data-print-mode="${documentMode}" data-print-variant="${variant}">
+          <head>
+            <meta charset="utf-8" />
+            <title>Proposta-SolarInvest</title>
+            <style>${printStyles}${simplePrintStyles}</style>
+          </head>
+          <body>
+            <div class="print-preview-message" style="font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; border-bottom: 1px solid #cbd5f5; padding: 12px 24px; font-size: 14px; color: #0f172a;">${message}</div>
+            ${html}
+          </body>
+        </html>`
+
+      printWindow.document.open()
+      printWindow.document.write(printHtml)
+      printWindow.document.close()
+      printWindow.focus()
+
+      const triggerPrint = () => {
+        try {
+          printWindow.print()
+        } catch (error) {
+          console.error('Falha ao iniciar impressão da proposta.', error)
+        }
+      }
+
+      if (printWindow.document.readyState === 'complete') {
+        triggerPrint()
+      } else {
+        printWindow.addEventListener('load', triggerPrint, { once: true })
+      }
+    },
+    [proposalPreviewVariant, proposalPrintRef],
+  )
+
+  const handleProposalPrint = useCallback(() => {
+    openProposalPrintWindow('print')
+  }, [openProposalPrintWindow])
+
+  const handleProposalDownload = useCallback(() => {
+    openProposalPrintWindow('download')
+  }, [openProposalPrintWindow])
+
+  const handleToggleProposalVariant = useCallback(() => {
+    setProposalPreviewVariant((prev) => (prev === 'standard' ? 'simple' : 'standard'))
+  }, [])
 
   const handleImprimirTabelaTransferencia = useCallback(async () => {
     if (gerandoTabelaTransferencia) {
@@ -16681,7 +16752,7 @@ export default function App() {
           icon: '🖨️',
           onSelect: () => {
             setActivePage('app')
-            handlePrint()
+            handleOpenProposalModal()
           },
         },
       ],
@@ -17718,9 +17789,24 @@ export default function App() {
             : undefined
         }
       >
-        <React.Suspense fallback={null}>
-          <PrintableProposal ref={printableRef} {...printableData} />
-        </React.Suspense>
+        {showProposalModal && proposalPreviewData ? (
+          <ProposalModal onClose={handleCloseProposalModal}>
+            <div className="proposal-preview-modal__viewport" data-print-variant={proposalPreviewVariant}>
+              <React.Suspense fallback={<p className="print-loading">Carregando proposta…</p>}>
+                <PrintableProposal
+                  ref={(node) => {
+                    proposalPrintRef.current = node
+                  }}
+                  {...proposalPreviewData}
+                  variant={proposalPreviewVariant}
+                  onPrint={handleProposalPrint}
+                  onDownload={handleProposalDownload}
+                  onToggleSimple={handleToggleProposalVariant}
+                />
+              </React.Suspense>
+            </div>
+          </ProposalModal>
+        ) : null}
         {activePage === 'dashboard' ? (
           renderDashboardPage()
         ) : activePage === 'crm' ? (

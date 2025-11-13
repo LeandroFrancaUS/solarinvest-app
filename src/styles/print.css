@@ -1,6 +1,6 @@
 @page {
-  size: A4 portrait;
-  margin: 12mm;
+  size: A4;
+  margin: 12mm 14mm;
 }
 
 :where(html[data-print-mode], body[data-print-mode], [data-print-mode]) {
@@ -29,6 +29,19 @@
     [data-print-mode='download']
   ) .print-page {
   box-shadow: none !important;
+}
+
+.print-page {
+  padding: 8px 0;
+}
+
+.print-block {
+  margin: 6px 0;
+  padding: 10px 12px;
+}
+
+.print-page:first-child .print-block:first-child {
+  margin-top: 0;
 }
 
 :where(
@@ -347,6 +360,14 @@
     font-family: 'Inter', 'Roboto', sans-serif;
   }
 
+  .app-header,
+  .sidebar,
+  .modal,
+  .modal-backdrop,
+  .print-header {
+    display: none !important;
+  }
+
   * {
     box-shadow: none !important;
     filter: none !important;
@@ -417,6 +438,18 @@
   .keep-with-next {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  .print-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+  }
+
+  .card,
+  .kpi,
+  .notice {
+    box-shadow: none !important;
   }
 
   .print-hero::after {
