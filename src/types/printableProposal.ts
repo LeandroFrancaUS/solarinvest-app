@@ -212,6 +212,7 @@ export type PrintableProposalProps = {
   descontoContratualPct: number
   parcelasLeasing: MensalidadeRow[]
   leasingValorDeMercadoEstimado?: number | null
+  mostrarValorMercadoLeasing?: boolean | null
   leasingPrazoContratualMeses?: number | null
   leasingValorInstalacaoCliente?: number | null
   leasingDataInicioOperacao?: string | null
