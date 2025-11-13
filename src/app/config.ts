@@ -184,6 +184,7 @@ export const INITIAL_VALUES = {
   cipEncargo: 0,
   entradaRs: 0,
   entradaModo: 'Crédito mensal' as EntradaModoLabel,
+  mostrarValorMercadoLeasing: false,
   tabelaVisivel: false,
   capexManualOverride: false,
   oemBase: 35,

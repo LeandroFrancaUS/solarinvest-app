@@ -750,6 +750,7 @@ type OrcamentoSnapshotData = {
   cipEncargo: number
   entradaRs: number
   entradaModo: EntradaModoLabel
+  mostrarValorMercadoLeasing: boolean
   mostrarTabelaParcelas: boolean
   mostrarTabelaBuyout: boolean
   mostrarTabelaParcelasConfig: boolean
@@ -4942,6 +4943,9 @@ export default function App() {
   const [cipEncargo, setCipEncargo] = useState(INITIAL_VALUES.cipEncargo)
   const [entradaRs, setEntradaRs] = useState(INITIAL_VALUES.entradaRs)
   const [entradaModo, setEntradaModo] = useState<EntradaModoLabel>(INITIAL_VALUES.entradaModo)
+  const [mostrarValorMercadoLeasing, setMostrarValorMercadoLeasing] = useState(
+    INITIAL_VALUES.mostrarValorMercadoLeasing,
+  )
   const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(
     INITIAL_VALUES.tabelaVisivel,
   )
@@ -6998,6 +7002,7 @@ export default function App() {
         leasingValorDeMercadoEstimado: isVendaDiretaTab
           ? null
           : leasingValorDeMercadoEstimado || 0,
+        mostrarValorMercadoLeasing: isVendaDiretaTab ? false : mostrarValorMercadoLeasing,
         leasingPrazoContratualMeses: isVendaDiretaTab
           ? null
           : Math.max(0, Math.round(leasingPrazoConsiderado * 12)),
@@ -10391,6 +10396,7 @@ export default function App() {
       cipEncargo,
       entradaRs,
       entradaModo,
+      mostrarValorMercadoLeasing,
       mostrarTabelaParcelas,
       mostrarTabelaBuyout,
       mostrarTabelaParcelasConfig,
@@ -10517,6 +10523,7 @@ export default function App() {
     setCipEncargo(snapshot.cipEncargo)
     setEntradaRs(snapshot.entradaRs)
     setEntradaModo(snapshot.entradaModo)
+    setMostrarValorMercadoLeasing(Boolean(snapshot.mostrarValorMercadoLeasing))
     setMostrarTabelaParcelas(snapshot.mostrarTabelaParcelas)
     setMostrarTabelaBuyout(snapshot.mostrarTabelaBuyout)
     setMostrarTabelaParcelasConfig(snapshot.mostrarTabelaParcelasConfig)
@@ -11792,6 +11799,7 @@ export default function App() {
     setCipEncargo(INITIAL_VALUES.cipEncargo)
     setEntradaRs(INITIAL_VALUES.entradaRs)
     setEntradaModo(INITIAL_VALUES.entradaModo)
+    setMostrarValorMercadoLeasing(INITIAL_VALUES.mostrarValorMercadoLeasing)
     setMostrarTabelaParcelas(INITIAL_VALUES.tabelaVisivel)
     setMostrarTabelaBuyout(INITIAL_VALUES.tabelaVisivel)
     setMostrarTabelaParcelasConfig(INITIAL_VALUES.tabelaVisivel)
@@ -17865,6 +17873,22 @@ export default function App() {
                           <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
                         </span>
                       ) : null}
+                    </div>
+
+                    <div className="grid g3">
+                      <Field label=" ">
+                        <label className="inline-checkbox inline-checkbox--small">
+                          <input
+                            type="checkbox"
+                            aria-label="Apresentar valor de mercado na proposta"
+                            checked={mostrarValorMercadoLeasing}
+                            onChange={(event) =>
+                              setMostrarValorMercadoLeasing(event.target.checked)
+                            }
+                          />
+                          <span>Apresentar valor de mercado na proposta</span>
+                        </label>
+                      </Field>
                     </div>
 
                     <div className="table-controls">

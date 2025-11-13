@@ -955,6 +955,22 @@ button.secondary.danger:focus-visible {
   width: auto;
 }
 
+.inline-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.inline-checkbox--small {
+  gap: var(--space-1);
+}
+
+.inline-checkbox--small input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+
 @media (max-width: 900px) {
   .field {
     --field-max-width: 100%;

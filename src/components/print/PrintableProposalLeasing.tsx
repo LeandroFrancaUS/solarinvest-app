@@ -197,6 +197,7 @@ function PrintableProposalLeasingInner(
     tipoInstalacao,
     tipoSistema,
     areaInstalacao,
+    capex,
     buyoutResumo,
     anos,
     leasingROI,
@@ -205,6 +206,7 @@ function PrintableProposalLeasingInner(
     leasingDataInicioOperacao,
     leasingValorInstalacaoCliente,
     leasingValorDeMercadoEstimado,
+    mostrarValorMercadoLeasing,
     leasingPrazoContratualMeses,
     leasingInflacaoEnergiaAa,
     leasingModeloInversor,
@@ -481,7 +483,28 @@ function PrintableProposalLeasingInner(
   const modeloModulo = modeloModuloManual ?? modeloModuloSnapshot ?? modelosCatalogo.modeloModulo
   const modeloInversor = modeloInversorManual ?? modeloInversorSnapshot ?? modelosCatalogo.modeloInversor
 
+  const valorMercadoUsina = useMemo(
+    () =>
+      Number.isFinite(leasingValorDeMercadoEstimado)
+        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
+        : 0,
+    [leasingValorDeMercadoEstimado],
+  )
+  const valorMercadoProposta = useMemo(
+    () => (Number.isFinite(capex) ? Math.max(0, capex ?? 0) : 0),
+    [capex],
+  )
+  const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
+
   const especificacoesUsina = [
+    ...(exibirValorMercadoNaProposta
+      ? [
+          {
+            label: 'Valor de mercado',
+            value: currency(valorMercadoProposta),
+          } as const,
+        ]
+      : []),
     {
       label: 'Tipo de Sistema',
       value: formatTipoSistema(tipoSistema),
@@ -698,14 +721,6 @@ function PrintableProposalLeasingInner(
   }, [economiaMarcos, leasingROI])
 
   const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
-  const valorMercadoUsina = useMemo(
-    () =>
-      Number.isFinite(leasingValorDeMercadoEstimado)
-        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
-        : 0,
-    [leasingValorDeMercadoEstimado],
-  )
-
   const economiaProjetadaGrafico = useMemo(() => {
     if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
       return []
