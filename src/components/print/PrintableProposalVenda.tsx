@@ -1420,9 +1420,9 @@ function PrintableProposalInner(
           <div className="print-observacoes no-break-inside">
             {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
               const linhas = normalizeNewlines(paragrafo).split('\n')
-/)
-              return (
-                <p key={`observacao-configuracao-${index}`} className="print-observacoes__paragraph">
+                    <span key={`observacao-configuracao-${index}-linha-${linhaIndex}`}>
+                      <br />
+                    </span>
                   {linhas.map((linha, linhaIndex) => (
                     <React.Fragment key={`observacao-configuracao-${index}-linha-${linhaIndex}`}>
                       {linha}
