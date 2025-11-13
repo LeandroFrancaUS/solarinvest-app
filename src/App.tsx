@@ -150,6 +150,7 @@ import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
+import { usePrintableProposalsStore } from './store/usePrintableProposalsStore'
 import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
@@ -192,6 +193,7 @@ import {
 } from './utils/formatters'
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
+const PrintableProposalPage = React.lazy(() => import('./components/print/PrintableProposalPage'))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
@@ -859,6 +861,33 @@ const generateBudgetId = (
 }
 
 const createDraftBudgetId = () => `DRAFT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
+
+type RouteInfo =
+  | { kind: 'main' }
+  | { kind: 'print'; tipo: PrintableProposalTipo; proposalId: string; path: string }
+
+const normalizePathname = (pathname: string): string => {
+  if (!pathname) {
+    return '/'
+  }
+  const base = pathname.split('?')[0]?.split('#')[0] ?? '/'
+  if (!base || base === '/') {
+    return '/'
+  }
+  const trimmed = base.startsWith('/') ? base : `/${base}`
+  return trimmed.endsWith('/') && trimmed.length > 1 ? trimmed.slice(0, -1) : trimmed
+}
+
+const resolveRouteFromPath = (pathname: string): RouteInfo => {
+  const normalized = normalizePathname(pathname)
+  const match = /^\/print\/(venda|leasing)\/([^/]+)$/i.exec(normalized)
+  if (match) {
+    const [, tipoSegment, idSegment] = match
+    const tipo = tipoSegment.toLowerCase() === 'leasing' ? 'LEASING' : 'VENDA_DIRETA'
+    return { kind: 'print', tipo, proposalId: idSegment, path: normalized }
+  }
+  return { kind: 'main' }
+}
 
 const createUcBeneficiariaId = () => `UCB-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
 
@@ -2548,6 +2577,42 @@ export default function App() {
   const valorTotalPropostaState = useVendaStore(
     (state) => state.resumoProposta.valor_total_proposta,
   )
+  const [currentPath, setCurrentPath] = useState<string>(() => {
+    if (typeof window === 'undefined') {
+      return '/'
+    }
+    return normalizePathname(window.location.pathname)
+  })
+  const routeInfo = useMemo(() => resolveRouteFromPath(currentPath), [currentPath])
+  const navigateTo = useCallback(
+    (path: string, options?: { replace?: boolean }) => {
+      const normalizedTarget = normalizePathname(path)
+      if (typeof window === 'undefined') {
+        setCurrentPath(normalizedTarget)
+        return
+      }
+      const current = normalizePathname(window.location.pathname)
+      if (options?.replace) {
+        window.history.replaceState({}, '', normalizedTarget)
+      } else if (current !== normalizedTarget) {
+        window.history.pushState({}, '', normalizedTarget)
+      }
+      setCurrentPath(normalizedTarget)
+    },
+    [],
+  )
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const handlePopState = () => {
+      setCurrentPath(normalizePathname(window.location.pathname))
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [])
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return 'light'
@@ -2898,6 +2963,7 @@ export default function App() {
   const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
   const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
+  const setPrintableProposal = usePrintableProposalsStore((state) => state.setProposal)
 
   const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
   const capexBaseManualValor =
@@ -6706,7 +6772,6 @@ export default function App() {
     duracao: duracaoMeses,
   }
 
-  const printableRef = useRef<HTMLDivElement>(null)
   const pendingPreviewDataRef = useRef<{ html: string; dados: PrintableProposalProps } | null>(null)
 
   const anosArray = useMemo(
@@ -7413,23 +7478,6 @@ export default function App() {
       layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
     } catch (error) {
       console.error('Erro ao preparar a proposta para exportação.', error)
-    }
-
-    if (!layoutHtml) {
-      const node = printableRef.current
-      if (node) {
-        const clone = node.cloneNode(true) as HTMLElement
-        if (options?.incluirTabelaBuyout === false) {
-          clone.querySelectorAll('[data-print-section="buyout"]').forEach((element) => {
-            element.parentElement?.removeChild(element)
-          })
-        }
-        const codigoDd = clone.querySelector('.print-client-grid .print-client-field:first-child dd')
-        if (codigoDd && dadosParaImpressao.budgetId) {
-          codigoDd.textContent = dadosParaImpressao.budgetId
-        }
-        layoutHtml = clone.outerHTML
-      }
     }
 
     if (!layoutHtml) {
@@ -10819,23 +10867,18 @@ export default function App() {
     })
 
     if (!resultado) {
-      window.alert('Não foi possível gerar a visualização para impressão. Tente novamente.')
+      window.alert('Não foi possível preparar a proposta para impressão. Tente novamente.')
       return
     }
 
-    const { html: layoutHtml, dados } = resultado
-    pendingPreviewDataRef.current = {
-      html: layoutHtml,
-      dados,
-    }
-    const nomeCliente = dados.cliente.nome?.trim() || 'SolarInvest'
-    const budgetId = normalizeProposalId(dados.budgetId)
-    openBudgetPreviewWindow(layoutHtml, {
-      nomeCliente,
-      budgetId,
-      actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
-      initialMode: 'preview',
-    })
+    const { dados } = resultado
+    const proposalId = setPrintableProposal(dados.budgetId, dados)
+    pendingPreviewDataRef.current = null
+    const isLeasingProposal = dados.tipoProposta === 'LEASING'
+    const targetPath = isLeasingProposal
+      ? `/print/leasing/${proposalId}`
+      : `/print/venda/${proposalId}`
+    navigateTo(targetPath)
   }
 
   const handleImprimirTabelaTransferencia = useCallback(async () => {
@@ -17675,9 +17718,20 @@ export default function App() {
             : activePage === 'settings'
               ? 'config-preferencias'
               : activeTab === 'vendas'
-              ? 'propostas-vendas'
-              : 'propostas-leasing'
+                ? 'propostas-vendas'
+                : 'propostas-leasing'
 
+  if (routeInfo.kind === 'print') {
+    return (
+      <React.Suspense fallback={null}>
+        <PrintableProposalPage
+          proposalId={routeInfo.proposalId}
+          tipo={routeInfo.tipo}
+          onClose={() => navigateTo('/')}
+        />
+      </React.Suspense>
+    )
+  }
 
   return (
     <AppRoutes>
@@ -17718,9 +17772,6 @@ export default function App() {
             : undefined
         }
       >
-        <React.Suspense fallback={null}>
-          <PrintableProposal ref={printableRef} {...printableData} />
-        </React.Suspense>
         {activePage === 'dashboard' ? (
           renderDashboardPage()
         ) : activePage === 'crm' ? (
