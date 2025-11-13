@@ -14,6 +14,7 @@ import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
+import type { SegmentoCliente } from '../../lib/finance/roi'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -59,6 +60,15 @@ const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
   'Valores estimativos; confirmação no contrato definitivo.'
 
 const PRAZO_LEASING_PADRAO_MESES = 60
+
+const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
+  RESIDENCIAL: 'Residencial',
+  COMERCIAL: 'Comercial',
+  INDUSTRIAL: 'Industrial',
+  HIBRIDO: 'Híbrido',
+  RURAL: 'Rural',
+  CONDOMINIO: 'Condomínio',
+}
 
 const formatAnosDetalhado = (valor: number): string => {
   const fractionDigits = Number.isInteger(valor) ? 0 : 1
@@ -180,6 +190,14 @@ const formatTipoSistema = (value?: PrintableProposalProps['tipoSistema']) => {
   }
 }
 
+const formatSegmentoCliente = (value?: SegmentoCliente | null): string => {
+  if (!value) {
+    return '—'
+  }
+
+  return SEGMENTO_LABELS[value] ?? '—'
+}
+
 function PrintableProposalLeasingInner(
   props: PrintableProposalProps,
   ref: React.ForwardedRef<HTMLDivElement>,
@@ -196,6 +214,7 @@ function PrintableProposalLeasingInner(
     potenciaInstaladaKwp,
     tipoInstalacao,
     tipoSistema,
+    segmentoCliente,
     areaInstalacao,
     capex,
     buyoutResumo,
@@ -496,6 +515,8 @@ function PrintableProposalLeasingInner(
   )
   const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
 
+  const segmentoClienteDescricao = formatSegmentoCliente(segmentoCliente)
+
   const especificacoesUsina = [
     ...(exibirValorMercadoNaProposta
       ? [
@@ -542,6 +563,10 @@ function PrintableProposalLeasingInner(
     {
       label: 'Geração estimada (kWh/mês)',
       value: formatKwhMes(geracaoMensalKwh),
+    },
+    {
+      label: 'Tipo de Edificação',
+      value: segmentoClienteDescricao,
     },
     {
       label: 'Área útil necessária (m²)',

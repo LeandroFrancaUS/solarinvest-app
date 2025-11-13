@@ -249,6 +249,21 @@ const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
   return undefined
 }
 
+const normalizeSegmentoClienteValue = (value: unknown): SegmentoCliente | undefined => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toUpperCase()
+    if (!trimmed) {
+      return undefined
+    }
+
+    if ((SEGMENTO_OPTIONS as readonly SegmentoCliente[]).includes(trimmed as SegmentoCliente)) {
+      return trimmed as SegmentoCliente
+    }
+  }
+
+  return undefined
+}
+
 const formatLeasingPrazoAnos = (valor: number) => {
   const fractionDigits = Number.isInteger(valor) ? 0 : 1
   return formatNumberBRWithOptions(valor, {
@@ -6831,6 +6846,14 @@ export default function App() {
         : undefined
       const tipoSistemaPrintable = tipoSistemaSnapshot ?? tipoSistemaFromForm ?? tipoSistema
 
+      const segmentoSnapshot = normalizeSegmentoClienteValue(
+        vendaSnapshot.configuracao.segmento,
+      )
+      const segmentoFromForm = isVendaDiretaTab
+        ? normalizeSegmentoClienteValue(vendaForm.segmento_cliente)
+        : undefined
+      const segmentoPrintable = segmentoSnapshot ?? segmentoFromForm ?? segmentoCliente
+
       const vendaResumo = isVendaDiretaTab
         ? {
             form: { ...vendaForm },
@@ -7011,6 +7034,7 @@ export default function App() {
         potenciaInstaladaKwp: potenciaInstaladaPrintable,
         tipoInstalacao,
         tipoSistema: tipoSistemaPrintable,
+        segmentoCliente: segmentoPrintable,
         areaInstalacao,
         descontoContratualPct: descontoConsiderado,
         parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
@@ -13804,8 +13828,8 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'Segmento',
-            'Classificação do cliente (residencial, comercial, industrial, híbrido, rural ou condomínio), utilizada para relatórios e cálculos de tarifas.',
+            'Tipo de Edificação',
+            'Classificação da edificação (residencial, comercial, industrial, híbrida, rural ou condomínio), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
@@ -14335,8 +14359,8 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'Segmento',
-            'Classificação do cliente (residencial, comercial, industrial, híbrido, rural ou condomínio), utilizada para relatórios e cálculos de tarifas.',
+            'Tipo de Edificação',
+            'Classificação da edificação (residencial, comercial, industrial, híbrida, rural ou condomínio), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
