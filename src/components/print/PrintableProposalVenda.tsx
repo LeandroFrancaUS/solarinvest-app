@@ -1419,11 +1419,16 @@ function PrintableProposalInner(
           <h2 className="section-title keep-with-next">Observações sobre a configuração</h2>
           <div className="print-observacoes no-break-inside">
             {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
-              const linhas = normalizeNewlines(paragrafo).split('\n')
-                    <span key={`observacao-configuracao-${index}-linha-${linhaIndex}`}>
-                      <br />
+              const linhas = normalizeNewlines(paragrafo).split('\n');
+                <p
+                  key={`observacao-configuracao-${index}`}
+                  className="print-observacoes__paragraph"
+                >
+                    <span
+                      key={`observacao-configuracao-${index}-linha-${linhaIndex}`}
+                    >
                     </span>
-                  {linhas.map((linha, linhaIndex) => (
+              );
                     <React.Fragment key={`observacao-configuracao-${index}-linha-${linhaIndex}`}>
                       {linha}
                       {linhaIndex < linhas.length - 1 ? <br /> : null}
