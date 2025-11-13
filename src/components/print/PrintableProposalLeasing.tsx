@@ -205,6 +205,7 @@ function PrintableProposalLeasingInner(
     leasingDataInicioOperacao,
     leasingValorInstalacaoCliente,
     leasingValorDeMercadoEstimado,
+    mostrarValorMercadoLeasing,
     leasingPrazoContratualMeses,
     leasingInflacaoEnergiaAa,
     leasingModeloInversor,
@@ -596,6 +597,16 @@ function PrintableProposalLeasingInner(
       label: 'Prazo contratual',
       value: formatPrazoContratual(prazoContratual),
     },
+    ...(
+      exibirValorMercadoNaProposta
+        ? [
+            {
+              label: 'Valor de mercado estimado da usina (R$)',
+              value: currency(valorMercadoUsina),
+            },
+          ]
+        : []
+    ),
   ]
 
   const prazoContratualTotalAnos = useMemo(() => {
@@ -705,6 +716,7 @@ function PrintableProposalLeasingInner(
         : 0,
     [leasingValorDeMercadoEstimado],
   )
+  const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
 
   const economiaProjetadaGrafico = useMemo(() => {
     if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
