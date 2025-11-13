@@ -482,7 +482,24 @@ function PrintableProposalLeasingInner(
   const modeloModulo = modeloModuloManual ?? modeloModuloSnapshot ?? modelosCatalogo.modeloModulo
   const modeloInversor = modeloInversorManual ?? modeloInversorSnapshot ?? modelosCatalogo.modeloInversor
 
+  const valorMercadoUsina = useMemo(
+    () =>
+      Number.isFinite(leasingValorDeMercadoEstimado)
+        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
+        : 0,
+    [leasingValorDeMercadoEstimado],
+  )
+  const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
+
   const especificacoesUsina = [
+    ...(exibirValorMercadoNaProposta
+      ? [
+          {
+            label: 'Valor de mercado',
+            value: currency(valorMercadoUsina),
+          } as const,
+        ]
+      : []),
     {
       label: 'Tipo de Sistema',
       value: formatTipoSistema(tipoSistema),
@@ -534,14 +551,6 @@ function PrintableProposalLeasingInner(
   ]
 
   const tarifaInicialProjetada = tarifaCheiaBase > 0 ? tarifaCheiaBase * (1 - descontoFracao) : 0
-  const valorMercadoUsina = useMemo(
-    () =>
-      Number.isFinite(leasingValorDeMercadoEstimado)
-        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
-        : 0,
-    [leasingValorDeMercadoEstimado],
-  )
-  const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
 
   const tusdMedioPorAno = useMemo<Record<number, number>>(() => {
     if (!Array.isArray(parcelasLeasing) || parcelasLeasing.length === 0) {
@@ -605,16 +614,6 @@ function PrintableProposalLeasingInner(
       label: 'Prazo contratual',
       value: formatPrazoContratual(prazoContratual),
     },
-    ...(
-      exibirValorMercadoNaProposta
-        ? [
-            {
-              label: 'Valor de mercado estimado da usina (R$)',
-              value: currency(valorMercadoUsina),
-            },
-          ]
-        : []
-    ),
   ]
 
   const prazoContratualTotalAnos = useMemo(() => {

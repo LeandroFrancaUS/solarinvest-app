@@ -17877,17 +17877,15 @@ export default function App() {
 
                     <div className="grid g3">
                       <Field label="Valor de mercado na proposta">
-                        <label className="inline-checkbox">
+                        <label className="inline-checkbox inline-checkbox--small">
                           <input
                             type="checkbox"
+                            aria-label="Valor de mercado na proposta"
                             checked={mostrarValorMercadoLeasing}
                             onChange={(event) =>
                               setMostrarValorMercadoLeasing(event.target.checked)
                             }
                           />
-                          <span>
-                            Exibir o valor de mercado estimado da usina na proposta de leasing.
-                          </span>
                         </label>
                       </Field>
                     </div>
