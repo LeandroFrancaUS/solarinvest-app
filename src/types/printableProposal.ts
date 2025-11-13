@@ -197,6 +197,7 @@ export type PrintableProposalProps = {
   financiamentoFluxo: number[]
   financiamentoROI: number[]
   mostrarFinanciamento: boolean
+  mostrarValorMercadoUsina: boolean
   tabelaBuyout: BuyoutRow[]
   buyoutResumo: BuyoutResumo
   mostrarTabelaBuyout?: boolean | undefined

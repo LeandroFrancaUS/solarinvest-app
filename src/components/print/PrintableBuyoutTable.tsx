@@ -44,6 +44,7 @@ export type PrintableBuyoutTableProps = {
   prazoContratualMeses: number
   emissaoIso?: string | null
   observacaoImportante?: string | null
+  mostrarValorMercadoUsina?: boolean | undefined
 }
 
 type BuyoutEligibleRow = BuyoutRow & { valorResidual: number }
@@ -62,6 +63,7 @@ function PrintableBuyoutTableInner(
     prazoContratualMeses,
     emissaoIso,
     observacaoImportante,
+    mostrarValorMercadoUsina = true,
   } = props
 
   const buyoutRowsElegiveis = useMemo<BuyoutEligibleRow[]>(() => {
@@ -134,7 +136,9 @@ function PrintableBuyoutTableInner(
 
   const buyoutResumoIndicadores = [
     { label: 'Janela considerada', value: buyoutJanelaTexto },
-    { label: 'Valor de mercado estimado (VM0)', value: investimentoSolarinvestFormatado },
+    ...(mostrarValorMercadoUsina
+      ? [{ label: 'Valor de mercado estimado (VM0)', value: investimentoSolarinvestFormatado }]
+      : []),
     { label: 'Prestação acumulada até o mês final', value: buyoutPrestacaoAcumuladaTexto },
     { label: 'Compra no primeiro mês elegível', value: buyoutPrimeiroValorTexto },
     { label: 'Compra ao final do contrato', value: buyoutUltimoValorTexto },

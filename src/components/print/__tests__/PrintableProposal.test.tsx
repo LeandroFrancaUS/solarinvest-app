@@ -52,6 +52,7 @@ const createPrintableProps = (
   financiamentoFluxo: Array.from({ length: 30 }, () => 0),
   financiamentoROI: Array.from({ length: 30 }, () => 0),
   mostrarFinanciamento: false,
+  mostrarValorMercadoUsina: false,
   tabelaBuyout: [],
   buyoutResumo: {
     vm0: 0,
@@ -442,6 +443,25 @@ describe('PrintableProposal (leasing)', () => {
     expect(markup).toContain('R$\u00a0120.000,00')
     expect(markup).toContain('Informações Importantes')
     expect(markup).toContain('Benefício acumulado (R$)')
+  })
+
+  it('controla a exibição do valor de mercado da usina conforme configuração', () => {
+    const baseProps = createPrintableProps({
+      tipoProposta: 'LEASING',
+      leasingValorDeMercadoEstimado: 48000,
+      leasingPrazoContratualMeses: 60,
+      parcelasLeasing: [],
+    })
+
+    const markupDesativado = renderToStaticMarkup(<PrintableProposal {...baseProps} />)
+    expect(markupDesativado).not.toContain('Valor de mercado estimado da usina')
+
+    const markupAtivado = renderToStaticMarkup(
+      <PrintableProposal {...baseProps} mostrarValorMercadoUsina />,
+    )
+
+    expect(markupAtivado).toContain('Valor de mercado estimado da usina')
+    expect(markupAtivado).toMatch(/48\.000,00/)
   })
 
   it('exibe mensalidades para todos os anos configurados no prazo do leasing', () => {

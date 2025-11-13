@@ -28,6 +28,7 @@ const createProps = (): PrintableProposalProps => ({
   financiamentoFluxo: [0, 0, 0],
   financiamentoROI: [0, 0, 0],
   mostrarFinanciamento: false,
+  mostrarValorMercadoUsina: false,
   tabelaBuyout: [],
   buyoutResumo: {
     vm0: 0,

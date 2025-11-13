@@ -30,6 +30,7 @@ const createPrintableProps = (overrides: Partial<PrintableProposalProps> = {}): 
   financiamentoFluxo: Array.from({ length: 30 }, () => 0),
   financiamentoROI: Array.from({ length: 30 }, (_, index) => (index + 1) * 500),
   mostrarFinanciamento: true,
+  mostrarValorMercadoUsina: false,
   tabelaBuyout: [],
   buyoutResumo: {
     vm0: 0,

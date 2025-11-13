@@ -744,6 +744,7 @@ type OrcamentoSnapshotData = {
   prazoFinMeses: number
   entradaFinPct: number
   mostrarFinanciamento: boolean
+  mostrarValorMercado: boolean
   mostrarGrafico: boolean
   prazoMeses: number
   bandeiraEncargo: number
@@ -4911,6 +4912,9 @@ export default function App() {
   const [mostrarFinanciamento, setMostrarFinanciamento] = useState(
     INITIAL_VALUES.mostrarFinanciamento,
   )
+  const [mostrarValorMercado, setMostrarValorMercado] = useState(
+    INITIAL_VALUES.mostrarValorMercado,
+  )
   const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_VALUES.mostrarGrafico)
   const [density, setDensity] = useState<DensityMode>(() => {
     if (typeof window === 'undefined') {
@@ -6981,6 +6985,7 @@ export default function App() {
         financiamentoFluxo,
         financiamentoROI,
         mostrarFinanciamento,
+        mostrarValorMercadoUsina: isVendaDiretaTab ? false : mostrarValorMercado,
         tabelaBuyout,
         buyoutResumo,
         mostrarTabelaBuyout: true,
@@ -7093,6 +7098,7 @@ export default function App() {
       kcKwhMes,
       leasingROI,
       mostrarFinanciamento,
+      mostrarValorMercado,
       numeroModulosEstimado,
       parcelasSolarInvest,
       duracaoMeses,
@@ -10385,6 +10391,7 @@ export default function App() {
       prazoFinMeses,
       entradaFinPct,
       mostrarFinanciamento,
+      mostrarValorMercado,
       mostrarGrafico,
       prazoMeses,
       bandeiraEncargo,
@@ -10511,6 +10518,7 @@ export default function App() {
     setPrazoFinMeses(snapshot.prazoFinMeses)
     setEntradaFinPct(snapshot.entradaFinPct)
     setMostrarFinanciamento(snapshot.mostrarFinanciamento)
+    setMostrarValorMercado(snapshot.mostrarValorMercado)
     setMostrarGrafico(snapshot.mostrarGrafico)
     setPrazoMeses(snapshot.prazoMeses)
     setBandeiraEncargo(snapshot.bandeiraEncargo)
@@ -10865,6 +10873,7 @@ export default function App() {
         prazoContratualMeses: duracaoMeses,
         emissaoIso: new Date().toISOString(),
         observacaoImportante: printableData.informacoesImportantesObservacao ?? null,
+        mostrarValorMercadoUsina: mostrarValorMercado,
       })
 
       if (!html) {
@@ -10905,6 +10914,7 @@ export default function App() {
     renderPrintableBuyoutTableToHtml,
     tabelaBuyout,
     buyoutResumo,
+    mostrarValorMercado,
   ])
 
   const handlePreviewActionRequest = useCallback(
@@ -11785,6 +11795,7 @@ export default function App() {
     setPrazoFinMeses(INITIAL_VALUES.prazoFinanciamentoMeses)
     setEntradaFinPct(INITIAL_VALUES.entradaFinanciamentoPct)
     setMostrarFinanciamento(INITIAL_VALUES.mostrarFinanciamento)
+    setMostrarValorMercado(INITIAL_VALUES.mostrarValorMercado)
     setMostrarGrafico(INITIAL_VALUES.mostrarGrafico)
 
     setPrazoMeses(INITIAL_VALUES.prazoMeses)
@@ -17617,6 +17628,20 @@ export default function App() {
                   )}
                 >
                   <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
+                    <option value="1">Sim</option>
+                    <option value="0">Não</option>
+                  </select>
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Mostrar valor de mercado na proposta',
+                    'Exibe o valor de mercado estimado da usina na proposta impressa e nos cálculos de patrimônio.',
+                  )}
+                >
+                  <select
+                    value={mostrarValorMercado ? '1' : '0'}
+                    onChange={(e) => setMostrarValorMercado(e.target.value === '1')}
+                  >
                     <option value="1">Sim</option>
                     <option value="0">Não</option>
                   </select>

@@ -178,6 +178,7 @@ export const INITIAL_VALUES = {
   prazoFinanciamentoMeses: 120,
   entradaFinanciamentoPct: 20,
   mostrarFinanciamento: false,
+  mostrarValorMercado: false,
   mostrarGrafico: true,
   prazoMeses: 60,
   bandeiraEncargo: 0,

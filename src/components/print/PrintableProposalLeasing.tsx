@@ -201,6 +201,7 @@ function PrintableProposalLeasingInner(
     anos,
     leasingROI,
     parcelasLeasing,
+    mostrarValorMercadoUsina,
     distribuidoraTarifa,
     leasingDataInicioOperacao,
     leasingValorInstalacaoCliente,
@@ -598,6 +599,13 @@ function PrintableProposalLeasingInner(
     },
   ]
 
+  if (valorMercadoConsiderado > 0) {
+    condicoesFinanceiras.splice(2, 0, {
+      label: 'Valor de mercado estimado da usina',
+      value: currency(valorMercadoConsiderado),
+    })
+  }
+
   const prazoContratualTotalAnos = useMemo(() => {
     if (prazoContratual > 0) {
       return Math.max(1, Math.ceil(prazoContratual / 12))
@@ -705,6 +713,7 @@ function PrintableProposalLeasingInner(
         : 0,
     [leasingValorDeMercadoEstimado],
   )
+  const valorMercadoConsiderado = mostrarValorMercadoUsina ? valorMercadoUsina : 0
 
   const economiaProjetadaGrafico = useMemo(() => {
     if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
@@ -751,8 +760,11 @@ function PrintableProposalLeasingInner(
       vistos.add(chave)
 
       const beneficioBase = obterBeneficioPorAno(ano)
-      const deveAdicionarUsina = valorMercadoUsina > 0 && prazoContratualAnos > 0 && ano >= prazoContratualAnos
-      const beneficioTotal = deveAdicionarUsina ? beneficioBase + valorMercadoUsina : beneficioBase
+      const deveAdicionarUsina =
+        valorMercadoConsiderado > 0 && prazoContratualAnos > 0 && ano >= prazoContratualAnos
+      const beneficioTotal = deveAdicionarUsina
+        ? beneficioBase + valorMercadoConsiderado
+        : beneficioBase
 
       let label = formatAnosDetalhado(ano)
 
@@ -765,7 +777,7 @@ function PrintableProposalLeasingInner(
       acc.push({ ano, label, acumulado: Math.max(0, beneficioTotal) })
       return acc
     }, [])
-  }, [leasingROI, prazoContratualAnos, valorMercadoUsina])
+  }, [leasingROI, prazoContratualAnos, valorMercadoConsiderado])
 
   const maxBeneficioGrafico = useMemo(
     () => economiaProjetadaGrafico.reduce((maior, item) => Math.max(maior, item.acumulado), 0),
