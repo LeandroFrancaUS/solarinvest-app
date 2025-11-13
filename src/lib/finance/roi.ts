@@ -9,7 +9,13 @@ export type PagamentoCondicao =
   | 'FINANCIAMENTO'
 export type ModoPagamento = 'PIX' | 'DEBITO' | 'CREDITO'
 
-export type SegmentoCliente = 'RESIDENCIAL' | 'COMERCIAL' | 'INDUSTRIAL' | 'HIBRIDO'
+export type SegmentoCliente =
+  | 'RESIDENCIAL'
+  | 'COMERCIAL'
+  | 'INDUSTRIAL'
+  | 'HIBRIDO'
+  | 'RURAL'
+  | 'CONDOMINIO'
 export type TipoSistema = 'ON_GRID' | 'HIBRIDO' | 'OFF_GRID'
 
 export interface VendaForm {

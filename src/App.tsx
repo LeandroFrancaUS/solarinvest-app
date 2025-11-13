@@ -257,12 +257,21 @@ const formatLeasingPrazoAnos = (valor: number) => {
   })
 }
 
-const TUSD_TIPO_OPTIONS: TipoClienteTUSD[] = ['residencial', 'comercial', 'industrial', 'hibrido']
+const TUSD_TIPO_OPTIONS: TipoClienteTUSD[] = [
+  'residencial',
+  'comercial',
+  'industrial',
+  'hibrido',
+  'rural',
+  'condominio',
+]
 const TUSD_TIPO_LABELS: Record<TipoClienteTUSD, string> = {
   residencial: 'Residencial',
   comercial: 'Comercial',
   industrial: 'Industrial',
   hibrido: 'Híbrido',
+  rural: 'Rural',
+  condominio: 'Condomínio',
 }
 
 const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
@@ -270,6 +279,8 @@ const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
   comercial: 'COMERCIAL',
   industrial: 'INDUSTRIAL',
   hibrido: 'HIBRIDO',
+  rural: 'RURAL',
+  condominio: 'CONDOMINIO',
 }
 
 const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
@@ -277,6 +288,8 @@ const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
   COMERCIAL: 'comercial',
   INDUSTRIAL: 'industrial',
   HIBRIDO: 'hibrido',
+  RURAL: 'rural',
+  CONDOMINIO: 'condominio',
 }
 
 const SEGMENTO_OPTIONS: SegmentoCliente[] = TUSD_TIPO_OPTIONS.map(
@@ -288,6 +301,8 @@ const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
   COMERCIAL: TUSD_TIPO_LABELS.comercial,
   INDUSTRIAL: TUSD_TIPO_LABELS.industrial,
   HIBRIDO: TUSD_TIPO_LABELS.hibrido,
+  RURAL: TUSD_TIPO_LABELS.rural,
+  CONDOMINIO: TUSD_TIPO_LABELS.condominio,
 }
 
 const emailValido = (valor: string) => {
@@ -8787,7 +8802,7 @@ export default function App() {
                       id="crm-tipo-imovel"
                       value={crmLeadForm.tipoImovel}
                       onChange={(event) => handleCrmLeadFormChange('tipoImovel', event.target.value)}
-                      placeholder="Residencial, Comercial, Condomínio..."
+                      placeholder="Residencial, Comercial, Rural, Condomínio..."
                     />
                   </label>
                   <label>
@@ -13790,7 +13805,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Segmento',
-            'Classificação do cliente (residencial, comercial, industrial ou híbrido), utilizada para relatórios e cálculos de tarifas.',
+            'Classificação do cliente (residencial, comercial, industrial, híbrido, rural ou condomínio), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
@@ -14321,7 +14336,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Segmento',
-            'Classificação do cliente (residencial, comercial, industrial ou híbrido), utilizada para relatórios e cálculos de tarifas.',
+            'Classificação do cliente (residencial, comercial, industrial, híbrido, rural ou condomínio), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
