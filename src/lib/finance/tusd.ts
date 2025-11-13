@@ -1,4 +1,10 @@
-export type TipoClienteTUSD = 'residencial' | 'comercial' | 'industrial' | 'hibrido'
+export type TipoClienteTUSD =
+  | 'residencial'
+  | 'comercial'
+  | 'industrial'
+  | 'hibrido'
+  | 'rural'
+  | 'condominio'
 
 export const DEFAULT_TUSD_ANO_REFERENCIA = 2025
 
@@ -43,6 +49,12 @@ export const SIMULTANEIDADE_PADRAO: SimultaneidadeConfig = {
   },
   hibrido: {
     padrao: 0.6,
+  },
+  rural: {
+    padrao: 0.3,
+  },
+  condominio: {
+    padrao: 0.35,
   },
 }
 
