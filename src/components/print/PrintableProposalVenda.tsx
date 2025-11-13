@@ -1421,7 +1421,7 @@ function PrintableProposalInner(
           <h2 className="section-title keep-with-next">Observações sobre a configuração</h2>
           <div className="print-observacoes no-break-inside">
             {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
-              const linhas = paragrafo.split(/?
+              const linhas = paragrafo.split(/\r?\n/)
 /)
               return (
                 <p key={`observacao-configuracao-${index}`} className="print-observacoes__paragraph">
