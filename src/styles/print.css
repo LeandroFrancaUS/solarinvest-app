@@ -1,6 +1,131 @@
 @page {
   size: A4 portrait;
-  margin: 12mm;
+  margin: 10mm;
+}
+
+.printable-proposal-root {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  position: relative;
+}
+
+.printable-proposal-root .page-a4 {
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+[data-render-mode='preview'] .page-a4 {
+  width: 100%;
+  max-width: 900px;
+  margin: 24px auto;
+  padding: 24px 32px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+  border-radius: 18px;
+  background: radial-gradient(circle at top left, #fff7e6, #ffffff);
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  overflow: hidden;
+}
+
+[data-render-mode='preview'] .page-a4::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 201, 117, 0.12), transparent 45%);
+  z-index: 0;
+}
+
+[data-render-mode='preview'] .page-a4 > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-render-mode='preview'] .print-hero::after {
+  content: '';
+  position: absolute;
+  width: 380px;
+  height: 380px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 186, 73, 0.55), transparent 65%);
+  filter: blur(6px);
+  z-index: -1;
+}
+
+[data-render-mode='pdf'] .page-a4 {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm 14mm;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6mm;
+  background: #ffffff;
+  color: #000000;
+  margin: 0 auto;
+  page-break-inside: avoid;
+}
+
+[data-render-mode='pdf'] .page-a4::before {
+  content: none !important;
+}
+
+[data-render-mode='pdf'] .page-a4 * {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+  page-break-before: avoid !important;
+  page-break-after: avoid !important;
+}
+
+[data-render-mode='pdf'] .page-a4--first {
+  display: flex;
+  flex-direction: column;
+  gap: 5mm;
+}
+
+[data-render-mode='pdf'] .print-header,
+[data-render-mode='pdf'] .print-summary,
+[data-render-mode='pdf'] .print-client-grid {
+  padding: 3mm 4mm;
+  margin: 0;
+  background: #f7f7f9;
+  border-radius: 2mm;
+}
+
+[data-render-mode='pdf'] .print-hero::after,
+[data-render-mode='pdf'] .print-hero::before {
+  content: none !important;
+}
+
+[data-render-mode='pdf'] .print-title {
+  font-size: 20pt;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.2;
+}
+
+[data-render-mode='pdf'] .print-subtitle {
+  font-size: 11pt;
+  margin: 0;
+  line-height: 1.25;
+}
+
+[data-render-mode='pdf'] .print-logo {
+  width: 22mm;
+  height: 22mm;
+  flex-shrink: 0;
+}
+
+[data-render-mode='pdf'] .print-client-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3mm 4mm;
 }
 
 :where(html[data-print-mode], body[data-print-mode], [data-print-mode]) {

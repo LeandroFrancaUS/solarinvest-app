@@ -9,19 +9,35 @@ import PrintableProposalLeasing from './PrintableProposalLeasing'
 import PrintableProposalVenda from './PrintableProposalVenda'
 import { usePrintThemeLight } from './usePrintTheme'
 
+export type PrintableRenderMode = 'preview' | 'pdf'
+
+type PrintableProposalComponentProps = PrintableProposalProps & {
+  renderMode?: PrintableRenderMode
+}
+
 function PrintableProposalInner(
-  props: PrintableProposalProps,
+  { renderMode = 'preview', ...printableProps }: PrintableProposalComponentProps,
   ref: React.ForwardedRef<HTMLDivElement>,
 ) {
   usePrintThemeLight()
 
-  if (props.tipoProposta === 'LEASING') {
-    return <PrintableProposalLeasing ref={ref} {...props} />
-  }
+  const isPdfLayout = renderMode === 'pdf'
+  const Component =
+    printableProps.tipoProposta === 'LEASING' ? PrintableProposalLeasing : PrintableProposalVenda
 
-  return <PrintableProposalVenda ref={ref} {...props} />
+  return (
+    <div
+      ref={ref}
+      className="printable-proposal-root"
+      data-render-mode={isPdfLayout ? 'pdf' : 'preview'}
+    >
+      <Component {...printableProps} renderMode={renderMode} />
+    </div>
+  )
 }
 
-export const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProposalProps>(PrintableProposalInner)
+export const PrintableProposal = React.forwardRef<HTMLDivElement, PrintableProposalComponentProps>(
+  PrintableProposalInner,
+)
 
 export default PrintableProposal

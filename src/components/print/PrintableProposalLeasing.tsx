@@ -10,6 +10,7 @@ import {
 } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import PrintableProposalImages from './PrintableProposalImages'
+import type { PrintableRenderMode } from './PrintableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
@@ -180,10 +181,14 @@ const formatTipoSistema = (value?: PrintableProposalProps['tipoSistema']) => {
   }
 }
 
-function PrintableProposalLeasingInner(
-  props: PrintableProposalProps,
-  ref: React.ForwardedRef<HTMLDivElement>,
-) {
+type PrintableProposalLeasingComponentProps = PrintableProposalProps & {
+  renderMode: PrintableRenderMode
+}
+
+const PrintableProposalLeasing: React.FC<PrintableProposalLeasingComponentProps> = ({
+  renderMode,
+  ...props
+}) => {
   const {
     cliente,
     budgetId,
@@ -221,6 +226,18 @@ function PrintableProposalLeasingInner(
     ucGeradora,
     ucsBeneficiarias,
   } = props
+  const isPdfLayout = renderMode === 'pdf'
+  const layoutClassName = [
+    'print-layout',
+    'leasing-print-layout',
+    isPdfLayout ? 'print-layout--pdf' : 'print-layout--preview',
+  ].join(' ')
+  const firstPageClassName = [
+    'print-page',
+    'page-a4',
+    'page-a4--first',
+    isPdfLayout ? 'page-a4--pdf' : 'page-a4--preview',
+  ].join(' ')
 
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
   const telefoneCliente = cliente.telefone?.trim() || null
@@ -833,13 +850,8 @@ function PrintableProposalLeasingInner(
   }, [configuracaoUsinaObservacoesTexto])
 
   return (
-    <div ref={ref} className="print-root">
-      <div
-        className="print-layout leasing-print-layout"
-        data-print-section="proposal"
-        aria-hidden="false"
-      >
-        <div className="print-page">
+    <div className={layoutClassName} data-print-section="proposal" aria-hidden="false">
+      <div className={firstPageClassName}>
           <section className="print-section print-section--hero avoid-break">
             <div className="print-hero">
               <div className="print-hero__header">
@@ -1333,12 +1345,7 @@ function PrintableProposalLeasingInner(
           </section>
         </div>
       </div>
-    </div>
-  )
+    )
 }
-
-export const PrintableProposalLeasing = React.forwardRef<HTMLDivElement, PrintableProposalProps>(
-  PrintableProposalLeasingInner,
-)
 
 export default PrintableProposalLeasing

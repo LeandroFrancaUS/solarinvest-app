@@ -6,6 +6,7 @@ import { currency, tarifaCurrency } from '../../utils/formatters'
 import { formatMoneyBR, formatNumberBRWithOptions } from '../../lib/locale/br-number'
 import type { BuyoutResumo, BuyoutRow, ClienteDados } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
+import type { PrintableRenderMode } from './PrintableProposal'
 
 const formatPrazoContratual = (meses: number): string => {
   if (!Number.isFinite(meses) || meses <= 0) {
@@ -48,12 +49,14 @@ export type PrintableBuyoutTableProps = {
 
 type BuyoutEligibleRow = BuyoutRow & { valorResidual: number }
 
-type PrintableBuyoutTableInnerProps = PrintableBuyoutTableProps
+type PrintableBuyoutTableComponentProps = PrintableBuyoutTableProps & {
+  renderMode: PrintableRenderMode
+}
 
-function PrintableBuyoutTableInner(
-  props: PrintableBuyoutTableInnerProps,
-  ref: React.ForwardedRef<HTMLDivElement>,
-) {
+const PrintableBuyoutTable: React.FC<PrintableBuyoutTableComponentProps> = ({
+  renderMode,
+  ...props
+}) => {
   const {
     cliente,
     budgetId,
@@ -142,10 +145,23 @@ function PrintableBuyoutTableInner(
 
   const observacaoTexto = observacaoImportante?.trim() || null
 
+  const isPdfLayout = renderMode === 'pdf'
+  const layoutClassName = [
+    'print-layout',
+    'leasing-print-layout',
+    'buyout-print-layout',
+    isPdfLayout ? 'print-layout--pdf' : 'print-layout--preview',
+  ].join(' ')
+  const firstPageClassName = [
+    'print-page',
+    'page-a4',
+    'page-a4--first',
+    isPdfLayout ? 'page-a4--pdf' : 'page-a4--preview',
+  ].join(' ')
+
   return (
-    <div ref={ref} className="print-root">
-      <div className="print-layout leasing-print-layout buyout-print-layout" data-print-section="buyout-table">
-        <div className="print-page">
+    <div className={layoutClassName} data-print-section="buyout-table">
+      <div className={firstPageClassName}>
           <section className="print-section print-section--hero avoid-break">
             <div className="print-hero">
               <div className="print-hero__header">
@@ -317,12 +333,7 @@ function PrintableBuyoutTableInner(
           </section>
         </div>
       </div>
-    </div>
-  )
+    )
 }
-
-export const PrintableBuyoutTable = React.forwardRef<HTMLDivElement, PrintableBuyoutTableProps>(
-  PrintableBuyoutTableInner,
-)
 
 export default PrintableBuyoutTable

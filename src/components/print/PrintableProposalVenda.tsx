@@ -9,6 +9,7 @@ import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, fo
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import PrintableProposalImages from './PrintableProposalImages'
 import { PMT, toMonthly } from '../../lib/finance/roi'
+import type { PrintableRenderMode } from './PrintableProposal'
 import {
   formatCondicaoLabel,
   formatPagamentoLabel,
@@ -30,10 +31,12 @@ const OBSERVACAO_PADRAO_REMOVIDA_CHAVE = normalizeObservationKey(
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
 const DEFAULT_CHART_COLORS = ['#FFA500', '#FF7F50', '#FFD700'] as const
-function PrintableProposalInner(
-  props: PrintableProposalProps,
-  ref: React.ForwardedRef<HTMLDivElement>,
-) {
+
+type PrintableProposalVendaProps = PrintableProposalProps & {
+  renderMode: PrintableRenderMode
+}
+
+const PrintableProposalVenda: React.FC<PrintableProposalVendaProps> = ({ renderMode, ...props }) => {
   const {
     cliente,
     budgetId,
@@ -67,6 +70,14 @@ function PrintableProposalInner(
     ucGeradora,
     ucsBeneficiarias,
   } = props
+  const isPdfLayout = renderMode === 'pdf'
+  const layoutClassName = `print-layout ${isPdfLayout ? 'print-layout--pdf' : 'print-layout--preview'}`
+  const firstPageClassName = [
+    'print-page',
+    'page-a4',
+    'page-a4--first',
+    isPdfLayout ? 'page-a4--pdf' : 'page-a4--preview',
+  ].join(' ')
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
   const vendaFormResumo = vendaResumo?.form
@@ -1031,9 +1042,8 @@ function PrintableProposalInner(
     '--print-chart-color-tertiary': chartPalette[2],
   } as React.CSSProperties
   return (
-    <div ref={ref} className="print-root">
-      <div className="print-layout">
-        <div className="print-page">
+    <div className={layoutClassName}>
+      <div className={firstPageClassName}>
           <section className="print-section print-section--hero avoid-break">
             <div className="print-hero">
               <div className="print-hero__header">
@@ -1720,11 +1730,8 @@ function PrintableProposalInner(
           </section>
         </div>
       </div>
-    </div>
-  )
+    )
 }
-
-export const PrintableProposalVenda = React.forwardRef<HTMLDivElement, PrintableProposalProps>(PrintableProposalInner)
 
 export default PrintableProposalVenda
 

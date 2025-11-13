@@ -2462,7 +2462,7 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
       return (
         <div ref={wrapperRef} data-print-mode="download" data-print-variant="standard">
           <React.Suspense fallback={null}>
-            <PrintableProposal ref={localRef} {...dados} />
+            <PrintableProposal ref={localRef} {...dados} renderMode="pdf" />
           </React.Suspense>
         </div>
       )
@@ -2529,7 +2529,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
       return (
         <div ref={wrapperRef} data-print-mode="download" data-print-variant="buyout">
           <React.Suspense fallback={null}>
-            <PrintableBuyoutTable {...dados} />
+            <PrintableBuyoutTable {...dados} renderMode="pdf" />
           </React.Suspense>
         </div>
       )
@@ -7419,6 +7419,7 @@ export default function App() {
       const node = printableRef.current
       if (node) {
         const clone = node.cloneNode(true) as HTMLElement
+        clone.setAttribute('data-render-mode', 'pdf')
         if (options?.incluirTabelaBuyout === false) {
           clone.querySelectorAll('[data-print-section="buyout"]').forEach((element) => {
             element.parentElement?.removeChild(element)
