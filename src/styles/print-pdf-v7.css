@@ -1,0 +1,48 @@
+@page {
+  size: A4;
+  margin: 14mm 12mm;
+}
+
+html,
+body {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  background: #fff !important;
+}
+
+.print-root {
+  width: 100%;
+}
+
+.print-page {
+  page-break-after: always;
+  page-break-inside: avoid;
+}
+
+.print-page:last-of-type {
+  page-break-after: auto;
+}
+
+.no-break,
+.print-section {
+  page-break-inside: avoid;
+}
+
+.keep-together {
+  page-break-inside: avoid;
+}
+
+.keep-with-next {
+  page-break-after: avoid;
+}
+
+@media print {
+  body {
+    margin: 0;
+    background: #fff;
+  }
+
+  .printable-v7-wrapper {
+    background: transparent;
+  }
+}

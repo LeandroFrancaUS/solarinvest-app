@@ -1,19 +1,22 @@
 import React, { useMemo } from 'react'
 
-import './styles/print-common.css'
-import './styles/proposal-venda.css'
-import { currency, formatCpfCnpj } from '../../utils/formatters'
-import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
-import { classifyBudgetItem } from '../../utils/moduleDetection'
-import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
-import type { PrintableProposalProps } from '../../types/printableProposal'
-import PrintableProposalImages from './PrintableProposalImages'
-import { PMT, toMonthly } from '../../lib/finance/roi'
+import { currency, formatCpfCnpj } from '../../../utils/formatters'
+import { ClientInfoGrid, type ClientInfoField } from '../common/ClientInfoGrid'
+import { classifyBudgetItem } from '../../../utils/moduleDetection'
+import {
+  formatMoneyBRWithDigits,
+  formatNumberBRWithOptions,
+  formatPercentBR,
+  formatPercentBRWithDigits,
+} from '../../../lib/locale/br-number'
+import type { PrintableProposalProps } from '../../../types/printableProposal'
+import PrintableProposalImages from '../PrintableProposalImages'
+import { PMT, toMonthly } from '../../../lib/finance/roi'
 import {
   formatCondicaoLabel,
   formatPagamentoLabel,
   formatPagamentoResumo,
-} from '../../constants/pagamento'
+} from '../../../constants/pagamento'
 
 const normalizeObservationKey = (value: string): string =>
   value
@@ -30,6 +33,7 @@ const OBSERVACAO_PADRAO_REMOVIDA_CHAVE = normalizeObservationKey(
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
 const DEFAULT_CHART_COLORS = ['#FFA500', '#FF7F50', '#FFD700'] as const
+const normalizeNewlines = (value: string): string => value.replace(/\r\n?/g, '\n')
 function PrintableProposalInner(
   props: PrintableProposalProps,
   ref: React.ForwardedRef<HTMLDivElement>,
@@ -1614,16 +1618,15 @@ function PrintableProposalInner(
               <h2 className="section-title keep-with-next">Observações sobre a configuração</h2>
               <div className="print-observacoes no-break-inside">
                 {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
-                  const linhas = paragrafo.split(/\r?\n/)
+                  const linhas = normalizeNewlines(paragrafo).split('\n')
+
                   return (
                     <p
                       key={`observacao-configuracao-${index}`}
                       className="print-observacoes__paragraph"
                     >
                       {linhas.map((linha, linhaIndex) => (
-                        <React.Fragment
-                          key={`observacao-configuracao-${index}-linha-${linhaIndex}`}
-                        >
+                        <React.Fragment key={linhaIndex}>
                           {linha}
                           {linhaIndex < linhas.length - 1 ? <br /> : null}
                         </React.Fragment>
@@ -1724,7 +1727,9 @@ function PrintableProposalInner(
   )
 }
 
-export const PrintableProposalVenda = React.forwardRef<HTMLDivElement, PrintableProposalProps>(PrintableProposalInner)
+export const PrintableProposalVendaInner = React.forwardRef<HTMLDivElement, PrintableProposalProps>(
+  PrintableProposalInner,
+)
 
-export default PrintableProposalVenda
+export default PrintableProposalVendaInner
 
