@@ -534,6 +534,14 @@ function PrintableProposalLeasingInner(
   ]
 
   const tarifaInicialProjetada = tarifaCheiaBase > 0 ? tarifaCheiaBase * (1 - descontoFracao) : 0
+  const valorMercadoUsina = useMemo(
+    () =>
+      Number.isFinite(leasingValorDeMercadoEstimado)
+        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
+        : 0,
+    [leasingValorDeMercadoEstimado],
+  )
+  const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
 
   const tusdMedioPorAno = useMemo<Record<number, number>>(() => {
     if (!Array.isArray(parcelasLeasing) || parcelasLeasing.length === 0) {
@@ -709,15 +717,6 @@ function PrintableProposalLeasingInner(
   }, [economiaMarcos, leasingROI])
 
   const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
-  const valorMercadoUsina = useMemo(
-    () =>
-      Number.isFinite(leasingValorDeMercadoEstimado)
-        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
-        : 0,
-    [leasingValorDeMercadoEstimado],
-  )
-  const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
-
   const economiaProjetadaGrafico = useMemo(() => {
     if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
       return []
