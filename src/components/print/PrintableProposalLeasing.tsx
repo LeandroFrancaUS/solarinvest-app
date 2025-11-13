@@ -1213,17 +1213,22 @@ function PrintableProposalLeasingInner(
       <h2 className="section-title keep-with-next">Observações</h2>
       <div className="print-observacoes no-break-inside">
         {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
-          const linhas = normalizeNewlines(paragrafo).split('\n')
+          const linhas = normalizeNewlines(paragrafo).split('\n');
           return (
-            <p key={`observacao-configuracao-${index}`} className="print-observacoes__paragraph">
+            <p
+              key={`observacao-configuracao-${index}`}
+              className="print-observacoes__paragraph"
+            >
               {linhas.map((linha, linhaIndex) => (
-                <React.Fragment key={`observacao-configuracao-${index}-linha-${linhaIndex}`}>
+                <span
+                  key={`observacao-configuracao-${index}-linha-${linhaIndex}`}
+                >
                   {linha}
-                  {linhaIndex < linhas.length - 1 ? <br /> : null}
-                </React.Fragment>
+                  <br />
+                </span>
               ))}
             </p>
-          )
+          );
         })}
       </div>
     </section>
