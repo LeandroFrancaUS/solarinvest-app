@@ -10897,14 +10897,6 @@ export default function App() {
     [proposalPreviewVariant, proposalPrintRef],
   )
 
-  const handleProposalPrint = useCallback(() => {
-    openProposalPrintWindow('print')
-  }, [openProposalPrintWindow])
-
-  const handleProposalDownload = useCallback(() => {
-    openProposalPrintWindow('download')
-  }, [openProposalPrintWindow])
-
   const handleToggleProposalVariant = useCallback(() => {
     setProposalPreviewVariant((prev) => (prev === 'standard' ? 'simple' : 'standard'))
   }, [])
@@ -11131,6 +11123,51 @@ export default function App() {
       }
     }
   }, [handlePreviewActionRequest])
+
+  const executeProposalPrintAction = useCallback(
+    async (mode: 'print' | 'download') => {
+      try {
+        const response = await handlePreviewActionRequest({ action: mode })
+
+        if (response && typeof response === 'object') {
+          const dadosAtualizados = pendingPreviewDataRef.current?.dados
+          if (dadosAtualizados) {
+            setProposalPreviewData(clonePrintableData(dadosAtualizados))
+          } else if (typeof response.budgetId === 'string') {
+            setProposalPreviewData((prev) => {
+              if (!prev || prev.budgetId === response.budgetId) {
+                return prev
+              }
+              return { ...prev, budgetId: response.budgetId }
+            })
+          }
+
+          if (response.proceed === false) {
+            return
+          }
+        }
+
+        openProposalPrintWindow(mode)
+      } catch (error) {
+        console.error('Erro ao preparar a proposta para impressão.', error)
+        window.alert('Não foi possível preparar a proposta para impressão. Tente novamente.')
+      }
+    },
+    [
+      handlePreviewActionRequest,
+      openProposalPrintWindow,
+      pendingPreviewDataRef,
+      setProposalPreviewData,
+    ],
+  )
+
+  const handleProposalPrint = useCallback(() => {
+    void executeProposalPrintAction('print')
+  }, [executeProposalPrintAction])
+
+  const handleProposalDownload = useCallback(() => {
+    void executeProposalPrintAction('download')
+  }, [executeProposalPrintAction])
 
   const prepararDadosContratoCliente = useCallback((): ClienteContratoPayload | null => {
     const nomeCompleto = cliente.nome?.trim() ?? ''
