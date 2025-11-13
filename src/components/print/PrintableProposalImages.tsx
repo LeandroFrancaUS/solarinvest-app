@@ -4,11 +4,13 @@ import type { PrintableProposalImage } from '../../types/printableProposal'
 type PrintableProposalImagesProps = {
   images?: PrintableProposalImage[] | null
   heading?: string
+  className?: string
 }
 
 const PrintableProposalImages: React.FC<PrintableProposalImagesProps> = ({
   images,
   heading = 'Projeção do Layout de Instalação Fotovoltaica',
+  className = '',
 }) => {
   const validImages = Array.isArray(images)
     ? images.filter((image) => image && typeof image.url === 'string' && image.url.trim().length > 0)
@@ -20,8 +22,13 @@ const PrintableProposalImages: React.FC<PrintableProposalImagesProps> = ({
 
   const hasMultiple = validImages.length > 1
 
+  const sectionClassName = ['print-section', 'print-images', 'keep-together']
+  if (className) {
+    sectionClassName.push(className)
+  }
+
   return (
-    <section className="print-section print-images keep-together page-break-before">
+    <section className={sectionClassName.join(' ')}>
       <h2 className="keep-with-next">{heading}</h2>
       <div
         className={`print-images__grid ${hasMultiple ? 'print-images__grid--multiple' : 'print-images__grid--single'}`}

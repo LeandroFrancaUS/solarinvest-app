@@ -15,6 +15,13 @@ import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 
+type ProposalSection = {
+  key: string
+  content: React.ReactNode
+  startOnNewPage?: boolean
+  endPage?: boolean
+}
+
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
   /\bemail\b/i,
@@ -832,506 +839,543 @@ function PrintableProposalLeasingInner(
       .filter(Boolean)
   }, [configuracaoUsinaObservacoesTexto])
 
+  const heroSection = (
+    <section className="print-section print-section--hero avoid-break">
+      <div className="print-hero">
+        <div className="print-hero__header">
+          <div className="print-hero__identity">
+            <div className="print-hero__brand">
+              <img src="/proposal-header-logo.svg" alt="Logo SolarInvest" />
+              <span className="print-hero__brand-name">SolarInvest</span>
+            </div>
+            <div className="print-hero__title">
+              <div className="print-hero__headline">
+                <p className="print-hero__aspiration">
+                  Transforme sua conta de luz em investimento — sem gastar nada para começar.
+                </p>
+                <h1>🌞 SUA PROPOSTA PERSONALIZADA DE ENERGIA SOLAR</h1>
+                <p className="print-hero__subheadline">
+                  💡 Leasing SolarInvest – Economia imediata e usina 100% sua ao final
+                </p>
+              </div>
+              <p className="print-hero__tagline">
+                Energia inteligente, sustentável e com economia garantida desde o 1º mês.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="print-hero__divider" aria-hidden="true" />
+        <div className="print-hero__meta">
+          <div className="print-hero__meta-item">
+            <small>Código do orçamento: </small>
+            <strong>{codigoOrcamento || '—'}</strong>
+          </div>
+        </div>
+        <div className="print-hero__summary no-break-inside">
+          <p>{heroSummary}</p>
+          <div className="print-hero__benefits">
+            <p className="print-hero__benefits-title">💡 Benefícios SolarInvest</p>
+            <ul>
+              <li>✅ Economia garantida desde o 1º mês</li>
+              <li>✅ Investimento 100% feito pela SolarInvest</li>
+              <li>✅ Manutenção, seguro e suporte inclusos</li>
+              <li>✅ Transferência gratuita da usina após {prazoContratualMesesTexto}</li>
+              <li>✅ Energia limpa e valorização do seu imóvel</li>
+            </ul>
+          </div>
+          <div className="print-hero__progress" role="img" aria-label="Etapas até a propriedade da usina">
+            <div className="print-hero__progress-step">
+              <span className="print-hero__progress-icon">1</span>
+              <span className="print-hero__progress-label">Assinatura</span>
+            </div>
+            <span className="print-hero__progress-arrow" aria-hidden="true">➜</span>
+            <div className="print-hero__progress-step">
+              <span className="print-hero__progress-icon">2</span>
+              <span className="print-hero__progress-label">Instalação</span>
+            </div>
+            <span className="print-hero__progress-arrow" aria-hidden="true">➜</span>
+            <div className="print-hero__progress-step">
+              <span className="print-hero__progress-icon">3</span>
+              <span className="print-hero__progress-label">Propriedade da usina</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+
+  const identificacaoClienteSection = (
+    <section className="print-section keep-together avoid-break">
+      <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
+      <ClientInfoGrid
+        fields={resumoCampos}
+        className="print-client-grid no-break-inside"
+        fieldClassName="print-client-field"
+        wideFieldClassName="print-client-field--wide"
+      />
+    </section>
+  )
+
+  const dadosInstalacaoSection = (
+    <section className="print-section keep-together avoid-break">
+      <h2 className="section-title keep-with-next">Dados da Instalação</h2>
+      <div className="print-uc-details">
+        <div className="print-uc-geradora">
+          <h3 className="print-uc-heading">UC Geradora</h3>
+          <p className="print-uc-text">
+            UC nº {ucGeradoraNumeroLabel} — {ucGeradoraEnderecoLabel}
+          </p>
+        </div>
+        {hasBeneficiarias ? (
+          <div className="print-uc-beneficiarias">
+            <h4 className="print-uc-beneficiarias-title">UCs Beneficiárias</h4>
+            <ul className="print-uc-beneficiarias-list">
+              {ucsBeneficiariasLista.map((uc, index) => {
+                const rateioLabel = formatRateioLabel(uc.rateioPercentual)
+                return (
+                  <li key={`${uc.numero || 'uc'}-${index}`}>
+                    UC nº {uc.numero || '—'}
+                    {uc.endereco ? ` — ${uc.endereco}` : ''}
+                    {rateioLabel ? ` — Rateio: ${rateioLabel}` : ''}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  )
+
+  const resumoPropostaSection = (
+    <section id="resumo-proposta" className="print-section keep-together avoid-break">
+      <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
+      <p className="section-subtitle keep-with-next">
+        Tudo o que você precisa saber — de forma simples e transparente.
+      </p>
+      <table className="no-break-inside">
+        <thead>
+          <tr>
+            <th>Parâmetro</th>
+            <th>Descrição</th>
+          </tr>
+        </thead>
+        <tbody>
+          {resumoProposta.map((item) => (
+            <tr key={item.label}>
+              <td>{item.label}</td>
+              <td className="leasing-table-value">{item.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+
+  const especificacoesSection = (
+    <section className="print-section keep-together avoid-break">
+      <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
+      <p className="section-subtitle keep-with-next">Configuração técnica do sistema proposto</p>
+      <table className="no-break-inside">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Descrição/Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {especificacoesUsina.map((item) => (
+            <tr key={item.label}>
+              <td>{item.label}</td>
+              <td className="leasing-table-value">{item.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+
+  const condicoesFinanceirasSection = (
+    <section id="condicoes-financeiras" className="print-section keep-together avoid-break">
+      <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
+      <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
+      <table className="no-break-inside">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Descrição/Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {condicoesFinanceiras.map((item) => (
+            <tr key={item.label}>
+              <td>{item.label}</td>
+              <td className="leasing-table-value">{item.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+
+  const multiUcSection = multiUcResumoDados ? (
+    <section id="multi-uc" className="print-section keep-together">
+      <h2 className="section-title keep-with-next">Cenário Misto (Multi-UC)</h2>
+      <p className="section-subtitle keep-with-next">
+        Distribuição dos créditos de energia entre unidades consumidoras
+      </p>
+      <div className="print-key-values">
+        <p>
+          <strong>Energia gerada total</strong>
+          {formatKwhValor(multiUcResumoDados.energiaGeradaTotalKWh, 0)}
+        </p>
+        <p>
+          <strong>Energia compensada</strong>
+          {formatKwhValor(multiUcResumoDados.energiaGeradaUtilizadaKWh, 0)}
+        </p>
+        <p>
+          <strong>Créditos remanescentes</strong>
+          {formatKwhValor(multiUcResumoDados.sobraCreditosKWh)}
+        </p>
+        <p>
+          <strong>{`Escalonamento Fio B (${multiUcResumoDados.anoVigencia})`}</strong>
+          {multiUcEscalonamentoTexto ?? '—'}
+        </p>
+        <p>
+          <strong>Encargo TUSD (R$/mês)</strong>
+          {currency(multiUcResumoDados.totalTusd)}
+        </p>
+        <p>
+          <strong>Encargo TE (R$/mês)</strong>
+          {currency(multiUcResumoDados.totalTe)}
+        </p>
+        <p>
+          <strong>Custo total mensal (R$)</strong>
+          {currency(multiUcResumoDados.totalContrato)}
+        </p>
+        <p>
+          <strong>Modo de rateio</strong>
+          {multiUcRateioDescricao ?? '—'}
+        </p>
+      </div>
+      <table className="no-break-inside">
+        <thead>
+          <tr>
+            <th>UC</th>
+            <th>Classe</th>
+            <th>Consumo (kWh)</th>
+            <th>Créditos (kWh)</th>
+            <th>kWh faturados</th>
+            <th>kWh compensados</th>
+            <th>TE (R$/kWh)</th>
+            <th>TUSD total (R$/kWh)</th>
+            <th>TUSD Fio B (R$/kWh)</th>
+            <th>TUSD mensal (R$)</th>
+            <th>TE mensal (R$)</th>
+            <th>Total mensal (R$)</th>
+            <th>Observações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {multiUcResumoDados.ucs.map((uc) => (
+            <tr key={uc.id}>
+              <td>{uc.id}</td>
+              <td>{uc.classe}</td>
+              <td className="leasing-table-value">{formatKwhValor(uc.consumoKWh)}</td>
+              <td className="leasing-table-value">
+                <div>{formatKwhValor(uc.creditosKWh)}</div>
+                <small className="muted">
+                  {multiUcResumoDados.distribuicaoPorPercentual
+                    ? `Rateio: ${formatPercentBRWithDigits((uc.rateioPercentual ?? 0) / 100, 2)}`
+                    : uc.manualRateioKWh != null
+                    ? `Manual: ${formatKwhValor(uc.manualRateioKWh)}`
+                    : '—'}
+                </small>
+              </td>
+              <td className="leasing-table-value">{formatKwhValor(uc.kWhFaturados)}</td>
+              <td className="leasing-table-value">{formatKwhValor(uc.kWhCompensados)}</td>
+              <td className="leasing-table-value">{tarifaCurrency(uc.te)}</td>
+              <td className="leasing-table-value">{tarifaCurrency(uc.tusdTotal)}</td>
+              <td className="leasing-table-value">{tarifaCurrency(uc.tusdFioB)}</td>
+              <td className="leasing-table-value">{currency(uc.tusdMensal)}</td>
+              <td className="leasing-table-value">{currency(uc.teMensal)}</td>
+              <td className="leasing-table-value">{currency(uc.totalMensal)}</td>
+              <td className="leasing-table-value">{uc.observacoes?.trim() || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted no-break-inside">
+        TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
+        escalonamento vigente.
+      </p>
+    </section>
+  ) : null
+
+  const mensalidadesSection = (
+    <section className="print-section keep-together avoid-break">
+      <h2 className="section-title keep-with-next">Veja como sua conta de luz cai mês a mês</h2>
+      <p className="section-subtitle keep-with-next">
+        Veja como sua conta de luz cai mês a mês — e como sua economia cresce automaticamente conforme a tarifa da
+        distribuidora aumenta.
+      </p>
+      <table className="no-break-inside">
+        <thead>
+          <tr>
+            <th>Período</th>
+            <th>Tarifa cheia média</th>
+            <th>Tarifa com desconto média</th>
+            <th>Conta distribuidora (R$)</th>
+            <th>Mensalidade SolarInvest (R$)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {mensalidadesPorAno.map((linha) => (
+            <tr key={`mensalidade-${linha.ano}`}>
+              <td>{`${linha.ano}º ano`}</td>
+              <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
+              <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
+              <td className="leasing-table-value">{currency(linha.contaDistribuidora)}</td>
+              <td className="leasing-table-value">{currency(linha.mensalidade)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p>
+        A cada mês, você paga menos à distribuidora e caminha rumo à posse integral da sua própria usina de energia.
+        A SolarInvest garante que o desconto contratado permanecerá estável durante toda a vigência.
+      </p>
+      <p className="muted print-footnote">
+        <strong>
+          <em>
+            A partir do {`${prazoContratualTotalAnos + 1}º ano`}, a conta da distribuidora passa a contemplar apenas TUSD,
+            taxa mínima e iluminação pública para sistemas on-grid.
+          </em>
+        </strong>
+      </p>
+      <p className="muted print-footnote">
+        <strong>
+          <em>
+            A partir do {`${prazoContratualTotalAnos + 1}º ano`}, em caso de uso excedente, o cliente passa a pagar tarifa
+            cheia para a concessionária.
+          </em>
+        </strong>
+      </p>
+      <p className="muted print-footnote">
+        <strong>
+          Simulações atualizadas com base nas tarifas atuais para demonstrar a sua economia desde o primeiro mês. Após a
+          vistoria técnica, todas as condições ficam registradas no contrato definitivo com o desconto garantido por escrito.
+        </strong>
+      </p>
+    </section>
+  )
+
+  const economiaProjetadaSection = (
+    <section id="economia-30-anos" className="print-section keep-together">
+      <h2 className="section-title keep-with-next">Seu patrimônio energético cresce mês a mês</h2>
+      {economiaProjetadaGrafico.length ? (
+        <>
+          <p className="section-subtitle keep-with-next">
+            O que antes era custo, agora se transforma em retorno e valorização.
+          </p>
+          <p className="section-intro keep-with-next">
+            Cada mês de geração representa economia crescente e tranquilidade financeira. Em apenas {prazoContratualMesesTexto}, a
+            usina será sua, e a economia continuará aumentando por décadas.
+          </p>
+          <div className="leasing-horizontal-chart no-break-inside" role="img" aria-label="Economia projetada em 30 anos">
+            <div className="leasing-horizontal-chart__header-row">
+              <span className="leasing-horizontal-chart__axis-y-label">Tempo (anos)</span>
+              <span className="leasing-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
+            </div>
+            <div className="leasing-horizontal-chart__rows">
+              {economiaProjetadaGrafico.map((linha) => {
+                const percentual = maxBeneficioGrafico > 0 ? (linha.acumulado / maxBeneficioGrafico) * 100 : 0
+                return (
+                  <div className="leasing-horizontal-chart__row" key={`grafico-economia-${linha.ano.toFixed(2)}`}>
+                    <div className="leasing-horizontal-chart__y-value">{linha.label}</div>
+                    <div className="leasing-horizontal-chart__bar-track" aria-hidden="true">
+                      <div className="leasing-horizontal-chart__bar" style={{ width: `${percentual}%` }} />
+                    </div>
+                    <div className="leasing-horizontal-chart__value">{formatMoneyBR(linha.acumulado)}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
+        </>
+      ) : (
+        <p className="muted no-break-inside">
+          Não há dados suficientes para projetar a economia acumulada desta proposta.
+        </p>
+      )}
+    </section>
+  )
+
+  const temImagensInstalacao = Array.isArray(imagensInstalacao) && imagensInstalacao.length > 0
+  const imagensInstalacaoSection = temImagensInstalacao ? (
+    <PrintableProposalImages images={imagensInstalacao} />
+  ) : null
+
+  const observacoesSection = configuracaoUsinaObservacoesParagrafos.length > 0 ? (
+    <section id="observacoes-configuracao" className="print-section keep-together avoid-break">
+      <h2 className="section-title keep-with-next">Observações</h2>
+      <div className="print-observacoes no-break-inside">
+        {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
+          const linhas = paragrafo.split(/\r?\n/)
+          return (
+            <p key={`observacao-configuracao-${index}`} className="print-observacoes__paragraph">
+              {linhas.map((linha, linhaIndex) => (
+                <React.Fragment key={`observacao-configuracao-${index}-linha-${linhaIndex}`}>
+                  {linha}
+                  {linhaIndex < linhas.length - 1 ? <br /> : null}
+                </React.Fragment>
+              ))}
+            </p>
+          )
+        })}
+      </div>
+    </section>
+  ) : null
+
+  const informacoesImportantesSection = (
+    <section id="infos-importantes" className="print-section print-important keep-together">
+      <h2 className="section-title keep-with-next">Informações Importantes</h2>
+      <p className="section-subtitle keep-with-next">
+        <strong>Responsabilidades, garantias e condições gerais</strong>
+      </p>
+      <div className="print-important__box no-break-inside">
+        <ul className="no-break-inside">
+          <li>
+            Durante todo o contrato, a SolarInvest cuida de tudo para você —{' '}
+            <strong>operação, manutenção, seguro e suporte técnico completos</strong>. Sua única preocupação será aproveitar a economia e o
+            conforto de ter energia limpa e garantida.
+          </li>
+          <li>
+            Todos os equipamentos são certificados pelo <strong>INMETRO</strong> e seguem rigorosamente as{' '}
+            <strong>normas da ANEEL e ABNT</strong>, garantindo máxima eficiência e segurança em toda a operação.
+          </li>
+          <li>
+            <strong>Disponibilidade do kit fotovoltaico:</strong> se algum item estiver indisponível no momento da compra, fornecemos
+            componentes equivalentes ou superiores, sem custo adicional, mantendo o desempenho projetado.
+          </li>
+          <li>
+            A <strong>tabela de compra antecipada</strong> da usina está disponível mediante solicitação ao consultor SolarInvest.
+          </li>
+          <li>
+            Todos os <strong>valores, taxas, tarifas e mensalidades</strong> apresentados são simulações atualizadas com base nas tarifas
+            vigentes e no seu histórico de consumo. Após a vistoria técnica, o contrato definitivo formaliza seu desconto garantido por
+            escrito.
+          </li>
+          <li>
+            <strong>Instalação em solo:</strong> se houver necessidade de estruturas adicionais ou se desejar incluir o custo no leasing, a
+            SolarInvest apresenta a atualização orçamentária correspondente para sua aprovação.
+          </li>
+        </ul>
+      </div>
+      {informacoesImportantesObservacaoTexto ? (
+        <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
+      ) : null}
+    </section>
+  )
+
+  const footerSection = (
+    <section className="print-section print-section--footer no-break-inside avoid-break">
+      <footer className="print-final-footer no-break-inside">
+        <div className="print-final-footer__dates">
+          <p>
+            <strong>Data de emissão da proposta:</strong> {emissaoTexto}
+          </p>
+        </div>
+        <p className="print-final-footer__closing">
+          Com esta proposta, você dá o primeiro passo rumo à independência energética e financeira. Em apenas{' '}
+          {prazoContratualMesesTexto}, sua própria usina estará gerando lucro, tranquilidade e valorizando o seu imóvel.
+        </p>
+        <p className="print-final-footer__cta">
+          Vamos transformar sua conta de luz em investimento? Confirme seu interesse e agendaremos sua instalação sem nenhum custo
+          inicial.
+        </p>
+        <div className="print-final-footer__signature">
+          <div className="signature-line" />
+          <span>Assinatura do cliente</span>
+          <p className="print-final-footer__signature-note">
+            Ao assinar esta proposta, o cliente apenas manifesta sua intenção de contratar com a SolarInvest. Este documento não
+            constitui contrato nem gera obrigações firmes para nenhuma das partes.
+          </p>
+        </div>
+      </footer>
+
+      <div className="print-brand-footer no-break-inside">
+        <strong>SolarInvest</strong>
+        <span>Energia inteligente, sem investimento inicial e com economia garantida desde o 1º mês.</span>
+      </div>
+    </section>
+  )
+
+  const sections: ProposalSection[] = [
+    { key: 'hero', content: heroSection },
+    { key: 'identificacao', content: identificacaoClienteSection },
+    { key: 'dados', content: dadosInstalacaoSection, endPage: true },
+    { key: 'resumo', content: resumoPropostaSection, startOnNewPage: true, endPage: true },
+    { key: 'especificacoes', content: especificacoesSection },
+    { key: 'condicoes', content: condicoesFinanceirasSection, startOnNewPage: true, endPage: true },
+  ]
+
+  if (multiUcSection) {
+    sections.push({ key: 'multi-uc', content: multiUcSection })
+  }
+
+  sections.push({ key: 'mensalidades', content: mensalidadesSection })
+  sections.push({ key: 'economia', content: economiaProjetadaSection, startOnNewPage: true, endPage: true })
+
+  if (imagensInstalacaoSection) {
+    sections.push({ key: 'imagens', content: imagensInstalacaoSection, startOnNewPage: true })
+  }
+
+  if (observacoesSection) {
+    sections.push({ key: 'observacoes', content: observacoesSection })
+  }
+
+  sections.push({ key: 'informacoes', content: informacoesImportantesSection, startOnNewPage: true, endPage: true })
+  sections.push({ key: 'footer', content: footerSection })
+
+  const pages: React.ReactNode[][] = []
+  let currentPage: React.ReactNode[] = []
+
+  sections.forEach((section) => {
+    if (section.startOnNewPage && currentPage.length > 0) {
+      pages.push(currentPage)
+      currentPage = []
+    }
+
+    currentPage.push(
+      <div key={section.key} className="print-block">
+        {section.content}
+      </div>,
+    )
+
+    if (section.endPage) {
+      pages.push(currentPage)
+      currentPage = []
+    }
+  })
+
+  if (currentPage.length > 0) {
+    pages.push(currentPage)
+  }
+
   return (
     <div ref={ref} className="print-root">
-      <div
-        className="print-layout leasing-print-layout"
-        data-print-section="proposal"
-        aria-hidden="false"
-      >
-        <div className="print-page">
-          <section className="print-section print-section--hero avoid-break">
-            <div className="print-hero">
-              <div className="print-hero__header">
-                <div className="print-hero__identity">
-                  <div className="print-hero__brand">
-                    <img src="/proposal-header-logo.svg" alt="Logo SolarInvest" />
-                    <span className="print-hero__brand-name">SolarInvest</span>
-                  </div>
-                  <div className="print-hero__title">
-                    <div className="print-hero__headline">
-                      <p className="print-hero__aspiration">
-                        Transforme sua conta de luz em investimento — sem gastar nada para começar.
-                      </p>
-                      <h1>🌞 SUA PROPOSTA PERSONALIZADA DE ENERGIA SOLAR</h1>
-                      <p className="print-hero__subheadline">
-                        💡 Leasing SolarInvest – Economia imediata e usina 100% sua ao final
-                      </p>
-                    </div>
-                    <p className="print-hero__tagline">
-                      Energia inteligente, sustentável e com economia garantida desde o 1º mês.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="print-hero__divider" aria-hidden="true" />
-              <div className="print-hero__meta">
-                <div className="print-hero__meta-item">
-                  <small>Código do orçamento: </small>
-                  <strong>{codigoOrcamento || '—'}</strong>
-                </div>
-              </div>
-              <div className="print-hero__summary no-break-inside">
-                <p>{heroSummary}</p>
-                <div className="print-hero__benefits">
-                  <p className="print-hero__benefits-title">💡 Benefícios SolarInvest</p>
-                  <ul>
-                    <li>
-                      ✅ Economia garantida desde o 1º mês
-                    </li>
-                    <li>
-                      ✅ Investimento 100% feito pela SolarInvest
-                    </li>
-                    <li>
-                      ✅ Manutenção, seguro e suporte inclusos
-                    </li>
-                    <li>
-                      ✅ Transferência gratuita da usina após {prazoContratualMesesTexto}
-                    </li>
-                    <li>
-                      ✅ Energia limpa e valorização do seu imóvel
-                    </li>
-                  </ul>
-                </div>
-                <div className="print-hero__progress" role="img" aria-label="Etapas até a propriedade da usina">
-                  <div className="print-hero__progress-step">
-                    <span className="print-hero__progress-icon">1</span>
-                    <span className="print-hero__progress-label">Assinatura</span>
-                  </div>
-                  <span className="print-hero__progress-arrow" aria-hidden="true">➜</span>
-                  <div className="print-hero__progress-step">
-                    <span className="print-hero__progress-icon">2</span>
-                    <span className="print-hero__progress-label">Instalação</span>
-                  </div>
-                  <span className="print-hero__progress-arrow" aria-hidden="true">➜</span>
-                  <div className="print-hero__progress-step">
-                    <span className="print-hero__progress-icon">3</span>
-                    <span className="print-hero__progress-label">Propriedade da usina</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-    
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
-            <ClientInfoGrid
-              fields={resumoCampos}
-              className="print-client-grid no-break-inside"
-              fieldClassName="print-client-field"
-              wideFieldClassName="print-client-field--wide"
-            />
-          </section>
-
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Dados da Instalação</h2>
-            <div className="print-uc-details">
-              <div className="print-uc-geradora">
-                <h3 className="print-uc-heading">UC Geradora</h3>
-                <p className="print-uc-text">
-                  UC nº {ucGeradoraNumeroLabel} — {ucGeradoraEnderecoLabel}
-                </p>
-              </div>
-              {hasBeneficiarias ? (
-                <div className="print-uc-beneficiarias">
-                  <h4 className="print-uc-beneficiarias-title">UCs Beneficiárias</h4>
-                  <ul className="print-uc-beneficiarias-list">
-                    {ucsBeneficiariasLista.map((uc, index) => {
-                      const rateioLabel = formatRateioLabel(uc.rateioPercentual)
-                      return (
-                        <li key={`${uc.numero || 'uc'}-${index}`}>
-                          UC nº {uc.numero || '—'}
-                          {uc.endereco ? ` — ${uc.endereco}` : ''}
-                          {rateioLabel ? ` — Rateio: ${rateioLabel}` : ''}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          </section>
-
+      <div className="print-layout leasing-print-layout" data-print-section="proposal" aria-hidden="false">
+        {pages.map((blocks, pageIndex) => (
           <section
-            id="resumo-proposta"
-            className="print-section keep-together avoid-break page-break-before break-after"
+            key={`print-page-${pageIndex}`}
+            className="print-page"
+            aria-label={`Página ${pageIndex + 1}`}
           >
-            <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
-            <p className="section-subtitle keep-with-next">
-              Tudo o que você precisa saber — de forma simples e transparente.
-            </p>
-            <table className="no-break-inside">
-              <thead>
-                <tr>
-                  <th>Parâmetro</th>
-                  <th>Descrição</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumoProposta.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {blocks}
           </section>
-    
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
-            <p className="section-subtitle keep-with-next">Configuração técnica do sistema proposto</p>
-            <table className="no-break-inside">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Descrição/Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {especificacoesUsina.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-    
-          <section
-            id="condicoes-financeiras"
-            className="print-section keep-together avoid-break page-break-before break-after"
-          >
-            <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
-            <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
-            <table className="no-break-inside">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Descrição/Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {condicoesFinanceiras.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-    
-          {multiUcResumoDados ? (
-            <section id="multi-uc" className="print-section keep-together">
-              <h2 className="section-title keep-with-next">Cenário Misto (Multi-UC)</h2>
-              <p className="section-subtitle keep-with-next">
-                Distribuição dos créditos de energia entre unidades consumidoras
-              </p>
-              <div className="print-key-values">
-                <p>
-                  <strong>Energia gerada total</strong>
-                  {formatKwhValor(multiUcResumoDados.energiaGeradaTotalKWh, 0)}
-                </p>
-                <p>
-                  <strong>Energia compensada</strong>
-                  {formatKwhValor(multiUcResumoDados.energiaGeradaUtilizadaKWh, 0)}
-                </p>
-                <p>
-                  <strong>Créditos remanescentes</strong>
-                  {formatKwhValor(multiUcResumoDados.sobraCreditosKWh)}
-                </p>
-                <p>
-                  <strong>{`Escalonamento Fio B (${multiUcResumoDados.anoVigencia})`}</strong>
-                  {multiUcEscalonamentoTexto ?? '—'}
-                </p>
-                <p>
-                  <strong>Encargo TUSD (R$/mês)</strong>
-                  {currency(multiUcResumoDados.totalTusd)}
-                </p>
-                <p>
-                  <strong>Encargo TE (R$/mês)</strong>
-                  {currency(multiUcResumoDados.totalTe)}
-                </p>
-                <p>
-                  <strong>Custo total mensal (R$)</strong>
-                  {currency(multiUcResumoDados.totalContrato)}
-                </p>
-                <p>
-                  <strong>Modo de rateio</strong>
-                  {multiUcRateioDescricao ?? '—'}
-                </p>
-              </div>
-              <table className="no-break-inside">
-                <thead>
-                  <tr>
-                    <th>UC</th>
-                    <th>Classe</th>
-                    <th>Consumo (kWh)</th>
-                    <th>Créditos (kWh)</th>
-                    <th>kWh faturados</th>
-                    <th>kWh compensados</th>
-                    <th>TE (R$/kWh)</th>
-                    <th>TUSD total (R$/kWh)</th>
-                    <th>TUSD Fio B (R$/kWh)</th>
-                    <th>TUSD mensal (R$)</th>
-                    <th>TE mensal (R$)</th>
-                    <th>Total mensal (R$)</th>
-                    <th>Observações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {multiUcResumoDados.ucs.map((uc) => (
-                    <tr key={uc.id}>
-                      <td>{uc.id}</td>
-                      <td>{uc.classe}</td>
-                      <td className="leasing-table-value">{formatKwhValor(uc.consumoKWh)}</td>
-                      <td className="leasing-table-value">
-                        <div>{formatKwhValor(uc.creditosKWh)}</div>
-                        <small className="muted">
-                          {multiUcResumoDados.distribuicaoPorPercentual
-                            ? `Rateio: ${formatPercentBRWithDigits((uc.rateioPercentual ?? 0) / 100, 2)}`
-                            : uc.manualRateioKWh != null
-                            ? `Manual: ${formatKwhValor(uc.manualRateioKWh)}`
-                            : '—'}
-                        </small>
-                      </td>
-                      <td className="leasing-table-value">{formatKwhValor(uc.kWhFaturados)}</td>
-                      <td className="leasing-table-value">{formatKwhValor(uc.kWhCompensados)}</td>
-                      <td className="leasing-table-value">{tarifaCurrency(uc.te)}</td>
-                      <td className="leasing-table-value">{tarifaCurrency(uc.tusdTotal)}</td>
-                      <td className="leasing-table-value">{tarifaCurrency(uc.tusdFioB)}</td>
-                      <td className="leasing-table-value">{currency(uc.tusdMensal)}</td>
-                      <td className="leasing-table-value">{currency(uc.teMensal)}</td>
-                      <td className="leasing-table-value">{currency(uc.totalMensal)}</td>
-                      <td className="leasing-table-value">{uc.observacoes?.trim() || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="muted no-break-inside">
-                TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
-                escalonamento vigente.
-              </p>
-            </section>
-          ) : null}
-    
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Veja como sua conta de luz cai mês a mês</h2>
-            <p className="section-subtitle keep-with-next">
-              Veja como sua conta de luz cai mês a mês — e como sua economia cresce automaticamente conforme a tarifa da
-              distribuidora aumenta.
-            </p>
-            <table className="no-break-inside">
-              <thead>
-                <tr>
-                  <th>Período</th>
-                  <th>Tarifa cheia média</th>
-                  <th>Tarifa com desconto média</th>
-                  <th>Conta distribuidora (R$)</th>
-                  <th>Mensalidade SolarInvest (R$)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mensalidadesPorAno.map((linha) => (
-                  <tr key={`mensalidade-${linha.ano}`}>
-                    <td>{`${linha.ano}º ano`}</td>
-                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
-                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
-                    <td className="leasing-table-value">{currency(linha.contaDistribuidora)}</td>
-                    <td className="leasing-table-value">{currency(linha.mensalidade)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p>
-              A cada mês, você paga menos à distribuidora e caminha rumo à posse integral da sua própria usina de energia.
-              A SolarInvest garante que o desconto contratado permanecerá estável durante toda a vigência.
-            </p>
-            <p className="muted print-footnote">
-              <strong>
-                <em>
-                  A partir do {`${prazoContratualTotalAnos + 1}º ano`}, a conta da distribuidora passa a contemplar apenas
-                  TUSD, taxa mínima e iluminação pública para sistemas on-grid.
-                </em>
-              </strong>
-            </p>
-            <p className="muted print-footnote">
-              <strong>
-                <em>
-                  A partir do {`${prazoContratualTotalAnos + 1}º ano`}, em caso de uso excedente, o cliente passa a pagar
-                  tarifa cheia para a concessionária.
-                </em>
-              </strong>
-            </p>
-            <p className="muted print-footnote">
-              <strong>
-                Simulações atualizadas com base nas tarifas atuais para demonstrar a sua economia desde o primeiro mês. Após a
-                vistoria técnica, todas as condições ficam registradas no contrato definitivo com o desconto garantido por
-                escrito.
-              </strong>
-            </p>
-          </section>
-
-          <section
-            id="economia-30-anos"
-            className="print-section keep-together page-break-before break-after"
-          >
-            <h2 className="section-title keep-with-next">Seu patrimônio energético cresce mês a mês</h2>
-            {economiaProjetadaGrafico.length ? (
-              <>
-                <p className="section-subtitle keep-with-next">
-                  O que antes era custo, agora se transforma em retorno e valorização.
-                </p>
-                <p className="section-intro keep-with-next">
-                  Cada mês de geração representa economia crescente e tranquilidade financeira. Em apenas {prazoContratualMesesTexto},
-                  a usina será sua, e a economia continuará aumentando por décadas.
-                </p>
-                <div
-                  className="leasing-horizontal-chart no-break-inside"
-                  role="img"
-                  aria-label="Economia projetada em 30 anos"
-                >
-                  <div className="leasing-horizontal-chart__header-row">
-                    <span className="leasing-horizontal-chart__axis-y-label">Tempo (anos)</span>
-                    <span className="leasing-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
-                  </div>
-                  <div className="leasing-horizontal-chart__rows">
-                    {economiaProjetadaGrafico.map((linha) => {
-                      const percentual = maxBeneficioGrafico > 0 ? (linha.acumulado / maxBeneficioGrafico) * 100 : 0
-                      return (
-                        <div
-                          className="leasing-horizontal-chart__row"
-                          key={`grafico-economia-${linha.ano.toFixed(2)}`}
-                        >
-                          <div className="leasing-horizontal-chart__y-value">{linha.label}</div>
-                          <div className="leasing-horizontal-chart__bar-track" aria-hidden="true">
-                            <div
-                              className="leasing-horizontal-chart__bar"
-                              style={{ width: `${percentual}%` }}
-                            />
-                          </div>
-                          <div className="leasing-horizontal-chart__value">{formatMoneyBR(linha.acumulado)}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-                <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
-              </>
-            ) : (
-              <p className="muted no-break-inside">
-                Não há dados suficientes para projetar a economia acumulada desta proposta.
-              </p>
-            )}
-          </section>
-
-          <PrintableProposalImages images={imagensInstalacao} />
-
-          {configuracaoUsinaObservacoesParagrafos.length > 0 ? (
-            <section
-              id="observacoes-configuracao"
-              className="print-section keep-together avoid-break"
-            >
-              <h2 className="section-title keep-with-next">Observações</h2>
-              <div className="print-observacoes no-break-inside">
-                {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
-                  const linhas = paragrafo.split(/\r?\n/)
-                  return (
-                    <p
-                      key={`observacao-configuracao-${index}`}
-                      className="print-observacoes__paragraph"
-                    >
-                      {linhas.map((linha, linhaIndex) => (
-                        <React.Fragment
-                          key={`observacao-configuracao-${index}-linha-${linhaIndex}`}
-                        >
-                          {linha}
-                          {linhaIndex < linhas.length - 1 ? <br /> : null}
-                        </React.Fragment>
-                      ))}
-                    </p>
-                  )
-                })}
-              </div>
-            </section>
-          ) : null}
-
-          <section
-            id="infos-importantes"
-            className="print-section print-important keep-together page-break-before break-after"
-          >
-            <h2 className="section-title keep-with-next">Informações Importantes</h2>
-            <p className="section-subtitle keep-with-next">
-              <strong>Responsabilidades, garantias e condições gerais</strong>
-            </p>
-            <div className="print-important__box no-break-inside">
-              <ul className="no-break-inside">
-                <li>
-                  Durante todo o contrato, a SolarInvest cuida de tudo para você —{' '}
-                  <strong>operação, manutenção, seguro e suporte técnico completos</strong>. Sua única preocupação será aproveitar a
-                  economia e o conforto de ter energia limpa e garantida.
-                </li>
-                <li>
-                  Todos os equipamentos são certificados pelo <strong>INMETRO</strong> e seguem rigorosamente as{' '}
-                  <strong>normas da ANEEL e ABNT</strong>, garantindo máxima eficiência e segurança em toda a operação.
-                </li>
-                <li>
-                  <strong>Disponibilidade do kit fotovoltaico:</strong> se algum item estiver indisponível no momento da compra,
-                  fornecemos componentes equivalentes ou superiores, sem custo adicional, mantendo o desempenho projetado.
-                </li>
-                <li>
-                  A <strong>tabela de compra antecipada</strong> da usina está disponível mediante solicitação ao consultor
-                  SolarInvest.
-                </li>
-                <li>
-                  Todos os <strong>valores, taxas, tarifas e mensalidades</strong> apresentados são simulações atualizadas com base
-                  nas tarifas vigentes e no seu histórico de consumo. Após a vistoria técnica, o contrato definitivo formaliza seu
-                  desconto garantido por escrito.
-                </li>
-                <li>
-                  <strong>Instalação em solo:</strong> se houver necessidade de estruturas adicionais ou se desejar incluir o custo
-                  no leasing, a SolarInvest apresenta a atualização orçamentária correspondente para sua aprovação.
-                </li>
-              </ul>
-            </div>
-            {informacoesImportantesObservacaoTexto ? (
-              <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
-            ) : null}
-          </section>
-    
-          <section className="print-section print-section--footer no-break-inside avoid-break">
-            <footer className="print-final-footer no-break-inside">
-              <div className="print-final-footer__dates">
-                <p>
-                  <strong>Data de emissão da proposta:</strong> {emissaoTexto}
-                </p>
-              </div>
-              <p className="print-final-footer__closing">
-                Com esta proposta, você dá o primeiro passo rumo à independência energética e financeira. Em apenas{' '}
-                {prazoContratualMesesTexto}, sua própria usina estará gerando lucro, tranquilidade e valorizando o seu imóvel.
-              </p>
-              <p className="print-final-footer__cta">
-                Vamos transformar sua conta de luz em investimento? Confirme seu interesse e agendaremos sua instalação sem
-                nenhum custo inicial.
-              </p>
-              <div className="print-final-footer__signature">
-                <div className="signature-line" />
-                <span>Assinatura do cliente</span>
-                <p className="print-final-footer__signature-note">
-                  Ao assinar esta proposta, o cliente apenas manifesta sua intenção de contratar com a SolarInvest. Este
-                  documento não constitui contrato nem gera obrigações firmes para nenhuma das partes.
-                </p>
-              </div>
-            </footer>
-
-            <div className="print-brand-footer no-break-inside">
-              <strong>SolarInvest</strong>
-              <span>Energia inteligente, sem investimento inicial e com economia garantida desde o 1º mês.</span>
-            </div>
-          </section>
-        </div>
+        ))}
       </div>
     </div>
   )
