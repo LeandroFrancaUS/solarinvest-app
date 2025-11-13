@@ -550,15 +550,16 @@
   }
 
   html:not([data-print-mode]) .proposal-preview-modal .print-root {
-    position: static;
-    top: auto;
-    left: auto;
-    width: 100%;
-    height: auto;
-    opacity: 1;
-    pointer-events: auto;
-    visibility: visible;
-    padding: 0;
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+    padding: 0 !important;
+    display: block !important;
   }
 
   html:not([data-print-mode]) .proposal-preview-modal .print-page {

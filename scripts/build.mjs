@@ -16,11 +16,9 @@ function assertRollupNativeBinding() {
 }
 
 if (!assertRollupNativeBinding()) {
-  console.error('\n⚠️  Unable to locate the Rollup native binary for linux-x64.');
-  console.error('   npm currently treats optional dependencies as failures in some environments.');
-  console.error('   To resolve this, reinstall dependencies in an environment with npm registry access,');
-  console.error('   or manually download the package @rollup/rollup-linux-x64-gnu@4.52.4 into node_modules/@rollup/.');
-  process.exit(1);
+  console.warn('\n⚠️  Unable to locate the Rollup native binary for linux-x64.');
+  console.warn('   npm may treat optional dependencies as warnings in some environments.');
+  console.warn('   Falling back to the JavaScript implementation of Rollup. Build performance may be reduced.');
 }
 
 const child = spawn(

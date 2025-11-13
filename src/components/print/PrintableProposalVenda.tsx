@@ -15,13 +15,6 @@ import {
   formatPagamentoResumo,
 } from '../../constants/pagamento'
 
-type ProposalSection = {
-  key: string
-  content: React.ReactNode
-  startOnNewPage?: boolean
-  endPage?: boolean
-}
-
 const normalizeObservationKey = (value: string): string =>
   value
     .normalize('NFD')
@@ -1505,57 +1498,68 @@ function PrintableProposalInner(
       <footer className="print-final-footer no-break-inside">
         <div className="print-final-footer__dates">
           <p>
-            <strong>Data de emissão da proposta:</strong> {emissaoTexto}
-          </p>
-          <p>
-            <strong>Validade da proposta:</strong> {validadePropostaLabel}
-          </p>
-        </div>
-        <div className="print-final-footer__signature">
-          <div className="signature-line" />
-          <span>Assinatura do cliente</span>
-          <p className="print-final-footer__signature-note">
-            Ao assinar esta proposta, o cliente apenas manifesta sua intenção de contratar com a SolarInvest. Este documento não
-            constitui contrato nem gera obrigações firmes para nenhuma das partes.
-          </p>
-        </div>
-      </footer>
-
-      <div className="print-brand-footer no-break-inside">
-        <strong>S O L A R I N V E S T</strong>
-        <span>CNPJ: 60.434.015/0001-90</span>
-        <span>Anápolis-GO</span>
-        <span>Solarinvest.info</span>
+  const wrapBlock = (key: string, content: React.ReactNode | null): React.ReactNode | null => {
+    if (content == null) {
+      return null
+    }
+    return (
+      <div key={key} className="print-block">
+        {content}
       </div>
-    </section>
-  )
+    )
+  const isBlock = (value: React.ReactNode | null): value is React.ReactNode => value != null
 
-  const sections: ProposalSection[] = [
-    { key: 'hero', content: heroSection },
-  ]
+  const pages: React.ReactNode[][] = []
+  const introPage = [wrapBlock('hero', heroSection), wrapBlock('valores', valoresPropostaSection)].filter(isBlock)
 
-  if (valoresPropostaSection) {
-    sections.push({ key: 'valores', content: valoresPropostaSection })
+  if (introPage.length > 0) {
+    pages.push(introPage)
+  const identificacaoPage = [
+    wrapBlock('identificacao', identificacaoClienteSection),
+    wrapBlock('dados', dadosInstalacaoSection),
+  ].filter(isBlock)
+
+  if (identificacaoPage.length > 0) {
+    pages.push(identificacaoPage)
+  const detalhamentoPage = [wrapBlock('detalhamento', detalhamentoSection)].filter(isBlock)
+
+  if (detalhamentoPage.length > 0) {
+    pages.push(detalhamentoPage)
+  const resumoPage = [wrapBlock('resumo', resumoCustosSection)].filter(isBlock)
+
+  if (resumoPage.length > 0) {
+    pages.push(resumoPage)
+
+  const condicoesPage = [
+    wrapBlock('condicoes-comerciais', condicoesComerciaisSection),
+    wrapBlock('condicoes-financeiras', condicoesFinanceirasSection),
+  ].filter(isBlock)
+  if (condicoesPage.length > 0) {
+    pages.push(condicoesPage)
+
+  const economiaPage = [wrapBlock('economia', economia30AnosSection)].filter(isBlock)
+
+  if (economiaPage.length > 0) {
+    pages.push(economiaPage)
+  const imagensPage = [wrapBlock('imagens', imagensInstalacaoSection)].filter(isBlock)
+  if (imagensPage.length > 0) {
+    pages.push(imagensPage)
   }
 
-  sections.push({ key: 'identificacao', content: identificacaoClienteSection })
-  sections.push({ key: 'dados', content: dadosInstalacaoSection, endPage: true })
-
-  if (detalhamentoSection) {
-    sections.push({ key: 'detalhamento', content: detalhamentoSection })
+  const observacoesInformacoesPage = [
+    wrapBlock('observacoes', observacoesSection),
+    wrapBlock('informacoes', informacoesImportantesSection),
+  ].filter(isBlock)
+  if (observacoesInformacoesPage.length > 0) {
+    pages.push(observacoesInformacoesPage)
   }
 
-  if (resumoCustosSection) {
-    sections.push({ key: 'resumo', content: resumoCustosSection, startOnNewPage: true, endPage: true })
-  }
-
-  if (condicoesComerciaisSection) {
-    sections.push({ key: 'condicoes-comerciais', content: condicoesComerciaisSection, startOnNewPage: true })
-  }
-
-  if (condicoesFinanceirasSection) {
-    sections.push({ key: 'condicoes-financeiras', content: condicoesFinanceirasSection, startOnNewPage: true, endPage: true })
-  }
+  const encerramentoPage = [
+    wrapBlock('cta', callToActionSection),
+    wrapBlock('footer', footerSection),
+  ].filter(isBlock)
+  if (encerramentoPage.length > 0) {
+    pages.push(encerramentoPage)
 
   sections.push({
     key: 'economia',

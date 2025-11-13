@@ -15,13 +15,6 @@ import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 
-type ProposalSection = {
-  key: string
-  content: React.ReactNode
-  startOnNewPage?: boolean
-  endPage?: boolean
-}
-
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
   /\bemail\b/i,
@@ -1312,56 +1305,83 @@ function PrintableProposalLeasingInner(
     </section>
   )
 
-  const sections: ProposalSection[] = [
-    { key: 'hero', content: heroSection },
-    { key: 'identificacao', content: identificacaoClienteSection },
-    { key: 'dados', content: dadosInstalacaoSection, endPage: true },
-    { key: 'resumo', content: resumoPropostaSection, startOnNewPage: true, endPage: true },
-    { key: 'especificacoes', content: especificacoesSection },
-    { key: 'condicoes', content: condicoesFinanceirasSection, startOnNewPage: true, endPage: true },
-  ]
+  const wrapBlock = (key: string, content: React.ReactNode | null): React.ReactNode | null => {
+    if (content == null) {
+      return null
+    }
 
-  if (multiUcSection) {
-    sections.push({ key: 'multi-uc', content: multiUcSection })
+    return (
+      <div key={key} className="print-block">
+        {content}
+      </div>
+    )
   }
 
-  sections.push({ key: 'mensalidades', content: mensalidadesSection })
-  sections.push({ key: 'economia', content: economiaProjetadaSection, startOnNewPage: true, endPage: true })
-
-  if (imagensInstalacaoSection) {
-    sections.push({ key: 'imagens', content: imagensInstalacaoSection, startOnNewPage: true })
-  }
-
-  if (observacoesSection) {
-    sections.push({ key: 'observacoes', content: observacoesSection })
-  }
-
-  sections.push({ key: 'informacoes', content: informacoesImportantesSection, startOnNewPage: true, endPage: true })
-  sections.push({ key: 'footer', content: footerSection })
+  const isBlock = (value: React.ReactNode | null): value is React.ReactNode => value != null
 
   const pages: React.ReactNode[][] = []
-  let currentPage: React.ReactNode[] = []
 
-  sections.forEach((section) => {
-    if (section.startOnNewPage && currentPage.length > 0) {
-      pages.push(currentPage)
-      currentPage = []
-    }
+  const introPage = [
+    wrapBlock('hero', heroSection),
+    wrapBlock('identificacao', identificacaoClienteSection),
+  ].filter(isBlock)
 
-    currentPage.push(
-      <div key={section.key} className="print-block">
-        {section.content}
-      </div>,
-    )
+  if (introPage.length > 0) {
+    pages.push(introPage)
+  }
 
-    if (section.endPage) {
-      pages.push(currentPage)
-      currentPage = []
-    }
-  })
+  const dadosResumoPage = [
+    wrapBlock('dados', dadosInstalacaoSection),
+    wrapBlock('resumo', resumoPropostaSection),
+  ].filter(isBlock)
 
-  if (currentPage.length > 0) {
-    pages.push(currentPage)
+  if (dadosResumoPage.length > 0) {
+    pages.push(dadosResumoPage)
+  }
+
+  const especificacoesPage = [
+    wrapBlock('especificacoes', especificacoesSection),
+    wrapBlock('condicoes', condicoesFinanceirasSection),
+  ].filter(isBlock)
+
+  if (especificacoesPage.length > 0) {
+    pages.push(especificacoesPage)
+  }
+
+  const condicoesOperacionaisPage = [
+    wrapBlock('multi-uc', multiUcSection),
+    wrapBlock('mensalidades', mensalidadesSection),
+  ].filter(isBlock)
+
+  if (condicoesOperacionaisPage.length > 0) {
+    pages.push(condicoesOperacionaisPage)
+  }
+
+  const economiaPage = [wrapBlock('economia', economiaProjetadaSection)].filter(isBlock)
+
+  if (economiaPage.length > 0) {
+    pages.push(economiaPage)
+  }
+
+  const imagensPage = [wrapBlock('imagens', imagensInstalacaoSection)].filter(isBlock)
+
+  if (imagensPage.length > 0) {
+    pages.push(imagensPage)
+  }
+
+  const informacoesPage = [
+    wrapBlock('observacoes', observacoesSection),
+    wrapBlock('informacoes', informacoesImportantesSection),
+  ].filter(isBlock)
+
+  if (informacoesPage.length > 0) {
+    pages.push(informacoesPage)
+  }
+
+  const encerramentoPage = [wrapBlock('footer', footerSection)].filter(isBlock)
+
+  if (encerramentoPage.length > 0) {
+    pages.push(encerramentoPage)
   }
 
   return (
