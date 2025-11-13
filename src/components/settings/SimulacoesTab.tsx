@@ -267,6 +267,18 @@ export function SimulacoesTab({
   }, [current.kc_kwh_mes, consumoKwhMes, valorInvestimento])
 
   const valorMercado = useMemo(() => calcValorMercado(current.capex_solarinvest), [current.capex_solarinvest])
+  const handleValorMercadoInputChange = useCallback(
+    (valor: number | null) => {
+      const valorMercadoInput = Number.isFinite(valor ?? NaN) ? Number(valor) : 0
+      const capexNormalizado = calcCapexFromValorMercado(valorMercadoInput)
+      capexAutoRef.current = null
+      setCurrent((prev) => ({
+        ...prev,
+        capex_solarinvest: capexNormalizado,
+      }))
+    },
+    [setCurrent, calcCapexFromValorMercado],
+  )
   const valorMercadoField = useBRNumberField({
     mode: 'money',
     value: valorMercado,
@@ -369,19 +381,6 @@ export function SimulacoesTab({
       setTusdTouched(true)
     }
   }
-
-  const handleValorMercadoInputChange = useCallback(
-    (valor: number | null) => {
-      const valorMercadoInput = Number.isFinite(valor ?? NaN) ? Number(valor) : 0
-      const capexNormalizado = calcCapexFromValorMercado(valorMercadoInput)
-      capexAutoRef.current = null
-      setCurrent((prev) => ({
-        ...prev,
-        capex_solarinvest: capexNormalizado,
-      }))
-    },
-    [setCurrent, calcCapexFromValorMercado],
-  )
 
   const handleTextChange = (field: 'nome' | 'obs') => (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,

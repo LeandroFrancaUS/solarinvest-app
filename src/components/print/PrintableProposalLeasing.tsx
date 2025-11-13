@@ -568,6 +568,15 @@ function PrintableProposalLeasingInner(
     }, {})
   }, [parcelasLeasing])
 
+  const valorMercadoUsina = useMemo(
+    () =>
+      Number.isFinite(leasingValorDeMercadoEstimado)
+        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
+        : 0,
+    [leasingValorDeMercadoEstimado],
+  )
+  const valorMercadoConsiderado = mostrarValorMercadoUsina ? valorMercadoUsina : 0
+
   const condicoesFinanceiras = [
     {
       label: 'Investimento no sistema fotovoltaico',
@@ -706,15 +715,6 @@ function PrintableProposalLeasingInner(
   }, [economiaMarcos, leasingROI])
 
   const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
-  const valorMercadoUsina = useMemo(
-    () =>
-      Number.isFinite(leasingValorDeMercadoEstimado)
-        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
-        : 0,
-    [leasingValorDeMercadoEstimado],
-  )
-  const valorMercadoConsiderado = mostrarValorMercadoUsina ? valorMercadoUsina : 0
-
   const economiaProjetadaGrafico = useMemo(() => {
     if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
       return []
