@@ -231,7 +231,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-value-card span {
   font-size: 12px;
   letter-spacing: 0.24em;
-  text-transform: uppercase;
+  text-transform: none;
   font-weight: 600;
   color: rgba(248, 250, 252, 0.72);
 }
