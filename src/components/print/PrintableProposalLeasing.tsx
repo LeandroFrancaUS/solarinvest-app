@@ -197,6 +197,7 @@ function PrintableProposalLeasingInner(
     tipoInstalacao,
     tipoSistema,
     areaInstalacao,
+    capex,
     buyoutResumo,
     anos,
     leasingROI,
@@ -489,6 +490,10 @@ function PrintableProposalLeasingInner(
         : 0,
     [leasingValorDeMercadoEstimado],
   )
+  const valorMercadoProposta = useMemo(
+    () => (Number.isFinite(capex) ? Math.max(0, capex ?? 0) : 0),
+    [capex],
+  )
   const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
 
   const especificacoesUsina = [
@@ -496,7 +501,7 @@ function PrintableProposalLeasingInner(
       ? [
           {
             label: 'Valor de mercado',
-            value: currency(valorMercadoUsina),
+            value: currency(valorMercadoProposta),
           } as const,
         ]
       : []),
