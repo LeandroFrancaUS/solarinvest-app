@@ -3,6 +3,7 @@ import React, { useMemo } from 'react'
 import './styles/print-common.css'
 import './styles/proposal-leasing.css'
 import { currency, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
+import { normalizeNewlines, splitOnBlankLines } from '../../utils/text'
 import {
   formatMoneyBR,
   formatNumberBRWithOptions,
@@ -826,10 +827,7 @@ function PrintableProposalLeasingInner(
       return []
     }
 
-    return configuracaoUsinaObservacoesTexto
-      .split(/\r?\n\r?\n+/)
-      .map((paragrafo) => paragrafo.trim())
-      .filter(Boolean)
+    return splitOnBlankLines(configuracaoUsinaObservacoesTexto)
   }, [configuracaoUsinaObservacoesTexto])
 
   const heroSection = (
@@ -1215,7 +1213,7 @@ function PrintableProposalLeasingInner(
       <h2 className="section-title keep-with-next">Observações</h2>
       <div className="print-observacoes no-break-inside">
         {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
-          const linhas = paragrafo.split(/\r?\n/)
+          const linhas = normalizeNewlines(paragrafo).split('\n')
           return (
             <p key={`observacao-configuracao-${index}`} className="print-observacoes__paragraph">
               {linhas.map((linha, linhaIndex) => (

@@ -3,6 +3,7 @@ import React, { useMemo } from 'react'
 import './styles/print-common.css'
 import './styles/proposal-venda.css'
 import { currency, formatCpfCnpj } from '../../utils/formatters'
+import { normalizeNewlines, splitOnBlankLines } from '../../utils/text'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { classifyBudgetItem } from '../../utils/moduleDetection'
 import { formatMoneyBRWithDigits, formatNumberBRWithOptions, formatPercentBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
@@ -194,10 +195,7 @@ function PrintableProposalInner(
       return []
     }
 
-    return configuracaoUsinaObservacoesTexto
-      .split(/\r?\n\r?\n+/)
-      .map((paragrafo) => paragrafo.trim())
-      .filter(Boolean)
+    return splitOnBlankLines(configuracaoUsinaObservacoesTexto)
   }, [configuracaoUsinaObservacoesTexto])
   const hasNonZero = (value: number | null | undefined): value is number =>
     typeof value === 'number' && Number.isFinite(value) && Math.abs(value) > 0
@@ -1421,7 +1419,7 @@ function PrintableProposalInner(
           <h2 className="section-title keep-with-next">Observações sobre a configuração</h2>
           <div className="print-observacoes no-break-inside">
             {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
-              const linhas = paragrafo.split(/\r\n|\n/g)
+              const linhas = normalizeNewlines(paragrafo).split('\n')
 /)
               return (
                 <p key={`observacao-configuracao-${index}`} className="print-observacoes__paragraph">
