@@ -4,5 +4,4 @@ function clean(p) {
     fs.rmSync(p, { recursive: true, force: true });
   } catch {}
 }
-clean("node_modules/@rollup/rollup-linux-x64-gnu");
 clean("node_modules/@rollup/rollup-linux-x64-musl");
