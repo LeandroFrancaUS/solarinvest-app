@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/force-rollup-wasm.js",
     "build": "node scripts/build.mjs",
     "preview": "vite preview",
     "start": "node server/index.js",
@@ -16,6 +17,9 @@
     "check:cycles": "node scripts/find-circular-deps.mjs",
     "check:locale": "bash -lc 'if grep -R \"toLocaleString(\" src | grep -v \"pt-BR\"; then echo \"toLocaleString sem locale pt-BR encontrado\" >&2; exit 1; fi'",
     "check:printables": "vitest run --reporter=basic -t \"printable\"",
+    "vercel-build-clean": "rm -rf node_modules/.vite",
+    "vercel-prebuild": "rm -rf node_modules package-lock.json && npm install",
+    "vercel-clean": "rm -rf node_modules .next dist .turbo",
     "prepush": "npm run lint && npm run typecheck && npm run check:cycles && npm run test"
   },
   "dependencies": {
@@ -25,7 +29,8 @@
     "jszip": "^3.10.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "zustand": "^4.5.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",
@@ -38,8 +43,15 @@
     "eslint-plugin-import": "^2.31.0",
     "husky": "^9.1.6",
     "madge": "^8.0.0",
+    "@rollup/rollup-linux-x64-gnu": "4.52.4",
+    "rollup": "4.52.4",
+    "terser": "^5.33.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": "22.x",
+    "npm": ">=9.0.0"
   }
 }

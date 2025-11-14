@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FixedSizeList, type ListChildComponentProps } from 'react-window'
+import { shallow } from 'zustand/shallow'
 import { labelWithTooltip } from '../InfoTooltip'
 
 import {
@@ -6,7 +8,6 @@ import {
   calcEconomiaHorizonte,
   calcCapexFromValorMercado,
   calcKPIs,
-  calcSimulacaoDetalhesMensais,
   calcTarifaComDesconto,
   calcTusdEncargo,
   calcValorMercado,
@@ -27,7 +28,8 @@ import {
 } from '../../lib/locale/br-number'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useBRNumberField'
 import { selectNumberInputOnFocus } from '../../utils/focusHandlers'
-import { simulationsSelectors, useSimulationsStore } from '../../store/useSimulationsStore'
+import { useSimulationsStore } from '../../store/useSimulationsStore'
+import { useSimulationComparisons } from '../../hooks/useSimulationComparisons'
 
 const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short',
@@ -132,21 +134,99 @@ type SimulacoesTabProps = {
   prazoLeasingAnos: number
 }
 
-export function SimulacoesTab({
+const SIMULATION_DETAILS_ROW_HEIGHT = 48
+const SIMULATION_DETAILS_VISIBLE_ROWS = 12
+
+type VirtualizedDetailsData = {
+  detalhes: SimulationMonthlyDetail[]
+}
+
+const VirtualizedTableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
+  function VirtualizedTableBody({ style, ...rest }, ref) {
+    return (
+      <tbody
+        {...rest}
+        ref={ref}
+        style={{
+          display: 'block',
+          position: 'relative',
+          width: '100%',
+          ...(style ?? {}),
+        }}
+      />
+    )
+  },
+)
+
+const SimulationDetailsVirtualizedRow = React.memo(
+  ({ index, style, data }: ListChildComponentProps<VirtualizedDetailsData>) => {
+    const detalhe = data.detalhes[index]
+    return (
+      <tr
+        key={detalhe.mes}
+        style={{
+          ...style,
+          display: 'table',
+          tableLayout: 'fixed',
+          width: '100%',
+        }}
+      >
+        <td>
+          {formatNumberBRWithOptions(detalhe.mes, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          })}
+        </td>
+        <td>{formatMoneyBR(detalhe.tarifaCheia)}</td>
+        <td>{formatMoneyBR(detalhe.tarifaComDesconto)}</td>
+        <td>{formatMoneyBR(detalhe.encargoTusd)}</td>
+        <td>{formatMoneyBR(detalhe.receita)}</td>
+        <td>{formatMoneyBR(detalhe.custosVariaveis)}</td>
+        <td>{formatMoneyBR(detalhe.economiaBruta)}</td>
+        <td>{formatMoneyBR(detalhe.economiaLiquida)}</td>
+        <td>{formatMoneyBR(detalhe.economiaLiquidaAcumulada)}</td>
+      </tr>
+    )
+  },
+)
+SimulationDetailsVirtualizedRow.displayName = 'SimulationDetailsVirtualizedRow'
+
+export const SimulacoesTab = React.memo(function SimulacoesTab({
   consumoKwhMes,
   valorInvestimento,
   tipoSistema,
   prazoLeasingAnos,
 }: SimulacoesTabProps): JSX.Element {
-  const simulations = useSimulationsStore(simulationsSelectors.list)
-  const itemsById = useSimulationsStore((state) => state.items)
-  const selectedIds = useSimulationsStore((state) => state.selectedIds)
-  const addSimulation = useSimulationsStore((state) => state.add)
-  const updateSimulation = useSimulationsStore((state) => state.update)
-  const removeSimulation = useSimulationsStore((state) => state.remove)
-  const duplicateSimulation = useSimulationsStore((state) => state.duplicate)
-  const selectSimulations = useSimulationsStore((state) => state.select)
-  const clearSelection = useSimulationsStore((state) => state.clearSelection)
+  const {
+    itemsById,
+    selectedIds,
+    addSimulation,
+    updateSimulation,
+    removeSimulation,
+    duplicateSimulation,
+    selectSimulations,
+    clearSelection,
+  } = useSimulationsStore(
+    (state) => ({
+      itemsById: state.items,
+      selectedIds: state.selectedIds,
+      addSimulation: state.add,
+      updateSimulation: state.update,
+      removeSimulation: state.remove,
+      duplicateSimulation: state.duplicate,
+      selectSimulations: state.select,
+      clearSelection: state.clearSelection,
+    }),
+    shallow,
+  )
+
+  const simulations = useMemo(
+    () =>
+      Object.values(itemsById)
+        .slice()
+        .sort((a, b) => b.updatedAt - a.updatedAt),
+    [itemsById],
+  )
 
   const capexAutoRef = useRef<number | null>(null)
 
@@ -324,27 +404,7 @@ export function SimulacoesTab({
     [itemsById, selectedIds],
   )
 
-  const comparisonRows = useMemo(() => {
-    return selectedSimulations.map((sim) => {
-      const tarifaDesconto = calcTarifaComDesconto(sim.tarifa_cheia_r_kwh_m1, sim.desconto_pct)
-      const tusdResumo = calcTusdEncargo(sim, 1)
-      const encargoTusd = tusdResumo.custoTUSD_Mes_R
-      const indicadores = calcKPIs(sim)
-      const economiaContratoSim = calcEconomiaContrato(sim)
-      const economiaHorizon = calcEconomiaHorizonte(sim, comparisonHorizon)
-      const detalhesMensais = calcSimulacaoDetalhesMensais(sim)
-      return {
-        sim,
-        tarifaDesconto,
-        encargoTusd,
-        tusdResumo,
-        indicadores,
-        economiaContratoSim,
-        economiaHorizon,
-        detalhesMensais,
-      }
-    })
-  }, [comparisonHorizon, selectedSimulations])
+  const comparisonRows = useSimulationComparisons(selectedSimulations, comparisonHorizon)
 
   useEffect(() => {
     setExpandedRows((prev) => {
@@ -1256,14 +1316,17 @@ export function SimulacoesTab({
 
     </div>
   )
-}
+})
 
 type SimulationDetailsTableProps = {
   detalhes: SimulationMonthlyDetail[]
   prazo: number
 }
 
-function SimulationDetailsTable({ detalhes, prazo }: SimulationDetailsTableProps): JSX.Element {
+const SimulationDetailsTable = React.memo(function SimulationDetailsTable({
+  detalhes,
+  prazo,
+}: SimulationDetailsTableProps): JSX.Element {
   const prazoLabel = formatNumberBRWithOptions(prazo, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
@@ -1330,28 +1393,23 @@ function SimulationDetailsTable({ detalhes, prazo }: SimulationDetailsTableProps
               </th>
             </tr>
           </thead>
-          <tbody>
-            {detalhes.map((detalhe) => (
-              <tr key={detalhe.mes}>
-                <td>
-                  {formatNumberBRWithOptions(detalhe.mes, {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                  })}
-                </td>
-                <td>{formatMoneyBR(detalhe.tarifaCheia)}</td>
-                <td>{formatMoneyBR(detalhe.tarifaComDesconto)}</td>
-                <td>{formatMoneyBR(detalhe.encargoTusd)}</td>
-                <td>{formatMoneyBR(detalhe.receita)}</td>
-                <td>{formatMoneyBR(detalhe.custosVariaveis)}</td>
-                <td>{formatMoneyBR(detalhe.economiaBruta)}</td>
-                <td>{formatMoneyBR(detalhe.economiaLiquida)}</td>
-                <td>{formatMoneyBR(detalhe.economiaLiquidaAcumulada)}</td>
-              </tr>
-            ))}
-          </tbody>
+          <FixedSizeList
+            height={Math.max(
+              SIMULATION_DETAILS_ROW_HEIGHT,
+              Math.min(SIMULATION_DETAILS_VISIBLE_ROWS, detalhes.length) * SIMULATION_DETAILS_ROW_HEIGHT,
+            )}
+            itemCount={detalhes.length}
+            itemData={{ detalhes }}
+            itemKey={(index, data) => data.detalhes[index].mes}
+            itemSize={SIMULATION_DETAILS_ROW_HEIGHT}
+            outerElementType={VirtualizedTableBody}
+            width="100%"
+          >
+            {SimulationDetailsVirtualizedRow}
+          </FixedSizeList>
         </table>
       </div>
     </div>
   )
-}
+})
+SimulationDetailsTable.displayName = 'SimulationDetailsTable'
