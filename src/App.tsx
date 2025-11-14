@@ -11880,8 +11880,6 @@ export default function App() {
         title: 'Salvar proposta atual?',
         description:
           'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
-        confirmLabel: 'Sim, salvar e continuar',
-        discardLabel: 'Não, descartar e continuar',
       })
 
       if (choice === 'save') {
@@ -12519,8 +12517,6 @@ export default function App() {
           title: 'Salvar alterações atuais?',
           description:
             'Existem alterações não salvas. Deseja salvar a proposta atual antes de carregar a selecionada?',
-          confirmLabel: 'Sim, salvar e continuar',
-          discardLabel: 'Não, descartar e continuar',
         })
 
         if (choice === 'save') {
