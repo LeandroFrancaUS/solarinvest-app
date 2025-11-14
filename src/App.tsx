@@ -9613,8 +9613,24 @@ export default function App() {
                         labelStyle={{ color: chartTheme.tooltipText }}
                       />
                       <Legend verticalAlign="top" height={36} wrapperStyle={{ color: chartTheme.legend }} />
-                      <Line type="monotone" dataKey="entradas" name="Entradas" stroke="#22c55e" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="saidas" name="Saídas" stroke="#ef4444" strokeWidth={2} dot={false} />
+                      <Line
+                        type="monotone"
+                        dataKey="entradas"
+                        name="Entradas"
+                        stroke="#22c55e"
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="saidas"
+                        name="Saídas"
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
                       <Line
                         type="monotone"
                         dataKey="saldoAcumulado"
@@ -9622,6 +9638,7 @@ export default function App() {
                         stroke="#38bdf8"
                         strokeWidth={3}
                         dot={false}
+                        isAnimationActive={false}
                       />
                       <ReferenceLine y={0} stroke="rgba(239,68,68,0.45)" strokeDasharray="4 4" />
                     </LineChart>

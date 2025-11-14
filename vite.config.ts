@@ -101,7 +101,19 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins,
-    build: { sourcemap: true },
+    build: {
+      sourcemap: true,
+      target: 'es2020',
+      minify: 'terser',
+      cssMinify: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'recharts'],
+          },
+        },
+      },
+    },
     server: {
       host: true,
       proxy,
@@ -113,6 +125,7 @@ export default defineConfig(({ mode }) => {
         'zustand/middleware': fileURLToPath(
           new URL('./src/lib/zustand-middleware-shim.ts', import.meta.url),
         ),
+        'react-window': fileURLToPath(new URL('./src/lib/react-window.tsx', import.meta.url)),
         '@testing-library/react': fileURLToPath(
           new URL('./src/test-utils/testing-library-react.tsx', import.meta.url),
         ),

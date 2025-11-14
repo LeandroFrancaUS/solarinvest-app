@@ -9,8 +9,37 @@ import './styles.css'
 import './styles/anti-overlay.css'
 import './styles/anti-overlay-screen.css'
 
+const detectBrave = async (): Promise<boolean> => {
+  if (typeof navigator === 'undefined') {
+    return false
+  }
+  try {
+    const nav = navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } }
+    if (nav.brave?.isBrave) {
+      return await nav.brave.isBrave()
+    }
+  } catch (error) {
+    console.warn('Brave detection failed', error)
+  }
+  const userAgent = navigator.userAgent?.toLowerCase() ?? ''
+  return userAgent.includes('brave')
+}
+
+const disableAnimationsInBrave = async () => {
+  if (typeof document === 'undefined') {
+    return
+  }
+  if (await detectBrave()) {
+    const body = document.body
+    if (body) {
+      body.classList.add('no-animations')
+    }
+  }
+}
+
 async function bootstrap() {
   await ensureServerStorageSync()
+  await disableAnimationsInBrave()
 
   const storedDensity =
     typeof window !== 'undefined' ? window.localStorage.getItem(DENSITY_STORAGE_KEY) : null

@@ -30,6 +30,7 @@
       "@/*": ["./src/*"],
       "zustand": ["./src/lib/zustand-shim"],
       "zustand/middleware": ["./src/lib/zustand-middleware-shim"],
+      "react-window": ["./src/lib/react-window"],
       "@testing-library/react": ["./src/test-utils/testing-library-react"]
     }
   },
