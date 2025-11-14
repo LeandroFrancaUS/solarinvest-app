@@ -3913,6 +3913,58 @@ table tbody tr:hover {
   word-break: break-word;
 }
 
+.save-changes-modal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.save-changes-modal .modal-backdrop {
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.save-changes-modal__content {
+  width: auto;
+  max-width: min(360px, calc(100% - 48px));
+  margin: 0;
+  height: auto;
+  max-height: none;
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+}
+
+.save-changes-modal__content .modal-header {
+  padding: 18px 24px 12px;
+  box-shadow: none;
+}
+
+.save-changes-modal__content .modal-body {
+  flex: none;
+  display: block;
+  padding: 0 24px 16px;
+}
+
+.save-changes-modal__content .modal-body p {
+  margin: 0;
+}
+
+.save-changes-modal__content .modal-actions {
+  padding: 0 24px 20px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 540px) {
+  .save-changes-modal {
+    padding: 16px;
+  }
+
+  .save-changes-modal__content {
+    max-width: none;
+    width: 100%;
+  }
+}
+
 .contract-templates-modal .modal-backdrop {
   background: rgba(15, 23, 42, 0.75);
 }

@@ -360,9 +360,9 @@ const sumComposicaoValores = <T extends Record<string, number>>(valores: T): num
   )
 }
 
-const resolveStateUpdate = <T,>(input: T | ((prev: T) => T), prev: T): T => {
-  return typeof input === 'function' ? (input as (previous: T) => T)(prev) : input
-}
+ const resolveStateUpdate = <T,>(input: T | ((prev: T) => T), prev: T): T => {
+    return typeof input === 'function' ? (input as (previous: T) => T)(prev) : input
+  }
 
 const sumComposicaoValoresExcluding = <T extends Record<string, number>>(
   valores: T,
@@ -2155,6 +2155,80 @@ function ContractTemplatesModal({
   )
 }
 
+type SaveDecisionChoice = 'save' | 'discard'
+
+type SaveDecisionPromptRequest = {
+  title: string
+  description: string
+  confirmLabel?: string
+  discardLabel?: string
+}
+
+type SaveDecisionPromptState = SaveDecisionPromptRequest & {
+  resolve: (choice: SaveDecisionChoice) => void
+}
+
+type SaveChangesDialogProps = {
+  title: string
+  description: string
+  confirmLabel: string
+  discardLabel: string
+  onConfirm: () => void
+  onDiscard: () => void
+}
+
+function SaveChangesDialog({
+  title,
+  description,
+  confirmLabel,
+  discardLabel,
+  onConfirm,
+  onDiscard,
+}: SaveChangesDialogProps) {
+  const titleId = useId()
+  const descriptionId = useId()
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onDiscard()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onDiscard])
+
+  return (
+    <div
+      className="modal save-changes-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+    >
+      <div className="modal-backdrop modal-backdrop--opaque" onClick={onDiscard} />
+      <div className="modal-content save-changes-modal__content">
+        <div className="modal-header">
+          <h3 id={titleId}>{title}</h3>
+        </div>
+        <div className="modal-body" id={descriptionId}>
+          <p>{description}</p>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="ghost" onClick={onDiscard}>
+            {discardLabel}
+          </button>
+          <button type="button" className="primary" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type EnviarPropostaModalProps = {
   contatos: PropostaEnvioContato[]
   selectedContatoId: string | null
@@ -2789,6 +2863,33 @@ export default function App() {
     window.setTimeout(() => {
       lastSavedSignatureRef.current = computeSignatureRef.current()
     }, 0)
+  }, [])
+  const [saveDecisionPrompt, setSaveDecisionPrompt] = useState<SaveDecisionPromptState | null>(null)
+
+  const requestSaveDecision = useCallback(
+    (options: SaveDecisionPromptRequest): Promise<SaveDecisionChoice> => {
+      if (typeof window === 'undefined') {
+        return Promise.resolve('discard')
+      }
+
+      return new Promise<SaveDecisionChoice>((resolve) => {
+        setSaveDecisionPrompt({
+          ...options,
+          resolve,
+        })
+      })
+    },
+    [],
+  )
+
+  const resolveSaveDecisionPrompt = useCallback((choice: SaveDecisionChoice) => {
+    setSaveDecisionPrompt((current) => {
+      if (current) {
+        current.resolve(choice)
+      }
+
+      return null
+    })
   }, [])
   const atualizarOrcamentoAtivo = useCallback(
     (registro: OrcamentoSalvo) => {
@@ -11773,26 +11874,7 @@ export default function App() {
     validarCamposObrigatorios,
   ])
 
-  const handleNovaProposta = useCallback(async () => {
-    if (hasUnsavedChanges()) {
-      const confirmarSalvar = window.confirm(
-        'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
-      )
-      if (confirmarSalvar) {
-        const salvou = await handleSalvarPropostaPdf()
-        if (!salvou) {
-          return
-        }
-      } else {
-        const confirmarDescartar = window.confirm(
-          'Deseja descartar as alterações atuais e iniciar uma nova proposta?',
-        )
-        if (!confirmarDescartar) {
-          return
-        }
-      }
-    }
-
+  const iniciarNovaProposta = useCallback(() => {
     setSettingsTab(INITIAL_VALUES.settingsTab)
     setActivePage('app')
     setOrcamentoSearchTerm('')
@@ -11919,13 +12001,11 @@ export default function App() {
     setNotificacoes([])
     scheduleMarkStateAsSaved()
   }, [
-    handleSalvarPropostaPdf,
-    hasUnsavedChanges,
-    scheduleMarkStateAsSaved,
     createPageSharedSettings,
     setActivePage,
     applyTarifasAutomaticas,
     resetRetorno,
+    scheduleMarkStateAsSaved,
     setDistribuidoraTarifa,
     setKcKwhMes,
     setNumeroModulosManual,
@@ -11947,6 +12027,40 @@ export default function App() {
     setMultiUcAtivo,
     setMultiUcRows,
     limparOrcamentoAtivo,
+  ])
+
+  const handleNovaProposta = useCallback(async () => {
+    if (hasUnsavedChanges()) {
+      const choice = await requestSaveDecision({
+        title: 'Salvar proposta atual?',
+        description:
+          'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
+      })
+
+      if (choice !== 'save') {
+        return
+      }
+
+      const salvou = await handleSalvarPropostaPdf()
+      if (!salvou) {
+        return
+      }
+
+      iniciarNovaProposta()
+      return
+    }
+
+    if (orcamentoAtivoInfo || orcamentoRegistroBase || orcamentoDisponivelParaDuplicar) {
+      iniciarNovaProposta()
+    }
+  }, [
+    hasUnsavedChanges,
+    handleSalvarPropostaPdf,
+    iniciarNovaProposta,
+    orcamentoAtivoInfo,
+    orcamentoDisponivelParaDuplicar,
+    orcamentoRegistroBase,
+    requestSaveDecision,
   ])
 
   const duplicarOrcamentoAtual = () => {
@@ -12415,17 +12529,27 @@ export default function App() {
       }
 
       if (hasUnsavedChanges()) {
-        const salvou = await handleSalvarPropostaPdf()
-        if (!salvou) {
-          return
-        }
+        const choice = await requestSaveDecision({
+          title: 'Salvar alterações atuais?',
+          description:
+            'Existem alterações não salvas. Deseja salvar a proposta atual antes de carregar a selecionada?',
+        })
 
-        limparDadosModalidade(printableData.tipoProposta)
+        if (choice === 'save') {
+          const salvou = await handleSalvarPropostaPdf()
+          if (!salvou) {
+            return
+          }
 
-        const registrosAtualizados = carregarOrcamentosSalvos()
-        const atualizado = registrosAtualizados.find((item) => item.id === registro.id)
-        if (atualizado?.snapshot) {
-          registro = atualizado
+          limparDadosModalidade(printableData.tipoProposta)
+
+          const registrosAtualizados = carregarOrcamentosSalvos()
+          const atualizado = registrosAtualizados.find((item) => item.id === registro.id)
+          if (atualizado?.snapshot) {
+            registro = atualizado
+          }
+        } else {
+          limparDadosModalidade(printableData.tipoProposta)
         }
       }
 
@@ -12444,6 +12568,7 @@ export default function App() {
       carregarOrcamentosSalvos,
       handleSalvarPropostaPdf,
       hasUnsavedChanges,
+      requestSaveDecision,
       limparDadosModalidade,
       printableData.tipoProposta,
     ],
@@ -17766,44 +17891,45 @@ export default function App() {
 
 
   return (
-    <AppRoutes>
-      <AppShell
-        topbar={{
-          subtitle: topbarSubtitle,
-        }}
-        sidebar={{
-          collapsed: isSidebarCollapsed,
-          mobileOpen: isSidebarMobileOpen,
-          groups: sidebarGroups,
-          activeItemId: activeSidebarItem,
-          onNavigate: handleSidebarNavigate,
-          onCloseMobile: handleSidebarClose,
-          onToggleCollapse: handleSidebarMenuToggle,
-          menuButtonLabel: isMobileViewport
-            ? isSidebarMobileOpen
-              ? 'Fechar menu Painel SolarInvest'
-              : 'Abrir menu Painel SolarInvest'
-            : 'Painel SolarInvest',
-          menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
-          menuButtonText: 'Painel SolarInvest',
-        }}
-        content={{
-          subtitle: contentSubtitle,
-          actions: contentActions ?? undefined,
-          pageIndicator: currentPageIndicator,
-        }}
-        mobileMenuButton={
-          isMobileViewport
-            ? {
-                onToggle: handleSidebarMenuToggle,
-                label: isSidebarMobileOpen
-                  ? 'Fechar menu Painel SolarInvest'
-                  : 'Abrir menu Painel SolarInvest',
-                expanded: isSidebarMobileOpen,
-              }
-            : undefined
-        }
-      >
+    <>
+      <AppRoutes>
+        <AppShell
+          topbar={{
+            subtitle: topbarSubtitle,
+          }}
+          sidebar={{
+            collapsed: isSidebarCollapsed,
+            mobileOpen: isSidebarMobileOpen,
+            groups: sidebarGroups,
+            activeItemId: activeSidebarItem,
+            onNavigate: handleSidebarNavigate,
+            onCloseMobile: handleSidebarClose,
+            onToggleCollapse: handleSidebarMenuToggle,
+            menuButtonLabel: isMobileViewport
+              ? isSidebarMobileOpen
+                ? 'Fechar menu Painel SolarInvest'
+                : 'Abrir menu Painel SolarInvest'
+              : 'Painel SolarInvest',
+            menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
+            menuButtonText: 'Painel SolarInvest',
+          }}
+          content={{
+            subtitle: contentSubtitle,
+            actions: contentActions ?? undefined,
+            pageIndicator: currentPageIndicator,
+          }}
+          mobileMenuButton={
+            isMobileViewport
+              ? {
+                  onToggle: handleSidebarMenuToggle,
+                  label: isSidebarMobileOpen
+                    ? 'Fechar menu Painel SolarInvest'
+                    : 'Abrir menu Painel SolarInvest',
+                  expanded: isSidebarMobileOpen,
+                }
+              : undefined
+          }
+        >
         <div className="printable-proposal-hidden" aria-hidden="true">
           <React.Suspense fallback={null}>
             <PrintableProposal ref={printableRef} {...printableData} />
@@ -18366,12 +18492,12 @@ export default function App() {
         />
       ) : null}
 
-      {notificacoes.length > 0 ? (
-        <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
-          {notificacoes.map((item) => (
-            <div key={item.id} className={`toast-item ${item.tipo}`} role="status">
-              <span className="toast-icon" aria-hidden="true">
-                {iconeNotificacaoPorTipo[item.tipo]}
+        {notificacoes.length > 0 ? (
+          <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">
+            {notificacoes.map((item) => (
+              <div key={item.id} className={`toast-item ${item.tipo}`} role="status">
+                <span className="toast-icon" aria-hidden="true">
+                  {iconeNotificacaoPorTipo[item.tipo]}
                 </span>
                 <span className="toast-message">{item.mensagem}</span>
                 <button
@@ -18387,5 +18513,16 @@ export default function App() {
           </div>
         ) : null}
       </AppRoutes>
+      {saveDecisionPrompt ? (
+        <SaveChangesDialog
+          title={saveDecisionPrompt.title}
+          description={saveDecisionPrompt.description}
+          confirmLabel={saveDecisionPrompt.confirmLabel ?? 'Sim'}
+          discardLabel={saveDecisionPrompt.discardLabel ?? 'Não'}
+          onConfirm={() => resolveSaveDecisionPrompt('save')}
+          onDiscard={() => resolveSaveDecisionPrompt('discard')}
+        />
+      ) : null}
+    </>
   )
 }
