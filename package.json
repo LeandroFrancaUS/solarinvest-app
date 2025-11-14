@@ -44,7 +44,6 @@
     "husky": "^9.1.6",
     "madge": "^8.0.0",
     "@rollup/rollup-linux-x64-gnu": "4.17.2",
-    "@rollup/rollup-linux-x64-musl": "4.17.2",
     "rollup": "4.17.2",
     "terser": "^5.33.0",
     "typescript": "^5.6.3",
