@@ -17774,9 +17774,11 @@ export default function App() {
             : undefined
         }
       >
-        <React.Suspense fallback={null}>
-          <PrintableProposal ref={printableRef} {...printableData} />
-        </React.Suspense>
+        <div className="printable-proposal-hidden" aria-hidden="true">
+          <React.Suspense fallback={null}>
+            <PrintableProposal ref={printableRef} {...printableData} />
+          </React.Suspense>
+        </div>
         {activePage === 'dashboard' ? (
           renderDashboardPage()
         ) : activePage === 'crm' ? (
