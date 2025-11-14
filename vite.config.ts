@@ -105,6 +105,15 @@ export default defineConfig(({ mode }) => {
       sourcemap: true,
       target: 'es2020',
       minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: false,
+          drop_debugger: false,
+        },
+        format: {
+          comments: false,
+        },
+      },
       cssMinify: true,
       rollupOptions: {
         output: {
@@ -122,9 +131,6 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
         'react-window': fileURLToPath(new URL('./src/lib/react-window.tsx', import.meta.url)),
-        'zustand/shallow': fileURLToPath(
-          new URL('./src/lib/zustand-shallow.ts', import.meta.url),
-        ),
         '@testing-library/react': fileURLToPath(
           new URL('./src/test-utils/testing-library-react.tsx', import.meta.url),
         ),

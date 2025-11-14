@@ -29,7 +29,6 @@
     "paths": {
       "@/*": ["./src/*"],
       "react-window": ["./src/lib/react-window"],
-      "zustand/shallow": ["./src/lib/zustand-shallow"],
       "@testing-library/react": ["./src/test-utils/testing-library-react"]
     }
   },
