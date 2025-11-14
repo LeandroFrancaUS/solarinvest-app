@@ -120,6 +120,12 @@ html[data-density='compact'] {
   box-sizing: border-box;
 }
 
+*,
+*::before,
+*::after {
+  will-change: auto;
+}
+
 html,
 body,
 #root {
@@ -140,6 +146,13 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   overscroll-behavior-x: none;
+}
+
+body.no-animations *,
+body.no-animations *::before,
+body.no-animations *::after {
+  animation: none !important;
+  transition: none !important;
 }
 
 html.sidebar-mobile-open,

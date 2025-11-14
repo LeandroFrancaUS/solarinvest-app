@@ -174,10 +174,24 @@ export function LeasingBeneficioChart({
               stroke={theme === 'dark' ? 'rgba(239,68,68,0.45)' : 'rgba(239,68,68,0.35)'}
             />
             {exibirLeasingLinha ? (
-              <Line type="monotone" dataKey="Leasing" stroke={CHART_PALETTE.Leasing} strokeWidth={2} dot />
+              <Line
+                type="monotone"
+                dataKey="Leasing"
+                stroke={CHART_PALETTE.Leasing}
+                strokeWidth={2}
+                dot
+                isAnimationActive={false}
+              />
             ) : null}
             {mostrarFinanciamento && exibirFinLinha ? (
-              <Line type="monotone" dataKey="Financiamento" stroke={CHART_PALETTE.Financiamento} strokeWidth={2} dot />
+              <Line
+                type="monotone"
+                dataKey="Financiamento"
+                stroke={CHART_PALETTE.Financiamento}
+                strokeWidth={2}
+                dot
+                isAnimationActive={false}
+              />
             ) : null}
           </LineChart>
         </ResponsiveContainer>
