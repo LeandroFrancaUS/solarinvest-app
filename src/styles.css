@@ -148,6 +148,18 @@ body {
   overscroll-behavior-x: none;
 }
 
+.printable-proposal-hidden {
+  position: fixed;
+  inset: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  z-index: -1;
+}
+
 body.no-animations *,
 body.no-animations *::before,
 body.no-animations *::after {

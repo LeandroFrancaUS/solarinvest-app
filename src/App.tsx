@@ -2770,6 +2770,7 @@ export default function App() {
     useState<OrcamentoSalvo | null>(null)
   const [propostaImagens, setPropostaImagens] = useState<PrintableProposalImage[]>([])
   const lastSavedSignatureRef = useRef<string | null>(null)
+  const userInteractedSinceSaveRef = useRef(false)
   const computeSignatureRef = useRef<() => string>(() => '')
   const initialSignatureSetRef = useRef(false)
   const limparOrcamentoAtivo = useCallback(() => {
@@ -2778,6 +2779,7 @@ export default function App() {
     setOrcamentoDisponivelParaDuplicar(null)
   }, [])
   const scheduleMarkStateAsSaved = useCallback((signatureOverride?: string | null) => {
+    userInteractedSinceSaveRef.current = false
     lastSavedSignatureRef.current = signatureOverride ?? computeSignatureRef.current()
 
     if (typeof window === 'undefined') {
@@ -10756,7 +10758,34 @@ export default function App() {
     lastSavedSignatureRef.current = computeSignatureRef.current()
   })
 
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+
+    const handleUserInput = (event: Event) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('[data-ignore-unsaved-warning]')) {
+        return
+      }
+
+      userInteractedSinceSaveRef.current = true
+    }
+
+    document.addEventListener('input', handleUserInput, true)
+    document.addEventListener('change', handleUserInput, true)
+
+    return () => {
+      document.removeEventListener('input', handleUserInput, true)
+      document.removeEventListener('change', handleUserInput, true)
+    }
+  }, [])
+
   const hasUnsavedChanges = useCallback(() => {
+    if (!userInteractedSinceSaveRef.current) {
+      return false
+    }
+
     if (lastSavedSignatureRef.current == null) {
       return initialSignatureSetRef.current
     }
@@ -11937,6 +11966,7 @@ export default function App() {
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
     limparOrcamentoAtivo()
     lastSavedSignatureRef.current = null
+    userInteractedSinceSaveRef.current = true
     setActivePage('app')
     adicionarNotificacao(
       'Uma cópia do orçamento foi carregada para edição. Salve para gerar um novo número.',
@@ -17774,9 +17804,11 @@ export default function App() {
             : undefined
         }
       >
-        <React.Suspense fallback={null}>
-          <PrintableProposal ref={printableRef} {...printableData} />
-        </React.Suspense>
+        <div className="printable-proposal-hidden" aria-hidden="true">
+          <React.Suspense fallback={null}>
+            <PrintableProposal ref={printableRef} {...printableData} />
+          </React.Suspense>
+        </div>
         {activePage === 'dashboard' ? (
           renderDashboardPage()
         ) : activePage === 'crm' ? (
