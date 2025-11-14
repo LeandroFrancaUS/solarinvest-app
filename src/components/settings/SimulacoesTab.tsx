@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FixedSizeList, type ListChildComponentProps } from 'react-window'
 import { shallow } from 'zustand/shallow'
 import { labelWithTooltip } from '../InfoTooltip'
 
@@ -136,60 +135,8 @@ type SimulacoesTabProps = {
 
 const SIMULATION_DETAILS_ROW_HEIGHT = 48
 const SIMULATION_DETAILS_VISIBLE_ROWS = 12
-
-type VirtualizedDetailsData = {
-  detalhes: SimulationMonthlyDetail[]
-}
-
-const VirtualizedTableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  function VirtualizedTableBody({ style, ...rest }, ref) {
-    return (
-      <tbody
-        {...rest}
-        ref={ref}
-        style={{
-          display: 'block',
-          position: 'relative',
-          width: '100%',
-          ...(style ?? {}),
-        }}
-      />
-    )
-  },
-)
-
-const SimulationDetailsVirtualizedRow = React.memo(
-  ({ index, style, data }: ListChildComponentProps<VirtualizedDetailsData>) => {
-    const detalhe = data.detalhes[index]
-    return (
-      <tr
-        key={detalhe.mes}
-        style={{
-          ...style,
-          display: 'table',
-          tableLayout: 'fixed',
-          width: '100%',
-        }}
-      >
-        <td>
-          {formatNumberBRWithOptions(detalhe.mes, {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-          })}
-        </td>
-        <td>{formatMoneyBR(detalhe.tarifaCheia)}</td>
-        <td>{formatMoneyBR(detalhe.tarifaComDesconto)}</td>
-        <td>{formatMoneyBR(detalhe.encargoTusd)}</td>
-        <td>{formatMoneyBR(detalhe.receita)}</td>
-        <td>{formatMoneyBR(detalhe.custosVariaveis)}</td>
-        <td>{formatMoneyBR(detalhe.economiaBruta)}</td>
-        <td>{formatMoneyBR(detalhe.economiaLiquida)}</td>
-        <td>{formatMoneyBR(detalhe.economiaLiquidaAcumulada)}</td>
-      </tr>
-    )
-  },
-)
-SimulationDetailsVirtualizedRow.displayName = 'SimulationDetailsVirtualizedRow'
+const SIMULATION_DETAILS_VIRTUALIZED_OVERSCAN = 4
+const SIMULATION_DETAILS_COLUMN_COUNT = 9
 
 export const SimulacoesTab = React.memo(function SimulacoesTab({
   consumoKwhMes,
@@ -1327,6 +1274,19 @@ const SimulationDetailsTable = React.memo(function SimulationDetailsTable({
   detalhes,
   prazo,
 }: SimulationDetailsTableProps): JSX.Element {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+
+  const viewportHeight = useMemo(() => {
+    return Math.max(
+      SIMULATION_DETAILS_ROW_HEIGHT,
+      Math.min(SIMULATION_DETAILS_VISIBLE_ROWS, detalhes.length) * SIMULATION_DETAILS_ROW_HEIGHT,
+    )
+  }, [detalhes.length])
+
+  const totalHeight = detalhes.length * SIMULATION_DETAILS_ROW_HEIGHT
+  const shouldVirtualize = totalHeight > viewportHeight
+
   const prazoLabel = formatNumberBRWithOptions(prazo, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
@@ -1339,6 +1299,73 @@ const SimulationDetailsTable = React.memo(function SimulationDetailsTable({
       </div>
     )
   }
+
+  useEffect(() => {
+    if (!shouldVirtualize && scrollTop !== 0) {
+      setScrollTop(0)
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0
+      }
+      return
+    }
+
+    if (!shouldVirtualize) {
+      return
+    }
+
+    const maxScrollTop = Math.max(0, totalHeight - viewportHeight)
+    if (scrollTop > maxScrollTop && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = maxScrollTop
+      setScrollTop(maxScrollTop)
+    }
+  }, [scrollTop, shouldVirtualize, totalHeight, viewportHeight])
+
+  const handleScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      if (!shouldVirtualize) {
+        if (event.currentTarget.scrollTop !== 0) {
+          event.currentTarget.scrollTop = 0
+        }
+        return
+      }
+
+      setScrollTop(event.currentTarget.scrollTop)
+    },
+    [shouldVirtualize],
+  )
+
+  const { startIndex, endIndex } = useMemo(() => {
+    if (!shouldVirtualize) {
+      return { startIndex: 0, endIndex: detalhes.length }
+    }
+
+    const firstVisibleIndex = Math.floor(scrollTop / SIMULATION_DETAILS_ROW_HEIGHT)
+    const lastVisibleIndex = Math.ceil((scrollTop + viewportHeight) / SIMULATION_DETAILS_ROW_HEIGHT)
+
+    return {
+      startIndex: Math.max(0, firstVisibleIndex - SIMULATION_DETAILS_VIRTUALIZED_OVERSCAN),
+      endIndex: Math.min(detalhes.length, lastVisibleIndex + SIMULATION_DETAILS_VIRTUALIZED_OVERSCAN),
+    }
+  }, [detalhes.length, scrollTop, shouldVirtualize, viewportHeight])
+
+  const visibleRows = useMemo(() => detalhes.slice(startIndex, endIndex), [detalhes, startIndex, endIndex])
+
+  const topSpacerHeight = shouldVirtualize ? startIndex * SIMULATION_DETAILS_ROW_HEIGHT : 0
+  const bottomSpacerHeight = shouldVirtualize ? (detalhes.length - endIndex) * SIMULATION_DETAILS_ROW_HEIGHT : 0
+
+  const renderSpacerRow = (key: string, height: number) => (
+    <tr aria-hidden="true" className="simulation-details-spacer-row" key={key} style={{ height }}>
+      <td
+        colSpan={SIMULATION_DETAILS_COLUMN_COUNT}
+        style={{
+          padding: 0,
+          border: 'none',
+          background: 'transparent',
+          height,
+        }}
+      />
+    </tr>
+  )
 
   return (
     <div className="simulation-details">
@@ -1357,57 +1384,81 @@ const SimulationDetailsTable = React.memo(function SimulationDetailsTable({
         </span>
       </div>
       <div className="simulation-details-table-wrapper">
-        <table className="simulation-details-table">
-          <thead>
-            <tr>
-              <th>{labelWithTooltip('Mês', 'Número sequencial do mês desde o início do contrato.')}</th>
-              <th>
-                {labelWithTooltip('Tarifa cheia', 'Tarifa projetada do mês considerando o reajuste energético informado.')}
-              </th>
-              <th>
-                {labelWithTooltip('Tarifa c/ desconto', 'Tarifa cheia do mês × (1 - desconto ÷ 100).')}
-              </th>
-              <th>
-                {labelWithTooltip('Encargo TUSD', 'Encargo TUSD calculado para o mês correspondente.')}
-              </th>
-              <th>
-                {labelWithTooltip('Receita', 'Receita mensal = Consumo × Tarifa com desconto do mês.')}
-              </th>
-              <th>
-                {labelWithTooltip('Custos variáveis', 'OPEX mensal, principalmente o seguro reajustado proporcionalmente.')}
-              </th>
-              <th>
-                {labelWithTooltip('Economia bruta', 'Economia bruta = Consumo × (Tarifa cheia - Tarifa com desconto).')}
-              </th>
-              <th>
-                {labelWithTooltip(
-                  'Economia líquida',
-                  'Economia líquida = Economia bruta - Encargo TUSD (quando o desconto de TUSD está habilitado).',
-                )}
-              </th>
-              <th>
-                {labelWithTooltip(
-                  'Economia líquida acumulada',
-                  'Somatório da economia líquida mês a mês até o período em questão.',
-                )}
-              </th>
-            </tr>
-          </thead>
-          <FixedSizeList
-            height={Math.max(
-              SIMULATION_DETAILS_ROW_HEIGHT,
-              Math.min(SIMULATION_DETAILS_VISIBLE_ROWS, detalhes.length) * SIMULATION_DETAILS_ROW_HEIGHT,
-            )}
-            itemCount={detalhes.length}
-            itemData={{ detalhes }}
-            itemKey={(index, data) => data.detalhes[index].mes}
-            itemSize={SIMULATION_DETAILS_ROW_HEIGHT}
-            outerElementType={VirtualizedTableBody}
-            width="100%"
-          >
-            {SimulationDetailsVirtualizedRow}
-          </FixedSizeList>
-        </table>
+        <div
+          className="simulation-details-table-scroll"
+          onScroll={handleScroll}
+          ref={scrollContainerRef}
+          style={{ maxHeight: viewportHeight, overflowY: 'auto', width: '100%' }}
+        >
+          <table className="simulation-details-table">
+            <thead>
+              <tr>
+                <th>{labelWithTooltip('Mês', 'Número sequencial do mês desde o início do contrato.')}</th>
+                <th>
+                  {labelWithTooltip(
+                    'Tarifa cheia',
+                    'Tarifa projetada do mês considerando o reajuste energético informado.',
+                  )}
+                </th>
+                <th>
+                  {labelWithTooltip('Tarifa c/ desconto', 'Tarifa cheia do mês × (1 - desconto ÷ 100).')}
+                </th>
+                <th>
+                  {labelWithTooltip('Encargo TUSD', 'Encargo TUSD calculado para o mês correspondente.')}
+                </th>
+                <th>
+                  {labelWithTooltip('Receita', 'Receita mensal = Consumo × Tarifa com desconto do mês.')}
+                </th>
+                <th>
+                  {labelWithTooltip(
+                    'Custos variáveis',
+                    'OPEX mensal, principalmente o seguro reajustado proporcionalmente.',
+                  )}
+                </th>
+                <th>
+                  {labelWithTooltip(
+                    'Economia bruta',
+                    'Economia bruta = Consumo × (Tarifa cheia - Tarifa com desconto).',
+                  )}
+                </th>
+                <th>
+                  {labelWithTooltip(
+                    'Economia líquida',
+                    'Economia líquida = Economia bruta - Encargo TUSD (quando o desconto de TUSD está habilitado).',
+                  )}
+                </th>
+                <th>
+                  {labelWithTooltip(
+                    'Economia líquida acumulada',
+                    'Somatório da economia líquida mês a mês até o período em questão.',
+                  )}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {topSpacerHeight > 0 ? renderSpacerRow('top-spacer', topSpacerHeight) : null}
+              {visibleRows.map((detalhe) => (
+                <tr key={detalhe.mes} style={{ height: SIMULATION_DETAILS_ROW_HEIGHT }}>
+                  <td>
+                    {formatNumberBRWithOptions(detalhe.mes, {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    })}
+                  </td>
+                  <td>{formatMoneyBR(detalhe.tarifaCheia)}</td>
+                  <td>{formatMoneyBR(detalhe.tarifaComDesconto)}</td>
+                  <td>{formatMoneyBR(detalhe.encargoTusd)}</td>
+                  <td>{formatMoneyBR(detalhe.receita)}</td>
+                  <td>{formatMoneyBR(detalhe.custosVariaveis)}</td>
+                  <td>{formatMoneyBR(detalhe.economiaBruta)}</td>
+                  <td>{formatMoneyBR(detalhe.economiaLiquida)}</td>
+                  <td>{formatMoneyBR(detalhe.economiaLiquidaAcumulada)}</td>
+                </tr>
+              ))}
+              {bottomSpacerHeight > 0 ? renderSpacerRow('bottom-spacer', bottomSpacerHeight) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
