@@ -11874,22 +11874,7 @@ export default function App() {
     validarCamposObrigatorios,
   ])
 
-  const handleNovaProposta = useCallback(async () => {
-    if (hasUnsavedChanges()) {
-      const choice = await requestSaveDecision({
-        title: 'Salvar proposta atual?',
-        description:
-          'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
-      })
-
-      if (choice === 'save') {
-        const salvou = await handleSalvarPropostaPdf()
-        if (!salvou) {
-          return
-        }
-      }
-    }
-
+  const iniciarNovaProposta = useCallback(() => {
     setSettingsTab(INITIAL_VALUES.settingsTab)
     setActivePage('app')
     setOrcamentoSearchTerm('')
@@ -12016,14 +12001,11 @@ export default function App() {
     setNotificacoes([])
     scheduleMarkStateAsSaved()
   }, [
-    handleSalvarPropostaPdf,
-    hasUnsavedChanges,
-    requestSaveDecision,
-    scheduleMarkStateAsSaved,
     createPageSharedSettings,
     setActivePage,
     applyTarifasAutomaticas,
     resetRetorno,
+    scheduleMarkStateAsSaved,
     setDistribuidoraTarifa,
     setKcKwhMes,
     setNumeroModulosManual,
@@ -12045,6 +12027,40 @@ export default function App() {
     setMultiUcAtivo,
     setMultiUcRows,
     limparOrcamentoAtivo,
+  ])
+
+  const handleNovaProposta = useCallback(async () => {
+    if (hasUnsavedChanges()) {
+      const choice = await requestSaveDecision({
+        title: 'Salvar proposta atual?',
+        description:
+          'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
+      })
+
+      if (choice !== 'save') {
+        return
+      }
+
+      const salvou = await handleSalvarPropostaPdf()
+      if (!salvou) {
+        return
+      }
+
+      iniciarNovaProposta()
+      return
+    }
+
+    if (orcamentoAtivoInfo || orcamentoRegistroBase || orcamentoDisponivelParaDuplicar) {
+      iniciarNovaProposta()
+    }
+  }, [
+    hasUnsavedChanges,
+    handleSalvarPropostaPdf,
+    iniciarNovaProposta,
+    orcamentoAtivoInfo,
+    orcamentoDisponivelParaDuplicar,
+    orcamentoRegistroBase,
+    requestSaveDecision,
   ])
 
   const duplicarOrcamentoAtual = () => {
