@@ -3913,6 +3913,43 @@ table tbody tr:hover {
   word-break: break-word;
 }
 
+.save-changes-modal .modal-backdrop {
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.save-changes-modal__content {
+  width: min(420px, calc(100% - 32px));
+  margin: 96px auto 32px;
+  max-height: none;
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+}
+
+.save-changes-modal__content .modal-header {
+  padding: 24px 32px 16px;
+  box-shadow: none;
+}
+
+.save-changes-modal__content .modal-body {
+  padding: 0 32px 24px;
+}
+
+.save-changes-modal__content .modal-body p {
+  margin: 0;
+}
+
+.save-changes-modal__content .modal-actions {
+  padding: 0 32px 32px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 540px) {
+  .save-changes-modal__content {
+    width: calc(100% - 24px);
+    margin: 64px auto 24px;
+  }
+}
+
 .contract-templates-modal .modal-backdrop {
   background: rgba(15, 23, 42, 0.75);
 }
