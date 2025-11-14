@@ -3423,21 +3423,6 @@ table tbody tr:hover {
   overflow-x: auto;
 }
 
-.simulation-details-table-scroll {
-  width: 100%;
-  overflow-y: auto;
-}
-
-.simulation-details-spacer-row {
-  pointer-events: none;
-}
-
-.simulation-details-spacer-row td {
-  padding: 0;
-  border: none;
-  background: transparent;
-}
-
 .simulation-details-table {
   width: 100%;
   min-width: 760px;
