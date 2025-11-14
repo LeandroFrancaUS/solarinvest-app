@@ -19,11 +19,8 @@ const normalizeVariant = (value: string | null | undefined): PrintVariant => {
 }
 
 export const PrintableProposalVenda = React.forwardRef<HTMLDivElement, PrintableProposalProps>(
-  function PrintableProposalVenda(props, ref) {
+  function PrintableProposalVenda(props, forwardedRef) {
     const [variant, setVariant] = React.useState<PrintVariant>('standard')
-    const innerRef = React.useRef<HTMLDivElement | null>(null)
-
-    React.useImperativeHandle(ref, () => innerRef.current as HTMLDivElement)
 
     React.useEffect(() => {
       if (typeof document === 'undefined') {
@@ -145,7 +142,7 @@ export const PrintableProposalVenda = React.forwardRef<HTMLDivElement, Printable
             </button>
           </div>
         </div>
-        <PrintableProposalVendaInner ref={innerRef} {...props} />
+        <PrintableProposalVendaInner ref={forwardedRef} {...props} />
       </div>
     )
   },
