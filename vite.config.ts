@@ -121,11 +121,10 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
-        zustand: fileURLToPath(new URL('./src/lib/zustand-shim.ts', import.meta.url)),
-        'zustand/middleware': fileURLToPath(
-          new URL('./src/lib/zustand-middleware-shim.ts', import.meta.url),
-        ),
         'react-window': fileURLToPath(new URL('./src/lib/react-window.tsx', import.meta.url)),
+        'zustand/shallow': fileURLToPath(
+          new URL('./src/lib/zustand-shallow.ts', import.meta.url),
+        ),
         '@testing-library/react': fileURLToPath(
           new URL('./src/test-utils/testing-library-react.tsx', import.meta.url),
         ),

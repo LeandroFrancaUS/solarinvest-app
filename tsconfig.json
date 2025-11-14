@@ -28,9 +28,8 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "zustand": ["./src/lib/zustand-shim"],
-      "zustand/middleware": ["./src/lib/zustand-middleware-shim"],
       "react-window": ["./src/lib/react-window"],
+      "zustand/shallow": ["./src/lib/zustand-shallow"],
       "@testing-library/react": ["./src/test-utils/testing-library-react"]
     }
   },
