@@ -2773,9 +2773,6 @@ export default function App() {
   const userInteractedSinceSaveRef = useRef(false)
   const computeSignatureRef = useRef<() => string>(() => '')
   const initialSignatureSetRef = useRef(false)
-  const markUserInteraction = useCallback(() => {
-    userInteractedSinceSaveRef.current = true
-  }, [])
   const limparOrcamentoAtivo = useCallback(() => {
     setOrcamentoAtivoInfo(null)
     setOrcamentoRegistroBase(null)
@@ -10772,19 +10769,17 @@ export default function App() {
         return
       }
 
-      markUserInteraction()
+      userInteractedSinceSaveRef.current = true
     }
 
     document.addEventListener('input', handleUserInput, true)
     document.addEventListener('change', handleUserInput, true)
-    document.addEventListener('click', handleUserInput, true)
 
     return () => {
       document.removeEventListener('input', handleUserInput, true)
       document.removeEventListener('change', handleUserInput, true)
-      document.removeEventListener('click', handleUserInput, true)
     }
-  }, [markUserInteraction])
+  }, [])
 
   const hasUnsavedChanges = useCallback(() => {
     if (!userInteractedSinceSaveRef.current) {
@@ -11971,7 +11966,7 @@ export default function App() {
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
     limparOrcamentoAtivo()
     lastSavedSignatureRef.current = null
-    markUserInteraction()
+    userInteractedSinceSaveRef.current = true
     setActivePage('app')
     adicionarNotificacao(
       'Uma cópia do orçamento foi carregada para edição. Salve para gerar um novo número.',
@@ -11982,24 +11977,21 @@ export default function App() {
   const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
 
   const handleAdicionarUcBeneficiaria = useCallback(() => {
-    markUserInteraction()
     setUcsBeneficiarias((prev) => [...prev, createEmptyUcBeneficiaria()])
-  }, [markUserInteraction])
+  }, [])
 
   const handleAtualizarUcBeneficiaria = useCallback(
     (id: string, field: 'numero' | 'endereco' | 'rateioPercentual', value: string) => {
-      markUserInteraction()
       setUcsBeneficiarias((prev) =>
         prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
       )
     },
-    [markUserInteraction],
+    [],
   )
 
   const handleRemoverUcBeneficiaria = useCallback((id: string) => {
-    markUserInteraction()
     setUcsBeneficiarias((prev) => prev.filter((item) => item.id !== id))
-  }, [markUserInteraction])
+  }, [])
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
     if (key === 'temIndicacao') {
