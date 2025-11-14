@@ -1,0 +1,13 @@
+{
+  "name": "zustand",
+  "version": "4.5.5",
+  "type": "module",
+  "exports": {
+    "./shallow": "./shallow.js",
+    "./shallow.js": "./shallow.js",
+    ".": "./index.js"
+  },
+  "main": "./index.js",
+  "module": "./index.js",
+  "sideEffects": false
+}
