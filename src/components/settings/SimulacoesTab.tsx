@@ -1274,19 +1274,6 @@ const SimulationDetailsTable = React.memo(function SimulationDetailsTable({
   detalhes,
   prazo,
 }: SimulationDetailsTableProps): JSX.Element {
-  const prazoLabel = formatNumberBRWithOptions(prazo, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-
-  if (detalhes.length === 0) {
-    return (
-      <div className="simulation-details">
-        <p className="simulation-details-empty">{`Nenhum mês disponível para o prazo de ${prazoLabel} meses.`}</p>
-      </div>
-    )
-  }
-
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
 
@@ -1299,6 +1286,19 @@ const SimulationDetailsTable = React.memo(function SimulationDetailsTable({
 
   const totalHeight = detalhes.length * SIMULATION_DETAILS_ROW_HEIGHT
   const shouldVirtualize = totalHeight > viewportHeight
+
+  const prazoLabel = formatNumberBRWithOptions(prazo, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+
+  if (detalhes.length === 0) {
+    return (
+      <div className="simulation-details">
+        <p className="simulation-details-empty">{`Nenhum mês disponível para o prazo de ${prazoLabel} meses.`}</p>
+      </div>
+    )
+  }
 
   useEffect(() => {
     if (!shouldVirtualize && scrollTop !== 0) {
