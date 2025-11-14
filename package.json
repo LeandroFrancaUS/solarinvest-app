@@ -17,6 +17,8 @@
     "check:locale": "bash -lc 'if grep -R \"toLocaleString(\" src | grep -v \"pt-BR\"; then echo \"toLocaleString sem locale pt-BR encontrado\" >&2; exit 1; fi'",
     "check:printables": "vitest run --reporter=basic -t \"printable\"",
     "vercel-build-clean": "rm -rf node_modules/.vite",
+    "vercel-prebuild": "rm -rf node_modules package-lock.json && npm install",
+    "vercel-clean": "rm -rf node_modules .next dist .turbo",
     "prepush": "npm run lint && npm run typecheck && npm run check:cycles && npm run test"
   },
   "dependencies": {
@@ -27,7 +29,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7",
-    "zustand": "file:vendor/zustand"
+    "zustand": "^4.5.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",
@@ -44,5 +46,9 @@
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   }
 }
