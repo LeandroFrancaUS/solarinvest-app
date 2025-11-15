@@ -1,0 +1,258 @@
+.simulacoes-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  padding: 24px 32px;
+  overflow-x: hidden;
+}
+
+.simulacoes-panel label {
+  white-space: normal;
+}
+
+.simulacoes-panel .cfg-field,
+.simulacoes-panel .cfg-control,
+.simulacoes-panel .cfg-input {
+  min-width: 0;
+}
+
+.simulacoes-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.simulacoes-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.simulacao-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.simulations-summary-grid,
+.simulations-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.simulations-summary-card,
+.simulations-kpi-card {
+  border: 1px solid var(--border, #e4e7ec);
+  border-radius: 16px;
+  padding: 16px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.simulacoes-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.cenario-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 18px;
+  padding: 16px;
+  background: #fff;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cenario-card.is-selectable {
+  cursor: pointer;
+}
+
+.cenario-card.is-selected {
+  border-color: var(--accent, #2563eb);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.2);
+}
+
+.cenario-card__checkbox input {
+  width: 20px;
+  height: 20px;
+}
+
+.cenario-card__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cenario-card__heading strong {
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.cenario-card__heading small {
+  color: #475467;
+}
+
+.cenario-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 12px 0 0;
+}
+
+.cenario-card__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cenario-card__metric dt {
+  font-size: 12px;
+  color: #475467;
+}
+
+.cenario-card__metric dd {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.cenario-card__metric.align-right dd {
+  text-align: right;
+}
+
+.cenario-card__extra {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  color: #475467;
+}
+
+.tabela-comparacao-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border, #e4e7ec);
+  border-radius: 18px;
+}
+
+.tabela-comparacao-scroll {
+  min-width: 100%;
+}
+
+.tabela-comparacao {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.tabela-comparacao th,
+.tabela-comparacao td {
+  padding: 12px;
+  border-bottom: 1px solid #e4e7ec;
+  min-width: 160px;
+  max-width: 320px;
+  background: #fff;
+}
+
+.tabela-comparacao th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.tabela-comparacao .cenario-col {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 240px;
+  background: #fff;
+}
+
+.cenario-col__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tabela-comparacao td.is-numeric,
+.tabela-comparacao th.is-numeric {
+  text-align: right;
+}
+
+.tabela-comparacao tbody tr:nth-child(even) td {
+  background: #fefefe;
+}
+
+.simulations-expand-button {
+  border: 1px solid #cbd5f5;
+  background: #eef2ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  font-weight: 700;
+}
+
+.simulations-table-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tabela-cenarios {
+  display: none;
+  margin-top: 24px;
+  gap: 16px;
+}
+
+.simulations-table {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.simulations-table-header p {
+  color: #475467;
+}
+
+.simulation-details-row td {
+  background: #f8fafc;
+}
+
+@media (max-width: 900px) {
+  .simulacoes-panel {
+    padding: 16px;
+  }
+
+  .simulacoes-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tabela-comparacao-wrapper {
+    display: none;
+  }
+
+  .tabela-cenarios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}

@@ -180,3 +180,5 @@ export function useBRNumberField({
 
   return { ref, text, setText, handleChange, handleBlur, handleFocus }
 }
+
+export type UseBRNumberFieldResult = ReturnType<typeof useBRNumberField>

@@ -111,6 +111,7 @@ import {
   PAGAMENTO_MODO_INFO,
 } from './constants/pagamento'
 import './styles/config-page.css'
+import './styles/simulacoes.css'
 import './styles/toast.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
@@ -119,7 +120,7 @@ import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
-import { SimulacoesTab } from './components/settings/SimulacoesTab'
+import { SimulacoesDashboard, type SimulacoesSection } from './app/components/simulacoes/SimulacoesDashboard'
 import { useSimulationsStore, simulationsSelectors } from './store/useSimulationsStore'
 import {
   ANALISE_ANOS_PADRAO,
@@ -197,6 +198,12 @@ const PrintableProposal = React.lazy(() => import('./components/print/PrintableP
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
+const derivePageFromPath = (pathname: string): ActivePage | undefined => {
+  if (pathname.startsWith('/simulacoes')) {
+    return 'simulacoes'
+  }
+  return undefined
+}
 
 const MULTI_UC_CLASS_LABELS: Record<MultiUcClasse, string> = {
   B1_Residencial: 'B1 — Residencial',
@@ -211,7 +218,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings'
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes'
 
 const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -2743,6 +2750,11 @@ export default function App() {
       return 'app'
     }
 
+    const fromPath = derivePageFromPath(window.location.pathname)
+    if (fromPath) {
+      return fromPath
+    }
+
     const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
     if (storedPage === 'dashboard') {
       return 'app'
@@ -2753,7 +2765,8 @@ export default function App() {
       storedPage === 'crm' ||
       storedPage === 'consultar' ||
       storedPage === 'clientes' ||
-      storedPage === 'settings'
+      storedPage === 'settings' ||
+      storedPage === 'simulacoes'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -2776,6 +2789,35 @@ export default function App() {
       lastPrimaryPageRef.current = activePage
     }
   }, [activePage])
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const targetPath = activePage === 'simulacoes' ? '/simulacoes' : '/'
+    if (window.location.pathname !== targetPath) {
+      window.history.replaceState(null, '', targetPath)
+    }
+  }, [activePage])
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const handlePopstate = () => {
+      const pathPage = derivePageFromPath(window.location.pathname)
+      if (pathPage) {
+        setActivePage(pathPage)
+        return
+      }
+      if (activePage === 'simulacoes') {
+        setActivePage(lastPrimaryPageRef.current)
+      }
+    }
+
+    window.addEventListener('popstate', handlePopstate)
+    return () => window.removeEventListener('popstate', handlePopstate)
+  }, [activePage, setActivePage])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -2952,6 +2994,8 @@ export default function App() {
   const [ocrDpi, setOcrDpi] = useState(DEFAULT_OCR_DPI)
   const [isBudgetTableCollapsed, setIsBudgetTableCollapsed] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
+  const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection | undefined>(undefined)
+  const [simulacoesSectionRequestId, setSimulacoesSectionRequestId] = useState(0)
   const { simulationSidebarEntries, activeSimulationId, setActiveSimulation } = useSimulationsStore(
     (state) => ({
       simulationSidebarEntries: simulationsSelectors.list(state),
@@ -12605,18 +12649,31 @@ export default function App() {
     [setActivePage, setSettingsTab],
   )
 
+  const openSimulacoes = useCallback(
+    (section?: SimulacoesSection) => {
+      setSimulacoesSection(section ?? 'nova')
+      setSimulacoesSectionRequestId((requestId) => requestId + 1)
+      setActivePage('simulacoes')
+    },
+    [setActivePage, setSimulacoesSection, setSimulacoesSectionRequestId],
+  )
+
   const handleStartNewSimulationFromSidebar = useCallback(() => {
     setActiveSimulation('new')
-    abrirConfiguracoes('simulacoes')
-  }, [abrirConfiguracoes, setActiveSimulation])
+    openSimulacoes('nova')
+  }, [openSimulacoes, setActiveSimulation])
 
   const handleOpenSavedSimulationFromSidebar = useCallback(
     (id: string) => {
       setActiveSimulation(id)
-      abrirConfiguracoes('simulacoes')
+      openSimulacoes('salvas')
     },
-    [abrirConfiguracoes, setActiveSimulation],
+    [openSimulacoes, setActiveSimulation],
   )
+
+  const handleOpenComparisonFromSidebar = useCallback(() => {
+    openSimulacoes('comparar')
+  }, [openSimulacoes])
 
   const simulationSavedChildren = useMemo(() => {
     if (simulationSidebarEntries.length === 0) {
@@ -12629,12 +12686,19 @@ export default function App() {
       ]
     }
 
-    return simulationSidebarEntries.map((simulation) => ({
-      id: `simulacoes-salvas-${simulation.id}`,
-      label: simulation.nome?.trim() || simulation.id,
-      onSelect: () => handleOpenSavedSimulationFromSidebar(simulation.id),
-    }))
-  }, [handleOpenSavedSimulationFromSidebar, simulationSidebarEntries])
+    return [
+      {
+        id: 'simulacoes-salvas-overview',
+        label: 'Todas as simulações',
+        onSelect: () => openSimulacoes('salvas'),
+      },
+      ...simulationSidebarEntries.map((simulation) => ({
+        id: `simulacoes-salvas-${simulation.id}`,
+        label: simulation.nome?.trim() || simulation.id,
+        onSelect: () => handleOpenSavedSimulationFromSidebar(simulation.id),
+      })),
+    ]
+  }, [handleOpenSavedSimulationFromSidebar, openSimulacoes, simulationSidebarEntries])
 
   const voltarParaPaginaPrincipal = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
@@ -16793,7 +16857,9 @@ export default function App() {
             ? 'Gestão de clientes salvos'
             : activePage === 'settings'
               ? 'Preferências e integrações da proposta'
-              : undefined
+              : activePage === 'simulacoes'
+                ? 'Simulações financeiras'
+                : undefined
   const currentPageIndicator =
     activePage === 'dashboard'
       ? 'Dashboard'
@@ -16805,9 +16871,11 @@ export default function App() {
             ? 'Clientes'
             : activePage === 'settings'
               ? 'Configurações'
-              : activeTab === 'vendas'
-                ? 'Vendas'
-                : 'Leasing'
+              : activePage === 'simulacoes'
+                ? 'Simulações'
+                : activeTab === 'vendas'
+                  ? 'Vendas'
+                  : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
   const sidebarGroups: SidebarGroup[] = [
@@ -17014,9 +17082,15 @@ export default function App() {
             },
             {
               id: 'simulacoes-salvas',
-              label: 'Simulações salvas',
+              label: 'Minhas simulações',
               icon: '💾',
               items: simulationSavedChildren,
+            },
+            {
+              id: 'simulacoes-comparar',
+              label: 'Comparar cenários',
+              icon: '📊',
+              onSelect: handleOpenComparisonFromSidebar,
             },
           ],
         },
@@ -17367,27 +17441,6 @@ export default function App() {
                 />
               </Field>
             </div>
-          </section>
-          <section
-            id="settings-panel-simulacoes"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-simulacoes"
-            className={`settings-panel config-card${settingsTab === 'simulacoes' ? ' active' : ''}`}
-            hidden={settingsTab !== 'simulacoes'}
-            aria-hidden={settingsTab !== 'simulacoes'}
-          >
-            <div className="cfg-panel-header">
-              <h2 className="cfg-section-title">Simulações financeiras</h2>
-              <p className="settings-panel-description cfg-section-subtitle">
-                Monte cenários de leasing com diferentes descontos, prazos e custos para comparar KPIs lado a lado.
-              </p>
-            </div>
-            <SimulacoesTab
-              consumoKwhMes={kcKwhMes}
-              valorInvestimento={capex}
-              tipoSistema={tipoSistema}
-              prazoLeasingAnos={leasingPrazo}
-            />
           </section>
           <section
             id="settings-panel-vendas"
@@ -17950,14 +18003,18 @@ export default function App() {
           : activePage === 'consultar'
             ? 'orcamentos-importar'
             : activePage === 'settings'
-              ? settingsTab === 'simulacoes'
-                ? activeSimulationId && activeSimulationId !== 'new'
-                  ? `simulacoes-salvas-${activeSimulationId}`
-                  : 'simulacoes-nova'
-                : 'config-preferencias'
-              : activeTab === 'vendas'
-                ? 'propostas-vendas'
-                : 'propostas-leasing'
+              ? 'config-preferencias'
+              : activePage === 'simulacoes'
+                ? simulacoesSection === 'comparar'
+                  ? 'simulacoes-comparar'
+                  : simulacoesSection === 'salvas'
+                    ? activeSimulationId && activeSimulationId !== 'new'
+                      ? `simulacoes-salvas-${activeSimulationId}`
+                      : 'simulacoes-salvas'
+                    : 'simulacoes-nova'
+                : activeTab === 'vendas'
+                  ? 'propostas-vendas'
+                  : 'propostas-leasing'
 
 
   return (
@@ -18015,6 +18072,15 @@ export default function App() {
           renderClientesPage()
         ) : activePage === 'settings' ? (
           renderSettingsPage()
+        ) : activePage === 'simulacoes' ? (
+          <SimulacoesDashboard
+            consumoKwhMes={kcKwhMes}
+            valorInvestimento={capex}
+            tipoSistema={tipoSistema}
+            prazoLeasingAnos={leasingPrazo}
+            section={simulacoesSection}
+            sectionRequestId={simulacoesSectionRequestId}
+          />
         ) : (
           <div className="page">
             <div className="app-main">

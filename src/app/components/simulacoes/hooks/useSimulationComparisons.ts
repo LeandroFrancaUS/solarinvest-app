@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import type { Simulacao } from '../lib/finance/simulation'
-import type { SimulationComparisonResult } from '../workers/simulationWorker'
+import type { Simulacao } from '../../../../lib/finance/simulation'
+import type { SimulationComparisonResult } from '../../../../workers/simulationWorker'
 
 type ComputeRequest = {
   id: number
@@ -36,7 +36,7 @@ export const useSimulationComparisons = (
   const [results, setResults] = useState<SimulationComparisonResult[]>([])
 
   useEffect(() => {
-    const worker = new Worker(new URL('../workers/simulationWorker.ts', import.meta.url), {
+    const worker = new Worker(new URL('../../../../workers/simulationWorker.ts', import.meta.url), {
       type: 'module',
     })
     workerRef.current = worker
