@@ -564,8 +564,8 @@ export function SimulacoesTab({
           <button type="button" className="secondary" onClick={handleReset}>
             Reset
           </button>
-        </div>
       </div>
+    </div>
 
       <div className="simulations-form-area">
           <section className="simulations-table">
@@ -1224,9 +1224,7 @@ export function SimulacoesTab({
               </div>
             </div>
           </section>
-        </div>
       </div>
-
     </div>
   )
 }
