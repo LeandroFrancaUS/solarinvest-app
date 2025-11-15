@@ -30,27 +30,11 @@ import { selectNumberInputOnFocus } from '../../utils/focusHandlers'
 import { useSimulationsStore } from '../../store/useSimulationsStore'
 import { useSimulationComparisons } from '../../hooks/useSimulationComparisons'
 
-const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
-
 const TIPO_SISTEMA_OPTIONS: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID']
 const TIPO_SISTEMA_LABELS: Record<TipoSistema, string> = {
   ON_GRID: 'On-grid',
   HIBRIDO: 'Híbrido',
   OFF_GRID: 'Off-grid',
-}
-
-const formatUpdatedAt = (timestamp: number | undefined): string => {
-  if (!timestamp) {
-    return 'Nunca salvo'
-  }
-  try {
-    return dateTimeFormatter.format(new Date(timestamp))
-  } catch (error) {
-    return '—'
-  }
 }
 
 const formatPercentValue = (value: number): string => {
@@ -147,22 +131,24 @@ export function SimulacoesTab({
   const {
     itemsById,
     selectedIds,
+    activeId,
     addSimulation,
     updateSimulation,
     removeSimulation,
     duplicateSimulation,
-    selectSimulations,
     clearSelection,
+    setActive,
   } = useSimulationsStore(
     (state) => ({
       itemsById: state.items,
       selectedIds: state.selectedIds,
+      activeId: state.activeId,
       addSimulation: state.add,
       updateSimulation: state.update,
       removeSimulation: state.remove,
       duplicateSimulation: state.duplicate,
-      selectSimulations: state.select,
       clearSelection: state.clearSelection,
+      setActive: state.setActive,
     }),
     shallow,
   )
@@ -178,6 +164,14 @@ export function SimulacoesTab({
   const capexAutoRef = useRef<number | null>(null)
 
   const [current, setCurrent] = useState<Simulacao>(() => {
+    if (activeId) {
+      const stored = itemsById[activeId]
+      if (stored) {
+        const clone = cloneSimulation(stored)
+        capexAutoRef.current = clone.capex_solarinvest
+        return clone
+      }
+    }
     const initial = createDefaultSimulation({
       consumoKwhMes,
       valorInvestimento,
@@ -435,6 +429,7 @@ export function SimulacoesTab({
     capexAutoRef.current = next.capex_solarinvest
     setCurrent(next)
     setTusdTouched(false)
+    setActive(null)
   }
 
   const sanitizeSimulationForSave = (sim: Simulacao, timestamp: number): Simulacao => {
@@ -455,10 +450,12 @@ export function SimulacoesTab({
     if (isSaved) {
       updateSimulation(current.id, sanitized)
       setCurrent(sanitized)
+      setActive(current.id)
     } else {
       const payload = { ...sanitized, createdAt: now }
       addSimulation(payload)
       setCurrent(payload)
+      setActive(payload.id)
     }
   }
 
@@ -470,6 +467,7 @@ export function SimulacoesTab({
         capexAutoRef.current = null
         setCurrent(clone)
         setTusdTouched(true)
+        setActive(clone.id)
         return
       }
     }
@@ -490,6 +488,7 @@ export function SimulacoesTab({
       capexAutoRef.current = null
       setCurrent(clone)
       setTusdTouched(true)
+      setActive(clone.id)
     } else {
       handleNewSimulation()
     }
@@ -503,6 +502,7 @@ export function SimulacoesTab({
         capexAutoRef.current = null
         setCurrent(clone)
         setTusdTouched(true)
+        setActive(clone.id)
       }
       return
     }
@@ -517,27 +517,25 @@ export function SimulacoesTab({
     }
     capexAutoRef.current = null
     setCurrent(clone)
+    setActive(null)
   }
 
-  const handleLoadSimulation = (id: string) => {
-    const stored = itemsById[id]
+  useEffect(() => {
+    if (!activeId) {
+      return
+    }
+    const stored = itemsById[activeId]
     if (!stored) {
+      return
+    }
+    if (current.id === stored.id) {
       return
     }
     const clone = cloneSimulation(stored)
     capexAutoRef.current = null
     setCurrent(clone)
     setTusdTouched(true)
-  }
-
-  const handleToggleSelection = (id: string) => {
-    const alreadySelected = selectedIds.includes(id)
-    if (alreadySelected) {
-      selectSimulations(selectedIds.filter((selectedId) => selectedId !== id))
-    } else {
-      selectSimulations([...selectedIds, id])
-    }
-  }
+  }, [activeId, itemsById, current.id])
 
   const prazoMeses = Math.max(0, Math.round(current.anos_contrato * 12))
   const tarifaCheiaMes1 = projectTarifaCheia(current.tarifa_cheia_r_kwh_m1, current.inflacao_energetica_pct, 1)
@@ -545,63 +543,31 @@ export function SimulacoesTab({
 
   return (
     <div className="simulations-tab">
-      <div className="simulations-layout">
-        <aside className="simulations-sidebar">
-          <div className="simulations-sidebar-header">
-            <h5>Simulações salvas</h5>
-            <p>Gerencie cenários e compare resultados financeiros.</p>
-          </div>
-          <div className="simulations-scenario-list">
-            {simulations.length === 0 ? (
-              <p className="muted">Nenhuma simulação salva até o momento.</p>
-            ) : (
-              simulations.map((sim) => {
-                const isActive = sim.id === current.id
-                const isSelected = selectedIds.includes(sim.id)
-                const displayName = sim.nome?.trim() || sim.id
-                return (
-                  <div key={sim.id} className={`simulations-scenario-card${isActive ? ' active' : ''}`}>
-                    <button
-                      type="button"
-                      className="simulations-scenario-button"
-                      onClick={() => handleLoadSimulation(sim.id)}
-                    >
-                      <strong>{displayName}</strong>
-                      <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
-                    </button>
-                    <label className={`simulations-select${isSelected ? ' checked' : ''}`}>
-                      <input 
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleToggleSelection(sim.id)}
-                      />
-                      <span>Comparar</span>
-                    </label>
-                  </div>
-                )
-              })
-            )}
-          </div>
-          <div className="simulations-sidebar-actions">
-            <button type="button" className="secondary" onClick={handleNewSimulation}>
-              Nova simulação
-            </button>
-            <button type="button" className="primary" onClick={handleSave}>
-              Salvar
-            </button>
-            <button type="button" className="secondary" onClick={handleDuplicate}>
-              Duplicar
-            </button>
-            <button type="button" className="secondary danger" onClick={handleDelete}>
-              Excluir
-            </button>
-            <button type="button" className="secondary" onClick={handleReset}>
-              Reset
-            </button>
-          </div>
-        </aside>
+      <div className="simulations-action-bar">
+        <div className="simulations-action-bar-info">
+          <h5>Gerenciar simulações</h5>
+          <p>Use o menu “Simulações” na barra lateral para acessar cenários salvos e compará-los.</p>
+        </div>
+        <div className="simulations-action-buttons">
+          <button type="button" className="secondary" onClick={handleNewSimulation}>
+            Nova simulação
+          </button>
+          <button type="button" className="primary" onClick={handleSave}>
+            Salvar
+          </button>
+          <button type="button" className="secondary" onClick={handleDuplicate}>
+            Duplicar
+          </button>
+          <button type="button" className="secondary danger" onClick={handleDelete}>
+            Excluir
+          </button>
+          <button type="button" className="secondary" onClick={handleReset}>
+            Reset
+          </button>
+        </div>
+      </div>
 
-        <div className="simulations-form-area">
+      <div className="simulations-form-area">
           <section className="simulations-table">
             <div className="simulations-table-header">
               <div>

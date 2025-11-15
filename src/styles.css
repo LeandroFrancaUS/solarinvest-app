@@ -2982,17 +2982,11 @@ table tbody tr:hover {
   gap: 24px;
 }
 
-.simulations-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  align-items: flex-start;
-  gap: 24px;
-}
-
-.simulations-sidebar {
+.simulations-action-bar {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
   padding: 20px;
   border-radius: 20px;
   border: 1px solid var(--border);
@@ -3000,120 +2994,36 @@ table tbody tr:hover {
   box-shadow: var(--shadow);
 }
 
-.simulations-sidebar-header h5 {
+.simulations-action-bar-info {
+  flex: 1 1 240px;
+  min-width: 220px;
+}
+
+.simulations-action-bar-info h5 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--title);
 }
 
-.simulations-sidebar-header p {
-  margin: 4px 0 0;
+.simulations-action-bar-info p {
+  margin: 6px 0 0;
   color: var(--muted);
   font-size: 12px;
 }
 
-.simulations-scenario-list {
+.simulations-action-buttons {
+  flex: 2 1 320px;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
 }
 
-.simulations-scenario-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-}
-
-.simulations-scenario-card:hover,
-.simulations-scenario-card:focus-within {
-  border-color: rgba(37, 99, 235, 0.35);
-  background: rgba(37, 99, 235, 0.08);
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
-}
-
-.simulations-scenario-card.active {
-  border-color: rgba(37, 99, 235, 0.45);
-  background: rgba(37, 99, 235, 0.16);
-  color: var(--accent-dark);
-  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.18);
-}
-
-.simulations-scenario-button {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  flex: 1 1 auto;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.simulations-scenario-button strong {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--title);
-}
-
-.simulations-scenario-button small {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: none;
-}
-
-.simulations-scenario-button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  border-radius: 10px;
-}
-
-.simulations-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--muted);
-  flex-shrink: 0;
+.simulations-action-buttons button {
+  flex: 1 1 160px;
+  min-width: 140px;
   white-space: nowrap;
-}
-
-.simulations-select input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
-  flex-shrink: 0;
-}
-
-.simulations-select span {
-  line-height: 1.1;
-}
-
-.simulations-select.checked {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.simulations-sidebar-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.simulations-sidebar-actions button {
-  width: 100%;
 }
 
 .simulations-form-area {
@@ -3489,69 +3399,38 @@ table tbody tr:hover {
   line-height: 1.5;
 }
 
-#settings-panel-simulacoes .simulations-layout {
-  gap: 20px;
-}
-
-#settings-panel-simulacoes .simulations-sidebar {
+#settings-panel-simulacoes .simulations-action-bar {
+  gap: 16px;
   padding: 18px;
-  gap: 12px;
 }
 
-#settings-panel-simulacoes .simulations-sidebar-header h5 {
+#settings-panel-simulacoes .simulations-action-bar-info h5 {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .simulations-sidebar-header p {
+#settings-panel-simulacoes .simulations-action-bar-info p {
   font-size: var(--sim-font-xs);
   line-height: 1.45;
 }
 
-#settings-panel-simulacoes .simulations-scenario-list {
+#settings-panel-simulacoes .simulations-action-buttons {
   gap: 8px;
 }
 
-#settings-panel-simulacoes .simulations-scenario-card {
-  gap: 10px;
-  padding: 10px 12px;
-}
-
-#settings-panel-simulacoes .simulations-scenario-button {
-  gap: 2px;
-}
-
-#settings-panel-simulacoes .simulations-scenario-button strong {
-  font-size: var(--sim-font-md);
-}
-
-#settings-panel-simulacoes .simulations-scenario-button small {
-  font-size: var(--sim-font-xs);
-  line-height: 1.35;
-}
-
-#settings-panel-simulacoes .simulations-select {
-  gap: 4px;
-  font-size: var(--sim-font-xs);
-}
-
-#settings-panel-simulacoes .simulations-select input,
-#settings-panel-simulacoes .simulations-toggles input[type='checkbox'] {
-  width: 14px;
-  height: 14px;
-}
-
-#settings-panel-simulacoes .simulations-select span {
-  line-height: 1.2;
-}
-
-#settings-panel-simulacoes .simulations-sidebar-actions {
-  gap: 6px;
-}
-
-#settings-panel-simulacoes .simulations-sidebar-actions button {
+#settings-panel-simulacoes .simulations-action-buttons button {
   min-height: var(--sim-control-height);
   font-size: var(--sim-font-sm);
   padding: 8px 12px;
+}
+
+#settings-panel-simulacoes .simulations-action-buttons button.primary,
+#settings-panel-simulacoes .simulations-action-buttons button.secondary {
+  height: var(--sim-control-height);
+}
+
+#settings-panel-simulacoes .simulations-toggles input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
 }
 
 #settings-panel-simulacoes .simulations-form-area {
@@ -3752,22 +3631,17 @@ table tbody tr:hover {
 }
 
 @media (max-width: 1100px) {
-  .simulations-layout {
-    grid-template-columns: 1fr;
+  .simulations-action-bar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .simulations-sidebar {
-    width: 100%;
+  .simulations-action-buttons {
+    justify-content: stretch;
   }
 
-  .simulations-sidebar-actions {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .simulations-sidebar-actions button {
-    flex: 1 1 150px;
+  .simulations-action-buttons button {
+    flex: 1 1 140px;
   }
 }
 

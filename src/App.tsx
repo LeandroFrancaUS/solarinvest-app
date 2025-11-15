@@ -150,6 +150,7 @@ import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
+import { useSimulationsStore, simulationsSelectors } from './store/useSimulationsStore'
 import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
@@ -16785,20 +16786,88 @@ export default function App() {
                 : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
+  const savedSimulations = useSimulationsStore(simulationsSelectors.list)
+  const activeSimulationId = useSimulationsStore((state) => state.activeId)
+  const selectedSimulationIds = useSimulationsStore((state) => state.selectedIds)
+  const setActiveSimulationId = useSimulationsStore((state) => state.setActive)
+  const selectSimulations = useSimulationsStore((state) => state.select)
+
+  const toggleSimulationComparison = useCallback(
+    (id: string) => {
+      const isSelected = selectedSimulationIds.includes(id)
+      if (isSelected) {
+        selectSimulations(selectedSimulationIds.filter((selectedId) => selectedId !== id))
+      } else {
+        selectSimulations([...selectedSimulationIds, id])
+      }
+    },
+    [selectSimulations, selectedSimulationIds],
+  )
+
   const settingsSidebarGroups = useMemo<SidebarGroup[]>(
     () => [
       {
         id: 'configuracoes',
         label: 'Configurações',
-        items: SETTINGS_TABS.map((tab) => ({
-          id: `config-${tab.id}`,
-          label: tab.label,
-          icon: SETTINGS_TAB_ICONS[tab.id],
-          onSelect: () => abrirConfiguracoes(tab.id),
-        })),
+        items: SETTINGS_TABS.map((tab) => {
+          const baseItem = {
+            id: `config-${tab.id}`,
+            label: tab.label,
+            icon: SETTINGS_TAB_ICONS[tab.id],
+            onSelect: () => abrirConfiguracoes(tab.id),
+          }
+          if (tab.id !== 'simulacoes') {
+            return baseItem
+          }
+          const savedItems =
+            savedSimulations.length === 0
+              ? [
+                  {
+                    id: 'config-simulacoes-empty',
+                    label: 'Nenhuma simulação salva',
+                    icon: '—',
+                    disabled: true,
+                  },
+                ]
+              : savedSimulations.map((sim) => {
+                  const displayName = sim.nome?.trim() || sim.id
+                  const isSelected = selectedSimulationIds.includes(sim.id)
+                  return {
+                    id: `config-simulacoes-saved-${sim.id}`,
+                    label: displayName,
+                    icon: sim.id === activeSimulationId ? '▶️' : '📁',
+                    onSelect: () => {
+                      abrirConfiguracoes('simulacoes')
+                      setActiveSimulationId(sim.id)
+                    },
+                    items: [
+                      {
+                        id: `config-simulacoes-saved-${sim.id}-compare`,
+                        label: isSelected ? 'Remover da comparação' : 'Adicionar à comparação',
+                        icon: isSelected ? '✅' : '☐',
+                        onSelect: () => {
+                          abrirConfiguracoes('simulacoes')
+                          toggleSimulationComparison(sim.id)
+                        },
+                      },
+                    ],
+                  }
+                })
+          return {
+            ...baseItem,
+            items: savedItems,
+          }
+        }),
       },
     ],
-    [abrirConfiguracoes],
+    [
+      abrirConfiguracoes,
+      activeSimulationId,
+      savedSimulations,
+      selectedSimulationIds,
+      setActiveSimulationId,
+      toggleSimulationComparison,
+    ],
   )
 
   const defaultSidebarGroups = useMemo<SidebarGroup[]>(
@@ -17906,7 +17975,9 @@ export default function App() {
           : activePage === 'consultar'
             ? 'orcamentos-importar'
             : activePage === 'settings'
-              ? `config-${settingsTab}`
+              ? settingsTab === 'simulacoes' && activeSimulationId
+                ? `config-simulacoes-saved-${activeSimulationId}`
+                : `config-${settingsTab}`
               : activeTab === 'vendas'
                 ? 'propostas-vendas'
                 : 'propostas-leasing'

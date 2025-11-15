@@ -333,12 +333,11 @@
 
 /* === CARTÕES INTERNOS === */
 .config-page .settings-vendas-card,
-.config-page .simulations-sidebar,
+.config-page .simulations-action-bar,
 .config-page .simulations-form-card,
 .config-page .simulations-summary,
 .config-page .simulations-economy,
-.config-page .simulations-kpis,
-.config-page .simulations-scenario-card {
+.config-page .simulations-kpis {
   background: var(--cfg-surface);
   border: 1px solid var(--cfg-border);
   box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
@@ -358,8 +357,7 @@
 
 .config-page .settings-vendas-card-description,
 .config-page .settings-panel-description,
-.config-page .simulations-sidebar-header p,
-.config-page .simulations-scenario-button small {
+.config-page .simulations-action-bar-info p {
   color: var(--cfg-muted);
 }
 
@@ -371,11 +369,6 @@
   text-transform: none;
 }
 
-.config-page .simulations-select.checked {
-  color: var(--cfg-accent);
-}
-
-.config-page .simulations-select input,
 .config-page .simulations-toggles input[type='checkbox'] {
   accent-color: var(--cfg-accent);
 }
