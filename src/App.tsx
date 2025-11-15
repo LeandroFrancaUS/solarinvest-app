@@ -203,6 +203,16 @@ const MULTI_UC_CLASS_LABELS: Record<MultiUcClasse, string> = {
   B4_Iluminacao: 'B4 — Iluminação pública',
 }
 
+const SETTINGS_TAB_ICONS: Record<SettingsTabKey, string> = {
+  mercado: '🌐',
+  simulacoes: '📈',
+  vendas: '🧾',
+  leasing: '📝',
+  financiamento: '🏦',
+  buyout: '💼',
+  outros: '⚙️',
+}
+
 const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   simples: 'Simples Nacional',
   lucro_presumido: 'Lucro Presumido',
@@ -12595,6 +12605,12 @@ export default function App() {
     [setActivePage, setSettingsTab],
   )
 
+  const sairConfiguracoes = useCallback(() => {
+    setSettingsTab('mercado')
+    setActiveTab('leasing')
+    setActivePage('app')
+  }, [setActivePage, setActiveTab, setSettingsTab])
+
   const voltarParaPaginaPrincipal = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -16769,208 +16785,248 @@ export default function App() {
                 : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
-  const sidebarGroups: SidebarGroup[] = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      items: [
-        {
-          id: 'dashboard-home',
-          label: 'Dashboard',
-          icon: '📊',
-          onSelect: () => {
-            setActivePage('dashboard')
+  const settingsSidebarGroups = useMemo<SidebarGroup[]>(
+    () => [
+      {
+        id: 'configuracoes',
+        label: 'Configurações',
+        items: SETTINGS_TABS.map((tab) => ({
+          id: `config-${tab.id}`,
+          label: tab.label,
+          icon: SETTINGS_TAB_ICONS[tab.id],
+          onSelect: () => abrirConfiguracoes(tab.id),
+        })),
+      },
+    ],
+    [abrirConfiguracoes],
+  )
+
+  const defaultSidebarGroups = useMemo<SidebarGroup[]>(
+    () => [
+      {
+        id: 'dashboard',
+        label: 'Dashboard',
+        items: [
+          {
+            id: 'dashboard-home',
+            label: 'Dashboard',
+            icon: '📊',
+            onSelect: () => {
+              setActivePage('dashboard')
+            },
           },
-        },
-      ],
-    },
-    {
-      id: 'propostas',
-      label: 'Propostas',
-      items: [
-        {
-          id: 'propostas-leasing',
-          label: 'Leasing',
-          icon: '📝',
-          onSelect: () => {
-            setActivePage('app')
-            setActiveTab('leasing')
+        ],
+      },
+      {
+        id: 'propostas',
+        label: 'Propostas',
+        items: [
+          {
+            id: 'propostas-leasing',
+            label: 'Leasing',
+            icon: '📝',
+            onSelect: () => {
+              setActivePage('app')
+              setActiveTab('leasing')
+            },
           },
-        },
-        {
-          id: 'propostas-vendas',
-          label: 'Vendas',
-          icon: '🧾',
-          onSelect: () => {
-            setActivePage('app')
-            setActiveTab('vendas')
+          {
+            id: 'propostas-vendas',
+            label: 'Vendas',
+            icon: '🧾',
+            onSelect: () => {
+              setActivePage('app')
+              setActiveTab('vendas')
+            },
           },
-        },
-        {
-          id: 'propostas-nova',
-          label: 'Nova proposta',
-          icon: '✨',
-          onSelect: () => {
-            setActivePage('app')
-            handleNovaProposta()
+          {
+            id: 'propostas-nova',
+            label: 'Nova proposta',
+            icon: '✨',
+            onSelect: () => {
+              setActivePage('app')
+              handleNovaProposta()
+            },
           },
-        },
-        {
-          id: 'propostas-salvar',
-          label: salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta',
-          icon: '💾',
-          onSelect: () => {
-            setActivePage('app')
-            handleSalvarPropostaPdf()
-          },
-          disabled: !podeSalvarProposta || salvandoPropostaPdf,
-          title: !proposalPdfIntegrationAvailable
-            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
-            : undefined,
-        },
-        {
-          id: 'propostas-contratos',
-          label: gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos',
-          icon: '🖋️',
-          onSelect: () => {
-            setActivePage('app')
-            if (isVendaDiretaTab) {
-              handleGerarContratoVendas()
-            } else {
-              handleGerarContratoLeasing()
-            }
-          },
-          disabled: gerandoContratoPdf,
-        },
-        {
-          id: 'propostas-imagens',
-          label: 'Incluir imagens',
-          icon: '🖼️',
-          onSelect: () => {
-            setActivePage('app')
-            handleAbrirUploadImagens()
-          },
-        },
-        {
-          id: 'propostas-enviar',
-          label: 'Enviar proposta',
-          icon: '📨',
-          onSelect: () => {
-            abrirEnvioPropostaModal()
-          },
-          disabled: contatosEnvio.length === 0,
-          title:
-            contatosEnvio.length === 0
-              ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
+          {
+            id: 'propostas-salvar',
+            label: salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta',
+            icon: '💾',
+            onSelect: () => {
+              setActivePage('app')
+              handleSalvarPropostaPdf()
+            },
+            disabled: !podeSalvarProposta || salvandoPropostaPdf,
+            title: !proposalPdfIntegrationAvailable
+              ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
               : undefined,
-        },
-      ],
-    },
-    {
-      id: 'relatorios',
-      label: 'Relatórios',
-      items: [
-        {
-          id: 'relatorios-pdfs',
-          label: 'PDFs gerados',
-          icon: '📂',
-          onSelect: () => {
-            setActivePage('app')
           },
-        },
-        {
-          id: 'relatorios-exportacoes',
-          label: 'Exportações',
-          icon: '📤',
-          onSelect: () => {
-            setActivePage('app')
-          },
-        },
-        {
-          id: 'relatorios-exportar-pdf',
-          label: 'Gerar proposta',
-          icon: '🖨️',
-          onSelect: () => {
-            setActivePage('app')
-            handlePrint()
-          },
-        },
-      ],
-    },
-    {
-      id: 'orcamentos',
-      label: 'Orçamentos',
-      items: [
-        {
-          id: 'orcamentos-importar',
-          label: 'Consultar',
-          icon: '📄',
-          onSelect: () => {
-            abrirPesquisaOrcamentos()
-          },
-        },
-      ],
-    },
-    {
-      id: 'crm',
-      label: 'CRM',
-      items: [
-        {
-          id: 'crm-central',
-          label: 'Central CRM',
-          icon: '📇',
-          onSelect: () => {
-            setActivePage('crm')
-          },
-        },
-        {
-          id: 'crm-clientes',
-          label: 'Clientes salvos',
-          icon: '👥',
-          onSelect: () => {
-            abrirClientesPainel()
-          },
-        },
-        {
-          id: 'crm-operacoes',
-          label: 'Operações',
-          icon: '🗂️',
-          items: [
-            {
-              id: 'crm-captura',
-              label: 'Captura de leads',
-              icon: '🛰️',
-              onSelect: () => {
-                setActivePage('crm')
-              },
+          {
+            id: 'propostas-contratos',
+            label: gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos',
+            icon: '🖋️',
+            onSelect: () => {
+              setActivePage('app')
+              if (isVendaDiretaTab) {
+                handleGerarContratoVendas()
+              } else {
+                handleGerarContratoLeasing()
+              }
             },
-            {
-              id: 'crm-pos-venda',
-              label: 'Pós-venda',
-              icon: '🤝',
-              onSelect: () => {
-                setActivePage('crm')
-              },
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: 'configuracoes',
-      label: 'Configurações',
-      items: [
-        {
-          id: 'config-preferencias',
-          label: 'Preferências',
-          icon: '⚙️',
-          onSelect: () => {
-            abrirConfiguracoes()
+            disabled: gerandoContratoPdf,
           },
-        },
-      ],
-    },
-  ]
+          {
+            id: 'propostas-imagens',
+            label: 'Incluir imagens',
+            icon: '🖼️',
+            onSelect: () => {
+              setActivePage('app')
+              handleAbrirUploadImagens()
+            },
+          },
+          {
+            id: 'propostas-enviar',
+            label: 'Enviar proposta',
+            icon: '📨',
+            onSelect: () => {
+              abrirEnvioPropostaModal()
+            },
+            disabled: contatosEnvio.length === 0,
+            title:
+              contatosEnvio.length === 0
+                ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
+                : undefined,
+          },
+        ],
+      },
+      {
+        id: 'relatorios',
+        label: 'Relatórios',
+        items: [
+          {
+            id: 'relatorios-pdfs',
+            label: 'PDFs gerados',
+            icon: '📂',
+            onSelect: () => {
+              setActivePage('app')
+            },
+          },
+          {
+            id: 'relatorios-exportacoes',
+            label: 'Exportações',
+            icon: '📤',
+            onSelect: () => {
+              setActivePage('app')
+            },
+          },
+          {
+            id: 'relatorios-exportar-pdf',
+            label: 'Gerar proposta',
+            icon: '🖨️',
+            onSelect: () => {
+              setActivePage('app')
+              handlePrint()
+            },
+          },
+        ],
+      },
+      {
+        id: 'orcamentos',
+        label: 'Orçamentos',
+        items: [
+          {
+            id: 'orcamentos-importar',
+            label: 'Consultar',
+            icon: '📄',
+            onSelect: () => {
+              abrirPesquisaOrcamentos()
+            },
+          },
+        ],
+      },
+      {
+        id: 'crm',
+        label: 'CRM',
+        items: [
+          {
+            id: 'crm-central',
+            label: 'Central CRM',
+            icon: '📇',
+            onSelect: () => {
+              setActivePage('crm')
+            },
+          },
+          {
+            id: 'crm-clientes',
+            label: 'Clientes salvos',
+            icon: '👥',
+            onSelect: () => {
+              abrirClientesPainel()
+            },
+          },
+          {
+            id: 'crm-operacoes',
+            label: 'Operações',
+            icon: '🗂️',
+            items: [
+              {
+                id: 'crm-captura',
+                label: 'Captura de leads',
+                icon: '🛰️',
+                onSelect: () => {
+                  setActivePage('crm')
+                },
+              },
+              {
+                id: 'crm-pos-venda',
+                label: 'Pós-venda',
+                icon: '🤝',
+                onSelect: () => {
+                  setActivePage('crm')
+                },
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'configuracoes',
+        label: 'Configurações',
+        items: [
+          {
+            id: 'config-preferencias',
+            label: 'Preferências',
+            icon: '⚙️',
+            onSelect: () => {
+              abrirConfiguracoes()
+            },
+          },
+        ],
+      },
+    ],
+    [
+      abrirClientesPainel,
+      abrirConfiguracoes,
+      abrirEnvioPropostaModal,
+      abrirPesquisaOrcamentos,
+      contatosEnvio.length,
+      gerandoContratoPdf,
+      handleAbrirUploadImagens,
+      handleGerarContratoLeasing,
+      handleGerarContratoVendas,
+      handleNovaProposta,
+      handlePrint,
+      handleSalvarPropostaPdf,
+      isVendaDiretaTab,
+      podeSalvarProposta,
+      proposalPdfIntegrationAvailable,
+      salvandoPropostaPdf,
+      setActivePage,
+      setActiveTab,
+    ],
+  )
+
+  const sidebarGroups = activePage === 'settings' ? settingsSidebarGroups : defaultSidebarGroups
 
   const renderBudgetSearchPage = () => (
     <div className="budget-search-page">
@@ -17177,36 +17233,17 @@ export default function App() {
           <h2>Preferências</h2>
           <p>Configure parâmetros de mercado, simulações e vendas para personalizar as propostas.</p>
         </div>
-        <button type="button" className="ghost" onClick={voltarParaPaginaPrincipal}>
+        <button type="button" className="ghost" onClick={sairConfiguracoes}>
           Voltar
         </button>
       </div>
       <div className="config-page">
-        <div className="cfg-tabs" role="tablist" aria-label="Seções de Configuração">
-          {SETTINGS_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`cfg-tab-${tab.id}`}
-              aria-selected={settingsTab === tab.id}
-              aria-controls={`settings-panel-${tab.id}`}
-              className={`cfg-tab${settingsTab === tab.id ? ' is-active' : ''}`}
-              onClick={() => setSettingsTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
         <div className="config-panels">
-          <section
-            id="settings-panel-mercado"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-mercado"
-            className={`settings-panel config-card${settingsTab === 'mercado' ? ' active' : ''}`}
-            hidden={settingsTab !== 'mercado'}
-            aria-hidden={settingsTab !== 'mercado'}
-          >
+        <section
+          id="settings-panel-mercado"
+          className={`settings-panel config-card${settingsTab === 'mercado' ? ' active' : ''}`}
+          hidden={settingsTab !== 'mercado'}
+        >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Mercado & energia</h2>
               <p className="settings-panel-description cfg-section-subtitle">
@@ -17304,11 +17341,8 @@ export default function App() {
           </section>
           <section
             id="settings-panel-simulacoes"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-simulacoes"
             className={`settings-panel config-card${settingsTab === 'simulacoes' ? ' active' : ''}`}
             hidden={settingsTab !== 'simulacoes'}
-            aria-hidden={settingsTab !== 'simulacoes'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Simulações financeiras</h2>
@@ -17325,11 +17359,8 @@ export default function App() {
           </section>
           <section
             id="settings-panel-vendas"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-vendas"
             className={`settings-panel config-card${settingsTab === 'vendas' ? ' active' : ''}`}
             hidden={settingsTab !== 'vendas'}
-            aria-hidden={settingsTab !== 'vendas'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Parâmetros de vendas</h2>
@@ -17341,11 +17372,8 @@ export default function App() {
           </section>
           <section
             id="settings-panel-leasing"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-leasing"
             className={`settings-panel config-card${settingsTab === 'leasing' ? ' active' : ''}`}
             hidden={settingsTab !== 'leasing'}
-            aria-hidden={settingsTab !== 'leasing'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Leasing parâmetros</h2>
@@ -17518,11 +17546,8 @@ export default function App() {
           </section>
           <section
             id="settings-panel-buyout"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-buyout"
             className={`settings-panel config-card${settingsTab === 'buyout' ? ' active' : ''}`}
             hidden={settingsTab !== 'buyout'}
-            aria-hidden={settingsTab !== 'buyout'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Buyout parâmetros</h2>
@@ -17718,11 +17743,8 @@ export default function App() {
           </section>
           <section
             id="settings-panel-outros"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-outros"
             className={`settings-panel config-card${settingsTab === 'outros' ? ' active' : ''}`}
             hidden={settingsTab !== 'outros'}
-            aria-hidden={settingsTab !== 'outros'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Outros</h2>
@@ -17884,10 +17906,10 @@ export default function App() {
           : activePage === 'consultar'
             ? 'orcamentos-importar'
             : activePage === 'settings'
-              ? 'config-preferencias'
+              ? `config-${settingsTab}`
               : activeTab === 'vendas'
-              ? 'propostas-vendas'
-              : 'propostas-leasing'
+                ? 'propostas-vendas'
+                : 'propostas-leasing'
 
 
   return (

@@ -138,7 +138,7 @@ const SIMULATION_DETAILS_VISIBLE_ROWS = 12
 const SIMULATION_DETAILS_VIRTUALIZED_OVERSCAN = 4
 const SIMULATION_DETAILS_COLUMN_COUNT = 9
 
-export const SimulacoesTab = React.memo(function SimulacoesTab({
+export function SimulacoesTab({
   consumoKwhMes,
   valorInvestimento,
   tipoSistema,
@@ -1263,7 +1263,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
 
     </div>
   )
-})
+}
 
 type SimulationDetailsTableProps = {
   detalhes: SimulationMonthlyDetail[]
