@@ -114,11 +114,13 @@ import './styles/config-page.css'
 import './styles/toast.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
+import { shallow } from 'zustand/shallow'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/settings/SimulacoesTab'
+import { useSimulationsStore, simulationsSelectors } from './store/useSimulationsStore'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -2950,6 +2952,14 @@ export default function App() {
   const [ocrDpi, setOcrDpi] = useState(DEFAULT_OCR_DPI)
   const [isBudgetTableCollapsed, setIsBudgetTableCollapsed] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
+  const { simulationSidebarEntries, activeSimulationId, setActiveSimulation } = useSimulationsStore(
+    (state) => ({
+      simulationSidebarEntries: simulationsSelectors.list(state),
+      activeSimulationId: state.activeId,
+      setActiveSimulation: state.setActive,
+    }),
+    shallow,
+  )
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifaState] = useState(INITIAL_VALUES.ufTarifa)
   const [distribuidoraTarifa, setDistribuidoraTarifaState] = useState(INITIAL_VALUES.distribuidoraTarifa)
@@ -12595,6 +12605,37 @@ export default function App() {
     [setActivePage, setSettingsTab],
   )
 
+  const handleStartNewSimulationFromSidebar = useCallback(() => {
+    setActiveSimulation('new')
+    abrirConfiguracoes('simulacoes')
+  }, [abrirConfiguracoes, setActiveSimulation])
+
+  const handleOpenSavedSimulationFromSidebar = useCallback(
+    (id: string) => {
+      setActiveSimulation(id)
+      abrirConfiguracoes('simulacoes')
+    },
+    [abrirConfiguracoes, setActiveSimulation],
+  )
+
+  const simulationSavedChildren = useMemo(() => {
+    if (simulationSidebarEntries.length === 0) {
+      return [
+        {
+          id: 'simulacoes-salvas-empty',
+          label: 'Nenhuma simulação salva',
+          disabled: true,
+        },
+      ]
+    }
+
+    return simulationSidebarEntries.map((simulation) => ({
+      id: `simulacoes-salvas-${simulation.id}`,
+      label: simulation.nome?.trim() || simulation.id,
+      onSelect: () => handleOpenSavedSimulationFromSidebar(simulation.id),
+    }))
+  }, [handleOpenSavedSimulationFromSidebar, simulationSidebarEntries])
+
   const voltarParaPaginaPrincipal = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -16957,6 +16998,31 @@ export default function App() {
       ],
     },
     {
+      id: 'simulacoes',
+      label: 'Simulações',
+      items: [
+        {
+          id: 'simulacoes-menu',
+          label: 'Simulações',
+          icon: '🧮',
+          items: [
+            {
+              id: 'simulacoes-nova',
+              label: 'Nova simulação',
+              icon: '➕',
+              onSelect: handleStartNewSimulationFromSidebar,
+            },
+            {
+              id: 'simulacoes-salvas',
+              label: 'Simulações salvas',
+              icon: '💾',
+              items: simulationSavedChildren,
+            },
+          ],
+        },
+      ],
+    },
+    {
       id: 'configuracoes',
       label: 'Configurações',
       items: [
@@ -17884,10 +17950,14 @@ export default function App() {
           : activePage === 'consultar'
             ? 'orcamentos-importar'
             : activePage === 'settings'
-              ? 'config-preferencias'
+              ? settingsTab === 'simulacoes'
+                ? activeSimulationId && activeSimulationId !== 'new'
+                  ? `simulacoes-salvas-${activeSimulationId}`
+                  : 'simulacoes-nova'
+                : 'config-preferencias'
               : activeTab === 'vendas'
-              ? 'propostas-vendas'
-              : 'propostas-leasing'
+                ? 'propostas-vendas'
+                : 'propostas-leasing'
 
 
   return (
