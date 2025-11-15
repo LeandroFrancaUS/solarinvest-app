@@ -114,11 +114,13 @@ import './styles/config-page.css'
 import './styles/toast.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
+import { shallow } from 'zustand/shallow'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/settings/SimulacoesTab'
+import { useSimulationsStore, simulationsSelectors } from './store/useSimulationsStore'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -150,7 +152,6 @@ import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
-import { useSimulationsStore, simulationsSelectors } from './store/useSimulationsStore'
 import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
@@ -202,16 +203,6 @@ const MULTI_UC_CLASS_LABELS: Record<MultiUcClasse, string> = {
   B2_Rural: 'B2 — Rural',
   B3_Comercial: 'B3 — Comercial',
   B4_Iluminacao: 'B4 — Iluminação pública',
-}
-
-const SETTINGS_TAB_ICONS: Record<SettingsTabKey, string> = {
-  mercado: '🌐',
-  simulacoes: '📈',
-  vendas: '🧾',
-  leasing: '📝',
-  financiamento: '🏦',
-  buyout: '💼',
-  outros: '⚙️',
 }
 
 const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
@@ -2961,6 +2952,14 @@ export default function App() {
   const [ocrDpi, setOcrDpi] = useState(DEFAULT_OCR_DPI)
   const [isBudgetTableCollapsed, setIsBudgetTableCollapsed] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
+  const { simulationSidebarEntries, activeSimulationId, setActiveSimulation } = useSimulationsStore(
+    (state) => ({
+      simulationSidebarEntries: simulationsSelectors.list(state),
+      activeSimulationId: state.activeId,
+      setActiveSimulation: state.setActive,
+    }),
+    shallow,
+  )
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifaState] = useState(INITIAL_VALUES.ufTarifa)
   const [distribuidoraTarifa, setDistribuidoraTarifaState] = useState(INITIAL_VALUES.distribuidoraTarifa)
@@ -12606,11 +12605,36 @@ export default function App() {
     [setActivePage, setSettingsTab],
   )
 
-  const sairConfiguracoes = useCallback(() => {
-    setSettingsTab('mercado')
-    setActiveTab('leasing')
-    setActivePage('app')
-  }, [setActivePage, setActiveTab, setSettingsTab])
+  const handleStartNewSimulationFromSidebar = useCallback(() => {
+    setActiveSimulation('new')
+    abrirConfiguracoes('simulacoes')
+  }, [abrirConfiguracoes, setActiveSimulation])
+
+  const handleOpenSavedSimulationFromSidebar = useCallback(
+    (id: string) => {
+      setActiveSimulation(id)
+      abrirConfiguracoes('simulacoes')
+    },
+    [abrirConfiguracoes, setActiveSimulation],
+  )
+
+  const simulationSavedChildren = useMemo(() => {
+    if (simulationSidebarEntries.length === 0) {
+      return [
+        {
+          id: 'simulacoes-salvas-empty',
+          label: 'Nenhuma simulação salva',
+          disabled: true,
+        },
+      ]
+    }
+
+    return simulationSidebarEntries.map((simulation) => ({
+      id: `simulacoes-salvas-${simulation.id}`,
+      label: simulation.nome?.trim() || simulation.id,
+      onSelect: () => handleOpenSavedSimulationFromSidebar(simulation.id),
+    }))
+  }, [handleOpenSavedSimulationFromSidebar, simulationSidebarEntries])
 
   const voltarParaPaginaPrincipal = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
@@ -16786,316 +16810,233 @@ export default function App() {
                 : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
-  const savedSimulations = useSimulationsStore(simulationsSelectors.list)
-  const activeSimulationId = useSimulationsStore((state) => state.activeId)
-  const selectedSimulationIds = useSimulationsStore((state) => state.selectedIds)
-  const setActiveSimulationId = useSimulationsStore((state) => state.setActive)
-  const selectSimulations = useSimulationsStore((state) => state.select)
-
-  const toggleSimulationComparison = useCallback(
-    (id: string) => {
-      const isSelected = selectedSimulationIds.includes(id)
-      if (isSelected) {
-        selectSimulations(selectedSimulationIds.filter((selectedId) => selectedId !== id))
-      } else {
-        selectSimulations([...selectedSimulationIds, id])
-      }
+  const sidebarGroups: SidebarGroup[] = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      items: [
+        {
+          id: 'dashboard-home',
+          label: 'Dashboard',
+          icon: '📊',
+          onSelect: () => {
+            setActivePage('dashboard')
+          },
+        },
+      ],
     },
-    [selectSimulations, selectedSimulationIds],
-  )
-
-  const settingsSidebarGroups = useMemo<SidebarGroup[]>(
-    () => [
-      {
-        id: 'configuracoes',
-        label: 'Configurações',
-        items: SETTINGS_TABS.map((tab) => {
-          const baseItem = {
-            id: `config-${tab.id}`,
-            label: tab.label,
-            icon: SETTINGS_TAB_ICONS[tab.id],
-            onSelect: () => abrirConfiguracoes(tab.id),
-          }
-          if (tab.id !== 'simulacoes') {
-            return baseItem
-          }
-          const savedItems =
-            savedSimulations.length === 0
-              ? [
-                  {
-                    id: 'config-simulacoes-empty',
-                    label: 'Nenhuma simulação salva',
-                    icon: '—',
-                    disabled: true,
-                  },
-                ]
-              : savedSimulations.map((sim) => {
-                  const displayName = sim.nome?.trim() || sim.id
-                  const isSelected = selectedSimulationIds.includes(sim.id)
-                  return {
-                    id: `config-simulacoes-saved-${sim.id}`,
-                    label: displayName,
-                    icon: sim.id === activeSimulationId ? '▶️' : '📁',
-                    onSelect: () => {
-                      abrirConfiguracoes('simulacoes')
-                      setActiveSimulationId(sim.id)
-                    },
-                    items: [
-                      {
-                        id: `config-simulacoes-saved-${sim.id}-compare`,
-                        label: isSelected ? 'Remover da comparação' : 'Adicionar à comparação',
-                        icon: isSelected ? '✅' : '☐',
-                        onSelect: () => {
-                          abrirConfiguracoes('simulacoes')
-                          toggleSimulationComparison(sim.id)
-                        },
-                      },
-                    ],
-                  }
-                })
-          return {
-            ...baseItem,
-            items: savedItems,
-          }
-        }),
-      },
-    ],
-    [
-      abrirConfiguracoes,
-      activeSimulationId,
-      savedSimulations,
-      selectedSimulationIds,
-      setActiveSimulationId,
-      toggleSimulationComparison,
-    ],
-  )
-
-  const defaultSidebarGroups = useMemo<SidebarGroup[]>(
-    () => [
-      {
-        id: 'dashboard',
-        label: 'Dashboard',
-        items: [
-          {
-            id: 'dashboard-home',
-            label: 'Dashboard',
-            icon: '📊',
-            onSelect: () => {
-              setActivePage('dashboard')
-            },
+    {
+      id: 'propostas',
+      label: 'Propostas',
+      items: [
+        {
+          id: 'propostas-leasing',
+          label: 'Leasing',
+          icon: '📝',
+          onSelect: () => {
+            setActivePage('app')
+            setActiveTab('leasing')
           },
-        ],
-      },
-      {
-        id: 'propostas',
-        label: 'Propostas',
-        items: [
-          {
-            id: 'propostas-leasing',
-            label: 'Leasing',
-            icon: '📝',
-            onSelect: () => {
-              setActivePage('app')
-              setActiveTab('leasing')
-            },
+        },
+        {
+          id: 'propostas-vendas',
+          label: 'Vendas',
+          icon: '🧾',
+          onSelect: () => {
+            setActivePage('app')
+            setActiveTab('vendas')
           },
-          {
-            id: 'propostas-vendas',
-            label: 'Vendas',
-            icon: '🧾',
-            onSelect: () => {
-              setActivePage('app')
-              setActiveTab('vendas')
-            },
+        },
+        {
+          id: 'propostas-nova',
+          label: 'Nova proposta',
+          icon: '✨',
+          onSelect: () => {
+            setActivePage('app')
+            handleNovaProposta()
           },
-          {
-            id: 'propostas-nova',
-            label: 'Nova proposta',
-            icon: '✨',
-            onSelect: () => {
-              setActivePage('app')
-              handleNovaProposta()
-            },
+        },
+        {
+          id: 'propostas-salvar',
+          label: salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta',
+          icon: '💾',
+          onSelect: () => {
+            setActivePage('app')
+            handleSalvarPropostaPdf()
           },
-          {
-            id: 'propostas-salvar',
-            label: salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta',
-            icon: '💾',
-            onSelect: () => {
-              setActivePage('app')
-              handleSalvarPropostaPdf()
-            },
-            disabled: !podeSalvarProposta || salvandoPropostaPdf,
-            title: !proposalPdfIntegrationAvailable
-              ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
+          disabled: !podeSalvarProposta || salvandoPropostaPdf,
+          title: !proposalPdfIntegrationAvailable
+            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
+            : undefined,
+        },
+        {
+          id: 'propostas-contratos',
+          label: gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos',
+          icon: '🖋️',
+          onSelect: () => {
+            setActivePage('app')
+            if (isVendaDiretaTab) {
+              handleGerarContratoVendas()
+            } else {
+              handleGerarContratoLeasing()
+            }
+          },
+          disabled: gerandoContratoPdf,
+        },
+        {
+          id: 'propostas-imagens',
+          label: 'Incluir imagens',
+          icon: '🖼️',
+          onSelect: () => {
+            setActivePage('app')
+            handleAbrirUploadImagens()
+          },
+        },
+        {
+          id: 'propostas-enviar',
+          label: 'Enviar proposta',
+          icon: '📨',
+          onSelect: () => {
+            abrirEnvioPropostaModal()
+          },
+          disabled: contatosEnvio.length === 0,
+          title:
+            contatosEnvio.length === 0
+              ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
               : undefined,
+        },
+      ],
+    },
+    {
+      id: 'relatorios',
+      label: 'Relatórios',
+      items: [
+        {
+          id: 'relatorios-pdfs',
+          label: 'PDFs gerados',
+          icon: '📂',
+          onSelect: () => {
+            setActivePage('app')
           },
-          {
-            id: 'propostas-contratos',
-            label: gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos',
-            icon: '🖋️',
-            onSelect: () => {
-              setActivePage('app')
-              if (isVendaDiretaTab) {
-                handleGerarContratoVendas()
-              } else {
-                handleGerarContratoLeasing()
-              }
-            },
-            disabled: gerandoContratoPdf,
+        },
+        {
+          id: 'relatorios-exportacoes',
+          label: 'Exportações',
+          icon: '📤',
+          onSelect: () => {
+            setActivePage('app')
           },
-          {
-            id: 'propostas-imagens',
-            label: 'Incluir imagens',
-            icon: '🖼️',
-            onSelect: () => {
-              setActivePage('app')
-              handleAbrirUploadImagens()
-            },
+        },
+        {
+          id: 'relatorios-exportar-pdf',
+          label: 'Gerar proposta',
+          icon: '🖨️',
+          onSelect: () => {
+            setActivePage('app')
+            handlePrint()
           },
-          {
-            id: 'propostas-enviar',
-            label: 'Enviar proposta',
-            icon: '📨',
-            onSelect: () => {
-              abrirEnvioPropostaModal()
-            },
-            disabled: contatosEnvio.length === 0,
-            title:
-              contatosEnvio.length === 0
-                ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
-                : undefined,
+        },
+      ],
+    },
+    {
+      id: 'orcamentos',
+      label: 'Orçamentos',
+      items: [
+        {
+          id: 'orcamentos-importar',
+          label: 'Consultar',
+          icon: '📄',
+          onSelect: () => {
+            abrirPesquisaOrcamentos()
           },
-        ],
-      },
-      {
-        id: 'relatorios',
-        label: 'Relatórios',
-        items: [
-          {
-            id: 'relatorios-pdfs',
-            label: 'PDFs gerados',
-            icon: '📂',
-            onSelect: () => {
-              setActivePage('app')
-            },
+        },
+      ],
+    },
+    {
+      id: 'crm',
+      label: 'CRM',
+      items: [
+        {
+          id: 'crm-central',
+          label: 'Central CRM',
+          icon: '📇',
+          onSelect: () => {
+            setActivePage('crm')
           },
-          {
-            id: 'relatorios-exportacoes',
-            label: 'Exportações',
-            icon: '📤',
-            onSelect: () => {
-              setActivePage('app')
-            },
+        },
+        {
+          id: 'crm-clientes',
+          label: 'Clientes salvos',
+          icon: '👥',
+          onSelect: () => {
+            abrirClientesPainel()
           },
-          {
-            id: 'relatorios-exportar-pdf',
-            label: 'Gerar proposta',
-            icon: '🖨️',
-            onSelect: () => {
-              setActivePage('app')
-              handlePrint()
-            },
-          },
-        ],
-      },
-      {
-        id: 'orcamentos',
-        label: 'Orçamentos',
-        items: [
-          {
-            id: 'orcamentos-importar',
-            label: 'Consultar',
-            icon: '📄',
-            onSelect: () => {
-              abrirPesquisaOrcamentos()
-            },
-          },
-        ],
-      },
-      {
-        id: 'crm',
-        label: 'CRM',
-        items: [
-          {
-            id: 'crm-central',
-            label: 'Central CRM',
-            icon: '📇',
-            onSelect: () => {
-              setActivePage('crm')
-            },
-          },
-          {
-            id: 'crm-clientes',
-            label: 'Clientes salvos',
-            icon: '👥',
-            onSelect: () => {
-              abrirClientesPainel()
-            },
-          },
-          {
-            id: 'crm-operacoes',
-            label: 'Operações',
-            icon: '🗂️',
-            items: [
-              {
-                id: 'crm-captura',
-                label: 'Captura de leads',
-                icon: '🛰️',
-                onSelect: () => {
-                  setActivePage('crm')
-                },
+        },
+        {
+          id: 'crm-operacoes',
+          label: 'Operações',
+          icon: '🗂️',
+          items: [
+            {
+              id: 'crm-captura',
+              label: 'Captura de leads',
+              icon: '🛰️',
+              onSelect: () => {
+                setActivePage('crm')
               },
-              {
-                id: 'crm-pos-venda',
-                label: 'Pós-venda',
-                icon: '🤝',
-                onSelect: () => {
-                  setActivePage('crm')
-                },
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: 'configuracoes',
-        label: 'Configurações',
-        items: [
-          {
-            id: 'config-preferencias',
-            label: 'Preferências',
-            icon: '⚙️',
-            onSelect: () => {
-              abrirConfiguracoes()
             },
+            {
+              id: 'crm-pos-venda',
+              label: 'Pós-venda',
+              icon: '🤝',
+              onSelect: () => {
+                setActivePage('crm')
+              },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'simulacoes',
+      label: 'Simulações',
+      items: [
+        {
+          id: 'simulacoes-menu',
+          label: 'Simulações',
+          icon: '🧮',
+          items: [
+            {
+              id: 'simulacoes-nova',
+              label: 'Nova simulação',
+              icon: '➕',
+              onSelect: handleStartNewSimulationFromSidebar,
+            },
+            {
+              id: 'simulacoes-salvas',
+              label: 'Simulações salvas',
+              icon: '💾',
+              items: simulationSavedChildren,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'configuracoes',
+      label: 'Configurações',
+      items: [
+        {
+          id: 'config-preferencias',
+          label: 'Preferências',
+          icon: '⚙️',
+          onSelect: () => {
+            abrirConfiguracoes()
           },
-        ],
-      },
-    ],
-    [
-      abrirClientesPainel,
-      abrirConfiguracoes,
-      abrirEnvioPropostaModal,
-      abrirPesquisaOrcamentos,
-      contatosEnvio.length,
-      gerandoContratoPdf,
-      handleAbrirUploadImagens,
-      handleGerarContratoLeasing,
-      handleGerarContratoVendas,
-      handleNovaProposta,
-      handlePrint,
-      handleSalvarPropostaPdf,
-      isVendaDiretaTab,
-      podeSalvarProposta,
-      proposalPdfIntegrationAvailable,
-      salvandoPropostaPdf,
-      setActivePage,
-      setActiveTab,
-    ],
-  )
-
-  const sidebarGroups = activePage === 'settings' ? settingsSidebarGroups : defaultSidebarGroups
+        },
+      ],
+    },
+  ]
 
   const renderBudgetSearchPage = () => (
     <div className="budget-search-page">
@@ -17302,17 +17243,36 @@ export default function App() {
           <h2>Preferências</h2>
           <p>Configure parâmetros de mercado, simulações e vendas para personalizar as propostas.</p>
         </div>
-        <button type="button" className="ghost" onClick={sairConfiguracoes}>
+        <button type="button" className="ghost" onClick={voltarParaPaginaPrincipal}>
           Voltar
         </button>
       </div>
       <div className="config-page">
+        <div className="cfg-tabs" role="tablist" aria-label="Seções de Configuração">
+          {SETTINGS_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`cfg-tab-${tab.id}`}
+              aria-selected={settingsTab === tab.id}
+              aria-controls={`settings-panel-${tab.id}`}
+              className={`cfg-tab${settingsTab === tab.id ? ' is-active' : ''}`}
+              onClick={() => setSettingsTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
         <div className="config-panels">
-        <section
-          id="settings-panel-mercado"
-          className={`settings-panel config-card${settingsTab === 'mercado' ? ' active' : ''}`}
-          hidden={settingsTab !== 'mercado'}
-        >
+          <section
+            id="settings-panel-mercado"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-mercado"
+            className={`settings-panel config-card${settingsTab === 'mercado' ? ' active' : ''}`}
+            hidden={settingsTab !== 'mercado'}
+            aria-hidden={settingsTab !== 'mercado'}
+          >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Mercado & energia</h2>
               <p className="settings-panel-description cfg-section-subtitle">
@@ -17410,8 +17370,11 @@ export default function App() {
           </section>
           <section
             id="settings-panel-simulacoes"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-simulacoes"
             className={`settings-panel config-card${settingsTab === 'simulacoes' ? ' active' : ''}`}
             hidden={settingsTab !== 'simulacoes'}
+            aria-hidden={settingsTab !== 'simulacoes'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Simulações financeiras</h2>
@@ -17428,8 +17391,11 @@ export default function App() {
           </section>
           <section
             id="settings-panel-vendas"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-vendas"
             className={`settings-panel config-card${settingsTab === 'vendas' ? ' active' : ''}`}
             hidden={settingsTab !== 'vendas'}
+            aria-hidden={settingsTab !== 'vendas'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Parâmetros de vendas</h2>
@@ -17441,8 +17407,11 @@ export default function App() {
           </section>
           <section
             id="settings-panel-leasing"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-leasing"
             className={`settings-panel config-card${settingsTab === 'leasing' ? ' active' : ''}`}
             hidden={settingsTab !== 'leasing'}
+            aria-hidden={settingsTab !== 'leasing'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Leasing parâmetros</h2>
@@ -17615,8 +17584,11 @@ export default function App() {
           </section>
           <section
             id="settings-panel-buyout"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-buyout"
             className={`settings-panel config-card${settingsTab === 'buyout' ? ' active' : ''}`}
             hidden={settingsTab !== 'buyout'}
+            aria-hidden={settingsTab !== 'buyout'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Buyout parâmetros</h2>
@@ -17812,8 +17784,11 @@ export default function App() {
           </section>
           <section
             id="settings-panel-outros"
+            role="tabpanel"
+            aria-labelledby="cfg-tab-outros"
             className={`settings-panel config-card${settingsTab === 'outros' ? ' active' : ''}`}
             hidden={settingsTab !== 'outros'}
+            aria-hidden={settingsTab !== 'outros'}
           >
             <div className="cfg-panel-header">
               <h2 className="cfg-section-title">Outros</h2>
@@ -17975,9 +17950,11 @@ export default function App() {
           : activePage === 'consultar'
             ? 'orcamentos-importar'
             : activePage === 'settings'
-              ? settingsTab === 'simulacoes' && activeSimulationId
-                ? `config-simulacoes-saved-${activeSimulationId}`
-                : `config-${settingsTab}`
+              ? settingsTab === 'simulacoes'
+                ? activeSimulationId && activeSimulationId !== 'new'
+                  ? `simulacoes-salvas-${activeSimulationId}`
+                  : 'simulacoes-nova'
+                : 'config-preferencias'
               : activeTab === 'vendas'
                 ? 'propostas-vendas'
                 : 'propostas-leasing'

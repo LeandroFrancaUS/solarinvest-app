@@ -15,6 +15,6 @@ describe('SimulacoesTab smoke', () => {
       />,
     )
 
-    expect(container.textContent ?? '').toContain('Gerenciar simulações')
+    expect(container.textContent ?? '').toContain('Simulações salvas')
   })
 })

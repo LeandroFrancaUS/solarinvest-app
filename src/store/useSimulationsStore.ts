@@ -7,14 +7,14 @@ const STORAGE_SAVE_DELAY = 300
 export type SimulationsState = {
   items: Record<string, Simulacao>
   selectedIds: string[]
-  activeId: string | null
+  activeId: string | undefined
   add: (simulacao: Simulacao) => void
   update: (id: string, patch: Partial<Simulacao>) => void
   remove: (id: string) => void
   duplicate: (id: string) => Simulacao | undefined
   select: (ids: string[]) => void
   clearSelection: () => void
-  setActive: (id: string | null) => void
+  setActive: (id: string | undefined) => void
 }
 
 type PersistedState = Pick<SimulationsState, 'items' | 'selectedIds' | 'activeId'>
@@ -34,7 +34,7 @@ const loadPersistedState = (): PersistedState | undefined => {
     return {
       items: parsed.items ?? {},
       selectedIds: parsed.selectedIds ?? [],
-      activeId: parsed.activeId ?? null,
+      activeId: parsed.activeId ?? 'new',
     }
   } catch (error) {
     console.warn('Falha ao carregar simulações salvas', error)
@@ -73,7 +73,7 @@ const queuePersist = (() => {
 export const useSimulationsStore = createStore<SimulationsState>((set, get) => ({
   items: {},
   selectedIds: [],
-  activeId: null,
+  activeId: 'new',
   add(simulacao) {
     const now = Date.now()
     const payload: Simulacao = {
@@ -86,6 +86,7 @@ export const useSimulationsStore = createStore<SimulationsState>((set, get) => (
         ...state.items,
         [payload.id]: payload,
       },
+      activeId: payload.id,
     }))
   },
   update(id, patch) {
@@ -106,6 +107,7 @@ export const useSimulationsStore = createStore<SimulationsState>((set, get) => (
           ...state.items,
           [id]: atualizado,
         },
+        activeId: state.activeId === id ? id : state.activeId,
       }
     })
   },
@@ -115,11 +117,16 @@ export const useSimulationsStore = createStore<SimulationsState>((set, get) => (
         return state
       }
       const { [id]: _removido, ...resto } = state.items
-      const filteredSelected = state.selectedIds.filter((selectedId) => selectedId !== id)
-      const nextActive = state.activeId === id ? null : state.activeId
+      const remainingIds = Object.keys(resto)
+      const nextActive =
+        state.activeId === id
+          ? remainingIds.length > 0
+            ? remainingIds.sort((a, b) => resto[b].updatedAt - resto[a].updatedAt)[0]
+            : 'new'
+          : state.activeId
       return {
         items: resto,
-        selectedIds: filteredSelected,
+        selectedIds: state.selectedIds.filter((selectedId) => selectedId !== id),
         activeId: nextActive,
       }
     })
@@ -144,7 +151,7 @@ export const useSimulationsStore = createStore<SimulationsState>((set, get) => (
         ...state.items,
         [copia.id]: copia,
       },
-      activeId: state.activeId,
+      activeId: copia.id,
     }))
     return copia
   },
@@ -157,16 +164,7 @@ export const useSimulationsStore = createStore<SimulationsState>((set, get) => (
     set({ selectedIds: [] })
   },
   setActive(id) {
-    if (id === null) {
-      set((state) => (state.activeId === null ? state : { ...state, activeId: null }))
-      return
-    }
-    set((state) => {
-      if (!state.items[id] || state.activeId === id) {
-        return state
-      }
-      return { ...state, activeId: id }
-    })
+    set({ activeId: id })
   },
 }))
 
@@ -175,7 +173,7 @@ if (persisted) {
   useSimulationsStore.setState({
     items: persisted.items,
     selectedIds: persisted.selectedIds,
-    activeId: persisted.activeId ?? null,
+    activeId: persisted.activeId ?? 'new',
   })
 }
 
