@@ -644,62 +644,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
   return (
     <div className="simulations-tab">
       <div className="simulations-layout">
-        <aside className="simulations-sidebar">
-          <div className="simulations-sidebar-header">
-            <h5>Simulações salvas</h5>
-            <p>Gerencie cenários e compare resultados financeiros.</p>
-          </div>
-          <div className="simulations-scenario-list">
-            {simulations.length === 0 ? (
-              <p className="muted">Nenhuma simulação salva até o momento.</p>
-            ) : (
-              simulations.map((sim) => {
-                const isActive = sim.id === current.id
-                const isSelected = selectedIds.includes(sim.id)
-                const displayName = sim.nome?.trim() || sim.id
-                return (
-                  <div key={sim.id} className={`simulations-scenario-card${isActive ? ' active' : ''}`}>
-                    <button
-                      type="button"
-                      className="simulations-scenario-button"
-                      onClick={() => handleLoadSimulation(sim.id)}
-                    >
-                      <strong>{displayName}</strong>
-                      <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
-                    </button>
-                    <label className={`simulations-select${isSelected ? ' checked' : ''}`}>
-                      <input 
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleToggleSelection(sim.id)}
-                      />
-                      <span>Comparar</span>
-                    </label>
-                  </div>
-                )
-              })
-            )}
-          </div>
-          <div className="simulations-sidebar-actions">
-            <button type="button" className="secondary" onClick={handleNewSimulation}>
-              Nova simulação
-            </button>
-            <button type="button" className="primary" onClick={handleSave}>
-              Salvar
-            </button>
-            <button type="button" className="secondary" onClick={handleDuplicate}>
-              Duplicar
-            </button>
-            <button type="button" className="secondary danger" onClick={handleDelete}>
-              Excluir
-            </button>
-            <button type="button" className="secondary" onClick={handleReset}>
-              Reset
-            </button>
-          </div>
-        </aside>
-
-        <div className="simulations-form-area">
+      <div className="simulations-form-area">
           <section className="simulations-table">
             <div className="simulations-table-header">
               <div>
@@ -1298,20 +1243,20 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
             </div>
           </section>
 
-          <section className="simulations-kpis">
-            <header>
-              <h4>KPIs SolarInvest</h4>
-            </header>
-            <div className="simulations-kpi-grid">
-              <div className="simulations-kpi-card">
-                <span>
-                  {labelWithTooltip(
-                    'Receita total',
-                    'Somatório da receita mensal: Receita mês = Consumo × Tarifa com desconto.',
-                  )}
-                </span>
-                <strong>{formatMoneyBR(kpis.receitaTotal)}</strong>
-              </div>
+      <section className="simulations-kpis">
+        <header>
+          <h4>KPIs SolarInvest</h4>
+        </header>
+        <div className="simulations-kpi-grid">
+          <div className="simulations-kpi-card">
+            <span>
+              {labelWithTooltip(
+                'Receita total',
+                'Somatório da receita mensal: Receita mês = Consumo × Tarifa com desconto.',
+              )}
+            </span>
+            <strong>{formatMoneyBR(kpis.receitaTotal)}</strong>
+          </div>
               <div className="simulations-kpi-card">
                 <span>
                   {labelWithTooltip(
@@ -1345,21 +1290,76 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
                 </span>
                 <strong>{formatPayback(kpis.paybackMeses)}</strong>
               </div>
-              <div className="simulations-kpi-card">
-                <span>
-                  {labelWithTooltip(
-                    'Retorno a.m. bruto',
-                    'Taxa equivalente mensal do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
-                  )}
-                </span>
-                <strong>{formatPercentValue(kpis.retornoMensalBruto)}</strong>
-              </div>
-            </div>
-          </section>
+          <div className="simulations-kpi-card">
+            <span>
+              {labelWithTooltip(
+                'Retorno a.m. bruto',
+                'Taxa equivalente mensal do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
+              )}
+            </span>
+            <strong>{formatPercentValue(kpis.retornoMensalBruto)}</strong>
+          </div>
         </div>
-      </div>
-
+      </section>
     </div>
+
+      <aside className="simulations-sidebar">
+        <div className="simulations-sidebar-header">
+          <h5>Simulações salvas</h5>
+          <p>Gerencie cenários e compare resultados financeiros.</p>
+        </div>
+        <div className="simulations-scenario-list">
+          {simulations.length === 0 ? (
+            <p className="muted">Nenhuma simulação salva até o momento.</p>
+          ) : (
+            simulations.map((sim) => {
+              const isActive = sim.id === current.id
+              const isSelected = selectedIds.includes(sim.id)
+              const displayName = sim.nome?.trim() || sim.id
+              return (
+                <div key={sim.id} className={`simulations-scenario-card${isActive ? ' active' : ''}`}>
+                  <button
+                    type="button"
+                    className="simulations-scenario-button"
+                    onClick={() => handleLoadSimulation(sim.id)}
+                  >
+                    <strong>{displayName}</strong>
+                    <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
+                  </button>
+                  <label className={`simulations-select${isSelected ? ' checked' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleSelection(sim.id)}
+                    />
+                    <span>Comparar</span>
+                  </label>
+                </div>
+              )
+            })
+          )}
+        </div>
+        <div className="simulations-sidebar-actions">
+          <button type="button" className="secondary" onClick={handleNewSimulation}>
+            Nova simulação
+          </button>
+          <button type="button" className="primary" onClick={handleSave}>
+            Salvar
+          </button>
+          <button type="button" className="secondary" onClick={handleDuplicate}>
+            Duplicar
+          </button>
+          <button type="button" className="secondary danger" onClick={handleDelete}>
+            Excluir
+          </button>
+          <button type="button" className="secondary" onClick={handleReset}>
+            Reset
+          </button>
+        </div>
+      </aside>
+  </div>
+
+</div>
   )
 })
 

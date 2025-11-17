@@ -39,6 +39,8 @@
   --layer-opaque: rgba(255, 255, 255, 0.9);
   --elev-4: 0 18px 32px rgba(15, 23, 42, 0.08);
   --header-h: 72px;
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 72px;
   --tabs-h: 48px;
   --space-1: 8px;
   --space-2: 16px;
@@ -2974,6 +2976,11 @@ table tbody tr:hover {
   --sim-font-md: 13px;
   --sim-font-lg: 15px;
   --sim-control-height: 38px;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .simulacoes-page-header {
@@ -3010,6 +3017,7 @@ table tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  width: 100%;
 }
 
 .simulacoes-placeholder-card {
@@ -3047,10 +3055,11 @@ table tbody tr:hover {
 }
 
 .simulations-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .simulations-sidebar {
@@ -3062,6 +3071,7 @@ table tbody tr:hover {
   border: 1px solid var(--border);
   background: var(--card);
   box-shadow: var(--shadow);
+  width: 100%;
 }
 
 .simulations-sidebar-header h5 {
@@ -3801,10 +3811,6 @@ table tbody tr:hover {
 }
 
 @media (max-width: 1100px) {
-  .simulations-layout {
-    grid-template-columns: 1fr;
-  }
-
   .simulations-sidebar {
     width: 100%;
   }
@@ -5735,16 +5741,15 @@ i:hover {
 
 .app-body {
   position: relative;
-  display: grid;
-  grid-template-columns: 256px minmax(0, 1fr);
-  align-items: stretch;
-  transition: grid-template-columns 0.25s ease;
+  display: block;
   min-height: calc(100vh - var(--header-h));
   overflow: hidden;
+  padding-left: var(--sidebar-width);
+  transition: padding-left 0.25s ease;
 }
 
 .app-body.sidebar-collapsed {
-  grid-template-columns: 72px minmax(0, 1fr);
+  padding-left: var(--sidebar-collapsed-width);
 }
 
 .app-topbar {
@@ -5886,15 +5891,16 @@ i:hover {
 }
 
 .sidebar {
-  position: sticky;
-  top: var(--header-h);
-  height: calc(100vh - var(--header-h));
-  width: 256px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: var(--sidebar-width);
   background: linear-gradient(180deg, #0b0d12 0%, #111827 100%);
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.05);
   overflow: hidden;
-  padding: 0 14px 20px;
+  padding: var(--header-h) 14px 20px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -5905,6 +5911,7 @@ i:hover {
   transition: width 0.25s ease;
   overscroll-behavior: contain;
   touch-action: pan-y;
+  z-index: 1100;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -5921,7 +5928,7 @@ i:hover {
 }
 
 .sidebar.collapsed {
-  width: 72px;
+  width: var(--sidebar-collapsed-width);
 }
 
 .sidebar-header {
@@ -6248,7 +6255,7 @@ i:hover {
 .sidebar .tooltip {
   position: absolute;
   top: 50%;
-  left: 72px;
+  left: var(--sidebar-collapsed-width);
   background: rgba(15, 22, 36, 0.95);
   border: 1px solid rgba(255, 140, 0, 0.35);
   border-radius: 8px;
@@ -6272,17 +6279,17 @@ i:hover {
 .content-wrap {
   padding-block-start: 24px;
   padding-block-end: 72px;
-  padding-inline-start: clamp(20px, calc(6vw + var(--safe-area-left)), 52px);
-  padding-inline-end: clamp(20px, calc(6vw + var(--safe-area-right)), 52px);
-  max-width: 1320px;
-  max-width: min(1320px, calc(100vw - var(--safe-area-inline)));
+  padding-inline-start: clamp(24px, calc(4vw + var(--safe-area-left)), 48px);
+  padding-inline-end: clamp(24px, calc(4vw + var(--safe-area-right)), 48px);
+  max-width: 100%;
   width: 100%;
-  width: min(100%, calc(100vw - var(--safe-area-inline)));
-  margin: 0 auto;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
   position: relative;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .page-indicator {
@@ -6478,14 +6485,14 @@ i:hover {
 
 @media (max-width: 920px) {
   .app-body {
-    grid-template-columns: 1fr;
+    padding-left: 0;
     min-height: auto;
     height: auto;
     overflow: visible;
   }
 
   .app-body.sidebar-collapsed {
-    grid-template-columns: 1fr;
+    padding-left: 0;
   }
 
   .app-topbar {
@@ -6493,18 +6500,15 @@ i:hover {
   }
 
   .sidebar {
-    position: fixed;
     top: var(--header-h);
-    bottom: 0;
-    left: 0;
-    right: auto;
+    height: calc(100vh - var(--header-h));
     width: 280px;
+    padding: 0 20px 36px;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     z-index: 1200;
     box-shadow: 24px 0 48px rgba(15, 23, 42, 0.4);
     overflow-y: auto;
-    padding: 0 20px 36px;
   }
 
   .sidebar.open {
@@ -6566,8 +6570,7 @@ i:hover {
     overflow: visible;
     max-width: 100%;
     width: 100%;
-    width: min(100%, calc(100vw - var(--safe-area-inline)));
-    margin-inline: auto;
+    margin-inline: 0;
   }
 
   .page-indicator {
