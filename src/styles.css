@@ -6610,6 +6610,101 @@ i:hover {
   flex-direction: column;
   gap: 20px;
 }
+.simulacoes-lite-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.simulacoes-lite-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.simulacoes-lite-page-header h2 {
+  margin: 0;
+  font-size: 28px;
+}
+.simulacoes-lite-page-header p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  max-width: 60ch;
+}
+.simulacoes-lite-page-header button {
+  align-self: center;
+}
+.simulacoes-lite-saved {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.simulacoes-lite-saved-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+.simulacoes-lite-saved-header h3 {
+  margin: 0;
+}
+.simulacoes-lite-saved-header p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+.simulacoes-lite-saved .table-wrapper {
+  overflow-x: auto;
+}
+.simulacoes-lite-saved table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.simulacoes-lite-saved th,
+.simulacoes-lite-saved td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.simulacoes-lite-saved th {
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.simulacoes-lite-saved tbody tr:hover {
+  background: var(--ghost-bg);
+}
+.simulacoes-lite-empty {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--ghost-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.simulacao-lite-detalhe {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.simulacao-lite-detalhe-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+.simulacao-lite-detalhe-header h3 {
+  margin: 0;
+}
+.simulacao-lite-detalhe-header p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+.simulacao-lite-detalhe .detalhe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
 
 .simulacao-lite-panel .panel-header {
   display: flex;

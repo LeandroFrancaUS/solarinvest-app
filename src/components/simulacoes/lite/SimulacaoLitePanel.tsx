@@ -1,17 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { RevenueCostProfitChartLite } from './RevenueCostProfitChartLite'
 import { TarifaForecastChartLite } from './TarifaForecastChartLite'
 import { RoiByYearChartLite } from './RoiByYearChartLite'
-import { SimulationReportLite } from '../../export/SimulationReportLite'
 import type { TarifaAtualLite, TarifaHistoricaLite } from '../../../lib/aneel/aneelClientLite'
 import { fetchHistoricoTarifasCurtas, fetchTarifaAtualDistribuidora } from '../../../lib/aneel/aneelClientLite'
 import { runSimulacaoLite, type SimulacaoLiteInput, type SimulacaoLiteScenarioKey } from '../../../lib/finance/simulacaoEngineLite'
 import { useSimulacoesLiteStore, makeLitePlanoId, type SimulacaoLitePlano } from '../../../store/simulacoesLiteStore'
 import { gerarRecomendacaoLite } from '../../../lib/ai/simulacaoRecommenderLite'
 import { formatMoneyBR, formatPercentBR, formatNumberBRWithOptions } from '../../../lib/locale/br-number'
+import { openSimulacaoLiteReport } from './exportSimulacaoLiteReport'
 
-const scenarioOptions: Array<{ key: SimulacaoLiteScenarioKey; label: string }> = [
+export const SIMULACAO_LITE_SCENARIOS: Array<{ key: SimulacaoLiteScenarioKey; label: string }> = [
   { key: 'base', label: 'Base' },
   { key: 'otimista', label: 'Otimista' },
   { key: 'pessimista', label: 'Pessimista' },
@@ -159,20 +158,7 @@ export const SimulacaoLitePanel: React.FC<SimulacaoLitePanelProps> = ({
     if (!selectedPlano) {
       return
     }
-    const markup = renderToStaticMarkup(
-      <SimulationReportLite resultado={selectedPlano.resultado} recomendacao={recomendacao} />,
-    )
-    if (typeof window === 'undefined') {
-      return
-    }
-    const popup = window.open('', '_blank')
-    if (!popup) {
-      return
-    }
-    popup.document.write(`<!doctype html><html><head><meta charset="utf-8" /><title>Relatório LITE</title></head><body>${markup}</body></html>`)
-    popup.document.close()
-    popup.focus()
-    popup.print()
+    openSimulacaoLiteReport(selectedPlano, recomendacao)
   }, [selectedPlano, recomendacao])
 
   const kpisEssenciais = scenario?.kpisEssenciais
@@ -310,7 +296,7 @@ export const SimulacaoLitePanel: React.FC<SimulacaoLitePanelProps> = ({
       {planos.length > 0 ? (
         <>
           <div className="scenario-switcher">
-            {scenarioOptions.map((option) => (
+            {SIMULACAO_LITE_SCENARIOS.map((option) => (
               <button
                 key={option.key}
                 type="button"

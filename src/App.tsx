@@ -118,7 +118,7 @@ import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
-import { SimulacoesTab } from './components/settings/SimulacoesTab'
+import { SimulacoesLitePage } from './components/simulacoes/lite/SimulacoesLitePage'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -209,7 +209,65 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings'
+type ActivePage =
+  | 'dashboard'
+  | 'app'
+  | 'crm'
+  | 'consultar'
+  | 'clientes'
+  | 'settings'
+  | 'simulacoes-nova'
+  | 'simulacoes-salvas'
+  | 'simulacoes-detalhe'
+
+type SimulacoesRouteMatch = { page: ActivePage; simulacaoId: string | null }
+
+const matchSimulacoesRoute = (path: string): SimulacoesRouteMatch | null => {
+  const normalized = path.replace(/\/+$/, '') || '/'
+  if (normalized === '/simulacoes' || normalized === '/simulacoes/salvas') {
+    return { page: 'simulacoes-salvas', simulacaoId: null }
+  }
+  if (normalized === '/simulacoes/nova') {
+    return { page: 'simulacoes-nova', simulacaoId: null }
+  }
+  const detailMatch = normalized.match(/^\/simulacoes\/([^/]+)$/)
+  if (detailMatch) {
+    return { page: 'simulacoes-detalhe', simulacaoId: decodeURIComponent(detailMatch[1]) }
+  }
+  return null
+}
+
+const isSimulacoesPage = (page: ActivePage): boolean =>
+  page === 'simulacoes-nova' || page === 'simulacoes-salvas' || page === 'simulacoes-detalhe'
+
+const getInitialActiveState = (): SimulacoesRouteMatch => {
+  if (typeof window === 'undefined') {
+    return { page: 'app', simulacaoId: null }
+  }
+  const route = matchSimulacoesRoute(window.location.pathname)
+  if (route) {
+    return route
+  }
+  const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
+  if (storedPage === 'dashboard') {
+    return { page: 'app', simulacaoId: null }
+  }
+  const allowedPages: ActivePage[] = [
+    'dashboard',
+    'app',
+    'crm',
+    'consultar',
+    'clientes',
+    'settings',
+    'simulacoes-nova',
+    'simulacoes-salvas',
+    'simulacoes-detalhe',
+  ]
+  if (storedPage && allowedPages.includes(storedPage as ActivePage)) {
+    return { page: storedPage as ActivePage, simulacaoId: null }
+  }
+  return { page: 'app', simulacaoId: null }
+}
 
 const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -2736,25 +2794,10 @@ export default function App() {
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
   const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
-  const [activePage, setActivePage] = useState<ActivePage>(() => {
-    if (typeof window === 'undefined') {
-      return 'app'
-    }
-
-    const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
-    if (storedPage === 'dashboard') {
-      return 'app'
-    }
-    const isKnownPage =
-      storedPage === 'dashboard' ||
-      storedPage === 'app' ||
-      storedPage === 'crm' ||
-      storedPage === 'consultar' ||
-      storedPage === 'clientes' ||
-      storedPage === 'settings'
-
-    return isKnownPage ? (storedPage as ActivePage) : 'app'
-  })
+  const [activePage, setActivePage] = useState<ActivePage>(() => getInitialActiveState().page)
+  const [activeSimulacaoId, setActiveSimulacaoId] = useState<string | null>(
+    () => getInitialActiveState().simulacaoId,
+  )
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window === 'undefined') {
       return INITIAL_VALUES.activeTab
@@ -2768,6 +2811,37 @@ export default function App() {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const handlePopState = () => {
+      const route = matchSimulacoesRoute(window.location.pathname)
+      if (route) {
+        setActivePage(route.page)
+        setActiveSimulacaoId(route.simulacaoId)
+        return
+      }
+      if (isSimulacoesPage(activePage)) {
+        setActivePage('app')
+        setActiveSimulacaoId(null)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [activePage])
+  useEffect(() => {
+    if (!isSimulacoesPage(activePage)) {
+      if (activeSimulacaoId) {
+        setActiveSimulacaoId(null)
+      }
+      if (typeof window !== 'undefined' && matchSimulacoesRoute(window.location.pathname)) {
+        window.history.replaceState({}, '', '/')
+      }
+    }
+  }, [activePage, activeSimulacaoId])
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm'>('app')
   useEffect(() => {
     if (activePage === 'dashboard' || activePage === 'app' || activePage === 'crm') {
@@ -16750,9 +16824,13 @@ export default function App() {
           ? 'Consulta de orçamentos salvos'
           : activePage === 'clientes'
             ? 'Gestão de clientes salvos'
-            : activePage === 'settings'
-              ? 'Preferências e integrações da proposta'
-              : undefined
+            : isSimulacoesPage(activePage)
+              ? activePage === 'simulacoes-salvas'
+                ? 'Simulações salvas'
+                : 'Simulações financeiras LITE'
+              : activePage === 'settings'
+                ? 'Preferências e integrações da proposta'
+                : undefined
   const currentPageIndicator =
     activePage === 'dashboard'
       ? 'Dashboard'
@@ -16762,11 +16840,13 @@ export default function App() {
           ? 'Consultar'
           : activePage === 'clientes'
             ? 'Clientes'
-            : activePage === 'settings'
-              ? 'Configurações'
-              : activeTab === 'vendas'
-                ? 'Vendas'
-                : 'Leasing'
+            : isSimulacoesPage(activePage)
+              ? 'Simulações'
+              : activePage === 'settings'
+                ? 'Configurações'
+                : activeTab === 'vendas'
+                  ? 'Vendas'
+                  : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
   const sidebarGroups: SidebarGroup[] = [
@@ -16863,6 +16943,28 @@ export default function App() {
             contatosEnvio.length === 0
               ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
               : undefined,
+        },
+      ],
+    },
+    {
+      id: 'simulacoes',
+      label: 'Simulações',
+      items: [
+        {
+          id: 'simulacoes-nova',
+          label: 'Nova simulação',
+          icon: '⚡️',
+          onSelect: () => {
+            handleSimulacoesNova()
+          },
+        },
+        {
+          id: 'simulacoes-salvas',
+          label: 'Simulações salvas',
+          icon: '💾',
+          onSelect: () => {
+            handleSimulacoesSalvas()
+          },
         },
       ],
     },
@@ -17301,27 +17403,6 @@ export default function App() {
                 />
               </Field>
             </div>
-          </section>
-          <section
-            id="settings-panel-simulacoes"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-simulacoes"
-            className={`settings-panel config-card${settingsTab === 'simulacoes' ? ' active' : ''}`}
-            hidden={settingsTab !== 'simulacoes'}
-            aria-hidden={settingsTab !== 'simulacoes'}
-          >
-            <div className="cfg-panel-header">
-              <h2 className="cfg-section-title">Simulações financeiras</h2>
-              <p className="settings-panel-description cfg-section-subtitle">
-                Monte cenários de leasing com diferentes descontos, prazos e custos para comparar KPIs lado a lado.
-              </p>
-            </div>
-            <SimulacoesTab
-              consumoKwhMes={kcKwhMes}
-              valorInvestimento={capex}
-              tipoSistema={tipoSistema}
-              prazoLeasingAnos={leasingPrazo}
-            />
           </section>
           <section
             id="settings-panel-vendas"
@@ -17874,20 +17955,62 @@ export default function App() {
     />
   )
 
+  const updateSimulacoesPath = useCallback((path: string) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const normalizedNext = path.replace(/\/+$/, '') || '/'
+    const normalizedCurrent = window.location.pathname.replace(/\/+$/, '') || '/'
+    if (normalizedNext === normalizedCurrent) {
+      window.history.replaceState({}, '', path)
+    } else {
+      window.history.pushState({}, '', path)
+    }
+  }, [])
+
+  const handleSimulacoesNova = useCallback(() => {
+    setActivePage('simulacoes-nova')
+    setActiveSimulacaoId(null)
+    updateSimulacoesPath('/simulacoes/nova')
+  }, [setActivePage, setActiveSimulacaoId, updateSimulacoesPath])
+
+  const handleSimulacoesSalvas = useCallback(() => {
+    setActivePage('simulacoes-salvas')
+    setActiveSimulacaoId(null)
+    updateSimulacoesPath('/simulacoes')
+  }, [setActivePage, setActiveSimulacaoId, updateSimulacoesPath])
+
+  const handleSimulacoesDetalhe = useCallback(
+    (id: string) => {
+      if (!id) {
+        handleSimulacoesSalvas()
+        return
+      }
+      setActivePage('simulacoes-detalhe')
+      setActiveSimulacaoId(id)
+      updateSimulacoesPath(`/simulacoes/${encodeURIComponent(id)}`)
+    },
+    [handleSimulacoesSalvas, setActivePage, setActiveSimulacaoId, updateSimulacoesPath],
+  )
+
   const activeSidebarItem =
-    activePage === 'dashboard'
-      ? 'dashboard-home'
-      : activePage === 'crm'
-        ? 'crm-central'
-        : activePage === 'clientes'
-          ? 'crm-clientes'
-          : activePage === 'consultar'
-            ? 'orcamentos-importar'
-            : activePage === 'settings'
-              ? 'config-preferencias'
-              : activeTab === 'vendas'
-              ? 'propostas-vendas'
-              : 'propostas-leasing'
+    activePage === 'simulacoes-nova'
+      ? 'simulacoes-nova'
+      : activePage === 'simulacoes-salvas' || activePage === 'simulacoes-detalhe'
+        ? 'simulacoes-salvas'
+        : activePage === 'dashboard'
+          ? 'dashboard-home'
+          : activePage === 'crm'
+            ? 'crm-central'
+            : activePage === 'clientes'
+              ? 'crm-clientes'
+              : activePage === 'consultar'
+                ? 'orcamentos-importar'
+                : activePage === 'settings'
+                  ? 'config-preferencias'
+                  : activeTab === 'vendas'
+                    ? 'propostas-vendas'
+                    : 'propostas-leasing'
 
 
   return (
@@ -17941,6 +18064,20 @@ export default function App() {
           renderCrmPage()
         ) : activePage === 'consultar' ? (
           renderBudgetSearchPage()
+        ) : isSimulacoesPage(activePage) ? (
+          <SimulacoesLitePage
+            mode={
+              activePage === 'simulacoes-nova'
+                ? 'nova'
+                : activePage === 'simulacoes-salvas'
+                  ? 'salvas'
+                  : 'detalhe'
+            }
+            simulacaoId={activeSimulacaoId}
+            onNavigateNova={handleSimulacoesNova}
+            onNavigateSalvas={handleSimulacoesSalvas}
+            onNavigateDetalhe={handleSimulacoesDetalhe}
+          />
         ) : activePage === 'clientes' ? (
           renderClientesPage()
         ) : activePage === 'settings' ? (
