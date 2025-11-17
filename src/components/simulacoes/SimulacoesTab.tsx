@@ -127,11 +127,16 @@ const cloneSimulation = (sim: Simulacao): Simulacao => ({ ...sim })
 
 const ECONOMIA_ANOS_OPTIONS = [15, 20, 30] as const
 
+export type SimulacoesTabMode = 'nova' | 'salvas'
+
 type SimulacoesTabProps = {
   consumoKwhMes: number
   valorInvestimento: number
   tipoSistema: TipoSistema
   prazoLeasingAnos: number
+  mode?: SimulacoesTabMode
+  initialSimulationId?: string
+  onActiveSimulationChange?: (simulationId: string | null, isSaved: boolean) => void
 }
 
 const SIMULATION_DETAILS_ROW_HEIGHT = 48
@@ -196,6 +201,9 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
   valorInvestimento,
   tipoSistema,
   prazoLeasingAnos,
+  mode = 'salvas',
+  initialSimulationId,
+  onActiveSimulationChange,
 }: SimulacoesTabProps): JSX.Element {
   const {
     itemsById,
@@ -246,8 +254,14 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
   const defaultsRef = useRef(
     normalizeSimulationDefaults({ consumoKwhMes, valorInvestimento, prazoLeasingAnos, tipoSistema }),
   )
+  const modeRef = useRef<SimulacoesTabMode>(mode)
+  const initialSimulationAppliedRef = useRef<string | null>(null)
 
   const isSaved = Boolean(itemsById[current.id])
+
+  useEffect(() => {
+    onActiveSimulationChange?.(isSaved ? current.id : null, isSaved)
+  }, [current.id, isSaved, onActiveSimulationChange])
 
   useEffect(() => {
     if (!tusdTouched && (!current.tusd_pct || current.tusd_pct <= 0)) {
@@ -260,6 +274,25 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
       setCurrent((prev) => ({ ...prev, tipo_sistema: tipoSistema }))
     }
   }, [current.tipo_sistema, tipoSistema])
+
+  useEffect(() => {
+    if (!initialSimulationId) {
+      initialSimulationAppliedRef.current = null
+      return
+    }
+    if (initialSimulationAppliedRef.current === initialSimulationId) {
+      return
+    }
+    const stored = itemsById[initialSimulationId]
+    if (!stored) {
+      return
+    }
+    const clone = cloneSimulation(stored)
+    capexAutoRef.current = null
+    setCurrent(clone)
+    setTusdTouched(true)
+    initialSimulationAppliedRef.current = initialSimulationId
+  }, [initialSimulationId, itemsById])
 
   useEffect(() => {
     const normalized = normalizeSimulationDefaults({
@@ -489,6 +522,18 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
     setCurrent(next)
     setTusdTouched(false)
   }
+
+  useEffect(() => {
+    if (modeRef.current === mode) {
+      return
+    }
+
+    if (mode === 'nova') {
+      handleNewSimulation()
+    }
+
+    modeRef.current = mode
+  }, [mode])
 
   const sanitizeSimulationForSave = (sim: Simulacao, timestamp: number): Simulacao => {
     const { nome, obs, ...rest } = sim

@@ -2968,12 +2968,76 @@ table tbody tr:hover {
 }
 
 
-#settings-panel-simulacoes {
+.simulacoes-page {
   --sim-font-xs: 11px;
   --sim-font-sm: 12px;
   --sim-font-md: 13px;
   --sim-font-lg: 15px;
   --sim-control-height: 38px;
+}
+
+.simulacoes-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.simulacoes-page-eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.simulacoes-page-header h2 {
+  margin: 0;
+}
+
+.simulacoes-page-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.simulacoes-page-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.simulacoes-page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.simulacoes-placeholder-card {
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.simulacoes-placeholder {
+  max-width: 520px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.simulacoes-placeholder h3 {
+  margin: 0;
+}
+
+.simulacoes-placeholder p {
+  margin: 0;
+}
+
+.simulacoes-placeholder-actions {
+  display: flex;
+  justify-content: center;
 }
 
 .simulations-tab {
@@ -3468,130 +3532,130 @@ table tbody tr:hover {
   color: var(--muted);
 }
 
-#settings-panel-simulacoes .simulations-tab {
+.simulacoes-page .simulations-tab {
   gap: 20px;
   font-size: var(--sim-font-md);
   line-height: 1.5;
 }
 
-#settings-panel-simulacoes .simulations-layout {
+.simulacoes-page .simulations-layout {
   gap: 20px;
 }
 
-#settings-panel-simulacoes .simulations-sidebar {
+.simulacoes-page .simulations-sidebar {
   padding: 18px;
   gap: 12px;
 }
 
-#settings-panel-simulacoes .simulations-sidebar-header h5 {
+.simulacoes-page .simulations-sidebar-header h5 {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .simulations-sidebar-header p {
+.simulacoes-page .simulations-sidebar-header p {
   font-size: var(--sim-font-xs);
   line-height: 1.45;
 }
 
-#settings-panel-simulacoes .simulations-scenario-list {
+.simulacoes-page .simulations-scenario-list {
   gap: 8px;
 }
 
-#settings-panel-simulacoes .simulations-scenario-card {
+.simulacoes-page .simulations-scenario-card {
   gap: 10px;
   padding: 10px 12px;
 }
 
-#settings-panel-simulacoes .simulations-scenario-button {
+.simulacoes-page .simulations-scenario-button {
   gap: 2px;
 }
 
-#settings-panel-simulacoes .simulations-scenario-button strong {
+.simulacoes-page .simulations-scenario-button strong {
   font-size: var(--sim-font-md);
 }
 
-#settings-panel-simulacoes .simulations-scenario-button small {
+.simulacoes-page .simulations-scenario-button small {
   font-size: var(--sim-font-xs);
   line-height: 1.35;
 }
 
-#settings-panel-simulacoes .simulations-select {
+.simulacoes-page .simulations-select {
   gap: 4px;
   font-size: var(--sim-font-xs);
 }
 
-#settings-panel-simulacoes .simulations-select input,
-#settings-panel-simulacoes .simulations-toggles input[type='checkbox'] {
+.simulacoes-page .simulations-select input,
+.simulacoes-page .simulations-toggles input[type='checkbox'] {
   width: 14px;
   height: 14px;
 }
 
-#settings-panel-simulacoes .simulations-select span {
+.simulacoes-page .simulations-select span {
   line-height: 1.2;
 }
 
-#settings-panel-simulacoes .simulations-sidebar-actions {
+.simulacoes-page .simulations-sidebar-actions {
   gap: 6px;
 }
 
-#settings-panel-simulacoes .simulations-sidebar-actions button {
+.simulacoes-page .simulations-sidebar-actions button {
   min-height: var(--sim-control-height);
   font-size: var(--sim-font-sm);
   padding: 8px 12px;
 }
 
-#settings-panel-simulacoes .simulations-form-area {
+.simulacoes-page .simulations-form-area {
   gap: 18px;
 }
 
-#settings-panel-simulacoes .simulations-form-card,
-#settings-panel-simulacoes .simulations-summary,
-#settings-panel-simulacoes .simulations-economy,
-#settings-panel-simulacoes .simulations-kpis {
+.simulacoes-page .simulations-form-card,
+.simulacoes-page .simulations-summary,
+.simulacoes-page .simulations-economy,
+.simulacoes-page .simulations-kpis {
   gap: 14px;
   padding: 18px;
 }
 
-#settings-panel-simulacoes .simulations-form-grid {
+.simulacoes-page .simulations-form-grid {
   gap: 14px;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
-#settings-panel-simulacoes .simulations-form-card header,
-#settings-panel-simulacoes .simulations-summary header,
-#settings-panel-simulacoes .simulations-economy header,
-#settings-panel-simulacoes .simulations-kpis header {
+.simulacoes-page .simulations-form-card header,
+.simulacoes-page .simulations-summary header,
+.simulacoes-page .simulations-economy header,
+.simulacoes-page .simulations-kpis header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
 }
 
-#settings-panel-simulacoes .simulations-form-card header h4,
-#settings-panel-simulacoes .simulations-summary header h4,
-#settings-panel-simulacoes .simulations-economy header h4,
-#settings-panel-simulacoes .simulations-kpis header h4 {
+.simulacoes-page .simulations-form-card header h4,
+.simulacoes-page .simulations-summary header h4,
+.simulacoes-page .simulations-economy header h4,
+.simulacoes-page .simulations-kpis header h4 {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .simulations-form-card .field-label {
+.simulacoes-page .simulations-form-card .field-label {
   font-size: var(--sim-font-sm);
   line-height: 1.4;
 }
 
-#settings-panel-simulacoes .simulations-toggles label {
+.simulacoes-page .simulations-toggles label {
   font-size: var(--sim-font-sm);
   line-height: 1.4;
   gap: 6px;
 }
 
-#settings-panel-simulacoes .radio-group {
+.simulacoes-page .radio-group {
   display: inline-flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-#settings-panel-simulacoes .radio-group label {
+.simulacoes-page .radio-group label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -3600,32 +3664,32 @@ table tbody tr:hover {
   cursor: pointer;
 }
 
-#settings-panel-simulacoes .radio-group input[type='radio'] {
+.simulacoes-page .radio-group input[type='radio'] {
   width: 14px;
   height: 14px;
   accent-color: var(--accent);
 }
 
-#settings-panel-simulacoes .simulations-form-card input,
-#settings-panel-simulacoes .simulations-form-card select,
-#settings-panel-simulacoes .simulations-form-card textarea {
+.simulacoes-page .simulations-form-card input,
+.simulacoes-page .simulations-form-card select,
+.simulacoes-page .simulations-form-card textarea {
   min-height: var(--sim-control-height);
   font-size: var(--sim-font-md);
   padding: 8px 12px;
 }
 
-#settings-panel-simulacoes .inline-field {
+.simulacoes-page .inline-field {
   display: flex;
   gap: 10px;
   align-items: center;
 }
 
-#settings-panel-simulacoes .inline-field input {
+.simulacoes-page .inline-field input {
   flex: 1 1 auto;
 }
 
-#settings-panel-simulacoes button.primary,
-#settings-panel-simulacoes button.secondary {
+.simulacoes-page button.primary,
+.simulacoes-page button.secondary {
   height: var(--sim-control-height);
   min-height: var(--sim-control-height);
   padding: 0 16px;
@@ -3635,104 +3699,104 @@ table tbody tr:hover {
   justify-content: center;
 }
 
-#settings-panel-simulacoes button.primary {
+.simulacoes-page button.primary {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .inline-field button.secondary {
+.simulacoes-page .inline-field button.secondary {
   padding: 0 12px;
   white-space: nowrap;
 }
 
-#settings-panel-simulacoes .simulations-summary-grid,
-#settings-panel-simulacoes .simulations-kpi-grid,
-#settings-panel-simulacoes .simulations-kpi-cards {
+.simulacoes-page .simulations-summary-grid,
+.simulacoes-page .simulations-kpi-grid,
+.simulacoes-page .simulations-kpi-cards {
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
-#settings-panel-simulacoes .simulations-summary-card,
-#settings-panel-simulacoes .simulations-kpi-card {
+.simulacoes-page .simulations-summary-card,
+.simulacoes-page .simulations-kpi-card {
   gap: 4px;
   padding: 12px 14px;
 }
 
-#settings-panel-simulacoes .simulations-summary-card span,
-#settings-panel-simulacoes .simulations-kpi-card span {
+.simulacoes-page .simulations-summary-card span,
+.simulacoes-page .simulations-kpi-card span {
   font-size: var(--sim-font-xs);
 }
 
-#settings-panel-simulacoes .simulations-summary-card strong,
-#settings-panel-simulacoes .simulations-kpi-card strong {
+.simulacoes-page .simulations-summary-card strong,
+.simulacoes-page .simulations-kpi-card strong {
   font-size: calc(var(--sim-font-lg) + 1px);
 }
 
-#settings-panel-simulacoes .simulations-summary-card small,
-#settings-panel-simulacoes .simulations-kpi-card small {
+.simulacoes-page .simulations-summary-card small,
+.simulacoes-page .simulations-kpi-card small {
   font-size: calc(var(--sim-font-xs) - 1px);
 }
 
-#settings-panel-simulacoes .simulations-table {
+.simulacoes-page .simulations-table {
   gap: 14px;
 }
 
-#settings-panel-simulacoes .simulations-table-header {
+.simulacoes-page .simulations-table-header {
   padding: 14px 18px;
   align-items: center;
   gap: 14px;
 }
 
-#settings-panel-simulacoes .simulations-table-header > div:first-child {
+.simulacoes-page .simulations-table-header > div:first-child {
   flex: 1 1 auto;
   min-width: 220px;
 }
 
-#settings-panel-simulacoes .simulations-table-header h5 {
+.simulacoes-page .simulations-table-header h5 {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .simulations-table-header p {
+.simulacoes-page .simulations-table-header p {
   font-size: var(--sim-font-xs);
   margin-top: 2px;
 }
 
-#settings-panel-simulacoes .simulations-table-actions {
+.simulacoes-page .simulations-table-actions {
   gap: 8px;
   align-items: center;
   justify-content: flex-end;
 }
 
-#settings-panel-simulacoes .simulations-table-actions label {
+.simulacoes-page .simulations-table-actions label {
   font-size: var(--sim-font-xs);
 }
 
-#settings-panel-simulacoes .simulations-table-actions select,
-#settings-panel-simulacoes .simulations-table-actions button {
+.simulacoes-page .simulations-table-actions select,
+.simulacoes-page .simulations-table-actions button {
   min-height: var(--sim-control-height);
   font-size: var(--sim-font-sm);
 }
 
-#settings-panel-simulacoes .simulations-table-actions select {
+.simulacoes-page .simulations-table-actions select {
   min-width: 120px;
 }
 
-#settings-panel-simulacoes .simulations-table table {
+.simulacoes-page .simulations-table table {
   min-width: 620px;
 }
 
-#settings-panel-simulacoes .simulations-table table th {
+.simulacoes-page .simulations-table table th {
   font-size: var(--sim-font-sm);
 }
 
-#settings-panel-simulacoes .simulations-table table td {
+.simulacoes-page .simulations-table table td {
   font-size: var(--sim-font-sm);
 }
 
-#settings-panel-simulacoes .simulations-table table td:first-child {
+.simulacoes-page .simulations-table table td:first-child {
   font-size: var(--sim-font-md);
 }
 
-#settings-panel-simulacoes .simulations-empty {
+.simulacoes-page .simulations-empty {
   font-size: var(--sim-font-sm);
 }
 
