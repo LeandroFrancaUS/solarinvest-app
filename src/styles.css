@@ -6599,3 +6599,201 @@ i:hover {
     display: none;
   }
 }
+
+.simulacao-lite-panel {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.simulacao-lite-panel .panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.simulacao-lite-panel .panel-header h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.simulacao-lite-panel .panel-header p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+.simulacao-lite-panel .panel-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.simulacao-lite-panel .panel-actions button {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.simulacao-lite-panel .panel-actions button.ghost {
+  background: var(--ghost-bg);
+  color: var(--text-strong);
+}
+
+.simulacao-lite-panel .panel-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.simulacao-lite-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.simulacao-lite-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-base);
+}
+
+.simulacao-lite-form input {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--input-bg);
+  color: inherit;
+}
+
+.aneel-status {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.planos-lite {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.plano-card {
+  flex: 1 1 220px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--ghost-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.plano-card.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.scenario-switcher {
+  display: flex;
+  gap: 12px;
+}
+
+.scenario-switcher button {
+  flex: 1;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  cursor: pointer;
+  background: var(--ghost-bg);
+}
+
+.scenario-switcher button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.kpi-grid-lite {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.kpi-grid-lite.secondary {
+  margin-top: -12px;
+}
+
+.kpi-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--metric-bg);
+}
+
+.kpi-card p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.kpi-card strong {
+  font-size: 18px;
+  margin-top: 4px;
+  display: block;
+}
+
+.charts-lite {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.chart-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--surface);
+}
+
+.chart-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.chart-placeholder {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.recomendacao-lite {
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--accent-soft);
+}
+
+@media (max-width: 720px) {
+  .simulacao-lite-panel .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .simulacao-lite-panel .panel-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .simulacao-lite-panel .panel-actions button {
+    width: 100%;
+  }
+}

@@ -30,6 +30,7 @@ import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useB
 import { selectNumberInputOnFocus } from '../../utils/focusHandlers'
 import { useSimulationsStore } from '../../store/useSimulationsStore'
 import { useSimulationComparisons } from '../../hooks/useSimulationComparisons'
+import { SimulacaoLitePanel } from '../simulacoes/lite/SimulacaoLitePanel'
 
 const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short',
@@ -655,6 +656,11 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
         </aside>
 
         <div className="simulations-form-area">
+          <SimulacaoLitePanel
+            defaultCapex={valorInvestimento}
+            defaultConsumoMensal={consumoKwhMes}
+            defaultAnosAnalise={prazoLeasingAnos}
+          />
           <section className="simulations-table">
             <div className="simulations-table-header">
               <div>
