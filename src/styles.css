@@ -777,6 +777,70 @@ button.secondary.danger:focus-visible {
   gap: var(--space-1);
 }
 
+.leasing-contract-type-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.leasing-contract-type {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--ghost-bg);
+  color: var(--text-base);
+  font-size: var(--font-s);
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.leasing-contract-type input[type='radio'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.leasing-contract-type span {
+  pointer-events: none;
+}
+
+.leasing-contract-type.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.leasing-field-label-text {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-base);
+  font-weight: 600;
+}
+
+.field-label .leasing-field-label-text {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.leasing-equipments-grid {
+  margin-top: var(--space-2);
+}
+
+.leasing-equipments-grid .field {
+  --field-max-width: 100%;
+}
+
 .cliente-indicacao-toggle {
   display: inline-flex;
   align-items: center;

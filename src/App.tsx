@@ -13526,6 +13526,10 @@ export default function App() {
 
   const renderLeasingContratoSection = () => {
     const isCondominioContrato = leasingContrato.tipoContrato === 'condominio'
+    const renderLeasingLabel = (text: string) => (
+      <span className="leasing-field-label-text">{text}</span>
+    )
+    const tipoContratoSelecionado = leasingContrato.tipoContrato
     return (
       <section className="card">
         <div className="card-header">
@@ -13533,35 +13537,43 @@ export default function App() {
         </div>
         <div className="grid g3">
           <Field label="Tipo de contrato">
-            <div className="cliente-indicacao-group">
-              <label className="inline-checkbox inline-checkbox--small">
+            <div className="leasing-contract-type-group" role="radiogroup" aria-label="Tipo de contrato">
+              <label
+                className={`leasing-contract-type${
+                  tipoContratoSelecionado === 'residencial' ? ' is-active' : ''
+                }`}
+              >
                 <input
                   type="radio"
                   name="leasing-tipo-contrato"
-                  checked={leasingContrato.tipoContrato === 'residencial'}
+                  checked={tipoContratoSelecionado === 'residencial'}
                   onChange={() => handleLeasingContratoCampoChange('tipoContrato', 'residencial')}
                 />
                 <span>Residencial</span>
               </label>
-              <label className="inline-checkbox inline-checkbox--small">
+              <label
+                className={`leasing-contract-type${
+                  tipoContratoSelecionado === 'condominio' ? ' is-active' : ''
+                }`}
+              >
                 <input
                   type="radio"
                   name="leasing-tipo-contrato"
-                  checked={leasingContrato.tipoContrato === 'condominio'}
+                  checked={tipoContratoSelecionado === 'condominio'}
                   onChange={() => handleLeasingContratoCampoChange('tipoContrato', 'condominio')}
                 />
                 <span>Condomínio</span>
               </label>
             </div>
           </Field>
-          <Field label="Data de início do contrato">
+          <Field label={renderLeasingLabel('Data de início do contrato')}>
             <input
               type="date"
               value={leasingContrato.dataInicio}
               onChange={(event) => handleLeasingContratoCampoChange('dataInicio', event.target.value)}
             />
           </Field>
-          <Field label="Data de término do contrato">
+          <Field label={renderLeasingLabel('Data de término do contrato')}>
             <input
               type="date"
               value={leasingContrato.dataFim}
@@ -13584,6 +13596,8 @@ export default function App() {
               }
             />
           </Field>
+        </div>
+        <div className="grid g2 leasing-equipments-grid">
           <Field label="Módulos fotovoltaicos instalados">
             <textarea
               value={leasingContrato.modulosFV}
