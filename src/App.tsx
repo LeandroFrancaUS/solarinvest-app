@@ -3172,6 +3172,7 @@ export default function App() {
   )
   const [tusdOpcoesExpandidas, setTusdOpcoesExpandidas] = useState(false)
   const [leasingPrazo, setLeasingPrazo] = useState<LeasingPrazoAnos>(INITIAL_VALUES.leasingPrazo)
+  const [usarEnderecoCliente, setUsarEnderecoCliente] = useState(false)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
   const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
@@ -3898,6 +3899,28 @@ export default function App() {
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
+  const enderecoClienteCompleto = useMemo(() => {
+    const partes: string[] = []
+    const endereco = cliente.endereco.trim()
+    const cidade = cliente.cidade.trim()
+    const uf = cliente.uf.trim()
+    const cep = cliente.cep.trim()
+
+    if (endereco) {
+      partes.push(endereco)
+    }
+
+    const cidadeUf = [cidade, uf].filter(Boolean).join(' - ')
+    if (cidadeUf) {
+      partes.push(cidadeUf)
+    }
+
+    if (cep) {
+      partes.push(formatCep(cep))
+    }
+
+    return partes.join(', ')
+  }, [cliente.cidade, cliente.endereco, cliente.uf, cliente.cep])
 
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
@@ -12615,6 +12638,33 @@ export default function App() {
     [],
   )
 
+  const handleLeasingLocalEntregaChange = useCallback(
+    (value: string) => {
+      if (usarEnderecoCliente) {
+        setUsarEnderecoCliente(false)
+      }
+      leasingActions.updateContrato({ localEntrega: value })
+    },
+    [usarEnderecoCliente],
+  )
+
+  const handleToggleUsarEnderecoCliente = useCallback(
+    (checked: boolean) => {
+      setUsarEnderecoCliente(checked)
+      if (checked && enderecoClienteCompleto) {
+        leasingActions.updateContrato({ localEntrega: enderecoClienteCompleto })
+      }
+    },
+    [enderecoClienteCompleto],
+  )
+
+  useEffect(() => {
+    if (!usarEnderecoCliente) {
+      return
+    }
+    leasingActions.updateContrato({ localEntrega: enderecoClienteCompleto })
+  }, [enderecoClienteCompleto, usarEnderecoCliente])
+
   const handleLeasingContratoProprietarioChange = useCallback(
     (index: number, campo: keyof LeasingContratoProprietario, valor: string) => {
       const atualizados = leasingContrato.proprietarios.map((item, itemIndex) =>
@@ -13529,13 +13579,27 @@ export default function App() {
     const renderLeasingLabel = (text: string) => (
       <span className="leasing-field-label-text">{text}</span>
     )
+    const renderLocalEntregaLabel = () => (
+      <div className="leasing-location-label">
+        <span className="leasing-field-label-text">Local de entrega / instalação</span>
+        <label className="leasing-location-checkbox">
+          <input
+            type="checkbox"
+            checked={usarEnderecoCliente}
+            onChange={(event) => handleToggleUsarEnderecoCliente(event.target.checked)}
+            disabled={!enderecoClienteCompleto}
+          />
+          <span>Usar endereço do cliente</span>
+        </label>
+      </div>
+    )
     const tipoContratoSelecionado = leasingContrato.tipoContrato
     return (
       <section className="card">
         <div className="card-header">
           <h2>Dados contratuais do leasing</h2>
         </div>
-        <div className="grid g3">
+        <div className="grid g3 leasing-contract-dates-grid">
           <Field label="Tipo de contrato">
             <div className="leasing-contract-type-group" role="radiogroup" aria-label="Tipo de contrato">
               <label
@@ -13580,10 +13644,12 @@ export default function App() {
               onChange={(event) => handleLeasingContratoCampoChange('dataFim', event.target.value)}
             />
           </Field>
-          <Field label="Local de entrega / instalação">
+        </div>
+        <div className="grid g2 leasing-location-grid">
+          <Field label={renderLocalEntregaLabel()}>
             <input
               value={leasingContrato.localEntrega}
-              onChange={(event) => handleLeasingContratoCampoChange('localEntrega', event.target.value)}
+              onChange={(event) => handleLeasingLocalEntregaChange(event.target.value)}
               placeholder="Endereço ou município"
             />
           </Field>
