@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/force-rollup-wasm.js",
+    "prebuild": "rm -rf node_modules/.vite && rm -rf node_modules/esbuild* && node scripts/force-rollup-wasm.js",
     "build": "node scripts/build.mjs",
     "preview": "vite preview",
     "start": "node server/index.js",
@@ -20,7 +20,8 @@
     "vercel-build-clean": "rm -rf node_modules/.vite",
     "vercel-prebuild": "rm -rf node_modules package-lock.json && npm install",
     "vercel-clean": "rm -rf node_modules .next dist .turbo",
-    "prepush": "npm run lint && npm run typecheck && npm run check:cycles && npm run test"
+    "prepush": "npm run lint && npm run typecheck && npm run check:cycles && npm run test",
+    "postinstall": "node scripts/clean-esbuild.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
@@ -39,7 +40,7 @@
     "@vitejs/plugin-react": "^4.3.3",
     "@typescript-eslint/eslint-plugin": "^8.11.0",
     "@typescript-eslint/parser": "^8.11.0",
-    "esbuild": "^0.21.5",
+    "esbuild": "^0.24.0",
     "eslint": "^9.14.0",
     "eslint-plugin-import": "^2.31.0",
     "husky": "^9.1.6",
