@@ -118,7 +118,7 @@ import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
-import { SimulacoesTab } from './components/settings/SimulacoesTab'
+import { SimulacoesTab } from './components/simulacoes/SimulacoesTab'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -209,7 +209,92 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings'
+type ActivePage =
+  | 'dashboard'
+  | 'app'
+  | 'crm'
+  | 'consultar'
+  | 'clientes'
+  | 'settings'
+  | 'simulacoes'
+
+type SimulacoesView = 'salvas' | 'nova' | 'packs' | 'ai' | 'risco'
+
+type SimulacoesViewMeta = {
+  title: string
+  description: string
+  indicator: string
+  placeholder?: {
+    title: string
+    description: string
+    hint?: string
+  }
+}
+
+const SIMULACOES_VIEW_META: Record<SimulacoesView, SimulacoesViewMeta> = {
+  salvas: {
+    title: 'Simulações salvas',
+    description: 'Gerencie cenários Lite e Completo, compare KPIs e exporte resultados.',
+    indicator: 'Simulações',
+  },
+  nova: {
+    title: 'Nova simulação',
+    description: 'Configure rapidamente um novo cenário com os dados atuais do cliente.',
+    indicator: 'Simulações · Nova',
+  },
+  packs: {
+    title: 'Packs de simulações',
+    description: 'Agrupe simulações em coleções temáticas para apresentar opções ao cliente.',
+    indicator: 'Simulações · Packs',
+    placeholder: {
+      title: 'Central de packs',
+      description:
+        'Consolide cenários por perfil, tipo de sistema ou região e exporte pacotes completos para o time comercial.',
+      hint: 'Importe simulações existentes ou gere novas recomendações para alimentar um pack inteligente.',
+    },
+  },
+  ai: {
+    title: 'IA & Análises',
+    description: 'Execute as recomendações automáticas da versão 3.5 com foco em ROI e payback.',
+    indicator: 'Simulações · IA & Análises',
+    placeholder: {
+      title: 'Painel de IA',
+      description:
+        'Os resultados das simulações alimentam o motor de recomendações. Gere ou importe cenários para liberar este painel.',
+      hint: 'Após rodar a IA, exporte um relatório inteligente com os destaques de cada plano.',
+    },
+  },
+  risco: {
+    title: 'Risco & Monte Carlo',
+    description: 'Avalie volatilidade de ROI, distribuições e bandas de confiança das projeções.',
+    indicator: 'Simulações · Risco',
+    placeholder: {
+      title: 'Monte Carlo & risco',
+      description:
+        'Configure as variáveis de incerteza e execute as simulações para visualizar histograma, percentis e probabilidades.',
+      hint: 'Utilize este painel após calibrar as premissas financeiras da versão completa.',
+    },
+  },
+}
+
+const resolveSimulacoesPath = (view: SimulacoesView, simulationId: string | null): string => {
+  if (view === 'nova') {
+    return '/simulacoes/nova'
+  }
+  if (view === 'packs') {
+    return '/simulacoes/packs'
+  }
+  if (view === 'ai') {
+    return '/simulacoes/ai'
+  }
+  if (view === 'risco') {
+    return '/simulacoes/risco'
+  }
+  if (simulationId) {
+    return `/simulacoes/${simulationId}`
+  }
+  return '/simulacoes'
+}
 
 const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -2751,10 +2836,14 @@ export default function App() {
       storedPage === 'crm' ||
       storedPage === 'consultar' ||
       storedPage === 'clientes' ||
-      storedPage === 'settings'
+      storedPage === 'settings' ||
+      storedPage === 'simulacoes'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
+  const [simulacoesView, setSimulacoesView] = useState<SimulacoesView>('salvas')
+  const [simulacaoRouteId, setSimulacaoRouteId] = useState<string | null>(null)
+  const simulacoesPageMeta = useMemo(() => SIMULACOES_VIEW_META[simulacoesView], [simulacoesView])
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window === 'undefined') {
       return INITIAL_VALUES.activeTab
@@ -2769,11 +2858,92 @@ export default function App() {
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm'>('app')
+  const previousActivePageRef = useRef<ActivePage>(activePage)
   useEffect(() => {
     if (activePage === 'dashboard' || activePage === 'app' || activePage === 'crm') {
       lastPrimaryPageRef.current = activePage
     }
   }, [activePage])
+  useEffect(() => {
+    if (
+      previousActivePageRef.current === 'simulacoes' &&
+      activePage !== 'simulacoes' &&
+      typeof window !== 'undefined' &&
+      window.location.pathname.startsWith('/simulacoes')
+    ) {
+      window.history.replaceState({}, '', '/')
+    }
+    previousActivePageRef.current = activePage
+  }, [activePage])
+  const syncSimulacoesHistory = useCallback((view: SimulacoesView, simulationId: string | null, replace = false) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const nextPath = resolveSimulacoesPath(view, simulationId)
+    if (window.location.pathname === nextPath) {
+      return
+    }
+    if (replace) {
+      window.history.replaceState({ view, simulationId }, '', nextPath)
+    } else {
+      window.history.pushState({ view, simulationId }, '', nextPath)
+    }
+  }, [])
+  const applySimulacoesRoute = useCallback(
+    (path: string) => {
+      if (!path.startsWith('/simulacoes')) {
+        return false
+      }
+      const segments = path.split('/').filter(Boolean)
+      if (segments[0] !== 'simulacoes') {
+        return false
+      }
+      const remainder = segments.slice(1)
+      let nextView: SimulacoesView = 'salvas'
+      let nextId: string | null = null
+      if (remainder.length > 0) {
+        const [first] = remainder
+        if (first === 'nova') {
+          nextView = 'nova'
+        } else if (first === 'packs') {
+          nextView = 'packs'
+        } else if (first === 'ai') {
+          nextView = 'ai'
+        } else if (first === 'risco' || first === 'risk') {
+          nextView = 'risco'
+        } else {
+          nextView = 'salvas'
+          nextId = first
+        }
+      }
+      setSimulacoesView(nextView)
+      setSimulacaoRouteId(nextId)
+      setActivePage('simulacoes')
+      return true
+    },
+    [setActivePage],
+  )
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    applySimulacoesRoute(window.location.pathname)
+  }, [applySimulacoesRoute])
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const handlePopState = () => {
+      if (applySimulacoesRoute(window.location.pathname)) {
+        return
+      }
+      if (window.location.pathname === '/' && activePage === 'simulacoes') {
+        setActivePage('app')
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [activePage, applySimulacoesRoute, setActivePage])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -12594,10 +12764,29 @@ export default function App() {
     },
     [setActivePage, setSettingsTab],
   )
+  const abrirSimulacoes = useCallback(
+    (view: SimulacoesView, simulationId?: string | null) => {
+      setSimulacoesView(view)
+      setSimulacaoRouteId(simulationId ?? null)
+      setActivePage('simulacoes')
+      syncSimulacoesHistory(view, simulationId ?? null)
+    },
+    [setActivePage, syncSimulacoesHistory],
+  )
 
   const voltarParaPaginaPrincipal = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
+  const handleSimulacoesActiveChange = useCallback(
+    (simulationId: string | null) => {
+      if (activePage !== 'simulacoes' || simulacoesView !== 'salvas') {
+        return
+      }
+      setSimulacaoRouteId(simulationId ?? null)
+      syncSimulacoesHistory('salvas', simulationId ?? null, true)
+    },
+    [activePage, simulacoesView, syncSimulacoesHistory],
+  )
 
   const budgetCodeDisplay = useMemo(() => {
     return normalizeProposalId(printableData.budgetId) || null
@@ -16750,9 +16939,11 @@ export default function App() {
           ? 'Consulta de orçamentos salvos'
           : activePage === 'clientes'
             ? 'Gestão de clientes salvos'
-            : activePage === 'settings'
-              ? 'Preferências e integrações da proposta'
-              : undefined
+            : activePage === 'simulacoes'
+              ? simulacoesPageMeta.description
+              : activePage === 'settings'
+                ? 'Preferências e integrações da proposta'
+                : undefined
   const currentPageIndicator =
     activePage === 'dashboard'
       ? 'Dashboard'
@@ -16762,11 +16953,13 @@ export default function App() {
           ? 'Consultar'
           : activePage === 'clientes'
             ? 'Clientes'
-            : activePage === 'settings'
-              ? 'Configurações'
-              : activeTab === 'vendas'
-                ? 'Vendas'
-                : 'Leasing'
+            : activePage === 'simulacoes'
+              ? simulacoesPageMeta.indicator
+              : activePage === 'settings'
+                ? 'Configurações'
+                : activeTab === 'vendas'
+                  ? 'Vendas'
+                  : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
   const sidebarGroups: SidebarGroup[] = [
@@ -16863,6 +17056,52 @@ export default function App() {
             contatosEnvio.length === 0
               ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
               : undefined,
+        },
+      ],
+    },
+    {
+      id: 'simulacoes',
+      label: 'Simulações',
+      items: [
+        {
+          id: 'simulacoes-nova',
+          label: 'Nova Simulação',
+          icon: '⚡',
+          onSelect: () => {
+            abrirSimulacoes('nova')
+          },
+        },
+        {
+          id: 'simulacoes-salvas',
+          label: 'Simulações Salvas',
+          icon: '💾',
+          onSelect: () => {
+            abrirSimulacoes('salvas')
+          },
+        },
+        {
+          id: 'simulacoes-packs',
+          label: 'Packs',
+          icon: '🧩',
+          onSelect: () => {
+            abrirSimulacoes('packs')
+          },
+        },
+        {
+          id: 'simulacoes-ai',
+          label: 'IA & Análises (V3.5)',
+          icon: '🤖',
+          onSelect: () => {
+            abrirSimulacoes('ai')
+          },
+        },
+        {
+          id: 'simulacoes-risco',
+          label: 'Risco (Monte Carlo)',
+          icon: '📈',
+          onSelect: () => {
+            abrirSimulacoes('risco')
+          },
         },
       ],
     },
@@ -17175,7 +17414,7 @@ export default function App() {
       <div className="settings-page-header">
         <div>
           <h2>Preferências</h2>
-          <p>Configure parâmetros de mercado, simulações e vendas para personalizar as propostas.</p>
+          <p>Configure parâmetros de mercado e vendas para personalizar as propostas.</p>
         </div>
         <button type="button" className="ghost" onClick={voltarParaPaginaPrincipal}>
           Voltar
@@ -17301,27 +17540,6 @@ export default function App() {
                 />
               </Field>
             </div>
-          </section>
-          <section
-            id="settings-panel-simulacoes"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-simulacoes"
-            className={`settings-panel config-card${settingsTab === 'simulacoes' ? ' active' : ''}`}
-            hidden={settingsTab !== 'simulacoes'}
-            aria-hidden={settingsTab !== 'simulacoes'}
-          >
-            <div className="cfg-panel-header">
-              <h2 className="cfg-section-title">Simulações financeiras</h2>
-              <p className="settings-panel-description cfg-section-subtitle">
-                Monte cenários de leasing com diferentes descontos, prazos e custos para comparar KPIs lado a lado.
-              </p>
-            </div>
-            <SimulacoesTab
-              consumoKwhMes={kcKwhMes}
-              valorInvestimento={capex}
-              tipoSistema={tipoSistema}
-              prazoLeasingAnos={leasingPrazo}
-            />
           </section>
           <section
             id="settings-panel-vendas"
@@ -17874,6 +18092,51 @@ export default function App() {
     />
   )
 
+  const renderSimulacoesPage = () => (
+    <div className="simulacoes-page">
+      <div className="simulacoes-page-header">
+        <div>
+          <p className="simulacoes-page-eyebrow">Simulações</p>
+          <h2>{simulacoesPageMeta.title}</h2>
+          <p>{simulacoesPageMeta.description}</p>
+        </div>
+        <div className="simulacoes-page-actions">
+          <button type="button" className="ghost" onClick={voltarParaPaginaPrincipal}>
+            Voltar
+          </button>
+        </div>
+      </div>
+      <div className="simulacoes-page-body">
+        {simulacoesView === 'salvas' || simulacoesView === 'nova' ? (
+          <SimulacoesTab
+            consumoKwhMes={kcKwhMes}
+            valorInvestimento={capex}
+            tipoSistema={tipoSistema}
+            prazoLeasingAnos={leasingPrazo}
+            mode={simulacoesView === 'nova' ? 'nova' : 'salvas'}
+            initialSimulationId={simulacoesView === 'salvas' ? simulacaoRouteId ?? undefined : undefined}
+            onActiveSimulationChange={handleSimulacoesActiveChange}
+          />
+        ) : simulacoesPageMeta.placeholder ? (
+          <section className="config-card simulacoes-placeholder-card">
+            <div className="simulacoes-placeholder">
+              <h3>{simulacoesPageMeta.placeholder.title}</h3>
+              <p>{simulacoesPageMeta.placeholder.description}</p>
+              {simulacoesPageMeta.placeholder.hint ? (
+                <p className="muted">{simulacoesPageMeta.placeholder.hint}</p>
+              ) : null}
+              <div className="simulacoes-placeholder-actions">
+                <button type="button" className="secondary" onClick={() => abrirSimulacoes('salvas')}>
+                  Abrir simulações salvas
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </div>
+  )
+
   const activeSidebarItem =
     activePage === 'dashboard'
       ? 'dashboard-home'
@@ -17883,11 +18146,21 @@ export default function App() {
           ? 'crm-clientes'
           : activePage === 'consultar'
             ? 'orcamentos-importar'
-            : activePage === 'settings'
-              ? 'config-preferencias'
-              : activeTab === 'vendas'
-              ? 'propostas-vendas'
-              : 'propostas-leasing'
+            : activePage === 'simulacoes'
+              ? simulacoesView === 'nova'
+                ? 'simulacoes-nova'
+                : simulacoesView === 'packs'
+                  ? 'simulacoes-packs'
+                  : simulacoesView === 'ai'
+                    ? 'simulacoes-ai'
+                    : simulacoesView === 'risco'
+                      ? 'simulacoes-risco'
+                      : 'simulacoes-salvas'
+              : activePage === 'settings'
+                ? 'config-preferencias'
+                : activeTab === 'vendas'
+                  ? 'propostas-vendas'
+                  : 'propostas-leasing'
 
 
   return (
@@ -17943,6 +18216,8 @@ export default function App() {
           renderBudgetSearchPage()
         ) : activePage === 'clientes' ? (
           renderClientesPage()
+        ) : activePage === 'simulacoes' ? (
+          renderSimulacoesPage()
         ) : activePage === 'settings' ? (
           renderSettingsPage()
         ) : (
