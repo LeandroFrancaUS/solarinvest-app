@@ -127,11 +127,16 @@ const cloneSimulation = (sim: Simulacao): Simulacao => ({ ...sim })
 
 const ECONOMIA_ANOS_OPTIONS = [15, 20, 30] as const
 
+export type SimulacoesTabMode = 'nova' | 'salvas'
+
 type SimulacoesTabProps = {
   consumoKwhMes: number
   valorInvestimento: number
   tipoSistema: TipoSistema
   prazoLeasingAnos: number
+  mode?: SimulacoesTabMode
+  initialSimulationId?: string
+  onActiveSimulationChange?: (simulationId: string | null, isSaved: boolean) => void
 }
 
 const SIMULATION_DETAILS_ROW_HEIGHT = 48
@@ -196,6 +201,9 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
   valorInvestimento,
   tipoSistema,
   prazoLeasingAnos,
+  mode = 'salvas',
+  initialSimulationId,
+  onActiveSimulationChange,
 }: SimulacoesTabProps): JSX.Element {
   const {
     itemsById,
@@ -246,8 +254,14 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
   const defaultsRef = useRef(
     normalizeSimulationDefaults({ consumoKwhMes, valorInvestimento, prazoLeasingAnos, tipoSistema }),
   )
+  const modeRef = useRef<SimulacoesTabMode>(mode)
+  const initialSimulationAppliedRef = useRef<string | null>(null)
 
   const isSaved = Boolean(itemsById[current.id])
+
+  useEffect(() => {
+    onActiveSimulationChange?.(isSaved ? current.id : null, isSaved)
+  }, [current.id, isSaved, onActiveSimulationChange])
 
   useEffect(() => {
     if (!tusdTouched && (!current.tusd_pct || current.tusd_pct <= 0)) {
@@ -260,6 +274,25 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
       setCurrent((prev) => ({ ...prev, tipo_sistema: tipoSistema }))
     }
   }, [current.tipo_sistema, tipoSistema])
+
+  useEffect(() => {
+    if (!initialSimulationId) {
+      initialSimulationAppliedRef.current = null
+      return
+    }
+    if (initialSimulationAppliedRef.current === initialSimulationId) {
+      return
+    }
+    const stored = itemsById[initialSimulationId]
+    if (!stored) {
+      return
+    }
+    const clone = cloneSimulation(stored)
+    capexAutoRef.current = null
+    setCurrent(clone)
+    setTusdTouched(true)
+    initialSimulationAppliedRef.current = initialSimulationId
+  }, [initialSimulationId, itemsById])
 
   useEffect(() => {
     const normalized = normalizeSimulationDefaults({
@@ -490,6 +523,18 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
     setTusdTouched(false)
   }
 
+  useEffect(() => {
+    if (modeRef.current === mode) {
+      return
+    }
+
+    if (mode === 'nova') {
+      handleNewSimulation()
+    }
+
+    modeRef.current = mode
+  }, [mode])
+
   const sanitizeSimulationForSave = (sim: Simulacao, timestamp: number): Simulacao => {
     const { nome, obs, ...rest } = sim
     const trimmedNome = nome?.trim()
@@ -599,62 +644,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
   return (
     <div className="simulations-tab">
       <div className="simulations-layout">
-        <aside className="simulations-sidebar">
-          <div className="simulations-sidebar-header">
-            <h5>Simulações salvas</h5>
-            <p>Gerencie cenários e compare resultados financeiros.</p>
-          </div>
-          <div className="simulations-scenario-list">
-            {simulations.length === 0 ? (
-              <p className="muted">Nenhuma simulação salva até o momento.</p>
-            ) : (
-              simulations.map((sim) => {
-                const isActive = sim.id === current.id
-                const isSelected = selectedIds.includes(sim.id)
-                const displayName = sim.nome?.trim() || sim.id
-                return (
-                  <div key={sim.id} className={`simulations-scenario-card${isActive ? ' active' : ''}`}>
-                    <button
-                      type="button"
-                      className="simulations-scenario-button"
-                      onClick={() => handleLoadSimulation(sim.id)}
-                    >
-                      <strong>{displayName}</strong>
-                      <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
-                    </button>
-                    <label className={`simulations-select${isSelected ? ' checked' : ''}`}>
-                      <input 
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleToggleSelection(sim.id)}
-                      />
-                      <span>Comparar</span>
-                    </label>
-                  </div>
-                )
-              })
-            )}
-          </div>
-          <div className="simulations-sidebar-actions">
-            <button type="button" className="secondary" onClick={handleNewSimulation}>
-              Nova simulação
-            </button>
-            <button type="button" className="primary" onClick={handleSave}>
-              Salvar
-            </button>
-            <button type="button" className="secondary" onClick={handleDuplicate}>
-              Duplicar
-            </button>
-            <button type="button" className="secondary danger" onClick={handleDelete}>
-              Excluir
-            </button>
-            <button type="button" className="secondary" onClick={handleReset}>
-              Reset
-            </button>
-          </div>
-        </aside>
-
-        <div className="simulations-form-area">
+      <div className="simulations-form-area">
           <section className="simulations-table">
             <div className="simulations-table-header">
               <div>
@@ -1253,20 +1243,20 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
             </div>
           </section>
 
-          <section className="simulations-kpis">
-            <header>
-              <h4>KPIs SolarInvest</h4>
-            </header>
-            <div className="simulations-kpi-grid">
-              <div className="simulations-kpi-card">
-                <span>
-                  {labelWithTooltip(
-                    'Receita total',
-                    'Somatório da receita mensal: Receita mês = Consumo × Tarifa com desconto.',
-                  )}
-                </span>
-                <strong>{formatMoneyBR(kpis.receitaTotal)}</strong>
-              </div>
+      <section className="simulations-kpis">
+        <header>
+          <h4>KPIs SolarInvest</h4>
+        </header>
+        <div className="simulations-kpi-grid">
+          <div className="simulations-kpi-card">
+            <span>
+              {labelWithTooltip(
+                'Receita total',
+                'Somatório da receita mensal: Receita mês = Consumo × Tarifa com desconto.',
+              )}
+            </span>
+            <strong>{formatMoneyBR(kpis.receitaTotal)}</strong>
+          </div>
               <div className="simulations-kpi-card">
                 <span>
                   {labelWithTooltip(
@@ -1300,21 +1290,76 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
                 </span>
                 <strong>{formatPayback(kpis.paybackMeses)}</strong>
               </div>
-              <div className="simulations-kpi-card">
-                <span>
-                  {labelWithTooltip(
-                    'Retorno a.m. bruto',
-                    'Taxa equivalente mensal do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
-                  )}
-                </span>
-                <strong>{formatPercentValue(kpis.retornoMensalBruto)}</strong>
-              </div>
-            </div>
-          </section>
+          <div className="simulations-kpi-card">
+            <span>
+              {labelWithTooltip(
+                'Retorno a.m. bruto',
+                'Taxa equivalente mensal do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
+              )}
+            </span>
+            <strong>{formatPercentValue(kpis.retornoMensalBruto)}</strong>
+          </div>
         </div>
-      </div>
-
+      </section>
     </div>
+
+      <aside className="simulations-sidebar">
+        <div className="simulations-sidebar-header">
+          <h5>Simulações salvas</h5>
+          <p>Gerencie cenários e compare resultados financeiros.</p>
+        </div>
+        <div className="simulations-scenario-list">
+          {simulations.length === 0 ? (
+            <p className="muted">Nenhuma simulação salva até o momento.</p>
+          ) : (
+            simulations.map((sim) => {
+              const isActive = sim.id === current.id
+              const isSelected = selectedIds.includes(sim.id)
+              const displayName = sim.nome?.trim() || sim.id
+              return (
+                <div key={sim.id} className={`simulations-scenario-card${isActive ? ' active' : ''}`}>
+                  <button
+                    type="button"
+                    className="simulations-scenario-button"
+                    onClick={() => handleLoadSimulation(sim.id)}
+                  >
+                    <strong>{displayName}</strong>
+                    <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
+                  </button>
+                  <label className={`simulations-select${isSelected ? ' checked' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleSelection(sim.id)}
+                    />
+                    <span>Comparar</span>
+                  </label>
+                </div>
+              )
+            })
+          )}
+        </div>
+        <div className="simulations-sidebar-actions">
+          <button type="button" className="secondary" onClick={handleNewSimulation}>
+            Nova simulação
+          </button>
+          <button type="button" className="primary" onClick={handleSave}>
+            Salvar
+          </button>
+          <button type="button" className="secondary" onClick={handleDuplicate}>
+            Duplicar
+          </button>
+          <button type="button" className="secondary danger" onClick={handleDelete}>
+            Excluir
+          </button>
+          <button type="button" className="secondary" onClick={handleReset}>
+            Reset
+          </button>
+        </div>
+      </aside>
+  </div>
+
+</div>
   )
 })
 
