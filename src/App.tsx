@@ -11518,11 +11518,15 @@ export default function App() {
     }
 
     const pendencias: string[] = []
-    if (!leasingContrato.dataInicio) pendencias.push('data de início do contrato')
-    if (!leasingContrato.dataFim) pendencias.push('data de término do contrato')
     if (!leasingContrato.localEntrega.trim()) pendencias.push('local de entrega / instalação')
-    if (!leasingContrato.modulosFV.trim()) pendencias.push('descrição dos módulos FV')
-    if (!leasingContrato.inversoresFV.trim()) pendencias.push('descrição dos inversores')
+
+    const anexosSelecionadosSet = new Set<LeasingAnexoId>(leasingAnexosSelecionados)
+    const requerEspecificacoesTecnicas = anexosSelecionadosSet.has('ANEXO_I')
+
+    if (requerEspecificacoesTecnicas) {
+      if (!leasingContrato.modulosFV.trim()) pendencias.push('descrição dos módulos FV')
+      if (!leasingContrato.inversoresFV.trim()) pendencias.push('descrição dos inversores')
+    }
 
     if (leasingContrato.tipoContrato === 'condominio') {
       if (!leasingContrato.nomeCondominio.trim()) pendencias.push('nome do condomínio')
@@ -11604,8 +11608,6 @@ export default function App() {
       dataAtualExtenso,
       modulosFV: leasingContrato.modulosFV.trim(),
       inversoresFV: leasingContrato.inversoresFV.trim(),
-      assinaturaContratante: leasingContrato.assinaturaContratante.trim(),
-      assinaturaContratada: leasingContrato.assinaturaContratada.trim(),
       proprietarios: proprietariosPayload,
       ucsBeneficiarias: ucsPayload,
       nomeCondominio: leasingContrato.nomeCondominio.trim(),
@@ -11622,6 +11624,7 @@ export default function App() {
     adicionarNotificacao,
     kcKwhMes,
     leasingContrato,
+    leasingAnexosSelecionados,
     potenciaInstaladaKwp,
     prepararDadosContratoCliente,
     tarifaCheia,
@@ -13595,22 +13598,6 @@ export default function App() {
                 handleLeasingContratoCampoChange('inversoresFV', event.target.value)
               }
               rows={2}
-            />
-          </Field>
-          <Field label="Assinatura do contratante (texto ou hash)">
-            <input
-              value={leasingContrato.assinaturaContratante}
-              onChange={(event) =>
-                handleLeasingContratoCampoChange('assinaturaContratante', event.target.value)
-              }
-            />
-          </Field>
-          <Field label="Assinatura SolarInvest">
-            <input
-              value={leasingContrato.assinaturaContratada}
-              onChange={(event) =>
-                handleLeasingContratoCampoChange('assinaturaContratada', event.target.value)
-              }
             />
           </Field>
         </div>

@@ -42,8 +42,6 @@ export type LeasingContratoDados = {
   localEntrega: string
   modulosFV: string
   inversoresFV: string
-  assinaturaContratante: string
-  assinaturaContratada: string
   nomeCondominio: string
   cnpjCondominio: string
   nomeSindico: string
@@ -101,8 +99,6 @@ const createInitialState = (): LeasingState => ({
     localEntrega: '',
     modulosFV: '',
     inversoresFV: '',
-    assinaturaContratante: '',
-    assinaturaContratada: '',
     nomeCondominio: '',
     cnpjCondominio: '',
     nomeSindico: '',

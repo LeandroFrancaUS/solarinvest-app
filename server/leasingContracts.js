@@ -149,6 +149,9 @@ const ensureField = (payload, key, label) => {
   return value
 }
 
+const optionalField = (payload, key) =>
+  typeof payload[key] === 'string' ? payload[key].trim() : ''
+
 const sanitizeDocumentoId = (value) => {
   const digits = String(value ?? '').replace(/\D/g, '')
   return digits || 'documento'
@@ -192,23 +195,13 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     potencia: ensureField(dados, 'potencia', 'Potência contratada (kWp)'),
     kWhContratado: ensureField(dados, 'kWhContratado', 'Energia contratada (kWh)'),
     tarifaBase: ensureField(dados, 'tarifaBase', 'Tarifa base (R$/kWh)'),
-    dataInicio: ensureField(dados, 'dataInicio', 'Data de início do contrato'),
-    dataFim: ensureField(dados, 'dataFim', 'Data de término do contrato'),
+    dataInicio: optionalField(dados, 'dataInicio'),
+    dataFim: optionalField(dados, 'dataFim'),
     localEntrega: ensureField(dados, 'localEntrega', 'Local de entrega'),
-    modulosFV: ensureField(dados, 'modulosFV', 'Descrição dos módulos FV'),
-    inversoresFV: ensureField(dados, 'inversoresFV', 'Descrição dos inversores FV'),
-    dataHomologacao:
-      typeof dados.dataHomologacao === 'string' ? dados.dataHomologacao.trim() : '',
-    dataAtualExtenso:
-      typeof dados.dataAtualExtenso === 'string' ? dados.dataAtualExtenso.trim() : '',
-    assinaturaContratante:
-      typeof dados.assinaturaContratante === 'string'
-        ? dados.assinaturaContratante.trim()
-        : '',
-    assinaturaContratada:
-      typeof dados.assinaturaContratada === 'string'
-        ? dados.assinaturaContratada.trim()
-        : '',
+    modulosFV: optionalField(dados, 'modulosFV'),
+    inversoresFV: optionalField(dados, 'inversoresFV'),
+    dataHomologacao: optionalField(dados, 'dataHomologacao'),
+    dataAtualExtenso: optionalField(dados, 'dataAtualExtenso'),
     proprietarios: normalizeProprietarios(dados.proprietarios),
     ucsBeneficiarias: normalizeUcsBeneficiarias(dados.ucsBeneficiarias),
     nomeCondominio:
@@ -357,6 +350,21 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
+
+    if (anexosSelecionados.includes('ANEXO_I')) {
+      if (!dadosLeasing.modulosFV) {
+        throw new LeasingContractsError(
+          400,
+          'O Anexo I exige a descrição dos módulos fotovoltaicos.',
+        )
+      }
+      if (!dadosLeasing.inversoresFV) {
+        throw new LeasingContractsError(
+          400,
+          'O Anexo I exige a descrição dos inversores.',
+        )
+      }
+    }
 
     const files = []
     const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
