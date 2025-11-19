@@ -99,7 +99,10 @@ import {
   getLeasingSnapshot,
   hasLeasingStateChanges,
   leasingActions,
+  useLeasingStore,
   useLeasingValorDeMercadoEstimado,
+  type LeasingContratoDados,
+  type LeasingContratoProprietario,
   type LeasingState,
 } from './store/useLeasingStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
@@ -1894,6 +1897,63 @@ type ContractTemplatesModalProps = {
   onClose: () => void
 }
 
+type LeasingContratoTipo = 'residencial' | 'condominio'
+
+type LeasingAnexoId = 'ANEXO_I' | 'ANEXO_II' | 'ANEXO_III' | 'ANEXO_IV' | 'ANEXO_VII' | 'ANEXO_VIII'
+
+type LeasingAnexoConfig = {
+  id: LeasingAnexoId
+  label: string
+  descricao?: string
+  tipos: LeasingContratoTipo[]
+  autoInclude?: boolean
+}
+
+const LEASING_ANEXOS_CONFIG: LeasingAnexoConfig[] = [
+  {
+    id: 'ANEXO_I',
+    label: 'Anexo I – Especificações Técnicas',
+    descricao: 'Resumo técnico e proposta comercial detalhada.',
+    tipos: ['residencial', 'condominio'],
+  },
+  {
+    id: 'ANEXO_II',
+    label: 'Anexo II – Opção de Compra',
+    descricao: 'Termo de opção de compra da usina ao final do contrato.',
+    tipos: ['residencial', 'condominio'],
+  },
+  {
+    id: 'ANEXO_III',
+    label: 'Anexo III – Regras de Cálculo',
+    descricao: 'Documento estático com as fórmulas da mensalidade.',
+    tipos: ['residencial', 'condominio'],
+  },
+  {
+    id: 'ANEXO_IV',
+    label: 'Anexo IV – Autorização do Proprietário',
+    descricao: 'Declaração dos proprietários ou herdeiros autorizando a instalação.',
+    tipos: ['residencial'],
+  },
+  {
+    id: 'ANEXO_VII',
+    label: 'Anexo VII – Termo de Entrega e Aceite',
+    descricao: 'Registro de entrega técnica da usina.',
+    tipos: ['residencial', 'condominio'],
+  },
+  {
+    id: 'ANEXO_VIII',
+    label: 'Anexo VIII – Procuração do Condomínio',
+    descricao: 'Documento obrigatório para representação do condomínio.',
+    tipos: ['condominio'],
+    autoInclude: true,
+  },
+]
+
+const getDefaultLeasingAnexos = (tipo: LeasingContratoTipo): LeasingAnexoId[] =>
+  LEASING_ANEXOS_CONFIG.filter((config) => config.tipos.includes(tipo) && !config.autoInclude).map(
+    (config) => config.id,
+  )
+
 type PropostaEnvioMetodo = 'whatsapp' | 'whatsapp-business' | 'airdrop' | 'quick-share'
 
 type PropostaEnvioContato = {
@@ -2149,6 +2209,125 @@ function ContractTemplatesModal({
               Gerar contratos selecionados
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type LeasingContractsModalProps = {
+  tipoContrato: LeasingContratoTipo
+  anexosSelecionados: LeasingAnexoId[]
+  onToggleAnexo: (anexoId: LeasingAnexoId) => void
+  onSelectAll: (selectAll: boolean) => void
+  onConfirm: () => void
+  onClose: () => void
+  isGenerating: boolean
+}
+
+function LeasingContractsModal({
+  tipoContrato,
+  anexosSelecionados,
+  onToggleAnexo,
+  onSelectAll,
+  onConfirm,
+  onClose,
+  isGenerating,
+}: LeasingContractsModalProps) {
+  const modalTitleId = useId()
+  const checkboxBaseId = useId()
+  const anexosDisponiveis = useMemo(
+    () => LEASING_ANEXOS_CONFIG.filter((config) => config.tipos.includes(tipoContrato)),
+    [tipoContrato],
+  )
+  const opcionais = anexosDisponiveis.filter((config) => !config.autoInclude)
+  const allOptionalSelected =
+    opcionais.length > 0 && opcionais.every((config) => anexosSelecionados.includes(config.id))
+
+  const hasOpcionalSelecionavel = opcionais.length > 0
+
+  return (
+    <div
+      className="modal contract-templates-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={modalTitleId}
+    >
+      <div className="modal-backdrop" onClick={onClose} />
+      <div className="modal-content contract-templates-modal__content">
+        <div className="modal-header">
+          <h3 id={modalTitleId}>
+            {tipoContrato === 'condominio'
+              ? 'Gerar documentos do leasing (condomínio)'
+              : 'Gerar documentos do leasing (residencial)'}
+          </h3>
+          <button className="icon" onClick={onClose} aria-label="Fechar seleção de anexos">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body">
+          <p>
+            Escolha quais anexos devem acompanhar o contrato principal. Itens obrigatórios são
+            incluídos automaticamente.
+          </p>
+          {hasOpcionalSelecionavel ? (
+            <div className="contract-template-actions">
+              <button
+                type="button"
+                className="link"
+                onClick={() => onSelectAll(!allOptionalSelected)}
+              >
+                {allOptionalSelected ? 'Desmarcar opcionais' : 'Selecionar todos os opcionais'}
+              </button>
+            </div>
+          ) : null}
+          <ul className="contract-template-list">
+            {anexosDisponiveis.map((config, index) => {
+              const checkboxId = `${checkboxBaseId}-${index}`
+              const checked = config.autoInclude || anexosSelecionados.includes(config.id)
+              const disabled = Boolean(config.autoInclude)
+              return (
+                <li key={config.id} className="contract-template-item">
+                  <label htmlFor={checkboxId}>
+                    <input
+                      id={checkboxId}
+                      type="checkbox"
+                      checked={checked}
+                      disabled={disabled}
+                      onChange={() => {
+                        if (disabled) {
+                          return
+                        }
+                        onToggleAnexo(config.id)
+                      }}
+                    />
+                    <span>
+                      <strong>{config.label}</strong>
+                      {config.descricao ? (
+                        <span className="filename">{config.descricao}</span>
+                      ) : null}
+                      {config.autoInclude ? (
+                        <span className="filename">Incluso automaticamente</span>
+                      ) : null}
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="ghost" onClick={onClose} disabled={isGenerating}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="primary"
+            onClick={onConfirm}
+            disabled={isGenerating}
+          >
+            {isGenerating ? 'Gerando…' : 'Gerar pacote'}
+          </button>
         </div>
       </div>
     </div>
@@ -3718,6 +3897,7 @@ export default function App() {
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
+  const leasingContrato = useLeasingStore((state) => state.contrato)
 
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
@@ -5091,14 +5271,23 @@ export default function App() {
     INITIAL_VALUES.tabelaVisivel,
   )
   const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
-  const [gerandoContratoPdf, setGerandoContratoPdf] = useState(false)
+  const [gerandoContratos, setGerandoContratos] = useState(false)
   const [isContractTemplatesModalOpen, setIsContractTemplatesModalOpen] = useState(false)
-  const [contractTemplatesCategory, setContractTemplatesCategory] = useState<ContractTemplateCategory>('leasing')
+  const [isLeasingContractsModalOpen, setIsLeasingContractsModalOpen] = useState(false)
+  const [leasingAnexosSelecionados, setLeasingAnexosSelecionados] = useState<LeasingAnexoId[]>(() =>
+    getDefaultLeasingAnexos(leasingContrato.tipoContrato),
+  )
+  const [contractTemplatesCategory, setContractTemplatesCategory] =
+    useState<ContractTemplateCategory>('vendas')
   const [contractTemplates, setContractTemplates] = useState<string[]>([])
   const [selectedContractTemplates, setSelectedContractTemplates] = useState<string[]>([])
   const [contractTemplatesLoading, setContractTemplatesLoading] = useState(false)
   const [contractTemplatesError, setContractTemplatesError] = useState<string | null>(null)
   const contratoClientePayloadRef = useRef<ClienteContratoPayload | null>(null)
+
+  useEffect(() => {
+    setLeasingAnexosSelecionados(getDefaultLeasingAnexos(leasingContrato.tipoContrato))
+  }, [leasingContrato.tipoContrato])
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
   const [oemInflacao, setOemInflacao] = useState(INITIAL_VALUES.oemInflacao)
@@ -11322,6 +11511,123 @@ export default function App() {
     cliente.uf,
   ])
 
+  const prepararPayloadContratosLeasing = useCallback(() => {
+    const dadosBase = prepararDadosContratoCliente()
+    if (!dadosBase) {
+      return null
+    }
+
+    const pendencias: string[] = []
+    if (!leasingContrato.dataInicio) pendencias.push('data de início do contrato')
+    if (!leasingContrato.dataFim) pendencias.push('data de término do contrato')
+    if (!leasingContrato.localEntrega.trim()) pendencias.push('local de entrega / instalação')
+    if (!leasingContrato.modulosFV.trim()) pendencias.push('descrição dos módulos FV')
+    if (!leasingContrato.inversoresFV.trim()) pendencias.push('descrição dos inversores')
+
+    if (leasingContrato.tipoContrato === 'condominio') {
+      if (!leasingContrato.nomeCondominio.trim()) pendencias.push('nome do condomínio')
+      if (!leasingContrato.cnpjCondominio.trim()) pendencias.push('CNPJ do condomínio')
+      if (!leasingContrato.nomeSindico.trim()) pendencias.push('nome do síndico')
+      if (!leasingContrato.cpfSindico.trim()) pendencias.push('CPF do síndico')
+    }
+
+    if (pendencias.length > 0) {
+      const ultima = pendencias[pendencias.length - 1]
+      const inicio = pendencias.slice(0, -1)
+      const lista = inicio.length > 0 ? `${inicio.join(', ')} e ${ultima}` : ultima
+      adicionarNotificacao(
+        `Preencha os campos contratuais obrigatórios antes de gerar os documentos: ${lista}.`,
+        'error',
+      )
+      return null
+    }
+
+    const formatDateForContract = (value: string) => {
+      if (!value) {
+        return ''
+      }
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) {
+        return ''
+      }
+      return parsed.toLocaleDateString('pt-BR')
+    }
+
+    const dataAtualExtenso = new Intl.DateTimeFormat('pt-BR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(new Date())
+
+    const potenciaValor = Number.isFinite(potenciaInstaladaKwp) ? potenciaInstaladaKwp : 0
+    const energiaValor = Number.isFinite(kcKwhMes) ? kcKwhMes : 0
+    const tarifaValor = Number.isFinite(tarifaCheia) ? tarifaCheia : 0
+
+    const potenciaFormatada = formatNumberBRWithOptions(Math.max(potenciaValor, 0), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    const energiaFormatada = formatNumberBRWithOptions(Math.max(energiaValor, 0), {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })
+    const tarifaBaseFormatada = formatNumberBRWithOptions(Math.max(tarifaValor, 0), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    })
+
+    const proprietariosPayload = leasingContrato.proprietarios
+      .map((item) => ({
+        nome: item.nome.trim(),
+        cpfCnpj: formatCpfCnpj(item.cpfCnpj),
+      }))
+      .filter((item) => item.nome || item.cpfCnpj)
+
+    const ucsPayload = ucsBeneficiarias
+      .map((uc) => ({
+        numero: uc.numero.trim(),
+        endereco: uc.endereco.trim(),
+        rateioPercentual: uc.rateioPercentual.trim(),
+      }))
+      .filter((uc) => uc.numero || uc.endereco)
+
+    const dadosLeasing = {
+      ...dadosBase,
+      cpfCnpj: formatCpfCnpj(dadosBase.cpfCnpj),
+      potencia: potenciaFormatada,
+      kWhContratado: energiaFormatada,
+      tarifaBase: tarifaBaseFormatada,
+      dataInicio: formatDateForContract(leasingContrato.dataInicio),
+      dataFim: formatDateForContract(leasingContrato.dataFim),
+      localEntrega: leasingContrato.localEntrega.trim(),
+      dataHomologacao: formatDateForContract(leasingContrato.dataHomologacao),
+      dataAtualExtenso,
+      modulosFV: leasingContrato.modulosFV.trim(),
+      inversoresFV: leasingContrato.inversoresFV.trim(),
+      assinaturaContratante: leasingContrato.assinaturaContratante.trim(),
+      assinaturaContratada: leasingContrato.assinaturaContratada.trim(),
+      proprietarios: proprietariosPayload,
+      ucsBeneficiarias: ucsPayload,
+      nomeCondominio: leasingContrato.nomeCondominio.trim(),
+      cnpjCondominio: formatCpfCnpj(leasingContrato.cnpjCondominio),
+      nomeSindico: leasingContrato.nomeSindico.trim(),
+      cpfSindico: formatCpfCnpj(leasingContrato.cpfSindico),
+    }
+
+    return {
+      tipoContrato: leasingContrato.tipoContrato,
+      dadosLeasing,
+    }
+  }, [
+    adicionarNotificacao,
+    kcKwhMes,
+    leasingContrato,
+    potenciaInstaladaKwp,
+    prepararDadosContratoCliente,
+    tarifaCheia,
+    ucsBeneficiarias,
+  ])
+
   const carregarTemplatesContrato = useCallback(
     async (category: ContractTemplateCategory) => {
       setContractTemplatesLoading(true)
@@ -11400,14 +11706,45 @@ export default function App() {
     [contractTemplates],
   )
 
+  const handleToggleLeasingAnexo = useCallback((anexoId: LeasingAnexoId) => {
+    const config = LEASING_ANEXOS_CONFIG.find((item) => item.id === anexoId)
+    if (config?.autoInclude) {
+      return
+    }
+    setLeasingAnexosSelecionados((prev) => {
+      if (prev.includes(anexoId)) {
+        return prev.filter((item) => item !== anexoId)
+      }
+      return [...prev, anexoId]
+    })
+  }, [])
+
+  const handleSelectAllLeasingAnexos = useCallback(
+    (selectAll: boolean) => {
+      if (!selectAll) {
+        setLeasingAnexosSelecionados([])
+        return
+      }
+      const disponiveis = LEASING_ANEXOS_CONFIG.filter(
+        (config) => config.tipos.includes(leasingContrato.tipoContrato) && !config.autoInclude,
+      ).map((config) => config.id)
+      setLeasingAnexosSelecionados(disponiveis)
+    },
+    [leasingContrato.tipoContrato],
+  )
+
   const handleFecharModalContratos = useCallback(() => {
     setIsContractTemplatesModalOpen(false)
     contratoClientePayloadRef.current = null
   }, [])
 
+  const handleFecharLeasingContractsModal = useCallback(() => {
+    setIsLeasingContractsModalOpen(false)
+  }, [])
+
   const abrirSelecaoContratos = useCallback(
     (category: ContractTemplateCategory) => {
-      if (gerandoContratoPdf) {
+      if (gerandoContratos) {
         return
       }
 
@@ -11422,18 +11759,25 @@ export default function App() {
       setContractTemplatesError(null)
       void carregarTemplatesContrato(category)
     },
-    [carregarTemplatesContrato, gerandoContratoPdf, prepararDadosContratoCliente],
+    [carregarTemplatesContrato, gerandoContratos, prepararDadosContratoCliente],
   )
 
   const handleGerarContratoLeasing = useCallback(() => {
-    abrirSelecaoContratos('leasing')
-  }, [abrirSelecaoContratos])
+    if (gerandoContratos) {
+      return
+    }
+    const base = prepararDadosContratoCliente()
+    if (!base) {
+      return
+    }
+    setIsLeasingContractsModalOpen(true)
+  }, [gerandoContratos, prepararDadosContratoCliente])
 
   const handleGerarContratoVendas = useCallback(() => {
     abrirSelecaoContratos('vendas')
   }, [abrirSelecaoContratos])
 
-  const handleConfirmarGeracaoContratos = useCallback(async () => {
+  const handleConfirmarGeracaoContratosVendas = useCallback(async () => {
     const payload = contratoClientePayloadRef.current
     if (!payload) {
       adicionarNotificacao(
@@ -11455,7 +11799,7 @@ export default function App() {
     }
 
     setIsContractTemplatesModalOpen(false)
-    setGerandoContratoPdf(true)
+    setGerandoContratos(true)
 
     const extrairErro = async (response: Response, template: string) => {
       let mensagemErro = `Não foi possível gerar o contrato (${template}). Tente novamente.`
@@ -11737,13 +12081,98 @@ export default function App() {
           : 'Não foi possível gerar o contrato. Tente novamente.'
       adicionarNotificacao(mensagem, 'error')
     } finally {
-      setGerandoContratoPdf(false)
+      setGerandoContratos(false)
       contratoClientePayloadRef.current = null
     }
   }, [
     adicionarNotificacao,
     handleFecharModalContratos,
     selectedContractTemplates,
+  ])
+
+  const handleConfirmarGeracaoLeasing = useCallback(async () => {
+    const payload = prepararPayloadContratosLeasing()
+    if (!payload) {
+      return
+    }
+
+    if (typeof window === 'undefined') {
+      adicionarNotificacao('Recurso disponível apenas no navegador.', 'error')
+      return
+    }
+
+    setIsLeasingContractsModalOpen(false)
+    setGerandoContratos(true)
+
+    const extrairErro = async (response: Response) => {
+      let mensagemErro = 'Não foi possível gerar os documentos de leasing. Tente novamente.'
+      const contentType = response.headers.get('content-type') ?? ''
+      try {
+        if (contentType.includes('application/json')) {
+          const data = (await response.json()) as { error?: string } | undefined
+          if (data?.error) {
+            mensagemErro = data.error
+          }
+        } else {
+          const texto = await response.text()
+          if (texto.trim()) {
+            mensagemErro = texto.trim()
+          }
+        }
+      } catch (error) {
+        console.warn('Não foi possível interpretar o erro ao gerar o pacote de leasing.', error)
+      }
+      return mensagemErro
+    }
+
+    try {
+      const response = await fetch(resolveApiUrl('/api/contracts/leasing'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipoContrato: payload.tipoContrato,
+          dadosLeasing: payload.dadosLeasing,
+          anexosSelecionados: leasingAnexosSelecionados,
+        }),
+      })
+
+      if (!response.ok) {
+        const mensagemErro = await extrairErro(response)
+        throw new Error(mensagemErro)
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const disposition = response.headers.get('content-disposition') ?? ''
+      const match = disposition.match(/filename="?([^";]+)"?/i)
+      const downloadName = match?.[1] ?? 'contratos-leasing.zip'
+
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = downloadName
+      anchor.style.display = 'none'
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(url)
+      }, 60_000)
+
+      adicionarNotificacao('Pacote de contratos de leasing gerado.', 'success')
+    } catch (error) {
+      console.error('Erro ao gerar contratos de leasing', error)
+      const mensagem =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Não foi possível gerar os contratos de leasing. Tente novamente.'
+      adicionarNotificacao(mensagem, 'error')
+    } finally {
+      setGerandoContratos(false)
+    }
+  }, [
+    adicionarNotificacao,
+    leasingAnexosSelecionados,
+    prepararPayloadContratosLeasing,
   ])
 
   const handleSalvarPropostaPdf = useCallback(async (): Promise<boolean> => {
@@ -12175,6 +12604,41 @@ export default function App() {
       }))
     }
   }
+
+  const handleLeasingContratoCampoChange = useCallback(
+    <K extends keyof LeasingContratoDados>(key: K, value: LeasingContratoDados[K]) => {
+      leasingActions.updateContrato({ [key]: value } as Partial<LeasingContratoDados>)
+    },
+    [],
+  )
+
+  const handleLeasingContratoProprietarioChange = useCallback(
+    (index: number, campo: keyof LeasingContratoProprietario, valor: string) => {
+      const atualizados = leasingContrato.proprietarios.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [campo]: valor } : item,
+      )
+      leasingActions.updateContrato({ proprietarios: atualizados })
+    },
+    [leasingContrato.proprietarios],
+  )
+
+  const handleAdicionarContratoProprietario = useCallback(() => {
+    leasingActions.updateContrato({
+      proprietarios: [...leasingContrato.proprietarios, { nome: '', cpfCnpj: '' }],
+    })
+  }, [leasingContrato.proprietarios])
+
+  const handleRemoverContratoProprietario = useCallback(
+    (index: number) => {
+      if (leasingContrato.proprietarios.length <= 1) {
+        leasingActions.updateContrato({ proprietarios: [{ nome: '', cpfCnpj: '' }] })
+        return
+      }
+      const proximos = leasingContrato.proprietarios.filter((_, idx) => idx !== index)
+      leasingActions.updateContrato({ proprietarios: proximos })
+    },
+    [leasingContrato.proprietarios],
+  )
 
   const handleHerdeiroChange = useCallback((index: number, value: string) => {
     setCliente((prev) => {
@@ -13053,6 +13517,185 @@ export default function App() {
           Sincronização automática com o OneDrive indisponível. Configure a integração para habilitar o envio.
         </p>
       ) : null}
+      </section>
+    )
+  }
+
+  const renderLeasingContratoSection = () => {
+    const isCondominioContrato = leasingContrato.tipoContrato === 'condominio'
+    return (
+      <section className="card">
+        <div className="card-header">
+          <h2>Dados contratuais do leasing</h2>
+        </div>
+        <div className="grid g3">
+          <Field label="Tipo de contrato">
+            <div className="cliente-indicacao-group">
+              <label className="inline-checkbox inline-checkbox--small">
+                <input
+                  type="radio"
+                  name="leasing-tipo-contrato"
+                  checked={leasingContrato.tipoContrato === 'residencial'}
+                  onChange={() => handleLeasingContratoCampoChange('tipoContrato', 'residencial')}
+                />
+                <span>Residencial</span>
+              </label>
+              <label className="inline-checkbox inline-checkbox--small">
+                <input
+                  type="radio"
+                  name="leasing-tipo-contrato"
+                  checked={leasingContrato.tipoContrato === 'condominio'}
+                  onChange={() => handleLeasingContratoCampoChange('tipoContrato', 'condominio')}
+                />
+                <span>Condomínio</span>
+              </label>
+            </div>
+          </Field>
+          <Field label="Data de início do contrato">
+            <input
+              type="date"
+              value={leasingContrato.dataInicio}
+              onChange={(event) => handleLeasingContratoCampoChange('dataInicio', event.target.value)}
+            />
+          </Field>
+          <Field label="Data de término do contrato">
+            <input
+              type="date"
+              value={leasingContrato.dataFim}
+              onChange={(event) => handleLeasingContratoCampoChange('dataFim', event.target.value)}
+            />
+          </Field>
+          <Field label="Local de entrega / instalação">
+            <input
+              value={leasingContrato.localEntrega}
+              onChange={(event) => handleLeasingContratoCampoChange('localEntrega', event.target.value)}
+              placeholder="Endereço ou município"
+            />
+          </Field>
+          <Field label="Data da homologação (opcional)">
+            <input
+              type="date"
+              value={leasingContrato.dataHomologacao}
+              onChange={(event) =>
+                handleLeasingContratoCampoChange('dataHomologacao', event.target.value)
+              }
+            />
+          </Field>
+          <Field label="Módulos fotovoltaicos instalados">
+            <textarea
+              value={leasingContrato.modulosFV}
+              onChange={(event) => handleLeasingContratoCampoChange('modulosFV', event.target.value)}
+              rows={2}
+            />
+          </Field>
+          <Field label="Inversores instalados">
+            <textarea
+              value={leasingContrato.inversoresFV}
+              onChange={(event) =>
+                handleLeasingContratoCampoChange('inversoresFV', event.target.value)
+              }
+              rows={2}
+            />
+          </Field>
+          <Field label="Assinatura do contratante (texto ou hash)">
+            <input
+              value={leasingContrato.assinaturaContratante}
+              onChange={(event) =>
+                handleLeasingContratoCampoChange('assinaturaContratante', event.target.value)
+              }
+            />
+          </Field>
+          <Field label="Assinatura SolarInvest">
+            <input
+              value={leasingContrato.assinaturaContratada}
+              onChange={(event) =>
+                handleLeasingContratoCampoChange('assinaturaContratada', event.target.value)
+              }
+            />
+          </Field>
+        </div>
+        {isCondominioContrato ? (
+          <div className="grid g2">
+            <Field label="Nome do condomínio">
+              <input
+                value={leasingContrato.nomeCondominio}
+                onChange={(event) =>
+                  handleLeasingContratoCampoChange('nomeCondominio', event.target.value)
+                }
+              />
+            </Field>
+            <Field label="CNPJ do condomínio">
+              <input
+                value={leasingContrato.cnpjCondominio}
+                onChange={(event) =>
+                  handleLeasingContratoCampoChange('cnpjCondominio', event.target.value)
+                }
+              />
+            </Field>
+            <Field label="Nome do síndico">
+              <input
+                value={leasingContrato.nomeSindico}
+                onChange={(event) =>
+                  handleLeasingContratoCampoChange('nomeSindico', event.target.value)
+                }
+              />
+            </Field>
+            <Field label="CPF do síndico">
+              <input
+                value={leasingContrato.cpfSindico}
+                onChange={(event) =>
+                  handleLeasingContratoCampoChange('cpfSindico', event.target.value)
+                }
+              />
+            </Field>
+          </div>
+        ) : null}
+        <Field
+          label="Proprietários / representantes legais (Anexo IV)"
+          hint="Inclua o nome e o CPF/CNPJ que devem constar no termo de autorização."
+        >
+          <div className="cliente-herdeiros-group">
+            {leasingContrato.proprietarios.map((proprietario, index) => (
+              <div className="cliente-herdeiro-row" key={`leasing-proprietario-${index}`}>
+                <input
+                  value={proprietario.nome}
+                  onChange={(event) =>
+                    handleLeasingContratoProprietarioChange(index, 'nome', event.target.value)
+                  }
+                  placeholder={`Nome do proprietário ${index + 1}`}
+                />
+                <input
+                  value={proprietario.cpfCnpj}
+                  onChange={(event) =>
+                    handleLeasingContratoProprietarioChange(
+                      index,
+                      'cpfCnpj',
+                      event.target.value,
+                    )
+                  }
+                  placeholder="CPF ou CNPJ"
+                />
+                <button
+                  type="button"
+                  className="ghost cliente-herdeiro-remove"
+                  onClick={() => handleRemoverContratoProprietario(index)}
+                  aria-label={`Remover proprietário ${index + 1}`}
+                >
+                  Remover
+                </button>
+              </div>
+            ))}
+            <div className="cliente-herdeiros-actions">
+              <button
+                type="button"
+                className="ghost cliente-herdeiro-add"
+                onClick={handleAdicionarContratoProprietario}
+              >
+                Adicionar proprietário
+              </button>
+            </div>
+          </div>
+        </Field>
       </section>
     )
   }
@@ -16830,7 +17473,7 @@ export default function App() {
         },
         {
           id: 'propostas-contratos',
-          label: gerandoContratoPdf ? 'Gerando…' : 'Gerar contratos',
+          label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
           icon: '🖋️',
           onSelect: () => {
             setActivePage('app')
@@ -16840,7 +17483,7 @@ export default function App() {
               handleGerarContratoLeasing()
             }
           },
-          disabled: gerandoContratoPdf,
+          disabled: gerandoContratos,
         },
         {
           id: 'propostas-imagens',
@@ -17996,6 +18639,7 @@ export default function App() {
                     </div>
                   ) : null}
                   {renderClienteDadosSection()}
+                  {activeTab === 'leasing' ? renderLeasingContratoSection() : null}
                   {renderPropostaImagensSection()}
               {activeTab === 'leasing' ? (
                 <>
@@ -18478,6 +19122,17 @@ export default function App() {
         onChange={handleClientesImportarArquivo}
       />
 
+      {isLeasingContractsModalOpen ? (
+        <LeasingContractsModal
+          tipoContrato={leasingContrato.tipoContrato}
+          anexosSelecionados={leasingAnexosSelecionados}
+          onToggleAnexo={handleToggleLeasingAnexo}
+          onSelectAll={handleSelectAllLeasingAnexos}
+          onConfirm={handleConfirmarGeracaoLeasing}
+          onClose={handleFecharLeasingContractsModal}
+          isGenerating={gerandoContratos}
+        />
+      ) : null}
       {isContractTemplatesModalOpen ? (
         <ContractTemplatesModal
           templates={contractTemplates}
@@ -18487,7 +19142,7 @@ export default function App() {
           errorMessage={contractTemplatesError}
           onToggleTemplate={handleToggleContractTemplate}
           onSelectAll={handleSelectAllContractTemplates}
-          onConfirm={handleConfirmarGeracaoContratos}
+          onConfirm={handleConfirmarGeracaoContratosVendas}
           onClose={handleFecharModalContratos}
         />
       ) : null}

@@ -13,6 +13,10 @@ import {
   handleContractTemplatesRequest,
 } from './contracts.js'
 import {
+  LEASING_CONTRACTS_PATH,
+  handleLeasingContractsRequest,
+} from './leasingContracts.js'
+import {
   getStackUser,
   getTrustedOrigins,
   isStackAuthEnabled,
@@ -199,6 +203,11 @@ const server = createServer(async (req, res) => {
 
   if (pathname === DEFAULT_PROXY_BASE) {
     await handleAneelProxyRequest(req, res)
+    return
+  }
+
+  if (pathname === LEASING_CONTRACTS_PATH) {
+    await handleLeasingContractsRequest(req, res)
     return
   }
 

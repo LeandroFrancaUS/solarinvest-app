@@ -1,0 +1,407 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import JSZip from 'jszip'
+import Mustache from 'mustache'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+
+const JSON_BODY_LIMIT = 256 * 1024
+const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
+const LEASING_TEMPLATES_DIR = path.resolve(
+  process.cwd(),
+  'assets/templates/contratos/leasing',
+)
+
+export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
+
+export class LeasingContractsError extends Error {
+  /**
+   * @param {number} statusCode
+   * @param {string} message
+   */
+  constructor(statusCode, message) {
+    super(message)
+    this.statusCode = statusCode
+    this.name = 'LeasingContractsError'
+  }
+}
+
+const setCorsHeaders = (res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Max-Age', '600')
+}
+
+const readJsonBody = async (req) => {
+  if (!req.readable) {
+    return {}
+  }
+
+  let accumulated = ''
+  let totalLength = 0
+  req.setEncoding('utf8')
+
+  return new Promise((resolve, reject) => {
+    req.on('data', (chunk) => {
+      totalLength += chunk.length
+      if (totalLength > JSON_BODY_LIMIT) {
+        reject(new LeasingContractsError(413, 'Payload acima do limite permitido.'))
+        return
+      }
+      accumulated += chunk
+    })
+
+    req.on('end', () => {
+      if (!accumulated) {
+        resolve({})
+        return
+      }
+      try {
+        resolve(JSON.parse(accumulated))
+      } catch (error) {
+        reject(new LeasingContractsError(400, 'JSON inválido na requisição.'))
+      }
+    })
+
+    req.on('error', (error) => {
+      reject(error)
+    })
+  })
+}
+
+const CONTRACT_TEMPLATES = {
+  residencial: 'CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO - RESIDENCIA.docx',
+  condominio: 'CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO - CONDOMINIO.docx',
+}
+
+const ANEXO_DEFINITIONS = [
+  {
+    id: 'ANEXO_I',
+    label: 'Anexo I – Especificações Técnicas',
+    templates: {
+      residencial: 'ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx',
+      condominio: 'ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Condominio).docx',
+    },
+    appliesTo: new Set(['residencial', 'condominio']),
+  },
+  {
+    id: 'ANEXO_II',
+    label: 'Anexo II – Opção de Compra',
+    templates: {
+      residencial: 'Anexo II – Opção de Compra da Usina (todos).docx',
+      condominio: 'Anexo II – Opção de Compra da Usina (todos).docx',
+    },
+    appliesTo: new Set(['residencial', 'condominio']),
+  },
+  {
+    id: 'ANEXO_III',
+    label: 'Anexo III – Regras de Cálculo',
+    templates: {
+      residencial: 'ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
+      condominio: 'ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
+    },
+    appliesTo: new Set(['residencial', 'condominio']),
+  },
+  {
+    id: 'ANEXO_IV',
+    label: 'Anexo IV – Autorização do Proprietário',
+    templates: {
+      residencial:
+        'Anexo IV – Termo de Autorização e Procuração do Proprietário, Herdeiros ou Representantes Legais (Residencial).docx',
+    },
+    appliesTo: new Set(['residencial']),
+  },
+  {
+    id: 'ANEXO_VII',
+    label: 'Anexo VII – Termo de Entrega e Aceite',
+    templates: {
+      residencial: 'ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx',
+      condominio: 'ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Condominio).docx',
+    },
+    appliesTo: new Set(['residencial', 'condominio']),
+  },
+  {
+    id: 'ANEXO_VIII',
+    label: 'Anexo VIII – Procuração do Condomínio',
+    templates: {
+      condominio: 'Anexo VIII – TERMO DE AUTORIZAÇÃO E PROCURAÇÃO DO CONDOMÍNIO (Condominio).docx',
+    },
+    appliesTo: new Set(['condominio']),
+  },
+]
+
+const ANEXO_BY_ID = new Map(ANEXO_DEFINITIONS.map((anexo) => [anexo.id, anexo]))
+
+const sanitizeContratoTipo = (value) => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (normalized === 'residencial' || normalized === 'condominio') {
+    return normalized
+  }
+  return null
+}
+
+const ensureField = (payload, key, label) => {
+  const value = typeof payload[key] === 'string' ? payload[key].trim() : ''
+  if (!value) {
+    throw new LeasingContractsError(400, `Campo obrigatório ausente: ${label}.`)
+  }
+  return value
+}
+
+const sanitizeDocumentoId = (value) => {
+  const digits = String(value ?? '').replace(/\D/g, '')
+  return digits || 'documento'
+}
+
+const normalizeArray = (value) => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value
+}
+
+const normalizeProprietarios = (value) =>
+  normalizeArray(value)
+    .map((item) => ({
+      nome: typeof item?.nome === 'string' ? item.nome.trim() : '',
+      cpfCnpj: typeof item?.cpfCnpj === 'string' ? item.cpfCnpj.trim() : '',
+    }))
+    .filter((item) => item.nome || item.cpfCnpj)
+
+const normalizeUcsBeneficiarias = (value) =>
+  normalizeArray(value)
+    .map((item) => ({
+      numero: typeof item?.numero === 'string' ? item.numero.trim() : '',
+      endereco: typeof item?.endereco === 'string' ? item.endereco.trim() : '',
+      rateioPercentual:
+        typeof item?.rateioPercentual === 'string' ? item.rateioPercentual.trim() : undefined,
+    }))
+    .filter((item) => item.numero || item.endereco)
+
+const sanitizeDadosLeasing = (dados, tipoContrato) => {
+  if (!dados || typeof dados !== 'object') {
+    throw new LeasingContractsError(400, 'Estrutura de dados do contrato inválida.')
+  }
+
+  const normalized = {
+    nomeCompleto: ensureField(dados, 'nomeCompleto', 'Nome completo / razão social'),
+    cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
+    enderecoCompleto: ensureField(dados, 'enderecoCompleto', 'Endereço completo'),
+    unidadeConsumidora: ensureField(dados, 'unidadeConsumidora', 'Unidade consumidora'),
+    potencia: ensureField(dados, 'potencia', 'Potência contratada (kWp)'),
+    kWhContratado: ensureField(dados, 'kWhContratado', 'Energia contratada (kWh)'),
+    tarifaBase: ensureField(dados, 'tarifaBase', 'Tarifa base (R$/kWh)'),
+    dataInicio: ensureField(dados, 'dataInicio', 'Data de início do contrato'),
+    dataFim: ensureField(dados, 'dataFim', 'Data de término do contrato'),
+    localEntrega: ensureField(dados, 'localEntrega', 'Local de entrega'),
+    modulosFV: ensureField(dados, 'modulosFV', 'Descrição dos módulos FV'),
+    inversoresFV: ensureField(dados, 'inversoresFV', 'Descrição dos inversores FV'),
+    dataHomologacao:
+      typeof dados.dataHomologacao === 'string' ? dados.dataHomologacao.trim() : '',
+    dataAtualExtenso:
+      typeof dados.dataAtualExtenso === 'string' ? dados.dataAtualExtenso.trim() : '',
+    assinaturaContratante:
+      typeof dados.assinaturaContratante === 'string'
+        ? dados.assinaturaContratante.trim()
+        : '',
+    assinaturaContratada:
+      typeof dados.assinaturaContratada === 'string'
+        ? dados.assinaturaContratada.trim()
+        : '',
+    proprietarios: normalizeProprietarios(dados.proprietarios),
+    ucsBeneficiarias: normalizeUcsBeneficiarias(dados.ucsBeneficiarias),
+    nomeCondominio:
+      typeof dados.nomeCondominio === 'string' ? dados.nomeCondominio.trim() : '',
+    cnpjCondominio:
+      typeof dados.cnpjCondominio === 'string' ? dados.cnpjCondominio.trim() : '',
+    nomeSindico: typeof dados.nomeSindico === 'string' ? dados.nomeSindico.trim() : '',
+    cpfSindico: typeof dados.cpfSindico === 'string' ? dados.cpfSindico.trim() : '',
+  }
+
+  if (!normalized.dataAtualExtenso) {
+    normalized.dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  }
+
+  if (tipoContrato === 'condominio') {
+    normalized.nomeCondominio = ensureField(dados, 'nomeCondominio', 'Nome do condomínio')
+    normalized.cnpjCondominio = ensureField(dados, 'cnpjCondominio', 'CNPJ do condomínio')
+    normalized.nomeSindico = ensureField(dados, 'nomeSindico', 'Nome do síndico')
+    normalized.cpfSindico = ensureField(dados, 'cpfSindico', 'CPF do síndico')
+  }
+
+  return normalized
+}
+
+const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
+  const selecionados = new Set()
+  if (Array.isArray(lista)) {
+    for (const item of lista) {
+      if (typeof item !== 'string') {
+        continue
+      }
+      const id = item.trim().toUpperCase()
+      if (!ANEXO_BY_ID.has(id)) {
+        continue
+      }
+      const definicao = ANEXO_BY_ID.get(id)
+      if (definicao && definicao.appliesTo.has(tipoContrato)) {
+        selecionados.add(id)
+      }
+    }
+  }
+
+  if (tipoContrato === 'condominio') {
+    selecionados.add('ANEXO_VIII')
+  }
+
+  return Array.from(selecionados)
+}
+
+const loadDocxTemplate = async (fileName) => {
+  const templatePath = path.join(LEASING_TEMPLATES_DIR, fileName)
+  try {
+    const buffer = await fs.readFile(templatePath)
+    return buffer
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      throw new LeasingContractsError(500, `Template não encontrado: ${fileName}`)
+    }
+    throw error
+  }
+}
+
+const renderDocxTemplate = async (fileName, data) => {
+  const templateBuffer = await loadDocxTemplate(fileName)
+  const zip = await JSZip.loadAsync(templateBuffer)
+  const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
+
+  for (const partName of partNames) {
+    const file = zip.file(partName)
+    if (!file) {
+      continue
+    }
+    const xmlContent = await file.async('string')
+    const rendered = Mustache.render(xmlContent, data)
+    zip.file(partName, rendered)
+  }
+
+  return zip.generateAsync({ type: 'nodebuffer' })
+}
+
+const createZipFromFiles = async (files) => {
+  const zip = new JSZip()
+  files.forEach((file) => {
+    zip.file(file.name, file.buffer)
+  })
+  return zip.generateAsync({ type: 'nodebuffer' })
+}
+
+const buildContractFileName = (tipoContrato, cpfCnpj) => {
+  const id = sanitizeDocumentoId(cpfCnpj)
+  return `leasing-${tipoContrato}-${id}.docx`
+}
+
+const buildAnexoFileName = (anexoId, cpfCnpj) => {
+  const id = sanitizeDocumentoId(cpfCnpj)
+  const slug = anexoId.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  return `anexo-${slug}-${id}.docx`
+}
+
+const buildZipFileName = (tipoContrato, cpfCnpj) => {
+  const id = sanitizeDocumentoId(cpfCnpj)
+  return `pacote-leasing-${tipoContrato}-${id}.zip`
+}
+
+const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
+  const resolved = []
+  for (const anexoId of anexosSelecionados) {
+    const definicao = ANEXO_BY_ID.get(anexoId)
+    if (!definicao) {
+      continue
+    }
+    if (!definicao.appliesTo.has(tipoContrato)) {
+      continue
+    }
+    const template = definicao.templates[tipoContrato]
+    if (!template) {
+      continue
+    }
+    resolved.push({ id: anexoId, template })
+  }
+  return resolved
+}
+
+export const handleLeasingContractsRequest = async (req, res) => {
+  setCorsHeaders(res)
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204
+    res.end()
+    return
+  }
+
+  if (!req.method || req.method !== 'POST') {
+    res.statusCode = 405
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.end(JSON.stringify({ error: 'Método não permitido. Utilize POST.' }))
+    return
+  }
+
+  try {
+    const body = await readJsonBody(req)
+    const tipoContrato = sanitizeContratoTipo(body?.tipoContrato)
+    if (!tipoContrato) {
+      throw new LeasingContractsError(400, 'Tipo de contrato inválido.')
+    }
+
+    const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
+    const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
+
+    const files = []
+    const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
+    const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
+      ...dadosLeasing,
+      tipoContrato,
+    })
+    files.push({
+      name: buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj),
+      buffer: contratoBuffer,
+    })
+
+    const anexos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
+    for (const anexo of anexos) {
+      const buffer = await renderDocxTemplate(anexo.template, {
+        ...dadosLeasing,
+        tipoContrato,
+      })
+      files.push({
+        name: buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj),
+        buffer,
+      })
+    }
+
+    const zipBuffer = await createZipFromFiles(files)
+    const downloadName = buildZipFileName(tipoContrato, dadosLeasing.cpfCnpj)
+
+    res.statusCode = 200
+    res.setHeader('Content-Type', 'application/zip')
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`)
+    res.setHeader('Cache-Control', 'no-store, max-age=0')
+    res.end(zipBuffer)
+  } catch (error) {
+    const statusCode = error instanceof LeasingContractsError ? error.statusCode : 500
+    const message =
+      error instanceof LeasingContractsError
+        ? error.message
+        : 'Não foi possível gerar os contratos de leasing.'
+
+    if (!(error instanceof LeasingContractsError)) {
+      console.error('[leasing-contracts] Erro inesperado ao gerar documentos:', error)
+    }
+
+    res.statusCode = statusCode
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.end(JSON.stringify({ error: message }))
+  }
+}
