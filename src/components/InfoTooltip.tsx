@@ -1,5 +1,24 @@
 import React from 'react'
 
+export type TooltipIconProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  active?: boolean
+}
+
+export const TooltipIcon = React.forwardRef<HTMLButtonElement, TooltipIconProps>(
+  function TooltipIcon({ active, className = '', ...rest }, ref) {
+    return (
+      <button
+        type="button"
+        ref={ref}
+        className={`tooltip-icon${active ? ' open' : ''}${className ? ` ${className}` : ''}`}
+        {...rest}
+      >
+        ?
+      </button>
+    )
+  },
+)
+
 export function InfoTooltip({ text }: { text: string }) {
   const [open, setOpen] = React.useState(false)
   const tooltipId = React.useId()
@@ -35,14 +54,13 @@ export function InfoTooltip({ text }: { text: string }) {
 
   return (
     <span className="info-tooltip" ref={containerRef}>
-      <button
-        type="button"
-        className={`info-icon${open ? ' open' : ''}`}
-        onClick={() => setOpen((prev) => !prev)}
+      <TooltipIcon
         aria-expanded={open}
         aria-label="Mostrar explicação"
         aria-haspopup="true"
         aria-controls={open ? tooltipId : undefined}
+        active={open}
+        onClick={() => setOpen((prev) => !prev)}
         ref={buttonRef}
         onBlur={(event) => {
           const nextFocus = event.relatedTarget as Node | null
@@ -50,9 +68,7 @@ export function InfoTooltip({ text }: { text: string }) {
             setOpen(false)
           }
         }}
-      >
-        ?
-      </button>
+      />
       {open ? (
         <span role="tooltip" id={tooltipId} className="info-bubble">
           {text}
@@ -63,8 +79,8 @@ export function InfoTooltip({ text }: { text: string }) {
 }
 
 export const labelWithTooltip = (label: React.ReactNode, text: string) => (
-  <>
+  <span className="tooltip-label">
     {label}
     <InfoTooltip text={text} />
-  </>
+  </span>
 )

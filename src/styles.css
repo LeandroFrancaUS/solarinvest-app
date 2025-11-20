@@ -501,6 +501,13 @@ button.secondary.danger:focus-visible {
   color: #fecaca;
 }
 
+button.primary.small,
+button.secondary.small {
+  min-height: calc(var(--control-h) - 6px);
+  padding: var(--space-1) var(--space-2);
+  font-size: 13px;
+}
+
 .tabs {
   position: sticky;
   top: var(--header-h);
@@ -1939,33 +1946,40 @@ tbody tr:hover {
   }
 }
 
-.info-icon {
+.tooltip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltip-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid rgba(37, 99, 235, 0.25);
-  background: rgba(37, 99, 235, 0.12);
-  color: var(--accent-dark);
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  color: #6b7280;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   flex-shrink: 0;
 }
 
-.info-icon:focus-visible {
+.tooltip-icon:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.18);
 }
 
-.info-icon:hover,
-.info-icon.open {
-  background: rgba(37, 99, 235, 0.2);
-  border-color: rgba(37, 99, 235, 0.45);
+.tooltip-icon:hover,
+.tooltip-icon.open {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #4b5563;
 }
 
 /* === CRM === */
@@ -3320,34 +3334,77 @@ table tbody tr:hover {
 }
 
 .simulations-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
+  width: 100%;
 }
 
-.simulations-sidebar {
+.simulations-saved {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.simulations-saved-panel,
+.simulations-saved-actions-card {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px;
+  padding: 18px 24px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: var(--card);
   box-shadow: var(--shadow);
 }
 
-.simulations-sidebar-header h5 {
+.simulations-saved-panel {
+  flex: 1 1 440px;
+  min-width: 320px;
+}
+
+.simulations-saved-panel[data-collapsed='true'] .simulations-scenario-list {
+  display: none;
+}
+
+.simulations-saved-panel[data-collapsed='true'] .simulations-saved-header {
+  margin-bottom: 0;
+}
+
+.simulations-saved-actions-card {
+  flex: 0 0 260px;
+  min-width: 240px;
+}
+
+.simulations-saved-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.simulations-saved-header h5 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--title);
 }
 
-.simulations-sidebar-header p {
+.simulations-saved-header p {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+@media (max-width: 960px) {
+  .simulations-saved {
+    gap: 12px;
+  }
+
+  .simulations-saved-panel,
+  .simulations-saved-actions-card {
+    flex: 1 1 100%;
+  }
 }
 
 .simulations-scenario-list {
@@ -3457,6 +3514,7 @@ table tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  width: 100%;
 }
 
 .simulations-form-card,
@@ -3466,11 +3524,13 @@ table tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px;
+  padding: 18px 24px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: var(--card);
   box-shadow: var(--shadow);
+  width: 100%;
+  max-width: none;
 }
 
 .simulations-form-card header h4,
@@ -3588,6 +3648,7 @@ table tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
 }
 
 .simulations-table-header {
@@ -3596,7 +3657,7 @@ table tbody tr:hover {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 16px 20px;
+  padding: 16px 24px;
   border-radius: 18px;
   border: 1px solid var(--border);
   background: var(--card);
@@ -3644,10 +3705,12 @@ table tbody tr:hover {
   border-color: var(--border);
   background: var(--card);
   box-shadow: var(--shadow);
+  width: 100%;
 }
 
 .simulations-table table {
   min-width: 660px;
+  width: 100%;
 }
 
 .simulations-table table thead tr {
@@ -6996,6 +7059,14 @@ i:hover {
 
 .gap-4 {
   gap: 1rem;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.max-w-full {
+  max-width: 100%;
 }
 
 .mb-1 {
