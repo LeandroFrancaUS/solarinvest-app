@@ -191,6 +191,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
   const [tusdTouched, setTusdTouched] = useState(false)
   const [comparisonHorizon, setComparisonHorizon] = useState<number>(30)
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
+  const [savedCollapsed, setSavedCollapsed] = useState(false)
   const defaultsRef = useRef(
     normalizeSimulationDefaults({ consumoKwhMes, valorInvestimento, prazoLeasingAnos, tipoSistema }),
   )
@@ -208,6 +209,25 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
       setCurrent((prev) => ({ ...prev, tipo_sistema: tipoSistema }))
     }
   }, [current.tipo_sistema, tipoSistema])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 1024px)')
+    const syncCollapsed = (event?: MediaQueryListEvent) => {
+      const matches = event ? event.matches : mediaQuery.matches
+      setSavedCollapsed(matches)
+    }
+
+    syncCollapsed()
+    mediaQuery.addEventListener('change', syncCollapsed)
+
+    return () => {
+      mediaQuery.removeEventListener('change', syncCollapsed)
+    }
+  }, [])
 
   useEffect(() => {
     const normalized = normalizeSimulationDefaults({
@@ -546,44 +566,58 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
 
   return (
     <div className="simulations-tab">
-      <div className="simulations-layout">
-        <aside className="simulations-sidebar">
-          <div className="simulations-sidebar-header">
-            <h5>Simulações salvas</h5>
-            <p>Gerencie cenários e compare resultados financeiros.</p>
+      <section className="simulations-saved flex flex-row items-start gap-4 w-full">
+        <div className="simulations-saved-panel" data-collapsed={savedCollapsed}>
+          <div className="simulations-saved-header">
+            <div>
+              <h5>Simulações salvas</h5>
+              <p>Gerencie cenários e compare resultados financeiros.</p>
+            </div>
+            <button
+              type="button"
+              className="secondary small"
+              onClick={() => setSavedCollapsed((prev) => !prev)}
+            >
+              {savedCollapsed ? 'Exibir' : 'Recolher'}
+            </button>
           </div>
-          <div className="simulations-scenario-list">
-            {simulations.length === 0 ? (
-              <p className="muted">Nenhuma simulação salva até o momento.</p>
-            ) : (
-              simulations.map((sim) => {
-                const isActive = sim.id === current.id
-                const isSelected = selectedIds.includes(sim.id)
-                const displayName = sim.nome?.trim() || sim.id
-                return (
-                  <div key={sim.id} className={`simulations-scenario-card${isActive ? ' active' : ''}`}>
-                    <button
-                      type="button"
-                      className="simulations-scenario-button"
-                      onClick={() => handleLoadSimulation(sim.id)}
-                    >
-                      <strong>{displayName}</strong>
-                      <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
-                    </button>
-                    <label
-                      className={`simulations-select${isSelected ? ' checked' : ''} flex items-center gap-2`}
-                    >
-                      <CheckboxSmall
-                        checked={isSelected}
-                        onChange={() => handleToggleSelection(sim.id)}
-                      />
-                      <span>Comparar</span>
-                    </label>
-                  </div>
-                )
-              })
-            )}
-          </div>
+          {!savedCollapsed ? (
+            <div className="simulations-scenario-list">
+              {simulations.length === 0 ? (
+                <p className="muted">Nenhuma simulação salva até o momento.</p>
+              ) : (
+                simulations.map((sim) => {
+                  const isActive = sim.id === current.id
+                  const isSelected = selectedIds.includes(sim.id)
+                  const displayName = sim.nome?.trim() || sim.id
+                  return (
+                    <div key={sim.id} className={`simulations-scenario-card${isActive ? ' active' : ''}`}>
+                      <button
+                        type="button"
+                        className="simulations-scenario-button"
+                        onClick={() => handleLoadSimulation(sim.id)}
+                      >
+                        <strong>{displayName}</strong>
+                        <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
+                      </button>
+                      <label
+                        className={`simulations-select${isSelected ? ' checked' : ''} flex items-center gap-2`}
+                      >
+                        <CheckboxSmall
+                          checked={isSelected}
+                          onChange={() => handleToggleSelection(sim.id)}
+                        />
+                        <span>Comparar</span>
+                      </label>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="simulations-saved-actions-card">
           <div className="simulations-sidebar-actions">
             <button type="button" className="secondary" onClick={handleNewSimulation}>
               Nova simulação
@@ -601,10 +635,12 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
               Reset
             </button>
           </div>
-        </aside>
+        </div>
+      </section>
 
+      <div className="simulations-layout">
         <div className="simulations-form-area">
-          <section className="simulations-table">
+          <section className="simulations-table w-full max-w-full">
             <div className="simulations-table-header">
               <div>
                 <h5>Comparativo de cenários</h5>
@@ -771,7 +807,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
             )}
           </section>
 
-          <section className="simulations-form-card">
+          <section className="simulations-form-card w-full max-w-full">
             <header>
               <h4>Configurações da simulação</h4>
             </header>
@@ -1098,7 +1134,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
             </div>
           </section>
 
-          <section className="simulations-summary">
+          <section className="simulations-summary w-full max-w-full">
             <header>
               <h4>Resumo financeiro</h4>
             </header>
@@ -1165,7 +1201,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
             </div>
           </section>
 
-          <section className="simulations-economy">
+          <section className="simulations-economy w-full max-w-full">
             <header>
               <h4>Economia projetada</h4>
             </header>
@@ -1200,7 +1236,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
             </div>
           </section>
 
-          <section className="simulations-kpis">
+          <section className="simulations-kpis w-full max-w-full">
             <header>
               <h4>KPIs SolarInvest</h4>
             </header>

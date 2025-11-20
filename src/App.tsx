@@ -123,7 +123,7 @@ import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
-import { SimulacoesTab } from './components/settings/SimulacoesTab'
+import { SimulacoesTab } from './components/simulacoes/SimulacoesTab'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -214,7 +214,71 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings'
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes'
+type SimulacoesSection =
+  | 'nova'
+  | 'salvas'
+  | 'ia'
+  | 'risco'
+  | 'packs'
+  | 'packs-inteligentes'
+  | 'analise'
+type AprovacaoStatus = 'pendente' | 'aprovado' | 'reprovado'
+type AprovacaoChecklistKey = 'roi' | 'tir' | 'spread' | 'vpl'
+
+const SIMULACOES_MENU: { id: SimulacoesSection; label: string; description: string }[] = [
+  {
+    id: 'nova',
+    label: 'Nova Simulação',
+    description: 'Monte um cenário do zero com premissas de consumo, tarifas e capex.',
+  },
+  {
+    id: 'salvas',
+    label: 'Simulações Salvas',
+    description: 'Acesse e compare simulações gravadas sem voltar para Preferências.',
+  },
+  {
+    id: 'ia',
+    label: 'Análises IA (AI Analytics)',
+    description: 'Insights automáticos sobre KPIs, alavancagem e oportunidades.',
+  },
+  {
+    id: 'risco',
+    label: 'Risco & Monte Carlo',
+    description: 'Cenários de risco e volatilidade com distribuição full-width.',
+  },
+  {
+    id: 'packs',
+    label: 'Packs',
+    description: 'Agrupe propostas e combos comerciais para reutilizar.',
+  },
+  {
+    id: 'packs-inteligentes',
+    label: 'Packs Inteligentes',
+    description: 'Automatize packs com IA e premissas dinâmicas.',
+  },
+  {
+    id: 'analise',
+    label: 'Análise Financeira & Aprovação',
+    description: 'Checklist interno para aprovar, reprovar ou salvar decisões.',
+  },
+]
+
+const SIMULACOES_SECTION_COPY: Record<SimulacoesSection, string> = {
+  nova: 'Abra novas simulações em layout de tela cheia e compare resultados lado a lado.',
+  salvas: 'Revise simulações existentes sem sair do módulo dedicado.',
+  ia: 'Centralize análises assistidas por IA e recomendações automáticas.',
+  risco: 'Use Monte Carlo e cenários de risco com gráficos em largura total.',
+  packs: 'Organize pacotes comerciais para acelerar a operação.',
+  'packs-inteligentes': 'Combine inteligência artificial e packs dinâmicos.',
+  analise: 'Aplique regras SolarInvest, checklist interno e selo de aprovação.',
+}
+
+const APROVACAO_SELLOS: Record<AprovacaoStatus, string> = {
+  pendente: 'Decisão pendente',
+  aprovado: 'Aprovado SolarInvest',
+  reprovado: 'Reprovado SolarInvest',
+}
 
 const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -2933,7 +2997,8 @@ export default function App() {
       storedPage === 'crm' ||
       storedPage === 'consultar' ||
       storedPage === 'clientes' ||
-      storedPage === 'settings'
+      storedPage === 'settings' ||
+      storedPage === 'simulacoes'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -2945,14 +3010,30 @@ export default function App() {
     const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
+  const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>('nova')
+  const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
+  const [aprovacaoChecklist, setAprovacaoChecklist] = useState<
+    Record<AprovacaoChecklistKey, boolean>
+  >({
+    roi: true,
+    tir: true,
+    spread: false,
+    vpl: false,
+  })
+  const [ultimaDecisaoTimestamp, setUltimaDecisaoTimestamp] = useState<number | null>(null)
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
-  const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm'>('app')
+  const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
-    if (activePage === 'dashboard' || activePage === 'app' || activePage === 'crm') {
+    if (
+      activePage === 'dashboard' ||
+      activePage === 'app' ||
+      activePage === 'crm' ||
+      activePage === 'simulacoes'
+    ) {
       lastPrimaryPageRef.current = activePage
     }
   }, [activePage])
@@ -13166,6 +13247,14 @@ export default function App() {
     voltarParaPaginaPrincipal()
   }
 
+  const abrirSimulacoes = useCallback(
+    (section?: SimulacoesSection) => {
+      setSimulacoesSection(section ?? 'nova')
+      setActivePage('simulacoes')
+    },
+    [setActivePage],
+  )
+
   const abrirConfiguracoes = useCallback(
     (tab?: SettingsTabKey) => {
       setSettingsTab(tab ?? 'mercado')
@@ -13177,6 +13266,18 @@ export default function App() {
   const voltarParaPaginaPrincipal = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
+
+  const toggleAprovacaoChecklist = useCallback((key: AprovacaoChecklistKey) => {
+    setAprovacaoChecklist((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
+  }, [])
+
+  const registrarDecisaoInterna = useCallback((status: AprovacaoStatus) => {
+    setAprovacaoStatus(status)
+    setUltimaDecisaoTimestamp(Date.now())
+  }, [])
 
   const budgetCodeDisplay = useMemo(() => {
     return normalizeProposalId(printableData.budgetId) || null
@@ -17528,9 +17629,11 @@ export default function App() {
           ? 'Consulta de orçamentos salvos'
           : activePage === 'clientes'
             ? 'Gestão de clientes salvos'
-            : activePage === 'settings'
-              ? 'Preferências e integrações da proposta'
-              : undefined
+            : activePage === 'simulacoes'
+              ? 'Simulações financeiras, risco e aprovação interna'
+              : activePage === 'settings'
+                ? 'Preferências e integrações da proposta'
+                : undefined
   const currentPageIndicator =
     activePage === 'dashboard'
       ? 'Dashboard'
@@ -17540,11 +17643,13 @@ export default function App() {
           ? 'Consultar'
           : activePage === 'clientes'
             ? 'Clientes'
-            : activePage === 'settings'
-              ? 'Configurações'
-              : activeTab === 'vendas'
-                ? 'Vendas'
-                : 'Leasing'
+            : activePage === 'simulacoes'
+              ? 'Simulações'
+              : activePage === 'settings'
+                ? 'Configurações'
+                : activeTab === 'vendas'
+                  ? 'Vendas'
+                  : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
   const sidebarGroups: SidebarGroup[] = [
@@ -17641,6 +17746,68 @@ export default function App() {
             contatosEnvio.length === 0
               ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
               : undefined,
+        },
+      ],
+    },
+    {
+      id: 'simulacoes',
+      label: 'Simulações',
+      items: [
+        {
+          id: 'simulacoes-nova',
+          label: 'Nova Simulação',
+          icon: '🧮',
+          onSelect: () => {
+            abrirSimulacoes('nova')
+          },
+        },
+        {
+          id: 'simulacoes-salvas',
+          label: 'Simulações Salvas',
+          icon: '💾',
+          onSelect: () => {
+            abrirSimulacoes('salvas')
+          },
+        },
+        {
+          id: 'simulacoes-ia',
+          label: 'Análises IA (AI Analytics)',
+          icon: '🤖',
+          onSelect: () => {
+            abrirSimulacoes('ia')
+          },
+        },
+        {
+          id: 'simulacoes-risco',
+          label: 'Risco & Monte Carlo',
+          icon: '🎲',
+          onSelect: () => {
+            abrirSimulacoes('risco')
+          },
+        },
+        {
+          id: 'simulacoes-packs',
+          label: 'Packs',
+          icon: '📦',
+          onSelect: () => {
+            abrirSimulacoes('packs')
+          },
+        },
+        {
+          id: 'simulacoes-packs-inteligentes',
+          label: 'Packs Inteligentes',
+          icon: '🧠',
+          onSelect: () => {
+            abrirSimulacoes('packs-inteligentes')
+          },
+        },
+        {
+          id: 'simulacoes-analise',
+          label: 'Análise Financeira & Aprovação',
+          icon: '✅',
+          onSelect: () => {
+            abrirSimulacoes('analise')
+          },
         },
       ],
     },
@@ -17948,12 +18115,273 @@ export default function App() {
     </div>
   )
 
+  const renderSimulacoesPage = () => {
+    const formatAprovacaoData = (timestamp: number | null) => {
+      if (!timestamp) {
+        return '—'
+      }
+      try {
+        return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
+          new Date(timestamp),
+        )
+      } catch (error) {
+        return '—'
+      }
+    }
+
+    const sectionCopy = SIMULACOES_SECTION_COPY[simulacoesSection]
+
+    return (
+      <div className="simulacoes-page">
+        <div className="simulacoes-hero-card">
+          <div>
+            <p className="simulacoes-tag">Módulo dedicado</p>
+            <h2>Simulações &amp; análise financeira</h2>
+            <p>{sectionCopy}</p>
+          </div>
+          <div className="simulacoes-hero-actions">
+            <span className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</span>
+            <small>Última decisão: {formatAprovacaoData(ultimaDecisaoTimestamp)}</small>
+            <div className="simulacoes-hero-buttons">
+              <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
+                Aprovar
+              </button>
+              <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
+                Reprovar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <nav className="simulacoes-nav" aria-label="Navegação do módulo de simulações">
+          {SIMULACOES_MENU.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`simulacoes-nav-btn${simulacoesSection === item.id ? ' is-active' : ''}`}
+              onClick={() => abrirSimulacoes(item.id)}
+              aria-current={simulacoesSection === item.id ? 'page' : undefined}
+            >
+              <strong>{item.label}</strong>
+              <span>{item.description}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="simulacoes-panels">
+          {simulacoesSection === 'nova' || simulacoesSection === 'salvas' ? (
+            <section className="simulacoes-main-card">
+              <header>
+                <div>
+                  <p className="simulacoes-tag ghost">Workspace</p>
+                  <h3>{simulacoesSection === 'nova' ? 'Nova simulação' : 'Simulações salvas'}</h3>
+                  <p className="simulacoes-description">
+                    Layout full-width para criação, comparação e duplicação de cenários com Monte Carlo e IA na mesma
+                    área.
+                  </p>
+                </div>
+              </header>
+              <SimulacoesTab
+                consumoKwhMes={kcKwhMes}
+                valorInvestimento={capex}
+                tipoSistema={tipoSistema}
+                prazoLeasingAnos={leasingPrazo}
+              />
+            </section>
+          ) : null}
+
+          {simulacoesSection === 'ia' ? (
+            <section className="simulacoes-module-card">
+              <header>
+                <h3>Análises IA</h3>
+                <p>Insights automáticos, recomendações de desconto e priorização de cenários sensíveis.</p>
+              </header>
+              <div className="simulacoes-module-grid">
+                <div className="simulacoes-module-tile">
+                  <h4>KPIs monitorados</h4>
+                  <ul>
+                    <li>ROI, TIR e payback revisados continuamente.</li>
+                    <li>Alertas de margem mínima e spread solar.</li>
+                    <li>Clustering de consumo por perfil residencial ou empresarial.</li>
+                  </ul>
+                </div>
+                <div className="simulacoes-module-tile">
+                  <h4>Recomendações</h4>
+                  <ul>
+                    <li>Descontos ótimos por distribuidora e bandeira.</li>
+                    <li>Revisão automática de TUSD e capex.</li>
+                    <li>Geração de sugestões para Packs Inteligentes.</li>
+                  </ul>
+                </div>
+                <div className="simulacoes-module-tile">
+                  <h4>Exportação</h4>
+                  <ul>
+                    <li>Resumo IA preparado para PDF interno e externo.</li>
+                    <li>Trilha de recomendações com timestamp.</li>
+                    <li>Integração com painel de aprovação.</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {simulacoesSection === 'risco' ? (
+            <section className="simulacoes-module-card">
+              <header>
+                <h3>Risco &amp; Monte Carlo</h3>
+                <p>Simulações de risco em tela cheia, cobrindo volatilidade tarifária e performance energética.</p>
+              </header>
+              <div className="simulacoes-module-grid">
+                <div className="simulacoes-module-tile">
+                  <h4>Entradas</h4>
+                  <ul>
+                    <li>Inflação energética, TUSD e consumo ajustável.</li>
+                    <li>Distribuições customizadas para cenários pessimista e otimista.</li>
+                    <li>Capex SolarInvest com seguro e encargo embutidos.</li>
+                  </ul>
+                </div>
+                <div className="simulacoes-module-tile">
+                  <h4>Saídas</h4>
+                  <ul>
+                    <li>Faixas de VPL e ROI com IC 95%.</li>
+                    <li>Mapa de sensibilidade full-width.</li>
+                    <li>Exportação rápida para análise interna.</li>
+                  </ul>
+                </div>
+                <div className="simulacoes-module-tile">
+                  <h4>Operação</h4>
+                  <ul>
+                    <li>Rodadas paralelas para cada cenário salvo.</li>
+                    <li>Integração com IA para detectar outliers.</li>
+                    <li>Pronto para aprovação interna no próximo passo.</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {simulacoesSection === 'packs' ? (
+            <section className="simulacoes-module-card">
+              <header>
+                <h3>Packs</h3>
+                <p>Biblioteca de pacotes comerciais agrupando kits, composições e propostas aprovadas.</p>
+              </header>
+              <div className="simulacoes-module-grid">
+                <div className="simulacoes-module-tile">
+                  <h4>Organização</h4>
+                  <ul>
+                    <li>Separação por segmento (residencial, comercial, rural).</li>
+                    <li>Padrões de desconto e prazo salvos.</li>
+                    <li>Tags rápidas para buscas no CRM.</li>
+                  </ul>
+                </div>
+                <div className="simulacoes-module-tile">
+                  <h4>Aplicação</h4>
+                  <ul>
+                    <li>Aplicar pack diretamente no workspace.</li>
+                    <li>Duplicar e adaptar valores de mercado.</li>
+                    <li>Conectar com proposta PDF em um clique.</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {simulacoesSection === 'packs-inteligentes' ? (
+            <section className="simulacoes-module-card">
+              <header>
+                <h3>Packs Inteligentes</h3>
+                <p>Fluxos automatizados com IA, definindo upgrades de forma preditiva.</p>
+              </header>
+              <div className="simulacoes-module-grid">
+                <div className="simulacoes-module-tile">
+                  <h4>Automação</h4>
+                  <ul>
+                    <li>Regras por ROI mínimo e VPL alvo.</li>
+                    <li>Ajuste automático de potência e seguros.</li>
+                    <li>Alertas quando o pack sai da faixa aprovada.</li>
+                  </ul>
+                </div>
+                <div className="simulacoes-module-tile">
+                  <h4>IA Assistida</h4>
+                  <ul>
+                    <li>Sugere combinações de módulos e inversores.</li>
+                    <li>Reaproveita simulações vencedoras.</li>
+                    <li>Cria versões para teste A/B com clientes.</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {simulacoesSection === 'analise' ? (
+            <section className="simulacoes-module-card">
+              <header>
+                <h3>Análise Financeira &amp; Aprovação</h3>
+                <p>Checklist interno SolarInvest com selo de aprovação e registro de decisão.</p>
+              </header>
+              <div className="simulacoes-approval-grid">
+                <div className="simulacoes-module-tile">
+                  <h4>Checklist</h4>
+                  <ul className="simulacoes-checklist">
+                    {(['roi', 'tir', 'spread', 'vpl'] as AprovacaoChecklistKey[]).map((item) => (
+                      <li key={item}>
+                        <label className="simulacoes-check">
+                          <input
+                            type="checkbox"
+                            checked={aprovacaoChecklist[item]}
+                            onChange={() => toggleAprovacaoChecklist(item)}
+                          />
+                          <span>
+                            {item === 'roi'
+                              ? 'ROI mínimo SolarInvest atendido'
+                              : item === 'tir'
+                                ? 'TIR acima do piso do comitê'
+                                : item === 'spread'
+                                  ? 'Spread e margem dentro do range'
+                                  : 'VPL positivo no horizonte definido'}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="simulacoes-module-tile">
+                  <h4>Selo e decisão</h4>
+                  <p className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</p>
+                  <p className="simulacoes-description">
+                    Última decisão registrada: {formatAprovacaoData(ultimaDecisaoTimestamp)}
+                  </p>
+                  <div className="simulacoes-hero-buttons">
+                    <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
+                      Aprovar
+                    </button>
+                    <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
+                      Reprovar
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => registrarDecisaoInterna(aprovacaoStatus)}
+                    >
+                      Salvar decisão
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
   const renderSettingsPage = () => (
     <div className="settings-page">
       <div className="settings-page-header">
         <div>
           <h2>Preferências</h2>
-          <p>Configure parâmetros de mercado, simulações e vendas para personalizar as propostas.</p>
+          <p>Configure parâmetros de mercado e vendas para personalizar as propostas.</p>
         </div>
         <button type="button" className="ghost" onClick={voltarParaPaginaPrincipal}>
           Voltar
@@ -18079,27 +18507,6 @@ export default function App() {
                 />
               </Field>
             </div>
-          </section>
-          <section
-            id="settings-panel-simulacoes"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-simulacoes"
-            className={`settings-panel config-card${settingsTab === 'simulacoes' ? ' active' : ''}`}
-            hidden={settingsTab !== 'simulacoes'}
-            aria-hidden={settingsTab !== 'simulacoes'}
-          >
-            <div className="cfg-panel-header">
-              <h2 className="cfg-section-title">Simulações financeiras</h2>
-              <p className="settings-panel-description cfg-section-subtitle">
-                Monte cenários de leasing com diferentes descontos, prazos e custos para comparar KPIs lado a lado.
-              </p>
-            </div>
-            <SimulacoesTab
-              consumoKwhMes={kcKwhMes}
-              valorInvestimento={capex}
-              tipoSistema={tipoSistema}
-              prazoLeasingAnos={leasingPrazo}
-            />
           </section>
           <section
             id="settings-panel-vendas"
@@ -18663,9 +19070,11 @@ export default function App() {
             ? 'orcamentos-importar'
             : activePage === 'settings'
               ? 'config-preferencias'
-              : activeTab === 'vendas'
-              ? 'propostas-vendas'
-              : 'propostas-leasing'
+              : activePage === 'simulacoes'
+                ? `simulacoes-${simulacoesSection}`
+                : activeTab === 'vendas'
+                  ? 'propostas-vendas'
+                  : 'propostas-leasing'
 
 
   return (
@@ -18721,6 +19130,8 @@ export default function App() {
           renderBudgetSearchPage()
         ) : activePage === 'clientes' ? (
           renderClientesPage()
+        ) : activePage === 'simulacoes' ? (
+          renderSimulacoesPage()
         ) : activePage === 'settings' ? (
           renderSettingsPage()
         ) : (

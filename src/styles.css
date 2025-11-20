@@ -501,6 +501,13 @@ button.secondary.danger:focus-visible {
   color: #fecaca;
 }
 
+button.primary.small,
+button.secondary.small {
+  min-height: calc(var(--control-h) - 6px);
+  padding: var(--space-1) var(--space-2);
+  font-size: 13px;
+}
+
 .tabs {
   position: sticky;
   top: var(--header-h);
@@ -1939,33 +1946,40 @@ tbody tr:hover {
   }
 }
 
-.info-icon {
+.tooltip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltip-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid rgba(37, 99, 235, 0.25);
-  background: rgba(37, 99, 235, 0.12);
-  color: var(--accent-dark);
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  color: #6b7280;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   flex-shrink: 0;
 }
 
-.info-icon:focus-visible {
+.tooltip-icon:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.18);
 }
 
-.info-icon:hover,
-.info-icon.open {
-  background: rgba(37, 99, 235, 0.2);
-  border-color: rgba(37, 99, 235, 0.45);
+.tooltip-icon:hover,
+.tooltip-icon.open {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #4b5563;
 }
 
 /* === CRM === */
@@ -3089,12 +3103,228 @@ table tbody tr:hover {
 }
 
 
-#settings-panel-simulacoes {
+.simulacoes-page {
   --sim-font-xs: 11px;
   --sim-font-sm: 12px;
   --sim-font-md: 13px;
   --sim-font-lg: 15px;
   --sim-control-height: 38px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.simulacoes-hero-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+
+.simulacoes-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface) 88%);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.simulacoes-tag.ghost {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--muted);
+}
+
+.simulacoes-hero-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
+}
+
+.simulacoes-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 13px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.03);
+  color: var(--title);
+}
+
+.simulacoes-status.status-aprovado {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.3);
+  color: #166534;
+}
+
+.simulacoes-status.status-reprovado {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #991b1b;
+}
+
+.simulacoes-hero-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.simulacoes-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.simulacoes-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--title);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.simulacoes-nav-btn:hover,
+.simulacoes-nav-btn:focus-visible {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 14px 24px rgba(37, 99, 235, 0.12);
+  transform: translateY(-1px);
+}
+
+.simulacoes-nav-btn strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.simulacoes-nav-btn span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.simulacoes-nav-btn.is-active {
+  border-color: rgba(37, 99, 235, 0.55);
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.15);
+}
+
+.simulacoes-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.simulacoes-main-card,
+.simulacoes-module-card {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.simulacoes-main-card header,
+.simulacoes-module-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.simulacoes-main-card h3,
+.simulacoes-module-card h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--title);
+}
+
+.simulacoes-description,
+.simulacoes-module-card p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.simulacoes-module-grid,
+.simulacoes-approval-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.simulacoes-module-tile {
+  background: rgba(15, 23, 42, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.simulacoes-module-tile h4 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--title);
+}
+
+.simulacoes-module-tile ul {
+  margin: 0;
+  padding-inline-start: 16px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.simulacoes-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.simulacoes-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.simulacoes-check input {
+  width: 16px;
+  height: 16px;
 }
 
 .simulations-tab {
@@ -3104,34 +3334,77 @@ table tbody tr:hover {
 }
 
 .simulations-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
+  width: 100%;
 }
 
-.simulations-sidebar {
+.simulations-saved {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.simulations-saved-panel,
+.simulations-saved-actions-card {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px;
+  padding: 18px 24px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: var(--card);
   box-shadow: var(--shadow);
 }
 
-.simulations-sidebar-header h5 {
+.simulations-saved-panel {
+  flex: 1 1 440px;
+  min-width: 320px;
+}
+
+.simulations-saved-panel[data-collapsed='true'] .simulations-scenario-list {
+  display: none;
+}
+
+.simulations-saved-panel[data-collapsed='true'] .simulations-saved-header {
+  margin-bottom: 0;
+}
+
+.simulations-saved-actions-card {
+  flex: 0 0 260px;
+  min-width: 240px;
+}
+
+.simulations-saved-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.simulations-saved-header h5 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--title);
 }
 
-.simulations-sidebar-header p {
+.simulations-saved-header p {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+@media (max-width: 960px) {
+  .simulations-saved {
+    gap: 12px;
+  }
+
+  .simulations-saved-panel,
+  .simulations-saved-actions-card {
+    flex: 1 1 100%;
+  }
 }
 
 .simulations-scenario-list {
@@ -3241,6 +3514,7 @@ table tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  width: 100%;
 }
 
 .simulations-form-card,
@@ -3250,11 +3524,13 @@ table tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px;
+  padding: 18px 24px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: var(--card);
   box-shadow: var(--shadow);
+  width: 100%;
+  max-width: none;
 }
 
 .simulations-form-card header h4,
@@ -3372,6 +3648,7 @@ table tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
 }
 
 .simulations-table-header {
@@ -3380,7 +3657,7 @@ table tbody tr:hover {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 16px 20px;
+  padding: 16px 24px;
   border-radius: 18px;
   border: 1px solid var(--border);
   background: var(--card);
@@ -3428,10 +3705,12 @@ table tbody tr:hover {
   border-color: var(--border);
   background: var(--card);
   box-shadow: var(--shadow);
+  width: 100%;
 }
 
 .simulations-table table {
   min-width: 660px;
+  width: 100%;
 }
 
 .simulations-table table thead tr {
@@ -3604,130 +3883,130 @@ table tbody tr:hover {
   color: var(--muted);
 }
 
-#settings-panel-simulacoes .simulations-tab {
+.simulacoes-main-card .simulations-tab {
   gap: 20px;
   font-size: var(--sim-font-md);
   line-height: 1.5;
 }
 
-#settings-panel-simulacoes .simulations-layout {
+.simulacoes-main-card .simulations-layout {
   gap: 20px;
 }
 
-#settings-panel-simulacoes .simulations-sidebar {
+.simulacoes-main-card .simulations-sidebar {
   padding: 18px;
   gap: 12px;
 }
 
-#settings-panel-simulacoes .simulations-sidebar-header h5 {
+.simulacoes-main-card .simulations-sidebar-header h5 {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .simulations-sidebar-header p {
+.simulacoes-main-card .simulations-sidebar-header p {
   font-size: var(--sim-font-xs);
   line-height: 1.45;
 }
 
-#settings-panel-simulacoes .simulations-scenario-list {
+.simulacoes-main-card .simulations-scenario-list {
   gap: 8px;
 }
 
-#settings-panel-simulacoes .simulations-scenario-card {
+.simulacoes-main-card .simulations-scenario-card {
   gap: 10px;
   padding: 10px 12px;
 }
 
-#settings-panel-simulacoes .simulations-scenario-button {
+.simulacoes-main-card .simulations-scenario-button {
   gap: 2px;
 }
 
-#settings-panel-simulacoes .simulations-scenario-button strong {
+.simulacoes-main-card .simulations-scenario-button strong {
   font-size: var(--sim-font-md);
 }
 
-#settings-panel-simulacoes .simulations-scenario-button small {
+.simulacoes-main-card .simulations-scenario-button small {
   font-size: var(--sim-font-xs);
   line-height: 1.35;
 }
 
-#settings-panel-simulacoes .simulations-select {
+.simulacoes-main-card .simulations-select {
   gap: 4px;
   font-size: var(--sim-font-xs);
 }
 
-#settings-panel-simulacoes .simulations-select input,
-#settings-panel-simulacoes .simulations-toggles input[type='checkbox'] {
+.simulacoes-main-card .simulations-select input,
+.simulacoes-main-card .simulations-toggles input[type='checkbox'] {
   width: 14px;
   height: 14px;
 }
 
-#settings-panel-simulacoes .simulations-select span {
+.simulacoes-main-card .simulations-select span {
   line-height: 1.2;
 }
 
-#settings-panel-simulacoes .simulations-sidebar-actions {
+.simulacoes-main-card .simulations-sidebar-actions {
   gap: 6px;
 }
 
-#settings-panel-simulacoes .simulations-sidebar-actions button {
+.simulacoes-main-card .simulations-sidebar-actions button {
   min-height: var(--sim-control-height);
   font-size: var(--sim-font-sm);
   padding: 8px 12px;
 }
 
-#settings-panel-simulacoes .simulations-form-area {
+.simulacoes-main-card .simulations-form-area {
   gap: 18px;
 }
 
-#settings-panel-simulacoes .simulations-form-card,
-#settings-panel-simulacoes .simulations-summary,
-#settings-panel-simulacoes .simulations-economy,
-#settings-panel-simulacoes .simulations-kpis {
+.simulacoes-main-card .simulations-form-card,
+.simulacoes-main-card .simulations-summary,
+.simulacoes-main-card .simulations-economy,
+.simulacoes-main-card .simulations-kpis {
   gap: 14px;
   padding: 18px;
 }
 
-#settings-panel-simulacoes .simulations-form-grid {
+.simulacoes-main-card .simulations-form-grid {
   gap: 14px;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
-#settings-panel-simulacoes .simulations-form-card header,
-#settings-panel-simulacoes .simulations-summary header,
-#settings-panel-simulacoes .simulations-economy header,
-#settings-panel-simulacoes .simulations-kpis header {
+.simulacoes-main-card .simulations-form-card header,
+.simulacoes-main-card .simulations-summary header,
+.simulacoes-main-card .simulations-economy header,
+.simulacoes-main-card .simulations-kpis header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
 }
 
-#settings-panel-simulacoes .simulations-form-card header h4,
-#settings-panel-simulacoes .simulations-summary header h4,
-#settings-panel-simulacoes .simulations-economy header h4,
-#settings-panel-simulacoes .simulations-kpis header h4 {
+.simulacoes-main-card .simulations-form-card header h4,
+.simulacoes-main-card .simulations-summary header h4,
+.simulacoes-main-card .simulations-economy header h4,
+.simulacoes-main-card .simulations-kpis header h4 {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .simulations-form-card .field-label {
+.simulacoes-main-card .simulations-form-card .field-label {
   font-size: var(--sim-font-sm);
   line-height: 1.4;
 }
 
-#settings-panel-simulacoes .simulations-toggles label {
+.simulacoes-main-card .simulations-toggles label {
   font-size: var(--sim-font-sm);
   line-height: 1.4;
   gap: 6px;
 }
 
-#settings-panel-simulacoes .radio-group {
+.simulacoes-main-card .radio-group {
   display: inline-flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-#settings-panel-simulacoes .radio-group label {
+.simulacoes-main-card .radio-group label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -3736,32 +4015,32 @@ table tbody tr:hover {
   cursor: pointer;
 }
 
-#settings-panel-simulacoes .radio-group input[type='radio'] {
+.simulacoes-main-card .radio-group input[type='radio'] {
   width: 14px;
   height: 14px;
   accent-color: var(--accent);
 }
 
-#settings-panel-simulacoes .simulations-form-card input,
-#settings-panel-simulacoes .simulations-form-card select,
-#settings-panel-simulacoes .simulations-form-card textarea {
+.simulacoes-main-card .simulations-form-card input,
+.simulacoes-main-card .simulations-form-card select,
+.simulacoes-main-card .simulations-form-card textarea {
   min-height: var(--sim-control-height);
   font-size: var(--sim-font-md);
   padding: 8px 12px;
 }
 
-#settings-panel-simulacoes .inline-field {
+.simulacoes-main-card .inline-field {
   display: flex;
   gap: 10px;
   align-items: center;
 }
 
-#settings-panel-simulacoes .inline-field input {
+.simulacoes-main-card .inline-field input {
   flex: 1 1 auto;
 }
 
-#settings-panel-simulacoes button.primary,
-#settings-panel-simulacoes button.secondary {
+.simulacoes-main-card button.primary,
+.simulacoes-main-card button.secondary {
   height: var(--sim-control-height);
   min-height: var(--sim-control-height);
   padding: 0 16px;
@@ -3771,104 +4050,104 @@ table tbody tr:hover {
   justify-content: center;
 }
 
-#settings-panel-simulacoes button.primary {
+.simulacoes-main-card button.primary {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .inline-field button.secondary {
+.simulacoes-main-card .inline-field button.secondary {
   padding: 0 12px;
   white-space: nowrap;
 }
 
-#settings-panel-simulacoes .simulations-summary-grid,
-#settings-panel-simulacoes .simulations-kpi-grid,
-#settings-panel-simulacoes .simulations-kpi-cards {
+.simulacoes-main-card .simulations-summary-grid,
+.simulacoes-main-card .simulations-kpi-grid,
+.simulacoes-main-card .simulations-kpi-cards {
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
-#settings-panel-simulacoes .simulations-summary-card,
-#settings-panel-simulacoes .simulations-kpi-card {
+.simulacoes-main-card .simulations-summary-card,
+.simulacoes-main-card .simulations-kpi-card {
   gap: 4px;
   padding: 12px 14px;
 }
 
-#settings-panel-simulacoes .simulations-summary-card span,
-#settings-panel-simulacoes .simulations-kpi-card span {
+.simulacoes-main-card .simulations-summary-card span,
+.simulacoes-main-card .simulations-kpi-card span {
   font-size: var(--sim-font-xs);
 }
 
-#settings-panel-simulacoes .simulations-summary-card strong,
-#settings-panel-simulacoes .simulations-kpi-card strong {
+.simulacoes-main-card .simulations-summary-card strong,
+.simulacoes-main-card .simulations-kpi-card strong {
   font-size: calc(var(--sim-font-lg) + 1px);
 }
 
-#settings-panel-simulacoes .simulations-summary-card small,
-#settings-panel-simulacoes .simulations-kpi-card small {
+.simulacoes-main-card .simulations-summary-card small,
+.simulacoes-main-card .simulations-kpi-card small {
   font-size: calc(var(--sim-font-xs) - 1px);
 }
 
-#settings-panel-simulacoes .simulations-table {
+.simulacoes-main-card .simulations-table {
   gap: 14px;
 }
 
-#settings-panel-simulacoes .simulations-table-header {
+.simulacoes-main-card .simulations-table-header {
   padding: 14px 18px;
   align-items: center;
   gap: 14px;
 }
 
-#settings-panel-simulacoes .simulations-table-header > div:first-child {
+.simulacoes-main-card .simulations-table-header > div:first-child {
   flex: 1 1 auto;
   min-width: 220px;
 }
 
-#settings-panel-simulacoes .simulations-table-header h5 {
+.simulacoes-main-card .simulations-table-header h5 {
   font-size: var(--sim-font-lg);
 }
 
-#settings-panel-simulacoes .simulations-table-header p {
+.simulacoes-main-card .simulations-table-header p {
   font-size: var(--sim-font-xs);
   margin-top: 2px;
 }
 
-#settings-panel-simulacoes .simulations-table-actions {
+.simulacoes-main-card .simulations-table-actions {
   gap: 8px;
   align-items: center;
   justify-content: flex-end;
 }
 
-#settings-panel-simulacoes .simulations-table-actions label {
+.simulacoes-main-card .simulations-table-actions label {
   font-size: var(--sim-font-xs);
 }
 
-#settings-panel-simulacoes .simulations-table-actions select,
-#settings-panel-simulacoes .simulations-table-actions button {
+.simulacoes-main-card .simulations-table-actions select,
+.simulacoes-main-card .simulations-table-actions button {
   min-height: var(--sim-control-height);
   font-size: var(--sim-font-sm);
 }
 
-#settings-panel-simulacoes .simulations-table-actions select {
+.simulacoes-main-card .simulations-table-actions select {
   min-width: 120px;
 }
 
-#settings-panel-simulacoes .simulations-table table {
+.simulacoes-main-card .simulations-table table {
   min-width: 620px;
 }
 
-#settings-panel-simulacoes .simulations-table table th {
+.simulacoes-main-card .simulations-table table th {
   font-size: var(--sim-font-sm);
 }
 
-#settings-panel-simulacoes .simulations-table table td {
+.simulacoes-main-card .simulations-table table td {
   font-size: var(--sim-font-sm);
 }
 
-#settings-panel-simulacoes .simulations-table table td:first-child {
+.simulacoes-main-card .simulations-table table td:first-child {
   font-size: var(--sim-font-md);
 }
 
-#settings-panel-simulacoes .simulations-empty {
+.simulacoes-main-card .simulations-empty {
   font-size: var(--sim-font-sm);
 }
 
@@ -6780,6 +7059,14 @@ i:hover {
 
 .gap-4 {
   gap: 1rem;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.max-w-full {
+  max-width: 100%;
 }
 
 .mb-1 {
