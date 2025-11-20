@@ -29,6 +29,26 @@ export type LeasingProjecao = {
   economiaProjetada: LeasingEconomiaPonto[]
 }
 
+export type LeasingContratoProprietario = {
+  nome: string
+  cpfCnpj: string
+}
+
+export type LeasingContratoDados = {
+  tipoContrato: 'residencial' | 'condominio'
+  dataInicio: string
+  dataFim: string
+  dataHomologacao: string
+  localEntrega: string
+  modulosFV: string
+  inversoresFV: string
+  nomeCondominio: string
+  cnpjCondominio: string
+  nomeSindico: string
+  cpfSindico: string
+  proprietarios: LeasingContratoProprietario[]
+}
+
 export type LeasingState = {
   prazoContratualMeses: number
   energiaContratadaKwhMes: number
@@ -41,6 +61,7 @@ export type LeasingState = {
   valorDeMercadoEstimado: number
   dadosTecnicos: LeasingDadosTecnicos
   projecao: LeasingProjecao
+  contrato: LeasingContratoDados
 }
 
 type Listener = () => void
@@ -70,6 +91,20 @@ const createInitialState = (): LeasingState => ({
     mensalidadesAno: [],
     economiaProjetada: [],
   },
+  contrato: {
+    tipoContrato: 'residencial',
+    dataInicio: '',
+    dataFim: '',
+    dataHomologacao: '',
+    localEntrega: '',
+    modulosFV: '',
+    inversoresFV: '',
+    nomeCondominio: '',
+    cnpjCondominio: '',
+    nomeSindico: '',
+    cpfSindico: '',
+    proprietarios: [{ nome: '', cpfCnpj: '' }],
+  },
 })
 
 let state: LeasingState = createInitialState()
@@ -81,6 +116,10 @@ const cloneState = (input: LeasingState): LeasingState => ({
   projecao: {
     mensalidadesAno: input.projecao.mensalidadesAno.map((item) => ({ ...item })),
     economiaProjetada: input.projecao.economiaProjetada.map((item) => ({ ...item })),
+  },
+  contrato: {
+    ...input.contrato,
+    proprietarios: input.contrato.proprietarios.map((item) => ({ ...item })),
   },
 })
 
@@ -161,6 +200,18 @@ export const leasingActions = {
   setValorDeMercadoEstimado(valor: number) {
     setState((draft) => {
       draft.valorDeMercadoEstimado = valor
+    })
+  },
+  updateContrato(partial: Partial<LeasingContratoDados>) {
+    setState((draft) => {
+      const proprietarios = partial.proprietarios
+        ? partial.proprietarios.map((item) => ({ ...item }))
+        : draft.contrato.proprietarios.map((item) => ({ ...item }))
+      draft.contrato = {
+        ...draft.contrato,
+        ...partial,
+        proprietarios,
+      }
     })
   },
 }

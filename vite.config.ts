@@ -136,6 +136,12 @@ export default defineConfig(({ mode }) => {
         ),
       },
     },
+    optimizeDeps: {
+      force: true,
+    },
+    ssr: {
+      noExternal: ['esbuild'],
+    },
     esbuild: {},
   }
 })
