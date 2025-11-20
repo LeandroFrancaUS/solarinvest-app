@@ -13595,174 +13595,180 @@ export default function App() {
     )
     const tipoContratoSelecionado = leasingContrato.tipoContrato
     return (
-      <section className="card">
+      <section className="card leasing-contract-card">
         <div className="card-header">
           <h2>Dados contratuais do leasing</h2>
         </div>
-        <div className="grid g3 leasing-contract-dates-grid">
-          <Field label="Tipo de contrato">
-            <div className="leasing-contract-type-group" role="radiogroup" aria-label="Tipo de contrato">
-              <label
-                className={`leasing-contract-type${
-                  tipoContratoSelecionado === 'residencial' ? ' is-active' : ''
-                }`}
+        <div className="leasing-form-grid">
+          <div className="leasing-contract-dates-grid">
+            <Field label="Tipo de contrato">
+              <div
+                className="flex flex-row gap-3 items-center leasing-contract-toggle-group"
+                role="radiogroup"
+                aria-label="Tipo de contrato"
               >
-                <input
-                  type="radio"
-                  name="leasing-tipo-contrato"
-                  checked={tipoContratoSelecionado === 'residencial'}
-                  onChange={() => handleLeasingContratoCampoChange('tipoContrato', 'residencial')}
-                />
-                <span>Residencial</span>
-              </label>
-              <label
-                className={`leasing-contract-type${
-                  tipoContratoSelecionado === 'condominio' ? ' is-active' : ''
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="leasing-tipo-contrato"
-                  checked={tipoContratoSelecionado === 'condominio'}
-                  onChange={() => handleLeasingContratoCampoChange('tipoContrato', 'condominio')}
-                />
-                <span>Condomínio</span>
-              </label>
-            </div>
-          </Field>
-          <Field label={renderLeasingLabel('Data de início do contrato')}>
-            <input
-              type="date"
-              value={leasingContrato.dataInicio}
-              onChange={(event) => handleLeasingContratoCampoChange('dataInicio', event.target.value)}
-            />
-          </Field>
-          <Field label={renderLeasingLabel('Data de término do contrato')}>
-            <input
-              type="date"
-              value={leasingContrato.dataFim}
-              onChange={(event) => handleLeasingContratoCampoChange('dataFim', event.target.value)}
-            />
-          </Field>
-        </div>
-        <div className="grid g2 leasing-location-grid">
-          <Field label={renderLocalEntregaLabel()}>
-            <input
-              value={leasingContrato.localEntrega}
-              onChange={(event) => handleLeasingLocalEntregaChange(event.target.value)}
-              placeholder="Endereço ou município"
-            />
-          </Field>
-          <Field label="Data da homologação (opcional)">
-            <input
-              type="date"
-              value={leasingContrato.dataHomologacao}
-              onChange={(event) =>
-                handleLeasingContratoCampoChange('dataHomologacao', event.target.value)
-              }
-            />
-          </Field>
-        </div>
-        <div className="grid g2 leasing-equipments-grid">
-          <Field label="Módulos fotovoltaicos instalados">
-            <textarea
-              value={leasingContrato.modulosFV}
-              onChange={(event) => handleLeasingContratoCampoChange('modulosFV', event.target.value)}
-              rows={2}
-            />
-          </Field>
-          <Field label="Inversores instalados">
-            <textarea
-              value={leasingContrato.inversoresFV}
-              onChange={(event) =>
-                handleLeasingContratoCampoChange('inversoresFV', event.target.value)
-              }
-              rows={2}
-            />
-          </Field>
-        </div>
-        {isCondominioContrato ? (
-          <div className="grid g2">
-            <Field label="Nome do condomínio">
-              <input
-                value={leasingContrato.nomeCondominio}
-                onChange={(event) =>
-                  handleLeasingContratoCampoChange('nomeCondominio', event.target.value)
-                }
-              />
-            </Field>
-            <Field label="CNPJ do condomínio">
-              <input
-                value={leasingContrato.cnpjCondominio}
-                onChange={(event) =>
-                  handleLeasingContratoCampoChange('cnpjCondominio', event.target.value)
-                }
-              />
-            </Field>
-            <Field label="Nome do síndico">
-              <input
-                value={leasingContrato.nomeSindico}
-                onChange={(event) =>
-                  handleLeasingContratoCampoChange('nomeSindico', event.target.value)
-                }
-              />
-            </Field>
-            <Field label="CPF do síndico">
-              <input
-                value={leasingContrato.cpfSindico}
-                onChange={(event) =>
-                  handleLeasingContratoCampoChange('cpfSindico', event.target.value)
-                }
-              />
-            </Field>
-          </div>
-        ) : null}
-        <Field
-          label="Proprietários / representantes legais (Anexo IV)"
-          hint="Inclua o nome e o CPF/CNPJ que devem constar no termo de autorização."
-        >
-          <div className="cliente-herdeiros-group">
-            {leasingContrato.proprietarios.map((proprietario, index) => (
-              <div className="cliente-herdeiro-row" key={`leasing-proprietario-${index}`}>
-                <input
-                  value={proprietario.nome}
-                  onChange={(event) =>
-                    handleLeasingContratoProprietarioChange(index, 'nome', event.target.value)
-                  }
-                  placeholder={`Nome do proprietário ${index + 1}`}
-                />
-                <input
-                  value={proprietario.cpfCnpj}
-                  onChange={(event) =>
-                    handleLeasingContratoProprietarioChange(
-                      index,
-                      'cpfCnpj',
-                      event.target.value,
-                    )
-                  }
-                  placeholder="CPF ou CNPJ"
-                />
                 <button
                   type="button"
-                  className="ghost cliente-herdeiro-remove"
-                  onClick={() => handleRemoverContratoProprietario(index)}
-                  aria-label={`Remover proprietário ${index + 1}`}
+                  role="radio"
+                  aria-checked={tipoContratoSelecionado === 'residencial'}
+                  className={`leasing-contract-toggle${
+                    tipoContratoSelecionado === 'residencial' ? ' is-active' : ''
+                  }`}
+                  onClick={() => handleLeasingContratoCampoChange('tipoContrato', 'residencial')}
                 >
-                  Remover
+                  Residencial
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={tipoContratoSelecionado === 'condominio'}
+                  className={`leasing-contract-toggle${
+                    tipoContratoSelecionado === 'condominio' ? ' is-active' : ''
+                  }`}
+                  onClick={() => handleLeasingContratoCampoChange('tipoContrato', 'condominio')}
+                >
+                  Condomínio
                 </button>
               </div>
-            ))}
-            <div className="cliente-herdeiros-actions">
-              <button
-                type="button"
-                className="ghost cliente-herdeiro-add"
-                onClick={handleAdicionarContratoProprietario}
-              >
-                Adicionar proprietário
-              </button>
-            </div>
+            </Field>
+            <Field label={renderLeasingLabel('Data de início do contrato')}>
+              <input
+                className="leasing-compact-input"
+                type="date"
+                value={leasingContrato.dataInicio}
+                onChange={(event) => handleLeasingContratoCampoChange('dataInicio', event.target.value)}
+              />
+            </Field>
+            <Field label={renderLeasingLabel('Data de término do contrato')}>
+              <input
+                className="leasing-compact-input"
+                type="date"
+                value={leasingContrato.dataFim}
+                onChange={(event) => handleLeasingContratoCampoChange('dataFim', event.target.value)}
+              />
+            </Field>
           </div>
-        </Field>
+          <div className="leasing-location-grid">
+            <Field label={renderLocalEntregaLabel()}>
+              <input
+                className="leasing-compact-input"
+                value={leasingContrato.localEntrega}
+                onChange={(event) => handleLeasingLocalEntregaChange(event.target.value)}
+                placeholder="Endereço ou município"
+              />
+            </Field>
+            <Field label="Data da homologação (opcional)">
+              <input
+                className="leasing-compact-input"
+                type="date"
+                value={leasingContrato.dataHomologacao}
+                onChange={(event) =>
+                  handleLeasingContratoCampoChange('dataHomologacao', event.target.value)
+                }
+              />
+            </Field>
+          </div>
+          <div className="leasing-equipments-grid">
+            <Field label="Módulos fotovoltaicos instalados">
+              <textarea
+                value={leasingContrato.modulosFV}
+                onChange={(event) => handleLeasingContratoCampoChange('modulosFV', event.target.value)}
+                rows={2}
+              />
+            </Field>
+            <Field label="Inversores instalados">
+              <textarea
+                value={leasingContrato.inversoresFV}
+                onChange={(event) =>
+                  handleLeasingContratoCampoChange('inversoresFV', event.target.value)
+                }
+                rows={2}
+              />
+            </Field>
+          </div>
+          {isCondominioContrato ? (
+            <div className="leasing-condominio-grid">
+              <Field label="Nome do condomínio">
+                <input
+                  value={leasingContrato.nomeCondominio}
+                  onChange={(event) =>
+                    handleLeasingContratoCampoChange('nomeCondominio', event.target.value)
+                  }
+                />
+              </Field>
+              <Field label="CNPJ do condomínio">
+                <input
+                  value={leasingContrato.cnpjCondominio}
+                  onChange={(event) =>
+                    handleLeasingContratoCampoChange('cnpjCondominio', event.target.value)
+                  }
+                />
+              </Field>
+              <Field label="Nome do síndico">
+                <input
+                  value={leasingContrato.nomeSindico}
+                  onChange={(event) =>
+                    handleLeasingContratoCampoChange('nomeSindico', event.target.value)
+                  }
+                />
+              </Field>
+              <Field label="CPF do síndico">
+                <input
+                  value={leasingContrato.cpfSindico}
+                  onChange={(event) =>
+                    handleLeasingContratoCampoChange('cpfSindico', event.target.value)
+                  }
+                />
+              </Field>
+              <Field
+                label="Proprietários / representantes legais (Anexo IV)"
+                hint="Inclua o nome e o CPF/CNPJ que devem constar no termo de autorização."
+              >
+                <div className="cliente-herdeiros-group">
+                  {leasingContrato.proprietarios.map((proprietario, index) => (
+                    <div className="cliente-herdeiro-row" key={`leasing-proprietario-${index}`}>
+                      <input
+                        value={proprietario.nome}
+                        onChange={(event) =>
+                          handleLeasingContratoProprietarioChange(index, 'nome', event.target.value)
+                        }
+                        placeholder={`Nome do proprietário ${index + 1}`}
+                      />
+                      <input
+                        value={proprietario.cpfCnpj}
+                        onChange={(event) =>
+                          handleLeasingContratoProprietarioChange(
+                            index,
+                            'cpfCnpj',
+                            event.target.value,
+                          )
+                        }
+                        placeholder="CPF ou CNPJ"
+                      />
+                      <button
+                        type="button"
+                        className="ghost cliente-herdeiro-remove"
+                        onClick={() => handleRemoverContratoProprietario(index)}
+                        aria-label={`Remover proprietário ${index + 1}`}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ))}
+                  <div className="cliente-herdeiros-actions">
+                    <button
+                      type="button"
+                      className="ghost cliente-herdeiro-add"
+                      onClick={handleAdicionarContratoProprietario}
+                    >
+                      Adicionar proprietário
+                    </button>
+                  </div>
+                </div>
+              </Field>
+            </div>
+          ) : null}
+        </div>
       </section>
     )
   }
