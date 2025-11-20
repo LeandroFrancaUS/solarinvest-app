@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { CheckboxSmall } from '../CheckboxSmall'
 import { shallow } from 'zustand/shallow'
 import { labelWithTooltip } from '../InfoTooltip'
 
@@ -569,9 +570,10 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
                       <strong>{displayName}</strong>
                       <small>Atualizado em {formatUpdatedAt(sim.updatedAt)}</small>
                     </button>
-                    <label className={`simulations-select${isSelected ? ' checked' : ''}`}>
-                      <input 
-                        type="checkbox"
+                    <label
+                      className={`simulations-select${isSelected ? ' checked' : ''} flex items-center gap-2`}
+                    >
+                      <CheckboxSmall
                         checked={isSelected}
                         onChange={() => handleToggleSelection(sim.id)}
                       />
@@ -1069,9 +1071,8 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
             </div>
 
             <div className="simulations-toggles">
-              <label className="checkbox">
-                <input 
-                  type="checkbox"
+              <label className="checkbox flex items-center gap-2">
+                <CheckboxSmall
                   checked={current.subtrair_tusd_contrato !== false}
                   onChange={handleToggle('subtrair_tusd_contrato')}
                 />
@@ -1082,9 +1083,8 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
                   )}
                 </span>
               </label>
-              <label className="checkbox">
-                <input 
-                  type="checkbox"
+              <label className="checkbox flex items-center gap-2">
+                <CheckboxSmall
                   checked={current.subtrair_tusd_pos_contrato !== false}
                   onChange={handleToggle('subtrair_tusd_pos_contrato')}
                 />
