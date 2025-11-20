@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { CheckboxSmall } from '../CheckboxSmall'
 import {
   ResponsiveContainer,
   LineChart,
@@ -89,18 +90,16 @@ export function LeasingBeneficioChart({
       <div className="card-header">
         <h2>Beneficio acumulado em 30 anos</h2>
         <div className="legend-toggle">
-          <label>
-            <input
-              type="checkbox"
+          <label className="flex items-center gap-2">
+            <CheckboxSmall
               checked={exibirLeasingLinha}
               onChange={(event) => onToggleLeasing(event.target.checked)}
             />
             <span style={{ color: CHART_PALETTE.Leasing }}>Leasing</span>
           </label>
           {mostrarFinanciamento ? (
-            <label>
-              <input
-                type="checkbox"
+            <label className="flex items-center gap-2">
+              <CheckboxSmall
                 checked={exibirFinLinha}
                 onChange={(event) => onToggleFinanciamento(event.target.checked)}
               />

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { CheckboxSmall } from './components/CheckboxSmall'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
 import { createRoot } from 'react-dom/client'
 import {
@@ -2175,10 +2176,9 @@ function ContractTemplatesModal({
                   const checked = selectedTemplates.includes(template)
                   return (
                     <li key={template} className="contract-template-item">
-                      <label htmlFor={checkboxId}>
-                        <input
+                      <label htmlFor={checkboxId} className="flex items-center gap-2">
+                        <CheckboxSmall
                           id={checkboxId}
-                          type="checkbox"
                           checked={checked}
                           onChange={() => onToggleTemplate(template)}
                         />
@@ -2288,10 +2288,9 @@ function LeasingContractsModal({
               const disabled = Boolean(config.autoInclude)
               return (
                 <li key={config.id} className="contract-template-item">
-                  <label htmlFor={checkboxId}>
-                    <input
+                  <label htmlFor={checkboxId} className="flex items-center gap-2">
+                    <CheckboxSmall
                       id={checkboxId}
-                      type="checkbox"
                       checked={checked}
                       disabled={disabled}
                       onChange={() => {
@@ -3121,6 +3120,8 @@ export default function App() {
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
   const editableContentRef = useRef<HTMLDivElement | null>(null)
+  const leasingLocalEntregaInputId = useId()
+  const leasingHomologacaoInputId = useId()
   const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
   const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
   const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
@@ -13475,10 +13476,12 @@ export default function App() {
           hint={cliente.temIndicacao ? 'Informe o nome do responsável pela indicação.' : undefined}
         >
           <div className="cliente-indicacao-group">
-            <label className="cliente-indicacao-toggle" htmlFor={clienteIndicacaoCheckboxId}>
-              <input
+            <label
+              className="cliente-indicacao-toggle flex items-center gap-2"
+              htmlFor={clienteIndicacaoCheckboxId}
+            >
+              <CheckboxSmall
                 id={clienteIndicacaoCheckboxId}
-                type="checkbox"
                 checked={cliente.temIndicacao}
                 onChange={(event) => handleClienteChange('temIndicacao', event.target.checked)}
               />
@@ -13579,20 +13582,6 @@ export default function App() {
     const renderLeasingLabel = (text: string) => (
       <span className="leasing-field-label-text">{text}</span>
     )
-    const renderLocalEntregaLabel = () => (
-      <div className="leasing-location-label">
-        <span className="leasing-field-label-text">Local de entrega / instalação</span>
-        <label className="leasing-location-checkbox">
-          <input
-            type="checkbox"
-            checked={usarEnderecoCliente}
-            onChange={(event) => handleToggleUsarEnderecoCliente(event.target.checked)}
-            disabled={!enderecoClienteCompleto}
-          />
-          <span>Usar endereço do cliente</span>
-        </label>
-      </div>
-    )
     const tipoContratoSelecionado = leasingContrato.tipoContrato
     return (
       <section className="card leasing-contract-card">
@@ -13648,25 +13637,44 @@ export default function App() {
               />
             </Field>
           </div>
-          <div className="leasing-location-grid">
-            <Field label={renderLocalEntregaLabel()}>
+          <div className="leasing-location-grid grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="mb-4">
+              <div className="mb-1 text-sm font-medium text-gray-600 leasing-location-label">
+                <span className="leasing-field-label-text">Local de entrega / instalação</span>
+                <label className="leasing-location-checkbox flex items-center gap-2">
+                  <CheckboxSmall
+                    checked={usarEnderecoCliente}
+                    onChange={(event) => handleToggleUsarEnderecoCliente(event.target.checked)}
+                    disabled={!enderecoClienteCompleto}
+                  />
+                  <span>Usar endereço do cliente</span>
+                </label>
+              </div>
               <input
-                className="leasing-compact-input"
+                id={leasingLocalEntregaInputId}
+                className="leasing-compact-input h-[46px]"
                 value={leasingContrato.localEntrega}
                 onChange={(event) => handleLeasingLocalEntregaChange(event.target.value)}
                 placeholder="Endereço ou município"
               />
-            </Field>
-            <Field label="Data da homologação (opcional)">
+            </div>
+            <div className="mb-4">
+              <label
+                className="mb-1 text-sm font-medium text-gray-600"
+                htmlFor={leasingHomologacaoInputId}
+              >
+                Data da homologação (opcional)
+              </label>
               <input
-                className="leasing-compact-input"
+                id={leasingHomologacaoInputId}
+                className="leasing-compact-input h-[46px]"
                 type="date"
                 value={leasingContrato.dataHomologacao}
                 onChange={(event) =>
                   handleLeasingContratoCampoChange('dataHomologacao', event.target.value)
                 }
               />
-            </Field>
+            </div>
           </div>
           <div className="leasing-equipments-grid">
             <Field label="Módulos fotovoltaicos instalados">
@@ -13854,10 +13862,12 @@ export default function App() {
         <div className="tusd-options-header">
           <div className="tusd-options-title-row">
             <h3 id={tusdOptionsTitleId}>Opções de TUSD</h3>
-            <label className="tusd-options-toggle" htmlFor={tusdOptionsToggleId}>
-              <input
+            <label
+              className="tusd-options-toggle flex items-center gap-2"
+              htmlFor={tusdOptionsToggleId}
+            >
+              <CheckboxSmall
                 id={tusdOptionsToggleId}
-                type="checkbox"
                 checked={tusdOpcoesExpandidas}
                 onChange={(event) => setTusdOpcoesExpandidas(event.target.checked)}
                 aria-expanded={tusdOpcoesExpandidas}
@@ -14184,9 +14194,8 @@ export default function App() {
           <div className="multi-uc-header">
             <div className="multi-uc-title-row">
               <h3>Cenário de múltiplas unidades consumidoras (Multi-UC)</h3>
-              <label className="multi-uc-toggle">
-                <input
-                  type="checkbox"
+              <label className="multi-uc-toggle flex items-center gap-2">
+                <CheckboxSmall
                   checked={multiUcAtivo}
                   onChange={(event) => handleMultiUcToggle(event.target.checked)}
                 />
@@ -14312,9 +14321,8 @@ export default function App() {
                   )}
                 >
                   <div className="multi-uc-override-control">
-                    <label className="multi-uc-checkbox">
-                      <input
-                        type="checkbox"
+                    <label className="multi-uc-checkbox flex items-center gap-2">
+                      <CheckboxSmall
                         checked={multiUcOverrideEscalonamento}
                         onChange={(event) => setMultiUcOverrideEscalonamento(event.target.checked)}
                       />
@@ -15911,9 +15919,8 @@ export default function App() {
                       'Quando ativo, soma impostos retidos e do regime ao CAPEX considerado nas análises.',
                     )}
                   >
-                    <label className="inline-checkbox">
-                      <input
-                        type="checkbox"
+                    <label className="inline-checkbox flex items-center gap-2">
+                      <CheckboxSmall
                         checked={vendasConfig.incluirImpostosNoCAPEX_default}
                         onChange={(event) =>
                           updateVendasConfig({ incluirImpostosNoCAPEX_default: event.target.checked })
@@ -16194,9 +16201,8 @@ export default function App() {
                     />
                   </Field>
                   <Field label="Workflow de aprovação ativo">
-                    <label className="inline-checkbox">
-                      <input
-                        type="checkbox"
+                    <label className="inline-checkbox flex items-center gap-2">
+                      <CheckboxSmall
                         checked={vendasConfig.workflow_aprovacao_ativo}
                         onChange={(event) =>
                           updateVendasConfig({ workflow_aprovacao_ativo: event.target.checked })
@@ -16294,9 +16300,8 @@ export default function App() {
                   />
                 </Field>
                 <Field label="Mostrar quebra de impostos no PDF">
-                  <label className="inline-checkbox">
-                    <input
-                      type="checkbox"
+                  <label className="inline-checkbox flex items-center gap-2">
+                    <CheckboxSmall
                       checked={vendasConfig.mostrar_quebra_impostos_no_pdf_cliente}
                       onChange={(event) =>
                         updateVendasConfig({
@@ -16394,9 +16399,8 @@ export default function App() {
           <div className="settings-vendas-card-body">
             <div className="grid g3">
               <Field label="Exibir preços unitários">
-                <label className="inline-checkbox">
-                  <input
-                    type="checkbox"
+                <label className="inline-checkbox flex items-center gap-2">
+                  <CheckboxSmall
                     checked={vendasConfig.exibir_precos_unitarios}
                     onChange={(event) =>
                       updateVendasConfig({ exibir_precos_unitarios: event.target.checked })
@@ -16406,9 +16410,8 @@ export default function App() {
                 </label>
               </Field>
               <Field label="Exibir margem">
-                <label className="inline-checkbox">
-                  <input
-                    type="checkbox"
+                <label className="inline-checkbox flex items-center gap-2">
+                  <CheckboxSmall
                     checked={vendasConfig.exibir_margem}
                     onChange={(event) => updateVendasConfig({ exibir_margem: event.target.checked })}
                   />
@@ -16416,9 +16419,8 @@ export default function App() {
                 </label>
               </Field>
               <Field label="Exibir comissão">
-                <label className="inline-checkbox">
-                  <input
-                    type="checkbox"
+                <label className="inline-checkbox flex items-center gap-2">
+                  <CheckboxSmall
                     checked={vendasConfig.exibir_comissao}
                     onChange={(event) => updateVendasConfig({ exibir_comissao: event.target.checked })}
                   />
@@ -16426,9 +16428,8 @@ export default function App() {
                 </label>
               </Field>
               <Field label="Exibir impostos">
-                <label className="inline-checkbox">
-                  <input
-                    type="checkbox"
+                <label className="inline-checkbox flex items-center gap-2">
+                  <CheckboxSmall
                     checked={vendasConfig.exibir_impostos}
                     onChange={(event) => updateVendasConfig({ exibir_impostos: event.target.checked })}
                   />
@@ -18808,9 +18809,8 @@ export default function App() {
 
                     <div className="grid g3">
                       <Field label=" ">
-                        <label className="inline-checkbox inline-checkbox--small">
-                          <input
-                            type="checkbox"
+                        <label className="inline-checkbox inline-checkbox--small flex items-center gap-2">
+                          <CheckboxSmall
                             aria-label="Apresentar valor de mercado na proposta"
                             checked={mostrarValorMercadoLeasing}
                             onChange={(event) =>
