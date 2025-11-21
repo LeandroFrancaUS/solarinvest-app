@@ -13279,6 +13279,8 @@ export default function App() {
     setUltimaDecisaoTimestamp(Date.now())
   }, [])
 
+  const isSimulacoesWorkspaceActive = simulacoesSection === 'nova' || simulacoesSection === 'salvas'
+
   const budgetCodeDisplay = useMemo(() => {
     return normalizeProposalId(printableData.budgetId) || null
   }, [printableData.budgetId])
@@ -18169,26 +18171,29 @@ export default function App() {
         </nav>
 
         <div className="simulacoes-panels">
-          {simulacoesSection === 'nova' || simulacoesSection === 'salvas' ? (
-            <section className="simulacoes-main-card">
-              <header>
-                <div>
-                  <p className="simulacoes-tag ghost">Workspace</p>
-                  <h3>{simulacoesSection === 'nova' ? 'Nova simulação' : 'Simulações salvas'}</h3>
-                  <p className="simulacoes-description">
-                    Layout full-width para criação, comparação e duplicação de cenários com Monte Carlo e IA na mesma
-                    área.
-                  </p>
-                </div>
-              </header>
-              <SimulacoesTab
-                consumoKwhMes={kcKwhMes}
-                valorInvestimento={capex}
-                tipoSistema={tipoSistema}
-                prazoLeasingAnos={leasingPrazo}
-              />
-            </section>
-          ) : null}
+          <section
+            className="simulacoes-main-card"
+            hidden={!isSimulacoesWorkspaceActive}
+            aria-hidden={!isSimulacoesWorkspaceActive}
+            style={{ display: isSimulacoesWorkspaceActive ? 'flex' : 'none' }}
+          >
+            <header>
+              <div>
+                <p className="simulacoes-tag ghost">Workspace</p>
+                <h3>{simulacoesSection === 'nova' ? 'Nova simulação' : 'Simulações salvas'}</h3>
+                <p className="simulacoes-description">
+                  Layout full-width para criação, comparação e duplicação de cenários com Monte Carlo e IA na mesma
+                  área.
+                </p>
+              </div>
+            </header>
+            <SimulacoesTab
+              consumoKwhMes={kcKwhMes}
+              valorInvestimento={capex}
+              tipoSistema={tipoSistema}
+              prazoLeasingAnos={leasingPrazo}
+            />
+          </section>
 
           {simulacoesSection === 'ia' ? (
             <section className="simulacoes-module-card">
