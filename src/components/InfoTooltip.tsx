@@ -6,11 +6,19 @@ export type TooltipIconProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export const TooltipIcon = React.forwardRef<HTMLButtonElement, TooltipIconProps>(
   function TooltipIcon({ active, className = '', ...rest }, ref) {
+    const classes = ['tooltip-icon', 'si-help-icon']
+    if (active) {
+      classes.push('open')
+    }
+    if (className) {
+      classes.push(className)
+    }
+
     return (
       <button
         type="button"
         ref={ref}
-        className={`tooltip-icon${active ? ' open' : ''}${className ? ` ${className}` : ''}`}
+        className={classes.join(' ')}
         {...rest}
       >
         ?

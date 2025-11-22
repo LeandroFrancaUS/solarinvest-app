@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckboxSmall } from '../CheckboxSmall'
 import { shallow } from 'zustand/shallow'
-import { labelWithTooltip } from '../InfoTooltip'
+import { InfoTooltip, labelWithTooltip } from '../InfoTooltip'
 
 import {
   calcEconomiaContrato,
@@ -673,68 +673,105 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
             {comparisonRows.length === 0 ? (
               <p className="muted simulations-empty">Selecione ao menos uma simulação salva para comparar.</p>
             ) : (
-              <div className="table-wrapper">
-                <table>
+              <div className="table-wrapper comparison-table-scroll">
+                <table className="simulations-comparison-table">
                   <thead>
                     <tr>
                       <th className="simulations-expand-header" aria-label="Expandir" />
-                      <th>{labelWithTooltip('Cenário', 'Nome do cenário salvo usado para identificar cada linha do comparativo.')}</th>
-                      <th>
-                        {labelWithTooltip(
-                          'Desconto',
-                          'Percentual de desconto aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
-                        )}
-                      </th>
-                      <th>
-                        {labelWithTooltip('Prazo (meses)', 'Prazo total do contrato em meses: Anos × 12.')}
-                      </th>
-                      <th>
-                        {labelWithTooltip('Consumo (kWh/mês)', 'Consumo médio mensal utilizado em todas as projeções financeiras.')}
-                      </th>
-                      <th>
-                        {labelWithTooltip('Tarifa cheia (mês 1)', 'Tarifa sem desconto considerada no primeiro mês.')}
-                      </th>
-                      <th>
-                        {labelWithTooltip(
-                          'Tarifa com desconto (mês 1)',
-                          'Tarifa cheia do mês 1 com o desconto contratado aplicado.',
-                        )}
-                      </th>
-                      <th>
-                        {labelWithTooltip('Encargo TUSD', 'Encargo TUSD projetado para o primeiro mês da simulação.')}
-                      </th>
-                      <th>
-                        {labelWithTooltip('Custos variáveis', 'Total de OPEX do cenário, composto principalmente pelo seguro.')}
-                      </th>
-                      <th>
-                        {labelWithTooltip('Receita total', 'Soma das receitas mensais obtidas com a venda de energia.')}
-                      </th>
-                      <th>
-                        {labelWithTooltip('Lucro líquido', 'Lucro líquido = Receita total - CAPEX - Custos variáveis.')}
-                      </th>
-                      <th>{labelWithTooltip('ROI', 'Lucro líquido dividido pelo CAPEX investido.')}</th>
-                      <th>
-                        {labelWithTooltip('Payback', 'Menor mês em que o fluxo acumulado iguala ou supera o CAPEX investido.')}
-                      </th>
-                      <th>
-                        {labelWithTooltip(
-                          'Retorno a.m. bruto',
-                          'Taxa mensal equivalente do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
-                        )}
-                      </th>
-                      <th>
-                        {labelWithTooltip(
-                          `Economia (${comparisonHorizon} anos)`,
-                          'Resultado de calcEconomiaHorizonte usando o horizonte selecionado acima.',
-                        )}
-                      </th>
-                      <th>
-                        {labelWithTooltip(
-                          'Economia acumulada',
-                          'Valor retornado por calcEconomiaContrato: economia líquida do contrato + valor de mercado + OPEX recuperado.',
-                        )}
-                      </th>
-                      <th>{labelWithTooltip('Observações', 'Notas livres registradas no cenário.')}</th>
+                      {[
+                        {
+                          key: 'scenario',
+                          label: 'Cenário',
+                          tooltip: 'Nome do cenário salvo usado para identificar cada linha do comparativo.',
+                          minWidth: 150,
+                        },
+                        {
+                          key: 'discount',
+                          label: 'Desconto',
+                          tooltip:
+                            'Percentual de desconto aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto ÷ 100).',
+                        },
+                        {
+                          key: 'term',
+                          label: 'Prazo (meses)',
+                          tooltip: 'Prazo total do contrato em meses: Anos × 12.',
+                        },
+                        {
+                          key: 'consumo',
+                          label: 'Consumo (kWh/mês)',
+                          tooltip: 'Consumo médio mensal utilizado em todas as projeções financeiras.',
+                        },
+                        {
+                          key: 'tarifaCheia',
+                          label: 'Tarifa cheia (mês 1)',
+                          tooltip: 'Tarifa sem desconto considerada no primeiro mês.',
+                        },
+                        {
+                          key: 'tarifaDesconto',
+                          label: 'Tarifa c/ desc. (mês 1)',
+                          tooltip: 'Tarifa cheia do mês 1 com o desconto contratado aplicado.',
+                        },
+                        {
+                          key: 'encargo',
+                          label: 'Encargo TUSD',
+                          tooltip: 'Encargo TUSD projetado para o primeiro mês da simulação.',
+                        },
+                        {
+                          key: 'custosVariaveis',
+                          label: 'Custos var.',
+                          tooltip: 'Total de OPEX do cenário, composto principalmente pelo seguro.',
+                        },
+                        {
+                          key: 'receitaTotal',
+                          label: 'Receita',
+                          tooltip: 'Soma das receitas mensais obtidas com a venda de energia.',
+                        },
+                        {
+                          key: 'lucroLiquido',
+                          label: 'Lucro líquido',
+                          tooltip: 'Lucro líquido = Receita total - CAPEX - Custos variáveis.',
+                        },
+                        {
+                          key: 'roi',
+                          label: 'ROI',
+                          tooltip: 'Lucro líquido dividido pelo CAPEX investido.',
+                        },
+                        {
+                          key: 'payback',
+                          label: 'Payback',
+                          tooltip: 'Menor mês em que o fluxo acumulado iguala ou supera o CAPEX investido.',
+                        },
+                        {
+                          key: 'retornoBruto',
+                          label: 'Retorno a.m. bruto',
+                          tooltip: 'Taxa mensal equivalente do ROI: (1 + ROI)^{1/meses do contrato} - 1.',
+                        },
+                        {
+                          key: 'economiaHorizonte',
+                          label: `Economia (${comparisonHorizon}a)`,
+                          tooltip: 'Resultado de calcEconomiaHorizonte usando o horizonte selecionado acima.',
+                        },
+                        {
+                          key: 'economiaAcumulada',
+                          label: 'Econ. acumulada (30a)',
+                          tooltip:
+                            'Valor retornado por calcEconomiaContrato: economia líquida do contrato + valor de mercado + OPEX recuperado.',
+                        },
+                        {
+                          key: 'observacoes',
+                          label: 'Observações',
+                          tooltip: 'Notas livres registradas no cenário.',
+                        },
+                      ].map(({ key, label, tooltip, minWidth }) => (
+                        <th key={key} className="simulations-header" style={{ minWidth: minWidth ?? 120, maxWidth: 160 }}>
+                          <div className="simulations-header-inner">
+                            <span className="simulations-header-label">{label}</span>
+                            <div className="simulations-header-help">
+                              <InfoTooltip text={tooltip} />
+                            </div>
+                          </div>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -787,7 +824,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
                               <td>{formatPercentValue(indicadores.retornoMensalBruto)}</td>
                               <td>{formatMoneyBR(economiaHorizon)}</td>
                               <td>{formatMoneyBR(economiaContratoSim)}</td>
-                              <td>{sim.obs?.trim() || '—'}</td>
+                              <td className="simulations-notes-cell">{sim.obs?.trim() || '—'}</td>
                             </tr>
                             {isExpanded && (
                               <tr className="simulation-details-row">
