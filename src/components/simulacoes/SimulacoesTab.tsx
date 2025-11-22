@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckboxSmall } from '../CheckboxSmall'
 import { shallow } from 'zustand/shallow'
-import { labelWithTooltip } from '../InfoTooltip'
+import { InfoTooltip, labelWithTooltip } from '../InfoTooltip'
 
 import {
   calcEconomiaContrato,
