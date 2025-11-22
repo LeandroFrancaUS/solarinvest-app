@@ -1949,7 +1949,8 @@ tbody tr:hover {
 .tooltip-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .tooltip-icon {
@@ -1968,6 +1969,18 @@ tbody tr:hover {
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   flex-shrink: 0;
+}
+
+.si-help-icon {
+  margin-left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #d1d5db;
+  color: #0f172a;
+  cursor: help;
 }
 
 .tooltip-icon:focus-visible {
@@ -3706,15 +3719,23 @@ table tbody tr:hover {
   background: var(--card);
   box-shadow: var(--shadow);
   width: 100%;
+  overflow: auto;
 }
 
 .simulations-table table {
+  position: relative;
   min-width: 660px;
   width: 100%;
+  table-layout: fixed;
+  overflow: auto;
 }
 
 .simulations-table table thead tr {
-  background: transparent;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(4px);
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
@@ -3725,11 +3746,29 @@ table tbody tr:hover {
   font-weight: 600;
   font-size: 12.5px;
   background: transparent;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+  padding: 12px 10px;
+  min-width: 120px;
+  text-align: center;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.simulations-table table th.align-left {
+  text-align: left;
+}
+
+.simulations-table table th.align-right {
+  text-align: right;
 }
 
 .simulations-table table td {
   color: var(--ink);
   font-size: 13px;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .simulations-table table td:first-child {
@@ -3780,11 +3819,22 @@ table tbody tr:hover {
 .simulations-scenario-cell {
   font-weight: 600;
   color: var(--title);
+  text-align: left;
+  white-space: normal;
+}
+
+.simulations-notes-cell {
+  text-align: left;
+  white-space: normal;
 }
 
 .simulations-table table tr.active,
 .simulations-table table tr.active:hover {
   background: rgba(37, 99, 235, 0.12);
+}
+
+.simulations-table table tbody tr:nth-child(even) {
+  background: rgba(148, 163, 184, 0.08);
 }
 
 .simulations-table table tbody tr:hover {
