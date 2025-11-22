@@ -1949,7 +1949,8 @@ tbody tr:hover {
 .tooltip-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .tooltip-icon {
@@ -1959,8 +1960,8 @@ tbody tr:hover {
   width: 16px;
   height: 16px;
   border-radius: 9999px;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  background: #f5f5f5;
   color: #6b7280;
   font-size: 12px;
   font-weight: 600;
@@ -1968,6 +1969,17 @@ tbody tr:hover {
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   flex-shrink: 0;
+}
+
+.si-help-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #f5f5f5;
+  color: #6b7280;
+  cursor: help;
 }
 
 .tooltip-icon:focus-visible {
@@ -1978,7 +1990,7 @@ tbody tr:hover {
 .tooltip-icon:hover,
 .tooltip-icon.open {
   background: #e5e7eb;
-  border-color: #d1d5db;
+  border-color: #cbd5e1;
   color: #4b5563;
 }
 
@@ -3706,30 +3718,60 @@ table tbody tr:hover {
   background: var(--card);
   box-shadow: var(--shadow);
   width: 100%;
+  overflow: auto;
 }
 
 .simulations-table table {
+  position: relative;
   min-width: 660px;
   width: 100%;
+  table-layout: fixed;
+  overflow: auto;
+}
+
+@media (min-width: 768px) {
+  .simulations-table table {
+    table-layout: auto;
+  }
 }
 
 .simulations-table table thead tr {
-  background: transparent;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .simulations-table table th {
-  color: var(--muted);
+  color: var(--title);
   text-transform: none;
   letter-spacing: 0;
   font-weight: 600;
   font-size: 12.5px;
   background: transparent;
+  padding: 12px 8px;
+  min-width: 120px;
+  text-align: center;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.simulations-table table th.align-left {
+  text-align: left;
+}
+
+.simulations-table table th.align-right {
+  text-align: right;
 }
 
 .simulations-table table td {
   color: var(--ink);
   font-size: 13px;
+  text-align: center;
+  vertical-align: middle;
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .simulations-table table td:first-child {
@@ -3737,6 +3779,70 @@ table tbody tr:hover {
   text-align: center;
   color: var(--muted);
   font-weight: 500;
+}
+
+.simulations-header {
+  max-width: 160px;
+  min-width: 120px;
+}
+
+.simulations-header-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+  min-width: 120px;
+  line-height: 1.2;
+  gap: 4px;
+  word-break: break-word;
+}
+
+@media (min-width: 768px) {
+  .simulations-header-inner {
+    white-space: normal;
+  }
+}
+
+.simulations-header-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  white-space: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--title);
+}
+
+@media (min-width: 768px) {
+  .simulations-header-label {
+    font-size: 14px;
+  }
+}
+
+.simulations-header-help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.comparison-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 640px) {
+  .simulations-table table th,
+  .simulations-table table td {
+    padding: 10px 8px;
+  }
 }
 
 .simulations-expand-header {
@@ -3780,11 +3886,22 @@ table tbody tr:hover {
 .simulations-scenario-cell {
   font-weight: 600;
   color: var(--title);
+  text-align: left;
+  white-space: normal;
+}
+
+.simulations-notes-cell {
+  text-align: left;
+  white-space: normal;
 }
 
 .simulations-table table tr.active,
 .simulations-table table tr.active:hover {
   background: rgba(37, 99, 235, 0.12);
+}
+
+.simulations-table table tbody tr:nth-child(even) {
+  background: rgba(148, 163, 184, 0.08);
 }
 
 .simulations-table table tbody tr:hover {
