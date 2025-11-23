@@ -354,22 +354,30 @@ const formatLeasingPrazoAnos = (valor: number) => {
   })
 }
 
-const TUSD_TIPO_OPTIONS: TipoClienteTUSD[] = [
-  'residencial',
-  'comercial',
-  'cond_vertical',
-  'cond_horizontal',
-  'industrial',
-  'outros',
-] as unknown as TipoClienteTUSD[]
-const TUSD_TIPO_LABELS: Record<TipoClienteTUSD, string> = {
-  residencial: 'Residencial',
-  comercial: 'Comercial',
-  cond_vertical: 'Cond. Vertical',
-  cond_horizontal: 'Cond. Horizontal',
-  industrial: 'Industrial',
-  outros: 'Outros',
-} as Record<TipoClienteTUSD, string>
+// --- DESATIVADO NA FASE 3 ---
+// const TUSD_TIPO_OPTIONS: TipoClienteTUSD[] = [
+//   'residencial',
+//   'comercial',
+//   'cond_vertical',
+//   'cond_horizontal',
+//   'industrial',
+//   'outros',
+// ] as unknown as TipoClienteTUSD[]
+// const TUSD_TIPO_LABELS: Record<TipoClienteTUSD, string> = {
+//   residencial: 'Residencial',
+//   comercial: 'Comercial',
+//   cond_vertical: 'Cond. Vertical',
+//   cond_horizontal: 'Cond. Horizontal',
+//   industrial: 'Industrial',
+//   outros: 'Outros',
+// } as Record<TipoClienteTUSD, string>
+// --- FIM BLOCO DESATIVADO ---
+
+const TUSD_TIPO_OPTIONS = NOVOS_TIPOS_TUSD.map(({ value }) => value as TipoClienteTUSD)
+const TUSD_TIPO_LABELS = NOVOS_TIPOS_TUSD.reduce(
+  (acc, { value, label }) => ({ ...acc, [value as TipoClienteTUSD]: label }),
+  {} as Record<TipoClienteTUSD, string>,
+)
 
 const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
   residencial: 'residencial' as SegmentoCliente,
@@ -389,23 +397,31 @@ const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
   outros: 'outros' as TipoClienteTUSD,
 } as Record<SegmentoCliente, TipoClienteTUSD>
 
-const SEGMENTO_OPTIONS: SegmentoCliente[] = [
-  'residencial',
-  'comercial',
-  'cond_vertical',
-  'cond_horizontal',
-  'industrial',
-  'outros',
-] as unknown as SegmentoCliente[]
+// --- DESATIVADO NA FASE 3 ---
+// const SEGMENTO_OPTIONS: SegmentoCliente[] = [
+//   'residencial',
+//   'comercial',
+//   'cond_vertical',
+//   'cond_horizontal',
+//   'industrial',
+//   'outros',
+// ] as unknown as SegmentoCliente[]
 
-const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
-  residencial: 'Residencial',
-  comercial: 'Comercial',
-  cond_vertical: 'Cond. Vertical',
-  cond_horizontal: 'Cond. Horizontal',
-  industrial: 'Industrial',
-  outros: 'Outros',
-} as Record<SegmentoCliente, string>
+// const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
+//   residencial: 'Residencial',
+//   comercial: 'Comercial',
+//   cond_vertical: 'Cond. Vertical',
+//   cond_horizontal: 'Cond. Horizontal',
+//   industrial: 'Industrial',
+//   outros: 'Outros',
+// } as Record<SegmentoCliente, string>
+// --- FIM BLOCO DESATIVADO ---
+
+const SEGMENTO_OPTIONS = NOVOS_TIPOS_EDIFICACAO.map(({ value }) => value as SegmentoCliente)
+const SEGMENTO_LABELS = NOVOS_TIPOS_EDIFICACAO.reduce(
+  (acc, { value, label }) => ({ ...acc, [value as SegmentoCliente]: label }),
+  {} as Record<SegmentoCliente, string>,
+)
 
 const emailValido = (valor: string) => {
   if (!valor) {
