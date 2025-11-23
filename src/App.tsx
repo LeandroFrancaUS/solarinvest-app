@@ -197,16 +197,27 @@ import {
 } from './utils/formatters'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
-const NOVOS_TIPOS_CLIENTE = [
+const NOVOS_TIPOS_CLIENTE: Array<{ value: TipoClienteTUSD; label: string; isOutro?: boolean }> = [
   { value: 'residencial', label: 'Residencial' },
   { value: 'comercial', label: 'Comercial' },
-  { value: 'cond_vertical', label: 'Cond. Vertical' },
-  { value: 'cond_horizontal', label: 'Cond. Horizontal' },
   { value: 'industrial', label: 'Industrial' },
-  { value: 'outros', label: 'Outros' },
+  { value: 'hibrido', label: 'Híbrido' },
+  { value: 'rural', label: 'Rural' },
+  { value: 'condominio', label: 'Cond. Vertical' },
+  { value: 'condominio', label: 'Cond. Horizontal' },
+  { value: 'condominio', label: 'Outros', isOutro: true },
 ]
 
-const NOVOS_TIPOS_EDIFICACAO = NOVOS_TIPOS_CLIENTE
+const NOVOS_TIPOS_EDIFICACAO: Array<{ value: SegmentoCliente; label: string; isOutro?: boolean }> = [
+  { value: 'RESIDENCIAL', label: 'Residencial' },
+  { value: 'COMERCIAL', label: 'Comercial' },
+  { value: 'INDUSTRIAL', label: 'Industrial' },
+  { value: 'HIBRIDO', label: 'Híbrido' },
+  { value: 'RURAL', label: 'Rural' },
+  { value: 'CONDOMINIO', label: 'Cond. Vertical' },
+  { value: 'CONDOMINIO', label: 'Cond. Horizontal' },
+  { value: 'CONDOMINIO', label: 'Outros', isOutro: true },
+]
 const NOVOS_TIPOS_TUSD = NOVOS_TIPOS_CLIENTE
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
@@ -3269,6 +3280,7 @@ export default function App() {
   const [tusdAnoReferencia, setTusdAnoReferencia] = useState(
     INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
   )
+  const [tusdOutroSelecionado, setTusdOutroSelecionado] = useState(false)
   const [tusdOpcoesExpandidas, setTusdOpcoesExpandidas] = useState(false)
   const [leasingPrazo, setLeasingPrazo] = useState<LeasingPrazoAnos>(INITIAL_VALUES.leasingPrazo)
   const [usarEnderecoCliente, setUsarEnderecoCliente] = useState(false)
@@ -3281,6 +3293,7 @@ export default function App() {
   const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(
     INITIAL_VALUES.segmentoCliente,
   )
+  const [segmentoOutroSelecionado, setSegmentoOutroSelecionado] = useState(false)
   const [tipoInstalacaoDirty, setTipoInstalacaoDirtyState] = useState(false)
   const [numeroModulosManual, setNumeroModulosManualState] = useState<number | ''>(
     INITIAL_VALUES.numeroModulosManual,
@@ -14093,6 +14106,10 @@ export default function App() {
                 value={tusdTipoCliente}
                 onChange={(event) => {
                   const value = event.target.value as TipoClienteTUSD
+                  const selectedOption = NOVOS_TIPOS_TUSD[event.target.selectedIndex]
+                  const isOutro = Boolean(selectedOption?.isOutro)
+                  setTusdOutroSelecionado(isOutro)
+                  setSegmentoOutroSelecionado(isOutro)
                   updateTusdTipoCliente(value)
                   const mappedSegmento = TUSD_TO_SEGMENTO[value]
                   if (mappedSegmento) {
@@ -14100,13 +14117,17 @@ export default function App() {
                   }
                 }}
               >
-                {NOVOS_TIPOS_TUSD.map((option) => (
-                  <option key={option.value} value={option.value}>
+                {NOVOS_TIPOS_TUSD.map((option, index) => (
+                  <option
+                    key={`${option.value}-${index}`}
+                    value={option.value}
+                    data-is-outro={option.isOutro ? 'true' : undefined}
+                  >
                     {option.label}
                   </option>
                 ))}
               </select>
-              {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
+              {(segmentoOutroSelecionado || tusdOutroSelecionado) && (
                 <input
                   type="text"
                   placeholder="Descreva..."
@@ -14911,20 +14932,28 @@ export default function App() {
             'Tipo de Edificação',
             'Classificação da edificação (residencial, comercial, industrial, híbrida, rural ou condomínio), utilizada para relatórios e cálculos de tarifas.',
           )}
-        >
-          <select
-            value={segmentoCliente}
-            onChange={(event) =>
-              handleSegmentoClienteChange(event.target.value as SegmentoCliente)
-            }
           >
-            {NOVOS_TIPOS_EDIFICACAO.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
+            <select
+              value={segmentoCliente}
+              onChange={(event) => {
+                const selectedOption = NOVOS_TIPOS_EDIFICACAO[event.target.selectedIndex]
+                const isOutro = Boolean(selectedOption?.isOutro)
+                setSegmentoOutroSelecionado(isOutro)
+                setTusdOutroSelecionado(isOutro)
+                handleSegmentoClienteChange(event.target.value as SegmentoCliente)
+              }}
+            >
+              {NOVOS_TIPOS_EDIFICACAO.map((option, index) => (
+                <option
+                  key={`${option.value}-${index}`}
+                  value={option.value}
+                  data-is-outro={option.isOutro ? 'true' : undefined}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          {(segmentoOutroSelecionado || tusdOutroSelecionado) && (
             <input
               type="text"
               placeholder="Descreva..."
