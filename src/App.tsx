@@ -357,50 +357,55 @@ const formatLeasingPrazoAnos = (valor: number) => {
 const TUSD_TIPO_OPTIONS: TipoClienteTUSD[] = [
   'residencial',
   'comercial',
+  'cond_vertical',
+  'cond_horizontal',
   'industrial',
-  'hibrido',
-  'rural',
-  'condominio',
-]
+  'outros',
+] as unknown as TipoClienteTUSD[]
 const TUSD_TIPO_LABELS: Record<TipoClienteTUSD, string> = {
   residencial: 'Residencial',
   comercial: 'Comercial',
+  cond_vertical: 'Cond. Vertical',
+  cond_horizontal: 'Cond. Horizontal',
   industrial: 'Industrial',
-  hibrido: 'Híbrido',
-  rural: 'Rural',
-  condominio: 'Condomínio',
-}
+  outros: 'Outros',
+} as Record<TipoClienteTUSD, string>
 
 const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
-  residencial: 'RESIDENCIAL',
-  comercial: 'COMERCIAL',
-  industrial: 'INDUSTRIAL',
-  hibrido: 'HIBRIDO',
-  rural: 'RURAL',
-  condominio: 'CONDOMINIO',
-}
+  residencial: 'residencial' as SegmentoCliente,
+  comercial: 'comercial' as SegmentoCliente,
+  cond_vertical: 'cond_vertical' as SegmentoCliente,
+  cond_horizontal: 'cond_horizontal' as SegmentoCliente,
+  industrial: 'industrial' as SegmentoCliente,
+  outros: 'outros' as SegmentoCliente,
+} as Record<TipoClienteTUSD, SegmentoCliente>
 
 const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
-  RESIDENCIAL: 'residencial',
-  COMERCIAL: 'comercial',
-  INDUSTRIAL: 'industrial',
-  HIBRIDO: 'hibrido',
-  RURAL: 'rural',
-  CONDOMINIO: 'condominio',
-}
+  residencial: 'residencial' as TipoClienteTUSD,
+  comercial: 'comercial' as TipoClienteTUSD,
+  cond_vertical: 'cond_vertical' as TipoClienteTUSD,
+  cond_horizontal: 'cond_horizontal' as TipoClienteTUSD,
+  industrial: 'industrial' as TipoClienteTUSD,
+  outros: 'outros' as TipoClienteTUSD,
+} as Record<SegmentoCliente, TipoClienteTUSD>
 
-const SEGMENTO_OPTIONS: SegmentoCliente[] = TUSD_TIPO_OPTIONS.map(
-  (tipo) => TUSD_TO_SEGMENTO[tipo],
-)
+const SEGMENTO_OPTIONS: SegmentoCliente[] = [
+  'residencial',
+  'comercial',
+  'cond_vertical',
+  'cond_horizontal',
+  'industrial',
+  'outros',
+] as unknown as SegmentoCliente[]
 
 const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
-  RESIDENCIAL: TUSD_TIPO_LABELS.residencial,
-  COMERCIAL: TUSD_TIPO_LABELS.comercial,
-  INDUSTRIAL: TUSD_TIPO_LABELS.industrial,
-  HIBRIDO: TUSD_TIPO_LABELS.hibrido,
-  RURAL: TUSD_TIPO_LABELS.rural,
-  CONDOMINIO: TUSD_TIPO_LABELS.condominio,
-}
+  residencial: 'Residencial',
+  comercial: 'Comercial',
+  cond_vertical: 'Cond. Vertical',
+  cond_horizontal: 'Cond. Horizontal',
+  industrial: 'Industrial',
+  outros: 'Outros',
+} as Record<SegmentoCliente, string>
 
 const emailValido = (valor: string) => {
   if (!valor) {
