@@ -216,6 +216,8 @@ function PrintableProposalLeasingInner(
     potenciaModulo,
     potenciaInstaladaKwp,
     tipoInstalacao,
+    tipoInstalacaoLabel,
+    tipoInstalacaoOutro,
     tipoSistema,
     segmentoCliente,
     tipoEdificacaoLabel,
@@ -412,6 +414,11 @@ function PrintableProposalLeasingInner(
   })()
   const validadeResumoTexto =
     sanitizeTextField(snapshotPagamento?.validade_proposta_txt) ?? validadeResumoPadrao
+  const tipoInstalacaoDescricao = (() => {
+    const baseLabel = tipoInstalacaoLabel ?? (tipoInstalacao === 'solo' ? 'Solo' : 'Telhado')
+    const outro = tipoInstalacaoOutro?.trim()
+    return outro ? `${baseLabel} (${outro})` : baseLabel
+  })()
 
   const resumoProposta = [
     {
@@ -431,7 +438,7 @@ function PrintableProposalLeasingInner(
     },
     {
       label: 'Tipo de instalação',
-      value: tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado',
+      value: tipoInstalacaoDescricao,
     },
     {
       label: 'Distribuidora atendida',

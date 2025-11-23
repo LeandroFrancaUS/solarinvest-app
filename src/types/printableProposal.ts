@@ -11,7 +11,13 @@ import type { VendasConfig } from './vendasConfig'
 import type { ModoVenda, VendaSnapshot } from '../store/useVendaStore'
 import type { MultiUcClasse } from './multiUc'
 
-export type TipoInstalacao = 'TELHADO' | 'SOLO'
+export type TipoInstalacao =
+  | 'fibrocimento'
+  | 'metalico'
+  | 'ceramico'
+  | 'laje'
+  | 'solo'
+  | 'outros'
 
 export type UfvComposicaoTelhadoValores = {
   projeto: number
@@ -207,6 +213,9 @@ export type PrintableProposalProps = {
   numeroModulos: number
   potenciaInstaladaKwp: number
   tipoInstalacao: TipoInstalacao
+  tipoInstalacaoCodigo?: TipoInstalacao | null | undefined
+  tipoInstalacaoLabel?: string | null | undefined
+  tipoInstalacaoOutro?: string | null | undefined
   tipoSistema: TipoSistema
   segmentoCliente?: SegmentoCliente | null
   areaInstalacao: number

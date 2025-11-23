@@ -48,7 +48,7 @@ const createProps = (): PrintableProposalProps => ({
   potenciaModulo: 550,
   numeroModulos: 12,
   potenciaInstaladaKwp: 6.6,
-  tipoInstalacao: 'TELHADO',
+  tipoInstalacao: 'fibrocimento',
   tipoSistema: 'ON_GRID',
   areaInstalacao: 10,
   descontoContratualPct: 0,
