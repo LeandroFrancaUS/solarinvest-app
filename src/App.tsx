@@ -333,7 +333,7 @@ const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
 
 const normalizeSegmentoClienteValue = (value: unknown): SegmentoCliente | undefined => {
   if (typeof value === 'string') {
-    const trimmed = value.trim().toUpperCase()
+    const trimmed = value.trim().toLowerCase()
     if (!trimmed) {
       return undefined
     }
