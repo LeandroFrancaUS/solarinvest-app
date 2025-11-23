@@ -2944,6 +2944,12 @@ export default function App() {
     const disconnect = watchFogReinjection()
     return disconnect
   }, [])
+
+  // Flags de sincronização — controlam dependência entre campos
+  const syncStateRef = useRef({
+    segmentEdited: false, // usuário mexeu manualmente no segmento
+    tusdEdited: false, // usuário mexeu manualmente no TUSD
+  })
   useEffect(() => {
     if (typeof navigator === 'undefined' || typeof document === 'undefined') {
       return
@@ -4754,14 +4760,38 @@ export default function App() {
   })
 
   const handleSegmentoClienteChange = useCallback(
-    (value: SegmentoCliente) => {
-      updateSegmentoCliente(value)
-      const mappedTusd = SEGMENTO_TO_TUSD[value]
-      if (mappedTusd) {
-        updateTusdTipoCliente(mappedTusd)
+    (novoValor: SegmentoCliente) => {
+      // Marca que o usuário editou este campo
+      syncStateRef.current.segmentEdited = true
+
+      // Atualiza o estado original
+      updateSegmentoCliente(novoValor)
+
+      // Se o outro lado NÃO foi editado manualmente, sincronizar
+      if (!syncStateRef.current.tusdEdited) {
+        updateTusdTipoCliente(novoValor)
       }
+
+      resetRetorno?.()
     },
-    [updateSegmentoCliente, updateTusdTipoCliente],
+    [resetRetorno, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
+  )
+
+  const handleTusdTipoClienteChange = useCallback(
+    (novoValor: TipoClienteTUSD) => {
+      // Marca edição manual
+      syncStateRef.current.tusdEdited = true
+
+      updateTusdTipoCliente(novoValor)
+
+      // Se o outro campo não tiver sido editado
+      if (!syncStateRef.current.segmentEdited) {
+        updateSegmentoCliente(novoValor as SegmentoCliente)
+      }
+
+      resetRetorno?.()
+    },
+    [resetRetorno, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
   )
 
   const handleTipoSistemaChange = useCallback(
@@ -14112,14 +14142,9 @@ export default function App() {
             >
               <select
                 value={tusdTipoCliente}
-                onChange={(event) => {
-                  const value = event.target.value as TipoClienteTUSD
-                  updateTusdTipoCliente(value)
-                  const mappedSegmento = TUSD_TO_SEGMENTO[value]
-                  if (mappedSegmento) {
-                    updateSegmentoCliente(mappedSegmento)
-                  }
-                }}
+                onChange={(event) =>
+                  handleTusdTipoClienteChange(event.target.value as TipoClienteTUSD)
+                }
               >
                 {NOVOS_TIPOS_TUSD.map((option) => (
                   <option key={option.value} value={option.value}>
