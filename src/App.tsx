@@ -15648,9 +15648,21 @@ export default function App() {
               handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
             }
           >
-            <option value="TELHADO">Telhado</option>
-            <option value="SOLO">Solo</option>
+            {TIPOS_INSTALACAO.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
+          {tipoInstalacao === 'outros' && (
+            <input
+              type="text"
+              placeholder="Descreva o tipo de instalação"
+              value={tipoInstalacaoOutro || ''}
+              onChange={(e) => setTipoInstalacaoOutro(e.target.value)}
+              style={{ marginTop: '6px' }}
+            />
+          )}
         </Field>
         <Field
           label={labelWithTooltip(
