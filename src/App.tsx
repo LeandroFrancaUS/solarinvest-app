@@ -206,6 +206,15 @@ const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
 const NOVOS_TIPOS_EDIFICACAO = NOVOS_TIPOS_CLIENTE
 const NOVOS_TIPOS_TUSD = NOVOS_TIPOS_CLIENTE
 
+const TIPOS_INSTALACAO = [
+  { value: 'fibrocimento', label: 'Telhado de fibrocimento' },
+  { value: 'metalico', label: 'Telhas metálicas' },
+  { value: 'ceramico', label: 'Telhas cerâmicas' },
+  { value: 'laje', label: 'Laje' },
+  { value: 'solo', label: 'Solo' },
+  { value: 'outros', label: 'Outro' },
+]
+
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 
@@ -334,6 +343,24 @@ const normalizeSegmentoClienteValue = (value: unknown): SegmentoCliente | undefi
   }
 
   return undefined
+}
+
+function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
+  if (!value) return 'fibrocimento'
+  const v = value.toLowerCase()
+
+  if (v === 'fibrocimento') return 'fibrocimento'
+  if (v === 'metalico' || v === 'metálico') return 'metalico'
+  if (v === 'ceramico' || v === 'cerâmico') return 'ceramico'
+  if (v === 'laje') return 'laje'
+  if (v === 'solo') return 'solo'
+
+  return 'outros'
+}
+
+function mapTipoToLabel(value: string, lista: { value: string; label: string }[]): string {
+  const item = lista.find((el) => el.value === value)
+  return item ? item.label : 'Outros'
 }
 
 const formatLeasingPrazoAnos = (valor: number) => {
@@ -843,6 +870,7 @@ type OrcamentoSnapshotData = {
   potenciaModulo: number
   potenciaModuloDirty: boolean
   tipoInstalacao: TipoInstalacao
+  tipoInstalacaoOutro: string
   tipoInstalacaoDirty: boolean
   tipoSistema: TipoSistema
   segmentoCliente: SegmentoCliente
@@ -3291,8 +3319,12 @@ export default function App() {
   const [usarEnderecoCliente, setUsarEnderecoCliente] = useState(false)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
+  const initialTipoInstalacao = normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
   const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
-    INITIAL_VALUES.tipoInstalacao,
+    () => initialTipoInstalacao,
+  )
+  const [tipoInstalacaoOutro, setTipoInstalacaoOutroState] = useState(
+    INITIAL_VALUES.tipoInstalacaoOutro,
   )
   const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
   const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(() =>
@@ -3524,6 +3556,7 @@ export default function App() {
     numeroModulosManual: number | ''
     segmentoCliente: SegmentoCliente
     tipoInstalacao: TipoInstalacao
+    tipoInstalacaoOutro: string
     tipoSistema: TipoSistema
     consumoManual: boolean
     potenciaModuloDirty: boolean
@@ -3540,6 +3573,7 @@ export default function App() {
     numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
     segmentoCliente: INITIAL_VALUES.segmentoCliente,
     tipoInstalacao: INITIAL_VALUES.tipoInstalacao,
+    tipoInstalacaoOutro: INITIAL_VALUES.tipoInstalacaoOutro,
     tipoSistema: INITIAL_VALUES.tipoSistema,
     consumoManual: false,
     potenciaModuloDirty: false,
@@ -3922,6 +3956,19 @@ export default function App() {
     [updatePageSharedState],
   )
 
+  const setTipoInstalacaoOutro = useCallback(
+    (value: string) => {
+      setTipoInstalacaoOutroState(value)
+      updatePageSharedState((current) => {
+        if (current.tipoInstalacaoOutro === value) {
+          return current
+        }
+        return { ...current, tipoInstalacaoOutro: value }
+      })
+    },
+    [updatePageSharedState],
+  )
+
   const setTipoSistema = useCallback(
     (valueOrUpdater: TipoSistema | ((prev: TipoSistema) => TipoSistema)) => {
       const nextValue = resolveStateUpdate(valueOrUpdater, tipoSistema)
@@ -3995,6 +4042,9 @@ export default function App() {
     )
     setSegmentoClienteState((prev) => (prev === snapshot.segmentoCliente ? prev : snapshot.segmentoCliente))
     setTipoInstalacaoState((prev) => (prev === snapshot.tipoInstalacao ? prev : snapshot.tipoInstalacao))
+    setTipoInstalacaoOutroState((prev) =>
+      prev === snapshot.tipoInstalacaoOutro ? prev : snapshot.tipoInstalacaoOutro,
+    )
     setTipoSistemaState((prev) => {
       const normalized = normalizeTipoSistemaValue(snapshot.tipoSistema) ?? prev
       return prev === normalized ? prev : normalized
@@ -5064,14 +5114,12 @@ export default function App() {
       }
 
       if (!tipoInstalacaoDirty && mergedParsed.tipo_instalacao) {
-        const normalizado = normalizeText(mergedParsed.tipo_instalacao)
-        const resolved: TipoInstalacao | null = normalizado.includes('solo')
-          ? 'SOLO'
-          : normalizado.includes('telhad')
-          ? 'TELHADO'
-          : null
+        const resolved = normalizeTipoInstalacao(mergedParsed.tipo_instalacao)
         if (resolved && resolved !== tipoInstalacao) {
           setTipoInstalacao(resolved)
+        }
+        if (resolved === 'outros') {
+          setTipoInstalacaoOutro(mergedParsed.tipo_instalacao)
         }
       }
     },
@@ -5082,6 +5130,7 @@ export default function App() {
       tipoInstalacao,
       tipoInstalacaoDirty,
       setTipoInstalacao,
+      setTipoInstalacaoOutro,
       setCapexManualOverride,
       setKcKwhMes,
       setTarifaCheia,
@@ -5808,7 +5857,7 @@ export default function App() {
 
   const areaInstalacao = useMemo(() => {
     if (numeroModulosEstimado <= 0) return 0
-    const fator = tipoInstalacao === 'SOLO' ? 7 : 3.3
+    const fator = tipoInstalacao === 'solo' ? 7 : 3.3
     return Math.round(numeroModulosEstimado * fator)
   }, [numeroModulosEstimado, tipoInstalacao])
 
@@ -6452,7 +6501,7 @@ export default function App() {
     if (typeof capexBaseManualValor === 'number') {
       return capexBaseManualValor
     }
-    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
+    const calculoAtual = tipoInstalacao === 'solo' ? composicaoSoloCalculo : composicaoTelhadoCalculo
     const valor = calculoAtual?.capex_base
     return Number.isFinite(valor ?? Number.NaN) ? Math.max(0, Number(valor)) : 0
   }, [capexBaseManualValor, tipoInstalacao, composicaoSoloCalculo, composicaoTelhadoCalculo])
@@ -6461,7 +6510,7 @@ export default function App() {
     if (margemManualAtiva && margemManualValor !== undefined) {
       return margemManualValor
     }
-    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
+    const calculoAtual = tipoInstalacao === 'solo' ? composicaoSoloCalculo : composicaoTelhadoCalculo
     const valor = calculoAtual?.margem_operacional_valor
     if (!Number.isFinite(valor ?? Number.NaN)) {
       return null
@@ -6489,7 +6538,7 @@ export default function App() {
       handleMargemManualInput(finalValue)
 
       const capexBaseAtual =
-        tipoInstalacao === 'SOLO'
+        tipoInstalacao === 'solo'
           ? composicaoSoloCalculo?.capex_base
           : composicaoTelhadoCalculo?.capex_base
 
@@ -6546,7 +6595,7 @@ export default function App() {
   })
 
   useEffect(() => {
-    const calculoAtual = tipoInstalacao === 'SOLO' ? composicaoSoloCalculo : composicaoTelhadoCalculo
+    const calculoAtual = tipoInstalacao === 'solo' ? composicaoSoloCalculo : composicaoTelhadoCalculo
     const valores = calculoAtual ?? {
       capex_base: 0,
       margem_operacional_valor: 0,
@@ -6730,7 +6779,7 @@ export default function App() {
     const margemCalculada =
       margemManualAtiva && margemManualValor !== undefined
         ? margemManualValor
-        : (tipoInstalacao === 'SOLO'
+        : (tipoInstalacao === 'solo'
             ? composicaoSoloCalculo?.margem_operacional_valor
             : composicaoTelhadoCalculo?.margem_operacional_valor) ?? 0
     setComposicaoTelhado((prev) =>
@@ -6748,7 +6797,7 @@ export default function App() {
     recalcularTick,
   ])
 
-  const valorVendaAtual = tipoInstalacao === 'SOLO' ? valorVendaSolo : valorVendaTelhado
+  const valorVendaAtual = tipoInstalacao === 'solo' ? valorVendaSolo : valorVendaTelhado
 
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
 
@@ -7476,6 +7525,10 @@ export default function App() {
       const tusdTipoClienteCodigo = tusdTipoCliente ?? null
       const tusdTipoClienteLabel = mapTipoBasicoToLabel(tusdTipoCliente)
       const tusdTipoClienteOutro = tusdTipoCliente === 'outros' ? tusdSubtipo || null : null
+      const tipoInstalacaoLabel = mapTipoToLabel(tipoInstalacao, TIPOS_INSTALACAO)
+      const tipoInstalacaoOutroTrimmed = tipoInstalacaoOutro.trim()
+      const tipoInstalacaoOutroPrintable =
+        tipoInstalacao === 'outros' ? tipoInstalacaoOutroTrimmed || null : null
 
       return {
         cliente,
@@ -7495,6 +7548,9 @@ export default function App() {
         numeroModulos: numeroModulosPrintable,
         potenciaInstaladaKwp: potenciaInstaladaPrintable,
         tipoInstalacao,
+        tipoInstalacaoCodigo: tipoInstalacao,
+        tipoInstalacaoLabel,
+        tipoInstalacaoOutro: tipoInstalacaoOutroPrintable,
         tipoSistema: tipoSistemaPrintable,
         segmentoCliente: segmentoPrintable,
         tipoEdificacaoCodigo,
@@ -7610,6 +7666,7 @@ export default function App() {
       duracaoMeses,
       distribuidoraTarifa,
       tipoInstalacao,
+      tipoInstalacaoOutro,
       tipoSistema,
       valorOrcamentoConsiderado,
       valorVendaSolo,
@@ -10905,6 +10962,7 @@ export default function App() {
       potenciaModulo,
       potenciaModuloDirty,
       tipoInstalacao,
+      tipoInstalacaoOutro,
       tipoInstalacaoDirty,
       tipoSistema,
       segmentoCliente: segmentoClienteNormalizado,
@@ -10979,6 +11037,13 @@ export default function App() {
     options?: { budgetIdOverride?: string },
   ) => {
     const snapshot = cloneSnapshotData(snapshotEntrada)
+    snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
+    snapshot.tipoInstalacaoOutro = snapshot.tipoInstalacaoOutro || ''
+    snapshot.pageShared = {
+      ...snapshot.pageShared,
+      tipoInstalacao: normalizeTipoInstalacao(snapshot.pageShared.tipoInstalacao),
+      tipoInstalacaoOutro: snapshot.pageShared.tipoInstalacaoOutro || '',
+    }
     const budgetId = options?.budgetIdOverride ?? snapshot.currentBudgetId
 
     fieldSyncActions.reset()
@@ -11028,6 +11093,7 @@ export default function App() {
     setPotenciaModulo(snapshot.potenciaModulo)
     setPotenciaModuloDirty(snapshot.potenciaModuloDirty)
     setTipoInstalacao(snapshot.tipoInstalacao)
+    setTipoInstalacaoOutro(snapshot.tipoInstalacaoOutro)
     setTipoInstalacaoDirty(snapshot.tipoInstalacaoDirty)
     setTipoSistema(snapshot.tipoSistema)
     setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
@@ -12562,7 +12628,8 @@ export default function App() {
     setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
     setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
     setPotenciaModuloDirty(false)
-    setTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
+    setTipoInstalacao(normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao))
+    setTipoInstalacaoOutro(INITIAL_VALUES.tipoInstalacaoOutro)
     setTipoInstalacaoDirty(false)
     setTipoSistema(INITIAL_VALUES.tipoSistema)
     setSegmentoCliente(normalizeTipoBasico(INITIAL_VALUES.segmentoCliente))
@@ -14896,6 +14963,9 @@ export default function App() {
   const handleTipoInstalacaoChange = (value: TipoInstalacao) => {
     setTipoInstalacaoDirty(true)
     setTipoInstalacao(value)
+    if (value !== 'outros') {
+      setTipoInstalacaoOutro('')
+    }
   }
 
   const renderConfiguracaoUsinaSection = () => (
@@ -15028,9 +15098,21 @@ export default function App() {
               handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
             }
           >
-            <option value="TELHADO">Telhado</option>
-            <option value="SOLO">Solo</option>
+            {TIPOS_INSTALACAO.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
+          {tipoInstalacao === 'outros' && (
+            <input
+              type="text"
+              placeholder="Descreva o tipo de instalação"
+              value={tipoInstalacaoOutro || ''}
+              onChange={(e) => setTipoInstalacaoOutro(e.target.value)}
+              style={{ marginTop: '6px' }}
+            />
+          )}
         </Field>
         <Field
           label={labelWithTooltip(
@@ -15865,7 +15947,7 @@ export default function App() {
       },
     ]
 
-    const isTelhado = tipoInstalacao === 'TELHADO'
+    const isTelhado = tipoInstalacao !== 'solo'
     const regimes: RegimeTributario[] = ['simples', 'lucro_presumido', 'lucro_real']
     const comissaoDefaultLabel =
       vendasConfig.comissao_default_tipo === 'percentual'

@@ -34,6 +34,7 @@ const OBSERVACAO_PADRAO_REMOVIDA_CHAVE = normalizeObservationKey(
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
 const DEFAULT_CHART_COLORS = ['#FFA500', '#FF7F50', '#FFD700'] as const
 const normalizeNewlines = (value: string): string => value.replace(/\r\n?/g, '\n')
+const isSoloTipoInstalacao = (value?: string | null) => value?.toLowerCase() === 'solo'
 function PrintableProposalInner(
   props: PrintableProposalProps,
   ref: React.ForwardedRef<HTMLDivElement>,
@@ -620,7 +621,7 @@ function PrintableProposalInner(
 
     if (composicaoUfv) {
       const tipoAtual = composicaoUfv.tipoAtual ?? tipoInstalacao
-      const bucket = tipoAtual === 'SOLO' ? composicaoUfv.solo : composicaoUfv.telhado
+      const bucket = isSoloTipoInstalacao(tipoAtual) ? composicaoUfv.solo : composicaoUfv.telhado
       Object.values(bucket).forEach((valor) => adicionarValor(valor as number))
     } else if (snapshotComposicao) {
       Object.values(snapshotComposicao).forEach((valor) => adicionarValor(valor as number))
@@ -684,7 +685,7 @@ function PrintableProposalInner(
   const margemOperacionalNumero = (() => {
     if (composicaoUfv) {
       const tipoResumo = composicaoUfv.tipoAtual ?? tipoInstalacao
-      if (tipoResumo === 'SOLO') {
+      if (isSoloTipoInstalacao(tipoResumo)) {
         if (hasNonZero(composicaoUfv.solo.lucroBruto)) {
           return Number(composicaoUfv.solo.lucroBruto)
         }
@@ -724,7 +725,7 @@ function PrintableProposalInner(
     if (composicaoUfv) {
       const tipoResumo = composicaoUfv.tipoAtual ?? tipoInstalacao
       const baseKeys = ['projeto', 'instalacao', 'materialCa', 'crea', 'art', 'placa']
-      if (tipoResumo === 'SOLO') {
+      if (isSoloTipoInstalacao(tipoResumo)) {
         const bucket = composicaoUfv.solo as Record<string, unknown>
         const total = sumValores(bucket, [
           ...baseKeys,
@@ -1283,7 +1284,7 @@ function PrintableProposalInner(
                     }
                   }
     
-                  if (tipoResumo === 'TELHADO') {
+                  if (!isSoloTipoInstalacao(tipoResumo)) {
                     const telhadoValores = composicaoAtual.telhado
                     pushDireto('projeto', 'Projeto', telhadoValores?.projeto)
                     pushDireto('instalacao', 'Instalação', telhadoValores?.instalacao)
@@ -1308,10 +1309,9 @@ function PrintableProposalInner(
                     pushDireto('terraplanagem', 'TERRAPLANAGEM', soloValores?.terraplanagem)
                   }
     
-                  const resumoCalculo =
-                    tipoResumo === 'TELHADO'
-                      ? composicaoAtual.calculoTelhado
-                      : composicaoAtual.calculoSolo
+                  const resumoCalculo = isSoloTipoInstalacao(tipoResumo)
+                    ? composicaoAtual.calculoSolo
+                    : composicaoAtual.calculoTelhado
                   const descontosConfiguracao = Number.isFinite(composicaoAtual.configuracao?.descontos)
                     ? Number(composicaoAtual.configuracao?.descontos)
                     : 0
