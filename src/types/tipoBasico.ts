@@ -33,7 +33,7 @@ export const TIPO_BASICO_LABELS: Record<TipoBasicoCliente, string> = {
   cond_vertical: 'Cond. Vertical',
   cond_horizontal: 'Cond. Horizontal',
   industrial: 'Industrial',
-  outros: 'Outros',
+  outros: 'Outros (texto)',
 }
 
 export const TIPO_BASICO_OPTIONS = Object.entries(TIPO_BASICO_LABELS).map(([value, label]) => ({
@@ -43,5 +43,5 @@ export const TIPO_BASICO_OPTIONS = Object.entries(TIPO_BASICO_LABELS).map(([valu
 
 export const mapTipoBasicoToLabel = (value: string): string => {
   const match = TIPO_BASICO_OPTIONS.find((tipo) => tipo.value === value)
-  return match ? match.label : 'Outros'
+  return match ? match.label : 'Outros (texto)'
 }

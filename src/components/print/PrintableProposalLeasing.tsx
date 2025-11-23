@@ -218,10 +218,12 @@ function PrintableProposalLeasingInner(
     tipoInstalacao,
     tipoInstalacaoLabel,
     tipoInstalacaoOutro,
+    tipoInstalacaoCompleto,
     tipoSistema,
     segmentoCliente,
     tipoEdificacaoLabel,
     tipoEdificacaoOutro,
+    tipoEdificacaoCompleto,
     areaInstalacao,
     capex,
     buyoutResumo,
@@ -246,6 +248,7 @@ function PrintableProposalLeasingInner(
     vendasConfigSnapshot,
     ucGeradora,
     ucsBeneficiarias,
+    tusdTipoClienteCompleto,
   } = props
 
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
@@ -415,6 +418,9 @@ function PrintableProposalLeasingInner(
   const validadeResumoTexto =
     sanitizeTextField(snapshotPagamento?.validade_proposta_txt) ?? validadeResumoPadrao
   const tipoInstalacaoDescricao = (() => {
+    if (tipoInstalacaoCompleto) {
+      return tipoInstalacaoCompleto
+    }
     const baseLabel = tipoInstalacaoLabel ?? (tipoInstalacao === 'solo' ? 'Solo' : 'Telhado')
     const outro = tipoInstalacaoOutro?.trim()
     return outro ? `${baseLabel} (${outro})` : baseLabel
@@ -528,7 +534,7 @@ function PrintableProposalLeasingInner(
   const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
 
   const segmentoClienteDescricao =
-    tipoEdificacaoLabel ?? formatSegmentoCliente(segmentoCliente, tipoEdificacaoOutro)
+    tipoEdificacaoCompleto ?? formatSegmentoCliente(segmentoCliente, tipoEdificacaoOutro)
 
   const especificacoesUsina = [
     ...(exibirValorMercadoNaProposta

@@ -216,8 +216,10 @@ export type PrintableProposalProps = {
   tipoInstalacaoCodigo?: TipoInstalacao | null | undefined
   tipoInstalacaoLabel?: string | null | undefined
   tipoInstalacaoOutro?: string | null | undefined
+  tipoInstalacaoCompleto?: string | null | undefined
   tipoSistema: TipoSistema
   segmentoCliente?: SegmentoCliente | null
+  tipoEdificacaoCompleto?: string | null | undefined
   areaInstalacao: number
   descontoContratualPct: number
   parcelasLeasing: MensalidadeRow[]
@@ -259,4 +261,5 @@ export type PrintableProposalProps = {
   tusdTipoClienteCodigo?: string | null | undefined
   tusdTipoClienteLabel?: string | null | undefined
   tusdTipoClienteOutro?: string | null | undefined
+  tusdTipoClienteCompleto?: string | null | undefined
 }
