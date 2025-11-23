@@ -329,8 +329,16 @@ const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
 }
 
 const normalizeSegmentoClienteValue = (value: unknown): SegmentoCliente | undefined => {
-  if (typeof value === 'string' || value == null) {
-    return normalizeTipoBasico(value as string | null)
+  if (typeof value === 'string') {
+    return normalizeTipoBasico(value)
+  }
+
+  if (value == null) {
+    return undefined
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return normalizeSegmentoClienteValue(String(value))
   }
 
   return undefined
