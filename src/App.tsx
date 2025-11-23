@@ -196,6 +196,19 @@ import {
   tarifaCurrency,
 } from './utils/formatters'
 
+// NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
+const NOVOS_TIPOS_CLIENTE = [
+  { value: 'residencial', label: 'Residencial' },
+  { value: 'comercial', label: 'Comercial' },
+  { value: 'cond_vertical', label: 'Cond. Vertical' },
+  { value: 'cond_horizontal', label: 'Cond. Horizontal' },
+  { value: 'industrial', label: 'Industrial' },
+  { value: 'outros', label: 'Outros' },
+]
+
+const NOVOS_TIPOS_EDIFICACAO = NOVOS_TIPOS_CLIENTE
+const NOVOS_TIPOS_TUSD = NOVOS_TIPOS_CLIENTE
+
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 
@@ -14087,12 +14100,19 @@ export default function App() {
                   }
                 }}
               >
-                {TUSD_TIPO_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {TUSD_TIPO_LABELS[option]}
+                {NOVOS_TIPOS_TUSD.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
+              {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
+                <input
+                  type="text"
+                  placeholder="Descreva..."
+                  style={{ marginTop: '6px' }}
+                />
+              )}
             </Field>
             <Field
               label={labelWithTooltip(
@@ -14898,12 +14918,19 @@ export default function App() {
               handleSegmentoClienteChange(event.target.value as SegmentoCliente)
             }
           >
-            {SEGMENTO_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {SEGMENTO_LABELS[option]}
+            {NOVOS_TIPOS_EDIFICACAO.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
+          {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
+            <input
+              type="text"
+              placeholder="Descreva..."
+              style={{ marginTop: '6px' }}
+            />
+          )}
         </Field>
         <Field
           label={labelWithTooltip(
@@ -15429,12 +15456,19 @@ export default function App() {
               handleSegmentoClienteChange(event.target.value as SegmentoCliente)
             }
           >
-            {SEGMENTO_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {SEGMENTO_LABELS[option]}
+            {NOVOS_TIPOS_EDIFICACAO.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
+          {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
+            <input
+              type="text"
+              placeholder="Descreva..."
+              style={{ marginTop: '6px' }}
+            />
+          )}
         </Field>
         <Field
           label={labelWithTooltip(
