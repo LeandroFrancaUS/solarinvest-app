@@ -874,6 +874,7 @@ type OrcamentoSnapshotData = {
   tipoInstalacaoDirty: boolean
   tipoSistema: TipoSistema
   segmentoCliente: SegmentoCliente
+  tipoEdificacaoOutro: string
   numeroModulosManual: number | ''
   composicaoTelhado: UfvComposicaoTelhadoValores
   composicaoSolo: UfvComposicaoSoloValores
@@ -3329,6 +3330,9 @@ export default function App() {
   const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
   const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(() =>
     normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
+  )
+  const [tipoEdificacaoOutro, setTipoEdificacaoOutro] = useState(
+    INITIAL_VALUES.tipoEdificacaoOutro,
   )
   const [tipoInstalacaoDirty, setTipoInstalacaoDirtyState] = useState(false)
   const [numeroModulosManual, setNumeroModulosManualState] = useState<number | ''>(
@@ -7520,8 +7524,8 @@ export default function App() {
       const tipoEdificacaoCodigo = segmentoPrintable ?? null
       const tipoEdificacaoLabel =
         segmentoPrintable != null ? mapTipoBasicoToLabel(segmentoPrintable) : null
-      const tipoEdificacaoOutro =
-        segmentoPrintable === 'outros' ? configuracaoUsinaObservacoes || null : null
+      const tipoEdificacaoOutroPrintable =
+        segmentoPrintable === 'outros' ? tipoEdificacaoOutro.trim() || null : null
       const tusdTipoClienteCodigo = tusdTipoCliente ?? null
       const tusdTipoClienteLabel = mapTipoBasicoToLabel(tusdTipoCliente)
       const tusdTipoClienteOutro = tusdTipoCliente === 'outros' ? tusdSubtipo || null : null
@@ -7548,7 +7552,7 @@ export default function App() {
       )
       const tipoEdificacaoCompleto = formatOutroDescricao(
         tipoEdificacaoCodigo,
-        tipoEdificacaoOutro,
+        tipoEdificacaoOutroPrintable,
         tipoEdificacaoLabel,
       )
       const tusdTipoClienteCompleto = formatOutroDescricao(
@@ -7583,7 +7587,7 @@ export default function App() {
         segmentoCliente: segmentoPrintable,
         tipoEdificacaoCodigo,
         tipoEdificacaoLabel,
-        tipoEdificacaoOutro,
+        tipoEdificacaoOutro: tipoEdificacaoOutroPrintable,
         tipoEdificacaoCompleto,
         tusdTipoClienteCodigo,
         tusdTipoClienteLabel,
@@ -10999,6 +11003,7 @@ export default function App() {
       tipoInstalacaoDirty,
       tipoSistema,
       segmentoCliente: segmentoClienteNormalizado,
+      tipoEdificacaoOutro,
       numeroModulosManual,
       composicaoTelhado: { ...composicaoTelhado },
       composicaoSolo: { ...composicaoSolo },
@@ -11072,6 +11077,7 @@ export default function App() {
     const snapshot = cloneSnapshotData(snapshotEntrada)
     snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
     snapshot.tipoInstalacaoOutro = snapshot.tipoInstalacaoOutro || ''
+    snapshot.tipoEdificacaoOutro = snapshot.tipoEdificacaoOutro || ''
     snapshot.pageShared = {
       ...snapshot.pageShared,
       tipoInstalacao: normalizeTipoInstalacao(snapshot.pageShared.tipoInstalacao),
@@ -11130,6 +11136,7 @@ export default function App() {
     setTipoInstalacaoDirty(snapshot.tipoInstalacaoDirty)
     setTipoSistema(snapshot.tipoSistema)
     setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
+    setTipoEdificacaoOutro(snapshot.tipoEdificacaoOutro)
     setNumeroModulosManual(snapshot.numeroModulosManual)
     setComposicaoTelhado({ ...snapshot.composicaoTelhado })
     setComposicaoSolo({ ...snapshot.composicaoSolo })
@@ -12666,6 +12673,7 @@ export default function App() {
     setTipoInstalacaoDirty(false)
     setTipoSistema(INITIAL_VALUES.tipoSistema)
     setSegmentoCliente(normalizeTipoBasico(INITIAL_VALUES.segmentoCliente))
+    setTipoEdificacaoOutro(INITIAL_VALUES.tipoEdificacaoOutro)
     setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
     setConfiguracaoUsinaObservacoes(INITIAL_VALUES.configuracaoUsinaObservacoes)
     setConfiguracaoUsinaObservacoesExpanded(false)
@@ -14295,6 +14303,8 @@ export default function App() {
                   type="text"
                   placeholder="Descreva..."
                   style={{ marginTop: '6px' }}
+                  value={tipoEdificacaoOutro}
+                  onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
                 />
               )}
             </Field>
@@ -15116,6 +15126,8 @@ export default function App() {
               type="text"
               placeholder="Descreva..."
               style={{ marginTop: '6px' }}
+              value={tipoEdificacaoOutro}
+              onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
             />
           )}
         </Field>
@@ -15666,6 +15678,8 @@ export default function App() {
               type="text"
               placeholder="Descreva..."
               style={{ marginTop: '6px' }}
+              value={tipoEdificacaoOutro}
+              onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
             />
           )}
         </Field>

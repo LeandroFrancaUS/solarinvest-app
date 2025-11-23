@@ -167,6 +167,7 @@ export const INITIAL_VALUES = {
   tipoInstalacao: 'fibrocimento' as TipoInstalacao,
   tipoInstalacaoOutro: '',
   segmentoCliente: 'residencial' as SegmentoCliente,
+  tipoEdificacaoOutro: '',
   tipoSistema: 'ON_GRID' as TipoSistema,
   numeroModulosManual: '' as number | '',
   precoPorKwp: 2300,
