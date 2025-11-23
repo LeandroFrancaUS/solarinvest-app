@@ -165,7 +165,7 @@ export const INITIAL_VALUES = {
   leasingPrazo: LEASING_PRAZO_OPCOES[0] as LeasingPrazoAnos,
   potenciaModulo: 600,
   tipoInstalacao: 'TELHADO' as TipoInstalacao,
-  segmentoCliente: 'RESIDENCIAL' as SegmentoCliente,
+  segmentoCliente: 'residencial' as SegmentoCliente,
   tipoSistema: 'ON_GRID' as TipoSistema,
   numeroModulosManual: '' as number | '',
   precoPorKwp: 2300,

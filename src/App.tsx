@@ -184,6 +184,11 @@ import type {
   UfvComposicaoTelhadoValores,
   UfvComposicaoConfiguracao,
 } from './types/printableProposal'
+import {
+  mapTipoBasicoToLabel,
+  normalizeTipoBasico,
+  TIPO_BASICO_OPTIONS,
+} from './types/tipoBasico'
 import type { VendasConfig } from './types/vendasConfig'
 import type { PrintableBuyoutTableProps } from './components/print/PrintableBuyoutTable'
 import {
@@ -197,15 +202,7 @@ import {
 } from './utils/formatters'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
-const NOVOS_TIPOS_CLIENTE = [
-  { value: 'residencial', label: 'Residencial' },
-  { value: 'comercial', label: 'Comercial' },
-  { value: 'cond_vertical', label: 'Cond. Vertical' },
-  { value: 'cond_horizontal', label: 'Cond. Horizontal' },
-  { value: 'industrial', label: 'Industrial' },
-  { value: 'outros', label: 'Outros' },
-]
-
+const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
 const NOVOS_TIPOS_EDIFICACAO = NOVOS_TIPOS_CLIENTE
 const NOVOS_TIPOS_TUSD = NOVOS_TIPOS_CLIENTE
 
@@ -332,15 +329,8 @@ const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
 }
 
 const normalizeSegmentoClienteValue = (value: unknown): SegmentoCliente | undefined => {
-  if (typeof value === 'string') {
-    const trimmed = value.trim().toUpperCase()
-    if (!trimmed) {
-      return undefined
-    }
-
-    if ((SEGMENTO_OPTIONS as readonly SegmentoCliente[]).includes(trimmed as SegmentoCliente)) {
-      return trimmed as SegmentoCliente
-    }
+  if (typeof value === 'string' || value == null) {
+    return normalizeTipoBasico(value as string | null)
   }
 
   return undefined
@@ -3281,8 +3271,8 @@ export default function App() {
     INITIAL_VALUES.encargosFixosExtras,
   )
   const [tusdPercent, setTusdPercent] = useState(INITIAL_VALUES.tusdPercent)
-  const [tusdTipoCliente, setTusdTipoCliente] = useState<TipoClienteTUSD>(
-    INITIAL_VALUES.tusdTipoCliente,
+  const [tusdTipoCliente, setTusdTipoCliente] = useState<TipoClienteTUSD>(() =>
+    normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente),
   )
   const [tusdSubtipo, setTusdSubtipo] = useState(INITIAL_VALUES.tusdSubtipo)
   const [tusdSimultaneidade, setTusdSimultaneidade] = useState<number | null>(
@@ -3305,8 +3295,8 @@ export default function App() {
     INITIAL_VALUES.tipoInstalacao,
   )
   const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
-  const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(
-    INITIAL_VALUES.segmentoCliente,
+  const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(() =>
+    normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
   )
   const [tipoInstalacaoDirty, setTipoInstalacaoDirtyState] = useState(false)
   const [numeroModulosManual, setNumeroModulosManualState] = useState<number | ''>(
@@ -5784,17 +5774,15 @@ export default function App() {
   )
 
   useEffect(() => {
-    const tusdBase = vendaForm.tusd_tipo_cliente ?? null
-    const tusdValido: TipoClienteTUSD =
-      tusdBase && TUSD_TO_SEGMENTO[tusdBase as TipoClienteTUSD]
-        ? (tusdBase as TipoClienteTUSD)
-        : INITIAL_VALUES.tusdTipoCliente
+    const tusdBase = vendaForm.tusd_tipo_cliente
+      ? normalizeTipoBasico(vendaForm.tusd_tipo_cliente)
+      : null
+    const tusdValido: TipoClienteTUSD = tusdBase ?? INITIAL_VALUES.tusdTipoCliente
     const segmentoPreferido = TUSD_TO_SEGMENTO[tusdValido] ?? INITIAL_VALUES.segmentoCliente
-    const segmentoAtual = vendaForm.segmento_cliente ?? null
-    const segmentoResolvido: SegmentoCliente =
-      segmentoAtual && SEGMENTO_TO_TUSD[segmentoAtual as SegmentoCliente]
-        ? (segmentoAtual as SegmentoCliente)
-        : segmentoPreferido
+    const segmentoAtual = vendaForm.segmento_cliente
+      ? normalizeTipoBasico(vendaForm.segmento_cliente)
+      : null
+    const segmentoResolvido: SegmentoCliente = segmentoAtual ?? segmentoPreferido
     const tusdResolvido = SEGMENTO_TO_TUSD[segmentoResolvido] ?? INITIAL_VALUES.tusdTipoCliente
 
     updateSegmentoCliente(segmentoResolvido, {
@@ -7480,6 +7468,15 @@ export default function App() {
         })
         .filter((item): item is PrintableUcBeneficiaria => Boolean(item))
 
+      const tipoEdificacaoCodigo = segmentoPrintable ?? null
+      const tipoEdificacaoLabel =
+        segmentoPrintable != null ? mapTipoBasicoToLabel(segmentoPrintable) : null
+      const tipoEdificacaoOutro =
+        segmentoPrintable === 'outros' ? configuracaoUsinaObservacoes || null : null
+      const tusdTipoClienteCodigo = tusdTipoCliente ?? null
+      const tusdTipoClienteLabel = mapTipoBasicoToLabel(tusdTipoCliente)
+      const tusdTipoClienteOutro = tusdTipoCliente === 'outros' ? tusdSubtipo || null : null
+
       return {
         cliente,
         budgetId: sanitizedBudgetId,
@@ -7500,6 +7497,12 @@ export default function App() {
         tipoInstalacao,
         tipoSistema: tipoSistemaPrintable,
         segmentoCliente: segmentoPrintable,
+        tipoEdificacaoCodigo,
+        tipoEdificacaoLabel,
+        tipoEdificacaoOutro,
+        tusdTipoClienteCodigo,
+        tusdTipoClienteLabel,
+        tusdTipoClienteOutro,
         areaInstalacao,
         descontoContratualPct: descontoConsiderado,
         parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
@@ -10799,6 +10802,21 @@ export default function App() {
             if (snapshotNormalizado.currentBudgetId !== id) {
               snapshotNormalizado.currentBudgetId = id
             }
+            snapshotNormalizado.tusdTipoCliente = normalizeTipoBasico(
+              snapshotNormalizado.tusdTipoCliente,
+            )
+            snapshotNormalizado.segmentoCliente = normalizeTipoBasico(
+              snapshotNormalizado.segmentoCliente,
+            )
+            snapshotNormalizado.vendaForm = {
+              ...snapshotNormalizado.vendaForm,
+              segmento_cliente: snapshotNormalizado.vendaForm.segmento_cliente
+                ? normalizeTipoBasico(snapshotNormalizado.vendaForm.segmento_cliente)
+                : undefined,
+              tusd_tipo_cliente: snapshotNormalizado.vendaForm.tusd_tipo_cliente
+                ? normalizeTipoBasico(snapshotNormalizado.vendaForm.tusd_tipo_cliente)
+                : undefined,
+            }
           } catch (error) {
             console.warn('Não foi possível interpretar o snapshot do orçamento salvo.', error)
             snapshotNormalizado = undefined
@@ -10833,6 +10851,17 @@ export default function App() {
     const vendasSimState = useVendasSimulacoesStore.getState()
     const vendaSnapshotAtual = getVendaSnapshot()
     const leasingSnapshotAtual = getLeasingSnapshot()
+    const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
+    const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
+    const vendaFormNormalizado: VendaForm = {
+      ...vendaForm,
+      segmento_cliente: vendaForm.segmento_cliente
+        ? normalizeTipoBasico(vendaForm.segmento_cliente)
+        : undefined,
+      tusd_tipo_cliente: vendaForm.tusd_tipo_cliente
+        ? normalizeTipoBasico(vendaForm.tusd_tipo_cliente)
+        : undefined,
+    }
 
   return {
     activeTab,
@@ -10866,7 +10895,7 @@ export default function App() {
       taxaMinimaInputEmpty,
       encargosFixosExtras,
       tusdPercent,
-      tusdTipoCliente,
+      tusdTipoCliente: tusdTipoClienteNormalizado,
       tusdSubtipo,
       tusdSimultaneidade,
       tusdTarifaRkwh,
@@ -10878,7 +10907,7 @@ export default function App() {
       tipoInstalacao,
       tipoInstalacaoDirty,
       tipoSistema,
-      segmentoCliente,
+      segmentoCliente: segmentoClienteNormalizado,
       numeroModulosManual,
       composicaoTelhado: { ...composicaoTelhado },
       composicaoSolo: { ...composicaoSolo },
@@ -10901,7 +10930,7 @@ export default function App() {
       eficiencia,
       diasMes,
       inflacaoAa,
-      vendaForm: { ...vendaForm },
+      vendaForm: { ...vendaFormNormalizado },
       capexManualOverride,
       parsedVendaPdf: parsedVendaPdf
         ? (JSON.parse(JSON.stringify(parsedVendaPdf)) as ParsedVendaPdfData)
@@ -10986,8 +11015,9 @@ export default function App() {
     setTaxaMinima(snapshot.taxaMinima)
     setTaxaMinimaInputEmpty(snapshot.taxaMinimaInputEmpty)
     setEncargosFixosExtras(snapshot.encargosFixosExtras)
+    const tusdNormalizado = normalizeTipoBasico(snapshot.tusdTipoCliente)
     setTusdPercent(snapshot.tusdPercent)
-    setTusdTipoCliente(snapshot.tusdTipoCliente)
+    setTusdTipoCliente(tusdNormalizado)
     setTusdSubtipo(snapshot.tusdSubtipo)
     setTusdSimultaneidade(snapshot.tusdSimultaneidade)
     setTusdSimultaneidadeManualOverride(snapshot.tusdSimultaneidade != null)
@@ -11000,7 +11030,7 @@ export default function App() {
     setTipoInstalacao(snapshot.tipoInstalacao)
     setTipoInstalacaoDirty(snapshot.tipoInstalacaoDirty)
     setTipoSistema(snapshot.tipoSistema)
-    setSegmentoCliente(snapshot.segmentoCliente)
+    setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
     setNumeroModulosManual(snapshot.numeroModulosManual)
     setComposicaoTelhado({ ...snapshot.composicaoTelhado })
     setComposicaoSolo({ ...snapshot.composicaoSolo })
@@ -11031,7 +11061,15 @@ export default function App() {
     setEficiencia(snapshot.eficiencia)
     setDiasMes(snapshot.diasMes)
     setInflacaoAa(snapshot.inflacaoAa)
-    setVendaForm({ ...snapshot.vendaForm })
+    setVendaForm({
+      ...snapshot.vendaForm,
+      segmento_cliente: snapshot.vendaForm.segmento_cliente
+        ? normalizeTipoBasico(snapshot.vendaForm.segmento_cliente)
+        : undefined,
+      tusd_tipo_cliente: snapshot.vendaForm.tusd_tipo_cliente
+        ? normalizeTipoBasico(snapshot.vendaForm.tusd_tipo_cliente)
+        : undefined,
+    })
     setCapexManualOverride(snapshot.capexManualOverride)
     setParsedVendaPdf(snapshot.parsedVendaPdf)
     setEstruturaTipoWarning(snapshot.estruturaTipoWarning)
@@ -12514,7 +12552,7 @@ export default function App() {
     setTaxaMinimaInputEmpty(INITIAL_VALUES.taxaMinima === 0)
     setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
     setTusdPercent(INITIAL_VALUES.tusdPercent)
-    setTusdTipoCliente(INITIAL_VALUES.tusdTipoCliente)
+    setTusdTipoCliente(normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente))
     setTusdSubtipo(INITIAL_VALUES.tusdSubtipo)
     setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
     setTusdSimultaneidadeManualOverride(false)
@@ -12527,7 +12565,7 @@ export default function App() {
     setTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
     setTipoInstalacaoDirty(false)
     setTipoSistema(INITIAL_VALUES.tipoSistema)
-    setSegmentoCliente(INITIAL_VALUES.segmentoCliente)
+    setSegmentoCliente(normalizeTipoBasico(INITIAL_VALUES.segmentoCliente))
     setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
     setConfiguracaoUsinaObservacoes(INITIAL_VALUES.configuracaoUsinaObservacoes)
     setConfiguracaoUsinaObservacoesExpanded(false)
