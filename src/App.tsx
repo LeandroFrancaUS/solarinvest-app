@@ -7525,25 +7525,37 @@ export default function App() {
       const tusdTipoClienteCodigo = tusdTipoCliente ?? null
       const tusdTipoClienteLabel = mapTipoBasicoToLabel(tusdTipoCliente)
       const tusdTipoClienteOutro = tusdTipoCliente === 'outros' ? tusdSubtipo || null : null
+      const formatOutroDescricao = (
+        codigo: string | null | undefined,
+        outro: string | null | undefined,
+        label: string | null | undefined,
+      ) => {
+        if (codigo === 'outros') {
+          const outroTexto = (outro ?? '').trim()
+          return outroTexto ? `Outros (${outroTexto})` : 'Outros'
+        }
+        return label ?? '—'
+      }
+
       const tipoInstalacaoLabel = mapTipoToLabel(tipoInstalacao, TIPOS_INSTALACAO)
       const tipoInstalacaoOutroTrimmed = tipoInstalacaoOutro.trim()
       const tipoInstalacaoOutroPrintable =
         tipoInstalacao === 'outros' ? tipoInstalacaoOutroTrimmed || null : null
-      const tipoInstalacaoOutroDescricao = (tipoInstalacaoOutroPrintable ?? '').trim() || 'texto'
-      const tipoInstalacaoCompleto =
-        tipoInstalacao === 'outros'
-          ? `Outros (${tipoInstalacaoOutroDescricao})`
-          : tipoInstalacaoLabel ?? '—'
-      const tipoEdificacaoOutroDescricao = (tipoEdificacaoOutro ?? '').trim() || 'texto'
-      const tipoEdificacaoCompleto =
-        tipoEdificacaoCodigo === 'outros'
-          ? `Outros (${tipoEdificacaoOutroDescricao})`
-          : tipoEdificacaoLabel ?? '—'
-      const tusdTipoClienteOutroDescricao = (tusdTipoClienteOutro ?? '').trim() || 'texto'
-      const tusdTipoClienteCompleto =
-        tusdTipoClienteCodigo === 'outros'
-          ? `Outros (${tusdTipoClienteOutroDescricao})`
-          : tusdTipoClienteLabel ?? '—'
+      const tipoInstalacaoCompleto = formatOutroDescricao(
+        tipoInstalacao,
+        tipoInstalacaoOutroPrintable,
+        tipoInstalacaoLabel,
+      )
+      const tipoEdificacaoCompleto = formatOutroDescricao(
+        tipoEdificacaoCodigo,
+        tipoEdificacaoOutro,
+        tipoEdificacaoLabel,
+      )
+      const tusdTipoClienteCompleto = formatOutroDescricao(
+        tusdTipoClienteCodigo,
+        tusdTipoClienteOutro,
+        tusdTipoClienteLabel,
+      )
 
       return {
         cliente,

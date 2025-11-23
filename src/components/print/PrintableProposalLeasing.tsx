@@ -195,7 +195,7 @@ const formatSegmentoCliente = (
   if (value === 'outros') {
     const descricao = outro?.trim()
     const sufixo = descricao ? ` (${descricao})` : ''
-    return `${SEGMENTO_LABELS[value] ?? 'Outros'}${sufixo}`
+    return `Outros${sufixo}`
   }
 
   return SEGMENTO_LABELS[value] ?? '—'
@@ -221,7 +221,6 @@ function PrintableProposalLeasingInner(
     tipoInstalacaoCompleto,
     tipoSistema,
     segmentoCliente,
-    tipoEdificacaoLabel,
     tipoEdificacaoOutro,
     tipoEdificacaoCompleto,
     areaInstalacao,
