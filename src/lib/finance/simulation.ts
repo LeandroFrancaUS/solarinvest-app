@@ -1,6 +1,7 @@
 import type { TipoSistema } from './roi'
 import { calcTusdNaoCompensavel, DEFAULT_TUSD_ANO_REFERENCIA } from './tusd'
 import type { TipoClienteTUSD, TUSDSaida, TUSDInput } from './tusd'
+import { normalizeTipoBasico } from '../../types/tipoBasico'
 
 export type PerfilConsumo = 'residencial' | 'comercial'
 
@@ -101,14 +102,16 @@ export const projectTarifaCheia = (
 
 const resolveTusdTipoCliente = (sim: Simulacao): TipoClienteTUSD => {
   if (sim.tusd_tipo_cliente) {
-    return sim.tusd_tipo_cliente
+    return normalizeTipoBasico(sim.tusd_tipo_cliente)
   }
 
   if (sim.tipo_sistema === 'HIBRIDO') {
-    return 'hibrido'
+    return 'outros'
   }
 
-  return sim.perfil_consumo === 'comercial' ? 'comercial' : 'residencial'
+  return sim.perfil_consumo === 'comercial'
+    ? 'comercial'
+    : normalizeTipoBasico(sim.perfil_consumo)
 }
 
 const resolveTusdSubtipo = (sim: Simulacao): string | null => {

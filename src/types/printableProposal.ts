@@ -244,4 +244,10 @@ export type PrintableProposalProps = {
   imagensInstalacao?: PrintableProposalImage[] | undefined
   ucGeradora?: PrintableUcGeradora | null | undefined
   ucsBeneficiarias?: PrintableUcBeneficiaria[] | null | undefined
+  tipoEdificacaoCodigo?: string | null | undefined
+  tipoEdificacaoLabel?: string | null | undefined
+  tipoEdificacaoOutro?: string | null | undefined
+  tusdTipoClienteCodigo?: string | null | undefined
+  tusdTipoClienteLabel?: string | null | undefined
+  tusdTipoClienteOutro?: string | null | undefined
 }

@@ -1,10 +1,6 @@
-export type TipoClienteTUSD =
-  | 'residencial'
-  | 'comercial'
-  | 'industrial'
-  | 'hibrido'
-  | 'rural'
-  | 'condominio'
+import type { TipoBasicoCliente } from '../../types/tipoBasico'
+
+export type TipoClienteTUSD = TipoBasicoCliente
 
 export const DEFAULT_TUSD_ANO_REFERENCIA = 2025
 
@@ -47,14 +43,14 @@ export const SIMULTANEIDADE_PADRAO: SimultaneidadeConfig = {
     leve: 0.75,
     media: 0.6,
   },
-  hibrido: {
-    padrao: 0.6,
-  },
-  rural: {
-    padrao: 0.3,
-  },
-  condominio: {
+  cond_vertical: {
     padrao: 0.35,
+  },
+  cond_horizontal: {
+    padrao: 0.35,
+  },
+  outros: {
+    padrao: 0.3,
   },
 }
 

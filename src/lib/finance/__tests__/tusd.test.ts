@@ -70,7 +70,7 @@ describe('calcTusdNaoCompensavel', () => {
 
   it('zera custo quando não há consumo compensado', () => {
     const resultado = calcTusdNaoCompensavel(
-      createInput({ consumoMensal_kWh: 0, tipoCliente: 'hibrido', subTipo: 'padrao' }),
+      createInput({ consumoMensal_kWh: 0, tipoCliente: 'outros', subTipo: 'padrao' }),
     )
 
     expect(resultado.custoTUSD_Mes_R).toBe(0)
