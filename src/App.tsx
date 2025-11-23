@@ -212,7 +212,7 @@ const TIPOS_INSTALACAO = [
   { value: 'ceramico', label: 'Telhas cerâmicas' },
   { value: 'laje', label: 'Laje' },
   { value: 'solo', label: 'Solo' },
-  { value: 'outros', label: 'Outro' },
+  { value: 'outros', label: 'Outros (texto)' },
 ]
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
@@ -360,7 +360,7 @@ function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
 
 function mapTipoToLabel(value: string, lista: { value: string; label: string }[]): string {
   const item = lista.find((el) => el.value === value)
-  return item ? item.label : 'Outros'
+  return item ? item.label : 'Outros (texto)'
 }
 
 const formatLeasingPrazoAnos = (valor: number) => {
@@ -7525,10 +7525,37 @@ export default function App() {
       const tusdTipoClienteCodigo = tusdTipoCliente ?? null
       const tusdTipoClienteLabel = mapTipoBasicoToLabel(tusdTipoCliente)
       const tusdTipoClienteOutro = tusdTipoCliente === 'outros' ? tusdSubtipo || null : null
+      const formatOutroDescricao = (
+        codigo: string | null | undefined,
+        outro: string | null | undefined,
+        label: string | null | undefined,
+      ) => {
+        if (codigo === 'outros') {
+          const outroTexto = (outro ?? '').trim()
+          return outroTexto ? `Outros (${outroTexto})` : 'Outros'
+        }
+        return label ?? '—'
+      }
+
       const tipoInstalacaoLabel = mapTipoToLabel(tipoInstalacao, TIPOS_INSTALACAO)
       const tipoInstalacaoOutroTrimmed = tipoInstalacaoOutro.trim()
       const tipoInstalacaoOutroPrintable =
         tipoInstalacao === 'outros' ? tipoInstalacaoOutroTrimmed || null : null
+      const tipoInstalacaoCompleto = formatOutroDescricao(
+        tipoInstalacao,
+        tipoInstalacaoOutroPrintable,
+        tipoInstalacaoLabel,
+      )
+      const tipoEdificacaoCompleto = formatOutroDescricao(
+        tipoEdificacaoCodigo,
+        tipoEdificacaoOutro,
+        tipoEdificacaoLabel,
+      )
+      const tusdTipoClienteCompleto = formatOutroDescricao(
+        tusdTipoClienteCodigo,
+        tusdTipoClienteOutro,
+        tusdTipoClienteLabel,
+      )
 
       return {
         cliente,
@@ -7551,14 +7578,17 @@ export default function App() {
         tipoInstalacaoCodigo: tipoInstalacao,
         tipoInstalacaoLabel,
         tipoInstalacaoOutro: tipoInstalacaoOutroPrintable,
+        tipoInstalacaoCompleto,
         tipoSistema: tipoSistemaPrintable,
         segmentoCliente: segmentoPrintable,
         tipoEdificacaoCodigo,
         tipoEdificacaoLabel,
         tipoEdificacaoOutro,
+        tipoEdificacaoCompleto,
         tusdTipoClienteCodigo,
         tusdTipoClienteLabel,
         tusdTipoClienteOutro,
+        tusdTipoClienteCompleto,
         areaInstalacao,
         descontoContratualPct: descontoConsiderado,
         parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
@@ -7668,6 +7698,9 @@ export default function App() {
       tipoInstalacao,
       tipoInstalacaoOutro,
       tipoSistema,
+      segmentoCliente,
+      tusdSubtipo,
+      tusdTipoCliente,
       valorOrcamentoConsiderado,
       valorVendaSolo,
       valorVendaTelhado,
@@ -9351,7 +9384,7 @@ export default function App() {
                       id="crm-tipo-imovel"
                       value={crmLeadForm.tipoImovel}
                       onChange={(event) => handleCrmLeadFormChange('tipoImovel', event.target.value)}
-                      placeholder="Residencial, Comercial, Rural, Condomínio..."
+                      placeholder="Residencial, Comercial, Cond. Vertical, Cond. Horizontal, Industrial ou Outros (texto)..."
                     />
                   </label>
                   <label>
@@ -15063,7 +15096,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Tipo de Edificação',
-            'Classificação da edificação (residencial, comercial, industrial, híbrida, rural ou condomínio), utilizada para relatórios e cálculos de tarifas.',
+            'Classificação da edificação (Residencial, Comercial, Cond. Vertical, Cond. Horizontal, Industrial ou Outros (texto)), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
@@ -15089,7 +15122,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Tipo de instalação',
-            'Define se o sistema será instalado em telhado ou solo; altera a área estimada e custos de estrutura.',
+            'Selecione entre Telhado de fibrocimento, Telhas metálicas, Telhas cerâmicas, Laje, Solo ou Outros (texto); a escolha impacta área estimada e custos de estrutura.',
           )}
         >
           <select
@@ -15613,7 +15646,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Tipo de Edificação',
-            'Classificação da edificação (residencial, comercial, industrial, híbrida, rural ou condomínio), utilizada para relatórios e cálculos de tarifas.',
+            'Classificação da edificação (Residencial, Comercial, Cond. Vertical, Cond. Horizontal, Industrial ou Outros (texto)), utilizada para relatórios e cálculos de tarifas.',
           )}
         >
           <select
@@ -15639,7 +15672,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Tipo de instalação',
-            'Define se o sistema será instalado em telhado ou solo; altera a área estimada e custos de estrutura.',
+            'Selecione entre Telhado de fibrocimento, Telhas metálicas, Telhas cerâmicas, Laje, Solo ou Outros (texto); a escolha impacta área estimada e custos de estrutura.',
           )}
         >
           <select
@@ -15648,8 +15681,11 @@ export default function App() {
               handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
             }
           >
-            <option value="TELHADO">Telhado</option>
-            <option value="SOLO">Solo</option>
+            {TIPOS_INSTALACAO.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </Field>
         <Field
