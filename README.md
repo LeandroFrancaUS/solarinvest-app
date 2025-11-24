@@ -73,3 +73,30 @@ STACK_JWKS_URL=https://api.stack-auth.com/api/v1/projects/deead568-c1e6-436c-ba2
 TRUSTED_WEB_ORIGINS=https://app.solarinvest.info
 DATABASE_URL=postgresql://neondb_owner:npg_Y6Hrql3hWOum@ep-damp-mouse-ac5zr9v1-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require
 ```
+
+## SolarInvest Invoice Engine (standalone)
+
+O repositório agora contém uma versão independente do Invoice Engine com backend (Node + TypeScript) e frontend (React + Vite) prontos para uso em modo protótipo.
+
+### Estrutura rápida
+- `backend/`: servidor Express com rotas `/api/invoices` para upload, cálculo e geração de PDF.
+- `frontend/`: dashboard React com fluxo de upload, revisão, cálculo e pré-visualização da fatura SolarInvest.
+- `cli/test-engine.ts`: CLI simples para testar o motor de cálculo com dados dummy.
+
+### Como executar
+1. Backend
+   ```bash
+   cd backend
+   npm install
+   cp .env.example .env # ajuste as variáveis se tiver OCR externo
+   npm run dev
+   ```
+
+2. Frontend
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+O frontend assume o backend em `http://localhost:3001`. Ajuste o `baseURL` em `frontend/src/api/client.ts` se necessário.
