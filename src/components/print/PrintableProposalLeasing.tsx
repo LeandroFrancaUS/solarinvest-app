@@ -9,6 +9,7 @@ import {
   formatPercentBRWithDigits,
 } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
+import { TIPO_BASICO_LABELS } from '../../types/tipoBasico'
 import PrintableProposalImages from './PrintableProposalImages'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
@@ -61,14 +62,7 @@ const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
 
 const PRAZO_LEASING_PADRAO_MESES = 60
 
-const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
-  RESIDENCIAL: 'Residencial',
-  COMERCIAL: 'Comercial',
-  INDUSTRIAL: 'Industrial',
-  HIBRIDO: 'Híbrido',
-  RURAL: 'Rural',
-  CONDOMINIO: 'Condomínio',
-}
+const SEGMENTO_LABELS: Record<SegmentoCliente, string> = TIPO_BASICO_LABELS
 
 const formatAnosDetalhado = (valor: number): string => {
   const fractionDigits = Number.isInteger(valor) ? 0 : 1
@@ -190,9 +184,18 @@ const formatTipoSistema = (value?: PrintableProposalProps['tipoSistema']) => {
   }
 }
 
-const formatSegmentoCliente = (value?: SegmentoCliente | null): string => {
+const formatSegmentoCliente = (
+  value?: SegmentoCliente | null,
+  outro?: string | null,
+): string => {
   if (!value) {
     return '—'
+  }
+
+  if (value === 'outros') {
+    const descricao = outro?.trim()
+    const sufixo = descricao ? ` (${descricao})` : ''
+    return `Outros${sufixo}`
   }
 
   return SEGMENTO_LABELS[value] ?? '—'
@@ -213,8 +216,13 @@ function PrintableProposalLeasingInner(
     potenciaModulo,
     potenciaInstaladaKwp,
     tipoInstalacao,
+    tipoInstalacaoLabel,
+    tipoInstalacaoOutro,
+    tipoInstalacaoCompleto,
     tipoSistema,
     segmentoCliente,
+    tipoEdificacaoOutro,
+    tipoEdificacaoCompleto,
     areaInstalacao,
     capex,
     buyoutResumo,
@@ -239,6 +247,7 @@ function PrintableProposalLeasingInner(
     vendasConfigSnapshot,
     ucGeradora,
     ucsBeneficiarias,
+    tusdTipoClienteCompleto,
   } = props
 
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
@@ -407,6 +416,14 @@ function PrintableProposalLeasingInner(
   })()
   const validadeResumoTexto =
     sanitizeTextField(snapshotPagamento?.validade_proposta_txt) ?? validadeResumoPadrao
+  const tipoInstalacaoDescricao = (() => {
+    if (tipoInstalacaoCompleto) {
+      return tipoInstalacaoCompleto
+    }
+    const baseLabel = tipoInstalacaoLabel ?? (tipoInstalacao === 'solo' ? 'Solo' : 'Telhado')
+    const outro = tipoInstalacaoOutro?.trim()
+    return outro ? `${baseLabel} (${outro})` : baseLabel
+  })()
 
   const resumoProposta = [
     {
@@ -426,7 +443,7 @@ function PrintableProposalLeasingInner(
     },
     {
       label: 'Tipo de instalação',
-      value: tipoInstalacao === 'SOLO' ? 'Solo' : 'Telhado',
+      value: tipoInstalacaoDescricao,
     },
     {
       label: 'Distribuidora atendida',
@@ -515,7 +532,8 @@ function PrintableProposalLeasingInner(
   )
   const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
 
-  const segmentoClienteDescricao = formatSegmentoCliente(segmentoCliente)
+  const segmentoClienteDescricao =
+    tipoEdificacaoCompleto ?? formatSegmentoCliente(segmentoCliente, tipoEdificacaoOutro)
 
   const especificacoesUsina = [
     ...(exibirValorMercadoNaProposta

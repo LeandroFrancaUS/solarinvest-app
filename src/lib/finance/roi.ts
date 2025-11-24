@@ -1,5 +1,6 @@
 import { calcTusdEncargoMensal } from './tusd'
 import type { TipoClienteTUSD } from './tusd'
+import type { TipoBasicoCliente } from '../../types/tipoBasico'
 
 export type PagamentoCondicao =
   | 'AVISTA'
@@ -9,13 +10,7 @@ export type PagamentoCondicao =
   | 'FINANCIAMENTO'
 export type ModoPagamento = 'PIX' | 'DEBITO' | 'CREDITO'
 
-export type SegmentoCliente =
-  | 'RESIDENCIAL'
-  | 'COMERCIAL'
-  | 'INDUSTRIAL'
-  | 'HIBRIDO'
-  | 'RURAL'
-  | 'CONDOMINIO'
+export type SegmentoCliente = TipoBasicoCliente
 export type TipoSistema = 'ON_GRID' | 'HIBRIDO' | 'OFF_GRID'
 
 export interface VendaForm {
