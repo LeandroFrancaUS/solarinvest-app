@@ -1337,6 +1337,20 @@ function PrintableProposalLeasingInner(
                   <strong>Instalação em solo:</strong> se houver necessidade de estruturas adicionais ou se desejar incluir o custo
                   no leasing, a SolarInvest apresenta a atualização orçamentária correspondente para sua aprovação.
                 </li>
+                <li>
+                  <strong>Conformidade Técnica da Unidade Consumidora (UC):</strong> a instalação e a homologação da usina dependem
+                  de a Unidade Consumidora (UC) estar em condições técnicas adequadas e em conformidade com as normas da
+                  distribuidora, da ANEEL e da ABNT. Caso sejam necessárias adequações elétricas ou estruturais para viabilizar o
+                  projeto, tais ajustes serão de responsabilidade do cliente. A SolarInvest poderá suspender a instalação caso
+                  identifique risco técnico ou condição elétrica inadequada.
+                </li>
+                <li>
+                  <strong>Regularização e Titularidade da Unidade Consumidora (UC):</strong> o início do processo de projeto, análise
+                  e abertura de solicitação junto à distribuidora somente ocorrerá após a confirmação de que a Unidade
+                  Consumidora (UC) está regularizada e com a titularidade atualizada para o nome da SolarInvest (quando aplicável).
+                  Pendências cadastrais, exigências da distribuidora ou inadequações elétricas deverão ser regularizadas
+                  previamente pelo cliente para que o processo possa avançar.
+                </li>
               </ul>
             </div>
             {informacoesImportantesObservacaoTexto ? (
