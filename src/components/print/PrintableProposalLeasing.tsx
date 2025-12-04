@@ -1339,6 +1339,20 @@ function PrintableProposalLeasingInner(
                 </li>
               </ul>
             </div>
+            <h4 className="keep-with-next">Conformidade Técnica da Unidade Consumidora (UC)</h4>
+            <p className="no-break-inside">
+              A instalação e a homologação da usina dependem de a Unidade Consumidora (UC) estar regular e em conformidade com as
+              normas da distribuidora, da ANEEL e da ABNT. Caso sejam necessárias adequações elétricas ou estruturais na UC para
+              viabilizar o projeto, tais ajustes serão de responsabilidade do cliente. A SolarInvest poderá suspender a instalação
+              caso identifique risco técnico ou condição elétrica inadequada.
+            </p>
+            <h4 className="keep-with-next">Regularização da Unidade Consumidora (UC)</h4>
+            <p className="no-break-inside">
+              A instalação da usina só será iniciada após a confirmação de que a Unidade Consumidora (UC) está regularizada junto à
+              distribuidora, incluindo, quando aplicável, a atualização da titularidade e demais dados cadastrais. Caso existam
+              pendências, inadequações elétricas ou exigências da distribuidora, a continuidade do processo dependerá da
+              regularização prévia pelo cliente.
+            </p>
             {informacoesImportantesObservacaoTexto ? (
               <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
             ) : null}
