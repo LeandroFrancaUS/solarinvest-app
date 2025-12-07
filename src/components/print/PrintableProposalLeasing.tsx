@@ -1351,6 +1351,17 @@ function PrintableProposalLeasingInner(
                   Pendências cadastrais, exigências da distribuidora ou inadequações elétricas deverão ser regularizadas
                   previamente pelo cliente para que o processo possa avançar.
                 </li>
+                <li>
+                  <strong>Ajuste da Energia Contratada (Kc):</strong> a energia mensal contratada (Kc) poderá ser ajustada caso a
+                  área disponível, estrutura, sombreamento ou limitações técnicas não permitam a geração originalmente
+                  estimada. O ajuste reflete a capacidade real máxima da usina no local, sem alterar o valor aplicado por kWh
+                  contratado.
+                </li>
+                <li>
+                  <strong>Transferência da Propriedade ao Final do Contrato:</strong> ao final do prazo contratual, a propriedade
+                  completa da usina será transferida automaticamente ao contratante, sem custo adicional, desde que todas as
+                  obrigações contratuais estejam quitadas.
+                </li>
               </ul>
             </div>
             {informacoesImportantesObservacaoTexto ? (
@@ -1385,7 +1396,7 @@ function PrintableProposalLeasingInner(
 
             <div className="print-brand-footer no-break-inside">
               <strong>SolarInvest</strong>
-              <span>Energia inteligente, sem investimento inicial e com economia garantida desde o 1º mês.</span>
+              <span>Transformando economia mensal e patrimônio real</span>
             </div>
           </section>
         </div>
