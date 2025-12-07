@@ -1200,21 +1200,6 @@ function PrintableProposalLeasingInner(
                 </em>
               </strong>
             </p>
-            <p className="muted print-footnote">
-              <strong>
-                <em>
-                  A partir do {`${prazoContratualTotalAnos + 1}º ano`}, em caso de uso excedente, o cliente passa a pagar
-                  tarifa cheia para a concessionária.
-                </em>
-              </strong>
-            </p>
-            <p className="muted print-footnote">
-              <strong>
-                Simulações atualizadas com base nas tarifas atuais para demonstrar a sua economia desde o primeiro mês. Após a
-                vistoria técnica, todas as condições ficam registradas no contrato definitivo com o desconto garantido por
-                escrito.
-              </strong>
-            </p>
           </section>
 
           <section
