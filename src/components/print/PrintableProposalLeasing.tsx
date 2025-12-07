@@ -1311,37 +1311,37 @@ function PrintableProposalLeasingInner(
             </p>
             <div className="print-important__box no-break-inside">
               <p>
-                <strong>1. Operação e Suporte</strong>
+                <strong className="clause-title">1. Operação e Suporte</strong>
                 <br />
                 A SolarInvest é responsável pela operação, manutenção, seguro e suporte técnico durante todo o contrato.
               </p>
 
               <p>
-                <strong>2. Qualidade dos Equipamentos</strong>
+                <strong className="clause-title">2. Qualidade dos Equipamentos</strong>
                 <br />
                 Todos os equipamentos são certificados pelo INMETRO e instalados conforme normas da ANEEL, ABNT e da distribuidora.
               </p>
 
               <p>
-                <strong>3. Disponibilidade de Equipamentos</strong>
+                <strong className="clause-title">3. Disponibilidade de Equipamentos</strong>
                 <br />
                 Itens indisponíveis poderão ser substituídos por equivalentes ou superiores, sem custo e sem alteração de desempenho.
               </p>
 
               <p>
-                <strong>4. Valores e Simulações</strong>
+                <strong className="clause-title">4. Valores e Simulações</strong>
                 <br />
                 As mensalidades e estimativas desta proposta consideram tarifas vigentes e histórico de consumo. O contrato definitivo formaliza os valores finais.
               </p>
 
               <p>
-                <strong>5. Natureza Estimativa da Proposta</strong>
+                <strong className="clause-title">5. Natureza Estimativa da Proposta</strong>
                 <br />
                 As informações desta proposta têm caráter estimativo e podem ser ajustadas antes, durante ou após a instalação, conforme condições reais do local, limitações estruturais, exigências da distribuidora, fatores técnicos da geração fotovoltaica ou qualquer outra variável que influencie o projeto. Tais ajustes podem alterar configurações, quantidades ou parâmetros técnicos, sem alterar o desconto contratado.
               </p>
 
               <p>
-                <strong>6. Instalação e Adequações Técnicas</strong>
+                <strong className="clause-title">6. Instalação e Adequações Técnicas</strong>
                 <br />
                 Para instalações em solo, telhados especiais ou locais que exijam estruturas adicionais, a SolarInvest apresentará orçamento complementar.
                 <br />
@@ -1351,31 +1351,31 @@ function PrintableProposalLeasingInner(
               </p>
 
               <p>
-                <strong>7. Conformidade da Unidade Consumidora (UC)</strong>
+                <strong className="clause-title">7. Conformidade da Unidade Consumidora (UC)</strong>
                 <br />
                 A instalação depende de a UC atender às normas da distribuidora, ANEEL e ABNT. Eventuais correções são responsabilidade do contratante.
               </p>
 
               <p>
-                <strong>8. Regularização e Titularidade da UC</strong>
+                <strong className="clause-title">8. Regularização e Titularidade da UC</strong>
                 <br />
                 O processo junto à distribuidora inicia-se somente após a UC estar regularizada e, quando aplicável, com titularidade atualizada. Pendências devem ser resolvidas previamente pelo contratante.
               </p>
 
               <p>
-                <strong>9. Ajuste da Energia Contratada (Kc)</strong>
+                <strong className="clause-title">9. Ajuste da Energia Contratada (Kc)</strong>
                 <br />
                 Se limitações de área, sombreamento ou estrutura reduzirem a geração prevista, a energia contratada será ajustada para refletir a capacidade real da usina. O desconto contratado sobre o valor do kWh da distribuidora não se altera.
               </p>
 
               <p>
-                <strong>10. Compra Antecipada (Buyout)</strong>
+                <strong className="clause-title">10. Compra Antecipada (Buyout)</strong>
                 <br />
                 A tabela de compra antecipada está disponível mediante solicitação ao consultor SolarInvest.
               </p>
 
               <p>
-                <strong>11. Transferência de Propriedade</strong>
+                <strong className="clause-title">11. Transferência de Propriedade</strong>
                 <br />
                 Ao final do contrato, estando todas as obrigações quitadas, a usina será transferida ao contratante sem custo adicional.
               </p>
