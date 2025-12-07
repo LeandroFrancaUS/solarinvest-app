@@ -1,7 +1,18 @@
 import fs from "fs";
+import path from "path";
+
 function clean(p) {
   try {
     fs.rmSync(p, { recursive: true, force: true });
   } catch {}
 }
-clean("node_modules/@rollup/rollup-linux-x64-musl");
+
+const rollupDir = "node_modules/@rollup";
+
+if (fs.existsSync(rollupDir)) {
+  for (const entry of fs.readdirSync(rollupDir)) {
+    if (entry.startsWith("rollup-")) {
+      clean(path.join(rollupDir, entry));
+    }
+  }
+}
