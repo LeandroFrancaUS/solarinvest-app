@@ -11,7 +11,7 @@ const rollupDir = "node_modules/@rollup";
 
 if (fs.existsSync(rollupDir)) {
   for (const entry of fs.readdirSync(rollupDir)) {
-    if (entry.startsWith("rollup-")) {
+    if (entry.startsWith("rollup-wasm")) {
       clean(path.join(rollupDir, entry));
     }
   }
