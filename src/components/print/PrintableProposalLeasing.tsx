@@ -1310,59 +1310,75 @@ function PrintableProposalLeasingInner(
               <strong>Responsabilidades, garantias e condições gerais</strong>
             </p>
             <div className="print-important__box no-break-inside">
-              <ul className="no-break-inside">
-                <li>
-                  Durante todo o contrato, a SolarInvest cuida de tudo para você —{' '}
-                  <strong>operação, manutenção, seguro e suporte técnico completos</strong>. Sua única preocupação será aproveitar a
-                  economia e o conforto de ter energia limpa e garantida.
-                </li>
-                <li>
-                  Todos os equipamentos são certificados pelo <strong>INMETRO</strong> e seguem rigorosamente as{' '}
-                  <strong>normas da ANEEL e ABNT</strong>, garantindo máxima eficiência e segurança em toda a operação.
-                </li>
-                <li>
-                  <strong>Disponibilidade do kit fotovoltaico:</strong> se algum item estiver indisponível no momento da compra,
-                  fornecemos componentes equivalentes ou superiores, sem custo adicional, mantendo o desempenho projetado.
-                </li>
-                <li>
-                  A <strong>tabela de compra antecipada</strong> da usina está disponível mediante solicitação ao consultor
-                  SolarInvest.
-                </li>
-                <li>
-                  Todos os <strong>valores, taxas, tarifas e mensalidades</strong> apresentados são simulações atualizadas com base
-                  nas tarifas vigentes e no seu histórico de consumo. Após a vistoria técnica, o contrato definitivo formaliza seu
-                  desconto garantido por escrito.
-                </li>
-                <li>
-                  <strong>Instalação em solo:</strong> se houver necessidade de estruturas adicionais ou se desejar incluir o custo
-                  no leasing, a SolarInvest apresenta a atualização orçamentária correspondente para sua aprovação.
-                </li>
-                <li>
-                  <strong>Conformidade Técnica da Unidade Consumidora (UC):</strong> a instalação e a homologação da usina dependem
-                  de a Unidade Consumidora (UC) estar em condições técnicas adequadas e em conformidade com as normas da
-                  distribuidora, da ANEEL e da ABNT. Caso sejam necessárias adequações elétricas ou estruturais para viabilizar o
-                  projeto, tais ajustes serão de responsabilidade do cliente. A SolarInvest poderá suspender a instalação caso
-                  identifique risco técnico ou condição elétrica inadequada.
-                </li>
-                <li>
-                  <strong>Regularização e Titularidade da Unidade Consumidora (UC):</strong> o início do processo de projeto, análise
-                  e abertura de solicitação junto à distribuidora somente ocorrerá após a confirmação de que a Unidade
-                  Consumidora (UC) está regularizada e com a titularidade atualizada para o nome da SolarInvest (quando aplicável).
-                  Pendências cadastrais, exigências da distribuidora ou inadequações elétricas deverão ser regularizadas
-                  previamente pelo cliente para que o processo possa avançar.
-                </li>
-                <li>
-                  <strong>Ajuste da Energia Contratada (Kc):</strong> a energia mensal contratada (Kc) poderá ser ajustada caso a
-                  área disponível, estrutura, sombreamento ou limitações técnicas não permitam a geração originalmente
-                  estimada. O ajuste reflete a capacidade real máxima da usina no local, sem alterar o valor aplicado por kWh
-                  contratado.
-                </li>
-                <li>
-                  <strong>Transferência da Propriedade ao Final do Contrato:</strong> ao final do prazo contratual, a propriedade
-                  completa da usina será transferida automaticamente ao contratante, sem custo adicional, desde que todas as
-                  obrigações contratuais estejam quitadas.
-                </li>
-              </ul>
+              <p>
+                <strong>1. Operação e Suporte</strong>
+                <br />
+                A SolarInvest é responsável pela operação, manutenção, seguro e suporte técnico durante todo o contrato.
+              </p>
+
+              <p>
+                <strong>2. Qualidade dos Equipamentos</strong>
+                <br />
+                Todos os equipamentos são certificados pelo INMETRO e instalados conforme normas da ANEEL, ABNT e da distribuidora.
+              </p>
+
+              <p>
+                <strong>3. Disponibilidade de Equipamentos</strong>
+                <br />
+                Itens indisponíveis poderão ser substituídos por equivalentes ou superiores, sem custo e sem alteração de desempenho.
+              </p>
+
+              <p>
+                <strong>4. Valores e Simulações</strong>
+                <br />
+                As mensalidades e estimativas desta proposta consideram tarifas vigentes e histórico de consumo. O contrato definitivo formaliza os valores finais.
+              </p>
+
+              <p>
+                <strong>5. Natureza Estimativa da Proposta</strong>
+                <br />
+                As informações desta proposta têm caráter estimativo e podem ser ajustadas antes, durante ou após a instalação, conforme condições reais do local, limitações estruturais, exigências da distribuidora, fatores técnicos da geração fotovoltaica ou qualquer outra variável que influencie o projeto. Tais ajustes podem alterar configurações, quantidades ou parâmetros técnicos, sem alterar o desconto contratado.
+              </p>
+
+              <p>
+                <strong>6. Instalação e Adequações Técnicas</strong>
+                <br />
+                Para instalações em solo, telhados especiais ou locais que exijam estruturas adicionais, a SolarInvest apresentará orçamento complementar.
+                <br />
+                Se a unidade consumidora exigir adequações técnicas — como melhorias de rede, padrão, fase, potência disponibilizada, ramal ou obras civis — os custos serão do contratante.
+                <br />
+                A SolarInvest pode, a seu critério, incluir parte dessas adequações no leasing, o que pode alterar o desconto ou o prazo. Não há garantia de inclusão.
+              </p>
+
+              <p>
+                <strong>7. Conformidade da Unidade Consumidora (UC)</strong>
+                <br />
+                A instalação depende de a UC atender às normas da distribuidora, ANEEL e ABNT. Eventuais correções são responsabilidade do contratante.
+              </p>
+
+              <p>
+                <strong>8. Regularização e Titularidade da UC</strong>
+                <br />
+                O processo junto à distribuidora inicia-se somente após a UC estar regularizada e, quando aplicável, com titularidade atualizada. Pendências devem ser resolvidas previamente pelo contratante.
+              </p>
+
+              <p>
+                <strong>9. Ajuste da Energia Contratada (Kc)</strong>
+                <br />
+                Se limitações de área, sombreamento ou estrutura reduzirem a geração prevista, a energia contratada será ajustada para refletir a capacidade real da usina. O desconto contratado sobre o valor do kWh da distribuidora não se altera.
+              </p>
+
+              <p>
+                <strong>10. Compra Antecipada (Buyout)</strong>
+                <br />
+                A tabela de compra antecipada está disponível mediante solicitação ao consultor SolarInvest.
+              </p>
+
+              <p>
+                <strong>11. Transferência de Propriedade</strong>
+                <br />
+                Ao final do contrato, estando todas as obrigações quitadas, a usina será transferida ao contratante sem custo adicional.
+              </p>
             </div>
             {informacoesImportantesObservacaoTexto ? (
               <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
