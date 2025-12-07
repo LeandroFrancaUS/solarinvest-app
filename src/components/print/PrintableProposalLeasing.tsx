@@ -1385,7 +1385,7 @@ function PrintableProposalLeasingInner(
 
             <div className="print-brand-footer no-break-inside">
               <strong>SolarInvest</strong>
-              <span>Energia inteligente, sem investimento inicial e com economia garantida desde o 1º mês.</span>
+              <span>Transformando economia mensal e patrimônio real</span>
             </div>
           </section>
         </div>
