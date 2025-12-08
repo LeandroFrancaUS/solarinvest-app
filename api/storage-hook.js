@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import jwksRsa from "jwks-rsa";
-import { Pool } from "pg";
+import { getPgPool } from "../server/database/pgPool.js";
 
 const JWKS_URL =
   process.env.JWKS_URL ||
@@ -8,13 +8,7 @@ const JWKS_URL =
 const AUDIENCE = process.env.NEXT_PUBLIC_STACK_PROJECT_ID || "deead568-c1e6-436c-ba28-85bf3fbebef5";
 
 // Create / reuse global pool to avoid connection storms in serverless
-let pool;
-if (!global.__pgPool) {
-  global.__pgPool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-}
-pool = global.__pgPool;
+const pool = getPgPool();
 
 // JWKS client with caching
 const jwksClient = jwksRsa({

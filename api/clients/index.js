@@ -1,12 +1,7 @@
-import { Pool } from 'pg'
 import { verifyRequest } from '../../src/lib/auth/verifyRequest.js'
+import { getPgPool } from '../../server/database/pgPool.js'
 
-let pool
-if (!global.__pgPool) {
-  global.__pgPool = new Pool({ connectionString: process.env.DATABASE_URL })
-}
-
-pool = global.__pgPool
+const pool = getPgPool()
 
 export default async function handler(req, res) {
   try {
