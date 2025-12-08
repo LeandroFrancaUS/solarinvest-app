@@ -55,6 +55,7 @@ import {
   type EssentialInfoSummary,
 } from './utils/moduleDetection'
 import { removeFogOverlays, watchFogReinjection } from './utils/antiOverlay'
+import { ensureServerStorageSync } from './app/services/serverStorage'
 import {
   computeROI,
   type ModoPagamento,
@@ -2958,6 +2959,9 @@ export default function App() {
 
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
+  useEffect(() => {
+    ensureServerStorageSync({ timeoutMs: 4000 })
+  }, [])
   useEffect(() => {
     removeFogOverlays()
     const disconnect = watchFogReinjection()
@@ -8102,8 +8106,19 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const registros = carregarClientesSalvos()
-    setClientesSalvos(registros)
+    let cancelado = false
+    const carregar = async () => {
+      await ensureServerStorageSync({ timeoutMs: 4000 })
+      if (cancelado) {
+        return
+      }
+      const registros = carregarClientesSalvos()
+      setClientesSalvos(registros)
+    }
+    carregar()
+    return () => {
+      cancelado = true
+    }
   }, [carregarClientesSalvos])
 
   useEffect(() => {
@@ -10937,7 +10952,18 @@ export default function App() {
   }, [carregarClientesSalvos])
 
   useEffect(() => {
-    setOrcamentosSalvos(carregarOrcamentosSalvos())
+    let cancelado = false
+    const carregar = async () => {
+      await ensureServerStorageSync({ timeoutMs: 4000 })
+      if (cancelado) {
+        return
+      }
+      setOrcamentosSalvos(carregarOrcamentosSalvos())
+    }
+    carregar()
+    return () => {
+      cancelado = true
+    }
   }, [carregarOrcamentosSalvos])
 
   const getCurrentSnapshot = (): OrcamentoSnapshotData => {
