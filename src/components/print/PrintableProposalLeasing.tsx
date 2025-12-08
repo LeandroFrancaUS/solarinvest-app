@@ -1187,8 +1187,8 @@ function PrintableProposalLeasingInner(
           <section className="print-section keep-together avoid-break">
             <h2 className="section-title keep-with-next">Veja como sua conta de energia cai mês a mês</h2>
             <p className="section-subtitle keep-with-next">
-              Veja como sua conta de luz cai mês a mês — e como sua economia cresce automaticamente conforme a tarifa da
-              distribuidora aumenta.
+              Acompanhe a tendência de redução da sua conta e o potencial de economia conforme a tarifa da distribuidora
+              sobe. Os valores são estimativas, sujeitos a variações reais.
             </p>
             <table className="no-break-inside">
               <thead>
