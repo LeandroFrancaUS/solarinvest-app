@@ -591,15 +591,7 @@ function PrintableProposalLeasingInner(
     },
     {
       label: 'Geração estimada (kWh/mês)',
-      value: (
-        <>
-          {formatKwhMes(geracaoMensalKwh)}
-          <div className="muted">
-            Este valor representa uma estimativa com base em dados climáticos históricos e pode variar diariamente e mensalmente
-            conforme condições climáticas, sombreamentos e fatores operacionais.
-          </div>
-        </>
-      ),
+      value: formatKwhMes(geracaoMensalKwh),
     },
     {
       label: 'Tipo de Edificação',
