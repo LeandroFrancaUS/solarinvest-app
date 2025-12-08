@@ -1,5 +1,9 @@
 # SolarInvest App
 
+## Requirements
+
+Develop locally with Node.js 24.x (an `.nvmrc` file is provided to pin the version).
+
 ## ANEEL data proxy
 
 The application consults ANEEL's CKAN datasets to fetch distributor information and
