@@ -12,10 +12,10 @@ function sanitizeString(value) {
 }
 
 const FALLBACK_ENV_VARS = [
-  'DATABASE_URL',
   'NEON_DATABASE_URL',
-  'PGURI',
+  'DATABASE_URL',
   'NEON_POSTGRESQL_URL',
+  'PGURI',
 ]
 
 const FALLBACK_DIRECT_ENV_VARS = [

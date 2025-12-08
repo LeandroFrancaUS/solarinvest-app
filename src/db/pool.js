@@ -1,7 +1,5 @@
-import { Pool } from "pg";
+import { getPgPool } from "../../server/database/pgPool.js";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+const pool = getPgPool();
 
 export default pool;
