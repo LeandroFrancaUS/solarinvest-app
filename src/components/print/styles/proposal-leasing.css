@@ -404,6 +404,10 @@
   color: #475569;
 }
 
+.print-footnote--spaced {
+  margin-top: 20px;
+}
+
 .section-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
