@@ -1,5 +1,6 @@
 node_modules/
 .DS_Store
+package-lock.json
 /dist
 build/
 .vercel/
@@ -8,3 +9,5 @@ build/
 /assets/templates/contratos/*.dotx
 /assets/templates/contratos/*.docx
 
+.vercel
+.env*.local
