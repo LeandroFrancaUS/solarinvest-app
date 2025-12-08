@@ -13,6 +13,7 @@
     "lint": "eslint --max-warnings=0 .",
     "typecheck": "tsc --noEmit",
     "e2e:headless": "node scripts/run-e2e-placeholder.mjs",
+    "test:neon": "node test-neon-connection.mjs",
     "qa:full": "npm run typecheck && npm run lint && npm run test && npm run e2e:headless",
     "check:cycles": "node scripts/find-circular-deps.mjs",
     "check:locale": "bash -lc 'if grep -R \"toLocaleString(\" src | grep -v \"pt-BR\"; then echo \"toLocaleString sem locale pt-BR encontrado\" >&2; exit 1; fi'",
@@ -53,7 +54,7 @@
     "vitest": "^4.0.15"
   },
   "engines": {
-    "node": "22.x",
+    "node": "24.x",
     "npm": ">=9.0.0"
   }
 }
