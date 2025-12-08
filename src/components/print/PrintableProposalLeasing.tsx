@@ -932,7 +932,7 @@ function PrintableProposalLeasingInner(
                   <p className="print-hero__benefits-title">💡 Benefícios SolarInvest</p>
                   <ul>
                     <li>
-                      ✅ Economia projetada desde o 1º mês, conforme consumo real e geração do sistema
+                      ✅ Economia projetada desde o 1º mês
                     </li>
                     <li>
                       ✅ Investimento 100% feito pela SolarInvest
@@ -1212,17 +1212,6 @@ function PrintableProposalLeasingInner(
             <p>
               A mensalidade acompanha a tarifa da distribuidora, pois o valor do kWh consumido é determinado exclusivamente
               pela concessionária, não pela SolarInvest.
-            </p>
-            <p className="muted print-footnote">
-              <strong>
-                <em>
-                  A partir do {`${prazoContratualTotalAnos + 1}º ano`}, a conta da distribuidora passa a contemplar apenas
-                  TUSD, taxa mínima e iluminação pública para sistemas on-grid.
-                </em>
-              </strong>
-            </p>
-            <p className="muted print-footnote">
-              {AVISO_VALORES_ESTIMATIVOS}
             </p>
           </section>
 
