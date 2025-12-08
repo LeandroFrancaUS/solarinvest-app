@@ -60,6 +60,9 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
 const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
   'Valores estimativos; confirmação no contrato definitivo.'
 
+const AVISO_VALORES_ESTIMATIVOS =
+  'Aviso: Todos os valores apresentados são estimativas e podem variar conforme consumo real, condições climáticas, bandeiras tarifárias e reajustes aplicados pela distribuidora. Esta proposta não constitui garantia de economia.'
+
 const PRAZO_LEASING_PADRAO_MESES = 60
 
 const SEGMENTO_LABELS: Record<SegmentoCliente, string> = TIPO_BASICO_LABELS
@@ -98,7 +101,7 @@ const formatPrazoContratual = (meses: number): string => {
     maximumFractionDigits: 0,
   })
 
-  return `${mesesTexto} meses de economia garantida`
+  return `${mesesTexto} meses de vigência contratual`
 }
 
 const toDisplayPercent = (value?: number, fractionDigits = 1) => {
@@ -429,7 +432,7 @@ function PrintableProposalLeasingInner(
     {
       label: 'Modalidade de contratação',
       value:
-        'Leasing SolarInvest – Investimento integral realizado pela SolarInvest · Economia desde o 1º mês',
+        'Leasing SolarInvest – Investimento integral realizado pela SolarInvest · Operação completa com valores estimados',
     },
     {
       label: 'Prazo de validade da proposta',
@@ -452,7 +455,7 @@ function PrintableProposalLeasingInner(
     {
       label: 'Responsabilidades da SolarInvest',
       value:
-        'Operação, manutenção, suporte técnico, limpeza e seguro integral da usina durante o contrato.',
+        'Operação completa do sistema, monitoramento, manutenção preventiva e corretiva, limpeza e seguro durante toda a vigência.',
     },
   ]
 
@@ -580,7 +583,15 @@ function PrintableProposalLeasingInner(
     },
     {
       label: 'Geração estimada (kWh/mês)',
-      value: formatKwhMes(geracaoMensalKwh),
+      value: (
+        <>
+          {formatKwhMes(geracaoMensalKwh)}
+          <div className="muted">
+            Este valor representa uma estimativa com base em dados climáticos históricos e pode variar diariamente e mensalmente
+            conforme condições climáticas, sombreamentos e fatores operacionais.
+          </div>
+        </>
+      ),
     },
     {
       label: 'Tipo de Edificação',
@@ -654,7 +665,7 @@ function PrintableProposalLeasingInner(
       label: '💰 Desconto contratual',
       value: (
         <span className="leasing-highlight-value">
-          {toDisplayPercent(descontoContratualPct)} de economia garantida
+          {toDisplayPercent(descontoContratualPct)} de desconto projetado na tarifa
         </span>
       ),
     },
@@ -834,7 +845,8 @@ function PrintableProposalLeasingInner(
     () => formatPrazoContratualMesesCurto(prazoContratualMeses),
     [prazoContratualMeses],
   )
-  const heroSummary = `Você já paga pela energia todos os meses — agora pode transformar esse gasto em investimento. Com o Leasing SolarInvest, a SolarInvest realiza todo o investimento na sua usina, enquanto você paga apenas pela energia gerada, com desconto e previsibilidade. Desde o primeiro mês, sua conta cai e, ao completar ${prazoContratualMesesTexto}, a usina passa a ser 100% sua — um patrimônio que valoriza o seu imóvel e sua liberdade financeira.`
+  const heroSummary =
+    'A SolarInvest apresenta esta proposta de fornecimento de energia solar em modelo de leasing, com operação completa, seguro, manutenção, monitoramento e suporte técnico incluídos durante toda a vigência do contrato. Todos os valores apresentados nesta proposta são estimativas, baseadas nas informações fornecidas pelo cliente, no consumo histórico da unidade consumidora, na tarifa vigente da distribuidora e em condições médias de geração fotovoltaica na região. Os valores de economia, mensalidade e geração podem variar de acordo com o consumo real, alterações tarifárias, clima e demais condições externas que não são controladas pela SolarInvest.'
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
   const economiaExplainer: React.ReactNode = beneficioAno30 ? (
     <>
@@ -902,7 +914,7 @@ function PrintableProposalLeasingInner(
                       </p>
                     </div>
                     <p className="print-hero__tagline">
-                      Energia inteligente, sustentável e com economia garantida desde o 1º mês.
+                      Energia inteligente, sustentável e operada integralmente pela SolarInvest.
                     </p>
                   </div>
                 </div>
@@ -920,13 +932,13 @@ function PrintableProposalLeasingInner(
                   <p className="print-hero__benefits-title">💡 Benefícios SolarInvest</p>
                   <ul>
                     <li>
-                      ✅ Economia garantida desde o 1º mês
+                      ✅ Economia projetada desde o 1º mês, conforme consumo real e geração do sistema
                     </li>
                     <li>
                       ✅ Investimento 100% feito pela SolarInvest
                     </li>
                     <li>
-                      ✅ Manutenção, seguro e suporte inclusos
+                      ✅ Manutenção, seguro e suporte inclusos durante todo o contrato
                     </li>
                     <li>
                       ✅ Transferência gratuita da usina após {prazoContratualMesesTexto}
@@ -1019,6 +1031,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
+            <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
           </section>
     
           <section className="print-section keep-together avoid-break">
@@ -1040,6 +1053,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
+            <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
           </section>
     
           <section
@@ -1064,6 +1078,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
+            <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
           </section>
     
           {multiUcResumoDados ? (
@@ -1157,6 +1172,7 @@ function PrintableProposalLeasingInner(
                 TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
                 escalonamento vigente.
               </p>
+              <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
             </section>
           ) : null}
     
@@ -1176,11 +1192,11 @@ function PrintableProposalLeasingInner(
                   <th>Mensalidade SolarInvest (R$)</th>
                 </tr>
               </thead>
-              <tbody>
-                {mensalidadesPorAno.map((linha) => (
-                  <tr key={`mensalidade-${linha.ano}`}>
-                    <td>{`${linha.ano}º ano`}</td>
-                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
+            <tbody>
+              {mensalidadesPorAno.map((linha) => (
+                <tr key={`mensalidade-${linha.ano}`}>
+                  <td>{`${linha.ano}º ano`}</td>
+                  <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
                     <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
                     <td className="leasing-table-value">{currency(linha.contaDistribuidora)}</td>
                     <td className="leasing-table-value">{currency(linha.mensalidade)}</td>
@@ -1189,8 +1205,13 @@ function PrintableProposalLeasingInner(
               </tbody>
             </table>
             <p>
-              A cada mês, você paga menos à distribuidora e caminha rumo à posse integral da sua própria usina de energia.
-              A SolarInvest garante que o desconto contratado permanecerá estável durante toda a vigência.
+              A mensalidade estimada foi calculada com base na tarifa de energia vigente da distribuidora local. Como a
+              SolarInvest não controla reajustes, bandeiras tarifárias ou tributos aplicados pela concessionária, os valores
+              finais podem variar ao longo do contrato.
+            </p>
+            <p>
+              A mensalidade acompanha a tarifa da distribuidora, pois o valor do kWh consumido é determinado exclusivamente
+              pela concessionária, não pela SolarInvest.
             </p>
             <p className="muted print-footnote">
               <strong>
@@ -1199,6 +1220,9 @@ function PrintableProposalLeasingInner(
                   TUSD, taxa mínima e iluminação pública para sistemas on-grid.
                 </em>
               </strong>
+            </p>
+            <p className="muted print-footnote">
+              {AVISO_VALORES_ESTIMATIVOS}
             </p>
           </section>
 
@@ -1211,6 +1235,11 @@ function PrintableProposalLeasingInner(
               <>
                 <p className="section-subtitle keep-with-next">
                   O que antes era custo, agora se transforma em retorno e valorização.
+                </p>
+                <p className="section-intro keep-with-next">
+                  A economia apresentada nesta proposta é uma projeção baseada em consumo histórico e tarifa atual da
+                  distribuidora. O valor real de economia pode variar conforme consumo, geração do sistema, bandeiras tarifárias
+                  e condições climáticas.
                 </p>
                 <p className="section-intro keep-with-next">
                   Cada mês de geração representa economia crescente e tranquilidade financeira. Em apenas {prazoContratualMesesTexto},
@@ -1247,6 +1276,12 @@ function PrintableProposalLeasingInner(
                   </div>
                 </div>
                 <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
+                <p className="muted print-footnote">
+                  Resultados passados ou estimados não garantem resultados futuros.
+                </p>
+                <p className="muted print-footnote">
+                  {AVISO_VALORES_ESTIMATIVOS}
+                </p>
               </>
             ) : (
               <p className="muted no-break-inside">
@@ -1298,7 +1333,10 @@ function PrintableProposalLeasingInner(
               <p>
                 <strong className="clause-title">1. Operação e Suporte</strong>
                 <br />
-                A SolarInvest é responsável pela operação, manutenção, seguro e suporte técnico durante todo o contrato.
+                A SolarInvest é responsável pela operação completa do sistema, incluindo monitoramento, manutenção preventiva e
+                corretiva, e seguro contra danos elétricos, incêndio, vendaval, queda de raio e roubo, conforme a política
+                vigente. O cliente é responsável por manter o local de instalação livre de obstruções e condições que reduzam a
+                insolação.
               </p>
 
               <p>
@@ -1336,6 +1374,12 @@ function PrintableProposalLeasingInner(
               </p>
 
               <p>
+                <strong className="clause-title">6.1 Condições Técnicas de Geração</strong>
+                <br />
+                A geração final do sistema depende de fatores externos, como clima, sombreamento, poeira, degradação natural dos módulos e eventuais modificações estruturais no local. A SolarInvest não garante geração fixa mensal, mas projeta o sistema para atender à média anual estimada.
+              </p>
+
+              <p>
                 <strong className="clause-title">7. Conformidade da Unidade Consumidora (UC)</strong>
                 <br />
                 A instalação depende de a UC atender às normas da distribuidora, ANEEL e ABNT. Eventuais correções são responsabilidade do contratante.
@@ -1356,7 +1400,10 @@ function PrintableProposalLeasingInner(
               <p>
                 <strong className="clause-title">10. Compra Antecipada (Buyout)</strong>
                 <br />
-                A tabela de compra antecipada está disponível mediante solicitação ao consultor SolarInvest.
+                A propriedade do sistema será transferida ao cliente ao término do contrato, sem custo adicional.
+                <br />
+                O cliente pode solicitar a compra antecipada a partir do 7º mês. O valor será calculado considerando o valor de
+                mercado atualizado do sistema, o tempo de uso, o investimento remanescente e os pagamentos já realizados.
               </p>
 
               <p>
