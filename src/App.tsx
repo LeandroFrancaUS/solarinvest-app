@@ -2035,37 +2035,37 @@ type LeasingAnexoConfig = {
 const LEASING_ANEXOS_CONFIG: LeasingAnexoConfig[] = [
   {
     id: 'ANEXO_I',
-    label: 'Anexo I – Especificações Técnicas',
-    descricao: 'Resumo técnico e proposta comercial detalhada.',
+    label: 'Especificações Técnicas',
+    descricao: 'Resumo técnico e proposta comercial detalhada conforme metodologia interna da SolarInvest.',
     tipos: ['residencial', 'condominio'],
   },
   {
     id: 'ANEXO_II',
-    label: 'Anexo II – Opção de Compra',
-    descricao: 'Termo de opção de compra da usina ao final do contrato.',
+    label: 'Opção de Compra',
+    descricao: 'Termo de opção de compra da usina ao final do contrato, conforme regras aplicáveis ao modelo de leasing.',
     tipos: ['residencial', 'condominio'],
   },
   {
     id: 'ANEXO_III',
-    label: 'Anexo III – Regras de Cálculo',
-    descricao: 'Documento estático com as fórmulas da mensalidade.',
+    label: 'Metodologia de Cálculo',
+    descricao: 'Documento com a metodologia interna utilizada para as simulações e estimativas de mensalidade.',
     tipos: ['residencial', 'condominio'],
   },
   {
     id: 'ANEXO_IV',
-    label: 'Anexo IV – Autorização do Proprietário',
+    label: 'Autorização do Proprietário',
     descricao: 'Declaração dos proprietários ou herdeiros autorizando a instalação.',
     tipos: ['residencial'],
   },
   {
     id: 'ANEXO_VII',
-    label: 'Anexo VII – Termo de Entrega e Aceite',
+    label: 'Termo de Entrega e Aceite',
     descricao: 'Registro de entrega técnica da usina.',
     tipos: ['residencial', 'condominio'],
   },
   {
     id: 'ANEXO_VIII',
-    label: 'Anexo VIII – Procuração do Condomínio',
+    label: 'Procuração do Condomínio',
     descricao: 'Documento obrigatório para representação do condomínio.',
     tipos: ['condominio'],
     autoInclude: true,
@@ -14129,7 +14129,7 @@ export default function App() {
                 />
               </Field>
               <Field
-                label="Proprietários / representantes legais (Anexo IV)"
+                label="Proprietários / representantes legais (autorização do proprietário)"
                 hint="Inclua o nome e o CPF/CNPJ que devem constar no termo de autorização."
               >
                 <div className="cliente-herdeiros-group">
