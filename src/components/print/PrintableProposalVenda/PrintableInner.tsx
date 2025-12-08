@@ -17,6 +17,7 @@ import {
   formatPagamentoLabel,
   formatPagamentoResumo,
 } from '../../../constants/pagamento'
+import { sanitizePrintableText } from '../../../utils/textSanitizer'
 
 const normalizeObservationKey = (value: string): string =>
   value
@@ -150,8 +151,13 @@ function PrintableProposalInner(
     }
     return trimmed !== '—'
   }
-  const normalizeDisplayText = (value: string | null | undefined): string | null =>
-    isMeaningfulText(value) ? value?.trim() ?? null : null
+  const normalizeDisplayText = (value: string | null | undefined): string | null => {
+    const sanitized = sanitizePrintableText(value)
+    if (!sanitized || sanitized === '—') {
+      return null
+    }
+    return sanitized
+  }
   type TableRow = {
     label: string
     value: string
@@ -170,13 +176,7 @@ function PrintableProposalInner(
       rows.push({ label, value: normalized, ...(options ?? {}) })
     }
   }
-  const sanitizeTextField = (value?: string | null) => {
-    if (typeof value !== 'string') {
-      return null
-    }
-    const trimmed = value.trim()
-    return trimmed ? trimmed : null
-  }
+  const sanitizeTextField = (value?: string | null) => sanitizePrintableText(value)
   const observacaoPadraoOriginal = normalizeDisplayText(
     vendasConfigSnapshot?.observacao_padrao_proposta ?? null,
   )

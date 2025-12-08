@@ -16,6 +16,7 @@ import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 import type { SegmentoCliente } from '../../lib/finance/roi'
+import { sanitizePrintableText } from '../../utils/textSanitizer'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -111,24 +112,8 @@ const toDisplayPercent = (value?: number, fractionDigits = 1) => {
   return formatPercentBRWithDigits((value ?? 0) / 100, fractionDigits)
 }
 
-const sanitizeItemText = (value?: string | null): string | null => {
-  if (typeof value !== 'string') {
-    return null
-  }
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-  return trimmed.replace(/\s+/g, ' ')
-}
-
-const sanitizeTextField = (value?: string | null): string | null => {
-  if (typeof value !== 'string') {
-    return null
-  }
-  const trimmed = value.trim()
-  return trimmed ? trimmed : null
-}
+const sanitizeItemText = (value?: string | null): string | null => sanitizePrintableText(value)
+const sanitizeTextField = (value?: string | null): string | null => sanitizePrintableText(value)
 
 const stripDiacritics = (value: string): string =>
   value

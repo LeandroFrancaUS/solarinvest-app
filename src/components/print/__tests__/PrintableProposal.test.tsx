@@ -136,6 +136,28 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).not.toContain('UCs Beneficiárias')
   })
 
+  it('remove tags e URLs de campos textuais antes de exibir', () => {
+    const props = createPrintableProps({
+      vendasConfigSnapshot: {
+        observacao_padrao_proposta:
+          '<p>Observação <strong>importante</strong> https://app.solarinvest.info/</p>',
+        validade_proposta_dias: 15,
+        exibir_precos_unitarios: false,
+        exibir_margem: false,
+        exibir_comissao: false,
+        exibir_impostos: false,
+        mostrar_quebra_impostos_no_pdf_cliente: false,
+      },
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain('Observação importante')
+    expect(markup).not.toContain('https://app.solarinvest.info/')
+    expect(markup).not.toContain('<p>')
+    expect(markup).not.toContain('<strong>')
+  })
+
   it('exibe potência dos módulos a partir do catálogo e autonomia formatada', () => {
     const vendaForm: VendaForm = {
       consumo_kwh_mes: 500,
