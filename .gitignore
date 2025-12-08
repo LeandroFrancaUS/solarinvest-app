@@ -9,3 +9,5 @@ build/
 /assets/templates/contratos/*.dotx
 /assets/templates/contratos/*.docx
 
+.vercel
+.env*.local
