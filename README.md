@@ -46,6 +46,17 @@ The backend requires the `@neondatabase/serverless` driver. Run
 `npm install @neondatabase/serverless` so the dependency is available before
 starting the server.
 
+To validate the connection locally, populate `DATABASE_URL` (or the equivalent
+variables above) in a `.env` file and run:
+
+```bash
+npm run test:neon
+```
+
+The script loads the same environment variables as the server and executes a
+simple `SELECT NOW()` against the Neon instance, confirming that credentials and
+network access are working.
+
 ## Stack Auth integration
 
 When a Stack Auth project is configured the `/api/storage` endpoint now
