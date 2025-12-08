@@ -264,6 +264,14 @@ function PrintableProposalLeasingInner(
   const ucCliente = cliente.uc?.trim() || null
   const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
 
+  const distribuidoraNomeCurto = useMemo(() => {
+    if (!distribuidoraLabel) {
+      return null
+    }
+    const [primeiroNome] = distribuidoraLabel.split(/\s+/)
+    return primeiroNome || null
+  }, [distribuidoraLabel])
+
   const formatClienteEnderecoCompleto = () => {
     const endereco = cliente.endereco?.trim() || ''
     const cidade = cliente.cidade?.trim() || ''
@@ -1177,7 +1185,7 @@ function PrintableProposalLeasingInner(
           ) : null}
     
           <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Veja como sua conta de luz cai mês a mês</h2>
+            <h2 className="section-title keep-with-next">Veja como sua conta de energia cai mês a mês</h2>
             <p className="section-subtitle keep-with-next">
               Veja como sua conta de luz cai mês a mês — e como sua economia cresce automaticamente conforme a tarifa da
               distribuidora aumenta.
@@ -1186,9 +1194,9 @@ function PrintableProposalLeasingInner(
               <thead>
                 <tr>
                   <th>Período</th>
-                  <th>Tarifa cheia média</th>
-                  <th>Tarifa com desconto média</th>
-                  <th>Conta distribuidora (R$)</th>
+                  <th>Tarifa cheia</th>
+                  <th>Tarifa com desconto</th>
+                  <th>{`CONTA COM ${distribuidoraNomeCurto ?? 'DISTRIBUIDORA'} (R$)`}</th>
                   <th>Mensalidade SolarInvest (R$)</th>
                 </tr>
               </thead>
