@@ -1039,7 +1039,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
+            <p className="muted print-footnote print-footnote--spaced">{AVISO_VALORES_ESTIMATIVOS}</p>
           </section>
     
           <section className="print-section keep-together avoid-break">
@@ -1061,7 +1061,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
+            <p className="muted print-footnote print-footnote--spaced">{AVISO_VALORES_ESTIMATIVOS}</p>
           </section>
     
           <section
@@ -1086,7 +1086,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
+            <p className="muted print-footnote print-footnote--spaced">{AVISO_VALORES_ESTIMATIVOS}</p>
           </section>
     
           {multiUcResumoDados ? (
@@ -1180,7 +1180,7 @@ function PrintableProposalLeasingInner(
                 TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
                 escalonamento vigente.
               </p>
-              <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
+              <p className="muted print-footnote print-footnote--spaced">{AVISO_VALORES_ESTIMATIVOS}</p>
             </section>
           ) : null}
     
@@ -1276,7 +1276,7 @@ function PrintableProposalLeasingInner(
                 <p className="muted print-footnote">
                   Resultados passados ou estimados não garantem resultados futuros.
                 </p>
-                <p className="muted print-footnote">
+                <p className="muted print-footnote print-footnote--spaced">
                   {AVISO_VALORES_ESTIMATIVOS}
                 </p>
               </>
