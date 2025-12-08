@@ -264,6 +264,14 @@ function PrintableProposalLeasingInner(
   const ucCliente = cliente.uc?.trim() || null
   const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
 
+  const distribuidoraNomeCurto = useMemo(() => {
+    if (!distribuidoraLabel) {
+      return null
+    }
+    const [primeiroNome] = distribuidoraLabel.split(/\s+/)
+    return primeiroNome || null
+  }, [distribuidoraLabel])
+
   const formatClienteEnderecoCompleto = () => {
     const endereco = cliente.endereco?.trim() || ''
     const cidade = cliente.cidade?.trim() || ''
@@ -583,15 +591,7 @@ function PrintableProposalLeasingInner(
     },
     {
       label: 'Geração estimada (kWh/mês)',
-      value: (
-        <>
-          {formatKwhMes(geracaoMensalKwh)}
-          <div className="muted">
-            Este valor representa uma estimativa com base em dados climáticos históricos e pode variar diariamente e mensalmente
-            conforme condições climáticas, sombreamentos e fatores operacionais.
-          </div>
-        </>
-      ),
+      value: formatKwhMes(geracaoMensalKwh),
     },
     {
       label: 'Tipo de Edificação',
@@ -1031,7 +1031,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
+            <p className="muted print-footnote print-footnote--spaced">{AVISO_VALORES_ESTIMATIVOS}</p>
           </section>
     
           <section className="print-section keep-together avoid-break">
@@ -1053,7 +1053,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
+            <p className="muted print-footnote print-footnote--spaced">{AVISO_VALORES_ESTIMATIVOS}</p>
           </section>
     
           <section
@@ -1078,7 +1078,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
+            <p className="muted print-footnote print-footnote--spaced">{AVISO_VALORES_ESTIMATIVOS}</p>
           </section>
     
           {multiUcResumoDados ? (
@@ -1172,23 +1172,23 @@ function PrintableProposalLeasingInner(
                 TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
                 escalonamento vigente.
               </p>
-              <p className="muted print-footnote">{AVISO_VALORES_ESTIMATIVOS}</p>
+              <p className="muted print-footnote print-footnote--spaced">{AVISO_VALORES_ESTIMATIVOS}</p>
             </section>
           ) : null}
     
           <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Veja como sua conta de luz cai mês a mês</h2>
+            <h2 className="section-title keep-with-next">Veja como sua conta de energia cai mês a mês</h2>
             <p className="section-subtitle keep-with-next">
-              Veja como sua conta de luz cai mês a mês — e como sua economia cresce automaticamente conforme a tarifa da
-              distribuidora aumenta.
+              Acompanhe a tendência de redução da sua conta e o potencial de economia conforme a tarifa da distribuidora
+              sobe. Os valores são estimativas, sujeitos a variações reais.
             </p>
             <table className="no-break-inside">
               <thead>
                 <tr>
                   <th>Período</th>
-                  <th>Tarifa cheia média</th>
-                  <th>Tarifa com desconto média</th>
-                  <th>Conta distribuidora (R$)</th>
+                  <th>Tarifa cheia</th>
+                  <th>Tarifa com desconto</th>
+                  <th>{`CONTA COM ${distribuidoraNomeCurto ?? 'DISTRIBUIDORA'} (R$)`}</th>
                   <th>Mensalidade SolarInvest (R$)</th>
                 </tr>
               </thead>
@@ -1268,7 +1268,7 @@ function PrintableProposalLeasingInner(
                 <p className="muted print-footnote">
                   Resultados passados ou estimados não garantem resultados futuros.
                 </p>
-                <p className="muted print-footnote">
+                <p className="muted print-footnote print-footnote--spaced">
                   {AVISO_VALORES_ESTIMATIVOS}
                 </p>
               </>
