@@ -76,23 +76,6 @@ export const PrintableProposalVenda = React.forwardRef<HTMLDivElement, Printable
       }
     }, [variant])
 
-    const handlePrint = React.useCallback(() => {
-      if (typeof window !== 'undefined') {
-        window.print()
-      }
-    }, [])
-
-    const handleDownload = React.useCallback(() => {
-      if (typeof document !== 'undefined') {
-        document.body?.setAttribute('data-print-mode', 'download')
-        document.documentElement?.setAttribute('data-print-mode', 'download')
-      }
-
-      if (typeof window !== 'undefined') {
-        window.print()
-      }
-    }, [])
-
     React.useEffect(() => {
       if (typeof window === 'undefined') {
         return
@@ -113,38 +96,10 @@ export const PrintableProposalVenda = React.forwardRef<HTMLDivElement, Printable
       }
     }, [])
 
-    const handleToggleSimple = React.useCallback(() => {
-      setVariant((current) => (current === 'simple' ? 'standard' : 'simple'))
-    }, [])
-
     const resolvedVariant = variant === 'buyout' ? 'standard' : variant
 
     return (
       <div className="printable-v7-wrapper" data-print-variant={resolvedVariant}>
-        <div className="print-toolbar" data-print-toolbar>
-          <div className="print-toolbar__info">
-            <h1>Pré-visualização da proposta SolarInvest</h1>
-            <p>Utilize os controles ao lado para imprimir, salvar em PDF ou alternar o layout simples.</p>
-          </div>
-          <div className="print-toolbar__actions">
-            <button type="button" data-action="print" onClick={handlePrint}>
-              Imprimir
-            </button>
-            <button type="button" data-action="download" onClick={handleDownload}>
-              Baixar PDF
-            </button>
-            <button
-              type="button"
-              data-action="toggle-variant"
-              data-label-simple="Versão simples"
-              data-label-standard="Versão completa"
-              aria-pressed={resolvedVariant === 'simple'}
-              onClick={handleToggleSimple}
-            >
-              {resolvedVariant === 'simple' ? 'Versão completa' : 'Versão simples'}
-            </button>
-          </div>
-        </div>
         <PrintableProposalVendaInner ref={innerRef} {...props} />
       </div>
     )
