@@ -1,205 +1,83 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 
 import './styles/print-common.css'
 import './styles/proposal-leasing.css'
 import { currency, formatCpfCnpj, tarifaCurrency } from '../../utils/formatters'
-import {
-  formatMoneyBR,
-  formatNumberBRWithOptions,
-  formatPercentBRWithDigits,
-} from '../../lib/locale/br-number'
+import { formatMoneyBR, formatNumberBRWithOptions } from '../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../types/printableProposal'
-import { TIPO_BASICO_LABELS } from '../../types/tipoBasico'
-import PrintableProposalImages from './PrintableProposalImages'
-import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
-import { agrupar, type Linha } from '../../lib/pdf/grouping'
-import { anosAlvoEconomia } from '../../lib/finance/years'
-import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
-import type { SegmentoCliente } from '../../lib/finance/roi'
 
-const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
-  /@/i,
-  /\bemail\b/i,
-  /brsolarinvest/i,
-  /\btelefone\b/i,
-  /\bwhatsapp\b/i,
-  /\bcnpj\b/i,
-  /\bcpf\b/i,
-  /\brg\b/i,
-  /\bdados do cliente\b/i,
-  /\bcliente\b/i,
-  /^or[cç]amento\b/i,
-  /\bendere[cç]o\b/i,
-  /\bbairro\b/i,
-  /\bcidade\b/i,
-  /\bestado\b/i,
-  /\bcep\b/i,
-  /\bc[óo]digo do or[cç]amento\b/i,
-  /portf[óo]lio/i,
-  /sobre\s+n[óo]s/i,
-  /proposta comercial/i,
-  /contato/i,
-  /\baceite da proposta\b/i,
-  /\bassinatura\b/i,
-  /\bdocumento\b/i,
-  /\bru[áa]/i,
-  /\bjardim/i,
-  /\betapa/i,
-  /an[áa]polis/i,
-  /\bdistribuidora\b/i,
-  /\buc\b/i,
-  /vamos avan[çc]ar/i,
-  /valor\s+total/i,
-  /cot[aã][cç][aã]o\b/i,
-  /entrega\s+escolhida/i,
-  /transportadora/i,
-  /condi[cç][aã]o\s+de\s+pagamento/i,
-  /pot[êe]ncia\s+do\s+sistema/i,
-]
-
-const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
-  'Valores estimativos; confirmação no contrato definitivo.'
-
-const PRAZO_LEASING_PADRAO_MESES = 60
-
-const SEGMENTO_LABELS: Record<SegmentoCliente, string> = TIPO_BASICO_LABELS
-
-const formatAnosDetalhado = (valor: number): string => {
-  const fractionDigits = Number.isInteger(valor) ? 0 : 1
-  const numero = formatNumberBRWithOptions(valor, {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  })
-  const singular = Math.abs(valor - 1) < 1e-6
-  return `${numero} ${singular ? 'ano' : 'anos'}`
-}
-
-const formatPrazoContratualMesesCurto = (meses?: number): string => {
-  if (!Number.isFinite(meses) || (meses ?? 0) <= 0) {
-    return formatPrazoContratualMesesCurto(PRAZO_LEASING_PADRAO_MESES)
-  }
-
-  const mesesInteiros = Math.max(1, Math.round(meses ?? 0))
-  const numero = formatNumberBRWithOptions(mesesInteiros, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-  const singular = mesesInteiros === 1
-  return `${numero} ${singular ? 'mês' : 'meses'}`
-}
-
-const formatPrazoContratual = (meses: number): string => {
-  if (!Number.isFinite(meses) || meses <= 0) {
-    return '—'
-  }
-
-  const mesesTexto = formatNumberBRWithOptions(meses, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-
-  return `${mesesTexto} meses de economia garantida`
-}
-
-const toDisplayPercent = (value?: number, fractionDigits = 1) => {
-  if (!Number.isFinite(value)) {
-    return '—'
-  }
-  return formatPercentBRWithDigits((value ?? 0) / 100, fractionDigits)
-}
-
-const sanitizeItemText = (value?: string | null): string | null => {
-  if (typeof value !== 'string') {
-    return null
-  }
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-  return trimmed.replace(/\s+/g, ' ')
-}
-
-const sanitizeTextField = (value?: string | null): string | null => {
-  if (typeof value !== 'string') {
-    return null
-  }
-  const trimmed = value.trim()
-  return trimmed ? trimmed : null
-}
-
-const stripDiacritics = (value: string): string =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-
-const hasBudgetItemExclusion = (value: string): boolean => {
-  if (!value) {
-    return false
-  }
-  const normalized = stripDiacritics(value)
-  return BUDGET_ITEM_EXCLUSION_PATTERNS.some((pattern) => pattern.test(value) || pattern.test(normalized))
-}
+const PRAZO_LEASING_MESES = 60
 
 const formatKwhMes = (value?: number) => {
   if (!Number.isFinite(value) || (value ?? 0) <= 0) {
     return '—'
   }
-  return `${formatNumberBRWithOptions(value ?? 0, {
+
+  const numero = formatNumberBRWithOptions(value ?? 0, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  })} kWh/mês`
+  })
+
+  return `${numero} kWh/mês`
 }
 
 const formatKwp = (value?: number) => {
   if (!Number.isFinite(value) || (value ?? 0) <= 0) {
     return '—'
   }
-  return `${formatNumberBRWithOptions(value ?? 0, {
+
+  const numero = formatNumberBRWithOptions(value ?? 0, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })} kWp`
+  })
+
+  return `${numero} kWp`
 }
 
 const formatWp = (value?: number) => {
   if (!Number.isFinite(value) || (value ?? 0) <= 0) {
-    return '—'
+    return null
   }
-  return `${formatNumberBRWithOptions(value ?? 0, {
+
+  const numero = formatNumberBRWithOptions(value ?? 0, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  })} Wp`
+  })
+
+  return `${numero} Wp`
 }
 
-const formatTipoSistema = (value?: PrintableProposalProps['tipoSistema']) => {
-  switch (value) {
-    case 'ON_GRID':
-      return 'On-grid'
-    case 'OFF_GRID':
-      return 'Off-grid'
-    case 'HIBRIDO':
-      return 'Híbrido'
-    default:
-      return '—'
+const formatEnderecoCompleto = (
+  endereco?: string | null,
+  cidade?: string | null,
+  uf?: string | null,
+  cep?: string | null,
+) => {
+  const partes: string[] = []
+
+  if (endereco?.trim()) {
+    partes.push(endereco.trim())
   }
+
+  const cidadeUf = [cidade?.trim(), uf?.trim()].filter(Boolean).join(' / ')
+  if (cidadeUf) {
+    partes.push(cidadeUf)
+  }
+
+  if (cep?.trim()) {
+    partes.push(`CEP ${cep.trim()}`)
+  }
+
+  return partes.filter(Boolean).join(' • ')
 }
 
-const formatSegmentoCliente = (
-  value?: SegmentoCliente | null,
-  outro?: string | null,
-): string => {
-  if (!value) {
-    return '—'
-  }
-
-  if (value === 'outros') {
-    const descricao = outro?.trim()
-    const sufixo = descricao ? ` (${descricao})` : ''
-    return `Outros${sufixo}`
-  }
-
-  return SEGMENTO_LABELS[value] ?? '—'
-}
+const legalFooter = (
+  <p className="print-legal-footer">
+    <strong>Aviso:</strong> Todos os valores apresentados nesta proposta são estimativas e podem variar conforme consumo real,
+    condições climáticas, reajustes tarifários e bandeiras tarifárias da distribuidora de energia. Esta proposta não constitui
+    promessa de economia garantida.
+  </p>
+)
 
 function PrintableProposalLeasingInner(
   props: PrintableProposalProps,
@@ -207,1197 +85,318 @@ function PrintableProposalLeasingInner(
 ) {
   const {
     cliente,
-    budgetId,
-    descontoContratualPct,
-    tarifaCheia,
-    energiaContratadaKwh,
+    ucGeradora,
     geracaoMensalKwh,
+    energiaContratadaKwh,
+    potenciaInstaladaKwp,
     numeroModulos,
     potenciaModulo,
-    potenciaInstaladaKwp,
-    tipoInstalacao,
-    tipoInstalacaoLabel,
-    tipoInstalacaoOutro,
-    tipoInstalacaoCompleto,
-    tipoSistema,
-    segmentoCliente,
-    tipoEdificacaoOutro,
-    tipoEdificacaoCompleto,
-    areaInstalacao,
-    capex,
-    buyoutResumo,
-    anos,
-    leasingROI,
-    parcelasLeasing,
-    distribuidoraTarifa,
-    leasingDataInicioOperacao,
-    leasingValorInstalacaoCliente,
-    leasingValorDeMercadoEstimado,
-    mostrarValorMercadoLeasing,
-    leasingPrazoContratualMeses,
-    leasingInflacaoEnergiaAa,
-    leasingModeloInversor,
     leasingModeloModulo,
-    orcamentoItens,
-    informacoesImportantesObservacao,
-    configuracaoUsinaObservacoes,
-    imagensInstalacao,
-    multiUcResumo,
-    vendaSnapshot,
-    vendasConfigSnapshot,
-    ucGeradora,
-    ucsBeneficiarias,
-    tusdTipoClienteCompleto,
+    leasingModeloInversor,
+    tarifaCheia,
+    parcelasLeasing,
+    leasingDataInicioOperacao,
+    leasingROI,
+    anos,
   } = props
 
-  const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
-  const telefoneCliente = cliente.telefone?.trim() || null
-  const emailCliente = cliente.email?.trim() || null
-  const enderecoCliente = cliente.endereco?.trim() || null
-  const cidadeCliente = cliente.cidade?.trim() || null
-  const ufCliente = cliente.uf?.trim() || null
-  const codigoOrcamento = budgetId?.trim() || null
-  const nomeCliente = cliente.nome?.trim() || null
-  const ucCliente = cliente.uc?.trim() || null
-  const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
+  const clienteNome = cliente.nome?.trim() || '—'
+  const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : '—'
+  const enderecoCompleto =
+    formatEnderecoCompleto(cliente.endereco, cliente.cidade, cliente.uf, cliente.cep) || '—'
+  const unidadeConsumidora = ucGeradora?.numero?.trim() || cliente.uc?.trim() || '—'
 
-  const formatClienteEnderecoCompleto = () => {
-    const endereco = cliente.endereco?.trim() || ''
-    const cidade = cliente.cidade?.trim() || ''
-    const uf = cliente.uf?.trim() || ''
-    const cep = cliente.cep?.trim() || ''
-    const partes: string[] = []
-    if (endereco) {
-      partes.push(endereco)
+  const potenciaInstalada = formatKwp(potenciaInstaladaKwp)
+  const modulosDescricao = leasingModeloModulo?.trim()
+    ? leasingModeloModulo.trim()
+    : numeroModulos > 0
+      ? `${numeroModulos} módulos${formatWp(potenciaModulo) ? ` de ${formatWp(potenciaModulo)}` : ''}`
+      : '—'
+  const inversoresDescricao = leasingModeloInversor?.trim() || '—'
+  const geracaoEstimativa = formatKwhMes(geracaoMensalKwh)
+  const energiaContratada = formatKwhMes(energiaContratadaKwh)
+
+  const mensalidadeEstimativaValor = parcelasLeasing?.[0]?.mensalidade
+  const mensalidadeEstimativaLabel = Number.isFinite(mensalidadeEstimativaValor)
+    ? currency(mensalidadeEstimativaValor ?? 0)
+    : '—'
+
+  const tarifaBaseLabel = Number.isFinite(tarifaCheia) && (tarifaCheia ?? 0) > 0 ? tarifaCurrency(tarifaCheia ?? 0) : '—'
+  const dataInicio = leasingDataInicioOperacao?.trim() || '—'
+
+  const economiaAno1Valor = (() => {
+    const indiceAno1 = anos.findIndex((ano) => ano === 1)
+    if (indiceAno1 >= 0 && Number.isFinite(leasingROI[indiceAno1])) {
+      return leasingROI[indiceAno1]
     }
-    if (cidade || uf) {
-      partes.push([cidade, uf].filter(Boolean).join(' / '))
-    }
-    if (cep) {
-      partes.push(`CEP ${cep}`)
-    }
-    return partes.filter(Boolean).join(' • ')
-  }
-
-  const ucGeradoraNumero = ucGeradora?.numero?.trim() || ucCliente || ''
-  const ucGeradoraEndereco = ucGeradora?.endereco?.trim() || formatClienteEnderecoCompleto()
-
-  const ucsBeneficiariasLista = useMemo(() => {
-    if (!Array.isArray(ucsBeneficiarias)) {
-      return [] as { numero: string; endereco: string; rateioPercentual: number | null }[]
-    }
-    return ucsBeneficiarias
-      .map((item) => {
-        const numero = item?.numero?.trim() || ''
-        const endereco = item?.endereco?.trim() || ''
-        const rateio =
-          item?.rateioPercentual != null && Number.isFinite(item.rateioPercentual)
-            ? Number(item.rateioPercentual)
-            : null
-        if (!numero && !endereco && rateio == null) {
-          return null
-        }
-        return { numero, endereco, rateioPercentual: rateio }
-      })
-      .filter((item): item is { numero: string; endereco: string; rateioPercentual: number | null } =>
-        Boolean(item),
-      )
-  }, [ucsBeneficiarias])
-
-  const formatRateioLabel = (valor: number | null) => {
-    if (valor == null || !Number.isFinite(valor)) {
-      return null
-    }
-    const numero = Number(valor)
-    const texto = formatNumberBRWithOptions(numero, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: Number.isInteger(numero) ? 0 : 2,
-    })
-    return `${texto}%`
-  }
-
-  const ucGeradoraNumeroLabel = ucGeradoraNumero || '—'
-  const ucGeradoraEnderecoLabel = ucGeradoraEndereco || '—'
-  const hasBeneficiarias = ucsBeneficiariasLista.length > 0
-
-  const prazoContratual = useMemo(() => {
-    if (Number.isFinite(leasingPrazoContratualMeses) && (leasingPrazoContratualMeses ?? 0) > 0) {
-      return Math.max(0, Math.floor(leasingPrazoContratualMeses ?? 0))
-    }
-    if (parcelasLeasing.length > 0) {
-      const ultimo = parcelasLeasing[parcelasLeasing.length - 1]
-      if (Number.isFinite(ultimo?.mes)) {
-        return Math.max(0, Math.floor(ultimo.mes))
-      }
-    }
-    return 0
-  }, [leasingPrazoContratualMeses, parcelasLeasing])
-
-  const inflacaoEnergiaFracao = useMemo(() => {
-    const base = Number.isFinite(leasingInflacaoEnergiaAa)
-      ? leasingInflacaoEnergiaAa ?? 0
-      : buyoutResumo?.infEnergia ?? 0
-    return (base ?? 0) / 100
-  }, [buyoutResumo?.infEnergia, leasingInflacaoEnergiaAa])
-
-  const descontoFracao = Number.isFinite(descontoContratualPct) ? (descontoContratualPct ?? 0) / 100 : 0
-  const tarifaCheiaBase = Number.isFinite(tarifaCheia) ? Math.max(0, tarifaCheia ?? 0) : 0
-  const energiaContratadaBase = Number.isFinite(energiaContratadaKwh) ? Math.max(0, energiaContratadaKwh ?? 0) : 0
-  const valorInstalacaoCliente = Number.isFinite(leasingValorInstalacaoCliente)
-    ? Math.max(0, leasingValorInstalacaoCliente ?? 0)
-    : 0
-  const inicioOperacaoTexto = leasingDataInicioOperacao?.trim() || null
-
-  const multiUcResumoDados = multiUcResumo && multiUcResumo.ucs.length > 0 ? multiUcResumo : null
-  const multiUcEscalonamentoTexto = multiUcResumoDados
-    ? formatPercentBRWithDigits(multiUcResumoDados.escalonamentoPercentual, 0)
-    : null
-  const multiUcRateioDescricao = multiUcResumoDados
-    ? multiUcResumoDados.distribuicaoPorPercentual
-      ? 'Percentual (%) informado por UC'
-      : 'Manual (kWh) informado por UC'
-    : null
-
-  const taxaMinimaMensal = (() => {
-    const valor = vendaSnapshot?.parametros?.taxa_minima_rs_mes
-    return Number.isFinite(valor) ? Math.max(0, valor ?? 0) : 0
+    return Number.isFinite(leasingROI?.[0]) ? leasingROI[0] : null
   })()
 
-  const formatKwhValor = (valor: number, fractionDigits = 2): string =>
-    `${formatNumberBRWithOptions(valor, {
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
-    })} kWh`
-
-  const resumoCampos: ClientInfoField[] = [
-    { label: 'Cliente', value: nomeCliente || '—' },
-    { label: 'Documento', value: documentoCliente || '—' },
-    { label: 'UC', value: ucCliente || '—' },
-    { label: 'Distribuidora', value: distribuidoraLabel || '—' },
-    { label: 'E-mail', value: emailCliente || '—' },
-    { label: 'Telefone', value: telefoneCliente || '—' },
-    {
-      label: 'Cidade / UF',
-      value:
-        cidadeCliente || ufCliente ? `${cidadeCliente || '—'} / ${ufCliente || '—'}` : '—',
-    },
-    {
-      label: 'Endereço',
-      value:
-        enderecoCliente
-          ? enderecoCliente
-          : cidadeCliente || ufCliente
-          ? `${cidadeCliente || '—'} / ${ufCliente || '—'}`
-          : '—',
-      wide: true,
-    },
-  ]
-
-  const snapshotPagamento = vendaSnapshot?.pagamento ?? null
-  const validadePropostaDiasPadrao = Number.isFinite(vendasConfigSnapshot?.validade_proposta_dias)
-    ? Math.max(0, Number(vendasConfigSnapshot?.validade_proposta_dias ?? 0))
-    : null
-  const emissaoData = new Date()
-  const validadeData = new Date(emissaoData.getTime())
-  if ((validadePropostaDiasPadrao ?? 0) > 0) {
-    validadeData.setDate(validadeData.getDate() + (validadePropostaDiasPadrao ?? 0))
-  }
-  const formatDate = (date: Date) =>
-    date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-  const emissaoTexto = formatDate(emissaoData)
-  const validadeTexto = formatDate(validadeData)
-  const validadeResumoPadrao = (() => {
-    if (validadePropostaDiasPadrao == null || validadePropostaDiasPadrao <= 0) {
-      return `Até ${validadeTexto}`
+  const economiaTotalValor = (() => {
+    const indiceCincoAnos = anos.findIndex((ano) => ano >= 5)
+    if (indiceCincoAnos >= 0 && Number.isFinite(leasingROI[indiceCincoAnos])) {
+      return leasingROI[indiceCincoAnos]
     }
-    const plural = validadePropostaDiasPadrao === 1 ? 'dia' : 'dias'
-    return `${validadePropostaDiasPadrao} ${plural} · Até ${validadeTexto}`
-  })()
-  const validadeResumoTexto =
-    sanitizeTextField(snapshotPagamento?.validade_proposta_txt) ?? validadeResumoPadrao
-  const tipoInstalacaoDescricao = (() => {
-    if (tipoInstalacaoCompleto) {
-      return tipoInstalacaoCompleto
-    }
-    const baseLabel = tipoInstalacaoLabel ?? (tipoInstalacao === 'solo' ? 'Solo' : 'Telhado')
-    const outro = tipoInstalacaoOutro?.trim()
-    return outro ? `${baseLabel} (${outro})` : baseLabel
+    return leasingROI.length > 0 && Number.isFinite(leasingROI[leasingROI.length - 1])
+      ? leasingROI[leasingROI.length - 1]
+      : null
   })()
 
-  const resumoProposta = [
-    {
-      label: 'Modalidade de contratação',
-      value:
-        'Leasing SolarInvest – Investimento integral realizado pela SolarInvest · Economia desde o 1º mês',
-    },
-    {
-      label: 'Prazo de validade da proposta',
-      value: validadeResumoTexto,
-    },
-    {
-      label: 'Sua usina começa a gerar energia',
-      value: inicioOperacaoTexto
-        ? `${inicioOperacaoTexto} · Até 60 dias após a assinatura`
-        : 'Em até 60 dias após a assinatura',
-    },
-    {
-      label: 'Tipo de instalação',
-      value: tipoInstalacaoDescricao,
-    },
-    {
-      label: 'Distribuidora atendida',
-      value: distribuidoraLabel || '—',
-    },
-    {
-      label: 'Responsabilidades da SolarInvest',
-      value:
-        'Operação, manutenção, suporte técnico, limpeza e seguro integral da usina durante o contrato.',
-    },
-  ]
-
-  const modelosCatalogo = useMemo(() => {
-    if (!orcamentoItens || orcamentoItens.length === 0) {
-      return { modeloModulo: null, modeloInversor: null }
-    }
-
-    const linhas: Linha[] = []
-
-    orcamentoItens.forEach((item) => {
-      const produto = sanitizeItemText(item.produto)
-      const descricao = sanitizeItemText(item.descricao)
-      const combinedText = [produto, descricao].filter(Boolean).join(' ')
-
-      if (!combinedText || hasBudgetItemExclusion(combinedText)) {
-        return
-      }
-
-      const quantidade = Number.isFinite(item.quantidade) ? Number(item.quantidade) : null
-      const codigo = sanitizeItemText(item.codigo)
-      const modelo = sanitizeItemText(item.modelo)
-      const fabricante = sanitizeItemText(item.fabricante)
-
-      linhas.push({
-        nome: produto ?? descricao ?? combinedText,
-        codigo: codigo ?? undefined,
-        modelo: modelo ?? undefined,
-        fabricante: fabricante ?? undefined,
-        quantidade,
-      })
-    })
-
-    if (linhas.length === 0) {
-      return { modeloModulo: null, modeloInversor: null }
-    }
-
-    const agrupado = agrupar(linhas)
-
-    const formatModelo = (linha: Linha | undefined): string | null => {
-      if (!linha) {
-        return null
-      }
-
-      const modelo = sanitizeItemText(linha.modelo)
-      const fabricante = sanitizeItemText(linha.fabricante)
-      if (modelo && fabricante) {
-        return `${fabricante} · ${modelo}`
-      }
-
-      return modelo || fabricante || sanitizeItemText(linha.nome) || null
-    }
-
-    return {
-      modeloModulo: formatModelo(agrupado.Hardware.Modulos[0]),
-      modeloInversor: formatModelo(agrupado.Hardware.Inversores[0]),
-    }
-  }, [orcamentoItens])
-
-  const modeloModuloManual = sanitizeItemText(leasingModeloModulo)
-  const modeloInversorManual = sanitizeItemText(leasingModeloInversor)
-  const modeloModuloSnapshot = sanitizeItemText(vendaSnapshot?.configuracao?.modelo_modulo)
-  const modeloInversorSnapshot = sanitizeItemText(vendaSnapshot?.configuracao?.modelo_inversor)
-  const modeloModulo = modeloModuloManual ?? modeloModuloSnapshot ?? modelosCatalogo.modeloModulo
-  const modeloInversor = modeloInversorManual ?? modeloInversorSnapshot ?? modelosCatalogo.modeloInversor
-
-  const valorMercadoUsina = useMemo(
-    () =>
-      Number.isFinite(leasingValorDeMercadoEstimado)
-        ? Math.max(0, leasingValorDeMercadoEstimado ?? 0)
-        : 0,
-    [leasingValorDeMercadoEstimado],
-  )
-  const valorMercadoProposta = useMemo(
-    () => (Number.isFinite(capex) ? Math.max(0, capex ?? 0) : 0),
-    [capex],
-  )
-  const exibirValorMercadoNaProposta = Boolean(mostrarValorMercadoLeasing)
-
-  const segmentoClienteDescricao =
-    tipoEdificacaoCompleto ?? formatSegmentoCliente(segmentoCliente, tipoEdificacaoOutro)
-
-  const especificacoesUsina = [
-    ...(exibirValorMercadoNaProposta
-      ? [
-          {
-            label: 'Valor de mercado',
-            value: currency(valorMercadoProposta),
-          } as const,
-        ]
-      : []),
-    {
-      label: 'Tipo de Sistema',
-      value: formatTipoSistema(tipoSistema),
-    },
-    {
-      label: 'Potência instalada (kWp)',
-      value: formatKwp(potenciaInstaladaKwp),
-    },
-    {
-      label: 'Modelo do inversor',
-      value: modeloInversor ?? '—',
-    },
-    {
-      label: 'Modelo dos módulos',
-      value: modeloModulo ?? '—',
-    },
-    {
-      label: 'Potência do Módulos (Wp)',
-      value: formatWp(potenciaModulo),
-    },
-    {
-      label: 'Número de módulos',
-      value:
-        Number.isFinite(numeroModulos) && (numeroModulos ?? 0) > 0
-          ? formatNumberBRWithOptions(numeroModulos ?? 0, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })
-          : '—',
-    },
-    {
-      label: 'Energia contratada (kWh/mês)',
-      value: formatKwhMes(energiaContratadaKwh),
-    },
-    {
-      label: 'Geração estimada (kWh/mês)',
-      value: formatKwhMes(geracaoMensalKwh),
-    },
-    {
-      label: 'Tipo de Edificação',
-      value: segmentoClienteDescricao,
-    },
-    {
-      label: 'Área útil necessária (m²)',
-      value:
-        Number.isFinite(areaInstalacao) && (areaInstalacao ?? 0) > 0
-          ? `${formatNumberBRWithOptions(areaInstalacao ?? 0, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })} m²`
-          : '—',
-    },
-  ]
-
-  const tarifaInicialProjetada = tarifaCheiaBase > 0 ? tarifaCheiaBase * (1 - descontoFracao) : 0
-
-  const tusdMedioPorAno = useMemo<Record<number, number>>(() => {
-    if (!Array.isArray(parcelasLeasing) || parcelasLeasing.length === 0) {
-      return {}
-    }
-
-    const acumulado: Record<number, { soma: number; quantidade: number }> = {}
-
-    parcelasLeasing.forEach((parcela) => {
-      const mes = Number.isFinite(parcela?.mes) ? Math.max(1, Math.floor(parcela.mes)) : NaN
-      if (!Number.isFinite(mes)) {
-        return
-      }
-
-      const ano = Math.ceil(mes / 12)
-      if (!Number.isFinite(ano) || ano <= 0) {
-        return
-      }
-
-      const tusd = Number.isFinite(parcela?.tusd) ? Math.max(0, parcela.tusd) : 0
-      const grupo = acumulado[ano] ?? { soma: 0, quantidade: 0 }
-      grupo.soma += tusd
-      grupo.quantidade += 1
-      acumulado[ano] = grupo
-    })
-
-    return Object.keys(acumulado).reduce<Record<number, number>>((acc, chave) => {
-      const ano = Number(chave)
-      const { soma, quantidade } = acumulado[ano]
-      acc[ano] = quantidade > 0 ? soma / quantidade : 0
-      return acc
-    }, {})
-  }, [parcelasLeasing])
-
-  const condicoesFinanceiras = [
-    {
-      label: 'Investimento no sistema fotovoltaico',
-      value: 'Investimento integral feito pela SolarInvest',
-    },
-    {
-      label: 'Investimento do cliente',
-      value: currency(valorInstalacaoCliente),
-    },
-    {
-      label: 'Tarifa cheia da distribuidora (R$/kWh)',
-      value: tarifaCheiaBase > 0 ? tarifaCurrency(tarifaCheiaBase) : '—',
-    },
-    {
-      label: 'Tarifa inicial SolarInvest (R$/kWh)',
-      value: tarifaInicialProjetada > 0 ? tarifaCurrency(tarifaInicialProjetada) : '—',
-    },
-    {
-      label: '💰 Desconto contratual',
-      value: (
-        <span className="leasing-highlight-value">
-          {toDisplayPercent(descontoContratualPct)} de economia garantida
-        </span>
-      ),
-    },
-    {
-      label: 'Prazo contratual',
-      value: formatPrazoContratual(prazoContratual),
-    },
-  ]
-
-  const prazoContratualTotalAnos = useMemo(() => {
-    if (prazoContratual > 0) {
-      return Math.max(1, Math.ceil(prazoContratual / 12))
-    }
-    return 5
-  }, [prazoContratual])
-
-  const mensalidadesPorAno = useMemo(() => {
-    const anosConsiderados = Array.from({ length: prazoContratualTotalAnos }, (_, index) => index + 1)
-
-    const linhas = anosConsiderados.map((ano) => {
-      const fator = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, ano - 1))
-      const tarifaAno = tarifaCheiaBase * fator
-      const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
-      const tusdMedio = tusdMedioPorAno[ano] ?? 0
-      const mensalidade = energiaContratadaBase * tarifaComDesconto + tusdMedio
-      const contaDistribuidora = energiaContratadaBase * tarifaAno
-      return {
-        ano,
-        tarifaCheiaAno: tarifaAno,
-        tarifaComDesconto,
-        contaDistribuidora,
-        mensalidade,
-      }
-    })
-
-    const anosTusdOrdenados = Object.keys(tusdMedioPorAno)
-      .map((chave) => Number(chave))
-      .filter((valor) => Number.isFinite(valor) && valor > 0)
-      .sort((a, b) => a - b)
-
-    let tusdPosContrato = 0
-    for (let index = anosTusdOrdenados.length - 1; index >= 0; index -= 1) {
-      const ano = anosTusdOrdenados[index]
-      if (ano <= prazoContratualTotalAnos) {
-        const valorTusd = tusdMedioPorAno[ano]
-        if (Number.isFinite(valorTusd)) {
-          tusdPosContrato = Math.max(0, valorTusd ?? 0)
-          break
-        }
-      }
-    }
-
-    const anoPosContrato = prazoContratualTotalAnos + 1
-    const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
-    const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
-    const contaDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
-
-    linhas.push({
-      ano: anoPosContrato,
-      tarifaCheiaAno: tarifaAnoPosContrato,
-      tarifaComDesconto: tarifaAnoPosContrato,
-      contaDistribuidora: contaDistribuidoraPosContrato,
-      mensalidade: 0,
-    })
-
-    return linhas
-  }, [
-    descontoFracao,
-    energiaContratadaBase,
-    inflacaoEnergiaFracao,
-    prazoContratualTotalAnos,
-    taxaMinimaMensal,
-    tusdMedioPorAno,
-    tarifaCheiaBase,
-  ])
-
-  const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
-  const prazoEconomiaMeses = prazoContratualMeses
-
-  const economiaMarcos = useMemo(() => {
-    const alvos = anosAlvoEconomia(prazoEconomiaMeses)
-
-    if (anos.length === 0) {
-      return alvos
-    }
-
-    const anosDisponiveis = new Set(anos)
-    const filtrados = alvos.filter((ano) => anosDisponiveis.has(ano))
-
-    return filtrados.length > 0 ? filtrados : alvos
-  }, [anos, prazoEconomiaMeses])
-
-  const economiaProjetada = useMemo(() => {
-    const serie = calcularEconomiaAcumuladaPorAnos(
-      economiaMarcos,
-      (ano) => leasingROI[ano - 1] ?? 0,
-    )
-
-    return serie.map((row, index) => {
-      const acumuladoAnterior = index > 0 ? serie[index - 1].economiaAcumulada : 0
-      return {
-        ano: row.ano,
-        acumulado: row.economiaAcumulada,
-        economiaAnual: row.economiaAcumulada - acumuladoAnterior,
-      }
-    })
-  }, [economiaMarcos, leasingROI])
-
-  const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
-  const economiaProjetadaGrafico = useMemo(() => {
-    if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
-      return []
-    }
-
-    const totalAnos = leasingROI.length
-    const obterBeneficioPorAno = (ano: number): number => {
-      if (!Number.isFinite(ano) || ano <= 0) {
-        return 0
-      }
-
-      const indice = Math.min(totalAnos, Math.max(1, Math.ceil(ano))) - 1
-      return leasingROI[indice] ?? 0
-    }
-
-    const destinos: Array<{ ano: number; tipo: 'prazo' | 'posPrazo' | 'marco' }> = []
-
-    if (prazoContratualAnos > 0) {
-      destinos.push({ ano: prazoContratualAnos, tipo: 'prazo' })
-      destinos.push({ ano: prazoContratualAnos + 1, tipo: 'posPrazo' })
-    }
-
-    destinos.push(
-      { ano: 10, tipo: 'marco' },
-      { ano: 15, tipo: 'marco' },
-      { ano: 20, tipo: 'marco' },
-      { ano: 30, tipo: 'marco' },
-    )
-
-    const vistos = new Set<number>()
-
-    return destinos.reduce<{ ano: number; label: string; acumulado: number }[]>((acc, destino) => {
-      const { ano, tipo } = destino
-      if (!Number.isFinite(ano) || ano <= 0) {
-        return acc
-      }
-
-      const chave = Number(ano.toFixed(4))
-      if (vistos.has(chave)) {
-        return acc
-      }
-
-      vistos.add(chave)
-
-      const beneficioBase = obterBeneficioPorAno(ano)
-      const deveAdicionarUsina = valorMercadoUsina > 0 && prazoContratualAnos > 0 && ano >= prazoContratualAnos
-      const beneficioTotal = deveAdicionarUsina ? beneficioBase + valorMercadoUsina : beneficioBase
-
-      let label = formatAnosDetalhado(ano)
-
-      if (tipo === 'prazo') {
-        label = `${label} (prazo do leasing)`
-      } else if (tipo === 'posPrazo') {
-        label = `${label} (após o prazo)`
-      }
-
-      acc.push({ ano, label, acumulado: Math.max(0, beneficioTotal) })
-      return acc
-    }, [])
-  }, [leasingROI, prazoContratualAnos, valorMercadoUsina])
-
-  const maxBeneficioGrafico = useMemo(
-    () => economiaProjetadaGrafico.reduce((maior, item) => Math.max(maior, item.acumulado), 0),
-    [economiaProjetadaGrafico],
-  )
-
-  const prazoContratualMesesTexto = useMemo(
-    () => formatPrazoContratualMesesCurto(prazoContratualMeses),
-    [prazoContratualMeses],
-  )
-  const heroSummary = `Você já paga pela energia todos os meses — agora pode transformar esse gasto em investimento. Com o Leasing SolarInvest, a SolarInvest realiza todo o investimento na sua usina, enquanto você paga apenas pela energia gerada, com desconto e previsibilidade. Desde o primeiro mês, sua conta cai e, ao completar ${prazoContratualMesesTexto}, a usina passa a ser 100% sua — um patrimônio que valoriza o seu imóvel e sua liberdade financeira.`
-  const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
-  const economiaExplainer: React.ReactNode = beneficioAno30 ? (
-    <>
-      Em 30 anos de geração solar, sua economia pode alcançar{' '}
-      <strong>{currency(beneficioAno30.acumulado)}</strong> — um retorno sustentável, previsível e duradouro.
-    </>
-  ) : (
-    <>Economia que continua crescendo mesmo após o contrato, com previsibilidade e segurança para o seu patrimônio energético.</>
-  )
-  const informacoesImportantesObservacaoTexto = useMemo(() => {
-    if (typeof informacoesImportantesObservacao !== 'string') {
-      return null
-    }
-
-    const texto = informacoesImportantesObservacao.trim()
-    if (!texto || texto === INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO) {
-      return null
-    }
-
-    return texto
-  }, [informacoesImportantesObservacao])
-  const configuracaoUsinaObservacoesTexto = useMemo(() => {
-    if (typeof configuracaoUsinaObservacoes !== 'string') {
-      return null
-    }
-
-    const texto = configuracaoUsinaObservacoes.trim()
-    return texto || null
-  }, [configuracaoUsinaObservacoes])
-  const configuracaoUsinaObservacoesParagrafos = useMemo(() => {
-    if (!configuracaoUsinaObservacoesTexto) {
-      return []
-    }
-
-    return configuracaoUsinaObservacoesTexto
-      .split(/\r?\n\r?\n+/)
-      .map((paragrafo) => paragrafo.trim())
-      .filter(Boolean)
-  }, [configuracaoUsinaObservacoesTexto])
+  const economiaAno1Label = economiaAno1Valor != null ? formatMoneyBR(economiaAno1Valor) : '—'
+  const economiaTotalLabel = economiaTotalValor != null ? formatMoneyBR(economiaTotalValor) : '—'
 
   return (
     <div ref={ref} className="print-root">
-      <div
-        className="print-layout leasing-print-layout"
-        data-print-section="proposal"
-        aria-hidden="false"
-      >
+      <div className="print-layout leasing-print-layout" data-print-section="proposal" aria-hidden="false">
         <div className="print-page">
-          <section className="print-section print-section--hero avoid-break">
-            <div className="print-hero">
-              <div className="print-hero__header">
-                <div className="print-hero__identity">
-                  <div className="print-hero__brand">
-                    <img src="/proposal-header-logo.svg" alt="Logo SolarInvest" />
-                    <span className="print-hero__brand-name">SolarInvest</span>
-                  </div>
-                  <div className="print-hero__title">
-                    <div className="print-hero__headline">
-                      <p className="print-hero__aspiration">
-                        Transforme sua conta de luz em investimento — sem gastar nada para começar.
-                      </p>
-                      <h1>🌞 SUA PROPOSTA PERSONALIZADA DE ENERGIA SOLAR</h1>
-                      <p className="print-hero__subheadline">
-                        💡 Leasing SolarInvest – Economia imediata e usina 100% sua ao final
-                      </p>
-                    </div>
-                    <p className="print-hero__tagline">
-                      Energia inteligente, sustentável e com economia garantida desde o 1º mês.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="print-hero__divider" aria-hidden="true" />
-              <div className="print-hero__meta">
-                <div className="print-hero__meta-item">
-                  <small>Código do orçamento: </small>
-                  <strong>{codigoOrcamento || '—'}</strong>
-                </div>
-              </div>
-              <div className="print-hero__summary no-break-inside">
-                <p>{heroSummary}</p>
-                <div className="print-hero__benefits">
-                  <p className="print-hero__benefits-title">💡 Benefícios SolarInvest</p>
-                  <ul>
-                    <li>
-                      ✅ Economia garantida desde o 1º mês
-                    </li>
-                    <li>
-                      ✅ Investimento 100% feito pela SolarInvest
-                    </li>
-                    <li>
-                      ✅ Manutenção, seguro e suporte inclusos
-                    </li>
-                    <li>
-                      ✅ Transferência gratuita da usina após {prazoContratualMesesTexto}
-                    </li>
-                    <li>
-                      ✅ Energia limpa e valorização do seu imóvel
-                    </li>
-                  </ul>
-                </div>
-                <div className="print-hero__progress" role="img" aria-label="Etapas até a propriedade da usina">
-                  <div className="print-hero__progress-step">
-                    <span className="print-hero__progress-icon">1</span>
-                    <span className="print-hero__progress-label">Assinatura</span>
-                  </div>
-                  <span className="print-hero__progress-arrow" aria-hidden="true">➜</span>
-                  <div className="print-hero__progress-step">
-                    <span className="print-hero__progress-icon">2</span>
-                    <span className="print-hero__progress-label">Instalação</span>
-                  </div>
-                  <span className="print-hero__progress-arrow" aria-hidden="true">➜</span>
-                  <div className="print-hero__progress-step">
-                    <span className="print-hero__progress-icon">3</span>
-                    <span className="print-hero__progress-label">Propriedade da usina</span>
-                  </div>
-                </div>
+          <header className="print-header">
+            <div className="print-header__brand">
+              <img src="/proposal-header-logo.svg" alt="Logo SolarInvest" />
+              <div className="print-header__titles">
+                <p className="print-header__headline">Proposta Comercial SolarInvest</p>
+                <p className="print-header__subtitle">Leasing com operação completa, manutenção e suporte incluídos</p>
               </div>
             </div>
-          </section>
-    
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
-            <ClientInfoGrid
-              fields={resumoCampos}
-              className="print-client-grid no-break-inside"
-              fieldClassName="print-client-field"
-              wideFieldClassName="print-client-field--wide"
-            />
+          </header>
+
+          <section className="print-section keep-together" id="dados-cliente">
+            <h2 className="section-title">Dados do Cliente</h2>
+            <ul className="print-info-list">
+              <li>
+                <strong>Cliente:</strong> {clienteNome}
+              </li>
+              <li>
+                <strong>CPF/CNPJ:</strong> {documentoCliente}
+              </li>
+              <li>
+                <strong>Endereço:</strong> {enderecoCompleto}
+              </li>
+              <li>
+                <strong>UC (Unidade Consumidora):</strong> {unidadeConsumidora}
+              </li>
+            </ul>
           </section>
 
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Dados da Instalação</h2>
-            <div className="print-uc-details">
-              <div className="print-uc-geradora">
-                <h3 className="print-uc-heading">UC Geradora</h3>
-                <p className="print-uc-text">
-                  UC nº {ucGeradoraNumeroLabel} — {ucGeradoraEnderecoLabel}
-                </p>
-              </div>
-              {hasBeneficiarias ? (
-                <div className="print-uc-beneficiarias">
-                  <h4 className="print-uc-beneficiarias-title">UCs Beneficiárias</h4>
-                  <ul className="print-uc-beneficiarias-list">
-                    {ucsBeneficiariasLista.map((uc, index) => {
-                      const rateioLabel = formatRateioLabel(uc.rateioPercentual)
-                      return (
-                        <li key={`${uc.numero || 'uc'}-${index}`}>
-                          UC nº {uc.numero || '—'}
-                          {uc.endereco ? ` — ${uc.endereco}` : ''}
-                          {rateioLabel ? ` — Rateio: ${rateioLabel}` : ''}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          <section
-            id="resumo-proposta"
-            className="print-section keep-together avoid-break page-break-before break-after"
-          >
-            <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
-            <p className="section-subtitle keep-with-next">
-              Tudo o que você precisa saber — de forma simples e transparente.
-            </p>
-            <table className="no-break-inside">
-              <thead>
-                <tr>
-                  <th>Parâmetro</th>
-                  <th>Descrição</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumoProposta.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-    
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
-            <p className="section-subtitle keep-with-next">Configuração técnica do sistema proposto</p>
-            <table className="no-break-inside">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Descrição/Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {especificacoesUsina.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-    
-          <section
-            id="condicoes-financeiras"
-            className="print-section keep-together avoid-break page-break-before break-after"
-          >
-            <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
-            <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
-            <table className="no-break-inside">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Descrição/Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {condicoesFinanceiras.map((item) => (
-                  <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td className="leasing-table-value">{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-    
-          {multiUcResumoDados ? (
-            <section id="multi-uc" className="print-section keep-together">
-              <h2 className="section-title keep-with-next">Cenário Misto (Multi-UC)</h2>
-              <p className="section-subtitle keep-with-next">
-                Distribuição dos créditos de energia entre unidades consumidoras
-              </p>
-              <div className="print-key-values">
-                <p>
-                  <strong>Energia gerada total</strong>
-                  {formatKwhValor(multiUcResumoDados.energiaGeradaTotalKWh, 0)}
-                </p>
-                <p>
-                  <strong>Energia compensada</strong>
-                  {formatKwhValor(multiUcResumoDados.energiaGeradaUtilizadaKWh, 0)}
-                </p>
-                <p>
-                  <strong>Créditos remanescentes</strong>
-                  {formatKwhValor(multiUcResumoDados.sobraCreditosKWh)}
-                </p>
-                <p>
-                  <strong>{`Escalonamento Fio B (${multiUcResumoDados.anoVigencia})`}</strong>
-                  {multiUcEscalonamentoTexto ?? '—'}
-                </p>
-                <p>
-                  <strong>Encargo TUSD (R$/mês)</strong>
-                  {currency(multiUcResumoDados.totalTusd)}
-                </p>
-                <p>
-                  <strong>Encargo TE (R$/mês)</strong>
-                  {currency(multiUcResumoDados.totalTe)}
-                </p>
-                <p>
-                  <strong>Custo total mensal (R$)</strong>
-                  {currency(multiUcResumoDados.totalContrato)}
-                </p>
-                <p>
-                  <strong>Modo de rateio</strong>
-                  {multiUcRateioDescricao ?? '—'}
-                </p>
-              </div>
-              <table className="no-break-inside">
-                <thead>
-                  <tr>
-                    <th>UC</th>
-                    <th>Classe</th>
-                    <th>Consumo (kWh)</th>
-                    <th>Créditos (kWh)</th>
-                    <th>kWh faturados</th>
-                    <th>kWh compensados</th>
-                    <th>TE (R$/kWh)</th>
-                    <th>TUSD total (R$/kWh)</th>
-                    <th>TUSD Fio B (R$/kWh)</th>
-                    <th>TUSD mensal (R$)</th>
-                    <th>TE mensal (R$)</th>
-                    <th>Total mensal (R$)</th>
-                    <th>Observações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {multiUcResumoDados.ucs.map((uc) => (
-                    <tr key={uc.id}>
-                      <td>{uc.id}</td>
-                      <td>{uc.classe}</td>
-                      <td className="leasing-table-value">{formatKwhValor(uc.consumoKWh)}</td>
-                      <td className="leasing-table-value">
-                        <div>{formatKwhValor(uc.creditosKWh)}</div>
-                        <small className="muted">
-                          {multiUcResumoDados.distribuicaoPorPercentual
-                            ? `Rateio: ${formatPercentBRWithDigits((uc.rateioPercentual ?? 0) / 100, 2)}`
-                            : uc.manualRateioKWh != null
-                            ? `Manual: ${formatKwhValor(uc.manualRateioKWh)}`
-                            : '—'}
-                        </small>
-                      </td>
-                      <td className="leasing-table-value">{formatKwhValor(uc.kWhFaturados)}</td>
-                      <td className="leasing-table-value">{formatKwhValor(uc.kWhCompensados)}</td>
-                      <td className="leasing-table-value">{tarifaCurrency(uc.te)}</td>
-                      <td className="leasing-table-value">{tarifaCurrency(uc.tusdTotal)}</td>
-                      <td className="leasing-table-value">{tarifaCurrency(uc.tusdFioB)}</td>
-                      <td className="leasing-table-value">{currency(uc.tusdMensal)}</td>
-                      <td className="leasing-table-value">{currency(uc.teMensal)}</td>
-                      <td className="leasing-table-value">{currency(uc.totalMensal)}</td>
-                      <td className="leasing-table-value">{uc.observacoes?.trim() || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="muted no-break-inside">
-                TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
-                escalonamento vigente.
-              </p>
-            </section>
-          ) : null}
-    
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Veja como sua conta de luz cai mês a mês</h2>
-            <p className="section-subtitle keep-with-next">
-              Veja como sua conta de luz cai mês a mês — e como sua economia cresce automaticamente conforme a tarifa da
-              distribuidora aumenta.
-            </p>
-            <table className="no-break-inside">
-              <thead>
-                <tr>
-                  <th>Período</th>
-                  <th>Tarifa cheia média</th>
-                  <th>Tarifa com desconto média</th>
-                  <th>Conta distribuidora (R$)</th>
-                  <th>Mensalidade SolarInvest (R$)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mensalidadesPorAno.map((linha) => (
-                  <tr key={`mensalidade-${linha.ano}`}>
-                    <td>{`${linha.ano}º ano`}</td>
-                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
-                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
-                    <td className="leasing-table-value">{currency(linha.contaDistribuidora)}</td>
-                    <td className="leasing-table-value">{currency(linha.mensalidade)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <section className="print-section keep-together" id="apresentacao">
+            <h2 className="section-title">Apresentação da Proposta</h2>
             <p>
-              A cada mês, você paga menos à distribuidora e caminha rumo à posse integral da sua própria usina de energia.
-              A SolarInvest garante que o desconto contratado permanecerá estável durante toda a vigência.
+              A SolarInvest agradece a oportunidade de apresentar esta proposta de fornecimento de energia solar em modelo de
+              leasing, com operação completa, manutenção, seguro e suporte técnico durante toda a vigência do contrato.
             </p>
-            <p className="muted print-footnote">
-              <strong>
-                <em>
-                  A partir do {`${prazoContratualTotalAnos + 1}º ano`}, a conta da distribuidora passa a contemplar apenas
-                  TUSD, taxa mínima e iluminação pública para sistemas on-grid.
-                </em>
-              </strong>
+            <p>Esta proposta foi desenvolvida com base:</p>
+            <ul>
+              <li>Nas informações fornecidas pelo cliente;</li>
+              <li>No histórico de consumo da unidade consumidora;</li>
+              <li>Na tarifa vigente da distribuidora local;</li>
+              <li>Na análise técnica preliminar do local de instalação.</li>
+            </ul>
+            <p>
+              Todos os valores apresentados são simulações que podem variar conforme tarifação, condições climáticas e consumo
+              real.
             </p>
           </section>
 
-          <section
-            id="economia-30-anos"
-            className="print-section keep-together page-break-before break-after"
-          >
-            <h2 className="section-title keep-with-next">Seu patrimônio energético cresce mês a mês</h2>
-            {economiaProjetadaGrafico.length ? (
-              <>
-                <p className="section-subtitle keep-with-next">
-                  O que antes era custo, agora se transforma em retorno e valorização.
-                </p>
-                <p className="section-intro keep-with-next">
-                  Cada mês de geração representa economia crescente e tranquilidade financeira. Em apenas {prazoContratualMesesTexto},
-                  a usina será sua, e a economia continuará aumentando por décadas.
-                </p>
-                <div
-                  className="leasing-horizontal-chart no-break-inside"
-                  role="img"
-                  aria-label="Economia projetada em 30 anos"
-                >
-                  <div className="leasing-horizontal-chart__header-row">
-                    <span className="leasing-horizontal-chart__axis-y-label">Tempo (anos)</span>
-                    <span className="leasing-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
-                  </div>
-                  <div className="leasing-horizontal-chart__rows">
-                    {economiaProjetadaGrafico.map((linha) => {
-                      const percentual = maxBeneficioGrafico > 0 ? (linha.acumulado / maxBeneficioGrafico) * 100 : 0
-                      return (
-                        <div
-                          className="leasing-horizontal-chart__row"
-                          key={`grafico-economia-${linha.ano.toFixed(2)}`}
-                        >
-                          <div className="leasing-horizontal-chart__y-value">{linha.label}</div>
-                          <div className="leasing-horizontal-chart__bar-track" aria-hidden="true">
-                            <div
-                              className="leasing-horizontal-chart__bar"
-                              style={{ width: `${percentual}%` }}
-                            />
-                          </div>
-                          <div className="leasing-horizontal-chart__value">{formatMoneyBR(linha.acumulado)}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-                <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
-              </>
-            ) : (
-              <p className="muted no-break-inside">
-                Não há dados suficientes para projetar a economia acumulada desta proposta.
-              </p>
-            )}
-          </section>
+          <section className="print-section keep-together" id="resumo-solucao">
+            <h2 className="section-title">Resumo da Solução Proposta</h2>
+            <div className="print-subsection">
+              <h3 className="print-subheading">Sistema Fotovoltaico</h3>
+              <ul>
+                <li>Potência instalada estimada: {potenciaInstalada}</li>
+                <li>Módulos: {modulosDescricao}</li>
+                <li>Inversores: {inversoresDescricao}</li>
+                <li>Arquitetura: On-Grid / Híbrido (definida conforme viabilidade técnica)</li>
+              </ul>
+            </div>
 
-          <PrintableProposalImages images={imagensInstalacao} />
-
-          {configuracaoUsinaObservacoesParagrafos.length > 0 ? (
-            <section
-              id="observacoes-configuracao"
-              className="print-section keep-together avoid-break"
-            >
-              <h2 className="section-title keep-with-next">Observações</h2>
-              <div className="print-observacoes no-break-inside">
-                {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
-                  const linhas = paragrafo.split(/\r?\n/)
-                  return (
-                    <p
-                      key={`observacao-configuracao-${index}`}
-                      className="print-observacoes__paragraph"
-                    >
-                      {linhas.map((linha, linhaIndex) => (
-                        <React.Fragment
-                          key={`observacao-configuracao-${index}-linha-${linhaIndex}`}
-                        >
-                          {linha}
-                          {linhaIndex < linhas.length - 1 ? <br /> : null}
-                        </React.Fragment>
-                      ))}
-                    </p>
-                  )
-                })}
-              </div>
-            </section>
-          ) : null}
-
-          <section
-            id="infos-importantes"
-            className="print-section print-important keep-together page-break-before break-after"
-          >
-            <h2 className="section-title keep-with-next">Informações Importantes</h2>
-            <p className="section-subtitle keep-with-next">
-              <strong>Responsabilidades, garantias e condições gerais</strong>
-            </p>
-            <div className="print-important__box no-break-inside">
+            <div className="print-subsection">
+              <h3 className="print-subheading">Energia Estimada</h3>
+              <ul>
+                <li>Geração mensal estimada: {geracaoEstimativa}</li>
+                <li>Energia contratada no modelo de leasing: {energiaContratada}</li>
+              </ul>
               <p>
-                <strong className="clause-title">1. Operação e Suporte</strong>
-                <br />
-                A SolarInvest é responsável pela operação, manutenção, seguro e suporte técnico durante todo o contrato.
-              </p>
-
-              <p>
-                <strong className="clause-title">2. Qualidade dos Equipamentos</strong>
-                <br />
-                Todos os equipamentos são certificados pelo INMETRO e instalados conforme normas da ANEEL, ABNT e da distribuidora.
-              </p>
-
-              <p>
-                <strong className="clause-title">3. Disponibilidade de Equipamentos</strong>
-                <br />
-                Itens indisponíveis poderão ser substituídos por equivalentes ou superiores, sem custo e sem alteração de desempenho.
-              </p>
-
-              <p>
-                <strong className="clause-title">4. Valores e Simulações</strong>
-                <br />
-                As mensalidades e estimativas desta proposta consideram tarifas vigentes e histórico de consumo. O contrato definitivo formaliza os valores finais.
-              </p>
-
-              <p>
-                <strong className="clause-title">5. Natureza Estimativa da Proposta</strong>
-                <br />
-                As informações desta proposta têm caráter estimativo e podem ser ajustadas antes, durante ou após a instalação, conforme condições reais do local, limitações estruturais, exigências da distribuidora, fatores técnicos da geração fotovoltaica ou qualquer outra variável que influencie o projeto. Tais ajustes podem alterar configurações, quantidades ou parâmetros técnicos, sem alterar o desconto contratado.
-              </p>
-
-              <p>
-                <strong className="clause-title">6. Instalação e Adequações Técnicas</strong>
-                <br />
-                Para instalações em solo, telhados especiais ou locais que exijam estruturas adicionais, a SolarInvest apresentará orçamento complementar.
-                <br />
-                Se a unidade consumidora exigir adequações técnicas — como melhorias de rede, padrão, fase, potência disponibilizada, ramal ou obras civis — os custos serão do contratante.
-                <br />
-                A SolarInvest pode, a seu critério, incluir parte dessas adequações no leasing, o que pode alterar o desconto ou o prazo. Não há garantia de inclusão.
-              </p>
-
-              <p>
-                <strong className="clause-title">7. Conformidade da Unidade Consumidora (UC)</strong>
-                <br />
-                A instalação depende de a UC atender às normas da distribuidora, ANEEL e ABNT. Eventuais correções são responsabilidade do contratante.
-              </p>
-
-              <p>
-                <strong className="clause-title">8. Regularização e Titularidade da UC</strong>
-                <br />
-                O processo junto à distribuidora inicia-se somente após a UC estar regularizada e, quando aplicável, com titularidade atualizada. Pendências devem ser resolvidas previamente pelo contratante.
-              </p>
-
-              <p>
-                <strong className="clause-title">9. Ajuste da Energia Contratada (Kc)</strong>
-                <br />
-                Se limitações de área, sombreamento ou estrutura reduzirem a geração prevista, a energia contratada será ajustada para refletir a capacidade real da usina. O desconto contratado sobre o valor do kWh da distribuidora não se altera.
-              </p>
-
-              <p>
-                <strong className="clause-title">10. Compra Antecipada (Buyout)</strong>
-                <br />
-                A tabela de compra antecipada está disponível mediante solicitação ao consultor SolarInvest.
-              </p>
-
-              <p>
-                <strong className="clause-title">11. Transferência de Propriedade</strong>
-                <br />
-                Ao final do contrato, estando todas as obrigações quitadas, a usina será transferida ao contratante sem custo adicional.
+                Observação: A energia contratada poderá ser ajustada conforme limitações de área, inclinação, sombreamento ou
+                condições estruturais. Esse ajuste não altera a forma de cálculo da mensalidade, apenas ajusta a energia
+                efetivamente gerada e compensada para o cliente.
               </p>
             </div>
-            {informacoesImportantesObservacaoTexto ? (
-              <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
-            ) : null}
           </section>
-    
-          <section className="print-section print-section--footer no-break-inside avoid-break">
-            <footer className="print-final-footer no-break-inside">
-              <div className="print-final-footer__dates">
-                <p>
-                  <strong>Data de emissão da proposta:</strong> {emissaoTexto}
-                </p>
-              </div>
-              <p className="print-final-footer__closing">
-                Com esta proposta, você dá o primeiro passo rumo à independência energética e financeira. Em apenas{' '}
-                {prazoContratualMesesTexto}, sua própria usina estará gerando lucro, tranquilidade e valorizando o seu imóvel.
-              </p>
-              <p className="print-final-footer__cta">
-                Vamos transformar sua conta de luz em investimento? Confirme seu interesse e agendaremos sua instalação sem
-                nenhum custo inicial.
-              </p>
-              <div className="print-final-footer__signature">
-                <div className="signature-line" />
-                <span>Assinatura do cliente</span>
-                <p className="print-final-footer__signature-note">
-                  Ao assinar esta proposta, o cliente apenas manifesta sua intenção de contratar com a SolarInvest. Este
-                  documento não constitui contrato nem gera obrigações firmes para nenhuma das partes.
-                </p>
-              </div>
-            </footer>
 
-            <div className="print-brand-footer no-break-inside">
+          <section className="print-section keep-together" id="mensalidade-estimada">
+            <h2 className="section-title">Mensalidade Estimada</h2>
+            <p>A mensalidade do leasing é calculada considerando:</p>
+            <ul>
+              <li>O valor atual da tarifa da distribuidora;</li>
+              <li>A parcela de energia que será compensada pelo sistema;</li>
+              <li>O histórico de reajustes da distribuidora;</li>
+              <li>A projeção de geração ao longo dos meses.</li>
+            </ul>
+
+            <div className="print-key-values">
+              <p>
+                <strong>Tarifa-base atual:</strong> {tarifaBaseLabel}
+              </p>
+              <p>
+                <strong>Mensalidade estimada:</strong> {mensalidadeEstimativaLabel}
+              </p>
+              <p>
+                <strong>Prazo contratual:</strong> {PRAZO_LEASING_MESES} meses
+              </p>
+              <p>
+                <strong>Previsão de ativação:</strong> {dataInicio}
+              </p>
+            </div>
+            <p className="print-highlight">
+              <strong>Importante:</strong> a mensalidade é uma estimativa que acompanha os reajustes tarifários da distribuidora,
+              já que o valor do kWh não é definido pela SolarInvest.
+            </p>
+            {legalFooter}
+          </section>
+
+          <section className="print-section keep-together" id="economia-estimada">
+            <h2 className="section-title">Economia Estimada</h2>
+            <p>Com base no consumo informado e na tarifa vigente, estimamos:</p>
+            <ul>
+              <li>Economia estimada no primeiro ano: {economiaAno1Label}</li>
+              <li>Economia estimada ao longo de 60 meses: {economiaTotalLabel}</li>
+            </ul>
+            <p>
+              As economias apresentadas são projeções baseadas em dados históricos e comportamento tarifário. Podem variar
+              conforme consumo real, bandeiras tarifárias e condições climáticas.
+            </p>
+            {legalFooter}
+          </section>
+
+          <section className="print-section keep-together" id="informacoes-importantes">
+            <h2 className="section-title">Informações Importantes (Responsabilidades, Garantias e Condições Gerais)</h2>
+
+            <div className="print-subsection">
+              <h3 className="print-subheading">Operação e Suporte Técnico</h3>
+              <p>Durante a vigência do contrato, a SolarInvest assume integralmente:</p>
+              <ul>
+                <li>Operação da usina;</li>
+                <li>Monitoramento remoto;</li>
+                <li>Manutenção preventiva e corretiva;</li>
+                <li>Seguro contra danos elétricos, incêndio, vendaval, queda de raio e roubo, conforme apólice vigente;</li>
+                <li>Substituição de componentes quando necessário;</li>
+                <li>Atendimento técnico especializado.</li>
+              </ul>
+            </div>
+
+            <div className="print-subsection">
+              <h3 className="print-subheading">Qualidade dos Equipamentos</h3>
+              <p>Todos os equipamentos utilizados são certificados pelo INMETRO e instalados conforme:</p>
+              <ul>
+                <li>Normas da ANEEL;</li>
+                <li>Normas da ABNT aplicáveis;</li>
+                <li>Requisitos da distribuidora local.</li>
+              </ul>
+            </div>
+
+            <div className="print-subsection">
+              <h3 className="print-subheading">Projeções e Simulações</h3>
+              <p>As informações de geração, economia e mensalidade são estimativas, elaboradas a partir de:</p>
+              <ul>
+                <li>Tarifas vigentes;</li>
+                <li>Dados históricos da distribuidora;</li>
+                <li>Consumo informado pelo cliente;</li>
+                <li>Condições climáticas médias da região.</li>
+              </ul>
+              <p>
+                Não há garantia de economia fixa, pois a tarifa de energia, as bandeiras tarifárias e o consumo variam
+                mensalmente.
+              </p>
+            </div>
+
+            <div className="print-subsection">
+              <h3 className="print-subheading">Reajustes Tarifários</h3>
+              <p>A distribuidora de energia pode aplicar:</p>
+              <ul>
+                <li>Reajustes anuais homologados pela ANEEL;</li>
+                <li>Reajustes extraordinários;</li>
+                <li>Bandeiras tarifárias.</li>
+              </ul>
+              <p>Esses fatores impactam diretamente:</p>
+              <ul>
+                <li>O valor final da mensalidade;</li>
+                <li>A economia estimada;</li>
+                <li>O comparativo com a conta tradicional de energia.</li>
+              </ul>
+              <p>A SolarInvest não controla os valores das tarifas da distribuidora.</p>
+            </div>
+
+            <div className="print-subsection">
+              <h3 className="print-subheading">Geração e Condições Técnicas</h3>
+              <p>A geração final do sistema pode ser influenciada por:</p>
+              <ul>
+                <li>Estações do ano e variações climáticas;</li>
+                <li>Sombreamento ocasional ou permanente;</li>
+                <li>Poeira, sujeira ou obstruções nos módulos;</li>
+                <li>Degradação natural dos equipamentos;</li>
+                <li>Condições estruturais reais encontradas no local.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section className="print-section keep-together" id="garantia-performance">
+            <h2 className="section-title">Garantia de Performance</h2>
+            <p>
+              A SolarInvest projeta a usina para gerar, anualmente, a energia prevista nesta proposta, considerando ciclos de 12
+              meses consecutivos, desde que:
+            </p>
+            <ul>
+              <li>
+                Não ocorram obstruções inesperadas (novas construções, árvores, antenas, reformas) que causem sombreamento
+                relevante;
+              </li>
+              <li>O cliente não altere a estrutura ou o layout da cobertura sem comunicação prévia;</li>
+              <li>O sistema esteja operando dentro dos limites técnicos e climáticos previstos para a região.</li>
+            </ul>
+          </section>
+
+          <section className="print-section keep-together" id="opcao-compra">
+            <h2 className="section-title">Opção de Compra ao Final ou Durante o Contrato</h2>
+            <p>
+              Ao final do prazo contratual (60 meses), a propriedade do sistema passa automaticamente para o cliente, sem custo
+              adicional, conforme condições do contrato.
+            </p>
+            <div className="print-subsection">
+              <h3 className="print-subheading">Compra antecipada</h3>
+              <p>
+                O cliente poderá solicitar a compra antecipada do sistema a partir do 7º mês de vigência do contrato. O valor
+                será calculado considerando, entre outros parâmetros:
+              </p>
+              <ul>
+                <li>Valor de mercado atualizado do sistema;</li>
+                <li>Tempo de uso;</li>
+                <li>Investimento remanescente;</li>
+                <li>Atualização econômica;</li>
+                <li>Parcelas já pagas até a data da solicitação.</li>
+              </ul>
+              <p>
+                Após a compra antecipada, a SolarInvest deixa de ser responsável por manutenção, seguro e operação do sistema,
+                que passa a ser de propriedade integral do cliente.
+              </p>
+            </div>
+          </section>
+
+          <section className="print-section keep-together" id="proximos-passos">
+            <h2 className="section-title">Próximos Passos</h2>
+            <p>Para seguirmos com a implantação da usina solar, são necessários os seguintes passos:</p>
+            <ol>
+              <li>Assinatura eletrônica do contrato de leasing;</li>
+              <li>Envio da documentação pessoal ou empresarial solicitada;</li>
+              <li>Vistoria técnica detalhada e validação do projeto junto à distribuidora;</li>
+              <li>Instalação da usina conforme cronograma acordado;</li>
+              <li>Homologação e ativação do sistema de compensação de energia elétrica.</li>
+            </ol>
+          </section>
+
+          <section className="print-section print-section--footer no-break-inside">
+            {legalFooter}
+            <div className="print-brand-footer">
               <strong>SolarInvest</strong>
-              <span>Transformando economia mensal e patrimônio real</span>
+              <span>Transformando economia mensal em patrimônio real</span>
             </div>
           </section>
         </div>
