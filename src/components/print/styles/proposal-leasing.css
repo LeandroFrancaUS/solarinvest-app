@@ -503,22 +503,23 @@
   color: #0c162c;
 }
 
+
 .leasing-table-positive {
-  background: #c7f0d5;
-  color: #0f4d2d;
-  box-shadow: inset 0 0 0 1px #5dae7d;
+  background: #eef2f7;
+  color: #0f172a;
+  box-shadow: inset 0 0 0 1px #cbd5e1;
 }
 
 .leasing-table-negative {
-  background: #ffc6bd;
+  background: #f5e7e5;
   color: #7f1b1b;
-  box-shadow: inset 0 0 0 1px #e06f63;
+  box-shadow: inset 0 0 0 1px #d6a6a0;
 }
 
 .leasing-table-negative-gradient {
-  background: var(--leasing-negative-bg, #ffc6bd);
+  background: var(--leasing-negative-bg, #f5e7e5);
   color: #7f1b1b;
-  box-shadow: inset 0 0 0 1px var(--leasing-negative-border, #e06f63);
+  box-shadow: inset 0 0 0 1px var(--leasing-negative-border, #d6a6a0);
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
@@ -529,40 +530,40 @@
 
 .leasing-zero-highlight {
   display: inline-block;
-  padding: 4px 6px;
-  background: #fde68a;
-  color: #92400e;
+  padding: 4px 8px;
+  background: #f8fafc;
+  color: #0f172a;
   border-radius: 8px;
   font-weight: 800;
-  box-shadow: inset 0 0 0 1px #f59e0b;
+  box-shadow: inset 0 0 0 1px #1d4ed8;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
 .leasing-row-post-contract td {
-  background: #c7f0d5;
-  color: #0f4d2d;
-  box-shadow: inset 0 0 0 1px rgba(93, 174, 125, 0.82);
+  background: #eef2f7;
+  color: #0f172a;
+  box-shadow: inset 0 0 0 1px #cbd5e1;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(1) {
-  background: #eef9f3;
+  background: #f7f9fc;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(2) {
-  background: #def3e6;
+  background: #edf1f8;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(3) {
-  background: #cdebd8;
+  background: #e5e9f2;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(4) {
-  background: #b6e1c7;
+  background: #dce3ed;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(5) {
-  background: #8fcba9;
+  background: #c7d2e6;
 }
 
 .leasing-highlight-value {
@@ -1273,53 +1274,55 @@
   }
 
   .print-section .leasing-table-positive {
-    background: #c7f0d5 !important;
-    color: #0f4d2d !important;
-    box-shadow: inset 0 0 0 1px #5dae7d !important;
+    background: #eef2f7 !important;
+    color: #0f172a !important;
+    box-shadow: inset 0 0 0 1px #cbd5e1 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
   .print-section .leasing-row-post-contract td {
-    background: #c7f0d5 !important;
-    color: #0f4d2d !important;
-    box-shadow: inset 0 0 0 1px rgba(93, 174, 125, 0.82) !important;
+    background: #eef2f7 !important;
+    color: #0f172a !important;
+    box-shadow: inset 0 0 0 1px #cbd5e1 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
   .print-section .leasing-table-negative-gradient {
-    background: var(--leasing-negative-bg, #ffc6bd) !important;
+    --leasing-negative-bg: #f5e7e5 !important;
+    --leasing-negative-border: #d6a6a0 !important;
+    background: var(--leasing-negative-bg, #f5e7e5) !important;
     color: #7f1b1b !important;
-    box-shadow: inset 0 0 0 1px var(--leasing-negative-border, #e06f63) !important;
+    box-shadow: inset 0 0 0 1px var(--leasing-negative-border, #d6a6a0) !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(1) {
-    background: #eef9f3 !important;
+    background: #f7f9fc !important;
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(2) {
-    background: #def3e6 !important;
+    background: #edf1f8 !important;
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(3) {
-    background: #cdebd8 !important;
+    background: #e5e9f2 !important;
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(4) {
-    background: #b6e1c7 !important;
+    background: #dce3ed !important;
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(5) {
-    background: #8fcba9 !important;
+    background: #c7d2e6 !important;
   }
 
   .print-section .leasing-zero-highlight {
-    background: #fde68a !important;
-    color: #92400e !important;
-    box-shadow: inset 0 0 0 1px #f59e0b !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    box-shadow: inset 0 0 0 1px #1d4ed8 !important;
   }
 
   .print-final-footer,
