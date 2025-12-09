@@ -504,21 +504,21 @@
 }
 
 .leasing-table-positive {
-  background: #82e197;
-  color: #0b3a21;
-  box-shadow: inset 0 0 0 1px #2b7f47;
+  background: #9ce9ac;
+  color: #0f4d2d;
+  box-shadow: inset 0 0 0 1px #3f9b63;
 }
 
 .leasing-table-negative {
-  background: #f5766c;
-  color: #6d1111;
-  box-shadow: inset 0 0 0 1px #cd2b21;
+  background: #ff9d93;
+  color: #7f1b1b;
+  box-shadow: inset 0 0 0 1px #d64f45;
 }
 
 .leasing-row-post-contract td {
-  background: #82e197;
-  color: #0b3a21;
-  box-shadow: inset 0 0 0 1px rgba(43, 127, 71, 0.8);
+  background: #9ce9ac;
+  color: #0f4d2d;
+  box-shadow: inset 0 0 0 1px rgba(63, 155, 99, 0.82);
 }
 
 .leasing-highlight-value {
