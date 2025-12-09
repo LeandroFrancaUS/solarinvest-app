@@ -790,6 +790,29 @@ function PrintableProposalLeasingInner(
     [calcularIntensidadeContaDistribuidora],
   )
 
+  const estiloMensalidade = useCallback(
+    (ano: number): React.CSSProperties | undefined => {
+      const intensidade = calcularIntensidadeContaDistribuidora(ano)
+
+      if (intensidade == null) {
+        return undefined
+      }
+
+      const mix = (inicio: number, fim: number) => Math.round(inicio + (fim - inicio) * intensidade)
+      const background = `rgb(${mix(232, 143)}, ${mix(248, 203)}, ${mix(238, 169)})`
+      const border = `rgb(${mix(195, 79)}, ${mix(230, 142)}, ${mix(209, 106)})`
+
+      return {
+        background,
+        boxShadow: `inset 0 0 0 1px ${border}`,
+        color: '#0f4d2d',
+        ['--leasing-positive-bg' as string]: background,
+        ['--leasing-positive-border' as string]: border,
+      }
+    },
+    [calcularIntensidadeContaDistribuidora],
+  )
+
   const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
   const prazoEconomiaMeses = prazoContratualMeses
   const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
@@ -1260,6 +1283,7 @@ function PrintableProposalLeasingInner(
                 const isMensalidadeZero = linha.mensalidade === 0
 
                 const contaDistribuidoraStyle = estiloContaDistribuidora(linha.ano)
+                const mensalidadeStyle = estiloMensalidade(linha.ano)
 
                 const rowClassName = [
                   isPosPrazo ? 'leasing-row-post-contract' : undefined,
@@ -1285,7 +1309,16 @@ function PrintableProposalLeasingInner(
                     >
                       {currency(linha.contaDistribuidora)}
                     </td>
-                    <td className="leasing-table-value leasing-table-positive">
+                    <td
+                      className={[
+                        'leasing-table-value',
+                        'leasing-table-positive',
+                        mensalidadeStyle ? 'leasing-table-positive-gradient' : undefined,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      style={mensalidadeStyle}
+                    >
                       {isMensalidadeZero ? (
                         <span className="leasing-zero-highlight">{currency(linha.mensalidade)}</span>
                       ) : (
