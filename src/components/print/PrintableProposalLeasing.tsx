@@ -1178,14 +1178,19 @@ function PrintableProposalLeasingInner(
                 </tr>
               </thead>
             <tbody>
-              {mensalidadesPorAno.map((linha) => {
+              {mensalidadesPorAno.map((linha, index) => {
                 const isPosPrazo = linha.ano > prazoContratualTotalAnos
+                const isUltimaLinha = index === mensalidadesPorAno.length - 1
+
+                const rowClassName = [
+                  isPosPrazo ? 'leasing-row-post-contract' : undefined,
+                  isPosPrazo && isUltimaLinha ? 'leasing-row-post-contract--gradient' : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(' ')
 
                 return (
-                  <tr
-                    key={`mensalidade-${linha.ano}`}
-                    className={isPosPrazo ? 'leasing-row-post-contract' : undefined}
-                  >
+                  <tr key={`mensalidade-${linha.ano}`} className={rowClassName || undefined}>
                     <td>{`${linha.ano}º ano`}</td>
                     <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
                     <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
@@ -1194,7 +1199,7 @@ function PrintableProposalLeasingInner(
                   </tr>
                 )
               })}
-              </tbody>
+            </tbody>
             </table>
             <p>
               A mensalidade estimada foi calculada com base na tarifa de energia vigente da distribuidora local. Como a
