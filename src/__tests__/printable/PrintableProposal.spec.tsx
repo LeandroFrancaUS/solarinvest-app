@@ -52,6 +52,7 @@ const createPrintableProps = (overrides: Partial<PrintableProposalProps> = {}): 
   potenciaInstaladaKwp: 6.6,
   tipoInstalacao: 'fibrocimento',
   tipoSistema: 'ON_GRID',
+  tipoRede: 'monofasico',
   areaInstalacao: 15,
   descontoContratualPct: 0,
   parcelasLeasing: [],
