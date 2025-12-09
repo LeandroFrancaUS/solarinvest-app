@@ -174,4 +174,41 @@ describe('calcs utilitários', () => {
 
     expect(comTusd).toBeGreaterThan(semTusd)
   })
+
+  it('ignora taxa mínima e encargos fixos quando a aplicação é desabilitada', () => {
+    const params = {
+      kcKwhMes: 400,
+      tarifaCheia: 1,
+      desconto: 0,
+      inflacaoAa: 0,
+      m: 1,
+      taxaMinima: 120,
+      encargosFixos: 80,
+      entradaRs: 0,
+      prazoMeses: 12,
+      modoEntrada: 'NONE' as const,
+      mesReajuste: 6,
+      mesReferencia: 1,
+      tusdConfig: {
+        percent: 35,
+        tipoCliente: 'residencial' as TipoClienteTUSD,
+        anoReferencia: 2025,
+      },
+    }
+
+    const comTaxa = mensalidadeLiquida({ ...params, aplicaTaxaMinima: true })
+    const semTaxa = mensalidadeLiquida({ ...params, aplicaTaxaMinima: false })
+    const tarifaMes = tarifaDescontada(
+      params.tarifaCheia,
+      params.desconto,
+      params.inflacaoAa,
+      params.m,
+      params.mesReajuste,
+      params.mesReferencia,
+    )
+    const apenasEnergia = params.kcKwhMes * tarifaMes
+
+    expect(comTaxa).toBeGreaterThan(apenasEnergia)
+    expect(semTaxa).toBeCloseTo(apenasEnergia, 6)
+  })
 })

@@ -779,11 +779,18 @@ function PrintableProposalInner(
   const inflacaoResumo = formatPercentFromPct(
     snapshotParametros?.inflacao_energia_aa ?? vendaFormResumo?.inflacao_energia_aa_pct,
   )
-  const taxaMinimaResumo = Number.isFinite(snapshotParametros?.taxa_minima_rs_mes)
-    ? currency(snapshotParametros?.taxa_minima_rs_mes ?? 0)
+  const aplicaTaxaMinima =
+    typeof snapshotParametros?.aplica_taxa_minima === 'boolean'
+      ? snapshotParametros.aplica_taxa_minima
+      : vendaFormResumo?.aplica_taxa_minima ?? true
+  const taxaMinimaNumero = Number.isFinite(snapshotParametros?.taxa_minima_rs_mes)
+    ? snapshotParametros?.taxa_minima_rs_mes ?? 0
     : Number.isFinite(vendaFormResumo?.taxa_minima_mensal)
-    ? currency(vendaFormResumo?.taxa_minima_mensal ?? 0)
-    : '—'
+    ? vendaFormResumo?.taxa_minima_mensal ?? 0
+    : 0
+  const taxaMinimaResumo = aplicaTaxaMinima
+    ? currency(taxaMinimaNumero)
+    : `${currency(0)} • Cliente isento de taxa mínima conforme contrato.`
   const iluminacaoPublicaResumo = Number.isFinite(vendaFormResumo?.taxa_minima_r_mes)
     ? currency(vendaFormResumo?.taxa_minima_r_mes ?? 0)
     : '—'

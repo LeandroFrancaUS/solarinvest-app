@@ -1,4 +1,5 @@
 import { calcTusdEncargoMensal, type TipoClienteTUSD } from '../lib/finance/tusd'
+import { CONSUMO_MINIMO_FICTICIO, type TipoRede } from '../app/config'
 
 /**
  * Conversões e cálculos centrais compartilhados entre leasing e buyout.
@@ -23,6 +24,16 @@ export function normalizaMes(mes: number, fallback = 1): number {
   let normalizado = inteiro % 12
   if (normalizado <= 0) normalizado += 12
   return normalizado
+}
+
+/**
+ * Calcula a taxa mínima (custo de disponibilidade) pela rede selecionada.
+ * Fórmula: tarifa cheia (R$/kWh) × consumo mínimo fictício (kWh).
+ */
+export function calcularTaxaMinima(tipoLigacao: TipoRede, tarifaRkwh: number): number {
+  const consumoMinimo = CONSUMO_MINIMO_FICTICIO[tipoLigacao]
+  if (!Number.isFinite(consumoMinimo) || !Number.isFinite(tarifaRkwh)) return 0
+  return Math.max(0, tarifaRkwh) * consumoMinimo
 }
 
 const reajustesAteMes = (m: number, mesReajuste: number, mesReferencia: number): number => {
@@ -133,6 +144,9 @@ export interface MensalidadeLiquidaInput {
   mesReajuste: number
   mesReferencia: number
   tusdConfig?: TusdConfigInput
+  aplicaTaxaMinima?: boolean
+  cidKwhBase?: number
+  tipoRede?: TipoRede
 }
 
 export interface TusdConfigInput {
@@ -163,6 +177,9 @@ export function mensalidadeLiquida({
   mesReajuste,
   mesReferencia,
   tusdConfig,
+  aplicaTaxaMinima = true,
+  cidKwhBase = 0,
+  tipoRede,
 }: MensalidadeLiquidaInput): number {
   if (m <= 0 || prazoMeses <= 0) return 0
 
@@ -189,20 +206,30 @@ export function mensalidadeLiquida({
     mesReferencia,
   )
   const energiaComDesconto = Math.max(0, kcContratado * tarifaComDesconto)
-  const encargosAdicionais = Math.max(0, encargosFixos)
-  const taxaMinimaPositiva = Math.max(0, taxaMinima)
-  const margemMinima = taxaMinimaPositiva + encargosAdicionais
-  const tusdMensal = calcTusdEncargoMensal({
-    consumoMensal_kWh: kcContratado,
-    tarifaCheia_R_kWh: tarifaCheiaMes,
-    mes: m,
-    anoReferencia: tusdConfig?.anoReferencia ?? null,
-    tipoCliente: tusdConfig?.tipoCliente ?? null,
-    subTipo: tusdConfig?.subTipo ?? null,
-    pesoTUSD: tusdConfig?.percent ?? null,
-    tusd_R_kWh: tusdConfig?.tarifaRkwh ?? null,
-    simultaneidadePadrao: tusdConfig?.simultaneidade ?? null,
-  })
+  const encargosAdicionais = aplicaTaxaMinima ? Math.max(0, encargosFixos) : 0
+  const taxaMinimaManual = Math.max(0, taxaMinima)
+  const taxaMinimaCalculada =
+    aplicaTaxaMinima && tipoRede ? calcularTaxaMinima(tipoRede, tarifaCheiaMes) : 0
+  const taxaMinimaPositiva = aplicaTaxaMinima
+    ? taxaMinimaManual > 0
+      ? taxaMinimaManual
+      : taxaMinimaCalculada
+    : 0
+  const cidAplicado = aplicaTaxaMinima ? Math.max(0, cidKwhBase) * tarifaCheiaMes : 0
+  const margemMinima = taxaMinimaPositiva + encargosAdicionais + cidAplicado
+  const tusdMensal = aplicaTaxaMinima
+    ? calcTusdEncargoMensal({
+        consumoMensal_kWh: kcContratado,
+        tarifaCheia_R_kWh: tarifaCheiaMes,
+        mes: m,
+        anoReferencia: tusdConfig?.anoReferencia ?? null,
+        tipoCliente: tusdConfig?.tipoCliente ?? null,
+        subTipo: tusdConfig?.subTipo ?? null,
+        pesoTUSD: tusdConfig?.percent ?? null,
+        tusd_R_kWh: tusdConfig?.tarifaRkwh ?? null,
+        simultaneidadePadrao: tusdConfig?.simultaneidade ?? null,
+      })
+    : 0
   const valorBase = energiaComDesconto + margemMinima + tusdMensal
 
   const credito =
