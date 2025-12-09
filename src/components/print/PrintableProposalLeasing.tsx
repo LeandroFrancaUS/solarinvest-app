@@ -1273,7 +1273,7 @@ function PrintableProposalLeasingInner(
                   <th>Tarifa cheia</th>
                   <th>Tarifa com desconto</th>
                   <th className="leasing-table-negative">{`CONTA COM ${distribuidoraNomeCurto ?? 'DISTRIBUIDORA'} (R$)`}</th>
-                  <th className="leasing-table-positive">Mensalidade SolarInvest (R$)</th>
+                  <th className="leasing-table-positive leasing-table-positive-emphasis">Mensalidade SolarInvest (R$)</th>
                 </tr>
               </thead>
             <tbody>
@@ -1313,6 +1313,7 @@ function PrintableProposalLeasingInner(
                       className={[
                         'leasing-table-value',
                         'leasing-table-positive',
+                        'leasing-table-positive-emphasis',
                         mensalidadeStyle ? 'leasing-table-positive-gradient' : undefined,
                       ]
                         .filter(Boolean)

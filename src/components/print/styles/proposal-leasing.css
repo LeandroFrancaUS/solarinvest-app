@@ -509,6 +509,12 @@
   box-shadow: inset 0 0 0 1px #5dae7d;
 }
 
+.leasing-table-positive-emphasis {
+  box-shadow:
+    inset 0 0 0 1px var(--leasing-positive-border, #5dae7d),
+    inset 0 0 0 2px #0f4d2d;
+}
+
 .leasing-table-positive-gradient {
   background: var(--leasing-positive-bg, #c7f0d5);
   color: #0f4d2d;
@@ -535,6 +541,12 @@
   background: #c7f0d5;
   color: #0f4d2d;
   box-shadow: inset 0 0 0 1px rgba(93, 174, 125, 0.82);
+}
+
+.leasing-row-post-contract td.leasing-table-positive-emphasis {
+  box-shadow:
+    inset 0 0 0 1px rgba(93, 174, 125, 0.82),
+    inset 0 0 0 2px #0f4d2d;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(1) {
@@ -1289,6 +1301,14 @@
     print-color-adjust: exact;
   }
 
+  .print-section .leasing-table-positive-emphasis {
+    box-shadow:
+      inset 0 0 0 1px var(--leasing-positive-border, #5dae7d) !important,
+      inset 0 0 0 2px #0f4d2d !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .print-section .leasing-table-positive-gradient {
     background: var(--leasing-positive-bg, #c7f0d5) !important;
     color: #0f4d2d !important;
@@ -1303,6 +1323,12 @@
     box-shadow: inset 0 0 0 1px rgba(93, 174, 125, 0.82) !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  .print-section .leasing-row-post-contract td.leasing-table-positive-emphasis {
+    box-shadow:
+      inset 0 0 0 1px rgba(93, 174, 125, 0.82) !important,
+      inset 0 0 0 2px #0f4d2d !important;
   }
 
   .print-section .leasing-table-negative-gradient {
