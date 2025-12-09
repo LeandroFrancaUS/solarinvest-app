@@ -8,6 +8,7 @@ import {
   valorCompraCliente,
   type EntradaModo,
 } from './utils/calcs'
+import type { TipoRede } from './app/config'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 
 export interface SimulationState {
@@ -42,6 +43,7 @@ export interface SimulationState {
   tusdAnoReferencia: number
   aplicaTaxaMinima: boolean
   cidKwhBase: number
+  tipoRede: TipoRede
 }
 
 export interface BuyoutLinha {
@@ -94,6 +96,7 @@ export function selectMensalidades(state: SimulationState): number[] {
       },
       aplicaTaxaMinima: state.aplicaTaxaMinima,
       cidKwhBase: state.cidKwhBase,
+      tipoRede: state.tipoRede,
     }),
   )
 }

@@ -142,6 +142,14 @@ export function createInitialComposicaoSolo(): UfvComposicaoSoloValores {
   return { ...COMPOSICAO_SOLO_BASE }
 }
 
+export type TipoRede = 'monofasico' | 'bifasico' | 'trifasico'
+
+export const CONSUMO_MINIMO_FICTICIO: Record<TipoRede, number> = {
+  monofasico: 30,
+  bifasico: 50,
+  trifasico: 100,
+}
+
 export const LEASING_PRAZO_OPCOES = [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10] as const
 export type LeasingPrazoAnos = (typeof LEASING_PRAZO_OPCOES)[number]
 
@@ -164,7 +172,7 @@ export const INITIAL_VALUES = {
   tusdAnoReferencia: DEFAULT_TUSD_ANO_REFERENCIA,
   leasingPrazo: LEASING_PRAZO_OPCOES[0] as LeasingPrazoAnos,
   potenciaModulo: 600,
-  tipoRede: 'monofasico',
+  tipoRede: 'monofasico' as TipoRede,
   tipoInstalacao: 'fibrocimento' as TipoInstalacao,
   tipoInstalacaoOutro: '',
   segmentoCliente: 'residencial' as SegmentoCliente,

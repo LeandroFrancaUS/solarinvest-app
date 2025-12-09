@@ -26,6 +26,7 @@ import {
   type BuyoutLinha,
 } from './selectors'
 import {
+  calcularTaxaMinima,
   tarifaDescontada as tarifaDescontadaCalc,
   tarifaProjetadaCheia,
   type EntradaModo,
@@ -139,6 +140,7 @@ import {
   createInitialComposicaoTelhado,
   createInitialVendaForm,
   createDefaultMultiUcRow,
+  CONSUMO_MINIMO_FICTICIO,
   type EntradaModoLabel,
   type KitBudgetItemState,
   type KitBudgetMissingInfo,
@@ -147,6 +149,7 @@ import {
   type SeguroModo,
   type SettingsTabKey,
   type TabKey,
+  type TipoRede,
   type MultiUcRowState,
   type MultiUcRateioModo,
 } from './app/config'
@@ -217,19 +220,11 @@ const TIPOS_INSTALACAO = [
   { value: 'outros', label: 'Outros (texto)' },
 ]
 
-type TipoRede = 'monofasico' | 'bifasico' | 'trifasico'
-
 const TIPOS_REDE: { value: TipoRede; label: string }[] = [
   { value: 'monofasico', label: 'Monofásico' },
   { value: 'bifasico', label: 'Bifásico' },
   { value: 'trifasico', label: 'Trifásico' },
 ]
-
-const CID_KWH_POR_TIPO: Record<TipoRede, number> = {
-  monofasico: 30,
-  bifasico: 50,
-  trifasico: 100,
-}
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
@@ -6043,9 +6038,12 @@ export default function App() {
       : inflacaoAa
     const aplicaTaxaMinima =
       typeof vendaForm.aplica_taxa_minima === 'boolean' ? vendaForm.aplica_taxa_minima : true
+    const taxaMinimaCalculada = calcularTaxaMinima(tipoRede, Math.max(0, tarifaAtual))
     const taxaMinimaEnergia = Number.isFinite(vendaForm.taxa_minima_r_mes)
       ? Number(vendaForm.taxa_minima_r_mes)
-      : taxaMinima
+      : Math.max(0, taxaMinima) > 0
+        ? taxaMinima
+        : taxaMinimaCalculada
     const taxaDesconto = Number.isFinite(vendaForm.taxa_desconto_aa_pct)
       ? Number(vendaForm.taxa_desconto_aa_pct)
       : 0
@@ -6371,7 +6369,7 @@ export default function App() {
     () => Math.max(0, bandeiraEncargo + cipEncargo + encargosFixosExtras),
     [bandeiraEncargo, cipEncargo, encargosFixosExtras],
   )
-  const cidKwhBase = useMemo(() => CID_KWH_POR_TIPO[tipoRede] ?? 0, [tipoRede])
+  const cidKwhBase = useMemo(() => CONSUMO_MINIMO_FICTICIO[tipoRede] ?? 0, [tipoRede])
 
   const entradaConsiderada = isVendaDiretaTab ? 0 : entradaRs
   const descontoConsiderado = isVendaDiretaTab ? 0 : desconto
@@ -6883,13 +6881,15 @@ export default function App() {
     const tusdAno = Number.isFinite(tusdAnoReferencia)
       ? Math.max(1, Math.trunc(tusdAnoReferencia))
       : DEFAULT_TUSD_ANO_REFERENCIA
+    const taxaMinimaCalculadaBase = calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
+    const taxaMinimaFonte = Math.max(0, taxaMinima) > 0 ? Math.max(0, taxaMinima) : taxaMinimaCalculadaBase
     return {
       kcKwhMes: Math.max(0, kcKwhMes),
       tarifaCheia: Math.max(0, tarifaCheia),
       desconto: descontoDecimal,
       inflacaoAa: inflacaoAnual,
       prazoMeses: prazoMensalidades,
-      taxaMinima: Math.max(0, taxaMinima),
+      taxaMinima: taxaMinimaFonte,
       encargosFixos,
       entradaRs: Math.max(0, entradaConsiderada),
       modoEntrada: modoEntradaNormalizado,
@@ -6915,6 +6915,7 @@ export default function App() {
       tusdAnoReferencia: tusdAno,
       aplicaTaxaMinima,
       cidKwhBase,
+      tipoRede,
     }
   }, [
     bandeiraEncargo,
@@ -6950,6 +6951,7 @@ export default function App() {
     tusdTarifaRkwh,
     tusdAnoReferencia,
     vendaForm.aplica_taxa_minima,
+    tipoRede,
   ])
 
   const vm0 = simulationState.vm0
@@ -7008,7 +7010,12 @@ export default function App() {
         )
         const aplicaTaxaMinimaNoMes = aplicaTaxaMinima || mes > contratoMeses
         const encargosFixosAplicados = aplicaTaxaMinimaNoMes ? encargosFixos : 0
-        const taxaMinimaAplicada = aplicaTaxaMinimaNoMes ? taxaMinima : 0
+        const taxaMinimaMes = calcularTaxaMinima(tipoRede, tarifaCheiaMes)
+        const taxaMinimaAplicada = aplicaTaxaMinimaNoMes
+          ? Math.max(0, taxaMinima) > 0
+            ? Math.max(0, taxaMinima)
+            : taxaMinimaMes
+          : 0
         const cidAplicado = aplicaTaxaMinimaNoMes ? simulationState.cidKwhBase * tarifaCheiaMes : 0
         const custoSemSistemaMes =
           kcKwhMes * tarifaCheiaMes + encargosFixosAplicados + taxaMinimaAplicada + cidAplicado
@@ -7084,8 +7091,11 @@ export default function App() {
     return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
       const ano = i + 1
       const economia = 12 * kcKwhMes * tarifaAno(ano)
-      const custoSemSistemaMensal = Math.max(kcKwhMes * tarifaAno(ano), taxaMinima)
-      const economiaAnual = 12 * Math.max(custoSemSistemaMensal - taxaMinima, 0)
+      const taxaMinimaAno = Math.max(0, taxaMinima) > 0
+        ? Math.max(0, taxaMinima)
+        : calcularTaxaMinima(tipoRede, tarifaAno(ano))
+      const custoSemSistemaMensal = Math.max(kcKwhMes * tarifaAno(ano), taxaMinimaAno)
+      const economiaAnual = 12 * Math.max(custoSemSistemaMensal - taxaMinimaAno, 0)
       const inicioAno = (ano - 1) * 12
       const mesesRestantes = Math.max(0, prazoFinMeses - inicioAno)
       const mesesPagos = Math.min(12, mesesRestantes)
