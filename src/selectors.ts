@@ -8,6 +8,7 @@ import {
   valorCompraCliente,
   type EntradaModo,
 } from './utils/calcs'
+import type { TipoRede } from './app/config'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 
 export interface SimulationState {
@@ -41,6 +42,8 @@ export interface SimulationState {
   tusdTarifaRkwh: number | null
   tusdAnoReferencia: number
   aplicaTaxaMinima: boolean
+  cidKwhBase: number
+  tipoRede: TipoRede
 }
 
 export interface BuyoutLinha {
@@ -92,6 +95,8 @@ export function selectMensalidades(state: SimulationState): number[] {
         anoReferencia: state.tusdAnoReferencia,
       },
       aplicaTaxaMinima: state.aplicaTaxaMinima,
+      cidKwhBase: state.cidKwhBase,
+      tipoRede: state.tipoRede,
     }),
   )
 }
@@ -133,10 +138,12 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
     const tarifaLiquida = selectTarifaDescontada(state, mes)
     const taxaMinimaAplicada = state.aplicaTaxaMinima ? state.taxaMinima : 0
     const custosFixosAplicados = state.aplicaTaxaMinima ? state.custosFixosM : 0
+    const cidAplicado = state.aplicaTaxaMinima ? state.cidKwhBase * tarifaCheiaMes : 0
     const prestBruta =
       state.geracaoMensalKwh * tarifaLiquida +
       taxaMinimaAplicada +
       custosFixosAplicados +
+      cidAplicado +
       state.opexM +
       state.seguroM
     const receitaEfetiva = prestBruta * (1 - inadMensal)
