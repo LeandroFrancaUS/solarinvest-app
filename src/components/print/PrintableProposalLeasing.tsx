@@ -262,10 +262,15 @@ function PrintableProposalLeasingInner(
     return primeiroNome || null
   }, [distribuidoraLabel])
 
-  const avisoMensalidade = useMemo(() => {
-    const nomeDistribuidora = distribuidoraLabel || 'distribuidora local'
-    return `Aviso: A mensalidade estimada é calculada com base na tarifa vigente da ${nomeDistribuidora} e aplica sempre o desconto contratado. Como a SolarInvest não controla os reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL — nem as variações de consumo real — os valores podem mudar ao longo do contrato.`
-  }, [distribuidoraLabel])
+  const nomeDistribuidora = distribuidoraLabel || 'distribuidora local'
+
+  const avisoMensalidadeCondicoes = useMemo(() => {
+    return `Aviso: A mensalidade estimada é calculada com base na tarifa vigente da ${nomeDistribuidora} e aplica sempre o desconto contratado. As projeções apresentadas são estimativas e podem variar, pois a SolarInvest não controla os reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, assim como as variações do consumo real ao longo do contrato.`
+  }, [nomeDistribuidora])
+
+  const avisoMensalidadeEvolucao = useMemo(() => {
+    return `Aviso: A mensalidade estimada é calculada com base na tarifa vigente da ${nomeDistribuidora} e aplica sempre o desconto contratado. Como a SolarInvest não controla os reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, nem as variações de consumo real, os valores podem mudar ao longo do contrato.`
+  }, [nomeDistribuidora])
 
   const formatClienteEnderecoCompleto = () => {
     const endereco = cliente.endereco?.trim() || ''
@@ -1120,7 +1125,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote print-footnote--spaced">{avisoMensalidade}</p>
+            <p className="muted print-footnote print-footnote--spaced">{avisoMensalidadeCondicoes}</p>
           </section>
     
           {multiUcResumoDados ? (
@@ -1267,7 +1272,7 @@ function PrintableProposalLeasingInner(
               })}
             </tbody>
             </table>
-            <p>{avisoMensalidade}</p>
+            <p>{avisoMensalidadeEvolucao}</p>
           </section>
 
           <section
