@@ -1257,6 +1257,7 @@ function PrintableProposalLeasingInner(
               {mensalidadesPorAno.map((linha, index) => {
                 const isPosPrazo = linha.ano > prazoContratualTotalAnos
                 const isUltimaLinha = index === mensalidadesPorAno.length - 1
+                const isMensalidadeZero = linha.mensalidade === 0
 
                 const contaDistribuidoraStyle = estiloContaDistribuidora(linha.ano)
 
@@ -1284,7 +1285,13 @@ function PrintableProposalLeasingInner(
                     >
                       {currency(linha.contaDistribuidora)}
                     </td>
-                    <td className="leasing-table-value leasing-table-positive">{currency(linha.mensalidade)}</td>
+                    <td className="leasing-table-value leasing-table-positive">
+                      {isMensalidadeZero ? (
+                        <span className="leasing-zero-highlight">{currency(linha.mensalidade)}</span>
+                      ) : (
+                        currency(linha.mensalidade)
+                      )}
+                    </td>
                   </tr>
                 )
               })}
