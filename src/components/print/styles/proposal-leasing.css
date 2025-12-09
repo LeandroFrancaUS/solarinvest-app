@@ -503,6 +503,16 @@
   color: #0c162c;
 }
 
+.leasing-table-positive {
+  background: #e6f4ea;
+  color: #0f5132;
+}
+
+.leasing-table-negative {
+  background: #fdebea;
+  color: #8a1f1f;
+}
+
 .leasing-highlight-value {
   color: #f7931e;
   font-weight: 700;
