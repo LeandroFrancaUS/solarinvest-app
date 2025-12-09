@@ -517,16 +517,16 @@
 
 .leasing-economia-table th:last-child,
 .leasing-economia-table td:last-child {
-  border-left: 2px solid #0f4d2d;
-  border-right: 2px solid #0f4d2d;
+  border-left: 3px solid #0f4d2d;
+  border-right: 3px solid #0f4d2d;
 }
 
 .leasing-economia-table th:last-child {
-  border-top: 2px solid #0f4d2d;
+  border-top: 3px solid #0f4d2d;
 }
 
 .leasing-economia-table tr:last-child td:last-child {
-  border-bottom: 2px solid #0f4d2d;
+  border-bottom: 3px solid #0f4d2d;
 }
 
 .leasing-table-positive-gradient {
@@ -1325,16 +1325,16 @@
 
   .leasing-economia-table th:last-child,
   .leasing-economia-table td:last-child {
-    border-left: 2px solid #0f4d2d !important;
-    border-right: 2px solid #0f4d2d !important;
+    border-left: 3px solid #0f4d2d !important;
+    border-right: 3px solid #0f4d2d !important;
   }
 
   .leasing-economia-table th:last-child {
-    border-top: 2px solid #0f4d2d !important;
+    border-top: 3px solid #0f4d2d !important;
   }
 
   .leasing-economia-table tr:last-child td:last-child {
-    border-bottom: 2px solid #0f4d2d !important;
+    border-bottom: 3px solid #0f4d2d !important;
   }
 
   .print-section .leasing-table-positive-gradient {
