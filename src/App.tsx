@@ -14493,6 +14493,18 @@ export default function App() {
               onChange={(e) => setKcKwhMes(Number(e.target.value) || 0, 'user')}
               onFocus={selectNumberInputOnFocus}
             />
+            <div className="mt-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Taxa mínima</label>
+              <Switch
+                checked={vendaForm.aplica_taxa_minima ?? true}
+                onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}
+              />
+              <span className="text-xs text-gray-500">
+                {vendaForm.aplica_taxa_minima ?? true
+                  ? 'Cliente paga taxa mínima (padrão)'
+                  : 'Cliente isento de taxa mínima'}
+              </span>
+            </div>
           </Field>
           <Field
             label={labelWithTooltip(
