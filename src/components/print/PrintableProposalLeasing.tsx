@@ -768,16 +768,18 @@ function PrintableProposalLeasingInner(
 
   const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
   const prazoEconomiaMeses = prazoContratualMeses
+  const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
 
   const economiaMarcos = useMemo(() => {
     const alvos = anosAlvoEconomia(prazoEconomiaMeses)
+    const anosDisponiveis = Array.isArray(anos) ? anos : []
 
-    if (anos.length === 0) {
+    if (anosDisponiveis.length === 0) {
       return alvos
     }
 
-    const anosDisponiveis = new Set(anos)
-    const filtrados = alvos.filter((ano) => anosDisponiveis.has(ano))
+    const anosValidos = new Set(anosDisponiveis)
+    const filtrados = alvos.filter((ano) => anosValidos.has(ano))
 
     return filtrados.length > 0 ? filtrados : alvos
   }, [anos, prazoEconomiaMeses])
@@ -828,7 +830,6 @@ function PrintableProposalLeasingInner(
     })
   }, [calcularEconomiaTotalAteAno, economiaMarcos])
 
-  const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
   const economiaProjetadaGrafico = useMemo(() => {
     if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
       return []
