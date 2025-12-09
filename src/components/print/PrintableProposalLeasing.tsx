@@ -782,11 +782,41 @@ function PrintableProposalLeasingInner(
     return filtrados.length > 0 ? filtrados : alvos
   }, [anos, prazoEconomiaMeses])
 
+  const obterBeneficioPorAno = useCallback(
+    (ano: number): number => {
+      if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
+        return 0
+      }
+
+      const totalAnos = leasingROI.length
+
+      if (!Number.isFinite(ano) || ano <= 0) {
+        return 0
+      }
+
+      const indice = Math.min(totalAnos, Math.max(1, Math.ceil(ano))) - 1
+      return leasingROI[indice] ?? 0
+    },
+    [leasingROI],
+  )
+
+  const calcularEconomiaTotalAteAno = useCallback(
+    (ano: number): number => {
+      if (!Number.isFinite(ano) || ano <= 0) {
+        return 0
+      }
+
+      const beneficioBase = obterBeneficioPorAno(ano)
+      const deveAdicionarUsina = valorMercadoUsina > 0 && prazoContratualAnos > 0 && ano >= prazoContratualAnos
+      const beneficioTotal = deveAdicionarUsina ? beneficioBase + valorMercadoUsina : beneficioBase
+
+      return Math.max(0, beneficioTotal)
+    },
+    [obterBeneficioPorAno, prazoContratualAnos, valorMercadoUsina],
+  )
+
   const economiaProjetada = useMemo(() => {
-    const serie = calcularEconomiaAcumuladaPorAnos(
-      economiaMarcos,
-      (ano) => leasingROI[ano - 1] ?? 0,
-    )
+    const serie = calcularEconomiaAcumuladaPorAnos(economiaMarcos, calcularEconomiaTotalAteAno)
 
     return serie.map((row, index) => {
       const acumuladoAnterior = index > 0 ? serie[index - 1].economiaAcumulada : 0
@@ -796,22 +826,12 @@ function PrintableProposalLeasingInner(
         economiaAnual: row.economiaAcumulada - acumuladoAnterior,
       }
     })
-  }, [economiaMarcos, leasingROI])
+  }, [calcularEconomiaTotalAteAno, economiaMarcos])
 
   const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
   const economiaProjetadaGrafico = useMemo(() => {
     if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
       return []
-    }
-
-    const totalAnos = leasingROI.length
-    const obterBeneficioPorAno = (ano: number): number => {
-      if (!Number.isFinite(ano) || ano <= 0) {
-        return 0
-      }
-
-      const indice = Math.min(totalAnos, Math.max(1, Math.ceil(ano))) - 1
-      return leasingROI[indice] ?? 0
     }
 
     const destinos: Array<{ ano: number; tipo: 'prazo' | 'posPrazo' | 'marco' }> = []
@@ -843,10 +863,7 @@ function PrintableProposalLeasingInner(
 
       vistos.add(chave)
 
-      const beneficioBase = obterBeneficioPorAno(ano)
-      const deveAdicionarUsina = valorMercadoUsina > 0 && prazoContratualAnos > 0 && ano >= prazoContratualAnos
-      const beneficioTotal = deveAdicionarUsina ? beneficioBase + valorMercadoUsina : beneficioBase
-
+      const beneficioTotal = calcularEconomiaTotalAteAno(ano)
       let label = formatAnosDetalhado(ano)
 
       if (tipo === 'prazo') {
@@ -858,11 +875,20 @@ function PrintableProposalLeasingInner(
       acc.push({ ano, label, acumulado: Math.max(0, beneficioTotal) })
       return acc
     }, [])
-  }, [leasingROI, prazoContratualAnos, valorMercadoUsina])
+  }, [calcularEconomiaTotalAteAno, leasingROI, prazoContratualAnos])
 
   const maxBeneficioGrafico = useMemo(
     () => economiaProjetadaGrafico.reduce((maior, item) => Math.max(maior, item.acumulado), 0),
     [economiaProjetadaGrafico],
+  )
+
+  const economiaPatrimonioResumo = useMemo(
+    () =>
+      [5, 6, 10, 15, 20, 30].map((ano) => ({
+        ano,
+        valor: calcularEconomiaTotalAteAno(ano),
+      })),
+    [calcularEconomiaTotalAteAno],
   )
 
   const prazoContratualMesesTexto = useMemo(
@@ -1253,17 +1279,12 @@ function PrintableProposalLeasingInner(
             {economiaProjetadaGrafico.length ? (
               <>
                 <p className="section-subtitle keep-with-next">
-                  5 anos: R$ {currency(calcularEconomiaAcumuladaPorAnos(anosAlvoEconomia, leasingROI, 5))}
-                  <br />
-                  6 anos: R$ {currency(calcularEconomiaAcumuladaPorAnos(anosAlvoEconomia, leasingROI, 6))}
-                  <br />
-                  10 anos: R$ {currency(calcularEconomiaAcumuladaPorAnos(anosAlvoEconomia, leasingROI, 10))}
-                  <br />
-                  15 anos: R$ {currency(calcularEconomiaAcumuladaPorAnos(anosAlvoEconomia, leasingROI, 15))}
-                  <br />
-                  20 anos: R$ {currency(calcularEconomiaAcumuladaPorAnos(anosAlvoEconomia, leasingROI, 20))}
-                  <br />
-                  30 anos: R$ {currency(calcularEconomiaAcumuladaPorAnos(anosAlvoEconomia, leasingROI, 30))}
+                  {economiaPatrimonioResumo.map((marco, index) => (
+                    <React.Fragment key={`economia-patrimonio-${marco.ano}`}>
+                      {marco.ano} anos: R$ {currency(marco.valor)}
+                      {index < economiaPatrimonioResumo.length - 1 ? <br /> : null}
+                    </React.Fragment>
+                  ))}
                 </p>
                 <div
                   className="leasing-horizontal-chart no-break-inside"
