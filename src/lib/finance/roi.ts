@@ -30,6 +30,7 @@ export interface VendaForm {
   inflacao_energia_aa_pct: number
   taxa_minima_mensal: number
   horizonte_meses: number
+  aplica_taxa_minima?: boolean | undefined
 
   capex_total: number
   condicao: PagamentoCondicao
@@ -118,26 +119,39 @@ const sanitizeNumber = (value?: number | null, fallback = 0): number => {
   return Number(value)
 }
 
+const sanitizeBoolean = (value: unknown, fallback = true): boolean => {
+  if (typeof value === 'boolean') {
+    return value
+  }
+  return fallback
+}
+
 export function computeROI(form: VendaForm): RetornoProjetado {
   const economia = (() => {
     const geracao = clampNonNegative(sanitizeNumber(form.geracao_estimada_kwh_mes, 0))
     const consumo = clampNonNegative(sanitizeNumber(form.consumo_kwh_mes, 0))
-    const baseEnergia = geracao > 0 ? geracao : consumo
     const tarifa = clampNonNegative(
       sanitizeNumber(form.tarifa_r_kwh, sanitizeNumber(form.tarifa_cheia_r_kwh, 0)),
     )
+    const inflacaoEnergetica = Math.max(-0.99, percentToFraction(form.inflacao_energia_aa_pct))
     const taxaMinima = clampNonNegative(
       sanitizeNumber(form.taxa_minima_r_mes, sanitizeNumber(form.taxa_minima_mensal, 0)),
     )
-    const economiaBruta = Math.max(0, baseEnergia * tarifa - taxaMinima)
+    const aplicaTaxaMinima = sanitizeBoolean(form.aplica_taxa_minima, true)
 
-    const economia = Array.from({ length: HORIZON_MONTHS }, (_, index) =>
-      Math.max(
-        0,
-        economiaBruta -
-          calcTusdEncargoMensal({
-            consumoMensal_kWh: baseEnergia,
-            tarifaCheia_R_kWh: tarifa,
+    const economia = Array.from({ length: HORIZON_MONTHS }, (_, index) => {
+      const anoDecorrido = Math.floor(index / 12)
+      const tarifaAjustada = tarifa * Math.pow(1 + inflacaoEnergetica, Math.max(0, anoDecorrido))
+      const energiaComprada = Math.max(consumo - geracao, 0)
+      const custoRede = energiaComprada * tarifaAjustada
+      const totalComTaxaMinima = aplicaTaxaMinima ? custoRede + taxaMinima : custoRede
+      const contaSemGeracao = consumo * tarifaAjustada
+      const economiaBruta = Math.max(0, contaSemGeracao - totalComTaxaMinima)
+
+      const tusdEncargo = aplicaTaxaMinima
+        ? calcTusdEncargoMensal({
+            consumoMensal_kWh: consumo,
+            tarifaCheia_R_kWh: tarifaAjustada,
             mes: index + 1,
             anoReferencia: form.tusd_ano_referencia ?? null,
             tipoCliente: form.tusd_tipo_cliente ?? null,
@@ -145,9 +159,11 @@ export function computeROI(form: VendaForm): RetornoProjetado {
             pesoTUSD: form.tusd_percentual ?? null,
             tusd_R_kWh: form.tusd_tarifa_r_kwh ?? null,
             simultaneidadePadrao: form.tusd_simultaneidade ?? null,
-          }),
-      ),
-    )
+          })
+        : 0
+
+      return Math.max(0, economiaBruta - tusdEncargo)
+    })
 
     return economia
   })()

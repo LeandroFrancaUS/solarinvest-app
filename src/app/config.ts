@@ -224,6 +224,7 @@ export const VENDA_FORM_DEFAULT: VendaForm = {
   inflacao_energia_aa_pct: INITIAL_VALUES.inflacaoAa,
   taxa_minima_mensal: INITIAL_VALUES.taxaMinima,
   horizonte_meses: 360,
+  aplica_taxa_minima: true,
   capex_total: 0,
   condicao: 'AVISTA',
   modo_pagamento: 'PIX',
