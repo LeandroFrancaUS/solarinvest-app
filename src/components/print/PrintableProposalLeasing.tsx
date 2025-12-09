@@ -66,12 +66,8 @@ const AVISO_GERAL_ESTIMATIVAS =
 const AVISO_GERAL_ECONOMIA = 'Aviso: Esta proposta não constitui garantia de economia.'
 const AVISO_ESPECIFICACOES =
   'Aviso: Valores estimados. A geração real pode variar conforme clima, sombreamento, degradação natural dos módulos e condições reais de instalação.'
-const AVISO_MENSALIDADE =
-  'Aviso: A mensalidade estimada foi calculada com base na tarifa vigente da distribuidora local. Como a SolarInvest não controla reajustes, bandeiras tarifárias ou tributos aplicados pela concessionária, os valores podem variar ao longo do contrato.'
-const AVISO_MENSALIDADE_DESCONTO =
-  'Aviso: A mensalidade acompanha a tarifa da distribuidora, aplicando sempre o desconto contratado. Os valores são estimativas e podem variar conforme consumo real e reajustes tarifários.'
 const AVISO_PATRIMONIO =
-  'Aviso: Os valores acima representam estimativas de economia com base em tarifas e consumo históricos. Resultados podem variar.'
+  'Aviso: As estimativas acima foram calculadas a partir do consumo histórico e das condições médias de geração. Embora representem uma projeção realista do potencial de economia, os valores finais podem variar conforme fatores externos como clima, consumo real e reajustes tarifários.'
 
 const PRAZO_LEASING_PADRAO_MESES = 60
 
@@ -264,6 +260,11 @@ function PrintableProposalLeasingInner(
     }
     const [primeiroNome] = distribuidoraLabel.split(/\s+/)
     return primeiroNome || null
+  }, [distribuidoraLabel])
+
+  const avisoMensalidade = useMemo(() => {
+    const nomeDistribuidora = distribuidoraLabel || 'distribuidora local'
+    return `Aviso: A mensalidade estimada é calculada com base na tarifa vigente da ${nomeDistribuidora} e aplica sempre o desconto contratado. Como a SolarInvest não controla os reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL — nem as variações de consumo real — os valores podem mudar ao longo do contrato.`
   }, [distribuidoraLabel])
 
   const formatClienteEnderecoCompleto = () => {
@@ -1119,7 +1120,7 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote print-footnote--spaced">{AVISO_MENSALIDADE}</p>
+            <p className="muted print-footnote print-footnote--spaced">{avisoMensalidade}</p>
           </section>
     
           {multiUcResumoDados ? (
@@ -1266,10 +1267,7 @@ function PrintableProposalLeasingInner(
               })}
             </tbody>
             </table>
-            <p>
-              {AVISO_MENSALIDADE}
-            </p>
-            <p>{AVISO_MENSALIDADE_DESCONTO}</p>
+            <p>{avisoMensalidade}</p>
           </section>
 
           <section
@@ -1279,14 +1277,6 @@ function PrintableProposalLeasingInner(
             <h2 className="section-title keep-with-next">Patrimônio energético — economia acumulada</h2>
             {economiaProjetadaGrafico.length ? (
               <>
-                <p className="section-subtitle keep-with-next">
-                  {economiaPatrimonioResumo.map((marco, index) => (
-                    <React.Fragment key={`economia-patrimonio-${marco.ano}`}>
-                      {marco.ano} anos: R$ {currency(marco.valor)}
-                      {index < economiaPatrimonioResumo.length - 1 ? <br /> : null}
-                    </React.Fragment>
-                  ))}
-                </p>
                 <div
                   className="leasing-horizontal-chart no-break-inside"
                   role="img"
