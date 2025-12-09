@@ -3,12 +3,16 @@ import { describe, expect, it } from 'vitest'
 import {
   creditoMensal,
   kcAjustadoPorEntrada,
-  mensalidadeLiquida,
   tarifaDescontada,
   toMonthly,
   valorCompraCliente,
 } from './calcs'
-import type { TipoClienteTUSD } from '../lib/finance/tusd'
+import {
+  calcularEconomiaMensal,
+  calcularMensalidadeSolarInvest,
+  calcularTarifaProjetada,
+  calcularTUSDFioB,
+} from '../lib/finance/calculations'
 
 describe('calcs utilitários', () => {
   it('converte taxa anual para mensal composto', () => {
@@ -107,108 +111,54 @@ describe('calcs utilitários', () => {
     expect(semCashback).toBeCloseTo(Math.round(semCashback * 100) / 100, 8)
   })
 
-  it('mantém mensalidade mínima sem entrada', () => {
-    const params = {
-      kcKwhMes: 500,
-      tarifaCheia: 0.92,
-      desconto: 0.1,
-      inflacaoAa: 0.06,
-      m: 1,
-      taxaMinima: 120,
-      encargosFixos: 35,
-      entradaRs: 0,
-      prazoMeses: 60,
-      modoEntrada: 'NONE' as const,
-      mesReajuste: 6,
-      mesReferencia: 1,
-      tusdConfig: {
-        percent: 0,
-        tipoCliente: 'residencial' as TipoClienteTUSD,
-        anoReferencia: 2025,
-      },
-    }
-    const mensalidade = mensalidadeLiquida(params)
-    const tarifa = tarifaDescontada(
-      params.tarifaCheia,
-      params.desconto,
-      params.inflacaoAa,
-      params.m,
-      params.mesReajuste,
-      params.mesReferencia,
-    )
-    const esperado = Math.max(params.taxaMinima, params.kcKwhMes * tarifa + params.encargosFixos)
-    expect(mensalidade).toBeCloseTo(esperado, 6)
+  it('projeta tarifa apenas pela inflação energética anual', () => {
+    const tarifa = calcularTarifaProjetada(1, 0.08, 2)
+    expect(tarifa).toBeCloseTo(1 * Math.pow(1.08, 2), 8)
   })
 
-  it('adiciona encargo de TUSD quando configurado', () => {
-    const baseParams = {
-      kcKwhMes: 500,
-      tarifaCheia: 0.92,
-      desconto: 0.12,
-      inflacaoAa: 0.05,
-      m: 1,
-      taxaMinima: 100,
-      encargosFixos: 25,
-      entradaRs: 0,
-      prazoMeses: 60,
-      modoEntrada: 'NONE' as const,
-      mesReajuste: 6,
-      mesReferencia: 1,
-    }
-    const semTusd = mensalidadeLiquida({
-      ...baseParams,
-      tusdConfig: {
-        percent: 0,
-        tipoCliente: 'residencial',
-        anoReferencia: 2025,
-      },
+  it('calcula taxa mínima pelo tipo de ligação', () => {
+    const taxa = calcularMensalidadeSolarInvest({
+      tarifaCheia: 0.9,
+      inflacaoEnergetica: 0,
+      anosDecorridos: 0,
+      tipoLigacao: 'monofasica',
+      cipValor: 0,
+      tusd: null,
+      energiaGeradaKwh: 0,
     })
-    const comTusd = mensalidadeLiquida({
-      ...baseParams,
-      tusdConfig: {
-        percent: 30,
-        tipoCliente: 'residencial' as TipoClienteTUSD,
-        anoReferencia: 2025,
-      },
-    })
-
-    expect(comTusd).toBeGreaterThan(semTusd)
+    expect(taxa).toBeCloseTo(0.9 * 30, 8)
   })
 
-  it('ignora taxa mínima e encargos fixos quando a aplicação é desabilitada', () => {
-    const params = {
-      kcKwhMes: 400,
+  it('aplica CIP e TUSD Fio B sobre a mensalidade', () => {
+    const tusdFioB = calcularTUSDFioB(500, 0.5, 0.25, 0.2)
+    const mensalidade = calcularMensalidadeSolarInvest({
       tarifaCheia: 1,
-      desconto: 0,
-      inflacaoAa: 0,
-      m: 1,
-      taxaMinima: 120,
-      encargosFixos: 80,
-      entradaRs: 0,
-      prazoMeses: 12,
-      modoEntrada: 'NONE' as const,
-      mesReajuste: 6,
-      mesReferencia: 1,
-      tusdConfig: {
-        percent: 35,
-        tipoCliente: 'residencial' as TipoClienteTUSD,
-        anoReferencia: 2025,
-      },
-    }
+      inflacaoEnergetica: 0.05,
+      anosDecorridos: 1,
+      tipoLigacao: 'bifasica',
+      cipValor: 15,
+      tusd: { percentualFioB: 0.25, simultaneidade: 0.5, tarifaRkwh: 0.2 },
+      energiaGeradaKwh: 500,
+    })
 
-    const comTaxa = mensalidadeLiquida({ ...params, aplicaTaxaMinima: true })
-    const semTaxa = mensalidadeLiquida({ ...params, aplicaTaxaMinima: false })
-    const tarifaMes = tarifaDescontada(
-      params.tarifaCheia,
-      params.desconto,
-      params.inflacaoAa,
-      params.m,
-      params.mesReajuste,
-      params.mesReferencia,
-    )
-    const apenasEnergia = params.kcKwhMes * tarifaMes
+    const tarifaProjetada = calcularTarifaProjetada(1, 0.05, 1)
+    const taxaMinimaEsperada = tarifaProjetada * 50
+    expect(tusdFioB).toBeGreaterThan(0)
+    expect(mensalidade).toBeCloseTo(taxaMinimaEsperada + 15 + tusdFioB, 6)
+  })
 
-    expect(comTaxa).toBeGreaterThan(apenasEnergia)
-    expect(semTaxa).toBeCloseTo(apenasEnergia, 6)
+  it('calcula economia mensal considerando apenas conta com e sem solar', () => {
+    const economia = calcularEconomiaMensal({
+      consumoMensalKwh: 600,
+      tarifaCheia: 0.8,
+      inflacaoEnergetica: 0.04,
+      anosDecorridos: 0.5,
+      tipoLigacao: 'trifasica',
+      cipValor: 12,
+      tusd: { percentualFioB: 0.2, simultaneidade: 0.6, tarifaRkwh: 0.25 },
+      energiaGeradaKwh: 650,
+    })
+
+    expect(economia).toBeGreaterThan(0)
   })
 })

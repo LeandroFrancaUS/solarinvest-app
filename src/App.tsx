@@ -6905,9 +6905,11 @@ export default function App() {
       pagosAcumManual: Math.max(0, pagosAcumAteM),
       duracaoMeses: Math.max(0, Math.floor(duracaoMeses)),
       geracaoMensalKwh: Math.max(0, geracaoMensalKwh),
+      consumoMensalKwh: Math.max(0, kcKwhMes),
       mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
       mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
       tusdPercent: tusdPercentual,
+      tusdPercentualFioB: tusdPercentual,
       tusdTipoCliente,
       tusdSubtipo: tusdSubtipoNormalizado.length > 0 ? tusdSubtipoNormalizado : null,
       tusdSimultaneidade: tusdSimValue,
@@ -6916,6 +6918,7 @@ export default function App() {
       aplicaTaxaMinima,
       cidKwhBase,
       tipoRede,
+      cipValor: Math.max(0, cipEncargo),
     }
   }, [
     bandeiraEncargo,
