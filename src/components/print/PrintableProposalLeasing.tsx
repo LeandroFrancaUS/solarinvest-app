@@ -1259,6 +1259,7 @@ function PrintableProposalLeasingInner(
                 const isUltimaLinha = index === mensalidadesPorAno.length - 1
 
                 const contaDistribuidoraStyle = estiloContaDistribuidora(linha.ano)
+                const isMensalidadeZeroPosContrato = isPosPrazo && linha.mensalidade === 0
 
                 const rowClassName = [
                   isPosPrazo ? 'leasing-row-post-contract' : undefined,
@@ -1284,7 +1285,22 @@ function PrintableProposalLeasingInner(
                     >
                       {currency(linha.contaDistribuidora)}
                     </td>
-                    <td className="leasing-table-value leasing-table-positive">{currency(linha.mensalidade)}</td>
+                    <td
+                      className={[
+                        'leasing-table-value',
+                        'leasing-table-positive',
+                        isMensalidadeZeroPosContrato ? 'leasing-zero-highlight' : undefined,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      <span
+                        className={isMensalidadeZeroPosContrato ? 'leasing-zero-pill' : undefined}
+                        aria-label={isMensalidadeZeroPosContrato ? 'Mensalidade zerada após o contrato' : undefined}
+                      >
+                        {currency(linha.mensalidade)}
+                      </span>
+                    </td>
                   </tr>
                 )
               })}
