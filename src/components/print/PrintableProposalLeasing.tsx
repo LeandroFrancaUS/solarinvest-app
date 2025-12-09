@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 
 import './styles/print-common.css'
 import './styles/proposal-leasing.css'
@@ -727,6 +727,44 @@ function PrintableProposalLeasingInner(
     tarifaCheiaBase,
   ])
 
+  const calcularIntensidadeContaDistribuidora = useCallback(
+    (ano: number) => {
+      if (ano < 1 || ano > prazoContratualTotalAnos) {
+        return null
+      }
+      if (prazoContratualTotalAnos <= 1) {
+        return 1
+      }
+
+      const progresso = (ano - 1) / (prazoContratualTotalAnos - 1)
+      return Math.min(1, Math.max(0, progresso))
+    },
+    [prazoContratualTotalAnos],
+  )
+
+  const estiloContaDistribuidora = useCallback(
+    (ano: number): React.CSSProperties | undefined => {
+      const intensidade = calcularIntensidadeContaDistribuidora(ano)
+
+      if (intensidade == null) {
+        return undefined
+      }
+
+      const mix = (inicio: number, fim: number) => Math.round(inicio + (fim - inicio) * intensidade)
+      const background = `rgb(${mix(255, 255)}, ${mix(229, 143)}, ${mix(224, 126)})`
+      const border = `rgb(${mix(241, 223)}, ${mix(188, 99)}, ${mix(180, 89)})`
+
+      return {
+        background,
+        boxShadow: `inset 0 0 0 1px ${border}`,
+        color: '#7f1b1b',
+        ['--leasing-negative-bg' as string]: background,
+        ['--leasing-negative-border' as string]: border,
+      }
+    },
+    [calcularIntensidadeContaDistribuidora],
+  )
+
   const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
   const prazoEconomiaMeses = prazoContratualMeses
 
@@ -1182,6 +1220,8 @@ function PrintableProposalLeasingInner(
                 const isPosPrazo = linha.ano > prazoContratualTotalAnos
                 const isUltimaLinha = index === mensalidadesPorAno.length - 1
 
+                const contaDistribuidoraStyle = estiloContaDistribuidora(linha.ano)
+
                 const rowClassName = [
                   isPosPrazo ? 'leasing-row-post-contract' : undefined,
                   isPosPrazo && isUltimaLinha ? 'leasing-row-post-contract--gradient' : undefined,
@@ -1194,7 +1234,18 @@ function PrintableProposalLeasingInner(
                     <td>{`${linha.ano}º ano`}</td>
                     <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
                     <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
-                    <td className="leasing-table-value leasing-table-negative">{currency(linha.contaDistribuidora)}</td>
+                    <td
+                      className={[
+                        'leasing-table-value',
+                        'leasing-table-negative',
+                        contaDistribuidoraStyle ? 'leasing-table-negative-gradient' : undefined,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      style={contaDistribuidoraStyle}
+                    >
+                      {currency(linha.contaDistribuidora)}
+                    </td>
                     <td className="leasing-table-value leasing-table-positive">{currency(linha.mensalidade)}</td>
                   </tr>
                 )

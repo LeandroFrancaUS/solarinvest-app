@@ -515,6 +515,14 @@
   box-shadow: inset 0 0 0 1px #e06f63;
 }
 
+.leasing-table-negative-gradient {
+  background: var(--leasing-negative-bg, #ffc6bd);
+  color: #7f1b1b;
+  box-shadow: inset 0 0 0 1px var(--leasing-negative-border, #e06f63);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 .leasing-row-post-contract td {
   background: #c7f0d5;
   color: #0f4d2d;
@@ -1260,6 +1268,14 @@
     background: #c7f0d5 !important;
     color: #0f4d2d !important;
     box-shadow: inset 0 0 0 1px rgba(93, 174, 125, 0.82) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-section .leasing-table-negative-gradient {
+    background: var(--leasing-negative-bg, #ffc6bd) !important;
+    color: #7f1b1b !important;
+    box-shadow: inset 0 0 0 1px var(--leasing-negative-border, #e06f63) !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
