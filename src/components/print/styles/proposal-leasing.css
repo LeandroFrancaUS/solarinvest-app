@@ -523,6 +523,22 @@
   print-color-adjust: exact;
 }
 
+.leasing-zero-highlight-cell {
+  position: relative;
+}
+
+.leasing-zero-highlight {
+  display: inline-block;
+  padding: 4px 6px;
+  background: #fde68a;
+  color: #92400e;
+  border-radius: 8px;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px #f59e0b;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 .leasing-row-post-contract td {
   background: #c7f0d5;
   color: #0f4d2d;
@@ -1298,6 +1314,12 @@
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(5) {
     background: #8fcba9 !important;
+  }
+
+  .print-section .leasing-zero-highlight {
+    background: #fde68a !important;
+    color: #92400e !important;
+    box-shadow: inset 0 0 0 1px #f59e0b !important;
   }
 
   .print-final-footer,
