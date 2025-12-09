@@ -133,6 +133,7 @@ export interface MensalidadeLiquidaInput {
   mesReajuste: number
   mesReferencia: number
   tusdConfig?: TusdConfigInput
+  aplicaTaxaMinima?: boolean
 }
 
 export interface TusdConfigInput {
@@ -163,6 +164,7 @@ export function mensalidadeLiquida({
   mesReajuste,
   mesReferencia,
   tusdConfig,
+  aplicaTaxaMinima = true,
 }: MensalidadeLiquidaInput): number {
   if (m <= 0 || prazoMeses <= 0) return 0
 
@@ -189,20 +191,22 @@ export function mensalidadeLiquida({
     mesReferencia,
   )
   const energiaComDesconto = Math.max(0, kcContratado * tarifaComDesconto)
-  const encargosAdicionais = Math.max(0, encargosFixos)
-  const taxaMinimaPositiva = Math.max(0, taxaMinima)
+  const encargosAdicionais = aplicaTaxaMinima ? Math.max(0, encargosFixos) : 0
+  const taxaMinimaPositiva = aplicaTaxaMinima ? Math.max(0, taxaMinima) : 0
   const margemMinima = taxaMinimaPositiva + encargosAdicionais
-  const tusdMensal = calcTusdEncargoMensal({
-    consumoMensal_kWh: kcContratado,
-    tarifaCheia_R_kWh: tarifaCheiaMes,
-    mes: m,
-    anoReferencia: tusdConfig?.anoReferencia ?? null,
-    tipoCliente: tusdConfig?.tipoCliente ?? null,
-    subTipo: tusdConfig?.subTipo ?? null,
-    pesoTUSD: tusdConfig?.percent ?? null,
-    tusd_R_kWh: tusdConfig?.tarifaRkwh ?? null,
-    simultaneidadePadrao: tusdConfig?.simultaneidade ?? null,
-  })
+  const tusdMensal = aplicaTaxaMinima
+    ? calcTusdEncargoMensal({
+        consumoMensal_kWh: kcContratado,
+        tarifaCheia_R_kWh: tarifaCheiaMes,
+        mes: m,
+        anoReferencia: tusdConfig?.anoReferencia ?? null,
+        tipoCliente: tusdConfig?.tipoCliente ?? null,
+        subTipo: tusdConfig?.subTipo ?? null,
+        pesoTUSD: tusdConfig?.percent ?? null,
+        tusd_R_kWh: tusdConfig?.tarifaRkwh ?? null,
+        simultaneidadePadrao: tusdConfig?.simultaneidade ?? null,
+      })
+    : 0
   const valorBase = energiaComDesconto + margemMinima + tusdMensal
 
   const credito =

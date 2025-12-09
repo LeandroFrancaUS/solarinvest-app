@@ -148,10 +148,8 @@ export function computeROI(form: VendaForm): RetornoProjetado {
       const contaSemGeracao = consumo * tarifaAjustada
       const economiaBruta = Math.max(0, contaSemGeracao - totalComTaxaMinima)
 
-      return Math.max(
-        0,
-        economiaBruta -
-          calcTusdEncargoMensal({
+      const tusdEncargo = aplicaTaxaMinima
+        ? calcTusdEncargoMensal({
             consumoMensal_kWh: consumo,
             tarifaCheia_R_kWh: tarifaAjustada,
             mes: index + 1,
@@ -161,8 +159,10 @@ export function computeROI(form: VendaForm): RetornoProjetado {
             pesoTUSD: form.tusd_percentual ?? null,
             tusd_R_kWh: form.tusd_tarifa_r_kwh ?? null,
             simultaneidadePadrao: form.tusd_simultaneidade ?? null,
-          }),
-      )
+          })
+        : 0
+
+      return Math.max(0, economiaBruta - tusdEncargo)
     })
 
     return economia

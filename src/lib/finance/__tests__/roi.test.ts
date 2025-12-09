@@ -190,6 +190,26 @@ describe('computeROI', () => {
     expect(comTaxa.economia[0]).toBeCloseTo(250, 6)
   })
 
+  it('ignora encargos de TUSD quando a taxa mínima é desativada', () => {
+    const base = {
+      consumo_kwh_mes: 500,
+      geracao_estimada_kwh_mes: 300,
+      tarifa_r_kwh: 1,
+      inflacao_energia_aa_pct: 0,
+      taxa_minima_mensal: 50,
+      taxa_minima_r_mes: 50,
+      tusd_percentual: 35,
+      tusd_tipo_cliente: 'residencial',
+      tusd_ano_referencia: 2025,
+    }
+
+    const comTaxa = computeROI(createBaseForm({ ...base, aplica_taxa_minima: true }))
+    const semTaxa = computeROI(createBaseForm({ ...base, aplica_taxa_minima: false }))
+
+    expect(comTaxa.economia[0]).toBeLessThan(semTaxa.economia[0])
+    expect(semTaxa.economia[0]).toBeCloseTo(300, 6)
+  })
+
   it('projeta inflação energética de forma composta anualmente (8%)', () => {
     const resultado = computeROI(
       createBaseForm({

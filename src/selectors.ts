@@ -40,6 +40,7 @@ export interface SimulationState {
   tusdSimultaneidade: number | null
   tusdTarifaRkwh: number | null
   tusdAnoReferencia: number
+  aplicaTaxaMinima: boolean
 }
 
 export interface BuyoutLinha {
@@ -90,6 +91,7 @@ export function selectMensalidades(state: SimulationState): number[] {
         tarifaRkwh: state.tusdTarifaRkwh,
         anoReferencia: state.tusdAnoReferencia,
       },
+      aplicaTaxaMinima: state.aplicaTaxaMinima,
     }),
   )
 }
@@ -129,8 +131,14 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
       state.mesReferencia,
     )
     const tarifaLiquida = selectTarifaDescontada(state, mes)
+    const taxaMinimaAplicada = state.aplicaTaxaMinima ? state.taxaMinima : 0
+    const custosFixosAplicados = state.aplicaTaxaMinima ? state.custosFixosM : 0
     const prestBruta =
-      state.geracaoMensalKwh * tarifaLiquida + state.taxaMinima + state.custosFixosM + state.opexM + state.seguroM
+      state.geracaoMensalKwh * tarifaLiquida +
+      taxaMinimaAplicada +
+      custosFixosAplicados +
+      state.opexM +
+      state.seguroM
     const receitaEfetiva = prestBruta * (1 - inadMensal)
     const prestEfetiva = receitaEfetiva * (1 - tribMensal)
     prestacaoAcum += prestEfetiva
