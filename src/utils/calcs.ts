@@ -1,6 +1,3 @@
-import { calcTusdEncargoMensal, type TipoClienteTUSD } from '../lib/finance/tusd'
-import { CONSUMO_MINIMO_FICTICIO, type TipoRede } from '../app/config'
-
 /**
  * Conversões e cálculos centrais compartilhados entre leasing e buyout.
  * O objetivo é manter uma única implementação por regra de negócio.
@@ -24,16 +21,6 @@ export function normalizaMes(mes: number, fallback = 1): number {
   let normalizado = inteiro % 12
   if (normalizado <= 0) normalizado += 12
   return normalizado
-}
-
-/**
- * Calcula a taxa mínima (custo de disponibilidade) pela rede selecionada.
- * Fórmula: tarifa cheia (R$/kWh) × consumo mínimo fictício (kWh).
- */
-export function calcularTaxaMinima(tipoLigacao: TipoRede, tarifaRkwh: number): number {
-  const consumoMinimo = CONSUMO_MINIMO_FICTICIO[tipoLigacao]
-  if (!Number.isFinite(consumoMinimo) || !Number.isFinite(tarifaRkwh)) return 0
-  return Math.max(0, tarifaRkwh) * consumoMinimo
 }
 
 const reajustesAteMes = (m: number, mesReajuste: number, mesReferencia: number): number => {
@@ -130,117 +117,6 @@ export function creditoMensal(entradaRs: number, prazoMeses: number): number {
   return entradaRs / prazoMeses
 }
 
-export interface MensalidadeLiquidaInput {
-  kcKwhMes: number
-  tarifaCheia: number
-  desconto: number
-  inflacaoAa: number
-  m: number
-  taxaMinima: number
-  encargosFixos: number
-  entradaRs: number
-  prazoMeses: number
-  modoEntrada: EntradaModo
-  mesReajuste: number
-  mesReferencia: number
-  tusdConfig?: TusdConfigInput
-  aplicaTaxaMinima?: boolean
-  cidKwhBase?: number
-  tipoRede?: TipoRede
-}
-
-export interface TusdConfigInput {
-  percent?: number | null
-  tipoCliente?: TipoClienteTUSD | null
-  subTipo?: string | null
-  simultaneidade?: number | null
-  tarifaRkwh?: number | null
-  anoReferencia?: number | null
-}
-
-/**
- * Calcula a mensalidade líquida para o mês m.
- * A projeção soma a energia contratada às margens fixas (taxa mínima + encargos)
- * antes de considerar o eventual crédito da entrada.
- */
-export function mensalidadeLiquida({
-  kcKwhMes,
-  tarifaCheia,
-  desconto,
-  inflacaoAa,
-  m,
-  taxaMinima,
-  encargosFixos,
-  entradaRs,
-  prazoMeses,
-  modoEntrada,
-  mesReajuste,
-  mesReferencia,
-  tusdConfig,
-  aplicaTaxaMinima = true,
-  cidKwhBase = 0,
-  tipoRede,
-}: MensalidadeLiquidaInput): number {
-  if (m <= 0 || prazoMeses <= 0) return 0
-
-  const kcContratado =
-    modoEntrada === 'REDUZ'
-      ? kcAjustadoPorEntrada(kcKwhMes, tarifaCheia, desconto, prazoMeses, entradaRs)
-      : Math.max(0, kcKwhMes)
-
-  if (kcContratado <= 0) return 0
-
-  const tarifaCheiaMes = tarifaProjetadaCheia(
-    tarifaCheia,
-    inflacaoAa,
-    m,
-    mesReajuste,
-    mesReferencia,
-  )
-  const tarifaComDesconto = tarifaDescontada(
-    tarifaCheia,
-    desconto,
-    inflacaoAa,
-    m,
-    mesReajuste,
-    mesReferencia,
-  )
-  const energiaComDesconto = Math.max(0, kcContratado * tarifaComDesconto)
-  const encargosAdicionais = aplicaTaxaMinima ? Math.max(0, encargosFixos) : 0
-  const taxaMinimaManual = Math.max(0, taxaMinima)
-  const taxaMinimaCalculada =
-    aplicaTaxaMinima && tipoRede ? calcularTaxaMinima(tipoRede, tarifaCheiaMes) : 0
-  const taxaMinimaPositiva = aplicaTaxaMinima
-    ? taxaMinimaManual > 0
-      ? taxaMinimaManual
-      : taxaMinimaCalculada
-    : 0
-  const cidAplicado = aplicaTaxaMinima ? Math.max(0, cidKwhBase) * tarifaCheiaMes : 0
-  const margemMinima = taxaMinimaPositiva + encargosAdicionais + cidAplicado
-  const tusdMensal = aplicaTaxaMinima
-    ? calcTusdEncargoMensal({
-        consumoMensal_kWh: kcContratado,
-        tarifaCheia_R_kWh: tarifaCheiaMes,
-        mes: m,
-        anoReferencia: tusdConfig?.anoReferencia ?? null,
-        tipoCliente: tusdConfig?.tipoCliente ?? null,
-        subTipo: tusdConfig?.subTipo ?? null,
-        pesoTUSD: tusdConfig?.percent ?? null,
-        tusd_R_kWh: tusdConfig?.tarifaRkwh ?? null,
-        simultaneidadePadrao: tusdConfig?.simultaneidade ?? null,
-      })
-    : 0
-  const valorBase = energiaComDesconto + margemMinima + tusdMensal
-
-  const credito =
-    modoEntrada === 'CREDITO'
-      ? creditoMensal(entradaRs, prazoMeses)
-      : 0
-
-  const resultado = Math.max(0, valorBase - credito)
-  return Number.isFinite(resultado) ? resultado : 0
-}
-
 export interface CustosRestantesInput {
   m: number
   prazoMeses: number
@@ -296,6 +172,9 @@ export function valorReposicao({
   const fatorSobrevivencia = Math.max(0, 1 - depMensal)
   return Math.max(0, vm0) * Math.pow(fatorSobrevivencia, m)
 }
+
+// Operacional: reexporta cálculo de taxa mínima utilizado pelo App
+export { calcularTaxaMinima } from '../lib/finance/calculations'
 
 export function creditoCashback(cashbackPct: number, pagosAcumAteM: number): number {
   if (!Number.isFinite(cashbackPct) || !Number.isFinite(pagosAcumAteM)) return 0
