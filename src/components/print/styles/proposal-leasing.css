@@ -509,6 +509,14 @@
   box-shadow: inset 0 0 0 1px #5dae7d;
 }
 
+.leasing-table-positive-gradient {
+  background: var(--leasing-positive-bg, #c7f0d5);
+  color: #0f4d2d;
+  box-shadow: inset 0 0 0 1px var(--leasing-positive-border, #5dae7d);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 .leasing-table-negative {
   background: #ffc6bd;
   color: #7f1b1b;
