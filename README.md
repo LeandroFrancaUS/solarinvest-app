@@ -116,6 +116,11 @@ O repositório agora contém uma versão independente do Invoice Engine com back
 
 O frontend assume o backend em `http://localhost:3001`. Ajuste o `baseURL` em `frontend/src/api/client.ts` se necessário.
 
-## Notas sobre TUSD Fio B
-- Utilize `tarifaFioBOficial` (R$/kWh) como referência prioritária para a TUSD Fio B conforme Lei 14.300/2022 e REN 1.000/2021.
-- O campo legado `percentualFioB` permanece apenas como fallback quando não houver tarifa oficial; considere descontinuá-lo em versões futuras.
+## Notas sobre TUSD Fio B (atualizadas)
+- **Tarifa usada:** o simulador prioriza `tarifaFioBOficial` (R$/kWh), de acordo com a Lei 14.300/2022 e a REN 1.000/2021. Se ela não for informada, recorre ao cálculo legado `percentualFioB * tarifaTUSD` (mantenha apenas por compatibilidade).
+- **Energia compensada:** a base é `energiaGerada * (1 - simultaneidade)`, com `simultaneidade` limitada a 0–1 (padrão 0,6 quando o campo está vazio). Isso evita percentuais inválidos.
+- **Fator de incidência da lei:** o valor da TUSD pode ser multiplicado pelo fator da Lei 14.300 (padrão 1,0/100%).
+- **Fórmula consolidada:**
+  - Com tarifa oficial: `tusdFioB = tarifaFioBOficial * energiaGerada * (1 - simultaneidade) * fatorLei14300`.
+  - Sem tarifa oficial (fallback): `tusdFioB = tarifaTUSD * percentualFioB * energiaGerada * (1 - simultaneidade) * fatorLei14300`.
+- **Mensalidade com distribuidora:** `calcularValorContaRede` soma taxa mínima (CID) + CIP (se houver) + TUSD Fio B. A função `calcularMensalidadeSolarInvest` segue existindo como alias para não quebrar chamadas antigas.
