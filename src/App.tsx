@@ -6983,8 +6983,6 @@ export default function App() {
     const tusdTarifaAtual = simulationState.tusdTarifaRkwh
     const tusdAnoAtual = simulationState.tusdAnoReferencia
     const aplicaTaxaMinima = simulationState.aplicaTaxaMinima ?? true
-    const encargosFixosAplicados = aplicaTaxaMinima ? encargosFixos : 0
-    const taxaMinimaAplicada = aplicaTaxaMinima ? taxaMinima : 0
 
     return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
       const ano = i + 1
@@ -7008,14 +7006,17 @@ export default function App() {
           simulationState.mesReajuste,
           simulationState.mesReferencia,
         )
-        const cidAplicado = aplicaTaxaMinima ? simulationState.cidKwhBase * tarifaCheiaMes : 0
+        const aplicaTaxaMinimaNoMes = aplicaTaxaMinima || mes > contratoMeses
+        const encargosFixosAplicados = aplicaTaxaMinimaNoMes ? encargosFixos : 0
+        const taxaMinimaAplicada = aplicaTaxaMinimaNoMes ? taxaMinima : 0
+        const cidAplicado = aplicaTaxaMinimaNoMes ? simulationState.cidKwhBase * tarifaCheiaMes : 0
         const custoSemSistemaMes =
           kcKwhMes * tarifaCheiaMes + encargosFixosAplicados + taxaMinimaAplicada + cidAplicado
         const dentroPrazoMes = contratoMeses > 0 ? mes <= contratoMeses : false
         const custoComSistemaEnergiaMes = dentroPrazoMes ? kcKwhMes * tarifaDescontadaMes : 0
         const custoComSistemaBaseMes =
           custoComSistemaEnergiaMes + encargosFixosAplicados + taxaMinimaAplicada + cidAplicado
-        const tusdMes = aplicaTaxaMinima
+        const tusdMes = aplicaTaxaMinimaNoMes
           ? calcTusdEncargoMensal({
               consumoMensal_kWh: kcKwhMes,
               tarifaCheia_R_kWh: tarifaCheiaMes,
