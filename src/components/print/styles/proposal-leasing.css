@@ -505,9 +505,9 @@
 
 
 .leasing-table-positive {
-  background: #eef2f7;
-  color: #0f172a;
-  box-shadow: inset 0 0 0 1px #cbd5e1;
+  background: #ecfdf3;
+  color: #064e3b;
+  box-shadow: inset 0 0 0 1px #bbf7d0;
 }
 
 .leasing-table-negative {
@@ -526,44 +526,56 @@
 
 .leasing-zero-highlight-cell {
   position: relative;
+  background: linear-gradient(90deg, #ecfdf3 0%, #d1fae5 60%, #ecfdf3 100%);
+  box-shadow:
+    inset 0 0 0 1px #bbf7d0,
+    inset 4px 0 0 #22c55e;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .leasing-zero-highlight {
-  display: inline-block;
-  padding: 4px 8px;
-  background: #f8fafc;
-  color: #0f172a;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 2px 0;
+  background-image: linear-gradient(180deg, transparent 55%, rgba(52, 211, 153, 0.35) 55%);
+  background-repeat: no-repeat;
+  background-size: 100% 90%;
+  background-position: 0 100%;
+  color: #065f46;
   font-weight: 800;
-  box-shadow: inset 0 0 0 1px #1d4ed8;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
 .leasing-row-post-contract td {
-  background: #eef2f7;
-  color: #0f172a;
-  box-shadow: inset 0 0 0 1px #cbd5e1;
+  background: #ecfdf3;
+  color: #065f46;
+  box-shadow: inset 0 0 0 1px #bbf7d0;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(1) {
-  background: #f7f9fc;
+  background: #f0fdf4;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(2) {
-  background: #edf1f8;
+  background: #e5f9ed;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(3) {
-  background: #e5e9f2;
+  background: #dbf3e5;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(4) {
-  background: #dce3ed;
+  background: #d0eddc;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(5) {
-  background: #c7d2e6;
+  background: #c1e8d3;
 }
 
 .leasing-highlight-value {
@@ -1274,17 +1286,17 @@
   }
 
   .print-section .leasing-table-positive {
-    background: #eef2f7 !important;
-    color: #0f172a !important;
-    box-shadow: inset 0 0 0 1px #cbd5e1 !important;
+    background: #ecfdf3 !important;
+    color: #064e3b !important;
+    box-shadow: inset 0 0 0 1px #bbf7d0 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
   .print-section .leasing-row-post-contract td {
-    background: #eef2f7 !important;
-    color: #0f172a !important;
-    box-shadow: inset 0 0 0 1px #cbd5e1 !important;
+    background: #ecfdf3 !important;
+    color: #065f46 !important;
+    box-shadow: inset 0 0 0 1px #bbf7d0 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -1300,29 +1312,36 @@
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(1) {
-    background: #f7f9fc !important;
+    background: #f0fdf4 !important;
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(2) {
-    background: #edf1f8 !important;
+    background: #e5f9ed !important;
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(3) {
-    background: #e5e9f2 !important;
+    background: #dbf3e5 !important;
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(4) {
-    background: #dce3ed !important;
+    background: #d0eddc !important;
   }
 
   .print-section .leasing-row-post-contract--gradient td:nth-child(5) {
-    background: #c7d2e6 !important;
+    background: #c1e8d3 !important;
   }
 
   .print-section .leasing-zero-highlight {
-    background: #f8fafc !important;
-    color: #0f172a !important;
-    box-shadow: inset 0 0 0 1px #1d4ed8 !important;
+    background-image: linear-gradient(180deg, transparent 55%, rgba(52, 211, 153, 0.35) 55%) !important;
+    color: #065f46 !important;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+  }
+
+  .print-section .leasing-zero-highlight-cell {
+    background: linear-gradient(90deg, #ecfdf3 0%, #d1fae5 60%, #ecfdf3 100%) !important;
+    box-shadow:
+      inset 0 0 0 1px #bbf7d0,
+      inset 4px 0 0 #22c55e !important;
   }
 
   .print-final-footer,
