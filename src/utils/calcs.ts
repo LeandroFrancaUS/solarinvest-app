@@ -173,6 +173,9 @@ export function valorReposicao({
   return Math.max(0, vm0) * Math.pow(fatorSobrevivencia, m)
 }
 
+// Operacional: reexporta cálculo de taxa mínima utilizado pelo App
+export { calcularTaxaMinima } from '../lib/finance/calculations'
+
 export function creditoCashback(cashbackPct: number, pagosAcumAteM: number): number {
   if (!Number.isFinite(cashbackPct) || !Number.isFinite(pagosAcumAteM)) return 0
   if (cashbackPct <= 0 || pagosAcumAteM <= 0) return 0
