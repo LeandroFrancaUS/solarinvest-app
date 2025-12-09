@@ -752,19 +752,24 @@ function PrintableProposalLeasingInner(
     tarifaCheiaBase,
   ])
 
+  const intensidadePorAno = useMemo(() => {
+    const totalLinhas = mensalidadesPorAno.length
+    if (totalLinhas === 0) {
+      return new Map<number, number>()
+    }
+
+    const divisor = Math.max(1, totalLinhas - 1)
+    return mensalidadesPorAno.reduce<Map<number, number>>((acc, linha, index) => {
+      acc.set(linha.ano, Math.min(1, Math.max(0, index / divisor)))
+      return acc
+    }, new Map())
+  }, [mensalidadesPorAno])
+
   const calcularIntensidadeContaDistribuidora = useCallback(
     (ano: number) => {
-      if (ano < 1 || ano > prazoContratualTotalAnos) {
-        return null
-      }
-      if (prazoContratualTotalAnos <= 1) {
-        return 1
-      }
-
-      const progresso = (ano - 1) / (prazoContratualTotalAnos - 1)
-      return Math.min(1, Math.max(0, progresso))
+      return intensidadePorAno.get(ano) ?? null
     },
-    [prazoContratualTotalAnos],
+    [intensidadePorAno],
   )
 
   const estiloContaDistribuidora = useCallback(
@@ -799,8 +804,8 @@ function PrintableProposalLeasingInner(
       }
 
       const mix = (inicio: number, fim: number) => Math.round(inicio + (fim - inicio) * intensidade)
-      const background = `rgb(${mix(238, 143)}, ${mix(249, 203)}, ${mix(243, 169)})`
-      const border = `rgb(${mix(207, 93)}, ${mix(233, 174)}, ${mix(216, 125)})`
+      const background = `rgb(${mix(232, 47)}, ${mix(246, 133)}, ${mix(235, 90)})`
+      const border = `rgb(${mix(182, 26)}, ${mix(226, 108)}, ${mix(198, 58)})`
 
       return {
         background,
