@@ -115,3 +115,7 @@ O repositório agora contém uma versão independente do Invoice Engine com back
    ```
 
 O frontend assume o backend em `http://localhost:3001`. Ajuste o `baseURL` em `frontend/src/api/client.ts` se necessário.
+
+## Notas sobre TUSD Fio B
+- Utilize `tarifaFioBOficial` (R$/kWh) como referência prioritária para a TUSD Fio B conforme Lei 14.300/2022 e REN 1.000/2021.
+- O campo legado `percentualFioB` permanece apenas como fallback quando não houver tarifa oficial; considere descontinuá-lo em versões futuras.

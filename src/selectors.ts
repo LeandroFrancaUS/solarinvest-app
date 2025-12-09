@@ -7,7 +7,7 @@ import {
   valorCompraCliente,
   type EntradaModo,
 } from './utils/calcs'
-import { calcularMensalidadeSolarInvest, type TusdConfig } from './lib/finance/calculations'
+import { calcularValorContaRede, type TusdConfig } from './lib/finance/calculations'
 import type { TipoRede } from './app/config'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 
@@ -78,7 +78,7 @@ export function selectMensalidades(state: SimulationState): number[] {
   const prazo = Math.max(0, Math.floor(state.prazoMeses))
   return Array.from({ length: prazo }, (_, index) => {
     const anosDecorridos = index / 12
-    return calcularMensalidadeSolarInvest({
+    return calcularValorContaRede({
       tarifaCheia: state.tarifaCheia,
       inflacaoEnergetica: state.inflacaoAa,
       anosDecorridos,
