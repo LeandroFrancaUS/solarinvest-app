@@ -515,6 +515,20 @@
     inset 0 0 0 2px #0f4d2d;
 }
 
+.leasing-economia-table th:last-child,
+.leasing-economia-table td:last-child {
+  border-left: 2px solid #0f4d2d;
+  border-right: 2px solid #0f4d2d;
+}
+
+.leasing-economia-table th:last-child {
+  border-top: 2px solid #0f4d2d;
+}
+
+.leasing-economia-table tr:last-child td:last-child {
+  border-bottom: 2px solid #0f4d2d;
+}
+
 .leasing-table-positive-gradient {
   background: var(--leasing-positive-bg, #c7f0d5);
   color: #0f4d2d;
@@ -1307,6 +1321,20 @@
       inset 0 0 0 2px #0f4d2d !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  .leasing-economia-table th:last-child,
+  .leasing-economia-table td:last-child {
+    border-left: 2px solid #0f4d2d !important;
+    border-right: 2px solid #0f4d2d !important;
+  }
+
+  .leasing-economia-table th:last-child {
+    border-top: 2px solid #0f4d2d !important;
+  }
+
+  .leasing-economia-table tr:last-child td:last-child {
+    border-bottom: 2px solid #0f4d2d !important;
   }
 
   .print-section .leasing-table-positive-gradient {

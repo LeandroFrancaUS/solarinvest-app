@@ -1104,7 +1104,7 @@ function PrintableProposalLeasingInner(
             <p className="section-subtitle keep-with-next">
               Tudo o que você precisa saber — de forma simples e transparente.
             </p>
-            <table className="no-break-inside">
+              <table className="no-break-inside">
               <thead>
                 <tr>
                   <th>Parâmetro</th>
@@ -1263,10 +1263,10 @@ function PrintableProposalLeasingInner(
             </section>
           ) : null}
     
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Como sua economia evolui</h2>
-            <p className="section-subtitle keep-with-next">Valores estimados por período contratual</p>
-            <table className="no-break-inside">
+            <section className="print-section keep-together avoid-break">
+              <h2 className="section-title keep-with-next">Como sua economia evolui</h2>
+              <p className="section-subtitle keep-with-next">Valores estimados por período contratual</p>
+            <table className="no-break-inside leasing-economia-table">
               <thead>
                 <tr>
                   <th>Período</th>
