@@ -9,9 +9,9 @@ import {
 } from './calcs'
 import {
   calcularEconomiaMensal,
-  calcularMensalidadeSolarInvest,
   calcularTarifaProjetada,
   calcularTUSDFioB,
+  calcularValorContaRede,
 } from '../lib/finance/calculations'
 
 describe('calcs utilitários', () => {
@@ -117,7 +117,7 @@ describe('calcs utilitários', () => {
   })
 
   it('calcula taxa mínima pelo tipo de ligação', () => {
-    const taxa = calcularMensalidadeSolarInvest({
+    const valorContaRede = calcularValorContaRede({
       tarifaCheia: 0.9,
       inflacaoEnergetica: 0,
       anosDecorridos: 0,
@@ -126,25 +126,31 @@ describe('calcs utilitários', () => {
       tusd: null,
       energiaGeradaKwh: 0,
     })
-    expect(taxa).toBeCloseTo(0.9 * 30, 8)
+    expect(valorContaRede).toBeCloseTo(0.9 * 30, 8)
   })
 
   it('aplica CIP e TUSD Fio B sobre a mensalidade', () => {
-    const tusdFioB = calcularTUSDFioB(500, 0.5, 0.25, 0.2)
-    const mensalidade = calcularMensalidadeSolarInvest({
+    const tusdFioB = calcularTUSDFioB(500, 0.5, 0.25, 0.2, 0.22, 0.75)
+    const valorContaRede = calcularValorContaRede({
       tarifaCheia: 1,
       inflacaoEnergetica: 0.05,
       anosDecorridos: 1,
       tipoLigacao: 'bifasica',
       cipValor: 15,
-      tusd: { percentualFioB: 0.25, simultaneidade: 0.5, tarifaRkwh: 0.2 },
+      tusd: {
+        percentualFioB: 0.25,
+        simultaneidade: 0.5,
+        tarifaRkwh: 0.2,
+        tarifaFioBOficial: 0.22,
+        fatorIncidenciaLei14300: 0.75,
+      },
       energiaGeradaKwh: 500,
     })
 
     const tarifaProjetada = calcularTarifaProjetada(1, 0.05, 1)
     const taxaMinimaEsperada = tarifaProjetada * 50
     expect(tusdFioB).toBeGreaterThan(0)
-    expect(mensalidade).toBeCloseTo(taxaMinimaEsperada + 15 + tusdFioB, 6)
+    expect(valorContaRede).toBeCloseTo(taxaMinimaEsperada + 15 + tusdFioB, 6)
   })
 
   it('calcula economia mensal considerando apenas conta com e sem solar', () => {
