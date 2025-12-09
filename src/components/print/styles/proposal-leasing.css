@@ -504,13 +504,15 @@
 }
 
 .leasing-table-positive {
-  background: #e6f4ea;
-  color: #0f5132;
+  background: #c9f1d4;
+  color: #0f3d24;
+  box-shadow: inset 0 0 0 1px #7ac694;
 }
 
 .leasing-table-negative {
-  background: #fdebea;
-  color: #8a1f1f;
+  background: #f8c7c1;
+  color: #6f1010;
+  box-shadow: inset 0 0 0 1px #e58b83;
 }
 
 .leasing-highlight-value {
