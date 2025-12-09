@@ -515,7 +515,8 @@
     inset 0 0 0 2px #0f4d2d;
 }
 
-.leasing-economia-table {
+table.leasing-economia-table,
+.print-section .leasing-economia-table {
   border-radius: 0;
   overflow: visible;
 }
@@ -1328,7 +1329,8 @@
     print-color-adjust: exact;
   }
 
-  .leasing-economia-table {
+  table.leasing-economia-table,
+  .print-section .leasing-economia-table {
     border-radius: 0 !important;
     overflow: visible !important;
   }
