@@ -177,6 +177,19 @@ const formatTipoSistema = (value?: PrintableProposalProps['tipoSistema']) => {
   }
 }
 
+const formatTipoRede = (value?: PrintableProposalProps['tipoRede']) => {
+  switch (value) {
+    case 'monofasico':
+      return 'Monofásico'
+    case 'bifasico':
+      return 'Bifásico'
+    case 'trifasico':
+      return 'Trifásico'
+    default:
+      return '—'
+  }
+}
+
 const formatSegmentoCliente = (
   value?: SegmentoCliente | null,
   outro?: string | null,
@@ -213,6 +226,7 @@ function PrintableProposalLeasingInner(
     tipoInstalacaoOutro,
     tipoInstalacaoCompleto,
     tipoSistema,
+    tipoRede,
     segmentoCliente,
     tipoEdificacaoOutro,
     tipoEdificacaoCompleto,
@@ -554,6 +568,10 @@ function PrintableProposalLeasingInner(
     {
       label: 'Tipo de Sistema',
       value: formatTipoSistema(tipoSistema),
+    },
+    {
+      label: 'Tipo de rede',
+      value: formatTipoRede(tipoRede),
     },
     {
       label: 'Potência instalada (kWp)',

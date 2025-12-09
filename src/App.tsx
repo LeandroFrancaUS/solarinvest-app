@@ -7654,6 +7654,7 @@ export default function App() {
         tipoInstalacaoOutro: tipoInstalacaoOutroPrintable,
         tipoInstalacaoCompleto,
         tipoSistema: tipoSistemaPrintable,
+        tipoRede,
         segmentoCliente: segmentoPrintable,
         tipoEdificacaoCodigo,
         tipoEdificacaoLabel,
