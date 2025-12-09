@@ -1178,15 +1178,22 @@ function PrintableProposalLeasingInner(
                 </tr>
               </thead>
             <tbody>
-              {mensalidadesPorAno.map((linha) => (
-                <tr key={`mensalidade-${linha.ano}`}>
-                  <td>{`${linha.ano}º ano`}</td>
-                  <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
+              {mensalidadesPorAno.map((linha) => {
+                const isPosPrazo = linha.ano > prazoContratualTotalAnos
+
+                return (
+                  <tr
+                    key={`mensalidade-${linha.ano}`}
+                    className={isPosPrazo ? 'leasing-row-post-contract' : undefined}
+                  >
+                    <td>{`${linha.ano}º ano`}</td>
+                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
                     <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
                     <td className="leasing-table-value leasing-table-negative">{currency(linha.contaDistribuidora)}</td>
                     <td className="leasing-table-value leasing-table-positive">{currency(linha.mensalidade)}</td>
                   </tr>
-                ))}
+                )
+              })}
               </tbody>
             </table>
             <p>
