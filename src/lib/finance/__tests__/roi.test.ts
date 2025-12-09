@@ -8,6 +8,7 @@ const createBaseForm = (overrides: Partial<VendaForm> = {}): VendaForm => ({
   inflacao_energia_aa_pct: 0,
   taxa_minima_mensal: 80,
   horizonte_meses: 360,
+  aplica_taxa_minima: true,
   capex_total: 30000,
   condicao: 'AVISTA',
   modo_pagamento: 'PIX',
@@ -168,5 +169,64 @@ describe('computeROI', () => {
     const paybackTaxaAlta = resultadoTaxaAlta.payback ?? Number.POSITIVE_INFINITY
 
     expect(paybackTaxaAlta).toBeGreaterThanOrEqual(paybackPadrao)
+  })
+
+  it('aplica taxa mínima apenas quando habilitado', () => {
+    const comum = {
+      consumo_kwh_mes: 500,
+      geracao_estimada_kwh_mes: 300,
+      tarifa_r_kwh: 1,
+      inflacao_energia_aa_pct: 0,
+      taxa_minima_mensal: 50,
+      taxa_minima_r_mes: 50,
+      tusd_percentual: 0,
+    }
+
+    const comTaxa = computeROI(createBaseForm({ ...comum, aplica_taxa_minima: true }))
+    const semTaxa = computeROI(createBaseForm({ ...comum, aplica_taxa_minima: false }))
+
+    expect(comTaxa.economia[0]).toBeLessThan(semTaxa.economia[0])
+    expect(semTaxa.economia[0]).toBeCloseTo(300, 6)
+    expect(comTaxa.economia[0]).toBeCloseTo(250, 6)
+  })
+
+  it('projeta inflação energética de forma composta anualmente (8%)', () => {
+    const resultado = computeROI(
+      createBaseForm({
+        consumo_kwh_mes: 500,
+        geracao_estimada_kwh_mes: 0,
+        tarifa_r_kwh: 1,
+        inflacao_energia_aa_pct: 8,
+        taxa_minima_mensal: 0,
+        taxa_minima_r_mes: 0,
+        tusd_percentual: 0,
+      }),
+    )
+
+    const economiaAno1 = resultado.economia[0]
+    const economiaAno2 = resultado.economia[12]
+
+    expect(economiaAno1).toBeCloseTo(500, 6)
+    expect(economiaAno2).toBeCloseTo(500 * Math.pow(1.08, 1), 6)
+  })
+
+  it('ajusta projeção quando inflação configurada é 5%', () => {
+    const resultado = computeROI(
+      createBaseForm({
+        consumo_kwh_mes: 400,
+        geracao_estimada_kwh_mes: 0,
+        tarifa_r_kwh: 1,
+        inflacao_energia_aa_pct: 5,
+        taxa_minima_mensal: 0,
+        taxa_minima_r_mes: 0,
+        tusd_percentual: 0,
+      }),
+    )
+
+    const economiaAno1 = resultado.economia[0]
+    const economiaAno3 = resultado.economia[24]
+
+    expect(economiaAno1).toBeCloseTo(400, 6)
+    expect(economiaAno3).toBeCloseTo(400 * Math.pow(1.05, 2), 6)
   })
 })

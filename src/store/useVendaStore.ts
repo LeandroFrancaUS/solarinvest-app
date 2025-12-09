@@ -30,6 +30,7 @@ export type VendaParametrosPrincipais = {
   uf: string
   distribuidora: string
   irradiacao_kwhm2_dia: number
+  aplica_taxa_minima: boolean
 }
 
 export type VendaConfiguracaoUfv = {
@@ -139,6 +140,7 @@ const createInitialState = (): VendaState => ({
     uf: '',
     distribuidora: '',
     irradiacao_kwhm2_dia: 0,
+    aplica_taxa_minima: true,
   },
   configuracao: {
     potencia_modulo_wp: 0,

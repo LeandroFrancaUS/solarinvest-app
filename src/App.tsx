@@ -201,6 +201,7 @@ import {
   normalizeNumbers,
   tarifaCurrency,
 } from './utils/formatters'
+import { Switch } from './components/ui/switch'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -6025,6 +6026,8 @@ export default function App() {
     const inflacaoEnergia = Number.isFinite(vendaForm.inflacao_energia_aa_pct)
       ? Number(vendaForm.inflacao_energia_aa_pct)
       : inflacaoAa
+    const aplicaTaxaMinima =
+      typeof vendaForm.aplica_taxa_minima === 'boolean' ? vendaForm.aplica_taxa_minima : true
     const taxaMinimaEnergia = Number.isFinite(vendaForm.taxa_minima_r_mes)
       ? Number(vendaForm.taxa_minima_r_mes)
       : taxaMinima
@@ -6042,6 +6045,7 @@ export default function App() {
       uf: cliente.uf ?? '',
       distribuidora: distribuidoraTarifa || cliente.distribuidora || '',
       irradiacao_kwhm2_dia: baseIrradiacao > 0 ? baseIrradiacao : 0,
+      aplica_taxa_minima: aplicaTaxaMinima,
     })
   }, [
     baseIrradiacao,
@@ -6055,6 +6059,7 @@ export default function App() {
     vendaForm.consumo_kwh_mes,
     vendaForm.inflacao_energia_aa_pct,
     vendaForm.tarifa_r_kwh,
+    vendaForm.aplica_taxa_minima,
     vendaForm.taxa_desconto_aa_pct,
     vendaForm.taxa_minima_r_mes,
     recalcularTick,
@@ -15389,6 +15394,18 @@ export default function App() {
             onFocus={selectNumberInputOnFocus}
           />
           <FieldError message={vendaFormErrors.consumo_kwh_mes} />
+          <div className="mt-2 flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Taxa mínima</label>
+            <Switch
+              checked={vendaForm.aplica_taxa_minima ?? true}
+              onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}
+            />
+            <span className="text-xs text-gray-500">
+              {vendaForm.aplica_taxa_minima ?? true
+                ? 'Cliente paga taxa mínima (padrão)'
+                : 'Cliente isento de taxa mínima'}
+            </span>
+          </div>
         </Field>
         <Field
           label={labelWithTooltip(
