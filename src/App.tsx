@@ -217,6 +217,20 @@ const TIPOS_INSTALACAO = [
   { value: 'outros', label: 'Outros (texto)' },
 ]
 
+type TipoRede = 'monofasico' | 'bifasico' | 'trifasico'
+
+const TIPOS_REDE: { value: TipoRede; label: string }[] = [
+  { value: 'monofasico', label: 'Monofásico' },
+  { value: 'bifasico', label: 'Bifásico' },
+  { value: 'trifasico', label: 'Trifásico' },
+]
+
+const CID_KWH_POR_TIPO: Record<TipoRede, number> = {
+  monofasico: 30,
+  bifasico: 50,
+  trifasico: 100,
+}
+
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 
@@ -3324,6 +3338,7 @@ export default function App() {
   const [leasingPrazo, setLeasingPrazo] = useState<LeasingPrazoAnos>(INITIAL_VALUES.leasingPrazo)
   const [usarEnderecoCliente, setUsarEnderecoCliente] = useState(false)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
+  const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'monofasico')
   const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
   const initialTipoInstalacao = normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
   const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
@@ -6356,6 +6371,7 @@ export default function App() {
     () => Math.max(0, bandeiraEncargo + cipEncargo + encargosFixosExtras),
     [bandeiraEncargo, cipEncargo, encargosFixosExtras],
   )
+  const cidKwhBase = useMemo(() => CID_KWH_POR_TIPO[tipoRede] ?? 0, [tipoRede])
 
   const entradaConsiderada = isVendaDiretaTab ? 0 : entradaRs
   const descontoConsiderado = isVendaDiretaTab ? 0 : desconto
@@ -6898,6 +6914,7 @@ export default function App() {
       tusdTarifaRkwh: tusdTarifaValue,
       tusdAnoReferencia: tusdAno,
       aplicaTaxaMinima,
+      cidKwhBase,
     }
   }, [
     bandeiraEncargo,
@@ -6925,6 +6942,7 @@ export default function App() {
     encargosFixosExtras,
     depreciacaoAa,
     duracaoMeses,
+    cidKwhBase,
     tusdPercent,
     tusdTipoCliente,
     tusdSubtipo,
@@ -6990,12 +7008,13 @@ export default function App() {
           simulationState.mesReajuste,
           simulationState.mesReferencia,
         )
+        const cidAplicado = aplicaTaxaMinima ? simulationState.cidKwhBase * tarifaCheiaMes : 0
         const custoSemSistemaMes =
-          kcKwhMes * tarifaCheiaMes + encargosFixosAplicados + taxaMinimaAplicada
+          kcKwhMes * tarifaCheiaMes + encargosFixosAplicados + taxaMinimaAplicada + cidAplicado
         const dentroPrazoMes = contratoMeses > 0 ? mes <= contratoMeses : false
         const custoComSistemaEnergiaMes = dentroPrazoMes ? kcKwhMes * tarifaDescontadaMes : 0
         const custoComSistemaBaseMes =
-          custoComSistemaEnergiaMes + encargosFixosAplicados + taxaMinimaAplicada
+          custoComSistemaEnergiaMes + encargosFixosAplicados + taxaMinimaAplicada + cidAplicado
         const tusdMes = aplicaTaxaMinima
           ? calcTusdEncargoMensal({
               consumoMensal_kWh: kcKwhMes,
@@ -7106,7 +7125,10 @@ export default function App() {
         ? kcAjustado
         : Math.max(0, simulationState.kcKwhMes)
     const leasingAtivo = kcContratado > 0
-    const margemMinima = Math.max(0, simulationState.taxaMinima) + Math.max(0, simulationState.encargosFixos)
+    const aplicaTaxaMinima = simulationState.aplicaTaxaMinima ?? true
+    const margemMinimaBase = aplicaTaxaMinima
+      ? Math.max(0, simulationState.taxaMinima) + Math.max(0, simulationState.encargosFixos)
+      : 0
     const manutencaoPrevencaoSeguroMensal =
       leasingAtivo ? Math.max(0, (simulationState.vm0 * 0.015) / 12) : 0
     const limiteMeses = Math.max(0, Math.floor(leasingPrazoConsiderado * 12))
@@ -7124,20 +7146,24 @@ export default function App() {
       )
       const tarifaDescontadaMes = selectTarifaDescontada(simulationState, mes)
       const energiaCheia = leasingAtivo ? Math.max(0, kcContratado * tarifaCheiaMes) : 0
+      const cidMensal = aplicaTaxaMinima ? Math.max(0, simulationState.cidKwhBase) * tarifaCheiaMes : 0
+      const margemMinima = margemMinimaBase + cidMensal
       const mensalidadeCheia = Number(
         Math.max(0, energiaCheia + margemMinima + manutencaoPrevencaoSeguroMensal).toFixed(2),
       )
-      const tusdMensal = calcTusdEncargoMensal({
-        consumoMensal_kWh: kcContratado,
-        tarifaCheia_R_kWh: tarifaCheiaMes,
-        mes,
-        anoReferencia: simulationState.tusdAnoReferencia ?? null,
-        tipoCliente: simulationState.tusdTipoCliente ?? null,
-        subTipo: simulationState.tusdSubtipo ?? null,
-        pesoTUSD: simulationState.tusdPercent ?? null,
-        tusd_R_kWh: simulationState.tusdTarifaRkwh ?? null,
-        simultaneidadePadrao: simulationState.tusdSimultaneidade ?? null,
-      })
+      const tusdMensal = aplicaTaxaMinima
+        ? calcTusdEncargoMensal({
+            consumoMensal_kWh: kcContratado,
+            tarifaCheia_R_kWh: tarifaCheiaMes,
+            mes,
+            anoReferencia: simulationState.tusdAnoReferencia ?? null,
+            tipoCliente: simulationState.tusdTipoCliente ?? null,
+            subTipo: simulationState.tusdSubtipo ?? null,
+            pesoTUSD: simulationState.tusdPercent ?? null,
+            tusd_R_kWh: simulationState.tusdTarifaRkwh ?? null,
+            simultaneidadePadrao: simulationState.tusdSimultaneidade ?? null,
+          })
+        : 0
       const tusdValor = Number(Math.max(0, tusdMensal).toFixed(2))
       totalAcumulado += mensalidade
       lista.push({
@@ -7151,12 +7177,23 @@ export default function App() {
       })
     }
 
+    const tarifaPrimeiroMes = tarifaProjetadaCheia(
+      simulationState.tarifaCheia,
+      simulationState.inflacaoAa,
+      1,
+      simulationState.mesReajuste,
+      simulationState.mesReferencia,
+    )
+    const margemMinimaResumo = aplicaTaxaMinima
+      ? margemMinimaBase + simulationState.cidKwhBase * tarifaPrimeiroMes
+      : 0
+
     return {
       lista,
       tarifaDescontadaBase: selectTarifaDescontada(simulationState, 1),
       kcAjustado,
       creditoMensal: creditoEntradaMensal,
-      margemMinima: simulationState.taxaMinima + simulationState.encargosFixos,
+      margemMinima: margemMinimaResumo,
       prazoEfetivo: mesesConsiderados,
       totalPago: lista.length > 0 ? lista[lista.length - 1].totalAcumulado : 0,
       inflacaoMensal,
@@ -12708,6 +12745,7 @@ export default function App() {
     setTusdOpcoesExpandidas(false)
     setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
     setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
+    setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
     setPotenciaModuloDirty(false)
     setTipoInstalacao(normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao))
     setTipoInstalacaoOutro(INITIAL_VALUES.tipoInstalacaoOutro)
@@ -15228,6 +15266,23 @@ export default function App() {
           </select>
         </Field>
         <Field
+          label={labelWithTooltip(
+            'Tipo de rede',
+            'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
+          )}
+        >
+          <select
+            value={tipoRede}
+            onChange={(event) => setTipoRede(event.target.value as TipoRede)}
+          >
+            {TIPOS_REDE.map((rede) => (
+              <option key={rede.value} value={rede.value}>
+                {rede.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field
           label={
             <>
               Potência do sistema (kWp)
@@ -15780,6 +15835,23 @@ export default function App() {
             <option value="ON_GRID">On-grid</option>
             <option value="HIBRIDO">Híbrido</option>
             <option value="OFF_GRID">Off-grid</option>
+          </select>
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Tipo de rede',
+            'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
+          )}
+        >
+          <select
+            value={tipoRede}
+            onChange={(event) => setTipoRede(event.target.value as TipoRede)}
+          >
+            {TIPOS_REDE.map((rede) => (
+              <option key={rede.value} value={rede.value}>
+                {rede.label}
+              </option>
+            ))}
           </select>
         </Field>
         <Field

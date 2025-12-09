@@ -164,6 +164,7 @@ export const INITIAL_VALUES = {
   tusdAnoReferencia: DEFAULT_TUSD_ANO_REFERENCIA,
   leasingPrazo: LEASING_PRAZO_OPCOES[0] as LeasingPrazoAnos,
   potenciaModulo: 600,
+  tipoRede: 'monofasico',
   tipoInstalacao: 'fibrocimento' as TipoInstalacao,
   tipoInstalacaoOutro: '',
   segmentoCliente: 'residencial' as SegmentoCliente,

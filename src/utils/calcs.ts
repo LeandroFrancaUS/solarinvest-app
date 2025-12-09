@@ -134,6 +134,7 @@ export interface MensalidadeLiquidaInput {
   mesReferencia: number
   tusdConfig?: TusdConfigInput
   aplicaTaxaMinima?: boolean
+  cidKwhBase?: number
 }
 
 export interface TusdConfigInput {
@@ -165,6 +166,7 @@ export function mensalidadeLiquida({
   mesReferencia,
   tusdConfig,
   aplicaTaxaMinima = true,
+  cidKwhBase = 0,
 }: MensalidadeLiquidaInput): number {
   if (m <= 0 || prazoMeses <= 0) return 0
 
@@ -193,7 +195,8 @@ export function mensalidadeLiquida({
   const energiaComDesconto = Math.max(0, kcContratado * tarifaComDesconto)
   const encargosAdicionais = aplicaTaxaMinima ? Math.max(0, encargosFixos) : 0
   const taxaMinimaPositiva = aplicaTaxaMinima ? Math.max(0, taxaMinima) : 0
-  const margemMinima = taxaMinimaPositiva + encargosAdicionais
+  const cidAplicado = aplicaTaxaMinima ? Math.max(0, cidKwhBase) * tarifaCheiaMes : 0
+  const margemMinima = taxaMinimaPositiva + encargosAdicionais + cidAplicado
   const tusdMensal = aplicaTaxaMinima
     ? calcTusdEncargoMensal({
         consumoMensal_kWh: kcContratado,
