@@ -1,5 +1,6 @@
 import type { ParsedVendaPdfData } from '../lib/pdf/extractVendas'
 import type { RetornoProjetado, SegmentoCliente, TipoSistema, VendaForm } from '../lib/finance/roi'
+import type { TipoRede } from '../app/config'
 import type {
   BasePercentualComissao,
   ComissaoTipo,
@@ -218,6 +219,7 @@ export type PrintableProposalProps = {
   tipoInstalacaoOutro?: string | null | undefined
   tipoInstalacaoCompleto?: string | null | undefined
   tipoSistema: TipoSistema
+  tipoRede: TipoRede
   segmentoCliente?: SegmentoCliente | null
   tipoEdificacaoCompleto?: string | null | undefined
   areaInstalacao: number
