@@ -1,13 +1,13 @@
 import {
   creditoMensal,
   kcAjustadoPorEntrada,
-  mensalidadeLiquida,
   tarifaProjetadaCheia,
   tarifaDescontada,
   toMonthly,
   valorCompraCliente,
   type EntradaModo,
 } from './utils/calcs'
+import { calcularMensalidadeSolarInvest, type TusdConfig } from './lib/finance/calculations'
 import type { TipoRede } from './app/config'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 
@@ -33,9 +33,11 @@ export interface SimulationState {
   pagosAcumManual: number
   duracaoMeses: number
   geracaoMensalKwh: number
+  consumoMensalKwh: number
   mesReajuste: number
   mesReferencia: number
   tusdPercent: number
+  tusdPercentualFioB: number
   tusdTipoCliente: TipoClienteTUSD
   tusdSubtipo: string | null
   tusdSimultaneidade: number | null
@@ -44,6 +46,7 @@ export interface SimulationState {
   aplicaTaxaMinima: boolean
   cidKwhBase: number
   tipoRede: TipoRede
+  cipValor: number
 }
 
 export interface BuyoutLinha {
@@ -72,33 +75,23 @@ export function selectTarifaDescontada(state: SimulationState, m: number): numbe
 }
 
 export function selectMensalidades(state: SimulationState): number[] {
-  return Array.from({ length: Math.max(0, Math.floor(state.prazoMeses)) }, (_, index) =>
-    mensalidadeLiquida({
-      kcKwhMes: state.kcKwhMes,
+  const prazo = Math.max(0, Math.floor(state.prazoMeses))
+  return Array.from({ length: prazo }, (_, index) => {
+    const anosDecorridos = index / 12
+    return calcularMensalidadeSolarInvest({
       tarifaCheia: state.tarifaCheia,
-      desconto: state.desconto,
-      inflacaoAa: state.inflacaoAa,
-      m: index + 1,
-      taxaMinima: state.taxaMinima,
-      encargosFixos: state.encargosFixos,
-      entradaRs: state.entradaRs,
-      prazoMeses: state.prazoMeses,
-      modoEntrada: state.modoEntrada,
-      mesReajuste: state.mesReajuste,
-      mesReferencia: state.mesReferencia,
-      tusdConfig: {
-        percent: state.tusdPercent,
-        tipoCliente: state.tusdTipoCliente,
-        subTipo: state.tusdSubtipo,
+      inflacaoEnergetica: state.inflacaoAa,
+      anosDecorridos,
+      tipoLigacao: state.tipoRede,
+      cipValor: state.cipValor,
+      tusd: {
+        percentualFioB: state.tusdPercentualFioB ?? state.tusdPercent,
         simultaneidade: state.tusdSimultaneidade,
         tarifaRkwh: state.tusdTarifaRkwh,
-        anoReferencia: state.tusdAnoReferencia,
-      },
-      aplicaTaxaMinima: state.aplicaTaxaMinima,
-      cidKwhBase: state.cidKwhBase,
-      tipoRede: state.tipoRede,
-    }),
-  )
+      } satisfies TusdConfig,
+      energiaGeradaKwh: state.geracaoMensalKwh,
+    })
+  })
 }
 
 export function selectMensalidadesPorAno(state: SimulationState): number[] {
