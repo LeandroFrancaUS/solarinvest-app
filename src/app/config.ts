@@ -101,7 +101,7 @@ export const createDefaultMultiUcRow = (index = 1): MultiUcRowState => ({
 
 export const ANALISE_ANOS_PADRAO = 30
 export const DIAS_MES_PADRAO = 30
-export const PAINEL_OPCOES = [450, 500, 550, 600, 605, 610, 650, 680, 700]
+export const PAINEL_OPCOES = [450, 500, 540, 550, 600, 605, 610, 640, 650, 680, 700]
 
 export const STORAGE_KEYS = {
   activePage: 'solarinvest-active-page',
@@ -172,7 +172,7 @@ export const INITIAL_VALUES = {
   tusdAnoReferencia: DEFAULT_TUSD_ANO_REFERENCIA,
   leasingPrazo: LEASING_PRAZO_OPCOES[0] as LeasingPrazoAnos,
   potenciaModulo: 600,
-  tipoRede: 'monofasico' as TipoRede,
+  tipoRede: 'trifasico' as TipoRede,
   tipoInstalacao: 'fibrocimento' as TipoInstalacao,
   tipoInstalacaoOutro: '',
   segmentoCliente: 'residencial' as SegmentoCliente,
