@@ -1440,7 +1440,7 @@ function PrintableProposalInner(
                     {mostrarParametrosEconomia ? (
                       <>
                         <h3 className="print-subheading keep-with-next">Parâmetros de economia</h3>
-                        <table className="print-table no-break-inside">
+                        <table className="print-table print-table--parametros-economia no-break-inside">
                           <thead>
                             <tr>
                               <th>Parâmetro</th>
