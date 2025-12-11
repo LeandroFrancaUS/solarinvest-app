@@ -503,13 +503,13 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-horizontal-chart__values {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .print-horizontal-chart__value {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 8px;
   font-size: 14px;
   font-weight: 700;
@@ -526,6 +526,48 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-horizontal-chart__value-label {
   color: #334155;
   font-weight: 600;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-horizontal-chart {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffe8d8 100%) !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-horizontal-chart__bar-track {
+  background: rgba(249, 115, 22, 0.14) !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
+  ) .print-horizontal-chart__bar {
+  background: var(
+      --print-chart-color-primary,
+      linear-gradient(90deg, #bfdbfe 0%, #1d4ed8 100%)
+    ) !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
 }
 
 .print-yearly-payments__header {
