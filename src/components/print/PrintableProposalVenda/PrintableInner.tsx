@@ -1653,18 +1653,59 @@ function PrintableProposalInner(
             <ul className="no-break-inside">
               {isVendaDireta ? (
                 <>
-                  <li>Esta proposta refere-se à venda do sistema fotovoltaico (não inclui serviços de leasing).</li>
-                  <li>Todos os equipamentos utilizados possuem certificação INMETRO (ou equivalente) e seguem as normas técnicas aplicáveis.</li>
-                  <li>Os valores, condições de pagamento e prazos apresentados são estimativas preliminares e podem ser ajustados na contratação definitiva.</li>
-                  <li>A projeção de economia considera: produção estimada, tarifa de energia inicial e inflação de energia informadas, e a taxa mínima aplicável em sistemas on-grid.</li>
-                  <li>As parcelas/encargos de cartão e/ou financiamento impactam o fluxo de caixa e o ROI projetado.</li>
-                  <li>O cronograma de entrega e instalação está sujeito a vistoria técnica e disponibilidade de estoque.</li>
-                  <li>Garantias dos fabricantes seguem seus termos. Manutenção preventiva/corretiva e seguros podem ser contratados à parte (se aplicável).</li>
                   <li>
-                    Não é de responsabilidade da SolarInvest Solutions cálculo e reforço/modificações de estrutura; reforço/modificações na rede elétrica; mudança/adaptação de transformador; armazenamento/seguro de material; segurança local; autorização ambiental; autorização de autoridades/autarquias municipais/estaduais além da distribuidora de energia; e ajuste de tensão com troca de padrão junto à distribuidora. O prazo de entrega da instalação será de acordo com contrato assinado e condicionado às intempéries climáticas, podendo ser de aproximadamente 30 dias úteis após a entrega integral do material.
+                    <strong>1. Objeto da Proposta</strong>
+                    <br />
+                    Esta proposta refere-se exclusivamente à venda do sistema fotovoltaico.
                   </li>
                   <li>
-                    É de responsabilidade da SolarInvest Solutions: dimensionamento do sistema; elaboração do projeto; relação dos equipamentos e materiais necessários; acompanhamento junto à distribuidora; instalação do sistema; supervisão e gerenciamento da obra. Será realizada visita técnica antes da assinatura do contrato e o dimensionamento poderá ser ajustado conforme a posição da cobertura, pois as estimativas consideram a instalação dos módulos orientados para o norte, inclinados a 17° e livres de sombreamento.
+                    <strong>2. Equipamentos</strong>
+                    <br />
+                    Todos os equipamentos possuem certificação INMETRO (ou equivalente) e seguem normas técnicas vigentes.
+                    <br />
+                    Modelos específicos estão sujeitos à disponibilidade; em caso de falta de estoque, poderão ser substituídos por equivalentes ou superiores, sem prejuízo de desempenho.
+                  </li>
+                  <li>
+                    <strong>3. Valores e Projeções</strong>
+                    <br />
+                    Valores, condições e prazos apresentados são estimativas preliminares e poderão ser ajustados na contratação.
+                    <br />
+                    As projeções consideram produção estimada, tarifa vigente, inflação energética informada e aplicação da taxa mínima (CID).
+                    <br />
+                    O desempenho real pode variar conforme clima, sombreamento, condições de instalação, degradação natural dos módulos e alterações tarifárias.
+                  </li>
+                  <li>
+                    <strong>4. Pagamento e Fluxo Financeiro</strong>
+                    <br />
+                    Parcelamentos via cartão, financiamento ou intermediários podem alterar o fluxo de caixa e o ROI estimado.
+                  </li>
+                  <li>
+                    <strong>5. Prazo e Instalação</strong>
+                    <br />
+                    O cronograma depende de vistoria técnica, disponibilidade de materiais, condições climáticas e eventuais exigências da distribuidora.
+                    <br />
+                    O prazo de instalação inicia após confirmação do pedido e entrega integral dos materiais.
+                  </li>
+                  <li>
+                    <strong>6. Garantias e Serviços</strong>
+                    <br />
+                    Equipamentos seguem garantias dos fabricantes.
+                    <br />
+                    Garantia de instalação, manutenção preventiva/corretiva e seguros são opcionais, quando aplicáveis.
+                  </li>
+                  <li>
+                    <strong>7. Itens Não Inclusos</strong>
+                    <br />
+                    Serviços ou adequações externas ao escopo do sistema não estão incluídos, tais como reforços estruturais, ajustes elétricos internos, troca de padrão ou exigências de órgãos públicos, além de segurança ou armazenamento de materiais no local.
+                    <br />
+                    Outros itens não mencionados, quando não relacionados diretamente à instalação do sistema, também não fazem parte desta proposta.
+                  </li>
+                  <li>
+                    <strong>8. Responsabilidades Técnicas</strong>
+                    <br />
+                    Incluem dimensionamento do sistema, elaboração do projeto, fornecimento de materiais, acompanhamento junto à distribuidora (quando aplicável), instalação e comissionamento.
+                    <br />
+                    O dimensionamento poderá ser ajustado após vistoria, conforme orientação da cobertura, estrutura e sombreamento real.
                   </li>
                 </>
               ) : (
