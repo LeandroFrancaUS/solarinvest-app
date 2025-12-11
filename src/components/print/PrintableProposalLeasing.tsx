@@ -118,6 +118,8 @@ const toDisplayPercent = (value?: number, fractionDigits = 1) => {
 }
 
 const sanitizeItemText = (value?: string | null): string | null => sanitizePrintableText(value)
+const MODELO_MODULO_PADRAO = 'Jinko, Maxeon ou Similares'
+const MODELO_INVERSOR_PADRAO = 'Huawei, Solis ou Similares'
 const sanitizeTextField = (value?: string | null): string | null => sanitizePrintableText(value)
 
 const stripDiacritics = (value: string): string =>
@@ -537,8 +539,10 @@ function PrintableProposalLeasingInner(
   const modeloInversorManual = sanitizeItemText(leasingModeloInversor)
   const modeloModuloSnapshot = sanitizeItemText(vendaSnapshot?.configuracao?.modelo_modulo)
   const modeloInversorSnapshot = sanitizeItemText(vendaSnapshot?.configuracao?.modelo_inversor)
-  const modeloModulo = modeloModuloManual ?? modeloModuloSnapshot ?? modelosCatalogo.modeloModulo
-  const modeloInversor = modeloInversorManual ?? modeloInversorSnapshot ?? modelosCatalogo.modeloInversor
+  const modeloModulo =
+    modeloModuloManual ?? modeloModuloSnapshot ?? modelosCatalogo.modeloModulo ?? MODELO_MODULO_PADRAO
+  const modeloInversor =
+    modeloInversorManual ?? modeloInversorSnapshot ?? modelosCatalogo.modeloInversor ?? MODELO_INVERSOR_PADRAO
 
   const valorMercadoUsina = useMemo(
     () =>
