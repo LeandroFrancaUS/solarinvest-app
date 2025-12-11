@@ -390,6 +390,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
   width: 42%;
 }
 
+.print-table--parametros-economia td:nth-child(2) {
+  white-space: nowrap;
+}
+
 .print-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
