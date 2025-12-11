@@ -1042,6 +1042,42 @@ function PrintableProposalInner(
     '--print-chart-color-secondary': chartPalette[1],
     '--print-chart-color-tertiary': chartPalette[2],
   } as React.CSSProperties
+  const economiaProjetadaGrafico = useMemo(
+    () =>
+      economiaTabelaDados.map((row) => ({
+        ano: row.ano,
+        label: `${row.ano}\u00ba ano`,
+        series: [
+          {
+            chave: 'primary',
+            label: economiaPrimaryLabel,
+            valor: row.Leasing,
+            cor: 'var(--print-chart-color-primary)',
+          },
+          ...
+            (mostrarFinanciamento
+              ? [
+                  {
+                    chave: 'financiamento',
+                    label: economiaFinanciamentoLabel,
+                    valor: row.Financiamento,
+                    cor: 'var(--print-chart-color-secondary)',
+                  },
+                ]
+              : []),
+        ],
+      })),
+    [economiaFinanciamentoLabel, economiaPrimaryLabel, economiaTabelaDados, mostrarFinanciamento],
+  )
+  const maxBeneficioGrafico = useMemo(
+    () =>
+      economiaProjetadaGrafico.reduce((maior, linha) => {
+        const maxLinha = linha.series.reduce((max, serie) => Math.max(max, serie.valor ?? 0), 0)
+
+        return Math.max(maior, maxLinha)
+      }, 0),
+    [economiaProjetadaGrafico],
+  )
   return (
     <div ref={ref} className="print-root">
       <div className="print-layout">
@@ -1585,6 +1621,59 @@ function PrintableProposalInner(
                     ))}
                   </tbody>
                 </table>
+                {economiaProjetadaGrafico.length > 0 ? (
+                  <div
+                    className="print-horizontal-chart no-break-inside"
+                    role="img"
+                    aria-label={`Benefício acumulado projetado em 30 anos (${economiaPrimaryLabel}${
+                      mostrarFinanciamento ? ` e ${economiaFinanciamentoLabel}` : ''
+                    })`}
+                  >
+                    <div className="print-horizontal-chart__header-row">
+                      <span className="print-horizontal-chart__axis-y-label">Tempo (anos)</span>
+                      <span className="print-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
+                      <span className="print-horizontal-chart__axis-x-label">Detalhe</span>
+                    </div>
+                    <div className="print-horizontal-chart__rows">
+                      {economiaProjetadaGrafico.map((linha) => (
+                        <div className="print-horizontal-chart__row" key={`grafico-retorno-${linha.ano}`}>
+                          <div className="print-horizontal-chart__y-value">{linha.label}</div>
+                          <div className="print-horizontal-chart__bar-group" aria-hidden="true">
+                            {linha.series.map((serie) => {
+                              const percentual = maxBeneficioGrafico > 0 ? (serie.valor / maxBeneficioGrafico) * 100 : 0
+                              return (
+                                <div
+                                  className="print-horizontal-chart__bar-track"
+                                  key={`grafico-retorno-${linha.ano}-${serie.chave}`}
+                                >
+                                  <div
+                                    className="print-horizontal-chart__bar"
+                                    style={{ width: `${percentual}%`, background: serie.cor }}
+                                  />
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="print-horizontal-chart__values">
+                            {linha.series.map((serie) => (
+                              <div
+                                className="print-horizontal-chart__value"
+                                key={`grafico-retorno-valor-${linha.ano}-${serie.chave}`}
+                              >
+                                <span
+                                  className="print-horizontal-chart__legend-dot"
+                                  style={{ backgroundColor: serie.cor as string }}
+                                />
+                                <span className="print-horizontal-chart__value-label">{serie.label}</span>
+                                <strong>{currency(serie.valor)}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {beneficioAno30Printable ? (
                   <p className="chart-explainer no-break-inside">
                     Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
