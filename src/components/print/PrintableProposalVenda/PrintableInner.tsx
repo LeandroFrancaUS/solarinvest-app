@@ -1572,29 +1572,32 @@ function PrintableProposalInner(
             {economiaTemDados ? (
               <>
                 <p className="no-break-inside">
-                  <strong>{economiaIntro}</strong> A tabela abaixo apresenta os principais marcos de benefício acumulado
-                  projetados pela SolarInvest. {economiaContext}
+                  <strong>{economiaIntro}</strong>
+                  {isVendaDireta ? ' A SolarInvest projeta os seguintes marcos de benefício acumulado.' : ' A tabela abaixo apresenta os principais marcos de benefício acumulado projetados pela SolarInvest.'}{' '}
+                  {economiaContext}
                 </p>
-                <table className="print-table no-break-inside">
-                  <thead>
-                    <tr>
-                      <th>Ano</th>
-                      <th>{`Benefício acumulado (${economiaPrimaryLabel})`}</th>
-                      {mostrarFinanciamento ? (
-                        <th>{`Benefício acumulado (${economiaFinanciamentoLabel})`}</th>
-                      ) : null}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {economiaTabelaDados.map((row) => (
-                      <tr key={`economia-ano-${row.ano}`}>
-                        <td>{`${row.ano}º ano`}</td>
-                        <td>{currency(row.Leasing)}</td>
-                        {mostrarFinanciamento ? <td>{currency(row.Financiamento)}</td> : null}
+                {!isVendaDireta ? (
+                  <table className="print-table no-break-inside">
+                    <thead>
+                      <tr>
+                        <th>Ano</th>
+                        <th>{`Benefício acumulado (${economiaPrimaryLabel})`}</th>
+                        {mostrarFinanciamento ? (
+                          <th>{`Benefício acumulado (${economiaFinanciamentoLabel})`}</th>
+                        ) : null}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {economiaTabelaDados.map((row) => (
+                        <tr key={`economia-ano-${row.ano}`}>
+                          <td>{`${row.ano}º ano`}</td>
+                          <td>{currency(row.Leasing)}</td>
+                          {mostrarFinanciamento ? <td>{currency(row.Financiamento)}</td> : null}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : null}
                 {economiaProjetadaGrafico.length > 0 ? (
                   <div
                     className="print-horizontal-chart no-break-inside"
