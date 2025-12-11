@@ -33,7 +33,11 @@ const OBSERVACAO_PADRAO_REMOVIDA_CHAVE = normalizeObservationKey(
 )
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
-const DEFAULT_CHART_COLORS = ['#FFA500', '#FF7F50', '#FFD700'] as const
+const DEFAULT_CHART_COLORS = [
+  'linear-gradient(90deg, #1d4ed8, #60a5fa)',
+  'linear-gradient(90deg, #2563eb, #93c5fd)',
+  'linear-gradient(90deg, #0ea5e9, #38bdf8)',
+] as const
 const normalizeNewlines = (value: string): string => value.replace(/\r\n?/g, '\n')
 const isSoloTipoInstalacao = (value?: string | null) => value?.toLowerCase() === 'solo'
 function PrintableProposalInner(
@@ -1019,7 +1023,7 @@ function PrintableProposalInner(
   const economiaFootnote = isVendaDireta
     ? 'Como proprietário do sistema, toda a economia permanece com o cliente ao longo da vida útil do projeto.'
     : 'Após o final do contrato a usina passa a render 100% de economia frente à concessionária para o cliente.'
-  const economiaPrimaryLabel = isVendaDireta ? 'Venda' : 'Leasing SolarInvest'
+  const economiaPrimaryLabel = isVendaDireta ? 'Aquisição SolarInvest' : 'Leasing SolarInvest'
   const economiaFinanciamentoLabel = 'Financiamento SolarInvest'
 
   const economiaTabelaDados = useMemo(() => {
@@ -1632,7 +1636,6 @@ function PrintableProposalInner(
                     <div className="print-horizontal-chart__header-row">
                       <span className="print-horizontal-chart__axis-y-label">Tempo (anos)</span>
                       <span className="print-horizontal-chart__axis-x-label">Benefício acumulado (R$)</span>
-                      <span className="print-horizontal-chart__axis-x-label">Detalhe</span>
                     </div>
                     <div className="print-horizontal-chart__rows">
                       {economiaProjetadaGrafico.map((linha) => (
@@ -1646,11 +1649,11 @@ function PrintableProposalInner(
                                   className="print-horizontal-chart__bar-track"
                                   key={`grafico-retorno-${linha.ano}-${serie.chave}`}
                                 >
-                                  <div
-                                    className="print-horizontal-chart__bar"
-                                    style={{ width: `${percentual}%`, background: serie.cor }}
-                                  />
-                                </div>
+                              <div
+                                className="print-horizontal-chart__bar"
+                                style={{ width: `${percentual}%`, background: serie.cor }}
+                              />
+                            </div>
                               )
                             })}
                           </div>
@@ -1662,7 +1665,7 @@ function PrintableProposalInner(
                               >
                                 <span
                                   className="print-horizontal-chart__legend-dot"
-                                  style={{ backgroundColor: serie.cor as string }}
+                                  style={{ background: serie.cor as string }}
                                 />
                                 <span className="print-horizontal-chart__value-label">{serie.label}</span>
                                 <strong>{currency(serie.valor)}</strong>
