@@ -17522,7 +17522,7 @@ export default function App() {
 
     const kpis: { label: string; value: string }[] = [
       { label: 'Payback (meses)', value: paybackLabel },
-      { label: 'ROI acumulado (30 anos)', value: roiLabel },
+      { label: 'ROI acumulado (30 anos): ', value: roiLabel },
     ]
 
     if (showVpl) {
@@ -17620,7 +17620,7 @@ export default function App() {
               </p>
             </div>
             <div className="financial-return-chart-payback-summary">
-              <span>Payback estimado</span>
+              <span>Payback estimado: </span>
               <strong>{paybackMesesVista != null ? paybackLabelVista : 'Não alcançado em 30 anos'}</strong>
             </div>
           </div>
@@ -17685,7 +17685,7 @@ export default function App() {
     return (
       <section className="card">
         <div className="card-header">
-          <h2>Retorno Financeiro (Venda)</h2>
+          <h2>Retorno Financeiro</h2>
           <button
             type="button"
             className="primary"

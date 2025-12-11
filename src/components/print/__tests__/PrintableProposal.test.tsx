@@ -326,7 +326,7 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).toMatch(/Potência dos módulos<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).toMatch(/Energia contratada \(kWh\/mês\)<\/dt>\s*<dd>—<\/dd>/)
     expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>—<\/dd>/)
-    expect(markup).toContain('Retorno Financeiro (Venda)')
+    expect(markup).toContain('Retorno Financeiro')
     expect(markup).not.toMatch(/<span>VPL<\/span>/)
     expect(markup).not.toContain('A geração real pode variar')
     expect(markup).toContain('Não é de responsabilidade da SolarInvest Solutions')
