@@ -158,6 +158,8 @@ function PrintableProposalInner(
     }
     return sanitized
   }
+  const MODELO_MODULO_PADRAO = 'Jinko, Maxeon ou Similares'
+  const MODELO_INVERSOR_PADRAO = 'Huawei, Solis ou Similares'
   type TableRow = {
     label: string
     value: string
@@ -344,13 +346,13 @@ function PrintableProposalInner(
     vendaFormResumo?.modelo_inversor,
     parsedPdfResumo?.modelo_inversor,
     inverterDescricaoCatalogo,
-  )
+  ) ?? MODELO_INVERSOR_PADRAO
   const moduleModelo = pickFirstText(
     snapshotConfig?.modelo_modulo,
     vendaFormResumo?.modelo_modulo,
     parsedPdfResumo?.modelo_modulo,
     moduleDescricaoCatalogo,
-  )
+  ) ?? MODELO_MODULO_PADRAO
 
   const inverterQuantidade = pickPositive(inverterQuantidadeCatalogo)
   const moduleQuantidade = pickPositive(kitQuantidadeModulos, moduleQuantidadeCatalogo)
