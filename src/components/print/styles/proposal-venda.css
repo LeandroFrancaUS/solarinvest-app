@@ -435,9 +435,9 @@ html[data-print-mode='print'] .print-hero__title h1 {
   gap: 16px;
   padding: 22px 24px;
   border-radius: 20px;
-  background: linear-gradient(135deg, #f3f7ff 0%, #e6f0ff 100%);
-  border: 1px solid rgba(37, 99, 235, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.95);
+  background: linear-gradient(135deg, #fff7ed 0%, #ffe8d8 100%);
+  border: 1px solid rgba(249, 115, 22, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.86);
 }
 
 .print-horizontal-chart__header-row,
@@ -452,7 +452,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #c2410c;
 }
 
 .print-horizontal-chart__axis-y-label {
@@ -484,7 +484,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
   width: 100%;
   height: 14px;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.12);
+  background: rgba(249, 115, 22, 0.14);
   overflow: hidden;
 }
 
@@ -492,21 +492,22 @@ html[data-print-mode='print'] .print-hero__title h1 {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
+  background: linear-gradient(90deg, #bfdbfe 0%, #1d4ed8 100%);
 }
 
 .print-horizontal-chart__values {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .print-horizontal-chart__value {
-  display: grid;
-  grid-template-columns: max-content 1fr max-content;
+  display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0c162c;
 }
 
 .print-horizontal-chart__legend-dot {
