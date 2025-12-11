@@ -1805,7 +1805,7 @@ function PrintableProposalInner(
 
             <div className="print-brand-footer no-break-inside">
               <strong>S O L A R I N V E S T</strong>
-              <span>Transformando sua economia mensal em patrimônio real!</span>
+              <span>Transformando sua economia mensal em patrimônio real</span>
             </div>
           </section>
         </div>
