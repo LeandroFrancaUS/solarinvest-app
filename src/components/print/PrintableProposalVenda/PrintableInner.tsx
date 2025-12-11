@@ -1536,15 +1536,15 @@ function PrintableProposalInner(
               id="condicoes-financeiras"
               className="print-section keep-together page-break-before break-after"
             >
-              <h2 className="keep-with-next">{isVendaDireta ? 'Retorno Financeiro (Venda)' : 'Retorno projetado'}</h2>
+              <h2 className="keep-with-next">{isVendaDireta ? 'Retorno Financeiro' : 'Retorno projetado'}</h2>
               {snapshotResultados || retornoVenda ? (
                 <div className="print-kpi-grid no-break-inside">
                   <div className="print-kpi no-break-inside">
-                    <span>Payback estimado</span>
+                    <span>Payback estimado: </span>
                     <strong>{paybackLabelResumo}</strong>
                   </div>
                   <div className="print-kpi no-break-inside">
-                    <span>ROI acumulado ({roiHorizonteResumo})</span>
+                    <span>ROI acumulado ({roiHorizonteResumo}): </span>
                     <strong>{roiLabelResumo}</strong>
                   </div>
                   {typeof retornoVenda?.vpl === 'number' ? (
