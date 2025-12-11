@@ -33,7 +33,7 @@ const OBSERVACAO_PADRAO_REMOVIDA_CHAVE = normalizeObservationKey(
 )
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
-const DEFAULT_CHART_COLORS = ['linear-gradient(90deg, #cdeafe, #1e3a8a)'] as const
+const DEFAULT_CHART_COLORS = ['linear-gradient(90deg, #4CAF50, #2E7D32)'] as const
 const normalizeNewlines = (value: string): string => value.replace(/\r\n?/g, '\n')
 const isSoloTipoInstalacao = (value?: string | null) => value?.toLowerCase() === 'solo'
 function PrintableProposalInner(
