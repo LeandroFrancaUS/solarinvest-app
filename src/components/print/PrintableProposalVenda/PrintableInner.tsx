@@ -33,7 +33,7 @@ const OBSERVACAO_PADRAO_REMOVIDA_CHAVE = normalizeObservationKey(
 )
 
 const BENEFICIO_CHART_ANOS = [5, 6, 10, 15, 20, 30]
-const DEFAULT_CHART_COLORS = ['#FFA500', '#FF7F50', '#FFD700'] as const
+const DEFAULT_CHART_COLORS = ['linear-gradient(90deg, #cdeafe, #1e3a8a)'] as const
 const normalizeNewlines = (value: string): string => value.replace(/\r\n?/g, '\n')
 const isSoloTipoInstalacao = (value?: string | null) => value?.toLowerCase() === 'solo'
 function PrintableProposalInner(
@@ -1019,9 +1019,8 @@ function PrintableProposalInner(
   const economiaFootnote = isVendaDireta
     ? 'Como proprietário do sistema, toda a economia permanece com o cliente ao longo da vida útil do projeto.'
     : 'Após o final do contrato a usina passa a render 100% de economia frente à concessionária para o cliente.'
-  const economiaPrimaryLabel = isVendaDireta ? 'Venda' : 'Leasing SolarInvest'
+  const economiaPrimaryLabel = isVendaDireta ? 'Aquisição SolarInvest' : 'Leasing SolarInvest'
   const economiaFinanciamentoLabel = 'Financiamento SolarInvest'
-
   const economiaTabelaDados = useMemo(() => {
     const anosDisponiveis = new Set(anos)
 
@@ -1039,9 +1038,20 @@ function PrintableProposalInner(
   const chartPalette = DEFAULT_CHART_COLORS
   const chartPaletteStyles = {
     '--print-chart-color-primary': chartPalette[0],
-    '--print-chart-color-secondary': chartPalette[1],
-    '--print-chart-color-tertiary': chartPalette[2],
   } as React.CSSProperties
+  const economiaProjetadaGrafico = useMemo(
+    () =>
+      economiaTabelaDados.map((row) => ({
+        ano: row.ano,
+        label: `${row.ano}\u00ba ano`,
+        valor: row.Leasing,
+      })),
+    [economiaTabelaDados],
+  )
+  const maxBeneficioGrafico = useMemo(
+    () => economiaProjetadaGrafico.reduce((maior, linha) => Math.max(maior, linha.valor ?? 0), 0),
+    [economiaProjetadaGrafico],
+  )
   return (
     <div ref={ref} className="print-root">
       <div className="print-layout">
@@ -1585,6 +1595,43 @@ function PrintableProposalInner(
                     ))}
                   </tbody>
                 </table>
+                {economiaProjetadaGrafico.length > 0 ? (
+                  <div
+                    className="print-horizontal-chart no-break-inside"
+                    role="img"
+                    aria-label="Economia acumulada projetada em 30 anos"
+                  >
+                    <div className="print-horizontal-chart__header-row">
+                      <span className="print-horizontal-chart__axis-y-label">Tempo (anos)</span>
+                      <span className="print-horizontal-chart__axis-x-label">Economia acumulada (R$)</span>
+                      <span aria-hidden="true" />
+                    </div>
+                    <div className="print-horizontal-chart__rows">
+                      {economiaProjetadaGrafico.map((linha) => {
+                        const percentual = maxBeneficioGrafico > 0 ? (linha.valor / maxBeneficioGrafico) * 100 : 0
+
+                        return (
+                          <div className="print-horizontal-chart__row" key={`grafico-retorno-${linha.ano}`}>
+                            <div className="print-horizontal-chart__y-value">{linha.label}</div>
+                            <div className="print-horizontal-chart__bar-group" aria-hidden="true">
+                              <div className="print-horizontal-chart__bar-track">
+                                <div
+                                  className="print-horizontal-chart__bar"
+                                  style={{ width: `${percentual}%`, background: 'var(--print-chart-color-primary)' }}
+                                />
+                              </div>
+                            </div>
+                            <div className="print-horizontal-chart__values">
+                              <div className="print-horizontal-chart__value">
+                                <strong>{currency(linha.valor)}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
                 {beneficioAno30Printable ? (
                   <p className="chart-explainer no-break-inside">
                     Em <strong>30 anos</strong>, a SolarInvest projeta um benefício acumulado de
