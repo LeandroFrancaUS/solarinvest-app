@@ -11049,6 +11049,10 @@ export default function App() {
                   item.rateioPercentual != null && Number.isFinite(item.rateioPercentual)
                     ? Number(item.rateioPercentual)
                     : null,
+                consumoKWh:
+                  item.consumoKWh != null && Number.isFinite(item.consumoKWh)
+                    ? Number(item.consumoKWh)
+                    : null,
               }))
           : []
 
