@@ -193,6 +193,7 @@ export type PrintableUcGeradora = {
 export type PrintableUcBeneficiaria = {
   numero: string
   endereco: string
+  consumoKWh?: number | null | undefined
   rateioPercentual?: number | null | undefined
 }
 
