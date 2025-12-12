@@ -22,6 +22,9 @@ export type ClienteRegistroSyncPayload = {
     temIndicacao: boolean
     indicacaoNome: string
     herdeiros: string[]
+    nomeSindico: string
+    cpfSindico: string
+    contatoSindico: string
   }
 }
 

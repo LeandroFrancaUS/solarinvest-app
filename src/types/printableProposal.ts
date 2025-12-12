@@ -105,6 +105,9 @@ export type ClienteDados = {
   temIndicacao: boolean
   indicacaoNome: string
   herdeiros: string[]
+  nomeSindico: string
+  cpfSindico: string
+  contatoSindico: string
 }
 
 export type MensalidadeRow = {
