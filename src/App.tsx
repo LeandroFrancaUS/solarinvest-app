@@ -1504,6 +1504,9 @@ const normalizeClienteRegistros = (
         uf: dados?.uf ?? '',
         temIndicacao: temIndicacaoNormalizado,
         indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
+        nomeSindico: dados?.nomeSindico ?? '',
+        cpfSindico: dados?.cpfSindico ?? '',
+        contatoSindico: dados?.contatoSindico ?? '',
         herdeiros: herdeirosNormalizados,
       },
     }
