@@ -961,6 +961,7 @@ type UcBeneficiariaFormState = {
   id: string
   numero: string
   endereco: string
+  consumoKWh: string
   rateioPercentual: string
 }
 
@@ -1032,6 +1033,7 @@ const createEmptyUcBeneficiaria = (): UcBeneficiariaFormState => ({
   id: createUcBeneficiariaId(),
   numero: '',
   endereco: '',
+  consumoKWh: '',
   rateioPercentual: '',
 })
 
@@ -1337,7 +1339,11 @@ const cloneDistribuidorasMapa = (mapa: Record<string, string[]>): Record<string,
 
 const cloneUcBeneficiariasForm = (
   lista: UcBeneficiariaFormState[],
-): UcBeneficiariaFormState[] => lista.map((item) => ({ ...item }))
+): UcBeneficiariaFormState[] =>
+  lista.map((item) => ({
+    ...item,
+    consumoKWh: item.consumoKWh ?? '',
+  }))
 
 const cloneVendasSimulacoes = (
   simulations: Record<string, VendasSimulacao>,
@@ -5819,6 +5825,45 @@ export default function App() {
     return numeroModulosCalculado
   }, [numeroModulosInformado, numeroModulosCalculado])
 
+  const parseUcBeneficiariaConsumo = (valor: string): number => {
+    const normalizado = valor.replace(/\./g, '').replace(',', '.')
+    const parsed = Number(normalizado)
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return 0
+    }
+    return parsed
+  }
+
+  const consumoTotalUcsBeneficiarias = ucsBeneficiarias.reduce(
+    (acc, item) => acc + parseUcBeneficiariaConsumo(item.consumoKWh),
+    0,
+  )
+
+  const consumoUcsExcedeInformado =
+    kcKwhMes > 0 && consumoTotalUcsBeneficiarias > kcKwhMes
+
+  const recalcularRateioAutomatico = (
+    lista: UcBeneficiariaFormState[],
+  ): UcBeneficiariaFormState[] => {
+    const totalConsumo = lista.reduce(
+      (acc, item) => acc + parseUcBeneficiariaConsumo(item.consumoKWh),
+      0,
+    )
+
+    if (totalConsumo <= 0) {
+      return lista
+    }
+
+    return lista.map((item) => {
+      const consumo = parseUcBeneficiariaConsumo(item.consumoKWh)
+      const percentual = consumo > 0 ? (consumo / totalConsumo) * 100 : 0
+      const percentualFormatado = Number.isFinite(percentual)
+        ? percentual.toFixed(2).replace('.', ',')
+        : '0'
+      return { ...item, rateioPercentual: percentualFormatado }
+    })
+  }
+
   const vendaQuantidadeModulos = useMemo(() => {
     const quantidade = vendaForm.quantidade_modulos
     if (!Number.isFinite(quantidade)) {
@@ -5892,6 +5937,57 @@ export default function App() {
     })
     return estimada > 0 ? estimada : 0
   }, [baseIrradiacao, diasMesNormalizado, eficienciaNormalizada, potenciaInstaladaKwp])
+
+  const tipoRedeCompatMessage = useMemo(() => {
+    if (potenciaInstaladaKwp <= 0) {
+      return null
+    }
+
+    if (potenciaInstaladaKwp <= 12 && tipoRede !== 'monofasico') {
+      return 'Potências até 12 kWp exigem rede monofásica. Ajuste o tipo de rede selecionado.'
+    }
+
+    if (potenciaInstaladaKwp > 12 && tipoRede !== 'trifasico') {
+      return 'Potências acima de 12 kWp devem operar em rede trifásica. Selecione a opção correspondente.'
+    }
+
+    return null
+  }, [potenciaInstaladaKwp, tipoRede])
+
+  const confirmarAlertasGerarProposta = useCallback(() => {
+    const alertas: string[] = []
+
+    if (consumoUcsExcedeInformado) {
+      alertas.push(
+        `A soma dos consumos das UCs beneficiárias (${formatNumberBRWithOptions(consumoTotalUcsBeneficiarias, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        })} kWh/mês) excede o consumo mensal informado (${formatNumberBRWithOptions(kcKwhMes, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        })} kWh/mês).`,
+      )
+    }
+
+    if (tipoRedeCompatMessage) {
+      alertas.push(tipoRedeCompatMessage)
+    }
+
+    if (!alertas.length) {
+      return true
+    }
+
+    const mensagem = `${
+      alertas.length === 1 ? 'Encontramos um alerta:' : 'Encontramos alguns alertas:'
+    }\n\n- ${alertas.join('\n- ')}\n\nPressione "OK" para gerar a proposta assim mesmo ou "Cancelar" para voltar e ajustar os valores.`
+
+    return window.confirm(mensagem)
+  }, [
+    consumoTotalUcsBeneficiarias,
+    consumoUcsExcedeInformado,
+    kcKwhMes,
+    tipoRedeCompatMessage,
+  ])
 
   const handleMultiUcToggle = useCallback(
     (checked: boolean) => {
@@ -7575,17 +7671,35 @@ export default function App() {
         return parsed
       }
 
+      const normalizeConsumoKWh = (valor: string): number | null => {
+        if (typeof valor !== 'string') {
+          return null
+        }
+        const trimmed = valor.trim()
+        if (!trimmed) {
+          return null
+        }
+        const normalized = trimmed.replace(/\./g, '').replace(',', '.')
+        const parsed = Number(normalized)
+        if (!Number.isFinite(parsed)) {
+          return null
+        }
+        return parsed
+      }
+
       const ucsBeneficiariasPrintable: PrintableUcBeneficiaria[] = ucsBeneficiarias
         .map((item) => {
           const numero = sanitizeText(item.numero) ?? ''
           const endereco = sanitizeText(item.endereco) ?? ''
           const rateio = normalizeRateioPercent(item.rateioPercentual)
-          if (!numero && !endereco && rateio == null) {
+          const consumo = normalizeConsumoKWh(item.consumoKWh)
+          if (!numero && !endereco && rateio == null && consumo == null) {
             return null
           }
           return {
             numero,
             endereco,
+            consumoKWh: consumo,
             rateioPercentual: rateio,
           }
         })
@@ -11601,6 +11715,10 @@ export default function App() {
       return
     }
 
+    if (!confirmarAlertasGerarProposta()) {
+      return
+    }
+
     const resultado = await prepararPropostaParaExportacao({
       incluirTabelaBuyout: isVendaDiretaTab,
     })
@@ -12939,20 +13057,28 @@ export default function App() {
   const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
 
   const handleAdicionarUcBeneficiaria = useCallback(() => {
-    setUcsBeneficiarias((prev) => [...prev, createEmptyUcBeneficiaria()])
+    setUcsBeneficiarias((prev) => recalcularRateioAutomatico([...prev, createEmptyUcBeneficiaria()]))
   }, [])
 
   const handleAtualizarUcBeneficiaria = useCallback(
-    (id: string, field: 'numero' | 'endereco' | 'rateioPercentual', value: string) => {
-      setUcsBeneficiarias((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
-      )
+    (
+      id: string,
+      field: 'numero' | 'endereco' | 'rateioPercentual' | 'consumoKWh',
+      value: string,
+    ) => {
+      setUcsBeneficiarias((prev) => {
+        const atualizada = prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+        if (field === 'consumoKWh') {
+          return recalcularRateioAutomatico(atualizada)
+        }
+        return atualizada
+      })
     },
     [],
   )
 
   const handleRemoverUcBeneficiaria = useCallback((id: string) => {
-    setUcsBeneficiarias((prev) => prev.filter((item) => item.id !== id))
+    setUcsBeneficiarias((prev) => recalcularRateioAutomatico(prev.filter((item) => item.id !== id)))
   }, [])
 
   const syncClienteField = useCallback(
@@ -13869,6 +13995,16 @@ export default function App() {
                   aria-label={`Endereço completo da UC beneficiária ${index + 1}`}
                 />
                 <input
+                  className="cliente-ucs-beneficiaria-consumo"
+                  value={uc.consumoKWh}
+                  onChange={(event) =>
+                    handleAtualizarUcBeneficiaria(uc.id, 'consumoKWh', event.target.value)
+                  }
+                  placeholder="Consumo (kWh/mês)"
+                  inputMode="decimal"
+                  aria-label={`Consumo mensal da UC beneficiária ${index + 1}`}
+                />
+                <input
                   className="cliente-ucs-beneficiaria-rateio"
                   value={uc.rateioPercentual}
                   onChange={(event) =>
@@ -13903,6 +14039,22 @@ export default function App() {
             </div>
           </div>
         </Field>
+        {consumoUcsExcedeInformado ? (
+          <div className="warning ucs-consumo-warning" role="alert">
+            <strong>Consumo das UCs acima do total informado.</strong>{' '}
+            A soma dos consumos das UCs beneficiárias (
+            {formatNumberBRWithOptions(consumoTotalUcsBeneficiarias, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}{' '}
+            kWh/mês) ultrapassa o consumo mensal informado (
+            {formatNumberBRWithOptions(kcKwhMes, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}{' '}
+            kWh/mês). Ajuste os valores para manter o rateio consistente.
+          </div>
+        ) : null}
         <Field
           label={labelWithTooltip(
             'Cidade',
@@ -15348,6 +15500,11 @@ export default function App() {
           />
         </Field>
       </div>
+      {tipoRedeCompatMessage ? (
+        <div className="warning rede-compat-warning" role="alert">
+          <strong>Incompatibilidade entre potência e rede.</strong> {tipoRedeCompatMessage}
+        </div>
+      ) : null}
       {estruturaTipoWarning ? (
         <div className="estrutura-warning-alert" role="alert">
           <div>
@@ -15920,6 +16077,11 @@ export default function App() {
           />
         </Field>
       </div>
+      {tipoRedeCompatMessage ? (
+        <div className="warning rede-compat-warning" role="alert">
+          <strong>Incompatibilidade entre potência e rede.</strong> {tipoRedeCompatMessage}
+        </div>
+      ) : null}
       {estruturaTipoWarning ? (
         <div className="estrutura-warning-alert" role="alert">
           <div>
