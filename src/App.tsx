@@ -1900,8 +1900,9 @@ const carregarDatasetCrm = (): CrmDataset => {
   }
 }
 
-const normalizeText = (value: string) =>
-  value
+const normalizeText = (value: string | null | undefined) =>
+  (value ?? '')
+    .toString()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
