@@ -5915,6 +5915,41 @@ export default function App() {
     return null
   }, [potenciaInstaladaKwp, tipoRede])
 
+  const confirmarAlertasGerarProposta = useCallback(() => {
+    const alertas: string[] = []
+
+    if (consumoUcsExcedeInformado) {
+      alertas.push(
+        `A soma dos consumos das UCs beneficiárias (${formatNumberBRWithOptions(consumoTotalUcsBeneficiarias, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        })} kWh/mês) excede o consumo mensal informado (${formatNumberBRWithOptions(kcKwhMes, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        })} kWh/mês).`,
+      )
+    }
+
+    if (tipoRedeCompatMessage) {
+      alertas.push(tipoRedeCompatMessage)
+    }
+
+    if (!alertas.length) {
+      return true
+    }
+
+    const mensagem = `${
+      alertas.length === 1 ? 'Encontramos um alerta:' : 'Encontramos alguns alertas:'
+    }\n\n- ${alertas.join('\n- ')}\n\nPressione "OK" para gerar a proposta assim mesmo ou "Cancelar" para voltar e ajustar os valores.`
+
+    return window.confirm(mensagem)
+  }, [
+    consumoTotalUcsBeneficiarias,
+    consumoUcsExcedeInformado,
+    kcKwhMes,
+    tipoRedeCompatMessage,
+  ])
+
   const handleMultiUcToggle = useCallback(
     (checked: boolean) => {
       setMultiUcAtivo(checked)
@@ -11638,6 +11673,10 @@ export default function App() {
   }
   const handlePrint = async () => {
     if (!validarCamposObrigatorios()) {
+      return
+    }
+
+    if (!confirmarAlertasGerarProposta()) {
       return
     }
 
