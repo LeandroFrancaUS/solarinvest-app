@@ -18,6 +18,9 @@ export type VendaClienteInfo = {
   temIndicacao: boolean
   indicacaoNome: string
   herdeiros: string[]
+  nomeSindico: string
+  cpfSindico: string
+  contatoSindico: string
 }
 
 export type VendaParametrosPrincipais = {
@@ -129,6 +132,9 @@ const createInitialState = (): VendaState => ({
     temIndicacao: false,
     indicacaoNome: '',
     herdeiros: [''],
+    nomeSindico: '',
+    cpfSindico: '',
+    contatoSindico: '',
   },
   parametros: {
     consumo_kwh_mes: 0,
