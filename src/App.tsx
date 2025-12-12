@@ -12987,6 +12987,14 @@ export default function App() {
     return parsed
   }
 
+  const consumoTotalUcsBeneficiarias = ucsBeneficiarias.reduce(
+    (acc, item) => acc + parseUcBeneficiariaConsumo(item.consumoKWh),
+    0,
+  )
+
+  const consumoUcsExcedeInformado =
+    kcKwhMes > 0 && consumoTotalUcsBeneficiarias > kcKwhMes
+
   const recalcularRateioAutomatico = (
     lista: UcBeneficiariaFormState[],
   ): UcBeneficiariaFormState[] => {
@@ -13992,6 +14000,22 @@ export default function App() {
             </div>
           </div>
         </Field>
+        {consumoUcsExcedeInformado ? (
+          <div className="warning ucs-consumo-warning" role="alert">
+            <strong>Consumo das UCs acima do total informado.</strong>{' '}
+            A soma dos consumos das UCs beneficiárias (
+            {formatNumberBRWithOptions(consumoTotalUcsBeneficiarias, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}{' '}
+            kWh/mês) ultrapassa o consumo mensal informado (
+            {formatNumberBRWithOptions(kcKwhMes, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}{' '}
+            kWh/mês). Ajuste os valores para manter o rateio consistente.
+          </div>
+        ) : null}
         <Field
           label={labelWithTooltip(
             'Cidade',
