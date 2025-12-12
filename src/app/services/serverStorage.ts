@@ -1,6 +1,7 @@
 import { resolveApiUrl } from '../../utils/apiUrl'
 
 const STORAGE_ENDPOINT = resolveApiUrl('/api/storage')
+const AUTH_COOKIE_NAME = import.meta.env.VITE_AUTH_COOKIE_NAME ?? 'solarinvest_session'
 
 const DEFAULT_INITIALIZATION_TIMEOUT_MS = 2000
 
@@ -29,6 +30,13 @@ const cache = new Map<string, string>()
 const pendingUploads = new Map<string, AbortController>()
 let syncEnabled = true
 let initializationWaitPromise: Promise<void> | null = null
+
+const hasAuthCookie = () => {
+  if (typeof document === 'undefined') {
+    return false
+  }
+  return document.cookie.split(';').some((entry) => entry.trim().startsWith(`${AUTH_COOKIE_NAME}=`))
+}
 
 const createHeaders = () => new Headers({ 'Content-Type': 'application/json' })
 
@@ -148,6 +156,10 @@ const initializeSync = async (signal?: AbortSignal) => {
   }
 
   let remoteEntries: RemoteStorageEntry[] = []
+  if (!hasAuthCookie()) {
+    syncEnabled = false
+    return
+  }
   try {
     remoteEntries = await loadRemoteEntries(signal)
   } catch (error) {
