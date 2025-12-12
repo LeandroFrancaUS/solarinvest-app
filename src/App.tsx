@@ -5955,7 +5955,7 @@ export default function App() {
     return null
   }, [potenciaInstaladaKwp, tipoRede])
 
-  const confirmarAlertasGerarProposta = useCallback(() => {
+  const coletarAlertasProposta = useCallback(() => {
     const alertas: string[] = []
 
     if (consumoUcsExcedeInformado) {
@@ -5974,6 +5974,12 @@ export default function App() {
       alertas.push(tipoRedeCompatMessage)
     }
 
+    return alertas
+  }, [consumoTotalUcsBeneficiarias, consumoUcsExcedeInformado, kcKwhMes, tipoRedeCompatMessage])
+
+  const confirmarAlertasGerarProposta = useCallback(() => {
+    const alertas = coletarAlertasProposta()
+
     if (!alertas.length) {
       return true
     }
@@ -5983,12 +5989,7 @@ export default function App() {
     }\n\n- ${alertas.join('\n- ')}\n\nPressione "OK" para gerar a proposta assim mesmo ou "Cancelar" para voltar e ajustar os valores.`
 
     return window.confirm(mensagem)
-  }, [
-    consumoTotalUcsBeneficiarias,
-    consumoUcsExcedeInformado,
-    kcKwhMes,
-    tipoRedeCompatMessage,
-  ])
+  }, [coletarAlertasProposta])
 
   const handleMultiUcToggle = useCallback(
     (checked: boolean) => {
@@ -12709,12 +12710,40 @@ export default function App() {
     prepararPayloadContratosLeasing,
   ])
 
+  const confirmarAlertasAntesDeSalvar = useCallback(async (): Promise<boolean> => {
+    const alertas = coletarAlertasProposta()
+
+    if (alertas.length === 0) {
+      return true
+    }
+
+    const descricao = `${
+      alertas.length === 1
+        ? 'Encontramos um alerta que precisa de atenção antes de salvar:'
+        : 'Encontramos alguns alertas que precisam de atenção antes de salvar:'
+    } ${alertas.map((texto) => `• ${texto}`).join(' ')}`
+
+    const choice = await requestSaveDecision({
+      title: 'Resolver alertas antes de salvar?',
+      description: descricao,
+      confirmLabel: 'Continuar',
+      discardLabel: 'Voltar',
+    })
+
+    return choice === 'save'
+  }, [coletarAlertasProposta, requestSaveDecision])
+
   const handleSalvarPropostaLeasing = useCallback(async (): Promise<boolean> => {
     if (salvandoPropostaLeasing) {
       return false
     }
 
     if (!validarCamposObrigatorios('salvar a proposta')) {
+      return false
+    }
+
+    const confirmouAlertas = await confirmarAlertasAntesDeSalvar()
+    if (!confirmouAlertas) {
       return false
     }
 
@@ -12777,6 +12806,7 @@ export default function App() {
     adicionarNotificacao,
     atualizarOrcamentoAtivo,
     currentBudgetId,
+    confirmarAlertasAntesDeSalvar,
     handleSalvarCliente,
     isVendaDiretaTab,
     prepararPropostaParaExportacao,
