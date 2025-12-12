@@ -5507,6 +5507,7 @@ export default function App() {
   const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(
     INITIAL_VALUES.tabelaVisivel,
   )
+  const [salvandoPropostaLeasing, setSalvandoPropostaLeasing] = useState(false)
   const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
   const [gerandoContratos, setGerandoContratos] = useState(false)
   const [isContractTemplatesModalOpen, setIsContractTemplatesModalOpen] = useState(false)
@@ -12708,6 +12709,86 @@ export default function App() {
     prepararPayloadContratosLeasing,
   ])
 
+  const handleSalvarPropostaLeasing = useCallback(async (): Promise<boolean> => {
+    if (salvandoPropostaLeasing) {
+      return false
+    }
+
+    if (!validarCamposObrigatorios('salvar a proposta')) {
+      return false
+    }
+
+    if (!clienteEmEdicaoIdRef.current) {
+      await handleSalvarCliente()
+      if (!clienteEmEdicaoIdRef.current) {
+        return false
+      }
+    }
+
+    setSalvandoPropostaLeasing(true)
+
+    try {
+      const resultado = await prepararPropostaParaExportacao({
+        incluirTabelaBuyout: isVendaDiretaTab,
+      })
+
+      if (!resultado) {
+        window.alert('Não foi possível preparar a proposta para salvar. Tente novamente.')
+        return false
+      }
+
+      const { dados } = resultado
+      const registroSalvo = salvarOrcamentoLocalmente(dados)
+      if (!registroSalvo) {
+        return false
+      }
+
+      const emissaoIso = new Date().toISOString().slice(0, 10)
+      if (currentBudgetId !== registroSalvo.id) {
+        renameVendasSimulacao(currentBudgetId, registroSalvo.id)
+        setCurrentBudgetId(registroSalvo.id)
+      }
+
+      vendaActions.updateCodigos({
+        codigo_orcamento_interno: registroSalvo.id,
+        data_emissao: emissaoIso,
+      })
+
+      atualizarOrcamentoAtivo(registroSalvo)
+      scheduleMarkStateAsSaved()
+
+      adicionarNotificacao(
+        'Proposta de leasing salva com sucesso no banco de dados. Você pode recarregar os dados a qualquer momento.',
+        'success',
+      )
+
+      return true
+    } catch (error) {
+      console.error('Erro ao salvar proposta de leasing.', error)
+      adicionarNotificacao(
+        'Não foi possível salvar a proposta de leasing. Tente novamente após corrigir os alertas.',
+        'error',
+      )
+      return false
+    } finally {
+      setSalvandoPropostaLeasing(false)
+    }
+  }, [
+    adicionarNotificacao,
+    atualizarOrcamentoAtivo,
+    currentBudgetId,
+    handleSalvarCliente,
+    isVendaDiretaTab,
+    prepararPropostaParaExportacao,
+    renameVendasSimulacao,
+    salvarOrcamentoLocalmente,
+    salvandoPropostaLeasing,
+    scheduleMarkStateAsSaved,
+    setCurrentBudgetId,
+    validarCamposObrigatorios,
+    vendaActions,
+  ])
+
   const handleSalvarPropostaPdf = useCallback(async (): Promise<boolean> => {
     if (salvandoPropostaPdf) {
       return false
@@ -12937,6 +13018,7 @@ export default function App() {
     setMostrarTabelaBuyout(INITIAL_VALUES.tabelaVisivel)
     setMostrarTabelaParcelasConfig(INITIAL_VALUES.tabelaVisivel)
     setMostrarTabelaBuyoutConfig(INITIAL_VALUES.tabelaVisivel)
+    setSalvandoPropostaLeasing(false)
     setSalvandoPropostaPdf(false)
 
     setOemBase(INITIAL_VALUES.oemBase)
@@ -19763,6 +19845,24 @@ export default function App() {
                   <section className="card">
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
+                      <div className="card-actions">
+                        <button
+                          type="button"
+                          className="primary"
+                          onClick={handleSalvarPropostaLeasing}
+                          disabled={!podeSalvarProposta || salvandoPropostaLeasing}
+                        >
+                          {salvandoPropostaLeasing ? 'Salvando…' : 'Salvar proposta'}
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={handleSalvarPropostaLeasing}
+                          disabled={salvandoPropostaLeasing}
+                        >
+                          Refresh
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid g3">
