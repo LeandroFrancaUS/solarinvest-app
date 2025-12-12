@@ -5825,6 +5825,45 @@ export default function App() {
     return numeroModulosCalculado
   }, [numeroModulosInformado, numeroModulosCalculado])
 
+  const parseUcBeneficiariaConsumo = (valor: string): number => {
+    const normalizado = valor.replace(/\./g, '').replace(',', '.')
+    const parsed = Number(normalizado)
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return 0
+    }
+    return parsed
+  }
+
+  const consumoTotalUcsBeneficiarias = ucsBeneficiarias.reduce(
+    (acc, item) => acc + parseUcBeneficiariaConsumo(item.consumoKWh),
+    0,
+  )
+
+  const consumoUcsExcedeInformado =
+    kcKwhMes > 0 && consumoTotalUcsBeneficiarias > kcKwhMes
+
+  const recalcularRateioAutomatico = (
+    lista: UcBeneficiariaFormState[],
+  ): UcBeneficiariaFormState[] => {
+    const totalConsumo = lista.reduce(
+      (acc, item) => acc + parseUcBeneficiariaConsumo(item.consumoKWh),
+      0,
+    )
+
+    if (totalConsumo <= 0) {
+      return lista
+    }
+
+    return lista.map((item) => {
+      const consumo = parseUcBeneficiariaConsumo(item.consumoKWh)
+      const percentual = consumo > 0 ? (consumo / totalConsumo) * 100 : 0
+      const percentualFormatado = Number.isFinite(percentual)
+        ? percentual.toFixed(2).replace('.', ',')
+        : '0'
+      return { ...item, rateioPercentual: percentualFormatado }
+    })
+  }
+
   const vendaQuantidadeModulos = useMemo(() => {
     const quantidade = vendaForm.quantidade_modulos
     if (!Number.isFinite(quantidade)) {
@@ -13016,45 +13055,6 @@ export default function App() {
   }
 
   const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
-
-  const parseUcBeneficiariaConsumo = (valor: string): number => {
-    const normalizado = valor.replace(/\./g, '').replace(',', '.')
-    const parsed = Number(normalizado)
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return 0
-    }
-    return parsed
-  }
-
-  const consumoTotalUcsBeneficiarias = ucsBeneficiarias.reduce(
-    (acc, item) => acc + parseUcBeneficiariaConsumo(item.consumoKWh),
-    0,
-  )
-
-  const consumoUcsExcedeInformado =
-    kcKwhMes > 0 && consumoTotalUcsBeneficiarias > kcKwhMes
-
-  const recalcularRateioAutomatico = (
-    lista: UcBeneficiariaFormState[],
-  ): UcBeneficiariaFormState[] => {
-    const totalConsumo = lista.reduce(
-      (acc, item) => acc + parseUcBeneficiariaConsumo(item.consumoKWh),
-      0,
-    )
-
-    if (totalConsumo <= 0) {
-      return lista
-    }
-
-    return lista.map((item) => {
-      const consumo = parseUcBeneficiariaConsumo(item.consumoKWh)
-      const percentual = consumo > 0 ? (consumo / totalConsumo) * 100 : 0
-      const percentualFormatado = Number.isFinite(percentual)
-        ? percentual.toFixed(2).replace('.', ',')
-        : '0'
-      return { ...item, rateioPercentual: percentualFormatado }
-    })
-  }
 
   const handleAdicionarUcBeneficiaria = useCallback(() => {
     setUcsBeneficiarias((prev) => recalcularRateioAutomatico([...prev, createEmptyUcBeneficiaria()]))
