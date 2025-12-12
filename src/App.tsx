@@ -450,6 +450,8 @@ const SEGMENTO_LABELS = NOVOS_TIPOS_EDIFICACAO.reduce(
   (acc, { value, label }) => ({ ...acc, [value as SegmentoCliente]: label }),
   {} as Record<SegmentoCliente, string>,
 )
+const isSegmentoCondominio = (segmento: SegmentoCliente) =>
+  segmento === 'cond_vertical' || segmento === 'cond_horizontal'
 
 const emailValido = (valor: string) => {
   if (!valor) {
@@ -999,6 +1001,9 @@ const CLIENTE_INICIAL: ClienteDados = {
   temIndicacao: false,
   indicacaoNome: '',
   herdeiros: [''],
+  nomeSindico: '',
+  cpfSindico: '',
+  contatoSindico: '',
 }
 
 const isSyncedClienteField = (key: keyof ClienteDados): key is FieldSyncKey =>
@@ -1438,6 +1443,7 @@ const normalizeClienteHerdeiros = (valor: unknown): string[] => {
 }
 
 const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({
+  ...CLIENTE_INICIAL,
   ...dados,
   herdeiros: ensureClienteHerdeiros(dados.herdeiros),
 })
@@ -1949,6 +1955,9 @@ const createClienteComparisonData = (dados: ClienteDados) => {
     uf: normalizeClienteString(dados.uf),
     temIndicacao: Boolean(dados.temIndicacao),
     indicacaoNome: normalizeClienteString(dados.indicacaoNome),
+    nomeSindico: normalizeClienteString(dados.nomeSindico),
+    cpfSindico: normalizeClienteNumbers(dados.cpfSindico),
+    contatoSindico: normalizeClienteNumbers(dados.contatoSindico),
     herdeiros: Array.isArray(dados.herdeiros)
       ? dados.herdeiros.map((item) => normalizeClienteString(item)).filter(Boolean).sort()
       : [],
@@ -4832,6 +4841,16 @@ export default function App() {
       // Atualiza o estado original
       updateSegmentoCliente(novoValor)
 
+      if (!isSegmentoCondominio(novoValor)) {
+        setCliente((prev) => {
+          if (!prev.nomeSindico && !prev.cpfSindico && !prev.contatoSindico) {
+            return prev
+          }
+
+          return { ...prev, nomeSindico: '', cpfSindico: '', contatoSindico: '' }
+        })
+      }
+
       // Se o outro lado NÃO foi editado manualmente, sincronizar
       if (!syncStateRef.current.tusdEdited) {
         updateTusdTipoCliente(novoValor)
@@ -4839,7 +4858,7 @@ export default function App() {
 
       resetRetorno?.()
     },
-    [resetRetorno, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
+    [resetRetorno, setCliente, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
   )
 
   const handleTusdTipoClienteChange = useCallback(
@@ -11022,6 +11041,9 @@ export default function App() {
           temIndicacao: temIndicacaoNormalizado,
           indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
           herdeiros: herdeirosNormalizados,
+          nomeSindico: clienteDados.nomeSindico ?? '',
+          cpfSindico: clienteDados.cpfSindico ?? '',
+          contatoSindico: clienteDados.contatoSindico ?? '',
         }
 
         const dadosNormalizados: PrintableProposalProps = {
@@ -13283,11 +13305,11 @@ export default function App() {
     let nextValue = rawValue
 
     if (typeof rawValue === 'string') {
-      if (key === 'documento') {
+      if (key === 'documento' || key === 'cpfSindico') {
         nextValue = formatCpfCnpj(rawValue) as ClienteDados[K]
       } else if (key === 'email') {
         nextValue = rawValue.trim() as ClienteDados[K]
-      } else if (key === 'telefone') {
+      } else if (key === 'telefone' || key === 'contatoSindico') {
         nextValue = formatTelefone(rawValue) as ClienteDados[K]
       } else if (key === 'cep') {
         nextValue = formatCep(rawValue) as ClienteDados[K]
@@ -13940,6 +13962,7 @@ export default function App() {
               ? 'herdeiro cadastrado'
               : 'herdeiros cadastrados'
           }`
+    const isCondominio = isSegmentoCondominio(segmentoCliente)
 
     return (
       <section className="card">
@@ -14048,6 +14071,34 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
+            'Tipo de Edificação',
+            'Classificação da edificação (Residencial, Comercial, Cond. Vertical, Cond. Horizontal, Industrial ou Outros (texto)), utilizada para relatórios e cálculos de tarifas.',
+          )}
+        >
+          <select
+            value={segmentoCliente}
+            onChange={(event) =>
+              handleSegmentoClienteChange(event.target.value as SegmentoCliente)
+            }
+          >
+            {NOVOS_TIPOS_EDIFICACAO.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
+            <input
+              type="text"
+              placeholder="Descreva..."
+              style={{ marginTop: '6px' }}
+              value={tipoEdificacaoOutro}
+              onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
+            />
+          )}
+        </Field>
+        <Field
+          label={labelWithTooltip(
             'UC Geradora (número)',
             'Código numérico da unidade consumidora geradora junto à distribuidora, usado para vincular contratos e projeções de consumo.',
           )}
@@ -14071,6 +14122,34 @@ export default function App() {
             placeholder="Endereço completo da UC geradora"
           />
         </Field>
+        {isCondominio ? (
+          <div className="grid g3">
+            <Field label="Nome do síndico">
+              <input
+                value={cliente.nomeSindico}
+                onChange={(event) => handleClienteChange('nomeSindico', event.target.value)}
+                placeholder="Nome completo"
+              />
+            </Field>
+            <Field label="CPF do síndico">
+              <input
+                value={cliente.cpfSindico}
+                onChange={(event) => handleClienteChange('cpfSindico', event.target.value)}
+                placeholder="000.000.000-00"
+                inputMode="numeric"
+              />
+            </Field>
+            <Field label="Contato do síndico">
+              <input
+                value={cliente.contatoSindico}
+                onChange={(event) => handleClienteChange('contatoSindico', event.target.value)}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
+                autoComplete="tel"
+              />
+            </Field>
+          </div>
+        ) : null}
         <Field
           label={labelWithTooltip(
             'UCs Beneficiárias',
@@ -15475,34 +15554,6 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'Tipo de Edificação',
-            'Classificação da edificação (Residencial, Comercial, Cond. Vertical, Cond. Horizontal, Industrial ou Outros (texto)), utilizada para relatórios e cálculos de tarifas.',
-          )}
-        >
-          <select
-            value={segmentoCliente}
-            onChange={(event) =>
-              handleSegmentoClienteChange(event.target.value as SegmentoCliente)
-            }
-          >
-            {NOVOS_TIPOS_EDIFICACAO.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
-            <input
-              type="text"
-              placeholder="Descreva..."
-              style={{ marginTop: '6px' }}
-              value={tipoEdificacaoOutro}
-              onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
-            />
-          )}
-        </Field>
-        <Field
-          label={labelWithTooltip(
             'Tipo de instalação',
             'Selecione entre Telhado de fibrocimento, Telhas metálicas, Telhas cerâmicas, Laje, Solo ou Outros (texto); a escolha impacta área estimada e custos de estrutura.',
           )}
@@ -16058,34 +16109,6 @@ export default function App() {
             }}
             onFocus={selectNumberInputOnFocus}
           />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de Edificação',
-            'Classificação da edificação (Residencial, Comercial, Cond. Vertical, Cond. Horizontal, Industrial ou Outros (texto)), utilizada para relatórios e cálculos de tarifas.',
-          )}
-        >
-          <select
-            value={segmentoCliente}
-            onChange={(event) =>
-              handleSegmentoClienteChange(event.target.value as SegmentoCliente)
-            }
-          >
-            {NOVOS_TIPOS_EDIFICACAO.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
-            <input
-              type="text"
-              placeholder="Descreva..."
-              style={{ marginTop: '6px' }}
-              value={tipoEdificacaoOutro}
-              onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
-            />
-          )}
         </Field>
         <Field
           label={labelWithTooltip(
