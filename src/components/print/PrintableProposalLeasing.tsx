@@ -959,11 +959,7 @@ function PrintableProposalLeasingInner(
     <>Economia que continua crescendo mesmo após o contrato, com previsibilidade e segurança para o seu patrimônio energético.</>
   )
   const informacoesImportantesObservacaoTexto = useMemo(() => {
-    if (typeof informacoesImportantesObservacao !== 'string') {
-      return null
-    }
-
-    const texto = informacoesImportantesObservacao.trim()
+    const texto = sanitizeTextField(informacoesImportantesObservacao)
     if (!texto || texto === INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO) {
       return null
     }
@@ -971,11 +967,7 @@ function PrintableProposalLeasingInner(
     return texto
   }, [informacoesImportantesObservacao])
   const configuracaoUsinaObservacoesTexto = useMemo(() => {
-    if (typeof configuracaoUsinaObservacoes !== 'string') {
-      return null
-    }
-
-    const texto = configuracaoUsinaObservacoes.trim()
+    const texto = sanitizeTextField(configuracaoUsinaObservacoes)
     return texto || null
   }, [configuracaoUsinaObservacoes])
   const configuracaoUsinaObservacoesParagrafos = useMemo(() => {

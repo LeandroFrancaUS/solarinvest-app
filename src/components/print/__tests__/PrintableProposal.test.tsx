@@ -159,6 +159,23 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).not.toContain('<strong>')
   })
 
+  it('remove URLs e tags HTML em propostas de leasing', () => {
+    const props = createPrintableProps({
+      tipoProposta: 'LEASING',
+      configuracaoUsinaObservacoes: '<div>Observações com link https://app.solarinvest.info/</div>',
+      informacoesImportantesObservacao: '<span>Observação <em>adicional</em></span>',
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain('Observações com link')
+    expect(markup).toContain('Observação adicional')
+    expect(markup).not.toContain('https://app.solarinvest.info/')
+    expect(markup).not.toContain('<div>')
+    expect(markup).not.toContain('<span>')
+    expect(markup).not.toContain('<em>')
+  })
+
   it('exibe potência dos módulos a partir do catálogo e autonomia formatada', () => {
     const vendaForm: VendaForm = {
       consumo_kwh_mes: 500,
