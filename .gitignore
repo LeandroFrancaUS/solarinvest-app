@@ -11,3 +11,4 @@ build/
 
 .vercel
 .env*.local
+!my-neon-app/.env.example
