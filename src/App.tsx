@@ -2906,6 +2906,14 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
   })
 }
 
+function sanitizePrintableHtml(html: string | null): string | null {
+  if (typeof html !== 'string') {
+    return html
+  }
+
+  return html.replace(/html\s*coding/gi, '').trim()
+}
+
 function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Promise<string | null> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return Promise.resolve(null)
@@ -8243,11 +8251,13 @@ export default function App() {
       }
     }
 
-    if (!layoutHtml) {
+    const sanitizedLayoutHtml = sanitizePrintableHtml(layoutHtml)
+
+    if (!sanitizedLayoutHtml) {
       return null
     }
 
-    return { html: layoutHtml, dados: dadosParaImpressao }
+    return { html: sanitizedLayoutHtml, dados: dadosParaImpressao }
   }, [printableData])
 
   const validarCamposObrigatorios = useCallback(
@@ -11807,7 +11817,9 @@ export default function App() {
         observacaoImportante: printableData.informacoesImportantesObservacao ?? null,
       })
 
-      if (!html) {
+      const sanitizedHtml = sanitizePrintableHtml(html)
+
+      if (!sanitizedHtml) {
         throw new Error('Não foi possível preparar o conteúdo da tabela para impressão.')
       }
 
@@ -11816,7 +11828,7 @@ export default function App() {
 
       pendingPreviewDataRef.current = null
 
-      openBudgetPreviewWindow(html, {
+      openBudgetPreviewWindow(sanitizedHtml, {
         nomeCliente,
         budgetId: budgetIdNormalizado || codigoOrcamento,
         actionMessage:
@@ -11902,12 +11914,15 @@ export default function App() {
 
         atualizarOrcamentoAtivo(registro)
 
-        let htmlAtualizado = previewData.html
+        let htmlAtualizado = sanitizePrintableHtml(previewData.html) || ''
         try {
           const reprocessado = await renderPrintableProposalToHtml(dados)
           if (reprocessado) {
-            htmlAtualizado = reprocessado
-            previewData.html = reprocessado
+            const sanitized = sanitizePrintableHtml(reprocessado)
+            if (sanitized) {
+              htmlAtualizado = sanitized
+              previewData.html = sanitized
+            }
           }
         } catch (error) {
           console.warn('Não foi possível atualizar o HTML antes da impressão.', error)
@@ -12898,11 +12913,14 @@ export default function App() {
 
       atualizarOrcamentoAtivo(registroSalvo)
 
-      let htmlComCodigo = html
+      let htmlComCodigo = sanitizePrintableHtml(html) || ''
       try {
         const atualizado = await renderPrintableProposalToHtml(dados)
         if (atualizado) {
-          htmlComCodigo = atualizado
+          const sanitized = sanitizePrintableHtml(atualizado)
+          if (sanitized) {
+            htmlComCodigo = sanitized
+          }
         }
       } catch (error) {
         console.warn('Não foi possível atualizar o HTML com o código do orçamento.', error)
@@ -13639,7 +13657,9 @@ export default function App() {
             registro.dados.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
         }
         const layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
-        if (!layoutHtml) {
+        const sanitizedLayoutHtml = sanitizePrintableHtml(layoutHtml)
+
+        if (!sanitizedLayoutHtml) {
           window.alert('Não foi possível preparar o orçamento selecionado. Tente novamente.')
           return
         }
@@ -13653,7 +13673,7 @@ export default function App() {
             'Escolha a opção "Salvar como PDF" na janela de impressão para baixar o orçamento.'
         }
 
-        openBudgetPreviewWindow(layoutHtml, {
+        openBudgetPreviewWindow(sanitizedLayoutHtml, {
           nomeCliente,
           budgetId: registro.id,
           actionMessage,
