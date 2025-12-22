@@ -4750,10 +4750,10 @@ export default function App() {
     [resetRetorno],
   )
 
-  const taxaMinimaCalculadaBase = useMemo(
-    () => calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia)),
-    [tarifaCheia, tipoRede],
-  )
+  const taxaMinimaCalculadaBase = useMemo(() => {
+    const calculada = calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
+    return Math.round(calculada * 100) / 100
+  }, [tarifaCheia, tipoRede])
   const taxaMinimaAutoRef = useRef<number | null>(null)
 
   useEffect(() => {
