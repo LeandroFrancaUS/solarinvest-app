@@ -390,6 +390,34 @@ html[data-print-mode='print'] .print-hero__title h1 {
   width: 42%;
 }
 
+.print-financing-banks {
+  margin-top: 16px;
+}
+
+.print-financing-banks__logos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.print-financing-banks__logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+  color: #0c162c;
+  font-size: 12px;
+  text-align: center;
+}
+
+.print-financing-banks__logo img {
+  max-width: 120px;
+  height: 26px;
+  object-fit: contain;
+}
+
 .print-table--parametros-economia td:nth-child(2) {
   white-space: nowrap;
 }
@@ -1067,4 +1095,3 @@ html[data-print-mode='print'] .print-hero__title h1 {
     display: none !important;
   }
 }
-
