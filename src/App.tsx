@@ -3361,6 +3361,10 @@ export default function App() {
   const [usarEnderecoCliente, setUsarEnderecoCliente] = useState(false)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'monofasico')
+  const tipoRedeLabel = useMemo(
+    () => TIPOS_REDE.find((rede) => rede.value === tipoRede)?.label ?? tipoRede,
+    [tipoRede],
+  )
   const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
   const initialTipoInstalacao = normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
   const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
@@ -14968,7 +14972,9 @@ export default function App() {
               onFocus={selectNumberInputOnFocus}
             />
             <div className="mt-2 flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Taxa mínima</label>
+              <label className="text-sm font-medium text-gray-700">
+                Taxa mínima ({tipoRedeLabel})
+              </label>
               <Switch
                 checked={vendaForm.aplica_taxa_minima ?? true}
                 onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}
@@ -15875,7 +15881,9 @@ export default function App() {
           />
           <FieldError message={vendaFormErrors.consumo_kwh_mes} />
           <div className="mt-2 flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Taxa mínima</label>
+            <label className="text-sm font-medium text-gray-700">
+              Taxa mínima ({tipoRedeLabel})
+            </label>
             <Switch
               checked={vendaForm.aplica_taxa_minima ?? true}
               onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}

@@ -680,7 +680,7 @@ function PrintableProposalLeasingInner(
       value: tarifaInicialProjetada > 0 ? tarifaCurrency(tarifaInicialProjetada) : '—',
     },
     {
-      label: 'Taxa mínima',
+      label: `Taxa mínima (${formatTipoRede(tipoRede)})`,
       value: currency(taxaMinimaMensal),
     },
     {
