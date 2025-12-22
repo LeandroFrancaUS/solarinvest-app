@@ -3732,50 +3732,6 @@ export default function App() {
     [setTaxaMinima, setTaxaMinimaInputEmpty],
   )
 
-  const taxaMinimaCalculadaBase = useMemo(
-    () => calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia)),
-    [tarifaCheia, tipoRede],
-  )
-  const taxaMinimaAutoRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    const taxaAtual =
-      Number.isFinite(taxaMinima) && (taxaMinima ?? 0) > 0 ? Number(taxaMinima) : 0
-    const vendaTaxaAtual = Number.isFinite(vendaForm.taxa_minima_mensal)
-      ? Number(vendaForm.taxa_minima_mensal)
-      : null
-    const ultimaAuto = taxaMinimaAutoRef.current
-    const deveAtualizarTaxaMinima =
-      taxaMinimaInputEmpty || ultimaAuto == null || numbersAreClose(taxaAtual, ultimaAuto)
-    const deveAtualizarVenda =
-      vendaTaxaAtual == null || ultimaAuto == null || numbersAreClose(vendaTaxaAtual, ultimaAuto)
-
-    if (deveAtualizarTaxaMinima && !numbersAreClose(taxaAtual, taxaMinimaCalculadaBase)) {
-      setTaxaMinimaInputEmpty(false)
-      setTaxaMinima(taxaMinimaCalculadaBase)
-    }
-
-    if (
-      deveAtualizarVenda &&
-      !numbersAreClose(vendaTaxaAtual ?? 0, taxaMinimaCalculadaBase)
-    ) {
-      applyVendaUpdates({
-        taxa_minima_mensal: taxaMinimaCalculadaBase,
-        taxa_minima_r_mes: taxaMinimaCalculadaBase,
-      })
-    }
-
-    taxaMinimaAutoRef.current = taxaMinimaCalculadaBase
-  }, [
-    applyVendaUpdates,
-    setTaxaMinima,
-    setTaxaMinimaInputEmpty,
-    taxaMinima,
-    taxaMinimaCalculadaBase,
-    taxaMinimaInputEmpty,
-    vendaForm.taxa_minima_mensal,
-  ])
-
   const setUfTarifa = useCallback(
     (valueOrUpdater: string | ((prev: string) => string)) => {
       const nextValue = resolveStateUpdate(valueOrUpdater, ufTarifa)
@@ -4793,6 +4749,50 @@ export default function App() {
     },
     [resetRetorno],
   )
+
+  const taxaMinimaCalculadaBase = useMemo(
+    () => calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia)),
+    [tarifaCheia, tipoRede],
+  )
+  const taxaMinimaAutoRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const taxaAtual =
+      Number.isFinite(taxaMinima) && (taxaMinima ?? 0) > 0 ? Number(taxaMinima) : 0
+    const vendaTaxaAtual = Number.isFinite(vendaForm.taxa_minima_mensal)
+      ? Number(vendaForm.taxa_minima_mensal)
+      : null
+    const ultimaAuto = taxaMinimaAutoRef.current
+    const deveAtualizarTaxaMinima =
+      taxaMinimaInputEmpty || ultimaAuto == null || numbersAreClose(taxaAtual, ultimaAuto)
+    const deveAtualizarVenda =
+      vendaTaxaAtual == null || ultimaAuto == null || numbersAreClose(vendaTaxaAtual, ultimaAuto)
+
+    if (deveAtualizarTaxaMinima && !numbersAreClose(taxaAtual, taxaMinimaCalculadaBase)) {
+      setTaxaMinimaInputEmpty(false)
+      setTaxaMinima(taxaMinimaCalculadaBase)
+    }
+
+    if (
+      deveAtualizarVenda &&
+      !numbersAreClose(vendaTaxaAtual ?? 0, taxaMinimaCalculadaBase)
+    ) {
+      applyVendaUpdates({
+        taxa_minima_mensal: taxaMinimaCalculadaBase,
+        taxa_minima_r_mes: taxaMinimaCalculadaBase,
+      })
+    }
+
+    taxaMinimaAutoRef.current = taxaMinimaCalculadaBase
+  }, [
+    applyVendaUpdates,
+    setTaxaMinima,
+    setTaxaMinimaInputEmpty,
+    taxaMinima,
+    taxaMinimaCalculadaBase,
+    taxaMinimaInputEmpty,
+    vendaForm.taxa_minima_mensal,
+  ])
 
   const resolveDefaultTusdSimultaneidade = useCallback((tipo: TipoClienteTUSD): number | null => {
     if (tipo === 'residencial') return 50
