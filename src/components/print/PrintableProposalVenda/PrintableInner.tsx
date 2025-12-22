@@ -972,6 +972,11 @@ function PrintableProposalInner(
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Juros do financiamento (% a.m.)', jurosFinAmResumo)
     pushRowIfMeaningful(condicoesFinanciamentoRows, 'Juros do financiamento (% a.a.)', jurosFinAaResumo)
   }
+  const bancosFinanciamento = [
+    { nome: 'Banco BV', logo: '/bank-bv.svg' },
+    { nome: 'Santander', logo: '/bank-santander.svg' },
+    { nome: 'BTG', logo: '/bank-btg.svg' },
+  ]
   const parametrosEconomiaRows: TableRow[] = []
   pushRowIfMeaningful(parametrosEconomiaRows, 'Inflação de energia estimada (a.a.)', inflacaoResumo)
   pushRowIfMeaningful(
@@ -988,6 +993,7 @@ function PrintableProposalInner(
   const mostrarCondicoesBoleto = condicoesBoletoRows.length > 0
   const mostrarCondicoesDebitoAutomatico = condicoesDebitoAutomaticoRows.length > 0
   const mostrarCondicoesFinanciamento = condicoesFinanciamentoRows.length > 0
+  const mostrarBancosFinanciamento = !isVendaDireta && isCondicaoFinanciamento
   const mostrarParametrosEconomia = parametrosEconomiaRows.length > 0
   const temAlgumaCondicao =
     mostrarCondicoesPagamento ||
@@ -1519,6 +1525,19 @@ function PrintableProposalInner(
                         </table>
                       </>
                     ) : null}
+                    {mostrarBancosFinanciamento ? (
+                      <div className="print-financing-banks no-break-inside">
+                        <h3 className="print-subheading keep-with-next">Bancos parceiros para financiamento</h3>
+                        <div className="print-financing-banks__logos">
+                          {bancosFinanciamento.map((banco) => (
+                            <div key={banco.nome} className="print-financing-banks__logo">
+                              <img src={banco.logo} alt={`Logo ${banco.nome}`} />
+                              <span>{banco.nome}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <p className="muted no-break-inside">
@@ -1821,4 +1840,3 @@ export const PrintableProposalVendaInner = React.forwardRef<HTMLDivElement, Prin
 )
 
 export default PrintableProposalVendaInner
-
