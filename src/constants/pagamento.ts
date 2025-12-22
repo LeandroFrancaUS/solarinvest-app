@@ -46,7 +46,7 @@ export const PAGAMENTO_CONDICAO_INFO: Record<PagamentoCondicao, PagamentoResumoI
     label: 'Financiamento via bancos parceiros',
     summary: 'Operação estruturada com instituições financeiras parceiras.',
     highlights: sanitizeHighlights([
-      'Parcerias com Caixa, Santander, Sicredi, Sicoob, BV Solar e outros bancos.',
+      'Parcerias com Banco BV, Santander e BTG.',
       'Sujeito à análise de crédito e condições específicas de cada instituição.',
     ]),
   },
