@@ -2989,6 +2989,8 @@ export default function App() {
   const valorTotalPropostaState = useVendaStore(
     (state) => state.resumoProposta.valor_total_proposta,
   )
+  const vendaSnapshotSignal = useVendaStore((state) => state)
+  const leasingSnapshotSignal = useLeasingStore((state) => state)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return 'light'
@@ -7992,6 +7994,8 @@ export default function App() {
       propostaImagens,
       configuracaoUsinaObservacoes,
       ucsBeneficiarias,
+      vendaSnapshotSignal,
+      leasingSnapshotSignal,
     ],
   )
 
