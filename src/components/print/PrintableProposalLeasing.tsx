@@ -680,6 +680,10 @@ function PrintableProposalLeasingInner(
       value: tarifaInicialProjetada > 0 ? tarifaCurrency(tarifaInicialProjetada) : '—',
     },
     {
+      label: 'Taxa mínima',
+      value: currency(taxaMinimaMensal),
+    },
+    {
       label: 'Desconto contratado',
       value: toDisplayPercent(descontoContratualPct),
     },
