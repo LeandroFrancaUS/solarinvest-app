@@ -46,7 +46,6 @@ export interface SimulationState {
   aplicaTaxaMinima: boolean
   cidKwhBase: number
   tipoRede: TipoRede
-  cipValor: number
 }
 
 export interface BuyoutLinha {
@@ -83,7 +82,6 @@ export function selectMensalidades(state: SimulationState): number[] {
       inflacaoEnergetica: state.inflacaoAa,
       anosDecorridos,
       tipoLigacao: state.tipoRede,
-      cipValor: state.cipValor,
       tusd: {
         percentualFioB: state.tusdPercentualFioB ?? state.tusdPercent,
         simultaneidade: state.tusdSimultaneidade,
