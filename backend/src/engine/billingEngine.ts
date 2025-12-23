@@ -37,9 +37,6 @@ export function calcularFaturaSolarInvest(input: BillingInput): BillingResult {
     createItem("EXCEDENTE", `Excedente (${excedenteKWh.toFixed(0)} kWh) x Tarifa Cheia`, excedenteValor, excedenteKWh > 0)
   ];
 
-  if (contrato.incluirCIPNaCobranca) {
-    itens.push(createItem("CIP", "Contribuição de Iluminação Pública", safeNumber(rawInvoice.valorCIP), true));
-  }
   if (contrato.incluirBandeiraNaCobranca) {
     itens.push(createItem("BANDEIRA", "Bandeira tarifária", safeNumber(rawInvoice.valorBandeira), true));
   }
