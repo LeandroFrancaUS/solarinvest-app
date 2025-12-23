@@ -118,6 +118,11 @@ type Listener = () => void
 
 const listeners = new Set<Listener>()
 
+const STORAGE_KEY = 'solarinvest:venda-form:v1'
+
+const canUseSessionStorage = (): boolean =>
+  typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined'
+
 const createInitialState = (): VendaState => ({
   cliente: {
     nome: '',
@@ -214,8 +219,70 @@ const createInitialState = (): VendaState => ({
   },
 })
 
-let state: VendaState = createInitialState()
-const INITIAL_STATE_SIGNATURE = JSON.stringify(state)
+const mergeState = (incoming: Partial<VendaState> | null): VendaState => {
+  const base = createInitialState()
+  if (!incoming) {
+    return base
+  }
+  return {
+    ...base,
+    ...incoming,
+    cliente: { ...base.cliente, ...(incoming.cliente ?? {}) },
+    parametros: { ...base.parametros, ...(incoming.parametros ?? {}) },
+    configuracao: { ...base.configuracao, ...(incoming.configuracao ?? {}) },
+    orcamento: {
+      itens: Array.isArray(incoming.orcamento?.itens)
+        ? incoming.orcamento?.itens.map((item) => ({ ...item }))
+        : base.orcamento.itens,
+      valor_total_orcamento:
+        typeof incoming.orcamento?.valor_total_orcamento === 'number'
+          ? incoming.orcamento.valor_total_orcamento
+          : base.orcamento.valor_total_orcamento,
+    },
+    composicao: {
+      ...base.composicao,
+      ...(incoming.composicao ?? {}),
+      regime_breakdown: Array.isArray(incoming.composicao?.regime_breakdown)
+        ? incoming.composicao.regime_breakdown.map((item) => ({ ...item }))
+        : base.composicao.regime_breakdown,
+    },
+    pagamento: { ...base.pagamento, ...(incoming.pagamento ?? {}) },
+    codigos: { ...base.codigos, ...(incoming.codigos ?? {}) },
+    resultados: { ...base.resultados, ...(incoming.resultados ?? {}) },
+    resumoProposta: { ...base.resumoProposta, ...(incoming.resumoProposta ?? {}) },
+  }
+}
+
+const loadStoredState = (): VendaState => {
+  if (!canUseSessionStorage()) {
+    return createInitialState()
+  }
+  try {
+    const raw = window.sessionStorage.getItem(STORAGE_KEY)
+    if (!raw) {
+      return createInitialState()
+    }
+    const parsed = JSON.parse(raw) as Partial<VendaState>
+    return mergeState(parsed)
+  } catch (error) {
+    console.warn('[useVendaStore] failed to load stored state', error)
+    return createInitialState()
+  }
+}
+
+const persistState = (next: VendaState) => {
+  if (!canUseSessionStorage()) {
+    return
+  }
+  try {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  } catch (error) {
+    console.warn('[useVendaStore] failed to persist state', error)
+  }
+}
+
+let state: VendaState = loadStoredState()
+const INITIAL_STATE_SIGNATURE = JSON.stringify(createInitialState())
 
 const cloneState = (input: VendaState): VendaState => ({
   cliente: { ...input.cliente },
@@ -246,6 +313,7 @@ const setState = (updater: (draft: VendaState) => void) => {
   const next = cloneState(state)
   updater(next)
   state = next
+  persistState(state)
   notify()
 }
 
@@ -260,6 +328,9 @@ export const vendaStore = {
   setState,
   reset: () => {
     state = createInitialState()
+    if (canUseSessionStorage()) {
+      window.sessionStorage.removeItem(STORAGE_KEY)
+    }
     notify()
   },
 }
@@ -400,4 +471,3 @@ export const calculateCapexFromState = (input: VendaState): number => {
   }
   return Number.isFinite(campos.capex_total) ? Number(campos.capex_total) : 0
 }
-

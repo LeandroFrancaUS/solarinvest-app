@@ -68,6 +68,11 @@ type Listener = () => void
 
 const listeners = new Set<Listener>()
 
+const STORAGE_KEY = 'solarinvest:leasing-form:v1'
+
+const canUseSessionStorage = (): boolean =>
+  typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined'
+
 const createInitialState = (): LeasingState => ({
   prazoContratualMeses: 0,
   energiaContratadaKwhMes: 0,
@@ -107,8 +112,63 @@ const createInitialState = (): LeasingState => ({
   },
 })
 
-let state: LeasingState = createInitialState()
-const INITIAL_STATE_SIGNATURE = JSON.stringify(state)
+const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
+  const base = createInitialState()
+  if (!incoming) {
+    return base
+  }
+  return {
+    ...base,
+    ...incoming,
+    dadosTecnicos: { ...base.dadosTecnicos, ...(incoming.dadosTecnicos ?? {}) },
+    projecao: {
+      mensalidadesAno: Array.isArray(incoming.projecao?.mensalidadesAno)
+        ? incoming.projecao.mensalidadesAno.map((item) => ({ ...item }))
+        : base.projecao.mensalidadesAno,
+      economiaProjetada: Array.isArray(incoming.projecao?.economiaProjetada)
+        ? incoming.projecao.economiaProjetada.map((item) => ({ ...item }))
+        : base.projecao.economiaProjetada,
+    },
+    contrato: {
+      ...base.contrato,
+      ...(incoming.contrato ?? {}),
+      proprietarios: Array.isArray(incoming.contrato?.proprietarios)
+        ? incoming.contrato.proprietarios.map((item) => ({ ...item }))
+        : base.contrato.proprietarios,
+    },
+  }
+}
+
+const loadStoredState = (): LeasingState => {
+  if (!canUseSessionStorage()) {
+    return createInitialState()
+  }
+  try {
+    const raw = window.sessionStorage.getItem(STORAGE_KEY)
+    if (!raw) {
+      return createInitialState()
+    }
+    const parsed = JSON.parse(raw) as Partial<LeasingState>
+    return mergeState(parsed)
+  } catch (error) {
+    console.warn('[useLeasingStore] failed to load stored state', error)
+    return createInitialState()
+  }
+}
+
+const persistState = (next: LeasingState) => {
+  if (!canUseSessionStorage()) {
+    return
+  }
+  try {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  } catch (error) {
+    console.warn('[useLeasingStore] failed to persist state', error)
+  }
+}
+
+let state: LeasingState = loadStoredState()
+const INITIAL_STATE_SIGNATURE = JSON.stringify(createInitialState())
 
 const cloneState = (input: LeasingState): LeasingState => ({
   ...input,
@@ -137,6 +197,7 @@ const setState = (updater: (draft: LeasingState) => void) => {
   const draft = cloneState(state)
   updater(draft)
   state = draft
+  persistState(state)
   notify()
 }
 
@@ -173,6 +234,9 @@ export const useLeasingValorDeMercadoEstimado = (): number =>
 export const leasingActions = {
   reset() {
     state = createInitialState()
+    if (canUseSessionStorage()) {
+      window.sessionStorage.removeItem(STORAGE_KEY)
+    }
     notify()
   },
   update(partial: Partial<LeasingState>) {
