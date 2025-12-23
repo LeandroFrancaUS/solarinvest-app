@@ -976,11 +976,6 @@ function PrintableProposalInner(
   ]
   const parametrosEconomiaRows: TableRow[] = []
   pushRowIfMeaningful(parametrosEconomiaRows, 'Inflação de energia estimada (a.a.)', inflacaoResumo)
-  pushRowIfMeaningful(
-    parametrosEconomiaRows,
-    'Encargos fixos obrigatórios',
-    taxaMinimaResumo,
-  )
   if (!isVendaDireta) {
     pushRowIfMeaningful(parametrosEconomiaRows, 'Horizonte de análise', horizonteAnaliseResumo)
   }
