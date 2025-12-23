@@ -1748,19 +1748,25 @@ function PrintableProposalInner(
                     materiais.
                   </li>
                   <li>
-                    6. Garantias e Serviços<br />
+                    6. Custos Logísticos<br />
+                    Para instalações localizadas a uma distância superior a 50 km da sede operacional da SolarInvest, em Anápolis/GO,
+                    será aplicado custo logístico adicional no valor de R$ 3,00 (três reais) por quilômetro rodado, considerando ida e
+                    volta, calculado com base na distância rodoviária aferida via Google Maps.
+                  </li>
+                  <li>
+                    7. Garantias e Serviços<br />
                     Equipamentos seguem garantias dos fabricantes. Garantia de instalação, manutenção preventiva/corretiva e
                     seguros são opcionais, quando aplicáveis.
                   </li>
                   <li>
-                    7. Itens Não Inclusos<br />
+                    8. Itens Não Inclusos<br />
                     Serviços ou adequações externas ao escopo do sistema não estão incluídos, tais como reforços estruturais,
                     ajustes elétricos internos, troca de padrão ou exigências de órgãos públicos, além de segurança ou
                     armazenamento de materiais no local. Outros itens não mencionados, quando não relacionados diretamente à
                     instalação do sistema, também não fazem parte desta proposta.
                   </li>
                   <li>
-                    8. Responsabilidades Técnicas<br />
+                    9. Responsabilidades Técnicas<br />
                     Incluem dimensionamento do sistema, elaboração do projeto, fornecimento de materiais, acompanhamento junto à
                     distribuidora (quando aplicável), instalação e comissionamento. O dimensionamento poderá ser ajustado após
                     vistoria, conforme orientação da cobertura, estrutura e sombreamento real.
