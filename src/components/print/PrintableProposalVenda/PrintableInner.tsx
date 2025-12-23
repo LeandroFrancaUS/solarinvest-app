@@ -981,7 +981,7 @@ function PrintableProposalInner(
   pushRowIfMeaningful(parametrosEconomiaRows, 'Inflação de energia estimada (a.a.)', inflacaoResumo)
   pushRowIfMeaningful(
     parametrosEconomiaRows,
-    'Custos Fixos da Conta de Energia (CID, TUSD, encargos setoriais e subsídio, tributos e outros)',
+    'Encargos fixos obrigatórios',
     taxaMinimaResumo,
   )
   pushRowIfMeaningful(parametrosEconomiaRows, 'Iluminação pública', iluminacaoPublicaResumo)
