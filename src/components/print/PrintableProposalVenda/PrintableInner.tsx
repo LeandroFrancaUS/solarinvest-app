@@ -793,9 +793,6 @@ function PrintableProposalInner(
   const taxaMinimaResumo = aplicaTaxaMinima
     ? currency(taxaMinimaNumero)
     : `${currency(0)} • Cliente isento de taxa mínima conforme contrato.`
-  const iluminacaoPublicaResumo = Number.isFinite(vendaFormResumo?.taxa_minima_r_mes)
-    ? currency(vendaFormResumo?.taxa_minima_r_mes ?? 0)
-    : '—'
   const horizonteAnaliseResumo = formatMeses(snapshotParametros?.horizonte_meses ?? vendaFormResumo?.horizonte_meses)
   const numeroParcelas = Number.isFinite(vendaFormResumo?.n_parcelas)
     ? Math.max(0, Math.round(vendaFormResumo?.n_parcelas ?? 0))
@@ -984,7 +981,6 @@ function PrintableProposalInner(
     'Custos Fixos da Conta de Energia (CID, TUSD, encargos setoriais e subsídio, tributos e outros)',
     taxaMinimaResumo,
   )
-  pushRowIfMeaningful(parametrosEconomiaRows, 'Iluminação pública', iluminacaoPublicaResumo)
   if (!isVendaDireta) {
     pushRowIfMeaningful(parametrosEconomiaRows, 'Horizonte de análise', horizonteAnaliseResumo)
   }

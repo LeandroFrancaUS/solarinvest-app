@@ -6545,8 +6545,8 @@ export default function App() {
   )
 
   const encargosFixos = useMemo(
-    () => Math.max(0, bandeiraEncargo + cipEncargo + encargosFixosExtras),
-    [bandeiraEncargo, cipEncargo, encargosFixosExtras],
+    () => Math.max(0, bandeiraEncargo + encargosFixosExtras),
+    [bandeiraEncargo, encargosFixosExtras],
   )
   const cidKwhBase = useMemo(() => CONSUMO_MINIMO_FICTICIO[tipoRede] ?? 0, [tipoRede])
 
@@ -7097,13 +7097,11 @@ export default function App() {
       aplicaTaxaMinima,
       cidKwhBase,
       tipoRede,
-      cipValor: Math.max(0, cipEncargo),
     }
   }, [
     bandeiraEncargo,
     capex,
     cashbackPct,
-    cipEncargo,
     custosFixosM,
     descontoConsiderado,
     entradaConsiderada,
