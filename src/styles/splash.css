@@ -1,0 +1,25 @@
+.splash-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(circle at 20% 20%, #183c6c 0, #0f2440 40%, #0a192a 100%);
+}
+
+.splash-logo {
+  width: min(420px, 80vw);
+  max-height: 70vh;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 32px rgba(0, 0, 0, 0.35));
+}
+
+@media (max-width: 640px) {
+  .splash-screen {
+    padding: 16px;
+  }
+
+  .splash-logo {
+    width: min(360px, 86vw);
+  }
+}
