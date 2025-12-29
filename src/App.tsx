@@ -8096,6 +8096,10 @@ export default function App() {
             <div class="preview-container">${layoutHtml}</div>
             <script>
               (function(){
+                var solarinvestPrintPreferences = { headersAndFooters: false, backgroundGraphics: false };
+                try {
+                  window.__solarinvestPrintPreferences = solarinvestPrintPreferences;
+                } catch (e) {}
                 var shouldAutoPrint = ${autoPrint ? 'true' : 'false'};
                 var shouldCloseAfterPrint = ${closeAfterPrint ? 'true' : 'false'};
                 var defaultMode = "${resolvedInitialMode}";

@@ -138,6 +138,16 @@ export const persistProposalPdf = async ({
     ...(metadata ?? {}),
   }
 
+  const resolvedPrintPreferences = {
+    ...(typeof (metadata as { printPreferences?: Record<string, unknown> } | undefined)?.printPreferences === 'object'
+      ? (metadata as { printPreferences?: Record<string, unknown> } | undefined)?.printPreferences
+      : {}),
+    headersAndFooters: false,
+    backgroundGraphics: false,
+  }
+
+  resolvedMetadata.printPreferences = resolvedPrintPreferences
+
   const payload: ProposalPdfBridgePayload = {
     html: trimmedHtml,
     fileName: resolvedFileName,
