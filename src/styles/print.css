@@ -3,6 +3,21 @@
   margin: 0;
 }
 
+@media print {
+  :where(html[data-print-mode], body[data-print-mode], [data-print-mode]) {
+    print-color-adjust: economy !important;
+    -webkit-print-color-adjust: economy !important;
+  }
+
+  :where(html[data-print-mode], body[data-print-mode], [data-print-mode])
+    *:not(html):not(body) {
+    background: none !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+  }
+}
+
 :where(html[data-print-mode], body[data-print-mode], [data-print-mode]) {
   margin: 0;
   padding: 0;
