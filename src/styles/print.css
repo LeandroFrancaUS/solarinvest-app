@@ -1,6 +1,6 @@
 @page {
   size: A4 portrait;
-  margin: 12mm;
+  margin: 0;
 }
 
 :where(html[data-print-mode], body[data-print-mode], [data-print-mode]) {
@@ -29,6 +29,8 @@
     [data-print-mode='download']
   ) .print-page {
   box-shadow: none !important;
+  padding: 12mm !important;
+  box-sizing: border-box !important;
 }
 
 :where(
@@ -365,7 +367,7 @@
     width: auto !important;
     max-width: none !important;
     margin: 0 auto !important;
-    padding: 0 !important;
+    padding: 12mm 0 24mm !important;
     background: #ffffff !important;
     color: #0f172a !important;
   }
@@ -374,7 +376,7 @@
     width: calc(210mm - 24mm);
     max-width: 100%;
     margin: 0 auto !important;
-    padding: 0 !important;
+    padding: 12mm !important;
     background: #ffffff !important;
     color: #0f172a !important;
     border: none !important;
