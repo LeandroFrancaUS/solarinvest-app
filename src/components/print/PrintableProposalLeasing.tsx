@@ -464,8 +464,8 @@ function PrintableProposalLeasingInner(
     {
       label: 'Início da geração',
       value: inicioOperacaoTexto
-        ? `${inicioOperacaoTexto} · Em até 60 (sessenta) dias, contados a partir da entrega do kit solar.`
-        : 'Em até 60 (sessenta) dias, contados a partir da entrega do kit solar.',
+        ? `${inicioOperacaoTexto} · Em até 60 (sessenta) dias, contados a partir da entrega do kit solar`
+        : 'Em até 60 (sessenta) dias, contados a partir da entrega do kit solar',
     },
     {
       label: 'Tipo de instalação',
