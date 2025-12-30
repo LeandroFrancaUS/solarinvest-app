@@ -68,7 +68,7 @@ import {
 } from './lib/finance/roi'
 import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
-import { estimateMonthlyGenerationKWh, estimateMonthlyKWh, kwpFromWpQty } from './lib/energy/generation'
+import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import {
   parseVendaPdfText,
   mergeParsedVendaPdfData,
@@ -85,6 +85,7 @@ import {
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
+import { calcPotenciaSistemaKwp } from './lib/pricing/pricingPorKwp'
 import { ensureProposalId, normalizeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
@@ -3333,6 +3334,7 @@ export default function App() {
 
   const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
   const [consumoManual, setConsumoManualState] = useState(false)
+  const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
   const [taxaMinima, setTaxaMinimaState] = useState(INITIAL_VALUES.taxaMinima)
@@ -3630,17 +3632,18 @@ export default function App() {
     tarifaCheia: number
     taxaMinima: number
     ufTarifa: string
-    distribuidoraTarifa: string
-    potenciaModulo: number
-    numeroModulosManual: number | ''
-    segmentoCliente: SegmentoCliente
-    tipoInstalacao: TipoInstalacao
-    tipoInstalacaoOutro: string
-    tipoSistema: TipoSistema
-    consumoManual: boolean
-    potenciaModuloDirty: boolean
-    tipoInstalacaoDirty: boolean
-  }
+  distribuidoraTarifa: string
+  potenciaModulo: number
+  numeroModulosManual: number | ''
+  segmentoCliente: SegmentoCliente
+  tipoInstalacao: TipoInstalacao
+  tipoInstalacaoOutro: string
+  tipoSistema: TipoSistema
+  consumoManual: boolean
+  potenciaFonteManual: boolean
+  potenciaModuloDirty: boolean
+  tipoInstalacaoDirty: boolean
+}
 
   const createPageSharedSettings = useCallback((): PageSharedSettings => ({
     kcKwhMes: INITIAL_VALUES.kcKwhMes,
@@ -3655,6 +3658,7 @@ export default function App() {
     tipoInstalacaoOutro: INITIAL_VALUES.tipoInstalacaoOutro,
     tipoSistema: INITIAL_VALUES.tipoSistema,
     consumoManual: false,
+    potenciaFonteManual: false,
     potenciaModuloDirty: false,
     tipoInstalacaoDirty: false,
   }), [])
@@ -3703,6 +3707,19 @@ export default function App() {
       return normalized
     },
     [setConsumoManual, setKcKwhMesState, updatePageSharedState],
+  )
+
+  const setPotenciaFonteManual = useCallback(
+    (value: boolean) => {
+      setPotenciaFonteManualState(value)
+      updatePageSharedState((current) => {
+        if (current.potenciaFonteManual === value) {
+          return current
+        }
+        return { ...current, potenciaFonteManual: value }
+      })
+    },
+    [updatePageSharedState],
   )
 
   const setMultiUcEnergiaGeradaKWh = useCallback(
@@ -4129,6 +4146,9 @@ export default function App() {
       return prev === normalized ? prev : normalized
     })
     setConsumoManualState((prev) => (prev === snapshot.consumoManual ? prev : snapshot.consumoManual))
+    setPotenciaFonteManualState((prev) =>
+      prev === snapshot.potenciaFonteManual ? prev : snapshot.potenciaFonteManual,
+    )
     setPotenciaModuloDirtyState((prev) =>
       prev === snapshot.potenciaModuloDirty ? prev : snapshot.potenciaModuloDirty,
     )
@@ -4781,6 +4801,37 @@ export default function App() {
       resetRetorno()
     },
     [resetRetorno],
+  )
+
+  const handlePotenciaInstaladaChange = useCallback(
+    (value: string) => {
+      if (!value) {
+        setPotenciaFonteManual(false)
+        setNumeroModulosManual('')
+        applyVendaUpdates({ potencia_instalada_kwp: undefined })
+        return
+      }
+
+      const parsed = Number(value)
+      const normalized = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : 0
+
+      setPotenciaFonteManual(true)
+
+      if (normalized <= 0) {
+        applyVendaUpdates({ potencia_instalada_kwp: undefined })
+        return
+      }
+
+      applyVendaUpdates({ potencia_instalada_kwp: normalized })
+
+      if (potenciaModulo > 0) {
+        const modulos = Math.round((normalized * 1000) / potenciaModulo)
+        if (Number.isFinite(modulos) && modulos > 0) {
+          setNumeroModulosManual(Math.max(1, modulos))
+        }
+      }
+    },
+    [applyVendaUpdates, potenciaModulo, setNumeroModulosManual, setPotenciaFonteManual],
   )
 
   const taxaMinimaCalculadaBase = useMemo(() => {
@@ -5911,12 +5962,16 @@ export default function App() {
     [diasMes],
   )
 
-  const fatorGeracaoMensal = useMemo(() => {
-    if (baseIrradiacao <= 0 || eficienciaNormalizada <= 0) {
-      return 0
-    }
-    return baseIrradiacao * eficienciaNormalizada * DIAS_MES_PADRAO
-  }, [baseIrradiacao, eficienciaNormalizada])
+  const vendaPotenciaCalculada = useMemo(() => {
+    const dias = diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO
+    return calcPotenciaSistemaKwp({
+      consumoKwhMes: kcKwhMes,
+      irradiacao: baseIrradiacao,
+      performanceRatio: eficienciaNormalizada,
+      diasMes: dias,
+      potenciaModuloWp: potenciaModulo,
+    })
+  }, [baseIrradiacao, diasMesNormalizado, eficienciaNormalizada, kcKwhMes, potenciaModulo])
 
   const numeroModulosInformado = useMemo(() => {
     if (typeof numeroModulosManual !== 'number') return null
@@ -5925,24 +5980,67 @@ export default function App() {
   }, [numeroModulosManual])
 
   const numeroModulosCalculado = useMemo(() => {
-    if (kcKwhMes <= 0) return 0
-    if (potenciaModulo <= 0 || fatorGeracaoMensal <= 0) return 0
-    const potenciaNecessaria = kcKwhMes / fatorGeracaoMensal
-    const calculado = Math.ceil((potenciaNecessaria * 1000) / potenciaModulo)
-    if (!Number.isFinite(calculado)) return 0
-    return Math.max(1, calculado)
-  }, [kcKwhMes, fatorGeracaoMensal, potenciaModulo])
+    if (potenciaFonteManual) {
+      const manual = Number(vendaForm.potencia_instalada_kwp)
+      if (Number.isFinite(manual) && manual > 0 && potenciaModulo > 0) {
+        const estimado = Math.round((manual * 1000) / potenciaModulo)
+        if (Number.isFinite(estimado) && estimado > 0) {
+          return estimado
+        }
+      }
+    }
+
+    if (vendaPotenciaCalculada?.quantidadeModulos) {
+      return vendaPotenciaCalculada.quantidadeModulos
+    }
+
+    if (vendaPotenciaCalculada?.potenciaKwp && potenciaModulo > 0) {
+      const estimado = Math.ceil((vendaPotenciaCalculada.potenciaKwp * 1000) / potenciaModulo)
+      if (Number.isFinite(estimado) && estimado > 0) {
+        return estimado
+      }
+    }
+
+    return 0
+  }, [
+    potenciaFonteManual,
+    potenciaModulo,
+    vendaForm.potencia_instalada_kwp,
+    vendaPotenciaCalculada?.potenciaKwp,
+    vendaPotenciaCalculada?.quantidadeModulos,
+  ])
 
   const potenciaInstaladaKwp = useMemo(() => {
+    if (potenciaFonteManual) {
+      const manual = Number(vendaForm.potencia_instalada_kwp)
+      if (Number.isFinite(manual) && manual > 0) {
+        return Math.round(manual * 100) / 100
+      }
+    }
+
     const modulos = numeroModulosInformado ?? numeroModulosCalculado
-    if (!modulos || potenciaModulo <= 0) return 0
-    return (modulos * potenciaModulo) / 1000
-  }, [numeroModulosInformado, numeroModulosCalculado, potenciaModulo])
+    if (modulos && potenciaModulo > 0) {
+      return (modulos * potenciaModulo) / 1000
+    }
+
+    return vendaPotenciaCalculada?.potenciaKwp ?? 0
+  }, [
+    numeroModulosInformado,
+    numeroModulosCalculado,
+    potenciaModulo,
+    potenciaFonteManual,
+    vendaForm.potencia_instalada_kwp,
+    vendaPotenciaCalculada?.potenciaKwp,
+  ])
 
   const numeroModulosEstimado = useMemo(() => {
     if (numeroModulosInformado) return numeroModulosInformado
     return numeroModulosCalculado
   }, [numeroModulosInformado, numeroModulosCalculado])
+
+  const vendaAutoPotenciaKwp = useMemo(() => vendaPotenciaCalculada?.potenciaKwp ?? null, [
+    vendaPotenciaCalculada?.potenciaKwp,
+  ])
 
   const parseUcBeneficiariaConsumo = (valor: string): number => {
     const normalizado = valor.replace(/\./g, '').replace(',', '.')
@@ -5991,11 +6089,6 @@ export default function App() {
     const resolved = Number(quantidade)
     return resolved > 0 ? resolved : null
   }, [vendaForm.quantidade_modulos, recalcularTick])
-
-  const vendaAutoPotenciaKwp = useMemo(
-    () => kwpFromWpQty(potenciaModulo, vendaQuantidadeModulos),
-    [potenciaModulo, vendaQuantidadeModulos],
-  )
 
   const vendaGeracaoParametros = useMemo(
     () => ({
@@ -6413,6 +6506,7 @@ export default function App() {
       const next = { ...prev }
       const potenciaNormalizada = Math.round(potenciaInstaladaKwp * 100) / 100
       if (
+        !potenciaFonteManual &&
         potenciaNormalizada > 0 &&
         !numbersAreClose(prev.potencia_instalada_kwp, potenciaNormalizada, 0.005)
       ) {
@@ -6445,6 +6539,7 @@ export default function App() {
     numeroModulosEstimado,
     potenciaInstaladaKwp,
     resetRetorno,
+    potenciaFonteManual,
     vendaForm.quantidade_modulos,
     recalcularTick,
   ])
@@ -6456,7 +6551,9 @@ export default function App() {
     }
 
     const potenciaManualValida =
-      Number.isFinite(vendaForm.potencia_instalada_kwp) && (vendaForm.potencia_instalada_kwp ?? 0) > 0
+      potenciaFonteManual &&
+      Number.isFinite(vendaForm.potencia_instalada_kwp) &&
+      (vendaForm.potencia_instalada_kwp ?? 0) > 0
     const potenciaBase = potenciaManualValida
       ? Number(vendaForm.potencia_instalada_kwp)
       : vendaAutoPotenciaKwp ?? null
@@ -6470,9 +6567,7 @@ export default function App() {
       return
     }
 
-    const potenciaNormalizadaAuto = vendaAutoPotenciaKwp
-      ? Math.round(vendaAutoPotenciaKwp * 100) / 100
-      : 0
+    const potenciaNormalizadaAuto = potenciaBase ? Math.round(potenciaBase * 100) / 100 : 0
     const geracaoNormalizadaAuto = Math.round(estimada * 10) / 10
 
     let consumoAtualizado = false
@@ -6538,6 +6633,7 @@ export default function App() {
   }, [
     consumoManual,
     vendaAutoPotenciaKwp,
+    potenciaFonteManual,
     vendaForm.potencia_instalada_kwp,
     vendaGeracaoParametros,
     setKcKwhMes,
@@ -13105,6 +13201,7 @@ export default function App() {
     setMesReajuste(INITIAL_VALUES.mesReajuste)
     mesReferenciaRef.current = new Date().getMonth() + 1
     setKcKwhMes(INITIAL_VALUES.kcKwhMes)
+    setPotenciaFonteManual(false)
     setTarifaCheia(INITIAL_VALUES.tarifaCheia)
     setDesconto(INITIAL_VALUES.desconto)
     setTaxaMinima(INITIAL_VALUES.taxaMinima)
@@ -15691,11 +15788,16 @@ export default function App() {
           }
         >
           <input
-            readOnly
-            value={formatNumberBRWithOptions(potenciaInstaladaKwp, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            type="number"
+            min={0}
+            step="0.01"
+            value={
+              potenciaFonteManual
+                ? vendaForm.potencia_instalada_kwp ?? ''
+                : potenciaInstaladaKwp || ''
+            }
+            onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
+            onFocus={selectNumberInputOnFocus}
           />
         </Field>
         <Field
@@ -16242,11 +16344,16 @@ export default function App() {
           }
         >
           <input
-            readOnly
-            value={formatNumberBRWithOptions(potenciaInstaladaKwp, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            type="number"
+            min={0}
+            step="0.01"
+            value={
+              potenciaFonteManual
+                ? vendaForm.potencia_instalada_kwp ?? ''
+                : potenciaInstaladaKwp || ''
+            }
+            onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
+            onFocus={selectNumberInputOnFocus}
           />
         </Field>
         <Field
