@@ -20394,10 +20394,26 @@ export default function App() {
                 <h2>Orçamento automático</h2>
                 <div className="grid g2">
                   <Field label="Consumo (kWh/mês)">
-                    <input type="number" placeholder="Ex.: 800" inputMode="decimal" />
+                    <input
+                      type="number"
+                      placeholder="Ex.: 800"
+                      inputMode="decimal"
+                      value={kcKwhMes || ''}
+                      onChange={(event) => setKcKwhMes(Number(event.target.value) || 0, 'user')}
+                    />
                   </Field>
                   <Field label="Potência (kWp)">
-                    <input type="number" placeholder="Ex.: 5.5" inputMode="decimal" />
+                    <input
+                      type="number"
+                      placeholder="Ex.: 5.5"
+                      inputMode="decimal"
+                      value={
+                        potenciaFonteManual
+                          ? vendaForm.potencia_instalada_kwp ?? ''
+                          : vendaAutoPotenciaKwp ?? ''
+                      }
+                      onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
+                    />
                   </Field>
                 </div>
                 <div className="grid g3 mt-4">
