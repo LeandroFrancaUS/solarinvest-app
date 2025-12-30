@@ -1,5 +1,6 @@
 import { DIAS_MES_PADRAO } from '../../app/config'
-import { normalizePerformanceRatio } from '../energy/generation'
+import { IRRADIACAO_FALLBACK } from '../../utils/irradiacao'
+import { DEFAULT_PERFORMANCE_RATIO, normalizePerformanceRatio } from '../energy/generation'
 
 export type Rede = 'mono' | 'trifasico'
 
@@ -47,9 +48,11 @@ export function calcPotenciaSistemaKwp({
     return null
   }
 
-  const irradiacaoSegura = Number.isFinite(irradiacao) ? Math.max(0, Number(irradiacao)) : 0
+  const irradiacaoSegura =
+    Number.isFinite(irradiacao) && Number(irradiacao) > 0 ? Number(irradiacao) : IRRADIACAO_FALLBACK
   const dias = Number.isFinite(diasMes) && Number(diasMes) > 0 ? Number(diasMes) : DIAS_MES_PADRAO
-  const pr = normalizePerformanceRatio(performanceRatio ?? 0)
+  const prNormalizado = normalizePerformanceRatio(performanceRatio ?? DEFAULT_PERFORMANCE_RATIO)
+  const pr = prNormalizado > 0 ? prNormalizado : normalizePerformanceRatio(DEFAULT_PERFORMANCE_RATIO)
 
   if (irradiacaoSegura <= 0 || pr <= 0 || dias <= 0) {
     return null

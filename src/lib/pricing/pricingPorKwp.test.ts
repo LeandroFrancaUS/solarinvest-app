@@ -57,20 +57,23 @@ describe('pricingPorKwp', () => {
     expect(potencia).toEqual({ potenciaKwp: 8.33, quantidadeModulos: null })
   })
 
-  it('retorna null quando consumo ou irradiacao sao invalidos', () => {
+  it('usa defaults de leasing quando irradiacao ou performance ratio nao sao informados', () => {
+    const potencia = calcPotenciaSistemaKwp({
+      consumoKwhMes: 1000,
+      irradiacao: null,
+      performanceRatio: undefined,
+      diasMes: null,
+      potenciaModuloWp: 550,
+    })
+
+    expect(potencia).toEqual({ potenciaKwp: 7.7, quantidadeModulos: 14 })
+  })
+
+  it('retorna null quando consumo é inválido', () => {
     expect(
       calcPotenciaSistemaKwp({
         consumoKwhMes: null,
         irradiacao: 5,
-        performanceRatio: 0.8,
-        potenciaModuloWp: 550,
-      }),
-    ).toBeNull()
-
-    expect(
-      calcPotenciaSistemaKwp({
-        consumoKwhMes: 1000,
-        irradiacao: 0,
         performanceRatio: 0.8,
         potenciaModuloWp: 550,
       }),
