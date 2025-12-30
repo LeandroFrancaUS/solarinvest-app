@@ -18276,65 +18276,6 @@ export default function App() {
     </section>
   )
 
-  const renderAutoBudgetSection = () => (
-    <section className="card">
-      <h2>Orçamento automático</h2>
-      <div className="grid g3">
-        <Field label="Consumo (kWh/mês)">
-          <input type="number" placeholder="Ex.: 800" inputMode="decimal" />
-        </Field>
-        <Field label="Potência (kWp)">
-          <input type="number" placeholder="Ex.: 5.5" inputMode="decimal" />
-        </Field>
-        <Field label="Tipo de instalação">
-          <select defaultValue="">
-            <option value="" disabled>
-              Selecione
-            </option>
-            <option value="telhado">Telhado</option>
-            <option value="solo">Solo</option>
-            <option value="laje">Laje</option>
-            <option value="outros">Outros</option>
-          </select>
-        </Field>
-        <Field label="Tipo de sistema">
-          <select defaultValue="">
-            <option value="" disabled>
-              Selecione
-            </option>
-            <option value="string">String</option>
-            <option value="microinversor">Microinversor</option>
-            <option value="otimizador">Otimizador</option>
-          </select>
-        </Field>
-      </div>
-      <div className="grid g3 mt-4">
-        <Field label="Tipo de rede">
-          <span className="pill">Auto</span>
-        </Field>
-        <Field label="Kit solar (R$)">
-          <input readOnly placeholder="—" />
-        </Field>
-        <Field label="Custo final projetado (R$)">
-          <input readOnly placeholder="—" />
-        </Field>
-      </div>
-    </section>
-  )
-
-  const renderManualBudgetSection = () => (
-    <>
-      {renderVendaParametrosSection()}
-      {renderVendaConfiguracaoSection()}
-      {renderVendaResumoPublicoSection()}
-      {renderComposicaoUfvSection()}
-      {renderBudgetUploadSection()}
-      {renderKitBudgetSection()}
-      {renderCondicoesPagamentoSection()}
-      {renderRetornoProjetadoSection()}
-    </>
-  )
-
     return (
       <section className="card">
         <div className="card-header">
@@ -20498,8 +20439,63 @@ export default function App() {
           </>
         ) : (
           <>
-            {modoOrcamento === 'auto' ? renderAutoBudgetSection() : null}
-            {modoOrcamento === 'manual' ? renderManualBudgetSection() : null}
+            {modoOrcamento === 'auto' ? (
+              <section className="card">
+                <h2>Orçamento automático</h2>
+                <div className="grid g3">
+                  <Field label="Consumo (kWh/mês)">
+                    <input type="number" placeholder="Ex.: 800" inputMode="decimal" />
+                  </Field>
+                  <Field label="Potência (kWp)">
+                    <input type="number" placeholder="Ex.: 5.5" inputMode="decimal" />
+                  </Field>
+                  <Field label="Tipo de instalação">
+                    <select defaultValue="">
+                      <option value="" disabled>
+                        Selecione
+                      </option>
+                      <option value="telhado">Telhado</option>
+                      <option value="solo">Solo</option>
+                      <option value="laje">Laje</option>
+                      <option value="outros">Outros</option>
+                    </select>
+                  </Field>
+                  <Field label="Tipo de sistema">
+                    <select defaultValue="">
+                      <option value="" disabled>
+                        Selecione
+                      </option>
+                      <option value="string">String</option>
+                      <option value="microinversor">Microinversor</option>
+                      <option value="otimizador">Otimizador</option>
+                    </select>
+                  </Field>
+                </div>
+                <div className="grid g3 mt-4">
+                  <Field label="Tipo de rede">
+                    <span className="pill">Auto</span>
+                  </Field>
+                  <Field label="Kit solar (R$)">
+                    <input readOnly placeholder="—" />
+                  </Field>
+                  <Field label="Custo final projetado (R$)">
+                    <input readOnly placeholder="—" />
+                  </Field>
+                </div>
+              </section>
+            ) : null}
+            {modoOrcamento === 'manual' ? (
+              <>
+                {renderVendaParametrosSection()}
+                {renderVendaConfiguracaoSection()}
+                {renderVendaResumoPublicoSection()}
+                {renderComposicaoUfvSection()}
+                {renderBudgetUploadSection()}
+                {renderKitBudgetSection()}
+                {renderCondicoesPagamentoSection()}
+                {renderRetornoProjetadoSection()}
+              </>
+            ) : null}
           </>
         )}
                 </div>
