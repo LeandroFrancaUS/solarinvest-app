@@ -3377,6 +3377,26 @@ export default function App() {
   )
   const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
   const [modoOrcamento, setModoOrcamento] = useState<'auto' | 'manual'>('auto')
+  const isManualBudgetForced = useMemo(
+    () =>
+      tipoInstalacao === 'solo' ||
+      tipoInstalacao === 'outros' ||
+      tipoSistema === 'HIBRIDO' ||
+      tipoSistema === 'OFF_GRID',
+    [tipoInstalacao, tipoSistema],
+  )
+  const manualBudgetForceReason = useMemo(() => {
+    const reasons: string[] = []
+    if (tipoInstalacao === 'solo' || tipoInstalacao === 'outros') {
+      reasons.push('instalações em solo ou outros formatos')
+    }
+    if (tipoSistema === 'HIBRIDO' || tipoSistema === 'OFF_GRID') {
+      reasons.push('sistemas híbridos ou off-grid')
+    }
+    return reasons.length > 0
+      ? `Modo automático indisponível para ${reasons.join(' ou ')}.`
+      : ''
+  }, [tipoInstalacao, tipoSistema])
   const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(() =>
     normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
   )
@@ -3430,6 +3450,12 @@ export default function App() {
   useEffect(() => {
     initializeVendasSimulacao(currentBudgetId)
   }, [currentBudgetId, initializeVendasSimulacao])
+
+  useEffect(() => {
+    if (isManualBudgetForced && modoOrcamento !== 'manual') {
+      setModoOrcamento('manual')
+    }
+  }, [isManualBudgetForced, modoOrcamento])
 
   const margemManualValorRaw = vendasSimulacao?.margemManualValor
   const margemManualAtiva =
@@ -4947,6 +4973,16 @@ export default function App() {
       applyVendaUpdates({ tipo_sistema: value })
     },
     [applyVendaUpdates, setTipoSistema],
+  )
+
+  const handleModoOrcamentoChange = useCallback(
+    (value: 'auto' | 'manual') => {
+      if (value === 'auto' && isManualBudgetForced) {
+        return
+      }
+      setModoOrcamento(value)
+    },
+    [isManualBudgetForced],
   )
 
   const autoFillVendaFromBudget = useCallback(
@@ -19969,38 +20005,113 @@ export default function App() {
                     ) : null}
                     {renderClienteDadosSection()}
                     {activeTab === 'vendas' ? (
-                      <section className="card">
-                        <h2>Modo de orçamento</h2>
-                        <div
-                          className="toggle-group"
-                          role="radiogroup"
-                          aria-label="Selecionar modo de orçamento"
-                        >
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={modoOrcamento === 'auto'}
-                            className={`toggle-option${modoOrcamento === 'auto' ? ' active' : ''}`}
-                            onClick={() => setModoOrcamento('auto')}
+                      <>
+                        <section className="card">
+                          <h2>Tipo de instalação e sistema</h2>
+                          <div className="grid g2">
+                            <Field label="Tipo de instalação">
+                              <div
+                                className="toggle-group"
+                                role="radiogroup"
+                                aria-label="Selecionar tipo de instalação"
+                              >
+                                {TIPOS_INSTALACAO.map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={tipoInstalacao === opt.value}
+                                    className={`toggle-option${
+                                      tipoInstalacao === opt.value ? ' active' : ''
+                                    }`}
+                                    onClick={() => handleTipoInstalacaoChange(opt.value as TipoInstalacao)}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                              {tipoInstalacao === 'outros' ? (
+                                <input
+                                  type="text"
+                                  placeholder="Descreva o tipo de instalação"
+                                  value={tipoInstalacaoOutro || ''}
+                                  onChange={(event) => setTipoInstalacaoOutro(event.target.value)}
+                                  style={{ marginTop: '6px' }}
+                                />
+                              ) : null}
+                            </Field>
+                            <Field label="Tipo de sistema">
+                              <div
+                                className="toggle-group"
+                                role="radiogroup"
+                                aria-label="Selecionar tipo de sistema"
+                              >
+                                {TIPO_SISTEMA_VALUES.map((value) => (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={tipoSistema === value}
+                                    className={`toggle-option${
+                                      tipoSistema === value ? ' active' : ''
+                                    }`}
+                                    onClick={() => handleTipoSistemaChange(value)}
+                                  >
+                                    {value === 'ON_GRID'
+                                      ? 'On-grid'
+                                      : value === 'HIBRIDO'
+                                      ? 'Híbrido'
+                                      : 'Off-grid'}
+                                  </button>
+                                ))}
+                              </div>
+                            </Field>
+                          </div>
+                          {isManualBudgetForced ? (
+                            <p className="warning" role="alert">
+                              {manualBudgetForceReason}
+                            </p>
+                          ) : null}
+                        </section>
+                        <section className="card">
+                          <h2>Modo de orçamento</h2>
+                          <div
+                            className="toggle-group"
+                            role="radiogroup"
+                            aria-label="Selecionar modo de orçamento"
                           >
-                            Orçamento automático
-                          </button>
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={modoOrcamento === 'manual'}
-                            className={`toggle-option${modoOrcamento === 'manual' ? ' active' : ''}`}
-                            onClick={() => setModoOrcamento('manual')}
-                          >
-                            Orçamento manual
-                          </button>
-                        </div>
-                        <p className="muted" role="status">
-                          {modoOrcamento === 'auto'
-                            ? 'Preencha poucos campos e o sistema calcula o orçamento.'
-                            : 'Use o modo manual para valores personalizados.'}
-                        </p>
-                      </section>
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={modoOrcamento === 'auto'}
+                              aria-disabled={isManualBudgetForced}
+                              disabled={isManualBudgetForced}
+                              className={`toggle-option${modoOrcamento === 'auto' ? ' active' : ''}${
+                                isManualBudgetForced ? ' disabled' : ''
+                              }`}
+                              onClick={() => handleModoOrcamentoChange('auto')}
+                            >
+                              Orçamento automático
+                            </button>
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={modoOrcamento === 'manual'}
+                              className={`toggle-option${modoOrcamento === 'manual' ? ' active' : ''}`}
+                              onClick={() => handleModoOrcamentoChange('manual')}
+                            >
+                              Orçamento manual
+                            </button>
+                          </div>
+                          <p className="muted" role="status">
+                            {isManualBudgetForced
+                              ? manualBudgetForceReason
+                              : modoOrcamento === 'auto'
+                              ? 'Preencha poucos campos e o sistema calcula o orçamento.'
+                              : 'Use o modo manual para valores personalizados.'}
+                          </p>
+                        </section>
+                      </>
                     ) : null}
                     {activeTab === 'leasing' ? renderLeasingContratoSection() : null}
                     {renderPropostaImagensSection()}
@@ -20232,14 +20343,17 @@ export default function App() {
                     <input type="number" placeholder="Ex.: 5.5" inputMode="decimal" />
                   </Field>
                   <Field label="Tipo de instalação">
-                    <select defaultValue="">
-                      <option value="" disabled>
-                        Selecione
-                      </option>
-                      <option value="telhado">Telhado</option>
-                      <option value="solo">Solo</option>
-                      <option value="laje">Laje</option>
-                      <option value="outros">Outros</option>
+                    <select
+                      value={tipoInstalacao}
+                      onChange={(event) =>
+                        handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
+                      }
+                    >
+                      {TIPOS_INSTALACAO.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
                     </select>
                   </Field>
                   <Field label="Tipo de sistema">
