@@ -3376,6 +3376,27 @@ export default function App() {
     INITIAL_VALUES.tipoInstalacaoOutro,
   )
   const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
+  const [modoOrcamento, setModoOrcamento] = useState<'auto' | 'manual'>('auto')
+  const isManualBudgetForced = useMemo(
+    () =>
+      tipoInstalacao === 'solo' ||
+      tipoInstalacao === 'outros' ||
+      tipoSistema === 'HIBRIDO' ||
+      tipoSistema === 'OFF_GRID',
+    [tipoInstalacao, tipoSistema],
+  )
+  const manualBudgetForceReason = useMemo(() => {
+    const reasons: string[] = []
+    if (tipoInstalacao === 'solo' || tipoInstalacao === 'outros') {
+      reasons.push('instalações em solo ou outros formatos')
+    }
+    if (tipoSistema === 'HIBRIDO' || tipoSistema === 'OFF_GRID') {
+      reasons.push('sistemas híbridos ou off-grid')
+    }
+    return reasons.length > 0
+      ? `Modo automático indisponível para ${reasons.join(' ou ')}.`
+      : ''
+  }, [tipoInstalacao, tipoSistema])
   const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(() =>
     normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
   )
@@ -3429,6 +3450,12 @@ export default function App() {
   useEffect(() => {
     initializeVendasSimulacao(currentBudgetId)
   }, [currentBudgetId, initializeVendasSimulacao])
+
+  useEffect(() => {
+    if (isManualBudgetForced && modoOrcamento !== 'manual') {
+      setModoOrcamento('manual')
+    }
+  }, [isManualBudgetForced, modoOrcamento])
 
   const margemManualValorRaw = vendasSimulacao?.margemManualValor
   const margemManualAtiva =
@@ -4946,6 +4973,16 @@ export default function App() {
       applyVendaUpdates({ tipo_sistema: value })
     },
     [applyVendaUpdates, setTipoSistema],
+  )
+
+  const handleModoOrcamentoChange = useCallback(
+    (value: 'auto' | 'manual') => {
+      if (value === 'auto' && isManualBudgetForced) {
+        return
+      }
+      setModoOrcamento(value)
+    },
+    [isManualBudgetForced],
   )
 
   const autoFillVendaFromBudget = useCallback(
@@ -15630,49 +15667,6 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'Tipo de instalação',
-            'Selecione entre Telhado de fibrocimento, Telhas metálicas, Telhas cerâmicas, Laje, Solo ou Outros (texto); a escolha impacta área estimada e custos de estrutura.',
-          )}
-        >
-          <select
-            value={tipoInstalacao}
-            onChange={(event) =>
-              handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
-            }
-          >
-            {TIPOS_INSTALACAO.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          {tipoInstalacao === 'outros' && (
-            <input
-              type="text"
-              placeholder="Descreva o tipo de instalação"
-              value={tipoInstalacaoOutro || ''}
-              onChange={(e) => setTipoInstalacaoOutro(e.target.value)}
-              style={{ marginTop: '6px' }}
-            />
-          )}
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de sistema',
-            'Escolha entre on-grid, híbrido ou off-grid para registrar a topologia elétrica da proposta.',
-          )}
-        >
-          <select
-            value={tipoSistema}
-            onChange={(event) => handleTipoSistemaChange(event.target.value as TipoSistema)}
-          >
-            <option value="ON_GRID">On-grid</option>
-            <option value="HIBRIDO">Híbrido</option>
-            <option value="OFF_GRID">Off-grid</option>
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
             'Tipo de rede',
             'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
           )}
@@ -19965,10 +19959,112 @@ export default function App() {
                         </button>
                       ) : null}
                     </div>
-                  ) : null}
-                  {renderClienteDadosSection()}
-                  {activeTab === 'leasing' ? renderLeasingContratoSection() : null}
-                  {renderPropostaImagensSection()}
+                    ) : null}
+                    {renderClienteDadosSection()}
+                    {activeTab === 'vendas' ? (
+                      <>
+                        <section className="card">
+                          <h2>Tipo de instalação e sistema</h2>
+                          <div className="grid g2">
+                            <Field label="Tipo de instalação">
+                              <select
+                                value={tipoInstalacao}
+                                onChange={(event) =>
+                                  handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
+                                }
+                                aria-label="Selecionar tipo de instalação"
+                              >
+                                {TIPOS_INSTALACAO.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {tipoInstalacao === 'outros' ? (
+                                <input
+                                  type="text"
+                                  placeholder="Descreva o tipo de instalação"
+                                  value={tipoInstalacaoOutro || ''}
+                                  onChange={(event) => setTipoInstalacaoOutro(event.target.value)}
+                                  style={{ marginTop: '6px' }}
+                                />
+                              ) : null}
+                            </Field>
+                            <Field label="Tipo de sistema">
+                              <div
+                                className="toggle-group"
+                                role="radiogroup"
+                                aria-label="Selecionar tipo de sistema"
+                              >
+                                {TIPO_SISTEMA_VALUES.map((value) => (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={tipoSistema === value}
+                                    className={`toggle-option${
+                                      tipoSistema === value ? ' active' : ''
+                                    }`}
+                                    onClick={() => handleTipoSistemaChange(value)}
+                                  >
+                                    {value === 'ON_GRID'
+                                      ? 'On-grid'
+                                      : value === 'HIBRIDO'
+                                      ? 'Híbrido'
+                                      : 'Off-grid'}
+                                  </button>
+                                ))}
+                              </div>
+                            </Field>
+                          </div>
+                          {isManualBudgetForced ? (
+                            <p className="warning" role="alert">
+                              {manualBudgetForceReason}
+                            </p>
+                          ) : null}
+                        </section>
+                        <section className="card">
+                          <h2>Modo de orçamento</h2>
+                          <div
+                            className="toggle-group"
+                            role="radiogroup"
+                            aria-label="Selecionar modo de orçamento"
+                          >
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={modoOrcamento === 'auto'}
+                              aria-disabled={isManualBudgetForced}
+                              disabled={isManualBudgetForced}
+                              className={`toggle-option${modoOrcamento === 'auto' ? ' active' : ''}${
+                                isManualBudgetForced ? ' disabled' : ''
+                              }`}
+                              onClick={() => handleModoOrcamentoChange('auto')}
+                            >
+                              Orçamento automático
+                            </button>
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={modoOrcamento === 'manual'}
+                              className={`toggle-option${modoOrcamento === 'manual' ? ' active' : ''}`}
+                              onClick={() => handleModoOrcamentoChange('manual')}
+                            >
+                              Orçamento manual
+                            </button>
+                          </div>
+                          <p className="muted" role="status">
+                            {isManualBudgetForced
+                              ? manualBudgetForceReason
+                              : modoOrcamento === 'auto'
+                              ? 'Preencha poucos campos e o sistema calcula o orçamento.'
+                              : 'Use o modo manual para valores personalizados.'}
+                          </p>
+                        </section>
+                      </>
+                    ) : null}
+                    {activeTab === 'leasing' ? renderLeasingContratoSection() : null}
+                    {renderPropostaImagensSection()}
               {activeTab === 'leasing' ? (
                 <>
                   {renderParametrosPrincipaisSection()}
@@ -20186,244 +20282,237 @@ export default function App() {
           </>
         ) : (
           <>
-            {renderVendaParametrosSection()}
-            {renderVendaConfiguracaoSection()}
-            {renderVendaResumoPublicoSection()}
-            {renderComposicaoUfvSection()}
-            <section className="card">
-              <h2>Upload de Orçamento</h2>
-              <div className="budget-upload-section">
-                <p className="muted">
-                  Envie um orçamento em PDF ou imagem (PNG/JPG) para extrair automaticamente os itens e valores do kit solar.
-                </p>
-                <div className="budget-upload-control">
-                  <input
-                    ref={budgetUploadInputRef}
-                    id={budgetUploadInputId}
-                    className="budget-upload-input"
-                    type="file"
-                    accept="application/pdf,image/png,image/jpeg"
-                    onChange={handleBudgetFileChange}
-                    disabled={isBudgetProcessing}
-                  />
-                  <label
-                    htmlFor={budgetUploadInputId}
-                    className={`budget-upload-trigger${isBudgetProcessing ? ' disabled' : ''}`}
-                  >
-                    <span aria-hidden="true">📎</span>
-                    <span>Selecionar arquivo</span>
-                  </label>
-                  <div className="budget-upload-dpi">
-                    <label htmlFor="budget-ocr-dpi">Resolução do OCR</label>
-                    <select
-                      id="budget-ocr-dpi"
-                      value={ocrDpi}
-                      onChange={(event) => setOcrDpi(Number(event.target.value) as 200 | 300 | 400)}
-                      disabled={isBudgetProcessing}
-                    >
-                      <option value={200}>200 DPI</option>
-                      <option value={300}>300 DPI (padrão)</option>
-                      <option value={400}>400 DPI</option>
-                    </select>
-                  </div>
-                  <span className="budget-upload-hint">Envie um orçamento em PDF ou imagem (PNG/JPG).</span>
-                  {isBudgetProcessing ? (
-                    <span className="budget-upload-status">
-                      {describeBudgetProgress(budgetProcessingProgress)}
-                    </span>
-                  ) : null}
-                  {budgetProcessingError ? (
-                    <span className="budget-upload-error">{budgetProcessingError}</span>
-                  ) : null}
-                  {!isBudgetProcessing && kitBudget.fileName ? (
-                    <span className="budget-upload-file">
-                      <strong>{kitBudget.fileName}</strong>
-                      {kitBudget.fileSizeBytes ? ` — ${formatFileSize(kitBudget.fileSizeBytes)}` : ''}
-                    </span>
-                  ) : null}
+            {modoOrcamento === 'auto' ? (
+              <section className="card">
+                <h2>Orçamento automático</h2>
+                <div className="grid g2">
+                  <Field label="Consumo (kWh/mês)">
+                    <input type="number" placeholder="Ex.: 800" inputMode="decimal" />
+                  </Field>
+                  <Field label="Potência (kWp)">
+                    <input type="number" placeholder="Ex.: 5.5" inputMode="decimal" />
+                  </Field>
                 </div>
-              </div>
-            </section>
-            <section className="card">
-              <h2>Orçamento do Kit Solar</h2>
-              {kitBudget.fileName ? (
-                <p className="budget-upload-file">
-                  Arquivo analisado: <strong>{kitBudget.fileName}</strong>
-                  {kitBudget.fileSizeBytes ? ` (${formatFileSize(kitBudget.fileSizeBytes)})` : ''}
-                </p>
-              ) : null}
-              {kitBudget.warnings.length > 0 ? (
-                <ul className="budget-warning-list">
-                  {kitBudget.warnings.map((warning, index) => (
-                    <li key={`budget-warning-${index}`}>{warning}</li>
-                  ))}
-                </ul>
-              ) : null}
-              {kitBudget.ignoredByNoise > 0 ? (
-                <span className="budget-noise-badge">
-                  {kitBudget.ignoredByNoise}{' '}
-                  {kitBudget.ignoredByNoise === 1
-                    ? 'item ignorado por filtro de ruído'
-                    : 'itens ignorados por filtro de ruído'}
-                </span>
-              ) : null}
-              {budgetMissingSummary ? (
-                <div className="budget-missing-alert">
-                  <div>
-                    <h3>Informações ausentes do documento</h3>
-                    <p>
-                      Não foi possível identificar {budgetMissingSummary.fieldsText} de{' '}
-                      <strong>módulos e/ou inversor</strong> neste orçamento. Você pode editar manualmente ou
-                      reenviar um arquivo em outro formato.
+                <div className="grid g3 mt-4">
+                  <Field label="Tipo de rede">
+                    <span className="pill">Auto</span>
+                  </Field>
+                  <Field label="Kit solar (R$)">
+                    <input readOnly placeholder="—" />
+                  </Field>
+                  <Field label="Custo final projetado (R$)">
+                    <input readOnly placeholder="—" />
+                  </Field>
+                </div>
+              </section>
+            ) : null}
+            {modoOrcamento === 'manual' ? (
+              <>
+                {renderVendaParametrosSection()}
+                {renderVendaConfiguracaoSection()}
+                {renderVendaResumoPublicoSection()}
+                {renderComposicaoUfvSection()}
+                <section className="card">
+                  <h2>Upload de Orçamento</h2>
+                  <div className="budget-upload-section">
+                    <p className="muted">
+                      Envie um orçamento em PDF ou imagem (PNG/JPG) para extrair automaticamente os itens e valores do kit solar.
                     </p>
-                  </div>
-                  <div className="budget-missing-alert-actions">
-                    <button type="button" className="primary" onClick={handleMissingInfoManualEdit}>
-                      Editar manualmente
-                    </button>
-                    <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
-                      Enviar outro arquivo
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              {kitBudget.items.length === 0 ? (
-                <div className="budget-empty">
-                  <p>
-                    Nenhum item de orçamento foi carregado ainda. Faça o upload de um arquivo ou adicione
-                    itens manualmente.
-                  </p>
-                  <button type="button" className="ghost" onClick={handleAddBudgetItem}>
-                    Adicionar item manualmente
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="budget-table-toggle">
-                    <button
-                      type="button"
-                      className="ghost with-icon"
-                      aria-expanded={!isBudgetTableCollapsed}
-                      aria-controls={budgetTableContentId}
-                      onClick={() => setIsBudgetTableCollapsed((previous) => !previous)}
-                    >
-                      <span aria-hidden="true">{isBudgetTableCollapsed ? '▸' : '▾'}</span>
-                      <span>
-                        {isBudgetTableCollapsed
-                          ? 'Expandir itens do orçamento'
-                          : 'Recolher itens do orçamento'}
-                      </span>
-                    </button>
-                  </div>
-                  <div
-                    id={budgetTableContentId}
-                    className={`budget-table-content${isBudgetTableCollapsed ? ' collapsed' : ''}`}
-                  >
-                    <div className="table-wrapper budget-table-wrapper">
-                      <table className="budget-table">
-                        <thead>
-                          <tr>
-                            <th>Produto</th>
-                            <th>Descrição</th>
-                            <th>Quantidade</th>
-                            <th>Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {kitBudget.items.map((item) => (
-                            <tr key={item.id}>
-                              <td>
-                                <input
-                                  type="text"
-                                  data-budget-item-id={item.id}
-                                  data-field="product"
-                                  value={item.productName}
-                                  onChange={(event) =>
-                                    handleBudgetItemTextChange(item.id, 'productName', event.target.value)
-                                  }
-                                  placeholder="Nome do produto"
-                                />
-                              </td>
-                              <td>
-                                <textarea
-                                  data-budget-item-id={item.id}
-                                  data-field="description"
-                                  value={item.description}
-                                  onChange={(event) =>
-                                    handleBudgetItemTextChange(item.id, 'description', event.target.value)
-                                  }
-                                  placeholder="Descrição ou observações"
-                                  rows={3}
-                                />
-                              </td>
-                              <td className="budget-table-numeric">
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  data-budget-item-id={item.id}
-                                  data-field="quantity"
-                                  value={item.quantityInput}
-                                  onChange={(event) =>
-                                    handleBudgetItemQuantityChange(item.id, event.target.value)
-                                  }
-                                  placeholder="0"
-                                />
-                              </td>
-                              <td className="budget-table-actions">
-                                <button
-                                  type="button"
-                                  className="link danger"
-                                  onClick={() => handleRemoveBudgetItem(item.id)}
-                                >
-                                  Remover
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="budget-upload-control">
+                      <input
+                        ref={budgetUploadInputRef}
+                        id={budgetUploadInputId}
+                        className="budget-upload-input"
+                        type="file"
+                        accept="application/pdf,image/png,image/jpeg"
+                        onChange={handleBudgetFileChange}
+                        disabled={isBudgetProcessing}
+                      />
+                      <label
+                        htmlFor={budgetUploadInputId}
+                        className={`budget-upload-trigger${isBudgetProcessing ? ' disabled' : ''}`}
+                      >
+                        <span aria-hidden="true">📎</span>
+                        <span>Selecionar arquivo</span>
+                      </label>
+                      <div className="budget-upload-dpi">
+                        <label htmlFor="budget-ocr-dpi">Resolução do OCR</label>
+                        <select
+                          id="budget-ocr-dpi"
+                          value={ocrDpi}
+                          onChange={(event) => setOcrDpi(Number(event.target.value) as 200 | 300 | 400)}
+                          disabled={isBudgetProcessing}
+                        >
+                          <option value={200}>200 DPI</option>
+                          <option value={300}>300 DPI (padrão)</option>
+                          <option value={400}>400 DPI</option>
+                        </select>
+                      </div>
+                      <span className="budget-upload-hint">Envie um orçamento em PDF ou imagem (PNG/JPG).</span>
+                      {isBudgetProcessing ? (
+                        <span className="budget-upload-status">{describeBudgetProgress(budgetProcessingProgress)}</span>
+                      ) : null}
+                      {budgetProcessingError ? <span className="budget-upload-error">{budgetProcessingError}</span> : null}
+                      {!isBudgetProcessing && kitBudget.fileName ? (
+                        <span className="budget-upload-file">
+                          <strong>{kitBudget.fileName}</strong>
+                          {kitBudget.fileSizeBytes ? ` — ${formatFileSize(kitBudget.fileSizeBytes)}` : ''}
+                        </span>
+                      ) : null}
                     </div>
-                    <div className="budget-actions">
+                  </div>
+                </section>
+                <section className="card">
+                  <h2>Orçamento do Kit Solar</h2>
+                  {kitBudget.fileName ? (
+                    <p className="budget-upload-file">
+                      Arquivo analisado: <strong>{kitBudget.fileName}</strong>
+                      {kitBudget.fileSizeBytes ? ` (${formatFileSize(kitBudget.fileSizeBytes)})` : ''}
+                    </p>
+                  ) : null}
+                  {kitBudget.warnings.length > 0 ? (
+                    <ul className="budget-warning-list">
+                      {kitBudget.warnings.map((warning, index) => (
+                        <li key={`budget-warning-${index}`}>{warning}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {kitBudget.ignoredByNoise > 0 ? (
+                    <span className="budget-noise-badge">
+                      {kitBudget.ignoredByNoise}{' '}
+                      {kitBudget.ignoredByNoise === 1
+                        ? 'item ignorado por filtro de ruído'
+                        : 'itens ignorados por filtro de ruído'}
+                    </span>
+                  ) : null}
+                  {budgetMissingSummary ? (
+                    <div className="budget-missing-alert">
+                      <div>
+                        <h3>Informações ausentes do documento</h3>
+                        <p>
+                          Não foi possível identificar {budgetMissingSummary.fieldsText} de <strong>módulos e/ou inversor</strong>
+                          {' '}
+                          neste orçamento. Você pode editar manualmente ou reenviar um arquivo em outro formato.
+                        </p>
+                      </div>
+                      <div className="budget-missing-alert-actions">
+                        <button type="button" className="primary" onClick={handleMissingInfoManualEdit}>
+                          Editar manualmente
+                        </button>
+                        <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
+                          Enviar outro arquivo
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {kitBudget.items.length === 0 ? (
+                    <div className="budget-empty">
+                      <p>
+                        Nenhum item de orçamento foi carregado ainda. Faça o upload de um arquivo ou adicione itens manualmente.
+                      </p>
                       <button type="button" className="ghost" onClick={handleAddBudgetItem}>
-                        Adicionar item
+                        Adicionar item manualmente
                       </button>
                     </div>
-                  </div>
-                </>
-              )}
-              <div className="budget-summary">
-                <div className="budget-total-field">
-                  <label htmlFor="budget-total-input">Valor Total do Orçamento</label>
-                  <input
-                    ref={budgetTotalField.ref}
-                    id="budget-total-input"
-                    type="text"
-                    inputMode="decimal"
-                    value={budgetTotalField.text}
-                    onChange={budgetTotalField.handleChange}
-                    onBlur={budgetTotalField.handleBlur}
-                    onFocus={(event) => {
-                      budgetTotalField.handleFocus(event)
-                      selectNumberInputOnFocus(event)
-                    }}
-                    placeholder={MONEY_INPUT_PLACEHOLDER}
-                  />
-                  {kitBudget.totalSource === 'calculated' ? (
-                    <small className="muted">
-                      Valor calculado automaticamente com base nos itens listados.
-                    </small>
-                  ) : kitBudget.totalSource === 'explicit' ? (
-                    <small className="muted">Valor identificado no PDF. Ajuste se necessário.</small>
                   ) : (
-                    <small className="muted">
-                      Informe o valor total do orçamento para registrar no sistema.
-                    </small>
+                    <>
+                      <div className="budget-table-toggle">
+                        <button
+                          type="button"
+                          className="ghost with-icon"
+                          aria-expanded={!isBudgetTableCollapsed}
+                          aria-controls={budgetTableContentId}
+                          onClick={() => setIsBudgetTableCollapsed((previous) => !previous)}
+                        >
+                          <span aria-hidden="true">{isBudgetTableCollapsed ? '▸' : '▾'}</span>
+                          <span>
+                            {isBudgetTableCollapsed ? 'Expandir itens do orçamento' : 'Recolher itens do orçamento'}
+                          </span>
+                        </button>
+                      </div>
+                      <div
+                        id={budgetTableContentId}
+                        className={`budget-table card ${isBudgetTableCollapsed ? 'collapsed' : ''}`}
+                        aria-hidden={isBudgetTableCollapsed}
+                      >
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Descrição</th>
+                              <th>Quantidade</th>
+                              <th>Valor unitário</th>
+                              <th>Total</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {kitBudget.items.map((item, index) => (
+                              <tr key={`budget-item-${item.id}`}>
+                                <td>
+                                  <input
+                                    type="text"
+                                    value={item.description}
+                                    onChange={(event) =>
+                                      handleBudgetItemChange(index, { ...item, description: event.target.value })
+                                    }
+                                    placeholder="Descrição do item"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={item.quantity}
+                                    onChange={(event) =>
+                                      handleBudgetItemChange(index, { ...item, quantity: Number(event.target.value) })
+                                    }
+                                    placeholder="Quantidade"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={item.unitValue}
+                                    onChange={(event) =>
+                                      handleBudgetItemChange(index, { ...item, unitValue: Number(event.target.value) })
+                                    }
+                                    placeholder="Valor unitário"
+                                  />
+                                </td>
+                                <td>
+                                  <input type="text" value={currency(item.total)} readOnly aria-label="Total do item" />
+                                </td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="ghost danger"
+                                    onClick={() => handleRemoveBudgetItem(index)}
+                                  >
+                                    Remover
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div className="budget-table-footer">
+                          <button type="button" className="ghost" onClick={handleAddBudgetItem}>
+                            Adicionar item
+                          </button>
+                          <div className="budget-table-total">
+                            <span>Total do kit:</span> <strong>{currency(kitBudgetTotal)}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   )}
-                </div>
-              </div>
-            </section>
-            {renderCondicoesPagamentoSection()}
-            {renderRetornoProjetadoSection()}
+                </section>
+                {renderCondicoesPagamentoSection()}
+                {renderRetornoProjetadoSection()}
+              </>
+            ) : null}
           </>
         )}
                 </div>
