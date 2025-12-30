@@ -20243,13 +20243,15 @@ export default function App() {
                     </select>
                   </Field>
                   <Field label="Tipo de sistema">
-                    <select defaultValue="">
-                      <option value="" disabled>
-                        Selecione
-                      </option>
-                      <option value="string">String</option>
-                      <option value="microinversor">Microinversor</option>
-                      <option value="otimizador">Otimizador</option>
+                    <select
+                      value={tipoSistema}
+                      onChange={(event) =>
+                        handleTipoSistemaChange(event.target.value as TipoSistema)
+                      }
+                    >
+                      <option value="ON_GRID">On-grid</option>
+                      <option value="HIBRIDO">Híbrido</option>
+                      <option value="OFF_GRID">Off-grid</option>
                     </select>
                   </Field>
                 </div>
