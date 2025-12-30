@@ -1,4 +1,20 @@
+import { DIAS_MES_PADRAO } from '../../app/config'
+import { normalizePerformanceRatio } from '../energy/generation'
+
 export type Rede = 'mono' | 'trifasico'
+
+export interface PotenciaSistemaParams {
+  consumoKwhMes: number | null | undefined
+  irradiacao: number | null | undefined
+  performanceRatio: number | null | undefined
+  diasMes?: number | null | undefined
+  potenciaModuloWp?: number | null | undefined
+}
+
+export interface PotenciaSistemaResultado {
+  potenciaKwp: number
+  quantidadeModulos: number | null
+}
 
 type Anchor = { kwp: number; custoFinal: number; kitValor: number; rede: Rede }
 
@@ -18,6 +34,54 @@ const triAnchors: Anchor[] = [
 const MAX_KWP = 90
 
 const clampPositive = (value: number): number => (value <= 0 ? 1 : value)
+
+export function calcPotenciaSistemaKwp({
+  consumoKwhMes,
+  irradiacao,
+  performanceRatio,
+  diasMes,
+  potenciaModuloWp,
+}: PotenciaSistemaParams): PotenciaSistemaResultado | null {
+  const consumo = Number(consumoKwhMes)
+  if (!Number.isFinite(consumo) || consumo <= 0) {
+    return null
+  }
+
+  const irradiacaoSegura = Number.isFinite(irradiacao) ? Math.max(0, Number(irradiacao)) : 0
+  const dias = Number.isFinite(diasMes) && Number(diasMes) > 0 ? Number(diasMes) : DIAS_MES_PADRAO
+  const pr = normalizePerformanceRatio(performanceRatio ?? 0)
+
+  if (irradiacaoSegura <= 0 || pr <= 0 || dias <= 0) {
+    return null
+  }
+
+  const fatorGeracaoMensal = irradiacaoSegura * pr * dias
+  if (!Number.isFinite(fatorGeracaoMensal) || fatorGeracaoMensal <= 0) {
+    return null
+  }
+
+  const potenciaNecessaria = consumo / fatorGeracaoMensal
+  if (!Number.isFinite(potenciaNecessaria) || potenciaNecessaria <= 0) {
+    return null
+  }
+
+  let quantidadeModulos: number | null = null
+  let potenciaKwp = potenciaNecessaria
+
+  const moduloWp = Number(potenciaModuloWp)
+  if (Number.isFinite(moduloWp) && moduloWp > 0) {
+    const estimativaModulos = Math.ceil((potenciaNecessaria * 1000) / moduloWp)
+    if (Number.isFinite(estimativaModulos) && estimativaModulos > 0) {
+      quantidadeModulos = estimativaModulos
+      potenciaKwp = (quantidadeModulos * moduloWp) / 1000
+    }
+  }
+
+  return {
+    potenciaKwp: Math.round(potenciaKwp * 100) / 100,
+    quantidadeModulos,
+  }
+}
 
 export function getRedeByPotencia(kwp: number): Rede {
   return kwp > triAnchors[0].kwp ? 'trifasico' : 'mono'

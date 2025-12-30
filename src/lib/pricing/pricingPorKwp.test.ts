@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calcPricingPorKwp, getRedeByPotencia } from './pricingPorKwp'
+import { calcPotenciaSistemaKwp, calcPricingPorKwp, getRedeByPotencia } from './pricingPorKwp'
 
 describe('pricingPorKwp', () => {
   it('usa piso mínimo para valores baixos', () => {
@@ -31,5 +31,49 @@ describe('pricingPorKwp', () => {
   it('computes rede helper', () => {
     expect(getRedeByPotencia(10)).toBe('mono')
     expect(getRedeByPotencia(24)).toBe('trifasico')
+  })
+
+  it('calcula potencia do sistema no estilo leasing com modulo', () => {
+    const potencia = calcPotenciaSistemaKwp({
+      consumoKwhMes: 1000,
+      irradiacao: 5,
+      performanceRatio: 0.8,
+      diasMes: 30,
+      potenciaModuloWp: 550,
+    })
+
+    expect(potencia).toEqual({ potenciaKwp: 8.8, quantidadeModulos: 16 })
+  })
+
+  it('calcula potencia do sistema mesmo sem modulo informado', () => {
+    const potencia = calcPotenciaSistemaKwp({
+      consumoKwhMes: 1000,
+      irradiacao: 5,
+      performanceRatio: 0.8,
+      diasMes: 30,
+      potenciaModuloWp: null,
+    })
+
+    expect(potencia).toEqual({ potenciaKwp: 8.33, quantidadeModulos: null })
+  })
+
+  it('retorna null quando consumo ou irradiacao sao invalidos', () => {
+    expect(
+      calcPotenciaSistemaKwp({
+        consumoKwhMes: null,
+        irradiacao: 5,
+        performanceRatio: 0.8,
+        potenciaModuloWp: 550,
+      }),
+    ).toBeNull()
+
+    expect(
+      calcPotenciaSistemaKwp({
+        consumoKwhMes: 1000,
+        irradiacao: 0,
+        performanceRatio: 0.8,
+        potenciaModuloWp: 550,
+      }),
+    ).toBeNull()
   })
 })
