@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import type { TipoSistema } from '../lib/finance/roi'
+import type { Rede } from '../lib/pricing/pricingPorKwp'
 import type { Outputs as ComposicaoCalculo } from '../lib/venda/calcComposicaoUFV'
 import { useSafeStore } from '../lib/react/safeStore'
 
@@ -102,6 +103,18 @@ export type VendaResumoProposta = {
   economia_estimativa_horizonte_anos: number | null
 }
 
+export type VendaOrcamentoAutomatico = {
+  modo: 'automatico' | 'manual'
+  consumo_medio_kwh_mes: number | null
+  potencia_kwp: number | null
+  tipo_rede: Rede
+  tipo_instalacao: string
+  tipo_sistema: TipoSistema
+  custo_final_projetado: number | null
+  valor_kit_solar: number | null
+  regra_pricing_versao: string | null
+}
+
 export type VendaState = {
   cliente: VendaClienteInfo
   parametros: VendaParametrosPrincipais
@@ -112,6 +125,7 @@ export type VendaState = {
   codigos: VendaCodigosInfo
   resultados: VendaResultadosFinanceiros
   resumoProposta: VendaResumoProposta
+  orcamentoAutomatico: VendaOrcamentoAutomatico
 }
 
 type Listener = () => void
@@ -217,6 +231,17 @@ const createInitialState = (): VendaState => ({
     economia_estimativa_valor: null,
     economia_estimativa_horizonte_anos: null,
   },
+  orcamentoAutomatico: {
+    modo: 'automatico',
+    consumo_medio_kwh_mes: null,
+    potencia_kwp: null,
+    tipo_rede: 'mono',
+    tipo_instalacao: '',
+    tipo_sistema: 'ON_GRID',
+    custo_final_projetado: null,
+    valor_kit_solar: null,
+    regra_pricing_versao: null,
+  },
 })
 
 const mergeState = (incoming: Partial<VendaState> | null): VendaState => {
@@ -250,6 +275,7 @@ const mergeState = (incoming: Partial<VendaState> | null): VendaState => {
     codigos: { ...base.codigos, ...(incoming.codigos ?? {}) },
     resultados: { ...base.resultados, ...(incoming.resultados ?? {}) },
     resumoProposta: { ...base.resumoProposta, ...(incoming.resumoProposta ?? {}) },
+    orcamentoAutomatico: { ...base.orcamentoAutomatico, ...(incoming.orcamentoAutomatico ?? {}) },
   }
 }
 
@@ -297,6 +323,7 @@ const cloneState = (input: VendaState): VendaState => ({
   codigos: { ...input.codigos },
   resultados: { ...input.resultados },
   resumoProposta: { ...input.resumoProposta },
+  orcamentoAutomatico: { ...input.orcamentoAutomatico },
 })
 
 const notify = () => {
@@ -399,6 +426,11 @@ export const vendaActions = {
   updateCodigos(partial: Partial<VendaCodigosInfo>) {
     setState((draft) => {
       draft.codigos = { ...draft.codigos, ...partial }
+    })
+  },
+  updateOrcamentoAutomatico(partial: Partial<VendaOrcamentoAutomatico>) {
+    setState((draft) => {
+      draft.orcamentoAutomatico = { ...draft.orcamentoAutomatico, ...partial }
     })
   },
   updateResultados(partial: Partial<VendaResultadosFinanceiros>) {
