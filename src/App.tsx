@@ -18058,171 +18058,6 @@ export default function App() {
       )
     }
 
-  const renderKitBudgetSection = () => (
-    <section className="card">
-      <h2>Orçamento do Kit Solar</h2>
-      {kitBudget.fileName ? (
-        <p className="budget-upload-file">
-          Arquivo analisado: <strong>{kitBudget.fileName}</strong>
-          {kitBudget.fileSizeBytes ? ` (${formatFileSize(kitBudget.fileSizeBytes)})` : ''}
-        </p>
-      ) : null}
-      {kitBudget.warnings.length > 0 ? (
-        <ul className="budget-warning-list">
-          {kitBudget.warnings.map((warning, index) => (
-            <li key={`budget-warning-${index}`}>{warning}</li>
-          ))}
-        </ul>
-      ) : null}
-      {kitBudget.ignoredByNoise > 0 ? (
-        <span className="budget-noise-badge">
-          {kitBudget.ignoredByNoise}{' '}
-          {kitBudget.ignoredByNoise === 1
-            ? 'item ignorado por filtro de ruído'
-            : 'itens ignorados por filtro de ruído'}
-        </span>
-      ) : null}
-      {budgetMissingSummary ? (
-        <div className="budget-missing-alert">
-          <div>
-            <h3>Informações ausentes do documento</h3>
-            <p>
-              Não foi possível identificar {budgetMissingSummary.fieldsText} de <strong>módulos e/ou inversor</strong> neste
-              orçamento. Você pode editar manualmente ou reenviar um arquivo em outro formato.
-            </p>
-          </div>
-          <div className="budget-missing-alert-actions">
-            <button type="button" className="primary" onClick={handleMissingInfoManualEdit}>
-              Editar manualmente
-            </button>
-            <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
-              Enviar outro arquivo
-            </button>
-          </div>
-        </div>
-      ) : null}
-      {kitBudget.items.length === 0 ? (
-        <div className="budget-empty">
-          <p>
-            Nenhum item de orçamento foi carregado ainda. Faça o upload de um arquivo ou adicione itens manualmente.
-          </p>
-          <button type="button" className="ghost" onClick={handleAddBudgetItem}>
-            Adicionar item manualmente
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="budget-table-toggle">
-            <button
-              type="button"
-              className="ghost with-icon"
-              aria-expanded={!isBudgetTableCollapsed}
-              aria-controls={budgetTableContentId}
-              onClick={() => setIsBudgetTableCollapsed((previous) => !previous)}
-            >
-              <span aria-hidden="true">{isBudgetTableCollapsed ? '▸' : '▾'}</span>
-              <span>
-                {isBudgetTableCollapsed ? 'Expandir itens do orçamento' : 'Recolher itens do orçamento'}
-              </span>
-            </button>
-          </div>
-          <div
-            id={budgetTableContentId}
-            className={`budget-table-content${isBudgetTableCollapsed ? ' collapsed' : ''}`}
-          >
-            <div className="table-wrapper budget-table-wrapper">
-              <table className="budget-table">
-                <thead>
-                  <tr>
-                    <th>Produto</th>
-                    <th>Descrição</th>
-                    <th>Quantidade</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {kitBudget.items.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <input
-                          type="text"
-                          data-budget-item-id={item.id}
-                          data-field="product"
-                          value={item.productName}
-                          onChange={(event) =>
-                            handleBudgetItemTextChange(item.id, 'productName', event.target.value)
-                          }
-                          placeholder="Nome do produto"
-                        />
-                      </td>
-                      <td>
-                        <textarea
-                          data-budget-item-id={item.id}
-                          data-field="description"
-                          value={item.description}
-                          onChange={(event) => handleBudgetItemTextChange(item.id, 'description', event.target.value)}
-                          placeholder="Descrição ou observações"
-                          rows={3}
-                        />
-                      </td>
-                      <td className="budget-table-numeric">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          data-budget-item-id={item.id}
-                          data-field="quantity"
-                          value={item.quantityInput}
-                          onChange={(event) => handleBudgetItemQuantityChange(item.id, event.target.value)}
-                          placeholder="0"
-                        />
-                      </td>
-                      <td className="budget-table-actions">
-                        <button type="button" className="link danger" onClick={() => handleRemoveBudgetItem(item.id)}>
-                          Remover
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="budget-actions">
-              <button type="button" className="ghost" onClick={handleAddBudgetItem}>
-                Adicionar item
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-      <div className="budget-summary">
-        <div className="budget-total-field">
-          <label htmlFor="budget-total-input">Valor Total do Orçamento</label>
-          <input
-            ref={budgetTotalField.ref}
-            id="budget-total-input"
-            type="text"
-            inputMode="decimal"
-            value={budgetTotalField.text}
-            onChange={budgetTotalField.handleChange}
-            onBlur={budgetTotalField.handleBlur}
-            onFocus={(event) => {
-              budgetTotalField.handleFocus(event)
-              selectNumberInputOnFocus(event)
-            }}
-            placeholder={MONEY_INPUT_PLACEHOLDER}
-          />
-          {kitBudget.totalSource === 'calculated' ? (
-            <small className="muted">Valor calculado automaticamente com base nos itens listados.</small>
-          ) : kitBudget.totalSource === 'explicit' ? (
-            <small className="muted">Valor identificado no PDF. Ajuste se necessário.</small>
-          ) : (
-            <small className="muted">Informe o valor total do orçamento para registrar no sistema.</small>
-          )}
-        </div>
-      </div>
-    </section>
-  )
-
     return (
       <section className="card">
         <div className="card-header">
@@ -20487,7 +20322,153 @@ export default function App() {
                     </div>
                   </div>
                 </section>
-                {renderKitBudgetSection()}
+                <section className="card">
+                  <h2>Orçamento do Kit Solar</h2>
+                  {kitBudget.fileName ? (
+                    <p className="budget-upload-file">
+                      Arquivo analisado: <strong>{kitBudget.fileName}</strong>
+                      {kitBudget.fileSizeBytes ? ` (${formatFileSize(kitBudget.fileSizeBytes)})` : ''}
+                    </p>
+                  ) : null}
+                  {kitBudget.warnings.length > 0 ? (
+                    <ul className="budget-warning-list">
+                      {kitBudget.warnings.map((warning, index) => (
+                        <li key={`budget-warning-${index}`}>{warning}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {kitBudget.ignoredByNoise > 0 ? (
+                    <span className="budget-noise-badge">
+                      {kitBudget.ignoredByNoise}{' '}
+                      {kitBudget.ignoredByNoise === 1
+                        ? 'item ignorado por filtro de ruído'
+                        : 'itens ignorados por filtro de ruído'}
+                    </span>
+                  ) : null}
+                  {budgetMissingSummary ? (
+                    <div className="budget-missing-alert">
+                      <div>
+                        <h3>Informações ausentes do documento</h3>
+                        <p>
+                          Não foi possível identificar {budgetMissingSummary.fieldsText} de <strong>módulos e/ou inversor</strong>
+                          {' '}
+                          neste orçamento. Você pode editar manualmente ou reenviar um arquivo em outro formato.
+                        </p>
+                      </div>
+                      <div className="budget-missing-alert-actions">
+                        <button type="button" className="primary" onClick={handleMissingInfoManualEdit}>
+                          Editar manualmente
+                        </button>
+                        <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
+                          Enviar outro arquivo
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {kitBudget.items.length === 0 ? (
+                    <div className="budget-empty">
+                      <p>
+                        Nenhum item de orçamento foi carregado ainda. Faça o upload de um arquivo ou adicione itens manualmente.
+                      </p>
+                      <button type="button" className="ghost" onClick={handleAddBudgetItem}>
+                        Adicionar item manualmente
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="budget-table-toggle">
+                        <button
+                          type="button"
+                          className="ghost with-icon"
+                          aria-expanded={!isBudgetTableCollapsed}
+                          aria-controls={budgetTableContentId}
+                          onClick={() => setIsBudgetTableCollapsed((previous) => !previous)}
+                        >
+                          <span aria-hidden="true">{isBudgetTableCollapsed ? '▸' : '▾'}</span>
+                          <span>
+                            {isBudgetTableCollapsed ? 'Expandir itens do orçamento' : 'Recolher itens do orçamento'}
+                          </span>
+                        </button>
+                      </div>
+                      <div
+                        id={budgetTableContentId}
+                        className={`budget-table card ${isBudgetTableCollapsed ? 'collapsed' : ''}`}
+                        aria-hidden={isBudgetTableCollapsed}
+                      >
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Descrição</th>
+                              <th>Quantidade</th>
+                              <th>Valor unitário</th>
+                              <th>Total</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {kitBudget.items.map((item, index) => (
+                              <tr key={`budget-item-${item.id}`}>
+                                <td>
+                                  <input
+                                    type="text"
+                                    value={item.description}
+                                    onChange={(event) =>
+                                      handleBudgetItemChange(index, { ...item, description: event.target.value })
+                                    }
+                                    placeholder="Descrição do item"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={item.quantity}
+                                    onChange={(event) =>
+                                      handleBudgetItemChange(index, { ...item, quantity: Number(event.target.value) })
+                                    }
+                                    placeholder="Quantidade"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={item.unitValue}
+                                    onChange={(event) =>
+                                      handleBudgetItemChange(index, { ...item, unitValue: Number(event.target.value) })
+                                    }
+                                    placeholder="Valor unitário"
+                                  />
+                                </td>
+                                <td>
+                                  <input type="text" value={currency(item.total)} readOnly aria-label="Total do item" />
+                                </td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="ghost danger"
+                                    onClick={() => handleRemoveBudgetItem(index)}
+                                  >
+                                    Remover
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div className="budget-table-footer">
+                          <button type="button" className="ghost" onClick={handleAddBudgetItem}>
+                            Adicionar item
+                          </button>
+                          <div className="budget-table-total">
+                            <span>Total do kit:</span> <strong>{currency(kitBudgetTotal)}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </section>
                 {renderCondicoesPagamentoSection()}
                 {renderRetornoProjetadoSection()}
               </>
