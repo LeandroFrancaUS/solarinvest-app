@@ -15667,49 +15667,6 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'Tipo de instalação',
-            'Selecione entre Telhado de fibrocimento, Telhas metálicas, Telhas cerâmicas, Laje, Solo ou Outros (texto); a escolha impacta área estimada e custos de estrutura.',
-          )}
-        >
-          <select
-            value={tipoInstalacao}
-            onChange={(event) =>
-              handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
-            }
-          >
-            {TIPOS_INSTALACAO.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          {tipoInstalacao === 'outros' && (
-            <input
-              type="text"
-              placeholder="Descreva o tipo de instalação"
-              value={tipoInstalacaoOutro || ''}
-              onChange={(e) => setTipoInstalacaoOutro(e.target.value)}
-              style={{ marginTop: '6px' }}
-            />
-          )}
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de sistema',
-            'Escolha entre on-grid, híbrido ou off-grid para registrar a topologia elétrica da proposta.',
-          )}
-        >
-          <select
-            value={tipoSistema}
-            onChange={(event) => handleTipoSistemaChange(event.target.value as TipoSistema)}
-          >
-            <option value="ON_GRID">On-grid</option>
-            <option value="HIBRIDO">Híbrido</option>
-            <option value="OFF_GRID">Off-grid</option>
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
             'Tipo de rede',
             'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
           )}
