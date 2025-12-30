@@ -18058,59 +18058,6 @@ export default function App() {
       )
     }
 
-  const renderBudgetUploadSection = () => (
-    <section className="card">
-      <h2>Upload de Orçamento</h2>
-      <div className="budget-upload-section">
-        <p className="muted">
-          Envie um orçamento em PDF ou imagem (PNG/JPG) para extrair automaticamente os itens e valores do kit solar.
-        </p>
-        <div className="budget-upload-control">
-          <input
-            ref={budgetUploadInputRef}
-            id={budgetUploadInputId}
-            className="budget-upload-input"
-            type="file"
-            accept="application/pdf,image/png,image/jpeg"
-            onChange={handleBudgetFileChange}
-            disabled={isBudgetProcessing}
-          />
-          <label
-            htmlFor={budgetUploadInputId}
-            className={`budget-upload-trigger${isBudgetProcessing ? ' disabled' : ''}`}
-          >
-            <span aria-hidden="true">📎</span>
-            <span>Selecionar arquivo</span>
-          </label>
-          <div className="budget-upload-dpi">
-            <label htmlFor="budget-ocr-dpi">Resolução do OCR</label>
-            <select
-              id="budget-ocr-dpi"
-              value={ocrDpi}
-              onChange={(event) => setOcrDpi(Number(event.target.value) as 200 | 300 | 400)}
-              disabled={isBudgetProcessing}
-            >
-              <option value={200}>200 DPI</option>
-              <option value={300}>300 DPI (padrão)</option>
-              <option value={400}>400 DPI</option>
-            </select>
-          </div>
-          <span className="budget-upload-hint">Envie um orçamento em PDF ou imagem (PNG/JPG).</span>
-          {isBudgetProcessing ? (
-            <span className="budget-upload-status">{describeBudgetProgress(budgetProcessingProgress)}</span>
-          ) : null}
-          {budgetProcessingError ? <span className="budget-upload-error">{budgetProcessingError}</span> : null}
-          {!isBudgetProcessing && kitBudget.fileName ? (
-            <span className="budget-upload-file">
-              <strong>{kitBudget.fileName}</strong>
-              {kitBudget.fileSizeBytes ? ` — ${formatFileSize(kitBudget.fileSizeBytes)}` : ''}
-            </span>
-          ) : null}
-        </div>
-      </div>
-    </section>
-  )
-
   const renderKitBudgetSection = () => (
     <section className="card">
       <h2>Orçamento do Kit Solar</h2>
@@ -20490,7 +20437,56 @@ export default function App() {
                 {renderVendaConfiguracaoSection()}
                 {renderVendaResumoPublicoSection()}
                 {renderComposicaoUfvSection()}
-                {renderBudgetUploadSection()}
+                <section className="card">
+                  <h2>Upload de Orçamento</h2>
+                  <div className="budget-upload-section">
+                    <p className="muted">
+                      Envie um orçamento em PDF ou imagem (PNG/JPG) para extrair automaticamente os itens e valores do kit solar.
+                    </p>
+                    <div className="budget-upload-control">
+                      <input
+                        ref={budgetUploadInputRef}
+                        id={budgetUploadInputId}
+                        className="budget-upload-input"
+                        type="file"
+                        accept="application/pdf,image/png,image/jpeg"
+                        onChange={handleBudgetFileChange}
+                        disabled={isBudgetProcessing}
+                      />
+                      <label
+                        htmlFor={budgetUploadInputId}
+                        className={`budget-upload-trigger${isBudgetProcessing ? ' disabled' : ''}`}
+                      >
+                        <span aria-hidden="true">📎</span>
+                        <span>Selecionar arquivo</span>
+                      </label>
+                      <div className="budget-upload-dpi">
+                        <label htmlFor="budget-ocr-dpi">Resolução do OCR</label>
+                        <select
+                          id="budget-ocr-dpi"
+                          value={ocrDpi}
+                          onChange={(event) => setOcrDpi(Number(event.target.value) as 200 | 300 | 400)}
+                          disabled={isBudgetProcessing}
+                        >
+                          <option value={200}>200 DPI</option>
+                          <option value={300}>300 DPI (padrão)</option>
+                          <option value={400}>400 DPI</option>
+                        </select>
+                      </div>
+                      <span className="budget-upload-hint">Envie um orçamento em PDF ou imagem (PNG/JPG).</span>
+                      {isBudgetProcessing ? (
+                        <span className="budget-upload-status">{describeBudgetProgress(budgetProcessingProgress)}</span>
+                      ) : null}
+                      {budgetProcessingError ? <span className="budget-upload-error">{budgetProcessingError}</span> : null}
+                      {!isBudgetProcessing && kitBudget.fileName ? (
+                        <span className="budget-upload-file">
+                          <strong>{kitBudget.fileName}</strong>
+                          {kitBudget.fileSizeBytes ? ` — ${formatFileSize(kitBudget.fileSizeBytes)}` : ''}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
                 {renderKitBudgetSection()}
                 {renderCondicoesPagamentoSection()}
                 {renderRetornoProjetadoSection()}
