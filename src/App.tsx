@@ -19967,26 +19967,19 @@ export default function App() {
                           <h2>Tipo de instalação e sistema</h2>
                           <div className="grid g2">
                             <Field label="Tipo de instalação">
-                              <div
-                                className="toggle-group"
-                                role="radiogroup"
+                              <select
+                                value={tipoInstalacao}
+                                onChange={(event) =>
+                                  handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
+                                }
                                 aria-label="Selecionar tipo de instalação"
                               >
                                 {TIPOS_INSTALACAO.map((opt) => (
-                                  <button
-                                    key={opt.value}
-                                    type="button"
-                                    role="radio"
-                                    aria-checked={tipoInstalacao === opt.value}
-                                    className={`toggle-option${
-                                      tipoInstalacao === opt.value ? ' active' : ''
-                                    }`}
-                                    onClick={() => handleTipoInstalacaoChange(opt.value as TipoInstalacao)}
-                                  >
+                                  <option key={opt.value} value={opt.value}>
                                     {opt.label}
-                                  </button>
+                                  </option>
                                 ))}
-                              </div>
+                              </select>
                               {tipoInstalacao === 'outros' ? (
                                 <input
                                   type="text"
