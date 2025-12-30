@@ -25,6 +25,7 @@ import {
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
+import { handleKommoPreAnaliseRequest } from './kommo.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -49,6 +50,7 @@ const MIME_TYPES = {
 const PORT = Number.parseInt(process.env.PORT ?? '3000', 10)
 const STORAGE_API_PATH = '/api/storage'
 const TEST_API_PATH = '/api/test'
+const KOMMO_PRE_ANALISE_PATH = '/api/kommo/pre-analise'
 const MAX_JSON_BODY_BYTES = 256 * 1024
 const CORS_ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With'
 const CORS_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS'
@@ -218,6 +220,11 @@ const server = createServer(async (req, res) => {
 
   if (pathname === CONTRACT_TEMPLATES_PATH) {
     await handleContractTemplatesRequest(req, res)
+    return
+  }
+
+  if (pathname === KOMMO_PRE_ANALISE_PATH) {
+    await handleKommoPreAnaliseRequest(req, res, { readJsonBody })
     return
   }
 

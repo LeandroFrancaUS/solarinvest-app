@@ -78,6 +78,36 @@ Set the following environment variables:
 - `TRUSTED_WEB_ORIGINS` – comma-separated list of allowed origins for CORS. If
   omitted the server trusts the default Vite dev URLs.
 
+## Integração Kommo (pré-análise)
+
+O backend expõe um endpoint seguro em `/api/kommo/pre-analise` que cria/atualiza
+um contato e gera um lead no Kommo usando o token de longa duração. Configure
+as variáveis abaixo no `.env.local` e no painel da Vercel (nunca commite o
+token):
+
+- `KOMMO_SUBDOMAIN` – subdomínio Kommo (ex.: `c3xsolarinvest`).
+- `KOMMO_LONG_LIVED_TOKEN` – token de longa duração fornecido pela integração.
+- `KOMMO_PIPELINE_ID` / `KOMMO_STATUS_ID` – funil e status iniciais para o lead
+  de pré-análise.
+- `KOMMO_CONTACT_EMAIL_FIELD_ID` / `KOMMO_CONTACT_PHONE_FIELD_ID` – IDs dos
+  campos customizados de e-mail e telefone do contato.
+- `KOMMO_LEAD_FIELD_ID_MUNICIPIO`, `KOMMO_LEAD_FIELD_ID_TIPO_IMOVEL`,
+  `KOMMO_LEAD_FIELD_ID_CONSUMO_MEDIO`, `KOMMO_LEAD_FIELD_ID_TIPO_SISTEMA` –
+  campos do lead.
+- (Opcional) `KOMMO_LEAD_FIELD_ID_UTM_SOURCE`, `KOMMO_LEAD_FIELD_ID_UTM_MEDIUM`,
+  `KOMMO_LEAD_FIELD_ID_UTM_CAMPAIGN`, `KOMMO_LEAD_FIELD_ID_UTM_CONTENT` – campos
+  de UTM.
+
+Para descobrir os IDs, execute o script utilitário:
+
+```bash
+node --experimental-strip-types scripts/kommo_dump_ids.ts
+```
+
+Em produção, o endpoint aceita apenas POST e aplica rate-limit simples por IP.
+Erros do Kommo retornam mensagem amigável sem expor segredos ou dados
+sensíveis.
+
 Example `.env` snippet based on the current SolarInvest deployment:
 
 ```
