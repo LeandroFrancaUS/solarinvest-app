@@ -20335,38 +20335,12 @@ export default function App() {
             {modoOrcamento === 'auto' ? (
               <section className="card">
                 <h2>Orçamento automático</h2>
-                <div className="grid g3">
+                <div className="grid g2">
                   <Field label="Consumo (kWh/mês)">
                     <input type="number" placeholder="Ex.: 800" inputMode="decimal" />
                   </Field>
                   <Field label="Potência (kWp)">
                     <input type="number" placeholder="Ex.: 5.5" inputMode="decimal" />
-                  </Field>
-                  <Field label="Tipo de instalação">
-                    <select
-                      value={tipoInstalacao}
-                      onChange={(event) =>
-                        handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
-                      }
-                    >
-                      {TIPOS_INSTALACAO.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Tipo de sistema">
-                    <select
-                      value={tipoSistema}
-                      onChange={(event) =>
-                        handleTipoSistemaChange(event.target.value as TipoSistema)
-                      }
-                    >
-                      <option value="ON_GRID">On-grid</option>
-                      <option value="HIBRIDO">Híbrido</option>
-                      <option value="OFF_GRID">Off-grid</option>
-                    </select>
                   </Field>
                 </div>
                 <div className="grid g3 mt-4">
