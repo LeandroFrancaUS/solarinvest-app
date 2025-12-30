@@ -18335,42 +18335,6 @@ export default function App() {
     </>
   )
 
-  const renderBudgetModeToggle = () => {
-    const helperText =
-      modoOrcamento === 'auto'
-        ? 'Preencha poucos campos e o sistema calcula o orçamento.'
-        : 'Use o modo manual para valores personalizados.'
-
-    return (
-      <section className="card">
-        <h2>Modo de orçamento</h2>
-        <div className="toggle-group" role="radiogroup" aria-label="Selecionar modo de orçamento">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={modoOrcamento === 'auto'}
-            className={`toggle-option${modoOrcamento === 'auto' ? ' active' : ''}`}
-            onClick={() => setModoOrcamento('auto')}
-          >
-            Orçamento automático
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={modoOrcamento === 'manual'}
-            className={`toggle-option${modoOrcamento === 'manual' ? ' active' : ''}`}
-            onClick={() => setModoOrcamento('manual')}
-          >
-            Orçamento manual
-          </button>
-        </div>
-        <p className="muted" role="status">
-          {helperText}
-        </p>
-      </section>
-    )
-  }
-
     return (
       <section className="card">
         <div className="card-header">
@@ -20281,7 +20245,40 @@ export default function App() {
                     </div>
                     ) : null}
                     {renderClienteDadosSection()}
-                    {activeTab === 'vendas' ? renderBudgetModeToggle() : null}
+                    {activeTab === 'vendas' ? (
+                      <section className="card">
+                        <h2>Modo de orçamento</h2>
+                        <div
+                          className="toggle-group"
+                          role="radiogroup"
+                          aria-label="Selecionar modo de orçamento"
+                        >
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={modoOrcamento === 'auto'}
+                            className={`toggle-option${modoOrcamento === 'auto' ? ' active' : ''}`}
+                            onClick={() => setModoOrcamento('auto')}
+                          >
+                            Orçamento automático
+                          </button>
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={modoOrcamento === 'manual'}
+                            className={`toggle-option${modoOrcamento === 'manual' ? ' active' : ''}`}
+                            onClick={() => setModoOrcamento('manual')}
+                          >
+                            Orçamento manual
+                          </button>
+                        </div>
+                        <p className="muted" role="status">
+                          {modoOrcamento === 'auto'
+                            ? 'Preencha poucos campos e o sistema calcula o orçamento.'
+                            : 'Use o modo manual para valores personalizados.'}
+                        </p>
+                      </section>
+                    ) : null}
                     {activeTab === 'leasing' ? renderLeasingContratoSection() : null}
                     {renderPropostaImagensSection()}
               {activeTab === 'leasing' ? (
