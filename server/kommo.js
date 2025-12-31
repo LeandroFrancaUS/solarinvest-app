@@ -245,6 +245,18 @@ export const handleKommoPreAnaliseRequest = async (req, res, { readJsonBody }) =
   const utmCampaignFieldId = parseEnvId(process.env.KOMMO_LEAD_FIELD_ID_UTM_CAMPAIGN)
   const utmContentFieldId = parseEnvId(process.env.KOMMO_LEAD_FIELD_ID_UTM_CONTENT)
 
+  if (!contactEmailFieldId || !contactPhoneFieldId) {
+    console.error('[kommo] Campos de contato ausentes ou inválidos', {
+      requestId,
+      emailFieldConfigured: Boolean(contactEmailFieldId),
+      phoneFieldConfigured: Boolean(contactPhoneFieldId),
+    })
+    res.statusCode = 503
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.end(JSON.stringify({ ok: false, message: 'Integração indisponível no momento.' }))
+    return
+  }
+
   let existingContactId = null
   try {
     const existingContact = await findExistingContact({
