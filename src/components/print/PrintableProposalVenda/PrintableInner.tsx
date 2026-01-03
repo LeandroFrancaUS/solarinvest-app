@@ -264,6 +264,25 @@ function PrintableProposalInner(
   )
 
   const printableBudgetItems = useMemo(() => orcamentoItens ?? [], [orcamentoItens])
+  const printableBudgetTotal = useMemo(() => {
+    let total = 0
+    let added = false
+
+    printableBudgetItems.forEach((item) => {
+      const valorTotal = Number.isFinite(item.valorTotal)
+        ? Number(item.valorTotal)
+        : Number.isFinite(item.valorUnitario) && Number.isFinite(item.quantidade)
+        ? Number(item.valorUnitario) * Number(item.quantidade)
+        : null
+
+      if (valorTotal != null && Math.abs(valorTotal) > 0) {
+        total += valorTotal
+        added = true
+      }
+    })
+
+    return added ? total : null
+  }, [printableBudgetItems])
   const inverterItems = useMemo(
     () =>
       printableBudgetItems.filter((item) =>
@@ -691,6 +710,8 @@ function PrintableProposalInner(
     ? Number(kitValorOrcamentoResumo)
     : hasNonZero(kitValorOrcamentoSnapshot)
     ? Number(kitValorOrcamentoSnapshot)
+    : hasNonZero(printableBudgetTotal)
+    ? Number(printableBudgetTotal)
     : null
   const kitFotovoltaicoLabel =
     kitFotovoltaicoValorNumero != null ? currency(kitFotovoltaicoValorNumero) : '—'
@@ -782,7 +803,12 @@ function PrintableProposalInner(
       margemOperacionalNumero,
     ].filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor))
     if (valores.length === 0) {
-      return null
+      const fallbackValor = pickPositive(
+        usarCustoFinalAuto ? custoFinalAutoNumero : null,
+        valorTotalPropostaPrincipalNumero,
+        printableBudgetTotal,
+      )
+      return fallbackValor
     }
     return valores.reduce((total, valor) => total + valor, 0)
   })()
