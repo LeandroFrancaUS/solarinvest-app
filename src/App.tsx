@@ -85,7 +85,7 @@ import {
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
-import { calcPotenciaSistemaKwp } from './lib/pricing/pricingPorKwp'
+import { calcPotenciaSistemaKwp, getRedeByPotencia } from './lib/pricing/pricingPorKwp'
 import { ensureProposalId, normalizeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
@@ -3365,6 +3365,7 @@ export default function App() {
   const [usarEnderecoCliente, setUsarEnderecoCliente] = useState(false)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'monofasico')
+  const [tipoRedeControle, setTipoRedeControle] = useState<'auto' | 'manual'>('auto')
   const tipoRedeLabel = useMemo(
     () => TIPOS_REDE.find((rede) => rede.value === tipoRede)?.label ?? tipoRede,
     [tipoRede],
@@ -6041,6 +6042,23 @@ export default function App() {
   const vendaAutoPotenciaKwp = useMemo(() => vendaPotenciaCalculada?.potenciaKwp ?? null, [
     vendaPotenciaCalculada?.potenciaKwp,
   ])
+
+  const tipoRedeAutoSugestao = useMemo<TipoRede | null>(() => {
+    if (!Number.isFinite(potenciaInstaladaKwp) || potenciaInstaladaKwp <= 0) {
+      return null
+    }
+
+    const rede = getRedeByPotencia(potenciaInstaladaKwp)
+    return rede === 'mono' ? 'monofasico' : 'trifasico'
+  }, [potenciaInstaladaKwp])
+
+  useEffect(() => {
+    if (tipoRedeControle !== 'auto') return
+    if (!tipoRedeAutoSugestao) return
+    if (tipoRede === tipoRedeAutoSugestao) return
+
+    setTipoRede(tipoRedeAutoSugestao)
+  }, [tipoRedeControle, tipoRedeAutoSugestao, tipoRede])
 
   const parseUcBeneficiariaConsumo = (valor: string): number => {
     const normalizado = valor.replace(/\./g, '').replace(',', '.')
@@ -13218,6 +13236,7 @@ export default function App() {
     setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
     setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
     setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
+    setTipoRedeControle('auto')
     setPotenciaModuloDirty(false)
     setTipoInstalacao(normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao))
     setTipoInstalacaoOutro(INITIAL_VALUES.tipoInstalacaoOutro)
@@ -15670,6 +15689,16 @@ export default function App() {
     }
   }
 
+  const handleTipoRedeSelection = useCallback(
+    (value: TipoRede, controle: 'auto' | 'manual' = 'manual') => {
+      if (controle === 'manual') {
+        setTipoRedeControle('manual')
+      }
+      setTipoRede(value)
+    },
+    [],
+  )
+
   const renderConfiguracaoUsinaSection = () => (
     <section className="card configuracao-usina-card">
       <div className="configuracao-usina-card__header">
@@ -15770,7 +15799,7 @@ export default function App() {
         >
           <select
             value={tipoRede}
-            onChange={(event) => setTipoRede(event.target.value as TipoRede)}
+            onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
           >
             {TIPOS_REDE.map((rede) => (
               <option key={rede.value} value={rede.value}>
@@ -16318,20 +16347,20 @@ export default function App() {
             <option value="OFF_GRID">Off-grid</option>
           </select>
         </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de rede',
-            'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
-          )}
-        >
-          <select
-            value={tipoRede}
-            onChange={(event) => setTipoRede(event.target.value as TipoRede)}
+          <Field
+            label={labelWithTooltip(
+              'Tipo de rede',
+              'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
+            )}
           >
-            {TIPOS_REDE.map((rede) => (
-              <option key={rede.value} value={rede.value}>
-                {rede.label}
-              </option>
+            <select
+              value={tipoRede}
+              onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
+            >
+              {TIPOS_REDE.map((rede) => (
+                <option key={rede.value} value={rede.value}>
+                  {rede.label}
+                </option>
             ))}
           </select>
         </Field>
@@ -20418,7 +20447,41 @@ export default function App() {
                 </div>
                 <div className="grid g3 mt-4">
                   <Field label="Tipo de rede">
-                    <span className="pill">Auto</span>
+                    <div className="grid g1 gap-1">
+                      <select
+                        value={tipoRedeControle === 'auto' ? 'auto' : tipoRede}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          if (value === 'auto') {
+                            setTipoRedeControle('auto')
+                            if (tipoRedeAutoSugestao) {
+                              setTipoRede(tipoRedeAutoSugestao)
+                            }
+                            return
+                          }
+                          handleTipoRedeSelection(value as TipoRede, 'manual')
+                        }}
+                      >
+                        <option value="auto">Automático</option>
+                        {TIPOS_REDE.map((rede) => (
+                          <option key={rede.value} value={rede.value}>
+                            {rede.label}
+                          </option>
+                        ))}
+                      </select>
+                      {tipoRedeControle === 'auto' ? (
+                        <span className="muted">
+                          {tipoRedeAutoSugestao
+                            ? `Sugerido automaticamente: ${
+                                TIPOS_REDE.find((item) => item.value === tipoRedeAutoSugestao)?.label ??
+                                tipoRedeAutoSugestao
+                              }.`
+                            : 'Aguardando potência para sugerir a rede adequada.'}
+                        </span>
+                      ) : (
+                        <span className="muted">Rede definida manualmente; cálculos usam {tipoRedeLabel}.</span>
+                      )}
+                    </div>
                   </Field>
                   <Field label="Kit solar (R$)">
                     <input readOnly placeholder="—" />
