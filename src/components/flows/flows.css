@@ -1,0 +1,302 @@
+.flow-scaffold {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.flow-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.flow-breadcrumbs {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.flow-heading h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.flow-subtitle {
+  margin: 4px 0 0;
+  color: #4b5563;
+}
+
+.flow-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.flow-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flow-sidebar {
+  position: sticky;
+  top: 12px;
+}
+
+.wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wizard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.wizard-progress {
+  margin: 0;
+  color: #6b7280;
+}
+
+.wizard-description {
+  margin: 4px 0 0;
+  color: #4b5563;
+}
+
+.wizard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wizard-nav button {
+  margin-left: 8px;
+}
+
+.wizard-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wizard-progress-bar {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.wizard-progress-bar-inner {
+  height: 6px;
+  background: #2563eb;
+}
+
+.wizard-steps {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wizard-step {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wizard-step.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.wizard-step-index {
+  font-weight: 600;
+}
+
+.step-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.step-card-header h3 {
+  margin: 0;
+}
+
+.step-card-description {
+  margin: 4px 0 0;
+  color: #4b5563;
+}
+
+.step-card-body {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.muted {
+  color: #6b7280;
+  margin: 0;
+}
+
+.inline-validation {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.inline-validation ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.sticky-summary {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sticky-summary-kpis {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.sticky-summary-kpi {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sticky-summary-kpi dd {
+  margin: 0;
+  text-align: right;
+}
+
+.sticky-summary-checklist ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.sticky-summary-checklist li.pending {
+  color: #b45309;
+}
+
+.sticky-summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.review-generate {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.assistant-drawer {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.assistant-toggle {
+  background: #0ea5e9;
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.assistant-content {
+  width: 320px;
+  max-height: 60vh;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.primary {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.ghost {
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.linkish {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .flow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-sidebar {
+    position: relative;
+  }
+}
