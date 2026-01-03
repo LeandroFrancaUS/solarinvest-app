@@ -223,6 +223,7 @@ function PrintableProposalInner(
     return null
   }
   const modoOrcamentoPrintable = orcamentoModo ?? null
+  const isOrcamentoAutomatico = modoOrcamentoPrintable === 'auto'
   const custoFinalAutoNumero = pickPositive(orcamentoAutoCustoFinal)
   const usarCustoFinalAuto = modoOrcamentoPrintable === 'auto' && custoFinalAutoNumero != null
   const pickNumeric = (...values: (number | null | undefined)[]): number | null => {
@@ -237,7 +238,7 @@ function PrintableProposalInner(
   const potenciaModuloSeguro = Number(
     pickPositive(potenciaModuloProp, snapshotConfig?.potencia_modulo_wp, parsedPdfResumo?.potencia_da_placa_wp) ?? 0,
   ) || 0
-  const kitPotenciaInstalada = pickPositive(
+  const kitPotenciaInstaladaBase = pickPositive(
     snapshotConfig?.potencia_sistema_kwp,
     vendaFormResumo?.potencia_instalada_kwp,
     parsedPdfResumo?.potencia_instalada_kwp,
@@ -264,6 +265,25 @@ function PrintableProposalInner(
   )
 
   const printableBudgetItems = useMemo(() => orcamentoItens ?? [], [orcamentoItens])
+  const printableBudgetTotal = useMemo(() => {
+    let total = 0
+    let added = false
+
+    printableBudgetItems.forEach((item) => {
+      const valorTotal = Number.isFinite(item.valorTotal)
+        ? Number(item.valorTotal)
+        : Number.isFinite(item.valorUnitario) && Number.isFinite(item.quantidade)
+        ? Number(item.valorUnitario) * Number(item.quantidade)
+        : null
+
+      if (valorTotal != null && Math.abs(valorTotal) > 0) {
+        total += valorTotal
+        added = true
+      }
+    })
+
+    return added ? total : null
+  }, [printableBudgetItems])
   const inverterItems = useMemo(
     () =>
       printableBudgetItems.filter((item) =>
@@ -359,8 +379,51 @@ function PrintableProposalInner(
     moduleDescricaoCatalogo,
   ) ?? MODELO_MODULO_PADRAO
 
-  const inverterQuantidade = pickPositive(inverterQuantidadeCatalogo)
-  const moduleQuantidade = pickPositive(kitQuantidadeModulos, moduleQuantidadeCatalogo)
+  const moduleQuantidadeManual = useMemo(() => {
+    if (!isOrcamentoAutomatico) {
+      return null
+    }
+
+    if (!hasNonZero(kitPotenciaInstaladaBase)) {
+      return null
+    }
+
+    if (!hasNonZero(potenciaModuloSeguro)) {
+      return null
+    }
+
+    return Math.ceil(((kitPotenciaInstaladaBase ?? 0) * 1000) / (potenciaModuloSeguro ?? 1))
+  }, [isOrcamentoAutomatico, kitPotenciaInstaladaBase, potenciaModuloSeguro])
+
+  const moduleQuantidade = pickPositive(kitQuantidadeModulos, moduleQuantidadeCatalogo, moduleQuantidadeManual)
+
+  const kitPotenciaInstaladaCalculada = useMemo(() => {
+    if (!hasNonZero(moduleQuantidade)) {
+      return null
+    }
+
+    if (!hasNonZero(potenciaModuloSeguro)) {
+      return null
+    }
+
+    return (Math.round((moduleQuantidade ?? 0) * (potenciaModuloSeguro ?? 0) * 100) / 100) / 1000
+  }, [moduleQuantidade, potenciaModuloSeguro])
+
+  const kitPotenciaInstalada = pickPositive(kitPotenciaInstaladaBase, kitPotenciaInstaladaCalculada)
+
+  const inverterQuantidadeEstimativa = useMemo(() => {
+    if (!isOrcamentoAutomatico) {
+      return null
+    }
+
+    if (hasNonZero(inverterQuantidadeCatalogo)) {
+      return null
+    }
+
+    return hasNonZero(kitPotenciaInstalada) ? 1 : null
+  }, [inverterQuantidadeCatalogo, isOrcamentoAutomatico, kitPotenciaInstalada])
+
+  const inverterQuantidade = pickPositive(inverterQuantidadeCatalogo, inverterQuantidadeEstimativa)
 
   const formatEquipmentQuantidade = (valor: number | null, unidade: string) => {
     if (!Number.isFinite(valor) || (valor ?? 0) <= 0) {
@@ -691,6 +754,8 @@ function PrintableProposalInner(
     ? Number(kitValorOrcamentoResumo)
     : hasNonZero(kitValorOrcamentoSnapshot)
     ? Number(kitValorOrcamentoSnapshot)
+    : hasNonZero(printableBudgetTotal)
+    ? Number(printableBudgetTotal)
     : null
   const kitFotovoltaicoLabel =
     kitFotovoltaicoValorNumero != null ? currency(kitFotovoltaicoValorNumero) : '—'
@@ -782,7 +847,12 @@ function PrintableProposalInner(
       margemOperacionalNumero,
     ].filter((valor): valor is number => typeof valor === 'number' && Number.isFinite(valor))
     if (valores.length === 0) {
-      return null
+      const fallbackValor = pickPositive(
+        usarCustoFinalAuto ? custoFinalAutoNumero : null,
+        valorTotalPropostaPrincipalNumero,
+        printableBudgetTotal,
+      )
+      return fallbackValor
     }
     return valores.reduce((total, valor) => total + valor, 0)
   })()
