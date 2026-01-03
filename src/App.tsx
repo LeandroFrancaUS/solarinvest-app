@@ -137,6 +137,8 @@ import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
+import { VendasFlowV6 } from './pages-v6/VendasFlowV6'
+import { LeasingFlowV6 } from './pages-v6/LeasingFlowV6'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/simulacoes/SimulacoesTab'
@@ -3135,6 +3137,7 @@ export default function App() {
     const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
+  const [useLegacyFlow, setUseLegacyFlow] = useState(false)
   const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>('nova')
   const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
   const [aprovacaoChecklist, setAprovacaoChecklist] = useState<
@@ -18683,6 +18686,30 @@ export default function App() {
     )
   }
 
+  const LegacyVendasView = () => (
+    <>
+      {renderClienteDadosSection()}
+      {renderParametrosPrincipaisSection()}
+      {renderVendaParametrosSection()}
+      {renderVendaConfiguracaoSection()}
+      {renderVendaResumoPublicoSection()}
+      {renderComposicaoUfvSection()}
+      {renderCondicoesPagamentoSection()}
+      {renderRetornoProjetadoSection()}
+    </>
+  )
+
+  const LegacyLeasingView = () => (
+    <>
+      {renderClienteDadosSection()}
+      {renderLeasingContratoSection()}
+      {renderParametrosPrincipaisSection()}
+      {renderConfiguracaoUsinaSection()}
+      {renderCondicoesPagamentoSection()}
+      {renderRetornoProjetadoSection()}
+    </>
+  )
+
   const contentActions = activePage === 'crm' ? crmPageActions : null
   const contentSubtitle =
     activePage === 'dashboard'
@@ -18715,6 +18742,61 @@ export default function App() {
                   ? 'Vendas'
                   : 'Leasing'
   const topbarSubtitle = contentSubtitle
+
+  const vendasSectionsV6 = {
+    cliente: renderClienteDadosSection,
+    consumo: () => (
+      <>
+        {renderParametrosPrincipaisSection()}
+        {renderTusdParametersSection()}
+        {renderPropostaImagensSection()}
+      </>
+    ),
+    sistema: () => (
+      <>
+        {renderVendaParametrosSection()}
+        {renderVendaConfiguracaoSection()}
+      </>
+    ),
+    kitCustos: () => (
+      <>
+        {renderVendaResumoPublicoSection()}
+        {renderComposicaoUfvSection()}
+      </>
+    ),
+    resultados: () => (
+      <>
+        {renderCondicoesPagamentoSection()}
+        {renderRetornoProjetadoSection()}
+      </>
+    ),
+    gerar: renderPropostaImagensSection,
+  }
+
+  const leasingSectionsV6 = {
+    cliente: renderClienteDadosSection,
+    consumo: () => (
+      <>
+        {renderParametrosPrincipaisSection()}
+        {renderTusdParametersSection()}
+      </>
+    ),
+    sistema: renderConfiguracaoUsinaSection,
+    oferta: renderLeasingContratoSection,
+    resultados: () => (
+      <>
+        {renderCondicoesPagamentoSection()}
+        {renderRetornoProjetadoSection()}
+      </>
+    ),
+    gerar: renderPropostaImagensSection,
+  }
+
+  const potenciaInstaladaResumo = vendaForm.potencia_instalada_kwp ?? null
+  const geracaoMensalResumo = vendaForm.geracao_estimada_kwh_mes ?? null
+  const capexTotalResumo = valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? null
+  const valorKitResumo = autoKitValor != null ? formatBRL(autoKitValor) : null
+  const modoOrcamentoLabel = isManualBudgetForced || modoOrcamento === 'manual' ? 'Manual' : 'Automático'
 
   const sidebarGroups: SidebarGroup[] = [
     {
@@ -20205,695 +20287,90 @@ export default function App() {
           <div className="page">
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
-              {orcamentoAtivoInfo ? (
-                <section className="card loaded-budget-viewer">
-                  <div className="card-header loaded-budget-header">
-                    <h2>
-                      Editando orçamento <strong>{orcamentoAtivoInfo.id}</strong>
-                    </h2>
-                    <div className="loaded-budget-actions">
-                      <span>
-                        Cliente: <strong>{orcamentoAtivoInfo.cliente}</strong>
-                      </span>
-                      {(orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar)?.snapshot ? (
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={duplicarOrcamentoAtual}
-                        >
-                          Duplicar
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                  <p className="loaded-budget-subtitle">
-                    As alterações realizadas abaixo serão mantidas até que você salve a proposta novamente.
-                  </p>
-                </section>
-              ) : null}
-              <div className="page-editable">
-                <div ref={editableContentRef} className="page-editable-body">
-                  {isVendaDiretaTab || orcamentoAtivoInfo ? (
-                    <div className="page-actions">
-                      {isVendaDiretaTab ? (
-                        <button type="button" className="ghost" onClick={handleRecalcularVendas}>
-                          Recalcular
-                        </button>
-                      ) : null}
-                      {(orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar)?.snapshot ? (
-                        <button
-                          type="button"
-                          className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
-                          onClick={duplicarOrcamentoAtual}
-                        >
-                          Duplicar
-                        </button>
-                      ) : null}
-                    </div>
-                    ) : null}
-                    {renderClienteDadosSection()}
-                    {activeTab === 'vendas' ? (
-                      <>
-                        <section className="card">
-                          <h2>Tipo de instalação e sistema</h2>
-                          <div className="grid g2">
-                            <Field label="Tipo de instalação">
-                              <select
-                                value={tipoInstalacao}
-                                onChange={(event) =>
-                                  handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
-                                }
-                                aria-label="Selecionar tipo de instalação"
-                              >
-                                {TIPOS_INSTALACAO.map((opt) => (
-                                  <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </option>
-                                ))}
-                              </select>
-                              {tipoInstalacao === 'outros' ? (
-                                <input
-                                  type="text"
-                                  placeholder="Descreva o tipo de instalação"
-                                  value={tipoInstalacaoOutro || ''}
-                                  onChange={(event) => setTipoInstalacaoOutro(event.target.value)}
-                                  style={{ marginTop: '6px' }}
-                                />
-                              ) : null}
-                            </Field>
-                            <Field label="Tipo de sistema">
-                              <div
-                                className="toggle-group"
-                                role="radiogroup"
-                                aria-label="Selecionar tipo de sistema"
-                              >
-                                {TIPO_SISTEMA_VALUES.map((value) => (
-                                  <button
-                                    key={value}
-                                    type="button"
-                                    role="radio"
-                                    aria-checked={tipoSistema === value}
-                                    className={`toggle-option${
-                                      tipoSistema === value ? ' active' : ''
-                                    }`}
-                                    onClick={() => handleTipoSistemaChange(value)}
-                                  >
-                                    {value === 'ON_GRID'
-                                      ? 'On-grid'
-                                      : value === 'HIBRIDO'
-                                      ? 'Híbrido'
-                                      : 'Off-grid'}
-                                  </button>
-                                ))}
-                              </div>
-                            </Field>
-                          </div>
-                          {isManualBudgetForced ? (
-                            <p className="warning" role="alert">
-                              {manualBudgetForceReason}
-                            </p>
-                          ) : null}
-                        </section>
-                        <section className="card">
-                          <h2>Modo de orçamento</h2>
-                          <div
-                            className="toggle-group"
-                            role="radiogroup"
-                            aria-label="Selecionar modo de orçamento"
-                          >
-                            <button
-                              type="button"
-                              role="radio"
-                              aria-checked={modoOrcamento === 'auto'}
-                              aria-disabled={isManualBudgetForced}
-                              disabled={isManualBudgetForced}
-                              className={`toggle-option${modoOrcamento === 'auto' ? ' active' : ''}${
-                                isManualBudgetForced ? ' disabled' : ''
-                              }`}
-                              onClick={() => handleModoOrcamentoChange('auto')}
-                            >
-                              Orçamento automático
-                            </button>
-                            <button
-                              type="button"
-                              role="radio"
-                              aria-checked={modoOrcamento === 'manual'}
-                              className={`toggle-option${modoOrcamento === 'manual' ? ' active' : ''}`}
-                              onClick={() => handleModoOrcamentoChange('manual')}
-                            >
-                              Orçamento manual
-                            </button>
-                          </div>
-                          <p className="muted" role="status">
-                            {isManualBudgetForced
-                              ? manualBudgetForceReason
-                              : modoOrcamento === 'auto'
-                              ? 'Preencha poucos campos e o sistema calcula o orçamento.'
-                              : 'Use o modo manual para valores personalizados.'}
-                          </p>
-                          {modoOrcamento === 'manual' && autoBudgetFallbackMessage ? (
-                            <p className="warning" role="alert" style={{ marginTop: '8px' }}>
-                              {autoBudgetFallbackMessage}
-                            </p>
-                          ) : null}
-                        </section>
-                      </>
-                    ) : null}
-                    {activeTab === 'leasing' ? renderLeasingContratoSection() : null}
-                    {renderPropostaImagensSection()}
-              {activeTab === 'leasing' ? (
-                <>
-                  {renderParametrosPrincipaisSection()}
-                  {renderConfiguracaoUsinaSection()}
-                  <section className="card">
-                    <div className="card-header">
-                      <h2>SolarInvest Leasing</h2>
-                      <div className="card-actions">
-                        <button
-                          type="button"
-                          className="primary"
-                          onClick={handleSalvarPropostaLeasing}
-                          disabled={!podeSalvarProposta || salvandoPropostaLeasing}
-                        >
-                          {salvandoPropostaLeasing ? 'Salvando…' : 'Salvar proposta'}
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={handleSalvarPropostaLeasing}
-                          disabled={salvandoPropostaLeasing}
-                        >
-                          Refresh
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid g3">
-                      <Field
-                        label={labelWithTooltip(
-                          'Entrada (R$)',
-                          'Entrada inicial do leasing. Pode gerar crédito mensal: Entrada ÷ Prazo contratual (meses).',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={entradaRs}
-                          onChange={(e) => {
-                            const parsed = Number(e.target.value)
-                            setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                          }}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Desconto contratual (%)',
-                          'Percentual aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto).',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={desconto}
-                          onChange={(e) => setDesconto(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Prazo do leasing',
-                          'Duração do contrato de leasing em anos. Prazo em meses = anos × 12.',
-                        )}
-                      >
-                        <select
-                          value={leasingPrazo}
-                          onChange={(e) => setLeasingPrazo(Number(e.target.value) as LeasingPrazoAnos)}
-                        >
-                          {LEASING_PRAZO_OPCOES.map((valor) => (
-                            <option key={valor} value={valor}>
-                              {`${formatLeasingPrazoAnos(valor)} anos`}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    </div>
-
-                    <div className="info-inline">
-                      <span className="pill">
-                        <InfoTooltip text="Calculado como Potência do sistema (kWp) × Preço por kWp (R$)." />
-                        Valor do Investimento
-                        <strong>{currency(capex)}</strong>
-                      </span>
-                      <span className="pill">
-                        <InfoTooltip text="Tarifa com desconto = Tarifa cheia ajustada pelos reajustes anuais × (1 - desconto contratual)." />
-                        Tarifa c/ desconto
-                        <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
-                      </span>
-                      {modoEntradaNormalizado === 'REDUZ' ? (
-                        <span className="pill">
-                          Piso contratado ajustado
-                          <InfoTooltip text="Piso ajustado = Consumo contratado × (1 - min(1, Entrada ÷ (Consumo × Tarifa cheia × (1 - desconto) × Prazo)))." />
-                          :{' '}
-                          <strong>
-                            {`${formatNumberBRWithOptions(parcelasSolarInvest.kcAjustado, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0,
-                            })} kWh`}
-                          </strong>
+                {orcamentoAtivoInfo ? (
+                  <section className="card loaded-budget-viewer">
+                    <div className="card-header loaded-budget-header">
+                      <h2>
+                        Editando orçamento <strong>{orcamentoAtivoInfo.id}</strong>
+                      </h2>
+                      <div className="loaded-budget-actions">
+                        <span>
+                          Cliente: <strong>{orcamentoAtivoInfo.cliente}</strong>
                         </span>
-                      ) : null}
-                      {modoEntradaNormalizado === 'CREDITO' ? (
-                        <span className="pill">
-                          Crédito mensal da entrada:
-                          <InfoTooltip text="Crédito mensal = Valor de entrada ÷ Prazo contratual (em meses)." />
-                          <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="grid g3">
-                      <Field label=" ">
-                        <label className="inline-checkbox inline-checkbox--small flex items-center gap-2">
-                          <CheckboxSmall
-                            aria-label="Apresentar valor de mercado na proposta"
-                            checked={mostrarValorMercadoLeasing}
-                            onChange={(event) =>
-                              setMostrarValorMercadoLeasing(event.target.checked)
-                            }
-                          />
-                          <span>Apresentar valor de mercado na proposta</span>
-                        </label>
-                      </Field>
-                    </div>
-
-                    <div className="table-controls">
-                      <button
-                        type="button"
-                        className="collapse-toggle"
-                        onClick={() => setMostrarTabelaParcelas((prev) => !prev)}
-                        aria-expanded={mostrarTabelaParcelas}
-                        aria-controls="parcelas-solarinvest-tabela"
-                      >
-                        {mostrarTabelaParcelas ? 'Ocultar tabela de parcelas' : 'Exibir tabela de parcelas'}
-                      </button>
-                    </div>
-                    {mostrarTabelaParcelas ? (
-                      <div className="table-wrapper">
-                        <table id="parcelas-solarinvest-tabela">
-                          <thead>
-                            <tr>
-                              <th>Mês</th>
-                              <th>Tarifa por kWh</th>
-                              <th>Tarifa c/ desconto (R$/kWh)</th>
-                              <th>MENSALIDADE CHEIA</th>
-                              <th>TUSD (R$)</th>
-                              <th>MENSALIDADE COM LEASING</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {parcelasSolarInvest.lista.length > 0 ? (
-                              parcelasSolarInvest.lista.map((row) => (
-                                <tr key={row.mes}>
-                                  <td>{row.mes}</td>
-                                  <td>{tarifaCurrency(row.tarifaCheia)}</td>
-                                  <td>{tarifaCurrency(row.tarifaDescontada)}</td>
-                                  <td>{currency(row.mensalidadeCheia)}</td>
-                                  <td>{currency(row.tusd)}</td>
-                                  <td>{currency(row.mensalidade)}</td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan={6} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : null}
-                  </section>
-
-            <div className="grid g2">
-              <section className="card">
-                <h2>Leasing — Mensalidades</h2>
-                <div className="list-col">
-                  {leasingMensalidades.map((valor, index) => (
-                    <div className="list-row" key={`leasing-m${index}`}>
-                      <span>Ano {index + 1}</span>
-                      <strong>{currency(valor)}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div className="notice">
-                  <div className="dot" />
-                  <div>
-                    <p className="notice-title">Fim do prazo</p>
-                    <p className="notice-sub">
-                      Após {formatLeasingPrazoAnos(leasingPrazo)} anos a curva acelera: 100% do retorno fica com o cliente.
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-              <section className="card">
-                <div className="card-header">
-                  <h2>Financiamento — Mensalidades</h2>
-                  <span className="toggle-label">Coluna ativa: {mostrarFinanciamento ? 'Sim' : 'Não'}</span>
-                </div>
-                {mostrarFinanciamento ? (
-                  <div className="list-col">
-                    {financiamentoMensalidades.map((valor, index) => (
-                      <div className="list-row" key={`fin-m${index}`}>
-                        <span>Ano {index + 1}</span>
-                        <strong>{currency(valor)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="muted">Habilite nas configurações para comparar a coluna de financiamento.</p>
-                )}
-              </section>
-            </div>
-
-          </>
-        ) : (
-          <>
-            {modoOrcamento === 'auto' ? (
-              <section className="card">
-                <h2>Orçamento automático</h2>
-                <div className="grid g2">
-                  <Field label="Consumo (kWh/mês)">
-                    <input
-                      type="number"
-                      placeholder="Ex.: 800"
-                      inputMode="decimal"
-                      value={kcKwhMes || ''}
-                      onChange={(event) => setKcKwhMes(Number(event.target.value) || 0, 'user')}
-                    />
-                  </Field>
-                  <Field label="Potência (kWp)">
-                    <input
-                      type="number"
-                      placeholder="Ex.: 5.5"
-                      inputMode="decimal"
-                      value={
-                        potenciaFonteManual
-                          ? vendaForm.potencia_instalada_kwp ?? ''
-                          : vendaAutoPotenciaKwp ?? ''
-                      }
-                      onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
-                    />
-                  </Field>
-                </div>
-                <div className="grid g3 mt-4">
-                  <Field label="Tipo de rede">
-                    <div className="grid g1 gap-1">
-                      <select
-                        value={tipoRedeControle === 'auto' ? 'auto' : tipoRede}
-                        onChange={(event) => {
-                          const value = event.target.value
-                          if (value === 'auto') {
-                            setTipoRedeControle('auto')
-                            if (tipoRedeAutoSugestao) {
-                              setTipoRede(tipoRedeAutoSugestao)
-                            }
-                            return
-                          }
-                          handleTipoRedeSelection(value as TipoRede, 'manual')
-                        }}
-                      >
-                        <option value="auto">Automático</option>
-                        {TIPOS_REDE.map((rede) => (
-                          <option key={rede.value} value={rede.value}>
-                            {rede.label}
-                          </option>
-                        ))}
-                      </select>
-                      {tipoRedeControle === 'auto' ? (
-                        <span className="muted">
-                          {tipoRedeAutoSugestao
-                            ? `Sugerido automaticamente: ${
-                                TIPOS_REDE.find((item) => item.value === tipoRedeAutoSugestao)?.label ??
-                                tipoRedeAutoSugestao
-                              }.`
-                            : 'Aguardando potência para sugerir a rede adequada.'}
-                        </span>
-                      ) : (
-                        <span className="muted">Rede definida manualmente; cálculos usam {tipoRedeLabel}.</span>
-                      )}
-                    </div>
-                  </Field>
-                  <Field label="Kit solar (R$)">
-                    <input
-                      readOnly
-                      placeholder="—"
-                      value={autoKitValor != null ? formatBRL(autoKitValor) : ''}
-                    />
-                  </Field>
-                  <Field label="Custo final projetado (R$)">
-                    <input
-                      readOnly
-                      placeholder="—"
-                      value={autoCustoFinal != null ? formatBRL(autoCustoFinal) : ''}
-                    />
-                  </Field>
-                </div>
-                {autoPricingVersion ? (
-                  <p className="muted" style={{ marginTop: '12px' }}>
-                    Regra de pricing aplicada: {autoPricingVersion}
-                  </p>
-                ) : null}
-              </section>
-            ) : null}
-            {modoOrcamento === 'manual' ? (
-              <>
-                {renderVendaParametrosSection()}
-                {renderVendaConfiguracaoSection()}
-                {renderVendaResumoPublicoSection()}
-                {renderComposicaoUfvSection()}
-                <section className="card">
-                  <h2>Upload de Orçamento</h2>
-                  <div className="budget-upload-section">
-                    <p className="muted">
-                      Envie um orçamento em PDF ou imagem (PNG/JPG) para extrair automaticamente os itens e valores do kit solar.
-                    </p>
-                    <div className="budget-upload-control">
-                      <input
-                        ref={budgetUploadInputRef}
-                        id={budgetUploadInputId}
-                        className="budget-upload-input"
-                        type="file"
-                        accept="application/pdf,image/png,image/jpeg"
-                        onChange={handleBudgetFileChange}
-                        disabled={isBudgetProcessing}
-                      />
-                      <label
-                        htmlFor={budgetUploadInputId}
-                        className={`budget-upload-trigger${isBudgetProcessing ? ' disabled' : ''}`}
-                      >
-                        <span aria-hidden="true">📎</span>
-                        <span>Selecionar arquivo</span>
-                      </label>
-                      <div className="budget-upload-dpi">
-                        <label htmlFor="budget-ocr-dpi">Resolução do OCR</label>
-                        <select
-                          id="budget-ocr-dpi"
-                          value={ocrDpi}
-                          onChange={(event) => setOcrDpi(Number(event.target.value) as 200 | 300 | 400)}
-                          disabled={isBudgetProcessing}
-                        >
-                          <option value={200}>200 DPI</option>
-                          <option value={300}>300 DPI (padrão)</option>
-                          <option value={400}>400 DPI</option>
-                        </select>
-                      </div>
-                      <span className="budget-upload-hint">Envie um orçamento em PDF ou imagem (PNG/JPG).</span>
-                      {isBudgetProcessing ? (
-                        <span className="budget-upload-status">{describeBudgetProgress(budgetProcessingProgress)}</span>
-                      ) : null}
-                      {budgetProcessingError ? <span className="budget-upload-error">{budgetProcessingError}</span> : null}
-                      {!isBudgetProcessing && kitBudget.fileName ? (
-                        <span className="budget-upload-file">
-                          <strong>{kitBudget.fileName}</strong>
-                          {kitBudget.fileSizeBytes ? ` — ${formatFileSize(kitBudget.fileSizeBytes)}` : ''}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                </section>
-                <section className="card">
-                  <h2>Orçamento do Kit Solar</h2>
-                  {kitBudget.fileName ? (
-                    <p className="budget-upload-file">
-                      Arquivo analisado: <strong>{kitBudget.fileName}</strong>
-                      {kitBudget.fileSizeBytes ? ` (${formatFileSize(kitBudget.fileSizeBytes)})` : ''}
-                    </p>
-                  ) : null}
-                  {kitBudget.warnings.length > 0 ? (
-                    <ul className="budget-warning-list">
-                      {kitBudget.warnings.map((warning, index) => (
-                        <li key={`budget-warning-${index}`}>{warning}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {kitBudget.ignoredByNoise > 0 ? (
-                    <span className="budget-noise-badge">
-                      {kitBudget.ignoredByNoise}{' '}
-                      {kitBudget.ignoredByNoise === 1
-                        ? 'item ignorado por filtro de ruído'
-                        : 'itens ignorados por filtro de ruído'}
-                    </span>
-                  ) : null}
-                  <div className="grid g2" style={{ marginTop: '12px' }}>
-                    <Field label="Valor total do orçamento (R$)">
-                      <input
-                        ref={budgetTotalField.ref}
-                        type="text"
-                        inputMode="decimal"
-                        value={budgetTotalField.text}
-                        onChange={budgetTotalField.handleChange}
-                        onBlur={budgetTotalField.handleBlur}
-                        onFocus={(event) => {
-                          budgetTotalField.handleFocus(event)
-                          selectNumberInputOnFocus(event)
-                        }}
-                        placeholder={MONEY_INPUT_PLACEHOLDER}
-                      />
-                      <p className="muted">
-                        Informe manualmente o valor do kit ou deixe em branco para usar a soma dos itens.
-                      </p>
-                    </Field>
-                  </div>
-                  {budgetMissingSummary ? (
-                    <div className="budget-missing-alert">
-                      <div>
-                        <h3>Informações ausentes do documento</h3>
-                        <p>
-                          Não foi possível identificar {budgetMissingSummary.fieldsText} de <strong>módulos e/ou inversor</strong>
-                          {' '}
-                          neste orçamento. Você pode editar manualmente ou reenviar um arquivo em outro formato.
-                        </p>
-                      </div>
-                      <div className="budget-missing-alert-actions">
-                        <button type="button" className="primary" onClick={handleMissingInfoManualEdit}>
-                          Editar manualmente
-                        </button>
-                        <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
-                          Enviar outro arquivo
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-                  {kitBudget.items.length === 0 ? (
-                    <div className="budget-empty">
-                      <p>
-                        Nenhum item de orçamento foi carregado ainda. Faça o upload de um arquivo ou adicione itens manualmente.
-                      </p>
-                      <button type="button" className="ghost" onClick={handleAddBudgetItem}>
-                        Adicionar item manualmente
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="budget-table-toggle">
-                        <button
-                          type="button"
-                          className="ghost with-icon"
-                          aria-expanded={!isBudgetTableCollapsed}
-                          aria-controls={budgetTableContentId}
-                          onClick={() => setIsBudgetTableCollapsed((previous) => !previous)}
-                        >
-                          <span aria-hidden="true">{isBudgetTableCollapsed ? '▸' : '▾'}</span>
-                          <span>
-                            {isBudgetTableCollapsed ? 'Expandir itens do orçamento' : 'Recolher itens do orçamento'}
-                          </span>
-                        </button>
-                      </div>
-                      <div
-                        id={budgetTableContentId}
-                        className={`budget-table card ${isBudgetTableCollapsed ? 'collapsed' : ''}`}
-                        aria-hidden={isBudgetTableCollapsed}
-                      >
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Descrição</th>
-                              <th>Quantidade</th>
-                              <th>Valor unitário</th>
-                              <th>Total</th>
-                              <th />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {kitBudget.items.map((item, index) => (
-                              <tr key={`budget-item-${item.id}`}>
-                                <td>
-                                  <input
-                                    type="text"
-                                    value={item.description}
-                                    onChange={(event) =>
-                                      handleBudgetItemChange(index, { ...item, description: event.target.value })
-                                    }
-                                    placeholder="Descrição do item"
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    value={item.quantity}
-                                    onChange={(event) =>
-                                      handleBudgetItemChange(index, { ...item, quantity: Number(event.target.value) })
-                                    }
-                                    placeholder="Quantidade"
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    step="0.01"
-                                    value={item.unitValue}
-                                    onChange={(event) =>
-                                      handleBudgetItemChange(index, { ...item, unitValue: Number(event.target.value) })
-                                    }
-                                    placeholder="Valor unitário"
-                                  />
-                                </td>
-                                <td>
-                                  <input type="text" value={currency(item.total)} readOnly aria-label="Total do item" />
-                                </td>
-                                <td>
-                                  <button
-                                    type="button"
-                                    className="ghost danger"
-                                    onClick={() => handleRemoveBudgetItem(index)}
-                                  >
-                                    Remover
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <div className="budget-table-footer">
-                          <button type="button" className="ghost" onClick={handleAddBudgetItem}>
-                            Adicionar item
+                        {(orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar)?.snapshot ? (
+                          <button type="button" className="ghost" onClick={duplicarOrcamentoAtual}>
+                            Duplicar
                           </button>
-                          <div className="budget-table-total">
-                            <span>Total do kit:</span> <strong>{currency(kitBudgetTotal)}</strong>
-                          </div>
-                        </div>
+                        ) : null}
                       </div>
-                    </>
-                  )}
-                </section>
-                {renderCondicoesPagamentoSection()}
-                {renderRetornoProjetadoSection()}
-              </>
-            ) : null}
-          </>
-        )}
+                    </div>
+                    <p className="loaded-budget-subtitle">
+                      As alterações realizadas abaixo serão mantidas até que você salve a proposta novamente.
+                    </p>
+                  </section>
+                ) : null}
+                <div className="page-editable">
+                  <div ref={editableContentRef} className="page-editable-body">
+                    {isVendaDiretaTab || orcamentoAtivoInfo ? (
+                      <div className="page-actions">
+                        {isVendaDiretaTab ? (
+                          <button type="button" className="ghost" onClick={handleRecalcularVendas}>
+                            Recalcular
+                          </button>
+                        ) : null}
+                        {(orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar)?.snapshot ? (
+                          <button
+                            type="button"
+                            className={`primary${activeTab === 'leasing' ? ' solid' : ''}`}
+                            onClick={duplicarOrcamentoAtual}
+                          >
+                            Duplicar
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <div
+                      className="flow-v6-toggle-row"
+                      style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}
+                    >
+                      <button type="button" className="ghost" onClick={() => setUseLegacyFlow((prev) => !prev)}>
+                        {useLegacyFlow ? 'Usar Flow V6' : 'Abrir Legacy'}
+                      </button>
+                    </div>
+                    {!useLegacyFlow && activeTab === 'vendas' ? (
+                      <VendasFlowV6
+                        sections={vendasSectionsV6}
+                        cliente={{ nome: cliente.nome }}
+                        consumoMedio={kcKwhMes}
+                        tipoInstalacao={tipoInstalacao}
+                        tipoSistema={tipoSistema}
+                        potenciaInstalada={potenciaInstaladaResumo}
+                        geracaoMensal={geracaoMensalResumo}
+                        valorKit={valorKitResumo}
+                        capexTotal={capexTotalResumo != null ? formatBRL(capexTotalResumo) : null}
+                        modoOrcamentoLabel={modoOrcamentoLabel}
+                        onGenerateProposal={handlePrint}
+                        onToggleLegacy={() => setUseLegacyFlow(true)}
+                      />
+                    ) : null}
+                    {!useLegacyFlow && activeTab === 'leasing' ? (
+                      <LeasingFlowV6
+                        sections={leasingSectionsV6}
+                        cliente={{ nome: cliente.nome }}
+                        consumoMedio={kcKwhMes}
+                        tipoInstalacao={tipoInstalacao}
+                        tipoSistema={tipoSistema}
+                        capexTotal={capexTotalResumo != null ? formatBRL(capexTotalResumo) : null}
+                        geracaoMensal={geracaoMensalResumo}
+                        valorOferta={capexTotalResumo != null ? formatBRL(capexTotalResumo) : null}
+                        onGenerateProposal={handlePrint}
+                        onToggleLegacy={() => setUseLegacyFlow(true)}
+                      />
+                    ) : null}
+                    {useLegacyFlow ? (
+                      activeTab === 'vendas' ? <LegacyVendasView /> : <LegacyLeasingView />
+                    ) : null}
+                  </div>
                 </div>
                 {activeTab === 'leasing' ? (
                   <>
@@ -20901,8 +20378,6 @@ export default function App() {
                     {leasingChartSection}
                   </>
                 ) : null}
-              </div>
-
               </main>
             </div>
           </div>

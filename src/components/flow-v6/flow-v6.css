@@ -1,0 +1,149 @@
+.flow-v6-layout {
+  display: grid;
+  grid-template-columns: 1fr minmax(280px, 360px);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .flow-v6-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.flow-v6-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.flow-v6-title-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.flow-v6-badge {
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.flow-v6-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.flow-v6-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.flow-v6-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+  transition: width 0.2s ease-in-out;
+}
+
+.flow-v6-sidebar {
+  position: sticky;
+  top: 80px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+.flow-v6-sidebar h3 {
+  margin: 0 0 8px;
+}
+
+.flow-v6-kpi {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e5e7eb;
+  font-size: 14px;
+}
+
+.flow-v6-kpi strong {
+  font-weight: 700;
+}
+
+.flow-v6-pendencias {
+  margin: 12px 0;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.flow-v6-pendencias h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.flow-v6-pendencias ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #c2410c;
+}
+
+.flow-v6-cta {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flow-v6-cta button {
+  width: 100%;
+}
+
+.flow-v6-step-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04);
+}
+
+.flow-v6-step-card h3 {
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
+.flow-v6-step-card p {
+  margin-top: 0;
+  color: #6b7280;
+}
+
+.flow-v6-wizard-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .flow-v6-sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-radius: 12px 12px 0 0;
+    z-index: 20;
+  }
+}
