@@ -253,6 +253,8 @@ export type PrintableProposalProps = {
   configuracaoUsinaObservacoes?: string | null | undefined
   multiUcResumo?: PrintableMultiUcResumo | null | undefined
   vendasConfigSnapshot?: PrintableVendasConfig | undefined
+  orcamentoModo?: 'auto' | 'manual' | null | undefined
+  orcamentoAutoCustoFinal?: number | null | undefined
   valorTotalProposta?: number | null | undefined
   economiaEstimativaValor?: number | null | undefined
   economiaEstimativaHorizonteAnos?: number | null | undefined

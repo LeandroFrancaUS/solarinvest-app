@@ -68,7 +68,7 @@ import {
 } from './lib/finance/roi'
 import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
-import { estimateMonthlyGenerationKWh, estimateMonthlyKWh, kwpFromWpQty } from './lib/energy/generation'
+import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import {
   parseVendaPdfText,
   mergeParsedVendaPdfData,
@@ -85,6 +85,20 @@ import {
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
+import {
+  calcPotenciaSistemaKwp,
+  calcPricingPorKwp,
+  formatBRL,
+  getRedeByPotencia,
+  type Rede,
+} from './lib/pricing/pricingPorKwp'
+import {
+  getAutoEligibility,
+  normalizeInstallType,
+  normalizeSystemType,
+  type InstallType,
+  type SystemType,
+} from './lib/pricing/autoEligibility'
 import { ensureProposalId, normalizeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
@@ -938,6 +952,15 @@ type OrcamentoSnapshotData = {
   seguroM: number
   duracaoMeses: number
   pagosAcumAteM: number
+  modoOrcamento: 'auto' | 'manual'
+  autoKitValor: number | null
+  autoCustoFinal: number | null
+  autoPricingRede: Rede | null
+  autoPricingVersion: string | null
+  autoBudgetReason: string | null
+  autoBudgetReasonCode: string | null
+  tipoRede: TipoRede
+  tipoRedeControle: 'auto' | 'manual'
   vendaSnapshot: VendaSnapshot
   leasingSnapshot: LeasingState
 }
@@ -3333,6 +3356,7 @@ export default function App() {
 
   const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
   const [consumoManual, setConsumoManualState] = useState(false)
+  const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
   const [taxaMinima, setTaxaMinimaState] = useState(INITIAL_VALUES.taxaMinima)
@@ -3363,6 +3387,7 @@ export default function App() {
   const [usarEnderecoCliente, setUsarEnderecoCliente] = useState(false)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'monofasico')
+  const [tipoRedeControle, setTipoRedeControle] = useState<'auto' | 'manual'>('auto')
   const tipoRedeLabel = useMemo(
     () => TIPOS_REDE.find((rede) => rede.value === tipoRede)?.label ?? tipoRede,
     [tipoRede],
@@ -3377,6 +3402,12 @@ export default function App() {
   )
   const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
   const [modoOrcamento, setModoOrcamento] = useState<'auto' | 'manual'>('auto')
+  const [autoKitValor, setAutoKitValor] = useState<number | null>(null)
+  const [autoCustoFinal, setAutoCustoFinal] = useState<number | null>(null)
+  const [autoPricingRede, setAutoPricingRede] = useState<Rede | null>(null)
+  const [autoPricingVersion, setAutoPricingVersion] = useState<string | null>(null)
+  const [autoBudgetReasonCode, setAutoBudgetReasonCode] = useState<string | null>(null)
+  const [autoBudgetReason, setAutoBudgetReason] = useState<string | null>(null)
   const isManualBudgetForced = useMemo(
     () =>
       tipoInstalacao === 'solo' ||
@@ -3630,17 +3661,18 @@ export default function App() {
     tarifaCheia: number
     taxaMinima: number
     ufTarifa: string
-    distribuidoraTarifa: string
-    potenciaModulo: number
-    numeroModulosManual: number | ''
-    segmentoCliente: SegmentoCliente
-    tipoInstalacao: TipoInstalacao
-    tipoInstalacaoOutro: string
-    tipoSistema: TipoSistema
-    consumoManual: boolean
-    potenciaModuloDirty: boolean
-    tipoInstalacaoDirty: boolean
-  }
+  distribuidoraTarifa: string
+  potenciaModulo: number
+  numeroModulosManual: number | ''
+  segmentoCliente: SegmentoCliente
+  tipoInstalacao: TipoInstalacao
+  tipoInstalacaoOutro: string
+  tipoSistema: TipoSistema
+  consumoManual: boolean
+  potenciaFonteManual: boolean
+  potenciaModuloDirty: boolean
+  tipoInstalacaoDirty: boolean
+}
 
   const createPageSharedSettings = useCallback((): PageSharedSettings => ({
     kcKwhMes: INITIAL_VALUES.kcKwhMes,
@@ -3655,6 +3687,7 @@ export default function App() {
     tipoInstalacaoOutro: INITIAL_VALUES.tipoInstalacaoOutro,
     tipoSistema: INITIAL_VALUES.tipoSistema,
     consumoManual: false,
+    potenciaFonteManual: false,
     potenciaModuloDirty: false,
     tipoInstalacaoDirty: false,
   }), [])
@@ -3703,6 +3736,19 @@ export default function App() {
       return normalized
     },
     [setConsumoManual, setKcKwhMesState, updatePageSharedState],
+  )
+
+  const setPotenciaFonteManual = useCallback(
+    (value: boolean) => {
+      setPotenciaFonteManualState(value)
+      updatePageSharedState((current) => {
+        if (current.potenciaFonteManual === value) {
+          return current
+        }
+        return { ...current, potenciaFonteManual: value }
+      })
+    },
+    [updatePageSharedState],
   )
 
   const setMultiUcEnergiaGeradaKWh = useCallback(
@@ -4129,6 +4175,9 @@ export default function App() {
       return prev === normalized ? prev : normalized
     })
     setConsumoManualState((prev) => (prev === snapshot.consumoManual ? prev : snapshot.consumoManual))
+    setPotenciaFonteManualState((prev) =>
+      prev === snapshot.potenciaFonteManual ? prev : snapshot.potenciaFonteManual,
+    )
     setPotenciaModuloDirtyState((prev) =>
       prev === snapshot.potenciaModuloDirty ? prev : snapshot.potenciaModuloDirty,
     )
@@ -4467,6 +4516,19 @@ export default function App() {
     onChange: handleBudgetTotalValueChange,
   })
 
+  const kitBudgetTotal = useMemo(() => {
+    if (kitBudget.totalSource === 'explicit') {
+      return kitBudget.total ?? 0
+    }
+    if (budgetItemsTotal != null) {
+      return budgetItemsTotal
+    }
+    if (kitBudget.total != null) {
+      return kitBudget.total
+    }
+    return 0
+  }, [budgetItemsTotal, kitBudget.total, kitBudget.totalSource])
+
   const handleComposicaoTelhadoChange = useCallback(
     (campo: keyof UfvComposicaoTelhadoValores, valor: string) => {
       const parsed = parseNumericInput(valor)
@@ -4781,6 +4843,37 @@ export default function App() {
       resetRetorno()
     },
     [resetRetorno],
+  )
+
+  const handlePotenciaInstaladaChange = useCallback(
+    (value: string) => {
+      if (!value) {
+        setPotenciaFonteManual(false)
+        setNumeroModulosManual('')
+        applyVendaUpdates({ potencia_instalada_kwp: undefined })
+        return
+      }
+
+      const parsed = Number(value)
+      const normalized = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : 0
+
+      setPotenciaFonteManual(true)
+
+      if (normalized <= 0) {
+        applyVendaUpdates({ potencia_instalada_kwp: undefined })
+        return
+      }
+
+      applyVendaUpdates({ potencia_instalada_kwp: normalized })
+
+      if (potenciaModulo > 0) {
+        const modulos = Math.round((normalized * 1000) / potenciaModulo)
+        if (Number.isFinite(modulos) && modulos > 0) {
+          setNumeroModulosManual(Math.max(1, modulos))
+        }
+      }
+    },
+    [applyVendaUpdates, potenciaModulo, setNumeroModulosManual, setPotenciaFonteManual],
   )
 
   const taxaMinimaCalculadaBase = useMemo(() => {
@@ -5911,12 +6004,16 @@ export default function App() {
     [diasMes],
   )
 
-  const fatorGeracaoMensal = useMemo(() => {
-    if (baseIrradiacao <= 0 || eficienciaNormalizada <= 0) {
-      return 0
-    }
-    return baseIrradiacao * eficienciaNormalizada * DIAS_MES_PADRAO
-  }, [baseIrradiacao, eficienciaNormalizada])
+  const vendaPotenciaCalculada = useMemo(() => {
+    const dias = diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO
+    return calcPotenciaSistemaKwp({
+      consumoKwhMes: kcKwhMes,
+      irradiacao: baseIrradiacao,
+      performanceRatio: eficienciaNormalizada,
+      diasMes: dias,
+      potenciaModuloWp: potenciaModulo,
+    })
+  }, [baseIrradiacao, diasMesNormalizado, eficienciaNormalizada, kcKwhMes, potenciaModulo])
 
   const numeroModulosInformado = useMemo(() => {
     if (typeof numeroModulosManual !== 'number') return null
@@ -5925,24 +6022,178 @@ export default function App() {
   }, [numeroModulosManual])
 
   const numeroModulosCalculado = useMemo(() => {
-    if (kcKwhMes <= 0) return 0
-    if (potenciaModulo <= 0 || fatorGeracaoMensal <= 0) return 0
-    const potenciaNecessaria = kcKwhMes / fatorGeracaoMensal
-    const calculado = Math.ceil((potenciaNecessaria * 1000) / potenciaModulo)
-    if (!Number.isFinite(calculado)) return 0
-    return Math.max(1, calculado)
-  }, [kcKwhMes, fatorGeracaoMensal, potenciaModulo])
+    if (potenciaFonteManual) {
+      const manual = Number(vendaForm.potencia_instalada_kwp)
+      if (Number.isFinite(manual) && manual > 0 && potenciaModulo > 0) {
+        const estimado = Math.round((manual * 1000) / potenciaModulo)
+        if (Number.isFinite(estimado) && estimado > 0) {
+          return estimado
+        }
+      }
+    }
+
+    if (vendaPotenciaCalculada?.quantidadeModulos) {
+      return vendaPotenciaCalculada.quantidadeModulos
+    }
+
+    if (vendaPotenciaCalculada?.potenciaKwp && potenciaModulo > 0) {
+      const estimado = Math.ceil((vendaPotenciaCalculada.potenciaKwp * 1000) / potenciaModulo)
+      if (Number.isFinite(estimado) && estimado > 0) {
+        return estimado
+      }
+    }
+
+    return 0
+  }, [
+    potenciaFonteManual,
+    potenciaModulo,
+    vendaForm.potencia_instalada_kwp,
+    vendaPotenciaCalculada?.potenciaKwp,
+    vendaPotenciaCalculada?.quantidadeModulos,
+  ])
 
   const potenciaInstaladaKwp = useMemo(() => {
+    if (potenciaFonteManual) {
+      const manual = Number(vendaForm.potencia_instalada_kwp)
+      if (Number.isFinite(manual) && manual > 0) {
+        return Math.round(manual * 100) / 100
+      }
+    }
+
     const modulos = numeroModulosInformado ?? numeroModulosCalculado
-    if (!modulos || potenciaModulo <= 0) return 0
-    return (modulos * potenciaModulo) / 1000
-  }, [numeroModulosInformado, numeroModulosCalculado, potenciaModulo])
+    if (modulos && potenciaModulo > 0) {
+      return (modulos * potenciaModulo) / 1000
+    }
+
+    return vendaPotenciaCalculada?.potenciaKwp ?? 0
+  }, [
+    numeroModulosInformado,
+    numeroModulosCalculado,
+    potenciaModulo,
+    potenciaFonteManual,
+    vendaForm.potencia_instalada_kwp,
+    vendaPotenciaCalculada?.potenciaKwp,
+  ])
 
   const numeroModulosEstimado = useMemo(() => {
     if (numeroModulosInformado) return numeroModulosInformado
     return numeroModulosCalculado
   }, [numeroModulosInformado, numeroModulosCalculado])
+
+  const vendaAutoPotenciaKwp = useMemo(() => vendaPotenciaCalculada?.potenciaKwp ?? null, [
+    vendaPotenciaCalculada?.potenciaKwp,
+  ])
+
+  const installTypeNormalized = useMemo<InstallType | null>(() => {
+    if (tipoInstalacao === 'solo') return 'solo'
+    if (tipoInstalacao === 'outros') return 'outros'
+    return normalizeInstallType('telhado')
+  }, [tipoInstalacao])
+
+  const systemTypeNormalized = useMemo<SystemType | null>(
+    () => normalizeSystemType(tipoSistema === 'OFF_GRID' ? 'offgrid' : tipoSistema.toLowerCase()),
+    [tipoSistema],
+  )
+
+  const potenciaKwpElegivel = useMemo(
+    () => (Number.isFinite(potenciaInstaladaKwp) && potenciaInstaladaKwp > 0 ? potenciaInstaladaKwp : null),
+    [potenciaInstaladaKwp],
+  )
+
+  const tipoRedeAutoSugestao = useMemo<TipoRede | null>(() => {
+    if (autoPricingRede) {
+      return autoPricingRede === 'mono' ? 'monofasico' : 'trifasico'
+    }
+
+    if (!Number.isFinite(potenciaInstaladaKwp) || potenciaInstaladaKwp <= 0) {
+      return null
+    }
+
+    const rede = getRedeByPotencia(potenciaInstaladaKwp)
+    return rede === 'mono' ? 'monofasico' : 'trifasico'
+  }, [autoPricingRede, potenciaInstaladaKwp])
+
+  const autoBudgetFallbackMessage = useMemo(() => {
+    switch (autoBudgetReasonCode) {
+      case 'INSTALL_NOT_ELIGIBLE':
+        return 'Instalação em solo/outros exige orçamento personalizado. Modo manual ativado.'
+      case 'SYSTEM_NOT_ELIGIBLE':
+        return 'Sistemas híbridos ou off-grid exigem orçamento personalizado. Modo manual ativado.'
+      case 'KWP_LIMIT':
+        return 'Para sistemas acima de 90 kWp, o orçamento é realizado de forma personalizada. Modo manual ativado.'
+      case 'MISSING_SELECTION':
+        return 'Selecione o tipo de instalação e o tipo de sistema para continuar.'
+      default:
+        return autoBudgetReason ?? ''
+    }
+  }, [autoBudgetReason, autoBudgetReasonCode])
+
+  useEffect(() => {
+    const eligibility = getAutoEligibility({
+      installType: installTypeNormalized,
+      systemType: systemTypeNormalized,
+      kwp: potenciaKwpElegivel,
+    })
+
+    setAutoBudgetReason(eligibility.reason ?? null)
+    setAutoBudgetReasonCode(eligibility.reasonCode ?? null)
+
+    if (modoOrcamento !== 'auto') {
+      setAutoKitValor(null)
+      setAutoCustoFinal(null)
+      setAutoPricingRede(null)
+      setAutoPricingVersion(null)
+      return
+    }
+
+    if (!eligibility.eligible) {
+      if (modoOrcamento !== 'manual') {
+        setModoOrcamento('manual')
+      }
+      setAutoKitValor(null)
+      setAutoCustoFinal(null)
+      setAutoPricingRede(null)
+      setAutoPricingVersion(null)
+      return
+    }
+
+    const pricing = potenciaKwpElegivel ? calcPricingPorKwp(potenciaKwpElegivel) : null
+    if (!pricing) {
+      setAutoKitValor(null)
+      setAutoCustoFinal(null)
+      setAutoPricingRede(null)
+      setAutoPricingVersion(null)
+      return
+    }
+
+    setAutoKitValor(pricing.kitValor)
+    setAutoCustoFinal(pricing.custoFinal)
+    setAutoPricingRede(pricing.rede)
+    setAutoPricingVersion('pricing_kwp_v2')
+
+    if (tipoRedeControle === 'auto') {
+      const redeValue: TipoRede = pricing.rede === 'mono' ? 'monofasico' : 'trifasico'
+      if (tipoRede !== redeValue) {
+        setTipoRede(redeValue)
+      }
+    }
+  }, [
+    installTypeNormalized,
+    systemTypeNormalized,
+    modoOrcamento,
+    potenciaKwpElegivel,
+    setModoOrcamento,
+    tipoRede,
+    tipoRedeControle,
+  ])
+
+  useEffect(() => {
+    if (tipoRedeControle !== 'auto') return
+    if (!tipoRedeAutoSugestao) return
+    if (tipoRede === tipoRedeAutoSugestao) return
+
+    setTipoRede(tipoRedeAutoSugestao)
+  }, [tipoRedeControle, tipoRedeAutoSugestao, tipoRede])
 
   const parseUcBeneficiariaConsumo = (valor: string): number => {
     const normalizado = valor.replace(/\./g, '').replace(',', '.')
@@ -5991,11 +6242,6 @@ export default function App() {
     const resolved = Number(quantidade)
     return resolved > 0 ? resolved : null
   }, [vendaForm.quantidade_modulos, recalcularTick])
-
-  const vendaAutoPotenciaKwp = useMemo(
-    () => kwpFromWpQty(potenciaModulo, vendaQuantidadeModulos),
-    [potenciaModulo, vendaQuantidadeModulos],
-  )
 
   const vendaGeracaoParametros = useMemo(
     () => ({
@@ -6413,6 +6659,7 @@ export default function App() {
       const next = { ...prev }
       const potenciaNormalizada = Math.round(potenciaInstaladaKwp * 100) / 100
       if (
+        !potenciaFonteManual &&
         potenciaNormalizada > 0 &&
         !numbersAreClose(prev.potencia_instalada_kwp, potenciaNormalizada, 0.005)
       ) {
@@ -6445,6 +6692,7 @@ export default function App() {
     numeroModulosEstimado,
     potenciaInstaladaKwp,
     resetRetorno,
+    potenciaFonteManual,
     vendaForm.quantidade_modulos,
     recalcularTick,
   ])
@@ -6456,7 +6704,9 @@ export default function App() {
     }
 
     const potenciaManualValida =
-      Number.isFinite(vendaForm.potencia_instalada_kwp) && (vendaForm.potencia_instalada_kwp ?? 0) > 0
+      potenciaFonteManual &&
+      Number.isFinite(vendaForm.potencia_instalada_kwp) &&
+      (vendaForm.potencia_instalada_kwp ?? 0) > 0
     const potenciaBase = potenciaManualValida
       ? Number(vendaForm.potencia_instalada_kwp)
       : vendaAutoPotenciaKwp ?? null
@@ -6470,9 +6720,7 @@ export default function App() {
       return
     }
 
-    const potenciaNormalizadaAuto = vendaAutoPotenciaKwp
-      ? Math.round(vendaAutoPotenciaKwp * 100) / 100
-      : 0
+    const potenciaNormalizadaAuto = potenciaBase ? Math.round(potenciaBase * 100) / 100 : 0
     const geracaoNormalizadaAuto = Math.round(estimada * 10) / 10
 
     let consumoAtualizado = false
@@ -6538,6 +6786,7 @@ export default function App() {
   }, [
     consumoManual,
     vendaAutoPotenciaKwp,
+    potenciaFonteManual,
     vendaForm.potencia_instalada_kwp,
     vendaGeracaoParametros,
     setKcKwhMes,
@@ -7940,6 +8189,8 @@ export default function App() {
           configuracaoUsinaObservacoes.trim()
             ? configuracaoUsinaObservacoes.trim()
             : null,
+        orcamentoModo: modoOrcamento,
+        orcamentoAutoCustoFinal: autoCustoFinal ?? null,
         valorTotalProposta: valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? null,
         custoImplantacaoReferencia: (() => {
           const snapshotValor = Number(vendaSnapshot.resumoProposta.custo_implantacao_referencia ?? 0)
@@ -11397,6 +11648,15 @@ export default function App() {
       seguroM,
       duracaoMeses,
       pagosAcumAteM,
+      modoOrcamento,
+      autoKitValor,
+      autoCustoFinal,
+      autoPricingRede,
+      autoPricingVersion,
+      autoBudgetReason,
+      autoBudgetReasonCode,
+      tipoRede,
+      tipoRedeControle,
       vendaSnapshot: vendaSnapshotAtual,
       leasingSnapshot: leasingSnapshotAtual,
     }
@@ -11544,6 +11804,15 @@ export default function App() {
     setSeguroM(snapshot.seguroM)
     setDuracaoMeses(snapshot.duracaoMeses)
     setPagosAcumAteM(snapshot.pagosAcumAteM)
+    setModoOrcamento(snapshot.modoOrcamento ?? 'auto')
+    setAutoKitValor(snapshot.autoKitValor ?? null)
+    setAutoCustoFinal(snapshot.autoCustoFinal ?? null)
+    setAutoPricingRede(snapshot.autoPricingRede ?? null)
+    setAutoPricingVersion(snapshot.autoPricingVersion ?? null)
+    setAutoBudgetReason(snapshot.autoBudgetReason ?? null)
+    setAutoBudgetReasonCode(snapshot.autoBudgetReasonCode ?? null)
+    setTipoRede(snapshot.tipoRede ?? 'monofasico')
+    setTipoRedeControle(snapshot.tipoRedeControle ?? 'auto')
 
     vendaStore.setState((draft) => {
       Object.assign(draft, JSON.parse(JSON.stringify(snapshot.vendaSnapshot)) as VendaSnapshot)
@@ -13105,6 +13374,7 @@ export default function App() {
     setMesReajuste(INITIAL_VALUES.mesReajuste)
     mesReferenciaRef.current = new Date().getMonth() + 1
     setKcKwhMes(INITIAL_VALUES.kcKwhMes)
+    setPotenciaFonteManual(false)
     setTarifaCheia(INITIAL_VALUES.tarifaCheia)
     setDesconto(INITIAL_VALUES.desconto)
     setTaxaMinima(INITIAL_VALUES.taxaMinima)
@@ -13121,6 +13391,7 @@ export default function App() {
     setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
     setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
     setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
+    setTipoRedeControle('auto')
     setPotenciaModuloDirty(false)
     setTipoInstalacao(normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao))
     setTipoInstalacaoOutro(INITIAL_VALUES.tipoInstalacaoOutro)
@@ -15573,6 +15844,16 @@ export default function App() {
     }
   }
 
+  const handleTipoRedeSelection = useCallback(
+    (value: TipoRede, controle: 'auto' | 'manual' = 'manual') => {
+      if (controle === 'manual') {
+        setTipoRedeControle('manual')
+      }
+      setTipoRede(value)
+    },
+    [],
+  )
+
   const renderConfiguracaoUsinaSection = () => (
     <section className="card configuracao-usina-card">
       <div className="configuracao-usina-card__header">
@@ -15673,7 +15954,7 @@ export default function App() {
         >
           <select
             value={tipoRede}
-            onChange={(event) => setTipoRede(event.target.value as TipoRede)}
+            onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
           >
             {TIPOS_REDE.map((rede) => (
               <option key={rede.value} value={rede.value}>
@@ -15691,11 +15972,16 @@ export default function App() {
           }
         >
           <input
-            readOnly
-            value={formatNumberBRWithOptions(potenciaInstaladaKwp, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            type="number"
+            min={0}
+            step="0.01"
+            value={
+              potenciaFonteManual
+                ? vendaForm.potencia_instalada_kwp ?? ''
+                : potenciaInstaladaKwp || ''
+            }
+            onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
+            onFocus={selectNumberInputOnFocus}
           />
         </Field>
         <Field
@@ -16216,20 +16502,20 @@ export default function App() {
             <option value="OFF_GRID">Off-grid</option>
           </select>
         </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de rede',
-            'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
-          )}
-        >
-          <select
-            value={tipoRede}
-            onChange={(event) => setTipoRede(event.target.value as TipoRede)}
+          <Field
+            label={labelWithTooltip(
+              'Tipo de rede',
+              'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
+            )}
           >
-            {TIPOS_REDE.map((rede) => (
-              <option key={rede.value} value={rede.value}>
-                {rede.label}
-              </option>
+            <select
+              value={tipoRede}
+              onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
+            >
+              {TIPOS_REDE.map((rede) => (
+                <option key={rede.value} value={rede.value}>
+                  {rede.label}
+                </option>
             ))}
           </select>
         </Field>
@@ -16242,11 +16528,16 @@ export default function App() {
           }
         >
           <input
-            readOnly
-            value={formatNumberBRWithOptions(potenciaInstaladaKwp, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            type="number"
+            min={0}
+            step="0.01"
+            value={
+              potenciaFonteManual
+                ? vendaForm.potencia_instalada_kwp ?? ''
+                : potenciaInstaladaKwp || ''
+            }
+            onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
+            onFocus={selectNumberInputOnFocus}
           />
         </Field>
         <Field
@@ -20060,6 +20351,11 @@ export default function App() {
                               ? 'Preencha poucos campos e o sistema calcula o orçamento.'
                               : 'Use o modo manual para valores personalizados.'}
                           </p>
+                          {modoOrcamento === 'manual' && autoBudgetFallbackMessage ? (
+                            <p className="warning" role="alert" style={{ marginTop: '8px' }}>
+                              {autoBudgetFallbackMessage}
+                            </p>
+                          ) : null}
                         </section>
                       </>
                     ) : null}
@@ -20287,23 +20583,86 @@ export default function App() {
                 <h2>Orçamento automático</h2>
                 <div className="grid g2">
                   <Field label="Consumo (kWh/mês)">
-                    <input type="number" placeholder="Ex.: 800" inputMode="decimal" />
+                    <input
+                      type="number"
+                      placeholder="Ex.: 800"
+                      inputMode="decimal"
+                      value={kcKwhMes || ''}
+                      onChange={(event) => setKcKwhMes(Number(event.target.value) || 0, 'user')}
+                    />
                   </Field>
                   <Field label="Potência (kWp)">
-                    <input type="number" placeholder="Ex.: 5.5" inputMode="decimal" />
+                    <input
+                      type="number"
+                      placeholder="Ex.: 5.5"
+                      inputMode="decimal"
+                      value={
+                        potenciaFonteManual
+                          ? vendaForm.potencia_instalada_kwp ?? ''
+                          : vendaAutoPotenciaKwp ?? ''
+                      }
+                      onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
+                    />
                   </Field>
                 </div>
                 <div className="grid g3 mt-4">
                   <Field label="Tipo de rede">
-                    <span className="pill">Auto</span>
+                    <div className="grid g1 gap-1">
+                      <select
+                        value={tipoRedeControle === 'auto' ? 'auto' : tipoRede}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          if (value === 'auto') {
+                            setTipoRedeControle('auto')
+                            if (tipoRedeAutoSugestao) {
+                              setTipoRede(tipoRedeAutoSugestao)
+                            }
+                            return
+                          }
+                          handleTipoRedeSelection(value as TipoRede, 'manual')
+                        }}
+                      >
+                        <option value="auto">Automático</option>
+                        {TIPOS_REDE.map((rede) => (
+                          <option key={rede.value} value={rede.value}>
+                            {rede.label}
+                          </option>
+                        ))}
+                      </select>
+                      {tipoRedeControle === 'auto' ? (
+                        <span className="muted">
+                          {tipoRedeAutoSugestao
+                            ? `Sugerido automaticamente: ${
+                                TIPOS_REDE.find((item) => item.value === tipoRedeAutoSugestao)?.label ??
+                                tipoRedeAutoSugestao
+                              }.`
+                            : 'Aguardando potência para sugerir a rede adequada.'}
+                        </span>
+                      ) : (
+                        <span className="muted">Rede definida manualmente; cálculos usam {tipoRedeLabel}.</span>
+                      )}
+                    </div>
                   </Field>
                   <Field label="Kit solar (R$)">
-                    <input readOnly placeholder="—" />
+                    <input
+                      readOnly
+                      placeholder="—"
+                      value={autoKitValor != null ? formatBRL(autoKitValor) : ''}
+                    />
                   </Field>
                   <Field label="Custo final projetado (R$)">
-                    <input readOnly placeholder="—" />
+                    <input
+                      readOnly
+                      placeholder="—"
+                      value={autoCustoFinal != null ? formatBRL(autoCustoFinal) : ''}
+                    />
                   </Field>
                 </div>
+                {autoPricingVersion ? (
+                  <p className="muted" style={{ marginTop: '12px' }}>
+                    Regra de pricing aplicada: {autoPricingVersion}
+                  </p>
+                ) : null}
               </section>
             ) : null}
             {modoOrcamento === 'manual' ? (
@@ -20385,6 +20744,26 @@ export default function App() {
                         : 'itens ignorados por filtro de ruído'}
                     </span>
                   ) : null}
+                  <div className="grid g2" style={{ marginTop: '12px' }}>
+                    <Field label="Valor total do orçamento (R$)">
+                      <input
+                        ref={budgetTotalField.ref}
+                        type="text"
+                        inputMode="decimal"
+                        value={budgetTotalField.text}
+                        onChange={budgetTotalField.handleChange}
+                        onBlur={budgetTotalField.handleBlur}
+                        onFocus={(event) => {
+                          budgetTotalField.handleFocus(event)
+                          selectNumberInputOnFocus(event)
+                        }}
+                        placeholder={MONEY_INPUT_PLACEHOLDER}
+                      />
+                      <p className="muted">
+                        Informe manualmente o valor do kit ou deixe em branco para usar a soma dos itens.
+                      </p>
+                    </Field>
+                  </div>
                   {budgetMissingSummary ? (
                     <div className="budget-missing-alert">
                       <div>
