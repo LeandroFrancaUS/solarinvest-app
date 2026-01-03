@@ -268,4 +268,11 @@ export type PrintableProposalProps = {
   tusdTipoClienteLabel?: string | null | undefined
   tusdTipoClienteOutro?: string | null | undefined
   tusdTipoClienteCompleto?: string | null | undefined
+  modoOrcamento?: 'auto' | 'manual'
+  autoPricing?: {
+    kitValor: number | null
+    custoFinal: number | null
+    rede: 'mono' | 'trifasico' | null
+    regraVersao: string | null
+  } | null
 }

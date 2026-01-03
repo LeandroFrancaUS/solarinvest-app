@@ -87,6 +87,8 @@ const createPrintableProps = (
   distribuidoraTarifa: 'Copel',
   energiaContratadaKwh: 600,
   tarifaCheia: 0.95,
+  modoOrcamento: 'manual',
+  autoPricing: null,
   vendaResumo: undefined,
   parsedPdfVenda: undefined,
   orcamentoItens: [],

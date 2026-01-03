@@ -952,6 +952,15 @@ type OrcamentoSnapshotData = {
   seguroM: number
   duracaoMeses: number
   pagosAcumAteM: number
+  modoOrcamento: 'auto' | 'manual'
+  autoKitValor: number | null
+  autoCustoFinal: number | null
+  autoPricingRede: Rede | null
+  autoPricingVersion: string | null
+  autoBudgetReason: string | null
+  autoBudgetReasonCode: string | null
+  tipoRede: TipoRede
+  tipoRedeControle: 'auto' | 'manual'
   vendaSnapshot: VendaSnapshot
   leasingSnapshot: LeasingState
 }
@@ -1275,6 +1284,10 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
     clone.orcamentoItens = dados.orcamentoItens.map((item) => ({ ...item }))
   } else {
     delete clone.orcamentoItens
+  }
+
+  if (dados.autoPricing) {
+    clone.autoPricing = { ...dados.autoPricing }
   }
 
   if (dados.composicaoUfv) {
@@ -8090,6 +8103,19 @@ export default function App() {
         tusdTipoClienteLabel,
       )
 
+      const autoPricingResumo =
+        modoOrcamento === 'auto' &&
+        autoKitValor != null &&
+        autoCustoFinal != null &&
+        autoPricingRede
+          ? {
+              kitValor: autoKitValor,
+              custoFinal: autoCustoFinal,
+              rede: autoPricingRede,
+              regraVersao: autoPricingVersion ?? null,
+            }
+          : null
+
       return {
         cliente,
         budgetId: sanitizedBudgetId,
@@ -8123,6 +8149,8 @@ export default function App() {
         tusdTipoClienteLabel,
         tusdTipoClienteOutro,
         tusdTipoClienteCompleto,
+        modoOrcamento,
+        autoPricing: autoPricingResumo,
         areaInstalacao,
         descontoContratualPct: descontoConsiderado,
         parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
@@ -8258,6 +8286,11 @@ export default function App() {
       ucsBeneficiarias,
       vendaSnapshotSignal,
       leasingSnapshotSignal,
+      modoOrcamento,
+      autoKitValor,
+      autoCustoFinal,
+      autoPricingRede,
+      autoPricingVersion,
     ],
   )
 
@@ -11624,6 +11657,15 @@ export default function App() {
       seguroM,
       duracaoMeses,
       pagosAcumAteM,
+      modoOrcamento,
+      autoKitValor,
+      autoCustoFinal,
+      autoPricingRede,
+      autoPricingVersion,
+      autoBudgetReason,
+      autoBudgetReasonCode,
+      tipoRede,
+      tipoRedeControle,
       vendaSnapshot: vendaSnapshotAtual,
       leasingSnapshot: leasingSnapshotAtual,
     }
@@ -11771,6 +11813,15 @@ export default function App() {
     setSeguroM(snapshot.seguroM)
     setDuracaoMeses(snapshot.duracaoMeses)
     setPagosAcumAteM(snapshot.pagosAcumAteM)
+    setModoOrcamento(snapshot.modoOrcamento ?? 'auto')
+    setAutoKitValor(snapshot.autoKitValor ?? null)
+    setAutoCustoFinal(snapshot.autoCustoFinal ?? null)
+    setAutoPricingRede(snapshot.autoPricingRede ?? null)
+    setAutoPricingVersion(snapshot.autoPricingVersion ?? null)
+    setAutoBudgetReason(snapshot.autoBudgetReason ?? null)
+    setAutoBudgetReasonCode(snapshot.autoBudgetReasonCode ?? null)
+    setTipoRede(snapshot.tipoRede ?? 'monofasico')
+    setTipoRedeControle(snapshot.tipoRedeControle ?? 'auto')
 
     vendaStore.setState((draft) => {
       Object.assign(draft, JSON.parse(JSON.stringify(snapshot.vendaSnapshot)) as VendaSnapshot)

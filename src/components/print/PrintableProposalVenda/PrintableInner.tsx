@@ -72,6 +72,8 @@ function PrintableProposalInner(
     configuracaoUsinaObservacoes,
     ucGeradora,
     ucsBeneficiarias,
+    modoOrcamento,
+    autoPricing,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null
@@ -654,6 +656,14 @@ function PrintableProposalInner(
         : null)
   const valorTotalPropostaLabel =
     valorTotalPropostaPrincipalNumero != null ? currency(valorTotalPropostaPrincipalNumero) : '—'
+  const modoOrcamentoLabel = modoOrcamento ?? 'manual'
+  const autoPricingDisponivel =
+    modoOrcamentoLabel === 'auto' &&
+    autoPricing?.kitValor != null &&
+    autoPricing?.custoFinal != null &&
+    autoPricing?.rede
+  const autoRedeLabel =
+    autoPricing?.rede === 'trifasico' ? 'Trifásico' : autoPricing?.rede === 'mono' ? 'Monofásico' : null
   const baseParcelamentoValor = (() => {
     if (hasNonZero(vendaFormResumo?.capex_total)) {
       return Number(vendaFormResumo?.capex_total)
@@ -1097,6 +1107,31 @@ function PrintableProposalInner(
                     Valor final da proposta:{' '}
                     <strong>{valorTotalPropostaLabel}</strong>
                   </span>
+                </div>
+                <div className="print-value-card">
+                  <span className="print-value-card__label">Resumo do orçamento</span>
+                  {autoPricingDisponivel && autoPricing ? (
+                    <div className="print-value-card__details">
+                      <div>
+                        Valor do kit solar: <strong>{currency(autoPricing.kitValor ?? 0)}</strong>
+                      </div>
+                      <div>
+                        Custo final projetado:{' '}
+                        <strong>{currency(autoPricing.custoFinal ?? 0)}</strong>
+                      </div>
+                      <div>
+                        Rede: {autoRedeLabel ?? '—'} (automático quando aplicável)
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="print-value-card__details">
+                      <div>
+                        <strong>Orçamento personalizado (manual)</strong>
+                      </div>
+                      <div>Valor do kit solar: —</div>
+                      <div>Custo final projetado: —</div>
+                    </div>
+                  )}
                 </div>
               </div>
               <p className="print-value-note">
