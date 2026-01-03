@@ -8189,6 +8189,8 @@ export default function App() {
           configuracaoUsinaObservacoes.trim()
             ? configuracaoUsinaObservacoes.trim()
             : null,
+        orcamentoModo: modoOrcamento,
+        orcamentoAutoCustoFinal: autoCustoFinal ?? null,
         valorTotalProposta: valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? null,
         custoImplantacaoReferencia: (() => {
           const snapshotValor = Number(vendaSnapshot.resumoProposta.custo_implantacao_referencia ?? 0)

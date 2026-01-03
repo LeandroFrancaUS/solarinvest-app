@@ -122,6 +122,20 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).toContain('UC nº 445566 — Av. Brasil, 99 — Curitiba / PR')
   })
 
+  it('usa o custo final projetado do orçamento automático no valor final da proposta', () => {
+    const custoFinal = 12345.67
+    const props = createPrintableProps({
+      orcamentoModo: 'auto',
+      orcamentoAutoCustoFinal: custoFinal,
+      capex: 0,
+      valorTotalProposta: null,
+    })
+
+    const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
+
+    expect(markup).toContain(currency(custoFinal))
+  })
+
   it('não exibe seção de beneficiárias quando nenhuma UC extra for fornecida', () => {
     const props = createPrintableProps({
       ucGeradora: {
