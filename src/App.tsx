@@ -85,7 +85,20 @@ import {
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
-import { calcPotenciaSistemaKwp, getRedeByPotencia } from './lib/pricing/pricingPorKwp'
+import {
+  calcPotenciaSistemaKwp,
+  calcPricingPorKwp,
+  formatBRL,
+  getRedeByPotencia,
+  type Rede,
+} from './lib/pricing/pricingPorKwp'
+import {
+  getAutoEligibility,
+  normalizeInstallType,
+  normalizeSystemType,
+  type InstallType,
+  type SystemType,
+} from './lib/pricing/autoEligibility'
 import { ensureProposalId, normalizeProposalId } from './lib/ids'
 import {
   calculateCapexFromState,
@@ -3380,6 +3393,12 @@ export default function App() {
   )
   const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
   const [modoOrcamento, setModoOrcamento] = useState<'auto' | 'manual'>('auto')
+  const [autoKitValor, setAutoKitValor] = useState<number | null>(null)
+  const [autoCustoFinal, setAutoCustoFinal] = useState<number | null>(null)
+  const [autoPricingRede, setAutoPricingRede] = useState<Rede | null>(null)
+  const [autoPricingVersion, setAutoPricingVersion] = useState<string | null>(null)
+  const [autoBudgetReasonCode, setAutoBudgetReasonCode] = useState<string | null>(null)
+  const [autoBudgetReason, setAutoBudgetReason] = useState<string | null>(null)
   const isManualBudgetForced = useMemo(
     () =>
       tipoInstalacao === 'solo' ||
@@ -6043,14 +6062,108 @@ export default function App() {
     vendaPotenciaCalculada?.potenciaKwp,
   ])
 
+  const installTypeNormalized = useMemo<InstallType | null>(() => {
+    if (tipoInstalacao === 'solo') return 'solo'
+    if (tipoInstalacao === 'outros') return 'outros'
+    return normalizeInstallType('telhado')
+  }, [tipoInstalacao])
+
+  const systemTypeNormalized = useMemo<SystemType | null>(
+    () => normalizeSystemType(tipoSistema === 'OFF_GRID' ? 'offgrid' : tipoSistema.toLowerCase()),
+    [tipoSistema],
+  )
+
+  const potenciaKwpElegivel = useMemo(
+    () => (Number.isFinite(potenciaInstaladaKwp) && potenciaInstaladaKwp > 0 ? potenciaInstaladaKwp : null),
+    [potenciaInstaladaKwp],
+  )
+
   const tipoRedeAutoSugestao = useMemo<TipoRede | null>(() => {
+    if (autoPricingRede) {
+      return autoPricingRede === 'mono' ? 'monofasico' : 'trifasico'
+    }
+
     if (!Number.isFinite(potenciaInstaladaKwp) || potenciaInstaladaKwp <= 0) {
       return null
     }
 
     const rede = getRedeByPotencia(potenciaInstaladaKwp)
     return rede === 'mono' ? 'monofasico' : 'trifasico'
-  }, [potenciaInstaladaKwp])
+  }, [autoPricingRede, potenciaInstaladaKwp])
+
+  const autoBudgetFallbackMessage = useMemo(() => {
+    switch (autoBudgetReasonCode) {
+      case 'INSTALL_NOT_ELIGIBLE':
+        return 'Instalação em solo/outros exige orçamento personalizado. Modo manual ativado.'
+      case 'SYSTEM_NOT_ELIGIBLE':
+        return 'Sistemas híbridos ou off-grid exigem orçamento personalizado. Modo manual ativado.'
+      case 'KWP_LIMIT':
+        return 'Para sistemas acima de 90 kWp, o orçamento é realizado de forma personalizada. Modo manual ativado.'
+      case 'MISSING_SELECTION':
+        return 'Selecione o tipo de instalação e o tipo de sistema para continuar.'
+      default:
+        return autoBudgetReason ?? ''
+    }
+  }, [autoBudgetReason, autoBudgetReasonCode])
+
+  useEffect(() => {
+    const eligibility = getAutoEligibility({
+      installType: installTypeNormalized,
+      systemType: systemTypeNormalized,
+      kwp: potenciaKwpElegivel,
+    })
+
+    setAutoBudgetReason(eligibility.reason ?? null)
+    setAutoBudgetReasonCode(eligibility.reasonCode ?? null)
+
+    if (modoOrcamento !== 'auto') {
+      setAutoKitValor(null)
+      setAutoCustoFinal(null)
+      setAutoPricingRede(null)
+      setAutoPricingVersion(null)
+      return
+    }
+
+    if (!eligibility.eligible) {
+      if (modoOrcamento !== 'manual') {
+        setModoOrcamento('manual')
+      }
+      setAutoKitValor(null)
+      setAutoCustoFinal(null)
+      setAutoPricingRede(null)
+      setAutoPricingVersion(null)
+      return
+    }
+
+    const pricing = potenciaKwpElegivel ? calcPricingPorKwp(potenciaKwpElegivel) : null
+    if (!pricing) {
+      setAutoKitValor(null)
+      setAutoCustoFinal(null)
+      setAutoPricingRede(null)
+      setAutoPricingVersion(null)
+      return
+    }
+
+    setAutoKitValor(pricing.kitValor)
+    setAutoCustoFinal(pricing.custoFinal)
+    setAutoPricingRede(pricing.rede)
+    setAutoPricingVersion('pricing_kwp_v2')
+
+    if (tipoRedeControle === 'auto') {
+      const redeValue: TipoRede = pricing.rede === 'mono' ? 'monofasico' : 'trifasico'
+      if (tipoRede !== redeValue) {
+        setTipoRede(redeValue)
+      }
+    }
+  }, [
+    installTypeNormalized,
+    systemTypeNormalized,
+    modoOrcamento,
+    potenciaKwpElegivel,
+    setModoOrcamento,
+    tipoRede,
+    tipoRedeControle,
+  ])
 
   useEffect(() => {
     if (tipoRedeControle !== 'auto') return
@@ -20196,6 +20309,11 @@ export default function App() {
                               ? 'Preencha poucos campos e o sistema calcula o orçamento.'
                               : 'Use o modo manual para valores personalizados.'}
                           </p>
+                          {modoOrcamento === 'manual' && autoBudgetFallbackMessage ? (
+                            <p className="warning" role="alert" style={{ marginTop: '8px' }}>
+                              {autoBudgetFallbackMessage}
+                            </p>
+                          ) : null}
                         </section>
                       </>
                     ) : null}
@@ -20484,12 +20602,25 @@ export default function App() {
                     </div>
                   </Field>
                   <Field label="Kit solar (R$)">
-                    <input readOnly placeholder="—" />
+                    <input
+                      readOnly
+                      placeholder="—"
+                      value={autoKitValor != null ? formatBRL(autoKitValor) : ''}
+                    />
                   </Field>
                   <Field label="Custo final projetado (R$)">
-                    <input readOnly placeholder="—" />
+                    <input
+                      readOnly
+                      placeholder="—"
+                      value={autoCustoFinal != null ? formatBRL(autoCustoFinal) : ''}
+                    />
                   </Field>
                 </div>
+                {autoPricingVersion ? (
+                  <p className="muted" style={{ marginTop: '12px' }}>
+                    Regra de pricing aplicada: {autoPricingVersion}
+                  </p>
+                ) : null}
               </section>
             ) : null}
             {modoOrcamento === 'manual' ? (
