@@ -66,6 +66,8 @@ function PrintableProposalInner(
     composicaoUfv,
     vendaSnapshot,
     vendasConfigSnapshot,
+    orcamentoModo,
+    orcamentoAutoCustoFinal,
     valorTotalProposta: valorTotalPropostaProp,
     custoImplantacaoReferencia,
     imagensInstalacao,
@@ -220,6 +222,9 @@ function PrintableProposalInner(
     }
     return null
   }
+  const modoOrcamentoPrintable = orcamentoModo ?? null
+  const custoFinalAutoNumero = pickPositive(orcamentoAutoCustoFinal)
+  const usarCustoFinalAuto = modoOrcamentoPrintable === 'auto' && custoFinalAutoNumero != null
   const pickNumeric = (...values: (number | null | undefined)[]): number | null => {
     for (const value of values) {
       if (typeof value === 'number' && Number.isFinite(value)) {
@@ -645,7 +650,14 @@ function PrintableProposalInner(
     ? currency(capex)
     : '—'
   const valorTotalPropostaPrincipalNumero = isVendaDireta
-    ? valorTotalPropostaNumero
+    ? usarCustoFinalAuto
+      ? custoFinalAutoNumero
+      : valorTotalPropostaNumero ??
+        (hasNonZero(capexTotalCalculado)
+          ? Number(capexTotalCalculado)
+          : hasNonZero(capex)
+          ? Number(capex)
+          : null)
     : valorTotalPropostaNumero ??
       (hasNonZero(capexTotalCalculado)
         ? Number(capexTotalCalculado)
