@@ -1286,10 +1286,6 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
     delete clone.orcamentoItens
   }
 
-  if (dados.autoPricing) {
-    clone.autoPricing = { ...dados.autoPricing }
-  }
-
   if (dados.composicaoUfv) {
     clone.composicaoUfv = {
       telhado: { ...dados.composicaoUfv.telhado },
@@ -8116,19 +8112,6 @@ export default function App() {
         tusdTipoClienteLabel,
       )
 
-      const autoPricingResumo =
-        modoOrcamento === 'auto' &&
-        autoKitValor != null &&
-        autoCustoFinal != null &&
-        autoPricingRede
-          ? {
-              kitValor: autoKitValor,
-              custoFinal: autoCustoFinal,
-              rede: autoPricingRede,
-              regraVersao: autoPricingVersion ?? null,
-            }
-          : null
-
       return {
         cliente,
         budgetId: sanitizedBudgetId,
@@ -8162,8 +8145,6 @@ export default function App() {
         tusdTipoClienteLabel,
         tusdTipoClienteOutro,
         tusdTipoClienteCompleto,
-        modoOrcamento,
-        autoPricing: autoPricingResumo,
         areaInstalacao,
         descontoContratualPct: descontoConsiderado,
         parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
@@ -8299,11 +8280,6 @@ export default function App() {
       ucsBeneficiarias,
       vendaSnapshotSignal,
       leasingSnapshotSignal,
-      modoOrcamento,
-      autoKitValor,
-      autoCustoFinal,
-      autoPricingRede,
-      autoPricingVersion,
     ],
   )
 

@@ -72,7 +72,6 @@ function PrintableProposalInner(
     configuracaoUsinaObservacoes,
     ucGeradora,
     ucsBeneficiarias,
-    modoOrcamento,
   } = props
   const isVendaDireta = tipoProposta === 'VENDA_DIRETA'
   const vendaResumo = isVendaDireta && vendaResumoProp ? vendaResumoProp : null

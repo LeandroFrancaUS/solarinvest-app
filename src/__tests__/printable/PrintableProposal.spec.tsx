@@ -59,8 +59,6 @@ const createPrintableProps = (overrides: Partial<PrintableProposalProps> = {}): 
   distribuidoraTarifa: 'Copel',
   energiaContratadaKwh: 450,
   tarifaCheia: 0.95,
-  modoOrcamento: 'manual',
-  autoPricing: null,
   orcamentoItens: [],
   vendaResumo: undefined,
   parsedPdfVenda: undefined,
