@@ -11,7 +11,13 @@ import { useVendaStore, vendaActions } from '../store/useVendaStore'
 import type { TipoSistema } from '../lib/finance/roi'
 import '../components/flows/flows.css'
 
-export function VendasV2() {
+interface VendasV2Props {
+  onGenerateProposal?: () => Promise<boolean> | boolean | void
+  onNavigateBack?: () => void
+  onNavigateLeasing?: () => void
+}
+
+export function VendasV2({ onGenerateProposal, onNavigateBack, onNavigateLeasing }: VendasV2Props) {
   const [activeStep, setActiveStep] = useState(0)
   const cliente = useVendaStore((s) => s.cliente)
   const parametros = useVendaStore((s) => s.parametros)
@@ -202,12 +208,16 @@ export function VendasV2() {
     return baseSteps.flatMap((step) => step.validate?.() ?? [])
   }, [baseSteps])
 
-  const handleGenerateProposal = () => {
+  const handleGenerateProposal = async () => {
     if (allPendencias.length > 0) {
       const firstMissingStepIndex = baseSteps.findIndex((step) => (step.validate?.() ?? []).length > 0)
       if (firstMissingStepIndex >= 0) {
         setActiveStep(firstMissingStepIndex)
       }
+      return
+    }
+    if (onGenerateProposal) {
+      await onGenerateProposal()
       return
     }
     alert('Proposta gerada (UI V2).')
@@ -259,6 +269,20 @@ export function VendasV2() {
       title="Venda — Simulação e Proposta"
       subtitle="Fluxo sequencial com resumo fixo"
       breadcrumbs={["Home", "Vendas", "Nova proposta"]}
+      actions={
+        <div className="flow-actions-inline">
+          {onNavigateBack ? (
+            <button type="button" className="ghost" onClick={onNavigateBack}>
+              Voltar para painel
+            </button>
+          ) : null}
+          {onNavigateLeasing ? (
+            <button type="button" className="ghost" onClick={onNavigateLeasing}>
+              Ir para Leasing V2
+            </button>
+          ) : null}
+        </div>
+      }
       sidebar={
         <StickySummary
           kpis={summaryKpis}

@@ -291,6 +291,13 @@
   text-align: left;
 }
 
+.flow-actions-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 900px) {
   .flow-grid {
     grid-template-columns: 1fr;

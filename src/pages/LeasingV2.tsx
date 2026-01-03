@@ -10,7 +10,13 @@ import { formatMoneyBR, formatNumberBR, toNumberFlexible } from '../lib/locale/b
 import { leasingActions, useLeasingStore } from '../store/useLeasingStore'
 import '../components/flows/flows.css'
 
-export function LeasingV2() {
+interface LeasingV2Props {
+  onGenerateProposal?: () => Promise<boolean> | boolean | void
+  onNavigateBack?: () => void
+  onNavigateVendas?: () => void
+}
+
+export function LeasingV2({ onGenerateProposal, onNavigateBack, onNavigateVendas }: LeasingV2Props) {
   const [activeStep, setActiveStep] = useState(0)
   const contrato = useLeasingStore((s) => s.contrato)
   const dadosTecnicos = useLeasingStore((s) => s.dadosTecnicos)
@@ -206,10 +212,14 @@ export function LeasingV2() {
 
   const allPendencias = useMemo(() => baseSteps.flatMap((step) => step.validate?.() ?? []), [baseSteps])
 
-  const handleGenerateProposal = () => {
+  const handleGenerateProposal = async () => {
     if (allPendencias.length > 0) {
       const missingIndex = baseSteps.findIndex((step) => (step.validate?.() ?? []).length > 0)
       if (missingIndex >= 0) setActiveStep(missingIndex)
+      return
+    }
+    if (onGenerateProposal) {
+      await onGenerateProposal()
       return
     }
     alert('Proposta de leasing gerada (UI V2).')
@@ -262,6 +272,20 @@ export function LeasingV2() {
       title="Leasing — Simulação e Proposta"
       subtitle="Fluxo sequencial com resumo fixo"
       breadcrumbs={["Home", "Leasing", "Nova proposta"]}
+      actions={
+        <div className="flow-actions-inline">
+          {onNavigateBack ? (
+            <button type="button" className="ghost" onClick={onNavigateBack}>
+              Voltar para painel
+            </button>
+          ) : null}
+          {onNavigateVendas ? (
+            <button type="button" className="ghost" onClick={onNavigateVendas}>
+              Ir para Vendas V2
+            </button>
+          ) : null}
+        </div>
+      }
       sidebar={
         <StickySummary
           kpis={summaryKpis}

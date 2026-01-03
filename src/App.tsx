@@ -173,6 +173,8 @@ import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
+import { VendasV2 } from './pages/VendasV2'
+import { LeasingV2 } from './pages/LeasingV2'
 import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
@@ -18754,6 +18756,22 @@ export default function App() {
           },
         },
         {
+          id: 'propostas-vendas-v2',
+          label: 'Vendas (V2)',
+          icon: '✨',
+          onSelect: () => {
+            window.location.assign('/vendas-v2')
+          },
+        },
+        {
+          id: 'propostas-leasing-v2',
+          label: 'Leasing (V2)',
+          icon: '✨',
+          onSelect: () => {
+            window.location.assign('/leasing-v2')
+          },
+        },
+        {
           id: 'propostas-nova',
           label: 'Nova proposta',
           icon: '✨',
@@ -20126,23 +20144,64 @@ export default function App() {
     />
   )
 
-  const activeSidebarItem =
-    activePage === 'dashboard'
-      ? 'dashboard-home'
-      : activePage === 'crm'
-        ? 'crm-central'
-        : activePage === 'clientes'
-          ? 'crm-clientes'
-          : activePage === 'consultar'
-            ? 'orcamentos-importar'
-            : activePage === 'settings'
-              ? 'config-preferencias'
-              : activePage === 'simulacoes'
-                ? `simulacoes-${simulacoesSection}`
-                : activeTab === 'vendas'
-                  ? 'propostas-vendas'
-                  : 'propostas-leasing'
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/'
+  const isVendasV2Route = pathname.includes('/vendas-v2')
+  const isLeasingV2Route = pathname.includes('/leasing-v2')
 
+  useEffect(() => {
+    if (isVendasV2Route && activeTab !== 'vendas') {
+      setActiveTab('vendas')
+    }
+    if (isLeasingV2Route && activeTab !== 'leasing') {
+      setActiveTab('leasing')
+    }
+  }, [activeTab, isLeasingV2Route, isVendasV2Route, setActiveTab])
+
+  const activeSidebarItem =
+    isVendasV2Route
+      ? 'propostas-vendas-v2'
+      : isLeasingV2Route
+        ? 'propostas-leasing-v2'
+        : activePage === 'dashboard'
+          ? 'dashboard-home'
+          : activePage === 'crm'
+            ? 'crm-central'
+            : activePage === 'clientes'
+              ? 'crm-clientes'
+              : activePage === 'consultar'
+                ? 'orcamentos-importar'
+                : activePage === 'settings'
+                  ? 'config-preferencias'
+                  : activePage === 'simulacoes'
+                    ? `simulacoes-${simulacoesSection}`
+                    : activeTab === 'vendas'
+                      ? 'propostas-vendas'
+                      : 'propostas-leasing'
+
+
+  if (isVendasV2Route) {
+    return (
+      <div className="page-content flow-page">
+        <VendasV2
+          onGenerateProposal={handleSalvarPropostaPdf}
+          onNavigateBack={() => window.location.assign('/')}
+          onNavigateLeasing={() => window.location.assign('/leasing-v2')}
+        />
+      </div>
+    )
+  }
+
+  if (isLeasingV2Route) {
+    return (
+      <div className="page-content flow-page">
+        <LeasingV2
+          onGenerateProposal={handleSalvarPropostaLeasing}
+          onNavigateBack={() => window.location.assign('/')}
+          onNavigateVendas={() => window.location.assign('/vendas-v2')}
+        />
+      </div>
+    )
+  }
 
   return (
     <>

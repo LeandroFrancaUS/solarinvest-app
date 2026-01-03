@@ -48,7 +48,7 @@ export function StepWizard({ steps, initialStep = 0, activeStep, onStepChange, o
     <div className="wizard">
       <div className="wizard-header">
         <div>
-          <p className="wizard-progress">Progresso {progressLabel}</p>
+          <p className="wizard-progress">Etapa {progressLabel}</p>
           <h2>{steps[stepIndex]?.title}</h2>
           {steps[stepIndex]?.description ? <p className="wizard-description">{steps[stepIndex]?.description}</p> : null}
         </div>
