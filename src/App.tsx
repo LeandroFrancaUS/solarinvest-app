@@ -4520,6 +4520,19 @@ export default function App() {
     onChange: handleBudgetTotalValueChange,
   })
 
+  const kitBudgetTotal = useMemo(() => {
+    if (kitBudget.totalSource === 'explicit') {
+      return kitBudget.total ?? 0
+    }
+    if (budgetItemsTotal != null) {
+      return budgetItemsTotal
+    }
+    if (kitBudget.total != null) {
+      return kitBudget.total
+    }
+    return 0
+  }, [budgetItemsTotal, kitBudget.total, kitBudget.totalSource])
+
   const handleComposicaoTelhadoChange = useCallback(
     (campo: keyof UfvComposicaoTelhadoValores, valor: string) => {
       const parsed = parseNumericInput(valor)
@@ -20753,6 +20766,26 @@ export default function App() {
                         : 'itens ignorados por filtro de ruído'}
                     </span>
                   ) : null}
+                  <div className="grid g2" style={{ marginTop: '12px' }}>
+                    <Field label="Valor total do orçamento (R$)">
+                      <input
+                        ref={budgetTotalField.ref}
+                        type="text"
+                        inputMode="decimal"
+                        value={budgetTotalField.text}
+                        onChange={budgetTotalField.handleChange}
+                        onBlur={budgetTotalField.handleBlur}
+                        onFocus={(event) => {
+                          budgetTotalField.handleFocus(event)
+                          selectNumberInputOnFocus(event)
+                        }}
+                        placeholder={MONEY_INPUT_PLACEHOLDER}
+                      />
+                      <p className="muted">
+                        Informe manualmente o valor do kit ou deixe em branco para usar a soma dos itens.
+                      </p>
+                    </Field>
+                  </div>
                   {budgetMissingSummary ? (
                     <div className="budget-missing-alert">
                       <div>
