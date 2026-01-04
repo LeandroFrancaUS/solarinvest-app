@@ -137,8 +137,8 @@ import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
-import { VendasFlowV6 } from './pages-v6/VendasFlowV6'
-import { LeasingFlowV6 } from './pages-v6/LeasingFlowV6'
+import { VendasV7a } from './pages-v7a/VendasV7a'
+import { LeasingV7a } from './pages-v7a/LeasingV7a'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/simulacoes/SimulacoesTab'
@@ -3137,7 +3137,10 @@ export default function App() {
     const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
-  const [useLegacyFlow, setUseLegacyFlow] = useState(false)
+  const [useLegacyFlow] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('legacyFlow') === '1'
+  })
   const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>('nova')
   const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
   const [aprovacaoChecklist, setAprovacaoChecklist] = useState<
@@ -18743,8 +18746,7 @@ export default function App() {
                   : 'Leasing'
   const topbarSubtitle = contentSubtitle
 
-  const vendasSectionsV6 = {
-    cliente: renderClienteDadosSection,
+  const vendasSectionsV7a = {
     consumo: () => (
       <>
         {renderParametrosPrincipaisSection()}
@@ -18752,41 +18754,14 @@ export default function App() {
         {renderPropostaImagensSection()}
       </>
     ),
-    sistema: () => (
-      <>
-        {renderVendaParametrosSection()}
-        {renderVendaConfiguracaoSection()}
-      </>
-    ),
-    kitCustos: () => (
-      <>
-        {renderVendaResumoPublicoSection()}
-        {renderComposicaoUfvSection()}
-      </>
-    ),
-    resultados: () => (
-      <>
-        {renderCondicoesPagamentoSection()}
-        {renderRetornoProjetadoSection()}
-      </>
-    ),
     gerar: renderPropostaImagensSection,
   }
 
-  const leasingSectionsV6 = {
-    cliente: renderClienteDadosSection,
+  const leasingSectionsV7a = {
     consumo: () => (
       <>
         {renderParametrosPrincipaisSection()}
         {renderTusdParametersSection()}
-      </>
-    ),
-    sistema: renderConfiguracaoUsinaSection,
-    oferta: renderLeasingContratoSection,
-    resultados: () => (
-      <>
-        {renderCondicoesPagamentoSection()}
-        {renderRetornoProjetadoSection()}
       </>
     ),
     gerar: renderPropostaImagensSection,
@@ -18797,6 +18772,17 @@ export default function App() {
   const capexTotalResumo = valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? null
   const valorKitResumo = autoKitValor != null ? formatBRL(autoKitValor) : null
   const modoOrcamentoLabel = isManualBudgetForced || modoOrcamento === 'manual' ? 'Manual' : 'Automático'
+  const manualReason =
+    isManualBudgetForced || modoOrcamento === 'manual'
+      ? 'Este caso exige orçamento manual devido ao tipo de instalação ou sistema.'
+      : null
+  const flowKpis = [
+    { label: 'Potência (kWp)', value: potenciaInstaladaResumo != null ? `${potenciaInstaladaResumo} kWp` : null },
+    { label: 'Geração mensal', value: geracaoMensalResumo != null ? `${geracaoMensalResumo} kWh` : null },
+    { label: 'Valor do kit', value: valorKitResumo },
+    { label: 'CAPEX total', value: capexTotalResumo != null ? formatBRL(capexTotalResumo) : null },
+    { label: 'Modo', value: modoOrcamentoLabel },
+  ]
 
   const sidebarGroups: SidebarGroup[] = [
     {
@@ -20329,42 +20315,20 @@ export default function App() {
                         ) : null}
                       </div>
                     ) : null}
-                    <div
-                      className="flow-v6-toggle-row"
-                      style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}
-                    >
-                      <button type="button" className="ghost" onClick={() => setUseLegacyFlow((prev) => !prev)}>
-                        {useLegacyFlow ? 'Usar Flow V6' : 'Abrir Legacy'}
-                      </button>
-                    </div>
                     {!useLegacyFlow && activeTab === 'vendas' ? (
-                      <VendasFlowV6
-                        sections={vendasSectionsV6}
-                        cliente={{ nome: cliente.nome }}
-                        consumoMedio={kcKwhMes}
-                        tipoInstalacao={tipoInstalacao}
-                        tipoSistema={tipoSistema}
-                        potenciaInstalada={potenciaInstaladaResumo}
-                        geracaoMensal={geracaoMensalResumo}
-                        valorKit={valorKitResumo}
-                        capexTotal={capexTotalResumo != null ? formatBRL(capexTotalResumo) : null}
-                        modoOrcamentoLabel={modoOrcamentoLabel}
+                      <VendasV7a
+                        sections={vendasSectionsV7a}
+                        kpis={flowKpis}
+                        manualReason={manualReason}
                         onGenerateProposal={handlePrint}
-                        onToggleLegacy={() => setUseLegacyFlow(true)}
                       />
                     ) : null}
                     {!useLegacyFlow && activeTab === 'leasing' ? (
-                      <LeasingFlowV6
-                        sections={leasingSectionsV6}
-                        cliente={{ nome: cliente.nome }}
-                        consumoMedio={kcKwhMes}
-                        tipoInstalacao={tipoInstalacao}
-                        tipoSistema={tipoSistema}
-                        capexTotal={capexTotalResumo != null ? formatBRL(capexTotalResumo) : null}
-                        geracaoMensal={geracaoMensalResumo}
-                        valorOferta={capexTotalResumo != null ? formatBRL(capexTotalResumo) : null}
+                      <LeasingV7a
+                        sections={leasingSectionsV7a}
+                        kpis={flowKpis}
+                        manualReason={manualReason}
                         onGenerateProposal={handlePrint}
-                        onToggleLegacy={() => setUseLegacyFlow(true)}
                       />
                     ) : null}
                     {useLegacyFlow ? (
