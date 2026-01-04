@@ -1,0 +1,198 @@
+.flow-v5 {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.flow-v5__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flow-v5__eyebrow {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-text, #6b7280);
+  margin: 0 0 4px;
+}
+
+.flow-v5__title {
+  margin: 0;
+  font-size: 24px;
+}
+
+.flow-v5__subtitle {
+  color: var(--muted-text, #6b7280);
+  font-size: 14px;
+}
+
+.flow-v5__body {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 16px;
+  align-items: start;
+}
+
+.flow-v5__main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flow-v5__sidebar {
+  position: sticky;
+  top: 16px;
+}
+
+@media (max-width: 1024px) {
+  .flow-v5__body {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-v5__sidebar {
+    position: static;
+  }
+}
+
+.wizard__progress {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.wizard__dot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+
+.wizard__dot.is-active {
+  border-color: var(--primary-500, #2563eb);
+  box-shadow: 0 0 0 1px var(--primary-100, #dbeafe);
+}
+
+.wizard__dot.is-complete {
+  background: linear-gradient(90deg, #ecfeff, #eff6ff);
+}
+
+.wizard__dot-label {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.wizard__dot-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.wizard__content {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wizard__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.wizard__footer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.step-card {
+  padding: 16px;
+}
+
+.step-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.step-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.step-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary-sidebar__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.summary-sidebar__badge {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+}
+
+.summary-sidebar__manual {
+  margin: 4px 0 0;
+  color: #92400e;
+}
+
+.summary-sidebar__list {
+  display: grid;
+  gap: 6px;
+}
+
+.summary-sidebar__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px;
+}
+
+.summary-sidebar__pending ul {
+  padding-left: 18px;
+  margin: 6px 0;
+}
+
+.summary-sidebar__pending button {
+  color: var(--primary-600, #2563eb);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.summary-sidebar__footer {
+  display: flex;
+}
