@@ -206,20 +206,54 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
   }
 
   const normalized = {
+    // Core client info
     nomeCompleto: ensureField(dados, 'nomeCompleto', 'Nome completo / razão social'),
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
+    cnpj: typeof dados.cnpj === 'string' ? dados.cnpj.trim() : '',
+    rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
+    razaoSocial: typeof dados.razaoSocial === 'string' ? dados.razaoSocial.trim() : '',
+    representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim() : '',
+    
+    // Personal info
+    estadoCivil: typeof dados.estadoCivil === 'string' ? dados.estadoCivil.trim() : '',
+    nacionalidade: typeof dados.nacionalidade === 'string' ? dados.nacionalidade.trim() : '',
+    profissao: typeof dados.profissao === 'string' ? dados.profissao.trim() : '',
+    
+    // Address fields
     enderecoCompleto: ensureField(dados, 'enderecoCompleto', 'Endereço completo'),
+    endereco: typeof dados.endereco === 'string' ? dados.endereco.trim() : '',
+    cidade: typeof dados.cidade === 'string' ? dados.cidade.trim() : '',
+    cep: typeof dados.cep === 'string' ? dados.cep.trim() : '',
+    uf: typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : '',
+    
+    // Contact info
+    telefone: typeof dados.telefone === 'string' ? dados.telefone.trim() : '',
+    email: typeof dados.email === 'string' ? dados.email.trim() : '',
+    
+    // UC and installation
     unidadeConsumidora: ensureField(dados, 'unidadeConsumidora', 'Unidade consumidora'),
+    localEntrega: ensureField(dados, 'localEntrega', 'Local de entrega'),
+    
+    // Contractor company info
+    cnpjContratada: typeof dados.cnpjContratada === 'string' ? dados.cnpjContratada.trim() : '',
+    enderecoContratada: typeof dados.enderecoContratada === 'string' ? dados.enderecoContratada.trim() : '',
+    
+    // Dates
+    dataInicio: optionalField(dados, 'dataInicio'),
+    dataFim: optionalField(dados, 'dataFim'),
+    dataHomologacao: optionalField(dados, 'dataHomologacao'),
+    dataAtualExtenso: optionalField(dados, 'dataAtualExtenso'),
+    diaVencimento: typeof dados.diaVencimento === 'string' ? dados.diaVencimento.trim() : '',
+    prazoContratual: typeof dados.prazoContratual === 'string' ? dados.prazoContratual.trim() : '',
+    
+    // Technical specs
     potencia: ensureField(dados, 'potencia', 'Potência contratada (kWp)'),
     kWhContratado: ensureField(dados, 'kWhContratado', 'Energia contratada (kWh)'),
     tarifaBase: ensureField(dados, 'tarifaBase', 'Tarifa base (R$/kWh)'),
-    dataInicio: optionalField(dados, 'dataInicio'),
-    dataFim: optionalField(dados, 'dataFim'),
-    localEntrega: ensureField(dados, 'localEntrega', 'Local de entrega'),
     modulosFV: optionalField(dados, 'modulosFV'),
     inversoresFV: optionalField(dados, 'inversoresFV'),
-    dataHomologacao: optionalField(dados, 'dataHomologacao'),
-    dataAtualExtenso: optionalField(dados, 'dataAtualExtenso'),
+    
+    // Condominium fields
     proprietarios: normalizeProprietarios(dados.proprietarios),
     ucsBeneficiarias: normalizeUcsBeneficiarias(dados.ucsBeneficiarias),
     nomeCondominio:
@@ -228,20 +262,30 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
       typeof dados.cnpjCondominio === 'string' ? dados.cnpjCondominio.trim() : '',
     nomeSindico: typeof dados.nomeSindico === 'string' ? dados.nomeSindico.trim() : '',
     cpfSindico: typeof dados.cpfSindico === 'string' ? dados.cpfSindico.trim() : '',
-    uf: typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : '',
-    telefone: typeof dados.telefone === 'string' ? dados.telefone.trim() : '',
-    email: typeof dados.email === 'string' ? dados.email.trim() : '',
-    // Individual address components for template use
-    endereco: typeof dados.endereco === 'string' ? dados.endereco.trim() : '',
-    cidade: typeof dados.cidade === 'string' ? dados.cidade.trim() : '',
-    cep: typeof dados.cep === 'string' ? dados.cep.trim() : '',
   }
 
-  // Add alias for clarity: enderecoInstalacao is the same as localEntrega
-  // This makes it explicit in contracts that there are two addresses:
-  // - enderecoCompleto: contractor's address
-  // - enderecoInstalacao: installation/delivery address for the generating unit
+  // Derived fields
+  // enderecoCliente is an alias for enderecoCompleto
+  normalized.enderecoCliente = normalized.enderecoCompleto
+  
+  // enderecoInstalacao is an alias for localEntrega
   normalized.enderecoInstalacao = normalized.localEntrega
+  
+  // anoContrato from dataInicio if available
+  if (normalized.dataInicio) {
+    try {
+      const year = new Date(normalized.dataInicio).getFullYear()
+      if (!isNaN(year)) {
+        normalized.anoContrato = String(year)
+      } else {
+        normalized.anoContrato = ''
+      }
+    } catch {
+      normalized.anoContrato = ''
+    }
+  } else {
+    normalized.anoContrato = new Date().getFullYear().toString()
+  }
 
   if (!normalized.dataAtualExtenso) {
     normalized.dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })

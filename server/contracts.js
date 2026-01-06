@@ -135,17 +135,54 @@ const escapeXmlValue = (value) =>
   String(value ?? '').replace(XML_CHAR_ESCAPE_REGEX, (char) => XML_CHAR_ESCAPE_MAP[char] ?? char)
 
 const buildPlaceholderMap = (data) => ({
+  // Core client info
   nomeCompleto: data.nomeCompleto ?? '',
   cpfCnpj: maskCpfCnpj(data.cpfCnpj),
+  cnpj: data.cnpj ?? '',
+  rg: data.rg ?? '',
+  razaoSocial: data.razaoSocial ?? '',
+  representanteLegal: data.representanteLegal ?? '',
+  
+  // Personal info
+  estadoCivil: data.estadoCivil ?? '',
+  nacionalidade: data.nacionalidade ?? '',
+  profissao: data.profissao ?? '',
+  
+  // Address fields
   enderecoCompleto: data.enderecoCompleto ?? '',
-  unidadeConsumidora: data.unidadeConsumidora ?? '',
-  dataAtualExtenso: data.dataAtualExtenso ?? '',
-  telefone: data.telefone ?? '',
-  email: data.email ?? '',
+  enderecoCliente: data.enderecoCliente ?? data.enderecoCompleto ?? '',
   endereco: data.endereco ?? '',
   cidade: data.cidade ?? '',
   uf: data.uf ?? '',
   cep: data.cep ?? '',
+  
+  // Contact info
+  telefone: data.telefone ?? '',
+  email: data.email ?? '',
+  
+  // UC and installation
+  unidadeConsumidora: data.unidadeConsumidora ?? '',
+  localEntrega: data.localEntrega ?? '',
+  
+  // Contractor company info
+  cnpjContratada: data.cnpjContratada ?? '',
+  enderecoContratada: data.enderecoContratada ?? '',
+  
+  // Dates
+  dataAtualExtenso: data.dataAtualExtenso ?? '',
+  dataInicio: data.dataInicio ?? '',
+  dataFim: data.dataFim ?? '',
+  dataHomologacao: data.dataHomologacao ?? '',
+  anoContrato: data.anoContrato ?? '',
+  diaVencimento: data.diaVencimento ?? '',
+  prazoContratual: data.prazoContratual ?? '',
+  
+  // Technical specs
+  potencia: data.potencia ?? '',
+  kWhContratado: data.kWhContratado ?? '',
+  tarifaBase: data.tarifaBase ?? '',
+  modulosFV: data.modulosFV ?? '',
+  inversoresFV: data.inversoresFV ?? '',
 })
 
 const applyPlaceholderReplacements = (text, data, { escapeXml = false } = {}) => {

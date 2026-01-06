@@ -45,40 +45,57 @@ O sistema extrai automaticamente o UF dos dados do cliente:
 Os templates devem usar as seguintes variáveis (tags) que serão automaticamente preenchidas:
 
 #### Templates Gerais (`/api/contracts/render`):
+**Informações do Cliente**:
 - `{{nomeCompleto}}` ou `{nomeCompleto}` - Nome completo do cliente
+- `{{razaoSocial}}` - Razão social (para pessoa jurídica)
 - `{{cpfCnpj}}` - CPF ou CNPJ formatado
+- `{{cnpj}}` - CNPJ (sem formatação)
+- `{{rg}}` - RG do cliente
+- `{{representanteLegal}}` - Nome do representante legal
+
+**Informações Pessoais**:
+- `{{estadoCivil}}` - Estado civil
+- `{{nacionalidade}}` - Nacionalidade
+- `{{profissao}}` - Profissão
+
+**Endereços**:
 - `{{enderecoCompleto}}` - Endereço completo do contratante (formato: Rua, Cidade/UF, CEP)
+- `{{enderecoCliente}}` - Alias para enderecoCompleto
 - `{{endereco}}` - Endereço (rua, número, complemento) do contratante
 - `{{cidade}}` - Cidade do contratante
 - `{{uf}}` - UF (sigla do estado) do contratante
 - `{{cep}}` - CEP do contratante
-- `{{unidadeConsumidora}}` - Número da unidade consumidora (UC)
-- `{{dataAtualExtenso}}` - Data atual por extenso (ex: "06 de janeiro de 2026")
+
+**Contatos**:
 - `{{telefone}}` - Telefone do cliente
 - `{{email}}` - E-mail do cliente
 
-#### Templates de Leasing (via Mustache):
-- `{{nomeCompleto}}` - Nome completo / razão social do contratante
-- `{{cpfCnpj}}` - CPF/CNPJ do contratante
-- `{{enderecoCompleto}}` - Endereço completo do contratante (formato: Rua, Cidade/UF, CEP)
-- `{{endereco}}` - Endereço (rua, número, complemento) do contratante
-- `{{cidade}}` - Cidade do contratante
-- `{{uf}}` - UF (sigla do estado) do contratante
-- `{{cep}}` - CEP do contratante
-- `{{unidadeConsumidora}}` - Unidade consumidora
-- `{{telefone}}` - Telefone do contratante
-- `{{email}}` - E-mail do contratante
-- `{{localEntrega}}` - Local de entrega/instalação da UC geradora
-- `{{enderecoInstalacao}}` - Endereço de instalação da UC geradora (mesmo que localEntrega)
+**UC e Instalação**:
+- `{{unidadeConsumidora}}` - Número da unidade consumidora (UC)
+- `{{localEntrega}}` - Local de entrega/instalação
+
+**Informações da Contratada (empresa que presta o serviço)**:
+- `{{cnpjContratada}}` - CNPJ da empresa contratada
+- `{{enderecoContratada}}` - Endereço da empresa contratada
+
+**Datas**:
+- `{{dataAtualExtenso}}` - Data atual por extenso (ex: "06 de janeiro de 2026")
+- `{{dataInicio}}` - Data de início do contrato
+- `{{dataFim}}` - Data de fim do contrato
+- `{{dataHomologacao}}` - Data de homologação
+- `{{anoContrato}}` - Ano do contrato (extraído de dataInicio ou ano atual)
+- `{{diaVencimento}}` - Dia de vencimento
+- `{{prazoContratual}}` - Prazo contratual
+
+**Especificações Técnicas**:
 - `{{potencia}}` - Potência contratada (kWp)
 - `{{kWhContratado}}` - Energia contratada (kWh)
 - `{{tarifaBase}}` - Tarifa base (R$/kWh)
-- `{{dataInicio}}` - Data de início do contrato
-- `{{dataFim}}` - Data de fim do contrato
 - `{{modulosFV}}` - Descrição dos módulos fotovoltaicos
 - `{{inversoresFV}}` - Descrição dos inversores
-- `{{dataHomologacao}}` - Data de homologação
-- `{{dataAtualExtenso}}` - Data atual por extenso
+
+#### Templates de Leasing (via Mustache):
+Todas as variáveis acima estão disponíveis, mais:
 - Para condomínios:
   - `{{nomeCondominio}}` - Nome do condomínio
   - `{{cnpjCondominio}}` - CNPJ do condomínio
@@ -86,7 +103,7 @@ Os templates devem usar as seguintes variáveis (tags) que serão automaticament
   - `{{cpfSindico}}` - CPF do síndico
 
 **Importante**: O endereço do contratante pode ser usado de duas formas:
-- `{{enderecoCompleto}}` - Endereço completo formatado (Rua, Cidade/UF, CEP)
+- `{{enderecoCompleto}}` ou `{{enderecoCliente}}` - Endereço completo formatado (Rua, Cidade/UF, CEP)
 - Componentes individuais: `{{endereco}}`, `{{cidade}}`, `{{uf}}`, `{{cep}}` - Para maior flexibilidade na formatação
 
 O endereço de instalação (`{{enderecoInstalacao}}` ou `{{localEntrega}}`) pode ser diferente do endereço do contratante.
