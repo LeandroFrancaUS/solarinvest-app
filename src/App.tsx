@@ -14840,14 +14840,16 @@ export default function App() {
           <div className="leasing-location-grid grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="mb-4">
               <div className="mb-1 text-sm font-medium text-gray-600 leasing-location-label">
-                <span className="leasing-field-label-text">Local de entrega / instalação</span>
+                <span className="leasing-field-label-text">
+                  Endereço de instalação da UC geradora
+                </span>
                 <label className="leasing-location-checkbox flex items-center gap-2">
                   <CheckboxSmall
                     checked={usarEnderecoCliente}
                     onChange={(event) => handleToggleUsarEnderecoCliente(event.target.checked)}
                     disabled={!enderecoClienteCompleto}
                   />
-                  <span>Usar endereço do cliente</span>
+                  <span>Mesmo que endereço do contratante</span>
                 </label>
               </div>
               <input
@@ -14855,8 +14857,11 @@ export default function App() {
                 className="leasing-compact-input h-[46px]"
                 value={leasingContrato.localEntrega}
                 onChange={(event) => handleLeasingLocalEntregaChange(event.target.value)}
-                placeholder="Endereço ou município"
+                placeholder="Endereço completo da instalação"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Endereço onde a UC geradora será instalada (pode ser diferente do endereço do contratante)
+              </p>
             </div>
             <div className="mb-4">
               <label

@@ -47,25 +47,26 @@ Os templates devem usar as seguintes variáveis (tags) que serão automaticament
 #### Templates Gerais (`/api/contracts/render`):
 - `{{nomeCompleto}}` ou `{nomeCompleto}` - Nome completo do cliente
 - `{{cpfCnpj}}` - CPF ou CNPJ formatado
-- `{{enderecoCompleto}}` - Endereço completo
+- `{{enderecoCompleto}}` - Endereço completo do contratante
 - `{{unidadeConsumidora}}` - Número da unidade consumidora (UC)
 - `{{dataAtualExtenso}}` - Data atual por extenso (ex: "06 de janeiro de 2026")
 - `{{telefone}}` - Telefone do cliente
 - `{{email}}` - E-mail do cliente
 
 #### Templates de Leasing (via Mustache):
-- `{{nomeCompleto}}` - Nome completo / razão social
-- `{{cpfCnpj}}` - CPF/CNPJ
-- `{{enderecoCompleto}}` - Endereço completo
+- `{{nomeCompleto}}` - Nome completo / razão social do contratante
+- `{{cpfCnpj}}` - CPF/CNPJ do contratante
+- `{{enderecoCompleto}}` - Endereço completo do contratante
 - `{{unidadeConsumidora}}` - Unidade consumidora
 - `{{telefone}}` - Telefone do contratante
 - `{{email}}` - E-mail do contratante
+- `{{localEntrega}}` - Local de entrega/instalação da UC geradora
+- `{{enderecoInstalacao}}` - Endereço de instalação da UC geradora (mesmo que localEntrega)
 - `{{potencia}}` - Potência contratada (kWp)
 - `{{kWhContratado}}` - Energia contratada (kWh)
 - `{{tarifaBase}}` - Tarifa base (R$/kWh)
 - `{{dataInicio}}` - Data de início do contrato
 - `{{dataFim}}` - Data de fim do contrato
-- `{{localEntrega}}` - Local de entrega da instalação
 - `{{modulosFV}}` - Descrição dos módulos fotovoltaicos
 - `{{inversoresFV}}` - Descrição dos inversores
 - `{{dataHomologacao}}` - Data de homologação
@@ -75,6 +76,8 @@ Os templates devem usar as seguintes variáveis (tags) que serão automaticament
   - `{{cnpjCondominio}}` - CNPJ do condomínio
   - `{{nomeSindico}}` - Nome do síndico
   - `{{cpfSindico}}` - CPF do síndico
+
+**Importante**: O endereço do contratante (`{{enderecoCompleto}}`) pode ser diferente do endereço de instalação (`{{enderecoInstalacao}}` ou `{{localEntrega}}`). Certifique-se de usar a variável apropriada no contrato.
 
 ## Como Adicionar Templates por UF
 

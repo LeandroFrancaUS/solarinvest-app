@@ -233,6 +233,12 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     email: typeof dados.email === 'string' ? dados.email.trim() : '',
   }
 
+  // Add alias for clarity: enderecoInstalacao is the same as localEntrega
+  // This makes it explicit in contracts that there are two addresses:
+  // - enderecoCompleto: contractor's address
+  // - enderecoInstalacao: installation/delivery address for the generating unit
+  normalized.enderecoInstalacao = normalized.localEntrega
+
   if (!normalized.dataAtualExtenso) {
     normalized.dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
   }
