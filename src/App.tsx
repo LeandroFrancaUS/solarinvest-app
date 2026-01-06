@@ -2056,6 +2056,7 @@ type ClienteContratoPayload = {
   cpfCnpj: string
   enderecoCompleto: string
   unidadeConsumidora: string
+  uf?: string
 }
 
 type ContractTemplateCategory = 'leasing' | 'vendas'
@@ -12425,7 +12426,7 @@ export default function App() {
 
     const enderecoCompleto = enderecoPartes.join(', ')
 
-    return { nomeCompleto, cpfCnpj, enderecoCompleto, unidadeConsumidora }
+    return { nomeCompleto, cpfCnpj, enderecoCompleto, unidadeConsumidora, uf }
   }, [
     adicionarNotificacao,
     cliente.cidade,
