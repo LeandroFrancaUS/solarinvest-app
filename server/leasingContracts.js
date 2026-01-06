@@ -12,6 +12,24 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   'assets/templates/contratos/leasing',
 )
 
+// Valid Brazilian state codes (UF)
+const VALID_UF_CODES = new Set([
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
+  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
+  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+])
+
+/**
+ * Validates if a string is a valid Brazilian UF code
+ * @param {string} uf - UF code to validate
+ * @returns {boolean} true if valid, false otherwise
+ */
+const isValidUf = (uf) => {
+  if (typeof uf !== 'string') return false
+  const normalized = uf.trim().toUpperCase()
+  return normalized.length === 2 && VALID_UF_CODES.has(normalized)
+}
+
 export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
 
 export class LeasingContractsError extends Error {
@@ -211,6 +229,8 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     nomeSindico: typeof dados.nomeSindico === 'string' ? dados.nomeSindico.trim() : '',
     cpfSindico: typeof dados.cpfSindico === 'string' ? dados.cpfSindico.trim() : '',
     uf: typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : '',
+    telefone: typeof dados.telefone === 'string' ? dados.telefone.trim() : '',
+    email: typeof dados.email === 'string' ? dados.email.trim() : '',
   }
 
   if (!normalized.dataAtualExtenso) {
@@ -265,7 +285,7 @@ const loadDocxTemplate = async (fileName, uf) => {
   const normalizedUf = typeof uf === 'string' ? uf.trim().toUpperCase() : ''
 
   // Tenta carregar template específico do UF primeiro
-  if (normalizedUf && /^[A-Z]{2}$/.test(normalizedUf)) {
+  if (normalizedUf && isValidUf(normalizedUf)) {
     const ufTemplatePath = path.join(LEASING_TEMPLATES_DIR, normalizedUf, fileName)
     try {
       const buffer = await fs.readFile(ufTemplatePath)
@@ -277,6 +297,8 @@ const loadDocxTemplate = async (fileName, uf) => {
       }
       // Continua para tentar o template padrão
     }
+  } else if (normalizedUf) {
+    console.warn(`[leasing-contracts] UF inválido fornecido: ${normalizedUf}`)
   }
 
   // Fallback para template padrão

@@ -50,12 +50,16 @@ Os templates devem usar as seguintes variáveis (tags) que serão automaticament
 - `{{enderecoCompleto}}` - Endereço completo
 - `{{unidadeConsumidora}}` - Número da unidade consumidora (UC)
 - `{{dataAtualExtenso}}` - Data atual por extenso (ex: "06 de janeiro de 2026")
+- `{{telefone}}` - Telefone do cliente
+- `{{email}}` - E-mail do cliente
 
 #### Templates de Leasing (via Mustache):
 - `{{nomeCompleto}}` - Nome completo / razão social
 - `{{cpfCnpj}}` - CPF/CNPJ
 - `{{enderecoCompleto}}` - Endereço completo
 - `{{unidadeConsumidora}}` - Unidade consumidora
+- `{{telefone}}` - Telefone do contratante
+- `{{email}}` - E-mail do contratante
 - `{{potencia}}` - Potência contratada (kWp)
 - `{{kWhContratado}}` - Energia contratada (kWh)
 - `{{tarifaBase}}` - Tarifa base (R$/kWh)

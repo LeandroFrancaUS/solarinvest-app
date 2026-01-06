@@ -18,6 +18,24 @@ const CONTRACT_TEMPLATES_DIR_RELATIVE = 'assets/templates/contratos'
 const DEFAULT_TEMPLATE_FILE = path.join(DEFAULT_TEMPLATE_CATEGORY, DEFAULT_TEMPLATE_FILE_NAME)
 const TMP_DIR = path.resolve(process.cwd(), 'tmp')
 const MAX_BODY_SIZE_BYTES = 256 * 1024
+
+// Valid Brazilian state codes (UF)
+const VALID_UF_CODES = new Set([
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
+  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
+  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+])
+
+/**
+ * Validates if a string is a valid Brazilian UF code
+ * @param {string} uf - UF code to validate
+ * @returns {boolean} true if valid, false otherwise
+ */
+const isValidUf = (uf) => {
+  if (typeof uf !== 'string') return false
+  const normalized = uf.trim().toUpperCase()
+  return normalized.length === 2 && VALID_UF_CODES.has(normalized)
+}
 const PDF_PAGE_WIDTH = 612
 const PDF_PAGE_HEIGHT = 792
 const PDF_MARGIN = 72
@@ -122,6 +140,8 @@ const buildPlaceholderMap = (data) => ({
   enderecoCompleto: data.enderecoCompleto ?? '',
   unidadeConsumidora: data.unidadeConsumidora ?? '',
   dataAtualExtenso: data.dataAtualExtenso ?? '',
+  telefone: data.telefone ?? '',
+  email: data.email ?? '',
 })
 
 const applyPlaceholderReplacements = (text, data, { escapeXml = false } = {}) => {
@@ -421,15 +441,19 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
       if (!category) {
         throw new ContractRenderError(400, 'Categoria de template inválida.')
       }
+      // Validate UF segment
+      if (!isValidUf(segments[1])) {
+        throw new ContractRenderError(400, 'UF inválido no caminho do template.')
+      }
       fileName = path.basename(segments[2])
       if (!fileName.toLowerCase().endsWith('.docx')) {
         throw new ContractRenderError(400, 'Template de contrato inválido.')
       }
-      relativePath = path.join(category, segments[1], fileName)
+      relativePath = path.join(category, segments[1].toUpperCase(), fileName)
       const absolutePath = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE, relativePath)
       try {
         await fs.access(absolutePath)
-        return { absolutePath, fileName: path.basename(relativePath), uf: segments[1] }
+        return { absolutePath, fileName: path.basename(relativePath), uf: segments[1].toUpperCase() }
       } catch (error) {
         if (error && error.code === 'ENOENT') {
           throw new ContractRenderError(404, 'Template de contrato não encontrado no servidor.')
@@ -446,17 +470,23 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
 
   // Se UF foi fornecida, tenta encontrar template específico do estado
   if (uf && fileName) {
-    const ufSpecificPath = path.join(category, uf, fileName)
-    const ufSpecificAbsolutePath = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE, ufSpecificPath)
-    
-    try {
-      await fs.access(ufSpecificAbsolutePath)
-      console.log(`[contracts] Usando template específico para UF ${uf}: ${ufSpecificPath}`)
-      return { absolutePath: ufSpecificAbsolutePath, fileName, uf }
-    } catch (error) {
-      // Template específico do UF não existe, continua para o template padrão
-      if (error && error.code !== 'ENOENT') {
-        console.warn(`[contracts] Erro ao acessar template específico do UF ${uf}:`, error)
+    // Validate UF before using in path
+    if (!isValidUf(uf)) {
+      console.warn(`[contracts] UF inválido fornecido: ${uf}`)
+      // Continue to fallback instead of throwing error
+    } else {
+      const ufSpecificPath = path.join(category, uf, fileName)
+      const ufSpecificAbsolutePath = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE, ufSpecificPath)
+      
+      try {
+        await fs.access(ufSpecificAbsolutePath)
+        console.log(`[contracts] Usando template específico para UF ${uf}: ${ufSpecificPath}`)
+        return { absolutePath: ufSpecificAbsolutePath, fileName, uf }
+      } catch (error) {
+        // Template específico do UF não existe, continua para o template padrão
+        if (error && error.code !== 'ENOENT') {
+          console.warn(`[contracts] Erro ao acessar template específico do UF ${uf}:`, error)
+        }
       }
     }
   }
@@ -512,6 +542,8 @@ const normalizeClientePayload = (payload) => {
     ? payload.enderecoCompleto.trim()
     : buildEnderecoCompleto(payload)
   const unidadeConsumidora = typeof payload.unidadeConsumidora === 'string' ? payload.unidadeConsumidora.trim() : ''
+  const telefone = typeof payload.telefone === 'string' ? payload.telefone.trim() : ''
+  const email = typeof payload.email === 'string' ? payload.email.trim() : ''
 
   const faltantes = []
   if (!nomeCompleto) faltantes.push('nome completo')
@@ -531,6 +563,8 @@ const normalizeClientePayload = (payload) => {
     cpfCnpj,
     enderecoCompleto,
     unidadeConsumidora,
+    telefone,
+    email,
   }
 }
 
@@ -1024,7 +1058,7 @@ const listAvailableTemplates = async (category, ufFilter) => {
     } else if (entry.isDirectory()) {
       // Verifica se é um diretório de UF (2 letras maiúsculas)
       const dirName = entry.name.toUpperCase()
-      if (dirName.length === 2 && /^[A-Z]{2}$/.test(dirName)) {
+      if (isValidUf(dirName)) {
         // Se há filtro de UF e não corresponde, pula
         if (ufFilter && dirName !== ufFilter.toUpperCase()) {
           continue

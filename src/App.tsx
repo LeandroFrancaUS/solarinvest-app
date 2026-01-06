@@ -2057,6 +2057,8 @@ type ClienteContratoPayload = {
   enderecoCompleto: string
   unidadeConsumidora: string
   uf?: string
+  telefone?: string
+  email?: string
 }
 
 type ContractTemplateCategory = 'leasing' | 'vendas'
@@ -12377,6 +12379,8 @@ export default function App() {
     const distribuidora = cliente.distribuidora?.trim() ?? ''
     const temIndicacao = Boolean(cliente.temIndicacao)
     const indicacaoNome = cliente.indicacaoNome?.trim() ?? ''
+    const telefone = cliente.telefone?.trim() ?? ''
+    const email = cliente.email?.trim() ?? ''
 
     const cpfDigits = normalizeNumbers(cpfCnpj)
     const cepDigits = normalizeNumbers(cep)
@@ -12426,16 +12430,18 @@ export default function App() {
 
     const enderecoCompleto = enderecoPartes.join(', ')
 
-    return { nomeCompleto, cpfCnpj, enderecoCompleto, unidadeConsumidora, uf }
+    return { nomeCompleto, cpfCnpj, enderecoCompleto, unidadeConsumidora, uf, telefone, email }
   }, [
     adicionarNotificacao,
     cliente.cidade,
     cliente.cep,
     cliente.distribuidora,
     cliente.documento,
+    cliente.email,
     cliente.endereco,
     cliente.indicacaoNome,
     cliente.nome,
+    cliente.telefone,
     cliente.temIndicacao,
     cliente.uc,
     cliente.uf,
