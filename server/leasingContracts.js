@@ -231,6 +231,10 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     uf: typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : '',
     telefone: typeof dados.telefone === 'string' ? dados.telefone.trim() : '',
     email: typeof dados.email === 'string' ? dados.email.trim() : '',
+    // Individual address components for template use
+    endereco: typeof dados.endereco === 'string' ? dados.endereco.trim() : '',
+    cidade: typeof dados.cidade === 'string' ? dados.cidade.trim() : '',
+    cep: typeof dados.cep === 'string' ? dados.cep.trim() : '',
   }
 
   // Add alias for clarity: enderecoInstalacao is the same as localEntrega

@@ -142,6 +142,10 @@ const buildPlaceholderMap = (data) => ({
   dataAtualExtenso: data.dataAtualExtenso ?? '',
   telefone: data.telefone ?? '',
   email: data.email ?? '',
+  endereco: data.endereco ?? '',
+  cidade: data.cidade ?? '',
+  uf: data.uf ?? '',
+  cep: data.cep ?? '',
 })
 
 const applyPlaceholderReplacements = (text, data, { escapeXml = false } = {}) => {
@@ -558,6 +562,12 @@ const normalizeClientePayload = (payload) => {
     throw new ContractRenderError(400, `Campos obrigatórios ausentes: ${mensagem}.`)
   }
 
+  // Extract individual address components if available
+  const endereco = typeof payload.endereco === 'string' ? payload.endereco.trim() : ''
+  const cidade = typeof payload.cidade === 'string' ? payload.cidade.trim() : ''
+  const uf = typeof payload.uf === 'string' ? payload.uf.trim().toUpperCase() : ''
+  const cep = typeof payload.cep === 'string' ? payload.cep.trim() : ''
+
   return {
     nomeCompleto,
     cpfCnpj,
@@ -565,6 +575,10 @@ const normalizeClientePayload = (payload) => {
     unidadeConsumidora,
     telefone,
     email,
+    endereco,
+    cidade,
+    uf,
+    cep,
   }
 }
 

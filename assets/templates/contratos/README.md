@@ -47,7 +47,11 @@ Os templates devem usar as seguintes variáveis (tags) que serão automaticament
 #### Templates Gerais (`/api/contracts/render`):
 - `{{nomeCompleto}}` ou `{nomeCompleto}` - Nome completo do cliente
 - `{{cpfCnpj}}` - CPF ou CNPJ formatado
-- `{{enderecoCompleto}}` - Endereço completo do contratante
+- `{{enderecoCompleto}}` - Endereço completo do contratante (formato: Rua, Cidade/UF, CEP)
+- `{{endereco}}` - Endereço (rua, número, complemento) do contratante
+- `{{cidade}}` - Cidade do contratante
+- `{{uf}}` - UF (sigla do estado) do contratante
+- `{{cep}}` - CEP do contratante
 - `{{unidadeConsumidora}}` - Número da unidade consumidora (UC)
 - `{{dataAtualExtenso}}` - Data atual por extenso (ex: "06 de janeiro de 2026")
 - `{{telefone}}` - Telefone do cliente
@@ -56,7 +60,11 @@ Os templates devem usar as seguintes variáveis (tags) que serão automaticament
 #### Templates de Leasing (via Mustache):
 - `{{nomeCompleto}}` - Nome completo / razão social do contratante
 - `{{cpfCnpj}}` - CPF/CNPJ do contratante
-- `{{enderecoCompleto}}` - Endereço completo do contratante
+- `{{enderecoCompleto}}` - Endereço completo do contratante (formato: Rua, Cidade/UF, CEP)
+- `{{endereco}}` - Endereço (rua, número, complemento) do contratante
+- `{{cidade}}` - Cidade do contratante
+- `{{uf}}` - UF (sigla do estado) do contratante
+- `{{cep}}` - CEP do contratante
 - `{{unidadeConsumidora}}` - Unidade consumidora
 - `{{telefone}}` - Telefone do contratante
 - `{{email}}` - E-mail do contratante
@@ -77,7 +85,11 @@ Os templates devem usar as seguintes variáveis (tags) que serão automaticament
   - `{{nomeSindico}}` - Nome do síndico
   - `{{cpfSindico}}` - CPF do síndico
 
-**Importante**: O endereço do contratante (`{{enderecoCompleto}}`) pode ser diferente do endereço de instalação (`{{enderecoInstalacao}}` ou `{{localEntrega}}`). Certifique-se de usar a variável apropriada no contrato.
+**Importante**: O endereço do contratante pode ser usado de duas formas:
+- `{{enderecoCompleto}}` - Endereço completo formatado (Rua, Cidade/UF, CEP)
+- Componentes individuais: `{{endereco}}`, `{{cidade}}`, `{{uf}}`, `{{cep}}` - Para maior flexibilidade na formatação
+
+O endereço de instalação (`{{enderecoInstalacao}}` ou `{{localEntrega}}`) pode ser diferente do endereço do contratante.
 
 ## Como Adicionar Templates por UF
 

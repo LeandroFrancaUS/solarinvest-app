@@ -2059,6 +2059,9 @@ type ClienteContratoPayload = {
   uf?: string
   telefone?: string
   email?: string
+  endereco?: string
+  cidade?: string
+  cep?: string
 }
 
 type ContractTemplateCategory = 'leasing' | 'vendas'
@@ -12430,7 +12433,18 @@ export default function App() {
 
     const enderecoCompleto = enderecoPartes.join(', ')
 
-    return { nomeCompleto, cpfCnpj, enderecoCompleto, unidadeConsumidora, uf, telefone, email }
+    return { 
+      nomeCompleto, 
+      cpfCnpj, 
+      enderecoCompleto, 
+      unidadeConsumidora, 
+      uf, 
+      telefone, 
+      email,
+      endereco: enderecoPrincipal,
+      cidade,
+      cep
+    }
   }, [
     adicionarNotificacao,
     cliente.cidade,
@@ -14511,7 +14525,7 @@ export default function App() {
             placeholder="Rua, número, complemento"
           />
         </Field>
-        <div className="mb-4">
+        <div>
           <div className="mb-1 text-sm font-medium text-gray-600 leasing-location-label">
             <span className="leasing-field-label-text">
               Endereço de instalação da UC geradora
