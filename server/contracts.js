@@ -381,44 +381,102 @@ const sanitizeTemplateCategory = (value) => {
   return CONTRACT_TEMPLATE_CATEGORIES.has(normalized) ? normalized : null
 }
 
-const resolveTemplatePath = async (templateName) => {
+/**
+ * Resolve o caminho do template com suporte a templates específicos por UF.
+ * Ordem de busca:
+ * 1. Template específico do UF (ex: leasing/GO/template.docx)
+ * 2. Template padrão da categoria (ex: leasing/template.docx)
+ * 
+ * @param {string} templateName - Nome do template ou caminho relativo
+ * @param {string} [clienteUf] - UF do cliente para resolução de templates específicos
+ */
+const resolveTemplatePath = async (templateName, clienteUf) => {
   const trimmed = typeof templateName === 'string' ? templateName.trim() : ''
+  const uf = typeof clienteUf === 'string' ? clienteUf.trim().toUpperCase() : ''
   let relativePath = DEFAULT_TEMPLATE_FILE
+  let category = DEFAULT_TEMPLATE_CATEGORY
+  let fileName = ''
 
   if (trimmed) {
     const normalized = path.posix.normalize(trimmed.replace(/\\/g, '/'))
     const segments = normalized.split('/').filter(Boolean)
     if (segments.length === 1) {
-      const fileName = path.basename(segments[0])
+      fileName = path.basename(segments[0])
       if (!fileName.toLowerCase().endsWith('.docx')) {
         throw new ContractRenderError(400, 'Template de contrato inválido.')
       }
-      relativePath = path.join(DEFAULT_TEMPLATE_CATEGORY, fileName)
+      category = DEFAULT_TEMPLATE_CATEGORY
     } else if (segments.length === 2) {
-      const category = sanitizeTemplateCategory(segments[0])
+      category = sanitizeTemplateCategory(segments[0])
       if (!category) {
         throw new ContractRenderError(400, 'Categoria de template inválida.')
       }
-      const fileName = path.basename(segments[1])
+      fileName = path.basename(segments[1])
       if (!fileName.toLowerCase().endsWith('.docx')) {
         throw new ContractRenderError(400, 'Template de contrato inválido.')
       }
-      relativePath = path.join(category, fileName)
+    } else if (segments.length === 3) {
+      // Suporta caminho completo: categoria/UF/arquivo.docx
+      category = sanitizeTemplateCategory(segments[0])
+      if (!category) {
+        throw new ContractRenderError(400, 'Categoria de template inválida.')
+      }
+      fileName = path.basename(segments[2])
+      if (!fileName.toLowerCase().endsWith('.docx')) {
+        throw new ContractRenderError(400, 'Template de contrato inválido.')
+      }
+      relativePath = path.join(category, segments[1], fileName)
+      const absolutePath = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE, relativePath)
+      try {
+        await fs.access(absolutePath)
+        return { absolutePath, fileName: path.basename(relativePath), uf: segments[1] }
+      } catch (error) {
+        if (error && error.code === 'ENOENT') {
+          throw new ContractRenderError(404, 'Template de contrato não encontrado no servidor.')
+        }
+        throw new ContractRenderError(500, 'Não foi possível acessar o template do contrato.')
+      }
     } else {
       throw new ContractRenderError(400, 'Caminho de template inválido.')
     }
+  } else {
+    // Use default template file name from DEFAULT_TEMPLATE_FILE
+    fileName = path.basename(DEFAULT_TEMPLATE_FILE)
   }
 
+  // Se UF foi fornecida, tenta encontrar template específico do estado
+  if (uf && fileName) {
+    const ufSpecificPath = path.join(category, uf, fileName)
+    const ufSpecificAbsolutePath = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE, ufSpecificPath)
+    
+    try {
+      await fs.access(ufSpecificAbsolutePath)
+      console.log(`[contracts] Usando template específico para UF ${uf}: ${ufSpecificPath}`)
+      return { absolutePath: ufSpecificAbsolutePath, fileName, uf }
+    } catch (error) {
+      // Template específico do UF não existe, continua para o template padrão
+      if (error && error.code !== 'ENOENT') {
+        console.warn(`[contracts] Erro ao acessar template específico do UF ${uf}:`, error)
+      }
+    }
+  }
+
+  // Fallback para template padrão da categoria
+  relativePath = fileName ? path.join(category, fileName) : DEFAULT_TEMPLATE_FILE
   const absolutePath = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE, relativePath)
+  
   try {
     await fs.access(absolutePath)
+    if (uf) {
+      console.log(`[contracts] Template específico para UF ${uf} não encontrado, usando template padrão: ${relativePath}`)
+    }
+    return { absolutePath, fileName: path.basename(relativePath), uf: null }
   } catch (error) {
     if (error && error.code === 'ENOENT') {
       throw new ContractRenderError(404, 'Template de contrato não encontrado no servidor.')
     }
     throw new ContractRenderError(500, 'Não foi possível acessar o template do contrato.')
   }
-  return { absolutePath, fileName: path.basename(relativePath) }
 }
 
 const buildEnderecoCompleto = (cliente) => {
@@ -897,8 +955,11 @@ const shouldFallbackToPlainText = (error) => {
 }
 
 const generateContractPdf = async (cliente, templateName) => {
-  const { absolutePath: templatePath, fileName: templateFileName } =
-    await resolveTemplatePath(templateName)
+  // Extrai UF do cliente para resolução de template específico
+  const clienteUf = typeof cliente.uf === 'string' ? cliente.uf.trim().toUpperCase() : ''
+  
+  const { absolutePath: templatePath, fileName: templateFileName, uf: resolvedUf } =
+    await resolveTemplatePath(templateName, clienteUf)
 
   const templateInfo = { templatePath, templateFileName }
   const dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
@@ -931,7 +992,16 @@ const sanitizeTemplateDownloadName = (templateFileName) => {
   return normalized || 'Contrato'
 }
 
-const listAvailableTemplates = async (category) => {
+/**
+ * Lista templates disponíveis em uma categoria, incluindo templates específicos por UF.
+ * Retorna templates no formato:
+ * - categoria/arquivo.docx (templates padrão)
+ * - categoria/UF/arquivo.docx (templates específicos por estado)
+ * 
+ * @param {string} category - Categoria de template (leasing, vendas)
+ * @param {string} [ufFilter] - Opcional: filtrar apenas templates de um UF específico
+ */
+const listAvailableTemplates = async (category, ufFilter) => {
   const directory = path.resolve(process.cwd(), CONTRACT_TEMPLATES_DIR_RELATIVE, category)
   let entries = []
   try {
@@ -942,10 +1012,41 @@ const listAvailableTemplates = async (category) => {
     }
     throw error
   }
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.docx'))
-    .map((entry) => `${category}/${entry.name}`)
-    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  const templates = []
+
+  // Adiciona templates diretos da categoria (templates padrão)
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.toLowerCase().endsWith('.docx')) {
+      if (!ufFilter) {
+        templates.push(`${category}/${entry.name}`)
+      }
+    } else if (entry.isDirectory()) {
+      // Verifica se é um diretório de UF (2 letras maiúsculas)
+      const dirName = entry.name.toUpperCase()
+      if (dirName.length === 2 && /^[A-Z]{2}$/.test(dirName)) {
+        // Se há filtro de UF e não corresponde, pula
+        if (ufFilter && dirName !== ufFilter.toUpperCase()) {
+          continue
+        }
+
+        // Lista templates dentro do diretório do UF
+        const ufDirectory = path.join(directory, entry.name)
+        try {
+          const ufEntries = await fs.readdir(ufDirectory, { withFileTypes: true })
+          for (const ufEntry of ufEntries) {
+            if (ufEntry.isFile() && ufEntry.name.toLowerCase().endsWith('.docx')) {
+              templates.push(`${category}/${dirName}/${ufEntry.name}`)
+            }
+          }
+        } catch (error) {
+          console.warn(`[contracts] Erro ao listar templates do UF ${dirName}:`, error)
+        }
+      }
+    }
+  }
+
+  return templates.sort((a, b) => a.localeCompare(b, 'pt-BR'))
 }
 
 export const handleContractRenderRequest = async (req, res) => {
@@ -1034,8 +1135,10 @@ export const handleContractTemplatesRequest = async (req, res) => {
   try {
     const requestUrl = req.url ? new URL(req.url, 'http://localhost') : null
     const categoryParam = requestUrl?.searchParams.get('categoria') ?? ''
+    const ufParam = requestUrl?.searchParams.get('uf') ?? ''
     const category = sanitizeTemplateCategory(categoryParam) ?? DEFAULT_TEMPLATE_CATEGORY
-    const templates = await listAvailableTemplates(category)
+    const ufFilter = ufParam.trim().toUpperCase() || undefined
+    const templates = await listAvailableTemplates(category, ufFilter)
     res.statusCode = 200
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
     res.end(JSON.stringify({ templates }))

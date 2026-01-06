@@ -210,6 +210,7 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
       typeof dados.cnpjCondominio === 'string' ? dados.cnpjCondominio.trim() : '',
     nomeSindico: typeof dados.nomeSindico === 'string' ? dados.nomeSindico.trim() : '',
     cpfSindico: typeof dados.cpfSindico === 'string' ? dados.cpfSindico.trim() : '',
+    uf: typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : '',
   }
 
   if (!normalized.dataAtualExtenso) {
@@ -251,10 +252,40 @@ const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
   return Array.from(selecionados)
 }
 
-const loadDocxTemplate = async (fileName) => {
+/**
+ * Carrega um template DOCX, com suporte a templates específicos por UF.
+ * Ordem de busca:
+ * 1. Template específico do UF (leasing/GO/template.docx)
+ * 2. Template padrão (leasing/template.docx)
+ * 
+ * @param {string} fileName - Nome do arquivo template
+ * @param {string} [uf] - UF para buscar template específico
+ */
+const loadDocxTemplate = async (fileName, uf) => {
+  const normalizedUf = typeof uf === 'string' ? uf.trim().toUpperCase() : ''
+
+  // Tenta carregar template específico do UF primeiro
+  if (normalizedUf && /^[A-Z]{2}$/.test(normalizedUf)) {
+    const ufTemplatePath = path.join(LEASING_TEMPLATES_DIR, normalizedUf, fileName)
+    try {
+      const buffer = await fs.readFile(ufTemplatePath)
+      console.log(`[leasing-contracts] Usando template específico para UF ${normalizedUf}: ${fileName}`)
+      return buffer
+    } catch (error) {
+      if (error && error.code !== 'ENOENT') {
+        console.warn(`[leasing-contracts] Erro ao acessar template específico do UF ${normalizedUf}:`, error)
+      }
+      // Continua para tentar o template padrão
+    }
+  }
+
+  // Fallback para template padrão
   const templatePath = path.join(LEASING_TEMPLATES_DIR, fileName)
   try {
     const buffer = await fs.readFile(templatePath)
+    if (normalizedUf) {
+      console.log(`[leasing-contracts] Template específico para UF ${normalizedUf} não encontrado, usando template padrão: ${fileName}`)
+    }
     return buffer
   } catch (error) {
     if (error && error.code === 'ENOENT') {
@@ -264,8 +295,8 @@ const loadDocxTemplate = async (fileName) => {
   }
 }
 
-const renderDocxTemplate = async (fileName, data) => {
-  const templateBuffer = await loadDocxTemplate(fileName)
+const renderDocxTemplate = async (fileName, data, uf) => {
+  const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
   const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
 
@@ -350,6 +381,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
+    const clienteUf = dadosLeasing.uf
 
     if (anexosSelecionados.includes('ANEXO_I')) {
       if (!dadosLeasing.modulosFV) {
@@ -371,7 +403,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
-    })
+    }, clienteUf)
     files.push({
       name: buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj),
       buffer: contratoBuffer,
@@ -382,7 +414,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
       const buffer = await renderDocxTemplate(anexo.template, {
         ...dadosLeasing,
         tipoContrato,
-      })
+      }, clienteUf)
       files.push({
         name: buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj),
         buffer,
