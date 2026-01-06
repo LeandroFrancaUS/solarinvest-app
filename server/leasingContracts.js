@@ -12,6 +12,24 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   'assets/templates/contratos/leasing',
 )
 
+// Valid Brazilian state codes (UF)
+const VALID_UF_CODES = new Set([
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
+  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
+  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+])
+
+/**
+ * Validates if a string is a valid Brazilian UF code
+ * @param {string} uf - UF code to validate
+ * @returns {boolean} true if valid, false otherwise
+ */
+const isValidUf = (uf) => {
+  if (typeof uf !== 'string') return false
+  const normalized = uf.trim().toUpperCase()
+  return normalized.length === 2 && VALID_UF_CODES.has(normalized)
+}
+
 export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
 
 export class LeasingContractsError extends Error {
@@ -188,20 +206,54 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
   }
 
   const normalized = {
+    // Core client info
     nomeCompleto: ensureField(dados, 'nomeCompleto', 'Nome completo / razão social'),
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
+    cnpj: typeof dados.cnpj === 'string' ? dados.cnpj.trim() : '',
+    rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
+    razaoSocial: typeof dados.razaoSocial === 'string' ? dados.razaoSocial.trim() : '',
+    representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim() : '',
+    
+    // Personal info
+    estadoCivil: typeof dados.estadoCivil === 'string' ? dados.estadoCivil.trim() : '',
+    nacionalidade: typeof dados.nacionalidade === 'string' ? dados.nacionalidade.trim() : '',
+    profissao: typeof dados.profissao === 'string' ? dados.profissao.trim() : '',
+    
+    // Address fields
     enderecoCompleto: ensureField(dados, 'enderecoCompleto', 'Endereço completo'),
+    endereco: typeof dados.endereco === 'string' ? dados.endereco.trim() : '',
+    cidade: typeof dados.cidade === 'string' ? dados.cidade.trim() : '',
+    cep: typeof dados.cep === 'string' ? dados.cep.trim() : '',
+    uf: typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : '',
+    
+    // Contact info
+    telefone: typeof dados.telefone === 'string' ? dados.telefone.trim() : '',
+    email: typeof dados.email === 'string' ? dados.email.trim() : '',
+    
+    // UC and installation
     unidadeConsumidora: ensureField(dados, 'unidadeConsumidora', 'Unidade consumidora'),
+    localEntrega: ensureField(dados, 'localEntrega', 'Local de entrega'),
+    
+    // Contractor company info
+    cnpjContratada: typeof dados.cnpjContratada === 'string' ? dados.cnpjContratada.trim() : '',
+    enderecoContratada: typeof dados.enderecoContratada === 'string' ? dados.enderecoContratada.trim() : '',
+    
+    // Dates
+    dataInicio: optionalField(dados, 'dataInicio'),
+    dataFim: optionalField(dados, 'dataFim'),
+    dataHomologacao: optionalField(dados, 'dataHomologacao'),
+    dataAtualExtenso: optionalField(dados, 'dataAtualExtenso'),
+    diaVencimento: typeof dados.diaVencimento === 'string' ? dados.diaVencimento.trim() : '',
+    prazoContratual: typeof dados.prazoContratual === 'string' ? dados.prazoContratual.trim() : '',
+    
+    // Technical specs
     potencia: ensureField(dados, 'potencia', 'Potência contratada (kWp)'),
     kWhContratado: ensureField(dados, 'kWhContratado', 'Energia contratada (kWh)'),
     tarifaBase: ensureField(dados, 'tarifaBase', 'Tarifa base (R$/kWh)'),
-    dataInicio: optionalField(dados, 'dataInicio'),
-    dataFim: optionalField(dados, 'dataFim'),
-    localEntrega: ensureField(dados, 'localEntrega', 'Local de entrega'),
     modulosFV: optionalField(dados, 'modulosFV'),
     inversoresFV: optionalField(dados, 'inversoresFV'),
-    dataHomologacao: optionalField(dados, 'dataHomologacao'),
-    dataAtualExtenso: optionalField(dados, 'dataAtualExtenso'),
+    
+    // Condominium fields
     proprietarios: normalizeProprietarios(dados.proprietarios),
     ucsBeneficiarias: normalizeUcsBeneficiarias(dados.ucsBeneficiarias),
     nomeCondominio:
@@ -210,6 +262,29 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
       typeof dados.cnpjCondominio === 'string' ? dados.cnpjCondominio.trim() : '',
     nomeSindico: typeof dados.nomeSindico === 'string' ? dados.nomeSindico.trim() : '',
     cpfSindico: typeof dados.cpfSindico === 'string' ? dados.cpfSindico.trim() : '',
+  }
+
+  // Derived fields
+  // enderecoCliente is an alias for enderecoCompleto
+  normalized.enderecoCliente = normalized.enderecoCompleto
+  
+  // enderecoInstalacao is an alias for localEntrega
+  normalized.enderecoInstalacao = normalized.localEntrega
+  
+  // anoContrato from dataInicio if available
+  if (normalized.dataInicio) {
+    try {
+      const year = new Date(normalized.dataInicio).getFullYear()
+      if (!isNaN(year)) {
+        normalized.anoContrato = String(year)
+      } else {
+        normalized.anoContrato = ''
+      }
+    } catch {
+      normalized.anoContrato = ''
+    }
+  } else {
+    normalized.anoContrato = new Date().getFullYear().toString()
   }
 
   if (!normalized.dataAtualExtenso) {
@@ -251,10 +326,42 @@ const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
   return Array.from(selecionados)
 }
 
-const loadDocxTemplate = async (fileName) => {
+/**
+ * Carrega um template DOCX, com suporte a templates específicos por UF.
+ * Ordem de busca:
+ * 1. Template específico do UF (leasing/GO/template.docx)
+ * 2. Template padrão (leasing/template.docx)
+ * 
+ * @param {string} fileName - Nome do arquivo template
+ * @param {string} [uf] - UF para buscar template específico
+ */
+const loadDocxTemplate = async (fileName, uf) => {
+  const normalizedUf = typeof uf === 'string' ? uf.trim().toUpperCase() : ''
+
+  // Tenta carregar template específico do UF primeiro
+  if (normalizedUf && isValidUf(normalizedUf)) {
+    const ufTemplatePath = path.join(LEASING_TEMPLATES_DIR, normalizedUf, fileName)
+    try {
+      const buffer = await fs.readFile(ufTemplatePath)
+      console.log(`[leasing-contracts] Usando template específico para UF ${normalizedUf}: ${fileName}`)
+      return buffer
+    } catch (error) {
+      if (error && error.code !== 'ENOENT') {
+        console.warn(`[leasing-contracts] Erro ao acessar template específico do UF ${normalizedUf}:`, error)
+      }
+      // Continua para tentar o template padrão
+    }
+  } else if (normalizedUf) {
+    console.warn(`[leasing-contracts] UF inválido fornecido: ${normalizedUf}`)
+  }
+
+  // Fallback para template padrão
   const templatePath = path.join(LEASING_TEMPLATES_DIR, fileName)
   try {
     const buffer = await fs.readFile(templatePath)
+    if (normalizedUf) {
+      console.log(`[leasing-contracts] Template específico para UF ${normalizedUf} não encontrado, usando template padrão: ${fileName}`)
+    }
     return buffer
   } catch (error) {
     if (error && error.code === 'ENOENT') {
@@ -264,8 +371,8 @@ const loadDocxTemplate = async (fileName) => {
   }
 }
 
-const renderDocxTemplate = async (fileName, data) => {
-  const templateBuffer = await loadDocxTemplate(fileName)
+const renderDocxTemplate = async (fileName, data, uf) => {
+  const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
   const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
 
@@ -350,6 +457,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
+    const clienteUf = dadosLeasing.uf
 
     if (anexosSelecionados.includes('ANEXO_I')) {
       if (!dadosLeasing.modulosFV) {
@@ -371,7 +479,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
-    })
+    }, clienteUf)
     files.push({
       name: buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj),
       buffer: contratoBuffer,
@@ -382,7 +490,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
       const buffer = await renderDocxTemplate(anexo.template, {
         ...dadosLeasing,
         tipoContrato,
-      })
+      }, clienteUf)
       files.push({
         name: buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj),
         buffer,
