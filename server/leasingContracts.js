@@ -12,6 +12,11 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   'assets/templates/contratos/leasing',
 )
 
+// Maximum iterations for merging split placeholder runs in Word XML
+// Most placeholders split by Word's spell checker need 2-3 merge passes,
+// but we allow more iterations to handle pathologically fragmented text
+const MAX_PLACEHOLDER_MERGE_ITERATIONS = 20
+
 // Valid Brazilian state codes (UF)
 const VALID_UF_CODES = new Set([
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -445,34 +450,30 @@ const normalizeWordXmlForMustache = (xml) => {
   
   // Step 2: Merge consecutive <w:r> elements that only contain text
   // This handles the case where placeholder parts are in consecutive runs
-  // 
-  // We iterate multiple times because placeholders can be split into 3+ runs,
-  // and each iteration only merges two adjacent runs. Most placeholders need
-  // 2-3 iterations, but we allow up to 20 to handle pathological cases where
-  // Word has heavily fragmented the text.
   
   let changed = true
   let iterations = 0
-  const MAX_ITERATIONS = 20 // Allow up to 20 merges to handle deeply nested/split placeholders
   
-  while (changed && iterations < MAX_ITERATIONS) {
+  while (changed && iterations < MAX_PLACEHOLDER_MERGE_ITERATIONS) {
     iterations++
     const before = result.length
     
-    // Merge two adjacent runs if they contain simple text
-    // Pattern explanation:
-    // - <w:r[^>]*> : Opening run tag (may have attributes)
-    // - ((?:(?!<w:r|<\/w:r).)*?) : Run content (not containing nested runs)
-    // - <w:t[^>]*> : Opening text tag
-    // - ((?:(?!<\/w:t>).)*?) : Text content
-    // - </w:t></w:r> : Closing tags
-    // - <w:r[^>]*><w:t[^>]*> : Next run's opening tags
-    // - ((?:(?!<\/w:t>).)*?) : Next run's text content
-    // - </w:t></w:r> : Next run's closing tags
-    const runPattern = /<w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r><w:r[^>]*><w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r>/g
+    // Regex pattern to match and merge two adjacent text runs:
+    // Captures: (runContent1, text1, text2) and reconstructs as single merged run
+    // 
+    // Pattern breakdown:
+    // - <w:r[^>]*>                    Opening run tag (may have attributes)
+    // - ((?:(?!<w:r|<\/w:r).)*?)     Run content (not containing nested runs)
+    // - <w:t[^>]*>                   Opening text tag
+    // - ((?:(?!<\/w:t>).)*?)         Text content 1
+    // - </w:t></w:r>                 Close first run
+    // - <w:r[^>]*><w:t[^>]*>         Open second run and text
+    // - ((?:(?!<\/w:t>).)*?)         Text content 2
+    // - </w:t></w:r>                 Close second run
+    const adjacentRunsPattern = /<w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r><w:r[^>]*><w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r>/g
     
     result = result.replace(
-      runPattern,
+      adjacentRunsPattern,
       (match, runContent, text1, text2) => {
         // Check if we should preserve spaces
         const combinedText = text1 + text2
