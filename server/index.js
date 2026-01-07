@@ -14,7 +14,9 @@ import {
 } from './contracts.js'
 import {
   LEASING_CONTRACTS_PATH,
+  LEASING_CONTRACTS_AVAILABILITY_PATH,
   handleLeasingContractsRequest,
+  handleLeasingContractsAvailabilityRequest,
 } from './leasingContracts.js'
 import {
   getStackUser,
@@ -203,6 +205,12 @@ const server = createServer(async (req, res) => {
 
   if (pathname === DEFAULT_PROXY_BASE) {
     await handleAneelProxyRequest(req, res)
+    return
+  }
+
+  // Check more specific leasing routes before the general leasing route
+  if (pathname === LEASING_CONTRACTS_AVAILABILITY_PATH) {
+    await handleLeasingContractsAvailabilityRequest(req, res)
     return
   }
 
