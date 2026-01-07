@@ -13,7 +13,7 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
   'assets/templates/contratos/leasing',
 )
-const TMP_DIR = path.resolve(process.cwd(), 'tmp')
+const TMP_DIR = path.join(os.tmpdir(), 'solarinvest-contracts')
 
 // Maximum iterations for merging split placeholder runs in Word XML
 // Most placeholders split by Word's spell checker need 2-3 merge passes,
@@ -508,16 +508,22 @@ const normalizeWordXmlForMustache = (xml) => {
     // - <w:r[^>]*><w:t[^>]*>         Open second run and text
     // - ((?:(?!<\/w:t>).)*?)         Text content 2
     // - </w:t></w:r>                 Close second run
-    const adjacentRunsPattern = /<w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r><w:r[^>]*><w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r>/g
+    const adjacentRunsPattern = /<w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r><w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r>/g
     
     result = result.replace(
       adjacentRunsPattern,
-      (match, runContent, text1, text2) => {
+      (match, runContent, text1, nextRunContent, text2) => {
+        const runPropsRegex = /<w:rPr[\s\S]*?<\/w:rPr>/
+        const runPropsMatch = runContent.match(runPropsRegex)
+        const nextRunPropsMatch = nextRunContent.match(runPropsRegex)
+        const runProps = runPropsMatch ? runPropsMatch[0] : nextRunPropsMatch ? nextRunPropsMatch[0] : ''
+        const runContentWithoutProps = runContent.replace(runPropsRegex, '')
+
         // Check if we should preserve spaces
         const combinedText = text1 + text2
         const needsPreserve = /^\s|\s$|\s\s/.test(combinedText)
         const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
-        return `<w:r>${runContent}${tTag}${combinedText}</w:t></w:r>`
+        return `<w:r>${runProps}${runContentWithoutProps}${tTag}${combinedText}</w:t></w:r>`
       }
     )
     
@@ -755,7 +761,26 @@ export const handleLeasingContractsRequest = async (req, res) => {
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
     const clienteUf = dadosLeasing.uf
 
-    if (anexosSelecionados.includes('ANEXO_I')) {
+    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
+    const anexosDisponiveis = []
+    const anexosIndisponiveis = []
+
+    for (const anexo of anexosResolvidos) {
+      const isAvailable = await checkTemplateAvailability(anexo.template, clienteUf)
+      if (isAvailable) {
+        anexosDisponiveis.push(anexo)
+      } else {
+        anexosIndisponiveis.push(anexo.id)
+      }
+    }
+
+    if (anexosIndisponiveis.length > 0) {
+      console.warn(
+        `[leasing-contracts] Anexos indisponíveis serão ignorados: ${anexosIndisponiveis.join(', ')}`,
+      )
+    }
+
+    if (anexosDisponiveis.some((anexo) => anexo.id === 'ANEXO_I')) {
       if (!dadosLeasing.modulosFV) {
         throw new LeasingContractsError(
           400,
@@ -820,18 +845,9 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
     }
 
-    const anexos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
-    const skippedAnexos = []
-    
-    for (const anexo of anexos) {
-      // Check if template is available before trying to render
-      const isAvailable = await checkTemplateAvailability(anexo.template, clienteUf)
-      if (!isAvailable) {
-        console.warn(`[leasing-contracts] Pulando anexo ${anexo.id} - template não disponível: ${anexo.template}`)
-        skippedAnexos.push(anexo.id)
-        continue
-      }
-      
+    const skippedAnexos = [...anexosIndisponiveis]
+
+    for (const anexo of anexosDisponiveis) {
       try {
         const buffer = await renderDocxTemplate(anexo.template, {
           ...dadosLeasing,

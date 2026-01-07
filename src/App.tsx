@@ -12713,6 +12713,9 @@ export default function App() {
       const payload = (await response.json()) as { availability?: Record<string, boolean> }
       const availability = payload.availability || {}
       setLeasingAnexosAvailability(availability as Record<LeasingAnexoId, boolean>)
+      setLeasingAnexosSelecionados((prev) =>
+        prev.filter((anexoId) => availability[anexoId] !== false),
+      )
     } catch (error) {
       console.error('Erro ao verificar disponibilidade dos anexos:', error)
       // Set all as available by default if check fails
@@ -12758,11 +12761,14 @@ export default function App() {
         return
       }
       const disponiveis = LEASING_ANEXOS_CONFIG.filter(
-        (config) => config.tipos.includes(leasingContrato.tipoContrato) && !config.autoInclude,
+        (config) =>
+          config.tipos.includes(leasingContrato.tipoContrato) &&
+          !config.autoInclude &&
+          leasingAnexosAvailability[config.id] !== false,
       ).map((config) => config.id)
       setLeasingAnexosSelecionados(disponiveis)
     },
-    [leasingContrato.tipoContrato],
+    [leasingContrato.tipoContrato, leasingAnexosAvailability],
   )
 
   const handleFecharModalContratos = useCallback(() => {
