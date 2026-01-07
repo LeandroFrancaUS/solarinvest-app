@@ -736,41 +736,24 @@ const convertDocxToPdfUsingGoogleDrive = async (docxPath, pdfPath) => {
 }
 
 export const convertDocxToPdf = async (docxPath, pdfPath) => {
-  try {
-    await convertDocxToPdfUsingLibreOffice(docxPath)
-    return
-  } catch (error) {
-    if (!(error instanceof LibreOfficeConversionError)) {
-      throw error
-    }
-
-    console.warn('[contracts] Falha na conversão via LibreOffice, tentando fallbacks alternativos...', error)
-  }
-
-  const fallbackErrors = []
   const driveCredentials = getGoogleDriveCredentials()
 
-  if (driveCredentials) {
-    try {
-      await convertDocxToPdfUsingGoogleDrive(docxPath, pdfPath)
-      return
-    } catch (driveError) {
-      fallbackErrors.push(driveError)
-      console.error('[contracts] Falha na conversão via Google Drive:', driveError)
-    }
+  if (!driveCredentials) {
+    throw new ContractRenderError(
+      500,
+      'Falha ao converter o contrato para PDF. Configure as credenciais do Google Drive para gerar PDFs.',
+    )
   }
 
-  const message = driveCredentials
-    ? 'Falha ao converter o contrato para PDF. Verifique o LibreOffice ou o Google Drive.'
-    : 'Falha ao converter o contrato para PDF. Verifique a instalação do LibreOffice.'
-
-  if (fallbackErrors.length > 0) {
-    fallbackErrors.forEach((err) => {
-      console.error('[contracts] Detalhes adicionais da falha de conversão:', err)
-    })
+  try {
+    await convertDocxToPdfUsingGoogleDrive(docxPath, pdfPath)
+  } catch (driveError) {
+    console.error('[contracts] Falha na conversão via Google Drive:', driveError)
+    throw new ContractRenderError(
+      500,
+      'Falha ao converter o contrato para PDF via Google Drive. Verifique as credenciais configuradas.',
+    )
   }
-
-  throw new ContractRenderError(500, message)
 }
 
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*)\.xml$/
@@ -817,7 +800,7 @@ const generateContractPdfFromDocx = async ({ templatePath, templateFileName }, d
 
     throw new ContractRenderError(
       500,
-      'Falha ao converter o contrato para PDF. Verifique se o LibreOffice está instalado corretamente.',
+      'Falha ao converter o contrato para PDF. Verifique as credenciais do Google Drive.',
     )
   } finally {
     await cleanupTmpFiles(docxPath, pdfPath)
