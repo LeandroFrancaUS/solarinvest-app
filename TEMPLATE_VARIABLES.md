@@ -114,15 +114,15 @@ Templates can be organized by state (UF) in subdirectories:
 ```
 assets/templates/contratos/
   leasing/
-    CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (default)
+    CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (default)
     GO/
-      CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (GO-specific)
+      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (GO-specific)
     DF/
-      CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (DF-specific)
+      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (DF-specific)
   vendas/
     (similar structure)
 ```
 
 When a client with `uf: "GO"` requests a contract, the system will:
-1. First try to use `leasing/GO/CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
-2. If not found, fall back to `leasing/CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
+1. First try to use `leasing/GO/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
+2. If not found, fall back to `leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
