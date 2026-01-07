@@ -255,11 +255,13 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
   const normalized = {
     // Core client info - in uppercase for contracts
     nomeCompleto: nomeCompletoValue,
-    razaoSocial: nomeCompletoValue, // Alias for nomeCompleto (used for companies in templates)
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
-    cnpj: typeof dados.cnpj === 'string' ? dados.cnpj.trim() : '',
     rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
-    representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim().toUpperCase() : '',
+    
+    // Company fields (passed through from frontend - SolarInvest data for CONTRATADA section)
+    razaoSocial: typeof dados.razaoSocial === 'string' ? dados.razaoSocial.trim() : '',
+    cnpj: typeof dados.cnpj === 'string' ? dados.cnpj.trim() : '',
+    representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim() : '',
     
     // Personal info - in uppercase for contracts
     estadoCivil: estadoCivilValue,
