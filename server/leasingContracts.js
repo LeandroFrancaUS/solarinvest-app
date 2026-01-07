@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import os from 'node:os'
 import JSZip from 'jszip'
 import Mustache from 'mustache'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { convertDocxToPdf } from './contracts.js'
 
 const JSON_BODY_LIMIT = 256 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
@@ -11,6 +13,7 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
   'assets/templates/contratos/leasing',
 )
+const TMP_DIR = path.resolve(process.cwd(), 'tmp')
 
 // Maximum iterations for merging split placeholder runs in Word XML
 // Most placeholders split by Word's spell checker need 2-3 merge passes,
@@ -581,15 +584,15 @@ const createZipFromFiles = async (files) => {
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
-const buildContractFileName = (tipoContrato, cpfCnpj) => {
+const buildContractFileName = (tipoContrato, cpfCnpj, extension = 'docx') => {
   const id = sanitizeDocumentoId(cpfCnpj)
-  return `leasing-${tipoContrato}-${id}.docx`
+  return `leasing-${tipoContrato}-${id}.${extension}`
 }
 
-const buildAnexoFileName = (anexoId, cpfCnpj) => {
+const buildAnexoFileName = (anexoId, cpfCnpj, extension = 'docx') => {
   const id = sanitizeDocumentoId(cpfCnpj)
   const slug = anexoId.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-  return `anexo-${slug}-${id}.docx`
+  return `anexo-${slug}-${id}.${extension}`
 }
 
 const buildZipFileName = (tipoContrato, cpfCnpj) => {
@@ -658,16 +661,43 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
     }
 
+    // Ensure TMP_DIR exists
+    await fs.mkdir(TMP_DIR, { recursive: true })
+
     const files = []
     const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
     }, clienteUf)
-    files.push({
-      name: buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj),
-      buffer: contratoBuffer,
-    })
+    
+    // Convert main contract to PDF
+    const contratoDocxName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'docx')
+    const contratoPdfName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'pdf')
+    const contratoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoDocxName}`)
+    const contratoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoPdfName}`)
+    
+    try {
+      await fs.writeFile(contratoDocxPath, contratoBuffer)
+      await convertDocxToPdf(contratoDocxPath, contratoPdfPath)
+      const pdfBuffer = await fs.readFile(contratoPdfPath)
+      files.push({
+        name: contratoPdfName,
+        buffer: pdfBuffer,
+      })
+    } finally {
+      // Clean up temporary files
+      try {
+        await fs.unlink(contratoDocxPath)
+      } catch (err) {
+        // Ignore cleanup errors
+      }
+      try {
+        await fs.unlink(contratoPdfPath)
+      } catch (err) {
+        // Ignore cleanup errors
+      }
+    }
 
     const anexos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
     for (const anexo of anexos) {
@@ -675,10 +705,34 @@ export const handleLeasingContractsRequest = async (req, res) => {
         ...dadosLeasing,
         tipoContrato,
       }, clienteUf)
-      files.push({
-        name: buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj),
-        buffer,
-      })
+      
+      // Convert anexo to PDF
+      const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
+      const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
+      const anexoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoDocxName}`)
+      const anexoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoPdfName}`)
+      
+      try {
+        await fs.writeFile(anexoDocxPath, buffer)
+        await convertDocxToPdf(anexoDocxPath, anexoPdfPath)
+        const pdfBuffer = await fs.readFile(anexoPdfPath)
+        files.push({
+          name: anexoPdfName,
+          buffer: pdfBuffer,
+        })
+      } finally {
+        // Clean up temporary files
+        try {
+          await fs.unlink(anexoDocxPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+        try {
+          await fs.unlink(anexoPdfPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
     }
 
     const zipBuffer = await createZipFromFiles(files)
