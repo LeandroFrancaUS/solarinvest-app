@@ -12554,6 +12554,7 @@ export default function App() {
       dataInicio: formatDateForContract(leasingContrato.dataInicio),
       dataFim: formatDateForContract(leasingContrato.dataFim),
       localEntrega: leasingContrato.localEntrega.trim(),
+      enderecoUCGeradora: leasingContrato.localEntrega.trim(), // Endereço da UC geradora (pode ser diferente do contratante)
       dataHomologacao: formatDateForContract(leasingContrato.dataHomologacao),
       dataAtualExtenso,
       modulosFV: leasingContrato.modulosFV.trim(),
@@ -14525,20 +14526,24 @@ export default function App() {
             placeholder="Rua, número, complemento"
           />
         </Field>
-        <div>
-          <div className="mb-1 text-sm font-medium text-gray-600 leasing-location-label">
-            <span className="leasing-field-label-text">
-              Endereço de instalação da UC geradora
-            </span>
-            <label className="leasing-location-checkbox flex items-center gap-2">
-              <CheckboxSmall
-                checked={usarEnderecoCliente}
-                onChange={(event) => handleToggleUsarEnderecoCliente(event.target.checked)}
-                disabled={!enderecoClienteCompleto}
-              />
-              <span>Mesmo que endereço do contratante</span>
-            </label>
-          </div>
+        <Field
+          label={
+            <div className="leasing-location-label">
+              <span className="leasing-field-label-text">
+                Endereço de instalação da UC geradora
+              </span>
+              <label className="leasing-location-checkbox flex items-center gap-2">
+                <CheckboxSmall
+                  checked={usarEnderecoCliente}
+                  onChange={(event) => handleToggleUsarEnderecoCliente(event.target.checked)}
+                  disabled={!enderecoClienteCompleto}
+                />
+                <span>Mesmo que endereço do contratante</span>
+              </label>
+            </div>
+          }
+          hint="Endereço onde a UC geradora será instalada (pode ser diferente do endereço do contratante)"
+        >
           <input
             id={leasingLocalEntregaInputId}
             className="leasing-compact-input h-[46px]"
@@ -14546,10 +14551,7 @@ export default function App() {
             onChange={(event) => handleLeasingLocalEntregaChange(event.target.value)}
             placeholder="Endereço completo da instalação"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            Endereço onde a UC geradora será instalada (pode ser diferente do endereço do contratante)
-          </p>
-        </div>
+        </Field>
         {isCondominio ? (
           <div className="grid g3">
             <Field label="Nome do síndico">
