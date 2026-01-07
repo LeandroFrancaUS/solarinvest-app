@@ -969,18 +969,9 @@ export const convertDocxToPdf = async (docxPath, pdfPath) => {
     }
   }
 
-  try {
-    await convertDocxToPdfUsingTextFallback(docxPath, pdfPath)
-    console.warn('[contracts] Contrato convertido via fallback interno em modo texto simplificado.')
-    return
-  } catch (textError) {
-    fallbackErrors.push(textError)
-    console.error('[contracts] Falha no fallback interno de conversão para PDF:', textError)
-  }
-
   const message = driveCredentials
-    ? 'Falha ao converter o contrato para PDF. Verifique o LibreOffice, o Google Drive ou o fallback interno.'
-    : 'Falha ao converter o contrato para PDF. Verifique a instalação do LibreOffice ou habilite o fallback interno.'
+    ? 'Falha ao converter o contrato para PDF. Verifique o LibreOffice ou o Google Drive.'
+    : 'Falha ao converter o contrato para PDF. Verifique a instalação do LibreOffice.'
 
   if (fallbackErrors.length > 0) {
     fallbackErrors.forEach((err) => {
