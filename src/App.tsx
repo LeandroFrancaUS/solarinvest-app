@@ -1021,9 +1021,7 @@ const CLIENTE_INICIAL: ClienteDados = {
   estadoCivil: '',
   nacionalidade: '',
   profissao: '',
-  razaoSocial: '',
   representanteLegal: '',
-  cnpj: '',
   email: '',
   telefone: '',
   cep: '',
@@ -12565,9 +12563,10 @@ export default function App() {
       estadoCivil: cliente.estadoCivil?.trim() || '',
       nacionalidade: cliente.nacionalidade?.trim() || '',
       profissao: cliente.profissao?.trim() || '',
-      razaoSocial: cliente.razaoSocial?.trim() || '',
+      // razaoSocial and cnpj are mapped from the main nome and documento fields
+      razaoSocial: cliente.nome?.trim() || '', // For companies, this is filled from "Nome ou Razão Social"
       representanteLegal: cliente.representanteLegal?.trim() || '',
-      cnpj: cliente.cnpj?.trim() || '',
+      cnpj: formatCpfCnpj(cliente.documento), // Same as cpfCnpj, for template compatibility
       // Contract and technical data
       potencia: potenciaFormatada,
       kWhContratado: energiaFormatada,
@@ -14415,7 +14414,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Nome ou Razão social',
-            'Identificação oficial do cliente utilizada em contratos, relatórios e integração com o CRM.',
+            'Identificação oficial do cliente utilizada em contratos, relatórios e integração com o CRM. Para empresas, informar a Razão Social.',
           )}
         >
           <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
@@ -14423,14 +14422,26 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'CPF/CNPJ',
-            'Documento fiscal do titular da unidade consumidora; necessário para emissão da proposta e cadastros.',
+            'Documento fiscal do titular da unidade consumidora. Para pessoa física: CPF. Para pessoa jurídica: CNPJ.',
           )}
         >
           <input
             value={cliente.documento}
             onChange={(e) => handleClienteChange('documento', e.target.value)}
             inputMode="numeric"
-            placeholder="000.000.000-00"
+            placeholder="000.000.000-00 ou 00.000.000/0000-00"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Representante Legal',
+            'Nome do representante legal (para pessoa jurídica/CNPJ). Deixar em branco para pessoa física.',
+          )}
+        >
+          <input
+            value={cliente.representanteLegal || ''}
+            onChange={(e) => handleClienteChange('representanteLegal', e.target.value)}
+            placeholder="Nome do diretor ou sócio"
           />
         </Field>
         <Field
@@ -14485,43 +14496,6 @@ export default function App() {
             value={cliente.profissao || ''}
             onChange={(e) => handleClienteChange('profissao', e.target.value)}
             placeholder="Ex: Engenheiro, Advogado, Empresário"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Razão Social',
-            'Nome empresarial completo (para pessoa jurídica/CNPJ).',
-          )}
-        >
-          <input
-            value={cliente.razaoSocial || ''}
-            onChange={(e) => handleClienteChange('razaoSocial', e.target.value)}
-            placeholder="Nome da Empresa Ltda"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Representante Legal',
-            'Nome do representante legal da empresa (para pessoa jurídica/CNPJ).',
-          )}
-        >
-          <input
-            value={cliente.representanteLegal || ''}
-            onChange={(e) => handleClienteChange('representanteLegal', e.target.value)}
-            placeholder="Nome do diretor ou sócio"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'CNPJ (empresa)',
-            'CNPJ da empresa contratante (para pessoa jurídica). Diferente do CPF/CNPJ do campo acima se necessário.',
-          )}
-        >
-          <input
-            value={cliente.cnpj || ''}
-            onChange={(e) => handleClienteChange('cnpj', e.target.value)}
-            inputMode="numeric"
-            placeholder="00.000.000/0000-00"
           />
         </Field>
         <Field
