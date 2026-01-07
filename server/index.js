@@ -208,6 +208,7 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // Check more specific leasing routes before the general leasing route
   if (pathname === LEASING_CONTRACTS_AVAILABILITY_PATH) {
     await handleLeasingContractsAvailabilityRequest(req, res)
     return
