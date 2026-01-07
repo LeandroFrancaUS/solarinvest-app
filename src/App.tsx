@@ -12564,9 +12564,9 @@ export default function App() {
       estadoCivil: cliente.estadoCivil?.trim() || '',
       nacionalidade: cliente.nacionalidade?.trim() || '',
       profissao: cliente.profissao?.trim() || '',
-      // razaoSocial and cnpj are mapped from the main nome and documento fields
-      razaoSocial: cliente.nome?.trim() || '', // For companies, this is filled from "Nome ou Razão Social"
+      // representanteLegal for companies
       representanteLegal: cliente.representanteLegal?.trim() || '',
+      // cnpj is mapped from the main documento field for template compatibility
       cnpj: formatCpfCnpj(cliente.documento), // Same as cpfCnpj, for template compatibility
       // Contract and technical data
       potencia: potenciaFormatada,
@@ -12579,7 +12579,7 @@ export default function App() {
       dataHomologacao: formatDateForContract(leasingContrato.dataHomologacao),
       dataAtualExtenso,
       diaVencimento: cliente.diaVencimento || '10',
-      prazoContratual: `${Math.round(leasingPrazoContratualMeses / 12)} anos (${leasingPrazoContratualMeses} meses)`,
+      prazoContratual: `${leasingPrazoContratualMeses}`, // Prazo in months only
       modulosFV: leasingContrato.modulosFV.trim(),
       inversoresFV: leasingContrato.inversoresFV.trim(),
       // SolarInvest company information

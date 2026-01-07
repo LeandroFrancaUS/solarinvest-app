@@ -8,7 +8,6 @@ This document shows the complete mapping between contract template tags and form
 | Template Tag | Form Field | Location | Type | Notes |
 |-------------|-----------|----------|------|-------|
 | `{{nomeCompleto}}` | Nome ou Razão social | Dados do cliente | text input | For both individuals and companies |
-| `{{razaoSocial}}` | Nome ou Razão social | Dados do cliente | text input | Same field as nomeCompleto |
 | `{{cpfCnpj}}` | CPF/CNPJ | Dados do cliente | text input | For both CPF and CNPJ |
 | `{{cnpj}}` | CPF/CNPJ | Dados do cliente | text input | Same field as cpfCnpj |
 | `{{representanteLegal}}` | Representante Legal | Dados do cliente | text input | Optional, for companies only |
@@ -26,7 +25,6 @@ This document shows the complete mapping between contract template tags and form
 ### ✅ Company Information (for legal entities)
 | Template Tag | Form Field | Location | Type | Notes |
 |-------------|-----------|----------|------|-------|
-| `{{razaoSocial}}` | Nome ou Razão social | Dados do cliente | text input | Same as nomeCompleto |
 | `{{representanteLegal}}` | Representante Legal | Dados do cliente | text input | Optional field for companies |
 | `{{cnpj}}` | CPF/CNPJ | Dados do cliente | text input | Same as cpfCnpj |
 
@@ -61,7 +59,7 @@ This document shows the complete mapping between contract template tags and form
 | Template Tag | Form Field | Location | Type |
 |-------------|-----------|----------|------|
 | `{{diaVencimento}}` | Dia de vencimento da mensalidade | Dados contratuais | select (1-28) |
-| `{{prazoContratual}}` | - | - | computed | e.g., "20 anos (240 meses)" |
+| `{{prazoContratual}}` | - | - | computed | Prazo in months only (e.g., "240") |
 
 ### ✅ Technical Specifications
 | Template Tag | Form Field | Location | Type | Notes |
@@ -94,7 +92,7 @@ const SOLARINVEST_ENDERECO = 'Endereço da SolarInvest, Cidade - UF, CEP' // TOD
 - `representanteLegal: ''`
 - `diaVencimento: '10'` (default)
 
-**Note**: `razaoSocial` and `cnpj` are no longer separate fields. They are mapped from `nome` and `documento` respectively to avoid redundancy.
+**Note**: `razaoSocial` tag has been removed from templates. `cnpj` is mapped from `documento` field to avoid redundancy.
 
 ### Computed/Auto-Generated Fields
 1. **enderecoCompleto** - Built from: `endereco + cidade + uf + cep`
@@ -102,14 +100,14 @@ const SOLARINVEST_ENDERECO = 'Endereço da SolarInvest, Cidade - UF, CEP' // TOD
 3. **enderecoUCGeradora** - ALL CAPS version of localEntrega (or enderecoContratante if same)
 4. **dataAtualExtenso** - Current date in Portuguese full format
 5. **anoContrato** - Year extracted from dataInicio
-6. **prazoContratual** - Formatted as "X anos (Y meses)"
+6. **prazoContratual** - Contract term in months only (e.g., "240")
 
 ## Form Organization
 
 Fields are organized in logical groups for a professional layout:
 
 1. **Dados do cliente** section:
-   - Basic info: Nome ou Razão social (serves both `nomeCompleto` and `razaoSocial` tags)
+   - Basic info: Nome ou Razão social (for `nomeCompleto` tag)
    - Tax ID: CPF/CNPJ (serves both `cpfCnpj` and `cnpj` tags)
    - Company: Representante Legal (optional, for companies)
    - Personal info: RG, Estado Civil, Nacionalidade, Profissão
@@ -126,9 +124,10 @@ Fields are organized in logical groups for a professional layout:
 
 To avoid redundancy and improve user experience, some template tags are mapped to the same form field:
 
-- **`{{nomeCompleto}}` and `{{razaoSocial}}`** both map to "Nome ou Razão social"
+- **`{{nomeCompleto}}`** maps to "Nome ou Razão social"
   - For individuals: Enter personal name
   - For companies: Enter company's legal name (Razão Social)
+  - **Note**: `{{razaoSocial}}` tag has been removed from templates
   
 - **`{{cpfCnpj}}` and `{{cnpj}}`** both map to "CPF/CNPJ"
   - For individuals: Enter CPF
@@ -138,7 +137,7 @@ This ensures:
 - No duplicate data entry
 - Single source of truth
 - Cleaner, more intuitive form
-- All template tags still get populated correctly
+- All template tags get populated correctly
 
 ## Address Formatting
 

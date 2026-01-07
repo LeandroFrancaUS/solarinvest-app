@@ -247,7 +247,6 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
     cnpj: typeof dados.cnpj === 'string' ? dados.cnpj.trim() : '',
     rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
-    razaoSocial: typeof dados.razaoSocial === 'string' ? dados.razaoSocial.trim() : '',
     representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim() : '',
     
     // Personal info
