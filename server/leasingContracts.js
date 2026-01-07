@@ -671,7 +671,8 @@ export const handleLeasingContractsRequest = async (req, res) => {
       tipoContrato,
     }, clienteUf)
     
-    // Convert main contract to PDF
+    // Try to convert main contract to PDF, fall back to DOCX if conversion fails
+    let convertedToPdf = false
     const contratoDocxName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'docx')
     const contratoPdfName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'pdf')
     const contratoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoDocxName}`)
@@ -685,6 +686,15 @@ export const handleLeasingContractsRequest = async (req, res) => {
         name: contratoPdfName,
         buffer: pdfBuffer,
       })
+      convertedToPdf = true
+      console.log('[leasing-contracts] Contrato principal convertido para PDF com sucesso')
+    } catch (conversionError) {
+      console.warn('[leasing-contracts] Falha ao converter contrato para PDF, usando DOCX:', conversionError.message)
+      // Fall back to DOCX if PDF conversion fails
+      files.push({
+        name: contratoDocxName,
+        buffer: contratoBuffer,
+      })
     } finally {
       // Clean up temporary files
       try {
@@ -692,10 +702,12 @@ export const handleLeasingContractsRequest = async (req, res) => {
       } catch (err) {
         // Ignore cleanup errors
       }
-      try {
-        await fs.unlink(contratoPdfPath)
-      } catch (err) {
-        // Ignore cleanup errors
+      if (convertedToPdf) {
+        try {
+          await fs.unlink(contratoPdfPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
       }
     }
 
@@ -706,12 +718,13 @@ export const handleLeasingContractsRequest = async (req, res) => {
         tipoContrato,
       }, clienteUf)
       
-      // Convert anexo to PDF
+      // Try to convert anexo to PDF, fall back to DOCX if conversion fails
       const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
       const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
       const anexoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoDocxName}`)
       const anexoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoPdfName}`)
       
+      let anexoConvertedToPdf = false
       try {
         await fs.writeFile(anexoDocxPath, buffer)
         await convertDocxToPdf(anexoDocxPath, anexoPdfPath)
@@ -720,6 +733,14 @@ export const handleLeasingContractsRequest = async (req, res) => {
           name: anexoPdfName,
           buffer: pdfBuffer,
         })
+        anexoConvertedToPdf = true
+      } catch (conversionError) {
+        console.warn('[leasing-contracts] Falha ao converter anexo para PDF, usando DOCX:', conversionError.message)
+        // Fall back to DOCX if PDF conversion fails
+        files.push({
+          name: anexoDocxName,
+          buffer: buffer,
+        })
       } finally {
         // Clean up temporary files
         try {
@@ -727,10 +748,12 @@ export const handleLeasingContractsRequest = async (req, res) => {
         } catch (err) {
           // Ignore cleanup errors
         }
-        try {
-          await fs.unlink(anexoPdfPath)
-        } catch (err) {
-          // Ignore cleanup errors
+        if (anexoConvertedToPdf) {
+          try {
+            await fs.unlink(anexoPdfPath)
+          } catch (err) {
+            // Ignore cleanup errors
+          }
         }
       }
     }
