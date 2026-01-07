@@ -508,16 +508,22 @@ const normalizeWordXmlForMustache = (xml) => {
     // - <w:r[^>]*><w:t[^>]*>         Open second run and text
     // - ((?:(?!<\/w:t>).)*?)         Text content 2
     // - </w:t></w:r>                 Close second run
-    const adjacentRunsPattern = /<w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r><w:r[^>]*><w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r>/g
+    const adjacentRunsPattern = /<w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r><w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r>/g
     
     result = result.replace(
       adjacentRunsPattern,
-      (match, runContent, text1, text2) => {
+      (match, runContent, text1, nextRunContent, text2) => {
+        const runPropsRegex = /<w:rPr[\s\S]*?<\/w:rPr>/
+        const runPropsMatch = runContent.match(runPropsRegex)
+        const nextRunPropsMatch = nextRunContent.match(runPropsRegex)
+        const runProps = runPropsMatch ? runPropsMatch[0] : nextRunPropsMatch ? nextRunPropsMatch[0] : ''
+        const runContentWithoutProps = runContent.replace(runPropsRegex, '')
+
         // Check if we should preserve spaces
         const combinedText = text1 + text2
         const needsPreserve = /^\s|\s$|\s\s/.test(combinedText)
         const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
-        return `<w:r>${runContent}${tTag}${combinedText}</w:t></w:r>`
+        return `<w:r>${runProps}${runContentWithoutProps}${tTag}${combinedText}</w:t></w:r>`
       }
     )
     
