@@ -755,7 +755,26 @@ export const handleLeasingContractsRequest = async (req, res) => {
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
     const clienteUf = dadosLeasing.uf
 
-    if (anexosSelecionados.includes('ANEXO_I')) {
+    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
+    const anexosDisponiveis = []
+    const anexosIndisponiveis = []
+
+    for (const anexo of anexosResolvidos) {
+      const isAvailable = await checkTemplateAvailability(anexo.template, clienteUf)
+      if (isAvailable) {
+        anexosDisponiveis.push(anexo)
+      } else {
+        anexosIndisponiveis.push(anexo.id)
+      }
+    }
+
+    if (anexosIndisponiveis.length > 0) {
+      console.warn(
+        `[leasing-contracts] Anexos indisponíveis serão ignorados: ${anexosIndisponiveis.join(', ')}`,
+      )
+    }
+
+    if (anexosDisponiveis.some((anexo) => anexo.id === 'ANEXO_I')) {
       if (!dadosLeasing.modulosFV) {
         throw new LeasingContractsError(
           400,
@@ -820,18 +839,9 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
     }
 
-    const anexos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
-    const skippedAnexos = []
-    
-    for (const anexo of anexos) {
-      // Check if template is available before trying to render
-      const isAvailable = await checkTemplateAvailability(anexo.template, clienteUf)
-      if (!isAvailable) {
-        console.warn(`[leasing-contracts] Pulando anexo ${anexo.id} - template não disponível: ${anexo.template}`)
-        skippedAnexos.push(anexo.id)
-        continue
-      }
-      
+    const skippedAnexos = [...anexosIndisponiveis]
+
+    for (const anexo of anexosDisponiveis) {
       try {
         const buffer = await renderDocxTemplate(anexo.template, {
           ...dadosLeasing,
