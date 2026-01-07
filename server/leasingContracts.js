@@ -423,6 +423,94 @@ const loadDocxTemplate = async (fileName, uf) => {
   }
 }
 
+/**
+ * Normalize Word XML to fix broken Mustache placeholders.
+ * 
+ * Word often splits {{placeholder}} text across multiple runs and text elements:
+ * {{</w:t></w:r><w:proofErr/><w:r><w:t>variableName</w:t></w:r><w:proofErr/><w:r><w:t>}}
+ * 
+ * This function uses a two-pass approach:
+ * 1. Extract all text content (ignoring XML structure)
+ * 2. Find and protect Mustache placeholders
+ * 3. Reconstruct the XML with intact placeholders
+ * 
+ * @param {string} xml - The Word XML content
+ * @returns {string} XML with fixed placeholders
+ */
+const normalizeWordXmlForMustache = (xml) => {
+  // Strategy: Remove proofErr markers and merge adjacent text runs
+  
+  // Step 1: Remove spell-check markers that break up placeholders
+  let result = xml.replace(/<w:proofErr[^>]*\/>/g, '')
+  
+  // Step 2: Merge consecutive <w:r> elements that only contain text
+  // Pattern: </w:r><w:r><w:t>  =>  keep the text together
+  // This handles the case where placeholder parts are in consecutive runs
+  
+  let changed = true
+  let iterations = 0
+  const MAX_ITERATIONS = 20
+  
+  while (changed && iterations < MAX_ITERATIONS) {
+    iterations++
+    const before = result.length
+    
+    // Merge two adjacent runs if they contain simple text
+    // Pattern: <w:r>...<w:t>TEXT1</w:t></w:r><w:r><w:t>TEXT2</w:t></w:r>
+    // Result:  <w:r>...<w:t>TEXT1TEXT2</w:t></w:r>
+    result = result.replace(
+      /(<w:r[^>]*>)((?:(?!<w:r|<\/w:r).)*?)(<w:t[^>]*>)((?:(?!<\/w:t>).)*?)(<\/w:t>)<\/w:r><w:r[^>]*><w:t[^>]*>((?:(?!<\/w:t>).)*?)(<\/w:t><\/w:r>)/g,
+      (match, runStart, runContent, textStart, text1, textEnd, text2, runEnd) => {
+        // Check if we should preserve spaces
+        const combinedText = text1 + text2
+        const needsPreserve = /^\s|\s$|\s\s/.test(combinedText)
+        const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
+        return `${runStart}${runContent}${tTag}${combinedText}</w:t></w:r>`
+      }
+    )
+    
+    changed = result.length !== before
+  }
+  
+  // Step 3: Merge multiple <w:t> elements within the same <w:r>
+  result = result.replace(
+    /<w:r([^>]*)>([\s\S]*?)<\/w:r>/g,
+    (match, runAttrs, runContent) => {
+      // Extract all text from <w:t> elements
+      const texts = []
+      const textPattern = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g
+      let textMatch
+      
+      while ((textMatch = textPattern.exec(runContent)) !== null) {
+        texts.push(textMatch[1])
+      }
+      
+      if (texts.length === 0) {
+        return match
+      }
+      
+      if (texts.length === 1) {
+        // Already merged, return as-is
+        return match
+      }
+      
+      // Merge all text
+      const mergedText = texts.join('')
+      
+      // Remove all <w:t> elements from run content
+      let cleanedContent = runContent.replace(/<w:t[^>]*>[\s\S]*?<\/w:t>/g, '')
+      
+      // Add merged text at the end
+      const needsPreserve = /^\s|\s$|\s\s/.test(mergedText)
+      const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
+      
+      return `<w:r${runAttrs}>${cleanedContent}${tTag}${mergedText}</w:t></w:r>`
+    }
+  )
+  
+  return result
+}
+
 const renderDocxTemplate = async (fileName, data, uf) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
@@ -434,7 +522,9 @@ const renderDocxTemplate = async (fileName, data, uf) => {
       continue
     }
     const xmlContent = await file.async('string')
-    const rendered = Mustache.render(xmlContent, data)
+    // Normalize XML to fix broken placeholders before rendering
+    const normalizedXml = normalizeWordXmlForMustache(xmlContent)
+    const rendered = Mustache.render(normalizedXml, data)
     zip.file(partName, rendered)
   }
 
