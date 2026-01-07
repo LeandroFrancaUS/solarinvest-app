@@ -944,7 +944,7 @@ const convertDocxToPdfUsingTextFallback = async (docxPath, pdfPath) => {
   await fs.writeFile(pdfPath, pdfBuffer)
 }
 
-const convertDocxToPdf = async (docxPath, pdfPath) => {
+export const convertDocxToPdf = async (docxPath, pdfPath) => {
   try {
     await convertDocxToPdfUsingLibreOffice(docxPath)
     return

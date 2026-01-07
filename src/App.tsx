@@ -1011,9 +1011,6 @@ const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
 const CLIENTE_ID_MAX_ATTEMPTS = 10000
 
 // SolarInvest company information for contracts
-const SOLARINVEST_CNPJ = '00.000.000/0000-00' // TODO: Replace with actual CNPJ
-const SOLARINVEST_ENDERECO = 'Endereço da SolarInvest, Cidade - UF, CEP' // TODO: Replace with actual address
-
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
   documento: '',
@@ -2408,6 +2405,8 @@ function ContractTemplatesModal({
 type LeasingContractsModalProps = {
   tipoContrato: LeasingContratoTipo
   anexosSelecionados: LeasingAnexoId[]
+  anexosAvailability: Record<LeasingAnexoId, boolean>
+  isLoadingAvailability: boolean
   onToggleAnexo: (anexoId: LeasingAnexoId) => void
   onSelectAll: (selectAll: boolean) => void
   onConfirm: () => void
@@ -2418,6 +2417,8 @@ type LeasingContractsModalProps = {
 function LeasingContractsModal({
   tipoContrato,
   anexosSelecionados,
+  anexosAvailability,
+  isLoadingAvailability,
   onToggleAnexo,
   onSelectAll,
   onConfirm,
@@ -2471,11 +2472,15 @@ function LeasingContractsModal({
               </button>
             </div>
           ) : null}
+          {isLoadingAvailability ? (
+            <p className="muted">Verificando disponibilidade dos anexos...</p>
+          ) : null}
           <ul className="contract-template-list">
             {anexosDisponiveis.map((config, index) => {
               const checkboxId = `${checkboxBaseId}-${index}`
+              const isAvailable = anexosAvailability[config.id] !== false
               const checked = config.autoInclude || anexosSelecionados.includes(config.id)
-              const disabled = Boolean(config.autoInclude)
+              const disabled = Boolean(config.autoInclude) || !isAvailable
               return (
                 <li key={config.id} className="contract-template-item">
                   <label htmlFor={checkboxId} className="flex items-center gap-2">
@@ -2497,6 +2502,11 @@ function LeasingContractsModal({
                       ) : null}
                       {config.autoInclude ? (
                         <span className="filename">Incluso automaticamente</span>
+                      ) : null}
+                      {!isAvailable ? (
+                        <span className="filename" style={{ color: '#dc2626', fontSize: '0.875rem' }}>
+                          Arquivo não disponível
+                        </span>
                       ) : null}
                     </span>
                   </label>
@@ -4236,6 +4246,13 @@ export default function App() {
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
   }, [clienteEmEdicaoId])
+  
+  // Update prazoContratualMeses in leasing store when leasingPrazo (in years) changes
+  useEffect(() => {
+    const meses = leasingPrazo * 12
+    leasingActions.update({ prazoContratualMeses: meses })
+  }, [leasingPrazo])
+  
   const clienteIndicacaoCheckboxId = useId()
   const clienteIndicacaoNomeId = useId()
   const clienteHerdeirosContentId = useId()
@@ -5743,6 +5760,10 @@ export default function App() {
   const [leasingAnexosSelecionados, setLeasingAnexosSelecionados] = useState<LeasingAnexoId[]>(() =>
     getDefaultLeasingAnexos(leasingContrato.tipoContrato),
   )
+  const [leasingAnexosAvailability, setLeasingAnexosAvailability] = useState<
+    Record<LeasingAnexoId, boolean>
+  >({})
+  const [leasingAnexosLoading, setLeasingAnexosLoading] = useState(false)
   const [contractTemplatesCategory, setContractTemplatesCategory] =
     useState<ContractTemplateCategory>('vendas')
   const [contractTemplates, setContractTemplates] = useState<string[]>([])
@@ -12582,9 +12603,9 @@ export default function App() {
       prazoContratual: `${leasingPrazoContratualMeses}`, // Prazo in months only
       modulosFV: leasingContrato.modulosFV.trim(),
       inversoresFV: leasingContrato.inversoresFV.trim(),
-      // SolarInvest company information
-      cnpjContratada: SOLARINVEST_CNPJ,
-      enderecoContratada: SOLARINVEST_ENDERECO,
+      // Contact information
+      telefone: dadosBase.telefone,
+      email: dadosBase.email,
       // Lists and arrays
       proprietarios: proprietariosPayload,
       ucsBeneficiarias: ucsPayload,
@@ -12672,6 +12693,35 @@ export default function App() {
     [adicionarNotificacao],
   )
 
+  const carregarDisponibilidadeAnexos = useCallback(async () => {
+    setLeasingAnexosLoading(true)
+    try {
+      const params = new URLSearchParams({
+        tipoContrato: leasingContrato.tipoContrato,
+        uf: cliente.uf || '',
+      })
+      const response = await fetch(
+        resolveApiUrl(`/api/contracts/leasing/availability?${params.toString()}`),
+      )
+      if (!response.ok) {
+        console.error('Não foi possível verificar disponibilidade dos anexos.')
+        // Set all as available by default if check fails
+        setLeasingAnexosAvailability({})
+        return
+      }
+
+      const payload = (await response.json()) as { availability?: Record<string, boolean> }
+      const availability = payload.availability || {}
+      setLeasingAnexosAvailability(availability as Record<LeasingAnexoId, boolean>)
+    } catch (error) {
+      console.error('Erro ao verificar disponibilidade dos anexos:', error)
+      // Set all as available by default if check fails
+      setLeasingAnexosAvailability({})
+    } finally {
+      setLeasingAnexosLoading(false)
+    }
+  }, [leasingContrato.tipoContrato, cliente.uf])
+
   const handleToggleContractTemplate = useCallback((template: string) => {
     setSelectedContractTemplates((prev) => {
       if (prev.includes(template)) {
@@ -12753,7 +12803,9 @@ export default function App() {
       return
     }
     setIsLeasingContractsModalOpen(true)
-  }, [gerandoContratos, prepararDadosContratoCliente])
+    // Load availability when modal opens
+    carregarDisponibilidadeAnexos()
+  }, [gerandoContratos, prepararDadosContratoCliente, carregarDisponibilidadeAnexos])
 
   const handleGerarContratoVendas = useCallback(() => {
     abrirSelecaoContratos('vendas')
@@ -21074,6 +21126,8 @@ export default function App() {
         <LeasingContractsModal
           tipoContrato={leasingContrato.tipoContrato}
           anexosSelecionados={leasingAnexosSelecionados}
+          anexosAvailability={leasingAnexosAvailability}
+          isLoadingAvailability={leasingAnexosLoading}
           onToggleAnexo={handleToggleLeasingAnexo}
           onSelectAll={handleSelectAllLeasingAnexos}
           onConfirm={handleConfirmarGeracaoLeasing}
