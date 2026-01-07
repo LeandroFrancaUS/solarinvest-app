@@ -1011,9 +1011,6 @@ const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
 const CLIENTE_ID_MAX_ATTEMPTS = 10000
 
 // SolarInvest company information for contracts
-const SOLARINVEST_CNPJ = '00.000.000/0000-00' // TODO: Replace with actual CNPJ
-const SOLARINVEST_ENDERECO = 'Endereço da SolarInvest, Cidade - UF, CEP' // TODO: Replace with actual address
-
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
   documento: '',
@@ -4236,6 +4233,13 @@ export default function App() {
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
   }, [clienteEmEdicaoId])
+  
+  // Update prazoContratualMeses in leasing store when leasingPrazo (in years) changes
+  useEffect(() => {
+    const meses = leasingPrazo * 12
+    leasingActions.update({ prazoContratualMeses: meses })
+  }, [leasingPrazo])
+  
   const clienteIndicacaoCheckboxId = useId()
   const clienteIndicacaoNomeId = useId()
   const clienteHerdeirosContentId = useId()
@@ -12582,9 +12586,9 @@ export default function App() {
       prazoContratual: `${leasingPrazoContratualMeses}`, // Prazo in months only
       modulosFV: leasingContrato.modulosFV.trim(),
       inversoresFV: leasingContrato.inversoresFV.trim(),
-      // SolarInvest company information
-      cnpjContratada: SOLARINVEST_CNPJ,
-      enderecoContratada: SOLARINVEST_ENDERECO,
+      // Contact information
+      telefone: dadosBase.telefone,
+      email: dadosBase.email,
       // Lists and arrays
       proprietarios: proprietariosPayload,
       ucsBeneficiarias: ucsPayload,

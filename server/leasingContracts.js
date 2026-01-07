@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import os from 'node:os'
 import JSZip from 'jszip'
 import Mustache from 'mustache'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { convertDocxToPdf } from './contracts.js'
 
 const JSON_BODY_LIMIT = 256 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
@@ -11,6 +13,12 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
   'assets/templates/contratos/leasing',
 )
+const TMP_DIR = path.resolve(process.cwd(), 'tmp')
+
+// Maximum iterations for merging split placeholder runs in Word XML
+// Most placeholders split by Word's spell checker need 2-3 merge passes,
+// but we allow more iterations to handle pathologically fragmented text
+const MAX_PLACEHOLDER_MERGE_ITERATIONS = 20
 
 // Valid Brazilian state codes (UF)
 const VALID_UF_CODES = new Set([
@@ -241,18 +249,22 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     throw new LeasingContractsError(400, 'Estrutura de dados do contrato inválida.')
   }
 
+  // Convert personal data to uppercase for contract formatting
+  const nomeCompletoValue = ensureField(dados, 'nomeCompleto', 'Nome completo / razão social').toUpperCase()
+  const nacionalidadeValue = typeof dados.nacionalidade === 'string' ? dados.nacionalidade.trim().toUpperCase() : ''
+  const profissaoValue = typeof dados.profissao === 'string' ? dados.profissao.trim().toUpperCase() : ''
+  const estadoCivilValue = typeof dados.estadoCivil === 'string' ? dados.estadoCivil.trim().toUpperCase() : ''
+  
   const normalized = {
-    // Core client info
-    nomeCompleto: ensureField(dados, 'nomeCompleto', 'Nome completo / razão social'),
+    // Core client info - in uppercase for contracts
+    nomeCompleto: nomeCompletoValue,
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
-    cnpj: typeof dados.cnpj === 'string' ? dados.cnpj.trim() : '',
     rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
-    representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim() : '',
     
-    // Personal info
-    estadoCivil: typeof dados.estadoCivil === 'string' ? dados.estadoCivil.trim() : '',
-    nacionalidade: typeof dados.nacionalidade === 'string' ? dados.nacionalidade.trim() : '',
-    profissao: typeof dados.profissao === 'string' ? dados.profissao.trim() : '',
+    // Personal info - in uppercase for contracts
+    estadoCivil: estadoCivilValue,
+    nacionalidade: nacionalidadeValue,
+    profissao: profissaoValue,
     
     // Address fields
     enderecoCompleto: ensureField(dados, 'enderecoCompleto', 'Endereço completo'),
@@ -268,10 +280,6 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     // UC and installation
     unidadeConsumidora: ensureField(dados, 'unidadeConsumidora', 'Unidade consumidora'),
     localEntrega: ensureField(dados, 'localEntrega', 'Local de entrega'),
-    
-    // Contractor company info
-    cnpjContratada: typeof dados.cnpjContratada === 'string' ? dados.cnpjContratada.trim() : '',
-    enderecoContratada: typeof dados.enderecoContratada === 'string' ? dados.enderecoContratada.trim() : '',
     
     // Dates
     dataInicio: optionalField(dados, 'dataInicio'),
@@ -423,6 +431,129 @@ const loadDocxTemplate = async (fileName, uf) => {
   }
 }
 
+/**
+ * Normalize Word XML to fix broken Mustache placeholders.
+ * 
+ * Word often splits {{placeholder}} text across multiple runs and text elements:
+ * {{</w:t></w:r><w:proofErr/><w:r><w:t>variableName</w:t></w:r><w:proofErr/><w:r><w:t>}}
+ * 
+ * This function uses a two-pass approach:
+ * 1. Remove spell-check markers that break up placeholders
+ * 2. Merge consecutive text runs to reconstruct complete placeholders
+ * 3. Consolidate multiple text elements within each run
+ * 
+ * @param {string} xml - The Word XML content
+ * @returns {string} XML with fixed placeholders
+ */
+const normalizeWordXmlForMustache = (xml) => {
+  // Strategy: Remove proofErr markers and merge adjacent text runs
+  
+  // Step 1: Remove spell-check markers that break up placeholders
+  let result = xml.replace(/<w:proofErr[^>]*\/>/g, '')
+  
+  // Step 2: Merge consecutive <w:r> elements that only contain text
+  // This handles the case where placeholder parts are in consecutive runs
+  
+  let changed = true
+  let iterations = 0
+  
+  while (changed && iterations < MAX_PLACEHOLDER_MERGE_ITERATIONS) {
+    iterations++
+    const before = result.length
+    
+    // Regex pattern to match and merge two adjacent text runs:
+    // Captures: (runContent1, text1, text2) and reconstructs as single merged run
+    // 
+    // Pattern breakdown:
+    // - <w:r[^>]*>                    Opening run tag (may have attributes)
+    // - ((?:(?!<w:r|<\/w:r).)*?)     Run content (not containing nested runs)
+    // - <w:t[^>]*>                   Opening text tag
+    // - ((?:(?!<\/w:t>).)*?)         Text content 1
+    // - </w:t></w:r>                 Close first run
+    // - <w:r[^>]*><w:t[^>]*>         Open second run and text
+    // - ((?:(?!<\/w:t>).)*?)         Text content 2
+    // - </w:t></w:r>                 Close second run
+    const adjacentRunsPattern = /<w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r><w:r[^>]*><w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r>/g
+    
+    result = result.replace(
+      adjacentRunsPattern,
+      (match, runContent, text1, text2) => {
+        // Check if we should preserve spaces
+        const combinedText = text1 + text2
+        const needsPreserve = /^\s|\s$|\s\s/.test(combinedText)
+        const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
+        return `<w:r>${runContent}${tTag}${combinedText}</w:t></w:r>`
+      }
+    )
+    
+    changed = result.length !== before
+  }
+  
+  // Step 3: Merge multiple <w:t> elements within the same <w:r>
+  // Pattern explanation:
+  // - <w:r([^>]*)> : Opening run tag with attributes captured
+  // - ([\s\S]*?) : Run content (lazy match to first closing tag)
+  // - </w:r> : Closing run tag
+  result = result.replace(
+    /<w:r([^>]*)>([\s\S]*?)<\/w:r>/g,
+    (match, runAttrs, runContent) => {
+      // Extract all text from <w:t> elements
+      const texts = []
+      const textPattern = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g
+      let textMatch
+      
+      while ((textMatch = textPattern.exec(runContent)) !== null) {
+        texts.push(textMatch[1])
+      }
+      
+      if (texts.length === 0) {
+        return match
+      }
+      
+      if (texts.length === 1) {
+        // Already merged, return as-is
+        return match
+      }
+      
+      // Merge all text
+      const mergedText = texts.join('')
+      
+      // Remove all <w:t> elements from run content
+      let cleanedContent = runContent.replace(/<w:t[^>]*>[\s\S]*?<\/w:t>/g, '')
+      
+      // Add merged text at the end
+      const needsPreserve = /^\s|\s$|\s\s/.test(mergedText)
+      const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
+      
+      return `<w:r${runAttrs}>${cleanedContent}${tTag}${mergedText}</w:t></w:r>`
+    }
+  )
+  
+  return result
+}
+
+/**
+ * Clean up extra punctuation from rendered Word XML.
+ * Removes patterns like ", , " or ", ," that occur when optional fields are empty.
+ * 
+ * @param {string} xml - The rendered Word XML content
+ * @returns {string} XML with cleaned punctuation
+ */
+const cleanupExtraPunctuation = (xml) => {
+  // Replace patterns of comma-space-comma or multiple commas with single comma-space
+  // This handles cases where optional fields (like profissao, estadoCivil) are empty
+  // Pattern: ", , " or ",  ," or ", ," etc.
+  let result = xml.replace(/,(\s*),(\s*)/g, ', ')
+  
+  // Clean up any remaining double commas
+  result = result.replace(/,,+/g, ',')
+  
+  // Clean up comma followed by multiple spaces and another comma
+  result = result.replace(/,\s{2,},/g, ', ')
+  
+  return result
+}
+
 const renderDocxTemplate = async (fileName, data, uf) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
@@ -434,8 +565,12 @@ const renderDocxTemplate = async (fileName, data, uf) => {
       continue
     }
     const xmlContent = await file.async('string')
-    const rendered = Mustache.render(xmlContent, data)
-    zip.file(partName, rendered)
+    // Normalize XML to fix broken placeholders before rendering
+    const normalizedXml = normalizeWordXmlForMustache(xmlContent)
+    const rendered = Mustache.render(normalizedXml, data)
+    // Clean up extra commas from empty optional fields
+    const cleaned = cleanupExtraPunctuation(rendered)
+    zip.file(partName, cleaned)
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })
@@ -449,15 +584,15 @@ const createZipFromFiles = async (files) => {
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
-const buildContractFileName = (tipoContrato, cpfCnpj) => {
+const buildContractFileName = (tipoContrato, cpfCnpj, extension = 'docx') => {
   const id = sanitizeDocumentoId(cpfCnpj)
-  return `leasing-${tipoContrato}-${id}.docx`
+  return `leasing-${tipoContrato}-${id}.${extension}`
 }
 
-const buildAnexoFileName = (anexoId, cpfCnpj) => {
+const buildAnexoFileName = (anexoId, cpfCnpj, extension = 'docx') => {
   const id = sanitizeDocumentoId(cpfCnpj)
   const slug = anexoId.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-  return `anexo-${slug}-${id}.docx`
+  return `anexo-${slug}-${id}.${extension}`
 }
 
 const buildZipFileName = (tipoContrato, cpfCnpj) => {
@@ -526,16 +661,55 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
     }
 
+    // Ensure TMP_DIR exists
+    await fs.mkdir(TMP_DIR, { recursive: true })
+
     const files = []
     const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
     }, clienteUf)
-    files.push({
-      name: buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj),
-      buffer: contratoBuffer,
-    })
+    
+    // Try to convert main contract to PDF, fall back to DOCX if conversion fails
+    let convertedToPdf = false
+    const contratoDocxName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'docx')
+    const contratoPdfName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'pdf')
+    const contratoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoDocxName}`)
+    const contratoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoPdfName}`)
+    
+    try {
+      await fs.writeFile(contratoDocxPath, contratoBuffer)
+      await convertDocxToPdf(contratoDocxPath, contratoPdfPath)
+      const pdfBuffer = await fs.readFile(contratoPdfPath)
+      files.push({
+        name: contratoPdfName,
+        buffer: pdfBuffer,
+      })
+      convertedToPdf = true
+      console.log('[leasing-contracts] Contrato principal convertido para PDF com sucesso')
+    } catch (conversionError) {
+      console.warn('[leasing-contracts] Falha ao converter contrato para PDF, usando DOCX:', conversionError.message)
+      // Fall back to DOCX if PDF conversion fails
+      files.push({
+        name: contratoDocxName,
+        buffer: contratoBuffer,
+      })
+    } finally {
+      // Clean up temporary files
+      try {
+        await fs.unlink(contratoDocxPath)
+      } catch (err) {
+        // Ignore cleanup errors
+      }
+      if (convertedToPdf) {
+        try {
+          await fs.unlink(contratoPdfPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    }
 
     const anexos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
     for (const anexo of anexos) {
@@ -543,10 +717,45 @@ export const handleLeasingContractsRequest = async (req, res) => {
         ...dadosLeasing,
         tipoContrato,
       }, clienteUf)
-      files.push({
-        name: buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj),
-        buffer,
-      })
+      
+      // Try to convert anexo to PDF, fall back to DOCX if conversion fails
+      const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
+      const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
+      const anexoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoDocxName}`)
+      const anexoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoPdfName}`)
+      
+      let anexoConvertedToPdf = false
+      try {
+        await fs.writeFile(anexoDocxPath, buffer)
+        await convertDocxToPdf(anexoDocxPath, anexoPdfPath)
+        const pdfBuffer = await fs.readFile(anexoPdfPath)
+        files.push({
+          name: anexoPdfName,
+          buffer: pdfBuffer,
+        })
+        anexoConvertedToPdf = true
+      } catch (conversionError) {
+        console.warn('[leasing-contracts] Falha ao converter anexo para PDF, usando DOCX:', conversionError.message)
+        // Fall back to DOCX if PDF conversion fails
+        files.push({
+          name: anexoDocxName,
+          buffer: buffer,
+        })
+      } finally {
+        // Clean up temporary files
+        try {
+          await fs.unlink(anexoDocxPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+        if (anexoConvertedToPdf) {
+          try {
+            await fs.unlink(anexoPdfPath)
+          } catch (err) {
+            // Ignore cleanup errors
+          }
+        }
+      }
     }
 
     const zipBuffer = await createZipFromFiles(files)
