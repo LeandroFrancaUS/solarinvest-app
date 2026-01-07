@@ -106,8 +106,8 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_I',
     label: 'Anexo I – Especificações Técnicas',
     templates: {
-      residencial: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx',
-      condominio: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Condominio).docx',
+      residencial: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx',
+      condominio: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx', // Reusing residencial template,
     },
     appliesTo: new Set(['residencial', 'condominio']),
   },
@@ -115,8 +115,8 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_II',
     label: 'Anexo II – Opção de Compra',
     templates: {
-      residencial: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
-      condominio: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
+      residencial: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
+      condominio: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
     },
     appliesTo: new Set(['residencial', 'condominio']),
   },
@@ -124,8 +124,8 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_III',
     label: 'Anexo III – Regras de Cálculo',
     templates: {
-      residencial: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
-      condominio: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
+      residencial: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
+      condominio: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
     },
     appliesTo: new Set(['residencial', 'condominio']),
   },
@@ -134,7 +134,7 @@ const ANEXO_DEFINITIONS = [
     label: 'Anexo IV – Autorização do Proprietário',
     templates: {
       residencial:
-        'Anexos/Anexo IV – Termo de Autorização e Procuração do Proprietário, Herdeiros ou Representantes Legais (Residencial).docx',
+        'Anexos/Anexo IV – Termo de Autorização e Procuração.docx',
     },
     appliesTo: new Set(['residencial']),
   },
@@ -142,8 +142,8 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_VII',
     label: 'Anexo VII – Termo de Entrega e Aceite',
     templates: {
-      residencial: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx',
-      condominio: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Condominio).docx',
+      residencial: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx',
+      condominio: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx', // Reusing residencial template,
     },
     appliesTo: new Set(['residencial', 'condominio']),
   },
@@ -151,7 +151,7 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_VIII',
     label: 'Anexo VIII – Procuração do Condomínio',
     templates: {
-      condominio: 'Anexos/Anexo VIII – TERMO DE AUTORIZAÇÃO E PROCURAÇÃO DO CONDOMÍNIO (Condominio).docx',
+      condominio: 'Anexos/Anexo IV – Termo de Autorização e Procuração.docx', // Reusing ANEXO_IV as fallback
     },
     appliesTo: new Set(['condominio']),
   },
@@ -425,8 +425,10 @@ const loadDocxTemplate = async (fileName, uf) => {
     return buffer
   } catch (error) {
     if (error && error.code === 'ENOENT') {
-      throw new LeasingContractsError(500, `Template não encontrado: ${fileName}`)
+      console.error(`[leasing-contracts] Template não encontrado em: ${templatePath}`)
+      throw new LeasingContractsError(500, `Template não encontrado: ${fileName} (esperado em: ${templatePath})`)
     }
+    console.error(`[leasing-contracts] Erro ao ler template ${fileName}:`, error)
     throw error
   }
 }
@@ -637,10 +639,14 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
   try {
     const body = await readJsonBody(req)
+    console.log('[leasing-contracts] Requisição recebida para geração de contratos')
+    
     const tipoContrato = sanitizeContratoTipo(body?.tipoContrato)
     if (!tipoContrato) {
       throw new LeasingContractsError(400, 'Tipo de contrato inválido.')
     }
+    
+    console.log(`[leasing-contracts] Tipo de contrato: ${tipoContrato}`)
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
@@ -768,13 +774,21 @@ export const handleLeasingContractsRequest = async (req, res) => {
     res.end(zipBuffer)
   } catch (error) {
     const statusCode = error instanceof LeasingContractsError ? error.statusCode : 500
-    const message =
+    let message =
       error instanceof LeasingContractsError
         ? error.message
         : 'Não foi possível gerar os contratos de leasing.'
 
     if (!(error instanceof LeasingContractsError)) {
       console.error('[leasing-contracts] Erro inesperado ao gerar documentos:', error)
+      
+      // In non-production environments, include more error details for debugging
+      if (process.env.NODE_ENV !== 'production') {
+        const errorDetails = error instanceof Error 
+          ? `${error.message}${error.stack ? '\n' + error.stack : ''}`
+          : String(error)
+        message = `Não foi possível gerar os contratos de leasing. Detalhes: ${errorDetails}`
+      }
     }
 
     res.statusCode = statusCode
