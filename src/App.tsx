@@ -1010,9 +1010,20 @@ const CLIENTE_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
 const CLIENTE_ID_MAX_ATTEMPTS = 10000
 
+// SolarInvest company information for contracts
+const SOLARINVEST_CNPJ = '00.000.000/0000-00' // TODO: Replace with actual CNPJ
+const SOLARINVEST_ENDERECO = 'Endereço da SolarInvest, Cidade - UF, CEP' // TODO: Replace with actual address
+
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
   documento: '',
+  rg: '',
+  estadoCivil: '',
+  nacionalidade: '',
+  profissao: '',
+  razaoSocial: '',
+  representanteLegal: '',
+  cnpj: '',
   email: '',
   telefone: '',
   cep: '',
@@ -1027,6 +1038,7 @@ const CLIENTE_INICIAL: ClienteDados = {
   nomeSindico: '',
   cpfSindico: '',
   contatoSindico: '',
+  diaVencimento: '10',
 }
 
 const isSyncedClienteField = (key: keyof ClienteDados): key is FieldSyncKey =>
@@ -12548,6 +12560,15 @@ export default function App() {
     const dadosLeasing = {
       ...dadosBase,
       cpfCnpj: formatCpfCnpj(dadosBase.cpfCnpj),
+      // Additional personal/company information
+      rg: cliente.rg?.trim() || '',
+      estadoCivil: cliente.estadoCivil?.trim() || '',
+      nacionalidade: cliente.nacionalidade?.trim() || '',
+      profissao: cliente.profissao?.trim() || '',
+      razaoSocial: cliente.razaoSocial?.trim() || '',
+      representanteLegal: cliente.representanteLegal?.trim() || '',
+      cnpj: cliente.cnpj?.trim() || '',
+      // Contract and technical data
       potencia: potenciaFormatada,
       kWhContratado: energiaFormatada,
       tarifaBase: tarifaBaseFormatada,
@@ -12557,8 +12578,14 @@ export default function App() {
       enderecoUCGeradora: leasingContrato.localEntrega.trim(), // Endereço da UC geradora (pode ser diferente do contratante)
       dataHomologacao: formatDateForContract(leasingContrato.dataHomologacao),
       dataAtualExtenso,
+      diaVencimento: cliente.diaVencimento || '10',
+      prazoContratual: `${Math.round(leasingPrazoMeses / 12)} anos (${leasingPrazoMeses} meses)`,
       modulosFV: leasingContrato.modulosFV.trim(),
       inversoresFV: leasingContrato.inversoresFV.trim(),
+      // SolarInvest company information
+      cnpjContratada: SOLARINVEST_CNPJ,
+      enderecoContratada: SOLARINVEST_ENDERECO,
+      // Lists and arrays
       proprietarios: proprietariosPayload,
       ucsBeneficiarias: ucsPayload,
       nomeCondominio: leasingContrato.nomeCondominio.trim(),
@@ -14408,6 +14435,97 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
+            'RG',
+            'Registro Geral (documento de identidade) do contratante pessoa física.',
+          )}
+        >
+          <input
+            value={cliente.rg || ''}
+            onChange={(e) => handleClienteChange('rg', e.target.value)}
+            placeholder="00.000.000-0"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Estado Civil',
+            'Estado civil do contratante pessoa física (solteiro, casado, divorciado, viúvo, etc.).',
+          )}
+        >
+          <select
+            value={cliente.estadoCivil || ''}
+            onChange={(e) => handleClienteChange('estadoCivil', e.target.value)}
+          >
+            <option value="">Selecione</option>
+            <option value="Solteiro(a)">Solteiro(a)</option>
+            <option value="Casado(a)">Casado(a)</option>
+            <option value="Divorciado(a)">Divorciado(a)</option>
+            <option value="Viúvo(a)">Viúvo(a)</option>
+            <option value="União Estável">União Estável</option>
+          </select>
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Nacionalidade',
+            'Nacionalidade do contratante pessoa física.',
+          )}
+        >
+          <input
+            value={cliente.nacionalidade || ''}
+            onChange={(e) => handleClienteChange('nacionalidade', e.target.value)}
+            placeholder="Brasileira"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Profissão',
+            'Ocupação ou profissão do contratante pessoa física.',
+          )}
+        >
+          <input
+            value={cliente.profissao || ''}
+            onChange={(e) => handleClienteChange('profissao', e.target.value)}
+            placeholder="Ex: Engenheiro, Advogado, Empresário"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Razão Social',
+            'Nome empresarial completo (para pessoa jurídica/CNPJ).',
+          )}
+        >
+          <input
+            value={cliente.razaoSocial || ''}
+            onChange={(e) => handleClienteChange('razaoSocial', e.target.value)}
+            placeholder="Nome da Empresa Ltda"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Representante Legal',
+            'Nome do representante legal da empresa (para pessoa jurídica/CNPJ).',
+          )}
+        >
+          <input
+            value={cliente.representanteLegal || ''}
+            onChange={(e) => handleClienteChange('representanteLegal', e.target.value)}
+            placeholder="Nome do diretor ou sócio"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'CNPJ (empresa)',
+            'CNPJ da empresa contratante (para pessoa jurídica). Diferente do CPF/CNPJ do campo acima se necessário.',
+          )}
+        >
+          <input
+            value={cliente.cnpj || ''}
+            onChange={(e) => handleClienteChange('cnpj', e.target.value)}
+            inputMode="numeric"
+            placeholder="00.000.000/0000-00"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
             'E-mail',
             'Endereço eletrônico usado para envio da proposta, acompanhamento e notificações automáticas.',
           )}
@@ -14876,6 +14994,19 @@ export default function App() {
                 value={leasingContrato.dataFim}
                 onChange={(event) => handleLeasingContratoCampoChange('dataFim', event.target.value)}
               />
+            </Field>
+            <Field label={renderLeasingLabel('Dia de vencimento da mensalidade')}>
+              <select
+                className="leasing-compact-input"
+                value={cliente.diaVencimento || '10'}
+                onChange={(event) => handleClienteChange('diaVencimento', event.target.value)}
+              >
+                {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                  <option key={day} value={String(day)}>
+                    Dia {day}
+                  </option>
+                ))}
+              </select>
             </Field>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
