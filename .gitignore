@@ -12,3 +12,6 @@ build/
 .vercel
 .env*.local
 !my-neon-app/.env.example
+
+# Test scripts
+test-*.mjs
