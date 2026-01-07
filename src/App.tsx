@@ -4209,6 +4209,7 @@ export default function App() {
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
+  const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
   const enderecoClienteCompleto = useMemo(() => {
     const partes: string[] = []
     const endereco = cliente.endereco.trim()
@@ -12578,7 +12579,7 @@ export default function App() {
       dataHomologacao: formatDateForContract(leasingContrato.dataHomologacao),
       dataAtualExtenso,
       diaVencimento: cliente.diaVencimento || '10',
-      prazoContratual: `${Math.round(leasingPrazoMeses / 12)} anos (${leasingPrazoMeses} meses)`,
+      prazoContratual: `${Math.round(leasingPrazoContratualMeses / 12)} anos (${leasingPrazoContratualMeses} meses)`,
       modulosFV: leasingContrato.modulosFV.trim(),
       inversoresFV: leasingContrato.inversoresFV.trim(),
       // SolarInvest company information
@@ -12601,6 +12602,7 @@ export default function App() {
     adicionarNotificacao,
     kcKwhMes,
     leasingContrato,
+    leasingPrazoContratualMeses,
     leasingAnexosSelecionados,
     potenciaInstaladaKwp,
     prepararDadosContratoCliente,
