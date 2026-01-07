@@ -430,9 +430,9 @@ const loadDocxTemplate = async (fileName, uf) => {
  * {{</w:t></w:r><w:proofErr/><w:r><w:t>variableName</w:t></w:r><w:proofErr/><w:r><w:t>}}
  * 
  * This function uses a two-pass approach:
- * 1. Extract all text content (ignoring XML structure)
- * 2. Find and protect Mustache placeholders
- * 3. Reconstruct the XML with intact placeholders
+ * 1. Remove spell-check markers that break up placeholders
+ * 2. Merge consecutive text runs to reconstruct complete placeholders
+ * 3. Consolidate multiple text elements within each run
  * 
  * @param {string} xml - The Word XML content
  * @returns {string} XML with fixed placeholders
@@ -444,28 +444,41 @@ const normalizeWordXmlForMustache = (xml) => {
   let result = xml.replace(/<w:proofErr[^>]*\/>/g, '')
   
   // Step 2: Merge consecutive <w:r> elements that only contain text
-  // Pattern: </w:r><w:r><w:t>  =>  keep the text together
   // This handles the case where placeholder parts are in consecutive runs
+  // 
+  // We iterate multiple times because placeholders can be split into 3+ runs,
+  // and each iteration only merges two adjacent runs. Most placeholders need
+  // 2-3 iterations, but we allow up to 20 to handle pathological cases where
+  // Word has heavily fragmented the text.
   
   let changed = true
   let iterations = 0
-  const MAX_ITERATIONS = 20
+  const MAX_ITERATIONS = 20 // Allow up to 20 merges to handle deeply nested/split placeholders
   
   while (changed && iterations < MAX_ITERATIONS) {
     iterations++
     const before = result.length
     
     // Merge two adjacent runs if they contain simple text
-    // Pattern: <w:r>...<w:t>TEXT1</w:t></w:r><w:r><w:t>TEXT2</w:t></w:r>
-    // Result:  <w:r>...<w:t>TEXT1TEXT2</w:t></w:r>
+    // Pattern explanation:
+    // - <w:r[^>]*> : Opening run tag (may have attributes)
+    // - ((?:(?!<w:r|<\/w:r).)*?) : Run content (not containing nested runs)
+    // - <w:t[^>]*> : Opening text tag
+    // - ((?:(?!<\/w:t>).)*?) : Text content
+    // - </w:t></w:r> : Closing tags
+    // - <w:r[^>]*><w:t[^>]*> : Next run's opening tags
+    // - ((?:(?!<\/w:t>).)*?) : Next run's text content
+    // - </w:t></w:r> : Next run's closing tags
+    const runPattern = /<w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r><w:r[^>]*><w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r>/g
+    
     result = result.replace(
-      /(<w:r[^>]*>)((?:(?!<w:r|<\/w:r).)*?)(<w:t[^>]*>)((?:(?!<\/w:t>).)*?)(<\/w:t>)<\/w:r><w:r[^>]*><w:t[^>]*>((?:(?!<\/w:t>).)*?)(<\/w:t><\/w:r>)/g,
-      (match, runStart, runContent, textStart, text1, textEnd, text2, runEnd) => {
+      runPattern,
+      (match, runContent, text1, text2) => {
         // Check if we should preserve spaces
         const combinedText = text1 + text2
         const needsPreserve = /^\s|\s$|\s\s/.test(combinedText)
         const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
-        return `${runStart}${runContent}${tTag}${combinedText}</w:t></w:r>`
+        return `<w:r>${runContent}${tTag}${combinedText}</w:t></w:r>`
       }
     )
     
@@ -473,6 +486,10 @@ const normalizeWordXmlForMustache = (xml) => {
   }
   
   // Step 3: Merge multiple <w:t> elements within the same <w:r>
+  // Pattern explanation:
+  // - <w:r([^>]*)> : Opening run tag with attributes captured
+  // - ([\s\S]*?) : Run content (lazy match to first closing tag)
+  // - </w:r> : Closing run tag
   result = result.replace(
     /<w:r([^>]*)>([\s\S]*?)<\/w:r>/g,
     (match, runAttrs, runContent) => {
