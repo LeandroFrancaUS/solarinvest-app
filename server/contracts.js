@@ -36,12 +36,6 @@ const isValidUf = (uf) => {
   const normalized = uf.trim().toUpperCase()
   return normalized.length === 2 && VALID_UF_CODES.has(normalized)
 }
-const PDF_PAGE_WIDTH = 612
-const PDF_PAGE_HEIGHT = 792
-const PDF_MARGIN = 72
-const PDF_FONT_SIZE = 11
-const PDF_LINE_HEIGHT = 14
-const PDF_MAX_LINE_LENGTH = 90
 
 class ContractRenderError extends Error {
   /**
@@ -226,195 +220,6 @@ const applyPlaceholderReplacements = (text, data, { escapeXml = false } = {}) =>
 
 const replaceTagsInXml = (xmlContent, data) => applyPlaceholderReplacements(xmlContent, data, { escapeXml: true })
 
-const decodeXmlEntities = (value) =>
-  value
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-
-const extractPlainTextFromWordXml = (xmlContent) => {
-  if (!xmlContent) {
-    return ''
-  }
-
-  const replaced = xmlContent
-    .replace(/<w:tab[^>]*\/>/gi, '\t')
-    .replace(/<w:br[^>]*\/>/gi, '\n')
-    .replace(/<\/w:p>/gi, '\n\n')
-    .replace(/<[^>]+>/g, '')
-
-  const decoded = decodeXmlEntities(replaced).replace(/\r/g, '')
-  const rawLines = decoded.split('\n')
-  const cleanedLines = []
-
-  for (const rawLine of rawLines) {
-    const trimmed = rawLine.replace(/\s+/g, ' ').trim()
-    if (trimmed) {
-      cleanedLines.push(trimmed)
-    } else if (cleanedLines.length > 0 && cleanedLines[cleanedLines.length - 1] !== '') {
-      cleanedLines.push('')
-    }
-  }
-
-  return cleanedLines.join('\n').trim()
-}
-
-const wrapLineForPdf = (line) => {
-  if (!line) {
-    return ['']
-  }
-
-  const maxLength = PDF_MAX_LINE_LENGTH
-  if (line.length <= maxLength) {
-    return [line]
-  }
-
-  const words = line.split(/\s+/).filter(Boolean)
-  if (words.length === 0) {
-    return ['']
-  }
-
-  const wrapped = []
-  let current = ''
-
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word
-    if (candidate.length <= maxLength) {
-      current = candidate
-    } else {
-      if (current) {
-        wrapped.push(current)
-      }
-      current = word
-    }
-  }
-
-  if (current) {
-    wrapped.push(current)
-  }
-
-  return wrapped.length > 0 ? wrapped : ['']
-}
-
-const normalizeLinesForPdf = (text) => {
-  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-  const rawLines = normalized.split('\n')
-  const wrapped = []
-
-  rawLines.forEach((line, index) => {
-    const trimmedLine = line.replace(/\s+$/g, '')
-    if (trimmedLine) {
-      wrapped.push(...wrapLineForPdf(trimmedLine))
-    } else {
-      if (index === rawLines.length - 1) {
-        wrapped.push('')
-      } else if (wrapped.length === 0 || wrapped[wrapped.length - 1] !== '') {
-        wrapped.push('')
-      }
-    }
-  })
-
-  return wrapped.length > 0 ? wrapped : ['']
-}
-
-const escapePdfString = (value) => {
-  const buffer = Buffer.from(value, 'latin1')
-  let escaped = ''
-
-  for (const byte of buffer.values()) {
-    const char = String.fromCharCode(byte)
-    if (char === '\\' || char === '(' || char === ')') {
-      escaped += `\\${char}`
-    } else if (byte < 32 || byte > 126) {
-      escaped += `\\${byte.toString(8).padStart(3, '0')}`
-    } else {
-      escaped += char
-    }
-  }
-
-  return escaped
-}
-
-const createPdfBufferFromPlainText = (text) => {
-  const lines = normalizeLinesForPdf(text)
-  const linesPerPage = Math.max(1, Math.floor((PDF_PAGE_HEIGHT - PDF_MARGIN * 2) / PDF_LINE_HEIGHT))
-  const pages = []
-
-  for (let index = 0; index < lines.length; index += linesPerPage) {
-    pages.push(lines.slice(index, index + linesPerPage))
-  }
-
-  if (pages.length === 0) {
-    pages.push([''])
-  }
-
-  const objects = []
-  const addObject = (content = '') => {
-    const id = objects.length + 1
-    objects.push({ id, content })
-    return id
-  }
-
-  const catalogId = addObject()
-  const pagesId = addObject()
-  const fontId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
-
-  const contentIds = pages.map((pageLines) => {
-    let content = 'BT\n'
-    content += `/F1 ${PDF_FONT_SIZE} Tf\n`
-    content += `${PDF_MARGIN} ${PDF_PAGE_HEIGHT - PDF_MARGIN} Td\n`
-
-    pageLines.forEach((line, index) => {
-      content += `(${escapePdfString(line)}) Tj\n`
-      if (index !== pageLines.length - 1) {
-        content += `0 -${PDF_LINE_HEIGHT} Td\n`
-      }
-    })
-
-    content += 'ET'
-    const length = Buffer.byteLength(content, 'utf8')
-    return addObject(`<< /Length ${length} >>\nstream\n${content}\nendstream`)
-  })
-
-  const pageIds = pages.map(() => addObject())
-
-  pageIds.forEach((pageId, index) => {
-    const contentId = contentIds[index]
-    objects[pageId - 1].content = `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PDF_PAGE_WIDTH} ${PDF_PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`
-  })
-
-  objects[pagesId - 1].content = `<< /Type /Pages /Kids [${pageIds
-    .map((pageId) => `${pageId} 0 R`)
-    .join(' ')}] /Count ${pageIds.length} >>`
-
-  objects[catalogId - 1].content = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`
-
-  const headerBuffer = Buffer.from('%PDF-1.4\n', 'utf8')
-  const bodyChunks = [headerBuffer]
-  let currentOffset = headerBuffer.length
-  const xrefEntries = ['0000000000 65535 f \n']
-
-  objects.forEach(({ id, content }) => {
-    const objectString = `${id} 0 obj\n${content}\nendobj\n`
-    const buffer = Buffer.from(objectString, 'utf8')
-    xrefEntries.push(currentOffset.toString().padStart(10, '0') + ' 00000 n \n')
-    bodyChunks.push(buffer)
-    currentOffset += buffer.length
-  })
-
-  const xrefOffset = currentOffset
-  const xrefHeader = `xref\n0 ${objects.length + 1}\n`
-  const xrefBuffer = Buffer.from(xrefHeader + xrefEntries.join(''), 'utf8')
-  bodyChunks.push(xrefBuffer)
-  currentOffset += xrefBuffer.length
-
-  const trailer = `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
-  bodyChunks.push(Buffer.from(trailer, 'utf8'))
-
-  return Buffer.concat(bodyChunks)
-}
 
 const readJsonBody = async (req) => {
   let totalLength = 0
@@ -459,12 +264,19 @@ const sanitizeTemplateCategory = (value) => {
   return CONTRACT_TEMPLATE_CATEGORIES.has(normalized) ? normalized : null
 }
 
+const TEMPLATE_EXTENSIONS = ['.docx', '.dotx']
+
+const hasSupportedTemplateExtension = (fileName) => {
+  const lower = fileName.toLowerCase()
+  return TEMPLATE_EXTENSIONS.some((extension) => lower.endsWith(extension))
+}
+
 /**
  * Resolve o caminho do template com suporte a templates específicos por UF.
  * Ordem de busca:
- * 1. Template específico do UF (ex: leasing/GO/template.docx)
- * 2. Template padrão da categoria (ex: leasing/template.docx)
- * 
+ * 1. Template específico do UF (ex: leasing/GO/template.dotx)
+ * 2. Template padrão da categoria (ex: leasing/template.dotx)
+ *
  * @param {string} templateName - Nome do template ou caminho relativo
  * @param {string} [clienteUf] - UF do cliente para resolução de templates específicos
  */
@@ -480,7 +292,7 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
     const segments = normalized.split('/').filter(Boolean)
     if (segments.length === 1) {
       fileName = path.basename(segments[0])
-      if (!fileName.toLowerCase().endsWith('.docx')) {
+      if (!hasSupportedTemplateExtension(fileName)) {
         throw new ContractRenderError(400, 'Template de contrato inválido.')
       }
       category = DEFAULT_TEMPLATE_CATEGORY
@@ -490,11 +302,11 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
         throw new ContractRenderError(400, 'Categoria de template inválida.')
       }
       fileName = path.basename(segments[1])
-      if (!fileName.toLowerCase().endsWith('.docx')) {
+      if (!hasSupportedTemplateExtension(fileName)) {
         throw new ContractRenderError(400, 'Template de contrato inválido.')
       }
     } else if (segments.length === 3) {
-      // Suporta caminho completo: categoria/UF/arquivo.docx
+      // Suporta caminho completo: categoria/UF/arquivo.dotx
       category = sanitizeTemplateCategory(segments[0])
       if (!category) {
         throw new ContractRenderError(400, 'Categoria de template inválida.')
@@ -504,7 +316,7 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
         throw new ContractRenderError(400, 'UF inválido no caminho do template.')
       }
       fileName = path.basename(segments[2])
-      if (!fileName.toLowerCase().endsWith('.docx')) {
+      if (!hasSupportedTemplateExtension(fileName)) {
         throw new ContractRenderError(400, 'Template de contrato inválido.')
       }
       relativePath = path.join(category, segments[1].toUpperCase(), fileName)
@@ -923,27 +735,6 @@ const convertDocxToPdfUsingGoogleDrive = async (docxPath, pdfPath) => {
   }
 }
 
-const convertDocxToPdfUsingTextFallback = async (docxPath, pdfPath) => {
-  const JSZip = await loadJsZip()
-  const docxBuffer = await fs.readFile(docxPath)
-  const zip = await JSZip.loadAsync(docxBuffer)
-  const documentFile = zip.file('word/document.xml')
-
-  if (!documentFile) {
-    throw new Error('Arquivo word/document.xml ausente no DOCX gerado.')
-  }
-
-  const xmlContent = await documentFile.async('string')
-  const plainText = extractPlainTextFromWordXml(xmlContent)
-
-  if (!plainText) {
-    throw new Error('Não foi possível extrair conteúdo textual do contrato gerado.')
-  }
-
-  const pdfBuffer = createPdfBufferFromPlainText(plainText)
-  await fs.writeFile(pdfPath, pdfBuffer)
-}
-
 export const convertDocxToPdf = async (docxPath, pdfPath) => {
   try {
     await convertDocxToPdfUsingLibreOffice(docxPath)
@@ -1033,56 +824,6 @@ const generateContractPdfFromDocx = async ({ templatePath, templateFileName }, d
   }
 }
 
-const resolvePlainTextTemplatePath = async (templatePath) => {
-  const textPath = templatePath.replace(/\.docx$/i, '.txt')
-  try {
-    await fs.access(textPath)
-    return textPath
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
-      return null
-    }
-    throw error
-  }
-}
-
-const generateContractPdfFromPlainText = async ({ templatePath, templateFileName }, data) => {
-  const textPath = await resolvePlainTextTemplatePath(templatePath)
-  if (!textPath) {
-    throw new ContractRenderError(
-      500,
-      'Fallback textual de contratos indisponível. Verifique se os templates em texto estão presentes.',
-    )
-  }
-
-  const templateText = await fs.readFile(textPath, 'utf8')
-  const replacedText = applyPlaceholderReplacements(templateText, data)
-  const pdfBuffer = createPdfBufferFromPlainText(replacedText)
-  return { pdfBuffer, templateFileName }
-}
-
-const shouldFallbackToPlainText = (error) => {
-  if (!error) {
-    return false
-  }
-
-  if (error instanceof ContractRenderError) {
-    if (typeof error.statusCode === 'number' && error.statusCode !== 500) {
-      return false
-    }
-    return true
-  }
-
-  if (error && typeof error === 'object') {
-    const code = /** @type {{ code?: string }} */ (error).code
-    if (code === 'MODULE_NOT_FOUND' || code === 'ERR_MODULE_NOT_FOUND') {
-      return true
-    }
-  }
-
-  return true
-}
-
 const generateContractPdf = async (cliente, templateName) => {
   // Extrai UF do cliente para resolução de template específico
   const clienteUf = typeof cliente.uf === 'string' ? cliente.uf.trim().toUpperCase() : ''
@@ -1094,29 +835,11 @@ const generateContractPdf = async (cliente, templateName) => {
   const dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
   const data = { ...cliente, dataAtualExtenso }
 
-  try {
-    return await generateContractPdfFromDocx(templateInfo, data)
-  } catch (error) {
-    if (!shouldFallbackToPlainText(error)) {
-      throw error
-    }
-
-    console.warn(
-      `[contracts] Falha ao gerar contrato utilizando template DOCX (${templateFileName}). Aplicando fallback em modo texto.`,
-      error,
-    )
-
-    try {
-      return await generateContractPdfFromPlainText(templateInfo, data)
-    } catch (fallbackError) {
-      console.error('[contracts] Falha ao gerar contrato via fallback textual:', fallbackError)
-      throw error instanceof Error ? error : new ContractRenderError(500, 'Falha ao gerar contrato PDF.')
-    }
-  }
+  return generateContractPdfFromDocx(templateInfo, data)
 }
 
 const sanitizeTemplateDownloadName = (templateFileName) => {
-  const withoutExtension = templateFileName.replace(/\.docx$/i, '')
+  const withoutExtension = templateFileName.replace(/\.(docx|dotx)$/i, '')
   const normalized = withoutExtension.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/_+/g, '_')
   return normalized || 'Contrato'
 }
@@ -1124,8 +847,8 @@ const sanitizeTemplateDownloadName = (templateFileName) => {
 /**
  * Lista templates disponíveis em uma categoria, incluindo templates específicos por UF.
  * Retorna templates no formato:
- * - categoria/arquivo.docx (templates padrão)
- * - categoria/UF/arquivo.docx (templates específicos por estado)
+ * - categoria/arquivo.dotx (templates padrão)
+ * - categoria/UF/arquivo.dotx (templates específicos por estado)
  * 
  * @param {string} category - Categoria de template (leasing, vendas)
  * @param {string} [ufFilter] - Opcional: filtrar apenas templates de um UF específico
@@ -1146,7 +869,7 @@ const listAvailableTemplates = async (category, ufFilter) => {
 
   // Adiciona templates diretos da categoria (templates padrão)
   for (const entry of entries) {
-    if (entry.isFile() && entry.name.toLowerCase().endsWith('.docx')) {
+    if (entry.isFile() && hasSupportedTemplateExtension(entry.name)) {
       if (!ufFilter) {
         templates.push(`${category}/${entry.name}`)
       }
@@ -1164,7 +887,7 @@ const listAvailableTemplates = async (category, ufFilter) => {
         try {
           const ufEntries = await fs.readdir(ufDirectory, { withFileTypes: true })
           for (const ufEntry of ufEntries) {
-            if (ufEntry.isFile() && ufEntry.name.toLowerCase().endsWith('.docx')) {
+            if (ufEntry.isFile() && hasSupportedTemplateExtension(ufEntry.name)) {
               templates.push(`${category}/${dirName}/${ufEntry.name}`)
             }
           }

@@ -422,8 +422,8 @@ const checkTemplateAvailability = async (fileName, uf) => {
 /**
  * Carrega um template DOCX, com suporte a templates específicos por UF.
  * Ordem de busca:
- * 1. Template específico do UF (leasing/GO/template.docx)
- * 2. Template padrão (leasing/template.docx)
+ * 1. Template específico do UF (leasing/GO/template.dotx)
+ * 2. Template padrão (leasing/template.dotx)
  * 
  * @param {string} fileName - Nome do arquivo template
  * @param {string} [uf] - UF para buscar template específico
@@ -805,8 +805,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
       tipoContrato,
     }, clienteUf)
     
-    // Try to convert main contract to PDF, fall back to DOCX if conversion fails
-    let convertedToPdf = false
+    // Convert main contract to PDF to preserve visual fidelity
     const contratoDocxName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'docx')
     const contratoPdfName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'pdf')
     const contratoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoDocxName}`)
@@ -820,15 +819,13 @@ export const handleLeasingContractsRequest = async (req, res) => {
         name: contratoPdfName,
         buffer: pdfBuffer,
       })
-      convertedToPdf = true
       console.log('[leasing-contracts] Contrato principal convertido para PDF com sucesso')
     } catch (conversionError) {
-      console.warn('[leasing-contracts] Falha ao converter contrato para PDF, usando DOCX:', conversionError.message)
-      // Fall back to DOCX if PDF conversion fails
-      files.push({
-        name: contratoDocxName,
-        buffer: contratoBuffer,
-      })
+      console.error('[leasing-contracts] Falha ao converter contrato para PDF:', conversionError)
+      throw new LeasingContractsError(
+        500,
+        'Falha ao converter o contrato para PDF. Verifique se o LibreOffice está instalado corretamente.',
+      )
     } finally {
       // Clean up temporary files
       try {
@@ -836,12 +833,10 @@ export const handleLeasingContractsRequest = async (req, res) => {
       } catch (err) {
         // Ignore cleanup errors
       }
-      if (convertedToPdf) {
-        try {
-          await fs.unlink(contratoPdfPath)
-        } catch (err) {
-          // Ignore cleanup errors
-        }
+      try {
+        await fs.unlink(contratoPdfPath)
+      } catch (err) {
+        // Ignore cleanup errors
       }
     }
 
@@ -854,13 +849,12 @@ export const handleLeasingContractsRequest = async (req, res) => {
           tipoContrato,
         }, clienteUf)
         
-        // Try to convert anexo to PDF, fall back to DOCX if conversion fails
+        // Convert anexo to PDF to preserve visual fidelity
         const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
         const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
         const anexoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoDocxName}`)
         const anexoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoPdfName}`)
         
-        let anexoConvertedToPdf = false
         try {
           await fs.writeFile(anexoDocxPath, buffer)
           await convertDocxToPdf(anexoDocxPath, anexoPdfPath)
@@ -869,14 +863,12 @@ export const handleLeasingContractsRequest = async (req, res) => {
             name: anexoPdfName,
             buffer: pdfBuffer,
           })
-          anexoConvertedToPdf = true
         } catch (conversionError) {
-          console.warn('[leasing-contracts] Falha ao converter anexo para PDF, usando DOCX:', conversionError.message)
-          // Fall back to DOCX if PDF conversion fails
-          files.push({
-            name: anexoDocxName,
-            buffer: buffer,
-          })
+          console.error(`[leasing-contracts] Falha ao converter anexo ${anexo.id} para PDF:`, conversionError)
+          throw new LeasingContractsError(
+            500,
+            'Falha ao converter anexos para PDF. Verifique se o LibreOffice está instalado corretamente.',
+          )
         } finally {
           // Clean up temporary files
           try {
@@ -884,12 +876,10 @@ export const handleLeasingContractsRequest = async (req, res) => {
           } catch (err) {
             // Ignore cleanup errors
           }
-          if (anexoConvertedToPdf) {
-            try {
-              await fs.unlink(anexoPdfPath)
-            } catch (err) {
-              // Ignore cleanup errors
-            }
+          try {
+            await fs.unlink(anexoPdfPath)
+          } catch (err) {
+            // Ignore cleanup errors
           }
         }
       } catch (anexoError) {
