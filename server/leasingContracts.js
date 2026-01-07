@@ -258,11 +258,6 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
     rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
     
-    // Company fields (passed through from frontend - SolarInvest data for CONTRATADA section)
-    razaoSocial: typeof dados.razaoSocial === 'string' ? dados.razaoSocial.trim() : '',
-    cnpj: typeof dados.cnpj === 'string' ? dados.cnpj.trim() : '',
-    representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim() : '',
-    
     // Personal info - in uppercase for contracts
     estadoCivil: estadoCivilValue,
     nacionalidade: nacionalidadeValue,
@@ -282,10 +277,6 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     // UC and installation
     unidadeConsumidora: ensureField(dados, 'unidadeConsumidora', 'Unidade consumidora'),
     localEntrega: ensureField(dados, 'localEntrega', 'Local de entrega'),
-    
-    // Contractor company info - in uppercase for contracts
-    cnpjContratada: typeof dados.cnpjContratada === 'string' ? dados.cnpjContratada.trim() : '',
-    enderecoContratada: typeof dados.enderecoContratada === 'string' ? dados.enderecoContratada.trim().toUpperCase() : '',
     
     // Dates
     dataInicio: optionalField(dados, 'dataInicio'),

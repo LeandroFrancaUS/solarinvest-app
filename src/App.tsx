@@ -1011,11 +1011,6 @@ const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
 const CLIENTE_ID_MAX_ATTEMPTS = 10000
 
 // SolarInvest company information for contracts
-const SOLARINVEST_CNPJ = '60.434.015/0001-90'
-const SOLARINVEST_ENDERECO = 'RUA GOIANAZ QD 15 L 5, CONJ. MIRRAGE, ANAPOLIS-GO, 75070-180'
-const SOLARINVEST_RAZAO_SOCIAL = 'LEANDRO LIMA RIBEIRO FRANCA'
-const SOLARINVEST_REPRESENTANTE_LEGAL = 'LEANDRO L. R. FRANCA'
-
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
   documento: '',
@@ -12591,12 +12586,9 @@ export default function App() {
       prazoContratual: `${leasingPrazoContratualMeses}`, // Prazo in months only
       modulosFV: leasingContrato.modulosFV.trim(),
       inversoresFV: leasingContrato.inversoresFV.trim(),
-      // SolarInvest company information (CONTRATADA section)
-      razaoSocial: SOLARINVEST_RAZAO_SOCIAL,
-      cnpj: SOLARINVEST_CNPJ,
-      cnpjContratada: SOLARINVEST_CNPJ,
-      enderecoContratada: SOLARINVEST_ENDERECO,
-      representanteLegal: SOLARINVEST_REPRESENTANTE_LEGAL,
+      // Contact information
+      telefone: dadosBase.telefone,
+      email: dadosBase.email,
       // Lists and arrays
       proprietarios: proprietariosPayload,
       ucsBeneficiarias: ucsPayload,
