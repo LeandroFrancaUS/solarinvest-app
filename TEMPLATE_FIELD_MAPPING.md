@@ -5,12 +5,15 @@ This document shows the complete mapping between contract template tags and form
 ## All Template Tags - Status
 
 ### ✅ Core Client Information
-| Template Tag | Form Field | Location | Type |
-|-------------|-----------|----------|------|
-| `{{nomeCompleto}}` | Nome ou Razão social | Dados do cliente | text input |
-| `{{cpfCnpj}}` | CPF/CNPJ | Dados do cliente | text input |
-| `{{email}}` | E-mail | Dados do cliente | email input |
-| `{{telefone}}` | Telefone | Dados do cliente | tel input |
+| Template Tag | Form Field | Location | Type | Notes |
+|-------------|-----------|----------|------|-------|
+| `{{nomeCompleto}}` | Nome ou Razão social | Dados do cliente | text input | For both individuals and companies |
+| `{{razaoSocial}}` | Nome ou Razão social | Dados do cliente | text input | Same field as nomeCompleto |
+| `{{cpfCnpj}}` | CPF/CNPJ | Dados do cliente | text input | For both CPF and CNPJ |
+| `{{cnpj}}` | CPF/CNPJ | Dados do cliente | text input | Same field as cpfCnpj |
+| `{{representanteLegal}}` | Representante Legal | Dados do cliente | text input | Optional, for companies only |
+| `{{email}}` | E-mail | Dados do cliente | email input | |
+| `{{telefone}}` | Telefone | Dados do cliente | tel input | |
 
 ### ✅ Personal Information (for individuals)
 | Template Tag | Form Field | Location | Type |
@@ -21,11 +24,11 @@ This document shows the complete mapping between contract template tags and form
 | `{{profissao}}` | Profissão | Dados do cliente | text input |
 
 ### ✅ Company Information (for legal entities)
-| Template Tag | Form Field | Location | Type |
-|-------------|-----------|----------|------|
-| `{{razaoSocial}}` | Razão Social | Dados do cliente | text input |
-| `{{representanteLegal}}` | Representante Legal | Dados do cliente | text input |
-| `{{cnpj}}` | CNPJ (empresa) | Dados do cliente | text input |
+| Template Tag | Form Field | Location | Type | Notes |
+|-------------|-----------|----------|------|-------|
+| `{{razaoSocial}}` | Nome ou Razão social | Dados do cliente | text input | Same as nomeCompleto |
+| `{{representanteLegal}}` | Representante Legal | Dados do cliente | text input | Optional field for companies |
+| `{{cnpj}}` | CPF/CNPJ | Dados do cliente | text input | Same as cpfCnpj |
 
 ### ✅ Address Information
 | Template Tag | Form Field | Location | Type | Notes |
@@ -88,10 +91,10 @@ const SOLARINVEST_ENDERECO = 'Endereço da SolarInvest, Cidade - UF, CEP' // TOD
 - `estadoCivil: ''`
 - `nacionalidade: ''`
 - `profissao: ''`
-- `razaoSocial: ''`
 - `representanteLegal: ''`
-- `cnpj: ''`
 - `diaVencimento: '10'` (default)
+
+**Note**: `razaoSocial` and `cnpj` are no longer separate fields. They are mapped from `nome` and `documento` respectively to avoid redundancy.
 
 ### Computed/Auto-Generated Fields
 1. **enderecoCompleto** - Built from: `endereco + cidade + uf + cep`
@@ -106,9 +109,10 @@ const SOLARINVEST_ENDERECO = 'Endereço da SolarInvest, Cidade - UF, CEP' // TOD
 Fields are organized in logical groups for a professional layout:
 
 1. **Dados do cliente** section:
-   - Basic info: Nome, CPF/CNPJ
+   - Basic info: Nome ou Razão social (serves both `nomeCompleto` and `razaoSocial` tags)
+   - Tax ID: CPF/CNPJ (serves both `cpfCnpj` and `cnpj` tags)
+   - Company: Representante Legal (optional, for companies)
    - Personal info: RG, Estado Civil, Nacionalidade, Profissão
-   - Company info: Razão Social, Representante Legal, CNPJ
    - Contact: E-mail, Telefone
    - Location: CEP, Distribuidora, Tipo de Edificação
    - UC: UC Geradora, Endereços
@@ -117,6 +121,24 @@ Fields are organized in logical groups for a professional layout:
    - Contract dates: dataInicio, dataFim, dataHomologacao
    - Payment: diaVencimento
    - Equipment: modulosFV, inversoresFV
+
+## Field Consolidation
+
+To avoid redundancy and improve user experience, some template tags are mapped to the same form field:
+
+- **`{{nomeCompleto}}` and `{{razaoSocial}}`** both map to "Nome ou Razão social"
+  - For individuals: Enter personal name
+  - For companies: Enter company's legal name (Razão Social)
+  
+- **`{{cpfCnpj}}` and `{{cnpj}}`** both map to "CPF/CNPJ"
+  - For individuals: Enter CPF
+  - For companies: Enter CNPJ
+
+This ensures:
+- No duplicate data entry
+- Single source of truth
+- Cleaner, more intuitive form
+- All template tags still get populated correctly
 
 ## Address Formatting
 
