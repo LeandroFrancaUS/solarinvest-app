@@ -575,7 +575,7 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
  * @param {string} dados.cidade - Cidade
  * @param {string} dados.uf - UF (estado)
  * @param {string} dados.cep - CEP
- * @returns {string} Endereço formatado em ALL CAPS
+ * @returns {string} Endereço formatado em ALL CAPS. Retorna string vazia se todos os campos estiverem vazios.
  */
 const formatarEnderecoCompleto = (dados) => {
   const partes = []
