@@ -736,22 +736,16 @@ const convertDocxToPdfUsingGoogleDrive = async (docxPath, pdfPath) => {
 }
 
 export const convertDocxToPdf = async (docxPath, pdfPath) => {
-  const driveCredentials = getGoogleDriveCredentials()
-
-  if (!driveCredentials) {
-    throw new ContractRenderError(
-      500,
-      'Falha ao converter o contrato para PDF. Configure as credenciais do Google Drive para gerar PDFs.',
-    )
-  }
-
   try {
-    await convertDocxToPdfUsingGoogleDrive(docxPath, pdfPath)
-  } catch (driveError) {
-    console.error('[contracts] Falha na conversão via Google Drive:', driveError)
+    await convertDocxToPdfUsingLibreOffice(docxPath)
+  } catch (error) {
+    if (!(error instanceof LibreOfficeConversionError)) {
+      throw error
+    }
+    console.error('[contracts] Falha na conversão via LibreOffice:', error)
     throw new ContractRenderError(
       500,
-      'Falha ao converter o contrato para PDF via Google Drive. Verifique as credenciais configuradas.',
+      'Falha ao converter o contrato para PDF. Verifique se o LibreOffice está instalado corretamente.',
     )
   }
 }
@@ -800,7 +794,7 @@ const generateContractPdfFromDocx = async ({ templatePath, templateFileName }, d
 
     throw new ContractRenderError(
       500,
-      'Falha ao converter o contrato para PDF. Verifique as credenciais do Google Drive.',
+      'Falha ao converter o contrato para PDF. Verifique se o LibreOffice está instalado corretamente.',
     )
   } finally {
     await cleanupTmpFiles(docxPath, pdfPath)
