@@ -536,6 +536,28 @@ const normalizeWordXmlForMustache = (xml) => {
   return result
 }
 
+/**
+ * Clean up extra punctuation from rendered Word XML.
+ * Removes patterns like ", , " or ", ," that occur when optional fields are empty.
+ * 
+ * @param {string} xml - The rendered Word XML content
+ * @returns {string} XML with cleaned punctuation
+ */
+const cleanupExtraPunctuation = (xml) => {
+  // Replace patterns of comma-space-comma or multiple commas with single comma-space
+  // This handles cases where optional fields (like profissao, estadoCivil) are empty
+  // Pattern: ", , " or ",  ," or ", ," etc.
+  let result = xml.replace(/,(\s*),(\s*)/g, ', ')
+  
+  // Clean up any remaining double commas
+  result = result.replace(/,,+/g, ',')
+  
+  // Clean up comma followed by multiple spaces and another comma
+  result = result.replace(/,\s{2,},/g, ', ')
+  
+  return result
+}
+
 const renderDocxTemplate = async (fileName, data, uf) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
@@ -550,7 +572,9 @@ const renderDocxTemplate = async (fileName, data, uf) => {
     // Normalize XML to fix broken placeholders before rendering
     const normalizedXml = normalizeWordXmlForMustache(xmlContent)
     const rendered = Mustache.render(normalizedXml, data)
-    zip.file(partName, rendered)
+    // Clean up extra commas from empty optional fields
+    const cleaned = cleanupExtraPunctuation(rendered)
+    zip.file(partName, cleaned)
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })
