@@ -824,7 +824,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
       console.error('[leasing-contracts] Falha ao converter contrato para PDF:', conversionError)
       throw new LeasingContractsError(
         500,
-        'Falha ao converter o contrato para PDF. Verifique se o LibreOffice está instalado corretamente.',
+        'Falha ao converter o contrato para PDF. Verifique a configuração do ConvertAPI.',
       )
     } finally {
       // Clean up temporary files
@@ -867,7 +867,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
           console.error(`[leasing-contracts] Falha ao converter anexo ${anexo.id} para PDF:`, conversionError)
           throw new LeasingContractsError(
             500,
-            'Falha ao converter anexos para PDF. Verifique se o LibreOffice está instalado corretamente.',
+            'Falha ao converter anexos para PDF. Verifique a configuração do ConvertAPI.',
           )
         } finally {
           // Clean up temporary files
