@@ -13,7 +13,7 @@ export const CONTRACT_TEMPLATES_PATH = '/api/contracts/templates'
 
 const CONTRACT_TEMPLATE_CATEGORIES = new Set(['leasing', 'vendas'])
 const DEFAULT_TEMPLATE_CATEGORY = 'leasing'
-const DEFAULT_TEMPLATE_FILE_NAME = 'CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO.docx'
+const DEFAULT_TEMPLATE_FILE_NAME = 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx'
 const CONTRACT_TEMPLATES_DIR_RELATIVE = 'assets/templates/contratos'
 const DEFAULT_TEMPLATE_FILE = path.join(DEFAULT_TEMPLATE_CATEGORY, DEFAULT_TEMPLATE_FILE_NAME)
 const TMP_DIR = path.resolve(process.cwd(), 'tmp')
@@ -134,56 +134,73 @@ const XML_CHAR_ESCAPE_MAP = {
 const escapeXmlValue = (value) =>
   String(value ?? '').replace(XML_CHAR_ESCAPE_REGEX, (char) => XML_CHAR_ESCAPE_MAP[char] ?? char)
 
-const buildPlaceholderMap = (data) => ({
-  // Core client info
-  nomeCompleto: data.nomeCompleto ?? '',
-  cpfCnpj: maskCpfCnpj(data.cpfCnpj),
-  cnpj: data.cnpj ?? '',
-  rg: data.rg ?? '',
-  razaoSocial: data.razaoSocial ?? '',
-  representanteLegal: data.representanteLegal ?? '',
-  
-  // Personal info
-  estadoCivil: data.estadoCivil ?? '',
-  nacionalidade: data.nacionalidade ?? '',
-  profissao: data.profissao ?? '',
-  
-  // Address fields
-  enderecoCompleto: data.enderecoCompleto ?? '',
-  enderecoCliente: data.enderecoCliente ?? data.enderecoCompleto ?? '',
-  endereco: data.endereco ?? '',
-  cidade: data.cidade ?? '',
-  uf: data.uf ?? '',
-  cep: data.cep ?? '',
-  
-  // Contact info
-  telefone: data.telefone ?? '',
-  email: data.email ?? '',
-  
-  // UC and installation
-  unidadeConsumidora: data.unidadeConsumidora ?? '',
-  localEntrega: data.localEntrega ?? '',
-  
-  // Contractor company info
-  cnpjContratada: data.cnpjContratada ?? '',
-  enderecoContratada: data.enderecoContratada ?? '',
-  
-  // Dates
-  dataAtualExtenso: data.dataAtualExtenso ?? '',
-  dataInicio: data.dataInicio ?? '',
-  dataFim: data.dataFim ?? '',
-  dataHomologacao: data.dataHomologacao ?? '',
-  anoContrato: data.anoContrato ?? '',
-  diaVencimento: data.diaVencimento ?? '',
-  prazoContratual: data.prazoContratual ?? '',
-  
-  // Technical specs
-  potencia: data.potencia ?? '',
-  kWhContratado: data.kWhContratado ?? '',
-  tarifaBase: data.tarifaBase ?? '',
-  modulosFV: data.modulosFV ?? '',
-  inversoresFV: data.inversoresFV ?? '',
-})
+const buildPlaceholderMap = (data) => {
+  // Formata endereço do contratante em ALL CAPS
+  const enderecoContratante = formatarEnderecoCompleto({
+    endereco: data.endereco ?? '',
+    cidade: data.cidade ?? '',
+    uf: data.uf ?? '',
+    cep: data.cep ?? '',
+  })
+
+  // Formata endereço da UC geradora em ALL CAPS (se diferente do contratante)
+  const enderecoUCGeradora = data.enderecoUCGeradora 
+    ? (typeof data.enderecoUCGeradora === 'string' ? data.enderecoUCGeradora.trim().toUpperCase() : '')
+    : enderecoContratante
+
+  return {
+    // Core client info
+    nomeCompleto: data.nomeCompleto ?? '',
+    cpfCnpj: maskCpfCnpj(data.cpfCnpj),
+    cnpj: data.cnpj ?? '',
+    rg: data.rg ?? '',
+    razaoSocial: data.razaoSocial ?? '',
+    representanteLegal: data.representanteLegal ?? '',
+    
+    // Personal info
+    estadoCivil: data.estadoCivil ?? '',
+    nacionalidade: data.nacionalidade ?? '',
+    profissao: data.profissao ?? '',
+    
+    // Address fields - formatted for contracts
+    enderecoCompleto: data.enderecoCompleto ?? '',
+    enderecoCliente: data.enderecoCliente ?? data.enderecoCompleto ?? '',
+    enderecoContratante, // Endereço do contratante em ALL CAPS
+    enderecoUCGeradora,  // Endereço da UC geradora em ALL CAPS
+    endereco: data.endereco ?? '',
+    cidade: data.cidade ?? '',
+    uf: data.uf ?? '',
+    cep: data.cep ?? '',
+    
+    // Contact info
+    telefone: data.telefone ?? '',
+    email: data.email ?? '',
+    
+    // UC and installation
+    unidadeConsumidora: data.unidadeConsumidora ?? '',
+    localEntrega: data.localEntrega ?? '',
+    
+    // Contractor company info
+    cnpjContratada: data.cnpjContratada ?? '',
+    enderecoContratada: data.enderecoContratada ?? '',
+    
+    // Dates
+    dataAtualExtenso: data.dataAtualExtenso ?? '',
+    dataInicio: data.dataInicio ?? '',
+    dataFim: data.dataFim ?? '',
+    dataHomologacao: data.dataHomologacao ?? '',
+    anoContrato: data.anoContrato ?? '',
+    diaVencimento: data.diaVencimento ?? '',
+    prazoContratual: data.prazoContratual ?? '',
+    
+    // Technical specs
+    potencia: data.potencia ?? '',
+    kWhContratado: data.kWhContratado ?? '',
+    tarifaBase: data.tarifaBase ?? '',
+    modulosFV: data.modulosFV ?? '',
+    inversoresFV: data.inversoresFV ?? '',
+  }
+}
 
 const applyPlaceholderReplacements = (text, data, { escapeXml = false } = {}) => {
   if (typeof text !== 'string' || !text) {
@@ -548,6 +565,42 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
     }
     throw new ContractRenderError(500, 'Não foi possível acessar o template do contrato.')
   }
+}
+
+/**
+ * Formata um endereço completo em formato ALL CAPS para contratos
+ * Formato: ENDEREÇO, CIDADE - UF, CEP
+ * @param {Object} dados - Dados do endereço
+ * @param {string} dados.endereco - Logradouro, número, complemento
+ * @param {string} dados.cidade - Cidade
+ * @param {string} dados.uf - UF (estado)
+ * @param {string} dados.cep - CEP
+ * @returns {string} Endereço formatado em ALL CAPS. Retorna string vazia se todos os campos estiverem vazios.
+ */
+const formatarEnderecoCompleto = (dados) => {
+  const partes = []
+  const endereco = typeof dados.endereco === 'string' ? dados.endereco.trim().toUpperCase() : ''
+  const cidade = typeof dados.cidade === 'string' ? dados.cidade.trim().toUpperCase() : ''
+  const uf = typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : ''
+  const cep = typeof dados.cep === 'string' ? dados.cep.trim() : ''
+
+  if (endereco) {
+    partes.push(endereco)
+  }
+
+  if (cidade && uf) {
+    partes.push(`${cidade} - ${uf}`)
+  } else if (cidade) {
+    partes.push(cidade)
+  } else if (uf) {
+    partes.push(uf)
+  }
+
+  if (cep) {
+    partes.push(cep)
+  }
+
+  return partes.join(', ')
 }
 
 const buildEnderecoCompleto = (cliente) => {

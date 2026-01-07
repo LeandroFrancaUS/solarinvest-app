@@ -1010,9 +1010,18 @@ const CLIENTE_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
 const CLIENTE_ID_MAX_ATTEMPTS = 10000
 
+// SolarInvest company information for contracts
+const SOLARINVEST_CNPJ = '00.000.000/0000-00' // TODO: Replace with actual CNPJ
+const SOLARINVEST_ENDERECO = 'Endereço da SolarInvest, Cidade - UF, CEP' // TODO: Replace with actual address
+
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
   documento: '',
+  rg: '',
+  estadoCivil: '',
+  nacionalidade: '',
+  profissao: '',
+  representanteLegal: '',
   email: '',
   telefone: '',
   cep: '',
@@ -1027,6 +1036,7 @@ const CLIENTE_INICIAL: ClienteDados = {
   nomeSindico: '',
   cpfSindico: '',
   contatoSindico: '',
+  diaVencimento: '10',
 }
 
 const isSyncedClienteField = (key: keyof ClienteDados): key is FieldSyncKey =>
@@ -4199,6 +4209,7 @@ export default function App() {
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
+  const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
   const enderecoClienteCompleto = useMemo(() => {
     const partes: string[] = []
     const endereco = cliente.endereco.trim()
@@ -12548,16 +12559,33 @@ export default function App() {
     const dadosLeasing = {
       ...dadosBase,
       cpfCnpj: formatCpfCnpj(dadosBase.cpfCnpj),
+      // Additional personal/company information
+      rg: cliente.rg?.trim() || '',
+      estadoCivil: cliente.estadoCivil?.trim() || '',
+      nacionalidade: cliente.nacionalidade?.trim() || '',
+      profissao: cliente.profissao?.trim() || '',
+      // representanteLegal for companies
+      representanteLegal: cliente.representanteLegal?.trim() || '',
+      // cnpj is mapped from the main documento field for template compatibility
+      cnpj: formatCpfCnpj(cliente.documento), // Same as cpfCnpj, for template compatibility
+      // Contract and technical data
       potencia: potenciaFormatada,
       kWhContratado: energiaFormatada,
       tarifaBase: tarifaBaseFormatada,
       dataInicio: formatDateForContract(leasingContrato.dataInicio),
       dataFim: formatDateForContract(leasingContrato.dataFim),
       localEntrega: leasingContrato.localEntrega.trim(),
+      enderecoUCGeradora: leasingContrato.localEntrega.trim(), // Endereço da UC geradora (pode ser diferente do contratante)
       dataHomologacao: formatDateForContract(leasingContrato.dataHomologacao),
       dataAtualExtenso,
+      diaVencimento: cliente.diaVencimento || '10',
+      prazoContratual: `${leasingPrazoContratualMeses}`, // Prazo in months only
       modulosFV: leasingContrato.modulosFV.trim(),
       inversoresFV: leasingContrato.inversoresFV.trim(),
+      // SolarInvest company information
+      cnpjContratada: SOLARINVEST_CNPJ,
+      enderecoContratada: SOLARINVEST_ENDERECO,
+      // Lists and arrays
       proprietarios: proprietariosPayload,
       ucsBeneficiarias: ucsPayload,
       nomeCondominio: leasingContrato.nomeCondominio.trim(),
@@ -12574,6 +12602,7 @@ export default function App() {
     adicionarNotificacao,
     kcKwhMes,
     leasingContrato,
+    leasingPrazoContratualMeses,
     leasingAnexosSelecionados,
     potenciaInstaladaKwp,
     prepararDadosContratoCliente,
@@ -14387,7 +14416,7 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'Nome ou Razão social',
-            'Identificação oficial do cliente utilizada em contratos, relatórios e integração com o CRM.',
+            'Identificação oficial do cliente utilizada em contratos, relatórios e integração com o CRM. Para empresas, informar a Razão Social.',
           )}
         >
           <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
@@ -14395,14 +14424,80 @@ export default function App() {
         <Field
           label={labelWithTooltip(
             'CPF/CNPJ',
-            'Documento fiscal do titular da unidade consumidora; necessário para emissão da proposta e cadastros.',
+            'Documento fiscal do titular da unidade consumidora. Para pessoa física: CPF. Para pessoa jurídica: CNPJ.',
           )}
         >
           <input
             value={cliente.documento}
             onChange={(e) => handleClienteChange('documento', e.target.value)}
             inputMode="numeric"
-            placeholder="000.000.000-00"
+            placeholder="000.000.000-00 ou 00.000.000/0000-00"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Representante Legal',
+            'Nome do representante legal (para pessoa jurídica/CNPJ). Deixar em branco para pessoa física.',
+          )}
+        >
+          <input
+            value={cliente.representanteLegal || ''}
+            onChange={(e) => handleClienteChange('representanteLegal', e.target.value)}
+            placeholder="Nome do diretor ou sócio"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'RG',
+            'Registro Geral (documento de identidade) do contratante pessoa física.',
+          )}
+        >
+          <input
+            value={cliente.rg || ''}
+            onChange={(e) => handleClienteChange('rg', e.target.value)}
+            placeholder="00.000.000-0"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Estado Civil',
+            'Estado civil do contratante pessoa física (solteiro, casado, divorciado, viúvo, etc.).',
+          )}
+        >
+          <select
+            value={cliente.estadoCivil || ''}
+            onChange={(e) => handleClienteChange('estadoCivil', e.target.value)}
+          >
+            <option value="">Selecione</option>
+            <option value="Solteiro(a)">Solteiro(a)</option>
+            <option value="Casado(a)">Casado(a)</option>
+            <option value="Divorciado(a)">Divorciado(a)</option>
+            <option value="Viúvo(a)">Viúvo(a)</option>
+            <option value="União Estável">União Estável</option>
+          </select>
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Nacionalidade',
+            'Nacionalidade do contratante pessoa física.',
+          )}
+        >
+          <input
+            value={cliente.nacionalidade || ''}
+            onChange={(e) => handleClienteChange('nacionalidade', e.target.value)}
+            placeholder="Brasileira"
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Profissão',
+            'Ocupação ou profissão do contratante pessoa física.',
+          )}
+        >
+          <input
+            value={cliente.profissao || ''}
+            onChange={(e) => handleClienteChange('profissao', e.target.value)}
+            placeholder="Ex: Engenheiro, Advogado, Empresário"
           />
         </Field>
         <Field
@@ -14525,20 +14620,24 @@ export default function App() {
             placeholder="Rua, número, complemento"
           />
         </Field>
-        <div>
-          <div className="mb-1 text-sm font-medium text-gray-600 leasing-location-label">
-            <span className="leasing-field-label-text">
-              Endereço de instalação da UC geradora
-            </span>
-            <label className="leasing-location-checkbox flex items-center gap-2">
-              <CheckboxSmall
-                checked={usarEnderecoCliente}
-                onChange={(event) => handleToggleUsarEnderecoCliente(event.target.checked)}
-                disabled={!enderecoClienteCompleto}
-              />
-              <span>Mesmo que endereço do contratante</span>
-            </label>
-          </div>
+        <Field
+          label={
+            <div className="leasing-location-label">
+              <span className="leasing-field-label-text">
+                Endereço de instalação da UC geradora
+              </span>
+              <label className="leasing-location-checkbox flex items-center gap-2">
+                <CheckboxSmall
+                  checked={usarEnderecoCliente}
+                  onChange={(event) => handleToggleUsarEnderecoCliente(event.target.checked)}
+                  disabled={!enderecoClienteCompleto}
+                />
+                <span>Mesmo que endereço do contratante</span>
+              </label>
+            </div>
+          }
+          hint="Endereço onde a UC geradora será instalada (pode ser diferente do endereço do contratante)"
+        >
           <input
             id={leasingLocalEntregaInputId}
             className="leasing-compact-input h-[46px]"
@@ -14546,10 +14645,7 @@ export default function App() {
             onChange={(event) => handleLeasingLocalEntregaChange(event.target.value)}
             placeholder="Endereço completo da instalação"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            Endereço onde a UC geradora será instalada (pode ser diferente do endereço do contratante)
-          </p>
-        </div>
+        </Field>
         {isCondominio ? (
           <div className="grid g3">
             <Field label="Nome do síndico">
@@ -14874,6 +14970,19 @@ export default function App() {
                 value={leasingContrato.dataFim}
                 onChange={(event) => handleLeasingContratoCampoChange('dataFim', event.target.value)}
               />
+            </Field>
+            <Field label={renderLeasingLabel('Dia de vencimento da mensalidade')}>
+              <select
+                className="leasing-compact-input"
+                value={cliente.diaVencimento || '10'}
+                onChange={(event) => handleClienteChange('diaVencimento', event.target.value)}
+              >
+                {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                  <option key={day} value={String(day)}>
+                    Dia {day}
+                  </option>
+                ))}
+              </select>
             </Field>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

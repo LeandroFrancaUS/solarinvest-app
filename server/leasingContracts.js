@@ -89,8 +89,8 @@ const readJsonBody = async (req) => {
 }
 
 const CONTRACT_TEMPLATES = {
-  residencial: 'CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO - RESIDENCIA.docx',
-  condominio: 'CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO - CONDOMINIO.docx',
+  residencial: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx',
+  condominio: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx',
 }
 
 const ANEXO_DEFINITIONS = [
@@ -98,8 +98,8 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_I',
     label: 'Anexo I – Especificações Técnicas',
     templates: {
-      residencial: 'ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx',
-      condominio: 'ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Condominio).docx',
+      residencial: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx',
+      condominio: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Condominio).docx',
     },
     appliesTo: new Set(['residencial', 'condominio']),
   },
@@ -107,8 +107,8 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_II',
     label: 'Anexo II – Opção de Compra',
     templates: {
-      residencial: 'Anexo II – Opção de Compra da Usina (todos).docx',
-      condominio: 'Anexo II – Opção de Compra da Usina (todos).docx',
+      residencial: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
+      condominio: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
     },
     appliesTo: new Set(['residencial', 'condominio']),
   },
@@ -116,8 +116,8 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_III',
     label: 'Anexo III – Regras de Cálculo',
     templates: {
-      residencial: 'ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
-      condominio: 'ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
+      residencial: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
+      condominio: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
     },
     appliesTo: new Set(['residencial', 'condominio']),
   },
@@ -126,7 +126,7 @@ const ANEXO_DEFINITIONS = [
     label: 'Anexo IV – Autorização do Proprietário',
     templates: {
       residencial:
-        'Anexo IV – Termo de Autorização e Procuração do Proprietário, Herdeiros ou Representantes Legais (Residencial).docx',
+        'Anexos/Anexo IV – Termo de Autorização e Procuração do Proprietário, Herdeiros ou Representantes Legais (Residencial).docx',
     },
     appliesTo: new Set(['residencial']),
   },
@@ -134,8 +134,8 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_VII',
     label: 'Anexo VII – Termo de Entrega e Aceite',
     templates: {
-      residencial: 'ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx',
-      condominio: 'ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Condominio).docx',
+      residencial: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx',
+      condominio: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Condominio).docx',
     },
     appliesTo: new Set(['residencial', 'condominio']),
   },
@@ -143,7 +143,7 @@ const ANEXO_DEFINITIONS = [
     id: 'ANEXO_VIII',
     label: 'Anexo VIII – Procuração do Condomínio',
     templates: {
-      condominio: 'Anexo VIII – TERMO DE AUTORIZAÇÃO E PROCURAÇÃO DO CONDOMÍNIO (Condominio).docx',
+      condominio: 'Anexos/Anexo VIII – TERMO DE AUTORIZAÇÃO E PROCURAÇÃO DO CONDOMÍNIO (Condominio).docx',
     },
     appliesTo: new Set(['condominio']),
   },
@@ -200,6 +200,42 @@ const normalizeUcsBeneficiarias = (value) =>
     }))
     .filter((item) => item.numero || item.endereco)
 
+/**
+ * Formata um endereço completo em formato ALL CAPS para contratos
+ * Formato: ENDEREÇO, CIDADE - UF, CEP
+ * @param {Object} dados - Dados do endereço
+ * @param {string} dados.endereco - Logradouro, número, complemento
+ * @param {string} dados.cidade - Cidade
+ * @param {string} dados.uf - UF (estado)
+ * @param {string} dados.cep - CEP
+ * @returns {string} Endereço formatado em ALL CAPS. Retorna string vazia se todos os campos estiverem vazios.
+ */
+const formatarEnderecoCompleto = (dados) => {
+  const partes = []
+  const endereco = typeof dados.endereco === 'string' ? dados.endereco.trim().toUpperCase() : ''
+  const cidade = typeof dados.cidade === 'string' ? dados.cidade.trim().toUpperCase() : ''
+  const uf = typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : ''
+  const cep = typeof dados.cep === 'string' ? dados.cep.trim() : ''
+
+  if (endereco) {
+    partes.push(endereco)
+  }
+
+  if (cidade && uf) {
+    partes.push(`${cidade} - ${uf}`)
+  } else if (cidade) {
+    partes.push(cidade)
+  } else if (uf) {
+    partes.push(uf)
+  }
+
+  if (cep) {
+    partes.push(cep)
+  }
+
+  return partes.join(', ')
+}
+
 const sanitizeDadosLeasing = (dados, tipoContrato) => {
   if (!dados || typeof dados !== 'object') {
     throw new LeasingContractsError(400, 'Estrutura de dados do contrato inválida.')
@@ -211,7 +247,6 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
     cnpj: typeof dados.cnpj === 'string' ? dados.cnpj.trim() : '',
     rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
-    razaoSocial: typeof dados.razaoSocial === 'string' ? dados.razaoSocial.trim() : '',
     representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim() : '',
     
     // Personal info
@@ -270,6 +305,23 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
   
   // enderecoInstalacao is an alias for localEntrega
   normalized.enderecoInstalacao = normalized.localEntrega
+  
+  // Format addresses in ALL CAPS for contracts
+  normalized.enderecoContratante = formatarEnderecoCompleto({
+    endereco: normalized.endereco,
+    cidade: normalized.cidade,
+    uf: normalized.uf,
+    cep: normalized.cep,
+  })
+  
+  // enderecoUCGeradora - if enderecoUCGeradora is provided, use it; otherwise use localEntrega or enderecoContratante
+  if (typeof dados.enderecoUCGeradora === 'string' && dados.enderecoUCGeradora.trim()) {
+    normalized.enderecoUCGeradora = dados.enderecoUCGeradora.trim().toUpperCase()
+  } else if (normalized.localEntrega) {
+    normalized.enderecoUCGeradora = normalized.localEntrega.toUpperCase()
+  } else {
+    normalized.enderecoUCGeradora = normalized.enderecoContratante
+  }
   
   // anoContrato from dataInicio if available
   if (normalized.dataInicio) {
