@@ -39,6 +39,7 @@ const isValidUf = (uf) => {
 }
 
 export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
+export const LEASING_CONTRACTS_AVAILABILITY_PATH = '/api/contracts/leasing/availability'
 
 export class LeasingContractsError extends Error {
   /**
@@ -387,6 +388,38 @@ const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
 }
 
 /**
+ * Verifica se um template está disponível no sistema de arquivos.
+ * Tenta primeiro template específico do UF, depois o template padrão.
+ * 
+ * @param {string} fileName - Nome do arquivo template
+ * @param {string} [uf] - UF para buscar template específico
+ * @returns {Promise<boolean>} true se o template existe, false caso contrário
+ */
+const checkTemplateAvailability = async (fileName, uf) => {
+  const normalizedUf = typeof uf === 'string' ? uf.trim().toUpperCase() : ''
+
+  // Tenta verificar template específico do UF primeiro
+  if (normalizedUf && isValidUf(normalizedUf)) {
+    const ufTemplatePath = path.join(LEASING_TEMPLATES_DIR, normalizedUf, fileName)
+    try {
+      await fs.access(ufTemplatePath)
+      return true
+    } catch (error) {
+      // Continua para tentar o template padrão
+    }
+  }
+
+  // Verifica template padrão
+  const templatePath = path.join(LEASING_TEMPLATES_DIR, fileName)
+  try {
+    await fs.access(templatePath)
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+/**
  * Carrega um template DOCX, com suporte a templates específicos por UF.
  * Ordem de busca:
  * 1. Template específico do UF (leasing/GO/template.docx)
@@ -621,6 +654,76 @@ const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
   return resolved
 }
 
+/**
+ * Handler para verificar disponibilidade de anexos
+ * GET /api/contracts/leasing/availability?tipoContrato=residencial&uf=GO
+ */
+export const handleLeasingContractsAvailabilityRequest = async (req, res) => {
+  setCorsHeaders(res)
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204
+    res.end()
+    return
+  }
+
+  if (!req.method || req.method !== 'GET') {
+    res.statusCode = 405
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.end(JSON.stringify({ error: 'Método não permitido. Utilize GET.' }))
+    return
+  }
+
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const tipoContratoParam = url.searchParams.get('tipoContrato') ?? ''
+    const ufParam = url.searchParams.get('uf') ?? ''
+    
+    const tipoContrato = sanitizeContratoTipo(tipoContratoParam)
+    if (!tipoContrato) {
+      throw new LeasingContractsError(400, 'Tipo de contrato inválido.')
+    }
+
+    const clienteUf = typeof ufParam === 'string' ? ufParam.trim().toUpperCase() : ''
+    
+    // Verifica disponibilidade de cada anexo
+    const availability = {}
+    
+    for (const definicao of ANEXO_DEFINITIONS) {
+      if (!definicao.appliesTo.has(tipoContrato)) {
+        continue
+      }
+      
+      const template = definicao.templates[tipoContrato]
+      if (!template) {
+        availability[definicao.id] = false
+        continue
+      }
+      
+      const isAvailable = await checkTemplateAvailability(template, clienteUf)
+      availability[definicao.id] = isAvailable
+    }
+
+    res.statusCode = 200
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.end(JSON.stringify({ availability }))
+  } catch (error) {
+    const statusCode = error instanceof LeasingContractsError ? error.statusCode : 500
+    const message =
+      error instanceof LeasingContractsError
+        ? error.message
+        : 'Não foi possível verificar disponibilidade dos anexos.'
+
+    if (!(error instanceof LeasingContractsError)) {
+      console.error('[leasing-contracts] Erro ao verificar disponibilidade:', error)
+    }
+
+    res.statusCode = statusCode
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.end(JSON.stringify({ error: message }))
+  }
+}
+
 export const handleLeasingContractsRequest = async (req, res) => {
   setCorsHeaders(res)
 
@@ -718,50 +821,74 @@ export const handleLeasingContractsRequest = async (req, res) => {
     }
 
     const anexos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
+    const skippedAnexos = []
+    
     for (const anexo of anexos) {
-      const buffer = await renderDocxTemplate(anexo.template, {
-        ...dadosLeasing,
-        tipoContrato,
-      }, clienteUf)
+      // Check if template is available before trying to render
+      const isAvailable = await checkTemplateAvailability(anexo.template, clienteUf)
+      if (!isAvailable) {
+        console.warn(`[leasing-contracts] Pulando anexo ${anexo.id} - template não disponível: ${anexo.template}`)
+        skippedAnexos.push(anexo.id)
+        continue
+      }
       
-      // Try to convert anexo to PDF, fall back to DOCX if conversion fails
-      const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
-      const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
-      const anexoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoDocxName}`)
-      const anexoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoPdfName}`)
-      
-      let anexoConvertedToPdf = false
       try {
-        await fs.writeFile(anexoDocxPath, buffer)
-        await convertDocxToPdf(anexoDocxPath, anexoPdfPath)
-        const pdfBuffer = await fs.readFile(anexoPdfPath)
-        files.push({
-          name: anexoPdfName,
-          buffer: pdfBuffer,
-        })
-        anexoConvertedToPdf = true
-      } catch (conversionError) {
-        console.warn('[leasing-contracts] Falha ao converter anexo para PDF, usando DOCX:', conversionError.message)
-        // Fall back to DOCX if PDF conversion fails
-        files.push({
-          name: anexoDocxName,
-          buffer: buffer,
-        })
-      } finally {
-        // Clean up temporary files
+        const buffer = await renderDocxTemplate(anexo.template, {
+          ...dadosLeasing,
+          tipoContrato,
+        }, clienteUf)
+        
+        // Try to convert anexo to PDF, fall back to DOCX if conversion fails
+        const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
+        const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
+        const anexoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoDocxName}`)
+        const anexoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoPdfName}`)
+        
+        let anexoConvertedToPdf = false
         try {
-          await fs.unlink(anexoDocxPath)
-        } catch (err) {
-          // Ignore cleanup errors
-        }
-        if (anexoConvertedToPdf) {
+          await fs.writeFile(anexoDocxPath, buffer)
+          await convertDocxToPdf(anexoDocxPath, anexoPdfPath)
+          const pdfBuffer = await fs.readFile(anexoPdfPath)
+          files.push({
+            name: anexoPdfName,
+            buffer: pdfBuffer,
+          })
+          anexoConvertedToPdf = true
+        } catch (conversionError) {
+          console.warn('[leasing-contracts] Falha ao converter anexo para PDF, usando DOCX:', conversionError.message)
+          // Fall back to DOCX if PDF conversion fails
+          files.push({
+            name: anexoDocxName,
+            buffer: buffer,
+          })
+        } finally {
+          // Clean up temporary files
           try {
-            await fs.unlink(anexoPdfPath)
+            await fs.unlink(anexoDocxPath)
           } catch (err) {
             // Ignore cleanup errors
           }
+          if (anexoConvertedToPdf) {
+            try {
+              await fs.unlink(anexoPdfPath)
+            } catch (err) {
+              // Ignore cleanup errors
+            }
+          }
         }
+      } catch (anexoError) {
+        // If anexo rendering fails, log and continue with other anexos
+        console.error(`[leasing-contracts] Erro ao processar anexo ${anexo.id}:`, anexoError)
+        skippedAnexos.push(anexo.id)
       }
+    }
+
+    if (files.length === 0) {
+      throw new LeasingContractsError(500, 'Nenhum documento pôde ser gerado. Verifique a disponibilidade dos templates.')
+    }
+
+    if (skippedAnexos.length > 0) {
+      console.log(`[leasing-contracts] Anexos pulados por indisponibilidade: ${skippedAnexos.join(', ')}`)
     }
 
     const zipBuffer = await createZipFromFiles(files)

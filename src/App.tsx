@@ -2405,6 +2405,8 @@ function ContractTemplatesModal({
 type LeasingContractsModalProps = {
   tipoContrato: LeasingContratoTipo
   anexosSelecionados: LeasingAnexoId[]
+  anexosAvailability: Record<LeasingAnexoId, boolean>
+  isLoadingAvailability: boolean
   onToggleAnexo: (anexoId: LeasingAnexoId) => void
   onSelectAll: (selectAll: boolean) => void
   onConfirm: () => void
@@ -2415,6 +2417,8 @@ type LeasingContractsModalProps = {
 function LeasingContractsModal({
   tipoContrato,
   anexosSelecionados,
+  anexosAvailability,
+  isLoadingAvailability,
   onToggleAnexo,
   onSelectAll,
   onConfirm,
@@ -2468,11 +2472,15 @@ function LeasingContractsModal({
               </button>
             </div>
           ) : null}
+          {isLoadingAvailability ? (
+            <p className="muted">Verificando disponibilidade dos anexos...</p>
+          ) : null}
           <ul className="contract-template-list">
             {anexosDisponiveis.map((config, index) => {
               const checkboxId = `${checkboxBaseId}-${index}`
+              const isAvailable = anexosAvailability[config.id] !== false
               const checked = config.autoInclude || anexosSelecionados.includes(config.id)
-              const disabled = Boolean(config.autoInclude)
+              const disabled = Boolean(config.autoInclude) || !isAvailable
               return (
                 <li key={config.id} className="contract-template-item">
                   <label htmlFor={checkboxId} className="flex items-center gap-2">
@@ -2494,6 +2502,11 @@ function LeasingContractsModal({
                       ) : null}
                       {config.autoInclude ? (
                         <span className="filename">Incluso automaticamente</span>
+                      ) : null}
+                      {!isAvailable ? (
+                        <span className="filename" style={{ color: '#dc2626', fontSize: '0.875rem' }}>
+                          Arquivo não disponível
+                        </span>
                       ) : null}
                     </span>
                   </label>
@@ -5747,6 +5760,10 @@ export default function App() {
   const [leasingAnexosSelecionados, setLeasingAnexosSelecionados] = useState<LeasingAnexoId[]>(() =>
     getDefaultLeasingAnexos(leasingContrato.tipoContrato),
   )
+  const [leasingAnexosAvailability, setLeasingAnexosAvailability] = useState<
+    Record<LeasingAnexoId, boolean>
+  >({})
+  const [leasingAnexosLoading, setLeasingAnexosLoading] = useState(false)
   const [contractTemplatesCategory, setContractTemplatesCategory] =
     useState<ContractTemplateCategory>('vendas')
   const [contractTemplates, setContractTemplates] = useState<string[]>([])
@@ -12676,6 +12693,35 @@ export default function App() {
     [adicionarNotificacao],
   )
 
+  const carregarDisponibilidadeAnexos = useCallback(async () => {
+    setLeasingAnexosLoading(true)
+    try {
+      const params = new URLSearchParams({
+        tipoContrato: leasingContrato.tipoContrato,
+        uf: cliente.uf || '',
+      })
+      const response = await fetch(
+        resolveApiUrl(`/api/contracts/leasing/availability?${params.toString()}`),
+      )
+      if (!response.ok) {
+        console.error('Não foi possível verificar disponibilidade dos anexos.')
+        // Set all as available by default if check fails
+        setLeasingAnexosAvailability({})
+        return
+      }
+
+      const payload = (await response.json()) as { availability?: Record<string, boolean> }
+      const availability = payload.availability || {}
+      setLeasingAnexosAvailability(availability as Record<LeasingAnexoId, boolean>)
+    } catch (error) {
+      console.error('Erro ao verificar disponibilidade dos anexos:', error)
+      // Set all as available by default if check fails
+      setLeasingAnexosAvailability({})
+    } finally {
+      setLeasingAnexosLoading(false)
+    }
+  }, [leasingContrato.tipoContrato, cliente.uf])
+
   const handleToggleContractTemplate = useCallback((template: string) => {
     setSelectedContractTemplates((prev) => {
       if (prev.includes(template)) {
@@ -12757,7 +12803,9 @@ export default function App() {
       return
     }
     setIsLeasingContractsModalOpen(true)
-  }, [gerandoContratos, prepararDadosContratoCliente])
+    // Load availability when modal opens
+    carregarDisponibilidadeAnexos()
+  }, [gerandoContratos, prepararDadosContratoCliente, carregarDisponibilidadeAnexos])
 
   const handleGerarContratoVendas = useCallback(() => {
     abrirSelecaoContratos('vendas')
@@ -21078,6 +21126,8 @@ export default function App() {
         <LeasingContractsModal
           tipoContrato={leasingContrato.tipoContrato}
           anexosSelecionados={leasingAnexosSelecionados}
+          anexosAvailability={leasingAnexosAvailability}
+          isLoadingAvailability={leasingAnexosLoading}
           onToggleAnexo={handleToggleLeasingAnexo}
           onSelectAll={handleSelectAllLeasingAnexos}
           onConfirm={handleConfirmarGeracaoLeasing}
