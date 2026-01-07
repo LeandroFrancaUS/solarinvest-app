@@ -822,10 +822,10 @@ export const handleLeasingContractsRequest = async (req, res) => {
       console.log('[leasing-contracts] Contrato principal convertido para PDF com sucesso')
     } catch (conversionError) {
       console.error('[leasing-contracts] Falha ao converter contrato para PDF:', conversionError)
-      throw new LeasingContractsError(
-        500,
-        'Falha ao converter o contrato para PDF. Verifique a configuração do ConvertAPI.',
-      )
+      const message = conversionError instanceof Error
+        ? conversionError.message
+        : 'Falha ao converter o contrato para PDF.'
+      throw new LeasingContractsError(500, message)
     } finally {
       // Clean up temporary files
       try {
@@ -865,10 +865,10 @@ export const handleLeasingContractsRequest = async (req, res) => {
           })
         } catch (conversionError) {
           console.error(`[leasing-contracts] Falha ao converter anexo ${anexo.id} para PDF:`, conversionError)
-          throw new LeasingContractsError(
-            500,
-            'Falha ao converter anexos para PDF. Verifique a configuração do ConvertAPI.',
-          )
+          const message = conversionError instanceof Error
+            ? conversionError.message
+            : 'Falha ao converter anexos para PDF.'
+          throw new LeasingContractsError(500, message)
         } finally {
           // Clean up temporary files
           try {

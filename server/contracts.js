@@ -482,22 +482,38 @@ const convertDocxToPdfUsingConvertApi = async (docxPath, pdfPath) => {
   const secret = getConvertApiSecret()
   const docxBuffer = await fs.readFile(docxPath)
   const formData = new FormData()
-  formData.append('File', new Blob([docxBuffer]), path.basename(docxPath))
+  formData.append(
+    'File',
+    new Blob([docxBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }),
+    path.basename(docxPath),
+  )
 
   const response = await fetch(`${CONVERTAPI_ENDPOINT}?Secret=${encodeURIComponent(secret)}`, {
     method: 'POST',
     body: formData,
   })
 
+  const responseText = await response.text()
+  let json = null
+  try {
+    json = responseText ? JSON.parse(responseText) : null
+  } catch (parseError) {
+    json = null
+  }
+
   if (!response.ok) {
-    const errorBody = await response.text()
+    const errorMessage = json?.Message || json?.message || responseText || 'Erro desconhecido.'
     throw new ContractRenderError(
       500,
-      `Falha ao converter o contrato para PDF (${response.status}). ${errorBody || 'Erro desconhecido.'}`,
+      `Falha ao converter o contrato para PDF (${response.status}). ${errorMessage}`,
     )
   }
 
-  const json = await response.json()
+  if (!json) {
+    throw new ContractRenderError(500, 'Resposta inválida do serviço de conversão de PDF.')
+  }
   const fileUrl = json?.Files?.[0]?.Url
   if (!fileUrl) {
     throw new ContractRenderError(500, 'Resposta inválida do serviço de conversão de PDF.')
