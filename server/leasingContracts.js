@@ -246,18 +246,25 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     throw new LeasingContractsError(400, 'Estrutura de dados do contrato inválida.')
   }
 
+  // Convert personal data to uppercase for contract formatting
+  const nomeCompletoValue = ensureField(dados, 'nomeCompleto', 'Nome completo / razão social').toUpperCase()
+  const nacionalidadeValue = typeof dados.nacionalidade === 'string' ? dados.nacionalidade.trim().toUpperCase() : ''
+  const profissaoValue = typeof dados.profissao === 'string' ? dados.profissao.trim().toUpperCase() : ''
+  const estadoCivilValue = typeof dados.estadoCivil === 'string' ? dados.estadoCivil.trim().toUpperCase() : ''
+  
   const normalized = {
-    // Core client info
-    nomeCompleto: ensureField(dados, 'nomeCompleto', 'Nome completo / razão social'),
+    // Core client info - in uppercase for contracts
+    nomeCompleto: nomeCompletoValue,
+    razaoSocial: nomeCompletoValue, // Alias for nomeCompleto (used for companies in templates)
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
     cnpj: typeof dados.cnpj === 'string' ? dados.cnpj.trim() : '',
     rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
-    representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim() : '',
+    representanteLegal: typeof dados.representanteLegal === 'string' ? dados.representanteLegal.trim().toUpperCase() : '',
     
-    // Personal info
-    estadoCivil: typeof dados.estadoCivil === 'string' ? dados.estadoCivil.trim() : '',
-    nacionalidade: typeof dados.nacionalidade === 'string' ? dados.nacionalidade.trim() : '',
-    profissao: typeof dados.profissao === 'string' ? dados.profissao.trim() : '',
+    // Personal info - in uppercase for contracts
+    estadoCivil: estadoCivilValue,
+    nacionalidade: nacionalidadeValue,
+    profissao: profissaoValue,
     
     // Address fields
     enderecoCompleto: ensureField(dados, 'enderecoCompleto', 'Endereço completo'),
@@ -274,9 +281,9 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     unidadeConsumidora: ensureField(dados, 'unidadeConsumidora', 'Unidade consumidora'),
     localEntrega: ensureField(dados, 'localEntrega', 'Local de entrega'),
     
-    // Contractor company info
+    // Contractor company info - in uppercase for contracts
     cnpjContratada: typeof dados.cnpjContratada === 'string' ? dados.cnpjContratada.trim() : '',
-    enderecoContratada: typeof dados.enderecoContratada === 'string' ? dados.enderecoContratada.trim() : '',
+    enderecoContratada: typeof dados.enderecoContratada === 'string' ? dados.enderecoContratada.trim().toUpperCase() : '',
     
     // Dates
     dataInicio: optionalField(dados, 'dataInicio'),
