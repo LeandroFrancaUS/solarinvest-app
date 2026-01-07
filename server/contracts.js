@@ -475,11 +475,17 @@ const getConvertApiSecret = () => {
   const secret = typeof process.env.CONVERTAPI_SECRET === 'string'
     ? process.env.CONVERTAPI_SECRET.trim()
     : ''
-  return secret || 'demo'
+  return secret || null
 }
 
 const convertDocxToPdfUsingConvertApi = async (docxPath, pdfPath) => {
   const secret = getConvertApiSecret()
+  if (!secret) {
+    throw new ContractRenderError(
+      500,
+      'Falha ao converter o contrato para PDF. Configure CONVERTAPI_SECRET com um token válido.',
+    )
+  }
   const docxBuffer = await fs.readFile(docxPath)
   const formData = new FormData()
   formData.append(
