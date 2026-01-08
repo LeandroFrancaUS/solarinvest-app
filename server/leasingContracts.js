@@ -13,7 +13,9 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
   'assets/templates/contratos/leasing',
 )
-const TMP_DIR = path.resolve(process.cwd(), 'tmp')
+// Use /tmp for serverless environments (Vercel, Lambda, etc.)
+// This is the only writable directory in serverless functions
+const TMP_DIR = '/tmp'
 
 // Maximum iterations for merging split placeholder runs in Word XML
 // Most placeholders split by Word's spell checker need 2-3 merge passes,

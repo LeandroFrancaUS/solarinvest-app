@@ -16,7 +16,9 @@ const DEFAULT_TEMPLATE_CATEGORY = 'leasing'
 const DEFAULT_TEMPLATE_FILE_NAME = 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx'
 const CONTRACT_TEMPLATES_DIR_RELATIVE = 'assets/templates/contratos'
 const DEFAULT_TEMPLATE_FILE = path.join(DEFAULT_TEMPLATE_CATEGORY, DEFAULT_TEMPLATE_FILE_NAME)
-const TMP_DIR = path.resolve(process.cwd(), 'tmp')
+// Use /tmp for serverless environments (Vercel, Lambda, etc.)
+// This is the only writable directory in serverless functions
+const TMP_DIR = '/tmp'
 const MAX_BODY_SIZE_BYTES = 256 * 1024
 
 // Valid Brazilian state codes (UF)
