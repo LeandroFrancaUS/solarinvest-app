@@ -247,6 +247,26 @@ const resolveEmail = (payload) => {
   return ''
 }
 
+const resolveTelefone = (payload) => {
+  const candidates = [
+    payload?.telefone,
+    payload?.telefoneCliente,
+    payload?.cliente?.telefone,
+    payload?.contato?.telefone,
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim()
+      if (trimmed) {
+        return trimmed
+      }
+    }
+  }
+
+  return ''
+}
+
 const normalizeArray = (value) => {
   if (!Array.isArray(value)) {
     return []
@@ -342,7 +362,7 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     uf: typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : '',
     
     // Contact info
-    telefone: typeof dados.telefone === 'string' ? dados.telefone.trim() : '',
+    telefone: resolveTelefone(dados),
     email: resolveEmail(dados),
     
     // UC and installation
