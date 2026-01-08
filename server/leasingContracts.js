@@ -997,15 +997,15 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
   try {
     const body = await readJsonBody(req)
-    const graphStatus = getGraphConfigStatus()
+    const graphConfigStatus = getGraphConfigStatus()
     console.info({
       scope: 'leasing-contracts',
       step: 'request_received',
       requestId,
       vercelId,
       nodeVersion: process.version,
-      graphConfigured: graphStatus.configured,
-      graphMissing: graphStatus.missing,
+      graphConfigured: graphConfigStatus.configured,
+      graphMissing: graphConfigStatus.missing,
     })
     
     const tipoContrato = sanitizeContratoTipo(body?.tipoContrato)
@@ -1067,8 +1067,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     const files = []
     const fallbackNotices = []
-    const graphStatus = getGraphConfigStatus()
-    const pdfProvidersConfigured = graphStatus.configured
+    const pdfProvidersConfigured = graphConfigStatus.configured
     const registerFallback = (message) => {
       if (!fallbackNotices.includes(message)) {
         fallbackNotices.push(message)
