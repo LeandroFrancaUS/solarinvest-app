@@ -8621,24 +8621,6 @@ export default function App() {
     return { html: sanitizedLayoutHtml, dados: dadosParaImpressao }
   }, [printableData])
 
-  const guardClientRequiredFieldsOrReturn = useCallback(() => {
-    clearClientHighlights()
-    const requiredFields = isVendaDiretaTab
-      ? buildRequiredFieldsVenda()
-      : buildRequiredFieldsLeasing()
-    const result = validateClient(requiredFields)
-    if (!result.ok) {
-      highlightMissingFields(requiredFields, result.missingKeys)
-      adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
-      return false
-    }
-    if (isVendaDiretaTab && valorTotalPropostaNormalizado == null) {
-      adicionarNotificacao('Informe o Valor total da proposta para concluir a emissão.', 'error')
-      return false
-    }
-    return true
-  }, [adicionarNotificacao, isVendaDiretaTab, valorTotalPropostaNormalizado])
-
   const mapClienteRegistroToSyncPayload = (registro: ClienteRegistro): ClienteRegistroSyncPayload => ({
     id: registro.id,
     criadoEm: registro.criadoEm,
@@ -8731,6 +8713,24 @@ export default function App() {
     },
     [removerNotificacao],
   )
+
+  const guardClientRequiredFieldsOrReturn = useCallback(() => {
+    clearClientHighlights()
+    const requiredFields = isVendaDiretaTab
+      ? buildRequiredFieldsVenda()
+      : buildRequiredFieldsLeasing()
+    const result = validateClient(requiredFields)
+    if (!result.ok) {
+      highlightMissingFields(requiredFields, result.missingKeys)
+      adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
+      return false
+    }
+    if (isVendaDiretaTab && valorTotalPropostaNormalizado == null) {
+      adicionarNotificacao('Informe o Valor total da proposta para concluir a emissão.', 'error')
+      return false
+    }
+    return true
+  }, [adicionarNotificacao, isVendaDiretaTab, valorTotalPropostaNormalizado])
 
   const [isEnviarPropostaModalOpen, setIsEnviarPropostaModalOpen] = useState(false)
   const [contatoEnvioSelecionadoId, setContatoEnvioSelecionadoId] = useState<string | null>(null)
