@@ -13147,6 +13147,7 @@ export default function App() {
     const extrairErro = async (response: Response) => {
       let mensagemErro = 'Não foi possível gerar os documentos de leasing. Tente novamente.'
       const contentType = response.headers.get('content-type') ?? ''
+      const vercelId = response.headers.get('x-vercel-id')
       try {
         if (contentType.includes('application/json')) {
           const data = (await response.json()) as
@@ -13156,12 +13157,15 @@ export default function App() {
             const baseMessage = data.message ?? data.error ?? mensagemErro
             const hint = data.hint ? ` ${data.hint}` : ''
             const requestId = data.requestId ? ` (ID: ${data.requestId})` : ''
-            mensagemErro = `${baseMessage}${hint}${requestId}`.trim()
+            const code = data.code ? ` [${data.code}]` : ''
+            const vercel = vercelId ? ` (Vercel: ${vercelId})` : ''
+            mensagemErro = `${baseMessage}${code}${hint}${requestId}${vercel}`.trim()
           }
         } else {
           const texto = await response.text()
           if (texto.trim()) {
-            mensagemErro = texto.trim()
+            const vercel = vercelId ? ` (Vercel: ${vercelId})` : ''
+            mensagemErro = `${texto.trim()}${vercel}`.trim()
           }
         }
       } catch (error) {

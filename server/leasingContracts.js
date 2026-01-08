@@ -15,6 +15,8 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   'assets/templates/contratos/leasing',
 )
 const TMP_DIR = path.join(os.tmpdir(), 'solarinvest-contracts')
+const MAX_DOCX_BYTES = 8 * 1024 * 1024
+const MAX_PDF_BYTES = 12 * 1024 * 1024
 
 // Maximum iterations for merging split placeholder runs in Word XML
 // Most placeholders split by Word's spell checker need 2-3 merge passes,
@@ -41,6 +43,7 @@ const isValidUf = (uf) => {
 
 export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
 export const LEASING_CONTRACTS_AVAILABILITY_PATH = '/api/contracts/leasing/availability'
+export const LEASING_CONTRACTS_SMOKE_PATH = '/api/contracts/leasing/smoke'
 
 export class LeasingContractsError extends Error {
   /**
@@ -70,13 +73,13 @@ const setCorsHeaders = (res) => {
 
 const createRequestId = () => crypto.randomUUID()
 
-const sendErrorResponse = (res, statusCode, payload, requestId) => {
+const sendErrorResponse = (res, statusCode, payload, requestId, vercelId = undefined) => {
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   if (requestId) {
     res.setHeader('X-Request-Id', requestId)
   }
-  res.end(JSON.stringify({ ok: false, requestId, ...payload }))
+  res.end(JSON.stringify({ ok: false, requestId, vercelId, ...payload }))
 }
 
 const readJsonBody = async (req) => {
@@ -768,10 +771,17 @@ export const handleLeasingContractsAvailabilityRequest = async (req, res) => {
   }
 }
 
-export const handleLeasingContractsRequest = async (req, res) => {
+export const handleLeasingContractsSmokeRequest = async (req, res) => {
   setCorsHeaders(res)
   const requestId = createRequestId()
+  const vercelId = typeof req.headers['x-vercel-id'] === 'string'
+    ? req.headers['x-vercel-id']
+    : undefined
+
   res.setHeader('X-Request-Id', requestId)
+  if (vercelId) {
+    res.setHeader('X-Vercel-Id', vercelId)
+  }
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204
@@ -780,15 +790,139 @@ export const handleLeasingContractsRequest = async (req, res) => {
   }
 
   if (!req.method || req.method !== 'POST') {
-    res.statusCode = 405
+    sendErrorResponse(
+      res,
+      405,
+      {
+        code: 'METHOD_NOT_ALLOWED',
+        message: 'Método não permitido. Utilize POST.',
+      },
+      requestId,
+      vercelId,
+    )
+    return
+  }
+
+  const timings = {}
+  const mark = (label, startedAt) => {
+    timings[label] = Date.now() - startedAt
+  }
+
+  try {
+    const start = Date.now()
+    const tipoContrato = 'residencial'
+    const dadosLeasing = sanitizeDadosLeasing({
+      nomeCompleto: 'Cliente Teste',
+      cpfCnpj: '00000000000',
+      enderecoCompleto: 'Rua Exemplo, 100, Goiânia - GO, 74000-000',
+      endereco: 'Rua Exemplo, 100',
+      cidade: 'Goiânia',
+      cep: '74000-000',
+      uf: 'GO',
+      telefone: '62999990000',
+      email: 'cliente@example.com',
+      unidadeConsumidora: '123456',
+      localEntrega: 'Rua Exemplo, 100',
+      potencia: '5',
+      kWhContratado: '500',
+      tarifaBase: '1.20',
+    }, tipoContrato)
+
+    const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
+    const templateAvailable = await checkTemplateAvailability(contratoTemplate, dadosLeasing.uf)
+    if (!templateAvailable) {
+      throw new LeasingContractsError(
+        422,
+        'Template do contrato não encontrado.',
+        { code: 'TEMPLATE_NOT_FOUND', hint: `Verifique o template ${contratoTemplate}.` },
+      )
+    }
+
+    const renderStart = Date.now()
+    const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
+      ...dadosLeasing,
+      tipoContrato,
+    }, dadosLeasing.uf)
+    mark('renderDocxMs', renderStart)
+
+    await fs.mkdir(TMP_DIR, { recursive: true })
+    const docxPath = path.join(TMP_DIR, `smoke-${Date.now()}.docx`)
+    const pdfPath = path.join(TMP_DIR, `smoke-${Date.now()}.pdf`)
+
+    const convertStart = Date.now()
+    await fs.writeFile(docxPath, contratoBuffer)
+    await convertDocxToPdf(docxPath, pdfPath)
+    const pdfStats = await fs.stat(pdfPath)
+    mark('convertPdfMs', convertStart)
+
+    await fs.unlink(docxPath).catch(() => {})
+    await fs.unlink(pdfPath).catch(() => {})
+
+    mark('totalMs', start)
+    res.statusCode = 200
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
-    res.end(JSON.stringify({ error: 'Método não permitido. Utilize POST.' }))
+    res.end(JSON.stringify({
+      ok: true,
+      requestId,
+      vercelId,
+      timings,
+      docxBytes: contratoBuffer.length,
+      pdfBytes: pdfStats.size,
+      convertapiConfigured: isConvertApiConfigured(),
+      gotenbergConfigured: isGotenbergConfigured(),
+    }))
+  } catch (error) {
+    const statusCode = error instanceof LeasingContractsError ? error.statusCode ?? 500 : 500
+    const payload = {
+      code: error instanceof LeasingContractsError ? error.code ?? 'LEASING_CONTRACTS_ERROR' : 'LEASING_CONTRACTS_ERROR',
+      message: error instanceof Error ? error.message : 'Falha no smoke test de contratos.',
+      hint: error instanceof LeasingContractsError ? error.hint : 'Verifique a configuração dos provedores.',
+      timings,
+    }
+    sendErrorResponse(res, statusCode, payload, requestId, vercelId)
+  }
+}
+
+export const handleLeasingContractsRequest = async (req, res) => {
+  setCorsHeaders(res)
+  const requestId = createRequestId()
+  const vercelId = typeof req.headers['x-vercel-id'] === 'string'
+    ? req.headers['x-vercel-id']
+    : undefined
+  res.setHeader('X-Request-Id', requestId)
+  if (vercelId) {
+    res.setHeader('X-Vercel-Id', vercelId)
+  }
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204
+    res.end()
+    return
+  }
+
+  if (!req.method || req.method !== 'POST') {
+    sendErrorResponse(
+      res,
+      405,
+      {
+        code: 'METHOD_NOT_ALLOWED',
+        message: 'Método não permitido. Utilize POST.',
+      },
+      requestId,
+      vercelId,
+    )
     return
   }
 
   try {
     const body = await readJsonBody(req)
     console.log(`[leasing-contracts][${requestId}] Requisição recebida para geração de contratos`)
+    console.log(`[leasing-contracts][${requestId}] env`, {
+      nodeVersion: process.version,
+      vercelId,
+      convertapiConfigured: isConvertApiConfigured(),
+      gotenbergConfigured: isGotenbergConfigured(),
+    })
     
     const tipoContrato = sanitizeContratoTipo(body?.tipoContrato)
     if (!tipoContrato) {
@@ -862,6 +996,17 @@ export const handleLeasingContractsRequest = async (req, res) => {
       const docxPath = path.join(TMP_DIR, `temp-${Date.now()}-${docxName}`)
       const pdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${pdfName}`)
 
+      if (buffer.length > MAX_DOCX_BYTES) {
+        throw new LeasingContractsError(
+          413,
+          `Documento ${label} excede o tamanho máximo permitido.`,
+          {
+            code: 'PAYLOAD_TOO_LARGE',
+            hint: 'Reduza o tamanho dos dados ou remova anexos opcionais.',
+          },
+        )
+      }
+
       if (!pdfProvidersConfigured) {
         files.push({ name: docxName, buffer })
         registerFallback(`${label}: PDF indisponível, DOCX fornecido.`)
@@ -872,7 +1017,16 @@ export const handleLeasingContractsRequest = async (req, res) => {
         await fs.writeFile(docxPath, buffer)
         await convertDocxToPdf(docxPath, pdfPath)
         const pdfBuffer = await fs.readFile(pdfPath)
+        if (pdfBuffer.length > MAX_PDF_BYTES) {
+          files.push({ name: docxName, buffer })
+          registerFallback(`${label}: PDF muito grande, DOCX fornecido.`)
+          return
+        }
         files.push({ name: pdfName, buffer: pdfBuffer })
+        console.log(`[leasing-contracts][${requestId}] ${label} convertido`, {
+          docxBytes: buffer.length,
+          pdfBytes: pdfBuffer.length,
+        })
       } catch (conversionError) {
         console.error(`[leasing-contracts][${requestId}] Falha ao converter ${label} para PDF:`, conversionError)
         const errorMessage = conversionError instanceof Error
@@ -895,10 +1049,25 @@ export const handleLeasingContractsRequest = async (req, res) => {
     }
 
     const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
+    const contratoTemplateAvailable = await checkTemplateAvailability(contratoTemplate, clienteUf)
+    if (!contratoTemplateAvailable) {
+      throw new LeasingContractsError(
+        422,
+        'Template do contrato não encontrado.',
+        {
+          code: 'TEMPLATE_NOT_FOUND',
+          hint: `Verifique se o template ${contratoTemplate} está disponível no deploy.`,
+        },
+      )
+    }
+    const renderStart = Date.now()
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
     }, clienteUf)
+    console.log(`[leasing-contracts][${requestId}] step=render_docx durationMs=${Date.now() - renderStart}`, {
+      docxBytes: contratoBuffer.length,
+    })
 
     const contratoDocxName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'docx')
     const contratoPdfName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'pdf')
@@ -964,6 +1133,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
           hint: error.hint,
         },
         requestId,
+        vercelId,
       )
       return
     }
@@ -982,6 +1152,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
         hint: 'Tente novamente ou entre em contato com o suporte.',
       },
       requestId,
+      vercelId,
     )
   }
 }

@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { readFile, access } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,8 +17,10 @@ import {
 import {
   LEASING_CONTRACTS_PATH,
   LEASING_CONTRACTS_AVAILABILITY_PATH,
+  LEASING_CONTRACTS_SMOKE_PATH,
   handleLeasingContractsRequest,
   handleLeasingContractsAvailabilityRequest,
+  handleLeasingContractsSmokeRequest,
 } from './leasingContracts.js'
 import {
   getStackUser,
@@ -216,6 +218,28 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  if (pathname === '/api/health/contracts') {
+    const templatePath = path.join(
+      process.cwd(),
+      'assets/templates/contratos/leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
+    )
+    let templateExists = false
+    try {
+      await access(templatePath)
+      templateExists = true
+    } catch (error) {
+      templateExists = false
+    }
+    sendJson(res, 200, {
+      ok: templateExists,
+      templateExists,
+      convertapiConfigured: isConvertApiConfigured(),
+      gotenbergConfigured: isGotenbergConfigured(),
+      node: process.version,
+    })
+    return
+  }
+
   if (pathname === DEFAULT_PROXY_BASE) {
     await handleAneelProxyRequest(req, res)
     return
@@ -224,6 +248,11 @@ const server = createServer(async (req, res) => {
   // Check more specific leasing routes before the general leasing route
   if (pathname === LEASING_CONTRACTS_AVAILABILITY_PATH) {
     await handleLeasingContractsAvailabilityRequest(req, res)
+    return
+  }
+
+  if (pathname === LEASING_CONTRACTS_SMOKE_PATH) {
+    await handleLeasingContractsSmokeRequest(req, res)
     return
   }
 

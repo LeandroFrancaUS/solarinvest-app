@@ -111,6 +111,12 @@ You can verify provider configuration with:
 curl -s https://<your-domain>/api/health/pdf
 ```
 
+You can also validate template availability with:
+
+```bash
+curl -s https://<your-domain>/api/health/contracts
+```
+
 And run the smoke test locally:
 
 ```bash

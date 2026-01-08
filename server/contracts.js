@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import os from 'node:os'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -11,7 +12,7 @@ const DEFAULT_TEMPLATE_CATEGORY = 'leasing'
 const DEFAULT_TEMPLATE_FILE_NAME = 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx'
 const CONTRACT_TEMPLATES_DIR_RELATIVE = 'assets/templates/contratos'
 const DEFAULT_TEMPLATE_FILE = path.join(DEFAULT_TEMPLATE_CATEGORY, DEFAULT_TEMPLATE_FILE_NAME)
-const TMP_DIR = path.resolve(process.cwd(), 'tmp')
+const TMP_DIR = path.join(os.tmpdir(), 'solarinvest-contracts')
 const MAX_BODY_SIZE_BYTES = 256 * 1024
 
 // Valid Brazilian state codes (UF)

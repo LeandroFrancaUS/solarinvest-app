@@ -52,6 +52,12 @@ const run = async () => {
   if (requestId) {
     console.log('[smoke] Request ID:', requestId)
   }
+
+  const smokeResponse = await fetch(`${baseUrl}/api/contracts/leasing/smoke`, {
+    method: 'POST',
+  })
+  const smokeBody = await smokeResponse.text()
+  console.log('[smoke] /api/contracts/leasing/smoke', smokeResponse.status, smokeBody)
 }
 
 run().catch((error) => {
