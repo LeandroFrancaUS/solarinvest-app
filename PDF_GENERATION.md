@@ -195,6 +195,8 @@ npm run test -- src/pdf/__tests__/pdf-generation.test.ts
 - Aspas tipográficas: „ "
 - Travessão: — e outros caracteres especiais
 - Fontes embedded em `public/fonts/` (não depende do sistema operacional)
+- **IMPORTANTE**: Fontes carregadas via filesystem paths (`process.cwd() + '/public/fonts/'`), não URLs web
+- Uso de `getFontPath()` e `getImagePath()` utilities para paths corretos no serverless
 
 ### ✅ Performance
 - Geração em menos de 5-10 segundos
@@ -235,10 +237,19 @@ npm install @react-pdf/renderer zod
 ### Erro: "Runtime not supported"
 Verifique que o endpoint está configurado com `runtime: 'nodejs'` no `export const config`.
 
+### PDF com fontes erradas ou caracteres PT-BR incorretos
+**Causa**: Fontes sendo carregadas via URLs web (`/fonts/...`) em vez de filesystem paths.
+
+**Solução**: O código já usa `getFontPath()` que resolve paths via `process.cwd()`. Verifique que:
+1. Fontes estão em `public/fonts/`
+2. `fonts.ts` usa `getFontPath()` do `assetPaths.ts`
+3. Não há caminhos web como `/fonts/` ou `/public/fonts/` no código
+
 ### PDF não gera ou fica em branco
 1. Verifique os dados de entrada com o schema Zod
 2. Confirme que campos obrigatórios estão presentes
 3. Verifique logs do servidor para erros de renderização
+4. Confirme que fontes foram carregadas corretamente (sem fallback para Helvetica)
 
 ## Suporte
 

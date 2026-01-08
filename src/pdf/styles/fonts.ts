@@ -6,10 +6,11 @@
  * Portuguese-specific characters.
  * 
  * IMPORTANT: Fonts must be embedded in the repository (public/fonts/)
- * to ensure consistent rendering in serverless environments.
+ * and loaded using filesystem paths in Node.js serverless environments.
  */
 
 import { Font } from '@react-pdf/renderer';
+import { getFontPath } from './assetPaths';
 
 // Track whether fonts have been registered
 let fontsRegistered = false;
@@ -30,26 +31,27 @@ export function registerFonts(): void {
   }
 
   // Register Noto Sans family with multiple weights and styles
+  // CRITICAL: Use filesystem paths via getFontPath(), not web URLs
   Font.register({
     family: 'NotoSans',
     fonts: [
       {
-        src: '/fonts/NotoSans-Regular.ttf',
+        src: getFontPath('NotoSans-Regular.ttf'),
         fontWeight: 400,
         fontStyle: 'normal',
       },
       {
-        src: '/fonts/NotoSans-Italic.ttf',
+        src: getFontPath('NotoSans-Italic.ttf'),
         fontWeight: 400,
         fontStyle: 'italic',
       },
       {
-        src: '/fonts/NotoSans-Medium.ttf',
+        src: getFontPath('NotoSans-Medium.ttf'),
         fontWeight: 500,
         fontStyle: 'normal',
       },
       {
-        src: '/fonts/NotoSans-Bold.ttf',
+        src: getFontPath('NotoSans-Bold.ttf'),
         fontWeight: 700,
         fontStyle: 'normal',
       },
