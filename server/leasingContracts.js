@@ -612,6 +612,10 @@ const normalizeWordXmlForMustache = (xml) => {
   result = result.replace(
     /<w:r([^>]*)>([\s\S]*?)<\/w:r>/g,
     (match, runAttrs, runContent) => {
+      const hasLineBreaks = /<w:(br|cr|tab)\b/.test(runContent)
+      if (hasLineBreaks) {
+        return match
+      }
       // Extract all text from <w:t> elements
       const texts = []
       const textPattern = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g
