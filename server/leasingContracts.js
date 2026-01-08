@@ -740,6 +740,18 @@ const createRequestTempDir = async (requestId) => {
   return tempDir
 }
 
+const sanitizeHeaderValue = (value) => {
+  if (!value) {
+    return ''
+  }
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 const detectOomError = (error) => {
   const message = typeof error?.message === 'string' ? error.message : ''
   return /out of memory|heap out of memory|ENOMEM|allocation failed/i.test(message)
@@ -1212,6 +1224,8 @@ export const handleLeasingContractsRequest = async (req, res) => {
     }
 
     const responseNotice = fallbackNotices.length > 0 ? fallbackNotices.join(' | ') : undefined
+    const responseNoticeHeader = responseNotice ? sanitizeHeaderValue(responseNotice) : ''
+    const shouldSetNoticeHeader = Boolean(responseNoticeHeader)
     if (files.length === 1) {
       const [single] = files
       const extension = path.extname(single.name).toLowerCase()
@@ -1222,8 +1236,8 @@ export const handleLeasingContractsRequest = async (req, res) => {
       res.setHeader('Content-Type', contentType)
       res.setHeader('Content-Disposition', `attachment; filename="${single.name}"`)
       res.setHeader('Cache-Control', 'no-store, max-age=0')
-      if (responseNotice) {
-        res.setHeader('X-Contracts-Notice', responseNotice)
+      if (shouldSetNoticeHeader) {
+        res.setHeader('X-Contracts-Notice', responseNoticeHeader)
       }
       res.end(single.buffer)
       return
@@ -1236,8 +1250,8 @@ export const handleLeasingContractsRequest = async (req, res) => {
     res.setHeader('Content-Type', 'application/zip')
     res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`)
     res.setHeader('Cache-Control', 'no-store, max-age=0')
-    if (responseNotice) {
-      res.setHeader('X-Contracts-Notice', responseNotice)
+    if (shouldSetNoticeHeader) {
+      res.setHeader('X-Contracts-Notice', responseNoticeHeader)
     }
     res.end(zipBuffer)
   } catch (error) {
