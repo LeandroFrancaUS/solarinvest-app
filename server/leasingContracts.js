@@ -900,6 +900,16 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
       graphConfigured: graphStatus.configured,
       graphMissing: graphStatus.missing,
     })
+    if (!graphStatus.configured) {
+      throw new LeasingContractsError(
+        424,
+        'Conversão em PDF indisponível. Configure o Microsoft Graph para gerar PDFs.',
+        {
+          code: 'PDF_CONVERSION_MISCONFIGURED',
+          hint: `Defina ${graphStatus.missing.join(', ')}.`,
+        },
+      )
+    }
     const start = Date.now()
     const tipoContrato = 'residencial'
     const dadosLeasing = sanitizeDadosLeasing({
@@ -1007,6 +1017,17 @@ export const handleLeasingContractsRequest = async (req, res) => {
       graphConfigured: graphConfigStatus.configured,
       graphMissing: graphConfigStatus.missing,
     })
+
+    if (!graphConfigStatus.configured) {
+      throw new LeasingContractsError(
+        424,
+        'Conversão em PDF indisponível. Configure o Microsoft Graph para gerar PDFs.',
+        {
+          code: 'PDF_CONVERSION_MISCONFIGURED',
+          hint: `Defina ${graphConfigStatus.missing.join(', ')}.`,
+        },
+      )
+    }
     
     const tipoContrato = sanitizeContratoTipo(body?.tipoContrato)
     if (!tipoContrato) {
