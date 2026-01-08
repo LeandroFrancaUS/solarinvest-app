@@ -8601,77 +8601,6 @@ export default function App() {
     return { html: sanitizedLayoutHtml, dados: dadosParaImpressao }
   }, [printableData])
 
-  const buildRequiredFieldsForMode = useCallback(
-    (modo: 'vendas' | 'leasing'): RequiredClientField[] => {
-      const params = { cliente, segmentoCliente, tipoEdificacaoOutro }
-      return modo === 'vendas'
-        ? buildRequiredFieldsVenda(params)
-        : buildRequiredFieldsLeasing(params)
-    },
-    [cliente, segmentoCliente, tipoEdificacaoOutro],
-  )
-
-  const guardClientFieldsOrReturn = useCallback(
-    (fields: RequiredClientField[]) => {
-      clearClientHighlights()
-      const res = validateRequiredFields(fields)
-
-      if (!res.ok) {
-        const orderedSelectors = fields.flatMap((field) => {
-          if (field.key !== 'cidadeUf') {
-            return [field.selector]
-          }
-
-          const selectors: string[] = []
-          if (!cliente.cidade.trim()) {
-            selectors.push('[data-field=\"cliente-cidade\"]')
-          }
-          if (!cliente.uf.trim()) {
-            selectors.push('[data-field=\"cliente-uf\"]')
-          }
-
-          return selectors.length > 0 ? selectors : [field.selector]
-        })
-        const missingSelectors = new Set(res.missingSelectors)
-
-        if (res.missingKeys.includes('cidadeUf')) {
-          missingSelectors.add('[data-field="cliente-cidade"]')
-          missingSelectors.add('[data-field="cliente-uf"]')
-        }
-
-        highlightMissingFields(orderedSelectors, Array.from(missingSelectors))
-        adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
-        return false
-      }
-
-      return true
-    },
-    [adicionarNotificacao, cliente.cidade, cliente.uf],
-  )
-
-  const validarCamposObrigatorios = useCallback(
-    (_acao: string = 'exportar') => {
-      const fields = buildRequiredFieldsForMode(isVendaDiretaTab ? 'vendas' : 'leasing')
-      if (!guardClientFieldsOrReturn(fields)) {
-        return false
-      }
-
-      if (isVendaDiretaTab && valorTotalPropostaNormalizado == null) {
-        adicionarNotificacao('Informe o Valor total da proposta para concluir a emissão.', 'error')
-        return false
-      }
-
-      return true
-    },
-    [
-      adicionarNotificacao,
-      buildRequiredFieldsForMode,
-      guardClientFieldsOrReturn,
-      isVendaDiretaTab,
-      valorTotalPropostaNormalizado,
-    ],
-  )
-
   const mapClienteRegistroToSyncPayload = (registro: ClienteRegistro): ClienteRegistroSyncPayload => ({
     id: registro.id,
     criadoEm: registro.criadoEm,
@@ -8763,6 +8692,77 @@ export default function App() {
       }
     },
     [removerNotificacao],
+  )
+
+  const buildRequiredFieldsForMode = useCallback(
+    (modo: 'vendas' | 'leasing'): RequiredClientField[] => {
+      const params = { cliente, segmentoCliente, tipoEdificacaoOutro }
+      return modo === 'vendas'
+        ? buildRequiredFieldsVenda(params)
+        : buildRequiredFieldsLeasing(params)
+    },
+    [cliente, segmentoCliente, tipoEdificacaoOutro],
+  )
+
+  const guardClientFieldsOrReturn = useCallback(
+    (fields: RequiredClientField[]) => {
+      clearClientHighlights()
+      const res = validateRequiredFields(fields)
+
+      if (!res.ok) {
+        const orderedSelectors = fields.flatMap((field) => {
+          if (field.key !== 'cidadeUf') {
+            return [field.selector]
+          }
+
+          const selectors: string[] = []
+          if (!cliente.cidade.trim()) {
+            selectors.push('[data-field="cliente-cidade"]')
+          }
+          if (!cliente.uf.trim()) {
+            selectors.push('[data-field="cliente-uf"]')
+          }
+
+          return selectors.length > 0 ? selectors : [field.selector]
+        })
+        const missingSelectors = new Set(res.missingSelectors)
+
+        if (res.missingKeys.includes('cidadeUf')) {
+          missingSelectors.add('[data-field="cliente-cidade"]')
+          missingSelectors.add('[data-field="cliente-uf"]')
+        }
+
+        highlightMissingFields(orderedSelectors, Array.from(missingSelectors))
+        adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
+        return false
+      }
+
+      return true
+    },
+    [adicionarNotificacao, cliente.cidade, cliente.uf],
+  )
+
+  const validarCamposObrigatorios = useCallback(
+    (_acao: string = 'exportar') => {
+      const fields = buildRequiredFieldsForMode(isVendaDiretaTab ? 'vendas' : 'leasing')
+      if (!guardClientFieldsOrReturn(fields)) {
+        return false
+      }
+
+      if (isVendaDiretaTab && valorTotalPropostaNormalizado == null) {
+        adicionarNotificacao('Informe o Valor total da proposta para concluir a emissão.', 'error')
+        return false
+      }
+
+      return true
+    },
+    [
+      adicionarNotificacao,
+      buildRequiredFieldsForMode,
+      guardClientFieldsOrReturn,
+      isVendaDiretaTab,
+      valorTotalPropostaNormalizado,
+    ],
   )
 
   const [isEnviarPropostaModalOpen, setIsEnviarPropostaModalOpen] = useState(false)
