@@ -669,10 +669,24 @@ const cleanupExtraPunctuation = (xml) => {
   return result
 }
 
+const normalizeTemplateContentTypes = async (zip) => {
+  const contentTypes = zip.file('[Content_Types].xml')
+  if (!contentTypes) {
+    return
+  }
+  const xml = await contentTypes.async('string')
+  const updated = xml.replace(
+    /application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.template\.main\+xml/g,
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+  )
+  zip.file('[Content_Types].xml', updated)
+}
+
 const renderDocxTemplate = async (fileName, data, uf) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
   const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
+  const isDotxTemplate = fileName.toLowerCase().endsWith('.dotx')
 
   for (const partName of partNames) {
     const file = zip.file(partName)
@@ -686,6 +700,10 @@ const renderDocxTemplate = async (fileName, data, uf) => {
     // Clean up extra commas from empty optional fields
     const cleaned = cleanupExtraPunctuation(rendered)
     zip.file(partName, cleaned)
+  }
+
+  if (isDotxTemplate) {
+    await normalizeTemplateContentTypes(zip)
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })
