@@ -227,6 +227,26 @@ const sanitizeDocumentoId = (value) => {
   return digits || 'documento'
 }
 
+const resolveEmail = (payload) => {
+  const candidates = [
+    payload?.email,
+    payload?.emailCliente,
+    payload?.cliente?.email,
+    payload?.contato?.email,
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim()
+      if (trimmed) {
+        return trimmed
+      }
+    }
+  }
+
+  return ''
+}
+
 const normalizeArray = (value) => {
   if (!Array.isArray(value)) {
     return []
@@ -323,7 +343,7 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     
     // Contact info
     telefone: typeof dados.telefone === 'string' ? dados.telefone.trim() : '',
-    email: typeof dados.email === 'string' ? dados.email.trim() : '',
+    email: resolveEmail(dados),
     
     // UC and installation
     unidadeConsumidora: ensureField(dados, 'unidadeConsumidora', 'Unidade consumidora'),
