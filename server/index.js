@@ -14,6 +14,7 @@ import {
   handleContractTemplatesRequest,
   isGraphConfigured,
 } from './contracts.js'
+import { getGraphConfigStatus } from './docxToPdf/index.js'
 import {
   LEASING_CONTRACTS_PATH,
   LEASING_CONTRACTS_AVAILABILITY_PATH,
@@ -230,10 +231,11 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/health/pdf') {
-    const graphConfigured = isGraphConfigured()
+    const graphStatus = getGraphConfigStatus()
     sendJson(res, 200, {
-      ok: graphConfigured,
-      graphConfigured,
+      ok: graphStatus.configured,
+      graphConfigured: graphStatus.configured,
+      graphMissing: graphStatus.missing,
     })
     return
   }
@@ -250,10 +252,12 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       templateExists = false
     }
+    const graphStatus = getGraphConfigStatus()
     sendJson(res, 200, {
       ok: templateExists,
       templateExists,
-      graphConfigured: isGraphConfigured(),
+      graphConfigured: graphStatus.configured,
+      graphMissing: graphStatus.missing,
       node: process.version,
     })
     return

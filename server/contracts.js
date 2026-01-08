@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { convertDocxBufferToPdfBuffer, isGraphConfigured, sanitizeFileName } from './docxToPdf/index.js'
+import { convertDocxBufferToPdfBuffer, getGraphConfigStatus, isGraphConfigured, sanitizeFileName } from './docxToPdf/index.js'
 
 export const CONTRACT_RENDER_PATH = '/api/contracts/render'
 export const CONTRACT_TEMPLATES_PATH = '/api/contracts/templates'
@@ -459,7 +459,8 @@ const normalizeClientePayload = (payload) => {
 }
 
 export const convertDocxToPdf = async (docxBuffer, { fileName } = {}) => {
-  if (!isGraphConfigured()) {
+  const graphStatus = getGraphConfigStatus()
+  if (!graphStatus.configured) {
     throw new ContractRenderError(
       424,
       'Conversão para PDF indisponível no servidor.',

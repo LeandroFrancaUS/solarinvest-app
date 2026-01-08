@@ -14,12 +14,23 @@ export const getGraphConfig = () => ({
   scope: readEnv('MS_GRAPH_SCOPE') || 'https://graph.microsoft.com/.default',
 })
 
-export const isGraphConfigured = () => {
+export const getGraphConfigStatus = () => {
   const config = getGraphConfig()
-  const hasAuth = Boolean(config.tenantId && config.clientId && config.clientSecret)
-  const hasTarget = Boolean(config.userId || config.driveId)
-  return hasAuth && hasTarget && Boolean(config.tempFolder)
+  const missing = []
+
+  if (!config.tenantId) missing.push('MS_TENANT_ID')
+  if (!config.clientId) missing.push('MS_CLIENT_ID')
+  if (!config.clientSecret) missing.push('MS_CLIENT_SECRET')
+  if (!config.tempFolder) missing.push('MS_GRAPH_TEMP_FOLDER')
+  if (!config.userId && !config.driveId) missing.push('MS_GRAPH_USER_ID/MS_GRAPH_DRIVE_ID')
+
+  return {
+    configured: missing.length === 0,
+    missing,
+  }
 }
+
+export const isGraphConfigured = () => getGraphConfigStatus().configured
 
 export const requireGraphConfig = () => {
   const config = getGraphConfig()

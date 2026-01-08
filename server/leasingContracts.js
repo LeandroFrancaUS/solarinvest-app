@@ -6,6 +6,7 @@ import Mustache from 'mustache'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { convertDocxToPdf, isGraphConfigured } from './contracts.js'
+import { getGraphConfigStatus } from './docxToPdf/index.js'
 
 const JSON_BODY_LIMIT = 256 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
@@ -890,12 +891,14 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
   }
 
   try {
+    const graphStatus = getGraphConfigStatus()
     console.info({
       scope: 'leasing-contracts',
       step: 'smoke_start',
       requestId,
       vercelId,
-      graphConfigured: isGraphConfigured(),
+      graphConfigured: graphStatus.configured,
+      graphMissing: graphStatus.missing,
     })
     const start = Date.now()
     const tipoContrato = 'residencial'
@@ -994,13 +997,15 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
   try {
     const body = await readJsonBody(req)
+    const graphStatus = getGraphConfigStatus()
     console.info({
       scope: 'leasing-contracts',
       step: 'request_received',
       requestId,
       vercelId,
       nodeVersion: process.version,
-      graphConfigured: isGraphConfigured(),
+      graphConfigured: graphStatus.configured,
+      graphMissing: graphStatus.missing,
     })
     
     const tipoContrato = sanitizeContratoTipo(body?.tipoContrato)
@@ -1062,7 +1067,8 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     const files = []
     const fallbackNotices = []
-    const pdfProvidersConfigured = isGraphConfigured()
+    const graphStatus = getGraphConfigStatus()
+    const pdfProvidersConfigured = graphStatus.configured
     const registerFallback = (message) => {
       if (!fallbackNotices.includes(message)) {
         fallbackNotices.push(message)
