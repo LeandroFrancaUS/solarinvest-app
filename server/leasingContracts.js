@@ -1,11 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
+import crypto from 'node:crypto'
 import JSZip from 'jszip'
 import Mustache from 'mustache'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { convertDocxToPdf } from './contracts.js'
+import { convertDocxToPdf, isConvertApiConfigured, isGotenbergConfigured } from './contracts.js'
 
 const JSON_BODY_LIMIT = 256 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
@@ -45,10 +46,13 @@ export class LeasingContractsError extends Error {
   /**
    * @param {number} statusCode
    * @param {string} message
+   * @param {{ code?: string, hint?: string }} [options]
    */
-  constructor(statusCode, message) {
+  constructor(statusCode, message, options = undefined) {
     super(message)
     this.statusCode = statusCode
+    this.code = options?.code
+    this.hint = options?.hint
     this.name = 'LeasingContractsError'
   }
 }
@@ -57,7 +61,22 @@ const setCorsHeaders = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'Content-Disposition, X-Contracts-Notice, X-Request-Id',
+  )
   res.setHeader('Access-Control-Max-Age', '600')
+}
+
+const createRequestId = () => crypto.randomUUID()
+
+const sendErrorResponse = (res, statusCode, payload, requestId) => {
+  res.statusCode = statusCode
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  if (requestId) {
+    res.setHeader('X-Request-Id', requestId)
+  }
+  res.end(JSON.stringify({ ok: false, requestId, ...payload }))
 }
 
 const readJsonBody = async (req) => {
@@ -73,7 +92,11 @@ const readJsonBody = async (req) => {
     req.on('data', (chunk) => {
       totalLength += chunk.length
       if (totalLength > JSON_BODY_LIMIT) {
-        reject(new LeasingContractsError(413, 'Payload acima do limite permitido.'))
+        reject(new LeasingContractsError(
+          413,
+          'Payload acima do limite permitido.',
+          { code: 'PAYLOAD_TOO_LARGE', hint: 'Reduza o tamanho da requisição.' },
+        ))
         return
       }
       accumulated += chunk
@@ -87,7 +110,11 @@ const readJsonBody = async (req) => {
       try {
         resolve(JSON.parse(accumulated))
       } catch (error) {
-        reject(new LeasingContractsError(400, 'JSON inválido na requisição.'))
+        reject(new LeasingContractsError(
+          400,
+          'JSON inválido na requisição.',
+          { code: 'INVALID_JSON', hint: 'Verifique o JSON enviado na requisição.' },
+        ))
       }
     })
 
@@ -171,7 +198,14 @@ const sanitizeContratoTipo = (value) => {
 const ensureField = (payload, key, label) => {
   const value = typeof payload[key] === 'string' ? payload[key].trim() : ''
   if (!value) {
-    throw new LeasingContractsError(400, `Campo obrigatório ausente: ${label}.`)
+    throw new LeasingContractsError(
+      400,
+      `Campo obrigatório ausente: ${label}.`,
+      {
+        code: 'INVALID_PAYLOAD',
+        hint: 'Preencha todos os campos obrigatórios antes de gerar o contrato.',
+      },
+    )
   }
   return value
 }
@@ -247,7 +281,11 @@ const formatarEnderecoCompleto = (dados) => {
 
 const sanitizeDadosLeasing = (dados, tipoContrato) => {
   if (!dados || typeof dados !== 'object') {
-    throw new LeasingContractsError(400, 'Estrutura de dados do contrato inválida.')
+    throw new LeasingContractsError(
+      400,
+      'Estrutura de dados do contrato inválida.',
+      { code: 'INVALID_PAYLOAD', hint: 'Envie os dados do contrato em formato válido.' },
+    )
   }
 
   // Convert personal data to uppercase for contract formatting
@@ -732,6 +770,8 @@ export const handleLeasingContractsAvailabilityRequest = async (req, res) => {
 
 export const handleLeasingContractsRequest = async (req, res) => {
   setCorsHeaders(res)
+  const requestId = createRequestId()
+  res.setHeader('X-Request-Id', requestId)
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204
@@ -748,14 +788,18 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
   try {
     const body = await readJsonBody(req)
-    console.log('[leasing-contracts] Requisição recebida para geração de contratos')
+    console.log(`[leasing-contracts][${requestId}] Requisição recebida para geração de contratos`)
     
     const tipoContrato = sanitizeContratoTipo(body?.tipoContrato)
     if (!tipoContrato) {
-      throw new LeasingContractsError(400, 'Tipo de contrato inválido.')
+      throw new LeasingContractsError(
+        400,
+        'Tipo de contrato inválido.',
+        { code: 'INVALID_PAYLOAD', hint: 'Informe um tipo de contrato válido.' },
+      )
     }
     
-    console.log(`[leasing-contracts] Tipo de contrato: ${tipoContrato}`)
+    console.log(`[leasing-contracts][${requestId}] Tipo de contrato: ${tipoContrato}`)
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
@@ -776,7 +820,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     if (anexosIndisponiveis.length > 0) {
       console.warn(
-        `[leasing-contracts] Anexos indisponíveis serão ignorados: ${anexosIndisponiveis.join(', ')}`,
+        `[leasing-contracts][${requestId}] Anexos indisponíveis serão ignorados: ${anexosIndisponiveis.join(', ')}`,
       )
     }
 
@@ -785,12 +829,14 @@ export const handleLeasingContractsRequest = async (req, res) => {
         throw new LeasingContractsError(
           400,
           'O Anexo I exige a descrição dos módulos fotovoltaicos.',
+          { code: 'INVALID_PAYLOAD', hint: 'Preencha os módulos fotovoltaicos para gerar o Anexo I.' },
         )
       }
       if (!dadosLeasing.inversoresFV) {
         throw new LeasingContractsError(
           400,
           'O Anexo I exige a descrição dos inversores.',
+          { code: 'INVALID_PAYLOAD', hint: 'Preencha os inversores para gerar o Anexo I.' },
         )
       }
     }
@@ -799,46 +845,69 @@ export const handleLeasingContractsRequest = async (req, res) => {
     await fs.mkdir(TMP_DIR, { recursive: true })
 
     const files = []
+    const fallbackNotices = []
+    const pdfProvidersConfigured = isConvertApiConfigured() || isGotenbergConfigured()
+    const registerFallback = (message) => {
+      if (!fallbackNotices.includes(message)) {
+        fallbackNotices.push(message)
+      }
+    }
+
+    const pushPdfOrDocx = async ({
+      buffer,
+      docxName,
+      pdfName,
+      label,
+    }) => {
+      const docxPath = path.join(TMP_DIR, `temp-${Date.now()}-${docxName}`)
+      const pdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${pdfName}`)
+
+      if (!pdfProvidersConfigured) {
+        files.push({ name: docxName, buffer })
+        registerFallback(`${label}: PDF indisponível, DOCX fornecido.`)
+        return
+      }
+
+      try {
+        await fs.writeFile(docxPath, buffer)
+        await convertDocxToPdf(docxPath, pdfPath)
+        const pdfBuffer = await fs.readFile(pdfPath)
+        files.push({ name: pdfName, buffer: pdfBuffer })
+      } catch (conversionError) {
+        console.error(`[leasing-contracts][${requestId}] Falha ao converter ${label} para PDF:`, conversionError)
+        const errorMessage = conversionError instanceof Error
+          ? conversionError.message
+          : `Falha ao converter ${label} para PDF.`
+        files.push({ name: docxName, buffer })
+        registerFallback(`${label}: ${errorMessage}`)
+      } finally {
+        try {
+          await fs.unlink(docxPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+        try {
+          await fs.unlink(pdfPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    }
+
     const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
     }, clienteUf)
-    
-    // Convert main contract to PDF to preserve visual fidelity
+
     const contratoDocxName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'docx')
     const contratoPdfName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'pdf')
-    const contratoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoDocxName}`)
-    const contratoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoPdfName}`)
-    
-    try {
-      await fs.writeFile(contratoDocxPath, contratoBuffer)
-      await convertDocxToPdf(contratoDocxPath, contratoPdfPath)
-      const pdfBuffer = await fs.readFile(contratoPdfPath)
-      files.push({
-        name: contratoPdfName,
-        buffer: pdfBuffer,
-      })
-      console.log('[leasing-contracts] Contrato principal convertido para PDF com sucesso')
-    } catch (conversionError) {
-      console.error('[leasing-contracts] Falha ao converter contrato para PDF:', conversionError)
-      const message = conversionError instanceof Error
-        ? conversionError.message
-        : 'Falha ao converter o contrato para PDF.'
-      throw new LeasingContractsError(500, message)
-    } finally {
-      // Clean up temporary files
-      try {
-        await fs.unlink(contratoDocxPath)
-      } catch (err) {
-        // Ignore cleanup errors
-      }
-      try {
-        await fs.unlink(contratoPdfPath)
-      } catch (err) {
-        // Ignore cleanup errors
-      }
-    }
+    await pushPdfOrDocx({
+      buffer: contratoBuffer,
+      docxName: contratoDocxName,
+      pdfName: contratoPdfName,
+      label: 'Contrato principal',
+    })
 
     const skippedAnexos = [...anexosIndisponiveis]
 
@@ -849,42 +918,17 @@ export const handleLeasingContractsRequest = async (req, res) => {
           tipoContrato,
         }, clienteUf)
         
-        // Convert anexo to PDF to preserve visual fidelity
         const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
         const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
-        const anexoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoDocxName}`)
-        const anexoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoPdfName}`)
-        
-        try {
-          await fs.writeFile(anexoDocxPath, buffer)
-          await convertDocxToPdf(anexoDocxPath, anexoPdfPath)
-          const pdfBuffer = await fs.readFile(anexoPdfPath)
-          files.push({
-            name: anexoPdfName,
-            buffer: pdfBuffer,
-          })
-        } catch (conversionError) {
-          console.error(`[leasing-contracts] Falha ao converter anexo ${anexo.id} para PDF:`, conversionError)
-          const message = conversionError instanceof Error
-            ? conversionError.message
-            : 'Falha ao converter anexos para PDF.'
-          throw new LeasingContractsError(500, message)
-        } finally {
-          // Clean up temporary files
-          try {
-            await fs.unlink(anexoDocxPath)
-          } catch (err) {
-            // Ignore cleanup errors
-          }
-          try {
-            await fs.unlink(anexoPdfPath)
-          } catch (err) {
-            // Ignore cleanup errors
-          }
-        }
+        await pushPdfOrDocx({
+          buffer,
+          docxName: anexoDocxName,
+          pdfName: anexoPdfName,
+          label: `Anexo ${anexo.id}`,
+        })
       } catch (anexoError) {
         // If anexo rendering fails, log and continue with other anexos
-        console.error(`[leasing-contracts] Erro ao processar anexo ${anexo.id}:`, anexoError)
+        console.error(`[leasing-contracts][${requestId}] Erro ao processar anexo ${anexo.id}:`, anexoError)
         skippedAnexos.push(anexo.id)
       }
     }
@@ -894,7 +938,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     }
 
     if (skippedAnexos.length > 0) {
-      console.log(`[leasing-contracts] Anexos pulados por indisponibilidade: ${skippedAnexos.join(', ')}`)
+      console.log(`[leasing-contracts][${requestId}] Anexos pulados por indisponibilidade: ${skippedAnexos.join(', ')}`)
     }
 
     const zipBuffer = await createZipFromFiles(files)
@@ -904,28 +948,40 @@ export const handleLeasingContractsRequest = async (req, res) => {
     res.setHeader('Content-Type', 'application/zip')
     res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`)
     res.setHeader('Cache-Control', 'no-store, max-age=0')
+    if (fallbackNotices.length > 0) {
+      res.setHeader('X-Contracts-Notice', fallbackNotices.join(' | '))
+    }
     res.end(zipBuffer)
   } catch (error) {
-    const statusCode = error instanceof LeasingContractsError ? error.statusCode : 500
-    let message =
-      error instanceof LeasingContractsError
-        ? error.message
-        : 'Não foi possível gerar os contratos de leasing.'
-
-    if (!(error instanceof LeasingContractsError)) {
-      console.error('[leasing-contracts] Erro inesperado ao gerar documentos:', error)
-      
-      // In non-production environments, include more error details for debugging
-      if (process.env.NODE_ENV !== 'production') {
-        const errorDetails = error instanceof Error 
-          ? `${error.message}${error.stack ? '\n' + error.stack : ''}`
-          : String(error)
-        message = `Não foi possível gerar os contratos de leasing. Detalhes: ${errorDetails}`
-      }
+    if (error instanceof LeasingContractsError) {
+      const statusCode = error.statusCode ?? 500
+      sendErrorResponse(
+        res,
+        statusCode,
+        {
+          code: error.code ?? 'LEASING_CONTRACTS_ERROR',
+          message: error.message ?? 'Não foi possível gerar os contratos de leasing.',
+          hint: error.hint,
+        },
+        requestId,
+      )
+      return
     }
 
-    res.statusCode = statusCode
-    res.setHeader('Content-Type', 'application/json; charset=utf-8')
-    res.end(JSON.stringify({ error: message }))
+    console.error(`[leasing-contracts][${requestId}] Erro inesperado ao gerar documentos:`, error)
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : 'Não foi possível gerar os contratos de leasing.'
+    sendErrorResponse(
+      res,
+      500,
+      {
+        code: 'LEASING_CONTRACTS_ERROR',
+        message,
+        hint: 'Tente novamente ou entre em contato com o suporte.',
+      },
+      requestId,
+    )
   }
 }

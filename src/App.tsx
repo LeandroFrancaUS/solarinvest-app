@@ -13149,9 +13149,14 @@ export default function App() {
       const contentType = response.headers.get('content-type') ?? ''
       try {
         if (contentType.includes('application/json')) {
-          const data = (await response.json()) as { error?: string } | undefined
-          if (data?.error) {
-            mensagemErro = data.error
+          const data = (await response.json()) as
+            | { error?: string; message?: string; hint?: string; requestId?: string; code?: string }
+            | undefined
+          if (data?.message || data?.error) {
+            const baseMessage = data.message ?? data.error ?? mensagemErro
+            const hint = data.hint ? ` ${data.hint}` : ''
+            const requestId = data.requestId ? ` (ID: ${data.requestId})` : ''
+            mensagemErro = `${baseMessage}${hint}${requestId}`.trim()
           }
         } else {
           const texto = await response.text()
@@ -13198,6 +13203,10 @@ export default function App() {
         window.URL.revokeObjectURL(url)
       }, 60_000)
 
+      const notice = response.headers.get('x-contracts-notice')
+      if (notice) {
+        adicionarNotificacao(notice, 'info')
+      }
       adicionarNotificacao('Pacote de contratos de leasing gerado.', 'success')
     } catch (error) {
       console.error('Erro ao gerar contratos de leasing', error)

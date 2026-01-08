@@ -11,6 +11,8 @@ import {
   CONTRACT_TEMPLATES_PATH,
   handleContractRenderRequest,
   handleContractTemplatesRequest,
+  isConvertApiConfigured,
+  isGotenbergConfigured,
 } from './contracts.js'
 import {
   LEASING_CONTRACTS_PATH,
@@ -200,6 +202,17 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/health') {
     sendJson(res, 200, { status: 'ok' })
+    return
+  }
+
+  if (pathname === '/api/health/pdf') {
+    const convertapiConfigured = isConvertApiConfigured()
+    const gotenbergConfigured = isGotenbergConfigured()
+    sendJson(res, 200, {
+      ok: convertapiConfigured || gotenbergConfigured,
+      convertapiConfigured,
+      gotenbergConfigured,
+    })
     return
   }
 
