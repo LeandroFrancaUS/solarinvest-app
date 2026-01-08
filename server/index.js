@@ -1,7 +1,8 @@
 import { createServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { readFile, access } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { URL } from 'node:url'
 
@@ -11,12 +12,16 @@ import {
   CONTRACT_TEMPLATES_PATH,
   handleContractRenderRequest,
   handleContractTemplatesRequest,
+  isConvertApiConfigured,
+  isGotenbergConfigured,
 } from './contracts.js'
 import {
   LEASING_CONTRACTS_PATH,
   LEASING_CONTRACTS_AVAILABILITY_PATH,
+  LEASING_CONTRACTS_SMOKE_PATH,
   handleLeasingContractsRequest,
   handleLeasingContractsAvailabilityRequest,
+  handleLeasingContractsSmokeRequest,
 } from './leasingContracts.js'
 import {
   getStackUser,
@@ -57,6 +62,21 @@ const CORS_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS'
 
 const trustedOrigins = getTrustedOrigins()
 const stackAuthEnabled = isStackAuthEnabled()
+
+const createRequestId = () => crypto.randomUUID()
+
+const sendServerError = (res, statusCode, payload, requestId, vercelId) => {
+  if (res.headersSent) {
+    return
+  }
+  if (requestId) {
+    res.setHeader('X-Request-Id', requestId)
+  }
+  if (vercelId) {
+    res.setHeader('X-Vercel-Id', vercelId)
+  }
+  sendJson(res, statusCode, { ok: false, requestId, vercelId, ...payload })
+}
 
 if (stackAuthEnabled) {
   console.info('[auth] Stack Auth JWT validation habilitado.')
@@ -187,19 +207,58 @@ if (!databaseConfig.connectionString) {
 }
 
 const server = createServer(async (req, res) => {
-  if (!req.url) {
-    sendJson(res, 400, { error: 'Requisição inválida' })
-    return
-  }
+  const requestId = createRequestId()
+  const vercelId = typeof req.headers['x-vercel-id'] === 'string'
+    ? req.headers['x-vercel-id']
+    : undefined
 
-  applyCorsHeaders(req, res)
+  try {
+    if (!req.url) {
+      sendJson(res, 400, { error: 'Requisição inválida' })
+      return
+    }
 
-  const requestUrl = new URL(req.url, 'http://localhost')
-  const pathname = requestUrl.pathname
-  const method = req.method?.toUpperCase() ?? 'GET'
+    applyCorsHeaders(req, res)
+
+    const requestUrl = new URL(req.url, 'http://localhost')
+    const pathname = requestUrl.pathname
+    const method = req.method?.toUpperCase() ?? 'GET'
 
   if (pathname === '/health') {
     sendJson(res, 200, { status: 'ok' })
+    return
+  }
+
+  if (pathname === '/api/health/pdf') {
+    const convertapiConfigured = isConvertApiConfigured()
+    const gotenbergConfigured = isGotenbergConfigured()
+    sendJson(res, 200, {
+      ok: convertapiConfigured || gotenbergConfigured,
+      convertapiConfigured,
+      gotenbergConfigured,
+    })
+    return
+  }
+
+  if (pathname === '/api/health/contracts') {
+    const templatePath = path.join(
+      process.cwd(),
+      'public/templates/contratos/leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
+    )
+    let templateExists = false
+    try {
+      await access(templatePath)
+      templateExists = true
+    } catch (error) {
+      templateExists = false
+    }
+    sendJson(res, 200, {
+      ok: templateExists,
+      templateExists,
+      convertapiConfigured: isConvertApiConfigured(),
+      gotenbergConfigured: isGotenbergConfigured(),
+      node: process.version,
+    })
     return
   }
 
@@ -211,6 +270,11 @@ const server = createServer(async (req, res) => {
   // Check more specific leasing routes before the general leasing route
   if (pathname === LEASING_CONTRACTS_AVAILABILITY_PATH) {
     await handleLeasingContractsAvailabilityRequest(req, res)
+    return
+  }
+
+  if (pathname === LEASING_CONTRACTS_SMOKE_PATH) {
+    await handleLeasingContractsSmokeRequest(req, res)
     return
   }
 
@@ -324,7 +388,21 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  await serveStatic(pathname, res)
+    await serveStatic(pathname, res)
+  } catch (error) {
+    console.error('[server] Erro inesperado ao processar requisição:', error)
+    sendServerError(
+      res,
+      500,
+      {
+        code: 'FUNCTION_INVOCATION_FAILED',
+        message: 'A server error has occurred',
+        hint: 'Verifique os logs do servidor para mais detalhes.',
+      },
+      requestId,
+      vercelId,
+    )
+  }
 })
 
 server.listen(PORT, () => {

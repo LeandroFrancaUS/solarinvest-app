@@ -63,11 +63,11 @@ Quando aplicável, declara ainda ser o responsável pela Unidade Geradora (UG) n
 ```
 assets/templates/contratos/
   leasing/
-    CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (padrão)
+    CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx  (padrão)
     GO/
-      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (GO-específico)
+      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx  (GO-específico)
     DF/
-      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (DF-específico)
+      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx  (DF-específico)
 ```
 
 **Como funciona:**
@@ -98,7 +98,7 @@ assets/templates/contratos/
 
 ### 1. Variáveis nos Templates
 
-Em seus arquivos `.docx`, use:
+Em seus arquivos `.dotx`, use:
 
 ```
 CONTRATANTE: {nomeCompleto}, inscrito(a) no CPF/CNPJ nº {cpfCnpj}, residente e 
@@ -113,12 +113,12 @@ geração compartilhada / remoto (Lei 14.300/2022).
 ### 2. Adicionar Templates por Estado
 
 **Para Goiás (GO):**
-1. Criar arquivo `.docx` com o template
-2. Salvar em: `assets/templates/contratos/leasing/GO/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
+1. Criar arquivo `.dotx` com o template
+2. Salvar em: `assets/templates/contratos/leasing/GO/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx`
 
 **Para Distrito Federal (DF):**
-1. Criar arquivo `.docx` com o template
-2. Salvar em: `assets/templates/contratos/leasing/DF/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
+1. Criar arquivo `.dotx` com o template
+2. Salvar em: `assets/templates/contratos/leasing/DF/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx`
 
 ### 3. Variáveis Disponíveis
 

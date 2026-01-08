@@ -104,7 +104,7 @@ geração compartilhada / remoto (Lei 14.300/2022).
 1. All template variables are case-sensitive
 2. Use double curly braces `{{variable}}` or single `{variable}` - both formats are supported
 3. Empty/missing values are replaced with empty strings
-4. The system automatically selects state-specific templates when available (e.g., `leasing/GO/template.docx`)
+4. The system automatically selects state-specific templates when available (e.g., `leasing/GO/template.dotx`)
 5. If a state-specific template is not found, the system falls back to the default template in the category root
 
 ## State-Specific Templates
@@ -114,15 +114,15 @@ Templates can be organized by state (UF) in subdirectories:
 ```
 assets/templates/contratos/
   leasing/
-    CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (default)
+    CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx  (default)
     GO/
-      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (GO-specific)
+      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx  (GO-specific)
     DF/
-      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx  (DF-specific)
+      CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx  (DF-specific)
   vendas/
     (similar structure)
 ```
 
 When a client with `uf: "GO"` requests a contract, the system will:
-1. First try to use `leasing/GO/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
-2. If not found, fall back to `leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
+1. First try to use `leasing/GO/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx`
+2. If not found, fall back to `leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx`

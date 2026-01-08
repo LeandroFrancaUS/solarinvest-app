@@ -1,19 +1,22 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
+import crypto from 'node:crypto'
 import JSZip from 'jszip'
 import Mustache from 'mustache'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { convertDocxToPdf } from './contracts.js'
+import { convertDocxToPdf, isConvertApiConfigured, isGotenbergConfigured } from './contracts.js'
 
 const JSON_BODY_LIMIT = 256 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
 const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
-  'assets/templates/contratos/leasing',
+  'public/templates/contratos/leasing',
 )
-const TMP_DIR = path.join(os.tmpdir(), 'solarinvest-contracts')
+const BASE_TMP_DIR = path.join(os.tmpdir(), 'solarinvest')
+const MAX_DOCX_BYTES = 8 * 1024 * 1024
+const MAX_PDF_BYTES = 12 * 1024 * 1024
 
 // Maximum iterations for merging split placeholder runs in Word XML
 // Most placeholders split by Word's spell checker need 2-3 merge passes,
@@ -40,15 +43,19 @@ const isValidUf = (uf) => {
 
 export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
 export const LEASING_CONTRACTS_AVAILABILITY_PATH = '/api/contracts/leasing/availability'
+export const LEASING_CONTRACTS_SMOKE_PATH = '/api/contracts/leasing/smoke'
 
 export class LeasingContractsError extends Error {
   /**
    * @param {number} statusCode
    * @param {string} message
+   * @param {{ code?: string, hint?: string }} [options]
    */
-  constructor(statusCode, message) {
+  constructor(statusCode, message, options = undefined) {
     super(message)
     this.statusCode = statusCode
+    this.code = options?.code
+    this.hint = options?.hint
     this.name = 'LeasingContractsError'
   }
 }
@@ -57,7 +64,28 @@ const setCorsHeaders = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'Content-Disposition, X-Contracts-Notice, X-Request-Id',
+  )
   res.setHeader('Access-Control-Max-Age', '600')
+}
+
+const createRequestId = () => crypto.randomUUID()
+
+const sendErrorResponse = (res, statusCode, payload, requestId, vercelId = undefined) => {
+  if (res.headersSent) {
+    return
+  }
+  res.statusCode = statusCode
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  if (requestId) {
+    res.setHeader('X-Request-Id', requestId)
+  }
+  if (vercelId) {
+    res.setHeader('X-Vercel-Id', vercelId)
+  }
+  res.end(JSON.stringify({ ok: false, requestId, vercelId, ...payload }))
 }
 
 const readJsonBody = async (req) => {
@@ -73,7 +101,11 @@ const readJsonBody = async (req) => {
     req.on('data', (chunk) => {
       totalLength += chunk.length
       if (totalLength > JSON_BODY_LIMIT) {
-        reject(new LeasingContractsError(413, 'Payload acima do limite permitido.'))
+        reject(new LeasingContractsError(
+          413,
+          'Payload acima do limite permitido.',
+          { code: 'PAYLOAD_TOO_LARGE', hint: 'Reduza o tamanho da requisição.' },
+        ))
         return
       }
       accumulated += chunk
@@ -87,7 +119,11 @@ const readJsonBody = async (req) => {
       try {
         resolve(JSON.parse(accumulated))
       } catch (error) {
-        reject(new LeasingContractsError(400, 'JSON inválido na requisição.'))
+        reject(new LeasingContractsError(
+          400,
+          'JSON inválido na requisição.',
+          { code: 'INVALID_JSON', hint: 'Verifique o JSON enviado na requisição.' },
+        ))
       }
     })
 
@@ -98,8 +134,8 @@ const readJsonBody = async (req) => {
 }
 
 const CONTRACT_TEMPLATES = {
-  residencial: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx',
-  condominio: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx',
+  residencial: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
+  condominio: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
 }
 
 const ANEXO_DEFINITIONS = [
@@ -171,7 +207,14 @@ const sanitizeContratoTipo = (value) => {
 const ensureField = (payload, key, label) => {
   const value = typeof payload[key] === 'string' ? payload[key].trim() : ''
   if (!value) {
-    throw new LeasingContractsError(400, `Campo obrigatório ausente: ${label}.`)
+    throw new LeasingContractsError(
+      400,
+      `Campo obrigatório ausente: ${label}.`,
+      {
+        code: 'INVALID_PAYLOAD',
+        hint: 'Preencha todos os campos obrigatórios antes de gerar o contrato.',
+      },
+    )
   }
   return value
 }
@@ -247,7 +290,11 @@ const formatarEnderecoCompleto = (dados) => {
 
 const sanitizeDadosLeasing = (dados, tipoContrato) => {
   if (!dados || typeof dados !== 'object') {
-    throw new LeasingContractsError(400, 'Estrutura de dados do contrato inválida.')
+    throw new LeasingContractsError(
+      400,
+      'Estrutura de dados do contrato inválida.',
+      { code: 'INVALID_PAYLOAD', hint: 'Envie os dados do contrato em formato válido.' },
+    )
   }
 
   // Convert personal data to uppercase for contract formatting
@@ -422,8 +469,8 @@ const checkTemplateAvailability = async (fileName, uf) => {
 /**
  * Carrega um template DOCX, com suporte a templates específicos por UF.
  * Ordem de busca:
- * 1. Template específico do UF (leasing/GO/template.docx)
- * 2. Template padrão (leasing/template.docx)
+ * 1. Template específico do UF (leasing/GO/template.dotx)
+ * 2. Template padrão (leasing/template.dotx)
  * 
  * @param {string} fileName - Nome do arquivo template
  * @param {string} [uf] - UF para buscar template específico
@@ -436,16 +483,25 @@ const loadDocxTemplate = async (fileName, uf) => {
     const ufTemplatePath = path.join(LEASING_TEMPLATES_DIR, normalizedUf, fileName)
     try {
       const buffer = await fs.readFile(ufTemplatePath)
-      console.log(`[leasing-contracts] Usando template específico para UF ${normalizedUf}: ${fileName}`)
+      console.info({
+        scope: 'leasing-contracts',
+        step: 'template_selected',
+        uf: normalizedUf,
+        template: fileName,
+      })
       return buffer
     } catch (error) {
       if (error && error.code !== 'ENOENT') {
-        console.warn(`[leasing-contracts] Erro ao acessar template específico do UF ${normalizedUf}:`, error)
+        console.warn('[leasing-contracts] Erro ao acessar template específico do UF', {
+          uf: normalizedUf,
+          template: fileName,
+          errMessage: error?.message,
+        })
       }
       // Continua para tentar o template padrão
     }
   } else if (normalizedUf) {
-    console.warn(`[leasing-contracts] UF inválido fornecido: ${normalizedUf}`)
+    console.warn('[leasing-contracts] UF inválido fornecido', { uf: normalizedUf })
   }
 
   // Fallback para template padrão
@@ -453,15 +509,33 @@ const loadDocxTemplate = async (fileName, uf) => {
   try {
     const buffer = await fs.readFile(templatePath)
     if (normalizedUf) {
-      console.log(`[leasing-contracts] Template específico para UF ${normalizedUf} não encontrado, usando template padrão: ${fileName}`)
+      console.info({
+        scope: 'leasing-contracts',
+        step: 'template_fallback',
+        uf: normalizedUf,
+        template: fileName,
+      })
     }
     return buffer
   } catch (error) {
     if (error && error.code === 'ENOENT') {
-      console.error(`[leasing-contracts] Template não encontrado em: ${templatePath}`)
-      throw new LeasingContractsError(500, `Template não encontrado: ${fileName} (esperado em: ${templatePath})`)
+      console.error('[leasing-contracts] Template não encontrado', {
+        template: fileName,
+        templatePath,
+      })
+      throw new LeasingContractsError(
+        422,
+        'Template do contrato não encontrado.',
+        {
+          code: 'TEMPLATE_NOT_FOUND',
+          hint: 'Verifique se o template está presente em public/templates/contratos.',
+        },
+      )
     }
-    console.error(`[leasing-contracts] Erro ao ler template ${fileName}:`, error)
+    console.error('[leasing-contracts] Erro ao ler template', {
+      template: fileName,
+      errMessage: error?.message,
+    })
     throw error
   }
 }
@@ -595,10 +669,24 @@ const cleanupExtraPunctuation = (xml) => {
   return result
 }
 
+const normalizeTemplateContentTypes = async (zip) => {
+  const contentTypes = zip.file('[Content_Types].xml')
+  if (!contentTypes) {
+    return
+  }
+  const xml = await contentTypes.async('string')
+  const updated = xml.replace(
+    /application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.template\.main\+xml/g,
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+  )
+  zip.file('[Content_Types].xml', updated)
+}
+
 const renderDocxTemplate = async (fileName, data, uf) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
   const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
+  const isDotxTemplate = fileName.toLowerCase().endsWith('.dotx')
 
   for (const partName of partNames) {
     const file = zip.file(partName)
@@ -612,6 +700,10 @@ const renderDocxTemplate = async (fileName, data, uf) => {
     // Clean up extra commas from empty optional fields
     const cleaned = cleanupExtraPunctuation(rendered)
     zip.file(partName, cleaned)
+  }
+
+  if (isDotxTemplate) {
+    await normalizeTemplateContentTypes(zip)
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })
@@ -658,6 +750,44 @@ const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
     resolved.push({ id: anexoId, template })
   }
   return resolved
+}
+
+const createRequestTempDir = async (requestId) => {
+  const tempDir = path.join(BASE_TMP_DIR, 'contracts', requestId)
+  await fs.mkdir(tempDir, { recursive: true })
+  return tempDir
+}
+
+const sanitizeHeaderValue = (value) => {
+  if (!value) {
+    return ''
+  }
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const detectOomError = (error) => {
+  const message = typeof error?.message === 'string' ? error.message : ''
+  return /out of memory|heap out of memory|ENOMEM|allocation failed/i.test(message)
+}
+
+const buildUnknownErrorPayload = (error) => {
+  if (detectOomError(error)) {
+    return {
+      code: 'SERVER_OOM_SUSPECTED',
+      message: 'O servidor ficou sem memória ao gerar o contrato.',
+      hint: 'Reduza o número de anexos ou o tamanho dos dados enviados.',
+    }
+  }
+  return {
+    code: 'UNKNOWN',
+    message: 'Falha inesperada ao gerar os contratos de leasing.',
+    hint: 'Verifique os logs do servidor para mais detalhes.',
+  }
 }
 
 /**
@@ -730,8 +860,17 @@ export const handleLeasingContractsAvailabilityRequest = async (req, res) => {
   }
 }
 
-export const handleLeasingContractsRequest = async (req, res) => {
+export const handleLeasingContractsSmokeRequest = async (req, res) => {
   setCorsHeaders(res)
+  const requestId = createRequestId()
+  const vercelId = typeof req.headers['x-vercel-id'] === 'string'
+    ? req.headers['x-vercel-id']
+    : undefined
+
+  res.setHeader('X-Request-Id', requestId)
+  if (vercelId) {
+    res.setHeader('X-Vercel-Id', vercelId)
+  }
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204
@@ -740,22 +879,166 @@ export const handleLeasingContractsRequest = async (req, res) => {
   }
 
   if (!req.method || req.method !== 'POST') {
-    res.statusCode = 405
+    sendErrorResponse(
+      res,
+      405,
+      {
+        code: 'METHOD_NOT_ALLOWED',
+        message: 'Método não permitido. Utilize POST.',
+      },
+      requestId,
+      vercelId,
+    )
+    return
+  }
+
+  const timings = {}
+  const mark = (label, startedAt) => {
+    timings[label] = Date.now() - startedAt
+  }
+
+  try {
+    console.info({
+      scope: 'leasing-contracts',
+      step: 'smoke_start',
+      requestId,
+      vercelId,
+      convertapiConfigured: isConvertApiConfigured(),
+      gotenbergConfigured: isGotenbergConfigured(),
+    })
+    const start = Date.now()
+    const tipoContrato = 'residencial'
+    const dadosLeasing = sanitizeDadosLeasing({
+      nomeCompleto: 'Cliente Teste',
+      cpfCnpj: '00000000000',
+      enderecoCompleto: 'Rua Exemplo, 100, Goiânia - GO, 74000-000',
+      endereco: 'Rua Exemplo, 100',
+      cidade: 'Goiânia',
+      cep: '74000-000',
+      uf: 'GO',
+      telefone: '62999990000',
+      email: 'cliente@example.com',
+      unidadeConsumidora: '123456',
+      localEntrega: 'Rua Exemplo, 100',
+      potencia: '5',
+      kWhContratado: '500',
+      tarifaBase: '1.20',
+    }, tipoContrato)
+
+    const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
+    const templateAvailable = await checkTemplateAvailability(contratoTemplate, dadosLeasing.uf)
+    if (!templateAvailable) {
+      throw new LeasingContractsError(
+        422,
+        'Template do contrato não encontrado.',
+        { code: 'TEMPLATE_NOT_FOUND', hint: `Verifique o template ${contratoTemplate}.` },
+      )
+    }
+
+    const renderStart = Date.now()
+    const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
+      ...dadosLeasing,
+      tipoContrato,
+    }, dadosLeasing.uf)
+    mark('renderDocxMs', renderStart)
+
+    const tempDir = await createRequestTempDir(requestId)
+    const uniqueId = crypto.randomUUID()
+    const docxPath = path.join(tempDir, `smoke-${uniqueId}.docx`)
+    const pdfPath = path.join(tempDir, `smoke-${uniqueId}.pdf`)
+
+    const convertStart = Date.now()
+    await fs.writeFile(docxPath, contratoBuffer)
+    await convertDocxToPdf(docxPath, pdfPath)
+    const pdfStats = await fs.stat(pdfPath)
+    mark('convertPdfMs', convertStart)
+
+    await fs.unlink(docxPath).catch(() => {})
+    await fs.unlink(pdfPath).catch(() => {})
+
+    mark('totalMs', start)
+    res.statusCode = 200
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
-    res.end(JSON.stringify({ error: 'Método não permitido. Utilize POST.' }))
+    res.end(JSON.stringify({
+      ok: true,
+      requestId,
+      vercelId,
+      timings,
+      docxBytes: contratoBuffer.length,
+      pdfBytes: pdfStats.size,
+      convertapiConfigured: isConvertApiConfigured(),
+      gotenbergConfigured: isGotenbergConfigured(),
+    }))
+  } catch (error) {
+    const statusCode = error instanceof LeasingContractsError ? error.statusCode ?? 500 : 500
+    const payload = {
+      code: error instanceof LeasingContractsError ? error.code ?? 'LEASING_CONTRACTS_ERROR' : 'LEASING_CONTRACTS_ERROR',
+      message: error instanceof Error ? error.message : 'Falha no smoke test de contratos.',
+      hint: error instanceof LeasingContractsError ? error.hint : 'Verifique a configuração dos provedores.',
+      timings,
+    }
+    sendErrorResponse(res, statusCode, payload, requestId, vercelId)
+  }
+}
+
+export const handleLeasingContractsRequest = async (req, res) => {
+  setCorsHeaders(res)
+  const requestId = createRequestId()
+  const vercelId = typeof req.headers['x-vercel-id'] === 'string'
+    ? req.headers['x-vercel-id']
+    : undefined
+  res.setHeader('X-Request-Id', requestId)
+  if (vercelId) {
+    res.setHeader('X-Vercel-Id', vercelId)
+  }
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204
+    res.end()
+    return
+  }
+
+  if (!req.method || req.method !== 'POST') {
+    sendErrorResponse(
+      res,
+      405,
+      {
+        code: 'METHOD_NOT_ALLOWED',
+        message: 'Método não permitido. Utilize POST.',
+      },
+      requestId,
+      vercelId,
+    )
     return
   }
 
   try {
     const body = await readJsonBody(req)
-    console.log('[leasing-contracts] Requisição recebida para geração de contratos')
+    console.info({
+      scope: 'leasing-contracts',
+      step: 'request_received',
+      requestId,
+      vercelId,
+      nodeVersion: process.version,
+      convertapiConfigured: isConvertApiConfigured(),
+      gotenbergConfigured: isGotenbergConfigured(),
+    })
     
     const tipoContrato = sanitizeContratoTipo(body?.tipoContrato)
     if (!tipoContrato) {
-      throw new LeasingContractsError(400, 'Tipo de contrato inválido.')
+      throw new LeasingContractsError(
+        400,
+        'Tipo de contrato inválido.',
+        { code: 'INVALID_PAYLOAD', hint: 'Informe um tipo de contrato válido.' },
+      )
     }
     
-    console.log(`[leasing-contracts] Tipo de contrato: ${tipoContrato}`)
+    console.info({
+      scope: 'leasing-contracts',
+      step: 'tipo_contrato',
+      requestId,
+      tipoContrato,
+    })
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
@@ -775,9 +1058,10 @@ export const handleLeasingContractsRequest = async (req, res) => {
     }
 
     if (anexosIndisponiveis.length > 0) {
-      console.warn(
-        `[leasing-contracts] Anexos indisponíveis serão ignorados: ${anexosIndisponiveis.join(', ')}`,
-      )
+      console.warn('[leasing-contracts] Anexos indisponíveis serão ignorados', {
+        requestId,
+        anexos: anexosIndisponiveis,
+      })
     }
 
     if (anexosDisponiveis.some((anexo) => anexo.id === 'ANEXO_I')) {
@@ -785,65 +1069,134 @@ export const handleLeasingContractsRequest = async (req, res) => {
         throw new LeasingContractsError(
           400,
           'O Anexo I exige a descrição dos módulos fotovoltaicos.',
+          { code: 'INVALID_PAYLOAD', hint: 'Preencha os módulos fotovoltaicos para gerar o Anexo I.' },
         )
       }
       if (!dadosLeasing.inversoresFV) {
         throw new LeasingContractsError(
           400,
           'O Anexo I exige a descrição dos inversores.',
+          { code: 'INVALID_PAYLOAD', hint: 'Preencha os inversores para gerar o Anexo I.' },
         )
       }
     }
 
-    // Ensure TMP_DIR exists
-    await fs.mkdir(TMP_DIR, { recursive: true })
+    const tempDir = await createRequestTempDir(requestId)
 
     const files = []
-    const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
-    const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
-      ...dadosLeasing,
-      tipoContrato,
-    }, clienteUf)
-    
-    // Try to convert main contract to PDF, fall back to DOCX if conversion fails
-    let convertedToPdf = false
-    const contratoDocxName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'docx')
-    const contratoPdfName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'pdf')
-    const contratoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoDocxName}`)
-    const contratoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${contratoPdfName}`)
-    
-    try {
-      await fs.writeFile(contratoDocxPath, contratoBuffer)
-      await convertDocxToPdf(contratoDocxPath, contratoPdfPath)
-      const pdfBuffer = await fs.readFile(contratoPdfPath)
-      files.push({
-        name: contratoPdfName,
-        buffer: pdfBuffer,
-      })
-      convertedToPdf = true
-      console.log('[leasing-contracts] Contrato principal convertido para PDF com sucesso')
-    } catch (conversionError) {
-      console.warn('[leasing-contracts] Falha ao converter contrato para PDF, usando DOCX:', conversionError.message)
-      // Fall back to DOCX if PDF conversion fails
-      files.push({
-        name: contratoDocxName,
-        buffer: contratoBuffer,
-      })
-    } finally {
-      // Clean up temporary files
-      try {
-        await fs.unlink(contratoDocxPath)
-      } catch (err) {
-        // Ignore cleanup errors
+    const fallbackNotices = []
+    const pdfProvidersConfigured = isConvertApiConfigured() || isGotenbergConfigured()
+    const registerFallback = (message) => {
+      if (!fallbackNotices.includes(message)) {
+        fallbackNotices.push(message)
       }
-      if (convertedToPdf) {
+    }
+
+    const pushPdfOrDocx = async ({
+      buffer,
+      docxName,
+      pdfName,
+      label,
+    }) => {
+      const uniqueId = crypto.randomUUID()
+      const docxPath = path.join(tempDir, `temp-${uniqueId}-${docxName}`)
+      const pdfPath = path.join(tempDir, `temp-${uniqueId}-${pdfName}`)
+
+      if (buffer.length > MAX_DOCX_BYTES) {
+        throw new LeasingContractsError(
+          413,
+          `Documento ${label} excede o tamanho máximo permitido.`,
+          {
+            code: 'PAYLOAD_TOO_LARGE',
+            hint: 'Reduza o tamanho dos dados ou remova anexos opcionais.',
+          },
+        )
+      }
+
+      if (!pdfProvidersConfigured) {
+        console.info({
+          scope: 'leasing-contracts',
+          step: 'pdf_unavailable',
+          requestId,
+          label,
+        })
+        files.push({ name: docxName, buffer })
+        registerFallback(`${label}: PDF indisponível, DOCX fornecido.`)
+        return
+      }
+
+      try {
+        await fs.writeFile(docxPath, buffer)
+        await convertDocxToPdf(docxPath, pdfPath)
+        const pdfBuffer = await fs.readFile(pdfPath)
+        if (pdfBuffer.length > MAX_PDF_BYTES) {
+          files.push({ name: docxName, buffer })
+          registerFallback(`${label}: PDF muito grande, DOCX fornecido.`)
+          return
+        }
+        files.push({ name: pdfName, buffer: pdfBuffer })
+        console.info('[leasing-contracts] PDF convertido', {
+          requestId,
+          label,
+          docxBytes: buffer.length,
+          pdfBytes: pdfBuffer.length,
+        })
+      } catch (conversionError) {
+        console.error('[leasing-contracts] Falha ao converter para PDF', {
+          requestId,
+          label,
+          errMessage: conversionError?.message,
+        })
+        const errorMessage = conversionError instanceof Error
+          ? conversionError.message
+          : `Falha ao converter ${label} para PDF.`
+        files.push({ name: docxName, buffer })
+        registerFallback(`${label}: ${errorMessage}`)
+      } finally {
         try {
-          await fs.unlink(contratoPdfPath)
+          await fs.unlink(docxPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+        try {
+          await fs.unlink(pdfPath)
         } catch (err) {
           // Ignore cleanup errors
         }
       }
     }
+
+    const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
+    const contratoTemplateAvailable = await checkTemplateAvailability(contratoTemplate, clienteUf)
+    if (!contratoTemplateAvailable) {
+      throw new LeasingContractsError(
+        422,
+        'Template do contrato não encontrado.',
+        {
+          code: 'TEMPLATE_NOT_FOUND',
+          hint: `Verifique se o template ${contratoTemplate} está disponível no deploy.`,
+        },
+      )
+    }
+    const renderStart = Date.now()
+    const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
+      ...dadosLeasing,
+      tipoContrato,
+    }, clienteUf)
+    console.info('[leasing-contracts] render_docx', {
+      requestId,
+      durationMs: Date.now() - renderStart,
+      docxBytes: contratoBuffer.length,
+    })
+
+    const contratoDocxName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'docx')
+    const contratoPdfName = buildContractFileName(tipoContrato, dadosLeasing.cpfCnpj, 'pdf')
+    await pushPdfOrDocx({
+      buffer: contratoBuffer,
+      docxName: contratoDocxName,
+      pdfName: contratoPdfName,
+      label: 'Contrato principal',
+    })
 
     const skippedAnexos = [...anexosIndisponiveis]
 
@@ -854,57 +1207,58 @@ export const handleLeasingContractsRequest = async (req, res) => {
           tipoContrato,
         }, clienteUf)
         
-        // Try to convert anexo to PDF, fall back to DOCX if conversion fails
         const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
         const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
-        const anexoDocxPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoDocxName}`)
-        const anexoPdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${anexoPdfName}`)
-        
-        let anexoConvertedToPdf = false
-        try {
-          await fs.writeFile(anexoDocxPath, buffer)
-          await convertDocxToPdf(anexoDocxPath, anexoPdfPath)
-          const pdfBuffer = await fs.readFile(anexoPdfPath)
-          files.push({
-            name: anexoPdfName,
-            buffer: pdfBuffer,
-          })
-          anexoConvertedToPdf = true
-        } catch (conversionError) {
-          console.warn('[leasing-contracts] Falha ao converter anexo para PDF, usando DOCX:', conversionError.message)
-          // Fall back to DOCX if PDF conversion fails
-          files.push({
-            name: anexoDocxName,
-            buffer: buffer,
-          })
-        } finally {
-          // Clean up temporary files
-          try {
-            await fs.unlink(anexoDocxPath)
-          } catch (err) {
-            // Ignore cleanup errors
-          }
-          if (anexoConvertedToPdf) {
-            try {
-              await fs.unlink(anexoPdfPath)
-            } catch (err) {
-              // Ignore cleanup errors
-            }
-          }
-        }
+        await pushPdfOrDocx({
+          buffer,
+          docxName: anexoDocxName,
+          pdfName: anexoPdfName,
+          label: `Anexo ${anexo.id}`,
+        })
       } catch (anexoError) {
         // If anexo rendering fails, log and continue with other anexos
-        console.error(`[leasing-contracts] Erro ao processar anexo ${anexo.id}:`, anexoError)
+        console.error('[leasing-contracts] Erro ao processar anexo', {
+          requestId,
+          anexo: anexo.id,
+          errMessage: anexoError?.message,
+        })
         skippedAnexos.push(anexo.id)
       }
     }
 
     if (files.length === 0) {
-      throw new LeasingContractsError(500, 'Nenhum documento pôde ser gerado. Verifique a disponibilidade dos templates.')
+      throw new LeasingContractsError(
+        500,
+        'Nenhum documento pôde ser gerado. Verifique a disponibilidade dos templates.',
+        { code: 'UNKNOWN', hint: 'Verifique se os templates estão acessíveis no deploy.' },
+      )
     }
 
     if (skippedAnexos.length > 0) {
-      console.log(`[leasing-contracts] Anexos pulados por indisponibilidade: ${skippedAnexos.join(', ')}`)
+      console.info('[leasing-contracts] Anexos pulados por indisponibilidade', {
+        requestId,
+        anexos: skippedAnexos,
+      })
+    }
+
+    const responseNotice = fallbackNotices.length > 0 ? fallbackNotices.join(' | ') : undefined
+    const responseNoticeHeader = responseNotice ? sanitizeHeaderValue(responseNotice) : ''
+    const shouldSetNoticeHeader = Boolean(responseNoticeHeader)
+    if (files.length === 1) {
+      const [single] = files
+      const extension = path.extname(single.name).toLowerCase()
+      const contentType = extension === '.pdf'
+        ? 'application/pdf'
+        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      res.statusCode = 200
+      res.setHeader('Content-Type', contentType)
+      res.setHeader('Content-Disposition', `attachment; filename="${single.name}"`)
+      res.setHeader('Cache-Control', 'no-store, max-age=0')
+      if (shouldSetNoticeHeader) {
+        res.setHeader('X-Contracts-Notice', responseNoticeHeader)
+      }
+      res.end(single.buffer)
+      return
     }
 
     const zipBuffer = await createZipFromFiles(files)
@@ -914,28 +1268,43 @@ export const handleLeasingContractsRequest = async (req, res) => {
     res.setHeader('Content-Type', 'application/zip')
     res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`)
     res.setHeader('Cache-Control', 'no-store, max-age=0')
+    if (shouldSetNoticeHeader) {
+      res.setHeader('X-Contracts-Notice', responseNoticeHeader)
+    }
     res.end(zipBuffer)
   } catch (error) {
-    const statusCode = error instanceof LeasingContractsError ? error.statusCode : 500
-    let message =
-      error instanceof LeasingContractsError
-        ? error.message
-        : 'Não foi possível gerar os contratos de leasing.'
-
-    if (!(error instanceof LeasingContractsError)) {
-      console.error('[leasing-contracts] Erro inesperado ao gerar documentos:', error)
-      
-      // In non-production environments, include more error details for debugging
-      if (process.env.NODE_ENV !== 'production') {
-        const errorDetails = error instanceof Error 
-          ? `${error.message}${error.stack ? '\n' + error.stack : ''}`
-          : String(error)
-        message = `Não foi possível gerar os contratos de leasing. Detalhes: ${errorDetails}`
-      }
+    if (error instanceof LeasingContractsError) {
+      const statusCode = error.statusCode ?? 500
+      sendErrorResponse(
+        res,
+        statusCode,
+        {
+          code: error.code ?? 'LEASING_CONTRACTS_ERROR',
+          message: error.message ?? 'Não foi possível gerar os contratos de leasing.',
+          hint: error.hint,
+        },
+        requestId,
+        vercelId,
+      )
+      return
     }
 
-    res.statusCode = statusCode
-    res.setHeader('Content-Type', 'application/json; charset=utf-8')
-    res.end(JSON.stringify({ error: message }))
+    console.error('[leasing-contracts] Erro inesperado ao gerar documentos', {
+      requestId,
+      vercelId,
+      errName: error?.name,
+      errMessage: error?.message,
+      topStack: typeof error?.stack === 'string' ? error.stack.split('\n').slice(0, 3).join('\n') : undefined,
+    })
+    const payload = buildUnknownErrorPayload(error)
+    sendErrorResponse(
+      res,
+      500,
+      {
+        ...payload,
+      },
+      requestId,
+      vercelId,
+    )
   }
 }

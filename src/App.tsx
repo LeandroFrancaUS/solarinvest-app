@@ -13147,18 +13147,35 @@ export default function App() {
     const extrairErro = async (response: Response) => {
       let mensagemErro = 'Não foi possível gerar os documentos de leasing. Tente novamente.'
       const contentType = response.headers.get('content-type') ?? ''
+      const vercelId = response.headers.get('x-vercel-id')
+      const headerRequestId = response.headers.get('x-request-id')
       try {
         if (contentType.includes('application/json')) {
-          const data = (await response.json()) as { error?: string } | undefined
-          if (data?.error) {
-            mensagemErro = data.error
-          }
-        } else {
-          const texto = await response.text()
-          if (texto.trim()) {
-            mensagemErro = texto.trim()
+          const data = (await response.json()) as
+            | {
+                error?: string
+                message?: string
+                hint?: string
+                requestId?: string
+                code?: string
+                vercelId?: string
+              }
+            | undefined
+          if (data?.message || data?.error) {
+            const baseMessage = data.message ?? data.error ?? mensagemErro
+            const hint = data.hint ? ` ${data.hint}` : ''
+            const requestId = data.requestId || headerRequestId
+            const requestLabel = requestId ? ` (ID: ${requestId})` : ''
+            const code = data.code ? ` [${data.code}]` : ''
+            const vercel = data.vercelId || vercelId
+            const vercelLabel = vercel ? ` (Vercel: ${vercel})` : ''
+            mensagemErro = `${baseMessage}${code}${hint}${requestLabel}${vercelLabel}`.trim()
+            return mensagemErro
           }
         }
+        const requestLabel = headerRequestId ? ` (ID: ${headerRequestId})` : ''
+        const vercelLabel = vercelId ? ` (Vercel: ${vercelId})` : ''
+        mensagemErro = `A função falhou antes de retornar uma resposta.${requestLabel}${vercelLabel}`
       } catch (error) {
         console.warn('Não foi possível interpretar o erro ao gerar o pacote de leasing.', error)
       }
@@ -13181,11 +13198,22 @@ export default function App() {
         throw new Error(mensagemErro)
       }
 
+      const contentType = response.headers.get('content-type') ?? ''
+      if (contentType.includes('application/json')) {
+        const mensagemErro = await extrairErro(response)
+        throw new Error(mensagemErro)
+      }
+
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const disposition = response.headers.get('content-disposition') ?? ''
       const match = disposition.match(/filename="?([^";]+)"?/i)
-      const downloadName = match?.[1] ?? 'contratos-leasing.zip'
+      const fallbackName = contentType.includes('application/pdf')
+        ? 'contrato-leasing.pdf'
+        : contentType.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+          ? 'contrato-leasing.docx'
+          : 'contratos-leasing.zip'
+      const downloadName = match?.[1] ?? fallbackName
 
       const anchor = document.createElement('a')
       anchor.href = url
@@ -13198,6 +13226,13 @@ export default function App() {
         window.URL.revokeObjectURL(url)
       }, 60_000)
 
+      const notice = response.headers.get('x-contracts-notice')
+      if (notice) {
+        adicionarNotificacao(notice, 'info')
+      }
+      if (contentType.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document')) {
+        adicionarNotificacao('PDF indisponível; DOCX gerado com sucesso.', 'info')
+      }
       adicionarNotificacao('Pacote de contratos de leasing gerado.', 'success')
     } catch (error) {
       console.error('Erro ao gerar contratos de leasing', error)

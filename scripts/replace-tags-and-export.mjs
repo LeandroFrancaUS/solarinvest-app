@@ -108,7 +108,7 @@ export async function processDirectory({ inputDir, outputDir, data, styleMap = {
 
 // ====== CLI simples ======
 // Exemplo de uso:
-// node scripts/replace-tags-and-export.mjs "/assets/templates/contratos" "/tmp/output" data.json
+// node scripts/replace-tags-and-export.mjs "/public/templates/contratos" "/tmp/output" data.json
 if (import.meta.url === `file://${process.argv[1]}`) {
   (async () => {
     const [, , inputDir, outputDir, dataJsonPath, styleJsonPath] = process.argv;

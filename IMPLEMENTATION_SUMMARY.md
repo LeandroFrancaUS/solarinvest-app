@@ -82,8 +82,8 @@ All templates can now use:
 The system already supports UF-specific templates:
 
 1. When generating a contract for a client with `uf: "GO"`:
-   - First tries: `assets/templates/contratos/leasing/GO/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
-   - Falls back to: `assets/templates/contratos/leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
+   - First tries: `assets/templates/contratos/leasing/GO/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx`
+   - Falls back to: `assets/templates/contratos/leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx`
 
 2. This allows different contract templates for different states while maintaining a default fallback
 
@@ -122,11 +122,11 @@ Quando aplicável, declara ainda ser o responsável pela Unidade Geradora (UG) n
 
 ### To Add State-Specific Templates
 
-1. Create a `.docx` file with your contract template
+1. Create a `.dotx` file with your contract template
 2. Use the template variables documented in `TEMPLATE_VARIABLES.md`
 3. Place the file in the appropriate directory:
-   - For GO: `assets/templates/contratos/leasing/GO/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
-   - For DF: `assets/templates/contratos/leasing/DF/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx`
+   - For GO: `assets/templates/contratos/leasing/GO/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx`
+   - For DF: `assets/templates/contratos/leasing/DF/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx`
 
 ### Template Variable Format
 

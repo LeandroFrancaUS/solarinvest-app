@@ -1,22 +1,18 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import crypto from 'node:crypto'
-import { execFile } from 'node:child_process'
-import util from 'node:util'
+import os from 'node:os'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-
-const execFilePromise = util.promisify(execFile)
 
 export const CONTRACT_RENDER_PATH = '/api/contracts/render'
 export const CONTRACT_TEMPLATES_PATH = '/api/contracts/templates'
 
 const CONTRACT_TEMPLATE_CATEGORIES = new Set(['leasing', 'vendas'])
 const DEFAULT_TEMPLATE_CATEGORY = 'leasing'
-const DEFAULT_TEMPLATE_FILE_NAME = 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.docx'
-const CONTRACT_TEMPLATES_DIR_RELATIVE = 'assets/templates/contratos'
+const DEFAULT_TEMPLATE_FILE_NAME = 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx'
+const CONTRACT_TEMPLATES_DIR_RELATIVE = 'public/templates/contratos'
 const DEFAULT_TEMPLATE_FILE = path.join(DEFAULT_TEMPLATE_CATEGORY, DEFAULT_TEMPLATE_FILE_NAME)
-const TMP_DIR = path.resolve(process.cwd(), 'tmp')
+const TMP_DIR = path.join(os.tmpdir(), 'solarinvest-contracts')
 const MAX_BODY_SIZE_BYTES = 256 * 1024
 
 // Valid Brazilian state codes (UF)
@@ -36,48 +32,20 @@ const isValidUf = (uf) => {
   const normalized = uf.trim().toUpperCase()
   return normalized.length === 2 && VALID_UF_CODES.has(normalized)
 }
-const PDF_PAGE_WIDTH = 612
-const PDF_PAGE_HEIGHT = 792
-const PDF_MARGIN = 72
-const PDF_FONT_SIZE = 11
-const PDF_LINE_HEIGHT = 14
-const PDF_MAX_LINE_LENGTH = 90
 
 class ContractRenderError extends Error {
   /**
    * @param {number} statusCode
    * @param {string} message
+   * @param {{ code?: string, hint?: string, retryable?: boolean }} [options]
    */
-  constructor(statusCode, message) {
+  constructor(statusCode, message, options = undefined) {
     super(message)
     this.statusCode = statusCode
+    this.code = options?.code
+    this.hint = options?.hint
+    this.retryable = options?.retryable ?? false
     this.name = 'ContractRenderError'
-  }
-}
-
-class LibreOfficeConversionError extends Error {
-  /**
-   * @param {string} message
-   * @param {{ tried?: Array<{ binary: string, error: unknown }> }} [details]
-   */
-  constructor(message, details = undefined) {
-    super(message)
-    this.name = 'LibreOfficeConversionError'
-    this.details = details
-  }
-}
-
-class GoogleDriveConversionError extends Error {
-  /**
-   * @param {string} message
-   * @param {unknown} [cause]
-   */
-  constructor(message, cause = undefined) {
-    super(message)
-    this.name = 'GoogleDriveConversionError'
-    if (cause) {
-      this.cause = cause
-    }
   }
 }
 
@@ -226,195 +194,6 @@ const applyPlaceholderReplacements = (text, data, { escapeXml = false } = {}) =>
 
 const replaceTagsInXml = (xmlContent, data) => applyPlaceholderReplacements(xmlContent, data, { escapeXml: true })
 
-const decodeXmlEntities = (value) =>
-  value
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-
-const extractPlainTextFromWordXml = (xmlContent) => {
-  if (!xmlContent) {
-    return ''
-  }
-
-  const replaced = xmlContent
-    .replace(/<w:tab[^>]*\/>/gi, '\t')
-    .replace(/<w:br[^>]*\/>/gi, '\n')
-    .replace(/<\/w:p>/gi, '\n\n')
-    .replace(/<[^>]+>/g, '')
-
-  const decoded = decodeXmlEntities(replaced).replace(/\r/g, '')
-  const rawLines = decoded.split('\n')
-  const cleanedLines = []
-
-  for (const rawLine of rawLines) {
-    const trimmed = rawLine.replace(/\s+/g, ' ').trim()
-    if (trimmed) {
-      cleanedLines.push(trimmed)
-    } else if (cleanedLines.length > 0 && cleanedLines[cleanedLines.length - 1] !== '') {
-      cleanedLines.push('')
-    }
-  }
-
-  return cleanedLines.join('\n').trim()
-}
-
-const wrapLineForPdf = (line) => {
-  if (!line) {
-    return ['']
-  }
-
-  const maxLength = PDF_MAX_LINE_LENGTH
-  if (line.length <= maxLength) {
-    return [line]
-  }
-
-  const words = line.split(/\s+/).filter(Boolean)
-  if (words.length === 0) {
-    return ['']
-  }
-
-  const wrapped = []
-  let current = ''
-
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word
-    if (candidate.length <= maxLength) {
-      current = candidate
-    } else {
-      if (current) {
-        wrapped.push(current)
-      }
-      current = word
-    }
-  }
-
-  if (current) {
-    wrapped.push(current)
-  }
-
-  return wrapped.length > 0 ? wrapped : ['']
-}
-
-const normalizeLinesForPdf = (text) => {
-  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-  const rawLines = normalized.split('\n')
-  const wrapped = []
-
-  rawLines.forEach((line, index) => {
-    const trimmedLine = line.replace(/\s+$/g, '')
-    if (trimmedLine) {
-      wrapped.push(...wrapLineForPdf(trimmedLine))
-    } else {
-      if (index === rawLines.length - 1) {
-        wrapped.push('')
-      } else if (wrapped.length === 0 || wrapped[wrapped.length - 1] !== '') {
-        wrapped.push('')
-      }
-    }
-  })
-
-  return wrapped.length > 0 ? wrapped : ['']
-}
-
-const escapePdfString = (value) => {
-  const buffer = Buffer.from(value, 'latin1')
-  let escaped = ''
-
-  for (const byte of buffer.values()) {
-    const char = String.fromCharCode(byte)
-    if (char === '\\' || char === '(' || char === ')') {
-      escaped += `\\${char}`
-    } else if (byte < 32 || byte > 126) {
-      escaped += `\\${byte.toString(8).padStart(3, '0')}`
-    } else {
-      escaped += char
-    }
-  }
-
-  return escaped
-}
-
-const createPdfBufferFromPlainText = (text) => {
-  const lines = normalizeLinesForPdf(text)
-  const linesPerPage = Math.max(1, Math.floor((PDF_PAGE_HEIGHT - PDF_MARGIN * 2) / PDF_LINE_HEIGHT))
-  const pages = []
-
-  for (let index = 0; index < lines.length; index += linesPerPage) {
-    pages.push(lines.slice(index, index + linesPerPage))
-  }
-
-  if (pages.length === 0) {
-    pages.push([''])
-  }
-
-  const objects = []
-  const addObject = (content = '') => {
-    const id = objects.length + 1
-    objects.push({ id, content })
-    return id
-  }
-
-  const catalogId = addObject()
-  const pagesId = addObject()
-  const fontId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
-
-  const contentIds = pages.map((pageLines) => {
-    let content = 'BT\n'
-    content += `/F1 ${PDF_FONT_SIZE} Tf\n`
-    content += `${PDF_MARGIN} ${PDF_PAGE_HEIGHT - PDF_MARGIN} Td\n`
-
-    pageLines.forEach((line, index) => {
-      content += `(${escapePdfString(line)}) Tj\n`
-      if (index !== pageLines.length - 1) {
-        content += `0 -${PDF_LINE_HEIGHT} Td\n`
-      }
-    })
-
-    content += 'ET'
-    const length = Buffer.byteLength(content, 'utf8')
-    return addObject(`<< /Length ${length} >>\nstream\n${content}\nendstream`)
-  })
-
-  const pageIds = pages.map(() => addObject())
-
-  pageIds.forEach((pageId, index) => {
-    const contentId = contentIds[index]
-    objects[pageId - 1].content = `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PDF_PAGE_WIDTH} ${PDF_PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`
-  })
-
-  objects[pagesId - 1].content = `<< /Type /Pages /Kids [${pageIds
-    .map((pageId) => `${pageId} 0 R`)
-    .join(' ')}] /Count ${pageIds.length} >>`
-
-  objects[catalogId - 1].content = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`
-
-  const headerBuffer = Buffer.from('%PDF-1.4\n', 'utf8')
-  const bodyChunks = [headerBuffer]
-  let currentOffset = headerBuffer.length
-  const xrefEntries = ['0000000000 65535 f \n']
-
-  objects.forEach(({ id, content }) => {
-    const objectString = `${id} 0 obj\n${content}\nendobj\n`
-    const buffer = Buffer.from(objectString, 'utf8')
-    xrefEntries.push(currentOffset.toString().padStart(10, '0') + ' 00000 n \n')
-    bodyChunks.push(buffer)
-    currentOffset += buffer.length
-  })
-
-  const xrefOffset = currentOffset
-  const xrefHeader = `xref\n0 ${objects.length + 1}\n`
-  const xrefBuffer = Buffer.from(xrefHeader + xrefEntries.join(''), 'utf8')
-  bodyChunks.push(xrefBuffer)
-  currentOffset += xrefBuffer.length
-
-  const trailer = `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
-  bodyChunks.push(Buffer.from(trailer, 'utf8'))
-
-  return Buffer.concat(bodyChunks)
-}
 
 const readJsonBody = async (req) => {
   let totalLength = 0
@@ -459,12 +238,19 @@ const sanitizeTemplateCategory = (value) => {
   return CONTRACT_TEMPLATE_CATEGORIES.has(normalized) ? normalized : null
 }
 
+const TEMPLATE_EXTENSIONS = ['.docx', '.dotx']
+
+const hasSupportedTemplateExtension = (fileName) => {
+  const lower = fileName.toLowerCase()
+  return TEMPLATE_EXTENSIONS.some((extension) => lower.endsWith(extension))
+}
+
 /**
  * Resolve o caminho do template com suporte a templates específicos por UF.
  * Ordem de busca:
- * 1. Template específico do UF (ex: leasing/GO/template.docx)
- * 2. Template padrão da categoria (ex: leasing/template.docx)
- * 
+ * 1. Template específico do UF (ex: leasing/GO/template.dotx)
+ * 2. Template padrão da categoria (ex: leasing/template.dotx)
+ *
  * @param {string} templateName - Nome do template ou caminho relativo
  * @param {string} [clienteUf] - UF do cliente para resolução de templates específicos
  */
@@ -480,7 +266,7 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
     const segments = normalized.split('/').filter(Boolean)
     if (segments.length === 1) {
       fileName = path.basename(segments[0])
-      if (!fileName.toLowerCase().endsWith('.docx')) {
+      if (!hasSupportedTemplateExtension(fileName)) {
         throw new ContractRenderError(400, 'Template de contrato inválido.')
       }
       category = DEFAULT_TEMPLATE_CATEGORY
@@ -490,11 +276,11 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
         throw new ContractRenderError(400, 'Categoria de template inválida.')
       }
       fileName = path.basename(segments[1])
-      if (!fileName.toLowerCase().endsWith('.docx')) {
+      if (!hasSupportedTemplateExtension(fileName)) {
         throw new ContractRenderError(400, 'Template de contrato inválido.')
       }
     } else if (segments.length === 3) {
-      // Suporta caminho completo: categoria/UF/arquivo.docx
+      // Suporta caminho completo: categoria/UF/arquivo.dotx
       category = sanitizeTemplateCategory(segments[0])
       if (!category) {
         throw new ContractRenderError(400, 'Categoria de template inválida.')
@@ -504,7 +290,7 @@ const resolveTemplatePath = async (templateName, clienteUf) => {
         throw new ContractRenderError(400, 'UF inválido no caminho do template.')
       }
       fileName = path.basename(segments[2])
-      if (!fileName.toLowerCase().endsWith('.docx')) {
+      if (!hasSupportedTemplateExtension(fileName)) {
         throw new ContractRenderError(400, 'Template de contrato inválido.')
       }
       relativePath = path.join(category, segments[1].toUpperCase(), fileName)
@@ -688,298 +474,304 @@ const cleanupTmpFiles = async (...files) => {
   )
 }
 
-const MACOS_LIBREOFFICE_BINARIES = [
-  '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-  '/Applications/LibreOffice.app/Contents/MacOS/soffice.bin',
-]
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const getLibreOfficeCandidates = () => {
-  const configured = typeof process.env.LIBREOFFICE_BIN === 'string'
-    ? process.env.LIBREOFFICE_BIN.trim()
-    : ''
-
-  const candidates = []
-  if (configured) {
-    candidates.push(configured)
+const withTimeout = async (promise, timeoutMs, timeoutMessage) => {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(timeoutMessage), timeoutMs)
+  try {
+    const result = await promise(controller.signal)
+    clearTimeout(timeoutId)
+    return result
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error && error.name === 'AbortError') {
+      throw new ContractRenderError(
+        502,
+        timeoutMessage ?? 'Falha ao converter o contrato para PDF (tempo esgotado).',
+        { code: 'PDF_CONVERSION_TIMEOUT', hint: 'Tente novamente mais tarde.', retryable: true },
+      )
+    }
+    throw error
   }
-
-  if (process.platform === 'darwin') {
-    candidates.push(...MACOS_LIBREOFFICE_BINARIES)
-  }
-
-  candidates.push('soffice', 'libreoffice', 'lowriter')
-
-  return [...new Set(candidates)]
 }
 
-const convertDocxToPdfUsingLibreOffice = async (docxPath) => {
-  const args = ['--headless', '--convert-to', 'pdf', '--outdir', TMP_DIR, docxPath]
-
-  const tried = []
-  for (const binary of getLibreOfficeCandidates()) {
+const retryOperation = async (operation, retries, delays) => {
+  let attempt = 0
+  while (true) {
     try {
-      await execFilePromise(binary, args)
-      return
+      return await operation()
     } catch (error) {
-      tried.push({ binary, error })
-
-      // Se for erro diferente de binário inexistente, não há motivo para tentar outros
-      if (!(error && error.code === 'ENOENT')) {
-        break
+      if (!(error instanceof ContractRenderError) || !error.retryable || attempt >= retries) {
+        throw error
+      }
+      const delay = delays[Math.min(attempt, delays.length - 1)] ?? 0
+      attempt += 1
+      if (delay > 0) {
+        await sleep(delay)
       }
     }
   }
-
-  const details = tried
-    .map(({ binary, error }) =>
-      `${binary}: ${error && error.code ? error.code : 'falha desconhecida'}`,
-    )
-    .join('; ')
-
-  throw new LibreOfficeConversionError(
-    details
-      ? `Falha ao converter o contrato para PDF com o LibreOffice (tentativas: ${details}).`
-      : 'Falha ao converter o contrato para PDF com o LibreOffice.',
-    { tried },
-  )
 }
 
-const GOOGLE_DRIVE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
-const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
+const CONVERTAPI_ENDPOINT = 'https://v2.convertapi.com/convert/docx/to/pdf'
+const CONVERTAPI_TIMEOUT_MS = 20000
+const PROVIDER_RETRIES = 2
+const RETRY_DELAYS_MS = [400, 1200]
+const CONVERTAPI_CIRCUIT_WINDOW_MS = 5 * 60 * 1000
+const CONVERTAPI_CIRCUIT_DISABLE_MS = 10 * 60 * 1000
+const convertApiCircuit = {
+  failures: [],
+  disabledUntil: 0,
+}
 
-const base64UrlEncode = (value) =>
-  Buffer.from(value)
-    .toString('base64')
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-
-const getGoogleDriveCredentials = () => {
-  const clientEmail = typeof process.env.GOOGLE_DRIVE_CLIENT_EMAIL === 'string'
-    ? process.env.GOOGLE_DRIVE_CLIENT_EMAIL.trim()
+const getConvertApiSecret = () => {
+  const secret = typeof process.env.CONVERTAPI_SECRET === 'string'
+    ? process.env.CONVERTAPI_SECRET.trim()
     : ''
-  const privateKeyRaw = typeof process.env.GOOGLE_DRIVE_PRIVATE_KEY === 'string'
-    ? process.env.GOOGLE_DRIVE_PRIVATE_KEY.trim()
-    : ''
+  return secret || null
+}
 
-  if (!clientEmail || !privateKeyRaw) {
-    return undefined
+const getGotenbergUrl = () => {
+  const raw = typeof process.env.GOTENBERG_URL === 'string'
+    ? process.env.GOTENBERG_URL.trim()
+    : ''
+  return raw ? raw.replace(/\/+$/, '') : null
+}
+
+export const isConvertApiConfigured = () => Boolean(getConvertApiSecret())
+export const isGotenbergConfigured = () => Boolean(getGotenbergUrl())
+
+const isConvertApiAvailable = () => Date.now() >= convertApiCircuit.disabledUntil
+
+const recordConvertApiFailure = () => {
+  const now = Date.now()
+  convertApiCircuit.failures = convertApiCircuit.failures.filter(
+    (timestamp) => now - timestamp < CONVERTAPI_CIRCUIT_WINDOW_MS,
+  )
+  convertApiCircuit.failures.push(now)
+  if (convertApiCircuit.failures.length >= 3) {
+    convertApiCircuit.disabledUntil = now + CONVERTAPI_CIRCUIT_DISABLE_MS
+  }
+}
+
+const clearConvertApiFailures = () => {
+  convertApiCircuit.failures = []
+  convertApiCircuit.disabledUntil = 0
+}
+
+const convertDocxToPdfUsingConvertApi = async (docxPath, pdfPath) => {
+  const secret = getConvertApiSecret()
+  if (!secret) {
+    throw new ContractRenderError(
+      424,
+      'Falha ao converter o contrato para PDF. Configure CONVERTAPI_SECRET com um token válido.',
+      {
+        code: 'PDF_CONVERSION_MISCONFIGURED',
+        hint: 'Configure CONVERTAPI_SECRET nas variáveis de ambiente.',
+      },
+    )
   }
 
-  const privateKey = privateKeyRaw.replace(/\\n/g, '\n')
+  if (!isConvertApiAvailable()) {
+    throw new ContractRenderError(
+      503,
+      'Conversão para PDF indisponível temporariamente.',
+      { code: 'PDF_CONVERSION_TEMPORARILY_DISABLED', retryable: true },
+    )
+  }
 
-  return { clientEmail, privateKey }
-}
-
-const requestGoogleDriveAccessToken = async (clientEmail, privateKey) => {
-  const headerSegment = base64UrlEncode(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
-  const now = Math.floor(Date.now() / 1000)
-  const payloadSegment = base64UrlEncode(
-    JSON.stringify({
-      iss: clientEmail,
-      scope: GOOGLE_DRIVE_SCOPE,
-      aud: GOOGLE_DRIVE_TOKEN_URL,
-      exp: now + 3600,
-      iat: now,
+  const docxBuffer = await fs.readFile(docxPath)
+  const formData = new FormData()
+  formData.append(
+    'File',
+    new Blob([docxBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     }),
+    path.basename(docxPath),
   )
 
-  const toSign = `${headerSegment}.${payloadSegment}`
-  const signer = crypto.createSign('RSA-SHA256')
-  signer.update(toSign)
-  signer.end()
-  const signature = signer.sign(privateKey)
-  const signatureSegment = base64UrlEncode(signature)
+  const response = await withTimeout(
+    (signal) =>
+      fetch(`${CONVERTAPI_ENDPOINT}?Secret=${encodeURIComponent(secret)}`, {
+        method: 'POST',
+        body: formData,
+        signal,
+      }),
+    CONVERTAPI_TIMEOUT_MS,
+    'Falha ao converter o contrato para PDF (tempo esgotado no ConvertAPI).',
+  )
 
-  const assertion = `${toSign}.${signatureSegment}`
-
-  const params = new URLSearchParams()
-  params.set('grant_type', 'urn:ietf:params:oauth:grant-type:jwt-bearer')
-  params.set('assertion', assertion)
-
-  const response = await fetch(GOOGLE_DRIVE_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: params.toString(),
-  })
+  const responseText = await response.text()
+  let json = null
+  try {
+    json = responseText ? JSON.parse(responseText) : null
+  } catch (parseError) {
+    json = null
+  }
 
   if (!response.ok) {
-    const errorBody = await response.text()
-    throw new GoogleDriveConversionError(
-      `Falha ao obter token de acesso do Google Drive (${response.status}).`,
-      errorBody,
+    const errorMessage = json?.Message || json?.message || responseText || 'Erro desconhecido.'
+    if (response.status === 401 || response.status === 403) {
+      throw new ContractRenderError(
+        424,
+        `Falha ao converter o contrato para PDF (${response.status}). ${errorMessage}`,
+        {
+          code: 'PDF_CONVERSION_AUTH_FAILED',
+          hint: 'Verifique se o token CONVERTAPI_SECRET está válido.',
+        },
+      )
+    }
+
+    const retryable = response.status >= 500 || response.status === 429 || response.status === 408
+    throw new ContractRenderError(
+      502,
+      `Falha ao converter o contrato para PDF (${response.status}). ${errorMessage}`,
+      { code: 'PDF_CONVERSION_FAILED', retryable },
     )
   }
 
-  const json = await response.json()
-  if (!json || typeof json.access_token !== 'string') {
-    throw new GoogleDriveConversionError('Resposta inválida ao obter token de acesso do Google Drive.', json)
+  if (!json) {
+    throw new ContractRenderError(502, 'Resposta inválida do serviço de conversão de PDF.', {
+      code: 'PDF_CONVERSION_FAILED',
+      retryable: true,
+    })
   }
 
-  return json.access_token
-}
-
-const uploadDocxToGoogleDrive = async (docxBuffer, accessToken) => {
-  const boundary = `boundary_${Date.now()}_${Math.random().toString(16).slice(2)}`
-  const metadata = {
-    name: `contrato_${Date.now()}.docx`,
-    mimeType: 'application/vnd.google-apps.document',
+  const fileUrl = json?.Files?.[0]?.Url
+  if (!fileUrl) {
+    throw new ContractRenderError(502, 'Resposta inválida do serviço de conversão de PDF.', {
+      code: 'PDF_CONVERSION_FAILED',
+      retryable: true,
+    })
   }
 
-  const preamble = Buffer.from(
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`,
+  const pdfResponse = await withTimeout(
+    (signal) => fetch(fileUrl, { signal }),
+    CONVERTAPI_TIMEOUT_MS,
+    'Falha ao baixar o PDF convertido (tempo esgotado no ConvertAPI).',
   )
-  const middle = Buffer.from(
-    `--${boundary}\r\nContent-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document\r\n\r\n`,
-  )
-  const closing = Buffer.from(`\r\n--${boundary}--\r\n`)
-
-  const body = Buffer.concat([preamble, middle, docxBuffer, closing])
-
-  const response = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`,
-      },
-      body,
-    },
-  )
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-    throw new GoogleDriveConversionError(
-      `Falha ao enviar documento para o Google Drive (${response.status}).`,
-      errorBody,
+  if (!pdfResponse.ok) {
+    throw new ContractRenderError(
+      502,
+      `Falha ao baixar o PDF convertido (${pdfResponse.status}).`,
+      { code: 'PDF_CONVERSION_FAILED', retryable: pdfResponse.status >= 500 },
     )
   }
 
-  const json = await response.json()
-  if (!json || typeof json.id !== 'string') {
-    throw new GoogleDriveConversionError('Resposta inválida ao enviar documento para o Google Drive.', json)
-  }
-
-  return json.id
+  const arrayBuffer = await pdfResponse.arrayBuffer()
+  await fs.writeFile(pdfPath, Buffer.from(arrayBuffer))
 }
 
-const exportGoogleDriveFileToPdf = async (fileId, accessToken) => {
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=application/pdf&supportsAllDrives=true`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
+const convertDocxToPdfUsingGotenberg = async (docxPath, pdfPath) => {
+  const gotenbergUrl = getGotenbergUrl()
+  if (!gotenbergUrl) {
+    throw new ContractRenderError(
+      424,
+      'Falha ao converter o contrato para PDF. Configure GOTENBERG_URL para habilitar o fallback.',
+      {
+        code: 'PDF_CONVERSION_MISCONFIGURED',
+        hint: 'Configure GOTENBERG_URL nas variáveis de ambiente.',
       },
-    },
+    )
+  }
+
+  const docxBuffer = await fs.readFile(docxPath)
+  const formData = new FormData()
+  formData.append(
+    'files',
+    new Blob([docxBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }),
+    path.basename(docxPath),
+  )
+
+  const response = await withTimeout(
+    (signal) =>
+      fetch(`${gotenbergUrl}/forms/libreoffice/convert`, {
+        method: 'POST',
+        body: formData,
+        signal,
+      }),
+    CONVERTAPI_TIMEOUT_MS,
+    'Falha ao converter o contrato para PDF (tempo esgotado no Gotenberg).',
   )
 
   if (!response.ok) {
     const errorBody = await response.text()
-    throw new GoogleDriveConversionError(
-      `Falha ao exportar documento do Google Drive (${response.status}).`,
-      errorBody,
+    const retryable = response.status >= 500 || response.status === 429 || response.status === 408
+    throw new ContractRenderError(
+      502,
+      `Falha ao converter o contrato para PDF (${response.status}). ${errorBody || 'Erro desconhecido.'}`,
+      { code: 'PDF_CONVERSION_FAILED', retryable },
     )
   }
 
   const arrayBuffer = await response.arrayBuffer()
-  return Buffer.from(arrayBuffer)
-}
-
-const deleteGoogleDriveFile = async (fileId, accessToken) => {
-  try {
-    await fetch(
-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`,
-      {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      },
-    )
-  } catch (error) {
-    console.warn('[contracts] Falha ao remover arquivo temporário do Google Drive:', error)
-  }
-}
-
-const convertDocxToPdfUsingGoogleDrive = async (docxPath, pdfPath) => {
-  const credentials = getGoogleDriveCredentials()
-  if (!credentials) {
-    throw new GoogleDriveConversionError('Credenciais do Google Drive não configuradas.')
-  }
-
-  const accessToken = await requestGoogleDriveAccessToken(credentials.clientEmail, credentials.privateKey)
-  const docxBuffer = await fs.readFile(docxPath)
-  const fileId = await uploadDocxToGoogleDrive(docxBuffer, accessToken)
-
-  try {
-    const pdfBuffer = await exportGoogleDriveFileToPdf(fileId, accessToken)
-    await fs.writeFile(pdfPath, pdfBuffer)
-  } finally {
-    await deleteGoogleDriveFile(fileId, accessToken)
-  }
-}
-
-const convertDocxToPdfUsingTextFallback = async (docxPath, pdfPath) => {
-  const JSZip = await loadJsZip()
-  const docxBuffer = await fs.readFile(docxPath)
-  const zip = await JSZip.loadAsync(docxBuffer)
-  const documentFile = zip.file('word/document.xml')
-
-  if (!documentFile) {
-    throw new Error('Arquivo word/document.xml ausente no DOCX gerado.')
-  }
-
-  const xmlContent = await documentFile.async('string')
-  const plainText = extractPlainTextFromWordXml(xmlContent)
-
-  if (!plainText) {
-    throw new Error('Não foi possível extrair conteúdo textual do contrato gerado.')
-  }
-
-  const pdfBuffer = createPdfBufferFromPlainText(plainText)
-  await fs.writeFile(pdfPath, pdfBuffer)
+  await fs.writeFile(pdfPath, Buffer.from(arrayBuffer))
 }
 
 export const convertDocxToPdf = async (docxPath, pdfPath) => {
-  try {
-    await convertDocxToPdfUsingLibreOffice(docxPath)
-    return
-  } catch (error) {
-    if (!(error instanceof LibreOfficeConversionError)) {
-      throw error
-    }
+  const convertApiConfigured = isConvertApiConfigured()
+  const gotenbergConfigured = isGotenbergConfigured()
+  const convertApiAvailable = convertApiConfigured && isConvertApiAvailable()
 
-    console.warn('[contracts] Falha na conversão via LibreOffice, tentando fallbacks alternativos...', error)
+  if (!convertApiAvailable && convertApiConfigured && !gotenbergConfigured) {
+    throw new ContractRenderError(
+      503,
+      'Conversão para PDF indisponível temporariamente.',
+      {
+        code: 'PDF_CONVERSION_TEMPORARILY_DISABLED',
+        hint: 'Tente novamente mais tarde ou configure um fallback.',
+        retryable: true,
+      },
+    )
   }
 
-  const fallbackErrors = []
-  const driveCredentials = getGoogleDriveCredentials()
+  const providers = []
+  if (convertApiAvailable) {
+    providers.push({ name: 'convertapi', handler: () => convertDocxToPdfUsingConvertApi(docxPath, pdfPath) })
+  }
+  if (gotenbergConfigured) {
+    providers.push({ name: 'gotenberg', handler: () => convertDocxToPdfUsingGotenberg(docxPath, pdfPath) })
+  }
 
-  if (driveCredentials) {
+  if (providers.length === 0) {
+    throw new ContractRenderError(
+      424,
+      'Conversão para PDF indisponível no servidor.',
+      {
+        code: 'PDF_CONVERSION_MISCONFIGURED',
+        hint: 'Configure CONVERTAPI_SECRET ou GOTENBERG_URL para habilitar a conversão.',
+      },
+    )
+  }
+
+  let lastError
+  for (const provider of providers) {
     try {
-      await convertDocxToPdfUsingGoogleDrive(docxPath, pdfPath)
-      return
-    } catch (driveError) {
-      fallbackErrors.push(driveError)
-      console.error('[contracts] Falha na conversão via Google Drive:', driveError)
+      const result = await retryOperation(provider.handler, PROVIDER_RETRIES, RETRY_DELAYS_MS)
+      if (provider.name === 'convertapi') {
+        clearConvertApiFailures()
+      }
+      return result
+    } catch (error) {
+      lastError = error
+      if (provider.name === 'convertapi') {
+        recordConvertApiFailure()
+      }
     }
   }
 
-  const message = driveCredentials
-    ? 'Falha ao converter o contrato para PDF. Verifique o LibreOffice ou o Google Drive.'
-    : 'Falha ao converter o contrato para PDF. Verifique a instalação do LibreOffice.'
-
-  if (fallbackErrors.length > 0) {
-    fallbackErrors.forEach((err) => {
-      console.error('[contracts] Detalhes adicionais da falha de conversão:', err)
-    })
+  if (lastError instanceof ContractRenderError) {
+    throw lastError
   }
 
-  throw new ContractRenderError(500, message)
+  throw new ContractRenderError(
+    502,
+    'Falha ao converter o contrato para PDF.',
+    { code: 'PDF_CONVERSION_FAILED' },
+  )
 }
 
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*)\.xml$/
@@ -1026,61 +818,11 @@ const generateContractPdfFromDocx = async ({ templatePath, templateFileName }, d
 
     throw new ContractRenderError(
       500,
-      'Falha ao converter o contrato para PDF. Verifique se o LibreOffice está instalado corretamente.',
+      'Falha ao converter o contrato para PDF. Verifique a configuração dos provedores de conversão.',
     )
   } finally {
     await cleanupTmpFiles(docxPath, pdfPath)
   }
-}
-
-const resolvePlainTextTemplatePath = async (templatePath) => {
-  const textPath = templatePath.replace(/\.docx$/i, '.txt')
-  try {
-    await fs.access(textPath)
-    return textPath
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
-      return null
-    }
-    throw error
-  }
-}
-
-const generateContractPdfFromPlainText = async ({ templatePath, templateFileName }, data) => {
-  const textPath = await resolvePlainTextTemplatePath(templatePath)
-  if (!textPath) {
-    throw new ContractRenderError(
-      500,
-      'Fallback textual de contratos indisponível. Verifique se os templates em texto estão presentes.',
-    )
-  }
-
-  const templateText = await fs.readFile(textPath, 'utf8')
-  const replacedText = applyPlaceholderReplacements(templateText, data)
-  const pdfBuffer = createPdfBufferFromPlainText(replacedText)
-  return { pdfBuffer, templateFileName }
-}
-
-const shouldFallbackToPlainText = (error) => {
-  if (!error) {
-    return false
-  }
-
-  if (error instanceof ContractRenderError) {
-    if (typeof error.statusCode === 'number' && error.statusCode !== 500) {
-      return false
-    }
-    return true
-  }
-
-  if (error && typeof error === 'object') {
-    const code = /** @type {{ code?: string }} */ (error).code
-    if (code === 'MODULE_NOT_FOUND' || code === 'ERR_MODULE_NOT_FOUND') {
-      return true
-    }
-  }
-
-  return true
 }
 
 const generateContractPdf = async (cliente, templateName) => {
@@ -1094,29 +836,11 @@ const generateContractPdf = async (cliente, templateName) => {
   const dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
   const data = { ...cliente, dataAtualExtenso }
 
-  try {
-    return await generateContractPdfFromDocx(templateInfo, data)
-  } catch (error) {
-    if (!shouldFallbackToPlainText(error)) {
-      throw error
-    }
-
-    console.warn(
-      `[contracts] Falha ao gerar contrato utilizando template DOCX (${templateFileName}). Aplicando fallback em modo texto.`,
-      error,
-    )
-
-    try {
-      return await generateContractPdfFromPlainText(templateInfo, data)
-    } catch (fallbackError) {
-      console.error('[contracts] Falha ao gerar contrato via fallback textual:', fallbackError)
-      throw error instanceof Error ? error : new ContractRenderError(500, 'Falha ao gerar contrato PDF.')
-    }
-  }
+  return generateContractPdfFromDocx(templateInfo, data)
 }
 
 const sanitizeTemplateDownloadName = (templateFileName) => {
-  const withoutExtension = templateFileName.replace(/\.docx$/i, '')
+  const withoutExtension = templateFileName.replace(/\.(docx|dotx)$/i, '')
   const normalized = withoutExtension.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/_+/g, '_')
   return normalized || 'Contrato'
 }
@@ -1124,8 +848,8 @@ const sanitizeTemplateDownloadName = (templateFileName) => {
 /**
  * Lista templates disponíveis em uma categoria, incluindo templates específicos por UF.
  * Retorna templates no formato:
- * - categoria/arquivo.docx (templates padrão)
- * - categoria/UF/arquivo.docx (templates específicos por estado)
+ * - categoria/arquivo.dotx (templates padrão)
+ * - categoria/UF/arquivo.dotx (templates específicos por estado)
  * 
  * @param {string} category - Categoria de template (leasing, vendas)
  * @param {string} [ufFilter] - Opcional: filtrar apenas templates de um UF específico
@@ -1146,7 +870,7 @@ const listAvailableTemplates = async (category, ufFilter) => {
 
   // Adiciona templates diretos da categoria (templates padrão)
   for (const entry of entries) {
-    if (entry.isFile() && entry.name.toLowerCase().endsWith('.docx')) {
+    if (entry.isFile() && hasSupportedTemplateExtension(entry.name)) {
       if (!ufFilter) {
         templates.push(`${category}/${entry.name}`)
       }
@@ -1164,7 +888,7 @@ const listAvailableTemplates = async (category, ufFilter) => {
         try {
           const ufEntries = await fs.readdir(ufDirectory, { withFileTypes: true })
           for (const ufEntry of ufEntries) {
-            if (ufEntry.isFile() && ufEntry.name.toLowerCase().endsWith('.docx')) {
+            if (ufEntry.isFile() && hasSupportedTemplateExtension(ufEntry.name)) {
               templates.push(`${category}/${dirName}/${ufEntry.name}`)
             }
           }
