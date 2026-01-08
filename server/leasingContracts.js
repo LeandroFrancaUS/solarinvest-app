@@ -587,6 +587,11 @@ const normalizeWordXmlForMustache = (xml) => {
     result = result.replace(
       adjacentRunsPattern,
       (match, runContent, text1, nextRunContent, text2) => {
+        const hasLineBreaks =
+          /<w:(br|cr|tab)\b/.test(runContent) || /<w:(br|cr|tab)\b/.test(nextRunContent)
+        if (hasLineBreaks) {
+          return match
+        }
         const runPropsRegex = /<w:rPr[\s\S]*?<\/w:rPr>/
         const runPropsMatch = runContent.match(runPropsRegex)
         const nextRunPropsMatch = nextRunContent.match(runPropsRegex)
