@@ -8,6 +8,7 @@ import type { ReactElement } from 'react';
 import { ContratoLeasingPdf } from './contratoLeasing';
 import { AnexoIPdf } from './anexoI';
 import { AnexoIIPdf } from './anexoII';
+import { ContratoBundlePdf } from './contratoBundle';
 import type { ContratoData } from '../schemas/contrato.schema';
 
 export type PdfTemplateId = 
@@ -50,7 +51,7 @@ export const TEMPLATES: Record<PdfTemplateId, TemplateConfig> = {
   contrato_bundle: {
     id: 'contrato_bundle',
     name: 'Contrato Completo (com Anexos)',
-    component: ContratoLeasingPdf, // Will be implemented later for consolidated PDF
+    component: ContratoBundlePdf,
   },
 };
 
