@@ -8,10 +8,13 @@ export type ModoVenda = 'direta' | 'leasing'
 export type VendaClienteInfo = {
   nome: string
   documento: string
+  rg: string
+  estadoCivil: string
   email: string
   telefone: string
   cidade: string
   uf: string
+  enderecoContratante: string
   endereco: string
   uc: string
   distribuidora: string
@@ -127,10 +130,13 @@ const createInitialState = (): VendaState => ({
   cliente: {
     nome: '',
     documento: '',
+    rg: '',
+    estadoCivil: '',
     email: '',
     telefone: '',
     cidade: '',
     uf: '',
+    enderecoContratante: '',
     endereco: '',
     uc: '',
     distribuidora: '',

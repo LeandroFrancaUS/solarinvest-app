@@ -573,6 +573,15 @@ type ClienteMensagens = {
   cep?: string | undefined
 }
 
+type CampoObrigatorioKey = ClienteCampoTexto | 'segmentoCliente' | 'tipoEdificacaoOutro'
+
+type CampoObrigatorioContext = {
+  cliente: ClienteDados
+  segmentoCliente: SegmentoCliente
+  tipoEdificacaoOutro: string
+  tusdTipoCliente: TipoClienteTUSD
+}
+
 type NotificacaoTipo = 'success' | 'info' | 'error'
 
 type Notificacao = {
@@ -990,10 +999,35 @@ type UcBeneficiariaFormState = {
   rateioPercentual: string
 }
 
-const CAMPOS_CLIENTE_OBRIGATORIOS: { key: ClienteCampoTexto; label: string }[] = [
-  { key: 'nome', label: 'Nome do cliente' },
+const CAMPOS_CLIENTE_OBRIGATORIOS: {
+  key: CampoObrigatorioKey
+  label: string
+  isMissing?: (context: CampoObrigatorioContext) => boolean
+}[] = [
+  { key: 'nome', label: 'Nome ou Razão social' },
+  { key: 'documento', label: 'CPF/CNPJ' },
+  { key: 'rg', label: 'RG' },
+  { key: 'estadoCivil', label: 'Estado Civil' },
+  { key: 'email', label: 'E-mail' },
+  { key: 'telefone', label: 'Telefone' },
+  { key: 'cep', label: 'CEP' },
+  { key: 'distribuidora', label: 'Distribuidora (ANEEL)' },
+  {
+    key: 'segmentoCliente',
+    label: 'Tipo de Edificação',
+    isMissing: ({ segmentoCliente }) => !segmentoCliente,
+  },
+  {
+    key: 'tipoEdificacaoOutro',
+    label: 'Tipo de Edificação (outros)',
+    isMissing: ({ segmentoCliente, tipoEdificacaoOutro, tusdTipoCliente }) =>
+      (segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && !tipoEdificacaoOutro.trim(),
+  },
+  { key: 'uc', label: 'UC Geradora (número)' },
+  { key: 'enderecoContratante', label: 'Endereço do Contratante' },
+  { key: 'endereco', label: 'Endereço de instalação da UC geradora' },
   { key: 'cidade', label: 'Cidade' },
-  { key: 'uf', label: 'Estado' },
+  { key: 'uf', label: 'UF ou Estado' },
 ]
 
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
@@ -1013,11 +1047,14 @@ const CLIENTE_ID_MAX_ATTEMPTS = 10000
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
   documento: '',
+  rg: '',
+  estadoCivil: '',
   email: '',
   telefone: '',
   cep: '',
   distribuidora: '',
   uc: '',
+  enderecoContratante: '',
   endereco: '',
   cidade: 'Anápolis',
   uf: 'GO',
@@ -4191,6 +4228,17 @@ export default function App() {
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+  const [camposObrigatoriosFaltantes, setCamposObrigatoriosFaltantes] = useState<
+    CampoObrigatorioKey[]
+  >([])
+  const camposObrigatoriosFaltantesSet = useMemo(
+    () => new Set(camposObrigatoriosFaltantes),
+    [camposObrigatoriosFaltantes],
+  )
+  const isCampoObrigatorioFaltante = useCallback(
+    (key: CampoObrigatorioKey) => camposObrigatoriosFaltantesSet.has(key),
+    [camposObrigatoriosFaltantesSet],
+  )
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
   const enderecoClienteCompleto = useMemo(() => {
@@ -4233,10 +4281,13 @@ export default function App() {
     vendaActions.updateCliente({
       nome: cliente.nome ?? '',
       documento: cliente.documento ?? '',
+      rg: cliente.rg ?? '',
+      estadoCivil: cliente.estadoCivil ?? '',
       email: cliente.email ?? '',
       telefone: cliente.telefone ?? '',
       cidade: cliente.cidade ?? '',
       uf: cliente.uf ?? '',
+      enderecoContratante: cliente.enderecoContratante ?? '',
       endereco: cliente.endereco ?? '',
       uc: cliente.uc ?? '',
       distribuidora: cliente.distribuidora ?? '',
@@ -5022,6 +5073,20 @@ export default function App() {
 
       // Atualiza o estado original
       updateSegmentoCliente(novoValor)
+      if (novoValor) {
+        setCamposObrigatoriosFaltantes((prev) =>
+          prev.includes('segmentoCliente')
+            ? prev.filter((campo) => campo !== 'segmentoCliente')
+            : prev,
+        )
+      }
+      if (novoValor !== 'outros') {
+        setCamposObrigatoriosFaltantes((prev) =>
+          prev.includes('tipoEdificacaoOutro')
+            ? prev.filter((campo) => campo !== 'tipoEdificacaoOutro')
+            : prev,
+        )
+      }
 
       if (!isSegmentoCondominio(novoValor)) {
         setCliente((prev) => {
@@ -5040,7 +5105,14 @@ export default function App() {
 
       resetRetorno?.()
     },
-    [resetRetorno, setCliente, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
+    [
+      resetRetorno,
+      setCamposObrigatoriosFaltantes,
+      setCliente,
+      syncStateRef,
+      updateSegmentoCliente,
+      updateTusdTipoCliente,
+    ],
   )
 
   const handleTusdTipoClienteChange = useCallback(
@@ -5049,6 +5121,13 @@ export default function App() {
       syncStateRef.current.tusdEdited = true
 
       updateTusdTipoCliente(novoValor)
+      if (novoValor !== 'outros') {
+        setCamposObrigatoriosFaltantes((prev) =>
+          prev.includes('tipoEdificacaoOutro')
+            ? prev.filter((campo) => campo !== 'tipoEdificacaoOutro')
+            : prev,
+        )
+      }
 
       // Se o outro campo não tiver sido editado
       if (!syncStateRef.current.segmentEdited) {
@@ -5057,7 +5136,13 @@ export default function App() {
 
       resetRetorno?.()
     },
-    [resetRetorno, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
+    [
+      resetRetorno,
+      setCamposObrigatoriosFaltantes,
+      syncStateRef,
+      updateSegmentoCliente,
+      updateTusdTipoCliente,
+    ],
   )
 
   const handleTipoSistemaChange = useCallback(
@@ -8598,15 +8683,40 @@ export default function App() {
     return { html: sanitizedLayoutHtml, dados: dadosParaImpressao }
   }, [printableData])
 
+  const obterCamposObrigatoriosFaltantes = useCallback(() => {
+    const context: CampoObrigatorioContext = {
+      cliente,
+      segmentoCliente,
+      tipoEdificacaoOutro,
+      tusdTipoCliente,
+    }
+
+    return CAMPOS_CLIENTE_OBRIGATORIOS.filter((campo) => {
+      if (campo.isMissing) {
+        return campo.isMissing(context)
+      }
+
+      if (campo.key === 'segmentoCliente' || campo.key === 'tipoEdificacaoOutro') {
+        return false
+      }
+
+      return !cliente[campo.key].trim()
+    })
+  }, [cliente, segmentoCliente, tipoEdificacaoOutro, tusdTipoCliente])
+
   const validarCamposObrigatorios = useCallback(
     (acao: string = 'exportar') => {
-      const faltantes = CAMPOS_CLIENTE_OBRIGATORIOS.filter(({ key }) => !cliente[key].trim())
+      const faltantes = obterCamposObrigatoriosFaltantes()
+      setCamposObrigatoriosFaltantes(faltantes.map((campo) => campo.key))
       if (faltantes.length > 0) {
         const mensagem = `Preencha os campos obrigatórios antes de ${acao}: ${faltantes
           .map((campo) => campo.label)
           .join(', ')}`
         window.alert(mensagem)
         return false
+      }
+      if (camposObrigatoriosFaltantes.length > 0) {
+        setCamposObrigatoriosFaltantes([])
       }
       if (isVendaDiretaTab) {
         if (valorTotalPropostaNormalizado == null) {
@@ -8616,7 +8726,12 @@ export default function App() {
       }
       return true
     },
-    [cliente, isVendaDiretaTab, valorTotalPropostaNormalizado],
+    [
+      camposObrigatoriosFaltantes.length,
+      isVendaDiretaTab,
+      obterCamposObrigatoriosFaltantes,
+      valorTotalPropostaNormalizado,
+    ],
   )
 
   const mapClienteRegistroToSyncPayload = (registro: ClienteRegistro): ClienteRegistroSyncPayload => ({
@@ -11382,11 +11497,14 @@ export default function App() {
         const clienteNormalizado: ClienteDados = {
           nome: clienteDados.nome ?? '',
           documento: clienteDados.documento ?? '',
+          rg: clienteDados.rg ?? '',
+          estadoCivil: clienteDados.estadoCivil ?? '',
           email: clienteDados.email ?? '',
           telefone: clienteDados.telefone ?? '',
           cep: clienteDados.cep ?? '',
           distribuidora: clienteDados.distribuidora ?? '',
           uc: clienteDados.uc ?? '',
+          enderecoContratante: clienteDados.enderecoContratante ?? '',
           endereco: clienteDados.endereco ?? '',
           cidade: clienteDados.cidade ?? '',
           uf: clienteDados.uf ?? '',
@@ -13679,6 +13797,18 @@ export default function App() {
       if (distribuidoraAlterada) {
         syncClienteField('distribuidora', distribuidoraAtualizada ?? '')
       }
+      if (value.trim()) {
+        setCamposObrigatoriosFaltantes((prev) =>
+          prev.includes('uf') ? prev.filter((campo) => campo !== 'uf') : prev,
+        )
+      }
+      if (distribuidoraAtualizada?.trim()) {
+        setCamposObrigatoriosFaltantes((prev) =>
+          prev.includes('distribuidora')
+            ? prev.filter((campo) => campo !== 'distribuidora')
+            : prev,
+        )
+      }
       return
     }
 
@@ -13715,6 +13845,16 @@ export default function App() {
         ...prev,
         email: trimmed && !emailValido(trimmed) ? 'Informe um e-mail válido.' : undefined,
       }))
+    }
+
+    if (typeof nextValue === 'string') {
+      const trimmed = nextValue.trim()
+      if (trimmed) {
+        const campoKey = key as CampoObrigatorioKey
+        setCamposObrigatoriosFaltantes((prev) =>
+          prev.includes(campoKey) ? prev.filter((campo) => campo !== campoKey) : prev,
+        )
+      }
     }
   }
 
@@ -14369,7 +14509,12 @@ export default function App() {
             'Identificação oficial do cliente utilizada em contratos, relatórios e integração com o CRM.',
           )}
         >
-          <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
+          <input
+            value={cliente.nome}
+            onChange={(e) => handleClienteChange('nome', e.target.value)}
+            className={isCampoObrigatorioFaltante('nome') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('nome')}
+          />
         </Field>
         <Field
           label={labelWithTooltip(
@@ -14382,7 +14527,44 @@ export default function App() {
             onChange={(e) => handleClienteChange('documento', e.target.value)}
             inputMode="numeric"
             placeholder="000.000.000-00"
+            className={isCampoObrigatorioFaltante('documento') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('documento')}
           />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'RG',
+            'Documento de identificação complementar usado para cadastros e validação do cliente.',
+          )}
+        >
+          <input
+            value={cliente.rg}
+            onChange={(e) => handleClienteChange('rg', e.target.value)}
+            placeholder="Número do RG"
+            className={isCampoObrigatorioFaltante('rg') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('rg')}
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Estado Civil',
+            'Informação cadastral utilizada em contratos e documentos da proposta.',
+          )}
+        >
+          <select
+            value={cliente.estadoCivil}
+            onChange={(e) => handleClienteChange('estadoCivil', e.target.value)}
+            className={isCampoObrigatorioFaltante('estadoCivil') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('estadoCivil')}
+          >
+            <option value="">Selecione o estado civil</option>
+            <option value="solteiro(a)">Solteiro(a)</option>
+            <option value="casado(a)">Casado(a)</option>
+            <option value="divorciado(a)">Divorciado(a)</option>
+            <option value="viuvo(a)">Viúvo(a)</option>
+            <option value="uniao-estavel">União estável</option>
+            <option value="outro">Outro</option>
+          </select>
         </Field>
         <Field
           label={labelWithTooltip(
@@ -14396,6 +14578,8 @@ export default function App() {
             onChange={(e) => handleClienteChange('email', e.target.value)}
             type="email"
             placeholder="nome@empresa.com"
+            className={isCampoObrigatorioFaltante('email') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('email')}
           />
         </Field>
         <Field
@@ -14410,6 +14594,8 @@ export default function App() {
             inputMode="tel"
             autoComplete="tel"
             placeholder="(00) 00000-0000"
+            className={isCampoObrigatorioFaltante('telefone') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('telefone')}
           />
         </Field>
         <Field
@@ -14425,6 +14611,8 @@ export default function App() {
             inputMode="numeric"
             autoComplete="postal-code"
             placeholder="00000-000"
+            className={isCampoObrigatorioFaltante('cep') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('cep')}
           />
         </Field>
         <Field
@@ -14437,6 +14625,8 @@ export default function App() {
             value={cliente.distribuidora}
             onChange={(e) => handleClienteChange('distribuidora', e.target.value)}
             disabled={!cliente.uf || clienteDistribuidorasDisponiveis.length === 0}
+            className={isCampoObrigatorioFaltante('distribuidora') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('distribuidora')}
           >
             <option value="">
               {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
@@ -14462,6 +14652,8 @@ export default function App() {
             onChange={(event) =>
               handleSegmentoClienteChange(event.target.value as SegmentoCliente)
             }
+            className={isCampoObrigatorioFaltante('segmentoCliente') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('segmentoCliente')}
           >
             {NOVOS_TIPOS_EDIFICACAO.map((option) => (
               <option key={option.value} value={option.value}>
@@ -14470,12 +14662,24 @@ export default function App() {
             ))}
           </select>
           {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
-            <input
-              type="text"
-              placeholder="Descreva..."
-              style={{ marginTop: '6px' }}
-              value={tipoEdificacaoOutro}
-              onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
+              <input
+                type="text"
+                placeholder="Descreva..."
+                style={{ marginTop: '6px' }}
+                value={tipoEdificacaoOutro}
+                className={isCampoObrigatorioFaltante('tipoEdificacaoOutro') ? 'is-invalid' : undefined}
+                aria-invalid={isCampoObrigatorioFaltante('tipoEdificacaoOutro')}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setTipoEdificacaoOutro(value)
+                  if (value.trim()) {
+                  setCamposObrigatoriosFaltantes((prev) =>
+                    prev.includes('tipoEdificacaoOutro')
+                      ? prev.filter((campo) => campo !== 'tipoEdificacaoOutro')
+                      : prev,
+                  )
+                }
+              }}
             />
           )}
         </Field>
@@ -14489,11 +14693,28 @@ export default function App() {
             value={cliente.uc}
             onChange={(e) => handleClienteChange('uc', e.target.value)}
             placeholder="Número da UC geradora"
+            className={isCampoObrigatorioFaltante('uc') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('uc')}
           />
         </Field>
         <Field
           label={labelWithTooltip(
-            'Endereço da UC Geradora',
+            'Endereço do Contratante',
+            'Endereço do contratante responsável pelo contrato e cadastro do cliente.',
+          )}
+        >
+          <input
+            value={cliente.enderecoContratante}
+            onChange={(e) => handleClienteChange('enderecoContratante', e.target.value)}
+            autoComplete="street-address"
+            placeholder="Endereço do contratante"
+            className={isCampoObrigatorioFaltante('enderecoContratante') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('enderecoContratante')}
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Endereço de instalação da UC geradora',
             'Local completo da unidade geradora; será exibido na proposta e usado em integrações logísticas.',
           )}
         >
@@ -14502,6 +14723,8 @@ export default function App() {
             onChange={(e) => handleClienteChange('endereco', e.target.value)}
             autoComplete="street-address"
             placeholder="Endereço completo da UC geradora"
+            className={isCampoObrigatorioFaltante('endereco') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('endereco')}
           />
         </Field>
         {isCondominio ? (
@@ -14639,7 +14862,12 @@ export default function App() {
               : clienteMensagens.cidade
           }
         >
-          <input value={cliente.cidade} onChange={(e) => handleClienteChange('cidade', e.target.value)} />
+          <input
+            value={cliente.cidade}
+            onChange={(e) => handleClienteChange('cidade', e.target.value)}
+            className={isCampoObrigatorioFaltante('cidade') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('cidade')}
+          />
         </Field>
         <Field
           label={labelWithTooltip(
@@ -14647,7 +14875,12 @@ export default function App() {
             'Estado da instalação; utilizado para listar distribuidoras disponíveis, definir tarifas e parâmetros regionais.',
           )}
         >
-          <select value={cliente.uf} onChange={(e) => handleClienteChange('uf', e.target.value)}>
+          <select
+            value={cliente.uf}
+            onChange={(e) => handleClienteChange('uf', e.target.value)}
+            className={isCampoObrigatorioFaltante('uf') ? 'is-invalid' : undefined}
+            aria-invalid={isCampoObrigatorioFaltante('uf')}
+          >
             <option value="">Selecione um estado</option>
             {ufsDisponiveis.map((uf) => (
               <option key={uf} value={uf}>
@@ -15123,7 +15356,19 @@ export default function App() {
                   placeholder="Descreva..."
                   style={{ marginTop: '6px' }}
                   value={tipoEdificacaoOutro}
-                  onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
+                  className={isCampoObrigatorioFaltante('tipoEdificacaoOutro') ? 'is-invalid' : undefined}
+                  aria-invalid={isCampoObrigatorioFaltante('tipoEdificacaoOutro')}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    setTipoEdificacaoOutro(value)
+                    if (value.trim()) {
+                      setCamposObrigatoriosFaltantes((prev) =>
+                        prev.includes('tipoEdificacaoOutro')
+                          ? prev.filter((campo) => campo !== 'tipoEdificacaoOutro')
+                          : prev,
+                      )
+                    }
+                  }}
                 />
               )}
             </Field>

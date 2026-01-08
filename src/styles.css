@@ -1549,6 +1549,14 @@ textarea:focus {
   background: var(--input-bg);
 }
 
+.cfg-input.is-invalid,
+.cfg-input.is-invalid:focus,
+.cfg-input.is-invalid:focus-visible {
+  border-color: rgba(248, 113, 113, 0.9);
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
+  background: color-mix(in srgb, #fef2f2 65%, var(--input-bg) 35%);
+}
+
 input[readonly] {
   background: color-mix(in srgb, var(--surface) 70%, var(--bg) 30%);
   color: var(--text-muted);
