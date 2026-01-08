@@ -12484,6 +12484,9 @@ export default function App() {
   }, [handlePreviewActionRequest])
 
   const prepararDadosContratoCliente = useCallback((): ClienteContratoPayload | null => {
+    if (!validarCamposObrigatorios('gerar contrato')) {
+      return null
+    }
     const nomeCompleto = cliente.nome?.trim() ?? ''
     const cpfCnpj = cliente.documento?.trim() ?? ''
     const unidadeConsumidora = cliente.uc?.trim() ?? ''
@@ -12556,6 +12559,7 @@ export default function App() {
     cliente.temIndicacao,
     cliente.uc,
     cliente.uf,
+    validarCamposObrigatorios,
   ])
 
   const prepararPayloadContratosLeasing = useCallback(() => {
@@ -14380,6 +14384,9 @@ export default function App() {
   }, [])
 
   const abrirEnvioPropostaModal = useCallback(() => {
+    if (!validarCamposObrigatorios('enviar a proposta')) {
+      return
+    }
     setActivePage('app')
     setIsEnviarPropostaModalOpen(true)
     if (contatosEnvio.length === 0) {
@@ -14388,7 +14395,7 @@ export default function App() {
         'info',
       )
     }
-  }, [adicionarNotificacao, contatosEnvio.length, setActivePage])
+  }, [adicionarNotificacao, contatosEnvio.length, setActivePage, validarCamposObrigatorios])
 
   const handleEnviarProposta = useCallback(
     async (metodo: PropostaEnvioMetodo) => {
@@ -14662,17 +14669,17 @@ export default function App() {
             ))}
           </select>
           {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
-              <input
-                type="text"
-                placeholder="Descreva..."
-                style={{ marginTop: '6px' }}
-                value={tipoEdificacaoOutro}
-                className={isCampoObrigatorioFaltante('tipoEdificacaoOutro') ? 'is-invalid' : undefined}
-                aria-invalid={isCampoObrigatorioFaltante('tipoEdificacaoOutro')}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setTipoEdificacaoOutro(value)
-                  if (value.trim()) {
+            <input
+              type="text"
+              placeholder="Descreva..."
+              style={{ marginTop: '6px' }}
+              value={tipoEdificacaoOutro}
+              className={isCampoObrigatorioFaltante('tipoEdificacaoOutro') ? 'is-invalid' : undefined}
+              aria-invalid={isCampoObrigatorioFaltante('tipoEdificacaoOutro')}
+              onChange={(event) => {
+                const value = event.target.value
+                setTipoEdificacaoOutro(value)
+                if (value.trim()) {
                   setCamposObrigatoriosFaltantes((prev) =>
                     prev.includes('tipoEdificacaoOutro')
                       ? prev.filter((campo) => campo !== 'tipoEdificacaoOutro')
