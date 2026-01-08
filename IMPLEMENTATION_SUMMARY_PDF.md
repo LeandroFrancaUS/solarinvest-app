@@ -63,9 +63,10 @@ Successfully implemented a complete professional PDF generation system that elim
 ### Output Specifications
 - **Format:** PDF/A4 (595.28 x 841.89 points)
 - **Margins:** 50pt on all sides
-- **Font:** Helvetica (PDF built-in)
+- **Font:** Noto Sans (embedded, full PT-BR support)
 - **Pagination:** Automatic with page numbers
 - **Determinism:** Same input → identical PDF
+- **PT-BR Support:** Complete Unicode support for Portuguese characters (accents, cedilla, etc.)
 
 ### Performance Targets
 - **Generation Time:** < 10 seconds (typical)

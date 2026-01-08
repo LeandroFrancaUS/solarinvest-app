@@ -1,9 +1,12 @@
 /**
  * Font Configuration for PDF Generation
  * 
- * Registers fonts to be used in PDF documents.
- * Using system-independent fonts to ensure consistent rendering
- * in serverless environments.
+ * Registers embedded fonts with full PT-BR character support.
+ * Uses Noto Sans which includes accents, cedilla, and other
+ * Portuguese-specific characters.
+ * 
+ * IMPORTANT: Fonts must be embedded in the repository (public/fonts/)
+ * to ensure consistent rendering in serverless environments.
  */
 
 import { Font } from '@react-pdf/renderer';
@@ -12,27 +15,46 @@ import { Font } from '@react-pdf/renderer';
 let fontsRegistered = false;
 
 /**
- * Registers fonts for PDF rendering.
+ * Registers Noto Sans font family for PDF rendering.
  * Safe to call multiple times - only registers once per process.
  * 
- * Uses Helvetica (built-in PDF font) which is available without
- * external files and works reliably in serverless environments.
+ * Noto Sans provides excellent PT-BR support including:
+ * - All Portuguese accents (á, é, í, ó, ú, â, ê, ô, ã, õ)
+ * - Cedilla (ç, Ç)
+ * - Typographic quotes („ ")
+ * - Em-dash (—) and other special characters
  */
 export function registerFonts(): void {
   if (fontsRegistered) {
     return;
   }
 
-  // Note: Helvetica is a built-in PDF font, no registration needed
-  // If custom fonts are needed later, download .ttf files and register:
-  // Font.register({
-  //   family: 'Roboto',
-  //   fonts: [
-  //     { src: '/fonts/Roboto-Regular.ttf', fontWeight: 400 },
-  //     { src: '/fonts/Roboto-Medium.ttf', fontWeight: 500 },
-  //     { src: '/fonts/Roboto-Bold.ttf', fontWeight: 700 },
-  //   ]
-  // });
+  // Register Noto Sans family with multiple weights and styles
+  Font.register({
+    family: 'NotoSans',
+    fonts: [
+      {
+        src: '/fonts/NotoSans-Regular.ttf',
+        fontWeight: 400,
+        fontStyle: 'normal',
+      },
+      {
+        src: '/fonts/NotoSans-Italic.ttf',
+        fontWeight: 400,
+        fontStyle: 'italic',
+      },
+      {
+        src: '/fonts/NotoSans-Medium.ttf',
+        fontWeight: 500,
+        fontStyle: 'normal',
+      },
+      {
+        src: '/fonts/NotoSans-Bold.ttf',
+        fontWeight: 700,
+        fontStyle: 'normal',
+      },
+    ],
+  });
 
   fontsRegistered = true;
 }

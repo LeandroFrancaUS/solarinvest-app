@@ -185,8 +185,16 @@ npm run test -- src/pdf/__tests__/pdf-generation.test.ts
 ### ✅ Layout Consistente
 - Formato A4 padronizado (595.28 x 841.89 pts)
 - Margens de 50pts em todos os lados
-- Fontes Helvetica (built-in PDF)
+- Fontes Noto Sans (embedded) com suporte completo a PT-BR
 - Paginação automática
+
+### ✅ Suporte Completo PT-BR
+- Fonte Noto Sans com todos os caracteres portugueses
+- Acentos: á, é, í, ó, ú, â, ê, ô, ã, õ
+- Cedilha: ç, Ç
+- Aspas tipográficas: „ "
+- Travessão: — e outros caracteres especiais
+- Fontes embedded em `public/fonts/` (não depende do sistema operacional)
 
 ### ✅ Performance
 - Geração em menos de 5-10 segundos

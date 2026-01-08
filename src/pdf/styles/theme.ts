@@ -54,6 +54,8 @@ export const SPACING = {
 
 /**
  * Global styles for PDF components
+ * 
+ * Uses NotoSans font family for full PT-BR character support.
  */
 export const styles = StyleSheet.create({
   // Page styles
@@ -62,7 +64,7 @@ export const styles = StyleSheet.create({
     paddingRight: MARGINS.right,
     paddingBottom: MARGINS.bottom,
     paddingLeft: MARGINS.left,
-    fontFamily: 'Helvetica',
+    fontFamily: 'NotoSans',
     fontSize: FONT_SIZES.body,
     color: COLORS.black,
   },
@@ -70,45 +72,54 @@ export const styles = StyleSheet.create({
   // Typography
   h1: {
     fontSize: FONT_SIZES.h1,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'NotoSans',
+    fontWeight: 700,
     marginBottom: SPACING.lg,
     textAlign: 'center',
   },
 
   h2: {
     fontSize: FONT_SIZES.h2,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'NotoSans',
+    fontWeight: 700,
     marginBottom: SPACING.md,
     marginTop: SPACING.lg,
   },
 
   h3: {
     fontSize: FONT_SIZES.h3,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'NotoSans',
+    fontWeight: 700,
     marginBottom: SPACING.sm,
     marginTop: SPACING.md,
   },
 
   h4: {
     fontSize: FONT_SIZES.h4,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'NotoSans',
+    fontWeight: 700,
     marginBottom: SPACING.sm,
   },
 
   body: {
     fontSize: FONT_SIZES.body,
+    fontFamily: 'NotoSans',
+    fontWeight: 400,
     lineHeight: 1.5,
     textAlign: 'justify',
   },
 
   bodyBold: {
     fontSize: FONT_SIZES.body,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'NotoSans',
+    fontWeight: 700,
     lineHeight: 1.5,
   },
 
   small: {
     fontSize: FONT_SIZES.small,
+    fontFamily: 'NotoSans',
+    fontWeight: 400,
     lineHeight: 1.4,
   },
 
@@ -139,7 +150,8 @@ export const styles = StyleSheet.create({
 
   tableHeader: {
     backgroundColor: COLORS.veryLightGray,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'NotoSans',
+    fontWeight: 700,
   },
 
   tableCell: {
