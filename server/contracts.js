@@ -1,18 +1,18 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import os from 'node:os'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { convertDocxBufferToPdfBuffer, isGraphConfigured, sanitizeFileName } from './docxToPdf/index.js'
 
 export const CONTRACT_RENDER_PATH = '/api/contracts/render'
 export const CONTRACT_TEMPLATES_PATH = '/api/contracts/templates'
+export { isGraphConfigured }
 
 const CONTRACT_TEMPLATE_CATEGORIES = new Set(['leasing', 'vendas'])
 const DEFAULT_TEMPLATE_CATEGORY = 'leasing'
 const DEFAULT_TEMPLATE_FILE_NAME = 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx'
 const CONTRACT_TEMPLATES_DIR_RELATIVE = 'public/templates/contratos'
 const DEFAULT_TEMPLATE_FILE = path.join(DEFAULT_TEMPLATE_CATEGORY, DEFAULT_TEMPLATE_FILE_NAME)
-const TMP_DIR = path.join(os.tmpdir(), 'solarinvest-contracts')
 const MAX_BODY_SIZE_BYTES = 256 * 1024
 
 // Valid Brazilian state codes (UF)
@@ -458,320 +458,28 @@ const normalizeClientePayload = (payload) => {
   }
 }
 
-const cleanupTmpFiles = async (...files) => {
-  await Promise.all(
-    files
-      .filter(Boolean)
-      .map(async (filePath) => {
-        try {
-          await fs.unlink(filePath)
-        } catch (error) {
-          if (error && error.code !== 'ENOENT') {
-            console.warn(`[contracts] Não foi possível remover o arquivo temporário ${filePath}:`, error)
-          }
-        }
-      }),
-  )
-}
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
-const withTimeout = async (promise, timeoutMs, timeoutMessage) => {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(timeoutMessage), timeoutMs)
-  try {
-    const result = await promise(controller.signal)
-    clearTimeout(timeoutId)
-    return result
-  } catch (error) {
-    clearTimeout(timeoutId)
-    if (error && error.name === 'AbortError') {
-      throw new ContractRenderError(
-        502,
-        timeoutMessage ?? 'Falha ao converter o contrato para PDF (tempo esgotado).',
-        { code: 'PDF_CONVERSION_TIMEOUT', hint: 'Tente novamente mais tarde.', retryable: true },
-      )
-    }
-    throw error
-  }
-}
-
-const retryOperation = async (operation, retries, delays) => {
-  let attempt = 0
-  while (true) {
-    try {
-      return await operation()
-    } catch (error) {
-      if (!(error instanceof ContractRenderError) || !error.retryable || attempt >= retries) {
-        throw error
-      }
-      const delay = delays[Math.min(attempt, delays.length - 1)] ?? 0
-      attempt += 1
-      if (delay > 0) {
-        await sleep(delay)
-      }
-    }
-  }
-}
-
-const CONVERTAPI_ENDPOINT = 'https://v2.convertapi.com/convert/docx/to/pdf'
-const CONVERTAPI_TIMEOUT_MS = 20000
-const PROVIDER_RETRIES = 2
-const RETRY_DELAYS_MS = [400, 1200]
-const CONVERTAPI_CIRCUIT_WINDOW_MS = 5 * 60 * 1000
-const CONVERTAPI_CIRCUIT_DISABLE_MS = 10 * 60 * 1000
-const convertApiCircuit = {
-  failures: [],
-  disabledUntil: 0,
-}
-
-const getConvertApiSecret = () => {
-  const secret = typeof process.env.CONVERTAPI_SECRET === 'string'
-    ? process.env.CONVERTAPI_SECRET.trim()
-    : ''
-  return secret || null
-}
-
-const getGotenbergUrl = () => {
-  const raw = typeof process.env.GOTENBERG_URL === 'string'
-    ? process.env.GOTENBERG_URL.trim()
-    : ''
-  return raw ? raw.replace(/\/+$/, '') : null
-}
-
-export const isConvertApiConfigured = () => Boolean(getConvertApiSecret())
-export const isGotenbergConfigured = () => Boolean(getGotenbergUrl())
-
-const isConvertApiAvailable = () => Date.now() >= convertApiCircuit.disabledUntil
-
-const recordConvertApiFailure = () => {
-  const now = Date.now()
-  convertApiCircuit.failures = convertApiCircuit.failures.filter(
-    (timestamp) => now - timestamp < CONVERTAPI_CIRCUIT_WINDOW_MS,
-  )
-  convertApiCircuit.failures.push(now)
-  if (convertApiCircuit.failures.length >= 3) {
-    convertApiCircuit.disabledUntil = now + CONVERTAPI_CIRCUIT_DISABLE_MS
-  }
-}
-
-const clearConvertApiFailures = () => {
-  convertApiCircuit.failures = []
-  convertApiCircuit.disabledUntil = 0
-}
-
-const convertDocxToPdfUsingConvertApi = async (docxPath, pdfPath) => {
-  const secret = getConvertApiSecret()
-  if (!secret) {
-    throw new ContractRenderError(
-      424,
-      'Falha ao converter o contrato para PDF. Configure CONVERTAPI_SECRET com um token válido.',
-      {
-        code: 'PDF_CONVERSION_MISCONFIGURED',
-        hint: 'Configure CONVERTAPI_SECRET nas variáveis de ambiente.',
-      },
-    )
-  }
-
-  if (!isConvertApiAvailable()) {
-    throw new ContractRenderError(
-      503,
-      'Conversão para PDF indisponível temporariamente.',
-      { code: 'PDF_CONVERSION_TEMPORARILY_DISABLED', retryable: true },
-    )
-  }
-
-  const docxBuffer = await fs.readFile(docxPath)
-  const formData = new FormData()
-  formData.append(
-    'File',
-    new Blob([docxBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    }),
-    path.basename(docxPath),
-  )
-
-  const response = await withTimeout(
-    (signal) =>
-      fetch(`${CONVERTAPI_ENDPOINT}?Secret=${encodeURIComponent(secret)}`, {
-        method: 'POST',
-        body: formData,
-        signal,
-      }),
-    CONVERTAPI_TIMEOUT_MS,
-    'Falha ao converter o contrato para PDF (tempo esgotado no ConvertAPI).',
-  )
-
-  const responseText = await response.text()
-  let json = null
-  try {
-    json = responseText ? JSON.parse(responseText) : null
-  } catch (parseError) {
-    json = null
-  }
-
-  if (!response.ok) {
-    const errorMessage = json?.Message || json?.message || responseText || 'Erro desconhecido.'
-    if (response.status === 401 || response.status === 403) {
-      throw new ContractRenderError(
-        424,
-        `Falha ao converter o contrato para PDF (${response.status}). ${errorMessage}`,
-        {
-          code: 'PDF_CONVERSION_AUTH_FAILED',
-          hint: 'Verifique se o token CONVERTAPI_SECRET está válido.',
-        },
-      )
-    }
-
-    const retryable = response.status >= 500 || response.status === 429 || response.status === 408
-    throw new ContractRenderError(
-      502,
-      `Falha ao converter o contrato para PDF (${response.status}). ${errorMessage}`,
-      { code: 'PDF_CONVERSION_FAILED', retryable },
-    )
-  }
-
-  if (!json) {
-    throw new ContractRenderError(502, 'Resposta inválida do serviço de conversão de PDF.', {
-      code: 'PDF_CONVERSION_FAILED',
-      retryable: true,
-    })
-  }
-
-  const fileUrl = json?.Files?.[0]?.Url
-  if (!fileUrl) {
-    throw new ContractRenderError(502, 'Resposta inválida do serviço de conversão de PDF.', {
-      code: 'PDF_CONVERSION_FAILED',
-      retryable: true,
-    })
-  }
-
-  const pdfResponse = await withTimeout(
-    (signal) => fetch(fileUrl, { signal }),
-    CONVERTAPI_TIMEOUT_MS,
-    'Falha ao baixar o PDF convertido (tempo esgotado no ConvertAPI).',
-  )
-  if (!pdfResponse.ok) {
-    throw new ContractRenderError(
-      502,
-      `Falha ao baixar o PDF convertido (${pdfResponse.status}).`,
-      { code: 'PDF_CONVERSION_FAILED', retryable: pdfResponse.status >= 500 },
-    )
-  }
-
-  const arrayBuffer = await pdfResponse.arrayBuffer()
-  await fs.writeFile(pdfPath, Buffer.from(arrayBuffer))
-}
-
-const convertDocxToPdfUsingGotenberg = async (docxPath, pdfPath) => {
-  const gotenbergUrl = getGotenbergUrl()
-  if (!gotenbergUrl) {
-    throw new ContractRenderError(
-      424,
-      'Falha ao converter o contrato para PDF. Configure GOTENBERG_URL para habilitar o fallback.',
-      {
-        code: 'PDF_CONVERSION_MISCONFIGURED',
-        hint: 'Configure GOTENBERG_URL nas variáveis de ambiente.',
-      },
-    )
-  }
-
-  const docxBuffer = await fs.readFile(docxPath)
-  const formData = new FormData()
-  formData.append(
-    'files',
-    new Blob([docxBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    }),
-    path.basename(docxPath),
-  )
-
-  const response = await withTimeout(
-    (signal) =>
-      fetch(`${gotenbergUrl}/forms/libreoffice/convert`, {
-        method: 'POST',
-        body: formData,
-        signal,
-      }),
-    CONVERTAPI_TIMEOUT_MS,
-    'Falha ao converter o contrato para PDF (tempo esgotado no Gotenberg).',
-  )
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-    const retryable = response.status >= 500 || response.status === 429 || response.status === 408
-    throw new ContractRenderError(
-      502,
-      `Falha ao converter o contrato para PDF (${response.status}). ${errorBody || 'Erro desconhecido.'}`,
-      { code: 'PDF_CONVERSION_FAILED', retryable },
-    )
-  }
-
-  const arrayBuffer = await response.arrayBuffer()
-  await fs.writeFile(pdfPath, Buffer.from(arrayBuffer))
-}
-
-export const convertDocxToPdf = async (docxPath, pdfPath) => {
-  const convertApiConfigured = isConvertApiConfigured()
-  const gotenbergConfigured = isGotenbergConfigured()
-  const convertApiAvailable = convertApiConfigured && isConvertApiAvailable()
-
-  if (!convertApiAvailable && convertApiConfigured && !gotenbergConfigured) {
-    throw new ContractRenderError(
-      503,
-      'Conversão para PDF indisponível temporariamente.',
-      {
-        code: 'PDF_CONVERSION_TEMPORARILY_DISABLED',
-        hint: 'Tente novamente mais tarde ou configure um fallback.',
-        retryable: true,
-      },
-    )
-  }
-
-  const providers = []
-  if (convertApiAvailable) {
-    providers.push({ name: 'convertapi', handler: () => convertDocxToPdfUsingConvertApi(docxPath, pdfPath) })
-  }
-  if (gotenbergConfigured) {
-    providers.push({ name: 'gotenberg', handler: () => convertDocxToPdfUsingGotenberg(docxPath, pdfPath) })
-  }
-
-  if (providers.length === 0) {
+export const convertDocxToPdf = async (docxBuffer, { fileName } = {}) => {
+  if (!isGraphConfigured()) {
     throw new ContractRenderError(
       424,
       'Conversão para PDF indisponível no servidor.',
       {
         code: 'PDF_CONVERSION_MISCONFIGURED',
-        hint: 'Configure CONVERTAPI_SECRET ou GOTENBERG_URL para habilitar a conversão.',
+        hint: 'Configure as variáveis MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET e MS_GRAPH_TEMP_FOLDER.',
       },
     )
   }
 
-  let lastError
-  for (const provider of providers) {
-    try {
-      const result = await retryOperation(provider.handler, PROVIDER_RETRIES, RETRY_DELAYS_MS)
-      if (provider.name === 'convertapi') {
-        clearConvertApiFailures()
-      }
-      return result
-    } catch (error) {
-      lastError = error
-      if (provider.name === 'convertapi') {
-        recordConvertApiFailure()
-      }
-    }
+  try {
+    const safeName = sanitizeFileName(fileName || `contract-${Date.now()}.docx`)
+    return await convertDocxBufferToPdfBuffer(docxBuffer, { fileName: safeName })
+  } catch (error) {
+    throw new ContractRenderError(
+      502,
+      'Falha ao converter o contrato para PDF.',
+      { code: 'PDF_CONVERSION_FAILED' },
+    )
   }
-
-  if (lastError instanceof ContractRenderError) {
-    throw lastError
-  }
-
-  throw new ContractRenderError(
-    502,
-    'Falha ao converter o contrato para PDF.',
-    { code: 'PDF_CONVERSION_FAILED' },
-  )
 }
 
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*)\.xml$/
@@ -795,33 +503,21 @@ const generateContractPdfFromDocx = async ({ templatePath, templateFileName }, d
     }),
   )
 
-  await fs.mkdir(TMP_DIR, { recursive: true })
-  const uniqueId = `contrato_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
-  const docxPath = path.join(TMP_DIR, `${uniqueId}.docx`)
-  const pdfPath = path.join(TMP_DIR, `${uniqueId}.pdf`)
-
   const docxBuffer = await zip.generateAsync({ type: 'nodebuffer' })
-  await fs.writeFile(docxPath, docxBuffer)
+  const uniqueId = `contrato_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 
   try {
-    await convertDocxToPdf(docxPath, pdfPath)
-    const pdfBuffer = await fs.readFile(pdfPath)
+    const pdfBuffer = await convertDocxToPdf(docxBuffer, { fileName: `${uniqueId}.docx` })
     return { pdfBuffer, templateFileName }
   } catch (error) {
     if (error instanceof ContractRenderError) {
       throw error
     }
 
-    if (error && error.code === 'ENOENT' && typeof error.path === 'string' && error.path.endsWith('.pdf')) {
-      throw new ContractRenderError(500, 'PDF do contrato não foi gerado.')
-    }
-
     throw new ContractRenderError(
       500,
-      'Falha ao converter o contrato para PDF. Verifique a configuração dos provedores de conversão.',
+      'Falha ao converter o contrato para PDF. Verifique a configuração do Microsoft Graph.',
     )
-  } finally {
-    await cleanupTmpFiles(docxPath, pdfPath)
   }
 }
 

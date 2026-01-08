@@ -1,12 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import os from 'node:os'
 import crypto from 'node:crypto'
 import JSZip from 'jszip'
 import Mustache from 'mustache'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { convertDocxToPdf, isConvertApiConfigured, isGotenbergConfigured } from './contracts.js'
+import { convertDocxToPdf, isGraphConfigured } from './contracts.js'
 
 const JSON_BODY_LIMIT = 256 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
@@ -14,7 +13,6 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
   'public/templates/contratos/leasing',
 )
-const BASE_TMP_DIR = path.join(os.tmpdir(), 'solarinvest')
 const MAX_DOCX_BYTES = 8 * 1024 * 1024
 const MAX_PDF_BYTES = 12 * 1024 * 1024
 
@@ -752,12 +750,6 @@ const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
   return resolved
 }
 
-const createRequestTempDir = async (requestId) => {
-  const tempDir = path.join(BASE_TMP_DIR, 'contracts', requestId)
-  await fs.mkdir(tempDir, { recursive: true })
-  return tempDir
-}
-
 const sanitizeHeaderValue = (value) => {
   if (!value) {
     return ''
@@ -903,8 +895,7 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
       step: 'smoke_start',
       requestId,
       vercelId,
-      convertapiConfigured: isConvertApiConfigured(),
-      gotenbergConfigured: isGotenbergConfigured(),
+      graphConfigured: isGraphConfigured(),
     })
     const start = Date.now()
     const tipoContrato = 'residencial'
@@ -942,19 +933,9 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
     }, dadosLeasing.uf)
     mark('renderDocxMs', renderStart)
 
-    const tempDir = await createRequestTempDir(requestId)
-    const uniqueId = crypto.randomUUID()
-    const docxPath = path.join(tempDir, `smoke-${uniqueId}.docx`)
-    const pdfPath = path.join(tempDir, `smoke-${uniqueId}.pdf`)
-
     const convertStart = Date.now()
-    await fs.writeFile(docxPath, contratoBuffer)
-    await convertDocxToPdf(docxPath, pdfPath)
-    const pdfStats = await fs.stat(pdfPath)
+    const pdfBuffer = await convertDocxToPdf(contratoBuffer, { fileName: `smoke-${crypto.randomUUID()}.docx` })
     mark('convertPdfMs', convertStart)
-
-    await fs.unlink(docxPath).catch(() => {})
-    await fs.unlink(pdfPath).catch(() => {})
 
     mark('totalMs', start)
     res.statusCode = 200
@@ -965,16 +946,15 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
       vercelId,
       timings,
       docxBytes: contratoBuffer.length,
-      pdfBytes: pdfStats.size,
-      convertapiConfigured: isConvertApiConfigured(),
-      gotenbergConfigured: isGotenbergConfigured(),
+      pdfBytes: pdfBuffer.length,
+      graphConfigured: isGraphConfigured(),
     }))
   } catch (error) {
     const statusCode = error instanceof LeasingContractsError ? error.statusCode ?? 500 : 500
     const payload = {
       code: error instanceof LeasingContractsError ? error.code ?? 'LEASING_CONTRACTS_ERROR' : 'LEASING_CONTRACTS_ERROR',
       message: error instanceof Error ? error.message : 'Falha no smoke test de contratos.',
-      hint: error instanceof LeasingContractsError ? error.hint : 'Verifique a configuração dos provedores.',
+      hint: error instanceof LeasingContractsError ? error.hint : 'Verifique a configuração do Microsoft Graph.',
       timings,
     }
     sendErrorResponse(res, statusCode, payload, requestId, vercelId)
@@ -1020,8 +1000,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
       requestId,
       vercelId,
       nodeVersion: process.version,
-      convertapiConfigured: isConvertApiConfigured(),
-      gotenbergConfigured: isGotenbergConfigured(),
+      graphConfigured: isGraphConfigured(),
     })
     
     const tipoContrato = sanitizeContratoTipo(body?.tipoContrato)
@@ -1081,11 +1060,9 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
     }
 
-    const tempDir = await createRequestTempDir(requestId)
-
     const files = []
     const fallbackNotices = []
-    const pdfProvidersConfigured = isConvertApiConfigured() || isGotenbergConfigured()
+    const pdfProvidersConfigured = isGraphConfigured()
     const registerFallback = (message) => {
       if (!fallbackNotices.includes(message)) {
         fallbackNotices.push(message)
@@ -1098,10 +1075,6 @@ export const handleLeasingContractsRequest = async (req, res) => {
       pdfName,
       label,
     }) => {
-      const uniqueId = crypto.randomUUID()
-      const docxPath = path.join(tempDir, `temp-${uniqueId}-${docxName}`)
-      const pdfPath = path.join(tempDir, `temp-${uniqueId}-${pdfName}`)
-
       if (buffer.length > MAX_DOCX_BYTES) {
         throw new LeasingContractsError(
           413,
@@ -1126,9 +1099,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
 
       try {
-        await fs.writeFile(docxPath, buffer)
-        await convertDocxToPdf(docxPath, pdfPath)
-        const pdfBuffer = await fs.readFile(pdfPath)
+        const pdfBuffer = await convertDocxToPdf(buffer, { fileName: docxName })
         if (pdfBuffer.length > MAX_PDF_BYTES) {
           files.push({ name: docxName, buffer })
           registerFallback(`${label}: PDF muito grande, DOCX fornecido.`)
@@ -1152,17 +1123,6 @@ export const handleLeasingContractsRequest = async (req, res) => {
           : `Falha ao converter ${label} para PDF.`
         files.push({ name: docxName, buffer })
         registerFallback(`${label}: ${errorMessage}`)
-      } finally {
-        try {
-          await fs.unlink(docxPath)
-        } catch (err) {
-          // Ignore cleanup errors
-        }
-        try {
-          await fs.unlink(pdfPath)
-        } catch (err) {
-          // Ignore cleanup errors
-        }
       }
     }
 

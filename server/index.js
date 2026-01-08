@@ -12,8 +12,7 @@ import {
   CONTRACT_TEMPLATES_PATH,
   handleContractRenderRequest,
   handleContractTemplatesRequest,
-  isConvertApiConfigured,
-  isGotenbergConfigured,
+  isGraphConfigured,
 } from './contracts.js'
 import {
   LEASING_CONTRACTS_PATH,
@@ -32,6 +31,7 @@ import {
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
+import { handleDocxToPdfRequest } from './pdf.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -230,12 +230,10 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/api/health/pdf') {
-    const convertapiConfigured = isConvertApiConfigured()
-    const gotenbergConfigured = isGotenbergConfigured()
+    const graphConfigured = isGraphConfigured()
     sendJson(res, 200, {
-      ok: convertapiConfigured || gotenbergConfigured,
-      convertapiConfigured,
-      gotenbergConfigured,
+      ok: graphConfigured,
+      graphConfigured,
     })
     return
   }
@@ -255,8 +253,7 @@ const server = createServer(async (req, res) => {
     sendJson(res, 200, {
       ok: templateExists,
       templateExists,
-      convertapiConfigured: isConvertApiConfigured(),
-      gotenbergConfigured: isGotenbergConfigured(),
+      graphConfigured: isGraphConfigured(),
       node: process.version,
     })
     return
@@ -285,6 +282,11 @@ const server = createServer(async (req, res) => {
 
   if (pathname === CONTRACT_RENDER_PATH) {
     await handleContractRenderRequest(req, res)
+    return
+  }
+
+  if (pathname === '/api/pdf/convert-docx') {
+    await handleDocxToPdfRequest(req, res, { requestId })
     return
   }
 

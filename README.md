@@ -91,21 +91,19 @@ DATABASE_URL=postgresql://neondb_owner:npg_Y6Hrql3hWOum@ep-damp-mouse-ac5zr9v1-p
 
 ## PDF conversion for leasing contracts
 
-Leasing contracts are rendered from `.dotx` templates and converted to PDF using external services. Configure at least one provider:
+Leasing contracts are rendered from `.dotx` templates and converted to PDF using Microsoft Graph (Word engine). Configure the Graph credentials and target drive:
 
-- `CONVERTAPI_SECRET` – API token for ConvertAPI (primary provider).
-- `GOTENBERG_URL` – optional HTTP endpoint for a Gotenberg instance (fallback provider).
+- `MS_TENANT_ID`
+- `MS_CLIENT_ID`
+- `MS_CLIENT_SECRET`
+- `MS_GRAPH_USER_ID` (or `MS_GRAPH_DRIVE_ID` if using a specific drive)
+- `MS_GRAPH_TEMP_FOLDER`
+- `MS_GRAPH_BASE_PATH` (optional)
+- `MS_GRAPH_SCOPE` (use `https://graph.microsoft.com/.default`)
 
-If no provider is configured, the leasing endpoint will fall back to delivering DOCX files (or a ZIP with DOCX files) and will include a warning header in the response.
+If Graph is not configured, the leasing endpoint will fall back to delivering DOCX files (or a ZIP with DOCX files) and will include a warning header in the response.
 
 Templates must be deployed alongside the app in `public/templates/contratos` so the serverless runtime can read them at `/public` during execution.
-
-To configure `CONVERTAPI_SECRET` in Vercel:
-
-1. Open the project in Vercel.
-2. Go to **Settings → Environment Variables**.
-3. Add `CONVERTAPI_SECRET` for **Production** and **Preview** (and **Development** if needed).
-4. Redeploy the project so the new variables are applied.
 
 You can verify provider configuration with:
 
