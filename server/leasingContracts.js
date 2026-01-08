@@ -227,6 +227,64 @@ const sanitizeDocumentoId = (value) => {
   return digits || 'documento'
 }
 
+const resolveEmail = (payload) => {
+  const candidates = [
+    payload?.email,
+    payload?.emailCliente,
+    payload?.cliente?.email,
+    payload?.contato?.email,
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim()
+      if (trimmed) {
+        return trimmed
+      }
+    }
+  }
+
+  return ''
+}
+
+const resolveTelefone = (payload) => {
+  const candidates = [
+    payload?.telefone,
+    payload?.telefoneCliente,
+    payload?.cliente?.telefone,
+    payload?.contato?.telefone,
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim()
+      if (trimmed) {
+        return trimmed
+      }
+    }
+  }
+
+  return ''
+}
+
+const formatTelefoneForContract = (value) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    return ''
+  }
+
+  const digits = trimmed.replace(/\D/g, '')
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+  }
+
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  }
+
+  return trimmed
+}
+
 const normalizeArray = (value) => {
   if (!Array.isArray(value)) {
     return []
@@ -322,8 +380,8 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     uf: typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : '',
     
     // Contact info
-    telefone: typeof dados.telefone === 'string' ? dados.telefone.trim() : '',
-    email: typeof dados.email === 'string' ? dados.email.trim() : '',
+    telefone: formatTelefoneForContract(resolveTelefone(dados)),
+    email: resolveEmail(dados),
     
     // UC and installation
     unidadeConsumidora: ensureField(dados, 'unidadeConsumidora', 'Unidade consumidora'),
@@ -587,17 +645,29 @@ const normalizeWordXmlForMustache = (xml) => {
     result = result.replace(
       adjacentRunsPattern,
       (match, runContent, text1, nextRunContent, text2) => {
+        const text1HasOpen = /{{/.test(text1)
+        const text1HasClose = /}}/.test(text1)
+        const text2HasOpen = /{{/.test(text2)
+        const text2HasClose = /}}/.test(text2)
+        const looksLikePlaceholderSplit =
+          (text1HasOpen && !text1HasClose) || (!text2HasOpen && text2HasClose)
+        if (!looksLikePlaceholderSplit) {
+          return match
+        }
+
         const runPropsRegex = /<w:rPr[\s\S]*?<\/w:rPr>/
         const runPropsMatch = runContent.match(runPropsRegex)
         const nextRunPropsMatch = nextRunContent.match(runPropsRegex)
         const runProps = runPropsMatch ? runPropsMatch[0] : nextRunPropsMatch ? nextRunPropsMatch[0] : ''
         const runContentWithoutProps = runContent.replace(runPropsRegex, '')
+        const nextRunContentWithoutProps = nextRunContent.replace(runPropsRegex, '')
+        const mergedRunContent = `${runContentWithoutProps}${nextRunContentWithoutProps}`
 
         // Check if we should preserve spaces
         const combinedText = text1 + text2
         const needsPreserve = /^\s|\s$|\s\s/.test(combinedText)
         const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
-        return `<w:r>${runProps}${runContentWithoutProps}${tTag}${combinedText}</w:t></w:r>`
+        return `<w:r>${runProps}${mergedRunContent}${tTag}${combinedText}</w:t></w:r>`
       }
     )
     
@@ -612,6 +682,10 @@ const normalizeWordXmlForMustache = (xml) => {
   result = result.replace(
     /<w:r([^>]*)>([\s\S]*?)<\/w:r>/g,
     (match, runAttrs, runContent) => {
+      const hasLineBreaks = /<w:(br|cr|tab)\b/.test(runContent)
+      if (hasLineBreaks) {
+        return match
+      }
       // Extract all text from <w:t> elements
       const texts = []
       const textPattern = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g
