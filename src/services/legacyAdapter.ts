@@ -168,9 +168,9 @@ export function transformLegacyPayload(
   const address = parseAddress(legacy);
   
   // Apply fallbacks for required fields
-  const endereco = address.endereco || fallbacks.endereco || '';
-  const cidade = address.cidade || fallbacks.cidade || '';
-  const uf = address.uf || fallbacks.uf || '';
+  const endereco = address.endereco || fallbacks.endereco || 'Endereço não informado';
+  const cidade = address.cidade || fallbacks.cidade || 'Cidade não informada';
+  const uf = (address.uf || fallbacks.uf || 'XX').substring(0, 2).toUpperCase();
   const cep = address.cep || '';
   
   // Build contract data

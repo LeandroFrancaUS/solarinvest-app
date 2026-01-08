@@ -48,7 +48,7 @@ export function ContratoLeasingPdf({ data }: ContratoLeasingProps) {
             <Text style={styles.bodyBold}>CONTRATANTE: </Text>
             {toUpperCase(cliente.nomeCompleto)}
             {isNotEmpty(cliente.razaoSocial) && ` (${toUpperCase(cliente.razaoSocial)})`}
-            , inscrito no {cliente.cpfCnpj.length <= 14 ? 'CPF' : 'CNPJ'} sob o n° {maskCpfCnpj(cliente.cpfCnpj)}
+            , inscrito no {(cliente.cpfCnpj?.length || 0) <= 14 ? 'CPF' : 'CNPJ'} sob o n° {maskCpfCnpj(cliente.cpfCnpj)}
             {isNotEmpty(cliente.rg) && `, RG ${cliente.rg}`}
             , residente e domiciliado em {enderecoCompleto}
             {isNotEmpty(cliente.email) && `, e-mail: ${cliente.email}`}

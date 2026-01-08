@@ -83,7 +83,7 @@ export default async function handler(
 
     // Generate filename
     const timestamp = new Date().toISOString().split('T')[0];
-    const clientName = data.cliente.nomeCompleto
+    const clientName = (data.cliente.nomeCompleto || 'Cliente')
       .replace(/[^a-zA-Z0-9]/g, '_')
       .substring(0, 30);
     const filename = `Contrato_${clientName}_${timestamp}.pdf`;
