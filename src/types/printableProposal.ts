@@ -94,12 +94,15 @@ export type PrintableProposalImage = {
 export type ClienteDados = {
   nome: string
   documento: string
+  rg: string
+  estadoCivil: string
   email: string
   telefone: string
   cep: string
   distribuidora: string
   uc: string
   endereco: string
+  enderecoInstalacaoUcGeradora: string
   cidade: string
   uf: string
   temIndicacao: boolean

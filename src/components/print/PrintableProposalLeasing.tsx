@@ -289,7 +289,8 @@ function PrintableProposalLeasingInner(
   }, [nomeDistribuidora])
 
   const formatClienteEnderecoCompleto = () => {
-    const endereco = cliente.endereco?.trim() || ''
+    const endereco =
+      cliente.enderecoInstalacaoUcGeradora?.trim() || cliente.endereco?.trim() || ''
     const cidade = cliente.cidade?.trim() || ''
     const uf = cliente.uf?.trim() || ''
     const cep = cliente.cep?.trim() || ''
