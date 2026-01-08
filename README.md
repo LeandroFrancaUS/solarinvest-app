@@ -96,7 +96,9 @@ Leasing contracts are rendered from `.dotx` templates and converted to PDF using
 - `CONVERTAPI_SECRET` – API token for ConvertAPI (primary provider).
 - `GOTENBERG_URL` – optional HTTP endpoint for a Gotenberg instance (fallback provider).
 
-If no provider is configured, the leasing endpoint will fall back to delivering DOCX files in the ZIP package and will include a warning header in the response.
+If no provider is configured, the leasing endpoint will fall back to delivering DOCX files (or a ZIP with DOCX files) and will include a warning header in the response.
+
+Templates must be deployed alongside the app in `public/templates/contratos` so the serverless runtime can read them at `/public` during execution.
 
 To configure `CONVERTAPI_SECRET` in Vercel:
 
@@ -120,7 +122,7 @@ curl -s https://<your-domain>/api/health/contracts
 And run the smoke test locally:
 
 ```bash
-BASE_URL=http://localhost:3000 node scripts/smoke-test-leasing.mjs
+BASE_URL=http://localhost:3000 node scripts/smoke-contracts-leasing.mjs
 ```
 
 ## SolarInvest Invoice Engine (standalone)

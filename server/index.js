@@ -243,7 +243,7 @@ const server = createServer(async (req, res) => {
   if (pathname === '/api/health/contracts') {
     const templatePath = path.join(
       process.cwd(),
-      'assets/templates/contratos/leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
+      'public/templates/contratos/leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
     )
     let templateExists = false
     try {

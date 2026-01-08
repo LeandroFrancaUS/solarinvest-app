@@ -12,9 +12,9 @@ const JSON_BODY_LIMIT = 256 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
 const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
-  'assets/templates/contratos/leasing',
+  'public/templates/contratos/leasing',
 )
-const TMP_DIR = path.join(os.tmpdir(), 'solarinvest-contracts')
+const BASE_TMP_DIR = path.join(os.tmpdir(), 'solarinvest')
 const MAX_DOCX_BYTES = 8 * 1024 * 1024
 const MAX_PDF_BYTES = 12 * 1024 * 1024
 
@@ -74,10 +74,16 @@ const setCorsHeaders = (res) => {
 const createRequestId = () => crypto.randomUUID()
 
 const sendErrorResponse = (res, statusCode, payload, requestId, vercelId = undefined) => {
+  if (res.headersSent) {
+    return
+  }
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   if (requestId) {
     res.setHeader('X-Request-Id', requestId)
+  }
+  if (vercelId) {
+    res.setHeader('X-Vercel-Id', vercelId)
   }
   res.end(JSON.stringify({ ok: false, requestId, vercelId, ...payload }))
 }
@@ -477,16 +483,25 @@ const loadDocxTemplate = async (fileName, uf) => {
     const ufTemplatePath = path.join(LEASING_TEMPLATES_DIR, normalizedUf, fileName)
     try {
       const buffer = await fs.readFile(ufTemplatePath)
-      console.log(`[leasing-contracts] Usando template específico para UF ${normalizedUf}: ${fileName}`)
+      console.info({
+        scope: 'leasing-contracts',
+        step: 'template_selected',
+        uf: normalizedUf,
+        template: fileName,
+      })
       return buffer
     } catch (error) {
       if (error && error.code !== 'ENOENT') {
-        console.warn(`[leasing-contracts] Erro ao acessar template específico do UF ${normalizedUf}:`, error)
+        console.warn('[leasing-contracts] Erro ao acessar template específico do UF', {
+          uf: normalizedUf,
+          template: fileName,
+          errMessage: error?.message,
+        })
       }
       // Continua para tentar o template padrão
     }
   } else if (normalizedUf) {
-    console.warn(`[leasing-contracts] UF inválido fornecido: ${normalizedUf}`)
+    console.warn('[leasing-contracts] UF inválido fornecido', { uf: normalizedUf })
   }
 
   // Fallback para template padrão
@@ -494,15 +509,33 @@ const loadDocxTemplate = async (fileName, uf) => {
   try {
     const buffer = await fs.readFile(templatePath)
     if (normalizedUf) {
-      console.log(`[leasing-contracts] Template específico para UF ${normalizedUf} não encontrado, usando template padrão: ${fileName}`)
+      console.info({
+        scope: 'leasing-contracts',
+        step: 'template_fallback',
+        uf: normalizedUf,
+        template: fileName,
+      })
     }
     return buffer
   } catch (error) {
     if (error && error.code === 'ENOENT') {
-      console.error(`[leasing-contracts] Template não encontrado em: ${templatePath}`)
-      throw new LeasingContractsError(500, `Template não encontrado: ${fileName} (esperado em: ${templatePath})`)
+      console.error('[leasing-contracts] Template não encontrado', {
+        template: fileName,
+        templatePath,
+      })
+      throw new LeasingContractsError(
+        422,
+        'Template do contrato não encontrado.',
+        {
+          code: 'TEMPLATE_NOT_FOUND',
+          hint: 'Verifique se o template está presente em public/templates/contratos.',
+        },
+      )
     }
-    console.error(`[leasing-contracts] Erro ao ler template ${fileName}:`, error)
+    console.error('[leasing-contracts] Erro ao ler template', {
+      template: fileName,
+      errMessage: error?.message,
+    })
     throw error
   }
 }
@@ -701,6 +734,32 @@ const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
   return resolved
 }
 
+const createRequestTempDir = async (requestId) => {
+  const tempDir = path.join(BASE_TMP_DIR, 'contracts', requestId)
+  await fs.mkdir(tempDir, { recursive: true })
+  return tempDir
+}
+
+const detectOomError = (error) => {
+  const message = typeof error?.message === 'string' ? error.message : ''
+  return /out of memory|heap out of memory|ENOMEM|allocation failed/i.test(message)
+}
+
+const buildUnknownErrorPayload = (error) => {
+  if (detectOomError(error)) {
+    return {
+      code: 'SERVER_OOM_SUSPECTED',
+      message: 'O servidor ficou sem memória ao gerar o contrato.',
+      hint: 'Reduza o número de anexos ou o tamanho dos dados enviados.',
+    }
+  }
+  return {
+    code: 'UNKNOWN',
+    message: 'Falha inesperada ao gerar os contratos de leasing.',
+    hint: 'Verifique os logs do servidor para mais detalhes.',
+  }
+}
+
 /**
  * Handler para verificar disponibilidade de anexos
  * GET /api/contracts/leasing/availability?tipoContrato=residencial&uf=GO
@@ -809,6 +868,14 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
   }
 
   try {
+    console.info({
+      scope: 'leasing-contracts',
+      step: 'smoke_start',
+      requestId,
+      vercelId,
+      convertapiConfigured: isConvertApiConfigured(),
+      gotenbergConfigured: isGotenbergConfigured(),
+    })
     const start = Date.now()
     const tipoContrato = 'residencial'
     const dadosLeasing = sanitizeDadosLeasing({
@@ -845,9 +912,10 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
     }, dadosLeasing.uf)
     mark('renderDocxMs', renderStart)
 
-    await fs.mkdir(TMP_DIR, { recursive: true })
-    const docxPath = path.join(TMP_DIR, `smoke-${Date.now()}.docx`)
-    const pdfPath = path.join(TMP_DIR, `smoke-${Date.now()}.pdf`)
+    const tempDir = await createRequestTempDir(requestId)
+    const uniqueId = crypto.randomUUID()
+    const docxPath = path.join(tempDir, `smoke-${uniqueId}.docx`)
+    const pdfPath = path.join(tempDir, `smoke-${uniqueId}.pdf`)
 
     const convertStart = Date.now()
     await fs.writeFile(docxPath, contratoBuffer)
@@ -916,10 +984,12 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
   try {
     const body = await readJsonBody(req)
-    console.log(`[leasing-contracts][${requestId}] Requisição recebida para geração de contratos`)
-    console.log(`[leasing-contracts][${requestId}] env`, {
-      nodeVersion: process.version,
+    console.info({
+      scope: 'leasing-contracts',
+      step: 'request_received',
+      requestId,
       vercelId,
+      nodeVersion: process.version,
       convertapiConfigured: isConvertApiConfigured(),
       gotenbergConfigured: isGotenbergConfigured(),
     })
@@ -933,7 +1003,12 @@ export const handleLeasingContractsRequest = async (req, res) => {
       )
     }
     
-    console.log(`[leasing-contracts][${requestId}] Tipo de contrato: ${tipoContrato}`)
+    console.info({
+      scope: 'leasing-contracts',
+      step: 'tipo_contrato',
+      requestId,
+      tipoContrato,
+    })
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
@@ -953,9 +1028,10 @@ export const handleLeasingContractsRequest = async (req, res) => {
     }
 
     if (anexosIndisponiveis.length > 0) {
-      console.warn(
-        `[leasing-contracts][${requestId}] Anexos indisponíveis serão ignorados: ${anexosIndisponiveis.join(', ')}`,
-      )
+      console.warn('[leasing-contracts] Anexos indisponíveis serão ignorados', {
+        requestId,
+        anexos: anexosIndisponiveis,
+      })
     }
 
     if (anexosDisponiveis.some((anexo) => anexo.id === 'ANEXO_I')) {
@@ -975,8 +1051,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
     }
 
-    // Ensure TMP_DIR exists
-    await fs.mkdir(TMP_DIR, { recursive: true })
+    const tempDir = await createRequestTempDir(requestId)
 
     const files = []
     const fallbackNotices = []
@@ -993,8 +1068,9 @@ export const handleLeasingContractsRequest = async (req, res) => {
       pdfName,
       label,
     }) => {
-      const docxPath = path.join(TMP_DIR, `temp-${Date.now()}-${docxName}`)
-      const pdfPath = path.join(TMP_DIR, `temp-${Date.now()}-${pdfName}`)
+      const uniqueId = crypto.randomUUID()
+      const docxPath = path.join(tempDir, `temp-${uniqueId}-${docxName}`)
+      const pdfPath = path.join(tempDir, `temp-${uniqueId}-${pdfName}`)
 
       if (buffer.length > MAX_DOCX_BYTES) {
         throw new LeasingContractsError(
@@ -1008,6 +1084,12 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
 
       if (!pdfProvidersConfigured) {
+        console.info({
+          scope: 'leasing-contracts',
+          step: 'pdf_unavailable',
+          requestId,
+          label,
+        })
         files.push({ name: docxName, buffer })
         registerFallback(`${label}: PDF indisponível, DOCX fornecido.`)
         return
@@ -1023,12 +1105,18 @@ export const handleLeasingContractsRequest = async (req, res) => {
           return
         }
         files.push({ name: pdfName, buffer: pdfBuffer })
-        console.log(`[leasing-contracts][${requestId}] ${label} convertido`, {
+        console.info('[leasing-contracts] PDF convertido', {
+          requestId,
+          label,
           docxBytes: buffer.length,
           pdfBytes: pdfBuffer.length,
         })
       } catch (conversionError) {
-        console.error(`[leasing-contracts][${requestId}] Falha ao converter ${label} para PDF:`, conversionError)
+        console.error('[leasing-contracts] Falha ao converter para PDF', {
+          requestId,
+          label,
+          errMessage: conversionError?.message,
+        })
         const errorMessage = conversionError instanceof Error
           ? conversionError.message
           : `Falha ao converter ${label} para PDF.`
@@ -1065,7 +1153,9 @@ export const handleLeasingContractsRequest = async (req, res) => {
       ...dadosLeasing,
       tipoContrato,
     }, clienteUf)
-    console.log(`[leasing-contracts][${requestId}] step=render_docx durationMs=${Date.now() - renderStart}`, {
+    console.info('[leasing-contracts] render_docx', {
+      requestId,
+      durationMs: Date.now() - renderStart,
       docxBytes: contratoBuffer.length,
     })
 
@@ -1097,17 +1187,46 @@ export const handleLeasingContractsRequest = async (req, res) => {
         })
       } catch (anexoError) {
         // If anexo rendering fails, log and continue with other anexos
-        console.error(`[leasing-contracts][${requestId}] Erro ao processar anexo ${anexo.id}:`, anexoError)
+        console.error('[leasing-contracts] Erro ao processar anexo', {
+          requestId,
+          anexo: anexo.id,
+          errMessage: anexoError?.message,
+        })
         skippedAnexos.push(anexo.id)
       }
     }
 
     if (files.length === 0) {
-      throw new LeasingContractsError(500, 'Nenhum documento pôde ser gerado. Verifique a disponibilidade dos templates.')
+      throw new LeasingContractsError(
+        500,
+        'Nenhum documento pôde ser gerado. Verifique a disponibilidade dos templates.',
+        { code: 'UNKNOWN', hint: 'Verifique se os templates estão acessíveis no deploy.' },
+      )
     }
 
     if (skippedAnexos.length > 0) {
-      console.log(`[leasing-contracts][${requestId}] Anexos pulados por indisponibilidade: ${skippedAnexos.join(', ')}`)
+      console.info('[leasing-contracts] Anexos pulados por indisponibilidade', {
+        requestId,
+        anexos: skippedAnexos,
+      })
+    }
+
+    const responseNotice = fallbackNotices.length > 0 ? fallbackNotices.join(' | ') : undefined
+    if (files.length === 1) {
+      const [single] = files
+      const extension = path.extname(single.name).toLowerCase()
+      const contentType = extension === '.pdf'
+        ? 'application/pdf'
+        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      res.statusCode = 200
+      res.setHeader('Content-Type', contentType)
+      res.setHeader('Content-Disposition', `attachment; filename="${single.name}"`)
+      res.setHeader('Cache-Control', 'no-store, max-age=0')
+      if (responseNotice) {
+        res.setHeader('X-Contracts-Notice', responseNotice)
+      }
+      res.end(single.buffer)
+      return
     }
 
     const zipBuffer = await createZipFromFiles(files)
@@ -1117,8 +1236,8 @@ export const handleLeasingContractsRequest = async (req, res) => {
     res.setHeader('Content-Type', 'application/zip')
     res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`)
     res.setHeader('Cache-Control', 'no-store, max-age=0')
-    if (fallbackNotices.length > 0) {
-      res.setHeader('X-Contracts-Notice', fallbackNotices.join(' | '))
+    if (responseNotice) {
+      res.setHeader('X-Contracts-Notice', responseNotice)
     }
     res.end(zipBuffer)
   } catch (error) {
@@ -1138,18 +1257,19 @@ export const handleLeasingContractsRequest = async (req, res) => {
       return
     }
 
-    console.error(`[leasing-contracts][${requestId}] Erro inesperado ao gerar documentos:`, error)
-    const message =
-      error instanceof Error && error.message
-        ? error.message
-        : 'Não foi possível gerar os contratos de leasing.'
+    console.error('[leasing-contracts] Erro inesperado ao gerar documentos', {
+      requestId,
+      vercelId,
+      errName: error?.name,
+      errMessage: error?.message,
+      topStack: typeof error?.stack === 'string' ? error.stack.split('\n').slice(0, 3).join('\n') : undefined,
+    })
+    const payload = buildUnknownErrorPayload(error)
     sendErrorResponse(
       res,
       500,
       {
-        code: 'LEASING_CONTRACTS_ERROR',
-        message,
-        hint: 'Tente novamente ou entre em contato com o suporte.',
+        ...payload,
       },
       requestId,
       vercelId,
