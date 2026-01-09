@@ -1,0 +1,134 @@
+/**
+ * Flow V8 Design Tokens
+ * Premium B2B Design System for SolarInvest
+ */
+
+:root {
+  /* Colors - Background */
+  --v8-bg-page: #f8f9fb;
+  --v8-bg-panel: #ffffff;
+  --v8-bg-panel-elevated: #ffffff;
+  --v8-bg-header: #ffffff;
+  --v8-bg-sidebar: #fafbfc;
+  --v8-bg-hover: #f3f4f6;
+  --v8-bg-active: #e5e7eb;
+  --v8-bg-input: #ffffff;
+  --v8-bg-disabled: #f9fafb;
+
+  /* Colors - Text */
+  --v8-text-primary: #111827;
+  --v8-text-secondary: #6b7280;
+  --v8-text-tertiary: #9ca3af;
+  --v8-text-disabled: #d1d5db;
+  --v8-text-on-primary: #ffffff;
+  --v8-text-link: #2563eb;
+  --v8-text-link-hover: #1d4ed8;
+
+  /* Colors - Border */
+  --v8-border-light: #e5e7eb;
+  --v8-border-medium: #d1d5db;
+  --v8-border-strong: #9ca3af;
+  --v8-border-focus: #2563eb;
+
+  /* Colors - Brand */
+  --v8-primary: #2563eb;
+  --v8-primary-hover: #1d4ed8;
+  --v8-primary-active: #1e40af;
+  --v8-primary-light: #dbeafe;
+  --v8-secondary: #10b981;
+  --v8-secondary-hover: #059669;
+
+  /* Colors - Status */
+  --v8-success: #10b981;
+  --v8-success-light: #d1fae5;
+  --v8-warning: #f59e0b;
+  --v8-warning-light: #fef3c7;
+  --v8-error: #ef4444;
+  --v8-error-light: #fee2e2;
+  --v8-info: #3b82f6;
+  --v8-info-light: #dbeafe;
+
+  /* Spacing */
+  --v8-space-xs: 4px;
+  --v8-space-sm: 8px;
+  --v8-space-md: 12px;
+  --v8-space-lg: 16px;
+  --v8-space-xl: 24px;
+  --v8-space-2xl: 32px;
+  --v8-space-3xl: 48px;
+
+  /* Typography */
+  --v8-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --v8-font-size-xs: 12px;
+  --v8-font-size-sm: 14px;
+  --v8-font-size-base: 16px;
+  --v8-font-size-lg: 18px;
+  --v8-font-size-xl: 20px;
+  --v8-font-size-2xl: 24px;
+  --v8-font-size-3xl: 30px;
+
+  --v8-font-weight-normal: 400;
+  --v8-font-weight-medium: 500;
+  --v8-font-weight-semibold: 600;
+  --v8-font-weight-bold: 700;
+
+  --v8-line-height-tight: 1.25;
+  --v8-line-height-normal: 1.5;
+  --v8-line-height-relaxed: 1.75;
+
+  /* Border Radius */
+  --v8-radius-sm: 4px;
+  --v8-radius-md: 6px;
+  --v8-radius-lg: 8px;
+  --v8-radius-xl: 12px;
+  --v8-radius-full: 9999px;
+
+  /* Shadows */
+  --v8-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --v8-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --v8-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --v8-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Z-index */
+  --v8-z-dropdown: 1000;
+  --v8-z-sticky: 1020;
+  --v8-z-fixed: 1030;
+  --v8-z-modal-backdrop: 1040;
+  --v8-z-modal: 1050;
+  --v8-z-popover: 1060;
+  --v8-z-tooltip: 1070;
+
+  /* Transitions */
+  --v8-transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --v8-transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --v8-transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Layout */
+  --v8-sidebar-width: 280px;
+  --v8-stepper-width: 240px;
+  --v8-header-height: 64px;
+  --v8-footer-height: 72px;
+  --v8-content-max-width: 1400px;
+}
+
+/* Dark mode support (future-ready) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --v8-bg-page: #0f1419;
+    --v8-bg-panel: #1a1f2e;
+    --v8-bg-panel-elevated: #252a3a;
+    --v8-bg-header: #1a1f2e;
+    --v8-bg-sidebar: #151a27;
+    --v8-bg-hover: #252a3a;
+    --v8-bg-active: #2f3547;
+
+    --v8-text-primary: #f9fafb;
+    --v8-text-secondary: #d1d5db;
+    --v8-text-tertiary: #9ca3af;
+    --v8-text-disabled: #6b7280;
+
+    --v8-border-light: #2f3547;
+    --v8-border-medium: #4b5563;
+    --v8-border-strong: #6b7280;
+  }
+}

@@ -144,6 +144,8 @@ import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/simulacoes/SimulacoesTab'
+import { VendasV8 } from './pages-v8/VendasV8'
+import { LeasingV8 } from './pages-v8/LeasingV8'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -3154,6 +3156,15 @@ export default function App() {
 
     const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
+  })
+  
+  // V8 Flow toggle (default ON, set localStorage.setItem('legacy', '1') to use legacy)
+  const [useV8Flow] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+    const legacyMode = window.localStorage.getItem('legacy')
+    return legacyMode !== '1'
   })
   const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>('nova')
   const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
@@ -20551,6 +20562,44 @@ export default function App() {
         ) : activePage === 'settings' ? (
           renderSettingsPage()
         ) : (
+          useV8Flow && !orcamentoAtivoInfo ? (
+            // V8 Flow: New wizard-based UI
+            activeTab === 'vendas' ? (
+              <VendasV8
+                values={{
+                  nomeCliente: 'Test',
+                  email: 'test@example.com',
+                  consumoMedioMensal: '',
+                  tipoInstalacao: '',
+                  tipoSistema: '',
+                }}
+                outputs={{
+                  potenciaKwp: '',
+                  valorTotal: '',
+                  payback: '',
+                }}
+                onGenerateProposal={handleSalvarPropostaLeasing}
+              />
+            ) : (
+              <LeasingV8
+                values={{
+                  nomeCliente: 'Test',
+                  email: 'test@example.com',
+                  consumoMedioMensal: '',
+                  tipoInstalacao: '',
+                  tipoSistema: '',
+                  leasingPrazo: '',
+                }}
+                outputs={{
+                  potenciaKwp: '',
+                  mensalidade: '',
+                  prazo: '',
+                }}
+                onGenerateProposal={handleSalvarPropostaLeasing}
+              />
+            )
+          ) : (
+          // Legacy flow
           <div className="page">
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
@@ -21255,6 +21304,7 @@ export default function App() {
               </main>
             </div>
           </div>
+          )
         )}
       </AppShell>
       <input
