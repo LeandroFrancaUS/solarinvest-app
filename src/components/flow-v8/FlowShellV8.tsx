@@ -30,7 +30,6 @@ export function FlowShellV8({
             <h1>{title}</h1>
             {subtitle && <p className="v8-shell-subtitle">{subtitle}</p>}
           </div>
-          <span className="v8-badge">Flow V8</span>
         </div>
         {headerExtras && <div className="v8-shell-header-extras">{headerExtras}</div>}
       </header>

@@ -8,6 +8,7 @@ import { FlowShellV8 } from '../components/flow-v8/FlowShellV8'
 import { StepperV8 } from '../components/flow-v8/StepperV8'
 import { StepPanelV8 } from '../components/flow-v8/StepPanelV8'
 import { SummarySidebarV8 } from '../components/flow-v8/SummarySidebarV8'
+import { ProposalPreviewModal } from '../components/flow-v8/ProposalPreviewModal'
 import {
   ClienteFields,
   ConsumoTarifaFields,
@@ -25,6 +26,8 @@ import {
 import { focusField } from '../components/flow-v8/focusField.v8'
 import type { ClienteDados } from '../types/printableProposal'
 import { labelWithTooltip } from '../components/InfoTooltip'
+import { calcularMensalidadeSolarInvest } from '../lib/finance/calculations'
+import { TIPOS_REDE } from '../app/config'
 
 export interface LeasingV8Props {
   // Client data
@@ -86,6 +89,21 @@ const STEP_LABELS = [
 export function LeasingV8(props: LeasingV8Props): JSX.Element {
   const [currentStep, setCurrentStep] = useState<StepIndex>(0)
   const [isSaving, setIsSaving] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+
+  // Auto-calculate mensalidade using existing logic
+  const calculatedMensalidade = useMemo(() => {
+    const tipoRede = TIPOS_REDE.TRIFASICO // Default assumption, could be made configurable
+    return calcularMensalidadeSolarInvest({
+      tarifaCheia: props.tarifaCheia,
+      inflacaoEnergetica: 0.08, // 8% default
+      anosDecorridos: 0,
+      tipoLigacao: tipoRede,
+      cipValor: props.encargosFixosExtras,
+      tusd: null,
+      energiaGeradaKwh: 0,
+    })
+  }, [props.tarifaCheia, props.encargosFixosExtras])
 
   // Build values object for validation
   const values = useMemo(() => ({
@@ -106,9 +124,10 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
     }))
   }, [values, currentStep])
 
-  // Calculate KPIs from outputs
+  // Calculate KPIs from outputs (use calculated mensalidade if not provided)
   const kpis = useMemo(() => {
-    const { potenciaKwp, mensalidade, prazo } = props.outputs
+    const { potenciaKwp, prazo } = props.outputs
+    const mensalidadeToShow = props.outputs.mensalidade || calculatedMensalidade
     return [
       {
         label: 'Potência (kWp)',
@@ -117,7 +136,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
       },
       {
         label: 'Mensalidade',
-        value: mensalidade ? `R$ ${Number(mensalidade).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '',
+        value: mensalidadeToShow ? `R$ ${Number(mensalidadeToShow).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '',
         fallback: '—',
       },
       {
@@ -126,7 +145,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
         fallback: '—',
       },
     ]
-  }, [props.outputs])
+  }, [props.outputs, calculatedMensalidade])
 
   // Calculate checklist from missing fields
   const checklist = useMemo(() => {
@@ -233,7 +252,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
     }, 100)
   }
 
-  const handleCTAClick = async () => {
+  const handleCTAClick = () => {
     if (checklist.length > 0) {
       // Navigate to first incomplete step
       const firstIncomplete = checklist[0]
@@ -241,13 +260,24 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
         handleChecklistItemClick(firstIncomplete)
       }
     } else {
-      setIsSaving(true)
-      try {
-        await props.onGenerateProposal()
-      } finally {
-        setIsSaving(false)
-      }
+      // Show preview modal instead of directly generating
+      setShowPreview(true)
     }
+  }
+
+  const handleAcceptProposal = async () => {
+    setShowPreview(false)
+    setIsSaving(true)
+    try {
+      await props.onGenerateProposal()
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleRejectProposal = () => {
+    setShowPreview(false)
+    // Return to first step or stay on current step
   }
 
   // Render step content
@@ -388,39 +418,59 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
   ]
 
   return (
-    <FlowShellV8
-      title="Leasing"
-      subtitle="Simulador de proposta de leasing"
-      stepper={
-        <StepperV8 steps={steps} currentStep={currentStep} onStepClick={handleStepClick} />
-      }
-      content={
-        <StepPanelV8
-          currentStep={currentStep}
-          totalSteps={6}
-          title={stepTitles[currentStep] ?? 'Etapa'}
-          description={stepDescriptions[currentStep] ?? ''}
-          onPrevious={handlePrevious}
-          onNext={handleNext}
-          canGoNext={currentStep < 5}
-          canGoPrevious={currentStep > 0}
-          nextLabel={currentStep === 5 ? 'Concluir' : 'Próximo'}
-        >
-          {renderStepContent()}
-        </StepPanelV8>
-      }
-      sidebar={
-        <SummarySidebarV8
-          kpis={kpis}
-          checklist={checklist}
-          showManualBadge={showManualBadge}
-          manualBadgeReason={manualBadgeReason}
-          ctaLabel="Gerar Proposta"
-          ctaDisabled={isSaving}
-          onCTAClick={handleCTAClick}
-          onChecklistItemClick={handleChecklistItemClick}
-        />
-      }
-    />
+    <>
+      <FlowShellV8
+        title="Leasing"
+        subtitle="Simulador de proposta de leasing"
+        stepper={
+          <StepperV8 steps={steps} currentStep={currentStep} onStepClick={handleStepClick} />
+        }
+        content={
+          <StepPanelV8
+            currentStep={currentStep}
+            totalSteps={6}
+            title={stepTitles[currentStep] ?? 'Etapa'}
+            description={stepDescriptions[currentStep] ?? ''}
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+            canGoNext={currentStep < 5}
+            canGoPrevious={currentStep > 0}
+            nextLabel={currentStep === 5 ? 'Concluir' : 'Próximo'}
+          >
+            {renderStepContent()}
+          </StepPanelV8>
+        }
+        sidebar={
+          <SummarySidebarV8
+            kpis={kpis}
+            checklist={checklist}
+            showManualBadge={showManualBadge}
+            manualBadgeReason={manualBadgeReason}
+            ctaLabel="Gerar Proposta"
+            ctaDisabled={isSaving}
+            onCTAClick={handleCTAClick}
+            onChecklistItemClick={handleChecklistItemClick}
+          />
+        }
+      />
+      
+      <ProposalPreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        onAccept={handleAcceptProposal}
+        onReject={handleRejectProposal}
+        cliente={props.cliente}
+        sistema={{
+          tipoInstalacao: props.tipoInstalacao,
+          tipoSistema: props.tipoSistema,
+          potenciaKwp: props.outputs.potenciaKwp,
+        }}
+        financeiro={{
+          mensalidade: props.outputs.mensalidade || calculatedMensalidade,
+          prazo: props.leasingPrazo,
+        }}
+        isLeasing={true}
+      />
+    </>
   )
 }
