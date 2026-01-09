@@ -101,9 +101,9 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
     return STEP_LABELS.map((label, index) => ({
       index: index as StepIndex,
       label,
-      completed: isStepComplete(index as StepIndex, values, 'leasing'),
+      completed: isStepComplete(index as StepIndex, values, 'leasing', currentStep),
     }))
-  }, [values])
+  }, [values, currentStep])
 
   // Calculate KPIs from outputs
   const kpis = useMemo(() => {
@@ -269,10 +269,17 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
                 onChange={(e) => props.onLeasingPrazoChange(Number(e.target.value))}
                 className="v8-field-select"
               >
+                <option value={60}>60 meses (5 anos)</option>
+                <option value={66}>66 meses (5,5 anos)</option>
+                <option value={72}>72 meses (6 anos)</option>
+                <option value={78}>78 meses (6,5 anos)</option>
+                <option value={84}>84 meses (7 anos)</option>
+                <option value={90}>90 meses (7,5 anos)</option>
+                <option value={96}>96 meses (8 anos)</option>
+                <option value={102}>102 meses (8,5 anos)</option>
+                <option value={108}>108 meses (9 anos)</option>
+                <option value={114}>114 meses (9,5 anos)</option>
                 <option value={120}>120 meses (10 anos)</option>
-                <option value={180}>180 meses (15 anos)</option>
-                <option value={240}>240 meses (20 anos)</option>
-                <option value={300}>300 meses (25 anos)</option>
               </select>
             </Field>
             <div className="v8-alert info">

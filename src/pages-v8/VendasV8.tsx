@@ -95,9 +95,9 @@ export function VendasV8(props: VendasV8Props): JSX.Element {
     return STEP_LABELS.map((label, index) => ({
       index: index as StepIndex,
       label,
-      completed: isStepComplete(index as StepIndex, values, 'vendas'),
+      completed: isStepComplete(index as StepIndex, values, 'vendas', currentStep),
     }))
-  }, [values])
+  }, [values, currentStep])
 
   // Calculate KPIs from outputs
   const kpis = useMemo(() => {
