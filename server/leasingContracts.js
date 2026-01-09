@@ -14,6 +14,10 @@ const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
   'public/templates/contratos/leasing',
 )
+const LEASING_ANEXOS_DIR = path.resolve(
+  process.cwd(),
+  'public/templates/contratos/leasing/anexos',
+)
 const BASE_TMP_DIR = path.join(os.tmpdir(), 'solarinvest')
 const MAX_DOCX_BYTES = 8 * 1024 * 1024
 const MAX_PDF_BYTES = 12 * 1024 * 1024
@@ -135,70 +139,227 @@ const readJsonBody = async (req) => {
 
 const CONTRACT_TEMPLATES = {
   residencial: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
+  comercial: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
   condominio: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
 }
 
+/**
+ * Map of Roman numerals to Arabic numbers
+ */
+const ROMAN_TO_ARABIC = {
+  I: 1,
+  II: 2,
+  III: 3,
+  IV: 4,
+  V: 5,
+  VI: 6,
+  VII: 7,
+  VIII: 8,
+  IX: 9,
+  X: 10,
+  XI: 11,
+  XII: 12,
+}
+
+/**
+ * Map of Arabic numbers to Roman numerals
+ */
+const ARABIC_TO_ROMAN = {
+  1: 'I',
+  2: 'II',
+  3: 'III',
+  4: 'IV',
+  5: 'V',
+  6: 'VI',
+  7: 'VII',
+  8: 'VIII',
+  9: 'IX',
+  10: 'X',
+  11: 'XI',
+  12: 'XII',
+}
+
+/**
+ * Convert a Roman numeral to Arabic number
+ * @param {string} roman - Roman numeral string
+ * @returns {number|null} Arabic number or null if invalid
+ */
+const romanToArabic = (roman) => {
+  const upper = roman.toUpperCase()
+  return ROMAN_TO_ARABIC[upper] ?? null
+}
+
+/**
+ * Convert an Arabic number to Roman numeral
+ * @param {number} arabic - Arabic number
+ * @returns {string|null} Roman numeral or null if invalid
+ */
+const arabicToRoman = (arabic) => {
+  return ARABIC_TO_ROMAN[arabic] ?? null
+}
+
+/**
+ * Normalize anexo number to support both Roman and Arabic numerals
+ * @param {string} numStr - Number string (e.g., "II", "2", "IV", "4")
+ * @returns {number|null} Normalized number or null if invalid
+ */
+const normalizeAnexoNumber = (numStr) => {
+  // Try to parse as Arabic number first
+  const asNumber = parseInt(numStr, 10)
+  if (!isNaN(asNumber) && asNumber > 0) {
+    return asNumber
+  }
+  // Try to parse as Roman numeral
+  return romanToArabic(numStr)
+}
+
+/**
+ * Check if a filename matches anexo prefix pattern (case-insensitive, supports Roman/Arabic)
+ * @param {string} fileName - File name to check
+ * @param {number} anexoNum - Anexo number (1, 2, 3, etc.)
+ * @returns {boolean} true if matches
+ */
+const matchesAnexoPrefix = (fileName, anexoNum) => {
+  const normalized = fileName.trim().toLowerCase()
+  const roman = arabicToRoman(anexoNum)
+  
+  // Check for patterns like "anexo ii", "anexo 2", "ANEXO II", etc.
+  const romanPattern = new RegExp(`^anexo\\s+${roman?.toLowerCase()}`, 'i')
+  const arabicPattern = new RegExp(`^anexo\\s+${anexoNum}`, 'i')
+  
+  return romanPattern.test(normalized) || arabicPattern.test(normalized)
+}
+
+/**
+ * Search for anexo file in the anexos directory by number (supports Roman/Arabic)
+ * @param {number} anexoNum - Anexo number (1, 2, 3, etc.)
+ * @param {string} [uf] - Optional UF for state-specific templates
+ * @returns {Promise<string|null>} File name if found, null otherwise
+ */
+const findAnexoFile = async (anexoNum, uf) => {
+  try {
+    // Try UF-specific directory first if provided
+    if (uf && isValidUf(uf)) {
+      const ufAnexosDir = path.join(LEASING_ANEXOS_DIR, uf.toUpperCase())
+      try {
+        const ufEntries = await fs.readdir(ufAnexosDir)
+        const match = ufEntries.find((entry) => 
+          matchesAnexoPrefix(entry, anexoNum) && 
+          (entry.toLowerCase().endsWith('.docx') || entry.toLowerCase().endsWith('.dotx'))
+        )
+        if (match) {
+          return path.join('anexos', uf.toUpperCase(), match)
+        }
+      } catch (error) {
+        // UF directory doesn't exist, continue to default
+      }
+    }
+
+    // Search in default anexos directory
+    const entries = await fs.readdir(LEASING_ANEXOS_DIR)
+    const match = entries.find((entry) => 
+      matchesAnexoPrefix(entry, anexoNum) && 
+      (entry.toLowerCase().endsWith('.docx') || entry.toLowerCase().endsWith('.dotx'))
+    )
+    
+    if (match) {
+      return path.join('anexos', match)
+    }
+    
+    return null
+  } catch (error) {
+    console.warn('[leasing-contracts] Error searching for anexo', {
+      anexoNum,
+      uf,
+      errMessage: error?.message,
+    })
+    return null
+  }
+}
+
+/**
+ * Anexo definitions with auto-discovery support
+ * For Leasing Residencial and Comercial, Anexos II, III, and IV are automatically included
+ */
 const ANEXO_DEFINITIONS = [
   {
     id: 'ANEXO_I',
+    number: 1,
     label: 'Anexo I – Especificações Técnicas',
-    templates: {
-      residencial: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx',
-      condominio: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx', // Reusing residencial template,
-    },
-    appliesTo: new Set(['residencial', 'condominio']),
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set([]), // Optional, not auto-included
   },
   {
     id: 'ANEXO_II',
+    number: 2,
     label: 'Anexo II – Opção de Compra',
-    templates: {
-      residencial: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
-      condominio: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
-    },
-    appliesTo: new Set(['residencial', 'condominio']),
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set(['residencial', 'comercial']), // Auto-include for leasing
   },
   {
     id: 'ANEXO_III',
+    number: 3,
     label: 'Anexo III – Regras de Cálculo',
-    templates: {
-      residencial: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
-      condominio: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
-    },
-    appliesTo: new Set(['residencial', 'condominio']),
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set(['residencial', 'comercial']), // Auto-include for leasing
   },
   {
     id: 'ANEXO_IV',
+    number: 4,
     label: 'Anexo IV – Autorização do Proprietário',
-    templates: {
-      residencial:
-        'Anexos/Anexo IV – Termo de Autorização e Procuração.docx',
-    },
-    appliesTo: new Set(['residencial']),
+    appliesTo: new Set(['residencial', 'comercial']),
+    autoInclude: new Set(['residencial', 'comercial']), // Auto-include for leasing
+  },
+  {
+    id: 'ANEXO_V',
+    number: 5,
+    label: 'Anexo V',
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set([]),
+  },
+  {
+    id: 'ANEXO_VI',
+    number: 6,
+    label: 'Anexo VI',
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set([]),
   },
   {
     id: 'ANEXO_VII',
+    number: 7,
     label: 'Anexo VII – Termo de Entrega e Aceite',
-    templates: {
-      residencial: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx',
-      condominio: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx', // Reusing residencial template,
-    },
-    appliesTo: new Set(['residencial', 'condominio']),
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set([]),
   },
   {
     id: 'ANEXO_VIII',
+    number: 8,
     label: 'Anexo VIII – Procuração do Condomínio',
-    templates: {
-      condominio: 'Anexos/Anexo IV – Termo de Autorização e Procuração.docx', // Reusing ANEXO_IV as fallback
-    },
     appliesTo: new Set(['condominio']),
+    autoInclude: new Set(['condominio']),
+  },
+  {
+    id: 'ANEXO_IX',
+    number: 9,
+    label: 'Anexo IX',
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set([]),
+  },
+  {
+    id: 'ANEXO_X',
+    number: 10,
+    label: 'Anexo X',
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set([]),
   },
 ]
 
 const ANEXO_BY_ID = new Map(ANEXO_DEFINITIONS.map((anexo) => [anexo.id, anexo]))
+const ANEXO_BY_NUMBER = new Map(ANEXO_DEFINITIONS.map((anexo) => [anexo.number, anexo]))
 
 const sanitizeContratoTipo = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (normalized === 'residencial' || normalized === 'condominio') {
+  if (normalized === 'residencial' || normalized === 'comercial' || normalized === 'condominio') {
     return normalized
   }
   return null
@@ -469,6 +630,8 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
 
 const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
   const selecionados = new Set()
+  
+  // Add explicitly selected anexos
   if (Array.isArray(lista)) {
     for (const item of lista) {
       if (typeof item !== 'string') {
@@ -485,8 +648,11 @@ const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
     }
   }
 
-  if (tipoContrato === 'condominio') {
-    selecionados.add('ANEXO_VIII')
+  // Auto-include anexos for this contract type
+  for (const definicao of ANEXO_DEFINITIONS) {
+    if (definicao.autoInclude.has(tipoContrato)) {
+      selecionados.add(definicao.id)
+    }
   }
 
   return Array.from(selecionados)
@@ -494,14 +660,29 @@ const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
 
 /**
  * Verifica se um template está disponível no sistema de arquivos.
+ * Supports auto-discovery of anexo files by prefix matching.
  * Tenta primeiro template específico do UF, depois o template padrão.
  * 
- * @param {string} fileName - Nome do arquivo template
+ * @param {string} fileName - Nome do arquivo template ou número do anexo
  * @param {string} [uf] - UF para buscar template específico
  * @returns {Promise<boolean>} true se o template existe, false caso contrário
  */
 const checkTemplateAvailability = async (fileName, uf) => {
   const normalizedUf = typeof uf === 'string' ? uf.trim().toUpperCase() : ''
+
+  // Check if fileName is an anexo reference (e.g., starts with "anexos/")
+  if (fileName.toLowerCase().startsWith('anexos/') || fileName.toLowerCase().startsWith('anexo ')) {
+    // Extract anexo number if fileName is like "Anexo II" or "anexos/..."
+    const anexoMatch = fileName.match(/anexo\s+([ivx\d]+)/i)
+    if (anexoMatch) {
+      const numStr = anexoMatch[1]
+      const anexoNum = normalizeAnexoNumber(numStr)
+      if (anexoNum) {
+        const foundFile = await findAnexoFile(anexoNum, normalizedUf)
+        return foundFile !== null
+      }
+    }
+  }
 
   // Tenta verificar template específico do UF primeiro
   if (normalizedUf && isValidUf(normalizedUf)) {
@@ -525,16 +706,59 @@ const checkTemplateAvailability = async (fileName, uf) => {
 }
 
 /**
- * Carrega um template DOCX, com suporte a templates específicos por UF.
+ * Carrega um template DOCX, com suporte a templates específicos por UF e auto-discovery de anexos.
  * Ordem de busca:
  * 1. Template específico do UF (leasing/GO/template.dotx)
  * 2. Template padrão (leasing/template.dotx)
+ * Para anexos, busca por prefixo no diretório anexos/
  * 
- * @param {string} fileName - Nome do arquivo template
+ * @param {string} fileName - Nome do arquivo template ou referência de anexo
  * @param {string} [uf] - UF para buscar template específico
  */
 const loadDocxTemplate = async (fileName, uf) => {
   const normalizedUf = typeof uf === 'string' ? uf.trim().toUpperCase() : ''
+
+  // Check if fileName is an anexo reference that needs auto-discovery
+  if (fileName.toLowerCase().startsWith('anexos/') || fileName.toLowerCase().startsWith('anexo ')) {
+    // Extract anexo number if fileName is like "Anexo II" or "anexos/..."
+    const anexoMatch = fileName.match(/anexo\s+([ivx\d]+)/i)
+    if (anexoMatch) {
+      const numStr = anexoMatch[1]
+      const anexoNum = normalizeAnexoNumber(numStr)
+      if (anexoNum) {
+        const foundFile = await findAnexoFile(anexoNum, normalizedUf)
+        if (foundFile) {
+          // foundFile is relative path like "anexos/filename.docx"
+          const anexoPath = path.join(LEASING_TEMPLATES_DIR, foundFile)
+          try {
+            const buffer = await fs.readFile(anexoPath)
+            console.info({
+              scope: 'leasing-contracts',
+              step: 'anexo_discovered',
+              anexoNum,
+              fileName: path.basename(foundFile),
+              uf: normalizedUf || undefined,
+            })
+            return buffer
+          } catch (error) {
+            console.error('[leasing-contracts] Error loading discovered anexo', {
+              anexoNum,
+              foundFile,
+              errMessage: error?.message,
+            })
+            throw new LeasingContractsError(
+              422,
+              `Anexo ${anexoNum} não pôde ser carregado.`,
+              {
+                code: 'TEMPLATE_NOT_FOUND',
+                hint: 'Verifique se o anexo está presente em public/templates/contratos/leasing/anexos.',
+              },
+            )
+          }
+        }
+      }
+    }
+  }
 
   // Tenta carregar template específico do UF primeiro
   if (normalizedUf && isValidUf(normalizedUf)) {
@@ -817,11 +1041,10 @@ const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
     if (!definicao.appliesTo.has(tipoContrato)) {
       continue
     }
-    const template = definicao.templates[tipoContrato]
-    if (!template) {
-      continue
-    }
-    resolved.push({ id: anexoId, template })
+    // Use anexo number to create a reference that will be resolved by auto-discovery
+    // The template is now a reference like "Anexo II" that will be auto-discovered
+    const template = `Anexo ${arabicToRoman(definicao.number) ?? definicao.number}`
+    resolved.push({ id: anexoId, template, number: definicao.number })
   }
   return resolved
 }
