@@ -144,7 +144,8 @@ const CONTRACT_TEMPLATES = {
 }
 
 /**
- * Map of Roman numerals to Arabic numbers
+ * Map of Roman numerals to Arabic numbers (supports I-XII for anexos)
+ * Limited to 12 as this covers all standard anexos in leasing contracts
  */
 const ROMAN_TO_ARABIC = {
   I: 1,
@@ -162,7 +163,8 @@ const ROMAN_TO_ARABIC = {
 }
 
 /**
- * Map of Arabic numbers to Roman numerals
+ * Map of Arabic numbers to Roman numerals (supports 1-12 for anexos)
+ * For anexos beyond 12, Arabic numerals will be used
  */
 const ARABIC_TO_ROMAN = {
   1: 'I',
@@ -1080,8 +1082,9 @@ const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
     if (!definicao.appliesTo.has(tipoContrato)) {
       continue
     }
-    // Use anexo number to create a reference that will be resolved by auto-discovery
-    // The template is now a reference like "Anexo II" that will be auto-discovered
+    // Create a template reference for auto-discovery
+    // Uses Roman numerals for 1-12 (e.g., "Anexo II"), Arabic for 13+ (e.g., "Anexo 13")
+    // This ensures consistent naming with standard leasing contract conventions
     const template = `Anexo ${arabicToRoman(definicao.number) ?? definicao.number}`
     resolved.push({ id: anexoId, template, number: definicao.number })
   }
