@@ -224,8 +224,9 @@ const matchesAnexoPrefix = (fileName, anexoNum) => {
   const roman = arabicToRoman(anexoNum)
   
   // Check for patterns like "anexo ii", "anexo 2", "ANEXO II", etc.
-  const romanPattern = new RegExp(`^anexo\\s+${roman?.toLowerCase()}`, 'i')
-  const arabicPattern = new RegExp(`^anexo\\s+${anexoNum}`, 'i')
+  // Use word boundary \b or non-word character to ensure we match the complete number
+  const romanPattern = new RegExp(`^anexo\\s+${roman?.toLowerCase()}(?:\\s|\\W|$)`, 'i')
+  const arabicPattern = new RegExp(`^anexo\\s+${anexoNum}(?:\\s|\\W|$)`, 'i')
   
   return romanPattern.test(normalized) || arabicPattern.test(normalized)
 }
