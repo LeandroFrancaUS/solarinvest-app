@@ -105,16 +105,31 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
   // Formula: taxa mínima + CIP + TUSD Fio B (with inflation applied to tariff)
   const calculatedMensalidade = useMemo(() => {
     const tipoRede: TipoRede = 'trifasico' // Default assumption, could be made configurable
+    
+    // Calculate energiaGeradaKwh from potenciaKwp if available
+    // Assumption: 5 hours of sun per day * 30 days = 150 kWh per kWp per month
+    const potenciaKwp = props.outputs.potenciaKwp || 0
+    const energiaGeradaKwh = potenciaKwp * 150 // Simplified monthly generation
+    
+    // Build TUSD configuration for proper Fio B calculation
+    const tusdConfig = {
+      simultaneidade: 0.6, // 60% default
+      percentualFioB: 0.5, // 50% of TUSD
+      tarifaRkwh: props.tarifaCheia * 0.3, // Approximate TUSD as 30% of full tariff
+      tarifaFioBOficial: null,
+      fatorIncidenciaLei14300: 1.0, // 100% incidence
+    }
+    
     return calcularMensalidadeSolarInvest({
       tarifaCheia: props.tarifaCheia,
       inflacaoEnergetica: 0.08, // 8% default
       anosDecorridos: 0, // First 12 months only for Simple mode projection
       tipoLigacao: tipoRede,
       cipValor: props.encargosFixosExtras,
-      tusd: null,
-      energiaGeradaKwh: 0,
+      tusd: tusdConfig,
+      energiaGeradaKwh: energiaGeradaKwh,
     })
-  }, [props.tarifaCheia, props.encargosFixosExtras])
+  }, [props.tarifaCheia, props.encargosFixosExtras, props.outputs.potenciaKwp])
 
   // Build values object for validation
   const values = useMemo(() => ({
@@ -405,7 +420,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
               {showPreview ? (
                 <ProposalPreviewModal
                   cliente={props.cliente}
-                  potenciaKwp={props.potenciaKwp}
+                  potenciaKwp={props.outputs.potenciaKwp || 0}
                   mensalidade={calculatedMensalidade}
                   prazo={props.leasingPrazo}
                   onAccept={handleAcceptProposal}
@@ -443,7 +458,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
             {showPreview ? (
               <ProposalPreviewModal
                 cliente={props.cliente}
-                potenciaKwp={props.potenciaKwp}
+                potenciaKwp={props.outputs.potenciaKwp || 0}
                 mensalidade={calculatedMensalidade}
                 prazo={props.leasingPrazo}
                 onAccept={handleAcceptProposal}
