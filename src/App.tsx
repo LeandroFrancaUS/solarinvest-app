@@ -8583,70 +8583,6 @@ export default function App() {
     return { html: sanitizedLayoutHtml, dados: dadosParaImpressao }
   }, [printableData])
 
-  const guardClientFieldsOrReturn = useCallback(
-    (fields: RequiredClientField[]) => {
-      clearClientHighlights()
-      const res = validateRequiredFields(fields)
-      if (!res.ok) {
-        const orderedSelectors = fields.map((field) => field.selector)
-        highlightMissingFields(orderedSelectors, res.missingSelectors)
-        adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
-        return { ok: false as const }
-      }
-      return { ok: true as const }
-    },
-    [adicionarNotificacao],
-  )
-
-  const buildRequiredFieldsForCurrentTab = useCallback(
-    () =>
-      isVendaDiretaTab
-        ? buildRequiredFieldsVenda({ cliente, segmentoCliente, tipoEdificacaoOutro })
-        : buildRequiredFieldsLeasing({ cliente, segmentoCliente, tipoEdificacaoOutro }),
-    [cliente, isVendaDiretaTab, segmentoCliente, tipoEdificacaoOutro],
-  )
-
-  const guardValorTotalPropostaOrReturn = useCallback(() => {
-    if (isVendaDiretaTab && valorTotalPropostaNormalizado == null) {
-      window.alert('Informe o Valor total da proposta para concluir a emissão.')
-      return { ok: false as const }
-    }
-    return { ok: true as const }
-  }, [isVendaDiretaTab, valorTotalPropostaNormalizado])
-
-  const handleMultiUcRecarregarTarifas = useCallback(() => {
-    const camposObrigatorios = buildRequiredFieldsForCurrentTab()
-    if (!guardClientFieldsOrReturn(camposObrigatorios).ok) {
-      return
-    }
-    setMultiUcRows((prev) =>
-      prev.map((row) =>
-        applyTarifasAutomaticas(
-          {
-            ...row,
-            teFonte: 'auto',
-            tusdTotalFonte: 'auto',
-            tusdFioBFonte: 'auto',
-          },
-          row.classe,
-          true,
-        ),
-      ),
-    )
-  }, [applyTarifasAutomaticas, buildRequiredFieldsForCurrentTab, guardClientFieldsOrReturn])
-
-  const handleRecalcularVendas = useCallback(() => {
-    const camposObrigatorios = buildRequiredFieldsVenda({
-      cliente,
-      segmentoCliente,
-      tipoEdificacaoOutro,
-    })
-    if (!guardClientFieldsOrReturn(camposObrigatorios).ok) {
-      return
-    }
-    setRecalcularTick((prev) => prev + 1)
-  }, [cliente, guardClientFieldsOrReturn, segmentoCliente, tipoEdificacaoOutro])
-
   const mapClienteRegistroToSyncPayload = (registro: ClienteRegistro): ClienteRegistroSyncPayload => ({
     id: registro.id,
     criadoEm: registro.criadoEm,
@@ -8739,6 +8675,70 @@ export default function App() {
     },
     [removerNotificacao],
   )
+
+  const guardClientFieldsOrReturn = useCallback(
+    (fields: RequiredClientField[]) => {
+      clearClientHighlights()
+      const res = validateRequiredFields(fields)
+      if (!res.ok) {
+        const orderedSelectors = fields.map((field) => field.selector)
+        highlightMissingFields(orderedSelectors, res.missingSelectors)
+        adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
+        return { ok: false as const }
+      }
+      return { ok: true as const }
+    },
+    [adicionarNotificacao],
+  )
+
+  const buildRequiredFieldsForCurrentTab = useCallback(
+    () =>
+      isVendaDiretaTab
+        ? buildRequiredFieldsVenda({ cliente, segmentoCliente, tipoEdificacaoOutro })
+        : buildRequiredFieldsLeasing({ cliente, segmentoCliente, tipoEdificacaoOutro }),
+    [cliente, isVendaDiretaTab, segmentoCliente, tipoEdificacaoOutro],
+  )
+
+  const guardValorTotalPropostaOrReturn = useCallback(() => {
+    if (isVendaDiretaTab && valorTotalPropostaNormalizado == null) {
+      window.alert('Informe o Valor total da proposta para concluir a emissão.')
+      return { ok: false as const }
+    }
+    return { ok: true as const }
+  }, [isVendaDiretaTab, valorTotalPropostaNormalizado])
+
+  const handleMultiUcRecarregarTarifas = useCallback(() => {
+    const camposObrigatorios = buildRequiredFieldsForCurrentTab()
+    if (!guardClientFieldsOrReturn(camposObrigatorios).ok) {
+      return
+    }
+    setMultiUcRows((prev) =>
+      prev.map((row) =>
+        applyTarifasAutomaticas(
+          {
+            ...row,
+            teFonte: 'auto',
+            tusdTotalFonte: 'auto',
+            tusdFioBFonte: 'auto',
+          },
+          row.classe,
+          true,
+        ),
+      ),
+    )
+  }, [applyTarifasAutomaticas, buildRequiredFieldsForCurrentTab, guardClientFieldsOrReturn])
+
+  const handleRecalcularVendas = useCallback(() => {
+    const camposObrigatorios = buildRequiredFieldsVenda({
+      cliente,
+      segmentoCliente,
+      tipoEdificacaoOutro,
+    })
+    if (!guardClientFieldsOrReturn(camposObrigatorios).ok) {
+      return
+    }
+    setRecalcularTick((prev) => prev + 1)
+  }, [cliente, guardClientFieldsOrReturn, segmentoCliente, tipoEdificacaoOutro])
 
   const [isEnviarPropostaModalOpen, setIsEnviarPropostaModalOpen] = useState(false)
   const [contatoEnvioSelecionadoId, setContatoEnvioSelecionadoId] = useState<string | null>(null)
