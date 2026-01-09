@@ -9,6 +9,7 @@ import { StepperV8 } from '../components/flow-v8/StepperV8'
 import { StepPanelV8 } from '../components/flow-v8/StepPanelV8'
 import { SummarySidebarV8 } from '../components/flow-v8/SummarySidebarV8'
 import { ProposalPreviewModal } from '../components/flow-v8/ProposalPreviewModal'
+import { ProposalModeSelector, type ProposalMode } from '../components/flow-v8/ProposalModeSelector'
 import {
   ClienteFields,
   ConsumoTarifaFields,
@@ -77,7 +78,14 @@ export interface LeasingV8Props {
   onGenerateProposal: () => void | Promise<void>
 }
 
-const STEP_LABELS = [
+const STEP_LABELS_SIMPLE = [
+  'Cliente',
+  'Consumo & Tarifa',
+  'Sistema',
+  'Revisão',
+]
+
+const STEP_LABELS_COMPLETE = [
   'Cliente',
   'Consumo & Tarifa',
   'Sistema',
@@ -87,9 +95,13 @@ const STEP_LABELS = [
 ]
 
 export function LeasingV8(props: LeasingV8Props): JSX.Element {
+  const [proposalMode, setProposalMode] = useState<ProposalMode>('simple')
   const [currentStep, setCurrentStep] = useState<StepIndex>(0)
   const [isSaving, setIsSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  
+  const stepLabels = proposalMode === 'simple' ? STEP_LABELS_SIMPLE : STEP_LABELS_COMPLETE
+  const maxSteps = stepLabels.length
 
   // Auto-calculate mensalidade using existing logic
   const calculatedMensalidade = useMemo(() => {
