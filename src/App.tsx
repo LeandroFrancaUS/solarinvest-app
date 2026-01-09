@@ -20563,38 +20563,98 @@ export default function App() {
           renderSettingsPage()
         ) : (
           useV8Flow && !orcamentoAtivoInfo ? (
-            // V8 Flow: New wizard-based UI
+            // V8 Flow: New wizard-based UI with real state
             activeTab === 'vendas' ? (
               <VendasV8
-                values={{
-                  nomeCliente: 'Test',
-                  email: 'test@example.com',
-                  consumoMedioMensal: '',
-                  tipoInstalacao: '',
-                  tipoSistema: '',
-                }}
+                // Client data
+                cliente={cliente}
+                onClienteChange={handleClienteChange}
+                segmentoCliente={segmentoCliente}
+                // Consumo & Tarifa
+                kcKwhMes={kcKwhMes}
+                tarifaCheia={tarifaCheia}
+                taxaMinima={taxaMinima}
+                encargosFixosExtras={encargosFixosExtras}
+                ufTarifa={ufTarifa}
+                distribuidoraTarifa={distribuidoraTarifa}
+                irradiacaoMedia={irradiacao}
+                ufsDisponiveis={ufsDisponiveis}
+                distribuidorasDisponiveis={distribuidorasDisponiveis}
+                ufLabels={UF_LABELS}
+                taxaMinimaInputEmpty={taxaMinimaInputEmpty}
+                onKcKwhMesChange={setKcKwhMes}
+                onTarifaCheiaChange={setTarifaCheia}
+                onTaxaMinimaChange={normalizeTaxaMinimaInputValue}
+                onEncargosFixosExtrasChange={setEncargosFixosExtras}
+                onUfChange={handleParametrosUfChange}
+                onDistribuidoraChange={handleParametrosDistribuidoraChange}
+                onIrradiacaoMediaChange={(value) => setIrradiacao(value)}
+                // Sistema
+                tipoInstalacao={tipoInstalacao}
+                tipoInstalacaoOutro={tipoInstalacaoOutro}
+                tipoSistema={tipoSistema}
+                tiposInstalacao={TIPOS_INSTALACAO}
+                tipoSistemaValues={TIPO_SISTEMA_VALUES}
+                onTipoInstalacaoChange={handleTipoInstalacaoChange}
+                onTipoInstalacaoOutroChange={setTipoInstalacaoOutro}
+                onTipoSistemaChange={handleTipoSistemaChange}
+                isManualBudgetForced={isManualBudgetForced}
+                manualBudgetForceReason={manualBudgetForceReason}
+                // Outputs/KPIs
                 outputs={{
-                  potenciaKwp: '',
-                  valorTotal: '',
-                  payback: '',
+                  potenciaKwp: potenciaInstaladaKwp,
+                  valorTotal: capex,
+                  payback: null, // TODO: Extract from ROI calculation
                 }}
+                // Handlers
                 onGenerateProposal={handleSalvarPropostaLeasing}
               />
             ) : (
               <LeasingV8
-                values={{
-                  nomeCliente: 'Test',
-                  email: 'test@example.com',
-                  consumoMedioMensal: '',
-                  tipoInstalacao: '',
-                  tipoSistema: '',
-                  leasingPrazo: '',
-                }}
+                // Client data
+                cliente={cliente}
+                onClienteChange={handleClienteChange}
+                segmentoCliente={segmentoCliente}
+                // Consumo & Tarifa
+                kcKwhMes={kcKwhMes}
+                tarifaCheia={tarifaCheia}
+                taxaMinima={taxaMinima}
+                encargosFixosExtras={encargosFixosExtras}
+                ufTarifa={ufTarifa}
+                distribuidoraTarifa={distribuidoraTarifa}
+                irradiacaoMedia={irradiacao}
+                ufsDisponiveis={ufsDisponiveis}
+                distribuidorasDisponiveis={distribuidorasDisponiveis}
+                ufLabels={UF_LABELS}
+                taxaMinimaInputEmpty={taxaMinimaInputEmpty}
+                onKcKwhMesChange={setKcKwhMes}
+                onTarifaCheiaChange={setTarifaCheia}
+                onTaxaMinimaChange={normalizeTaxaMinimaInputValue}
+                onEncargosFixosExtrasChange={setEncargosFixosExtras}
+                onUfChange={handleParametrosUfChange}
+                onDistribuidoraChange={handleParametrosDistribuidoraChange}
+                onIrradiacaoMediaChange={(value) => setIrradiacao(value)}
+                // Sistema
+                tipoInstalacao={tipoInstalacao}
+                tipoInstalacaoOutro={tipoInstalacaoOutro}
+                tipoSistema={tipoSistema}
+                tiposInstalacao={TIPOS_INSTALACAO}
+                tipoSistemaValues={TIPO_SISTEMA_VALUES}
+                onTipoInstalacaoChange={handleTipoInstalacaoChange}
+                onTipoInstalacaoOutroChange={setTipoInstalacaoOutro}
+                onTipoSistemaChange={handleTipoSistemaChange}
+                isManualBudgetForced={isManualBudgetForced}
+                manualBudgetForceReason={manualBudgetForceReason}
+                // Leasing specific
+                leasingPrazo={leasingPrazo}
+                onLeasingPrazoChange={setLeasingPrazo}
+                // Outputs/KPIs
                 outputs={{
-                  potenciaKwp: '',
-                  mensalidade: '',
-                  prazo: '',
+                  potenciaKwp: potenciaInstaladaKwp,
+                  mensalidade: null, // TODO: Calculate from leasing state
+                  prazo: leasingPrazo,
                 }}
+                // Handlers
                 onGenerateProposal={handleSalvarPropostaLeasing}
               />
             )

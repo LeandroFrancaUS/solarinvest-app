@@ -76,7 +76,7 @@ export function getFirstMissingOverall(
   
   for (let step = 0; step <= 5; step++) {
     const missing = getMissingForStep(step as StepIndex, values, mode)
-    if (missing.length > 0) {
+    if (missing.length > 0 && missing[0]) {
       return { step: step as StepIndex, field: missing[0] }
     }
   }
