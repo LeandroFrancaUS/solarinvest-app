@@ -99,9 +99,6 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
   const [currentStep, setCurrentStep] = useState<StepIndex>(0)
   const [isSaving, setIsSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
-  
-  const stepLabels = proposalMode === 'simple' ? STEP_LABELS_SIMPLE : STEP_LABELS_COMPLETE
-  const maxSteps = stepLabels.length
 
   // Auto-calculate mensalidade using existing logic
   const calculatedMensalidade = useMemo(() => {
