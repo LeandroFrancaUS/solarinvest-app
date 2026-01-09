@@ -430,6 +430,47 @@
   cursor: not-allowed;
 }
 
+/* Invalid/Error state for fields */
+.v8-field-input.invalid,
+.v8-field-select.invalid,
+.v8-field-textarea.invalid,
+.v8-field-input[aria-invalid="true"],
+.v8-field-select[aria-invalid="true"],
+.v8-field-textarea[aria-invalid="true"] {
+  border-color: var(--v8-error);
+  background: var(--v8-error-light);
+}
+
+.v8-field-input.invalid:focus,
+.v8-field-select.invalid:focus,
+.v8-field-textarea.invalid:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* Shake animation for validation errors */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.v8-field.shake {
+  animation: shake 0.5s;
+}
+
+.v8-field.has-error .v8-field-label {
+  color: var(--v8-error);
+}
+
+.v8-field-error {
+  color: var(--v8-error);
+  font-size: var(--v8-font-size-xs);
+  margin-top: var(--v8-space-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--v8-space-xs);
+}
+
 /* Alert */
 .v8-alert {
   padding: var(--v8-space-lg);

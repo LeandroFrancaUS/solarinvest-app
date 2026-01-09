@@ -169,8 +169,51 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
       // Check if current step is complete before allowing navigation
       const missing = getMissingForStep(currentStep, values, 'leasing')
       if (missing.length > 0) {
+        // Highlight missing fields with visual feedback
+        missing.forEach(fieldName => {
+          // Find the input element by data-field attribute
+          const selector = `[data-field="${fieldName}"]`
+          const element = document.querySelector<HTMLInputElement | HTMLSelectElement>(selector)
+          
+          if (element) {
+            // Mark as invalid
+            element.classList.add('invalid')
+            element.setAttribute('aria-invalid', 'true')
+            
+            // Add shake animation to parent field
+            const fieldContainer = element.closest('.v8-field')
+            if (fieldContainer) {
+              fieldContainer.classList.add('shake', 'has-error')
+              // Remove shake class after animation
+              setTimeout(() => {
+                fieldContainer.classList.remove('shake')
+              }, 500)
+            }
+            
+            // Remove invalid state when user starts typing
+            const clearInvalid = () => {
+              element.classList.remove('invalid')
+              element.removeAttribute('aria-invalid')
+              const fieldContainer = element.closest('.v8-field')
+              if (fieldContainer) {
+                fieldContainer.classList.remove('has-error')
+              }
+              element.removeEventListener('input', clearInvalid)
+              element.removeEventListener('change', clearInvalid)
+            }
+            element.addEventListener('input', clearInvalid)
+            element.addEventListener('change', clearInvalid)
+          }
+        })
+        
+        // Focus first missing field
+        if (missing[0]) {
+          setTimeout(() => {
+            focusField(missing[0], '.v8-step-content')
+          }, 100)
+        }
+        
         // Don't proceed - user needs to complete required fields
-        // The UI will show validation errors via the checklist
         return
       }
       setCurrentStep((currentStep + 1) as StepIndex)
