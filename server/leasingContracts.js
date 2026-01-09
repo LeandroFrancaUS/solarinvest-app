@@ -223,12 +223,42 @@ const matchesAnexoPrefix = (fileName, anexoNum) => {
   const normalized = fileName.trim().toLowerCase()
   const roman = arabicToRoman(anexoNum)
   
-  // Check for patterns like "anexo ii", "anexo 2", "ANEXO II", etc.
-  // Use word boundary \b or non-word character to ensure we match the complete number
-  const romanPattern = new RegExp(`^anexo\\s+${roman?.toLowerCase()}(?:\\s|\\W|$)`, 'i')
+  // Check Arabic pattern first (always valid)
   const arabicPattern = new RegExp(`^anexo\\s+${anexoNum}(?:\\s|\\W|$)`, 'i')
+  if (arabicPattern.test(normalized)) {
+    return true
+  }
   
-  return romanPattern.test(normalized) || arabicPattern.test(normalized)
+  // Only check Roman pattern if conversion was successful
+  if (roman) {
+    const romanPattern = new RegExp(`^anexo\\s+${roman.toLowerCase()}(?:\\s|\\W|$)`, 'i')
+    return romanPattern.test(normalized)
+  }
+  
+  return false
+}
+
+/**
+ * Check if a filename is an anexo reference
+ * @param {string} fileName - File name to check
+ * @returns {boolean} true if this looks like an anexo reference
+ */
+const isAnexoReference = (fileName) => {
+  const lower = fileName.toLowerCase()
+  return lower.startsWith('anexos/') || lower.startsWith('anexo ')
+}
+
+/**
+ * Extract anexo number from a filename
+ * @param {string} fileName - File name to extract from
+ * @returns {number|null} Anexo number or null if not found
+ */
+const extractAnexoNumber = (fileName) => {
+  const anexoMatch = fileName.match(/anexo\s+([ivx\d]+)/i)
+  if (!anexoMatch) {
+    return null
+  }
+  return normalizeAnexoNumber(anexoMatch[1])
 }
 
 /**
@@ -671,17 +701,12 @@ const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
 const checkTemplateAvailability = async (fileName, uf) => {
   const normalizedUf = typeof uf === 'string' ? uf.trim().toUpperCase() : ''
 
-  // Check if fileName is an anexo reference (e.g., starts with "anexos/")
-  if (fileName.toLowerCase().startsWith('anexos/') || fileName.toLowerCase().startsWith('anexo ')) {
-    // Extract anexo number if fileName is like "Anexo II" or "anexos/..."
-    const anexoMatch = fileName.match(/anexo\s+([ivx\d]+)/i)
-    if (anexoMatch) {
-      const numStr = anexoMatch[1]
-      const anexoNum = normalizeAnexoNumber(numStr)
-      if (anexoNum) {
-        const foundFile = await findAnexoFile(anexoNum, normalizedUf)
-        return foundFile !== null
-      }
+  // Check if fileName is an anexo reference (e.g., starts with "anexos/" or "anexo ")
+  if (isAnexoReference(fileName)) {
+    const anexoNum = extractAnexoNumber(fileName)
+    if (anexoNum) {
+      const foundFile = await findAnexoFile(anexoNum, normalizedUf)
+      return foundFile !== null
     }
   }
 
@@ -720,42 +745,37 @@ const loadDocxTemplate = async (fileName, uf) => {
   const normalizedUf = typeof uf === 'string' ? uf.trim().toUpperCase() : ''
 
   // Check if fileName is an anexo reference that needs auto-discovery
-  if (fileName.toLowerCase().startsWith('anexos/') || fileName.toLowerCase().startsWith('anexo ')) {
-    // Extract anexo number if fileName is like "Anexo II" or "anexos/..."
-    const anexoMatch = fileName.match(/anexo\s+([ivx\d]+)/i)
-    if (anexoMatch) {
-      const numStr = anexoMatch[1]
-      const anexoNum = normalizeAnexoNumber(numStr)
-      if (anexoNum) {
-        const foundFile = await findAnexoFile(anexoNum, normalizedUf)
-        if (foundFile) {
-          // foundFile is relative path like "anexos/filename.docx"
-          const anexoPath = path.join(LEASING_TEMPLATES_DIR, foundFile)
-          try {
-            const buffer = await fs.readFile(anexoPath)
-            console.info({
-              scope: 'leasing-contracts',
-              step: 'anexo_discovered',
-              anexoNum,
-              fileName: path.basename(foundFile),
-              uf: normalizedUf || undefined,
-            })
-            return buffer
-          } catch (error) {
-            console.error('[leasing-contracts] Error loading discovered anexo', {
-              anexoNum,
-              foundFile,
-              errMessage: error?.message,
-            })
-            throw new LeasingContractsError(
-              422,
-              `Anexo ${anexoNum} não pôde ser carregado.`,
-              {
-                code: 'TEMPLATE_NOT_FOUND',
-                hint: 'Verifique se o anexo está presente em public/templates/contratos/leasing/anexos.',
-              },
-            )
-          }
+  if (isAnexoReference(fileName)) {
+    const anexoNum = extractAnexoNumber(fileName)
+    if (anexoNum) {
+      const foundFile = await findAnexoFile(anexoNum, normalizedUf)
+      if (foundFile) {
+        // foundFile is relative path like "anexos/filename.docx"
+        const anexoPath = path.join(LEASING_TEMPLATES_DIR, foundFile)
+        try {
+          const buffer = await fs.readFile(anexoPath)
+          console.info({
+            scope: 'leasing-contracts',
+            step: 'anexo_discovered',
+            anexoNum,
+            fileName: path.basename(foundFile),
+            uf: normalizedUf || undefined,
+          })
+          return buffer
+        } catch (error) {
+          console.error('[leasing-contracts] Error loading discovered anexo', {
+            anexoNum,
+            foundFile,
+            errMessage: error?.message,
+          })
+          throw new LeasingContractsError(
+            422,
+            `Anexo ${anexoNum} não pôde ser carregado.`,
+            {
+              code: 'TEMPLATE_NOT_FOUND',
+              hint: 'Verifique se o anexo está presente em public/templates/contratos/leasing/anexos.',
+            },
+          )
         }
       }
     }
