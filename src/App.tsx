@@ -4009,27 +4009,6 @@ export default function App() {
     [applyTarifasAutomaticas],
   )
 
-  const handleMultiUcRecarregarTarifas = useCallback(() => {
-    const camposObrigatorios = buildRequiredFieldsForCurrentTab()
-    if (!guardClientFieldsOrReturn(camposObrigatorios).ok) {
-      return
-    }
-    setMultiUcRows((prev) =>
-      prev.map((row) =>
-        applyTarifasAutomaticas(
-          {
-            ...row,
-            teFonte: 'auto',
-            tusdTotalFonte: 'auto',
-            tusdFioBFonte: 'auto',
-          },
-          row.classe,
-          true,
-        ),
-      ),
-    )
-  }, [applyTarifasAutomaticas, buildRequiredFieldsForCurrentTab, guardClientFieldsOrReturn])
-
   const handleMultiUcRateioModoChange = useCallback(
     (modo: MultiUcRateioModo) => {
       setMultiUcRateioModo(modo)
@@ -4774,18 +4753,6 @@ export default function App() {
     setRetornoError(null)
     setRetornoStatus('idle')
   }, [])
-
-  const handleRecalcularVendas = useCallback(() => {
-    const camposObrigatorios = buildRequiredFieldsVenda({
-      cliente,
-      segmentoCliente,
-      tipoEdificacaoOutro,
-    })
-    if (!guardClientFieldsOrReturn(camposObrigatorios).ok) {
-      return
-    }
-    setRecalcularTick((prev) => prev + 1)
-  }, [cliente, guardClientFieldsOrReturn, segmentoCliente, tipoEdificacaoOutro])
 
   const handleCalcularRetorno = useCallback(() => {
     const errors = validateVendaForm(vendaForm)
@@ -8646,6 +8613,39 @@ export default function App() {
     }
     return { ok: true as const }
   }, [isVendaDiretaTab, valorTotalPropostaNormalizado])
+
+  const handleMultiUcRecarregarTarifas = useCallback(() => {
+    const camposObrigatorios = buildRequiredFieldsForCurrentTab()
+    if (!guardClientFieldsOrReturn(camposObrigatorios).ok) {
+      return
+    }
+    setMultiUcRows((prev) =>
+      prev.map((row) =>
+        applyTarifasAutomaticas(
+          {
+            ...row,
+            teFonte: 'auto',
+            tusdTotalFonte: 'auto',
+            tusdFioBFonte: 'auto',
+          },
+          row.classe,
+          true,
+        ),
+      ),
+    )
+  }, [applyTarifasAutomaticas, buildRequiredFieldsForCurrentTab, guardClientFieldsOrReturn])
+
+  const handleRecalcularVendas = useCallback(() => {
+    const camposObrigatorios = buildRequiredFieldsVenda({
+      cliente,
+      segmentoCliente,
+      tipoEdificacaoOutro,
+    })
+    if (!guardClientFieldsOrReturn(camposObrigatorios).ok) {
+      return
+    }
+    setRecalcularTick((prev) => prev + 1)
+  }, [cliente, guardClientFieldsOrReturn, segmentoCliente, tipoEdificacaoOutro])
 
   const mapClienteRegistroToSyncPayload = (registro: ClienteRegistro): ClienteRegistroSyncPayload => ({
     id: registro.id,
