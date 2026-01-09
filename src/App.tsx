@@ -4316,46 +4316,6 @@ export default function App() {
     [removerNotificacao],
   )
 
-  const buildRequiredClientFields = useCallback(
-    (mode: 'venda' | 'leasing') => {
-      const input = {
-        cliente,
-        segmentoCliente,
-        tipoEdificacaoOutro,
-        leasingContrato,
-      }
-      return mode === 'venda'
-        ? buildRequiredFieldsVenda(input)
-        : buildRequiredFieldsLeasing(input)
-    },
-    [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato],
-  )
-
-  const guardClientFieldsOrReturn = useCallback(
-    (mode: 'venda' | 'leasing') => {
-      clearClientHighlights()
-      const fields = buildRequiredClientFields(mode)
-      const result = validateRequiredFields(fields)
-      if (!result.ok) {
-        const orderedSelectors = fields.map((field) => field.selector)
-        highlightMissingFields(orderedSelectors, result.missingSelectors)
-        adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
-        return false
-      }
-      if (mode === 'venda' && isVendaDiretaTab && valorTotalPropostaNormalizado == null) {
-        window.alert('Informe o Valor total da proposta para concluir a emissão.')
-        return false
-      }
-      return true
-    },
-    [
-      adicionarNotificacao,
-      buildRequiredClientFields,
-      isVendaDiretaTab,
-      valorTotalPropostaNormalizado,
-    ],
-  )
-
   const [crmIntegrationMode, setCrmIntegrationMode] = useState<CrmIntegrationMode>('local')
   const crmIntegrationModeRef = useRef<CrmIntegrationMode>(crmIntegrationMode)
   const [crmIsSaving, setCrmIsSaving] = useState(false)
@@ -4843,6 +4803,46 @@ export default function App() {
   const valorTotalPropostaNormalizado = Number.isFinite(vendaForm.capex_total)
     ? Math.max(0, Number(vendaForm.capex_total))
     : 0
+
+  const buildRequiredClientFields = useCallback(
+    (mode: 'venda' | 'leasing') => {
+      const input = {
+        cliente,
+        segmentoCliente,
+        tipoEdificacaoOutro,
+        leasingContrato,
+      }
+      return mode === 'venda'
+        ? buildRequiredFieldsVenda(input)
+        : buildRequiredFieldsLeasing(input)
+    },
+    [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato],
+  )
+
+  const guardClientFieldsOrReturn = useCallback(
+    (mode: 'venda' | 'leasing') => {
+      clearClientHighlights()
+      const fields = buildRequiredClientFields(mode)
+      const result = validateRequiredFields(fields)
+      if (!result.ok) {
+        const orderedSelectors = fields.map((field) => field.selector)
+        highlightMissingFields(orderedSelectors, result.missingSelectors)
+        adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
+        return false
+      }
+      if (mode === 'venda' && isVendaDiretaTab && valorTotalPropostaNormalizado == null) {
+        window.alert('Informe o Valor total da proposta para concluir a emissão.')
+        return false
+      }
+      return true
+    },
+    [
+      adicionarNotificacao,
+      buildRequiredClientFields,
+      isVendaDiretaTab,
+      valorTotalPropostaNormalizado,
+    ],
+  )
 
   useEffect(() => {
     if (!isVendaDiretaTab) {
