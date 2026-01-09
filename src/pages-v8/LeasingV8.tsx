@@ -406,7 +406,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
                 <ProposalPreviewModal
                   cliente={props.cliente}
                   potenciaKwp={props.potenciaKwp}
-                  mensalidade={mensalidade}
+                  mensalidade={calculatedMensalidade}
                   prazo={props.leasingPrazo}
                   onAccept={handleAcceptProposal}
                   onReject={handleRejectProposal}
@@ -444,7 +444,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
               <ProposalPreviewModal
                 cliente={props.cliente}
                 potenciaKwp={props.potenciaKwp}
-                mensalidade={mensalidade}
+                mensalidade={calculatedMensalidade}
                 prazo={props.leasingPrazo}
                 onAccept={handleAcceptProposal}
                 onReject={handleRejectProposal}
