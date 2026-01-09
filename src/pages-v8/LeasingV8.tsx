@@ -127,14 +127,22 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
     leasingPrazo: props.leasingPrazo,
   }), [props.cliente.nome, props.cliente.email, props.kcKwhMes, props.tipoInstalacao, props.tipoSistema, props.leasingPrazo])
 
+  // Define step labels based on mode
+  const stepLabels = useMemo(() => {
+    if (proposalMode === 'simple') {
+      return ['Cliente', 'Consumo & Tarifa', 'Sistema', 'Revisão']
+    }
+    return ['Cliente', 'Consumo & Tarifa', 'Sistema', 'Oferta de Leasing', 'Projeções', 'Revisão']
+  }, [proposalMode])
+
   // Calculate step completion
   const steps = useMemo(() => {
-    return STEP_LABELS.map((label, index) => ({
+    return stepLabels.map((label, index) => ({
       index: index as StepIndex,
       label,
       completed: isStepComplete(index as StepIndex, values, 'leasing', currentStep),
     }))
-  }, [values, currentStep])
+  }, [stepLabels, values, currentStep])
 
   // Calculate KPIs from outputs (use calculated mensalidade if not provided)
   const kpis = useMemo(() => {
