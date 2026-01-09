@@ -584,11 +584,11 @@ function PrintableProposalLeasingInner(
       value: formatKwp(potenciaInstaladaKwp),
     },
     {
-      label: 'Modelo do inversor',
+      label: 'Inversores fotovoltaicos',
       value: modeloInversor ?? '—',
     },
     {
-      label: 'Modelo dos módulos',
+      label: 'Módulos fotovoltaicos',
       value: modeloModulo ?? '—',
     },
     {
