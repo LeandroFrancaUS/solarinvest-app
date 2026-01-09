@@ -129,7 +129,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
   // Define step labels based on mode
   const stepLabels = useMemo(() => {
     if (proposalMode === 'simple') {
-      return ['Cliente', 'Consumo & Tarifa', 'Sistema', 'Revisão']
+      return ['Cliente', 'Consumo & Tarifa', 'Sistema', 'Condições do Leasing', 'Revisão']
     }
     return ['Cliente', 'Consumo & Tarifa', 'Sistema', 'Oferta de Leasing', 'Projeções', 'Revisão']
   }, [proposalMode])
@@ -203,7 +203,8 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
   }
 
   const handleNext = () => {
-    if (currentStep < 5) {
+    const maxStep = proposalMode === 'simple' ? 4 : 5
+    if (currentStep < maxStep) {
       // Check if current step is complete before allowing navigation
       const missing = getMissingForStep(currentStep, values, 'leasing')
       if (missing.length > 0) {
@@ -355,6 +356,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
           </div>
         )
       case 3:
+        // Step 3: Condições do Leasing (Simple mode) OR Oferta de Leasing (Complete mode)
         return (
           <div className="v8-field-grid cols-2">
             <Field
@@ -382,36 +384,80 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
                 <option value={120}>120 meses (10 anos)</option>
               </select>
             </Field>
-            <div className="v8-alert info">
-              <p>
-                <strong>Oferta de Leasing</strong>
-                <br />
-                Campos adicionais de leasing (entrada, taxa, etc.) serão integrados em uma próxima iteração.
-              </p>
-            </div>
+            {proposalMode === 'complete' && (
+              <div className="v8-alert info">
+                <p>
+                  <strong>Oferta de Leasing</strong>
+                  <br />
+                  Campos adicionais de leasing (entrada, taxa, etc.) serão integrados em uma próxima iteração.
+                </p>
+              </div>
+            )}
           </div>
         )
       case 4:
-        return (
-          <div className="v8-field-grid">
-            <div className="v8-alert info">
-              <p>
-                <strong>Etapa 5: Projeções</strong>
-                <br />
-                Projeções financeiras serão integradas em uma próxima iteração.
-              </p>
+        // Step 4: Revisão (Simple mode) OR Projeções (Complete mode)
+        if (proposalMode === 'simple') {
+          // Simple mode: Show Revisão with preview at step 4
+          const validation = canGenerateProposal(values, 'leasing')
+          return (
+            <div>
+              {showPreview ? (
+                <ProposalPreviewModal
+                  cliente={props.cliente}
+                  potenciaKwp={props.potenciaKwp}
+                  mensalidade={mensalidade}
+                  prazo={props.leasingPrazo}
+                  onAccept={handleAcceptProposal}
+                  onReject={handleRejectProposal}
+                />
+              ) : (
+                <GerarPropostaActions
+                  onGenerateProposal={handleCTAClick}
+                  isSaving={isSaving}
+                  canGenerate={validation.valid}
+                  missingFields={validation.missing}
+                />
+              )}
             </div>
-          </div>
-        )
+          )
+        } else {
+          // Complete mode: Show Projeções
+          return (
+            <div className="v8-field-grid">
+              <div className="v8-alert info">
+                <p>
+                  <strong>Etapa 5: Projeções</strong>
+                  <br />
+                  Projeções financeiras serão integradas em uma próxima iteração.
+                </p>
+              </div>
+            </div>
+          )
+        }
       case 5:
+        // Step 5: Revisão (Complete mode only)
         const validation = canGenerateProposal(values, 'leasing')
         return (
-          <GerarPropostaActions
-            onGenerateProposal={handleCTAClick}
-            isSaving={isSaving}
-            canGenerate={validation.valid}
-            missingFields={validation.missing}
-          />
+          <div>
+            {showPreview ? (
+              <ProposalPreviewModal
+                cliente={props.cliente}
+                potenciaKwp={props.potenciaKwp}
+                mensalidade={mensalidade}
+                prazo={props.leasingPrazo}
+                onAccept={handleAcceptProposal}
+                onReject={handleRejectProposal}
+              />
+            ) : (
+              <GerarPropostaActions
+                onGenerateProposal={handleCTAClick}
+                isSaving={isSaving}
+                canGenerate={validation.valid}
+                missingFields={validation.missing}
+              />
+            )}
+          </div>
         )
       default:
         return null
