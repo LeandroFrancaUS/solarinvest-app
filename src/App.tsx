@@ -117,7 +117,7 @@ import {
 } from './store/useVendaStore'
 import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta'
 import {
-  getLeasingSnapshot,
+  getLeasingSnapshot as getLeasingStoreSnapshot,
   hasLeasingStateChanges,
   leasingActions,
   useLeasingStore,
@@ -126,6 +126,9 @@ import {
   type LeasingContratoProprietario,
   type LeasingState,
 } from './store/useLeasingStore'
+import { autoSelectAnnexes } from './lib/leasing/annexAutoSelect'
+import { ANNEX_IDS, type LeasingAnnexId } from './lib/leasing/annexIds'
+import { getLeasingSnapshot } from './lib/leasing/getLeasingSnapshot'
 import { applyFieldSyncChange, fieldSyncActions, type FieldSyncKey } from './store/useFieldSyncStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
@@ -2081,60 +2084,83 @@ type ContractTemplatesModalProps = {
 
 type LeasingContratoTipo = 'residencial' | 'condominio'
 
-type LeasingAnexoId = 'ANEXO_I' | 'ANEXO_II' | 'ANEXO_III' | 'ANEXO_IV' | 'ANEXO_VII' | 'ANEXO_VIII'
+type LeasingAnexoId = LeasingAnnexId
 
 type LeasingAnexoConfig = {
   id: LeasingAnexoId
   label: string
   descricao?: string
   tipos: LeasingContratoTipo[]
-  autoInclude?: boolean
 }
 
 const LEASING_ANEXOS_CONFIG: LeasingAnexoConfig[] = [
   {
-    id: 'ANEXO_I',
-    label: 'Especificações Técnicas',
-    descricao: 'Resumo técnico e proposta comercial detalhada conforme metodologia interna da SolarInvest.',
+    id: ANNEX_IDS.DADOS_TECNICOS_USINA,
+    label: 'Dados técnicos da usina',
+    descricao: 'Detalhamento técnico e resumo comercial da usina fotovoltaica.',
     tipos: ['residencial', 'condominio'],
   },
   {
-    id: 'ANEXO_II',
-    label: 'Opção de Compra',
-    descricao: 'Termo de opção de compra da usina ao final do contrato, conforme regras aplicáveis ao modelo de leasing.',
+    id: ANNEX_IDS.PLANO_PAGAMENTO,
+    label: 'Plano de pagamento',
+    descricao: 'Resumo de mensalidades, prazo e critérios de reajuste do leasing.',
     tipos: ['residencial', 'condominio'],
   },
   {
-    id: 'ANEXO_III',
-    label: 'Metodologia de Cálculo',
-    descricao: 'Documento com a metodologia interna utilizada para as simulações e estimativas de mensalidade.',
+    id: ANNEX_IDS.MAPA_UC_ENDERECOS,
+    label: 'Mapa de UC e endereços',
+    descricao: 'Mapa com UCs e endereços do contratante e da instalação.',
     tipos: ['residencial', 'condominio'],
   },
   {
-    id: 'ANEXO_IV',
-    label: 'Autorização do Proprietário',
-    descricao: 'Declaração dos proprietários ou herdeiros autorizando a instalação.',
-    tipos: ['residencial'],
-  },
-  {
-    id: 'ANEXO_VII',
-    label: 'Termo de Entrega e Aceite',
-    descricao: 'Registro de entrega técnica da usina.',
+    id: ANNEX_IDS.CHECKLIST_PF,
+    label: 'Checklist PF',
+    descricao: 'Checklist de documentos para pessoa física.',
     tipos: ['residencial', 'condominio'],
   },
   {
-    id: 'ANEXO_VIII',
-    label: 'Procuração do Condomínio',
-    descricao: 'Documento obrigatório para representação do condomínio.',
+    id: ANNEX_IDS.CHECKLIST_PJ,
+    label: 'Checklist PJ',
+    descricao: 'Checklist de documentos para pessoa jurídica.',
+    tipos: ['residencial', 'condominio'],
+  },
+  {
+    id: ANNEX_IDS.CHECKLIST_CONDOMINIO,
+    label: 'Checklist condomínio',
+    descricao: 'Checklist de documentos para condomínio.',
     tipos: ['condominio'],
-    autoInclude: true,
+  },
+  {
+    id: ANNEX_IDS.AUT_PROPRIETARIO,
+    label: 'Autorização do proprietário',
+    descricao: 'Declaração de autorização para instalação no imóvel.',
+    tipos: ['residencial', 'condominio'],
+  },
+  {
+    id: ANNEX_IDS.ATA_CONDOMINIO,
+    label: 'Ata de condomínio',
+    descricao: 'Ata ou documento de representação do condomínio.',
+    tipos: ['condominio'],
+  },
+  {
+    id: ANNEX_IDS.ART_RRT,
+    label: 'ART/RRT',
+    descricao: 'Responsabilidade técnica quando aplicável.',
+    tipos: ['residencial', 'condominio'],
+  },
+  {
+    id: ANNEX_IDS.TERMO_ESTRUTURAL,
+    label: 'Termo estrutural',
+    descricao: 'Termo estrutural ou dispensa, conforme avaliação técnica.',
+    tipos: ['residencial', 'condominio'],
+  },
+  {
+    id: ANNEX_IDS.OEM_GARANTIAS,
+    label: 'OEM e garantias',
+    descricao: 'Garantias de fabricantes e condições OEM.',
+    tipos: ['residencial', 'condominio'],
   },
 ]
-
-const getDefaultLeasingAnexos = (tipo: LeasingContratoTipo): LeasingAnexoId[] =>
-  LEASING_ANEXOS_CONFIG.filter((config) => config.tipos.includes(tipo) && !config.autoInclude).map(
-    (config) => config.id,
-  )
 
 type PropostaEnvioMetodo = 'whatsapp' | 'whatsapp-business' | 'airdrop' | 'quick-share'
 
@@ -2401,9 +2427,14 @@ type LeasingContractsModalProps = {
   anexosSelecionados: LeasingAnexoId[]
   anexosAvailability: Record<LeasingAnexoId, boolean>
   isLoadingAvailability: boolean
+  lockedIds: LeasingAnexoId[]
+  hiddenIds: LeasingAnexoId[]
+  decisions: ReturnType<typeof autoSelectAnnexes>['decisions']
+  requiredMissing: ReturnType<typeof autoSelectAnnexes>['requiredMissing']
   onToggleAnexo: (anexoId: LeasingAnexoId) => void
   onSelectAll: (selectAll: boolean) => void
   onConfirm: () => void
+  onFixMissing: () => void
   onClose: () => void
   isGenerating: boolean
 }
@@ -2413,9 +2444,14 @@ function LeasingContractsModal({
   anexosSelecionados,
   anexosAvailability,
   isLoadingAvailability,
+  lockedIds,
+  hiddenIds,
+  decisions,
+  requiredMissing,
   onToggleAnexo,
   onSelectAll,
   onConfirm,
+  onFixMissing,
   onClose,
   isGenerating,
 }: LeasingContractsModalProps) {
@@ -2425,11 +2461,14 @@ function LeasingContractsModal({
     () => LEASING_ANEXOS_CONFIG.filter((config) => config.tipos.includes(tipoContrato)),
     [tipoContrato],
   )
-  const opcionais = anexosDisponiveis.filter((config) => !config.autoInclude)
+  const opcionais = anexosDisponiveis.filter(
+    (config) => !lockedIds.includes(config.id) && !hiddenIds.includes(config.id),
+  )
   const allOptionalSelected =
     opcionais.length > 0 && opcionais.every((config) => anexosSelecionados.includes(config.id))
 
   const hasOpcionalSelecionavel = opcionais.length > 0
+  const hasMissingRequired = requiredMissing.length > 0
 
   return (
     <div
@@ -2455,6 +2494,26 @@ function LeasingContractsModal({
             Escolha quais anexos devem acompanhar o contrato principal. Itens obrigatórios são
             incluídos automaticamente.
           </p>
+          {hasMissingRequired ? (
+            <div className="contract-template-warning" role="alert">
+              <p>
+                <strong>Existem anexos obrigatórios pendentes</strong>
+              </p>
+              <ul>
+                {requiredMissing.map((item) => (
+                  <li key={item.id}>
+                    <strong>{item.title}</strong>
+                    {item.missing && item.missing.length > 0 ? (
+                      <span className="filename">
+                        {': '}
+                        {item.missing.map((missing) => missing.label).join(', ')}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {hasOpcionalSelecionavel ? (
             <div className="contract-template-actions">
               <button
@@ -2472,9 +2531,13 @@ function LeasingContractsModal({
           <ul className="contract-template-list">
             {anexosDisponiveis.map((config, index) => {
               const checkboxId = `${checkboxBaseId}-${index}`
+              const decision = decisions[config.id]
+              if (!decision || hiddenIds.includes(config.id) || !decision.visible) {
+                return null
+              }
               const isAvailable = anexosAvailability[config.id] !== false
-              const checked = config.autoInclude || anexosSelecionados.includes(config.id)
-              const disabled = Boolean(config.autoInclude) || !isAvailable
+              const checked = anexosSelecionados.includes(config.id) || decision.locked
+              const disabled = Boolean(decision.locked) || !isAvailable
               return (
                 <li key={config.id} className="contract-template-item">
                   <label htmlFor={checkboxId} className="flex items-center gap-2">
@@ -2494,8 +2557,8 @@ function LeasingContractsModal({
                       {config.descricao ? (
                         <span className="filename">{config.descricao}</span>
                       ) : null}
-                      {config.autoInclude ? (
-                        <span className="filename">Incluso automaticamente</span>
+                      {decision.locked ? (
+                        <span className="annex-required-badge">Obrigatório</span>
                       ) : null}
                       {!isAvailable ? (
                         <span className="filename" style={{ color: '#dc2626', fontSize: '0.875rem' }}>
@@ -2513,11 +2576,16 @@ function LeasingContractsModal({
           <button type="button" className="ghost" onClick={onClose} disabled={isGenerating}>
             Cancelar
           </button>
+          {hasMissingRequired ? (
+            <button type="button" className="ghost" onClick={onFixMissing} disabled={isGenerating}>
+              Voltar e corrigir
+            </button>
+          ) : null}
           <button
             type="button"
             className="primary"
             onClick={onConfirm}
-            disabled={isGenerating}
+            disabled={isGenerating || hasMissingRequired}
           >
             {isGenerating ? 'Gerando…' : 'Gerar pacote'}
           </button>
@@ -5820,11 +5888,17 @@ export default function App() {
   const [gerandoContratos, setGerandoContratos] = useState(false)
   const [isContractTemplatesModalOpen, setIsContractTemplatesModalOpen] = useState(false)
   const [isLeasingContractsModalOpen, setIsLeasingContractsModalOpen] = useState(false)
-  const [leasingAnexosSelecionados, setLeasingAnexosSelecionados] = useState<LeasingAnexoId[]>(() =>
-    getDefaultLeasingAnexos(leasingContrato.tipoContrato),
-  )
+  const [leasingAnexosSelecionados, setLeasingAnexosSelecionados] = useState<LeasingAnexoId[]>([])
   const [leasingAnexosAvailability, setLeasingAnexosAvailability] = useState<
     Record<LeasingAnexoId, boolean>
+  >({})
+  const [leasingAnexosLocked, setLeasingAnexosLocked] = useState<LeasingAnexoId[]>([])
+  const [leasingAnexosHidden, setLeasingAnexosHidden] = useState<LeasingAnexoId[]>([])
+  const [leasingAnexosMissing, setLeasingAnexosMissing] = useState<
+    ReturnType<typeof autoSelectAnnexes>['requiredMissing']
+  >([])
+  const [leasingAnexosDecisions, setLeasingAnexosDecisions] = useState<
+    ReturnType<typeof autoSelectAnnexes>['decisions']
   >({})
   const [leasingAnexosLoading, setLeasingAnexosLoading] = useState(false)
   const [contractTemplatesCategory, setContractTemplatesCategory] =
@@ -5836,7 +5910,11 @@ export default function App() {
   const contratoClientePayloadRef = useRef<ClienteContratoPayload | null>(null)
 
   useEffect(() => {
-    setLeasingAnexosSelecionados(getDefaultLeasingAnexos(leasingContrato.tipoContrato))
+    setLeasingAnexosSelecionados([])
+    setLeasingAnexosLocked([])
+    setLeasingAnexosHidden([])
+    setLeasingAnexosMissing([])
+    setLeasingAnexosDecisions({})
   }, [leasingContrato.tipoContrato])
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
@@ -11584,7 +11662,7 @@ export default function App() {
     const vendasConfigState = useVendasConfigStore.getState()
     const vendasSimState = useVendasSimulacoesStore.getState()
     const vendaSnapshotAtual = getVendaSnapshot()
-    const leasingSnapshotAtual = getLeasingSnapshot()
+    const leasingSnapshotAtual = getLeasingStoreSnapshot()
     const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
     const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
     const vendaFormNormalizado: VendaForm = {
@@ -12523,7 +12601,7 @@ export default function App() {
     if (!leasingContrato.localEntrega.trim()) pendencias.push('local de entrega / instalação')
 
     const anexosSelecionadosSet = new Set<LeasingAnexoId>(leasingAnexosSelecionados)
-    const requerEspecificacoesTecnicas = anexosSelecionadosSet.has('ANEXO_I')
+    const requerEspecificacoesTecnicas = anexosSelecionadosSet.has(ANNEX_IDS.DADOS_TECNICOS_USINA)
 
     if (requerEspecificacoesTecnicas) {
       if (!leasingContrato.modulosFV.trim()) pendencias.push('descrição dos módulos FV')
@@ -12734,7 +12812,9 @@ export default function App() {
       const availability = payload.availability || {}
       setLeasingAnexosAvailability(availability as Record<LeasingAnexoId, boolean>)
       setLeasingAnexosSelecionados((prev) =>
-        prev.filter((anexoId) => availability[anexoId] !== false),
+        prev.filter(
+          (anexoId) => availability[anexoId] !== false || leasingAnexosLocked.includes(anexoId),
+        ),
       )
     } catch (error) {
       console.error('Erro ao verificar disponibilidade dos anexos:', error)
@@ -12743,7 +12823,65 @@ export default function App() {
     } finally {
       setLeasingAnexosLoading(false)
     }
-  }, [leasingContrato.tipoContrato, cliente.uf])
+  }, [leasingContrato.tipoContrato, cliente.uf, leasingAnexosLocked])
+
+  const applyLeasingAnnexAutoSelect = useCallback(
+    (
+      result: ReturnType<typeof autoSelectAnnexes>,
+      options: { preserveSelection?: boolean } = {},
+    ) => {
+      const { decisions, requiredMissing } = result
+      const locked = Object.values(decisions)
+        .filter((decision) => decision.locked)
+        .map((decision) => decision.id as LeasingAnexoId)
+      const hidden = Object.values(decisions)
+        .filter((decision) => !decision.visible)
+        .map((decision) => decision.id as LeasingAnexoId)
+
+      const selectedSet = new Set<LeasingAnexoId>()
+
+      Object.values(decisions).forEach((decision) => {
+        if (decision.visible && (decision.selected || decision.locked)) {
+          selectedSet.add(decision.id as LeasingAnexoId)
+        }
+      })
+
+      if (options.preserveSelection) {
+        leasingAnexosSelecionados.forEach((id) => {
+          if (decisions[id]?.visible) {
+            selectedSet.add(id)
+          }
+        })
+      }
+
+      setLeasingAnexosSelecionados(Array.from(selectedSet))
+      setLeasingAnexosLocked(locked)
+      setLeasingAnexosHidden(hidden)
+      setLeasingAnexosMissing(requiredMissing)
+      setLeasingAnexosDecisions(decisions)
+    },
+    [leasingAnexosSelecionados],
+  )
+
+  const focusFirstLeasingAnnexMissingField = useCallback(() => {
+    if (typeof document === 'undefined') {
+      return false
+    }
+    const fieldPath = leasingAnexosMissing
+      .flatMap((item) => item.missing ?? [])
+      .map((missing) => missing?.fieldPath)
+      .find((path): path is string => typeof path === 'string' && path.length > 0)
+    if (!fieldPath) {
+      return false
+    }
+    const element = document.querySelector(fieldPath) as HTMLElement | null
+    if (!element) {
+      return false
+    }
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    element.focus()
+    return true
+  }, [leasingAnexosMissing])
 
   const handleToggleContractTemplate = useCallback((template: string) => {
     setSelectedContractTemplates((prev) => {
@@ -12762,8 +12900,7 @@ export default function App() {
   )
 
   const handleToggleLeasingAnexo = useCallback((anexoId: LeasingAnexoId) => {
-    const config = LEASING_ANEXOS_CONFIG.find((item) => item.id === anexoId)
-    if (config?.autoInclude) {
+    if (leasingAnexosLocked.includes(anexoId) || leasingAnexosHidden.includes(anexoId)) {
       return
     }
     setLeasingAnexosSelecionados((prev) => {
@@ -12772,23 +12909,31 @@ export default function App() {
       }
       return [...prev, anexoId]
     })
-  }, [])
+  }, [leasingAnexosHidden, leasingAnexosLocked])
 
   const handleSelectAllLeasingAnexos = useCallback(
     (selectAll: boolean) => {
       if (!selectAll) {
-        setLeasingAnexosSelecionados([])
+        setLeasingAnexosSelecionados(leasingAnexosLocked)
         return
       }
       const disponiveis = LEASING_ANEXOS_CONFIG.filter(
         (config) =>
           config.tipos.includes(leasingContrato.tipoContrato) &&
-          !config.autoInclude &&
+          !leasingAnexosLocked.includes(config.id) &&
+          !leasingAnexosHidden.includes(config.id) &&
           leasingAnexosAvailability[config.id] !== false,
       ).map((config) => config.id)
-      setLeasingAnexosSelecionados(disponiveis)
+      setLeasingAnexosSelecionados(
+        Array.from(new Set<LeasingAnexoId>([...leasingAnexosLocked, ...disponiveis])),
+      )
     },
-    [leasingContrato.tipoContrato, leasingAnexosAvailability],
+    [
+      leasingContrato.tipoContrato,
+      leasingAnexosAvailability,
+      leasingAnexosHidden,
+      leasingAnexosLocked,
+    ],
   )
 
   const handleFecharModalContratos = useCallback(() => {
@@ -12799,6 +12944,16 @@ export default function App() {
   const handleFecharLeasingContractsModal = useCallback(() => {
     setIsLeasingContractsModalOpen(false)
   }, [])
+
+  const handleCorrigirPendenciasLeasing = useCallback(() => {
+    setIsLeasingContractsModalOpen(false)
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.setTimeout(() => {
+      focusFirstLeasingAnnexMissingField()
+    }, 100)
+  }, [focusFirstLeasingAnnexMissingField])
 
   const abrirSelecaoContratos = useCallback(
     (category: ContractTemplateCategory) => {
@@ -12831,10 +12986,14 @@ export default function App() {
     if (!base) {
       return
     }
+    const snapshot = getLeasingSnapshot()
+    const autoSelectResult = autoSelectAnnexes(snapshot)
+    applyLeasingAnnexAutoSelect(autoSelectResult)
     setIsLeasingContractsModalOpen(true)
     // Load availability when modal opens
     carregarDisponibilidadeAnexos()
   }, [
+    applyLeasingAnnexAutoSelect,
     carregarDisponibilidadeAnexos,
     gerandoContratos,
     guardClientFieldsOrReturn,
@@ -13162,6 +13321,13 @@ export default function App() {
   ])
 
   const handleConfirmarGeracaoLeasing = useCallback(async () => {
+    const snapshot = getLeasingSnapshot()
+    const autoSelectResult = autoSelectAnnexes(snapshot)
+    applyLeasingAnnexAutoSelect(autoSelectResult, { preserveSelection: true })
+    if (autoSelectResult.requiredMissing.length > 0) {
+      return
+    }
+
     const payload = prepararPayloadContratosLeasing()
     if (!payload) {
       return
@@ -13277,6 +13443,7 @@ export default function App() {
     }
   }, [
     adicionarNotificacao,
+    applyLeasingAnnexAutoSelect,
     leasingAnexosSelecionados,
     prepararPayloadContratosLeasing,
   ])
@@ -15240,6 +15407,7 @@ export default function App() {
             <div className="leasing-condominio-grid">
               <Field label="Nome do condomínio">
                 <input
+                  data-field="leasing-nome-condominio"
                   value={leasingContrato.nomeCondominio}
                   onChange={(event) =>
                     handleLeasingContratoCampoChange('nomeCondominio', event.target.value)
@@ -15248,6 +15416,7 @@ export default function App() {
               </Field>
               <Field label="CNPJ do condomínio">
                 <input
+                  data-field="leasing-cnpj-condominio"
                   value={leasingContrato.cnpjCondominio}
                   onChange={(event) =>
                     handleLeasingContratoCampoChange('cnpjCondominio', event.target.value)
@@ -15256,6 +15425,7 @@ export default function App() {
               </Field>
               <Field label="Nome do síndico">
                 <input
+                  data-field="leasing-nome-sindico"
                   value={leasingContrato.nomeSindico}
                   onChange={(event) =>
                     handleLeasingContratoCampoChange('nomeSindico', event.target.value)
@@ -15264,6 +15434,7 @@ export default function App() {
               </Field>
               <Field label="CPF do síndico">
                 <input
+                  data-field="leasing-cpf-sindico"
                   value={leasingContrato.cpfSindico}
                   onChange={(event) =>
                     handleLeasingContratoCampoChange('cpfSindico', event.target.value)
@@ -15278,6 +15449,7 @@ export default function App() {
                   {leasingContrato.proprietarios.map((proprietario, index) => (
                     <div className="cliente-herdeiro-row" key={`leasing-proprietario-${index}`}>
                       <input
+                        data-field={`leasing-proprietario-nome-${index}`}
                         value={proprietario.nome}
                         onChange={(event) =>
                           handleLeasingContratoProprietarioChange(index, 'nome', event.target.value)
@@ -15285,6 +15457,7 @@ export default function App() {
                         placeholder={`Nome do proprietário ${index + 1}`}
                       />
                       <input
+                        data-field={`leasing-proprietario-cpf-${index}`}
                         value={proprietario.cpfCnpj}
                         onChange={(event) =>
                           handleLeasingContratoProprietarioChange(
@@ -20775,6 +20948,7 @@ export default function App() {
                         )}
                       >
                         <select
+                          data-field="leasing-prazo-anos"
                           value={leasingPrazo}
                           onChange={(e) => setLeasingPrazo(Number(e.target.value) as LeasingPrazoAnos)}
                         >
@@ -21290,9 +21464,14 @@ export default function App() {
           anexosSelecionados={leasingAnexosSelecionados}
           anexosAvailability={leasingAnexosAvailability}
           isLoadingAvailability={leasingAnexosLoading}
+          lockedIds={leasingAnexosLocked}
+          hiddenIds={leasingAnexosHidden}
+          decisions={leasingAnexosDecisions}
+          requiredMissing={leasingAnexosMissing}
           onToggleAnexo={handleToggleLeasingAnexo}
           onSelectAll={handleSelectAllLeasingAnexos}
           onConfirm={handleConfirmarGeracaoLeasing}
+          onFixMissing={handleCorrigirPendenciasLeasing}
           onClose={handleFecharLeasingContractsModal}
           isGenerating={gerandoContratos}
         />

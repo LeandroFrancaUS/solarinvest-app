@@ -138,63 +138,149 @@ const CONTRACT_TEMPLATES = {
   condominio: 'CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
 }
 
+const ANNEX_FILE_REGEX = /^\s*anexo\s+([ivxlcdm]+)\b/i
+const ANNEX_MANIFEST_PATH = path.join(LEASING_TEMPLATES_DIR, 'anexos', 'manifest.json')
+
+const ANNEX_IDS = {
+  DADOS_TECNICOS_USINA: 'DADOS_TECNICOS_USINA',
+  PLANO_PAGAMENTO: 'PLANO_PAGAMENTO',
+  MAPA_UC_ENDERECOS: 'MAPA_UC_ENDERECOS',
+  CHECKLIST_PF: 'CHECKLIST_PF',
+  CHECKLIST_PJ: 'CHECKLIST_PJ',
+  CHECKLIST_CONDOMINIO: 'CHECKLIST_CONDOMINIO',
+  AUT_PROPRIETARIO: 'AUT_PROPRIETARIO',
+  ATA_CONDOMINIO: 'ATA_CONDOMINIO',
+  ART_RRT: 'ART_RRT',
+  TERMO_ESTRUTURAL: 'TERMO_ESTRUTURAL',
+  OEM_GARANTIAS: 'OEM_GARANTIAS',
+}
+
+const ANNEX_ROMAN_BY_ID = {
+  [ANNEX_IDS.DADOS_TECNICOS_USINA]: 'I',
+  [ANNEX_IDS.PLANO_PAGAMENTO]: 'II',
+  [ANNEX_IDS.AUT_PROPRIETARIO]: 'III',
+  [ANNEX_IDS.ATA_CONDOMINIO]: 'IV',
+  [ANNEX_IDS.MAPA_UC_ENDERECOS]: 'V',
+  [ANNEX_IDS.CHECKLIST_PF]: 'VI',
+  [ANNEX_IDS.CHECKLIST_PJ]: 'VII',
+  [ANNEX_IDS.CHECKLIST_CONDOMINIO]: 'VIII',
+  [ANNEX_IDS.ART_RRT]: 'IX',
+  [ANNEX_IDS.TERMO_ESTRUTURAL]: 'X',
+  [ANNEX_IDS.OEM_GARANTIAS]: 'XI',
+}
+
 const ANEXO_DEFINITIONS = [
   {
-    id: 'ANEXO_I',
-    label: 'Anexo I – Especificações Técnicas',
-    templates: {
-      residencial: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx',
-      condominio: 'Anexos/ANEXO I - ESPECIFICAÇÕES TECNICAS E PROPOSTA COMERCIAL (Residencial).docx', // Reusing residencial template,
-    },
+    id: ANNEX_IDS.DADOS_TECNICOS_USINA,
+    label: 'Anexo I – Dados técnicos da usina',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.DADOS_TECNICOS_USINA],
     appliesTo: new Set(['residencial', 'condominio']),
   },
   {
-    id: 'ANEXO_II',
-    label: 'Anexo II – Opção de Compra',
-    templates: {
-      residencial: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
-      condominio: 'Anexos/Anexo II – Opção de Compra da Usina (todos).docx',
-    },
+    id: ANNEX_IDS.PLANO_PAGAMENTO,
+    label: 'Anexo II – Plano de pagamento',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.PLANO_PAGAMENTO],
     appliesTo: new Set(['residencial', 'condominio']),
   },
   {
-    id: 'ANEXO_III',
-    label: 'Anexo III – Regras de Cálculo',
-    templates: {
-      residencial: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
-      condominio: 'Anexos/ANEXO III - Regras de Cálculo da Mensalidade (todos).docx',
-    },
+    id: ANNEX_IDS.MAPA_UC_ENDERECOS,
+    label: 'Anexo V – Mapa de UC e endereços',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.MAPA_UC_ENDERECOS],
     appliesTo: new Set(['residencial', 'condominio']),
   },
   {
-    id: 'ANEXO_IV',
-    label: 'Anexo IV – Autorização do Proprietário',
-    templates: {
-      residencial:
-        'Anexos/Anexo IV – Termo de Autorização e Procuração.docx',
-    },
+    id: ANNEX_IDS.CHECKLIST_PF,
+    label: 'Anexo VI – Checklist PF',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.CHECKLIST_PF],
     appliesTo: new Set(['residencial']),
   },
   {
-    id: 'ANEXO_VII',
-    label: 'Anexo VII – Termo de Entrega e Aceite',
-    templates: {
-      residencial: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx',
-      condominio: 'Anexos/ANEXO VII – TERMO DE ENTREGA E ACEITE TÉCNICO DA USINA (Residencial).docx', // Reusing residencial template,
-    },
+    id: ANNEX_IDS.CHECKLIST_PJ,
+    label: 'Anexo VII – Checklist PJ',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.CHECKLIST_PJ],
     appliesTo: new Set(['residencial', 'condominio']),
   },
   {
-    id: 'ANEXO_VIII',
-    label: 'Anexo VIII – Procuração do Condomínio',
-    templates: {
-      condominio: 'Anexos/Anexo IV – Termo de Autorização e Procuração.docx', // Reusing ANEXO_IV as fallback
-    },
+    id: ANNEX_IDS.CHECKLIST_CONDOMINIO,
+    label: 'Anexo VIII – Checklist condomínio',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.CHECKLIST_CONDOMINIO],
     appliesTo: new Set(['condominio']),
+  },
+  {
+    id: ANNEX_IDS.AUT_PROPRIETARIO,
+    label: 'Anexo III – Autorização do proprietário',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.AUT_PROPRIETARIO],
+    appliesTo: new Set(['residencial', 'condominio']),
+  },
+  {
+    id: ANNEX_IDS.ATA_CONDOMINIO,
+    label: 'Anexo IV – Ata de condomínio',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.ATA_CONDOMINIO],
+    appliesTo: new Set(['condominio']),
+  },
+  {
+    id: ANNEX_IDS.ART_RRT,
+    label: 'Anexo IX – ART/RRT',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.ART_RRT],
+    appliesTo: new Set(['residencial', 'condominio']),
+  },
+  {
+    id: ANNEX_IDS.TERMO_ESTRUTURAL,
+    label: 'Anexo X – Termo estrutural',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.TERMO_ESTRUTURAL],
+    appliesTo: new Set(['residencial', 'condominio']),
+  },
+  {
+    id: ANNEX_IDS.OEM_GARANTIAS,
+    label: 'Anexo XI – OEM e garantias',
+    roman: ANNEX_ROMAN_BY_ID[ANNEX_IDS.OEM_GARANTIAS],
+    appliesTo: new Set(['residencial', 'condominio']),
   },
 ]
 
 const ANEXO_BY_ID = new Map(ANEXO_DEFINITIONS.map((anexo) => [anexo.id, anexo]))
+
+let annexManifestCache = null
+
+const loadAnnexManifest = async () => {
+  if (annexManifestCache) {
+    return annexManifestCache
+  }
+  try {
+    const raw = await fs.readFile(ANNEX_MANIFEST_PATH, 'utf8')
+    const parsed = JSON.parse(raw)
+    const files = Array.isArray(parsed?.files) ? parsed.files : []
+    const normalized = files.filter((item) => typeof item === 'string' && item.trim().length > 0)
+    const byRoman = new Map()
+    normalized.forEach((fileName) => {
+      const match = fileName.match(ANNEX_FILE_REGEX)
+      if (!match) {
+        return
+      }
+      const roman = match[1]?.toUpperCase()
+      if (roman) {
+        byRoman.set(roman, fileName)
+      }
+    })
+    annexManifestCache = { files: normalized, byRoman }
+    return annexManifestCache
+  } catch (error) {
+    annexManifestCache = { files: [], byRoman: new Map() }
+    return annexManifestCache
+  }
+}
+
+const resolveAnnexTemplatePath = async (roman) => {
+  if (!roman) {
+    return null
+  }
+  const manifest = await loadAnnexManifest()
+  const fileName = manifest.byRoman.get(String(roman).toUpperCase())
+  if (!fileName) {
+    return null
+  }
+  return path.join('anexos', fileName)
+}
 
 const sanitizeContratoTipo = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
@@ -483,10 +569,6 @@ const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
         selecionados.add(id)
       }
     }
-  }
-
-  if (tipoContrato === 'condominio') {
-    selecionados.add('ANEXO_VIII')
   }
 
   return Array.from(selecionados)
@@ -807,7 +889,7 @@ const buildZipFileName = (tipoContrato, cpfCnpj) => {
   return `pacote-leasing-${tipoContrato}-${id}.zip`
 }
 
-const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
+const resolveTemplatesForAnexos = async (tipoContrato, anexosSelecionados) => {
   const resolved = []
   for (const anexoId of anexosSelecionados) {
     const definicao = ANEXO_BY_ID.get(anexoId)
@@ -817,7 +899,7 @@ const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
     if (!definicao.appliesTo.has(tipoContrato)) {
       continue
     }
-    const template = definicao.templates[tipoContrato]
+    const template = await resolveAnnexTemplatePath(definicao.roman)
     if (!template) {
       continue
     }
@@ -904,7 +986,7 @@ export const handleLeasingContractsAvailabilityRequest = async (req, res) => {
         continue
       }
       
-      const template = definicao.templates[tipoContrato]
+      const template = await resolveAnnexTemplatePath(definicao.roman)
       if (!template) {
         availability[definicao.id] = false
         continue
@@ -1118,7 +1200,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
     const clienteUf = dadosLeasing.uf
 
-    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
+    const anexosResolvidos = await resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
     const anexosDisponiveis = []
     const anexosIndisponiveis = []
 
@@ -1138,19 +1220,19 @@ export const handleLeasingContractsRequest = async (req, res) => {
       })
     }
 
-    if (anexosDisponiveis.some((anexo) => anexo.id === 'ANEXO_I')) {
+    if (anexosDisponiveis.some((anexo) => anexo.id === ANNEX_IDS.DADOS_TECNICOS_USINA)) {
       if (!dadosLeasing.modulosFV) {
         throw new LeasingContractsError(
           400,
-          'O Anexo I exige a descrição dos módulos fotovoltaicos.',
-          { code: 'INVALID_PAYLOAD', hint: 'Preencha os módulos fotovoltaicos para gerar o Anexo I.' },
+          'O anexo de dados técnicos exige a descrição dos módulos fotovoltaicos.',
+          { code: 'INVALID_PAYLOAD', hint: 'Preencha os módulos fotovoltaicos para gerar o anexo técnico.' },
         )
       }
       if (!dadosLeasing.inversoresFV) {
         throw new LeasingContractsError(
           400,
-          'O Anexo I exige a descrição dos inversores.',
-          { code: 'INVALID_PAYLOAD', hint: 'Preencha os inversores para gerar o Anexo I.' },
+          'O anexo de dados técnicos exige a descrição dos inversores.',
+          { code: 'INVALID_PAYLOAD', hint: 'Preencha os inversores para gerar o anexo técnico.' },
         )
       }
     }

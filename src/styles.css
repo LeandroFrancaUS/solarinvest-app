@@ -4445,6 +4445,43 @@ table tbody tr:hover {
   word-break: break-word;
 }
 
+.contract-template-warning {
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.12);
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+
+.contract-template-warning ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contract-template-warning .filename {
+  display: inline;
+  margin-left: 6px;
+  color: rgba(226, 232, 240, 0.85);
+  font-size: 13px;
+}
+
+.annex-required-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.16);
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .save-changes-modal {
   display: flex;
   align-items: center;
