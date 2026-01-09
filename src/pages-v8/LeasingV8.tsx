@@ -101,12 +101,14 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
   const [showPreview, setShowPreview] = useState(false)
 
   // Auto-calculate mensalidade using existing logic
+  // For Simple mode: uses first 12 months only (anosDecorridos: 0)
+  // Formula: taxa mínima + CIP + TUSD Fio B (with inflation applied to tariff)
   const calculatedMensalidade = useMemo(() => {
     const tipoRede: TipoRede = 'trifasico' // Default assumption, could be made configurable
     return calcularMensalidadeSolarInvest({
       tarifaCheia: props.tarifaCheia,
       inflacaoEnergetica: 0.08, // 8% default
-      anosDecorridos: 0,
+      anosDecorridos: 0, // First 12 months only for Simple mode projection
       tipoLigacao: tipoRede,
       cipValor: props.encargosFixosExtras,
       tusd: null,
@@ -152,7 +154,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
         fallback: '—',
       },
       {
-        label: 'Mensalidade',
+        label: 'Mensalidade projetada',
         value: mensalidadeToShow ? `R$ ${Number(mensalidadeToShow).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '',
         fallback: '—',
       },
