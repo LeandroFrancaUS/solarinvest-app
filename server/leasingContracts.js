@@ -206,11 +206,12 @@ const arabicToRoman = (arabic) => {
 const normalizeAnexoNumber = (numStr) => {
   // Try to parse as Arabic number first
   const asNumber = parseInt(numStr, 10)
-  if (!isNaN(asNumber) && asNumber > 0) {
+  if (!isNaN(asNumber) && asNumber >= 1 && asNumber <= 20) {
     return asNumber
   }
   // Try to parse as Roman numeral
-  return romanToArabic(numStr)
+  const roman = romanToArabic(numStr)
+  return roman !== null ? roman : null
 }
 
 /**
@@ -223,7 +224,13 @@ const matchesAnexoPrefix = (fileName, anexoNum) => {
   const normalized = fileName.trim().toLowerCase()
   const roman = arabicToRoman(anexoNum)
   
-  // Check Arabic pattern first (always valid)
+  // Validate that anexoNum is a safe positive integer to prevent injection
+  if (!Number.isInteger(anexoNum) || anexoNum < 1 || anexoNum > 20) {
+    return false
+  }
+  
+  // Check Arabic pattern first (always valid for numbers 1-20)
+  // No need to escape anexoNum since we validated it's a safe integer
   const arabicPattern = new RegExp(`^anexo\\s+${anexoNum}(?:\\s|\\W|$)`, 'i')
   if (arabicPattern.test(normalized)) {
     return true
@@ -231,6 +238,7 @@ const matchesAnexoPrefix = (fileName, anexoNum) => {
   
   // Only check Roman pattern if conversion was successful
   if (roman) {
+    // No need to escape roman since it comes from our controlled ARABIC_TO_ROMAN map
     const romanPattern = new RegExp(`^anexo\\s+${roman.toLowerCase()}(?:\\s|\\W|$)`, 'i')
     return romanPattern.test(normalized)
   }
@@ -254,11 +262,21 @@ const isAnexoReference = (fileName) => {
  * @returns {number|null} Anexo number or null if not found
  */
 const extractAnexoNumber = (fileName) => {
-  const anexoMatch = fileName.match(/anexo\s+([ivx\d]+)/i)
-  if (!anexoMatch) {
-    return null
+  // Try Roman numerals first (more specific pattern)
+  const romanMatch = fileName.match(/anexo\s+([ivx]+)\b/i)
+  if (romanMatch) {
+    const num = normalizeAnexoNumber(romanMatch[1])
+    if (num) return num
   }
-  return normalizeAnexoNumber(anexoMatch[1])
+  
+  // Try Arabic numerals
+  const arabicMatch = fileName.match(/anexo\s+(\d+)\b/i)
+  if (arabicMatch) {
+    const num = normalizeAnexoNumber(arabicMatch[1])
+    if (num) return num
+  }
+  
+  return null
 }
 
 /**
@@ -1148,14 +1166,9 @@ export const handleLeasingContractsAvailabilityRequest = async (req, res) => {
         continue
       }
       
-      const template = definicao.templates[tipoContrato]
-      if (!template) {
-        availability[definicao.id] = false
-        continue
-      }
-      
-      const isAvailable = await checkTemplateAvailability(template, clienteUf)
-      availability[definicao.id] = isAvailable
+      // Use auto-discovery to check availability
+      const foundFile = await findAnexoFile(definicao.number, clienteUf)
+      availability[definicao.id] = foundFile !== null
     }
 
     res.statusCode = 200
