@@ -17,6 +17,7 @@ import {
 import {
   type StepIndex,
   isStepComplete,
+  getMissingForStep,
   getAllMissingFields,
   canGenerateProposal,
 } from '../components/flow-v8/validation.v8'
@@ -159,6 +160,13 @@ export function VendasV8(props: VendasV8Props): JSX.Element {
 
   const handleNext = () => {
     if (currentStep < 5) {
+      // Check if current step is complete before allowing navigation
+      const missing = getMissingForStep(currentStep, values, 'vendas')
+      if (missing.length > 0) {
+        // Don't proceed - user needs to complete required fields
+        // The UI will show validation errors via the checklist
+        return
+      }
       setCurrentStep((currentStep + 1) as StepIndex)
     }
   }

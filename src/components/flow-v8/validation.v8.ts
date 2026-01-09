@@ -56,8 +56,8 @@ export function getMissingForStep(
 /**
  * Check if a specific step is complete
  * A step is only considered complete if:
- * 1. All its required fields are filled
- * 2. It's not a future step (steps ahead of current progress shouldn't show as complete)
+ * 1. User has visited it (stepIndex < currentStep), OR
+ * 2. User is currently on it AND all required fields are filled
  */
 export function isStepComplete(
   stepIndex: StepIndex,
@@ -65,20 +65,23 @@ export function isStepComplete(
   mode: 'vendas' | 'leasing',
   currentStep?: number
 ): boolean {
-  const missing = getMissingForStep(stepIndex, values, mode)
-  const hasRequiredFields = missing.length === 0
-  
-  // If a step has no required fields (like step 4, 5), don't mark it as complete
-  // unless it's been reached or passed by the user
-  const requiredMap = mode === 'vendas' ? vendasRequiredFieldsByStep : leasingRequiredFieldsByStep
-  const hasAnyRequiredFields = requiredMap[stepIndex].length > 0
-  
-  if (!hasAnyRequiredFields) {
-    // Steps with no required fields are only complete if user has reached them
-    return currentStep !== undefined && stepIndex <= currentStep
+  if (currentStep === undefined) {
+    return false
   }
   
-  return hasRequiredFields
+  // Steps that haven't been reached yet are never complete
+  if (stepIndex > currentStep) {
+    return false
+  }
+  
+  // Steps the user has passed are complete
+  if (stepIndex < currentStep) {
+    return true
+  }
+  
+  // Current step: check if required fields are filled
+  const missing = getMissingForStep(stepIndex, values, mode)
+  return missing.length === 0
 }
 
 /**
