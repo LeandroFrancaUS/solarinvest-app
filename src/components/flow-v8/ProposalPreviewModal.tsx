@@ -5,7 +5,7 @@
  */
 
 import React from 'react'
-import type { ClienteDados } from '../types/printableProposal'
+import type { ClienteDados } from '../../types/printableProposal'
 
 export interface ProposalPreviewModalProps {
   isOpen: boolean

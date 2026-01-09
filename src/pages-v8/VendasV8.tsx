@@ -203,7 +203,7 @@ export function VendasV8(props: VendasV8Props): JSX.Element {
         // Focus first missing field
         if (missing[0]) {
           setTimeout(() => {
-            focusField(missing[0], '.v8-step-content')
+            focusField(missing[0] || '', '.v8-step-content')
           }, 100)
         }
         
@@ -384,9 +384,6 @@ export function VendasV8(props: VendasV8Props): JSX.Element {
           checklist={checklist}
           showManualBadge={showManualBadge}
           manualBadgeReason={manualBadgeReason}
-          ctaLabel="Gerar Proposta"
-          ctaDisabled={isSaving}
-          onCTAClick={handleCTAClick}
           onChecklistItemClick={handleChecklistItemClick}
         />
       }

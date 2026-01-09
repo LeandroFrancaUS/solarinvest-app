@@ -27,7 +27,7 @@ import { focusField } from '../components/flow-v8/focusField.v8'
 import type { ClienteDados } from '../types/printableProposal'
 import { labelWithTooltip } from '../components/InfoTooltip'
 import { calcularMensalidadeSolarInvest } from '../lib/finance/calculations'
-import { TIPOS_REDE } from '../app/config'
+import type { TipoRede } from '../app/config'
 
 export interface LeasingV8Props {
   // Client data
@@ -93,7 +93,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
 
   // Auto-calculate mensalidade using existing logic
   const calculatedMensalidade = useMemo(() => {
-    const tipoRede = TIPOS_REDE.TRIFASICO // Default assumption, could be made configurable
+    const tipoRede: TipoRede = 'trifasico' // Default assumption, could be made configurable
     return calcularMensalidadeSolarInvest({
       tarifaCheia: props.tarifaCheia,
       inflacaoEnergetica: 0.08, // 8% default
@@ -228,7 +228,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
         // Focus first missing field
         if (missing[0]) {
           setTimeout(() => {
-            focusField(missing[0], '.v8-step-content')
+            focusField(missing[0] || '', '.v8-step-content')
           }, 100)
         }
         
@@ -446,9 +446,6 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
             checklist={checklist}
             showManualBadge={showManualBadge}
             manualBadgeReason={manualBadgeReason}
-            ctaLabel="Gerar Proposta"
-            ctaDisabled={isSaving}
-            onCTAClick={handleCTAClick}
             onChecklistItemClick={handleChecklistItemClick}
           />
         }
@@ -463,7 +460,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
         sistema={{
           tipoInstalacao: props.tipoInstalacao,
           tipoSistema: props.tipoSistema,
-          potenciaKwp: props.outputs.potenciaKwp,
+          potenciaKwp: props.outputs.potenciaKwp ?? null,
         }}
         financeiro={{
           mensalidade: props.outputs.mensalidade || calculatedMensalidade,
