@@ -69,6 +69,10 @@ import {
 import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
+import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
+import { buildRequiredFieldsLeasing } from './lib/validation/buildRequiredFieldsLeasing'
+import { buildRequiredFieldsVenda } from './lib/validation/buildRequiredFieldsVenda'
+import { validateRequiredFields } from './lib/validation/validateRequiredFields'
 import {
   parseVendaPdfText,
   mergeParsedVendaPdfData,
@@ -978,10 +982,6 @@ type OrcamentoSalvo = {
   snapshot?: OrcamentoSnapshotData | undefined
 }
 
-type ClienteCampoTexto = {
-  [K in keyof ClienteDados]: ClienteDados[K] extends string ? K : never
-}[keyof ClienteDados]
-
 type UcBeneficiariaFormState = {
   id: string
   numero: string
@@ -989,12 +989,6 @@ type UcBeneficiariaFormState = {
   consumoKWh: string
   rateioPercentual: string
 }
-
-const CAMPOS_CLIENTE_OBRIGATORIOS: { key: ClienteCampoTexto; label: string }[] = [
-  { key: 'nome', label: 'Nome do cliente' },
-  { key: 'cidade', label: 'Cidade' },
-  { key: 'uf', label: 'Estado' },
-]
 
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
@@ -4297,6 +4291,71 @@ export default function App() {
   const notificacaoSequencialRef = useRef(0)
   const notificacaoTimeoutsRef = useRef<Record<number, number>>({})
 
+  const removerNotificacao = useCallback((id: number) => {
+    setNotificacoes((prev) => prev.filter((item) => item.id !== id))
+
+    const timeoutId = notificacaoTimeoutsRef.current[id]
+    if (timeoutId && typeof window !== 'undefined') {
+      window.clearTimeout(timeoutId)
+    }
+    delete notificacaoTimeoutsRef.current[id]
+  }, [])
+
+  const adicionarNotificacao = useCallback(
+    (mensagem: string, tipo: NotificacaoTipo = 'info') => {
+      notificacaoSequencialRef.current += 1
+      const id = notificacaoSequencialRef.current
+
+      setNotificacoes((prev) => [...prev, { id, mensagem, tipo }])
+
+      if (typeof window !== 'undefined') {
+        const timeoutId = window.setTimeout(() => removerNotificacao(id), 5000)
+        notificacaoTimeoutsRef.current[id] = timeoutId
+      }
+    },
+    [removerNotificacao],
+  )
+
+  const buildRequiredClientFields = useCallback(
+    (mode: 'venda' | 'leasing') => {
+      const input = {
+        cliente,
+        segmentoCliente,
+        tipoEdificacaoOutro,
+        leasingContrato,
+      }
+      return mode === 'venda'
+        ? buildRequiredFieldsVenda(input)
+        : buildRequiredFieldsLeasing(input)
+    },
+    [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato],
+  )
+
+  const guardClientFieldsOrReturn = useCallback(
+    (mode: 'venda' | 'leasing') => {
+      clearClientHighlights()
+      const fields = buildRequiredClientFields(mode)
+      const result = validateRequiredFields(fields)
+      if (!result.ok) {
+        const orderedSelectors = fields.map((field) => field.selector)
+        highlightMissingFields(orderedSelectors, result.missingSelectors)
+        adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
+        return false
+      }
+      if (mode === 'venda' && isVendaDiretaTab && valorTotalPropostaNormalizado == null) {
+        window.alert('Informe o Valor total da proposta para concluir a emissão.')
+        return false
+      }
+      return true
+    },
+    [
+      adicionarNotificacao,
+      buildRequiredClientFields,
+      isVendaDiretaTab,
+      valorTotalPropostaNormalizado,
+    ],
+  )
+
   const [crmIntegrationMode, setCrmIntegrationMode] = useState<CrmIntegrationMode>('local')
   const crmIntegrationModeRef = useRef<CrmIntegrationMode>(crmIntegrationMode)
   const [crmIsSaving, setCrmIsSaving] = useState(false)
@@ -4800,8 +4859,12 @@ export default function App() {
   }, [])
 
   const handleRecalcularVendas = useCallback(() => {
+    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
+    if (!guardClientFieldsOrReturn(mode)) {
+      return
+    }
     setRecalcularTick((prev) => prev + 1)
-  }, [])
+  }, [guardClientFieldsOrReturn, isVendaDiretaTab])
 
   const handleCalcularRetorno = useCallback(() => {
     const errors = validateVendaForm(vendaForm)
@@ -8636,26 +8699,6 @@ export default function App() {
     return { html: sanitizedLayoutHtml, dados: dadosParaImpressao }
   }, [printableData])
 
-  const validarCamposObrigatorios = useCallback(
-    (acao: string = 'exportar') => {
-      const faltantes = CAMPOS_CLIENTE_OBRIGATORIOS.filter(({ key }) => !cliente[key].trim())
-      if (faltantes.length > 0) {
-        const mensagem = `Preencha os campos obrigatórios antes de ${acao}: ${faltantes
-          .map((campo) => campo.label)
-          .join(', ')}`
-        window.alert(mensagem)
-        return false
-      }
-      if (isVendaDiretaTab) {
-        if (valorTotalPropostaNormalizado == null) {
-          window.alert('Informe o Valor total da proposta para concluir a emissão.')
-          return false
-        }
-      }
-      return true
-    },
-    [cliente, isVendaDiretaTab, valorTotalPropostaNormalizado],
-  )
 
   const mapClienteRegistroToSyncPayload = (registro: ClienteRegistro): ClienteRegistroSyncPayload => ({
     id: registro.id,
@@ -8724,32 +8767,6 @@ export default function App() {
       })
     }
   }, [])
-
-  const removerNotificacao = useCallback((id: number) => {
-    setNotificacoes((prev) => prev.filter((item) => item.id !== id))
-
-    const timeoutId = notificacaoTimeoutsRef.current[id]
-    if (timeoutId && typeof window !== 'undefined') {
-      window.clearTimeout(timeoutId)
-    }
-    delete notificacaoTimeoutsRef.current[id]
-  }, [])
-
-  const adicionarNotificacao = useCallback(
-    (mensagem: string, tipo: NotificacaoTipo = 'info') => {
-      notificacaoSequencialRef.current += 1
-      const id = notificacaoSequencialRef.current
-
-      setNotificacoes((prev) => [...prev, { id, mensagem, tipo }])
-
-      if (typeof window !== 'undefined') {
-        const timeoutId = window.setTimeout(() => removerNotificacao(id), 5000)
-        notificacaoTimeoutsRef.current[id] = timeoutId
-      }
-    },
-    [removerNotificacao],
-  )
-
   const [isEnviarPropostaModalOpen, setIsEnviarPropostaModalOpen] = useState(false)
   const [contatoEnvioSelecionadoId, setContatoEnvioSelecionadoId] = useState<string | null>(null)
   const contatosEnvio = useMemo<PropostaEnvioContato[]>(() => {
@@ -11083,7 +11100,8 @@ export default function App() {
       return
     }
 
-    if (!validarCamposObrigatorios('salvar o cliente')) {
+    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
+    if (!guardClientFieldsOrReturn(mode)) {
       return
     }
 
@@ -11273,11 +11291,12 @@ export default function App() {
     adicionarNotificacao,
     cliente,
     clienteEmEdicaoId,
+    guardClientFieldsOrReturn,
+    isVendaDiretaTab,
     isOneDriveIntegrationAvailable,
     persistClienteRegistroToOneDrive,
     setOneDriveIntegrationAvailable,
     setClienteEmEdicaoId,
-    validarCamposObrigatorios,
   ])
 
   const handleEditarCliente = useCallback(
@@ -12143,7 +12162,8 @@ export default function App() {
     setEficiencia(valor)
   }
   const handlePrint = async () => {
-    if (!validarCamposObrigatorios()) {
+    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
+    if (!guardClientFieldsOrReturn(mode)) {
       return
     }
 
@@ -12804,6 +12824,9 @@ export default function App() {
     if (gerandoContratos) {
       return
     }
+    if (!guardClientFieldsOrReturn('leasing')) {
+      return
+    }
     const base = prepararDadosContratoCliente()
     if (!base) {
       return
@@ -12811,11 +12834,19 @@ export default function App() {
     setIsLeasingContractsModalOpen(true)
     // Load availability when modal opens
     carregarDisponibilidadeAnexos()
-  }, [gerandoContratos, prepararDadosContratoCliente, carregarDisponibilidadeAnexos])
+  }, [
+    carregarDisponibilidadeAnexos,
+    gerandoContratos,
+    guardClientFieldsOrReturn,
+    prepararDadosContratoCliente,
+  ])
 
   const handleGerarContratoVendas = useCallback(() => {
+    if (!guardClientFieldsOrReturn('venda')) {
+      return
+    }
     abrirSelecaoContratos('vendas')
-  }, [abrirSelecaoContratos])
+  }, [abrirSelecaoContratos, guardClientFieldsOrReturn])
 
   const handleConfirmarGeracaoContratosVendas = useCallback(async () => {
     const payload = contratoClientePayloadRef.current
@@ -13278,7 +13309,7 @@ export default function App() {
       return false
     }
 
-    if (!validarCamposObrigatorios('salvar a proposta')) {
+    if (!guardClientFieldsOrReturn('leasing')) {
       return false
     }
 
@@ -13347,6 +13378,7 @@ export default function App() {
     atualizarOrcamentoAtivo,
     currentBudgetId,
     confirmarAlertasAntesDeSalvar,
+    guardClientFieldsOrReturn,
     handleSalvarCliente,
     isVendaDiretaTab,
     prepararPropostaParaExportacao,
@@ -13355,7 +13387,6 @@ export default function App() {
     salvandoPropostaLeasing,
     scheduleMarkStateAsSaved,
     setCurrentBudgetId,
-    validarCamposObrigatorios,
     vendaActions,
   ])
 
@@ -13364,7 +13395,8 @@ export default function App() {
       return false
     }
 
-    if (!validarCamposObrigatorios('salvar a proposta')) {
+    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
+    if (!guardClientFieldsOrReturn(mode)) {
       return false
     }
 
@@ -13477,6 +13509,7 @@ export default function App() {
   }, [
     activeTab,
     adicionarNotificacao,
+    guardClientFieldsOrReturn,
     handleSalvarCliente,
     currentBudgetId,
     isProposalPdfIntegrationAvailable,
@@ -13487,7 +13520,6 @@ export default function App() {
     salvandoPropostaPdf,
     atualizarOrcamentoAtivo,
     setProposalPdfIntegrationAvailable,
-    validarCamposObrigatorios,
   ])
 
   const iniciarNovaProposta = useCallback(() => {
@@ -13773,6 +13805,14 @@ export default function App() {
     },
     [setCliente, setDistribuidoraTarifa],
   )
+
+  const clearFieldHighlight = (element?: HTMLElement | null) => {
+    if (!element) {
+      return
+    }
+    element.classList.remove('field-error')
+    element.classList.remove('field-error-bg')
+  }
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
     if (key === 'temIndicacao') {
@@ -14395,6 +14435,10 @@ export default function App() {
 
   const handleEnviarProposta = useCallback(
     async (metodo: PropostaEnvioMetodo) => {
+      const mode = isVendaDiretaTab ? 'venda' : 'leasing'
+      if (!guardClientFieldsOrReturn(mode)) {
+        return
+      }
       const contato = contatoEnvioSelecionado
       if (!contato) {
         adicionarNotificacao('Selecione um contato para enviar a proposta.', 'error')
@@ -14471,6 +14515,8 @@ export default function App() {
       budgetCodeDisplay,
       contatoEnvioSelecionado,
       currentBudgetId,
+      guardClientFieldsOrReturn,
+      isVendaDiretaTab,
       printableData.valorTotalProposta,
       valorTotalPropostaNormalizado,
       valorTotalPropostaState,
@@ -14512,7 +14558,14 @@ export default function App() {
             'Identificação oficial do cliente utilizada em contratos, relatórios e integração com o CRM. Para empresas, informar a Razão Social.',
           )}
         >
-          <input value={cliente.nome} onChange={(e) => handleClienteChange('nome', e.target.value)} />
+          <input
+            data-field="cliente-nomeRazao"
+            value={cliente.nome}
+            onChange={(e) => {
+              handleClienteChange('nome', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
+          />
         </Field>
         <Field
           label={labelWithTooltip(
@@ -14521,8 +14574,12 @@ export default function App() {
           )}
         >
           <input
+            data-field="cliente-cpfCnpj"
             value={cliente.documento}
-            onChange={(e) => handleClienteChange('documento', e.target.value)}
+            onChange={(e) => {
+              handleClienteChange('documento', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
             inputMode="numeric"
             placeholder="000.000.000-00 ou 00.000.000/0000-00"
           />
@@ -14546,8 +14603,12 @@ export default function App() {
           )}
         >
           <input
+            data-field="cliente-rg"
             value={cliente.rg || ''}
-            onChange={(e) => handleClienteChange('rg', e.target.value)}
+            onChange={(e) => {
+              handleClienteChange('rg', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
             placeholder="00.000.000-0"
           />
         </Field>
@@ -14558,8 +14619,12 @@ export default function App() {
           )}
         >
           <select
+            data-field="cliente-estadoCivil"
             value={cliente.estadoCivil || ''}
-            onChange={(e) => handleClienteChange('estadoCivil', e.target.value)}
+            onChange={(e) => {
+              handleClienteChange('estadoCivil', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
           >
             <option value="">Selecione</option>
             <option value="Solteiro(a)">Solteiro(a)</option>
@@ -14601,8 +14666,12 @@ export default function App() {
           hint={clienteMensagens.email}
         >
           <input
+            data-field="cliente-email"
             value={cliente.email}
-            onChange={(e) => handleClienteChange('email', e.target.value)}
+            onChange={(e) => {
+              handleClienteChange('email', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
             type="email"
             placeholder="nome@empresa.com"
           />
@@ -14614,8 +14683,12 @@ export default function App() {
           )}
         >
           <input
+            data-field="cliente-telefone"
             value={cliente.telefone}
-            onChange={(e) => handleClienteChange('telefone', e.target.value)}
+            onChange={(e) => {
+              handleClienteChange('telefone', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
             inputMode="tel"
             autoComplete="tel"
             placeholder="(00) 00000-0000"
@@ -14629,8 +14702,12 @@ export default function App() {
           hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}
         >
           <input
+            data-field="cliente-cep"
             value={cliente.cep}
-            onChange={(e) => handleClienteChange('cep', e.target.value)}
+            onChange={(e) => {
+              handleClienteChange('cep', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
             inputMode="numeric"
             autoComplete="postal-code"
             placeholder="00000-000"
@@ -14643,8 +14720,12 @@ export default function App() {
           )}
         >
           <select
+            data-field="cliente-distribuidoraAneel"
             value={cliente.distribuidora}
-            onChange={(e) => handleClienteChange('distribuidora', e.target.value)}
+            onChange={(e) => {
+              handleClienteChange('distribuidora', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
             disabled={!cliente.uf || clienteDistribuidorasDisponiveis.length === 0}
           >
             <option value="">
@@ -14667,10 +14748,12 @@ export default function App() {
           )}
         >
           <select
+            data-field="cliente-tipoEdificacao"
             value={segmentoCliente}
-            onChange={(event) =>
+            onChange={(event) => {
               handleSegmentoClienteChange(event.target.value as SegmentoCliente)
-            }
+              clearFieldHighlight(event.currentTarget)
+            }}
           >
             {NOVOS_TIPOS_EDIFICACAO.map((option) => (
               <option key={option.value} value={option.value}>
@@ -14695,8 +14778,12 @@ export default function App() {
           )}
         >
           <input
+            data-field="cliente-ucGeradoraNumero"
             value={cliente.uc}
-            onChange={(e) => handleClienteChange('uc', e.target.value)}
+            onChange={(e) => {
+              handleClienteChange('uc', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
             placeholder="Número da UC geradora"
           />
         </Field>
@@ -14707,8 +14794,12 @@ export default function App() {
           )}
         >
           <input
+            data-field="cliente-enderecoContratante"
             value={cliente.endereco}
-            onChange={(e) => handleClienteChange('endereco', e.target.value)}
+            onChange={(e) => {
+              handleClienteChange('endereco', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
             autoComplete="street-address"
             placeholder="Rua, número, complemento"
           />
@@ -14733,9 +14824,13 @@ export default function App() {
         >
           <input
             id={leasingLocalEntregaInputId}
+            data-field="cliente-enderecoInstalacaoUcGeradora"
             className="leasing-compact-input h-[46px]"
             value={leasingContrato.localEntrega}
-            onChange={(event) => handleLeasingLocalEntregaChange(event.target.value)}
+            onChange={(event) => {
+              handleLeasingLocalEntregaChange(event.target.value)
+              clearFieldHighlight(event.currentTarget)
+            }}
             placeholder="Endereço completo da instalação"
           />
         </Field>
@@ -14874,7 +14969,20 @@ export default function App() {
               : clienteMensagens.cidade
           }
         >
-          <input value={cliente.cidade} onChange={(e) => handleClienteChange('cidade', e.target.value)} />
+          <input
+            data-field="cliente-cidade"
+            value={cliente.cidade}
+            onChange={(e) => {
+              const nextCidade = e.target.value
+              handleClienteChange('cidade', nextCidade)
+              clearFieldHighlight(e.currentTarget)
+              if (nextCidade.trim() && cliente.uf.trim()) {
+                clearFieldHighlight(
+                  document.querySelector('[data-field="cliente-uf"]') as HTMLElement | null,
+                )
+              }
+            }}
+          />
         </Field>
         <Field
           label={labelWithTooltip(
@@ -14882,7 +14990,20 @@ export default function App() {
             'Estado da instalação; utilizado para listar distribuidoras disponíveis, definir tarifas e parâmetros regionais.',
           )}
         >
-          <select value={cliente.uf} onChange={(e) => handleClienteChange('uf', e.target.value)}>
+          <select
+            data-field="cliente-uf"
+            value={cliente.uf}
+            onChange={(e) => {
+              const nextUf = e.target.value
+              handleClienteChange('uf', nextUf)
+              clearFieldHighlight(e.currentTarget)
+              if (cliente.cidade.trim() && nextUf.trim()) {
+                clearFieldHighlight(
+                  document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
+                )
+              }
+            }}
+          >
             <option value="">Selecione um estado</option>
             {ufsDisponiveis.map((uf) => (
               <option key={uf} value={uf}>
