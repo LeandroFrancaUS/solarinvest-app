@@ -1058,18 +1058,20 @@ const createZipFromFiles = async (files) => {
 
 const buildContractFileName = (tipoContrato, cpfCnpj, extension = 'docx') => {
   const id = sanitizeDocumentoId(cpfCnpj)
-  return `leasing-${tipoContrato}-${id}.${extension}`
+  return `contrato-leasing-${id}.${extension}`
 }
 
 const buildAnexoFileName = (anexoId, cpfCnpj, extension = 'docx') => {
   const id = sanitizeDocumentoId(cpfCnpj)
-  const slug = anexoId.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  // Remove "ANEXO_" prefix from anexoId to avoid duplication
+  // anexoId format: "ANEXO_II" -> slug: "ii"
+  const slug = anexoId.replace(/^ANEXO_/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
   return `anexo-${slug}-${id}.${extension}`
 }
 
 const buildZipFileName = (tipoContrato, cpfCnpj) => {
   const id = sanitizeDocumentoId(cpfCnpj)
-  return `pacote-leasing-${tipoContrato}-${id}.zip`
+  return `leasing-${tipoContrato}-${id}.zip`
 }
 
 const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
