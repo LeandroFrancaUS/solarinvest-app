@@ -4832,6 +4832,12 @@ export default function App() {
 
   const guardClientFieldsOrReturn = useCallback(
     (mode: 'venda' | 'leasing') => {
+      // Skip legacy validation when using V8 Flow
+      // V8 Flow has its own validation system that runs before calling this handler
+      if (useV8Flow && !orcamentoAtivoInfo) {
+        return true
+      }
+      
       clearClientHighlights()
       const fields = buildRequiredClientFields(mode)
       const result = validateRequiredFields(fields)
@@ -4852,6 +4858,8 @@ export default function App() {
       buildRequiredClientFields,
       isVendaDiretaTab,
       valorTotalPropostaNormalizado,
+      useV8Flow,
+      orcamentoAtivoInfo,
     ],
   )
 
