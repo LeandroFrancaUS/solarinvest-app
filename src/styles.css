@@ -1521,6 +1521,31 @@ button.secondary.small {
 }
 
 .field-error {
+  outline: 2px solid rgba(255, 122, 0, 0.95);       /* laranja forte */
+  outline-offset: 2px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 4px rgba(255, 122, 0, 0.18);    /* glow suave */
+  animation: si-shake 140ms linear 2;
+}
+
+.field-error:focus-within {
+  outline: 3px solid rgba(255, 122, 0, 1);
+  box-shadow: 0 0 0 5px rgba(255, 122, 0, 0.22);
+}
+
+@keyframes si-shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  50% { transform: translateX(2px); }
+  75% { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
+}
+
+.field-error-bg {
+  background: rgba(255, 122, 0, 0.06);
+}
+
+.field-error-message {
   color: #f87171;
   font-size: 12px;
   font-weight: 600;
