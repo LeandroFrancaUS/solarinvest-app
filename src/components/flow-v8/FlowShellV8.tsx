@@ -8,6 +8,7 @@ import React from 'react'
 export interface FlowShellV8Props {
   title: string
   subtitle?: string
+  headerExtras?: React.ReactNode
   stepper: React.ReactNode
   content: React.ReactNode
   sidebar: React.ReactNode
@@ -16,6 +17,7 @@ export interface FlowShellV8Props {
 export function FlowShellV8({
   title,
   subtitle,
+  headerExtras,
   stepper,
   content,
   sidebar,
@@ -30,6 +32,7 @@ export function FlowShellV8({
           </div>
           <span className="v8-badge">Flow V8</span>
         </div>
+        {headerExtras && <div className="v8-shell-header-extras">{headerExtras}</div>}
       </header>
       
       <div className="v8-grid">

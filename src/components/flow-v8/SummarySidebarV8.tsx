@@ -1,6 +1,6 @@
 /**
  * Flow V8 - Summary Sidebar Component
- * Shows KPIs, checklist, and CTA button
+ * Shows KPIs, checklist (no CTA button - moved to Revisão step)
  */
 
 import React from 'react'
@@ -24,9 +24,6 @@ export interface SummarySidebarV8Props {
   checklist: ChecklistItem[]
   showManualBadge: boolean
   manualBadgeReason?: string
-  ctaLabel: string
-  ctaDisabled: boolean
-  onCTAClick: () => void
   onChecklistItemClick: (item: ChecklistItem) => void
 }
 
@@ -35,13 +32,8 @@ export function SummarySidebarV8({
   checklist,
   showManualBadge,
   manualBadgeReason,
-  ctaLabel,
-  ctaDisabled,
-  onCTAClick,
   onChecklistItemClick,
 }: SummarySidebarV8Props): JSX.Element {
-  const hasIncomplete = checklist.some((item) => !item.completed)
-  
   return (
     <aside className="v8-sidebar">
       {/* KPIs Section */}
@@ -64,7 +56,7 @@ export function SummarySidebarV8({
             <div>
               <strong>⚠️ Orçamento Manual</strong>
               <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
-                {manualBadgeReason || 'Este tipo de instalação/sistema requer orçamento manual.'}
+                {manualBudgetReason || 'Este tipo de instalação/sistema requer orçamento manual.'}
               </p>
             </div>
           </div>
@@ -100,22 +92,8 @@ export function SummarySidebarV8({
         </div>
       )}
 
-      {/* CTA Section */}
-      <div className="v8-sidebar-section v8-mt-auto">
-        <button
-          type="button"
-          className="v8-btn v8-btn-primary v8-btn-large"
-          onClick={onCTAClick}
-          disabled={ctaDisabled}
-        >
-          {hasIncomplete ? '⚠️ Ver pendências' : ctaLabel}
-        </button>
-        {hasIncomplete && (
-          <p style={{ fontSize: '12px', color: 'var(--v8-text-secondary)', marginTop: '8px', textAlign: 'center' }}>
-            Complete todos os campos obrigatórios
-          </p>
-        )}
-      </div>
+      {/* Note: "Gerar Proposta" button removed from sidebar */}
+      {/* It will only appear in the final "Revisão" step */}
     </aside>
   )
 }
