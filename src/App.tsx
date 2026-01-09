@@ -2093,34 +2093,25 @@ type LeasingAnexoConfig = {
 
 const LEASING_ANEXOS_CONFIG: LeasingAnexoConfig[] = [
   {
-    id: 'ANEXO_I',
-    label: 'Especificações Técnicas',
-    descricao: 'Resumo técnico e proposta comercial detalhada conforme metodologia interna da SolarInvest.',
-    tipos: ['residencial', 'condominio'],
-  },
-  {
     id: 'ANEXO_II',
     label: 'Opção de Compra',
     descricao: 'Termo de opção de compra da usina ao final do contrato, conforme regras aplicáveis ao modelo de leasing.',
     tipos: ['residencial', 'condominio'],
+    autoInclude: true,
   },
   {
     id: 'ANEXO_III',
     label: 'Metodologia de Cálculo',
     descricao: 'Documento com a metodologia interna utilizada para as simulações e estimativas de mensalidade.',
     tipos: ['residencial', 'condominio'],
+    autoInclude: true,
   },
   {
     id: 'ANEXO_IV',
     label: 'Autorização do Proprietário',
     descricao: 'Declaração dos proprietários ou herdeiros autorizando a instalação.',
     tipos: ['residencial'],
-  },
-  {
-    id: 'ANEXO_VII',
-    label: 'Termo de Entrega e Aceite',
-    descricao: 'Registro de entrega técnica da usina.',
-    tipos: ['residencial', 'condominio'],
+    autoInclude: true,
   },
   {
     id: 'ANEXO_VIII',
@@ -2129,12 +2120,21 @@ const LEASING_ANEXOS_CONFIG: LeasingAnexoConfig[] = [
     tipos: ['condominio'],
     autoInclude: true,
   },
+  {
+    id: 'ANEXO_I',
+    label: 'Especificações Técnicas',
+    descricao: 'Resumo técnico e proposta comercial detalhada conforme metodologia interna da SolarInvest.',
+    tipos: ['residencial', 'condominio'],
+  },
+  {
+    id: 'ANEXO_VII',
+    label: 'Termo de Entrega e Aceite',
+    descricao: 'Registro de entrega técnica da usina.',
+    tipos: ['residencial', 'condominio'],
+  },
 ]
 
-const getDefaultLeasingAnexos = (tipo: LeasingContratoTipo): LeasingAnexoId[] =>
-  LEASING_ANEXOS_CONFIG.filter((config) => config.tipos.includes(tipo) && !config.autoInclude).map(
-    (config) => config.id,
-  )
+const getDefaultLeasingAnexos = (tipo: LeasingContratoTipo): LeasingAnexoId[] => []
 
 type PropostaEnvioMetodo = 'whatsapp' | 'whatsapp-business' | 'airdrop' | 'quick-share'
 
