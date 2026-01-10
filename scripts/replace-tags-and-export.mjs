@@ -50,6 +50,8 @@ function replaceAllTagsAndClean(xmlStr, data, styleMap = {}) {
     ['{{enderecoCompleto}}', data.enderecoCompleto],
     ['{{unidadeConsumidora}}', data.unidadeConsumidora],
     ['{{dataAtualExtenso}}', data.dataAtualExtenso],
+    ['{{dia}}', data.dia],
+    ['{{mes}}', data.mes],
   ];
 
   for (const [tag, value] of entries) {

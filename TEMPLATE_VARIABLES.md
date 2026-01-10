@@ -69,6 +69,8 @@ For custom formatting needs, these components are also available:
 ## Dates
 
 - `{dataAtualExtenso}` - Current date in extended format (e.g., "07 de janeiro de 2026")
+- `{dia}` - Current day of document generation (e.g., "7")
+- `{mes}` - Current month of document generation (e.g., "janeiro")
 - `{dataInicio}` - Contract start date
 - `{dataFim}` - Contract end date
 - `{dataHomologacao}` - Homologation date

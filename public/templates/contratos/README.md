@@ -80,6 +80,8 @@ Os templates devem usar as seguintes variáveis (tags) que serão automaticament
 
 **Datas**:
 - `{{dataAtualExtenso}}` - Data atual por extenso (ex: "06 de janeiro de 2026")
+- `{{dia}}` - Dia atual da geração do documento (ex: "6")
+- `{{mes}}` - Mês atual da geração do documento (ex: "janeiro")
 - `{{dataInicio}}` - Data de início do contrato
 - `{{dataFim}}` - Data de fim do contrato
 - `{{dataHomologacao}}` - Data de homologação

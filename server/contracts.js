@@ -103,6 +103,9 @@ const escapeXmlValue = (value) =>
   String(value ?? '').replace(XML_CHAR_ESCAPE_REGEX, (char) => XML_CHAR_ESCAPE_MAP[char] ?? char)
 
 const buildPlaceholderMap = (data) => {
+  const now = new Date()
+  const diaAtual = format(now, 'd', { locale: ptBR })
+  const mesAtual = format(now, 'MMMM', { locale: ptBR })
   // Formata endereço do contratante em ALL CAPS
   const enderecoContratante = formatarEnderecoCompleto({
     endereco: data.endereco ?? '',
@@ -154,6 +157,8 @@ const buildPlaceholderMap = (data) => {
     
     // Dates
     dataAtualExtenso: data.dataAtualExtenso ?? '',
+    dia: data.dia ?? diaAtual,
+    mes: data.mes ?? mesAtual,
     dataInicio: data.dataInicio ?? '',
     dataFim: data.dataFim ?? '',
     dataHomologacao: data.dataHomologacao ?? '',
