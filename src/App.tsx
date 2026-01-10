@@ -11103,14 +11103,14 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
-  const handleSalvarCliente = useCallback(async () => {
+  const handleSalvarCliente = useCallback(async (options?: { skipGuard?: boolean }) => {
     if (typeof window === 'undefined') {
-      return
+      return false
     }
 
     const mode = isVendaDiretaTab ? 'venda' : 'leasing'
-    if (!guardClientFieldsOrReturn(mode)) {
-      return
+    if (!options?.skipGuard && !guardClientFieldsOrReturn(mode)) {
+      return false
     }
 
     const dadosClonados = cloneClienteDados(cliente)
@@ -11242,12 +11242,12 @@ export default function App() {
 
     if (erroDuplicidade) {
       window.alert(erroDuplicidade)
-      return
+      return false
     }
 
     const salvo = registroSalvo as ClienteRegistro | null
     if (houveErro || !salvo) {
-      return
+      return false
     }
 
     const registroConfirmado: ClienteRegistro = salvo
@@ -11306,6 +11306,8 @@ export default function App() {
         )
       }
     }
+
+    return true
   }, [
     adicionarNotificacao,
     cliente,
@@ -12213,6 +12215,11 @@ export default function App() {
       return
     }
 
+    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
+    if (!clienteSalvo) {
+      return
+    }
+
     const resultado = await prepararPropostaParaExportacao({
       incluirTabelaBuyout: isVendaDiretaTab,
     })
@@ -12862,11 +12869,15 @@ export default function App() {
     [carregarTemplatesContrato, gerandoContratos, prepararDadosContratoCliente],
   )
 
-  const handleGerarContratoLeasing = useCallback(() => {
+  const handleGerarContratoLeasing = useCallback(async () => {
     if (gerandoContratos) {
       return
     }
     if (!guardClientFieldsOrReturn('leasing')) {
+      return
+    }
+    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
+    if (!clienteSalvo) {
       return
     }
     const base = prepararDadosContratoCliente()
@@ -12880,15 +12891,20 @@ export default function App() {
     carregarDisponibilidadeAnexos,
     gerandoContratos,
     guardClientFieldsOrReturn,
+    handleSalvarCliente,
     prepararDadosContratoCliente,
   ])
 
-  const handleGerarContratoVendas = useCallback(() => {
+  const handleGerarContratoVendas = useCallback(async () => {
     if (!guardClientFieldsOrReturn('venda')) {
       return
     }
+    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
+    if (!clienteSalvo) {
+      return
+    }
     abrirSelecaoContratos('vendas')
-  }, [abrirSelecaoContratos, guardClientFieldsOrReturn])
+  }, [abrirSelecaoContratos, guardClientFieldsOrReturn, handleSalvarCliente])
 
   const handleConfirmarGeracaoContratosVendas = useCallback(async () => {
     const payload = contratoClientePayloadRef.current
@@ -13360,11 +13376,9 @@ export default function App() {
       return false
     }
 
-    if (!clienteEmEdicaoIdRef.current) {
-      await handleSalvarCliente()
-      if (!clienteEmEdicaoIdRef.current) {
-        return false
-      }
+    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
+    if (!clienteSalvo) {
+      return false
     }
 
     setSalvandoPropostaLeasing(true)
@@ -13442,11 +13456,9 @@ export default function App() {
       return false
     }
 
-    if (!clienteEmEdicaoIdRef.current) {
-      await handleSalvarCliente()
-      if (!clienteEmEdicaoIdRef.current) {
-        return false
-      }
+    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
+    if (!clienteSalvo) {
+      return false
     }
 
     setSalvandoPropostaPdf(true)
