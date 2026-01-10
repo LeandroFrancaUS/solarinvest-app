@@ -604,6 +604,8 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     dataFim: optionalField(dados, 'dataFim'),
     dataHomologacao: optionalField(dados, 'dataHomologacao'),
     dataAtualExtenso: optionalField(dados, 'dataAtualExtenso'),
+    dia: optionalField(dados, 'dia'),
+    mes: optionalField(dados, 'mes'),
     diaVencimento: typeof dados.diaVencimento === 'string' ? dados.diaVencimento.trim() : '',
     prazoContratual: typeof dados.prazoContratual === 'string' ? dados.prazoContratual.trim() : '',
     
@@ -665,8 +667,15 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     normalized.anoContrato = new Date().getFullYear().toString()
   }
 
+  const agora = new Date()
   if (!normalized.dataAtualExtenso) {
-    normalized.dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+    normalized.dataAtualExtenso = format(agora, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  }
+  if (!normalized.dia) {
+    normalized.dia = format(agora, 'dd', { locale: ptBR })
+  }
+  if (!normalized.mes) {
+    normalized.mes = format(agora, 'MMMM', { locale: ptBR })
   }
 
   if (tipoContrato === 'condominio') {

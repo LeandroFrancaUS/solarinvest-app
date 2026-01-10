@@ -154,6 +154,8 @@ const buildPlaceholderMap = (data) => {
     
     // Dates
     dataAtualExtenso: data.dataAtualExtenso ?? '',
+    dia: data.dia ?? '',
+    mes: data.mes ?? '',
     dataInicio: data.dataInicio ?? '',
     dataFim: data.dataFim ?? '',
     dataHomologacao: data.dataHomologacao ?? '',
@@ -833,8 +835,16 @@ const generateContractPdf = async (cliente, templateName) => {
     await resolveTemplatePath(templateName, clienteUf)
 
   const templateInfo = { templatePath, templateFileName }
-  const dataAtualExtenso = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-  const data = { ...cliente, dataAtualExtenso }
+  const agora = new Date()
+  const dataAtualExtenso = format(agora, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  const dia = format(agora, 'dd', { locale: ptBR })
+  const mes = format(agora, 'MMMM', { locale: ptBR })
+  const data = {
+    ...cliente,
+    dataAtualExtenso,
+    dia,
+    mes,
+  }
 
   return generateContractPdfFromDocx(templateInfo, data)
 }
