@@ -567,6 +567,7 @@ type ClienteRegistro = {
   criadoEm: string
   atualizadoEm: string
   dados: ClienteDados
+  propostaSnapshot?: OrcamentoSnapshotData
 }
 
 type ClienteDuplicateReason = 'full' | 'documento' | 'uc' | 'telefone' | 'email' | 'endereco'
@@ -898,6 +899,7 @@ type OrcamentoSnapshotData = {
   tusdAnoReferencia: number
   tusdOpcoesExpandidas: boolean
   leasingPrazo: LeasingPrazoAnos
+  usarEnderecoCliente: boolean
   potenciaModulo: number
   potenciaModuloDirty: boolean
   tipoInstalacao: TipoInstalacao
@@ -1518,6 +1520,11 @@ const normalizeClienteRegistros = (
       dados: {
         nome: dados?.nome ?? '',
         documento: dados?.documento ?? '',
+        rg: dados?.rg ?? '',
+        estadoCivil: dados?.estadoCivil ?? '',
+        nacionalidade: dados?.nacionalidade ?? '',
+        profissao: dados?.profissao ?? '',
+        representanteLegal: dados?.representanteLegal ?? '',
         email: dados?.email ?? '',
         telefone: dados?.telefone ?? '',
         cep: dados?.cep ?? '',
@@ -1531,6 +1538,7 @@ const normalizeClienteRegistros = (
         nomeSindico: dados?.nomeSindico ?? '',
         cpfSindico: dados?.cpfSindico ?? '',
         contatoSindico: dados?.contatoSindico ?? '',
+        diaVencimento: dados?.diaVencimento ?? '10',
         herdeiros: herdeirosNormalizados,
       },
     }
@@ -11109,6 +11117,14 @@ export default function App() {
     dadosClonados.herdeiros = ensureClienteHerdeiros(dadosClonados.herdeiros).map((item) =>
       typeof item === 'string' ? item.trim() : '',
     )
+    const snapshotAtual = getCurrentSnapshot()
+    console.log('[ClienteSave] Capturing proposal snapshot:', {
+      kcKwhMes: snapshotAtual.kcKwhMes,
+      tarifaCheia: snapshotAtual.tarifaCheia,
+      entradaRs: snapshotAtual.entradaRs,
+      numeroModulosManual: snapshotAtual.numeroModulosManual,
+      potenciaModulo: snapshotAtual.potenciaModulo,
+    })
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
@@ -11178,6 +11194,7 @@ export default function App() {
               ...registro,
               dados: dadosClonados,
               atualizadoEm: agoraIso,
+              propostaSnapshot: snapshotAtual,
             }
             registroAtualizado = atualizado
             return atualizado
@@ -11191,6 +11208,7 @@ export default function App() {
             criadoEm: agoraIso,
             atualizadoEm: agoraIso,
             dados: dadosClonados,
+            propostaSnapshot: snapshotAtual,
           }
           registroAtualizado = novoRegistro
           registrosAtualizados = [novoRegistro, ...prevRegistros]
@@ -11201,6 +11219,7 @@ export default function App() {
           criadoEm: agoraIso,
           atualizadoEm: agoraIso,
           dados: dadosClonados,
+          propostaSnapshot: snapshotAtual,
         }
         registroAtualizado = novoRegistro
         registrosAtualizados = [novoRegistro, ...prevRegistros]
@@ -11305,7 +11324,22 @@ export default function App() {
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
       fecharClientesPainel()
+      // Restore proposal snapshot if available
+      if (registro.propostaSnapshot) {
+        // Use setTimeout to ensure state updates complete before applying snapshot
+        setTimeout(() => {
+          try {
+            aplicarSnapshot(registro.propostaSnapshot!)
+            console.log('[ClienteLoad] Proposal snapshot restored successfully')
+          } catch (error) {
+            console.error('[ClienteLoad] Error restoring proposal snapshot:', error)
+          }
+        }, 100)
+      } else {
+        console.warn('[ClienteLoad] No proposal snapshot found for client:', registro.id)
+      }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- aplicarSnapshot is not memoized and changes on every render
     [fecharClientesPainel, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
@@ -11439,6 +11473,11 @@ export default function App() {
         const clienteNormalizado: ClienteDados = {
           nome: clienteDados.nome ?? '',
           documento: clienteDados.documento ?? '',
+          rg: clienteDados.rg ?? '',
+          estadoCivil: clienteDados.estadoCivil ?? '',
+          nacionalidade: clienteDados.nacionalidade ?? '',
+          profissao: clienteDados.profissao ?? '',
+          representanteLegal: clienteDados.representanteLegal ?? '',
           email: clienteDados.email ?? '',
           telefone: clienteDados.telefone ?? '',
           cep: clienteDados.cep ?? '',
@@ -11453,6 +11492,7 @@ export default function App() {
           nomeSindico: clienteDados.nomeSindico ?? '',
           cpfSindico: clienteDados.cpfSindico ?? '',
           contatoSindico: clienteDados.contatoSindico ?? '',
+          diaVencimento: clienteDados.diaVencimento ?? '10',
         }
 
         const dadosNormalizados: PrintableProposalProps = {
@@ -11636,6 +11676,7 @@ export default function App() {
       tusdAnoReferencia,
       tusdOpcoesExpandidas,
       leasingPrazo,
+      usarEnderecoCliente,
       potenciaModulo,
       potenciaModuloDirty,
       tipoInstalacao,
@@ -11778,6 +11819,7 @@ export default function App() {
     setTusdAnoReferencia(snapshot.tusdAnoReferencia)
     setTusdOpcoesExpandidas(snapshot.tusdOpcoesExpandidas)
     setLeasingPrazo(snapshot.leasingPrazo)
+    setUsarEnderecoCliente(snapshot.usarEnderecoCliente ?? false)
     setPotenciaModulo(snapshot.potenciaModulo)
     setPotenciaModuloDirty(snapshot.potenciaModuloDirty)
     setTipoInstalacao(snapshot.tipoInstalacao)

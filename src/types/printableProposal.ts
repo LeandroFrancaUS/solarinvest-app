@@ -94,6 +94,11 @@ export type PrintableProposalImage = {
 export type ClienteDados = {
   nome: string
   documento: string
+  rg: string
+  estadoCivil: string
+  nacionalidade: string
+  profissao: string
+  representanteLegal: string
   email: string
   telefone: string
   cep: string
@@ -108,6 +113,7 @@ export type ClienteDados = {
   nomeSindico: string
   cpfSindico: string
   contatoSindico: string
+  diaVencimento: string
 }
 
 export type MensalidadeRow = {
