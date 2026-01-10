@@ -144,6 +144,8 @@ import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
 import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
 import { SimulacoesTab } from './components/simulacoes/SimulacoesTab'
+import { VendasV8 } from './pages-v8/VendasV8'
+import { LeasingV8 } from './pages-v8/LeasingV8'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -3155,6 +3157,15 @@ export default function App() {
     const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
+  
+  // V8 Flow toggle (default ON, set localStorage.setItem('legacy', '1') to use legacy)
+  const [useV8Flow] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+    const legacyMode = window.localStorage.getItem('legacy')
+    return legacyMode !== '1'
+  })
   const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>('nova')
   const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
   const [aprovacaoChecklist, setAprovacaoChecklist] = useState<
@@ -4821,6 +4832,12 @@ export default function App() {
 
   const guardClientFieldsOrReturn = useCallback(
     (mode: 'venda' | 'leasing') => {
+      // Skip legacy validation when using V8 Flow
+      // V8 Flow has its own validation system that runs before calling this handler
+      if (useV8Flow && !orcamentoAtivoInfo) {
+        return true
+      }
+      
       clearClientHighlights()
       const fields = buildRequiredClientFields(mode)
       const result = validateRequiredFields(fields)
@@ -4841,6 +4858,8 @@ export default function App() {
       buildRequiredClientFields,
       isVendaDiretaTab,
       valorTotalPropostaNormalizado,
+      useV8Flow,
+      orcamentoAtivoInfo,
     ],
   )
 
@@ -20551,6 +20570,104 @@ export default function App() {
         ) : activePage === 'settings' ? (
           renderSettingsPage()
         ) : (
+          useV8Flow && !orcamentoAtivoInfo ? (
+            // V8 Flow: New wizard-based UI with real state
+            activeTab === 'vendas' ? (
+              <VendasV8
+                // Client data
+                cliente={cliente}
+                onClienteChange={handleClienteChange}
+                segmentoCliente={segmentoCliente}
+                // Consumo & Tarifa
+                kcKwhMes={kcKwhMes}
+                tarifaCheia={tarifaCheia}
+                taxaMinima={taxaMinima}
+                encargosFixosExtras={encargosFixosExtras}
+                ufTarifa={ufTarifa}
+                distribuidoraTarifa={distribuidoraTarifa}
+                irradiacaoMedia={irradiacao}
+                ufsDisponiveis={ufsDisponiveis}
+                distribuidorasDisponiveis={distribuidorasDisponiveis}
+                ufLabels={UF_LABELS}
+                taxaMinimaInputEmpty={taxaMinimaInputEmpty}
+                onKcKwhMesChange={setKcKwhMes}
+                onTarifaCheiaChange={setTarifaCheia}
+                onTaxaMinimaChange={normalizeTaxaMinimaInputValue}
+                onEncargosFixosExtrasChange={setEncargosFixosExtras}
+                onUfChange={handleParametrosUfChange}
+                onDistribuidoraChange={handleParametrosDistribuidoraChange}
+                onIrradiacaoMediaChange={(value) => setIrradiacao(value)}
+                // Sistema
+                tipoInstalacao={tipoInstalacao}
+                tipoInstalacaoOutro={tipoInstalacaoOutro}
+                tipoSistema={tipoSistema}
+                tiposInstalacao={TIPOS_INSTALACAO}
+                tipoSistemaValues={TIPO_SISTEMA_VALUES}
+                onTipoInstalacaoChange={handleTipoInstalacaoChange}
+                onTipoInstalacaoOutroChange={setTipoInstalacaoOutro}
+                onTipoSistemaChange={handleTipoSistemaChange}
+                isManualBudgetForced={isManualBudgetForced}
+                manualBudgetForceReason={manualBudgetForceReason}
+                // Outputs/KPIs
+                outputs={{
+                  potenciaKwp: potenciaInstaladaKwp,
+                  valorTotal: capex,
+                  payback: null, // TODO: Extract from ROI calculation
+                }}
+                // Handlers
+                onGenerateProposal={handleSalvarPropostaLeasing}
+              />
+            ) : (
+              <LeasingV8
+                // Client data
+                cliente={cliente}
+                onClienteChange={handleClienteChange}
+                segmentoCliente={segmentoCliente}
+                // Consumo & Tarifa
+                kcKwhMes={kcKwhMes}
+                tarifaCheia={tarifaCheia}
+                taxaMinima={taxaMinima}
+                encargosFixosExtras={encargosFixosExtras}
+                ufTarifa={ufTarifa}
+                distribuidoraTarifa={distribuidoraTarifa}
+                irradiacaoMedia={irradiacao}
+                ufsDisponiveis={ufsDisponiveis}
+                distribuidorasDisponiveis={distribuidorasDisponiveis}
+                ufLabels={UF_LABELS}
+                taxaMinimaInputEmpty={taxaMinimaInputEmpty}
+                onKcKwhMesChange={setKcKwhMes}
+                onTarifaCheiaChange={setTarifaCheia}
+                onTaxaMinimaChange={normalizeTaxaMinimaInputValue}
+                onEncargosFixosExtrasChange={setEncargosFixosExtras}
+                onUfChange={handleParametrosUfChange}
+                onDistribuidoraChange={handleParametrosDistribuidoraChange}
+                onIrradiacaoMediaChange={(value) => setIrradiacao(value)}
+                // Sistema
+                tipoInstalacao={tipoInstalacao}
+                tipoInstalacaoOutro={tipoInstalacaoOutro}
+                tipoSistema={tipoSistema}
+                tiposInstalacao={TIPOS_INSTALACAO}
+                tipoSistemaValues={TIPO_SISTEMA_VALUES}
+                onTipoInstalacaoChange={handleTipoInstalacaoChange}
+                onTipoInstalacaoOutroChange={setTipoInstalacaoOutro}
+                onTipoSistemaChange={handleTipoSistemaChange}
+                isManualBudgetForced={isManualBudgetForced}
+                manualBudgetForceReason={manualBudgetForceReason}
+                // Leasing specific
+                leasingPrazo={leasingPrazo}
+                onLeasingPrazoChange={setLeasingPrazo}
+                // Outputs/KPIs
+                outputs={{
+                  potenciaKwp: potenciaInstaladaKwp,
+                  mensalidade: null, // TODO: Calculate from leasing state
+                  prazo: leasingPrazo,
+                }}
+                // Handlers
+                onGenerateProposal={handleSalvarPropostaLeasing}
+              />
+            )
+          ) : (
+          // Legacy flow
           <div className="page">
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
@@ -21255,6 +21372,7 @@ export default function App() {
               </main>
             </div>
           </div>
+          )
         )}
       </AppShell>
       <input

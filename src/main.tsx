@@ -8,6 +8,8 @@ import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode } from "./constants
 import "./styles.css"
 import "./styles/anti-overlay.css"
 import "./styles/anti-overlay-screen.css"
+import "./styles/tokens.v8.css"
+import "./styles/flow.v8.css"
 
 const detectBrave = async (): Promise<boolean> => {
   if (typeof navigator === "undefined") {
