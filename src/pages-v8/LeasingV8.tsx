@@ -153,7 +153,7 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
   // Define step labels based on mode
   const stepLabels = useMemo(() => {
     if (proposalMode === 'simple') {
-      return ['Cliente', 'Consumo & Tarifa', 'Sistema', 'Condições do Leasing', 'Revisão']
+      return ['Cliente', 'Sistema', 'Condições do Leasing', 'Consumo & Tarifa', 'Revisão']
     }
     return ['Cliente', 'Consumo & Tarifa', 'Sistema', 'Oferta de Leasing', 'Projeções', 'Revisão']
   }, [proposalMode])
