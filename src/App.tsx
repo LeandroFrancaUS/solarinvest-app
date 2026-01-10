@@ -898,6 +898,7 @@ type OrcamentoSnapshotData = {
   tusdAnoReferencia: number
   tusdOpcoesExpandidas: boolean
   leasingPrazo: LeasingPrazoAnos
+  usarEnderecoCliente: boolean
   potenciaModulo: number
   potenciaModuloDirty: boolean
   tipoInstalacao: TipoInstalacao
@@ -11636,6 +11637,7 @@ export default function App() {
       tusdAnoReferencia,
       tusdOpcoesExpandidas,
       leasingPrazo,
+      usarEnderecoCliente,
       potenciaModulo,
       potenciaModuloDirty,
       tipoInstalacao,
@@ -11778,6 +11780,7 @@ export default function App() {
     setTusdAnoReferencia(snapshot.tusdAnoReferencia)
     setTusdOpcoesExpandidas(snapshot.tusdOpcoesExpandidas)
     setLeasingPrazo(snapshot.leasingPrazo)
+    setUsarEnderecoCliente(snapshot.usarEnderecoCliente ?? false)
     setPotenciaModulo(snapshot.potenciaModulo)
     setPotenciaModuloDirty(snapshot.potenciaModuloDirty)
     setTipoInstalacao(snapshot.tipoInstalacao)
