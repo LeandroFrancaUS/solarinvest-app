@@ -20646,16 +20646,21 @@ export default function App() {
                 tipoInstalacao={tipoInstalacao}
                 tipoInstalacaoOutro={tipoInstalacaoOutro}
                 tipoSistema={tipoSistema}
+                tipoRede={tipoRede}
                 tiposInstalacao={TIPOS_INSTALACAO}
                 tipoSistemaValues={TIPO_SISTEMA_VALUES}
+                tiposRede={TIPOS_REDE}
                 onTipoInstalacaoChange={handleTipoInstalacaoChange}
                 onTipoInstalacaoOutroChange={setTipoInstalacaoOutro}
                 onTipoSistemaChange={handleTipoSistemaChange}
+                onTipoRedeChange={handleTipoRedeSelection}
                 isManualBudgetForced={isManualBudgetForced}
                 manualBudgetForceReason={manualBudgetForceReason}
                 // Leasing specific
                 leasingPrazo={leasingPrazo}
                 onLeasingPrazoChange={setLeasingPrazo}
+                descontoContratual={desconto}
+                onDescontoContratualChange={setDesconto}
                 // Outputs/KPIs
                 outputs={{
                   potenciaKwp: potenciaInstaladaKwp,

@@ -58,11 +58,14 @@ export interface LeasingV8Props {
   tipoInstalacao: string
   tipoInstalacaoOutro: string
   tipoSistema: string
+  tipoRede: TipoRede
   tiposInstalacao: Array<{ value: string; label: string }>
   tipoSistemaValues: string[]
+  tiposRede: Array<{ value: TipoRede; label: string }>
   onTipoInstalacaoChange: (value: string) => void
   onTipoInstalacaoOutroChange: (value: string) => void
   onTipoSistemaChange: (value: string) => void
+  onTipoRedeChange: (value: TipoRede) => void
   isManualBudgetForced: boolean
   manualBudgetForceReason: string
   // Leasing specific
@@ -359,6 +362,26 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
                 isManualBudgetForced={props.isManualBudgetForced}
                 manualBudgetForceReason={props.manualBudgetForceReason}
               />
+              <Field
+                label={labelWithTooltip(
+                  'Tipo de rede',
+                  'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
+                )}
+              >
+                <select
+                  value={props.tipoRede}
+                  onChange={(event) =>
+                    props.onTipoRedeChange(event.target.value as TipoRede)
+                  }
+                  className="v8-field-select"
+                >
+                  {props.tiposRede.map((rede) => (
+                    <option key={rede.value} value={rede.value}>
+                      {rede.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             </div>
           )
         case 2:
@@ -389,6 +412,23 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
                   <option value={114}>114 meses (9,5 anos)</option>
                   <option value={120}>120 meses (10 anos)</option>
                 </select>
+              </Field>
+              <Field
+                label={labelWithTooltip(
+                  'Desconto contratual (%)',
+                  'Percentual aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto).',
+                )}
+              >
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  value={props.descontoContratual ?? 0}
+                  onChange={(event) =>
+                    props.onDescontoContratualChange?.(Number(event.target.value) || 0)
+                  }
+                />
               </Field>
             </div>
           )
@@ -498,6 +538,26 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
                 isManualBudgetForced={props.isManualBudgetForced}
                 manualBudgetForceReason={props.manualBudgetForceReason}
               />
+              <Field
+                label={labelWithTooltip(
+                  'Tipo de rede',
+                  'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
+                )}
+              >
+                <select
+                  value={props.tipoRede}
+                  onChange={(event) =>
+                    props.onTipoRedeChange(event.target.value as TipoRede)
+                  }
+                  className="v8-field-select"
+                >
+                  {props.tiposRede.map((rede) => (
+                    <option key={rede.value} value={rede.value}>
+                      {rede.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             </div>
           )
         case 3:
