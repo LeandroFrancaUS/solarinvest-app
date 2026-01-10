@@ -11118,6 +11118,13 @@ export default function App() {
       typeof item === 'string' ? item.trim() : '',
     )
     const snapshotAtual = getCurrentSnapshot()
+    console.log('[ClienteSave] Capturing proposal snapshot:', {
+      kcKwhMes: snapshotAtual.kcKwhMes,
+      tarifaCheia: snapshotAtual.tarifaCheia,
+      entradaRs: snapshotAtual.entradaRs,
+      numeroModulosManual: snapshotAtual.numeroModulosManual,
+      potenciaModulo: snapshotAtual.potenciaModulo,
+    })
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
@@ -11317,9 +11324,19 @@ export default function App() {
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
       fecharClientesPainel()
-      // Restore proposal snapshot if available - use queueMicrotask for deterministic async execution
+      // Restore proposal snapshot if available
       if (registro.propostaSnapshot) {
-        queueMicrotask(() => aplicarSnapshot(registro.propostaSnapshot!))
+        // Use setTimeout to ensure state updates complete before applying snapshot
+        setTimeout(() => {
+          try {
+            aplicarSnapshot(registro.propostaSnapshot!)
+            console.log('[ClienteLoad] Proposal snapshot restored successfully')
+          } catch (error) {
+            console.error('[ClienteLoad] Error restoring proposal snapshot:', error)
+          }
+        }, 100)
+      } else {
+        console.warn('[ClienteLoad] No proposal snapshot found for client:', registro.id)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- aplicarSnapshot is not memoized and changes on every render
