@@ -82,8 +82,9 @@ export interface LeasingV8Props {
 
 const STEP_LABELS_SIMPLE = [
   'Cliente',
-  'Consumo & Tarifa',
   'Sistema',
+  'Condições do Leasing',
+  'Consumo & Tarifa',
   'Revisão',
 ]
 
@@ -325,103 +326,100 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
 
   // Render step content
   const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
-        return (
-          <div className="v8-field-grid cols-2">
-            <ClienteFields
-              cliente={props.cliente}
-              segmentoCliente={props.segmentoCliente}
-              onClienteChange={props.onClienteChange}
-            />
-          </div>
-        )
-      case 1:
-        return (
-          <div className="v8-field-grid cols-2">
-            <ConsumoTarifaFields
-              kcKwhMes={props.kcKwhMes}
-              tarifaCheia={props.tarifaCheia}
-              taxaMinima={props.taxaMinima}
-              encargosFixosExtras={props.encargosFixosExtras}
-              ufTarifa={props.ufTarifa}
-              distribuidoraTarifa={props.distribuidoraTarifa}
-              irradiacaoMedia={props.irradiacaoMedia}
-              ufsDisponiveis={props.ufsDisponiveis}
-              distribuidorasDisponiveis={props.distribuidorasDisponiveis}
-              ufLabels={props.ufLabels}
-              taxaMinimaInputEmpty={props.taxaMinimaInputEmpty}
-              onKcKwhMesChange={props.onKcKwhMesChange}
-              onTarifaCheiaChange={props.onTarifaCheiaChange}
-              onTaxaMinimaChange={props.onTaxaMinimaChange}
-              onEncargosFixosExtrasChange={props.onEncargosFixosExtrasChange}
-              onUfChange={props.onUfChange}
-              onDistribuidoraChange={props.onDistribuidoraChange}
-              onIrradiacaoMediaChange={props.onIrradiacaoMediaChange}
-            />
-          </div>
-        )
-      case 2:
-        return (
-          <div className="v8-field-grid cols-2">
-            <SistemaFields
-              tipoInstalacao={props.tipoInstalacao}
-              tipoInstalacaoOutro={props.tipoInstalacaoOutro}
-              tipoSistema={props.tipoSistema}
-              tiposInstalacao={props.tiposInstalacao}
-              tipoSistemaValues={props.tipoSistemaValues}
-              onTipoInstalacaoChange={props.onTipoInstalacaoChange}
-              onTipoInstalacaoOutroChange={props.onTipoInstalacaoOutroChange}
-              onTipoSistemaChange={props.onTipoSistemaChange}
-              isManualBudgetForced={props.isManualBudgetForced}
-              manualBudgetForceReason={props.manualBudgetForceReason}
-            />
-          </div>
-        )
-      case 3:
-        // Step 3: Condições do Leasing (Simple mode) OR Oferta de Leasing (Complete mode)
-        return (
-          <div className="v8-field-grid cols-2">
-            <Field
-              label={labelWithTooltip(
-                'Prazo do leasing (meses)',
-                'Duração total do contrato de leasing em meses.',
-              )}
-            >
-              <select
-                data-field="leasingPrazo"
-                value={props.leasingPrazo}
-                onChange={(e) => props.onLeasingPrazoChange(Number(e.target.value))}
-                className="v8-field-select"
+    // Simple mode order: Cliente (0), Sistema (1), Condições do Leasing (2), Consumo & Tarifa (3), Revisão (4)
+    // Complete mode order: Cliente (0), Consumo & Tarifa (1), Sistema (2), Oferta (3), Projeções (4), Revisão (5)
+    
+    if (proposalMode === 'simple') {
+      // Simple mode with reordered steps
+      switch (currentStep) {
+        case 0:
+          // Step 0: Cliente
+          return (
+            <div className="v8-field-grid cols-2">
+              <ClienteFields
+                cliente={props.cliente}
+                segmentoCliente={props.segmentoCliente}
+                onClienteChange={props.onClienteChange}
+              />
+            </div>
+          )
+        case 1:
+          // Step 1: Sistema
+          return (
+            <div className="v8-field-grid cols-2">
+              <SistemaFields
+                tipoInstalacao={props.tipoInstalacao}
+                tipoInstalacaoOutro={props.tipoInstalacaoOutro}
+                tipoSistema={props.tipoSistema}
+                tiposInstalacao={props.tiposInstalacao}
+                tipoSistemaValues={props.tipoSistemaValues}
+                onTipoInstalacaoChange={props.onTipoInstalacaoChange}
+                onTipoInstalacaoOutroChange={props.onTipoInstalacaoOutroChange}
+                onTipoSistemaChange={props.onTipoSistemaChange}
+                isManualBudgetForced={props.isManualBudgetForced}
+                manualBudgetForceReason={props.manualBudgetForceReason}
+              />
+            </div>
+          )
+        case 2:
+          // Step 2: Condições do Leasing
+          return (
+            <div className="v8-field-grid cols-2">
+              <Field
+                label={labelWithTooltip(
+                  'Prazo do leasing (meses)',
+                  'Duração total do contrato de leasing em meses.',
+                )}
               >
-                <option value={60}>60 meses (5 anos)</option>
-                <option value={66}>66 meses (5,5 anos)</option>
-                <option value={72}>72 meses (6 anos)</option>
-                <option value={78}>78 meses (6,5 anos)</option>
-                <option value={84}>84 meses (7 anos)</option>
-                <option value={90}>90 meses (7,5 anos)</option>
-                <option value={96}>96 meses (8 anos)</option>
-                <option value={102}>102 meses (8,5 anos)</option>
-                <option value={108}>108 meses (9 anos)</option>
-                <option value={114}>114 meses (9,5 anos)</option>
-                <option value={120}>120 meses (10 anos)</option>
-              </select>
-            </Field>
-            {proposalMode === 'complete' && (
-              <div className="v8-alert info">
-                <p>
-                  <strong>Oferta de Leasing</strong>
-                  <br />
-                  Campos adicionais de leasing (entrada, taxa, etc.) serão integrados em uma próxima iteração.
-                </p>
-              </div>
-            )}
-          </div>
-        )
-      case 4:
-        // Step 4: Revisão (Simple mode) OR Projeções (Complete mode)
-        if (proposalMode === 'simple') {
-          // Simple mode: Show Revisão with preview at step 4
+                <select
+                  data-field="leasingPrazo"
+                  value={props.leasingPrazo}
+                  onChange={(e) => props.onLeasingPrazoChange(Number(e.target.value))}
+                  className="v8-field-select"
+                >
+                  <option value={60}>60 meses (5 anos)</option>
+                  <option value={66}>66 meses (5,5 anos)</option>
+                  <option value={72}>72 meses (6 anos)</option>
+                  <option value={78}>78 meses (6,5 anos)</option>
+                  <option value={84}>84 meses (7 anos)</option>
+                  <option value={90}>90 meses (7,5 anos)</option>
+                  <option value={96}>96 meses (8 anos)</option>
+                  <option value={102}>102 meses (8,5 anos)</option>
+                  <option value={108}>108 meses (9 anos)</option>
+                  <option value={114}>114 meses (9,5 anos)</option>
+                  <option value={120}>120 meses (10 anos)</option>
+                </select>
+              </Field>
+            </div>
+          )
+        case 3:
+          // Step 3: Consumo & Tarifa
+          return (
+            <div className="v8-field-grid cols-2">
+              <ConsumoTarifaFields
+                kcKwhMes={props.kcKwhMes}
+                tarifaCheia={props.tarifaCheia}
+                taxaMinima={props.taxaMinima}
+                encargosFixosExtras={props.encargosFixosExtras}
+                ufTarifa={props.ufTarifa}
+                distribuidoraTarifa={props.distribuidoraTarifa}
+                irradiacaoMedia={props.irradiacaoMedia}
+                ufsDisponiveis={props.ufsDisponiveis}
+                distribuidorasDisponiveis={props.distribuidorasDisponiveis}
+                ufLabels={props.ufLabels}
+                taxaMinimaInputEmpty={props.taxaMinimaInputEmpty}
+                onKcKwhMesChange={props.onKcKwhMesChange}
+                onTarifaCheiaChange={props.onTarifaCheiaChange}
+                onTaxaMinimaChange={props.onTaxaMinimaChange}
+                onEncargosFixosExtrasChange={props.onEncargosFixosExtrasChange}
+                onUfChange={props.onUfChange}
+                onDistribuidoraChange={props.onDistribuidoraChange}
+                onIrradiacaoMediaChange={props.onIrradiacaoMediaChange}
+              />
+            </div>
+          )
+        case 4:
+          // Step 4: Revisão
           const validation = canGenerateProposal(values, 'leasing')
           return (
             <div>
@@ -444,8 +442,104 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
               )}
             </div>
           )
-        } else {
-          // Complete mode: Show Projeções
+        default:
+          return null
+      }
+    } else {
+      // Complete mode with original order
+      switch (currentStep) {
+        case 0:
+          return (
+            <div className="v8-field-grid cols-2">
+              <ClienteFields
+                cliente={props.cliente}
+                segmentoCliente={props.segmentoCliente}
+                onClienteChange={props.onClienteChange}
+              />
+            </div>
+          )
+        case 1:
+          return (
+            <div className="v8-field-grid cols-2">
+              <ConsumoTarifaFields
+                kcKwhMes={props.kcKwhMes}
+                tarifaCheia={props.tarifaCheia}
+                taxaMinima={props.taxaMinima}
+                encargosFixosExtras={props.encargosFixosExtras}
+                ufTarifa={props.ufTarifa}
+                distribuidoraTarifa={props.distribuidoraTarifa}
+                irradiacaoMedia={props.irradiacaoMedia}
+                ufsDisponiveis={props.ufsDisponiveis}
+                distribuidorasDisponiveis={props.distribuidorasDisponiveis}
+                ufLabels={props.ufLabels}
+                taxaMinimaInputEmpty={props.taxaMinimaInputEmpty}
+                onKcKwhMesChange={props.onKcKwhMesChange}
+                onTarifaCheiaChange={props.onTarifaCheiaChange}
+                onTaxaMinimaChange={props.onTaxaMinimaChange}
+                onEncargosFixosExtrasChange={props.onEncargosFixosExtrasChange}
+                onUfChange={props.onUfChange}
+                onDistribuidoraChange={props.onDistribuidoraChange}
+                onIrradiacaoMediaChange={props.onIrradiacaoMediaChange}
+              />
+            </div>
+          )
+        case 2:
+          return (
+            <div className="v8-field-grid cols-2">
+              <SistemaFields
+                tipoInstalacao={props.tipoInstalacao}
+                tipoInstalacaoOutro={props.tipoInstalacaoOutro}
+                tipoSistema={props.tipoSistema}
+                tiposInstalacao={props.tiposInstalacao}
+                tipoSistemaValues={props.tipoSistemaValues}
+                onTipoInstalacaoChange={props.onTipoInstalacaoChange}
+                onTipoInstalacaoOutroChange={props.onTipoInstalacaoOutroChange}
+                onTipoSistemaChange={props.onTipoSistemaChange}
+                isManualBudgetForced={props.isManualBudgetForced}
+                manualBudgetForceReason={props.manualBudgetForceReason}
+              />
+            </div>
+          )
+        case 3:
+          // Step 3: Oferta de Leasing
+          return (
+            <div className="v8-field-grid cols-2">
+              <Field
+                label={labelWithTooltip(
+                  'Prazo do leasing (meses)',
+                  'Duração total do contrato de leasing em meses.',
+                )}
+              >
+                <select
+                  data-field="leasingPrazo"
+                  value={props.leasingPrazo}
+                  onChange={(e) => props.onLeasingPrazoChange(Number(e.target.value))}
+                  className="v8-field-select"
+                >
+                  <option value={60}>60 meses (5 anos)</option>
+                  <option value={66}>66 meses (5,5 anos)</option>
+                  <option value={72}>72 meses (6 anos)</option>
+                  <option value={78}>78 meses (6,5 anos)</option>
+                  <option value={84}>84 meses (7 anos)</option>
+                  <option value={90}>90 meses (7,5 anos)</option>
+                  <option value={96}>96 meses (8 anos)</option>
+                  <option value={102}>102 meses (8,5 anos)</option>
+                  <option value={108}>108 meses (9 anos)</option>
+                  <option value={114}>114 meses (9,5 anos)</option>
+                  <option value={120}>120 meses (10 anos)</option>
+                </select>
+              </Field>
+              <div className="v8-alert info">
+                <p>
+                  <strong>Oferta de Leasing</strong>
+                  <br />
+                  Campos adicionais de leasing (entrada, taxa, etc.) serão integrados em uma próxima iteração.
+                </p>
+              </div>
+            </div>
+          )
+        case 4:
+          // Step 4: Projeções
           return (
             <div className="v8-field-grid">
               <div className="v8-alert info">
@@ -457,53 +551,77 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
               </div>
             </div>
           )
-        }
-      case 5:
-        // Step 5: Revisão (Complete mode only)
-        const validation = canGenerateProposal(values, 'leasing')
-        return (
-          <div>
-            {showPreview ? (
-              <ProposalPreviewModal
-                cliente={props.cliente}
-                potenciaKwp={props.outputs.potenciaKwp || 0}
-                mensalidade={calculatedMensalidade}
-                prazo={props.leasingPrazo}
-                onAccept={handleAcceptProposal}
-                onReject={handleRejectProposal}
-              />
-            ) : (
-              <GerarPropostaActions
-                onGenerateProposal={handleCTAClick}
-                isSaving={isSaving}
-                canGenerate={validation.valid}
-                missingFields={validation.missing}
-              />
-            )}
-          </div>
-        )
-      default:
-        return null
+        case 5:
+          // Step 5: Revisão
+          const validation = canGenerateProposal(values, 'leasing')
+          return (
+            <div>
+              {showPreview ? (
+                <ProposalPreviewModal
+                  cliente={props.cliente}
+                  potenciaKwp={props.outputs.potenciaKwp || 0}
+                  mensalidade={calculatedMensalidade}
+                  prazo={props.leasingPrazo}
+                  onAccept={handleAcceptProposal}
+                  onReject={handleRejectProposal}
+                />
+              ) : (
+                <GerarPropostaActions
+                  onGenerateProposal={handleCTAClick}
+                  isSaving={isSaving}
+                  canGenerate={validation.valid}
+                  missingFields={validation.missing}
+                />
+              )}
+            </div>
+          )
+        default:
+          return null
+      }
     }
   }
 
-  const stepTitles = [
-    'Dados do Cliente',
-    'Consumo & Tarifa Elétrica',
-    'Configuração do Sistema',
-    'Condições do Leasing',
-    'Projeções Financeiras',
-    'Revisão Final & Proposta',
-  ]
+  const stepTitles = useMemo(() => {
+    if (proposalMode === 'simple') {
+      return [
+        'Dados do Cliente',
+        'Configuração do Sistema',
+        'Condições do Leasing',
+        'Consumo & Tarifa Elétrica',
+        'Revisão Final & Proposta',
+      ]
+    } else {
+      return [
+        'Dados do Cliente',
+        'Consumo & Tarifa Elétrica',
+        'Configuração do Sistema',
+        'Oferta de Leasing',
+        'Projeções Financeiras',
+        'Revisão Final & Proposta',
+      ]
+    }
+  }, [proposalMode])
 
-  const stepDescriptions = [
-    'Informações básicas do cliente e contato',
-    'Consumo médio mensal e tarifa aplicável',
-    'Tipo de instalação e configuração do sistema',
-    'Prazo, entrada e condições do leasing',
-    'Análise financeira e benefícios projetados',
-    'Revise e gere a proposta de leasing',
-  ]
+  const stepDescriptions = useMemo(() => {
+    if (proposalMode === 'simple') {
+      return [
+        'Informações básicas do cliente e contato',
+        'Tipo de instalação e configuração do sistema',
+        'Prazo e condições do leasing',
+        'Consumo médio mensal e tarifa aplicável',
+        'Revise e gere a proposta de leasing',
+      ]
+    } else {
+      return [
+        'Informações básicas do cliente e contato',
+        'Consumo médio mensal e tarifa aplicável',
+        'Tipo de instalação e configuração do sistema',
+        'Entrada, prazo e condições do leasing',
+        'Análise financeira e benefícios projetados',
+        'Revise e gere a proposta de leasing',
+      ]
+    }
+  }, [proposalMode])
 
   return (
     <>
