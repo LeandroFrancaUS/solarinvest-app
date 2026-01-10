@@ -567,6 +567,7 @@ type ClienteRegistro = {
   criadoEm: string
   atualizadoEm: string
   dados: ClienteDados
+  propostaSnapshot?: OrcamentoSnapshotData | undefined
 }
 
 type ClienteDuplicateReason = 'full' | 'documento' | 'uc' | 'telefone' | 'email' | 'endereco'
@@ -11116,6 +11117,7 @@ export default function App() {
     dadosClonados.herdeiros = ensureClienteHerdeiros(dadosClonados.herdeiros).map((item) =>
       typeof item === 'string' ? item.trim() : '',
     )
+    const snapshotAtual = getCurrentSnapshot()
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
@@ -11185,6 +11187,7 @@ export default function App() {
               ...registro,
               dados: dadosClonados,
               atualizadoEm: agoraIso,
+              propostaSnapshot: snapshotAtual,
             }
             registroAtualizado = atualizado
             return atualizado
@@ -11198,6 +11201,7 @@ export default function App() {
             criadoEm: agoraIso,
             atualizadoEm: agoraIso,
             dados: dadosClonados,
+            propostaSnapshot: snapshotAtual,
           }
           registroAtualizado = novoRegistro
           registrosAtualizados = [novoRegistro, ...prevRegistros]
@@ -11208,6 +11212,7 @@ export default function App() {
           criadoEm: agoraIso,
           atualizadoEm: agoraIso,
           dados: dadosClonados,
+          propostaSnapshot: snapshotAtual,
         }
         registroAtualizado = novoRegistro
         registrosAtualizados = [novoRegistro, ...prevRegistros]
@@ -11312,7 +11317,13 @@ export default function App() {
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
       fecharClientesPainel()
+      // Restore proposal snapshot if available
+      if (registro.propostaSnapshot) {
+        // Call aplicarSnapshot directly (defined later in the file)
+        setTimeout(() => aplicarSnapshot(registro.propostaSnapshot!), 50)
+      }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fecharClientesPainel, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
