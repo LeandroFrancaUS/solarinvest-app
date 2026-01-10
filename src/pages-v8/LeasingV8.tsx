@@ -100,36 +100,37 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
   const [isSaving, setIsSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
 
-  // Auto-calculate mensalidade using existing logic
-  // For Simple mode: uses first 12 months only (anosDecorridos: 0)
-  // Formula: taxa mínima + CIP + TUSD Fio B (with inflation applied to tariff)
+  // Auto-calculate mensalidade using annual composition
+  // Formula: mensalidade = energiaContratadaBase * tarifaComDesconto + tusdMedio
+  // This matches the leasing proposal printable formula (annual aggregated composition)
   const calculatedMensalidade = useMemo(() => {
-    const tipoRede: TipoRede = 'trifasico' // Default assumption, could be made configurable
+    // energiaContratadaBase: Contracted energy in kWh/month
+    const energiaContratadaBase = Math.max(0, props.kcKwhMes || 0)
     
-    // Calculate energiaGeradaKwh from potenciaKwp if available
-    // Assumption: 5 hours of sun per day * 30 days = 150 kWh per kWp per month
-    const potenciaKwp = props.outputs.potenciaKwp || 0
-    const energiaGeradaKwh = potenciaKwp * 150 // Simplified monthly generation
+    // Desconto contratual: Default 0% for now (could be made configurable)
+    const descontoContratualPct = 0 // TODO: Make this configurable when added to props
+    const descontoFracao = descontoContratualPct / 100
     
-    // Build TUSD configuration for proper Fio B calculation
-    const tusdConfig = {
-      simultaneidade: 0.6, // 60% default
-      percentualFioB: 0.5, // 50% of TUSD
-      tarifaRkwh: props.tarifaCheia * 0.3, // Approximate TUSD as 30% of full tariff
-      tarifaFioBOficial: null,
-      fatorIncidenciaLei14300: 1.0, // 100% incidence
-    }
+    // Inflação energética: 8% default for first year projection
+    const inflacaoEnergetica = 0.08
+    const fatorInflacao = Math.pow(1 + inflacaoEnergetica, 0) // Year 1, so exponent is 0
     
-    return calcularMensalidadeSolarInvest({
-      tarifaCheia: props.tarifaCheia,
-      inflacaoEnergetica: 0.08, // 8% default
-      anosDecorridos: 0, // First 12 months only for Simple mode projection
-      tipoLigacao: tipoRede,
-      cipValor: props.encargosFixosExtras,
-      tusd: tusdConfig,
-      energiaGeradaKwh: energiaGeradaKwh,
-    })
-  }, [props.tarifaCheia, props.encargosFixosExtras, props.outputs.potenciaKwp])
+    // Tarifa cheia com inflação
+    const tarifaCheiaAno = Math.max(0, props.tarifaCheia || 0) * fatorInflacao
+    
+    // Tarifa com desconto aplicado
+    const tarifaComDesconto = tarifaCheiaAno * (1 - descontoFracao)
+    
+    // TUSD médio: Estimate from TUSD components
+    // Approximation: taxaMinima + encargosFixosExtras as monthly TUSD average
+    // This is a simplified estimate since we don't have full parcelasLeasing data here
+    const tusdMedio = Math.max(0, props.taxaMinima || 0) + Math.max(0, props.encargosFixosExtras || 0)
+    
+    // Final formula: mensalidade = energiaContratadaBase * tarifaComDesconto + tusdMedio
+    const mensalidade = energiaContratadaBase * tarifaComDesconto + tusdMedio
+    
+    return mensalidade
+  }, [props.kcKwhMes, props.tarifaCheia, props.taxaMinima, props.encargosFixosExtras])
 
   // Build values object for validation
   const values = useMemo(() => ({
