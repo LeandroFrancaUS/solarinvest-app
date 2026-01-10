@@ -1519,6 +1519,11 @@ const normalizeClienteRegistros = (
       dados: {
         nome: dados?.nome ?? '',
         documento: dados?.documento ?? '',
+        rg: dados?.rg ?? '',
+        estadoCivil: dados?.estadoCivil ?? '',
+        nacionalidade: dados?.nacionalidade ?? '',
+        profissao: dados?.profissao ?? '',
+        representanteLegal: dados?.representanteLegal ?? '',
         email: dados?.email ?? '',
         telefone: dados?.telefone ?? '',
         cep: dados?.cep ?? '',
@@ -1532,6 +1537,7 @@ const normalizeClienteRegistros = (
         nomeSindico: dados?.nomeSindico ?? '',
         cpfSindico: dados?.cpfSindico ?? '',
         contatoSindico: dados?.contatoSindico ?? '',
+        diaVencimento: dados?.diaVencimento ?? '10',
         herdeiros: herdeirosNormalizados,
       },
     }
@@ -11440,6 +11446,11 @@ export default function App() {
         const clienteNormalizado: ClienteDados = {
           nome: clienteDados.nome ?? '',
           documento: clienteDados.documento ?? '',
+          rg: clienteDados.rg ?? '',
+          estadoCivil: clienteDados.estadoCivil ?? '',
+          nacionalidade: clienteDados.nacionalidade ?? '',
+          profissao: clienteDados.profissao ?? '',
+          representanteLegal: clienteDados.representanteLegal ?? '',
           email: clienteDados.email ?? '',
           telefone: clienteDados.telefone ?? '',
           cep: clienteDados.cep ?? '',
@@ -11454,6 +11465,7 @@ export default function App() {
           nomeSindico: clienteDados.nomeSindico ?? '',
           cpfSindico: clienteDados.cpfSindico ?? '',
           contatoSindico: clienteDados.contatoSindico ?? '',
+          diaVencimento: clienteDados.diaVencimento ?? '10',
         }
 
         const dadosNormalizados: PrintableProposalProps = {
