@@ -68,6 +68,8 @@ export interface LeasingV8Props {
   // Leasing specific
   leasingPrazo: number
   onLeasingPrazoChange: (value: number) => void
+  descontoContratual?: number // Percentage (0-100)
+  onDescontoContratualChange?: (value: number) => void
   // Outputs
   outputs: {
     potenciaKwp?: number | null
@@ -107,8 +109,9 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
     // energiaContratadaBase: Contracted energy in kWh/month
     const energiaContratadaBase = Math.max(0, props.kcKwhMes || 0)
     
-    // Desconto contratual: Default 0% for now (could be made configurable)
-    const descontoContratualPct = 0 // TODO: Make this configurable when added to props
+    // Desconto contratual: Use from props or default to 0%
+    // If discount is 20%, then multiplier is (1 - 0.20) = 0.80
+    const descontoContratualPct = props.descontoContratual ?? 0
     const descontoFracao = descontoContratualPct / 100
     
     // Inflação energética: 8% default for first year projection
@@ -119,6 +122,8 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
     const tarifaCheiaAno = Math.max(0, props.tarifaCheia || 0) * fatorInflacao
     
     // Tarifa com desconto aplicado
+    // Example: if descontoContratualPct = 20%, then (1 - 0.20) = 0.80
+    // So tarifaComDesconto = tarifaCheia * 0.80
     const tarifaComDesconto = tarifaCheiaAno * (1 - descontoFracao)
     
     // TUSD médio: Estimate from TUSD components
@@ -126,11 +131,13 @@ export function LeasingV8(props: LeasingV8Props): JSX.Element {
     // This is a simplified estimate since we don't have full parcelasLeasing data here
     const tusdMedio = Math.max(0, props.taxaMinima || 0) + Math.max(0, props.encargosFixosExtras || 0)
     
-    // Final formula: mensalidade = energiaContratadaBase * tarifaComDesconto + tusdMedio
+    // Final formula: mensalidade = (energiaContratadaBase * tarifaComDesconto) + tusdMedio
+    // Example: If energiaContratadaBase = 1000 kWh, tarifa = R$0.50, discount = 20%, TUSD = R$100
+    // mensalidade = (1000 * 0.50 * 0.80) + 100 = 400 + 100 = R$500
     const mensalidade = energiaContratadaBase * tarifaComDesconto + tusdMedio
     
     return mensalidade
-  }, [props.kcKwhMes, props.tarifaCheia, props.taxaMinima, props.encargosFixosExtras])
+  }, [props.kcKwhMes, props.tarifaCheia, props.taxaMinima, props.encargosFixosExtras, props.descontoContratual])
 
   // Build values object for validation
   const values = useMemo(() => ({
