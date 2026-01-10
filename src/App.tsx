@@ -567,7 +567,7 @@ type ClienteRegistro = {
   criadoEm: string
   atualizadoEm: string
   dados: ClienteDados
-  propostaSnapshot?: OrcamentoSnapshotData | undefined
+  propostaSnapshot?: OrcamentoSnapshotData
 }
 
 type ClienteDuplicateReason = 'full' | 'documento' | 'uc' | 'telefone' | 'email' | 'endereco'
@@ -11317,13 +11317,12 @@ export default function App() {
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
       fecharClientesPainel()
-      // Restore proposal snapshot if available
+      // Restore proposal snapshot if available - use queueMicrotask for deterministic async execution
       if (registro.propostaSnapshot) {
-        // Call aplicarSnapshot directly (defined later in the file)
-        setTimeout(() => aplicarSnapshot(registro.propostaSnapshot!), 50)
+        queueMicrotask(() => aplicarSnapshot(registro.propostaSnapshot!))
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- aplicarSnapshot is not memoized and changes on every render
     [fecharClientesPainel, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
