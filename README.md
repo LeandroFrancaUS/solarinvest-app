@@ -1,8 +1,72 @@
 # SolarInvest App
 
+Modern solar energy simulation platform with integrated CRM, contract generation, and persistent storage.
+
+## 📚 Documentation
+
+- **[API Documentation](./API_DOCUMENTATION.md)** - Complete REST API reference
+- **[Deployment Guide](./DEPLOYMENT.md)** - Deploy to Vercel with Neon & Stack Auth
+- **[Environment Variables](./.env.example)** - Configuration template
+
 ## Requirements
 
 Develop locally with Node.js 24.x (an `.nvmrc` file is provided to pin the version).
+
+## Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Copy environment template
+cp .env.example .env
+# Edit .env with your credentials
+
+# Run development server
+npm run dev
+
+# Run production build
+npm run build
+npm run start
+```
+
+## Features
+
+- ☀️ Solar energy simulation and financial projections
+- 👥 CRM for client management
+- 📄 Contract generation with PDF conversion
+- 💾 Persistent storage with Neon PostgreSQL
+- 🔐 JWT authentication via Stack Auth
+- 📊 ANEEL data integration with proxy
+- 🧾 Invoice engine (prototype)
+
+## API Endpoints
+
+The backend exposes RESTful APIs for data persistence:
+
+- `GET /health` - Server health check
+- `GET /api/health/db` - Database connectivity test
+- `GET/PUT/DELETE /api/storage` - Persistent key-value storage
+- `GET/POST/PUT/DELETE /api/clients` - CRM client management
+- `GET/POST /api/contracts` - Contract generation and tracking
+
+See [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) for complete details.
+
+## Testing
+
+```bash
+# Unit tests
+npm run test
+
+# Linting
+npm run lint
+
+# Type checking
+npm run typecheck
+
+# Smoke tests
+node scripts/smoke-test-db.mjs
+```
 
 ## ANEEL data proxy
 
@@ -160,3 +224,73 @@ O frontend assume o backend em `http://localhost:3001`. Ajuste o `baseURL` em `f
   - Com tarifa oficial: `tusdFioB = tarifaFioBOficial * energiaGerada * (1 - simultaneidade) * fatorLei14300`.
   - Sem tarifa oficial (fallback): `tusdFioB = tarifaTUSD * percentualFioB * energiaGerada * (1 - simultaneidade) * fatorLei14300`.
 - **Mensalidade com distribuidora:** `calcularValorContaRede` soma taxa mínima (CID) + CIP (se houver) + TUSD Fio B. A função `calcularMensalidadeSolarInvest` segue existindo como alias para não quebrar chamadas antigas.
+
+## Architecture
+
+### Backend Structure
+
+```
+server/
+├── index.js              # Main server with route handling
+├── aneelProxy.js         # ANEEL data proxy
+├── contracts.js          # Contract rendering
+├── leasingContracts.js   # Leasing-specific contracts
+├── auth/
+│   └── stackAuth.js      # JWT validation
+├── database/
+│   ├── neonClient.js     # Database singleton
+│   ├── neonConfig.js     # Connection configuration
+│   ├── storageService.js # Key-value storage
+│   ├── clientsService.js # CRM clients
+│   └── contractsService.js # Contracts
+├── middleware/
+│   └── requireAuth.js    # Auth middleware
+└── routes/
+    ├── clients.js        # /api/clients handler
+    └── contracts.js      # /api/contracts handler
+```
+
+### Frontend Structure
+
+```
+src/
+├── lib/
+│   └── apiClient.ts      # Centralized API client
+├── services/
+│   ├── storageService.ts # Storage API wrapper
+│   ├── clientsService.ts # Clients API wrapper
+│   └── contractsService.ts # Contracts API wrapper
+├── store/                # Zustand stores
+├── components/           # React components
+└── utils/                # Pure utility functions
+```
+
+### Database Schema
+
+Tables are auto-created on first use:
+
+- **storage** - User key-value storage
+- **clients** - CRM client records with full contact info
+- **contracts** - Contract generation tracking
+- **storage_events** - Storage audit log
+- Additional CRM tables: users, contacts, pipelines, deals, quotes, activities, notes
+
+See [API_DOCUMENTATION.md](./API_DOCUMENTATION.md#database-schema) for complete schema.
+
+## Contributing
+
+1. Follow existing code patterns
+2. Use TypeScript for new frontend code
+3. Use ESM imports (`.js` extensions for imports)
+4. Run quality checks before committing:
+   ```bash
+   npm run lint
+   npm run typecheck
+   npm run test
+   npm run check:cycles
+   ```
+5. Update documentation for new features
+
+## License
+
+Proprietary - All rights reserved
