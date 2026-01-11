@@ -1241,21 +1241,26 @@ const stableStringify = (value: unknown): string => {
 const TARIFA_INPUT_DECIMALS = 5
 const TARIFA_DISPLAY_DECIMALS = 2
 const TARIFA_INPUT_SCALE = 10 ** TARIFA_INPUT_DECIMALS
+const TARIFA_MAX_VALUE = 9 + (TARIFA_INPUT_SCALE - 1) / TARIFA_INPUT_SCALE
 
 const roundTarifaUp = (value: number): number => {
   const scale = 10 ** TARIFA_DISPLAY_DECIMALS
   return Math.ceil(value * scale) / scale
 }
 
+const normalizeTarifaDigits = (digits: string): string => {
+  const safeDigits = digits.replace(/\D/g, '').slice(0, TARIFA_INPUT_DECIMALS + 1)
+  return safeDigits
+}
+
 const formatTarifaMaskedFromDigits = (digits: string): string => {
-  const safeDigits = digits.replace(/\D/g, '')
+  const safeDigits = normalizeTarifaDigits(digits)
   if (!safeDigits) {
     return ''
   }
 
-  const padded = safeDigits.padStart(TARIFA_INPUT_DECIMALS + 1, '0')
-  const integerPart = padded.slice(0, -TARIFA_INPUT_DECIMALS)
-  const decimalPart = padded.slice(-TARIFA_INPUT_DECIMALS)
+  const integerPart = safeDigits.slice(0, 1)
+  const decimalPart = safeDigits.slice(1)
   return `${integerPart},${decimalPart}`
 }
 
@@ -1272,21 +1277,25 @@ const parseTarifaInputValue = (raw: string): { value: number; text: string } => 
     }
 
     const sanitized = Math.max(0, Number(parsed))
-    const digits = String(Math.round(sanitized * TARIFA_INPUT_SCALE))
+    const bounded = Math.min(TARIFA_MAX_VALUE, sanitized)
+    const digits = normalizeTarifaDigits(String(Math.round(bounded * TARIFA_INPUT_SCALE)))
+    const decimalPart = digits.slice(1).padEnd(TARIFA_INPUT_DECIMALS, '0')
+    const numericValue = Number(digits.slice(0, 1)) + Number(decimalPart) / TARIFA_INPUT_SCALE
     return {
-      value: roundTarifaUp(sanitized),
+      value: roundTarifaUp(Math.min(TARIFA_MAX_VALUE, numericValue)),
       text: formatTarifaMaskedFromDigits(digits),
     }
   }
 
-  const digits = trimmed.replace(/\D/g, '')
+  const digits = normalizeTarifaDigits(trimmed.replace(/\D/g, ''))
   if (!digits) {
     return { value: 0, text: '' }
   }
 
-  const numericValue = Number(digits) / TARIFA_INPUT_SCALE
+  const decimalPart = digits.slice(1).padEnd(TARIFA_INPUT_DECIMALS, '0')
+  const numericValue = Number(digits.slice(0, 1)) + Number(decimalPart) / TARIFA_INPUT_SCALE
   return {
-    value: roundTarifaUp(Math.max(0, numericValue)),
+    value: roundTarifaUp(Math.min(TARIFA_MAX_VALUE, Math.max(0, numericValue))),
     text: formatTarifaMaskedFromDigits(digits),
   }
 }
@@ -1296,7 +1305,10 @@ const formatTarifaDisplayValue = (value: number | null | undefined): string => {
     return ''
   }
 
-  return formatNumberBRWithOptions(roundTarifaUp(Number(value)), {
+  const capped = Math.min(TARIFA_MAX_VALUE, Math.max(0, Number(value)))
+  const rounded = roundTarifaUp(capped)
+  const displayValue = Math.min(9.99, rounded)
+  return formatNumberBRWithOptions(displayValue, {
     minimumFractionDigits: TARIFA_DISPLAY_DECIMALS,
     maximumFractionDigits: TARIFA_DISPLAY_DECIMALS,
   })
@@ -1330,15 +1342,9 @@ const useTarifaInputField = (
     [onValueChange],
   )
 
-  const handleFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {
+  const handleFocus = useCallback(() => {
     setIsEditing(true)
-    window.requestAnimationFrame(() => {
-      try {
-        event.currentTarget.setSelectionRange(0, 0)
-      } catch {
-        // Ignore selection errors on unsupported input types.
-      }
-    })
+    setText('')
   }, [])
 
   const handleBlur = useCallback(() => {
