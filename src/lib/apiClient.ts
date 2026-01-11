@@ -141,12 +141,14 @@ class ApiClient {
   /**
    * DELETE request
    * @param path - Caminho da API
+   * @param data - Optional data to send in request body
    */
-  async delete<T>(path: string): Promise<T> {
+  async delete<T>(path: string, data?: unknown): Promise<T> {
     const response = await fetch(this.resolveUrl(path), {
       method: 'DELETE',
       headers: this.prepareHeaders(),
-      credentials: 'include'
+      credentials: 'include',
+      body: data ? JSON.stringify(data) : undefined
     })
 
     return this.handleResponse<T>(response)
