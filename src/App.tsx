@@ -1513,6 +1513,19 @@ const normalizeClienteRegistros = (
       (dados as { herdeiros?: unknown }).herdeiros,
     )
 
+    let propostaSnapshot: OrcamentoSnapshotData | undefined
+    const snapshotRaw =
+      (registro as { propostaSnapshot?: unknown }).propostaSnapshot ??
+      (registro as { snapshot?: unknown }).snapshot
+    if (snapshotRaw && typeof snapshotRaw === 'object') {
+      try {
+        propostaSnapshot = cloneSnapshotData(snapshotRaw as OrcamentoSnapshotData)
+      } catch (error) {
+        console.warn('Não foi possível normalizar o snapshot do cliente.', error)
+        propostaSnapshot = undefined
+      }
+    }
+
     const normalizado: ClienteRegistro = {
       id: idNormalizado,
       criadoEm: registro.criadoEm ?? agora,
@@ -1541,6 +1554,7 @@ const normalizeClienteRegistros = (
         diaVencimento: dados?.diaVencimento ?? '10',
         herdeiros: herdeirosNormalizados,
       },
+      propostaSnapshot,
     }
 
     return normalizado
@@ -8708,11 +8722,16 @@ export default function App() {
   }, [printableData])
 
 
-  const mapClienteRegistroToSyncPayload = (registro: ClienteRegistro): ClienteRegistroSyncPayload => ({
+  const mapClienteRegistroToSyncPayload = (
+    registro: ClienteRegistro,
+  ): ClienteRegistroSyncPayload => ({
     id: registro.id,
     criadoEm: registro.criadoEm,
     atualizadoEm: registro.atualizadoEm,
     dados: cloneClienteDados(registro.dados),
+    propostaSnapshot: registro.propostaSnapshot
+      ? cloneSnapshotData(registro.propostaSnapshot)
+      : undefined,
   })
 
   const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
