@@ -11,6 +11,11 @@ export type ClienteRegistroSyncPayload = {
   dados: {
     nome: string
     documento: string
+    rg: string
+    estadoCivil: string
+    nacionalidade: string
+    profissao: string
+    representanteLegal: string
     email: string
     telefone: string
     cep: string
@@ -25,7 +30,9 @@ export type ClienteRegistroSyncPayload = {
     nomeSindico: string
     cpfSindico: string
     contatoSindico: string
+    diaVencimento: string
   }
+  propostaSnapshot?: unknown
 }
 
 type OneDriveBridgePayload = {
@@ -81,6 +88,7 @@ const buildFileContent = (registro: ClienteRegistroSyncPayload) =>
       criadoEm: registro.criadoEm,
       atualizadoEm: registro.atualizadoEm,
       cliente: registro.dados,
+      propostaSnapshot: registro.propostaSnapshot,
     },
     null,
     2,
