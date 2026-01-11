@@ -1341,7 +1341,7 @@ const useTarifaInputField = (
 
   const handleFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {
     setIsEditing(true)
-    setText(formatTarifaMaskedFromDigits(formatTarifaDigitsFromValue(latestValueRef.current)))
+    setText('')
     window.requestAnimationFrame(() => {
       try {
         event.currentTarget.setSelectionRange(0, 0)
@@ -1350,6 +1350,41 @@ const useTarifaInputField = (
       }
     })
   }, [])
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== 'Backspace') {
+        return
+      }
+
+      const selectionStart = event.currentTarget.selectionStart
+      const selectionEnd = event.currentTarget.selectionEnd
+      if (selectionStart == null || selectionEnd == null || selectionStart !== selectionEnd) {
+        return
+      }
+
+      if (selectionStart !== 2 || text[1] !== ',') {
+        return
+      }
+
+      event.preventDefault()
+      const digits = normalizeTarifaDigits(text)
+      const nextDigits = digits.slice(1)
+      const nextText = formatTarifaMaskedFromDigits(nextDigits)
+      const parsed = parseTarifaInputValue(nextText)
+      latestValueRef.current = parsed.value
+      setText(parsed.text)
+      onValueChange(parsed.value)
+      window.requestAnimationFrame(() => {
+        try {
+          event.currentTarget.setSelectionRange(1, 1)
+        } catch {
+          // Ignore selection errors on unsupported input types.
+        }
+      })
+    },
+    [onValueChange, text],
+  )
 
   const handleBlur = useCallback(() => {
     setIsEditing(false)
@@ -1361,6 +1396,7 @@ const useTarifaInputField = (
     onChange: handleChange,
     onFocus: handleFocus,
     onBlur: handleBlur,
+    onKeyDown: handleKeyDown,
   }
 }
 
@@ -15866,6 +15902,7 @@ export default function App() {
             onChange={tarifaCheiaField.onChange}
             onFocus={tarifaCheiaField.onFocus}
             onBlur={tarifaCheiaField.onBlur}
+            onKeyDown={tarifaCheiaField.onKeyDown}
           />
         </Field>
           <Field
@@ -16748,6 +16785,7 @@ export default function App() {
             onChange={tarifaCheiaVendaField.onChange}
             onFocus={tarifaCheiaVendaField.onFocus}
             onBlur={tarifaCheiaVendaField.onBlur}
+            onKeyDown={tarifaCheiaVendaField.onKeyDown}
           />
           <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
         </Field>
