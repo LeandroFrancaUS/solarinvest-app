@@ -1339,9 +1339,16 @@ const useTarifaInputField = (
     [onValueChange],
   )
 
-  const handleFocus = useCallback(() => {
+  const handleFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {
     setIsEditing(true)
     setText(formatTarifaMaskedFromDigits(formatTarifaDigitsFromValue(latestValueRef.current)))
+    window.requestAnimationFrame(() => {
+      try {
+        event.currentTarget.setSelectionRange(0, 0)
+      } catch {
+        // Ignore selection errors on unsupported input types.
+      }
+    })
   }, [])
 
   const handleBlur = useCallback(() => {
