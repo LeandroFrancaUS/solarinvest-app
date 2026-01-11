@@ -1238,6 +1238,53 @@ const stableStringify = (value: unknown): string => {
   return JSON.stringify(normalize(value))
 }
 
+const TARIFA_INPUT_SCALE = 100000
+const TARIFA_DISPLAY_DECIMALS = 2
+
+const roundTarifaUp = (value: number): number => {
+  const scale = 10 ** TARIFA_DISPLAY_DECIMALS
+  return Math.ceil(value * scale) / scale
+}
+
+const parseTarifaInput = (raw: string): number | null => {
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (/[.,]/.test(trimmed)) {
+    const parsed = toNumberFlexible(trimmed)
+    return Number.isFinite(parsed ?? NaN) ? Number(parsed) : null
+  }
+
+  const digits = trimmed.replace(/\D/g, '')
+  if (!digits) {
+    return null
+  }
+
+  return Number(digits) / TARIFA_INPUT_SCALE
+}
+
+const normalizeTarifaInputValue = (raw: string): number => {
+  const parsed = parseTarifaInput(raw)
+  if (!Number.isFinite(parsed ?? NaN)) {
+    return 0
+  }
+
+  return Math.max(0, roundTarifaUp(Number(parsed)))
+}
+
+const formatTarifaInputValue = (value: number | null | undefined): string => {
+  if (!Number.isFinite(value ?? NaN)) {
+    return ''
+  }
+
+  return formatNumberBRWithOptions(roundTarifaUp(Number(value)), {
+    minimumFractionDigits: TARIFA_DISPLAY_DECIMALS,
+    maximumFractionDigits: TARIFA_DISPLAY_DECIMALS,
+  })
+}
+
 const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalProps => {
   const clone: PrintableProposalProps = {
     ...dados,
@@ -15725,10 +15772,13 @@ export default function App() {
             )}
           >
             <input
-              type="number"
-              step="0.001"
-              value={tarifaCheia}
-              onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)}
+              type="text"
+              inputMode="decimal"
+              value={formatTarifaInputValue(tarifaCheia)}
+              onChange={(event) => {
+                const normalized = normalizeTarifaInputValue(event.target.value)
+                setTarifaCheia(normalized)
+              }}
               onFocus={selectNumberInputOnFocus}
             />
           </Field>
@@ -16606,17 +16656,11 @@ export default function App() {
           )}
         >
           <input
-            type="number"
-            step="0.001"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.tarifa_cheia_r_kwh)
-                ? vendaForm.tarifa_cheia_r_kwh
-                : ''
-            }
+            type="text"
+            inputMode="decimal"
+            value={formatTarifaInputValue(vendaForm.tarifa_cheia_r_kwh)}
             onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+              const normalized = normalizeTarifaInputValue(event.target.value)
               setTarifaCheia(normalized)
               applyVendaUpdates({ tarifa_cheia_r_kwh: normalized })
             }}
