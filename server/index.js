@@ -32,6 +32,8 @@ import {
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
+import { handleClientsRequest, CLIENTS_API_PATH } from './routes/clients.js'
+import { handleContractsRequest, CONTRACTS_API_PATH } from './routes/contracts.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -229,6 +231,46 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  if (pathname === '/api/health/db') {
+    if (!databaseClient || !databaseConfig.connectionString) {
+      sendServerError(res, 503, {
+        ok: false,
+        db: 'not_configured',
+        error: 'Banco de dados não configurado. Defina DATABASE_URL.'
+      }, requestId, vercelId)
+      return
+    }
+
+    const startTime = Date.now()
+    try {
+      const result = await databaseClient.sql`SELECT 1 as ok, NOW() as now`
+      const latencyMs = Date.now() - startTime
+      const row = Array.isArray(result) && result.length > 0 ? result[0] : null
+      const nowValue = row?.now ?? null
+      const serialized =
+        nowValue && typeof nowValue.toISOString === 'function'
+          ? nowValue.toISOString()
+          : nowValue
+
+      sendJson(res, 200, {
+        ok: true,
+        db: 'connected',
+        now: serialized,
+        latencyMs
+      })
+    } catch (error) {
+      const latencyMs = Date.now() - startTime
+      console.error('[database] Falha no health check:', error)
+      sendServerError(res, 500, {
+        ok: false,
+        db: 'error',
+        error: error.message || 'Falha ao conectar ao banco de dados',
+        latencyMs
+      }, requestId, vercelId)
+    }
+    return
+  }
+
   if (pathname === '/api/health/pdf') {
     const convertapiConfigured = isConvertApiConfigured()
     const gotenbergConfigured = isGotenbergConfigured()
@@ -290,6 +332,26 @@ const server = createServer(async (req, res) => {
 
   if (pathname === CONTRACT_TEMPLATES_PATH) {
     await handleContractTemplatesRequest(req, res)
+    return
+  }
+
+  // Clients API routes - /api/clients and /api/clients/:id
+  if (pathname === CLIENTS_API_PATH || pathname.startsWith(`${CLIENTS_API_PATH}/`)) {
+    if (!databaseClient || !databaseConfig.connectionString) {
+      sendJson(res, 503, { error: 'Persistência indisponível' })
+      return
+    }
+    await handleClientsRequest(req, res, databaseClient, pathname)
+    return
+  }
+
+  // Contracts API routes - /api/contracts, /api/contracts/generate, /api/contracts/:id
+  if (pathname === CONTRACTS_API_PATH || pathname.startsWith(`${CONTRACTS_API_PATH}/`)) {
+    if (!databaseClient || !databaseConfig.connectionString) {
+      sendJson(res, 503, { error: 'Persistência indisponível' })
+      return
+    }
+    await handleContractsRequest(req, res, databaseClient, pathname)
     return
   }
 

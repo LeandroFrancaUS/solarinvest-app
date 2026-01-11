@@ -1,3 +1,2 @@
-export const ClientService = {
-    // Define methods for interacting with clients API
-};
+// Export all client-related services
+export { clientsService, type Client, type ClientCreateInput, type ClientUpdateInput } from './clientsService'
