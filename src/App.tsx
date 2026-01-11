@@ -1238,43 +1238,60 @@ const stableStringify = (value: unknown): string => {
   return JSON.stringify(normalize(value))
 }
 
-const TARIFA_INPUT_SCALE = 100000
+const TARIFA_INPUT_DECIMALS = 5
 const TARIFA_DISPLAY_DECIMALS = 2
+const TARIFA_INPUT_SCALE = 10 ** TARIFA_INPUT_DECIMALS
 
 const roundTarifaUp = (value: number): number => {
   const scale = 10 ** TARIFA_DISPLAY_DECIMALS
   return Math.ceil(value * scale) / scale
 }
 
-const parseTarifaInput = (raw: string): number | null => {
+const formatTarifaMaskedFromDigits = (digits: string): string => {
+  const safeDigits = digits.replace(/\D/g, '')
+  if (!safeDigits) {
+    return ''
+  }
+
+  const padded = safeDigits.padStart(TARIFA_INPUT_DECIMALS + 1, '0')
+  const integerPart = padded.slice(0, -TARIFA_INPUT_DECIMALS)
+  const decimalPart = padded.slice(-TARIFA_INPUT_DECIMALS)
+  return `${integerPart},${decimalPart}`
+}
+
+const parseTarifaInputValue = (raw: string): { value: number; text: string } => {
   const trimmed = raw.trim()
   if (!trimmed) {
-    return null
+    return { value: 0, text: '' }
   }
 
   if (/[.,]/.test(trimmed)) {
     const parsed = toNumberFlexible(trimmed)
-    return Number.isFinite(parsed ?? NaN) ? Number(parsed) : null
+    if (!Number.isFinite(parsed ?? NaN)) {
+      return { value: 0, text: '' }
+    }
+
+    const sanitized = Math.max(0, Number(parsed))
+    const digits = String(Math.round(sanitized * TARIFA_INPUT_SCALE))
+    return {
+      value: roundTarifaUp(sanitized),
+      text: formatTarifaMaskedFromDigits(digits),
+    }
   }
 
   const digits = trimmed.replace(/\D/g, '')
   if (!digits) {
-    return null
+    return { value: 0, text: '' }
   }
 
-  return Number(digits) / TARIFA_INPUT_SCALE
-}
-
-const normalizeTarifaInputValue = (raw: string): number => {
-  const parsed = parseTarifaInput(raw)
-  if (!Number.isFinite(parsed ?? NaN)) {
-    return 0
+  const numericValue = Number(digits) / TARIFA_INPUT_SCALE
+  return {
+    value: roundTarifaUp(Math.max(0, numericValue)),
+    text: formatTarifaMaskedFromDigits(digits),
   }
-
-  return Math.max(0, roundTarifaUp(Number(parsed)))
 }
 
-const formatTarifaInputValue = (value: number | null | undefined): string => {
+const formatTarifaDisplayValue = (value: number | null | undefined): string => {
   if (!Number.isFinite(value ?? NaN)) {
     return ''
   }
@@ -1283,6 +1300,58 @@ const formatTarifaInputValue = (value: number | null | undefined): string => {
     minimumFractionDigits: TARIFA_DISPLAY_DECIMALS,
     maximumFractionDigits: TARIFA_DISPLAY_DECIMALS,
   })
+}
+
+const useTarifaInputField = (
+  value: number | null | undefined,
+  onValueChange: (next: number) => void,
+) => {
+  const [text, setText] = useState<string>(() => formatTarifaDisplayValue(value))
+  const [isEditing, setIsEditing] = useState(false)
+  const latestValueRef = useRef<number>(Number.isFinite(value ?? NaN) ? Number(value) : 0)
+
+  useEffect(() => {
+    latestValueRef.current = Number.isFinite(value ?? NaN) ? Number(value) : 0
+  }, [value])
+
+  useEffect(() => {
+    if (!isEditing) {
+      setText(formatTarifaDisplayValue(value))
+    }
+  }, [isEditing, value])
+
+  const handleChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const parsed = parseTarifaInputValue(event.target.value)
+      latestValueRef.current = parsed.value
+      setText(parsed.text)
+      onValueChange(parsed.value)
+    },
+    [onValueChange],
+  )
+
+  const handleFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {
+    setIsEditing(true)
+    window.requestAnimationFrame(() => {
+      try {
+        event.currentTarget.setSelectionRange(0, 0)
+      } catch {
+        // Ignore selection errors on unsupported input types.
+      }
+    })
+  }, [])
+
+  const handleBlur = useCallback(() => {
+    setIsEditing(false)
+    setText(formatTarifaDisplayValue(latestValueRef.current))
+  }, [])
+
+  return {
+    value: text,
+    onChange: handleChange,
+    onFocus: handleFocus,
+    onBlur: handleBlur,
+  }
 }
 
 const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalProps => {
@@ -5009,6 +5078,15 @@ export default function App() {
       resetRetorno()
     },
     [resetRetorno],
+  )
+
+  const tarifaCheiaField = useTarifaInputField(tarifaCheia, setTarifaCheia)
+  const tarifaCheiaVendaField = useTarifaInputField(
+    vendaForm.tarifa_cheia_r_kwh,
+    (next) => {
+      setTarifaCheia(next)
+      applyVendaUpdates({ tarifa_cheia_r_kwh: next })
+    },
   )
 
   const handlePotenciaInstaladaChange = useCallback(
@@ -15771,17 +15849,15 @@ export default function App() {
               'Valor cobrado por kWh sem descontos; multiplicado pelo consumo projetado para estimar a conta cheia.',
             )}
           >
-            <input
-              type="text"
-              inputMode="decimal"
-              value={formatTarifaInputValue(tarifaCheia)}
-              onChange={(event) => {
-                const normalized = normalizeTarifaInputValue(event.target.value)
-                setTarifaCheia(normalized)
-              }}
-              onFocus={selectNumberInputOnFocus}
-            />
-          </Field>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={tarifaCheiaField.value}
+            onChange={tarifaCheiaField.onChange}
+            onFocus={tarifaCheiaField.onFocus}
+            onBlur={tarifaCheiaField.onBlur}
+          />
+        </Field>
           <Field
             label={labelWithTooltip(
               'Custos Fixos da Conta de Energia (R$/MÊS)',
@@ -16658,13 +16734,10 @@ export default function App() {
           <input
             type="text"
             inputMode="decimal"
-            value={formatTarifaInputValue(vendaForm.tarifa_cheia_r_kwh)}
-            onChange={(event) => {
-              const normalized = normalizeTarifaInputValue(event.target.value)
-              setTarifaCheia(normalized)
-              applyVendaUpdates({ tarifa_cheia_r_kwh: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
+            value={tarifaCheiaVendaField.value}
+            onChange={tarifaCheiaVendaField.onChange}
+            onFocus={tarifaCheiaVendaField.onFocus}
+            onBlur={tarifaCheiaVendaField.onBlur}
           />
           <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
         </Field>
