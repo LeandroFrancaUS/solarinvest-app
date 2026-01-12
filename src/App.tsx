@@ -57,7 +57,11 @@ import {
   type EssentialInfoSummary,
 } from './utils/moduleDetection'
 import { removeFogOverlays, watchFogReinjection } from './utils/antiOverlay'
-import { ensureServerStorageSync, fetchRemoteStorageEntry } from './app/services/serverStorage'
+import {
+  ensureServerStorageSync,
+  fetchRemoteStorageEntry,
+  persistRemoteStorageEntry,
+} from './app/services/serverStorage'
 import {
   computeROI,
   type ModoPagamento,
@@ -8958,17 +8962,23 @@ export default function App() {
 
     try {
       const remotoRaw = await fetchRemoteStorageEntry(CLIENTES_STORAGE_KEY, { timeoutMs: 4000 })
+      const registrosLocais = carregarClientesSalvos()
       if (remotoRaw === null) {
+        if (registrosLocais.length > 0) {
+          await persistRemoteStorageEntry(CLIENTES_STORAGE_KEY, JSON.stringify(registrosLocais))
+          return registrosLocais
+        }
+
         window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
         return []
       }
       if (remotoRaw !== undefined) {
         const registrosRemotos = parseClientesSalvos(remotoRaw)
-        const registrosLocais = carregarClientesSalvos()
         const ultimaAtualizacaoRemota = getUltimaAtualizacao(registrosRemotos)
         const ultimaAtualizacaoLocal = getUltimaAtualizacao(registrosLocais)
 
         if (ultimaAtualizacaoLocal && ultimaAtualizacaoLocal > ultimaAtualizacaoRemota) {
+          await persistRemoteStorageEntry(CLIENTES_STORAGE_KEY, JSON.stringify(registrosLocais))
           return registrosLocais
         }
 

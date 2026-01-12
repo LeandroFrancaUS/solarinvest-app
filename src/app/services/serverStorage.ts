@@ -123,6 +123,22 @@ const persistDelete = (key: string | null) => {
     })
 }
 
+export const persistRemoteStorageEntry = async (
+  key: string,
+  value: string,
+): Promise<void> => {
+  if (!hasAuthCookie()) {
+    return
+  }
+
+  await fetch(STORAGE_ENDPOINT, {
+    method: 'PUT',
+    headers: createHeaders(),
+    body: JSON.stringify({ key, value }),
+    credentials: 'include',
+  })
+}
+
 const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEntry[]> => {
   const response = await fetch(STORAGE_ENDPOINT, { credentials: 'include', signal })
   if (response.status === 401 || response.status === 403) {
