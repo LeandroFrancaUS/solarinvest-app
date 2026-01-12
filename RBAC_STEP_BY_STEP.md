@@ -1,4 +1,4 @@
-# Guia RBAC (passo a passo de 8 anos, mas completo)
+# Guia RBAC 
 
 > Objetivo: te dizer exatamente **o que fazer e configurar**, em ordem, para ter login por e-mail,
 > perfis (RBAC) e autorização no backend.
