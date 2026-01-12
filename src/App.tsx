@@ -56,7 +56,7 @@ import {
   type EssentialInfoSummary,
 } from './utils/moduleDetection'
 import { removeFogOverlays, watchFogReinjection } from './utils/antiOverlay'
-import { ensureServerStorageSync } from './app/services/serverStorage'
+import { ensureServerStorageSync, storageClient } from './app/services/serverStorage'
 import {
   computeROI,
   type ModoPagamento,
@@ -1097,7 +1097,7 @@ const persistBudgetsToLocalStorage = (
   }
 
   if (registros.length === 0) {
-    window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
+    storageClient.removeItem(BUDGETS_STORAGE_KEY)
     return { persisted: [], pruned: [] }
   }
 
@@ -1107,7 +1107,7 @@ const persistBudgetsToLocalStorage = (
 
   while (working.length > 0) {
     try {
-      window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(working))
+      storageClient.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(working))
       return { persisted: working, pruned }
     } catch (error) {
       lastError = error
@@ -1935,7 +1935,7 @@ const carregarDatasetCrm = (): CrmDataset => {
     return { ...CRM_DATASET_VAZIO }
   }
 
-  const existente = window.localStorage.getItem(CRM_LOCAL_STORAGE_KEY)
+  const existente = storageClient.getItem(CRM_LOCAL_STORAGE_KEY)
   if (!existente) {
     return { ...CRM_DATASET_VAZIO }
   }
@@ -3154,7 +3154,7 @@ export default function App() {
       return 'app'
     }
 
-    const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
+    const storedPage = storageClient.getItem(STORAGE_KEYS.activePage)
     if (storedPage === 'dashboard') {
       return 'app'
     }
@@ -3174,7 +3174,7 @@ export default function App() {
       return INITIAL_VALUES.activeTab
     }
 
-    const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
+    const storedTab = storageClient.getItem(STORAGE_KEYS.activeTab)
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
   const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>('nova')
@@ -4395,7 +4395,7 @@ export default function App() {
       return
     }
 
-    window.localStorage.setItem(STORAGE_KEYS.activePage, activePage)
+    storageClient.setItem(STORAGE_KEYS.activePage, activePage)
   }, [activePage])
 
   useEffect(() => {
@@ -4403,7 +4403,7 @@ export default function App() {
       return
     }
 
-    window.localStorage.setItem(STORAGE_KEYS.activeTab, activeTab)
+    storageClient.setItem(STORAGE_KEYS.activeTab, activeTab)
   }, [activeTab])
 
   const budgetItemsTotal = useMemo(
@@ -5798,7 +5798,7 @@ export default function App() {
       return DEFAULT_DENSITY
     }
 
-    const stored = window.localStorage.getItem(DENSITY_STORAGE_KEY)
+    const stored = storageClient.getItem(DENSITY_STORAGE_KEY)
     return stored && isDensityMode(stored) ? stored : DEFAULT_DENSITY
   })
 
@@ -5812,7 +5812,7 @@ export default function App() {
     }
 
     try {
-      window.localStorage.setItem(DENSITY_STORAGE_KEY, density)
+      storageClient.setItem(DENSITY_STORAGE_KEY, density)
     } catch (error) {
       console.warn('Não foi possível persistir a densidade da interface.', error)
     }
@@ -8739,7 +8739,7 @@ export default function App() {
       return []
     }
 
-    const existenteRaw = window.localStorage.getItem(CLIENTES_STORAGE_KEY)
+    const existenteRaw = storageClient.getItem(CLIENTES_STORAGE_KEY)
     if (!existenteRaw) {
       return []
     }
@@ -8754,7 +8754,7 @@ export default function App() {
 
       if (houveAtualizacaoIds) {
         try {
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+          storageClient.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
         } catch (error) {
           console.warn('Não foi possível atualizar os identificadores dos clientes salvos.', error)
         }
@@ -8910,7 +8910,7 @@ export default function App() {
 
     if (proposalPdfIntegrationAvailable) {
       try {
-        window.localStorage.removeItem(storageKey)
+        storageClient.removeItem(storageKey)
       } catch (error) {
         console.warn('Não foi possível limpar o lembrete da integração de PDF.', error)
       }
@@ -8918,13 +8918,13 @@ export default function App() {
     }
 
     try {
-      const raw = window.localStorage.getItem(storageKey)
+      const raw = storageClient.getItem(storageKey)
       const lastReminder = raw ? Number(raw) : NaN
       const now = Date.now()
 
       if (!Number.isFinite(lastReminder) || now - lastReminder >= PROPOSAL_PDF_REMINDER_INTERVAL_MS) {
         adicionarNotificacao(PROPOSAL_PDF_REMINDER_MESSAGE, 'error')
-        window.localStorage.setItem(storageKey, String(now))
+        storageClient.setItem(storageKey, String(now))
       }
     } catch (error) {
       console.warn('Não foi possível registrar o lembrete da integração de PDF.', error)
@@ -8940,7 +8940,7 @@ export default function App() {
     async (dataset: CrmDataset, origem: 'auto' | 'manual' = 'auto') => {
       if (typeof window !== 'undefined') {
         try {
-          window.localStorage.setItem(CRM_LOCAL_STORAGE_KEY, JSON.stringify(dataset))
+          storageClient.setItem(CRM_LOCAL_STORAGE_KEY, JSON.stringify(dataset))
         } catch (error) {
           console.warn('Não foi possível persistir o dataset do CRM no localStorage.', error)
         }
@@ -11096,7 +11096,7 @@ export default function App() {
         )
 
         try {
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+          storageClient.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
         } catch (error) {
           console.error('Erro ao persistir clientes importados.', error)
           window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
@@ -11247,7 +11247,7 @@ export default function App() {
       const ordenados = [...registrosAtualizados].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
 
       try {
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ordenados))
+        storageClient.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ordenados))
       } catch (error) {
         console.error('Erro ao salvar cliente localmente.', error)
         window.alert('Não foi possível salvar o cliente. Tente novamente.')
@@ -11389,9 +11389,9 @@ export default function App() {
 
         try {
           if (registrosAtualizados.length > 0) {
-            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+            storageClient.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosAtualizados))
           } else {
-            window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
+            storageClient.removeItem(CLIENTES_STORAGE_KEY)
           }
         } catch (error) {
           console.error('Erro ao excluir cliente salvo.', error)
@@ -11432,7 +11432,7 @@ export default function App() {
       return []
     }
 
-    const existenteRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
+    const existenteRaw = storageClient.getItem(BUDGETS_STORAGE_KEY)
     if (!existenteRaw) {
       return []
     }
