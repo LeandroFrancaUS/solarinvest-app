@@ -519,7 +519,7 @@ function PrintableProposalInner(
       ? Math.round(moduleQuantidade ?? 0)
       : null
   const moduleQuantidadeLabel =
-    moduleQuantidadeNumero != null
+    !isOrcamentoAutomatico && moduleQuantidadeNumero != null
       ? formatNumberBRWithOptions(moduleQuantidadeNumero, {
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
@@ -1837,8 +1837,8 @@ function PrintableProposalInner(
                   </li>
                   <li>
                     7. Garantias e Serviços<br />
-                    Equipamentos seguem garantias dos fabricantes. Garantia de instalação, manutenção preventiva/corretiva e
-                    seguros são opcionais, quando aplicáveis.
+                    Equipamentos seguem garantias dos fabricantes. Oferecemos 1 ano de garantia de instalação. Manutenção
+                    preventiva/corretiva e seguros são opcionais, quando aplicáveis.
                   </li>
                   <li>
                     8. Itens Não Inclusos<br />
