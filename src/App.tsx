@@ -40,6 +40,7 @@ import { resolveApiUrl } from './utils/apiUrl'
 import {
   persistClienteRegistroToOneDrive,
   type ClienteRegistroSyncPayload,
+  loadClientesFromOneDrive,
   isOneDriveIntegrationAvailable,
   OneDriveIntegrationMissingError,
 } from './utils/onedrive'
@@ -56,7 +57,11 @@ import {
   type EssentialInfoSummary,
 } from './utils/moduleDetection'
 import { removeFogOverlays, watchFogReinjection } from './utils/antiOverlay'
-import { ensureServerStorageSync } from './app/services/serverStorage'
+import {
+  ensureServerStorageSync,
+  fetchRemoteStorageEntry,
+  persistRemoteStorageEntry,
+} from './app/services/serverStorage'
 import {
   computeROI,
   type ModoPagamento,
@@ -8905,12 +8910,7 @@ export default function App() {
       : undefined,
   })
 
-  const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
-    if (typeof window === 'undefined') {
-      return []
-    }
-
-    const existenteRaw = window.localStorage.getItem(CLIENTES_STORAGE_KEY)
+  const parseClientesSalvos = useCallback((existenteRaw: string | null): ClienteRegistro[] => {
     if (!existenteRaw) {
       return []
     }
@@ -8938,21 +8938,105 @@ export default function App() {
     }
   }, [])
 
+  const getUltimaAtualizacao = useCallback((registros: ClienteRegistro[]) => {
+    return registros.reduce((maisRecente, registro) => {
+      if (!maisRecente || registro.atualizadoEm > maisRecente) {
+        return registro.atualizadoEm
+      }
+      return maisRecente
+    }, '')
+  }, [])
+
+  const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
+    if (typeof window === 'undefined') {
+      return []
+    }
+
+    return parseClientesSalvos(window.localStorage.getItem(CLIENTES_STORAGE_KEY))
+  }, [parseClientesSalvos])
+
+  const carregarClientesPrioritarios = useCallback(async (): Promise<ClienteRegistro[]> => {
+    if (typeof window === 'undefined') {
+      return []
+    }
+
+    try {
+      const remotoRaw = await fetchRemoteStorageEntry(CLIENTES_STORAGE_KEY, { timeoutMs: 4000 })
+      const registrosLocais = carregarClientesSalvos()
+      if (remotoRaw === null) {
+        if (registrosLocais.length > 0) {
+          await persistRemoteStorageEntry(CLIENTES_STORAGE_KEY, JSON.stringify(registrosLocais))
+          return registrosLocais
+        }
+
+        window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
+        return []
+      }
+      if (remotoRaw !== undefined) {
+        const registrosRemotos = parseClientesSalvos(remotoRaw)
+        const ultimaAtualizacaoRemota = getUltimaAtualizacao(registrosRemotos)
+        const ultimaAtualizacaoLocal = getUltimaAtualizacao(registrosLocais)
+
+        if (ultimaAtualizacaoLocal && ultimaAtualizacaoLocal > ultimaAtualizacaoRemota) {
+          await persistRemoteStorageEntry(CLIENTES_STORAGE_KEY, JSON.stringify(registrosLocais))
+          return registrosLocais
+        }
+
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosRemotos))
+        return registrosRemotos
+      }
+    } catch (error) {
+      console.warn('Não foi possível carregar clientes do armazenamento remoto.', error)
+    }
+
+    try {
+      const oneDrivePayload = await loadClientesFromOneDrive()
+      if (oneDrivePayload !== null && oneDrivePayload !== undefined) {
+        const raw =
+          typeof oneDrivePayload === 'string'
+            ? oneDrivePayload
+            : JSON.stringify(oneDrivePayload)
+        const registros = parseClientesSalvos(raw)
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+        return registros
+      }
+    } catch (error) {
+      if (error instanceof OneDriveIntegrationMissingError) {
+        console.info('Leitura via OneDrive ignorada: integração não configurada.')
+      } else {
+        console.warn('Não foi possível carregar clientes via OneDrive.', error)
+      }
+    }
+
+    return carregarClientesSalvos()
+  }, [carregarClientesSalvos, getUltimaAtualizacao, parseClientesSalvos])
+
   useEffect(() => {
     let cancelado = false
     const carregar = async () => {
-      await ensureServerStorageSync({ timeoutMs: 4000 })
+      const registros = await carregarClientesPrioritarios()
       if (cancelado) {
         return
       }
-      const registros = carregarClientesSalvos()
       setClientesSalvos(registros)
+      await ensureServerStorageSync({ timeoutMs: 4000 })
+      if (typeof window !== 'undefined') {
+        try {
+          if (registros.length > 0) {
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+          } else {
+            window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
+          }
+        } catch (error) {
+          console.warn('Não foi possível atualizar o armazenamento remoto com os clientes atuais.', error)
+        }
+      }
     }
     carregar()
     return () => {
       cancelado = true
     }
-  }, [carregarClientesSalvos])
+  }, [carregarClientesPrioritarios])
 
   useEffect(() => {
     return () => {
@@ -11293,6 +11377,146 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
+  const getCurrentSnapshot = (): OrcamentoSnapshotData => {
+    const vendasConfigState = useVendasConfigStore.getState()
+    const vendasSimState = useVendasSimulacoesStore.getState()
+    const vendaSnapshotAtual = getVendaSnapshot()
+    const leasingSnapshotAtual = getLeasingSnapshot()
+    const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
+    const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
+    const vendaFormNormalizado: VendaForm = {
+      ...vendaForm,
+      segmento_cliente: vendaForm.segmento_cliente
+        ? normalizeTipoBasico(vendaForm.segmento_cliente)
+        : undefined,
+      tusd_tipo_cliente: vendaForm.tusd_tipo_cliente
+        ? normalizeTipoBasico(vendaForm.tusd_tipo_cliente)
+        : undefined,
+    }
+
+    return {
+      activeTab,
+      settingsTab,
+      cliente: cloneClienteDados(cliente),
+      clienteEmEdicaoId,
+      clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
+      ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
+      pageShared: { ...pageSharedState },
+      currentBudgetId,
+      budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
+      kitBudget: cloneKitBudgetState(kitBudget),
+      budgetProcessing: {
+        isProcessing: isBudgetProcessing,
+        error: budgetProcessingError ?? null,
+        progress: cloneBudgetUploadProgress(budgetProcessingProgress),
+        isTableCollapsed: isBudgetTableCollapsed,
+        ocrDpi,
+      },
+      propostaImagens: propostaImagens.map((imagem) => ({ ...imagem })),
+      ufTarifa,
+      distribuidoraTarifa,
+      ufsDisponiveis: [...ufsDisponiveis],
+      distribuidorasPorUf: cloneDistribuidorasMapa(distribuidorasPorUf),
+      mesReajuste,
+      kcKwhMes,
+      consumoManual,
+      tarifaCheia,
+      desconto,
+      taxaMinima,
+      taxaMinimaInputEmpty,
+      encargosFixosExtras,
+      tusdPercent,
+      tusdTipoCliente: tusdTipoClienteNormalizado,
+      tusdSubtipo,
+      tusdSimultaneidade,
+      tusdTarifaRkwh,
+      tusdAnoReferencia,
+      tusdOpcoesExpandidas,
+      leasingPrazo,
+      usarEnderecoCliente,
+      potenciaModulo,
+      potenciaModuloDirty,
+      tipoInstalacao,
+      tipoInstalacaoOutro,
+      tipoInstalacaoDirty,
+      tipoSistema,
+      segmentoCliente: segmentoClienteNormalizado,
+      tipoEdificacaoOutro,
+      numeroModulosManual,
+      composicaoTelhado: { ...composicaoTelhado },
+      composicaoSolo: { ...composicaoSolo },
+      aprovadoresText,
+      impostosOverridesDraft: cloneImpostosOverrides(impostosOverridesDraft),
+      vendasConfig: JSON.parse(JSON.stringify(vendasConfigState.config)) as VendasConfig,
+      vendasSimulacoes: cloneVendasSimulacoes(vendasSimState.simulations),
+      multiUc: {
+        ativo: multiUcAtivo,
+        rows: multiUcRows.map((row) => ({ ...row })),
+        rateioModo: multiUcRateioModo,
+        energiaGeradaKWh: multiUcEnergiaGeradaKWh,
+        energiaGeradaTouched: multiUcEnergiaGeradaTouched,
+        anoVigencia: multiUcAnoVigencia,
+        overrideEscalonamento: multiUcOverrideEscalonamento,
+        escalonamentoCustomPercent: multiUcEscalonamentoCustomPercent,
+      },
+      precoPorKwp,
+      irradiacao,
+      eficiencia,
+      diasMes,
+      inflacaoAa,
+      vendaForm: { ...vendaFormNormalizado },
+      capexManualOverride,
+      parsedVendaPdf: parsedVendaPdf
+        ? (JSON.parse(JSON.stringify(parsedVendaPdf)) as ParsedVendaPdfData)
+        : null,
+      estruturaTipoWarning: estruturaTipoWarning ?? null,
+      jurosFinAa,
+      prazoFinMeses,
+      entradaFinPct,
+      mostrarFinanciamento,
+      mostrarGrafico,
+      prazoMeses,
+      bandeiraEncargo,
+      cipEncargo,
+      entradaRs,
+      entradaModo,
+      mostrarValorMercadoLeasing,
+      mostrarTabelaParcelas,
+      mostrarTabelaBuyout,
+      mostrarTabelaParcelasConfig,
+      mostrarTabelaBuyoutConfig,
+      oemBase,
+      oemInflacao,
+      seguroModo,
+      seguroReajuste,
+      seguroValorA,
+      seguroPercentualB,
+      exibirLeasingLinha,
+      exibirFinLinha,
+      cashbackPct,
+      depreciacaoAa,
+      inadimplenciaAa,
+      tributosAa,
+      ipcaAa,
+      custosFixosM,
+      opexM,
+      seguroM,
+      duracaoMeses,
+      pagosAcumAteM,
+      modoOrcamento,
+      autoKitValor,
+      autoCustoFinal,
+      autoPricingRede,
+      autoPricingVersion,
+      autoBudgetReason,
+      autoBudgetReasonCode,
+      tipoRede,
+      tipoRedeControle,
+      vendaSnapshot: vendaSnapshotAtual,
+      leasingSnapshot: leasingSnapshotAtual,
+    }
+  }
+
   const handleSalvarCliente = useCallback(async (options?: { skipGuard?: boolean }) => {
     if (typeof window === 'undefined') {
       return false
@@ -11318,6 +11542,7 @@ export default function App() {
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
+    let registrosPersistidos: ClienteRegistro[] | null = null
     let houveErro = false
     let erroDuplicidade: string | null = null
 
@@ -11427,6 +11652,7 @@ export default function App() {
       }
 
       registroSalvo = registroAtualizado
+      registrosPersistidos = ordenados
       return ordenados
     })
 
@@ -11443,6 +11669,17 @@ export default function App() {
     const registroConfirmado: ClienteRegistro = salvo
     let sincronizadoComSucesso = false
     let erroSincronizacao: unknown = null
+
+    if (registrosPersistidos) {
+      try {
+        await persistRemoteStorageEntry(
+          CLIENTES_STORAGE_KEY,
+          JSON.stringify(registrosPersistidos),
+        )
+      } catch (error) {
+        console.warn('Não foi possível sincronizar clientes com o armazenamento remoto.', error)
+      }
+    }
 
     const integracaoOneDriveAtiva = isOneDriveIntegrationAvailable()
     setOneDriveIntegrationAvailable(integracaoOneDriveAtiva)
@@ -11502,6 +11739,7 @@ export default function App() {
     adicionarNotificacao,
     cliente,
     clienteEmEdicaoId,
+    getCurrentSnapshot,
     guardClientFieldsOrReturn,
     isVendaDiretaTab,
     isOneDriveIntegrationAvailable,
@@ -11811,146 +12049,6 @@ export default function App() {
       cancelado = true
     }
   }, [carregarOrcamentosSalvos])
-
-  const getCurrentSnapshot = (): OrcamentoSnapshotData => {
-    const vendasConfigState = useVendasConfigStore.getState()
-    const vendasSimState = useVendasSimulacoesStore.getState()
-    const vendaSnapshotAtual = getVendaSnapshot()
-    const leasingSnapshotAtual = getLeasingSnapshot()
-    const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
-    const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
-    const vendaFormNormalizado: VendaForm = {
-      ...vendaForm,
-      segmento_cliente: vendaForm.segmento_cliente
-        ? normalizeTipoBasico(vendaForm.segmento_cliente)
-        : undefined,
-      tusd_tipo_cliente: vendaForm.tusd_tipo_cliente
-        ? normalizeTipoBasico(vendaForm.tusd_tipo_cliente)
-        : undefined,
-    }
-
-  return {
-    activeTab,
-    settingsTab,
-    cliente: cloneClienteDados(cliente),
-    clienteEmEdicaoId,
-    clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
-    ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
-    pageShared: { ...pageSharedState },
-      currentBudgetId,
-      budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
-      kitBudget: cloneKitBudgetState(kitBudget),
-      budgetProcessing: {
-        isProcessing: isBudgetProcessing,
-        error: budgetProcessingError ?? null,
-        progress: cloneBudgetUploadProgress(budgetProcessingProgress),
-        isTableCollapsed: isBudgetTableCollapsed,
-        ocrDpi,
-      },
-      propostaImagens: propostaImagens.map((imagem) => ({ ...imagem })),
-      ufTarifa,
-      distribuidoraTarifa,
-      ufsDisponiveis: [...ufsDisponiveis],
-      distribuidorasPorUf: cloneDistribuidorasMapa(distribuidorasPorUf),
-      mesReajuste,
-      kcKwhMes,
-      consumoManual,
-      tarifaCheia,
-      desconto,
-      taxaMinima,
-      taxaMinimaInputEmpty,
-      encargosFixosExtras,
-      tusdPercent,
-      tusdTipoCliente: tusdTipoClienteNormalizado,
-      tusdSubtipo,
-      tusdSimultaneidade,
-      tusdTarifaRkwh,
-      tusdAnoReferencia,
-      tusdOpcoesExpandidas,
-      leasingPrazo,
-      usarEnderecoCliente,
-      potenciaModulo,
-      potenciaModuloDirty,
-      tipoInstalacao,
-      tipoInstalacaoOutro,
-      tipoInstalacaoDirty,
-      tipoSistema,
-      segmentoCliente: segmentoClienteNormalizado,
-      tipoEdificacaoOutro,
-      numeroModulosManual,
-      composicaoTelhado: { ...composicaoTelhado },
-      composicaoSolo: { ...composicaoSolo },
-      aprovadoresText,
-      impostosOverridesDraft: cloneImpostosOverrides(impostosOverridesDraft),
-      vendasConfig: JSON.parse(JSON.stringify(vendasConfigState.config)) as VendasConfig,
-      vendasSimulacoes: cloneVendasSimulacoes(vendasSimState.simulations),
-      multiUc: {
-        ativo: multiUcAtivo,
-        rows: multiUcRows.map((row) => ({ ...row })),
-        rateioModo: multiUcRateioModo,
-        energiaGeradaKWh: multiUcEnergiaGeradaKWh,
-        energiaGeradaTouched: multiUcEnergiaGeradaTouched,
-        anoVigencia: multiUcAnoVigencia,
-        overrideEscalonamento: multiUcOverrideEscalonamento,
-        escalonamentoCustomPercent: multiUcEscalonamentoCustomPercent,
-      },
-      precoPorKwp,
-      irradiacao,
-      eficiencia,
-      diasMes,
-      inflacaoAa,
-      vendaForm: { ...vendaFormNormalizado },
-      capexManualOverride,
-      parsedVendaPdf: parsedVendaPdf
-        ? (JSON.parse(JSON.stringify(parsedVendaPdf)) as ParsedVendaPdfData)
-        : null,
-      estruturaTipoWarning: estruturaTipoWarning ?? null,
-      jurosFinAa,
-      prazoFinMeses,
-      entradaFinPct,
-      mostrarFinanciamento,
-      mostrarGrafico,
-      prazoMeses,
-      bandeiraEncargo,
-      cipEncargo,
-      entradaRs,
-      entradaModo,
-      mostrarValorMercadoLeasing,
-      mostrarTabelaParcelas,
-      mostrarTabelaBuyout,
-      mostrarTabelaParcelasConfig,
-      mostrarTabelaBuyoutConfig,
-      oemBase,
-      oemInflacao,
-      seguroModo,
-      seguroReajuste,
-      seguroValorA,
-      seguroPercentualB,
-      exibirLeasingLinha,
-      exibirFinLinha,
-      cashbackPct,
-      depreciacaoAa,
-      inadimplenciaAa,
-      tributosAa,
-      ipcaAa,
-      custosFixosM,
-      opexM,
-      seguroM,
-      duracaoMeses,
-      pagosAcumAteM,
-      modoOrcamento,
-      autoKitValor,
-      autoCustoFinal,
-      autoPricingRede,
-      autoPricingVersion,
-      autoBudgetReason,
-      autoBudgetReasonCode,
-      tipoRede,
-      tipoRedeControle,
-      vendaSnapshot: vendaSnapshotAtual,
-      leasingSnapshot: leasingSnapshotAtual,
-    }
-  }
 
   const aplicarSnapshot = (
     snapshotEntrada: OrcamentoSnapshotData,

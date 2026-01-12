@@ -123,6 +123,22 @@ const persistDelete = (key: string | null) => {
     })
 }
 
+export const persistRemoteStorageEntry = async (
+  key: string,
+  value: string,
+): Promise<void> => {
+  if (!hasAuthCookie()) {
+    return
+  }
+
+  await fetch(STORAGE_ENDPOINT, {
+    method: 'PUT',
+    headers: createHeaders(),
+    body: JSON.stringify({ key, value }),
+    credentials: 'include',
+  })
+}
+
 const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEntry[]> => {
   const response = await fetch(STORAGE_ENDPOINT, { credentials: 'include', signal })
   if (response.status === 401 || response.status === 403) {
@@ -133,6 +149,46 @@ const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEnt
   }
   const payload = (await response.json()) as StorageResponse
   return payload.entries ?? []
+}
+
+export const fetchRemoteStorageEntry = async (
+  key: string,
+  options?: { timeoutMs?: number },
+): Promise<string | null | undefined> => {
+  if (!hasAuthCookie()) {
+    return undefined
+  }
+  const timeoutMs = Math.max(options?.timeoutMs ?? DEFAULT_INITIALIZATION_TIMEOUT_MS, 0)
+  const controller = new AbortController()
+  let timeoutId: number | undefined
+
+  try {
+    const timeoutPromise = new Promise<void>((resolve) => {
+      timeoutId = window.setTimeout(() => {
+        controller.abort()
+        resolve()
+      }, timeoutMs)
+    })
+
+    const entriesPromise = loadRemoteEntries(controller.signal)
+    const entries = await Promise.race([entriesPromise, timeoutPromise]).then(() => entriesPromise)
+    const match = entries.find((entry) => entry.key === key)
+    return match ? normalizeRemoteValue(match.value) : null
+  } catch (error) {
+    if (error instanceof ServerStorageUnauthorizedError) {
+      console.info('[serverStorage] Consulta remota ignorada: sessão não autenticada.')
+      return undefined
+    }
+    if ((error as DOMException | undefined)?.name === 'AbortError') {
+      console.warn('[serverStorage] Consulta remota interrompida por timeout.')
+      return undefined
+    }
+    throw error
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId)
+    }
+  }
 }
 
 const initializeSync = async (signal?: AbortSignal) => {
