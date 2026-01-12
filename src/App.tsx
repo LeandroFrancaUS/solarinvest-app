@@ -11708,6 +11708,7 @@ export default function App() {
 
     clienteEmEdicaoIdRef.current = registroConfirmado.id
     setClienteEmEdicaoId(registroConfirmado.id)
+    scheduleMarkStateAsSaved()
 
     if (sincronizadoComSucesso) {
       adicionarNotificacao(
@@ -11744,6 +11745,7 @@ export default function App() {
     isVendaDiretaTab,
     isOneDriveIntegrationAvailable,
     persistClienteRegistroToOneDrive,
+    scheduleMarkStateAsSaved,
     setOneDriveIntegrationAvailable,
     setClienteEmEdicaoId,
   ])
@@ -11829,12 +11831,6 @@ export default function App() {
     },
     [clienteEmEdicaoId, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
-
-  const abrirClientesPainel = useCallback(() => {
-    const registros = carregarClientesSalvos()
-    setClientesSalvos(registros)
-    setActivePage('clientes')
-  }, [carregarClientesSalvos, setActivePage])
 
   const carregarOrcamentosSalvos = useCallback((): OrcamentoSalvo[] => {
     if (typeof window === 'undefined') {
@@ -13847,6 +13843,9 @@ export default function App() {
       setSalvandoPropostaPdf(false)
     }
 
+    if (sucesso) {
+      scheduleMarkStateAsSaved()
+    }
     return sucesso
   }, [
     activeTab,
@@ -13862,7 +13861,110 @@ export default function App() {
     salvandoPropostaPdf,
     atualizarOrcamentoAtivo,
     setProposalPdfIntegrationAvailable,
+    scheduleMarkStateAsSaved,
   ])
+
+  const runWithUnsavedChangesGuard = useCallback(
+    async (
+      action: () => void | Promise<void>,
+      options?: Partial<SaveDecisionPromptRequest>,
+    ): Promise<boolean> => {
+      if (!hasUnsavedChanges()) {
+        await action()
+        return true
+      }
+
+      const choice = await requestSaveDecision({
+        title: options?.title ?? 'Salvar alterações atuais?',
+        description:
+          options?.description ??
+          'Existem alterações não salvas. Deseja salvar a proposta antes de continuar?',
+        confirmLabel: options?.confirmLabel ?? 'Salvar',
+        discardLabel: options?.discardLabel ?? 'Descartar',
+      })
+
+      if (choice === 'save') {
+        const salvou = await handleSalvarPropostaPdf()
+        if (!salvou) {
+          return false
+        }
+      } else {
+        scheduleMarkStateAsSaved()
+      }
+
+      await action()
+      return true
+    },
+    [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision, scheduleMarkStateAsSaved],
+  )
+
+  const handleGerarContratosComConfirmacao = useCallback(async () => {
+    setActivePage('app')
+
+    if (isVendaDiretaTab) {
+      await handleGerarContratoVendas()
+    } else {
+      await handleGerarContratoLeasing()
+    }
+  }, [
+    handleGerarContratoLeasing,
+    handleGerarContratoVendas,
+    isVendaDiretaTab,
+    setActivePage,
+  ])
+
+  const abrirClientesPainel = useCallback(async () => {
+    const canProceed = await runWithUnsavedChangesGuard(() => {
+      const registros = carregarClientesSalvos()
+      setClientesSalvos(registros)
+      setActivePage('clientes')
+    })
+
+    return canProceed
+  }, [carregarClientesSalvos, runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirPesquisaOrcamentos = useCallback(async () => {
+    const canProceed = await runWithUnsavedChangesGuard(() => {
+      const registros = carregarOrcamentosSalvos()
+      setOrcamentosSalvos(registros)
+      setOrcamentoSearchTerm('')
+      setActivePage('consultar')
+    })
+
+    return canProceed
+  }, [carregarOrcamentosSalvos, runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirSimulacoes = useCallback(
+    async (section?: SimulacoesSection) => {
+      return runWithUnsavedChangesGuard(() => {
+        setSimulacoesSection(section ?? 'nova')
+        setActivePage('simulacoes')
+      })
+    },
+    [runWithUnsavedChangesGuard, setActivePage],
+  )
+
+  const abrirConfiguracoes = useCallback(
+    async (tab?: SettingsTabKey) => {
+      return runWithUnsavedChangesGuard(() => {
+        setSettingsTab(tab ?? 'mercado')
+        setActivePage('settings')
+      })
+    },
+    [runWithUnsavedChangesGuard, setActivePage, setSettingsTab],
+  )
+
+  const abrirDashboard = useCallback(async () => {
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('dashboard')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirCrmCentral = useCallback(async () => {
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('crm')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
 
   const iniciarNovaProposta = useCallback(() => {
     fieldSyncActions.reset()
@@ -14034,29 +14136,22 @@ export default function App() {
           'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
       })
 
-      if (choice !== 'save') {
-        return
-      }
-
-      const salvou = await handleSalvarPropostaPdf()
-      if (!salvou) {
-        return
+      if (choice === 'save') {
+        const salvou = await handleSalvarPropostaPdf()
+        if (!salvou) {
+          return
+        }
       }
 
       iniciarNovaProposta()
       return
     }
 
-    if (orcamentoAtivoInfo || orcamentoRegistroBase || orcamentoDisponivelParaDuplicar) {
-      iniciarNovaProposta()
-    }
+    iniciarNovaProposta()
   }, [
     hasUnsavedChanges,
     handleSalvarPropostaPdf,
     iniciarNovaProposta,
-    orcamentoAtivoInfo,
-    orcamentoDisponivelParaDuplicar,
-    orcamentoRegistroBase,
     requestSaveDecision,
   ])
 
@@ -14705,34 +14800,11 @@ export default function App() {
     ],
   )
 
-  const abrirPesquisaOrcamentos = () => {
-    const registros = carregarOrcamentosSalvos()
-    setOrcamentosSalvos(registros)
-    setOrcamentoSearchTerm('')
-    setActivePage('consultar')
-  }
-
   const fecharPesquisaOrcamentos = () => {
     setOrcamentoVisualizado(null)
     setOrcamentoVisualizadoInfo(null)
     voltarParaPaginaPrincipal()
   }
-
-  const abrirSimulacoes = useCallback(
-    (section?: SimulacoesSection) => {
-      setSimulacoesSection(section ?? 'nova')
-      setActivePage('simulacoes')
-    },
-    [setActivePage],
-  )
-
-  const abrirConfiguracoes = useCallback(
-    (tab?: SettingsTabKey) => {
-      setSettingsTab(tab ?? 'mercado')
-      setActivePage('settings')
-    },
-    [setActivePage, setSettingsTab],
-  )
 
   const voltarParaPaginaPrincipal = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
@@ -15455,7 +15527,7 @@ export default function App() {
         <button type="button" className="primary" onClick={handleSalvarCliente}>
           {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
         </button>
-        <button type="button" className="ghost" onClick={abrirClientesPainel}>
+        <button type="button" className="ghost" onClick={() => void abrirClientesPainel()}>
           Ver clientes
         </button>
       </div>
@@ -17348,7 +17420,7 @@ export default function App() {
 
   const renderComposicaoUfvSection = () => {
     const abrirParametrosVendas = () => {
-      abrirConfiguracoes('vendas')
+      void abrirConfiguracoes('vendas')
     }
     return (
       <section className="card">
@@ -19411,7 +19483,7 @@ export default function App() {
           label: 'Dashboard',
           icon: '📊',
           onSelect: () => {
-            setActivePage('dashboard')
+            void abrirDashboard()
           },
         },
       ],
@@ -19465,12 +19537,7 @@ export default function App() {
           label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
           icon: '🖋️',
           onSelect: () => {
-            setActivePage('app')
-            if (isVendaDiretaTab) {
-              handleGerarContratoVendas()
-            } else {
-              handleGerarContratoLeasing()
-            }
+            void handleGerarContratosComConfirmacao()
           },
           disabled: gerandoContratos,
         },
@@ -19507,7 +19574,7 @@ export default function App() {
           label: 'Nova Simulação',
           icon: '🧮',
           onSelect: () => {
-            abrirSimulacoes('nova')
+            void abrirSimulacoes('nova')
           },
         },
         {
@@ -19515,7 +19582,7 @@ export default function App() {
           label: 'Simulações Salvas',
           icon: '💾',
           onSelect: () => {
-            abrirSimulacoes('salvas')
+            void abrirSimulacoes('salvas')
           },
         },
         {
@@ -19523,7 +19590,7 @@ export default function App() {
           label: 'Análises IA (AI Analytics)',
           icon: '🤖',
           onSelect: () => {
-            abrirSimulacoes('ia')
+            void abrirSimulacoes('ia')
           },
         },
         {
@@ -19531,7 +19598,7 @@ export default function App() {
           label: 'Risco & Monte Carlo',
           icon: '🎲',
           onSelect: () => {
-            abrirSimulacoes('risco')
+            void abrirSimulacoes('risco')
           },
         },
         {
@@ -19539,7 +19606,7 @@ export default function App() {
           label: 'Packs',
           icon: '📦',
           onSelect: () => {
-            abrirSimulacoes('packs')
+            void abrirSimulacoes('packs')
           },
         },
         {
@@ -19547,7 +19614,7 @@ export default function App() {
           label: 'Packs Inteligentes',
           icon: '🧠',
           onSelect: () => {
-            abrirSimulacoes('packs-inteligentes')
+            void abrirSimulacoes('packs-inteligentes')
           },
         },
         {
@@ -19555,7 +19622,7 @@ export default function App() {
           label: 'Análise Financeira & Aprovação',
           icon: '✅',
           onSelect: () => {
-            abrirSimulacoes('analise')
+            void abrirSimulacoes('analise')
           },
         },
       ],
@@ -19586,7 +19653,7 @@ export default function App() {
           icon: '🖨️',
           onSelect: () => {
             setActivePage('app')
-            handlePrint()
+            void handlePrint()
           },
         },
       ],
@@ -19600,7 +19667,7 @@ export default function App() {
           label: 'Consultar',
           icon: '📄',
           onSelect: () => {
-            abrirPesquisaOrcamentos()
+            void abrirPesquisaOrcamentos()
           },
         },
       ],
@@ -19614,7 +19681,7 @@ export default function App() {
           label: 'Central CRM',
           icon: '📇',
           onSelect: () => {
-            setActivePage('crm')
+            void abrirCrmCentral()
           },
         },
         {
@@ -19622,7 +19689,7 @@ export default function App() {
           label: 'Clientes salvos',
           icon: '👥',
           onSelect: () => {
-            abrirClientesPainel()
+            void abrirClientesPainel()
           },
         },
         {
@@ -19635,7 +19702,7 @@ export default function App() {
               label: 'Captura de leads',
               icon: '🛰️',
               onSelect: () => {
-                setActivePage('crm')
+                void abrirCrmCentral()
               },
             },
             {
@@ -19643,7 +19710,7 @@ export default function App() {
               label: 'Pós-venda',
               icon: '🤝',
               onSelect: () => {
-                setActivePage('crm')
+                void abrirCrmCentral()
               },
             },
           ],
@@ -19659,7 +19726,7 @@ export default function App() {
           label: 'Preferências',
           icon: '⚙️',
           onSelect: () => {
-            abrirConfiguracoes()
+            void abrirConfiguracoes()
           },
         },
       ],
@@ -19908,7 +19975,7 @@ export default function App() {
               key={item.id}
               type="button"
               className={`simulacoes-nav-btn${simulacoesSection === item.id ? ' is-active' : ''}`}
-              onClick={() => abrirSimulacoes(item.id)}
+              onClick={() => void abrirSimulacoes(item.id)}
               aria-current={simulacoesSection === item.id ? 'page' : undefined}
             >
               <strong>{item.label}</strong>
