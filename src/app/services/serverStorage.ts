@@ -138,9 +138,9 @@ const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEnt
 export const fetchRemoteStorageEntry = async (
   key: string,
   options?: { timeoutMs?: number },
-): Promise<string | null> => {
+): Promise<string | null | undefined> => {
   if (!hasAuthCookie()) {
-    return null
+    return undefined
   }
   const timeoutMs = Math.max(options?.timeoutMs ?? DEFAULT_INITIALIZATION_TIMEOUT_MS, 0)
   const controller = new AbortController()
@@ -161,11 +161,11 @@ export const fetchRemoteStorageEntry = async (
   } catch (error) {
     if (error instanceof ServerStorageUnauthorizedError) {
       console.info('[serverStorage] Consulta remota ignorada: sessão não autenticada.')
-      return null
+      return undefined
     }
     if ((error as DOMException | undefined)?.name === 'AbortError') {
       console.warn('[serverStorage] Consulta remota interrompida por timeout.')
-      return null
+      return undefined
     }
     throw error
   } finally {

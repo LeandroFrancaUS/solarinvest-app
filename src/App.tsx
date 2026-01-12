@@ -8953,10 +8953,11 @@ export default function App() {
         window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
         return []
       }
-
-      const registros = parseClientesSalvos(remotoRaw)
-      window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
-      return registros
+      if (remotoRaw !== undefined) {
+        const registros = parseClientesSalvos(remotoRaw)
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+        return registros
+      }
     } catch (error) {
       console.warn('Não foi possível carregar clientes do armazenamento remoto.', error)
     }
