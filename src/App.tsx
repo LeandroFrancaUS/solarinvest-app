@@ -14158,16 +14158,11 @@ export default function App() {
       return
     }
 
-    if (orcamentoAtivoInfo || orcamentoRegistroBase || orcamentoDisponivelParaDuplicar) {
-      iniciarNovaProposta()
-    }
+    iniciarNovaProposta()
   }, [
     hasUnsavedChanges,
     handleSalvarPropostaPdf,
     iniciarNovaProposta,
-    orcamentoAtivoInfo,
-    orcamentoDisponivelParaDuplicar,
-    orcamentoRegistroBase,
     requestSaveDecision,
   ])
 
@@ -19669,7 +19664,7 @@ export default function App() {
           icon: '🖨️',
           onSelect: () => {
             setActivePage('app')
-            handlePrint()
+            void handleGerarContratosComConfirmacao()
           },
         },
       ],
