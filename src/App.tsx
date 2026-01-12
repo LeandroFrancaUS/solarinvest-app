@@ -11830,16 +11830,6 @@ export default function App() {
     [clienteEmEdicaoId, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
-  const abrirClientesPainel = useCallback(async () => {
-    const canProceed = await runWithUnsavedChangesGuard(() => {
-      const registros = carregarClientesSalvos()
-      setClientesSalvos(registros)
-      setActivePage('clientes')
-    })
-
-    return canProceed
-  }, [carregarClientesSalvos, runWithUnsavedChangesGuard, setActivePage])
-
   const carregarOrcamentosSalvos = useCallback((): OrcamentoSalvo[] => {
     if (typeof window === 'undefined') {
       return []
@@ -13198,34 +13188,6 @@ export default function App() {
     abrirSelecaoContratos('vendas')
   }, [abrirSelecaoContratos, guardClientFieldsOrReturn, handleSalvarCliente])
 
-  const handleGerarContratosComConfirmacao = useCallback(async () => {
-    const canProceed = await runWithUnsavedChangesGuard(
-      () => {
-        setActivePage('app')
-      },
-      {
-        description:
-          'Existem alterações não salvas. Deseja salvar a proposta antes de gerar os contratos?',
-      },
-    )
-
-    if (!canProceed) {
-      return
-    }
-
-    if (isVendaDiretaTab) {
-      await handleGerarContratoVendas()
-    } else {
-      await handleGerarContratoLeasing()
-    }
-  }, [
-    handleGerarContratoLeasing,
-    handleGerarContratoVendas,
-    isVendaDiretaTab,
-    runWithUnsavedChangesGuard,
-    setActivePage,
-  ])
-
   const handleConfirmarGeracaoContratosVendas = useCallback(async () => {
     const payload = contratoClientePayloadRef.current
     if (!payload) {
@@ -13926,6 +13888,97 @@ export default function App() {
       return true
     },
     [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision],
+  )
+
+  const handleGerarContratosComConfirmacao = useCallback(async () => {
+    const canProceed = await runWithUnsavedChangesGuard(
+      () => {
+        setActivePage('app')
+      },
+      {
+        description:
+          'Existem alterações não salvas. Deseja salvar a proposta antes de gerar os contratos?',
+      },
+    )
+
+    if (!canProceed) {
+      return
+    }
+
+    if (isVendaDiretaTab) {
+      await handleGerarContratoVendas()
+    } else {
+      await handleGerarContratoLeasing()
+    }
+  }, [
+    handleGerarContratoLeasing,
+    handleGerarContratoVendas,
+    isVendaDiretaTab,
+    runWithUnsavedChangesGuard,
+    setActivePage,
+  ])
+
+  const abrirClientesPainel = useCallback(async () => {
+    const canProceed = await runWithUnsavedChangesGuard(() => {
+      const registros = carregarClientesSalvos()
+      setClientesSalvos(registros)
+      setActivePage('clientes')
+    })
+
+    return canProceed
+  }, [carregarClientesSalvos, runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirPesquisaOrcamentos = useCallback(async () => {
+    const canProceed = await runWithUnsavedChangesGuard(() => {
+      const registros = carregarOrcamentosSalvos()
+      setOrcamentosSalvos(registros)
+      setOrcamentoSearchTerm('')
+      setActivePage('consultar')
+    })
+
+    return canProceed
+  }, [carregarOrcamentosSalvos, runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirSimulacoes = useCallback(
+    async (section?: SimulacoesSection) => {
+      return runWithUnsavedChangesGuard(() => {
+        setSimulacoesSection(section ?? 'nova')
+        setActivePage('simulacoes')
+      })
+    },
+    [runWithUnsavedChangesGuard, setActivePage],
+  )
+
+  const abrirConfiguracoes = useCallback(
+    async (tab?: SettingsTabKey) => {
+      return runWithUnsavedChangesGuard(() => {
+        setSettingsTab(tab ?? 'mercado')
+        setActivePage('settings')
+      })
+    },
+    [runWithUnsavedChangesGuard, setActivePage, setSettingsTab],
+  )
+
+  const abrirDashboard = useCallback(async () => {
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('dashboard')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirCrmCentral = useCallback(async () => {
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('crm')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const trocarModalidadeProposta = useCallback(
+    async (tab: TabKey) => {
+      return runWithUnsavedChangesGuard(() => {
+        setActivePage('app')
+        setActiveTab(tab)
+      })
+    },
+    [runWithUnsavedChangesGuard, setActivePage, setActiveTab],
   )
 
   const iniciarNovaProposta = useCallback(() => {
@@ -14767,64 +14820,11 @@ export default function App() {
     ],
   )
 
-  const abrirPesquisaOrcamentos = useCallback(async () => {
-    const canProceed = await runWithUnsavedChangesGuard(() => {
-      const registros = carregarOrcamentosSalvos()
-      setOrcamentosSalvos(registros)
-      setOrcamentoSearchTerm('')
-      setActivePage('consultar')
-    })
-
-    return canProceed
-  }, [carregarOrcamentosSalvos, runWithUnsavedChangesGuard, setActivePage])
-
   const fecharPesquisaOrcamentos = () => {
     setOrcamentoVisualizado(null)
     setOrcamentoVisualizadoInfo(null)
     voltarParaPaginaPrincipal()
   }
-
-  const abrirSimulacoes = useCallback(
-    async (section?: SimulacoesSection) => {
-      return runWithUnsavedChangesGuard(() => {
-        setSimulacoesSection(section ?? 'nova')
-        setActivePage('simulacoes')
-      })
-    },
-    [runWithUnsavedChangesGuard, setActivePage],
-  )
-
-  const abrirConfiguracoes = useCallback(
-    async (tab?: SettingsTabKey) => {
-      return runWithUnsavedChangesGuard(() => {
-        setSettingsTab(tab ?? 'mercado')
-        setActivePage('settings')
-      })
-    },
-    [runWithUnsavedChangesGuard, setActivePage, setSettingsTab],
-  )
-
-  const abrirDashboard = useCallback(async () => {
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('dashboard')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage])
-
-  const abrirCrmCentral = useCallback(async () => {
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('crm')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage])
-
-  const trocarModalidadeProposta = useCallback(
-    async (tab: TabKey) => {
-      return runWithUnsavedChangesGuard(() => {
-        setActivePage('app')
-        setActiveTab(tab)
-      })
-    },
-    [runWithUnsavedChangesGuard, setActivePage, setActiveTab],
-  )
 
   const voltarParaPaginaPrincipal = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
