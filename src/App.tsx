@@ -13860,11 +13860,11 @@ export default function App() {
 
   const runWithUnsavedChangesGuard = useCallback(
     async (
-      action: () => void,
+      action: () => void | Promise<void>,
       options?: Partial<SaveDecisionPromptRequest>,
     ): Promise<boolean> => {
       if (!hasUnsavedChanges()) {
-        action()
+        await action()
         return true
       }
 
@@ -13884,7 +13884,7 @@ export default function App() {
         }
       }
 
-      action()
+      await action()
       return true
     },
     [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision],
@@ -13892,23 +13892,21 @@ export default function App() {
 
   const handleGerarContratosComConfirmacao = useCallback(async () => {
     const canProceed = await runWithUnsavedChangesGuard(
-      () => {
+      async () => {
         setActivePage('app')
+        if (isVendaDiretaTab) {
+          await handleGerarContratoVendas()
+        } else {
+          await handleGerarContratoLeasing()
+        }
       },
       {
         description:
           'Existem alterações não salvas. Deseja salvar a proposta antes de gerar os contratos?',
       },
     )
-
     if (!canProceed) {
       return
-    }
-
-    if (isVendaDiretaTab) {
-      await handleGerarContratoVendas()
-    } else {
-      await handleGerarContratoLeasing()
     }
   }, [
     handleGerarContratoLeasing,
