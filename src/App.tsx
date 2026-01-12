@@ -19653,7 +19653,7 @@ export default function App() {
           icon: '🖨️',
           onSelect: () => {
             setActivePage('app')
-            void handleGerarContratosComConfirmacao()
+            void handlePrint()
           },
         },
       ],
