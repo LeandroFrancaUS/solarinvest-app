@@ -13899,20 +13899,6 @@ export default function App() {
   )
 
   const handleGerarContratosComConfirmacao = useCallback(async () => {
-    if (hasUnsavedChanges()) {
-      const choice = await requestSaveDecision({
-        title: 'Salvar proposta atual?',
-        description:
-          'Existem alterações não salvas. Deseja salvar a proposta antes de gerar os contratos?',
-      })
-
-      if (choice === 'save') {
-        await handleSalvarPropostaPdf()
-      } else {
-        scheduleMarkStateAsSaved()
-      }
-    }
-
     setActivePage('app')
 
     if (isVendaDiretaTab) {
@@ -13923,11 +13909,7 @@ export default function App() {
   }, [
     handleGerarContratoLeasing,
     handleGerarContratoVendas,
-    handleSalvarPropostaPdf,
-    hasUnsavedChanges,
     isVendaDiretaTab,
-    requestSaveDecision,
-    scheduleMarkStateAsSaved,
     setActivePage,
   ])
 
