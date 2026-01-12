@@ -8934,6 +8934,15 @@ export default function App() {
     }
   }, [])
 
+  const getUltimaAtualizacao = useCallback((registros: ClienteRegistro[]) => {
+    return registros.reduce((maisRecente, registro) => {
+      if (!maisRecente || registro.atualizadoEm > maisRecente) {
+        return registro.atualizadoEm
+      }
+      return maisRecente
+    }, '')
+  }, [])
+
   const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
     if (typeof window === 'undefined') {
       return []
@@ -8954,9 +8963,17 @@ export default function App() {
         return []
       }
       if (remotoRaw !== undefined) {
-        const registros = parseClientesSalvos(remotoRaw)
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
-        return registros
+        const registrosRemotos = parseClientesSalvos(remotoRaw)
+        const registrosLocais = carregarClientesSalvos()
+        const ultimaAtualizacaoRemota = getUltimaAtualizacao(registrosRemotos)
+        const ultimaAtualizacaoLocal = getUltimaAtualizacao(registrosLocais)
+
+        if (ultimaAtualizacaoLocal && ultimaAtualizacaoLocal > ultimaAtualizacaoRemota) {
+          return registrosLocais
+        }
+
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosRemotos))
+        return registrosRemotos
       }
     } catch (error) {
       console.warn('Não foi possível carregar clientes do armazenamento remoto.', error)
@@ -8982,7 +8999,7 @@ export default function App() {
     }
 
     return carregarClientesSalvos()
-  }, [carregarClientesSalvos, parseClientesSalvos])
+  }, [carregarClientesSalvos, getUltimaAtualizacao, parseClientesSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -8993,6 +9010,17 @@ export default function App() {
       }
       setClientesSalvos(registros)
       await ensureServerStorageSync({ timeoutMs: 4000 })
+      if (typeof window !== 'undefined') {
+        try {
+          if (registros.length > 0) {
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+          } else {
+            window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
+          }
+        } catch (error) {
+          console.warn('Não foi possível atualizar o armazenamento remoto com os clientes atuais.', error)
+        }
+      }
     }
     carregar()
     return () => {
