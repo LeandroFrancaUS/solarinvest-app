@@ -16550,7 +16550,7 @@ export default function App() {
   const renderConfiguracaoUsinaSection = () => (
     <section className="card configuracao-usina-card">
       <div className="configuracao-usina-card__header">
-        <h2>Configuração da Usina Fotovoltaica</h2>
+        <h2>Configuração da UF</h2>
         <button
           type="button"
           className="configuracao-usina-card__toggle"
@@ -17059,7 +17059,7 @@ export default function App() {
   const renderVendaConfiguracaoSection = () => (
     <section className="card configuracao-usina-card">
       <div className="configuracao-usina-card__header">
-        <h2>Configuração da Usina Fotovoltaica</h2>
+        <h2>Configuração da UF</h2>
         <button
           type="button"
           className="configuracao-usina-card__toggle"

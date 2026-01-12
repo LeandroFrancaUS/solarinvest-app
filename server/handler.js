@@ -238,7 +238,7 @@ export default async function handler(req, res) {
     if (pathname === '/api/health/contracts') {
       const templatePath = path.join(
         process.cwd(),
-        'public/templates/contratos/leasing/CONTRATO UNIFICADO DE LEASING DE SISTEMA FOTOVOLTAICO.dotx',
+        'public/templates/contratos/leasing/CONTRATO DE LEASING OPERACIONAL DE SISTEMA FOTOVOLTAICO.dotx',
       )
       let templateExists = false
       try { await access(templatePath); templateExists = true } catch { templateExists = false }
