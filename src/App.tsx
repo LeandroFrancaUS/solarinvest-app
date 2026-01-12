@@ -1238,6 +1238,168 @@ const stableStringify = (value: unknown): string => {
   return JSON.stringify(normalize(value))
 }
 
+const TARIFA_INPUT_DECIMALS = 5
+const TARIFA_DISPLAY_DECIMALS = 2
+const TARIFA_INPUT_SCALE = 10 ** TARIFA_INPUT_DECIMALS
+const TARIFA_MAX_VALUE = 9 + (TARIFA_INPUT_SCALE - 1) / TARIFA_INPUT_SCALE
+
+const roundTarifaUp = (value: number): number => {
+  const scale = 10 ** TARIFA_DISPLAY_DECIMALS
+  return Math.ceil(value * scale) / scale
+}
+
+const normalizeTarifaDigits = (digits: string): string =>
+  digits.replace(/\D/g, '').slice(0, TARIFA_INPUT_DECIMALS + 1)
+
+const formatTarifaDigitsFromValue = (value: number | null | undefined): string => {
+  if (!Number.isFinite(value ?? NaN)) {
+    return ''
+  }
+
+  const capped = Math.min(TARIFA_MAX_VALUE, Math.max(0, Number(value)))
+  const fixed = capped.toFixed(TARIFA_INPUT_DECIMALS)
+  const trimmed = fixed.replace(/\.?0+$/, '')
+  const [integerPart, decimalPart = ''] = trimmed.split('.')
+  const digits = `${integerPart}${decimalPart}`
+  return normalizeTarifaDigits(digits)
+}
+
+const formatTarifaMaskedFromDigits = (digits: string): string => {
+  const safeDigits = normalizeTarifaDigits(digits)
+  if (!safeDigits) {
+    return ''
+  }
+
+  const integerPart = safeDigits.slice(0, 1)
+  const decimalPart = safeDigits.slice(1)
+  return `${integerPart},${decimalPart}`
+}
+
+const parseTarifaInputValue = (raw: string): { value: number; text: string } => {
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    return { value: 0, text: '' }
+  }
+
+  const digits = normalizeTarifaDigits(trimmed)
+  if (!digits) {
+    return { value: 0, text: '' }
+  }
+
+  const integerPart = Number(digits.slice(0, 1))
+  const decimalDigits = digits.slice(1)
+  const decimalScale = decimalDigits.length > 0 ? 10 ** decimalDigits.length : 1
+  const decimalValue = decimalDigits.length > 0 ? Number(decimalDigits) / decimalScale : 0
+  const numericValue = integerPart + decimalValue
+  return {
+    value: roundTarifaUp(Math.min(TARIFA_MAX_VALUE, Math.max(0, numericValue))),
+    text: formatTarifaMaskedFromDigits(digits),
+  }
+}
+
+const formatTarifaDisplayValue = (value: number | null | undefined): string => {
+  if (!Number.isFinite(value ?? NaN)) {
+    return ''
+  }
+
+  const capped = Math.min(TARIFA_MAX_VALUE, Math.max(0, Number(value)))
+  const rounded = roundTarifaUp(capped)
+  const displayValue = Math.min(9.99, rounded)
+  return formatNumberBRWithOptions(displayValue, {
+    minimumFractionDigits: TARIFA_DISPLAY_DECIMALS,
+    maximumFractionDigits: TARIFA_DISPLAY_DECIMALS,
+  })
+}
+
+const useTarifaInputField = (
+  value: number | null | undefined,
+  onValueChange: (next: number) => void,
+) => {
+  const [text, setText] = useState<string>(() => formatTarifaDisplayValue(value))
+  const [isEditing, setIsEditing] = useState(false)
+  const latestValueRef = useRef<number>(Number.isFinite(value ?? NaN) ? Number(value) : 0)
+
+  useEffect(() => {
+    latestValueRef.current = Number.isFinite(value ?? NaN) ? Number(value) : 0
+  }, [value])
+
+  useEffect(() => {
+    if (!isEditing) {
+      setText(formatTarifaDisplayValue(value))
+    }
+  }, [isEditing, value])
+
+  const handleChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const parsed = parseTarifaInputValue(event.target.value)
+      latestValueRef.current = parsed.value
+      setText(parsed.text)
+      onValueChange(parsed.value)
+    },
+    [onValueChange],
+  )
+
+  const handleFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {
+    setIsEditing(true)
+    setText('')
+    window.requestAnimationFrame(() => {
+      try {
+        event.currentTarget.setSelectionRange(0, 0)
+      } catch {
+        // Ignore selection errors on unsupported input types.
+      }
+    })
+  }, [])
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== 'Backspace') {
+        return
+      }
+
+      const selectionStart = event.currentTarget.selectionStart
+      const selectionEnd = event.currentTarget.selectionEnd
+      if (selectionStart == null || selectionEnd == null || selectionStart !== selectionEnd) {
+        return
+      }
+
+      if (selectionStart !== 2 || text[1] !== ',') {
+        return
+      }
+
+      event.preventDefault()
+      const digits = normalizeTarifaDigits(text)
+      const nextDigits = digits.slice(1)
+      const nextText = formatTarifaMaskedFromDigits(nextDigits)
+      const parsed = parseTarifaInputValue(nextText)
+      latestValueRef.current = parsed.value
+      setText(parsed.text)
+      onValueChange(parsed.value)
+      window.requestAnimationFrame(() => {
+        try {
+          event.currentTarget.setSelectionRange(1, 1)
+        } catch {
+          // Ignore selection errors on unsupported input types.
+        }
+      })
+    },
+    [onValueChange, text],
+  )
+
+  const handleBlur = useCallback(() => {
+    setIsEditing(false)
+    setText(formatTarifaDisplayValue(latestValueRef.current))
+  }, [])
+
+  return {
+    value: text,
+    onChange: handleChange,
+    onFocus: handleFocus,
+    onBlur: handleBlur,
+    onKeyDown: handleKeyDown,
+  }
+}
+
 const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalProps => {
   const clone: PrintableProposalProps = {
     ...dados,
@@ -4962,6 +5124,15 @@ export default function App() {
       resetRetorno()
     },
     [resetRetorno],
+  )
+
+  const tarifaCheiaField = useTarifaInputField(tarifaCheia, setTarifaCheia)
+  const tarifaCheiaVendaField = useTarifaInputField(
+    vendaForm.tarifa_cheia_r_kwh,
+    (next) => {
+      setTarifaCheia(next)
+      applyVendaUpdates({ tarifa_cheia_r_kwh: next })
+    },
   )
 
   const handlePotenciaInstaladaChange = useCallback(
@@ -15724,14 +15895,16 @@ export default function App() {
               'Valor cobrado por kWh sem descontos; multiplicado pelo consumo projetado para estimar a conta cheia.',
             )}
           >
-            <input
-              type="number"
-              step="0.001"
-              value={tarifaCheia}
-              onChange={(e) => setTarifaCheia(Number(e.target.value) || 0)}
-              onFocus={selectNumberInputOnFocus}
-            />
-          </Field>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={tarifaCheiaField.value}
+            onChange={tarifaCheiaField.onChange}
+            onFocus={tarifaCheiaField.onFocus}
+            onBlur={tarifaCheiaField.onBlur}
+            onKeyDown={tarifaCheiaField.onKeyDown}
+          />
+        </Field>
           <Field
             label={labelWithTooltip(
               'Custos Fixos da Conta de Energia (R$/MÊS)',
@@ -16606,21 +16779,13 @@ export default function App() {
           )}
         >
           <input
-            type="number"
-            step="0.001"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.tarifa_cheia_r_kwh)
-                ? vendaForm.tarifa_cheia_r_kwh
-                : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setTarifaCheia(normalized)
-              applyVendaUpdates({ tarifa_cheia_r_kwh: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
+            type="text"
+            inputMode="decimal"
+            value={tarifaCheiaVendaField.value}
+            onChange={tarifaCheiaVendaField.onChange}
+            onFocus={tarifaCheiaVendaField.onFocus}
+            onBlur={tarifaCheiaVendaField.onBlur}
+            onKeyDown={tarifaCheiaVendaField.onKeyDown}
           />
           <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
         </Field>
