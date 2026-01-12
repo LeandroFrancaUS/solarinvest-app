@@ -12396,38 +12396,6 @@ export default function App() {
     return computeSignatureRef.current() !== lastSavedSignatureRef.current
   }, [])
 
-  const runWithUnsavedChangesGuard = useCallback(
-    async (
-      action: () => void,
-      options?: Partial<SaveDecisionPromptRequest>,
-    ): Promise<boolean> => {
-      if (!hasUnsavedChanges()) {
-        action()
-        return true
-      }
-
-      const choice = await requestSaveDecision({
-        title: options?.title ?? 'Salvar alterações atuais?',
-        description:
-          options?.description ??
-          'Existem alterações não salvas. Deseja salvar a proposta antes de continuar?',
-        confirmLabel: options?.confirmLabel ?? 'Salvar',
-        discardLabel: options?.discardLabel ?? 'Descartar',
-      })
-
-      if (choice === 'save') {
-        const salvou = await handleSalvarPropostaPdf()
-        if (!salvou) {
-          return false
-        }
-      }
-
-      action()
-      return true
-    },
-    [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision],
-  )
-
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
@@ -13927,6 +13895,38 @@ export default function App() {
     atualizarOrcamentoAtivo,
     setProposalPdfIntegrationAvailable,
   ])
+
+  const runWithUnsavedChangesGuard = useCallback(
+    async (
+      action: () => void,
+      options?: Partial<SaveDecisionPromptRequest>,
+    ): Promise<boolean> => {
+      if (!hasUnsavedChanges()) {
+        action()
+        return true
+      }
+
+      const choice = await requestSaveDecision({
+        title: options?.title ?? 'Salvar alterações atuais?',
+        description:
+          options?.description ??
+          'Existem alterações não salvas. Deseja salvar a proposta antes de continuar?',
+        confirmLabel: options?.confirmLabel ?? 'Salvar',
+        discardLabel: options?.discardLabel ?? 'Descartar',
+      })
+
+      if (choice === 'save') {
+        const salvou = await handleSalvarPropostaPdf()
+        if (!salvou) {
+          return false
+        }
+      }
+
+      action()
+      return true
+    },
+    [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision],
+  )
 
   const iniciarNovaProposta = useCallback(() => {
     fieldSyncActions.reset()
