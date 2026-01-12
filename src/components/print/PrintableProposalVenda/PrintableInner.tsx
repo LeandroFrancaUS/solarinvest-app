@@ -760,7 +760,7 @@ function PrintableProposalInner(
   const kitFotovoltaicoLabel =
     kitFotovoltaicoValorNumero != null ? currency(kitFotovoltaicoValorNumero) : '—'
   const kitFotovoltaicoAnnotation =
-    '(composto por módulos solares, inversor, estrutura de fixação, cabos, conectores e demais componentes necessários para a instalação completa do sistema)'
+    'Módulos fotovoltaicos Tier 1 (BloombergNEF), tecnologia N-Type bifacial, de fabricantes globais como Gokin Solar, OSDA Solar e Solar N Plus, garantindo alta performance, confiabilidade e longa vida útil.'
   const margemOperacionalNumero = (() => {
     if (composicaoUfv) {
       const tipoResumo = composicaoUfv.tipoAtual ?? tipoInstalacao
