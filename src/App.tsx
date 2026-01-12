@@ -14034,13 +14034,11 @@ export default function App() {
           'Existem alterações não salvas. Deseja salvar a proposta antes de iniciar uma nova?',
       })
 
-      if (choice !== 'save') {
-        return
-      }
-
-      const salvou = await handleSalvarPropostaPdf()
-      if (!salvou) {
-        return
+      if (choice === 'save') {
+        const salvou = await handleSalvarPropostaPdf()
+        if (!salvou) {
+          return
+        }
       }
 
       iniciarNovaProposta()
