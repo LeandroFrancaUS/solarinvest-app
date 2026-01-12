@@ -268,7 +268,8 @@ const initializeSync = async (signal?: AbortSignal) => {
 
   const missingOnRemote: { key: string; value: string }[] = []
   existingLocal.forEach((value, key) => {
-    if (!remoteMap.has(key)) {
+    const remoteValue = remoteMap.get(key)
+    if (remoteValue === undefined || remoteValue !== value) {
       remoteMap.set(key, value)
       missingOnRemote.push({ key, value })
     }
