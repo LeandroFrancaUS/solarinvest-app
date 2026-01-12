@@ -11708,6 +11708,7 @@ export default function App() {
 
     clienteEmEdicaoIdRef.current = registroConfirmado.id
     setClienteEmEdicaoId(registroConfirmado.id)
+    scheduleMarkStateAsSaved()
 
     if (sincronizadoComSucesso) {
       adicionarNotificacao(
@@ -11744,6 +11745,7 @@ export default function App() {
     isVendaDiretaTab,
     isOneDriveIntegrationAvailable,
     persistClienteRegistroToOneDrive,
+    scheduleMarkStateAsSaved,
     setOneDriveIntegrationAvailable,
     setClienteEmEdicaoId,
   ])
