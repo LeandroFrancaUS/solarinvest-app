@@ -100,7 +100,6 @@ const applyCorsHeaders = (req, res) => {
   res.setHeader('Vary', 'Origin')
 }
 
-// Body parsing do Node em serverless é válido, só precisa ler stream como você já faz.  [oai_citation:1‡Vercel](https://vercel.com/kb/guide/handling-node-request-body?utm_source=chatgpt.com)
 const readJsonBody = async (req) => {
   if (!req.readable) return {}
 
@@ -186,6 +185,46 @@ export default async function handler(req, res) {
 
     if (pathname === '/health') {
       sendJson(res, 200, { status: 'ok' })
+      return
+    }
+
+    if (pathname === '/api/health/db') {
+      if (!databaseClient || !databaseConfig.connectionString) {
+        sendServerError(res, 503, {
+          ok: false,
+          db: 'not_configured',
+          error: 'Banco de dados não configurado. Defina DATABASE_URL.'
+        }, requestId, vercelId)
+        return
+      }
+
+      const startTime = Date.now()
+      try {
+        const result = await databaseClient.sql`SELECT 1 as ok, NOW() as now`
+        const latencyMs = Date.now() - startTime
+        const row = Array.isArray(result) && result.length > 0 ? result[0] : null
+        const nowValue = row?.now ?? null
+        const serialized =
+          nowValue && typeof nowValue.toISOString === 'function'
+            ? nowValue.toISOString()
+            : nowValue
+
+        sendJson(res, 200, {
+          ok: true,
+          db: 'connected',
+          now: serialized,
+          latencyMs
+        })
+      } catch (error) {
+        const latencyMs = Date.now() - startTime
+        console.error('[database] Falha no health check:', error)
+        sendServerError(res, 500, {
+          ok: false,
+          db: 'error',
+          error: error.message || 'Falha ao conectar ao banco de dados',
+          latencyMs
+        }, requestId, vercelId)
+      }
       return
     }
 
