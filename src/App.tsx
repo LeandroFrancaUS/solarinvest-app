@@ -11599,6 +11599,7 @@ export default function App() {
     adicionarNotificacao,
     cliente,
     clienteEmEdicaoId,
+    getCurrentSnapshot,
     guardClientFieldsOrReturn,
     isVendaDiretaTab,
     isOneDriveIntegrationAvailable,
