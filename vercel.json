@@ -2,6 +2,14 @@
   "installCommand": "npm install --force",
   "buildCommand": "npm run build",
 
+  "functions": {
+    "api/**/*.js": {
+      "includeFiles": [
+        "public/templates/contratos/**"
+      ]
+    }
+  },
+
   "rewrites": [
     { "source": "/health", "destination": "/api/health" },
     { "source": "/api/:path*", "destination": "/api" },
