@@ -237,7 +237,8 @@ export const VENDA_FORM_DEFAULT: VendaForm = {
   capex_total: 0,
   condicao: 'AVISTA',
   modo_pagamento: 'PIX',
-  modelo_modulo: 'Módulos fotovoltaicos Tier 1 (BloombergNEF), alta performance e confiabilidade global.',
+  modelo_modulo:
+    'Módulos fotovoltaicos Tier 1 (BloombergNEF), tecnologia N-Type bifacial, de fabricantes globais como Gokin Solar, OSDA Solar e Solar N Plus, garantindo alta performance, confiabilidade e longa vida útil.',
   modelo_inversor: 'Fabricantes globais consolidados (Huawei, GoodWe, Solis ou equivalentes), alta eficiência e confiabilidade global.',
   segmento_cliente: INITIAL_VALUES.segmentoCliente,
   tipo_sistema: INITIAL_VALUES.tipoSistema,

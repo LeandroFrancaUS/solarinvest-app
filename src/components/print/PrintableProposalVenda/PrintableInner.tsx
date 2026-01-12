@@ -449,7 +449,7 @@ function PrintableProposalInner(
       partes.push(`Nome: ${nome?.trim()}`)
     }
     if (isMeaningfulText(modelo)) {
-      partes.push(`Modelo: ${modelo?.trim()}`)
+      partes.push(modelo?.trim() ?? '')
     }
     if (isMeaningfulText(quantidade)) {
       partes.push(`Quantidade: ${quantidade?.trim()}`)
