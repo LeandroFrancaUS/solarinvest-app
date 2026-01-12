@@ -8,6 +8,7 @@ Este diretório contém os templates de contratos do SolarInvest com suporte a t
 contratos/
 ├── leasing/                    # Templates de contratos de leasing
 │   ├── [template-padrao].docx  # Templates padrão (usados quando não há UF específico)
+│   ├── anexos/                 # Anexos de leasing
 │   ├── GO/                     # Templates específicos para Goiás
 │   │   └── [template].docx
 │   ├── DF/                     # Templates específicos para Distrito Federal
@@ -16,6 +17,7 @@ contratos/
 │       └── [template].docx
 └── vendas/                     # Templates de contratos de vendas
     ├── [template-padrao].docx
+    ├── anexos/                 # Anexos de vendas
     ├── GO/
     │   └── [template].docx
     └── DF/
@@ -31,8 +33,10 @@ Quando um contrato é gerado, o sistema segue esta ordem de busca:
 1. **Template Específico do UF**: Procura primeiro em `categoria/UF/template.docx`
    - Exemplo: `leasing/GO/CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO - RESIDENCIA.docx`
 
-2. **Template Padrão**: Se não encontrar o template específico, usa `categoria/template.docx`
-   - Exemplo: `leasing/CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO - RESIDENCIA.docx`
+2. **Prioridade de Extensão**: Sempre tenta usar `.dotx` antes de `.docx` na mesma pasta.
+   - Exemplo: `leasing/GO/CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO - RESIDENCIA.dotx`
+3. **Template Padrão**: Se não encontrar o template específico, usa `categoria/template.(dotx|docx)`
+   - Exemplo: `leasing/CONTRATO DE LEASING DE SISTEMA FOTOVOLTAICO - RESIDENCIA.dotx`
 
 ### 2. Informações do Cliente
 
