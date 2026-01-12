@@ -13899,19 +13899,21 @@ export default function App() {
   )
 
   const handleGerarContratosComConfirmacao = useCallback(async () => {
-    const canProceed = await runWithUnsavedChangesGuard(
-      () => {
-        setActivePage('app')
-      },
-      {
+    if (hasUnsavedChanges()) {
+      const choice = await requestSaveDecision({
+        title: 'Salvar proposta atual?',
         description:
           'Existem alterações não salvas. Deseja salvar a proposta antes de gerar os contratos?',
-      },
-    )
+      })
 
-    if (!canProceed) {
-      return
+      if (choice === 'save') {
+        await handleSalvarPropostaPdf()
+      } else {
+        scheduleMarkStateAsSaved()
+      }
     }
+
+    setActivePage('app')
 
     if (isVendaDiretaTab) {
       await handleGerarContratoVendas()
@@ -13921,8 +13923,11 @@ export default function App() {
   }, [
     handleGerarContratoLeasing,
     handleGerarContratoVendas,
+    handleSalvarPropostaPdf,
+    hasUnsavedChanges,
     isVendaDiretaTab,
-    runWithUnsavedChangesGuard,
+    requestSaveDecision,
+    scheduleMarkStateAsSaved,
     setActivePage,
   ])
 
