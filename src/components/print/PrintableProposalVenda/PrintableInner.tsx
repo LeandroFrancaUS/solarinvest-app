@@ -449,7 +449,7 @@ function PrintableProposalInner(
       partes.push(`Nome: ${nome?.trim()}`)
     }
     if (isMeaningfulText(modelo)) {
-      partes.push(`Modelo: ${modelo?.trim()}`)
+      partes.push(modelo?.trim() ?? '')
     }
     if (isMeaningfulText(quantidade)) {
       partes.push(`Quantidade: ${quantidade?.trim()}`)
@@ -519,7 +519,7 @@ function PrintableProposalInner(
       ? Math.round(moduleQuantidade ?? 0)
       : null
   const moduleQuantidadeLabel =
-    moduleQuantidadeNumero != null
+    !isOrcamentoAutomatico && moduleQuantidadeNumero != null
       ? formatNumberBRWithOptions(moduleQuantidadeNumero, {
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
@@ -760,7 +760,7 @@ function PrintableProposalInner(
   const kitFotovoltaicoLabel =
     kitFotovoltaicoValorNumero != null ? currency(kitFotovoltaicoValorNumero) : '—'
   const kitFotovoltaicoAnnotation =
-    '(composto por módulos solares, inversor, estrutura de fixação, cabos, conectores e demais componentes necessários para a instalação completa do sistema)'
+    'Módulos fotovoltaicos Tier 1 (BloombergNEF), tecnologia N-Type bifacial, de fabricantes globais como Gokin Solar, OSDA Solar e Solar N Plus, garantindo alta performance, confiabilidade e longa vida útil.'
   const margemOperacionalNumero = (() => {
     if (composicaoUfv) {
       const tipoResumo = composicaoUfv.tipoAtual ?? tipoInstalacao
@@ -1837,8 +1837,8 @@ function PrintableProposalInner(
                   </li>
                   <li>
                     7. Garantias e Serviços<br />
-                    Equipamentos seguem garantias dos fabricantes. Garantia de instalação, manutenção preventiva/corretiva e
-                    seguros são opcionais, quando aplicáveis.
+                    Equipamentos seguem garantias dos fabricantes. Oferecemos 1 ano de garantia de instalação. Manutenção
+                    preventiva/corretiva e seguros são opcionais, quando aplicáveis.
                   </li>
                   <li>
                     8. Itens Não Inclusos<br />
