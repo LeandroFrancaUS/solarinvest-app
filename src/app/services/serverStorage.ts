@@ -135,6 +135,33 @@ const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEnt
   return payload.entries ?? []
 }
 
+export const fetchRemoteStorageEntry = async (
+  key: string,
+  options?: { timeoutMs?: number },
+): Promise<string | null> => {
+  const timeoutMs = Math.max(options?.timeoutMs ?? DEFAULT_INITIALIZATION_TIMEOUT_MS, 0)
+  const controller = new AbortController()
+  let timeoutId: number | undefined
+
+  try {
+    const timeoutPromise = new Promise<void>((resolve) => {
+      timeoutId = window.setTimeout(() => {
+        controller.abort()
+        resolve()
+      }, timeoutMs)
+    })
+
+    const entriesPromise = loadRemoteEntries(controller.signal)
+    const entries = await Promise.race([entriesPromise, timeoutPromise]).then(() => entriesPromise)
+    const match = entries.find((entry) => entry.key === key)
+    return match ? normalizeRemoteValue(match.value) : null
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId)
+    }
+  }
+}
+
 const initializeSync = async (signal?: AbortSignal) => {
   const storage = window.localStorage
   const originalGetItem = storage.getItem.bind(storage)

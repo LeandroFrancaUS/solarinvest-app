@@ -40,6 +40,7 @@ import { resolveApiUrl } from './utils/apiUrl'
 import {
   persistClienteRegistroToOneDrive,
   type ClienteRegistroSyncPayload,
+  loadClientesFromOneDrive,
   isOneDriveIntegrationAvailable,
   OneDriveIntegrationMissingError,
 } from './utils/onedrive'
@@ -56,7 +57,7 @@ import {
   type EssentialInfoSummary,
 } from './utils/moduleDetection'
 import { removeFogOverlays, watchFogReinjection } from './utils/antiOverlay'
-import { ensureServerStorageSync } from './app/services/serverStorage'
+import { ensureServerStorageSync, fetchRemoteStorageEntry } from './app/services/serverStorage'
 import {
   computeROI,
   type ModoPagamento,
@@ -8905,12 +8906,7 @@ export default function App() {
       : undefined,
   })
 
-  const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
-    if (typeof window === 'undefined') {
-      return []
-    }
-
-    const existenteRaw = window.localStorage.getItem(CLIENTES_STORAGE_KEY)
+  const parseClientesSalvos = useCallback((existenteRaw: string | null): ClienteRegistro[] => {
     if (!existenteRaw) {
       return []
     }
@@ -8938,21 +8934,70 @@ export default function App() {
     }
   }, [])
 
+  const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
+    if (typeof window === 'undefined') {
+      return []
+    }
+
+    return parseClientesSalvos(window.localStorage.getItem(CLIENTES_STORAGE_KEY))
+  }, [parseClientesSalvos])
+
+  const carregarClientesPrioritarios = useCallback(async (): Promise<ClienteRegistro[]> => {
+    if (typeof window === 'undefined') {
+      return []
+    }
+
+    try {
+      const remotoRaw = await fetchRemoteStorageEntry(CLIENTES_STORAGE_KEY, { timeoutMs: 4000 })
+      if (remotoRaw === null) {
+        window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
+        return []
+      }
+
+      const registros = parseClientesSalvos(remotoRaw)
+      window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+      return registros
+    } catch (error) {
+      console.warn('Não foi possível carregar clientes do armazenamento remoto.', error)
+    }
+
+    try {
+      const oneDrivePayload = await loadClientesFromOneDrive()
+      if (oneDrivePayload !== null && oneDrivePayload !== undefined) {
+        const raw =
+          typeof oneDrivePayload === 'string'
+            ? oneDrivePayload
+            : JSON.stringify(oneDrivePayload)
+        const registros = parseClientesSalvos(raw)
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+        return registros
+      }
+    } catch (error) {
+      if (error instanceof OneDriveIntegrationMissingError) {
+        console.info('Leitura via OneDrive ignorada: integração não configurada.')
+      } else {
+        console.warn('Não foi possível carregar clientes via OneDrive.', error)
+      }
+    }
+
+    return carregarClientesSalvos()
+  }, [carregarClientesSalvos, parseClientesSalvos])
+
   useEffect(() => {
     let cancelado = false
     const carregar = async () => {
-      await ensureServerStorageSync({ timeoutMs: 4000 })
+      const registros = await carregarClientesPrioritarios()
       if (cancelado) {
         return
       }
-      const registros = carregarClientesSalvos()
       setClientesSalvos(registros)
+      await ensureServerStorageSync({ timeoutMs: 4000 })
     }
     carregar()
     return () => {
       cancelado = true
     }
-  }, [carregarClientesSalvos])
+  }, [carregarClientesPrioritarios])
 
   useEffect(() => {
     return () => {

@@ -50,6 +50,14 @@ type OneDriveBridge = (
   payload: OneDriveBridgePayload,
 ) => OneDriveBridgeResult | Promise<OneDriveBridgeResult>
 
+type OneDriveLoadBridgeResult =
+  | void
+  | string
+  | unknown[]
+  | { success?: boolean; message?: string; content?: unknown; clientes?: unknown }
+
+type OneDriveLoadBridge = () => OneDriveLoadBridgeResult | Promise<OneDriveLoadBridgeResult>
+
 const stripDiacritics = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 const extractFirstName = (nome: string) => {
@@ -112,6 +120,24 @@ const resolveOneDriveBridge = (): OneDriveBridge | null => {
   return candidates.find((candidate): candidate is OneDriveBridge => typeof candidate === 'function') ?? null
 }
 
+const resolveOneDriveLoadBridge = (): OneDriveLoadBridge | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const candidates: (OneDriveLoadBridge | undefined)[] = [
+    window.solarinvestNative?.loadClientsFromOneDrive,
+    window.solarinvestNative?.loadClients,
+    window.solarinvestOneDrive?.loadClientsFromOneDrive,
+    window.solarinvestOneDrive?.loadClients,
+    window.electronAPI?.loadClientsFromOneDrive,
+    window.desktopAPI?.loadClientsFromOneDrive,
+    window.loadClientsFromOneDrive,
+  ]
+
+  return candidates.find((candidate): candidate is OneDriveLoadBridge => typeof candidate === 'function') ?? null
+}
+
 const getOneDriveEndpoint = () => import.meta.env?.VITE_ONEDRIVE_SYNC_ENDPOINT?.trim() || ''
 
 export const isOneDriveIntegrationAvailable = (): boolean => {
@@ -137,6 +163,64 @@ const formatUnknownError = (error: unknown) => {
     return error
   }
   return 'Falha desconhecida.'
+}
+
+const extractOneDrivePayload = (result: OneDriveLoadBridgeResult): unknown => {
+  if (typeof result === 'object' && result !== null && 'success' in result && result.success === false) {
+    const message =
+      'message' in result && typeof result.message === 'string'
+        ? result.message
+        : 'A integração com o OneDrive retornou uma falha.'
+    throw new Error(message)
+  }
+
+  if (typeof result === 'object' && result !== null) {
+    if ('content' in result) {
+      return result.content ?? null
+    }
+    if ('clientes' in result) {
+      return result.clientes ?? null
+    }
+  }
+
+  return result ?? null
+}
+
+export const loadClientesFromOneDrive = async (): Promise<unknown | null> => {
+  const bridge = resolveOneDriveLoadBridge()
+  if (bridge) {
+    try {
+      const result = await bridge()
+      return extractOneDrivePayload(result)
+    } catch (error) {
+      throw new Error(`Não foi possível carregar clientes do OneDrive: ${formatUnknownError(error)}`)
+    }
+  }
+
+  const endpoint = getOneDriveEndpoint()
+  if (endpoint) {
+    try {
+      const response = await fetch(endpoint, { method: 'GET' })
+      if (!response.ok) {
+        const texto = await response.text().catch(() => '')
+        const mensagem = texto || `Falha ao consultar clientes no endpoint configurado (${response.status}).`
+        throw new Error(mensagem)
+      }
+
+      const texto = await response.text()
+      try {
+        return JSON.parse(texto)
+      } catch {
+        return texto
+      }
+    } catch (error) {
+      throw new Error(
+        `Não foi possível consultar clientes no endpoint configurado do OneDrive: ${formatUnknownError(error)}`,
+      )
+    }
+  }
+
+  throw new OneDriveIntegrationMissingError()
 }
 
 export const persistClienteRegistroToOneDrive = async (
