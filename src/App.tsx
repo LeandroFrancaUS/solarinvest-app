@@ -13971,16 +13971,6 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage])
 
-  const trocarModalidadeProposta = useCallback(
-    async (tab: TabKey) => {
-      return runWithUnsavedChangesGuard(() => {
-        setActivePage('app')
-        setActiveTab(tab)
-      })
-    },
-    [runWithUnsavedChangesGuard, setActivePage, setActiveTab],
-  )
-
   const iniciarNovaProposta = useCallback(() => {
     fieldSyncActions.reset()
     setSettingsTab(INITIAL_VALUES.settingsTab)
@@ -19517,7 +19507,8 @@ export default function App() {
           label: 'Leasing',
           icon: '📝',
           onSelect: () => {
-            void trocarModalidadeProposta('leasing')
+            setActivePage('app')
+            setActiveTab('leasing')
           },
         },
         {
@@ -19525,7 +19516,8 @@ export default function App() {
           label: 'Vendas',
           icon: '🧾',
           onSelect: () => {
-            void trocarModalidadeProposta('vendas')
+            setActivePage('app')
+            setActiveTab('vendas')
           },
         },
         {
