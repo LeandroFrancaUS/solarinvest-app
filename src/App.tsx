@@ -12495,11 +12495,6 @@ export default function App() {
       return
     }
 
-    const salvou = await handleSalvarPropostaPdf()
-    if (!salvou) {
-      return
-    }
-
     if (!confirmarAlertasGerarProposta()) {
       return
     }
@@ -13906,11 +13901,6 @@ export default function App() {
   const handleGerarContratosComConfirmacao = useCallback(async () => {
     setActivePage('app')
 
-    const salvou = await handleSalvarPropostaPdf()
-    if (!salvou) {
-      return
-    }
-
     if (isVendaDiretaTab) {
       await handleGerarContratoVendas()
     } else {
@@ -13919,7 +13909,6 @@ export default function App() {
   }, [
     handleGerarContratoLeasing,
     handleGerarContratoVendas,
-    handleSalvarPropostaPdf,
     isVendaDiretaTab,
     setActivePage,
   ])
