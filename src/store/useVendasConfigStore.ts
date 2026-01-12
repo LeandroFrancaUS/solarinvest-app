@@ -4,6 +4,7 @@ import {
   normalizeVendasConfig,
   type VendasConfig,
 } from '../types/vendasConfig'
+import { storageClient } from '../app/services/serverStorage'
 
 const STORAGE_KEY = 'solarinvest:vendas:v1'
 
@@ -23,7 +24,7 @@ const loadPersistedConfig = (): VendasConfig | undefined => {
     return undefined
   }
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = storageClient.getItem(STORAGE_KEY)
     if (!raw) {
       return undefined
     }
@@ -43,7 +44,7 @@ const persistConfig = (config: VendasConfig) => {
     return
   }
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ config }))
+    storageClient.setItem(STORAGE_KEY, JSON.stringify({ config }))
   } catch (error) {
     console.warn('[useVendasConfigStore] Falha ao salvar configuração', error)
   }

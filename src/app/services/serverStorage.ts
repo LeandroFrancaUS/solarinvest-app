@@ -30,6 +30,18 @@ const cache = new Map<string, string>()
 const pendingUploads = new Map<string, AbortController>()
 let syncEnabled = true
 let initializationWaitPromise: Promise<void> | null = null
+let hasOnlineListener = false
+
+type StorageMethods = {
+  getItem: (key: string) => string | null
+  setItem: (key: string, value: string) => void
+  removeItem: (key: string) => void
+  key?: (index: number) => string | null
+  clear?: () => void
+}
+
+let originalStorageMethods: StorageMethods | null = null
+let interceptorsInstalled = false
 
 const hasAuthCookie = () => {
   if (typeof document === 'undefined') {
@@ -39,6 +51,23 @@ const hasAuthCookie = () => {
 }
 
 const createHeaders = () => new Headers({ 'Content-Type': 'application/json' })
+
+const getStorage = () => (typeof window === 'undefined' ? null : window.localStorage)
+
+export const storageClient = {
+  getItem(key: string) {
+    return getStorage()?.getItem(key) ?? null
+  },
+  setItem(key: string, value: string) {
+    getStorage()?.setItem(key, value)
+  },
+  removeItem(key: string) {
+    getStorage()?.removeItem(key)
+  },
+  clear() {
+    getStorage()?.clear()
+  },
+}
 
 const normalizeRemoteValue = (value: unknown): string | null => {
   if (value === null || value === undefined) {
@@ -137,11 +166,21 @@ const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEnt
 
 const initializeSync = async (signal?: AbortSignal) => {
   const storage = window.localStorage
-  const originalGetItem = storage.getItem.bind(storage)
-  const originalSetItem = storage.setItem.bind(storage)
-  const originalRemoveItem = storage.removeItem.bind(storage)
-  const originalKey = storage.key ? storage.key.bind(storage) : undefined
-  const originalClear = storage.clear ? storage.clear.bind(storage) : undefined
+  if (!originalStorageMethods) {
+    originalStorageMethods = {
+      getItem: storage.getItem.bind(storage),
+      setItem: storage.setItem.bind(storage),
+      removeItem: storage.removeItem.bind(storage),
+      key: storage.key ? storage.key.bind(storage) : undefined,
+      clear: storage.clear ? storage.clear.bind(storage) : undefined,
+    }
+  }
+
+  const originalGetItem = originalStorageMethods.getItem
+  const originalSetItem = originalStorageMethods.setItem
+  const originalRemoveItem = originalStorageMethods.removeItem
+  const originalKey = originalStorageMethods.key
+  const originalClear = originalStorageMethods.clear
 
   const existingLocal = new Map<string, string>()
   for (let index = 0; index < storage.length; index += 1) {
@@ -152,6 +191,47 @@ const initializeSync = async (signal?: AbortSignal) => {
     const value = originalGetItem(key)
     if (value !== null) {
       existingLocal.set(key, value)
+    }
+  }
+
+  cache.clear()
+  existingLocal.forEach((value, key) => {
+    cache.set(key, value)
+  })
+
+  if (!interceptorsInstalled) {
+    interceptorsInstalled = true
+    storage.getItem = (key: string) => {
+      if (cache.has(key)) {
+        return cache.get(key) ?? null
+      }
+      const fallback = originalGetItem(key)
+      if (fallback !== null) {
+        cache.set(key, fallback)
+      }
+      return fallback
+    }
+
+    storage.setItem = (key: string, value: string) => {
+      originalSetItem(key, value)
+      cache.set(key, value)
+      persistPut(key, value)
+    }
+
+    storage.removeItem = (key: string) => {
+      originalRemoveItem(key)
+      cache.delete(key)
+      persistDelete(key)
+    }
+
+    storage.clear = () => {
+      if (originalClear) {
+        originalClear()
+      } else {
+        Array.from(cache.keys()).forEach((key) => originalRemoveItem(key))
+      }
+      cache.clear()
+      persistDelete(null)
     }
   }
 
@@ -188,7 +268,8 @@ const initializeSync = async (signal?: AbortSignal) => {
 
   const missingOnRemote: { key: string; value: string }[] = []
   existingLocal.forEach((value, key) => {
-    if (!remoteMap.has(key)) {
+    const remoteValue = remoteMap.get(key)
+    if (remoteValue === undefined || remoteValue !== value) {
       remoteMap.set(key, value)
       missingOnRemote.push({ key, value })
     }
@@ -201,56 +282,35 @@ const initializeSync = async (signal?: AbortSignal) => {
     Array.from(existingLocal.keys()).forEach((key) => originalRemoveItem(key))
   }
 
-  cache.clear()
-
   remoteMap.forEach((value, key) => {
     originalSetItem(key, value)
+  })
+
+  cache.clear()
+  remoteMap.forEach((value, key) => {
     cache.set(key, value)
   })
 
   missingOnRemote.forEach(({ key, value }) => {
     persistPut(key, value)
   })
-
-  storage.getItem = (key: string) => {
-    if (cache.has(key)) {
-      return cache.get(key) ?? null
-    }
-    const fallback = originalGetItem(key)
-    if (fallback !== null) {
-      cache.set(key, fallback)
-    }
-    return fallback
-  }
-
-  storage.setItem = (key: string, value: string) => {
-    originalSetItem(key, value)
-    cache.set(key, value)
-    persistPut(key, value)
-  }
-
-  storage.removeItem = (key: string) => {
-    originalRemoveItem(key)
-    cache.delete(key)
-    persistDelete(key)
-  }
-
-  storage.clear = () => {
-    if (originalClear) {
-      originalClear()
-    } else {
-      Array.from(cache.keys()).forEach((key) => originalRemoveItem(key))
-    }
-    cache.clear()
-    persistDelete(null)
-  }
 }
 
-export function ensureServerStorageSync(options?: { timeoutMs?: number }): Promise<void> {
+export function ensureServerStorageSync(options?: { timeoutMs?: number; force?: boolean }): Promise<void> {
   if (typeof window === 'undefined') {
     return Promise.resolve()
   }
+  if (!hasOnlineListener) {
+    window.addEventListener('online', () => {
+      void ensureServerStorageSync({ force: !syncEnabled })
+    })
+    hasOnlineListener = true
+  }
   const timeoutMs = Math.max(options?.timeoutMs ?? DEFAULT_INITIALIZATION_TIMEOUT_MS, 0)
+  if (options?.force) {
+    initializationPromise = null
+    initializationWaitPromise = null
+  }
   if (!initializationPromise) {
     const controller = new AbortController()
     initializationPromise = initializeSync(controller.signal).catch((error) => {

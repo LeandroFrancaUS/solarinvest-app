@@ -1,4 +1,5 @@
 import { createStore } from './createStore'
+import { storageClient } from '../app/services/serverStorage'
 const STORAGE_KEY = 'solarinvest:venda-sims:v1'
 
 export type VendasSimulacao = {
@@ -66,7 +67,7 @@ const loadPersisted = (): PersistedShape | undefined => {
     return undefined
   }
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = storageClient.getItem(STORAGE_KEY)
     if (!raw) {
       return undefined
     }
@@ -92,7 +93,7 @@ const persist = (state: PersistedShape) => {
     return
   }
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    storageClient.setItem(STORAGE_KEY, JSON.stringify(state))
   } catch (error) {
     console.warn('[useVendasSimulacoesStore] Falha ao salvar dados', error)
   }

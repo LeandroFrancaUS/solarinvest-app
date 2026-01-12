@@ -1,5 +1,6 @@
 import { createStore } from './createStore'
 import { makeSimId, type Simulacao } from '../lib/finance/simulation'
+import { storageClient } from '../app/services/serverStorage'
 
 const STORAGE_KEY = 'solarinvest:simulacoes:v1'
 const STORAGE_SAVE_DELAY = 300
@@ -23,7 +24,7 @@ const loadPersistedState = (): PersistedState | undefined => {
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = storageClient.getItem(STORAGE_KEY)
     if (!raw) {
       return undefined
     }
@@ -58,7 +59,7 @@ const queuePersist = (() => {
 
     timeout = window.setTimeout(() => {
       try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+        storageClient.setItem(STORAGE_KEY, JSON.stringify(snapshot))
       } catch (error) {
         console.warn('Falha ao salvar simulações', error)
       }
