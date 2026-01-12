@@ -13882,31 +13882,35 @@ export default function App() {
         if (!salvou) {
           return false
         }
+      } else {
+        scheduleMarkStateAsSaved()
       }
 
       await action()
       return true
     },
-    [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision],
+    [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision, scheduleMarkStateAsSaved],
   )
 
   const handleGerarContratosComConfirmacao = useCallback(async () => {
     const canProceed = await runWithUnsavedChangesGuard(
-      async () => {
+      () => {
         setActivePage('app')
-        if (isVendaDiretaTab) {
-          await handleGerarContratoVendas()
-        } else {
-          await handleGerarContratoLeasing()
-        }
       },
       {
         description:
           'Existem alterações não salvas. Deseja salvar a proposta antes de gerar os contratos?',
       },
     )
+
     if (!canProceed) {
       return
+    }
+
+    if (isVendaDiretaTab) {
+      await handleGerarContratoVendas()
+    } else {
+      await handleGerarContratoLeasing()
     }
   }, [
     handleGerarContratoLeasing,
