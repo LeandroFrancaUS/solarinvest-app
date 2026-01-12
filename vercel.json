@@ -4,9 +4,7 @@
 
   "functions": {
     "api/**/*.js": {
-      "includeFiles": [
-        "public/templates/contratos/**"
-      ]
+      "includeFiles": "public/templates/contratos/**"
     }
   },
 
