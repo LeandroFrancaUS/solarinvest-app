@@ -165,7 +165,8 @@ const buildPlaceholderMap = (data) => {
     
     // Technical specs
     potencia: data.potencia ?? '',
-    kWhContratado: data.kWhContratado ?? '',
+    kWhContratado: data.kWhContratado ?? data.kwhContratado ?? '',
+    kwhContratado: data.kWhContratado ?? data.kwhContratado ?? '',
     tarifaBase: data.tarifaBase ?? '',
     modulosFV: data.modulosFV ?? '',
     inversoresFV: data.inversoresFV ?? '',

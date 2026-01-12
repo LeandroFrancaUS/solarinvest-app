@@ -612,6 +612,7 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     // Technical specs
     potencia: ensureField(dados, 'potencia', 'Potência contratada (kWp)'),
     kWhContratado: ensureField(dados, 'kWhContratado', 'Energia contratada (kWh)'),
+    kwhContratado: ensureField(dados, 'kWhContratado', 'Energia contratada (kWh)'),
     tarifaBase: ensureField(dados, 'tarifaBase', 'Tarifa base (R$/kWh)'),
     modulosFV: optionalField(dados, 'modulosFV'),
     inversoresFV: optionalField(dados, 'inversoresFV'),
