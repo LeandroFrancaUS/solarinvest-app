@@ -11402,6 +11402,7 @@ export default function App() {
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
+    let registrosPersistidos: ClienteRegistro[] | null = null
     let houveErro = false
     let erroDuplicidade: string | null = null
 
@@ -11511,6 +11512,7 @@ export default function App() {
       }
 
       registroSalvo = registroAtualizado
+      registrosPersistidos = ordenados
       return ordenados
     })
 
@@ -11527,6 +11529,17 @@ export default function App() {
     const registroConfirmado: ClienteRegistro = salvo
     let sincronizadoComSucesso = false
     let erroSincronizacao: unknown = null
+
+    if (registrosPersistidos) {
+      try {
+        await persistRemoteStorageEntry(
+          CLIENTES_STORAGE_KEY,
+          JSON.stringify(registrosPersistidos),
+        )
+      } catch (error) {
+        console.warn('Não foi possível sincronizar clientes com o armazenamento remoto.', error)
+      }
+    }
 
     const integracaoOneDriveAtiva = isOneDriveIntegrationAvailable()
     setOneDriveIntegrationAvailable(integracaoOneDriveAtiva)
