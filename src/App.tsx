@@ -11830,11 +11830,15 @@ export default function App() {
     [clienteEmEdicaoId, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
-  const abrirClientesPainel = useCallback(() => {
-    const registros = carregarClientesSalvos()
-    setClientesSalvos(registros)
-    setActivePage('clientes')
-  }, [carregarClientesSalvos, setActivePage])
+  const abrirClientesPainel = useCallback(async () => {
+    const canProceed = await runWithUnsavedChangesGuard(() => {
+      const registros = carregarClientesSalvos()
+      setClientesSalvos(registros)
+      setActivePage('clientes')
+    })
+
+    return canProceed
+  }, [carregarClientesSalvos, runWithUnsavedChangesGuard, setActivePage])
 
   const carregarOrcamentosSalvos = useCallback((): OrcamentoSalvo[] => {
     if (typeof window === 'undefined') {
@@ -12391,6 +12395,38 @@ export default function App() {
 
     return computeSignatureRef.current() !== lastSavedSignatureRef.current
   }, [])
+
+  const runWithUnsavedChangesGuard = useCallback(
+    async (
+      action: () => void,
+      options?: Partial<SaveDecisionPromptRequest>,
+    ): Promise<boolean> => {
+      if (!hasUnsavedChanges()) {
+        action()
+        return true
+      }
+
+      const choice = await requestSaveDecision({
+        title: options?.title ?? 'Salvar alterações atuais?',
+        description:
+          options?.description ??
+          'Existem alterações não salvas. Deseja salvar a proposta antes de continuar?',
+        confirmLabel: options?.confirmLabel ?? 'Salvar',
+        discardLabel: options?.discardLabel ?? 'Descartar',
+      })
+
+      if (choice === 'save') {
+        const salvou = await handleSalvarPropostaPdf()
+        if (!salvou) {
+          return false
+        }
+      }
+
+      action()
+      return true
+    },
+    [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision],
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -13193,6 +13229,34 @@ export default function App() {
     }
     abrirSelecaoContratos('vendas')
   }, [abrirSelecaoContratos, guardClientFieldsOrReturn, handleSalvarCliente])
+
+  const handleGerarContratosComConfirmacao = useCallback(async () => {
+    const canProceed = await runWithUnsavedChangesGuard(
+      () => {
+        setActivePage('app')
+      },
+      {
+        description:
+          'Existem alterações não salvas. Deseja salvar a proposta antes de gerar os contratos?',
+      },
+    )
+
+    if (!canProceed) {
+      return
+    }
+
+    if (isVendaDiretaTab) {
+      await handleGerarContratoVendas()
+    } else {
+      await handleGerarContratoLeasing()
+    }
+  }, [
+    handleGerarContratoLeasing,
+    handleGerarContratoVendas,
+    isVendaDiretaTab,
+    runWithUnsavedChangesGuard,
+    setActivePage,
+  ])
 
   const handleConfirmarGeracaoContratosVendas = useCallback(async () => {
     const payload = contratoClientePayloadRef.current
@@ -14703,12 +14767,16 @@ export default function App() {
     ],
   )
 
-  const abrirPesquisaOrcamentos = () => {
-    const registros = carregarOrcamentosSalvos()
-    setOrcamentosSalvos(registros)
-    setOrcamentoSearchTerm('')
-    setActivePage('consultar')
-  }
+  const abrirPesquisaOrcamentos = useCallback(async () => {
+    const canProceed = await runWithUnsavedChangesGuard(() => {
+      const registros = carregarOrcamentosSalvos()
+      setOrcamentosSalvos(registros)
+      setOrcamentoSearchTerm('')
+      setActivePage('consultar')
+    })
+
+    return canProceed
+  }, [carregarOrcamentosSalvos, runWithUnsavedChangesGuard, setActivePage])
 
   const fecharPesquisaOrcamentos = () => {
     setOrcamentoVisualizado(null)
@@ -14717,19 +14785,45 @@ export default function App() {
   }
 
   const abrirSimulacoes = useCallback(
-    (section?: SimulacoesSection) => {
-      setSimulacoesSection(section ?? 'nova')
-      setActivePage('simulacoes')
+    async (section?: SimulacoesSection) => {
+      return runWithUnsavedChangesGuard(() => {
+        setSimulacoesSection(section ?? 'nova')
+        setActivePage('simulacoes')
+      })
     },
-    [setActivePage],
+    [runWithUnsavedChangesGuard, setActivePage],
   )
 
   const abrirConfiguracoes = useCallback(
-    (tab?: SettingsTabKey) => {
-      setSettingsTab(tab ?? 'mercado')
-      setActivePage('settings')
+    async (tab?: SettingsTabKey) => {
+      return runWithUnsavedChangesGuard(() => {
+        setSettingsTab(tab ?? 'mercado')
+        setActivePage('settings')
+      })
     },
-    [setActivePage, setSettingsTab],
+    [runWithUnsavedChangesGuard, setActivePage, setSettingsTab],
+  )
+
+  const abrirDashboard = useCallback(async () => {
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('dashboard')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirCrmCentral = useCallback(async () => {
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('crm')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const trocarModalidadeProposta = useCallback(
+    async (tab: TabKey) => {
+      return runWithUnsavedChangesGuard(() => {
+        setActivePage('app')
+        setActiveTab(tab)
+      })
+    },
+    [runWithUnsavedChangesGuard, setActivePage, setActiveTab],
   )
 
   const voltarParaPaginaPrincipal = useCallback(() => {
@@ -15453,7 +15547,7 @@ export default function App() {
         <button type="button" className="primary" onClick={handleSalvarCliente}>
           {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
         </button>
-        <button type="button" className="ghost" onClick={abrirClientesPainel}>
+        <button type="button" className="ghost" onClick={() => void abrirClientesPainel()}>
           Ver clientes
         </button>
       </div>
@@ -17346,7 +17440,7 @@ export default function App() {
 
   const renderComposicaoUfvSection = () => {
     const abrirParametrosVendas = () => {
-      abrirConfiguracoes('vendas')
+      void abrirConfiguracoes('vendas')
     }
     return (
       <section className="card">
@@ -19409,7 +19503,7 @@ export default function App() {
           label: 'Dashboard',
           icon: '📊',
           onSelect: () => {
-            setActivePage('dashboard')
+            void abrirDashboard()
           },
         },
       ],
@@ -19423,8 +19517,7 @@ export default function App() {
           label: 'Leasing',
           icon: '📝',
           onSelect: () => {
-            setActivePage('app')
-            setActiveTab('leasing')
+            void trocarModalidadeProposta('leasing')
           },
         },
         {
@@ -19432,8 +19525,7 @@ export default function App() {
           label: 'Vendas',
           icon: '🧾',
           onSelect: () => {
-            setActivePage('app')
-            setActiveTab('vendas')
+            void trocarModalidadeProposta('vendas')
           },
         },
         {
@@ -19463,12 +19555,7 @@ export default function App() {
           label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
           icon: '🖋️',
           onSelect: () => {
-            setActivePage('app')
-            if (isVendaDiretaTab) {
-              handleGerarContratoVendas()
-            } else {
-              handleGerarContratoLeasing()
-            }
+            void handleGerarContratosComConfirmacao()
           },
           disabled: gerandoContratos,
         },
@@ -19505,7 +19592,7 @@ export default function App() {
           label: 'Nova Simulação',
           icon: '🧮',
           onSelect: () => {
-            abrirSimulacoes('nova')
+            void abrirSimulacoes('nova')
           },
         },
         {
@@ -19513,7 +19600,7 @@ export default function App() {
           label: 'Simulações Salvas',
           icon: '💾',
           onSelect: () => {
-            abrirSimulacoes('salvas')
+            void abrirSimulacoes('salvas')
           },
         },
         {
@@ -19521,7 +19608,7 @@ export default function App() {
           label: 'Análises IA (AI Analytics)',
           icon: '🤖',
           onSelect: () => {
-            abrirSimulacoes('ia')
+            void abrirSimulacoes('ia')
           },
         },
         {
@@ -19529,7 +19616,7 @@ export default function App() {
           label: 'Risco & Monte Carlo',
           icon: '🎲',
           onSelect: () => {
-            abrirSimulacoes('risco')
+            void abrirSimulacoes('risco')
           },
         },
         {
@@ -19537,7 +19624,7 @@ export default function App() {
           label: 'Packs',
           icon: '📦',
           onSelect: () => {
-            abrirSimulacoes('packs')
+            void abrirSimulacoes('packs')
           },
         },
         {
@@ -19545,7 +19632,7 @@ export default function App() {
           label: 'Packs Inteligentes',
           icon: '🧠',
           onSelect: () => {
-            abrirSimulacoes('packs-inteligentes')
+            void abrirSimulacoes('packs-inteligentes')
           },
         },
         {
@@ -19553,7 +19640,7 @@ export default function App() {
           label: 'Análise Financeira & Aprovação',
           icon: '✅',
           onSelect: () => {
-            abrirSimulacoes('analise')
+            void abrirSimulacoes('analise')
           },
         },
       ],
@@ -19598,7 +19685,7 @@ export default function App() {
           label: 'Consultar',
           icon: '📄',
           onSelect: () => {
-            abrirPesquisaOrcamentos()
+            void abrirPesquisaOrcamentos()
           },
         },
       ],
@@ -19612,7 +19699,7 @@ export default function App() {
           label: 'Central CRM',
           icon: '📇',
           onSelect: () => {
-            setActivePage('crm')
+            void abrirCrmCentral()
           },
         },
         {
@@ -19620,7 +19707,7 @@ export default function App() {
           label: 'Clientes salvos',
           icon: '👥',
           onSelect: () => {
-            abrirClientesPainel()
+            void abrirClientesPainel()
           },
         },
         {
@@ -19633,7 +19720,7 @@ export default function App() {
               label: 'Captura de leads',
               icon: '🛰️',
               onSelect: () => {
-                setActivePage('crm')
+                void abrirCrmCentral()
               },
             },
             {
@@ -19641,7 +19728,7 @@ export default function App() {
               label: 'Pós-venda',
               icon: '🤝',
               onSelect: () => {
-                setActivePage('crm')
+                void abrirCrmCentral()
               },
             },
           ],
@@ -19657,7 +19744,7 @@ export default function App() {
           label: 'Preferências',
           icon: '⚙️',
           onSelect: () => {
-            abrirConfiguracoes()
+            void abrirConfiguracoes()
           },
         },
       ],
@@ -19906,7 +19993,7 @@ export default function App() {
               key={item.id}
               type="button"
               className={`simulacoes-nav-btn${simulacoesSection === item.id ? ' is-active' : ''}`}
-              onClick={() => abrirSimulacoes(item.id)}
+              onClick={() => void abrirSimulacoes(item.id)}
               aria-current={simulacoesSection === item.id ? 'page' : undefined}
             >
               <strong>{item.label}</strong>
