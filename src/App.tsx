@@ -2246,6 +2246,7 @@ type ClienteContratoPayload = {
   cpfCnpj: string
   enderecoCompleto: string
   unidadeConsumidora: string
+  kWhContratado?: string
   uf?: string
   telefone?: string
   email?: string
@@ -12823,6 +12824,10 @@ export default function App() {
       cpfCnpj, 
       enderecoCompleto, 
       unidadeConsumidora, 
+      kWhContratado: formatNumberBRWithOptions(Math.max(kcKwhMes || 0, 0), {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }),
       uf, 
       telefone, 
       email,
@@ -12844,6 +12849,7 @@ export default function App() {
     cliente.temIndicacao,
     cliente.uc,
     cliente.uf,
+    kcKwhMes,
   ])
 
   const prepararPayloadContratosLeasing = useCallback(() => {
