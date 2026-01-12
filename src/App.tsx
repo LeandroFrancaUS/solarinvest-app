@@ -13843,6 +13843,9 @@ export default function App() {
       setSalvandoPropostaPdf(false)
     }
 
+    if (sucesso) {
+      scheduleMarkStateAsSaved()
+    }
     return sucesso
   }, [
     activeTab,
@@ -13858,6 +13861,7 @@ export default function App() {
     salvandoPropostaPdf,
     atualizarOrcamentoAtivo,
     setProposalPdfIntegrationAvailable,
+    scheduleMarkStateAsSaved,
   ])
 
   const runWithUnsavedChangesGuard = useCallback(
