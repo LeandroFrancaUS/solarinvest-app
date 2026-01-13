@@ -1,8 +1,9 @@
 // src/app/Providers.tsx
 import type { ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { StackProvider, StackTheme, SignIn, useUser } from '@stackframe/stack'
-import { createStackClientApp, isStackConfigured } from '../stack/client'
+import type { StackClientApp } from '@stackframe/stack'
+import { getStackClientApp, isStackConfigured } from '../stack/client'
 
 function AuthGate({ children }: { children: ReactNode }) {
   const user = useUser()
@@ -23,9 +24,13 @@ function AuthGateWrapper({ children, enabled }: { children: ReactNode; enabled: 
 }
 
 export function Providers({ children }: { children: ReactNode }) {
-  const stackClientApp = useMemo(() => createStackClientApp(), [])
+  const [stackClientApp, setStackClientApp] = useState<StackClientApp | null>(null)
 
-  if (!isStackConfigured || !stackClientApp) {
+  useEffect(() => {
+    setStackClientApp(getStackClientApp())
+  }, [])
+
+  if (!isStackConfigured) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10 text-center">
         <div className="max-w-lg space-y-3">
@@ -35,6 +40,14 @@ export function Providers({ children }: { children: ReactNode }) {
             <code>VITE_STACK_PUBLISHABLE_CLIENT_KEY</code> no ambiente para inicializar o login.
           </p>
         </div>
+      </div>
+    )
+  }
+
+  if (!stackClientApp) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6 py-10 text-center">
+        <div className="text-sm text-slate-600">Inicializando autenticação…</div>
       </div>
     )
   }

@@ -11,13 +11,19 @@ if (!isStackConfigured) {
   console.warn('[stack] Missing VITE_STACK_PROJECT_ID or VITE_STACK_PUBLISHABLE_CLIENT_KEY')
 }
 
-export const createStackClientApp = (): StackClientApp | null => {
+let stackClientApp: StackClientApp | null = null
+
+export const getStackClientApp = (): StackClientApp | null => {
   if (!isStackConfigured || typeof window === 'undefined') {
     return null
   }
 
-  return new StackClientApp({
-    projectId,
-    publishableClientKey,
-  })
+  if (!stackClientApp) {
+    stackClientApp = new StackClientApp({
+      projectId,
+      publishableClientKey,
+    })
+  }
+
+  return stackClientApp
 }
