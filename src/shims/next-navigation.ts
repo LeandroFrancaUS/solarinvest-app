@@ -22,6 +22,12 @@ export const redirect = (url: string) => {
   navigate(url)
 }
 
+export const notFound = () => {
+  const error = new Error('next/navigation notFound() was called.')
+  ;(error as Error & { digest?: string }).digest = 'NEXT_NOT_FOUND'
+  throw error
+}
+
 export const useRouter = () => ({
   push: navigate,
   replace: (url: string) => {
