@@ -43,11 +43,11 @@ const disableAnimationsInBrave = async () => {
 
 async function bootstrap() {
   // (opcional) debug temporário — remova depois de confirmar
-  // console.log("VITE_STACK_PROJECT_ID:", import.meta.env.VITE_STACK_PROJECT_ID)
-  // console.log(
-  //   "VITE_STACK_PUBLISHABLE_CLIENT_KEY:",
-  //   import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY ? "OK" : "MISSING",
-  // )
+    console.log("VITE_STACK_PROJECT_ID:", import.meta.env.VITE_STACK_PROJECT_ID)
+    console.log(
+    "VITE_STACK_PUBLISHABLE_CLIENT_KEY:",
+    import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY ? "OK" : "MISSING",
+   )
 
   await ensureServerStorageSync()
   await disableAnimationsInBrave()
