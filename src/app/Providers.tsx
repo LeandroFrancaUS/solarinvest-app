@@ -1,63 +1,10 @@
 // src/app/Providers.tsx
 import type { ReactNode } from "react"
-import { StackProvider, StackTheme, SignIn, useUser } from "@stackframe/stack"
+import { StackProvider, StackTheme, SignIn } from "@stackframe/stack"
 import { stackClientApp } from "../stack/client"
 
-type UnknownRecord = Record<string, unknown>
-
-function getUserFromState(state: unknown) {
-  const s = state as UnknownRecord | null
-
-  // tenta state.user
-  const user = (s?.user as UnknownRecord | null) ?? null
-  if (user) return user
-
-  // tenta state.data.user
-  const data = (s?.data as UnknownRecord | null) ?? null
-  const userFromData = (data?.user as UnknownRecord | null) ?? null
-  if (userFromData) return userFromData
-
-  return null
-}
-
-function isLoadingState(state: unknown) {
-  const s = state as UnknownRecord | null
-
-  const isLoading =
-    s?.isLoading === true ||
-    s?.loading === true ||
-    s?.status === "loading" ||
-    s?.status === "pending"
-
-  return Boolean(isLoading)
-}
-
-function AuthGate({ children }: { children: ReactNode }) {
-  const state = useUser()
-
-  const user = getUserFromState(state)
-  const isLoading = isLoadingState(state)
-
-  // 🔒 Enquanto o Stack inicializa token/session
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-6 py-10 text-center">
-        <div className="text-sm text-slate-600">Carregando sessão…</div>
-      </div>
-    )
-  }
-
-  // 🔐 Não autenticado → SignIn
-  if (!user) {
-    return <SignIn fullPage={true} automaticRedirect={true} firstTab="password" />
-  }
-
-  // ✅ Autenticado
-  return <>{children}</>
-}
-
 export function Providers({ children }: { children: ReactNode }) {
-  // Segurança extra: se o client não inicializou
+  // Sem env/config -> mostra tela de instrução
   if (!stackClientApp) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10 text-center">
@@ -68,17 +15,22 @@ export function Providers({ children }: { children: ReactNode }) {
           <p className="text-sm text-slate-600">
             Defina as variáveis{" "}
             <code>VITE_STACK_PROJECT_ID</code> e{" "}
-            <code>VITE_STACK_PUBLISHABLE_CLIENT_KEY</code>.
+            <code>VITE_STACK_PUBLISHABLE_CLIENT_KEY</code>{" "}
+            (ou <code>NEXT_PUBLIC_*</code>).
           </p>
         </div>
       </div>
     )
   }
 
+  // ✅ Aqui: deixa o Stack renderizar e gerenciar a auth
+  // (Sem useUser até estabilizar o runtime no Vite)
   return (
     <StackProvider app={stackClientApp}>
       <StackTheme>
-        <AuthGate>{children}</AuthGate>
+        {/* Se você quiser forçar login sempre (MVP), deixa o SignIn na frente: */}
+        {/* <SignIn fullPage automaticRedirect firstTab="password" /> */}
+        {children}
       </StackTheme>
     </StackProvider>
   )
