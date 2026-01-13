@@ -61,7 +61,7 @@ function resolveBackendOrigin(rawOrigin?: string) {
     parsed = new URL(ensureProtocol(trimmed))
   } catch (error) {
     console.warn(
-      `[@solarinvest/dev-proxy] Valor inválido em VITE_BACKEND_ORIGIN (\"${trimmed}\"). ` +
+      `[@solarinvest/dev-proxy] Valor inválido em VITE_BACKEND_ORIGIN ("${trimmed}"). ` +
         `Usando ${fallback.origin} como destino do proxy.`,
     )
     return fallback
@@ -101,6 +101,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins,
+
+    // ✅ IMPORTANT: Stack (e algumas libs) esperam "process" no browser
+    define: {
+      // garante que acessos tipo process.env.FOO não explodam
+      'process.env': {},
+    },
+
     build: {
       sourcemap: true,
       target: 'es2020',
@@ -123,10 +130,12 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+
     server: {
       host: true,
       proxy,
     },
+
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -134,14 +143,31 @@ export default defineConfig(({ mode }) => {
         '@testing-library/react': fileURLToPath(
           new URL('./src/test-utils/testing-library-react.tsx', import.meta.url),
         ),
+
+        // ✅ polyfill do process para browser (Vite)
+        process: 'process/browser',
+
+        // ✅ (opcional) se o Stack continuar tentando importar next/headers em runtime,
+        // crie esses shims e descomente:
+        // 'next/headers': fileURLToPath(new URL('./src/shims/next-headers.ts', import.meta.url)),
+        // 'next/headers.js': fileURLToPath(new URL('./src/shims/next-headers.ts', import.meta.url)),
+        // 'next/cookies': fileURLToPath(new URL('./src/shims/next-cookies.ts', import.meta.url)),
+        // 'next/cookies.js': fileURLToPath(new URL('./src/shims/next-cookies.ts', import.meta.url)),
       },
     },
+
     optimizeDeps: {
       force: true,
+      include: ['process', '@stackframe/stack'],
     },
+
+    // eu deixaria SSR quieto — esse projeto é Vite SPA.
+    // seu noExternal esbuild não é necessário e pode atrapalhar.
+    // mas se você precisa por algum motivo, mantenha.
     ssr: {
       noExternal: ['esbuild'],
     },
+
     esbuild: {},
   }
 })
