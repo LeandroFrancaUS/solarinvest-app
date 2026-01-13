@@ -1,4 +1,3 @@
-// vite.config.ts
 import { cwd } from "node:process"
 import { fileURLToPath, URL } from "node:url"
 
@@ -63,6 +62,7 @@ function resolveBackendOrigin(rawOrigin?: string) {
   }
 
   if (!parsed.port) parsed.port = String(DEFAULT_BACKEND_PORT)
+
   if (parsed.hostname === "localhost" || parsed.hostname === "0.0.0.0") {
     parsed.hostname = DEFAULT_BACKEND_HOST
   }
@@ -92,42 +92,21 @@ export default defineConfig(({ mode }) => {
   return {
     plugins,
 
-    // ✅ polyfills/defines para libs que assumem Node/Next (ex: process)
-    define: {
-      "process.env": {},
-      global: "globalThis",
-    },
-
-    resolve: {
-      alias: {
-        "@": fileURLToPath(new URL("./src", import.meta.url)),
-        "react-window": fileURLToPath(new URL("./src/lib/react-window.tsx", import.meta.url)),
-        "@testing-library/react": fileURLToPath(
-          new URL("./src/test-utils/testing-library-react.tsx", import.meta.url),
-        ),
-
-        // ✅ precisa de: npm i -D process
-        process: "process/browser",
-      },
-    },
-
-    optimizeDeps: {
-      force: true,
-      include: ["process"],
-    },
-
-    server: {
-      host: true,
-      proxy,
-    },
+    // 🔥 garante injeção de envs que você usar (VITE_ e NEXT_PUBLIC_)
+    envPrefix: ["VITE_", "NEXT_PUBLIC_"],
 
     build: {
       sourcemap: true,
       target: "es2020",
       minify: "terser",
       terserOptions: {
-        compress: { drop_console: false, drop_debugger: false },
-        format: { comments: false },
+        compress: {
+          drop_console: false,
+          drop_debugger: false,
+        },
+        format: {
+          comments: false,
+        },
       },
       cssMinify: true,
       rollupOptions: {
@@ -139,9 +118,29 @@ export default defineConfig(({ mode }) => {
       },
     },
 
-    // ✅ Vite SPA: não precisamos forçar noExternal do esbuild aqui
-    ssr: {
-      noExternal: [],
+    server: {
+      host: true,
+      proxy,
     },
+
+    resolve: {
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
+        "react-window": fileURLToPath(new URL("./src/lib/react-window.tsx", import.meta.url)),
+        "@testing-library/react": fileURLToPath(
+          new URL("./src/test-utils/testing-library-react.tsx", import.meta.url),
+        ),
+      },
+    },
+
+    optimizeDeps: {
+      force: true,
+    },
+
+    ssr: {
+      noExternal: ["esbuild"],
+    },
+
+    esbuild: {},
   }
 })
