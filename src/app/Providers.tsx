@@ -1,13 +1,10 @@
 // src/app/Providers.tsx
 import type { ReactNode } from 'react'
+import { useMemo } from 'react'
 import { StackProvider, StackTheme, SignIn, useUser } from '@stackframe/stack'
-import { stackClientApp } from '../stack/client'
+import { createStackClientApp, isStackConfigured } from '../stack/client'
 
-function AuthGate({ children, enabled }: { children: ReactNode; enabled: boolean }) {
-  if (!enabled) {
-    return <>{children}</>
-  }
-
+function AuthGate({ children }: { children: ReactNode }) {
   const user = useUser()
 
   if (!user) {
@@ -17,8 +14,18 @@ function AuthGate({ children, enabled }: { children: ReactNode; enabled: boolean
   return <>{children}</>
 }
 
+function AuthGateWrapper({ children, enabled }: { children: ReactNode; enabled: boolean }) {
+  if (!enabled) {
+    return <>{children}</>
+  }
+
+  return <AuthGate>{children}</AuthGate>
+}
+
 export function Providers({ children }: { children: ReactNode }) {
-  if (!stackClientApp) {
+  const stackClientApp = useMemo(() => createStackClientApp(), [])
+
+  if (!isStackConfigured || !stackClientApp) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10 text-center">
         <div className="max-w-lg space-y-3">
@@ -35,7 +42,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <StackProvider app={stackClientApp}>
       <StackTheme>
-        <AuthGate enabled={Boolean(stackClientApp)}>{children}</AuthGate>
+        <AuthGateWrapper enabled={Boolean(stackClientApp)}>{children}</AuthGateWrapper>
       </StackTheme>
     </StackProvider>
   )
