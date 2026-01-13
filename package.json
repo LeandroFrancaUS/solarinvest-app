@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
+    "@stackframe/stack": "^1.0.0",
     "@vercel/analytics": "^1.6.1",
     "date-fns": "^3.3.1",
     "fast-xml-parser": "^4.4.0",
