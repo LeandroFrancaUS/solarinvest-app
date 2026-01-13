@@ -131,6 +131,10 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
         'react-window': fileURLToPath(new URL('./src/lib/react-window.tsx', import.meta.url)),
+        'next/link': fileURLToPath(new URL('./src/shims/next-link.tsx', import.meta.url)),
+        'next/navigation': fileURLToPath(
+          new URL('./src/shims/next-navigation.ts', import.meta.url),
+        ),
         '@testing-library/react': fileURLToPath(
           new URL('./src/test-utils/testing-library-react.tsx', import.meta.url),
         ),
