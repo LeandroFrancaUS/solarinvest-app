@@ -1,3 +1,7 @@
+// src/main.tsx
+import process from "process"
+;(globalThis as any).process = process
+
 import React from "react"
 import ReactDOM from "react-dom/client"
 import App from "./App"
@@ -51,7 +55,8 @@ async function bootstrap() {
   const storedDensity =
     typeof window !== "undefined" ? window.localStorage.getItem(DENSITY_STORAGE_KEY) : null
 
-  const initialDensity = storedDensity && isDensityMode(storedDensity) ? storedDensity : DEFAULT_DENSITY
+  const initialDensity =
+    storedDensity && isDensityMode(storedDensity) ? storedDensity : DEFAULT_DENSITY
 
   if (typeof document !== "undefined") {
     document.documentElement.dataset.density = initialDensity
