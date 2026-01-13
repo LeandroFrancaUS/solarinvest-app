@@ -4,22 +4,19 @@ import path from "path"
 
 const dir = path.resolve("node_modules/@esbuild")
 
-const platform = process.platform // "darwin", "linux", "win32"
-const arch = process.arch         // "arm64", "x64", etc.
-
-const keep = `${platform}-${arch}`
-
-if (!fs.existsSync(dir)) {
+// ✅ Só faz cleanup quando estiver rodando em Linux (ex.: build no Vercel/CI)
+// Em dev (darwin/win32) NÃO remove nada.
+if (process.platform !== "linux") {
+  console.log("[clean-esbuild] Skipping on", process.platform)
   process.exit(0)
 }
 
-for (const d of fs.readdirSync(dir)) {
-  // Só mexe em pastas que parecem bins do esbuild (ex: darwin-arm64, linux-x64, win32-x64)
-  if (!/^(darwin|linux|win32)-/.test(d)) continue
-
-  // Mantém a pasta da sua plataforma/arch
-  if (d === keep) continue
-
-  fs.rmSync(path.join(dir, d), { recursive: true, force: true })
-  console.log(`Removed esbuild binary not for this platform: ${d} (keeping ${keep})`)
+if (fs.existsSync(dir)) {
+  const subdirs = fs.readdirSync(dir)
+  for (const d of subdirs) {
+    if (!d.includes("linux")) {
+      fs.rmSync(path.join(dir, d), { recursive: true, force: true })
+      console.log("[clean-esbuild] Removed non-linux esbuild binary:", d)
+    }
+  }
 }
