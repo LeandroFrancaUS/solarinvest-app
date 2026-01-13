@@ -3,24 +3,40 @@ import type { ReactNode } from "react"
 import { StackProvider, StackTheme, SignIn, useUser } from "@stackframe/stack"
 import { stackClientApp } from "../stack/client"
 
-function AuthGate({ children }: { children: ReactNode }) {
-  /**
-   * IMPORTANTE:
-   * useUser() NÃO retorna diretamente o usuário.
-   * Ele retorna um estado que pode estar:
-   * - loading / pending
-   * - com user
-   * - sem user
-   */
-  const state = useUser() as any
+type UnknownRecord = Record<string, unknown>
 
-  const user = state?.user ?? state?.data?.user ?? null
+function getUserFromState(state: unknown) {
+  const s = state as UnknownRecord | null
+
+  // tenta state.user
+  const user = (s?.user as UnknownRecord | null) ?? null
+  if (user) return user
+
+  // tenta state.data.user
+  const data = (s?.data as UnknownRecord | null) ?? null
+  const userFromData = (data?.user as UnknownRecord | null) ?? null
+  if (userFromData) return userFromData
+
+  return null
+}
+
+function isLoadingState(state: unknown) {
+  const s = state as UnknownRecord | null
 
   const isLoading =
-    state?.isLoading === true ||
-    state?.loading === true ||
-    state?.status === "loading" ||
-    state?.status === "pending"
+    s?.isLoading === true ||
+    s?.loading === true ||
+    s?.status === "loading" ||
+    s?.status === "pending"
+
+  return Boolean(isLoading)
+}
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const state = useUser()
+
+  const user = getUserFromState(state)
+  const isLoading = isLoadingState(state)
 
   // 🔒 Enquanto o Stack inicializa token/session
   if (isLoading) {
