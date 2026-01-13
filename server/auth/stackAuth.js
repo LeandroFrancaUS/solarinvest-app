@@ -9,6 +9,9 @@ function sanitizeString(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+// Admin bootstrap email (optional use elsewhere; does not change auth behavior)
+const ADMIN_EMAIL = sanitizeString(process.env.ADMIN_EMAIL) || 'brsolarinvest@gmail.com'
+
 const rawTrustedOrigins = [
   process.env.TRUSTED_WEB_ORIGINS,
   process.env.STACK_TRUSTED_DOMAIN,
@@ -27,19 +30,27 @@ const trustedOrigins = new Set(
     .filter(Boolean)
 )
 
-if (trustedOrigins.size === 0) {
-  trustedOrigins.add('http://localhost:5173')
-  trustedOrigins.add('http://127.0.0.1:5173')
-}
+// Defaults if none configured
+trustedOrigins.add('https://app.solarinvest.app')
+trustedOrigins.add('http://localhost:5173')
+trustedOrigins.add('http://127.0.0.1:5173')
 
+/**
+ * IMPORTANT:
+ * Prefer STACK_PROJECT_ID (server-side) and avoid relying on NEXT_PUBLIC_*.
+ * Keep fallbacks for compatibility only.
+ */
 const projectId = sanitizeString(
-  process.env.STACK_AUTH_PROJECT_ID ??
+  process.env.STACK_PROJECT_ID ??
+    process.env.STACK_AUTH_PROJECT_ID ??
     process.env.NEXT_PUBLIC_STACK_PROJECT_ID ??
-    process.env.STACK_PROJECT_ID ??
     ''
 )
 
-const jwksUrlFromEnv = sanitizeString(process.env.JWKS_URL ?? process.env.STACK_JWKS_URL)
+/**
+ * Prefer STACK_JWKS_URL (server-side). Keep JWKS_URL as fallback.
+ */
+const jwksUrlFromEnv = sanitizeString(process.env.STACK_JWKS_URL ?? process.env.JWKS_URL)
 
 const inferredJwksUrl = projectId
   ? `https://api.stack-auth.com/api/v1/projects/${projectId}/.well-known/jwks.json`
@@ -52,9 +63,7 @@ const expectedIssuer = projectId
   : ''
 
 const authCookieName = sanitizeString(process.env.AUTH_COOKIE_NAME) || 'solarinvest_session'
-const authCookieSecret = sanitizeString(
-  process.env.AUTH_COOKIE_SECRET ?? process.env.JWT_SECRET ?? ''
-)
+const authCookieSecret = sanitizeString(process.env.AUTH_COOKIE_SECRET ?? process.env.JWT_SECRET ?? '')
 
 let lastJwksFetch = 0
 let jwksCache = null
@@ -86,6 +95,7 @@ async function fetchJwks() {
     if (!payload || typeof payload !== 'object' || !Array.isArray(payload.keys)) {
       throw new Error('JWKS payload malformado')
     }
+
     const keys = payload.keys
       .filter((entry) => entry && typeof entry === 'object')
       .map((entry) => ({
@@ -135,7 +145,7 @@ function decodeSegment(segment) {
   try {
     const json = Buffer.from(normalizeBase64Segment(segment), 'base64').toString('utf8')
     return JSON.parse(json)
-  } catch (error) {
+  } catch {
     return null
   }
 }
@@ -213,22 +223,24 @@ function extractCookieValue(cookieHeader, name) {
     return ''
   }
 
-  return cookieHeader
-    .split(';')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-    .map((segment) => segment.split('='))
-    .filter(([cookieName]) => cookieName && cookieName.trim() === name)
-    .map(([, ...rest]) => rest.join('=') ?? '')
-    .map((value) => {
-      try {
-        return decodeURIComponent(value)
-      } catch (error) {
-        return value
-      }
-    })
-    .find((value) => typeof value === 'string')
-    ?.trim() ?? ''
+  return (
+    cookieHeader
+      .split(';')
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+      .map((segment) => segment.split('='))
+      .filter(([cookieName]) => cookieName && cookieName.trim() === name)
+      .map(([, ...rest]) => rest.join('=') ?? '')
+      .map((value) => {
+        try {
+          return decodeURIComponent(value)
+        } catch {
+          return value
+        }
+      })
+      .find((value) => typeof value === 'string')
+      ?.trim() ?? ''
+  )
 }
 
 function resolveSessionCookieUser(req) {
@@ -431,4 +443,9 @@ export function sanitizeStackUserId(user) {
     return sanitizeString(user)
   }
   return sanitizeString(user.id)
+}
+
+// Optional export if you want to bootstrap RBAC later
+export function getBootstrapAdminEmail() {
+  return ADMIN_EMAIL
 }
