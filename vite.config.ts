@@ -54,7 +54,7 @@ function resolveBackendOrigin(rawOrigin?: string) {
   let parsed: URL
   try {
     parsed = new URL(ensureProtocol(trimmed))
-  } catch (error) {
+  } catch {
     console.warn(
       `[@solarinvest/dev-proxy] Valor inválido em VITE_BACKEND_ORIGIN ("${trimmed}"). ` +
         `Usando ${fallback.origin} como destino do proxy.`,
@@ -64,6 +64,7 @@ function resolveBackendOrigin(rawOrigin?: string) {
 
   if (!parsed.port) parsed.port = String(DEFAULT_BACKEND_PORT)
 
+  // Evita inconsistências no mac (localhost vs 127.0.0.1)
   if (parsed.hostname === "localhost" || parsed.hostname === "0.0.0.0") {
     parsed.hostname = DEFAULT_BACKEND_HOST
   }
@@ -72,9 +73,6 @@ function resolveBackendOrigin(rawOrigin?: string) {
 }
 
 export default defineConfig(({ mode }) => {
-  // ✅ IMPORTANTÍSSIMO pro Stack Auth no Vite:
-  // permite você usar as vars como na doc (NEXT_PUBLIC_...) dentro de import.meta.env
-  // (além das VITE_ padrão do Vite)
   const env = loadEnv(mode, cwd(), "")
 
   const hasProxyEnv = Object.prototype.hasOwnProperty.call(env, "VITE_ANEEL_PROXY_BASE")
@@ -97,16 +95,19 @@ export default defineConfig(({ mode }) => {
   return {
     plugins,
 
-    // ✅ faz o Vite expor também NEXT_PUBLIC_* no import.meta.env
-    envPrefix: ["VITE_", "NEXT_PUBLIC_"],
-
-    // ✅ alguns pacotes (incluindo libs que carregam trechos “Next-like”) esperam `process`/`global`
-    // Isso ajuda a evitar: "Uncaught ReferenceError: process is not defined"
+    /**
+     * ✅ MUITO IMPORTANTE PARA STACK AUTH NO VITE:
+     * - algumas libs ainda esperam `process.env` existir no browser
+     * - isso evita o clássico: "Uncaught ReferenceError: process is not defined"
+     */
     define: {
-      global: "globalThis",
       "process.env": {},
     },
 
+    /**
+     * ✅ Evita o Stack puxar caminhos de Next.js por engano:
+     * força resolver "browser" primeiro quando existir.
+     */
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -114,26 +115,9 @@ export default defineConfig(({ mode }) => {
         "@testing-library/react": fileURLToPath(
           new URL("./src/test-utils/testing-library-react.tsx", import.meta.url),
         ),
-
-        // ✅ polyfills (se você ainda não tiver, instale: npm i -D process buffer)
-        process: "process/browser",
-        buffer: "buffer",
       },
-    },
-
-    server: {
-      host: true,
-      proxy,
-    },
-
-    optimizeDeps: {
-      force: true,
-      include: ["process", "buffer"],
-      esbuildOptions: {
-        define: {
-          global: "globalThis",
-        },
-      },
+      mainFields: ["browser", "module", "jsnext:main", "jsnext"],
+      conditions: ["browser", "module", "import", "default"],
     },
 
     build: {
@@ -141,8 +125,13 @@ export default defineConfig(({ mode }) => {
       target: "es2020",
       minify: "terser",
       terserOptions: {
-        compress: { drop_console: false, drop_debugger: false },
-        format: { comments: false },
+        compress: {
+          drop_console: false,
+          drop_debugger: false,
+        },
+        format: {
+          comments: false,
+        },
       },
       cssMinify: true,
       rollupOptions: {
@@ -153,5 +142,23 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+
+    server: {
+      host: true,
+      proxy,
+    },
+
+    /**
+     * Ajuda o Vite a pré-bundlar deps e reduzir “import-analysis” chato.
+     */
+    optimizeDeps: {
+      force: true,
+      include: ["@stackframe/stack"],
+    },
+
+    /**
+     * SSR não é o teu caso (Vite SPA), então deixa simples.
+     * (Removi ssr.noExternal esbuild — tava mais atrapalhando do que ajudando)
+     */
   }
 })
