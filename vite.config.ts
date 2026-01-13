@@ -1,30 +1,23 @@
-import { cwd } from 'node:process'
-import { fileURLToPath, URL } from 'node:url'
+// vite.config.ts
+import { cwd } from "node:process"
+import { fileURLToPath, URL } from "node:url"
 
-import react from '@vitejs/plugin-react'
-import type { Plugin, ViteDevServer } from 'vite'
-import { defineConfig, loadEnv } from 'vite'
+import react from "@vitejs/plugin-react"
+import type { Plugin, ViteDevServer } from "vite"
+import { defineConfig, loadEnv } from "vite"
 
-import { createAneelProxyMiddleware, DEFAULT_PROXY_BASE } from './server/aneelProxy.js'
-import { createContractRenderMiddleware } from './server/contracts.js'
-
-/* -------------------------------
- * Utils
- * ------------------------------- */
+import { createAneelProxyMiddleware, DEFAULT_PROXY_BASE } from "./server/aneelProxy.js"
+import { createContractRenderMiddleware } from "./server/contracts.js"
 
 const sanitizeProxyBase = (base?: string) => {
-  if (!base) return ''
+  if (!base) return ""
   const trimmed = base.trim()
-  if (!trimmed || !trimmed.startsWith('/')) return ''
-  return trimmed.replace(/\/+$/, '') || '/'
+  if (!trimmed || !trimmed.startsWith("/")) return ""
+  return trimmed.replace(/\/+$/, "") || "/"
 }
 
-/* -------------------------------
- * Middlewares
- * ------------------------------- */
-
 const aneelProxyPlugin = (proxyBase: string): Plugin => ({
-  name: 'aneel-proxy-middleware',
+  name: "aneel-proxy-middleware",
   configureServer(server: ViteDevServer) {
     const middleware = createAneelProxyMiddleware(proxyBase)
     server.middlewares.use((req, res, next) => {
@@ -34,7 +27,7 @@ const aneelProxyPlugin = (proxyBase: string): Plugin => ({
 })
 
 const contractRenderPlugin = (): Plugin => ({
-  name: 'contract-render-middleware',
+  name: "contract-render-middleware",
   configureServer(server: ViteDevServer) {
     const middleware = createContractRenderMiddleware()
     server.middlewares.use((req, res, next) => {
@@ -43,50 +36,48 @@ const contractRenderPlugin = (): Plugin => ({
   },
 })
 
-/* -------------------------------
- * Backend resolve
- * ------------------------------- */
-
-const DEFAULT_BACKEND_HOST = '127.0.0.1'
+const DEFAULT_BACKEND_HOST = "127.0.0.1"
 const DEFAULT_BACKEND_PORT = 3000
 
 function resolveBackendOrigin(rawOrigin?: string) {
   const fallback = new URL(`http://${DEFAULT_BACKEND_HOST}:${DEFAULT_BACKEND_PORT}`)
-
   if (!rawOrigin) return fallback
 
   const trimmed = rawOrigin.trim()
   if (!trimmed) return fallback
 
-  const ensureProtocol = (value: string) =>
-    /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value) ? value : `http://${value}`
+  const ensureProtocol = (value: string) => {
+    if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value)) return value
+    return `http://${value}`
+  }
 
   let parsed: URL
   try {
     parsed = new URL(ensureProtocol(trimmed))
-  } catch {
+  } catch (error) {
     console.warn(
-      `[@solarinvest/dev-proxy] Valor inválido em VITE_BACKEND_ORIGIN ("${trimmed}"). Usando ${fallback.origin}.`,
+      `[@solarinvest/dev-proxy] Valor inválido em VITE_BACKEND_ORIGIN ("${trimmed}"). ` +
+        `Usando ${fallback.origin} como destino do proxy.`,
     )
     return fallback
   }
 
   if (!parsed.port) parsed.port = String(DEFAULT_BACKEND_PORT)
-  if (parsed.hostname === 'localhost' || parsed.hostname === '0.0.0.0') {
+
+  if (parsed.hostname === "localhost" || parsed.hostname === "0.0.0.0") {
     parsed.hostname = DEFAULT_BACKEND_HOST
   }
 
   return parsed
 }
 
-/* -------------------------------
- * Vite Config
- * ------------------------------- */
-
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, cwd(), '')
+  // ✅ IMPORTANTÍSSIMO pro Stack Auth no Vite:
+  // permite você usar as vars como na doc (NEXT_PUBLIC_...) dentro de import.meta.env
+  // (além das VITE_ padrão do Vite)
+  const env = loadEnv(mode, cwd(), "")
 
-  const hasProxyEnv = Object.prototype.hasOwnProperty.call(env, 'VITE_ANEEL_PROXY_BASE')
+  const hasProxyEnv = Object.prototype.hasOwnProperty.call(env, "VITE_ANEEL_PROXY_BASE")
   const proxyBase = hasProxyEnv ? sanitizeProxyBase(env.VITE_ANEEL_PROXY_BASE) : DEFAULT_PROXY_BASE
   const enableProxy = Boolean(proxyBase)
 
@@ -95,7 +86,7 @@ export default defineConfig(({ mode }) => {
 
   const backendOrigin = resolveBackendOrigin(env.VITE_BACKEND_ORIGIN).origin
 
-  const proxy = ['/auth', '/admin'].reduce<Record<string, { target: string; changeOrigin: true }>>(
+  const proxy = ["/auth", "/admin"].reduce<Record<string, { target: string; changeOrigin: true }>>(
     (acc, path) => {
       acc[path] = { target: backendOrigin, changeOrigin: true }
       return acc
@@ -106,31 +97,27 @@ export default defineConfig(({ mode }) => {
   return {
     plugins,
 
-    /* 🔑 CRÍTICO PARA STACK AUTH / NEXT SHIMS */
+    // ✅ faz o Vite expor também NEXT_PUBLIC_* no import.meta.env
+    envPrefix: ["VITE_", "NEXT_PUBLIC_"],
+
+    // ✅ alguns pacotes (incluindo libs que carregam trechos “Next-like”) esperam `process`/`global`
+    // Isso ajuda a evitar: "Uncaught ReferenceError: process is not defined"
     define: {
-      'process.env': {},
+      global: "globalThis",
+      "process.env": {},
     },
 
-    build: {
-      sourcemap: true,
-      target: 'es2020',
-      minify: 'terser',
-      terserOptions: {
-        compress: {
-          drop_console: false,
-          drop_debugger: false,
-        },
-        format: {
-          comments: false,
-        },
-      },
-      cssMinify: true,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom', 'recharts'],
-          },
-        },
+    resolve: {
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
+        "react-window": fileURLToPath(new URL("./src/lib/react-window.tsx", import.meta.url)),
+        "@testing-library/react": fileURLToPath(
+          new URL("./src/test-utils/testing-library-react.tsx", import.meta.url),
+        ),
+
+        // ✅ polyfills (se você ainda não tiver, instale: npm i -D process buffer)
+        process: "process/browser",
+        buffer: "buffer",
       },
     },
 
@@ -139,28 +126,32 @@ export default defineConfig(({ mode }) => {
       proxy,
     },
 
-    resolve: {
-      alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
-        'react-window': fileURLToPath(new URL('./src/lib/react-window.tsx', import.meta.url)),
-        '@testing-library/react': fileURLToPath(
-          new URL('./src/test-utils/testing-library-react.tsx', import.meta.url),
-        ),
-
-        /* 🔑 POLYFILL DO PROCESS */
-        process: 'process/browser',
+    optimizeDeps: {
+      force: true,
+      include: ["process", "buffer"],
+      esbuildOptions: {
+        define: {
+          global: "globalThis",
+        },
       },
     },
 
-    optimizeDeps: {
-      force: true,
-      include: ['process'],
+    build: {
+      sourcemap: true,
+      target: "es2020",
+      minify: "terser",
+      terserOptions: {
+        compress: { drop_console: false, drop_debugger: false },
+        format: { comments: false },
+      },
+      cssMinify: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ["react", "react-dom", "recharts"],
+          },
+        },
+      },
     },
-
-    ssr: {
-      noExternal: ['esbuild'],
-    },
-
-    esbuild: {},
   }
 })
