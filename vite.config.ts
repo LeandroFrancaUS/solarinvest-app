@@ -8,12 +8,20 @@ import { defineConfig, loadEnv } from 'vite'
 import { createAneelProxyMiddleware, DEFAULT_PROXY_BASE } from './server/aneelProxy.js'
 import { createContractRenderMiddleware } from './server/contracts.js'
 
+/* -------------------------------
+ * Utils
+ * ------------------------------- */
+
 const sanitizeProxyBase = (base?: string) => {
   if (!base) return ''
   const trimmed = base.trim()
   if (!trimmed || !trimmed.startsWith('/')) return ''
   return trimmed.replace(/\/+$/, '') || '/'
 }
+
+/* -------------------------------
+ * Middlewares
+ * ------------------------------- */
 
 const aneelProxyPlugin = (proxyBase: string): Plugin => ({
   name: 'aneel-proxy-middleware',
@@ -35,42 +43,35 @@ const contractRenderPlugin = (): Plugin => ({
   },
 })
 
+/* -------------------------------
+ * Backend resolve
+ * ------------------------------- */
+
 const DEFAULT_BACKEND_HOST = '127.0.0.1'
 const DEFAULT_BACKEND_PORT = 3000
 
 function resolveBackendOrigin(rawOrigin?: string) {
   const fallback = new URL(`http://${DEFAULT_BACKEND_HOST}:${DEFAULT_BACKEND_PORT}`)
-  if (!rawOrigin) {
-    return fallback
-  }
+
+  if (!rawOrigin) return fallback
 
   const trimmed = rawOrigin.trim()
-  if (!trimmed) {
-    return fallback
-  }
+  if (!trimmed) return fallback
 
-  const ensureProtocol = (value: string) => {
-    if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value)) {
-      return value
-    }
-    return `http://${value}`
-  }
+  const ensureProtocol = (value: string) =>
+    /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value) ? value : `http://${value}`
 
   let parsed: URL
   try {
     parsed = new URL(ensureProtocol(trimmed))
-  } catch (error) {
+  } catch {
     console.warn(
-      `[@solarinvest/dev-proxy] Valor inválido em VITE_BACKEND_ORIGIN ("${trimmed}"). ` +
-        `Usando ${fallback.origin} como destino do proxy.`,
+      `[@solarinvest/dev-proxy] Valor inválido em VITE_BACKEND_ORIGIN ("${trimmed}"). Usando ${fallback.origin}.`,
     )
     return fallback
   }
 
-  if (!parsed.port) {
-    parsed.port = String(DEFAULT_BACKEND_PORT)
-  }
-
+  if (!parsed.port) parsed.port = String(DEFAULT_BACKEND_PORT)
   if (parsed.hostname === 'localhost' || parsed.hostname === '0.0.0.0') {
     parsed.hostname = DEFAULT_BACKEND_HOST
   }
@@ -78,16 +79,19 @@ function resolveBackendOrigin(rawOrigin?: string) {
   return parsed
 }
 
+/* -------------------------------
+ * Vite Config
+ * ------------------------------- */
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, cwd(), '')
+
   const hasProxyEnv = Object.prototype.hasOwnProperty.call(env, 'VITE_ANEEL_PROXY_BASE')
   const proxyBase = hasProxyEnv ? sanitizeProxyBase(env.VITE_ANEEL_PROXY_BASE) : DEFAULT_PROXY_BASE
   const enableProxy = Boolean(proxyBase)
 
   const plugins: Plugin[] = [react(), contractRenderPlugin()]
-  if (enableProxy) {
-    plugins.push(aneelProxyPlugin(proxyBase))
-  }
+  if (enableProxy) plugins.push(aneelProxyPlugin(proxyBase))
 
   const backendOrigin = resolveBackendOrigin(env.VITE_BACKEND_ORIGIN).origin
 
@@ -102,9 +106,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins,
 
-    // ✅ IMPORTANT: Stack (e algumas libs) esperam "process" no browser
+    /* 🔑 CRÍTICO PARA STACK AUTH / NEXT SHIMS */
     define: {
-      // garante que acessos tipo process.env.FOO não explodam
       'process.env': {},
     },
 
@@ -144,26 +147,16 @@ export default defineConfig(({ mode }) => {
           new URL('./src/test-utils/testing-library-react.tsx', import.meta.url),
         ),
 
-        // ✅ polyfill do process para browser (Vite)
+        /* 🔑 POLYFILL DO PROCESS */
         process: 'process/browser',
-
-        // ✅ (opcional) se o Stack continuar tentando importar next/headers em runtime,
-        // crie esses shims e descomente:
-        // 'next/headers': fileURLToPath(new URL('./src/shims/next-headers.ts', import.meta.url)),
-        // 'next/headers.js': fileURLToPath(new URL('./src/shims/next-headers.ts', import.meta.url)),
-        // 'next/cookies': fileURLToPath(new URL('./src/shims/next-cookies.ts', import.meta.url)),
-        // 'next/cookies.js': fileURLToPath(new URL('./src/shims/next-cookies.ts', import.meta.url)),
       },
     },
 
     optimizeDeps: {
       force: true,
-      include: ['process', '@stackframe/stack'],
+      include: ['process'],
     },
 
-    // eu deixaria SSR quieto — esse projeto é Vite SPA.
-    // seu noExternal esbuild não é necessário e pode atrapalhar.
-    // mas se você precisa por algum motivo, mantenha.
     ssr: {
       noExternal: ['esbuild'],
     },
