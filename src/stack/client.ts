@@ -1,5 +1,5 @@
 // src/stack/client.ts
-import { StackClientApp } from "@stackframe/stack"
+import { StackClientApp } from "@stackframe/react"
 
 const projectId =
   import.meta.env.VITE_STACK_PROJECT_ID ?? import.meta.env.NEXT_PUBLIC_STACK_PROJECT_ID
@@ -13,9 +13,8 @@ if (!projectId || !publishableClientKey) {
 }
 
 /**
- * IMPORTANTE (Vite SPA):
- * - Evita criar StackClientApp fora do browser
- * - Define tokenStore explicitamente para não ficar undefined
+ * Vite SPA: só cria o client no browser.
+ * (evita edge cases de SSR e testes)
  */
 export const stackClientApp =
   typeof window === "undefined" || !projectId || !publishableClientKey
@@ -23,7 +22,4 @@ export const stackClientApp =
     : new StackClientApp({
         projectId,
         publishableClientKey,
-
-        // ✅ isso normalmente evita exatamente o erro "accessToken in undefined"
-        tokenStore: "localStorage",
-      } as any)
+      })
