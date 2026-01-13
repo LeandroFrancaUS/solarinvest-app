@@ -9,7 +9,10 @@ if (!projectId || !publishableClientKey) {
   console.warn('[stack] Missing VITE_STACK_PROJECT_ID or VITE_STACK_PUBLISHABLE_CLIENT_KEY')
 }
 
-export const stackClientApp = new StackClientApp({
-  projectId,
-  publishableClientKey,
-})
+export const stackClientApp =
+  projectId && publishableClientKey
+    ? new StackClientApp({
+        projectId,
+        publishableClientKey,
+      })
+    : null
