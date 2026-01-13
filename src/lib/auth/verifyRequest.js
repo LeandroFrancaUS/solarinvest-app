@@ -2,8 +2,8 @@
 import jwt from 'jsonwebtoken';
 import jwksRsa from 'jwks-rsa';
 
-const JWKS_URL = process.env.JWKS_URL;
-const AUDIENCE = process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
+const JWKS_URL = process.env.STACK_JWKS_URL || process.env.JWKS_URL;
+const AUDIENCE = process.env.STACK_PROJECT_ID || process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
 
 let jwksClient;
 if (JWKS_URL) {
@@ -21,7 +21,6 @@ function getKey(header, callback) {
 
 function normalizePayload(payload) {
   if (!payload) return null;
-  // prefer sub, then sub_id, then user_id, then email
   const id = payload.sub || payload.sub_id || payload.user_id || payload.email || null;
   return {
     ...payload,
