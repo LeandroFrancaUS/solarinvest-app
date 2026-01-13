@@ -1,6 +1,6 @@
 // src/app/Providers.tsx
 import type { ReactNode } from 'react'
-import { StackProvider, StackTheme, SignIn, useUser } from '@stackframe/stack'
+import { StackProvider, SignIn, useUser } from '@stackframe/stack'
 import { stackClientApp } from '../stack/client'
 
 function AuthGate({ children }: { children: ReactNode }) {
@@ -16,9 +16,7 @@ function AuthGate({ children }: { children: ReactNode }) {
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <StackProvider app={stackClientApp}>
-      <StackTheme>
-        <AuthGate>{children}</AuthGate>
-      </StackTheme>
+      <AuthGate>{children}</AuthGate>
     </StackProvider>
   )
 }
