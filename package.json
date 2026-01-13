@@ -25,7 +25,7 @@
     "postinstall": "node scripts/clean-esbuild.mjs"
   },
   "dependencies": {
-    "@stack-auth/react": "^1.0.0",
+    "@stackframe/stack": "^0.3.10",
     "@neondatabase/serverless": "^0.10.4",
     "@vercel/analytics": "^1.6.1",
     "date-fns": "^3.3.1",

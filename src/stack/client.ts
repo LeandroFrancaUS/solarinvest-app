@@ -1,5 +1,5 @@
 // src/stack/client.ts
-import { StackClientApp } from '@stack-auth/react'
+import { StackClientApp } from '@stackframe/stack'
 
 const projectId = import.meta.env.VITE_STACK_PROJECT_ID
 const publishableClientKey = import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY

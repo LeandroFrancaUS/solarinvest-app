@@ -1,6 +1,6 @@
 // src/app/Providers.tsx
 import type { ReactNode } from 'react'
-import { StackProvider, StackTheme, SignIn, useUser } from '@stack-auth/react'
+import { StackProvider, StackTheme, SignIn, useUser } from '@stackframe/stack'
 import { stackClientApp } from '../stack/client'
 
 function AuthGate({ children }: { children: ReactNode }) {
