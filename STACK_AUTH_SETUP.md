@@ -43,21 +43,24 @@ VITE_STACK_PUBLISHABLE_CLIENT_KEY=pck_your_actual_key_here
 
 In the Stack Auth Dashboard for your project, configure the allowed redirect URLs:
 
+**IMPORTANT:** For Vite SPAs, you need to add your application URLs, not the Stack Auth callback URLs. Stack Auth will automatically handle the OAuth callback internally.
+
 **Development URLs:**
 - `http://localhost:5173`
 - `http://localhost:5173/*`
-- `http://localhost:5173/auth/callback` (if using OAuth callback)
 
 **Production URLs:**
 - `https://app.solarinvest.info`
 - `https://app.solarinvest.info/*`
-- `https://app.solarinvest.info/auth/callback` (if using OAuth callback)
+- `https://solarinvest-app-git-*-solarinvests-projects.vercel.app` (for Vercel preview deployments)
+- `https://solarinvest-app-git-*-solarinvests-projects.vercel.app/*`
 
 **Steps:**
 1. Go to Stack Dashboard → your project → Settings
-2. Find "Redirect URLs" or "Allowed Callback URLs"
+2. Find "Redirect URLs" or "Allowed Callback URLs" or "Allowed Origins"
 3. Add all the URLs listed above
-4. Save changes
+4. Make sure to include the wildcard patterns for Vercel preview deployments
+5. Save changes
 
 ### 4. Configure Authentication Methods
 
@@ -189,9 +192,24 @@ Login UI      App content
 **Cause:** Redirect URLs not configured in Stack Dashboard.
 
 **Solution:**
-- Go to Stack Dashboard → Settings → Redirect URLs
-- Add your local and production URLs
+- Go to Stack Dashboard → Settings → Redirect URLs or Allowed Origins
+- Add your local and production URLs (see section 3 above)
 - Make sure OAuth provider (e.g., Google) is enabled
+- **Important:** Add the full domain URL, not just callback paths
+
+### Issue: OAuth callback fails with 400 Bad Request
+
+**Cause:** The redirect URL after OAuth is not in the allowed list in Stack Dashboard.
+
+**Solution:**
+1. Go to Stack Dashboard → Settings → Redirect URLs
+2. Add your application URLs (NOT the Stack Auth callback URLs):
+   - For dev: `http://localhost:5173` and `http://localhost:5173/*`
+   - For prod: `https://app.solarinvest.info` and `https://app.solarinvest.info/*`
+   - For Vercel previews: `https://solarinvest-app-git-*-solarinvests-projects.vercel.app/*`
+3. Make sure to use wildcards (`*`) to cover all routes
+4. Save changes and try logging in again
+5. Clear browser cookies and try again if the error persists
 
 ### Issue: "Cannot use 'in' operator" error
 

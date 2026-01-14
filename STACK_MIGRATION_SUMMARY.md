@@ -49,11 +49,18 @@ onClick={() => {
 // NEW (Correct)
 import { useStackApp, useUser } from "@stackframe/react"
 
-// In client.ts - initialize with tokenStore
+// In client.ts - initialize with tokenStore and URLs
 new StackClientApp({
   projectId,
   publishableClientKey,
   tokenStore: "cookie", // Required for browser token storage
+  urls: {
+    home: window.location.origin,
+    signIn: window.location.origin,
+    afterSignIn: window.location.origin,
+    afterSignUp: window.location.origin,
+    afterSignOut: window.location.origin,
+  },
 })
 
 // In component
