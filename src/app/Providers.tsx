@@ -1,6 +1,6 @@
 // src/app/Providers.tsx
 import type { ReactNode } from "react"
-import React, { useEffect, useState } from "react"
+import React from "react"
 import { StackProvider, useStackApp, useUser } from "@stackframe/react"
 import { stackClientApp } from "../stack/client"
 
@@ -25,15 +25,9 @@ function AuthGate({ children }: { children: ReactNode }) {
   const app = useStackApp()
   // Use the hook from StackProvider context - it handles loading states automatically
   const user = useUser({ or: 'return-null' })
-  const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    // Give the SDK a moment to resolve the session
-    const timer = setTimeout(() => setIsLoading(false), 500)
-    return () => clearTimeout(timer)
-  }, [])
-
-  if (isLoading) {
+  // While user is undefined (still loading), show loading state
+  if (user === undefined) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10 text-center">
         <div className="max-w-lg space-y-3">

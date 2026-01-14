@@ -22,4 +22,5 @@ export const stackClientApp =
     : new StackClientApp({
         projectId,
         publishableClientKey,
+        tokenStore: "cookie", // Use cookie-based token storage for browser
       })

@@ -12,13 +12,15 @@
 - **After:** Imported and used `useUser()` hook from `@stackframe/react` (correct)
 - **Before:** Used workarounds with `as any` to call sign-in methods
 - **After:** Properly imported `useStackApp()` hook and called `app.signInWithOAuth("google")`
-- Added proper loading state management with `useEffect`
+- Removed manual loading state - `useUser()` returns `undefined` while loading, `null` when not authenticated
 - Removed all "as any" type workarounds
+- **Fixed:** Added `tokenStore: "cookie"` to StackClientApp initialization to prevent "Cannot use 'in' operator" error
 
 ### 3. Updated Stack Client Configuration ✅
-- File `src/stack/client.ts` already correctly uses `@stackframe/react`
+- File `src/stack/client.ts` correctly uses `@stackframe/react`
 - Properly reads from `VITE_*` environment variables
 - Falls back to `NEXT_PUBLIC_*` for compatibility
+- **Added:** `tokenStore: "cookie"` configuration for proper browser token storage
 
 ### 4. Documentation & Setup Guides ✅
 - Created `.env.local.example` with all required variables
@@ -47,8 +49,21 @@ onClick={() => {
 // NEW (Correct)
 import { useStackApp, useUser } from "@stackframe/react"
 
+// In client.ts - initialize with tokenStore
+new StackClientApp({
+  projectId,
+  publishableClientKey,
+  tokenStore: "cookie", // Required for browser token storage
+})
+
+// In component
 const app = useStackApp()
 const user = useUser({ or: 'return-null' })
+
+// Handle loading state: undefined = loading, null = not authenticated
+if (user === undefined) {
+  return <div>Loading...</div>
+}
 
 onClick={async () => {
   await app.signInWithOAuth("google")
