@@ -1,6 +1,6 @@
 // src/app/Providers.tsx
 import type { ReactNode } from "react"
-import React from "react"
+import React, { useEffect } from "react"
 import { StackProvider, useStackApp, useUser } from "@stackframe/react"
 import { stackClientApp } from "../stack/client"
 
@@ -26,6 +26,30 @@ function AuthGate({ children }: { children: ReactNode }) {
   // Use the hook from StackProvider context - it handles loading states automatically
   const user = useUser({ or: 'return-null' })
 
+  // Handle OAuth callback redirect
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      // Check if we're returning from an OAuth callback
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.has('code') && urlParams.has('state')) {
+        console.log('[Stack Auth] Handling OAuth callback...')
+        try {
+          await app.redirectToOAuthCallback()
+          console.log('[Stack Auth] OAuth callback handled successfully')
+        } catch (error) {
+          console.error('[Stack Auth] Failed to handle OAuth callback:', error)
+        }
+      }
+    }
+
+    handleOAuthCallback()
+  }, [app])
+
+  // Add debug logging
+  useEffect(() => {
+    console.log('[Stack Auth] User state:', user === undefined ? 'loading' : user === null ? 'not authenticated' : 'authenticated')
+  }, [user])
+
   // While user is undefined (still loading), show loading state
   if (user === undefined) {
     return (
@@ -50,10 +74,11 @@ function AuthGate({ children }: { children: ReactNode }) {
             className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
             onClick={async () => {
               try {
+                console.log('[Stack Auth] Starting OAuth sign-in...')
                 // Use the correct method from Stack React SDK
                 await app.signInWithOAuth("google")
               } catch (error) {
-                console.error("Failed to sign in:", error)
+                console.error("[Stack Auth] Failed to sign in:", error)
               }
             }}
           >
@@ -68,6 +93,7 @@ function AuthGate({ children }: { children: ReactNode }) {
     )
   }
 
+  console.log('[Stack Auth] User authenticated, rendering app')
   return <>{children}</>
 }
 

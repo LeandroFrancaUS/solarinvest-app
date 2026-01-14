@@ -211,6 +211,18 @@ Login UI      App content
 4. Save changes and try logging in again
 5. Clear browser cookies and try again if the error persists
 
+### Issue: User successfully logs in but gets redirected back to login page
+
+**Cause:** OAuth callback is not being properly handled, so the session tokens are not stored.
+
+**Solution:**
+- This should be fixed in the current implementation with `redirectToOAuthCallback()`
+- Check browser console for `[Stack Auth]` log messages to see the OAuth flow
+- Make sure cookies are enabled in your browser
+- Try clearing browser cookies and cache, then login again
+- Verify that the `tokenStore: "cookie"` configuration is set in `src/stack/client.ts`
+- Check browser DevTools → Application → Cookies to see if Stack Auth cookies are being set
+
 ### Issue: "Cannot use 'in' operator" error
 
 **Cause:** Incorrect usage of Stack SDK hooks.
