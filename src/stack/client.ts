@@ -13,6 +13,18 @@ if (!projectId || !publishableClientKey) {
 }
 
 /**
+ * Get the base URL for the application
+ * In production (Vercel), use the deployment URL
+ * In development, use localhost
+ */
+const getBaseUrl = () => {
+  if (typeof window === "undefined") return ""
+  
+  // Use the current origin (works for both dev and prod)
+  return window.location.origin
+}
+
+/**
  * Vite SPA: só cria o client no browser.
  * (evita edge cases de SSR e testes)
  */
@@ -22,4 +34,13 @@ export const stackClientApp =
     : new StackClientApp({
         projectId,
         publishableClientKey,
+        tokenStore: "cookie", // Use cookie-based token storage for browser
+        urls: {
+          home: getBaseUrl(),
+          signIn: getBaseUrl(),
+          signUp: getBaseUrl(),
+          afterSignIn: getBaseUrl(),
+          afterSignUp: getBaseUrl(),
+          afterSignOut: getBaseUrl(),
+        },
       })

@@ -63,30 +63,59 @@ network access are working.
 
 ## Stack Auth integration
 
-When a Stack Auth project is configured the `/api/storage` endpoint now
-requires authenticated requests using a Bearer token signed by Stack Auth. The
-server validates the JWT against the project's JWKS document and rejects
-unauthorized calls with HTTP 401.
+The SolarInvest app uses **Stack Auth** (`@stackframe/react`) for authentication in
+the Vite SPA. When configured, the `/api/storage` endpoint requires authenticated
+requests using a Bearer token signed by Stack Auth. The server validates the JWT
+against the project's JWKS document and rejects unauthorized calls with HTTP 401.
 
-Set the following environment variables:
+### Environment Variables
 
-- `NEXT_PUBLIC_STACK_PROJECT_ID` – Stack Auth project identifier.
-- `NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY` – publishable key used by the
-  frontend client.
-- `STACK_SECRET_SERVER_KEY` – secret server key (required by Stack SDKs).
+**For Vite Frontend (required):**
+- `VITE_STACK_PROJECT_ID` – Stack Auth project identifier (exposed to browser).
+- `VITE_STACK_PUBLISHABLE_CLIENT_KEY` – publishable key for frontend (safe to expose).
+
+**For Backend/Server (optional, for API protection):**
+- `STACK_SECRET_SERVER_KEY` – secret server key (keep private, server-side only).
 - `STACK_JWKS_URL` – JWKS URL published by Stack Auth.
 - `TRUSTED_WEB_ORIGINS` – comma-separated list of allowed origins for CORS. If
   omitted the server trusts the default Vite dev URLs.
 
-Example `.env` snippet based on the current SolarInvest deployment:
+**Legacy Support (optional):**
+- `NEXT_PUBLIC_STACK_PROJECT_ID` – Falls back if `VITE_STACK_PROJECT_ID` is missing.
+- `NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY` – Falls back if `VITE_STACK_PUBLISHABLE_CLIENT_KEY` is missing.
 
-```
-NEXT_PUBLIC_STACK_PROJECT_ID=deead568-c1e6-436c-ba28-85bf3fbebef5
-NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=pck_1t1r87ap8bbrdb9bf42fbzzqr27h7969s6vd3kha76gdr
-STACK_SECRET_SERVER_KEY=ssk_0n5r6c4rjgc6rdx0ymt2kt0bfnp8vv9626f6crjsnypcg
-STACK_JWKS_URL=https://api.stack-auth.com/api/v1/projects/deead568-c1e6-436c-ba28-85bf3fbebef5/.well-known/jwks.json
+### Setup Instructions
+
+1. **Copy environment template:**
+   ```bash
+   cp .env.local.example .env.local
+   ```
+
+2. **Configure Stack Auth:**
+   - Go to [Stack Auth Dashboard](https://app.stack-auth.com/)
+   - Copy your Project ID and Publishable Client Key
+   - Add them to `.env.local`
+
+3. **Configure redirect URLs in Stack Dashboard:**
+   - Development: `http://localhost:5173` and `http://localhost:5173/*`
+   - Production: `https://app.solarinvest.info` and `https://app.solarinvest.info/*`
+
+4. **For Vercel deployment:**
+   - Add `VITE_STACK_PROJECT_ID` and `VITE_STACK_PUBLISHABLE_CLIENT_KEY` to Vercel environment variables
+   - Apply to Production, Preview, and Development environments
+   - Redeploy to apply changes (Vite injects env vars at build time)
+
+**See [STACK_AUTH_SETUP.md](./STACK_AUTH_SETUP.md) for detailed setup instructions, troubleshooting, and examples.**
+
+Example `.env.local`:
+
+```env
+VITE_STACK_PROJECT_ID=64612256-cc00-4e29-b694-d3944808e1a1
+VITE_STACK_PUBLISHABLE_CLIENT_KEY=pck_your_key_here
+STACK_SECRET_SERVER_KEY=ssk_your_secret_key_here
+STACK_JWKS_URL=https://api.stack-auth.com/api/v1/projects/64612256-cc00-4e29-b694-d3944808e1a1/.well-known/jwks.json
 TRUSTED_WEB_ORIGINS=https://app.solarinvest.info
-DATABASE_URL=postgresql://neondb_owner:npg_Y6Hrql3hWOum@ep-damp-mouse-ac5zr9v1-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL=postgresql://your-connection-string
 ```
 
 ## PDF conversion for leasing contracts
