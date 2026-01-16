@@ -137,10 +137,65 @@ const readJsonBody = async (req) => {
   })
 }
 
-const CONTRACT_TEMPLATES = {
-  residencial: 'CONTRATO DE LEASING OPERACIONAL DE SISTEMA FOTOVOLTAICO.dotx',
-  comercial: 'CONTRATO DE LEASING OPERACIONAL DE SISTEMA FOTOVOLTAICO.dotx',
-  condominio: 'CONTRATO DE LEASING OPERACIONAL DE SISTEMA FOTOVOLTAICO.dotx',
+const CONTRACT_TEMPLATE_KEYWORDS = ['contrato', 'leasing']
+const CONTRACT_TEMPLATE_EXTENSIONS = ['.dotx', '.docx']
+
+const matchesContractTemplateName = (fileName) => {
+  if (typeof fileName !== 'string') {
+    return false
+  }
+  const normalized = fileName.toLowerCase()
+  return CONTRACT_TEMPLATE_KEYWORDS.every((keyword) => normalized.includes(keyword))
+}
+
+const pickPreferredContractTemplate = (entries) => {
+  const matching = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => CONTRACT_TEMPLATE_EXTENSIONS.some((ext) => name.toLowerCase().endsWith(ext)))
+    .filter((name) => matchesContractTemplateName(name))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  if (matching.length === 0) {
+    return null
+  }
+
+  const dotxMatch = matching.find((name) => name.toLowerCase().endsWith('.dotx'))
+  return dotxMatch ?? matching[0]
+}
+
+const resolveContractTemplate = async (uf) => {
+  const normalizedUf = typeof uf === 'string' ? uf.trim().toUpperCase() : ''
+
+  if (normalizedUf && isValidUf(normalizedUf)) {
+    const ufPath = path.join(LEASING_TEMPLATES_DIR, normalizedUf)
+    try {
+      const entries = await fs.readdir(ufPath, { withFileTypes: true })
+      const selected = pickPreferredContractTemplate(entries)
+      if (selected) {
+        return selected
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        console.warn('[leasing-contracts] Erro ao listar templates do UF', {
+          uf: normalizedUf,
+          errMessage: error?.message,
+        })
+      }
+    }
+  } else if (normalizedUf) {
+    console.warn('[leasing-contracts] UF inválido fornecido', { uf: normalizedUf })
+  }
+
+  try {
+    const entries = await fs.readdir(LEASING_TEMPLATES_DIR, { withFileTypes: true })
+    return pickPreferredContractTemplate(entries)
+  } catch (error) {
+    console.warn('[leasing-contracts] Erro ao listar templates padrão', {
+      errMessage: error?.message,
+    })
+    return null
+  }
 }
 
 /**
@@ -1271,13 +1326,15 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
       tarifaBase: '1.20',
     }, tipoContrato)
 
-    const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
-    const templateAvailable = await checkTemplateAvailability(contratoTemplate, dadosLeasing.uf)
-    if (!templateAvailable) {
+    const contratoTemplate = await resolveContractTemplate(dadosLeasing.uf)
+    if (!contratoTemplate) {
       throw new LeasingContractsError(
         422,
         'Template do contrato não encontrado.',
-        { code: 'TEMPLATE_NOT_FOUND', hint: `Verifique o template ${contratoTemplate}.` },
+        {
+          code: 'TEMPLATE_NOT_FOUND',
+          hint: 'Verifique se existe um template com as palavras "contrato" e "leasing" no nome.',
+        },
       )
     }
 
@@ -1512,15 +1569,14 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
     }
 
-    const contratoTemplate = CONTRACT_TEMPLATES[tipoContrato]
-    const contratoTemplateAvailable = await checkTemplateAvailability(contratoTemplate, clienteUf)
-    if (!contratoTemplateAvailable) {
+    const contratoTemplate = await resolveContractTemplate(clienteUf)
+    if (!contratoTemplate) {
       throw new LeasingContractsError(
         422,
         'Template do contrato não encontrado.',
         {
           code: 'TEMPLATE_NOT_FOUND',
-          hint: `Verifique se o template ${contratoTemplate} está disponível no deploy.`,
+          hint: 'Verifique se existe um template com as palavras "contrato" e "leasing" no nome.',
         },
       )
     }
