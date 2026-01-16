@@ -262,8 +262,6 @@ function PrintableProposalLeasingInner(
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
   const telefoneCliente = cliente.telefone?.trim() || null
   const emailCliente = cliente.email?.trim() || null
-  const cidadeCliente = cliente.cidade?.trim() || null
-  const ufCliente = cliente.uf?.trim() || null
   const cepCliente = cliente.cep?.trim() || null
   const codigoOrcamento = budgetId?.trim() || null
   const nomeCliente = cliente.nome?.trim() || null
@@ -419,13 +417,6 @@ function PrintableProposalLeasingInner(
         </div>
       ),
       wide: true,
-    },
-    { label: 'UC', value: ucCliente || '—' },
-    { label: 'Distribuidora', value: distribuidoraLabel || '—' },
-    {
-      label: 'Cidade / UF',
-      value:
-        cidadeCliente || ufCliente ? `${cidadeCliente || '—'} / ${ufCliente || '—'}` : '—',
     },
   ]
 
@@ -1085,6 +1076,9 @@ function PrintableProposalLeasingInner(
                 <h3 className="print-uc-heading">UC Geradora</h3>
                 <p className="print-uc-text">
                   UC nº {ucGeradoraNumeroLabel} — {ucGeradoraEnderecoLabel}
+                </p>
+                <p className="print-uc-text">
+                  Distribuidora: {distribuidoraLabel || '—'}
                 </p>
               </div>
               {hasBeneficiarias ? (

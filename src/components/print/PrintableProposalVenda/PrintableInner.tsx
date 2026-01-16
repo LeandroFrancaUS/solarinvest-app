@@ -569,11 +569,7 @@ function PrintableProposalInner(
   const emailCliente = cliente.email?.trim() || ''
   const telefoneCliente = cliente.telefone?.trim() || ''
   const ucCliente = cliente.uc?.trim() || ''
-  const cidadeCliente = cliente.cidade?.trim() || ''
-  const ufCliente = cliente.uf?.trim() || ''
-  const enderecoCliente = cliente.endereco?.trim() || ''
   const cepCliente = cliente.cep?.trim() || ''
-  const cidadeUfLabel = cidadeCliente || ufCliente ? `${cidadeCliente || '—'} / ${ufCliente || '—'}` : '—'
   const formatClienteEnderecoCompleto = () => {
     const endereco = cliente.endereco?.trim() || ''
     const cidade = cliente.cidade?.trim() || ''
@@ -656,9 +652,6 @@ function PrintableProposalInner(
       ),
       wide: true,
     },
-    { label: 'UC', value: ucCliente || '—' },
-    { label: 'Distribuidora', value: distribuidoraTarifaLabel || '—' },
-    { label: 'Cidade / UF', value: cidadeUfLabel },
   ]
   const descontoResumo =
     !isVendaDireta && Number.isFinite(descontoContratualPct)
@@ -1222,6 +1215,9 @@ function PrintableProposalInner(
                 <h3 className="print-uc-heading">UC Geradora</h3>
                 <p className="print-uc-text">
                   UC nº {ucGeradoraNumeroLabel} — {ucGeradoraEnderecoLabel}
+                </p>
+                <p className="print-uc-text">
+                  Distribuidora: {distribuidoraTarifaLabel || '—'}
                 </p>
               </div>
               {hasBeneficiarias ? (
