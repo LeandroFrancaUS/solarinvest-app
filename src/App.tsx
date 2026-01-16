@@ -13680,16 +13680,22 @@ export default function App() {
       const downloadName = match?.[1] ?? fallbackName
       const salvouContrato = await salvarContratoNoOneDrive(downloadName, blob, blob.type)
 
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = downloadName
-      anchor.style.display = 'none'
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      window.setTimeout(() => {
-        window.URL.revokeObjectURL(url)
-      }, 60_000)
+      if (!salvouContrato) {
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = downloadName
+        anchor.style.display = 'none'
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        window.setTimeout(() => {
+          window.URL.revokeObjectURL(url)
+        }, 60_000)
+      } else {
+        window.setTimeout(() => {
+          window.URL.revokeObjectURL(url)
+        }, 10_000)
+      }
 
       const notice = response.headers.get('x-contracts-notice')
       if (notice) {
