@@ -64,7 +64,6 @@ const expectedIssuer = projectId
 
 const authCookieName = sanitizeString(process.env.AUTH_COOKIE_NAME) || 'solarinvest_session'
 const authCookieSecret = sanitizeString(process.env.AUTH_COOKIE_SECRET ?? process.env.JWT_SECRET ?? '')
-const STACK_AUTH_BYPASS = true
 
 let lastJwksFetch = 0
 let jwksCache = null
@@ -389,9 +388,6 @@ export function getTrustedOrigins() {
 }
 
 export function isStackAuthEnabled() {
-  if (STACK_AUTH_BYPASS) {
-    return false
-  }
   return Boolean(projectId && jwksUrl)
 }
 
