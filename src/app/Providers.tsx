@@ -98,6 +98,12 @@ function AuthGate({ children }: { children: ReactNode }) {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
+  const stackAuthBypass = true
+
+  if (stackAuthBypass) {
+    return <>{children}</>
+  }
+
   if (!stackClientApp) return <NotConfigured />
 
   return (
