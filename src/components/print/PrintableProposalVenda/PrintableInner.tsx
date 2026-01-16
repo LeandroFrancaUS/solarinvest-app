@@ -572,8 +572,8 @@ function PrintableProposalInner(
   const cidadeCliente = cliente.cidade?.trim() || ''
   const ufCliente = cliente.uf?.trim() || ''
   const enderecoCliente = cliente.endereco?.trim() || ''
+  const cepCliente = cliente.cep?.trim() || ''
   const cidadeUfLabel = cidadeCliente || ufCliente ? `${cidadeCliente || '—'} / ${ufCliente || '—'}` : '—'
-  const enderecoLabel = enderecoCliente ? enderecoCliente : cidadeUfLabel
   const formatClienteEnderecoCompleto = () => {
     const endereco = cliente.endereco?.trim() || ''
     const cidade = cliente.cidade?.trim() || ''
@@ -632,16 +632,33 @@ function PrintableProposalInner(
   const ucGeradoraNumeroLabel = ucGeradoraNumero || '—'
   const ucGeradoraEnderecoLabel = ucGeradoraEndereco || '—'
   const hasBeneficiarias = ucsBeneficiariasLista.length > 0
-  const clienteCampos: ClientInfoField[] = [
-    { label: 'Código do orçamento', value: codigoOrcamento || '—' },
+  const enderecoCompletoCliente = formatClienteEnderecoCompleto()
+  const infoPessoalCliente = [
     { label: 'Cliente', value: cliente.nome || '—' },
     { label: 'Documento', value: documentoCliente || '—' },
-    { label: 'UC', value: ucCliente || '—' },
-    { label: 'Distribuidora', value: distribuidoraTarifaLabel || '—' },
     { label: 'E-mail', value: emailCliente || '—' },
     { label: 'Telefone', value: telefoneCliente || '—' },
+    { label: 'Endereço', value: enderecoCompletoCliente || '—' },
+    { label: 'CEP', value: cepCliente || '—' },
+  ]
+  const clienteCampos: ClientInfoField[] = [
+    { label: 'Código do orçamento', value: codigoOrcamento || '—' },
+    {
+      label: 'Informações do cliente',
+      value: (
+        <div className="print-client-lines">
+          {infoPessoalCliente.map((item) => (
+            <div key={item.label} className="print-client-line">
+              <strong>{item.label}:</strong> {item.value}
+            </div>
+          ))}
+        </div>
+      ),
+      wide: true,
+    },
+    { label: 'UC', value: ucCliente || '—' },
+    { label: 'Distribuidora', value: distribuidoraTarifaLabel || '—' },
     { label: 'Cidade / UF', value: cidadeUfLabel },
-    { label: 'Endereço', value: enderecoLabel, wide: true },
   ]
   const descontoResumo =
     !isVendaDireta && Number.isFinite(descontoContratualPct)

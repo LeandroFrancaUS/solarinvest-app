@@ -262,9 +262,9 @@ function PrintableProposalLeasingInner(
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
   const telefoneCliente = cliente.telefone?.trim() || null
   const emailCliente = cliente.email?.trim() || null
-  const enderecoCliente = cliente.endereco?.trim() || null
   const cidadeCliente = cliente.cidade?.trim() || null
   const ufCliente = cliente.uf?.trim() || null
+  const cepCliente = cliente.cep?.trim() || null
   const codigoOrcamento = budgetId?.trim() || null
   const nomeCliente = cliente.nome?.trim() || null
   const ucCliente = cliente.uc?.trim() || null
@@ -308,6 +308,15 @@ function PrintableProposalLeasingInner(
 
   const ucGeradoraNumero = ucGeradora?.numero?.trim() || ucCliente || ''
   const ucGeradoraEndereco = ucGeradora?.endereco?.trim() || formatClienteEnderecoCompleto()
+  const enderecoCompletoCliente = formatClienteEnderecoCompleto()
+  const infoPessoalCliente = [
+    { label: 'Cliente', value: nomeCliente || '—' },
+    { label: 'Documento', value: documentoCliente || '—' },
+    { label: 'E-mail', value: emailCliente || '—' },
+    { label: 'Telefone', value: telefoneCliente || '—' },
+    { label: 'Endereço', value: enderecoCompletoCliente || '—' },
+    { label: 'CEP', value: cepCliente || '—' },
+  ]
 
   const ucsBeneficiariasLista = useMemo(() => {
     if (!Array.isArray(ucsBeneficiarias)) {
@@ -397,26 +406,26 @@ function PrintableProposalLeasingInner(
     })} kWh`
 
   const resumoCampos: ClientInfoField[] = [
-    { label: 'Cliente', value: nomeCliente || '—' },
-    { label: 'Documento', value: documentoCliente || '—' },
+    { label: 'Código do orçamento', value: codigoOrcamento || '—' },
+    {
+      label: 'Informações do cliente',
+      value: (
+        <div className="print-client-lines">
+          {infoPessoalCliente.map((item) => (
+            <div key={item.label} className="print-client-line">
+              <strong>{item.label}:</strong> {item.value}
+            </div>
+          ))}
+        </div>
+      ),
+      wide: true,
+    },
     { label: 'UC', value: ucCliente || '—' },
     { label: 'Distribuidora', value: distribuidoraLabel || '—' },
-    { label: 'E-mail', value: emailCliente || '—' },
-    { label: 'Telefone', value: telefoneCliente || '—' },
     {
       label: 'Cidade / UF',
       value:
         cidadeCliente || ufCliente ? `${cidadeCliente || '—'} / ${ufCliente || '—'}` : '—',
-    },
-    {
-      label: 'Endereço',
-      value:
-        enderecoCliente
-          ? enderecoCliente
-          : cidadeCliente || ufCliente
-          ? `${cidadeCliente || '—'} / ${ufCliente || '—'}`
-          : '—',
-      wide: true,
     },
   ]
 

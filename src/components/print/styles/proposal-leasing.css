@@ -493,6 +493,16 @@
   line-height: 1.5;
 }
 
+.print-client-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.print-client-line strong {
+  font-weight: 700;
+}
+
 .print-client-field--wide {
   grid-column: span 2;
 }
@@ -1418,4 +1428,3 @@ table.leasing-economia-table,
       grid-template-columns: 1fr;
     }
 }
-

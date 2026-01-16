@@ -166,6 +166,16 @@ html[data-print-mode='print'] .print-hero__title h1 {
   line-height: 1.35;
 }
 
+.print-client-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.print-client-line strong {
+  font-weight: 700;
+}
+
 .print-client-field--wide {
   grid-column: span 2;
 }
