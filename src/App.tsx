@@ -39,6 +39,7 @@ import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { resolveApiUrl } from './utils/apiUrl'
 import {
   persistClienteRegistroToOneDrive,
+  persistContratoToOneDrive,
   type ClienteRegistroSyncPayload,
   loadClientesFromOneDrive,
   isOneDriveIntegrationAvailable,
@@ -1203,6 +1204,32 @@ const readPrintableImageFromFile = (file: File): Promise<PrintableProposalImage 
     } catch (error) {
       resolve(null)
     }
+  })
+}
+
+const readBlobAsBase64 = (blob: Blob): Promise<string> => {
+  if (typeof FileReader === 'undefined') {
+    return Promise.reject(new Error('FileReader indisponível para converter o arquivo.'))
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string') {
+        reject(new Error('Falha ao converter o arquivo para base64.'))
+        return
+      }
+      const [, base64] = result.split(',')
+      if (!base64) {
+        reject(new Error('Falha ao extrair conteúdo base64 do arquivo.'))
+        return
+      }
+      resolve(base64)
+    }
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'))
+    reader.onabort = () => reject(new Error('Leitura do arquivo interrompida.'))
+    reader.readAsDataURL(blob)
   })
 }
 
@@ -13110,6 +13137,35 @@ export default function App() {
     setIsLeasingContractsModalOpen(false)
   }, [])
 
+  const salvarContratoNoOneDrive = useCallback(
+    async (fileName: string, blob: Blob, contentType?: string) => {
+      try {
+        const base64 = await readBlobAsBase64(blob)
+        await persistContratoToOneDrive({
+          fileName,
+          contentBase64: base64,
+          contentType,
+        })
+        return true
+      } catch (error) {
+        if (error instanceof OneDriveIntegrationMissingError) {
+          adicionarNotificacao(
+            'Integração com o OneDrive indisponível. Configure o conector para salvar contratos automaticamente.',
+            'warning',
+          )
+        } else {
+          console.error('Erro ao salvar contrato no OneDrive.', error)
+          adicionarNotificacao(
+            'Não foi possível salvar o contrato no OneDrive. Verifique a integração.',
+            'error',
+          )
+        }
+        return false
+      }
+    },
+    [adicionarNotificacao],
+  )
+
   const abrirSelecaoContratos = useCallback(
     (category: ContractTemplateCategory) => {
       if (gerandoContratos) {
@@ -13395,6 +13451,7 @@ export default function App() {
     }
 
     const contratosGerados: Array<{ templateLabel: string; url: string }> = []
+    let contratosSalvos = 0
 
     try {
       const janelaInicial = garantirJanelaPreview()
@@ -13423,6 +13480,9 @@ export default function App() {
           const url = window.URL.createObjectURL(blob)
 
           contratosGerados.push({ templateLabel, url })
+          if (await salvarContratoNoOneDrive(`${templateLabel}.pdf`, blob, blob.type)) {
+            contratosSalvos += 1
+          }
 
           if (!janelaPreview || janelaPreview.closed) {
             const anchor = document.createElement('a')
@@ -13462,6 +13522,13 @@ export default function App() {
       if (sucesso > 0) {
         const mensagem = sucesso === 1 ? 'Contrato gerado.' : `${sucesso} contratos gerados.`
         adicionarNotificacao(mensagem, 'success')
+        if (contratosSalvos > 0) {
+          const mensagemSalvo =
+            contratosSalvos === 1
+              ? 'Contrato salvo no OneDrive.'
+              : `${contratosSalvos} contratos salvos no OneDrive.`
+          adicionarNotificacao(mensagemSalvo, 'success')
+        }
       }
     } catch (error) {
       console.error('Erro ao gerar contrato de leasing', error)
@@ -13478,6 +13545,7 @@ export default function App() {
     adicionarNotificacao,
     handleFecharModalContratos,
     selectedContractTemplates,
+    salvarContratoNoOneDrive,
   ])
 
   const handleConfirmarGeracaoLeasing = useCallback(async () => {
@@ -13583,6 +13651,7 @@ export default function App() {
           ? 'contrato-leasing.docx'
           : 'contratos-leasing.zip'
       const downloadName = match?.[1] ?? fallbackName
+      const salvouContrato = await salvarContratoNoOneDrive(downloadName, blob, blob.type)
 
       const anchor = document.createElement('a')
       anchor.href = url
@@ -13603,6 +13672,9 @@ export default function App() {
         adicionarNotificacao('PDF indisponível; DOCX gerado com sucesso.', 'info')
       }
       adicionarNotificacao('Pacote de contratos de leasing gerado.', 'success')
+      if (salvouContrato) {
+        adicionarNotificacao('Contrato salvo no OneDrive.', 'success')
+      }
     } catch (error) {
       console.error('Erro ao gerar contratos de leasing', error)
       const mensagem =
@@ -13618,6 +13690,7 @@ export default function App() {
     leasingAnexosSelecionados,
     prepararPropostaParaExportacao,
     prepararPayloadContratosLeasing,
+    salvarContratoNoOneDrive,
   ])
 
   const confirmarAlertasAntesDeSalvar = useCallback(async (): Promise<boolean> => {

@@ -1,5 +1,7 @@
 const CLIENT_ONEDRIVE_BASE_PATH =
   '/Users/leandrofranca/Library/CloudStorage/OneDrive-7-Office/SolarInvest/Controle de Clientes'
+const CONTRACTS_ONEDRIVE_BASE_PATH =
+  '/Users/leandrofranca/Library/CloudStorage/OneDrive-Personal/Contratos gerados'
 const CLIENT_FOLDER_SEPARATOR = '-'
 const CLIENT_FILE_PREFIX = 'SLRINVST-'
 const CLIENT_FILE_PURPOSE = 'Leasing'
@@ -39,6 +41,8 @@ type OneDriveBridgePayload = {
   folderPath: string
   fileName: string
   content: string
+  encoding?: 'base64' | 'utf8'
+  contentType?: string
 }
 
 type OneDriveBridgeResult =
@@ -278,6 +282,77 @@ export const persistClienteRegistroToOneDrive = async (
     } catch (error) {
       throw new Error(
         `Não foi possível enviar os dados do cliente para o endpoint configurado do OneDrive: ${formatUnknownError(error)}`,
+      )
+    }
+  }
+
+  throw new OneDriveIntegrationMissingError()
+}
+
+export const persistContratoToOneDrive = async ({
+  fileName,
+  contentBase64,
+  contentType,
+}: {
+  fileName: string
+  contentBase64: string
+  contentType?: string
+}): Promise<void> => {
+  const trimmedFileName = fileName?.trim()
+  if (!trimmedFileName) {
+    throw new Error('Nome do arquivo do contrato inválido.')
+  }
+
+  const payload: OneDriveBridgePayload = {
+    folderPath: CONTRACTS_ONEDRIVE_BASE_PATH,
+    fileName: trimmedFileName,
+    content: contentBase64,
+    encoding: 'base64',
+    contentType,
+  }
+
+  const bridge = resolveOneDriveBridge()
+
+  if (bridge) {
+    try {
+      const result = await bridge(payload)
+      const failed =
+        result === false ||
+        (typeof result === 'object' && result !== null && 'success' in result && result.success === false)
+
+      if (failed) {
+        const message =
+          typeof result === 'object' && result !== null && 'message' in result && typeof result.message === 'string'
+            ? result.message
+            : 'A integração com o OneDrive retornou uma falha.'
+        throw new Error(message)
+      }
+
+      return
+    } catch (error) {
+      throw new Error(`Não foi possível salvar o contrato no OneDrive: ${formatUnknownError(error)}`)
+    }
+  }
+
+  const endpoint = getOneDriveEndpoint()
+  if (endpoint) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, id: trimmedFileName }),
+      })
+
+      if (!response.ok) {
+        const texto = await response.text().catch(() => '')
+        const mensagem = texto || `Falha ao salvar contrato no endpoint configurado (${response.status}).`
+        throw new Error(mensagem)
+      }
+
+      return
+    } catch (error) {
+      throw new Error(
+        `Não foi possível enviar o contrato para o endpoint configurado do OneDrive: ${formatUnknownError(error)}`,
       )
     }
   }

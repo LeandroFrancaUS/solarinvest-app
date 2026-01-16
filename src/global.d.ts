@@ -4,6 +4,8 @@ type SolarInvestOneDriveBridgePayload = {
   folderPath: string
   fileName: string
   content: string
+  encoding?: 'base64' | 'utf8'
+  contentType?: string
 }
 
 type SolarInvestOneDriveBridgeResult =
