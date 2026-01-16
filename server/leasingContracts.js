@@ -1583,9 +1583,8 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
 
       const uniqueId = crypto.randomUUID()
-      const htmlName = buildProposalFileName(dadosLeasing.cpfCnpj, 'html')
       const pdfName = buildProposalFileName(dadosLeasing.cpfCnpj, 'pdf')
-      const htmlPath = path.join(tempDir, `temp-${uniqueId}-${htmlName}`)
+      const htmlPath = path.join(tempDir, `temp-${uniqueId}-${pdfName.replace(/\.pdf$/i, '.html')}`)
       const pdfPath = path.join(tempDir, `temp-${uniqueId}-${pdfName}`)
       const htmlBuffer = Buffer.from(normalizedHtml, 'utf8')
 
@@ -1595,8 +1594,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
 
       if (!pdfProvidersConfigured) {
-        files.push({ name: htmlName, buffer: htmlBuffer })
-        registerFallback('Proposta comercial: PDF indisponível, HTML fornecido.')
+        registerFallback('Proposta comercial: PDF indisponível.')
         return
       }
 
@@ -1605,8 +1603,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
         await convertHtmlToPdf(htmlPath, pdfPath)
         const pdfBuffer = await fs.readFile(pdfPath)
         if (pdfBuffer.length > MAX_PDF_BYTES) {
-          files.push({ name: htmlName, buffer: htmlBuffer })
-          registerFallback('Proposta comercial: PDF muito grande, HTML fornecido.')
+          registerFallback('Proposta comercial: PDF muito grande.')
           return
         }
         files.push({ name: pdfName, buffer: pdfBuffer })
@@ -1623,7 +1620,6 @@ export const handleLeasingContractsRequest = async (req, res) => {
         const errorMessage = conversionError instanceof Error
           ? conversionError.message
           : 'Falha ao converter proposta para PDF.'
-        files.push({ name: htmlName, buffer: htmlBuffer })
         registerFallback(`Proposta comercial: ${errorMessage}`)
       } finally {
         try {
