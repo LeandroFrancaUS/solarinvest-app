@@ -575,7 +575,6 @@ type ClienteRegistro = {
   propostaSnapshot?: OrcamentoSnapshotData
 }
 
-type ClienteDuplicateReason = 'full' | 'documento' | 'uc' | 'telefone' | 'email' | 'endereco'
 
 type ClienteMensagens = {
   email?: string | undefined
@@ -2162,6 +2161,7 @@ const createClienteComparisonData = (dados: ClienteDados) => {
   const normalized = {
     nome: normalizeClienteString(dados.nome),
     documento: normalizeClienteNumbers(dados.documento),
+    rg: normalizeClienteNumbers(dados.rg),
     email: normalizeClienteEmail(dados.email),
     telefone: normalizeClienteNumbers(dados.telefone),
     cep: normalizeClienteNumbers(dados.cep),
@@ -2182,7 +2182,9 @@ const createClienteComparisonData = (dados: ClienteDados) => {
 
   return {
     signature: JSON.stringify(normalized),
+    nome: normalized.nome,
     documento: normalized.documento,
+    rg: normalized.rg,
     uc: normalized.uc,
     telefone: normalized.telefone,
     email: normalized.email,
@@ -2190,37 +2192,9 @@ const createClienteComparisonData = (dados: ClienteDados) => {
   }
 }
 
-const CLIENTE_DUPLICATE_REASON_LABELS: Record<Exclude<ClienteDuplicateReason, 'full'>, string> = {
-  documento: 'CPF/CNPJ',
-  uc: 'unidade consumidora (UC)',
-  telefone: 'telefone',
-  email: 'e-mail',
-  endereco: 'endereço',
-}
-
-const formatDuplicateReasonList = (labels: string[]) => {
-  if (labels.length <= 1) {
-    return labels[0] ?? ''
-  }
-  if (labels.length === 2) {
-    return `${labels[0]} e ${labels[1]}`
-  }
-  const rest = labels.slice(0, -1)
-  const last = labels[labels.length - 1]
-  return `${rest.join(', ')} e ${last}`
-}
-
-const buildClienteDuplicateMessage = (reasons: Set<ClienteDuplicateReason>) => {
-  if (reasons.has('full')) {
-    return 'Já existe um cliente cadastrado com exatamente as mesmas informações. Atualize os dados antes de prosseguir.'
-  }
-
-  const labels = Array.from(reasons)
-    .filter((reason): reason is Exclude<ClienteDuplicateReason, 'full'> => reason !== 'full')
-    .map((reason) => CLIENTE_DUPLICATE_REASON_LABELS[reason])
-
-  const lista = formatDuplicateReasonList(labels)
-  return `Já existe um cliente cadastrado com os mesmos dados (${lista}). Atualize as informações antes de prosseguir.`
+const buildClienteConflictMessage = (clienteNome: string, motivo: 'CPF/CNPJ' | 'RG') => {
+  const nome = clienteNome.trim() || 'outro cliente'
+  return `Já existe um cliente cadastrado com o mesmo ${motivo} em nome de ${nome}. Verifique o cadastro antes de prosseguir.`
 }
 
 const formatBudgetDate = (isoString: string) => {
@@ -11548,8 +11522,9 @@ export default function App() {
     let erroDuplicidade: string | null = null
 
     setClientesSalvos((prevRegistros) => {
-      const duplicateReasons = new Set<ClienteDuplicateReason>()
       const novoComparacao = createClienteComparisonData(dadosClonados)
+      let registroCorrespondente: ClienteRegistro | null = null
+      let conflitoDuplicidade: { nome: string; motivo: 'CPF/CNPJ' | 'RG' } | null = null
 
       for (const registro of prevRegistros) {
         if (clienteEmEdicaoId && registro.id === clienteEmEdicaoId) {
@@ -11557,54 +11532,50 @@ export default function App() {
         }
 
         const existenteComparacao = createClienteComparisonData(registro.dados)
+        const nomeIgual =
+          novoComparacao.nome &&
+          existenteComparacao.nome &&
+          novoComparacao.nome === existenteComparacao.nome
+        const documentoIgual =
+          novoComparacao.documento &&
+          novoComparacao.documento === existenteComparacao.documento
+        const rgIgual = novoComparacao.rg && novoComparacao.rg === existenteComparacao.rg
 
         if (novoComparacao.signature === existenteComparacao.signature) {
-          duplicateReasons.add('full')
-        } else {
-          if (
-            novoComparacao.documento &&
-            novoComparacao.documento === existenteComparacao.documento
-          ) {
-            duplicateReasons.add('documento')
-          }
-          if (novoComparacao.uc && novoComparacao.uc === existenteComparacao.uc) {
-            duplicateReasons.add('uc')
-          }
-          if (
-            novoComparacao.telefone &&
-            novoComparacao.telefone === existenteComparacao.telefone
-          ) {
-            duplicateReasons.add('telefone')
-          }
-          if (novoComparacao.email && novoComparacao.email === existenteComparacao.email) {
-            duplicateReasons.add('email')
-          }
-          if (
-            novoComparacao.endereco &&
-            novoComparacao.endereco === existenteComparacao.endereco
-          ) {
-            duplicateReasons.add('endereco')
-          }
+          registroCorrespondente = registro
+          break
         }
 
-        if (duplicateReasons.size > 0) {
+        if (documentoIgual || rgIgual) {
+          if (nomeIgual) {
+            registroCorrespondente = registro
+          } else {
+            conflitoDuplicidade = {
+              nome: registro.dados.nome?.trim() || 'outro cliente',
+              motivo: documentoIgual ? 'CPF/CNPJ' : 'RG',
+            }
+          }
           break
         }
       }
 
-      if (duplicateReasons.size > 0) {
-        erroDuplicidade = buildClienteDuplicateMessage(duplicateReasons)
+      if (conflitoDuplicidade) {
+        erroDuplicidade = buildClienteConflictMessage(
+          conflitoDuplicidade.nome,
+          conflitoDuplicidade.motivo,
+        )
         return prevRegistros
       }
 
       const existingIds = new Set(prevRegistros.map((registro) => registro.id))
       let registrosAtualizados: ClienteRegistro[] = prevRegistros
       let registroAtualizado: ClienteRegistro | null = null
+      const registroIdAlvo = clienteEmEdicaoId ?? registroCorrespondente?.id ?? null
 
-      if (clienteEmEdicaoId) {
+      if (registroIdAlvo) {
         let encontrado = false
         registrosAtualizados = prevRegistros.map((registro) => {
-          if (registro.id === clienteEmEdicaoId) {
+          if (registro.id === registroIdAlvo) {
             encontrado = true
             const atualizado: ClienteRegistro = {
               ...registro,
