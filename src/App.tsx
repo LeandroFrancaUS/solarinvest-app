@@ -13533,6 +13533,24 @@ export default function App() {
     }
 
     try {
+      let propostaHtml = ''
+      try {
+        const resultado = await prepararPropostaParaExportacao({ incluirTabelaBuyout: false })
+        propostaHtml = resultado?.html ?? ''
+        if (!propostaHtml) {
+          adicionarNotificacao(
+            'Não foi possível preparar a proposta comercial. O pacote será gerado sem o PDF da proposta.',
+            'warning',
+          )
+        }
+      } catch (error) {
+        console.error('Erro ao preparar a proposta comercial para anexar ao contrato.', error)
+        adicionarNotificacao(
+          'Não foi possível preparar a proposta comercial. O pacote será gerado sem o PDF da proposta.',
+          'warning',
+        )
+      }
+
       const response = await fetch(resolveApiUrl('/api/contracts/leasing'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -13540,6 +13558,7 @@ export default function App() {
           tipoContrato: payload.tipoContrato,
           dadosLeasing: payload.dadosLeasing,
           anexosSelecionados: leasingAnexosSelecionados,
+          propostaHtml,
         }),
       })
 
@@ -13597,6 +13616,7 @@ export default function App() {
   }, [
     adicionarNotificacao,
     leasingAnexosSelecionados,
+    prepararPropostaParaExportacao,
     prepararPayloadContratosLeasing,
   ])
 

@@ -6,9 +6,9 @@ import JSZip from 'jszip'
 import Mustache from 'mustache'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { convertDocxToPdf, isConvertApiConfigured, isGotenbergConfigured } from './contracts.js'
+import { convertDocxToPdf, convertHtmlToPdf, isConvertApiConfigured, isGotenbergConfigured } from './contracts.js'
 
-const JSON_BODY_LIMIT = 256 * 1024
+const JSON_BODY_LIMIT = 2 * 1024 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
 const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
@@ -21,6 +21,7 @@ const LEASING_ANEXOS_DIR = path.resolve(
 const BASE_TMP_DIR = path.join(os.tmpdir(), 'solarinvest')
 const MAX_DOCX_BYTES = 8 * 1024 * 1024
 const MAX_PDF_BYTES = 12 * 1024 * 1024
+const MAX_HTML_BYTES = 2 * 1024 * 1024
 
 // Maximum iterations for merging split placeholder runs in Word XML
 // Most placeholders split by Word's spell checker need 2-3 merge passes,
@@ -1134,6 +1135,11 @@ const buildAnexoFileName = (anexoId, cpfCnpj, extension = 'docx') => {
   return `anexo-${slug}-${id}.${extension}`
 }
 
+const buildProposalFileName = (cpfCnpj, extension = 'pdf') => {
+  const id = sanitizeDocumentoId(cpfCnpj)
+  return `proposta-comercial-${id}.${extension}`
+}
+
 const buildZipFileName = (tipoContrato, cpfCnpj) => {
   const id = sanitizeDocumentoId(cpfCnpj)
   return `leasing-${tipoContrato}-${id}.zip`
@@ -1444,6 +1450,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     })
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
+    const propostaHtml = typeof body?.propostaHtml === 'string' ? body.propostaHtml.trim() : ''
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
     const clienteUf = dadosLeasing.uf
 
@@ -1569,6 +1576,69 @@ export const handleLeasingContractsRequest = async (req, res) => {
       }
     }
 
+    const pushProposalPdf = async ({ html }) => {
+      const normalizedHtml = html?.trim()
+      if (!normalizedHtml) {
+        return
+      }
+
+      const uniqueId = crypto.randomUUID()
+      const htmlName = buildProposalFileName(dadosLeasing.cpfCnpj, 'html')
+      const pdfName = buildProposalFileName(dadosLeasing.cpfCnpj, 'pdf')
+      const htmlPath = path.join(tempDir, `temp-${uniqueId}-${htmlName}`)
+      const pdfPath = path.join(tempDir, `temp-${uniqueId}-${pdfName}`)
+      const htmlBuffer = Buffer.from(normalizedHtml, 'utf8')
+
+      if (htmlBuffer.length > MAX_HTML_BYTES) {
+        registerFallback('Proposta comercial: conteúdo HTML excede o limite permitido.')
+        return
+      }
+
+      if (!pdfProvidersConfigured) {
+        files.push({ name: htmlName, buffer: htmlBuffer })
+        registerFallback('Proposta comercial: PDF indisponível, HTML fornecido.')
+        return
+      }
+
+      try {
+        await fs.writeFile(htmlPath, htmlBuffer)
+        await convertHtmlToPdf(htmlPath, pdfPath)
+        const pdfBuffer = await fs.readFile(pdfPath)
+        if (pdfBuffer.length > MAX_PDF_BYTES) {
+          files.push({ name: htmlName, buffer: htmlBuffer })
+          registerFallback('Proposta comercial: PDF muito grande, HTML fornecido.')
+          return
+        }
+        files.push({ name: pdfName, buffer: pdfBuffer })
+        console.info('[leasing-contracts] PDF da proposta convertido', {
+          requestId,
+          htmlBytes: htmlBuffer.length,
+          pdfBytes: pdfBuffer.length,
+        })
+      } catch (conversionError) {
+        console.error('[leasing-contracts] Falha ao converter proposta para PDF', {
+          requestId,
+          errMessage: conversionError?.message,
+        })
+        const errorMessage = conversionError instanceof Error
+          ? conversionError.message
+          : 'Falha ao converter proposta para PDF.'
+        files.push({ name: htmlName, buffer: htmlBuffer })
+        registerFallback(`Proposta comercial: ${errorMessage}`)
+      } finally {
+        try {
+          await fs.unlink(htmlPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+        try {
+          await fs.unlink(pdfPath)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    }
+
     const contratoTemplate = await resolveContractTemplate(clienteUf)
     if (!contratoTemplate) {
       throw new LeasingContractsError(
@@ -1599,6 +1669,10 @@ export const handleLeasingContractsRequest = async (req, res) => {
       pdfName: contratoPdfName,
       label: 'Contrato principal',
     })
+
+    if (propostaHtml) {
+      await pushProposalPdf({ html: propostaHtml })
+    }
 
     const skippedAnexos = [...anexosIndisponiveis]
 
