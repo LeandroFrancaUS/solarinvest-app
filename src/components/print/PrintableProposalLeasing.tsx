@@ -309,7 +309,7 @@ function PrintableProposalLeasingInner(
   const enderecoCompletoCliente = formatClienteEnderecoCompleto()
   const infoPessoalCliente = [
     { label: 'Cliente', value: nomeCliente || '—' },
-    { label: 'Documento', value: documentoCliente || '—' },
+    { label: 'CPF/CNPJ', value: documentoCliente || '—' },
     { label: 'E-mail', value: emailCliente || '—' },
     { label: 'Telefone', value: telefoneCliente || '—' },
     { label: 'Endereço', value: enderecoCompletoCliente || '—' },
