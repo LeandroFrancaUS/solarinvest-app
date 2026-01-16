@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { convertDocxToPdf, convertHtmlToPdf, isConvertApiConfigured, isGotenbergConfigured } from './contracts.js'
 
-const JSON_BODY_LIMIT = 2 * 1024 * 1024
+const JSON_BODY_LIMIT = 6 * 1024 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
 const LEASING_TEMPLATES_DIR = path.resolve(
   process.cwd(),
@@ -21,7 +21,7 @@ const LEASING_ANEXOS_DIR = path.resolve(
 const BASE_TMP_DIR = path.join(os.tmpdir(), 'solarinvest')
 const MAX_DOCX_BYTES = 8 * 1024 * 1024
 const MAX_PDF_BYTES = 12 * 1024 * 1024
-const MAX_HTML_BYTES = 2 * 1024 * 1024
+const MAX_HTML_BYTES = 6 * 1024 * 1024
 
 // Maximum iterations for merging split placeholder runs in Word XML
 // Most placeholders split by Word's spell checker need 2-3 merge passes,
