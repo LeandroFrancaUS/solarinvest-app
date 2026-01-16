@@ -3148,6 +3148,28 @@ function sanitizePrintableHtml(html: string | null): string | null {
   return html.replace(/html\s*coding/gi, '').trim()
 }
 
+const buildProposalPdfDocument = (layoutHtml: string, nomeCliente: string, variant: PrintVariant = 'standard') => {
+  const safeCliente = nomeCliente?.trim() || 'SolarInvest'
+  const safeHtml = layoutHtml || ''
+
+  return `<!DOCTYPE html>
+<html data-print-mode="download" data-print-variant="${variant}">
+  <head>
+    <meta charset="utf-8" />
+    <title>Proposta-${safeCliente}</title>
+    <style>
+      ${printStyles}
+      ${simplePrintStyles}
+      body{margin:0;background:#f8fafc;}
+      .preview-container{max-width:calc(210mm - 32mm);width:100%;margin:0 auto;padding:24px 0 40px;}
+    </style>
+  </head>
+  <body data-print-mode="download" data-print-variant="${variant}">
+    <div class="preview-container">${safeHtml}</div>
+  </body>
+</html>`
+}
+
 function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Promise<string | null> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return Promise.resolve(null)
@@ -13604,11 +13626,16 @@ export default function App() {
       let propostaHtml = ''
       try {
         const resultado = await prepararPropostaParaExportacao({ incluirTabelaBuyout: false })
-        propostaHtml = resultado?.html ?? ''
-        if (!propostaHtml) {
+        const layoutHtml = resultado?.html ?? ''
+        if (!layoutHtml) {
           adicionarNotificacao(
             'Não foi possível preparar a proposta comercial. O pacote será gerado sem o PDF da proposta.',
             'warning',
+          )
+        } else {
+          propostaHtml = buildProposalPdfDocument(
+            layoutHtml,
+            payload.dadosLeasing.nomeCompleto || payload.dadosLeasing.cpfCnpj || 'SolarInvest',
           )
         }
       } catch (error) {
