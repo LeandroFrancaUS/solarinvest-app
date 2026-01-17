@@ -42,8 +42,10 @@ import {
   persistContratoToOneDrive,
   type ClienteRegistroSyncPayload,
   loadClientesFromOneDrive,
+  loadPropostasFromOneDrive,
   isOneDriveIntegrationAvailable,
   OneDriveIntegrationMissingError,
+  persistPropostasToOneDrive,
 } from './utils/onedrive'
 import {
   persistProposalPdf,
@@ -11810,204 +11812,260 @@ export default function App() {
     [clienteEmEdicaoId, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
-  const carregarOrcamentosSalvos = useCallback((): OrcamentoSalvo[] => {
+  const parseOrcamentosSalvos = useCallback(
+    (existenteRaw: string | null): OrcamentoSalvo[] => {
+      if (!existenteRaw) {
+        return []
+      }
+
+      try {
+        const parsed = JSON.parse(existenteRaw)
+        if (!Array.isArray(parsed)) {
+          return []
+        }
+
+        const clientesRegistrados = carregarClientesSalvos()
+        const clienteIdPorDocumento = new Map<string, string>()
+        const clienteIdPorUc = new Map<string, string>()
+
+        clientesRegistrados.forEach((clienteRegistro) => {
+          const documento = normalizeNumbers(clienteRegistro.dados.documento ?? '')
+          if (documento && !clienteIdPorDocumento.has(documento)) {
+            clienteIdPorDocumento.set(documento, clienteRegistro.id)
+          }
+
+          const uc = normalizeText(clienteRegistro.dados.uc ?? '')
+          if (uc && !clienteIdPorUc.has(uc)) {
+            clienteIdPorUc.set(uc, clienteRegistro.id)
+          }
+        })
+
+        const sanitizeClienteId = (valor: unknown) => {
+          if (typeof valor !== 'string') {
+            return ''
+          }
+
+          const normalizado = normalizeClienteIdCandidate(valor)
+          if (normalizado.length === CLIENTE_ID_LENGTH && CLIENTE_ID_PATTERN.test(normalizado)) {
+            return normalizado
+          }
+
+          return ''
+        }
+
+        return parsed.map((item) => {
+          const registro = item as Partial<OrcamentoSalvo> & { clienteID?: string }
+          const dados = registro.dados as PrintableProposalProps
+          const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
+          const temIndicacaoRaw = (clienteDados as { temIndicacao?: unknown }).temIndicacao
+          const indicacaoNomeRaw = (clienteDados as { indicacaoNome?: unknown }).indicacaoNome
+          const temIndicacaoNormalizado =
+            typeof temIndicacaoRaw === 'boolean'
+              ? temIndicacaoRaw
+              : typeof temIndicacaoRaw === 'string'
+              ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
+              : false
+          const indicacaoNomeNormalizado =
+            typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
+
+          const herdeirosNormalizados = normalizeClienteHerdeiros(
+            (clienteDados as { herdeiros?: unknown }).herdeiros,
+          )
+
+          const clienteNormalizado: ClienteDados = {
+            nome: clienteDados.nome ?? '',
+            documento: clienteDados.documento ?? '',
+            rg: clienteDados.rg ?? '',
+            estadoCivil: clienteDados.estadoCivil ?? '',
+            nacionalidade: clienteDados.nacionalidade ?? '',
+            profissao: clienteDados.profissao ?? '',
+            representanteLegal: clienteDados.representanteLegal ?? '',
+            email: clienteDados.email ?? '',
+            telefone: clienteDados.telefone ?? '',
+            cep: clienteDados.cep ?? '',
+            distribuidora: clienteDados.distribuidora ?? '',
+            uc: clienteDados.uc ?? '',
+            endereco: clienteDados.endereco ?? '',
+            cidade: clienteDados.cidade ?? '',
+            uf: clienteDados.uf ?? '',
+            temIndicacao: temIndicacaoNormalizado,
+            indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
+            herdeiros: herdeirosNormalizados,
+            nomeSindico: clienteDados.nomeSindico ?? '',
+            cpfSindico: clienteDados.cpfSindico ?? '',
+            contatoSindico: clienteDados.contatoSindico ?? '',
+            diaVencimento: clienteDados.diaVencimento ?? '10',
+          }
+
+          const dadosNormalizados: PrintableProposalProps = {
+            ...dados,
+            budgetId: dados?.budgetId ?? registro.id,
+            cliente: clienteNormalizado,
+            distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteNormalizado.distribuidora ?? '',
+            tipoProposta: dados?.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
+          }
+
+          if (dados.ucGeradora && typeof dados.ucGeradora === 'object') {
+            const numero = typeof dados.ucGeradora.numero === 'string' ? dados.ucGeradora.numero : ''
+            const endereco =
+              typeof dados.ucGeradora.endereco === 'string' ? dados.ucGeradora.endereco : ''
+            dadosNormalizados.ucGeradora = { numero, endereco }
+          } else {
+            delete dadosNormalizados.ucGeradora
+          }
+
+          dadosNormalizados.ucsBeneficiarias = Array.isArray(dados.ucsBeneficiarias)
+            ? dados.ucsBeneficiarias
+                .filter((item): item is PrintableUcBeneficiaria => Boolean(item && typeof item === 'object'))
+                .map((item) => ({
+                  numero: typeof item.numero === 'string' ? item.numero : '',
+                  endereco: typeof item.endereco === 'string' ? item.endereco : '',
+                  rateioPercentual:
+                    item.rateioPercentual != null && Number.isFinite(item.rateioPercentual)
+                      ? Number(item.rateioPercentual)
+                      : null,
+                }))
+            : []
+
+          const clienteIdArmazenado =
+            sanitizeClienteId(
+              registro.clienteId ??
+                registro.clienteID ??
+                (dadosNormalizados as unknown as { clienteId?: string }).clienteId ??
+                ((dadosNormalizados.cliente as unknown as { id?: string })?.id ?? ''),
+            )
+
+          const documentoRaw = registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? ''
+          const ucRaw = registro.clienteUc ?? dadosNormalizados.cliente.uc ?? ''
+
+          let clienteId = clienteIdArmazenado
+
+          if (!clienteId) {
+            const documentoDigits = normalizeNumbers(documentoRaw)
+            if (documentoDigits) {
+              clienteId = clienteIdPorDocumento.get(documentoDigits) ?? ''
+            }
+          }
+
+          if (!clienteId) {
+            const ucTexto = normalizeText(ucRaw)
+            if (ucTexto) {
+              clienteId = clienteIdPorUc.get(ucTexto) ?? ''
+            }
+          }
+
+          const id =
+            typeof registro.id === 'string' && registro.id
+              ? registro.id
+              : ensureProposalId(dadosNormalizados.budgetId)
+          const criadoEm =
+            typeof registro.criadoEm === 'string' && registro.criadoEm
+              ? registro.criadoEm
+              : new Date().toISOString()
+
+          let snapshotNormalizado: OrcamentoSnapshotData | undefined
+          if (registro.snapshot && typeof registro.snapshot === 'object') {
+            try {
+              snapshotNormalizado = cloneSnapshotData(registro.snapshot as OrcamentoSnapshotData)
+              if (snapshotNormalizado.currentBudgetId !== id) {
+                snapshotNormalizado.currentBudgetId = id
+              }
+              snapshotNormalizado.tusdTipoCliente = normalizeTipoBasico(
+                snapshotNormalizado.tusdTipoCliente,
+              )
+              snapshotNormalizado.segmentoCliente = normalizeTipoBasico(
+                snapshotNormalizado.segmentoCliente,
+              )
+              snapshotNormalizado.vendaForm = {
+                ...snapshotNormalizado.vendaForm,
+                segmento_cliente: snapshotNormalizado.vendaForm.segmento_cliente
+                  ? normalizeTipoBasico(snapshotNormalizado.vendaForm.segmento_cliente)
+                  : undefined,
+                tusd_tipo_cliente: snapshotNormalizado.vendaForm.tusd_tipo_cliente
+                  ? normalizeTipoBasico(snapshotNormalizado.vendaForm.tusd_tipo_cliente)
+                  : undefined,
+              }
+            } catch (error) {
+              console.warn('Não foi possível interpretar o snapshot do orçamento salvo.', error)
+              snapshotNormalizado = undefined
+            }
+          }
+
+          return {
+            id,
+            criadoEm,
+            clienteId: clienteId || undefined,
+            clienteNome: dadosNormalizados.cliente.nome,
+            clienteCidade: dadosNormalizados.cliente.cidade,
+            clienteUf: dadosNormalizados.cliente.uf,
+            clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
+            clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
+            dados: dadosNormalizados,
+            snapshot: snapshotNormalizado,
+          }
+        })
+      } catch (error) {
+        console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
+        return []
+      }
+    },
+    [carregarClientesSalvos],
+  )
+
+  const carregarOrcamentosSalvos = useCallback(
+    (): OrcamentoSalvo[] => {
+      if (typeof window === 'undefined') {
+        return []
+      }
+
+      const existenteRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
+      return parseOrcamentosSalvos(existenteRaw)
+    },
+    [parseOrcamentosSalvos],
+  )
+
+  const carregarOrcamentosPrioritarios = useCallback(async (): Promise<OrcamentoSalvo[]> => {
     if (typeof window === 'undefined') {
       return []
     }
 
-    const existenteRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
-    if (!existenteRaw) {
-      return []
+    let remoto = undefined as string | null | undefined
+    try {
+      remoto = await fetchRemoteStorageEntry(BUDGETS_STORAGE_KEY, { timeoutMs: 4000 })
+    } catch (error) {
+      console.warn('Não foi possível carregar orçamentos do banco de dados.', error)
+    }
+
+    if (remoto !== undefined) {
+      if (remoto === null) {
+        window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
+      } else {
+        window.localStorage.setItem(BUDGETS_STORAGE_KEY, remoto)
+      }
+      return parseOrcamentosSalvos(remoto)
     }
 
     try {
-      const parsed = JSON.parse(existenteRaw)
-      if (!Array.isArray(parsed)) {
-        return []
+      const oneDrivePayload = await loadPropostasFromOneDrive()
+      if (oneDrivePayload !== null && oneDrivePayload !== undefined) {
+        const raw =
+          typeof oneDrivePayload === 'string'
+            ? oneDrivePayload
+            : JSON.stringify(oneDrivePayload)
+        window.localStorage.setItem(BUDGETS_STORAGE_KEY, raw)
+        return parseOrcamentosSalvos(raw)
       }
-
-      const clientesRegistrados = carregarClientesSalvos()
-      const clienteIdPorDocumento = new Map<string, string>()
-      const clienteIdPorUc = new Map<string, string>()
-
-      clientesRegistrados.forEach((clienteRegistro) => {
-        const documento = normalizeNumbers(clienteRegistro.dados.documento ?? '')
-        if (documento && !clienteIdPorDocumento.has(documento)) {
-          clienteIdPorDocumento.set(documento, clienteRegistro.id)
-        }
-
-        const uc = normalizeText(clienteRegistro.dados.uc ?? '')
-        if (uc && !clienteIdPorUc.has(uc)) {
-          clienteIdPorUc.set(uc, clienteRegistro.id)
-        }
-      })
-
-      const sanitizeClienteId = (valor: unknown) => {
-        if (typeof valor !== 'string') {
-          return ''
-        }
-
-        const normalizado = normalizeClienteIdCandidate(valor)
-        if (normalizado.length === CLIENTE_ID_LENGTH && CLIENTE_ID_PATTERN.test(normalizado)) {
-          return normalizado
-        }
-
-        return ''
-      }
-
-      return parsed.map((item) => {
-        const registro = item as Partial<OrcamentoSalvo> & { clienteID?: string }
-        const dados = registro.dados as PrintableProposalProps
-        const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
-        const temIndicacaoRaw = (clienteDados as { temIndicacao?: unknown }).temIndicacao
-        const indicacaoNomeRaw = (clienteDados as { indicacaoNome?: unknown }).indicacaoNome
-        const temIndicacaoNormalizado =
-          typeof temIndicacaoRaw === 'boolean'
-            ? temIndicacaoRaw
-            : typeof temIndicacaoRaw === 'string'
-            ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
-            : false
-        const indicacaoNomeNormalizado =
-          typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
-
-        const herdeirosNormalizados = normalizeClienteHerdeiros(
-          (clienteDados as { herdeiros?: unknown }).herdeiros,
-        )
-
-        const clienteNormalizado: ClienteDados = {
-          nome: clienteDados.nome ?? '',
-          documento: clienteDados.documento ?? '',
-          rg: clienteDados.rg ?? '',
-          estadoCivil: clienteDados.estadoCivil ?? '',
-          nacionalidade: clienteDados.nacionalidade ?? '',
-          profissao: clienteDados.profissao ?? '',
-          representanteLegal: clienteDados.representanteLegal ?? '',
-          email: clienteDados.email ?? '',
-          telefone: clienteDados.telefone ?? '',
-          cep: clienteDados.cep ?? '',
-          distribuidora: clienteDados.distribuidora ?? '',
-          uc: clienteDados.uc ?? '',
-          endereco: clienteDados.endereco ?? '',
-          cidade: clienteDados.cidade ?? '',
-          uf: clienteDados.uf ?? '',
-          temIndicacao: temIndicacaoNormalizado,
-          indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
-          herdeiros: herdeirosNormalizados,
-          nomeSindico: clienteDados.nomeSindico ?? '',
-          cpfSindico: clienteDados.cpfSindico ?? '',
-          contatoSindico: clienteDados.contatoSindico ?? '',
-          diaVencimento: clienteDados.diaVencimento ?? '10',
-        }
-
-        const dadosNormalizados: PrintableProposalProps = {
-          ...dados,
-          budgetId: dados?.budgetId ?? registro.id,
-          cliente: clienteNormalizado,
-          distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteNormalizado.distribuidora ?? '',
-          tipoProposta: dados?.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
-        }
-
-        if (dados.ucGeradora && typeof dados.ucGeradora === 'object') {
-          const numero = typeof dados.ucGeradora.numero === 'string' ? dados.ucGeradora.numero : ''
-          const endereco =
-            typeof dados.ucGeradora.endereco === 'string' ? dados.ucGeradora.endereco : ''
-          dadosNormalizados.ucGeradora = { numero, endereco }
-        } else {
-          delete dadosNormalizados.ucGeradora
-        }
-
-        dadosNormalizados.ucsBeneficiarias = Array.isArray(dados.ucsBeneficiarias)
-          ? dados.ucsBeneficiarias
-              .filter((item): item is PrintableUcBeneficiaria => Boolean(item && typeof item === 'object'))
-              .map((item) => ({
-                numero: typeof item.numero === 'string' ? item.numero : '',
-                endereco: typeof item.endereco === 'string' ? item.endereco : '',
-                rateioPercentual:
-                  item.rateioPercentual != null && Number.isFinite(item.rateioPercentual)
-                    ? Number(item.rateioPercentual)
-                    : null,
-              }))
-          : []
-
-        const clienteIdArmazenado =
-          sanitizeClienteId(
-            registro.clienteId ??
-              registro.clienteID ??
-              (dadosNormalizados as unknown as { clienteId?: string }).clienteId ??
-              ((dadosNormalizados.cliente as unknown as { id?: string })?.id ?? ''),
-          )
-
-        const documentoRaw = registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? ''
-        const ucRaw = registro.clienteUc ?? dadosNormalizados.cliente.uc ?? ''
-
-        let clienteId = clienteIdArmazenado
-
-        if (!clienteId) {
-          const documentoDigits = normalizeNumbers(documentoRaw)
-          if (documentoDigits) {
-            clienteId = clienteIdPorDocumento.get(documentoDigits) ?? ''
-          }
-        }
-
-        if (!clienteId) {
-          const ucTexto = normalizeText(ucRaw)
-          if (ucTexto) {
-            clienteId = clienteIdPorUc.get(ucTexto) ?? ''
-          }
-        }
-
-        const id = typeof registro.id === 'string' && registro.id ? registro.id : ensureProposalId(dadosNormalizados.budgetId)
-        const criadoEm =
-          typeof registro.criadoEm === 'string' && registro.criadoEm
-            ? registro.criadoEm
-            : new Date().toISOString()
-
-        let snapshotNormalizado: OrcamentoSnapshotData | undefined
-        if (registro.snapshot && typeof registro.snapshot === 'object') {
-          try {
-            snapshotNormalizado = cloneSnapshotData(registro.snapshot as OrcamentoSnapshotData)
-            if (snapshotNormalizado.currentBudgetId !== id) {
-              snapshotNormalizado.currentBudgetId = id
-            }
-            snapshotNormalizado.tusdTipoCliente = normalizeTipoBasico(
-              snapshotNormalizado.tusdTipoCliente,
-            )
-            snapshotNormalizado.segmentoCliente = normalizeTipoBasico(
-              snapshotNormalizado.segmentoCliente,
-            )
-            snapshotNormalizado.vendaForm = {
-              ...snapshotNormalizado.vendaForm,
-              segmento_cliente: snapshotNormalizado.vendaForm.segmento_cliente
-                ? normalizeTipoBasico(snapshotNormalizado.vendaForm.segmento_cliente)
-                : undefined,
-              tusd_tipo_cliente: snapshotNormalizado.vendaForm.tusd_tipo_cliente
-                ? normalizeTipoBasico(snapshotNormalizado.vendaForm.tusd_tipo_cliente)
-                : undefined,
-            }
-          } catch (error) {
-            console.warn('Não foi possível interpretar o snapshot do orçamento salvo.', error)
-            snapshotNormalizado = undefined
-          }
-        }
-
-        return {
-          id,
-          criadoEm,
-          clienteId: clienteId || undefined,
-          clienteNome: dadosNormalizados.cliente.nome,
-          clienteCidade: dadosNormalizados.cliente.cidade,
-          clienteUf: dadosNormalizados.cliente.uf,
-          clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
-          clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
-          dados: dadosNormalizados,
-          snapshot: snapshotNormalizado,
-        }
-      })
     } catch (error) {
-      console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
-      return []
+      if (error instanceof OneDriveIntegrationMissingError) {
+        console.info('Leitura via OneDrive ignorada: integração não configurada.')
+      } else {
+        console.warn('Não foi possível carregar propostas via OneDrive.', error)
+      }
     }
-  }, [carregarClientesSalvos])
+
+    const fallbackRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
+    return parseOrcamentosSalvos(fallbackRaw)
+  }, [parseOrcamentosSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -12016,13 +12074,16 @@ export default function App() {
       if (cancelado) {
         return
       }
-      setOrcamentosSalvos(carregarOrcamentosSalvos())
+      const registros = await carregarOrcamentosPrioritarios()
+      if (!cancelado) {
+        setOrcamentosSalvos(registros)
+      }
     }
     carregar()
     return () => {
       cancelado = true
     }
-  }, [carregarOrcamentosSalvos])
+  }, [carregarOrcamentosPrioritarios])
 
   const aplicarSnapshot = (
     snapshotEntrada: OrcamentoSnapshotData,
@@ -12270,6 +12331,13 @@ export default function App() {
           const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
           setOrcamentosSalvos(persisted)
           alertPrunedBudgets(pruned)
+          void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
+          void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
+            if (error instanceof OneDriveIntegrationMissingError) {
+              return
+            }
+            console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
+          })
           return persisted.find((registro) => registro.id === registroAtualizado.id) ?? registroAtualizado
         }
 
@@ -12307,6 +12375,13 @@ export default function App() {
         const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
         setOrcamentosSalvos(persisted)
         alertPrunedBudgets(pruned)
+        void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
+        void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
+          if (error instanceof OneDriveIntegrationMissingError) {
+            return
+          }
+          console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
+        })
         return persisted.find((item) => item.id === registro.id) ?? registro
       } catch (error) {
         console.error('Erro ao salvar orçamento localmente.', error)
@@ -13988,14 +14063,15 @@ export default function App() {
 
   const abrirPesquisaOrcamentos = useCallback(async () => {
     const canProceed = await runWithUnsavedChangesGuard(() => {
-      const registros = carregarOrcamentosSalvos()
-      setOrcamentosSalvos(registros)
+      return carregarOrcamentosPrioritarios().then((registros) => {
+        setOrcamentosSalvos(registros)
+      })
       setOrcamentoSearchTerm('')
       setActivePage('consultar')
     })
 
     return canProceed
-  }, [carregarOrcamentosSalvos, runWithUnsavedChangesGuard, setActivePage])
+  }, [carregarOrcamentosPrioritarios, runWithUnsavedChangesGuard, setActivePage])
 
   const abrirSimulacoes = useCallback(
     async (section?: SimulacoesSection) => {
@@ -14832,7 +14908,7 @@ export default function App() {
 
           limparDadosModalidade(printableData.tipoProposta)
 
-          const registrosAtualizados = carregarOrcamentosSalvos()
+          const registrosAtualizados = await carregarOrcamentosPrioritarios()
           const atualizado = registrosAtualizados.find((item) => item.id === registro.id)
           if (atualizado?.snapshot) {
             registro = atualizado
@@ -14854,7 +14930,7 @@ export default function App() {
     },
     [
       carregarOrcamentoParaEdicao,
-      carregarOrcamentosSalvos,
+      carregarOrcamentosPrioritarios,
       handleSalvarPropostaPdf,
       hasUnsavedChanges,
       requestSaveDecision,

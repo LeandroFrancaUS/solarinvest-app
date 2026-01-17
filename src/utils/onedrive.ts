@@ -2,6 +2,9 @@ const CLIENT_ONEDRIVE_BASE_PATH =
   '/Users/leandrofranca/Library/CloudStorage/OneDrive-7-Office/SolarInvest/Controle de Clientes'
 const CONTRACTS_ONEDRIVE_BASE_PATH =
   '/Users/leandrofranca/Library/CloudStorage/OneDrive-Personal/Contratos gerados'
+const PROPOSALS_ONEDRIVE_BASE_PATH =
+  '/Users/leandrofranca/Library/CloudStorage/OneDrive-Personal/Propostas salvas'
+const PROPOSALS_FILE_NAME = 'solarinvest-propostas.json'
 const CLIENT_FOLDER_SEPARATOR = '-'
 const CLIENT_FILE_PREFIX = 'SLRINVST-'
 const CLIENT_FILE_PURPOSE = 'Leasing'
@@ -142,6 +145,42 @@ const resolveOneDriveLoadBridge = (): OneDriveLoadBridge | null => {
   return candidates.find((candidate): candidate is OneDriveLoadBridge => typeof candidate === 'function') ?? null
 }
 
+const resolveProposalsBridge = (): OneDriveBridge | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const candidates: (OneDriveBridge | undefined)[] = [
+    window.solarinvestNative?.saveProposalsToOneDrive,
+    window.solarinvestNative?.saveProposals,
+    window.solarinvestOneDrive?.saveProposalsToOneDrive,
+    window.solarinvestOneDrive?.saveProposals,
+    window.electronAPI?.saveProposalsToOneDrive,
+    window.desktopAPI?.saveProposalsToOneDrive,
+    window.saveProposalsToOneDrive,
+  ]
+
+  return candidates.find((candidate): candidate is OneDriveBridge => typeof candidate === 'function') ?? null
+}
+
+const resolveProposalsLoadBridge = (): OneDriveLoadBridge | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const candidates: (OneDriveLoadBridge | undefined)[] = [
+    window.solarinvestNative?.loadProposalsFromOneDrive,
+    window.solarinvestNative?.loadProposals,
+    window.solarinvestOneDrive?.loadProposalsFromOneDrive,
+    window.solarinvestOneDrive?.loadProposals,
+    window.electronAPI?.loadProposalsFromOneDrive,
+    window.desktopAPI?.loadProposalsFromOneDrive,
+    window.loadProposalsFromOneDrive,
+  ]
+
+  return candidates.find((candidate): candidate is OneDriveLoadBridge => typeof candidate === 'function') ?? null
+}
+
 const getOneDriveEndpoint = () => import.meta.env?.VITE_ONEDRIVE_SYNC_ENDPOINT?.trim() || ''
 
 export const isOneDriveIntegrationAvailable = (): boolean => {
@@ -220,6 +259,43 @@ export const loadClientesFromOneDrive = async (): Promise<unknown | null> => {
     } catch (error) {
       throw new Error(
         `Não foi possível consultar clientes no endpoint configurado do OneDrive: ${formatUnknownError(error)}`,
+      )
+    }
+  }
+
+  throw new OneDriveIntegrationMissingError()
+}
+
+export const loadPropostasFromOneDrive = async (): Promise<unknown | null> => {
+  const bridge = resolveProposalsLoadBridge()
+  if (bridge) {
+    try {
+      const result = await bridge()
+      return extractOneDrivePayload(result)
+    } catch (error) {
+      throw new Error(`Não foi possível carregar propostas do OneDrive: ${formatUnknownError(error)}`)
+    }
+  }
+
+  const endpoint = getOneDriveEndpoint()
+  if (endpoint) {
+    try {
+      const response = await fetch(endpoint, { method: 'GET' })
+      if (!response.ok) {
+        const texto = await response.text().catch(() => '')
+        const mensagem = texto || `Falha ao consultar propostas no endpoint configurado (${response.status}).`
+        throw new Error(mensagem)
+      }
+
+      const texto = await response.text()
+      try {
+        return JSON.parse(texto)
+      } catch {
+        return texto
+      }
+    } catch (error) {
+      throw new Error(
+        `Não foi possível consultar propostas no endpoint configurado do OneDrive: ${formatUnknownError(error)}`,
       )
     }
   }
@@ -353,6 +429,66 @@ export const persistContratoToOneDrive = async ({
     } catch (error) {
       throw new Error(
         `Não foi possível enviar o contrato para o endpoint configurado do OneDrive: ${formatUnknownError(error)}`,
+      )
+    }
+  }
+
+  throw new OneDriveIntegrationMissingError()
+}
+
+export const persistPropostasToOneDrive = async (content: string): Promise<void> => {
+  if (!content || content.trim().length === 0) {
+    throw new Error('Conteúdo das propostas inválido.')
+  }
+
+  const payload: OneDriveBridgePayload = {
+    folderPath: PROPOSALS_ONEDRIVE_BASE_PATH,
+    fileName: PROPOSALS_FILE_NAME,
+    content,
+  }
+
+  const bridge = resolveProposalsBridge()
+
+  if (bridge) {
+    try {
+      const result = await bridge(payload)
+      const failed =
+        result === false ||
+        (typeof result === 'object' && result !== null && 'success' in result && result.success === false)
+
+      if (failed) {
+        const message =
+          typeof result === 'object' && result !== null && 'message' in result && typeof result.message === 'string'
+            ? result.message
+            : 'A integração com o OneDrive retornou uma falha.'
+        throw new Error(message)
+      }
+
+      return
+    } catch (error) {
+      throw new Error(`Não foi possível salvar propostas no OneDrive: ${formatUnknownError(error)}`)
+    }
+  }
+
+  const endpoint = getOneDriveEndpoint()
+  if (endpoint) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, id: PROPOSALS_FILE_NAME }),
+      })
+
+      if (!response.ok) {
+        const texto = await response.text().catch(() => '')
+        const mensagem = texto || `Falha ao salvar propostas no endpoint configurado (${response.status}).`
+        throw new Error(mensagem)
+      }
+
+      return
+    } catch (error) {
+      throw new Error(
+        `Não foi possível enviar as propostas para o endpoint configurado do OneDrive: ${formatUnknownError(error)}`,
       )
     }
   }
