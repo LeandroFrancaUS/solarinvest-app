@@ -12226,12 +12226,15 @@ export default function App() {
       try {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
-        const fingerprint = createBudgetFingerprint(dadosClonados)
         const snapshotAtual = getCurrentSnapshot()
+        const fingerprint = computeSnapshotSignature(snapshotAtual, dadosClonados)
 
-        const registroExistenteIndex = registrosExistentes.findIndex(
-          (registro) => createBudgetFingerprint(registro.dados) === fingerprint,
-        )
+        const registroExistenteIndex = registrosExistentes.findIndex((registro) => {
+          if (registro.snapshot) {
+            return computeSnapshotSignature(registro.snapshot, registro.dados) === fingerprint
+          }
+          return createBudgetFingerprint(registro.dados) === fingerprint
+        })
 
         if (registroExistenteIndex >= 0) {
           const existente = registrosExistentes[registroExistenteIndex]
