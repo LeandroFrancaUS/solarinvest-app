@@ -12242,7 +12242,8 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [aplicarSnapshot])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Auto-save debounced: salva o snapshot a cada 5 segundos quando houver mudanças
   useEffect(() => {
