@@ -19696,7 +19696,7 @@ export default function App() {
           label: 'Ver propostas',
           icon: '📂',
           onSelect: () => {
-            setActivePage('app')
+            void abrirPesquisaOrcamentos()
           },
         },
         {
