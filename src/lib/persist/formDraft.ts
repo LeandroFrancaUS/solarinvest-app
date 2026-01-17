@@ -24,7 +24,31 @@ export async function saveFormDraft<T>(snapshotData: T): Promise<DraftEnvelope<T
       version: envelope.version,
       updatedAt: new Date(envelope.updatedAt).toISOString(),
       hasData: !!envelope.data,
+      dataKeys: envelope.data ? Object.keys(envelope.data as object).length : 0,
     })
+    
+    // READ-AFTER-WRITE VERIFICATION: Immediately read back to verify
+    try {
+      const verification = await loadDraft<T>(FORM_DRAFT_KEY)
+      if (!verification || !verification.data) {
+        console.error('[formDraft] READ-AFTER-WRITE FAILED: Data not found after save!')
+        return envelope
+      }
+      
+      const verifyData = verification.data as any
+      console.log('[formDraft] READ-AFTER-WRITE VERIFICATION SUCCESS:', {
+        hasCliente: !!verifyData.cliente,
+        clienteNome: verifyData.cliente?.nome,
+        clienteEndereco: verifyData.cliente?.endereco,
+        clienteCidade: verifyData.cliente?.cidade,
+        kcKwhMes: verifyData.kcKwhMes,
+        tarifaCheia: verifyData.tarifaCheia,
+        totalFields: Object.keys(verifyData).length,
+      })
+    } catch (verifyError) {
+      console.error('[formDraft] READ-AFTER-WRITE verification failed:', verifyError)
+    }
+    
     return envelope
   } catch (error) {
     console.error('[formDraft] Failed to save form snapshot:', error)
@@ -47,11 +71,30 @@ export async function loadFormDraft<T>(): Promise<DraftEnvelope<T> | null> {
       return null
     }
     
+    const loadedData = envelope.data as any
     console.log('[formDraft] Form snapshot loaded successfully:', {
       version: envelope.version,
       updatedAt: new Date(envelope.updatedAt).toISOString(),
       hasData: !!envelope.data,
+      dataKeys: envelope.data ? Object.keys(envelope.data as object).length : 0,
     })
+    
+    // Detailed verification of critical fields
+    if (loadedData) {
+      console.log('[formDraft] LOADED DATA DETAILS:', {
+        hasCliente: !!loadedData.cliente,
+        clienteNome: loadedData.cliente?.nome || '(empty)',
+        clienteEndereco: loadedData.cliente?.endereco || '(empty)',
+        clienteCidade: loadedData.cliente?.cidade || '(empty)',
+        clienteDocumento: loadedData.cliente?.documento || '(empty)',
+        kcKwhMes: loadedData.kcKwhMes,
+        tarifaCheia: loadedData.tarifaCheia,
+        potenciaModulo: loadedData.potenciaModulo,
+        numeroModulosManual: loadedData.numeroModulosManual,
+        totalFields: Object.keys(loadedData).length,
+        allFieldNames: Object.keys(loadedData).slice(0, 20).join(', ') + '...',
+      })
+    }
     
     return envelope
   } catch (error) {

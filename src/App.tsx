@@ -12200,12 +12200,36 @@ export default function App() {
         const envelope = await loadFormDraft<OrcamentoSnapshotData>()
         
         if (cancelado) {
+          console.log('[App] Load cancelled (component unmounted)')
           return
         }
         
         if (envelope && envelope.data) {
           console.log('[App] Form draft found, applying snapshot')
+          console.log('[App] BEFORE APPLY - Current cliente:', {
+            nome: cliente.nome,
+            endereco: cliente.endereco,
+            cidade: cliente.cidade,
+          })
+          console.log('[App] SNAPSHOT TO APPLY - Cliente:', {
+            nome: envelope.data.cliente?.nome,
+            endereco: envelope.data.cliente?.endereco,
+            cidade: envelope.data.cliente?.cidade,
+          })
+          
           aplicarSnapshot(envelope.data)
+          
+          // Verify after a short delay to let React updates process
+          setTimeout(() => {
+            if (!cancelado) {
+              console.log('[App] AFTER APPLY - Verificando estado:', {
+                clienteNome: cliente.nome,
+                clienteEndereco: cliente.endereco,
+                clienteCidade: cliente.cidade,
+              })
+            }
+          }, 100)
+          
           console.log('[App] Form draft applied successfully')
         } else {
           console.log('[App] No form draft found in IndexedDB')
@@ -12218,7 +12242,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [])
+  }, [aplicarSnapshot])
 
   // Auto-save debounced: salva o snapshot a cada 5 segundos quando houver mudanças
   useEffect(() => {
@@ -12264,6 +12288,14 @@ export default function App() {
     snapshotEntrada: OrcamentoSnapshotData,
     options?: { budgetIdOverride?: string },
   ) => {
+    console.log('[aplicarSnapshot] Starting to apply snapshot')
+    console.log('[aplicarSnapshot] Snapshot cliente data:', {
+      nome: snapshotEntrada.cliente?.nome,
+      endereco: snapshotEntrada.cliente?.endereco,
+      cidade: snapshotEntrada.cliente?.cidade,
+      documento: snapshotEntrada.cliente?.documento,
+    })
+    
     const snapshot = cloneSnapshotData(snapshotEntrada)
     snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
     snapshot.tipoInstalacaoOutro = snapshot.tipoInstalacaoOutro || ''
@@ -12279,6 +12311,11 @@ export default function App() {
     setActiveTab(snapshot.activeTab)
     setSettingsTab(snapshot.settingsTab)
     const clienteClonado = cloneClienteDados(snapshot.cliente)
+    console.log('[aplicarSnapshot] Setting cliente to:', {
+      nome: clienteClonado.nome,
+      endereco: clienteClonado.endereco,
+      cidade: clienteClonado.cidade,
+    })
     setCliente(clienteClonado)
     setClienteEmEdicaoId(snapshot.clienteEmEdicaoId)
     lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
