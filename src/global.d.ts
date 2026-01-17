@@ -4,6 +4,8 @@ type SolarInvestOneDriveBridgePayload = {
   folderPath: string
   fileName: string
   content: string
+  encoding?: 'base64' | 'utf8'
+  contentType?: string
 }
 
 type SolarInvestOneDriveBridgeResult =
@@ -50,6 +52,10 @@ declare global {
       saveClient?: SolarInvestOneDriveBridge
       loadClientsFromOneDrive?: SolarInvestOneDriveLoadBridge
       loadClients?: SolarInvestOneDriveLoadBridge
+      saveProposalsToOneDrive?: SolarInvestOneDriveBridge
+      saveProposals?: SolarInvestOneDriveBridge
+      loadProposalsFromOneDrive?: SolarInvestOneDriveLoadBridge
+      loadProposals?: SolarInvestOneDriveLoadBridge
       saveProposalPdf?: SolarInvestProposalPdfBridge
       saveProposal?: SolarInvestProposalPdfBridge
       savePdf?: SolarInvestProposalPdfBridge
@@ -59,6 +65,10 @@ declare global {
       saveClient?: SolarInvestOneDriveBridge
       loadClientsFromOneDrive?: SolarInvestOneDriveLoadBridge
       loadClients?: SolarInvestOneDriveLoadBridge
+      saveProposalsToOneDrive?: SolarInvestOneDriveBridge
+      saveProposals?: SolarInvestOneDriveBridge
+      loadProposalsFromOneDrive?: SolarInvestOneDriveLoadBridge
+      loadProposals?: SolarInvestOneDriveLoadBridge
       saveProposalPdf?: SolarInvestProposalPdfBridge
       saveProposal?: SolarInvestProposalPdfBridge
       savePdf?: SolarInvestProposalPdfBridge
@@ -71,17 +81,23 @@ declare global {
     electronAPI?: {
       saveClientToOneDrive?: SolarInvestOneDriveBridge
       loadClientsFromOneDrive?: SolarInvestOneDriveLoadBridge
+      saveProposalsToOneDrive?: SolarInvestOneDriveBridge
+      loadProposalsFromOneDrive?: SolarInvestOneDriveLoadBridge
       saveProposalPdf?: SolarInvestProposalPdfBridge
       saveProposal?: SolarInvestProposalPdfBridge
     }
     desktopAPI?: {
       saveClientToOneDrive?: SolarInvestOneDriveBridge
       loadClientsFromOneDrive?: SolarInvestOneDriveLoadBridge
+      saveProposalsToOneDrive?: SolarInvestOneDriveBridge
+      loadProposalsFromOneDrive?: SolarInvestOneDriveLoadBridge
       saveProposalPdf?: SolarInvestProposalPdfBridge
       saveProposal?: SolarInvestProposalPdfBridge
     }
     saveClientToOneDrive?: SolarInvestOneDriveBridge
     loadClientsFromOneDrive?: SolarInvestOneDriveLoadBridge
+    saveProposalsToOneDrive?: SolarInvestOneDriveBridge
+    loadProposalsFromOneDrive?: SolarInvestOneDriveLoadBridge
     saveProposalPdf?: SolarInvestProposalPdfBridge
   }
 

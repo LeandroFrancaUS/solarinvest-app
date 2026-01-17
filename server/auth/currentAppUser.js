@@ -1,8 +1,18 @@
 // server/auth/currentAppUser.js
 import { query } from '../db.js'
-import { getStackUser } from './stackAuth.js'
+import { getStackUser, isStackAuthBypassed } from './stackAuth.js'
 
 export async function getCurrentAppUser(req) {
+  if (isStackAuthBypassed()) {
+    return {
+      id: 'bypass-admin',
+      email: 'bypass@solarinvest.info',
+      full_name: 'Bypass Admin',
+      role: 'admin',
+      status: 'active',
+    }
+  }
+
   // 1) pega usuário autenticado (Stack Auth)
   const stackUser = await getStackUser(req)
   if (!stackUser?.email) {

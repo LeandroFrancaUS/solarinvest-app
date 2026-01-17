@@ -39,10 +39,13 @@ import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { resolveApiUrl } from './utils/apiUrl'
 import {
   persistClienteRegistroToOneDrive,
+  persistContratoToOneDrive,
   type ClienteRegistroSyncPayload,
   loadClientesFromOneDrive,
+  loadPropostasFromOneDrive,
   isOneDriveIntegrationAvailable,
   OneDriveIntegrationMissingError,
+  persistPropostasToOneDrive,
 } from './utils/onedrive'
 import {
   persistProposalPdf,
@@ -913,6 +916,7 @@ type OrcamentoSnapshotData = {
   segmentoCliente: SegmentoCliente
   tipoEdificacaoOutro: string
   numeroModulosManual: number | ''
+  configuracaoUsinaObservacoes: string
   composicaoTelhado: UfvComposicaoTelhadoValores
   composicaoSolo: UfvComposicaoSoloValores
   aprovadoresText: string
@@ -971,6 +975,7 @@ type OrcamentoSnapshotData = {
   autoBudgetReasonCode: string | null
   tipoRede: TipoRede
   tipoRedeControle: 'auto' | 'manual'
+  leasingAnexosSelecionados: LeasingAnexoId[]
   vendaSnapshot: VendaSnapshot
   leasingSnapshot: LeasingState
 }
@@ -1203,6 +1208,32 @@ const readPrintableImageFromFile = (file: File): Promise<PrintableProposalImage 
     } catch (error) {
       resolve(null)
     }
+  })
+}
+
+const readBlobAsBase64 = (blob: Blob): Promise<string> => {
+  if (typeof FileReader === 'undefined') {
+    return Promise.reject(new Error('FileReader indisponível para converter o arquivo.'))
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string') {
+        reject(new Error('Falha ao converter o arquivo para base64.'))
+        return
+      }
+      const [, base64] = result.split(',')
+      if (!base64) {
+        reject(new Error('Falha ao extrair conteúdo base64 do arquivo.'))
+        return
+      }
+      resolve(base64)
+    }
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'))
+    reader.onabort = () => reject(new Error('Leitura do arquivo interrompida.'))
+    reader.readAsDataURL(blob)
   })
 }
 
@@ -1555,6 +1586,7 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
   clienteMensagens: snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : undefined,
   ucBeneficiarias: cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []),
   pageShared: { ...snapshot.pageShared },
+  configuracaoUsinaObservacoes: snapshot.configuracaoUsinaObservacoes ?? '',
   propostaImagens: Array.isArray(snapshot.propostaImagens)
     ? snapshot.propostaImagens.map((imagem) => ({ ...imagem }))
     : [],
@@ -1576,6 +1608,9 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
   vendasConfig: JSON.parse(JSON.stringify(snapshot.vendasConfig)) as VendasConfig,
   vendasSimulacoes: cloneVendasSimulacoes(snapshot.vendasSimulacoes),
   vendaForm: { ...snapshot.vendaForm },
+  leasingAnexosSelecionados: Array.isArray(snapshot.leasingAnexosSelecionados)
+    ? [...snapshot.leasingAnexosSelecionados]
+    : [],
   parsedVendaPdf: snapshot.parsedVendaPdf
     ? (JSON.parse(JSON.stringify(snapshot.parsedVendaPdf)) as ParsedVendaPdfData)
     : null,
@@ -2190,11 +2225,6 @@ const createClienteComparisonData = (dados: ClienteDados) => {
     email: normalized.email,
     endereco: normalized.endereco,
   }
-}
-
-const buildClienteConflictMessage = (clienteNome: string, motivo: 'CPF/CNPJ' | 'RG') => {
-  const nome = clienteNome.trim() || 'outro cliente'
-  return `Já existe um cliente cadastrado com o mesmo ${motivo} em nome de ${nome}. Verifique o cadastro antes de prosseguir.`
 }
 
 const formatBudgetDate = (isoString: string) => {
@@ -3119,6 +3149,28 @@ function sanitizePrintableHtml(html: string | null): string | null {
   }
 
   return html.replace(/html\s*coding/gi, '').trim()
+}
+
+const buildProposalPdfDocument = (layoutHtml: string, nomeCliente: string, variant: PrintVariant = 'standard') => {
+  const safeCliente = nomeCliente?.trim() || 'SolarInvest'
+  const safeHtml = layoutHtml || ''
+
+  return `<!DOCTYPE html>
+<html data-print-mode="download" data-print-variant="${variant}">
+  <head>
+    <meta charset="utf-8" />
+    <title>Proposta-${safeCliente}</title>
+    <style>
+      ${printStyles}
+      ${simplePrintStyles}
+      body{margin:0;background:#f8fafc;}
+      .preview-container{max-width:calc(210mm - 32mm);width:100%;margin:0 auto;padding:24px 0 40px;}
+    </style>
+  </head>
+  <body data-print-mode="download" data-print-variant="${variant}">
+    <div class="preview-container">${safeHtml}</div>
+  </body>
+</html>`
 }
 
 function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Promise<string | null> {
@@ -6009,7 +6061,18 @@ export default function App() {
   const contratoClientePayloadRef = useRef<ClienteContratoPayload | null>(null)
 
   useEffect(() => {
-    setLeasingAnexosSelecionados(getDefaultLeasingAnexos(leasingContrato.tipoContrato))
+    setLeasingAnexosSelecionados((prev) => {
+      const anexosValidos = new Set(
+        LEASING_ANEXOS_CONFIG.filter((anexo) =>
+          anexo.tipos.includes(leasingContrato.tipoContrato),
+        ).map((anexo) => anexo.id),
+      )
+      const filtrados = prev.filter((id) => anexosValidos.has(id))
+      if (filtrados.length > 0) {
+        return filtrados
+      }
+      return getDefaultLeasingAnexos(leasingContrato.tipoContrato)
+    })
   }, [leasingContrato.tipoContrato])
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
@@ -11418,6 +11481,7 @@ export default function App() {
       segmentoCliente: segmentoClienteNormalizado,
       tipoEdificacaoOutro,
       numeroModulosManual,
+      configuracaoUsinaObservacoes,
       composicaoTelhado: { ...composicaoTelhado },
       composicaoSolo: { ...composicaoSolo },
       aprovadoresText,
@@ -11487,6 +11551,7 @@ export default function App() {
       autoBudgetReasonCode,
       tipoRede,
       tipoRedeControle,
+      leasingAnexosSelecionados: [...leasingAnexosSelecionados],
       vendaSnapshot: vendaSnapshotAtual,
       leasingSnapshot: leasingSnapshotAtual,
     }
@@ -11519,12 +11584,9 @@ export default function App() {
     let registroSalvo: ClienteRegistro | null = null
     let registrosPersistidos: ClienteRegistro[] | null = null
     let houveErro = false
-    let erroDuplicidade: string | null = null
-
     setClientesSalvos((prevRegistros) => {
       const novoComparacao = createClienteComparisonData(dadosClonados)
       let registroCorrespondente: ClienteRegistro | null = null
-      let conflitoDuplicidade: { nome: string; motivo: 'CPF/CNPJ' | 'RG' } | null = null
 
       for (const registro of prevRegistros) {
         if (clienteEmEdicaoId && registro.id === clienteEmEdicaoId) {
@@ -11547,24 +11609,9 @@ export default function App() {
         }
 
         if (documentoIgual || rgIgual) {
-          if (nomeIgual) {
-            registroCorrespondente = registro
-          } else {
-            conflitoDuplicidade = {
-              nome: registro.dados.nome?.trim() || 'outro cliente',
-              motivo: documentoIgual ? 'CPF/CNPJ' : 'RG',
-            }
-          }
+          registroCorrespondente = registro
           break
         }
-      }
-
-      if (conflitoDuplicidade) {
-        erroDuplicidade = buildClienteConflictMessage(
-          conflitoDuplicidade.nome,
-          conflitoDuplicidade.motivo,
-        )
-        return prevRegistros
       }
 
       const existingIds = new Set(prevRegistros.map((registro) => registro.id))
@@ -11627,11 +11674,6 @@ export default function App() {
       registrosPersistidos = ordenados
       return ordenados
     })
-
-    if (erroDuplicidade) {
-      window.alert(erroDuplicidade)
-      return false
-    }
 
     const salvo = registroSalvo as ClienteRegistro | null
     if (houveErro || !salvo) {
@@ -11722,30 +11764,76 @@ export default function App() {
     setClienteEmEdicaoId,
   ])
 
+  const applyClienteSnapshot = useCallback(
+    (snapshot: OrcamentoSnapshotData) => {
+      setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
+      setKcKwhMes(snapshot.kcKwhMes, snapshot.consumoManual ? 'user' : 'auto')
+      setUsarEnderecoCliente(snapshot.usarEnderecoCliente ?? false)
+      setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
+      setTipoEdificacaoOutro(snapshot.tipoEdificacaoOutro || '')
+      setConfiguracaoUsinaObservacoes(snapshot.configuracaoUsinaObservacoes ?? '')
+      setLeasingAnexosSelecionados(
+        Array.isArray(snapshot.leasingAnexosSelecionados)
+          ? [...snapshot.leasingAnexosSelecionados]
+          : getDefaultLeasingAnexos(snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial'),
+      )
+      leasingActions.updateContrato({
+        localEntrega: snapshot.leasingSnapshot?.contrato?.localEntrega ?? '',
+      })
+    },
+    [
+      setKcKwhMes,
+      setLeasingAnexosSelecionados,
+      setSegmentoCliente,
+      setTipoEdificacaoOutro,
+      setConfiguracaoUsinaObservacoes,
+      setUcsBeneficiarias,
+      setUsarEnderecoCliente,
+    ],
+  )
+
   const handleEditarCliente = useCallback(
     (registro: ClienteRegistro) => {
       setCliente(cloneClienteDados(registro.dados))
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
-      fecharClientesPainel()
-      // Restore proposal snapshot if available
       if (registro.propostaSnapshot) {
-        // Use setTimeout to ensure state updates complete before applying snapshot
-        setTimeout(() => {
-          try {
-            aplicarSnapshot(registro.propostaSnapshot!)
-            console.log('[ClienteLoad] Proposal snapshot restored successfully')
-          } catch (error) {
-            console.error('[ClienteLoad] Error restoring proposal snapshot:', error)
-          }
-        }, 100)
-      } else {
-        console.warn('[ClienteLoad] No proposal snapshot found for client:', registro.id)
+        applyClienteSnapshot(registro.propostaSnapshot)
       }
+      fecharClientesPainel()
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- aplicarSnapshot is not memoized and changes on every render
-    [fecharClientesPainel, setCliente, setClienteEmEdicaoId, setClienteMensagens],
+    [
+      applyClienteSnapshot,
+      fecharClientesPainel,
+      setCliente,
+      setClienteEmEdicaoId,
+      setClienteMensagens,
+    ],
   )
+
+  const clienteRegistroEmEdicao = clienteEmEdicaoId
+    ? clientesSalvos.find((registro) => registro.id === clienteEmEdicaoId) ?? null
+    : null
+  const clienteFormularioAlterado = (() => {
+    if (!clienteRegistroEmEdicao) {
+      return false
+    }
+    const snapshotAtual = cloneSnapshotData(getCurrentSnapshot())
+    const snapshotSalvo = clienteRegistroEmEdicao.propostaSnapshot
+      ? cloneSnapshotData(clienteRegistroEmEdicao.propostaSnapshot)
+      : null
+    const assinaturaAtual = stableStringify({
+      dados: cloneClienteDados(cliente),
+      snapshot: snapshotAtual,
+    })
+    const assinaturaSalva = stableStringify({
+      dados: cloneClienteDados(clienteRegistroEmEdicao.dados),
+      snapshot: snapshotSalvo,
+    })
+    return assinaturaAtual !== assinaturaSalva
+  })()
+  const clienteSaveLabel =
+    clienteEmEdicaoId && clienteFormularioAlterado ? 'Atualizar cliente' : 'Salvar cliente'
 
   const handleExcluirCliente = useCallback(
     (registro: ClienteRegistro) => {
@@ -11804,204 +11892,270 @@ export default function App() {
     [clienteEmEdicaoId, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
-  const carregarOrcamentosSalvos = useCallback((): OrcamentoSalvo[] => {
+  const parseOrcamentosSalvos = useCallback(
+    (existenteRaw: string | null): OrcamentoSalvo[] => {
+      if (!existenteRaw) {
+        return []
+      }
+
+      try {
+        const parsed = JSON.parse(existenteRaw)
+        if (!Array.isArray(parsed)) {
+          return []
+        }
+
+        const clientesRegistrados = carregarClientesSalvos()
+        const clienteIdPorDocumento = new Map<string, string>()
+        const clienteIdPorUc = new Map<string, string>()
+
+        clientesRegistrados.forEach((clienteRegistro) => {
+          const documento = normalizeNumbers(clienteRegistro.dados.documento ?? '')
+          if (documento && !clienteIdPorDocumento.has(documento)) {
+            clienteIdPorDocumento.set(documento, clienteRegistro.id)
+          }
+
+          const uc = normalizeText(clienteRegistro.dados.uc ?? '')
+          if (uc && !clienteIdPorUc.has(uc)) {
+            clienteIdPorUc.set(uc, clienteRegistro.id)
+          }
+        })
+
+        const sanitizeClienteId = (valor: unknown) => {
+          if (typeof valor !== 'string') {
+            return ''
+          }
+
+          const normalizado = normalizeClienteIdCandidate(valor)
+          if (normalizado.length === CLIENTE_ID_LENGTH && CLIENTE_ID_PATTERN.test(normalizado)) {
+            return normalizado
+          }
+
+          return ''
+        }
+
+        return parsed.map((item) => {
+          const registro = item as Partial<OrcamentoSalvo> & { clienteID?: string }
+          const dados = registro.dados as PrintableProposalProps
+          const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
+          const temIndicacaoRaw = (clienteDados as { temIndicacao?: unknown }).temIndicacao
+          const indicacaoNomeRaw = (clienteDados as { indicacaoNome?: unknown }).indicacaoNome
+          const temIndicacaoNormalizado =
+            typeof temIndicacaoRaw === 'boolean'
+              ? temIndicacaoRaw
+              : typeof temIndicacaoRaw === 'string'
+              ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
+              : false
+          const indicacaoNomeNormalizado =
+            typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
+
+          const herdeirosNormalizados = normalizeClienteHerdeiros(
+            (clienteDados as { herdeiros?: unknown }).herdeiros,
+          )
+
+          const clienteNormalizado: ClienteDados = {
+            nome: clienteDados.nome ?? '',
+            documento: clienteDados.documento ?? '',
+            rg: clienteDados.rg ?? '',
+            estadoCivil: clienteDados.estadoCivil ?? '',
+            nacionalidade: clienteDados.nacionalidade ?? '',
+            profissao: clienteDados.profissao ?? '',
+            representanteLegal: clienteDados.representanteLegal ?? '',
+            email: clienteDados.email ?? '',
+            telefone: clienteDados.telefone ?? '',
+            cep: clienteDados.cep ?? '',
+            distribuidora: clienteDados.distribuidora ?? '',
+            uc: clienteDados.uc ?? '',
+            endereco: clienteDados.endereco ?? '',
+            cidade: clienteDados.cidade ?? '',
+            uf: clienteDados.uf ?? '',
+            temIndicacao: temIndicacaoNormalizado,
+            indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
+            herdeiros: herdeirosNormalizados,
+            nomeSindico: clienteDados.nomeSindico ?? '',
+            cpfSindico: clienteDados.cpfSindico ?? '',
+            contatoSindico: clienteDados.contatoSindico ?? '',
+            diaVencimento: clienteDados.diaVencimento ?? '10',
+          }
+
+          const dadosNormalizados: PrintableProposalProps = {
+            ...dados,
+            budgetId: dados?.budgetId ?? registro.id,
+            cliente: clienteNormalizado,
+            distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteNormalizado.distribuidora ?? '',
+            tipoProposta: dados?.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
+          }
+
+          if (dados.ucGeradora && typeof dados.ucGeradora === 'object') {
+            const numero = typeof dados.ucGeradora.numero === 'string' ? dados.ucGeradora.numero : ''
+            const endereco =
+              typeof dados.ucGeradora.endereco === 'string' ? dados.ucGeradora.endereco : ''
+            dadosNormalizados.ucGeradora = { numero, endereco }
+          } else {
+            delete dadosNormalizados.ucGeradora
+          }
+
+          dadosNormalizados.ucsBeneficiarias = Array.isArray(dados.ucsBeneficiarias)
+            ? dados.ucsBeneficiarias
+                .filter((item): item is PrintableUcBeneficiaria => Boolean(item && typeof item === 'object'))
+                .map((item) => ({
+                  numero: typeof item.numero === 'string' ? item.numero : '',
+                  endereco: typeof item.endereco === 'string' ? item.endereco : '',
+                  rateioPercentual:
+                    item.rateioPercentual != null && Number.isFinite(item.rateioPercentual)
+                      ? Number(item.rateioPercentual)
+                      : null,
+                }))
+            : []
+
+          const clienteIdArmazenado =
+            sanitizeClienteId(
+              registro.clienteId ??
+                registro.clienteID ??
+                (dadosNormalizados as unknown as { clienteId?: string }).clienteId ??
+                ((dadosNormalizados.cliente as unknown as { id?: string })?.id ?? ''),
+            )
+
+          const documentoRaw = registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? ''
+          const ucRaw = registro.clienteUc ?? dadosNormalizados.cliente.uc ?? ''
+
+          let clienteId = clienteIdArmazenado
+
+          if (!clienteId) {
+            const documentoDigits = normalizeNumbers(documentoRaw)
+            if (documentoDigits) {
+              clienteId = clienteIdPorDocumento.get(documentoDigits) ?? ''
+            }
+          }
+
+          if (!clienteId) {
+            const ucTexto = normalizeText(ucRaw)
+            if (ucTexto) {
+              clienteId = clienteIdPorUc.get(ucTexto) ?? ''
+            }
+          }
+
+          const id =
+            typeof registro.id === 'string' && registro.id
+              ? registro.id
+              : ensureProposalId(dadosNormalizados.budgetId)
+          const criadoEm =
+            typeof registro.criadoEm === 'string' && registro.criadoEm
+              ? registro.criadoEm
+              : new Date().toISOString()
+
+          const snapshotCandidate =
+            registro.snapshot ??
+            (registro as unknown as { propostaSnapshot?: unknown }).propostaSnapshot ??
+            (dados as unknown as { snapshot?: unknown }).snapshot
+
+          let snapshotNormalizado: OrcamentoSnapshotData | undefined
+          if (snapshotCandidate && typeof snapshotCandidate === 'object') {
+            try {
+              snapshotNormalizado = cloneSnapshotData(snapshotCandidate as OrcamentoSnapshotData)
+              if (snapshotNormalizado.currentBudgetId !== id) {
+                snapshotNormalizado.currentBudgetId = id
+              }
+              snapshotNormalizado.tusdTipoCliente = normalizeTipoBasico(
+                snapshotNormalizado.tusdTipoCliente,
+              )
+              snapshotNormalizado.segmentoCliente = normalizeTipoBasico(
+                snapshotNormalizado.segmentoCliente,
+              )
+              snapshotNormalizado.vendaForm = {
+                ...snapshotNormalizado.vendaForm,
+                segmento_cliente: snapshotNormalizado.vendaForm.segmento_cliente
+                  ? normalizeTipoBasico(snapshotNormalizado.vendaForm.segmento_cliente)
+                  : undefined,
+                tusd_tipo_cliente: snapshotNormalizado.vendaForm.tusd_tipo_cliente
+                  ? normalizeTipoBasico(snapshotNormalizado.vendaForm.tusd_tipo_cliente)
+                  : undefined,
+              }
+            } catch (error) {
+              console.warn('Não foi possível interpretar o snapshot do orçamento salvo.', error)
+              snapshotNormalizado = undefined
+            }
+          }
+
+          return {
+            id,
+            criadoEm,
+            clienteId: clienteId || undefined,
+            clienteNome: dadosNormalizados.cliente.nome,
+            clienteCidade: dadosNormalizados.cliente.cidade,
+            clienteUf: dadosNormalizados.cliente.uf,
+            clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
+            clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
+            dados: dadosNormalizados,
+            snapshot: snapshotNormalizado,
+          }
+        })
+      } catch (error) {
+        console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
+        return []
+      }
+    },
+    [carregarClientesSalvos],
+  )
+
+  const carregarOrcamentosSalvos = useCallback(
+    (): OrcamentoSalvo[] => {
+      if (typeof window === 'undefined') {
+        return []
+      }
+
+      const existenteRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
+      return parseOrcamentosSalvos(existenteRaw)
+    },
+    [parseOrcamentosSalvos],
+  )
+
+  const carregarOrcamentosPrioritarios = useCallback(async (): Promise<OrcamentoSalvo[]> => {
     if (typeof window === 'undefined') {
       return []
     }
 
-    const existenteRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
-    if (!existenteRaw) {
-      return []
+    let remoto = undefined as string | null | undefined
+    try {
+      remoto = await fetchRemoteStorageEntry(BUDGETS_STORAGE_KEY, { timeoutMs: 4000 })
+    } catch (error) {
+      console.warn('Não foi possível carregar orçamentos do banco de dados.', error)
+    }
+
+    if (remoto !== undefined) {
+      if (remoto === null) {
+        const registrosLocais = carregarOrcamentosSalvos()
+        if (registrosLocais.length > 0) {
+          await persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(registrosLocais))
+          return registrosLocais
+        }
+        window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
+        return []
+      }
+      window.localStorage.setItem(BUDGETS_STORAGE_KEY, remoto)
+      return parseOrcamentosSalvos(remoto)
     }
 
     try {
-      const parsed = JSON.parse(existenteRaw)
-      if (!Array.isArray(parsed)) {
-        return []
+      const oneDrivePayload = await loadPropostasFromOneDrive()
+      if (oneDrivePayload !== null && oneDrivePayload !== undefined) {
+        const raw =
+          typeof oneDrivePayload === 'string'
+            ? oneDrivePayload
+            : JSON.stringify(oneDrivePayload)
+        window.localStorage.setItem(BUDGETS_STORAGE_KEY, raw)
+        return parseOrcamentosSalvos(raw)
       }
-
-      const clientesRegistrados = carregarClientesSalvos()
-      const clienteIdPorDocumento = new Map<string, string>()
-      const clienteIdPorUc = new Map<string, string>()
-
-      clientesRegistrados.forEach((clienteRegistro) => {
-        const documento = normalizeNumbers(clienteRegistro.dados.documento ?? '')
-        if (documento && !clienteIdPorDocumento.has(documento)) {
-          clienteIdPorDocumento.set(documento, clienteRegistro.id)
-        }
-
-        const uc = normalizeText(clienteRegistro.dados.uc ?? '')
-        if (uc && !clienteIdPorUc.has(uc)) {
-          clienteIdPorUc.set(uc, clienteRegistro.id)
-        }
-      })
-
-      const sanitizeClienteId = (valor: unknown) => {
-        if (typeof valor !== 'string') {
-          return ''
-        }
-
-        const normalizado = normalizeClienteIdCandidate(valor)
-        if (normalizado.length === CLIENTE_ID_LENGTH && CLIENTE_ID_PATTERN.test(normalizado)) {
-          return normalizado
-        }
-
-        return ''
-      }
-
-      return parsed.map((item) => {
-        const registro = item as Partial<OrcamentoSalvo> & { clienteID?: string }
-        const dados = registro.dados as PrintableProposalProps
-        const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
-        const temIndicacaoRaw = (clienteDados as { temIndicacao?: unknown }).temIndicacao
-        const indicacaoNomeRaw = (clienteDados as { indicacaoNome?: unknown }).indicacaoNome
-        const temIndicacaoNormalizado =
-          typeof temIndicacaoRaw === 'boolean'
-            ? temIndicacaoRaw
-            : typeof temIndicacaoRaw === 'string'
-            ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
-            : false
-        const indicacaoNomeNormalizado =
-          typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
-
-        const herdeirosNormalizados = normalizeClienteHerdeiros(
-          (clienteDados as { herdeiros?: unknown }).herdeiros,
-        )
-
-        const clienteNormalizado: ClienteDados = {
-          nome: clienteDados.nome ?? '',
-          documento: clienteDados.documento ?? '',
-          rg: clienteDados.rg ?? '',
-          estadoCivil: clienteDados.estadoCivil ?? '',
-          nacionalidade: clienteDados.nacionalidade ?? '',
-          profissao: clienteDados.profissao ?? '',
-          representanteLegal: clienteDados.representanteLegal ?? '',
-          email: clienteDados.email ?? '',
-          telefone: clienteDados.telefone ?? '',
-          cep: clienteDados.cep ?? '',
-          distribuidora: clienteDados.distribuidora ?? '',
-          uc: clienteDados.uc ?? '',
-          endereco: clienteDados.endereco ?? '',
-          cidade: clienteDados.cidade ?? '',
-          uf: clienteDados.uf ?? '',
-          temIndicacao: temIndicacaoNormalizado,
-          indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
-          herdeiros: herdeirosNormalizados,
-          nomeSindico: clienteDados.nomeSindico ?? '',
-          cpfSindico: clienteDados.cpfSindico ?? '',
-          contatoSindico: clienteDados.contatoSindico ?? '',
-          diaVencimento: clienteDados.diaVencimento ?? '10',
-        }
-
-        const dadosNormalizados: PrintableProposalProps = {
-          ...dados,
-          budgetId: dados?.budgetId ?? registro.id,
-          cliente: clienteNormalizado,
-          distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteNormalizado.distribuidora ?? '',
-          tipoProposta: dados?.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
-        }
-
-        if (dados.ucGeradora && typeof dados.ucGeradora === 'object') {
-          const numero = typeof dados.ucGeradora.numero === 'string' ? dados.ucGeradora.numero : ''
-          const endereco =
-            typeof dados.ucGeradora.endereco === 'string' ? dados.ucGeradora.endereco : ''
-          dadosNormalizados.ucGeradora = { numero, endereco }
-        } else {
-          delete dadosNormalizados.ucGeradora
-        }
-
-        dadosNormalizados.ucsBeneficiarias = Array.isArray(dados.ucsBeneficiarias)
-          ? dados.ucsBeneficiarias
-              .filter((item): item is PrintableUcBeneficiaria => Boolean(item && typeof item === 'object'))
-              .map((item) => ({
-                numero: typeof item.numero === 'string' ? item.numero : '',
-                endereco: typeof item.endereco === 'string' ? item.endereco : '',
-                rateioPercentual:
-                  item.rateioPercentual != null && Number.isFinite(item.rateioPercentual)
-                    ? Number(item.rateioPercentual)
-                    : null,
-              }))
-          : []
-
-        const clienteIdArmazenado =
-          sanitizeClienteId(
-            registro.clienteId ??
-              registro.clienteID ??
-              (dadosNormalizados as unknown as { clienteId?: string }).clienteId ??
-              ((dadosNormalizados.cliente as unknown as { id?: string })?.id ?? ''),
-          )
-
-        const documentoRaw = registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? ''
-        const ucRaw = registro.clienteUc ?? dadosNormalizados.cliente.uc ?? ''
-
-        let clienteId = clienteIdArmazenado
-
-        if (!clienteId) {
-          const documentoDigits = normalizeNumbers(documentoRaw)
-          if (documentoDigits) {
-            clienteId = clienteIdPorDocumento.get(documentoDigits) ?? ''
-          }
-        }
-
-        if (!clienteId) {
-          const ucTexto = normalizeText(ucRaw)
-          if (ucTexto) {
-            clienteId = clienteIdPorUc.get(ucTexto) ?? ''
-          }
-        }
-
-        const id = typeof registro.id === 'string' && registro.id ? registro.id : ensureProposalId(dadosNormalizados.budgetId)
-        const criadoEm =
-          typeof registro.criadoEm === 'string' && registro.criadoEm
-            ? registro.criadoEm
-            : new Date().toISOString()
-
-        let snapshotNormalizado: OrcamentoSnapshotData | undefined
-        if (registro.snapshot && typeof registro.snapshot === 'object') {
-          try {
-            snapshotNormalizado = cloneSnapshotData(registro.snapshot as OrcamentoSnapshotData)
-            if (snapshotNormalizado.currentBudgetId !== id) {
-              snapshotNormalizado.currentBudgetId = id
-            }
-            snapshotNormalizado.tusdTipoCliente = normalizeTipoBasico(
-              snapshotNormalizado.tusdTipoCliente,
-            )
-            snapshotNormalizado.segmentoCliente = normalizeTipoBasico(
-              snapshotNormalizado.segmentoCliente,
-            )
-            snapshotNormalizado.vendaForm = {
-              ...snapshotNormalizado.vendaForm,
-              segmento_cliente: snapshotNormalizado.vendaForm.segmento_cliente
-                ? normalizeTipoBasico(snapshotNormalizado.vendaForm.segmento_cliente)
-                : undefined,
-              tusd_tipo_cliente: snapshotNormalizado.vendaForm.tusd_tipo_cliente
-                ? normalizeTipoBasico(snapshotNormalizado.vendaForm.tusd_tipo_cliente)
-                : undefined,
-            }
-          } catch (error) {
-            console.warn('Não foi possível interpretar o snapshot do orçamento salvo.', error)
-            snapshotNormalizado = undefined
-          }
-        }
-
-        return {
-          id,
-          criadoEm,
-          clienteId: clienteId || undefined,
-          clienteNome: dadosNormalizados.cliente.nome,
-          clienteCidade: dadosNormalizados.cliente.cidade,
-          clienteUf: dadosNormalizados.cliente.uf,
-          clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
-          clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
-          dados: dadosNormalizados,
-          snapshot: snapshotNormalizado,
-        }
-      })
     } catch (error) {
-      console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
-      return []
+      if (error instanceof OneDriveIntegrationMissingError) {
+        console.info('Leitura via OneDrive ignorada: integração não configurada.')
+      } else {
+        console.warn('Não foi possível carregar propostas via OneDrive.', error)
+      }
     }
-  }, [carregarClientesSalvos])
+
+    const fallbackRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
+    return parseOrcamentosSalvos(fallbackRaw)
+  }, [carregarOrcamentosSalvos, parseOrcamentosSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -12010,13 +12164,16 @@ export default function App() {
       if (cancelado) {
         return
       }
-      setOrcamentosSalvos(carregarOrcamentosSalvos())
+      const registros = await carregarOrcamentosPrioritarios()
+      if (!cancelado) {
+        setOrcamentosSalvos(registros)
+      }
     }
     carregar()
     return () => {
       cancelado = true
     }
-  }, [carregarOrcamentosSalvos])
+  }, [carregarOrcamentosPrioritarios])
 
   const aplicarSnapshot = (
     snapshotEntrada: OrcamentoSnapshotData,
@@ -12087,6 +12244,7 @@ export default function App() {
     setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
     setTipoEdificacaoOutro(snapshot.tipoEdificacaoOutro)
     setNumeroModulosManual(snapshot.numeroModulosManual)
+    setConfiguracaoUsinaObservacoes(snapshot.configuracaoUsinaObservacoes ?? '')
     setComposicaoTelhado({ ...snapshot.composicaoTelhado })
     setComposicaoSolo({ ...snapshot.composicaoSolo })
     setAprovadoresText(snapshot.aprovadoresText)
@@ -12170,6 +12328,11 @@ export default function App() {
     setAutoBudgetReasonCode(snapshot.autoBudgetReasonCode ?? null)
     setTipoRede(snapshot.tipoRede ?? 'monofasico')
     setTipoRedeControle(snapshot.tipoRedeControle ?? 'auto')
+    setLeasingAnexosSelecionados(
+      Array.isArray(snapshot.leasingAnexosSelecionados)
+        ? [...snapshot.leasingAnexosSelecionados]
+        : getDefaultLeasingAnexos(snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial'),
+    )
 
     vendaStore.setState((draft) => {
       Object.assign(draft, JSON.parse(JSON.stringify(snapshot.vendaSnapshot)) as VendaSnapshot)
@@ -12220,12 +12383,15 @@ export default function App() {
       try {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
-        const fingerprint = createBudgetFingerprint(dadosClonados)
         const snapshotAtual = getCurrentSnapshot()
+        const fingerprint = computeSnapshotSignature(snapshotAtual, dadosClonados)
 
-        const registroExistenteIndex = registrosExistentes.findIndex(
-          (registro) => createBudgetFingerprint(registro.dados) === fingerprint,
-        )
+        const registroExistenteIndex = registrosExistentes.findIndex((registro) => {
+          if (registro.snapshot) {
+            return computeSnapshotSignature(registro.snapshot, registro.dados) === fingerprint
+          }
+          return createBudgetFingerprint(registro.dados) === fingerprint
+        })
 
         if (registroExistenteIndex >= 0) {
           const existente = registrosExistentes[registroExistenteIndex]
@@ -12261,6 +12427,13 @@ export default function App() {
           const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
           setOrcamentosSalvos(persisted)
           alertPrunedBudgets(pruned)
+          void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
+          void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
+            if (error instanceof OneDriveIntegrationMissingError) {
+              return
+            }
+            console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
+          })
           return persisted.find((registro) => registro.id === registroAtualizado.id) ?? registroAtualizado
         }
 
@@ -12298,6 +12471,13 @@ export default function App() {
         const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
         setOrcamentosSalvos(persisted)
         alertPrunedBudgets(pruned)
+        void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
+        void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
+          if (error instanceof OneDriveIntegrationMissingError) {
+            return
+          }
+          console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
+        })
         return persisted.find((item) => item.id === registro.id) ?? registro
       } catch (error) {
         console.error('Erro ao salvar orçamento localmente.', error)
@@ -13110,6 +13290,35 @@ export default function App() {
     setIsLeasingContractsModalOpen(false)
   }, [])
 
+  const salvarContratoNoOneDrive = useCallback(
+    async (fileName: string, blob: Blob, contentType?: string) => {
+      try {
+        const base64 = await readBlobAsBase64(blob)
+        await persistContratoToOneDrive({
+          fileName,
+          contentBase64: base64,
+          contentType,
+        })
+        return true
+      } catch (error) {
+        if (error instanceof OneDriveIntegrationMissingError) {
+          adicionarNotificacao(
+            'Integração com o OneDrive indisponível. Configure o conector para salvar contratos automaticamente.',
+            'warning',
+          )
+        } else {
+          console.error('Erro ao salvar contrato no OneDrive.', error)
+          adicionarNotificacao(
+            'Não foi possível salvar o contrato no OneDrive. Verifique a integração.',
+            'error',
+          )
+        }
+        return false
+      }
+    },
+    [adicionarNotificacao],
+  )
+
   const abrirSelecaoContratos = useCallback(
     (category: ContractTemplateCategory) => {
       if (gerandoContratos) {
@@ -13395,6 +13604,7 @@ export default function App() {
     }
 
     const contratosGerados: Array<{ templateLabel: string; url: string }> = []
+    let contratosSalvos = 0
 
     try {
       const janelaInicial = garantirJanelaPreview()
@@ -13423,6 +13633,9 @@ export default function App() {
           const url = window.URL.createObjectURL(blob)
 
           contratosGerados.push({ templateLabel, url })
+          if (await salvarContratoNoOneDrive(`${templateLabel}.pdf`, blob, blob.type)) {
+            contratosSalvos += 1
+          }
 
           if (!janelaPreview || janelaPreview.closed) {
             const anchor = document.createElement('a')
@@ -13462,6 +13675,13 @@ export default function App() {
       if (sucesso > 0) {
         const mensagem = sucesso === 1 ? 'Contrato gerado.' : `${sucesso} contratos gerados.`
         adicionarNotificacao(mensagem, 'success')
+        if (contratosSalvos > 0) {
+          const mensagemSalvo =
+            contratosSalvos === 1
+              ? 'Contrato salvo no OneDrive.'
+              : `${contratosSalvos} contratos salvos no OneDrive.`
+          adicionarNotificacao(mensagemSalvo, 'success')
+        }
       }
     } catch (error) {
       console.error('Erro ao gerar contrato de leasing', error)
@@ -13478,6 +13698,7 @@ export default function App() {
     adicionarNotificacao,
     handleFecharModalContratos,
     selectedContractTemplates,
+    salvarContratoNoOneDrive,
   ])
 
   const handleConfirmarGeracaoLeasing = useCallback(async () => {
@@ -13533,6 +13754,29 @@ export default function App() {
     }
 
     try {
+      let propostaHtml = ''
+      try {
+        const resultado = await prepararPropostaParaExportacao({ incluirTabelaBuyout: false })
+        const layoutHtml = resultado?.html ?? ''
+        if (!layoutHtml) {
+          adicionarNotificacao(
+            'Não foi possível preparar a proposta comercial. O pacote será gerado sem o PDF da proposta.',
+            'warning',
+          )
+        } else {
+          propostaHtml = buildProposalPdfDocument(
+            layoutHtml,
+            payload.dadosLeasing.nomeCompleto || payload.dadosLeasing.cpfCnpj || 'SolarInvest',
+          )
+        }
+      } catch (error) {
+        console.error('Erro ao preparar a proposta comercial para anexar ao contrato.', error)
+        adicionarNotificacao(
+          'Não foi possível preparar a proposta comercial. O pacote será gerado sem o PDF da proposta.',
+          'warning',
+        )
+      }
+
       const response = await fetch(resolveApiUrl('/api/contracts/leasing'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -13540,6 +13784,7 @@ export default function App() {
           tipoContrato: payload.tipoContrato,
           dadosLeasing: payload.dadosLeasing,
           anexosSelecionados: leasingAnexosSelecionados,
+          propostaHtml,
         }),
       })
 
@@ -13564,17 +13809,24 @@ export default function App() {
           ? 'contrato-leasing.docx'
           : 'contratos-leasing.zip'
       const downloadName = match?.[1] ?? fallbackName
+      const salvouContrato = await salvarContratoNoOneDrive(downloadName, blob, blob.type)
 
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = downloadName
-      anchor.style.display = 'none'
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      window.setTimeout(() => {
-        window.URL.revokeObjectURL(url)
-      }, 60_000)
+      if (!salvouContrato) {
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = downloadName
+        anchor.style.display = 'none'
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        window.setTimeout(() => {
+          window.URL.revokeObjectURL(url)
+        }, 60_000)
+      } else {
+        window.setTimeout(() => {
+          window.URL.revokeObjectURL(url)
+        }, 10_000)
+      }
 
       const notice = response.headers.get('x-contracts-notice')
       if (notice) {
@@ -13584,6 +13836,9 @@ export default function App() {
         adicionarNotificacao('PDF indisponível; DOCX gerado com sucesso.', 'info')
       }
       adicionarNotificacao('Pacote de contratos de leasing gerado.', 'success')
+      if (salvouContrato) {
+        adicionarNotificacao('Contrato salvo no OneDrive.', 'success')
+      }
     } catch (error) {
       console.error('Erro ao gerar contratos de leasing', error)
       const mensagem =
@@ -13597,7 +13852,9 @@ export default function App() {
   }, [
     adicionarNotificacao,
     leasingAnexosSelecionados,
+    prepararPropostaParaExportacao,
     prepararPayloadContratosLeasing,
+    salvarContratoNoOneDrive,
   ])
 
   const confirmarAlertasAntesDeSalvar = useCallback(async (): Promise<boolean> => {
@@ -13901,15 +14158,15 @@ export default function App() {
   }, [carregarClientesSalvos, runWithUnsavedChangesGuard, setActivePage])
 
   const abrirPesquisaOrcamentos = useCallback(async () => {
-    const canProceed = await runWithUnsavedChangesGuard(() => {
-      const registros = carregarOrcamentosSalvos()
+    const canProceed = await runWithUnsavedChangesGuard(async () => {
+      const registros = await carregarOrcamentosPrioritarios()
       setOrcamentosSalvos(registros)
       setOrcamentoSearchTerm('')
       setActivePage('consultar')
     })
 
     return canProceed
-  }, [carregarOrcamentosSalvos, runWithUnsavedChangesGuard, setActivePage])
+  }, [carregarOrcamentosPrioritarios, runWithUnsavedChangesGuard, setActivePage])
 
   const abrirSimulacoes = useCallback(
     async (section?: SimulacoesSection) => {
@@ -14746,7 +15003,7 @@ export default function App() {
 
           limparDadosModalidade(printableData.tipoProposta)
 
-          const registrosAtualizados = carregarOrcamentosSalvos()
+          const registrosAtualizados = await carregarOrcamentosPrioritarios()
           const atualizado = registrosAtualizados.find((item) => item.id === registro.id)
           if (atualizado?.snapshot) {
             registro = atualizado
@@ -14768,7 +15025,7 @@ export default function App() {
     },
     [
       carregarOrcamentoParaEdicao,
-      carregarOrcamentosSalvos,
+      carregarOrcamentosPrioritarios,
       handleSalvarPropostaPdf,
       hasUnsavedChanges,
       requestSaveDecision,
@@ -15502,7 +15759,7 @@ export default function App() {
       </div>
       <div className="card-actions">
         <button type="button" className="primary" onClick={handleSalvarCliente}>
-          {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
+          {clienteSaveLabel}
         </button>
         <button type="button" className="ghost" onClick={() => void abrirClientesPainel()}>
           Ver clientes
@@ -19610,10 +19867,10 @@ export default function App() {
       items: [
         {
           id: 'relatorios-pdfs',
-          label: 'PDFs gerados',
+          label: 'Ver propostas',
           icon: '📂',
           onSelect: () => {
-            setActivePage('app')
+            void abrirPesquisaOrcamentos()
           },
         },
         {

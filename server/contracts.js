@@ -518,6 +518,7 @@ const retryOperation = async (operation, retries, delays) => {
 }
 
 const CONVERTAPI_ENDPOINT = 'https://v2.convertapi.com/convert/docx/to/pdf'
+const CONVERTAPI_HTML_ENDPOINT = 'https://v2.convertapi.com/convert/html/to/pdf'
 const CONVERTAPI_TIMEOUT_MS = 20000
 const PROVIDER_RETRIES = 2
 const RETRY_DELAYS_MS = [400, 1200]
@@ -666,6 +667,107 @@ const convertDocxToPdfUsingConvertApi = async (docxPath, pdfPath) => {
   await fs.writeFile(pdfPath, Buffer.from(arrayBuffer))
 }
 
+const convertHtmlToPdfUsingConvertApi = async (htmlPath, pdfPath) => {
+  const secret = getConvertApiSecret()
+  if (!secret) {
+    throw new ContractRenderError(
+      424,
+      'Falha ao converter HTML para PDF. Configure CONVERTAPI_SECRET com um token válido.',
+      {
+        code: 'PDF_CONVERSION_MISCONFIGURED',
+        hint: 'Configure CONVERTAPI_SECRET nas variáveis de ambiente.',
+      },
+    )
+  }
+
+  if (!isConvertApiAvailable()) {
+    throw new ContractRenderError(
+      503,
+      'Conversão para PDF indisponível temporariamente.',
+      { code: 'PDF_CONVERSION_TEMPORARILY_DISABLED', retryable: true },
+    )
+  }
+
+  const htmlBuffer = await fs.readFile(htmlPath)
+  const formData = new FormData()
+  formData.append(
+    'File',
+    new Blob([htmlBuffer], { type: 'text/html' }),
+    path.basename(htmlPath),
+  )
+
+  const response = await withTimeout(
+    (signal) =>
+      fetch(`${CONVERTAPI_HTML_ENDPOINT}?Secret=${encodeURIComponent(secret)}`, {
+        method: 'POST',
+        body: formData,
+        signal,
+      }),
+    CONVERTAPI_TIMEOUT_MS,
+    'Falha ao converter HTML para PDF (tempo esgotado no ConvertAPI).',
+  )
+
+  const responseText = await response.text()
+  let json = null
+  try {
+    json = responseText ? JSON.parse(responseText) : null
+  } catch (parseError) {
+    json = null
+  }
+
+  if (!response.ok) {
+    const errorMessage = json?.Message || json?.message || responseText || 'Erro desconhecido.'
+    if (response.status === 401 || response.status === 403) {
+      throw new ContractRenderError(
+        424,
+        `Falha ao converter HTML para PDF (${response.status}). ${errorMessage}`,
+        {
+          code: 'PDF_CONVERSION_AUTH_FAILED',
+          hint: 'Verifique se o token CONVERTAPI_SECRET está válido.',
+        },
+      )
+    }
+
+    const retryable = response.status >= 500 || response.status === 429 || response.status === 408
+    throw new ContractRenderError(
+      502,
+      `Falha ao converter HTML para PDF (${response.status}). ${errorMessage}`,
+      { code: 'PDF_CONVERSION_FAILED', retryable },
+    )
+  }
+
+  if (!json) {
+    throw new ContractRenderError(502, 'Resposta inválida do serviço de conversão de PDF.', {
+      code: 'PDF_CONVERSION_FAILED',
+      retryable: true,
+    })
+  }
+
+  const fileUrl = json?.Files?.[0]?.Url
+  if (!fileUrl) {
+    throw new ContractRenderError(502, 'Resposta inválida do serviço de conversão de PDF.', {
+      code: 'PDF_CONVERSION_FAILED',
+      retryable: true,
+    })
+  }
+
+  const pdfResponse = await withTimeout(
+    (signal) => fetch(fileUrl, { signal }),
+    CONVERTAPI_TIMEOUT_MS,
+    'Falha ao baixar o PDF convertido (tempo esgotado no ConvertAPI).',
+  )
+  if (!pdfResponse.ok) {
+    throw new ContractRenderError(
+      502,
+      `Falha ao baixar o PDF convertido (${pdfResponse.status}).`,
+      { code: 'PDF_CONVERSION_FAILED', retryable: pdfResponse.status >= 500 },
+    )
+  }
+
+  const arrayBuffer = await pdfResponse.arrayBuffer()
+  await fs.writeFile(pdfPath, Buffer.from(arrayBuffer))
+}
+
 const convertDocxToPdfUsingGotenberg = async (docxPath, pdfPath) => {
   const gotenbergUrl = getGotenbergUrl()
   if (!gotenbergUrl) {
@@ -706,6 +808,52 @@ const convertDocxToPdfUsingGotenberg = async (docxPath, pdfPath) => {
     throw new ContractRenderError(
       502,
       `Falha ao converter o contrato para PDF (${response.status}). ${errorBody || 'Erro desconhecido.'}`,
+      { code: 'PDF_CONVERSION_FAILED', retryable },
+    )
+  }
+
+  const arrayBuffer = await response.arrayBuffer()
+  await fs.writeFile(pdfPath, Buffer.from(arrayBuffer))
+}
+
+const convertHtmlToPdfUsingGotenberg = async (htmlPath, pdfPath) => {
+  const gotenbergUrl = getGotenbergUrl()
+  if (!gotenbergUrl) {
+    throw new ContractRenderError(
+      424,
+      'Falha ao converter HTML para PDF. Configure GOTENBERG_URL para habilitar o fallback.',
+      {
+        code: 'PDF_CONVERSION_MISCONFIGURED',
+        hint: 'Configure GOTENBERG_URL nas variáveis de ambiente.',
+      },
+    )
+  }
+
+  const htmlBuffer = await fs.readFile(htmlPath)
+  const formData = new FormData()
+  formData.append(
+    'files',
+    new Blob([htmlBuffer], { type: 'text/html' }),
+    path.basename(htmlPath),
+  )
+
+  const response = await withTimeout(
+    (signal) =>
+      fetch(`${gotenbergUrl}/forms/chromium/convert/html`, {
+        method: 'POST',
+        body: formData,
+        signal,
+      }),
+    CONVERTAPI_TIMEOUT_MS,
+    'Falha ao converter HTML para PDF (tempo esgotado no Gotenberg).',
+  )
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    const retryable = response.status >= 500 || response.status === 429 || response.status === 408
+    throw new ContractRenderError(
+      502,
+      `Falha ao converter HTML para PDF (${response.status}). ${errorBody || 'Erro desconhecido.'}`,
       { code: 'PDF_CONVERSION_FAILED', retryable },
     )
   }
@@ -773,6 +921,69 @@ export const convertDocxToPdf = async (docxPath, pdfPath) => {
   throw new ContractRenderError(
     502,
     'Falha ao converter o contrato para PDF.',
+    { code: 'PDF_CONVERSION_FAILED' },
+  )
+}
+
+export const convertHtmlToPdf = async (htmlPath, pdfPath) => {
+  const convertApiConfigured = isConvertApiConfigured()
+  const gotenbergConfigured = isGotenbergConfigured()
+  const convertApiAvailable = convertApiConfigured && isConvertApiAvailable()
+
+  if (!convertApiAvailable && convertApiConfigured && !gotenbergConfigured) {
+    throw new ContractRenderError(
+      503,
+      'Conversão para PDF indisponível temporariamente.',
+      {
+        code: 'PDF_CONVERSION_TEMPORARILY_DISABLED',
+        hint: 'Tente novamente mais tarde ou configure um fallback.',
+        retryable: true,
+      },
+    )
+  }
+
+  const providers = []
+  if (convertApiAvailable) {
+    providers.push({ name: 'convertapi', handler: () => convertHtmlToPdfUsingConvertApi(htmlPath, pdfPath) })
+  }
+  if (gotenbergConfigured) {
+    providers.push({ name: 'gotenberg', handler: () => convertHtmlToPdfUsingGotenberg(htmlPath, pdfPath) })
+  }
+
+  if (providers.length === 0) {
+    throw new ContractRenderError(
+      424,
+      'Conversão para PDF indisponível no servidor.',
+      {
+        code: 'PDF_CONVERSION_MISCONFIGURED',
+        hint: 'Configure CONVERTAPI_SECRET ou GOTENBERG_URL para habilitar a conversão.',
+      },
+    )
+  }
+
+  let lastError
+  for (const provider of providers) {
+    try {
+      const result = await retryOperation(provider.handler, PROVIDER_RETRIES, RETRY_DELAYS_MS)
+      if (provider.name === 'convertapi') {
+        clearConvertApiFailures()
+      }
+      return result
+    } catch (error) {
+      lastError = error
+      if (provider.name === 'convertapi') {
+        recordConvertApiFailure()
+      }
+    }
+  }
+
+  if (lastError instanceof ContractRenderError) {
+    throw lastError
+  }
+
+  throw new ContractRenderError(
+    502,
+    'Falha ao converter HTML para PDF.',
     { code: 'PDF_CONVERSION_FAILED' },
   )
 }
