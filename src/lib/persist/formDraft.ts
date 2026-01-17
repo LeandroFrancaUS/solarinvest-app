@@ -35,12 +35,13 @@ export async function saveFormDraft<T>(snapshotData: T): Promise<DraftEnvelope<T
         return envelope
       }
       
-      const verifyData = verification.data as any
+      const verifyData = verification.data as unknown as Record<string, unknown>
+      const clienteData = verifyData.cliente as Record<string, unknown> | undefined
       console.log('[formDraft] READ-AFTER-WRITE VERIFICATION SUCCESS:', {
-        hasCliente: !!verifyData.cliente,
-        clienteNome: verifyData.cliente?.nome,
-        clienteEndereco: verifyData.cliente?.endereco,
-        clienteCidade: verifyData.cliente?.cidade,
+        hasCliente: !!clienteData,
+        clienteNome: clienteData?.nome,
+        clienteEndereco: clienteData?.endereco,
+        clienteCidade: clienteData?.cidade,
         kcKwhMes: verifyData.kcKwhMes,
         tarifaCheia: verifyData.tarifaCheia,
         totalFields: Object.keys(verifyData).length,
@@ -71,7 +72,8 @@ export async function loadFormDraft<T>(): Promise<DraftEnvelope<T> | null> {
       return null
     }
     
-    const loadedData = envelope.data as any
+    const FIELD_NAME_LIMIT = 20
+    const loadedData = envelope.data as unknown as Record<string, unknown>
     console.log('[formDraft] Form snapshot loaded successfully:', {
       version: envelope.version,
       updatedAt: new Date(envelope.updatedAt).toISOString(),
@@ -81,18 +83,19 @@ export async function loadFormDraft<T>(): Promise<DraftEnvelope<T> | null> {
     
     // Detailed verification of critical fields
     if (loadedData) {
+      const clienteData = loadedData.cliente as Record<string, unknown> | undefined
       console.log('[formDraft] LOADED DATA DETAILS:', {
-        hasCliente: !!loadedData.cliente,
-        clienteNome: loadedData.cliente?.nome || '(empty)',
-        clienteEndereco: loadedData.cliente?.endereco || '(empty)',
-        clienteCidade: loadedData.cliente?.cidade || '(empty)',
-        clienteDocumento: loadedData.cliente?.documento || '(empty)',
+        hasCliente: !!clienteData,
+        clienteNome: clienteData?.nome || '(empty)',
+        clienteEndereco: clienteData?.endereco || '(empty)',
+        clienteCidade: clienteData?.cidade || '(empty)',
+        clienteDocumento: clienteData?.documento || '(empty)',
         kcKwhMes: loadedData.kcKwhMes,
         tarifaCheia: loadedData.tarifaCheia,
         potenciaModulo: loadedData.potenciaModulo,
         numeroModulosManual: loadedData.numeroModulosManual,
         totalFields: Object.keys(loadedData).length,
-        allFieldNames: Object.keys(loadedData).slice(0, 20).join(', ') + '...',
+        allFieldNames: Object.keys(loadedData).slice(0, FIELD_NAME_LIMIT).join(', ') + '...',
       })
     }
     
