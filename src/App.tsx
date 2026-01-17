@@ -2219,11 +2219,6 @@ const createClienteComparisonData = (dados: ClienteDados) => {
   }
 }
 
-const buildClienteConflictMessage = (clienteNome: string, motivo: 'CPF/CNPJ' | 'RG') => {
-  const nome = clienteNome.trim() || 'outro cliente'
-  return `Já existe um cliente cadastrado com o mesmo ${motivo} em nome de ${nome}. Verifique o cadastro antes de prosseguir.`
-}
-
 const formatBudgetDate = (isoString: string) => {
   const parsed = new Date(isoString)
   if (Number.isNaN(parsed.getTime())) {
@@ -11568,12 +11563,9 @@ export default function App() {
     let registroSalvo: ClienteRegistro | null = null
     let registrosPersistidos: ClienteRegistro[] | null = null
     let houveErro = false
-    let erroDuplicidade: string | null = null
-
     setClientesSalvos((prevRegistros) => {
       const novoComparacao = createClienteComparisonData(dadosClonados)
       let registroCorrespondente: ClienteRegistro | null = null
-      let conflitoDuplicidade: { nome: string; motivo: 'CPF/CNPJ' | 'RG' } | null = null
 
       for (const registro of prevRegistros) {
         if (clienteEmEdicaoId && registro.id === clienteEmEdicaoId) {
@@ -11596,24 +11588,9 @@ export default function App() {
         }
 
         if (documentoIgual || rgIgual) {
-          if (nomeIgual) {
-            registroCorrespondente = registro
-          } else {
-            conflitoDuplicidade = {
-              nome: registro.dados.nome?.trim() || 'outro cliente',
-              motivo: documentoIgual ? 'CPF/CNPJ' : 'RG',
-            }
-          }
+          registroCorrespondente = registro
           break
         }
-      }
-
-      if (conflitoDuplicidade) {
-        erroDuplicidade = buildClienteConflictMessage(
-          conflitoDuplicidade.nome,
-          conflitoDuplicidade.motivo,
-        )
-        return prevRegistros
       }
 
       const existingIds = new Set(prevRegistros.map((registro) => registro.id))
@@ -11676,11 +11653,6 @@ export default function App() {
       registrosPersistidos = ordenados
       return ordenados
     })
-
-    if (erroDuplicidade) {
-      window.alert(erroDuplicidade)
-      return false
-    }
 
     const salvo = registroSalvo as ClienteRegistro | null
     if (houveErro || !salvo) {
@@ -11777,22 +11749,7 @@ export default function App() {
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
       fecharClientesPainel()
-      // Restore proposal snapshot if available
-      if (registro.propostaSnapshot) {
-        // Use setTimeout to ensure state updates complete before applying snapshot
-        setTimeout(() => {
-          try {
-            aplicarSnapshot(registro.propostaSnapshot!)
-            console.log('[ClienteLoad] Proposal snapshot restored successfully')
-          } catch (error) {
-            console.error('[ClienteLoad] Error restoring proposal snapshot:', error)
-          }
-        }, 100)
-      } else {
-        console.warn('[ClienteLoad] No proposal snapshot found for client:', registro.id)
-      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- aplicarSnapshot is not memoized and changes on every render
     [fecharClientesPainel, setCliente, setClienteEmEdicaoId, setClienteMensagens],
   )
 
