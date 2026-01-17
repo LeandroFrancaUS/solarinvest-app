@@ -11963,10 +11963,15 @@ export default function App() {
               ? registro.criadoEm
               : new Date().toISOString()
 
+          const snapshotCandidate =
+            registro.snapshot ??
+            (registro as unknown as { propostaSnapshot?: unknown }).propostaSnapshot ??
+            (dados as unknown as { snapshot?: unknown }).snapshot
+
           let snapshotNormalizado: OrcamentoSnapshotData | undefined
-          if (registro.snapshot && typeof registro.snapshot === 'object') {
+          if (snapshotCandidate && typeof snapshotCandidate === 'object') {
             try {
-              snapshotNormalizado = cloneSnapshotData(registro.snapshot as OrcamentoSnapshotData)
+              snapshotNormalizado = cloneSnapshotData(snapshotCandidate as OrcamentoSnapshotData)
               if (snapshotNormalizado.currentBudgetId !== id) {
                 snapshotNormalizado.currentBudgetId = id
               }
