@@ -65,6 +65,7 @@ import {
   fetchRemoteStorageEntry,
   persistRemoteStorageEntry,
 } from './app/services/serverStorage'
+import { saveFormDraft, loadFormDraft } from './lib/persist/formDraft'
 import {
   computeROI,
   type ModoPagamento,
@@ -11573,13 +11574,23 @@ export default function App() {
       typeof item === 'string' ? item.trim() : '',
     )
     const snapshotAtual = getCurrentSnapshot()
-    console.log('[ClienteSave] Capturing proposal snapshot:', {
+    console.log('[ClienteSave] Capturing FULL proposal snapshot with', Object.keys(snapshotAtual).length, 'fields')
+    console.log('[ClienteSave] Sample fields:', {
       kcKwhMes: snapshotAtual.kcKwhMes,
       tarifaCheia: snapshotAtual.tarifaCheia,
       entradaRs: snapshotAtual.entradaRs,
       numeroModulosManual: snapshotAtual.numeroModulosManual,
       potenciaModulo: snapshotAtual.potenciaModulo,
     })
+    
+    // Salvar snapshot completo no IndexedDB para persistência cross-browser robusta
+    try {
+      await saveFormDraft(snapshotAtual)
+      console.log('[ClienteSave] Form draft saved to IndexedDB successfully')
+    } catch (error) {
+      console.warn('[ClienteSave] Failed to save form draft to IndexedDB:', error)
+      // Continuar mesmo se falhar - o localStorage ainda funciona como fallback
+    }
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
@@ -12179,6 +12190,75 @@ export default function App() {
       cancelado = true
     }
   }, [carregarOrcamentosPrioritarios])
+
+  // Carregar draft do formulário do IndexedDB na inicialização
+  useEffect(() => {
+    let cancelado = false
+    const carregarDraft = async () => {
+      try {
+        console.log('[App] Loading form draft from IndexedDB on mount')
+        const envelope = await loadFormDraft<OrcamentoSnapshotData>()
+        
+        if (cancelado) {
+          return
+        }
+        
+        if (envelope && envelope.data) {
+          console.log('[App] Form draft found, applying snapshot')
+          aplicarSnapshot(envelope.data)
+          console.log('[App] Form draft applied successfully')
+        } else {
+          console.log('[App] No form draft found in IndexedDB')
+        }
+      } catch (error) {
+        console.error('[App] Failed to load form draft:', error)
+      }
+    }
+    carregarDraft()
+    return () => {
+      cancelado = true
+    }
+  }, [])
+
+  // Auto-save debounced: salva o snapshot a cada 5 segundos quando houver mudanças
+  useEffect(() => {
+    const AUTO_SAVE_INTERVAL_MS = 5000
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    
+    const scheduleAutoSave = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      
+      timeoutId = setTimeout(async () => {
+        try {
+          const snapshot = getCurrentSnapshot()
+          await saveFormDraft(snapshot)
+          console.log('[App] Auto-saved form draft to IndexedDB')
+        } catch (error) {
+          console.warn('[App] Auto-save failed:', error)
+        }
+      }, AUTO_SAVE_INTERVAL_MS)
+    }
+    
+    // Agendar primeiro auto-save
+    scheduleAutoSave()
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [
+    cliente,
+    kcKwhMes,
+    tarifaCheia,
+    potenciaModulo,
+    numeroModulosManual,
+    activeTab,
+    ucsBeneficiarias,
+    budgetStructuredItems,
+  ])
 
   const aplicarSnapshot = (
     snapshotEntrada: OrcamentoSnapshotData,
