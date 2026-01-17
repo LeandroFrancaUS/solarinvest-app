@@ -31,6 +31,7 @@
     "date-fns": "^3.3.1",
     "fast-xml-parser": "^4.4.0",
     "jszip": "^3.10.1",
+    "localforage": "^1.10.0",
     "mustache": "^4.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -38,6 +39,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@types/localforage": "^0.0.33",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^8.11.0",

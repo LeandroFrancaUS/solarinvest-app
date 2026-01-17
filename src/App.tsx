@@ -65,6 +65,7 @@ import {
   fetchRemoteStorageEntry,
   persistRemoteStorageEntry,
 } from './app/services/serverStorage'
+import { saveFormDraft, loadFormDraft } from './lib/persist/formDraft'
 import {
   computeROI,
   type ModoPagamento,
@@ -4426,6 +4427,7 @@ export default function App() {
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
+  const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
@@ -11572,13 +11574,23 @@ export default function App() {
       typeof item === 'string' ? item.trim() : '',
     )
     const snapshotAtual = getCurrentSnapshot()
-    console.log('[ClienteSave] Capturing proposal snapshot:', {
+    console.log('[ClienteSave] Capturing FULL proposal snapshot with', Object.keys(snapshotAtual).length, 'fields')
+    console.log('[ClienteSave] Sample fields:', {
       kcKwhMes: snapshotAtual.kcKwhMes,
       tarifaCheia: snapshotAtual.tarifaCheia,
       entradaRs: snapshotAtual.entradaRs,
       numeroModulosManual: snapshotAtual.numeroModulosManual,
       potenciaModulo: snapshotAtual.potenciaModulo,
     })
+    
+    // Salvar snapshot completo no IndexedDB para persistência cross-browser robusta
+    try {
+      await saveFormDraft(snapshotAtual)
+      console.log('[ClienteSave] Form draft saved to IndexedDB successfully')
+    } catch (error) {
+      console.warn('[ClienteSave] Failed to save form draft to IndexedDB:', error)
+      // Continuar mesmo se falhar - o localStorage ainda funciona como fallback
+    }
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
@@ -11722,6 +11734,7 @@ export default function App() {
 
     clienteEmEdicaoIdRef.current = registroConfirmado.id
     setClienteEmEdicaoId(registroConfirmado.id)
+    lastSavedClienteRef.current = cloneClienteDados(dadosClonados)
     scheduleMarkStateAsSaved()
 
     if (sincronizadoComSucesso) {
@@ -11794,9 +11807,11 @@ export default function App() {
 
   const handleEditarCliente = useCallback(
     (registro: ClienteRegistro) => {
-      setCliente(cloneClienteDados(registro.dados))
+      const dadosClonados = cloneClienteDados(registro.dados)
+      setCliente(dadosClonados)
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
+      lastSavedClienteRef.current = dadosClonados
       if (registro.propostaSnapshot) {
         applyClienteSnapshot(registro.propostaSnapshot)
       }
@@ -11886,6 +11901,7 @@ export default function App() {
         setCliente(cloneClienteDados(CLIENTE_INICIAL))
         setClienteMensagens({})
         clienteEmEdicaoIdRef.current = null
+        lastSavedClienteRef.current = null
         setClienteEmEdicaoId(null)
       }
     },
@@ -12175,10 +12191,112 @@ export default function App() {
     }
   }, [carregarOrcamentosPrioritarios])
 
+  // Carregar draft do formulário do IndexedDB na inicialização
+  useEffect(() => {
+    let cancelado = false
+    const carregarDraft = async () => {
+      try {
+        console.log('[App] Loading form draft from IndexedDB on mount')
+        const envelope = await loadFormDraft<OrcamentoSnapshotData>()
+        
+        if (cancelado) {
+          console.log('[App] Load cancelled (component unmounted)')
+          return
+        }
+        
+        if (envelope && envelope.data) {
+          console.log('[App] Form draft found, applying snapshot')
+          console.log('[App] BEFORE APPLY - Current cliente:', {
+            nome: cliente.nome,
+            endereco: cliente.endereco,
+            cidade: cliente.cidade,
+          })
+          console.log('[App] SNAPSHOT TO APPLY - Cliente:', {
+            nome: envelope.data.cliente?.nome,
+            endereco: envelope.data.cliente?.endereco,
+            cidade: envelope.data.cliente?.cidade,
+          })
+          
+          aplicarSnapshot(envelope.data)
+          
+          // Verify after a short delay to let React updates process
+          setTimeout(() => {
+            if (!cancelado) {
+              console.log('[App] AFTER APPLY - Verificando estado:', {
+                clienteNome: cliente.nome,
+                clienteEndereco: cliente.endereco,
+                clienteCidade: cliente.cidade,
+              })
+            }
+          }, 100)
+          
+          console.log('[App] Form draft applied successfully')
+        } else {
+          console.log('[App] No form draft found in IndexedDB')
+        }
+      } catch (error) {
+        console.error('[App] Failed to load form draft:', error)
+      }
+    }
+    carregarDraft()
+    return () => {
+      cancelado = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-save debounced: salva o snapshot a cada 5 segundos quando houver mudanças
+  useEffect(() => {
+    const AUTO_SAVE_INTERVAL_MS = 5000
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    
+    const scheduleAutoSave = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      
+      timeoutId = setTimeout(async () => {
+        try {
+          const snapshot = getCurrentSnapshot()
+          await saveFormDraft(snapshot)
+          console.log('[App] Auto-saved form draft to IndexedDB')
+        } catch (error) {
+          console.warn('[App] Auto-save failed:', error)
+        }
+      }, AUTO_SAVE_INTERVAL_MS)
+    }
+    
+    // Agendar primeiro auto-save
+    scheduleAutoSave()
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [
+    cliente,
+    kcKwhMes,
+    tarifaCheia,
+    potenciaModulo,
+    numeroModulosManual,
+    activeTab,
+    ucsBeneficiarias,
+    budgetStructuredItems,
+  ])
+
   const aplicarSnapshot = (
     snapshotEntrada: OrcamentoSnapshotData,
     options?: { budgetIdOverride?: string },
   ) => {
+    console.log('[aplicarSnapshot] Starting to apply snapshot')
+    console.log('[aplicarSnapshot] Snapshot cliente data:', {
+      nome: snapshotEntrada.cliente?.nome,
+      endereco: snapshotEntrada.cliente?.endereco,
+      cidade: snapshotEntrada.cliente?.cidade,
+      documento: snapshotEntrada.cliente?.documento,
+    })
+    
     const snapshot = cloneSnapshotData(snapshotEntrada)
     snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
     snapshot.tipoInstalacaoOutro = snapshot.tipoInstalacaoOutro || ''
@@ -12193,8 +12311,15 @@ export default function App() {
     fieldSyncActions.reset()
     setActiveTab(snapshot.activeTab)
     setSettingsTab(snapshot.settingsTab)
-    setCliente(cloneClienteDados(snapshot.cliente))
+    const clienteClonado = cloneClienteDados(snapshot.cliente)
+    console.log('[aplicarSnapshot] Setting cliente to:', {
+      nome: clienteClonado.nome,
+      endereco: clienteClonado.endereco,
+      cidade: clienteClonado.cidade,
+    })
+    setCliente(clienteClonado)
     setClienteEmEdicaoId(snapshot.clienteEmEdicaoId)
+    lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
     setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
     setPageSharedState({ ...snapshot.pageShared })
@@ -14329,6 +14454,7 @@ export default function App() {
     setCliente(cloneClienteDados(CLIENTE_INICIAL))
     setClienteMensagens({})
     clienteEmEdicaoIdRef.current = null
+    lastSavedClienteRef.current = null
     setClienteEmEdicaoId(null)
     setActivePage('app')
     setNotificacoes([])
@@ -15758,9 +15884,11 @@ export default function App() {
         </Field>
       </div>
       <div className="card-actions">
-        <button type="button" className="primary" onClick={handleSalvarCliente}>
-          {clienteSaveLabel}
-        </button>
+        {(!clienteEmEdicaoId || clienteFormularioAlterado) && (
+          <button type="button" className="primary" onClick={handleSalvarCliente}>
+            {clienteSaveLabel}
+          </button>
+        )}
         <button type="button" className="ghost" onClick={() => void abrirClientesPainel()}>
           Ver clientes
         </button>
