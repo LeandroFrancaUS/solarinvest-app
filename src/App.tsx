@@ -11745,14 +11745,43 @@ export default function App() {
     setClienteEmEdicaoId,
   ])
 
+  const applyClienteSnapshot = useCallback(
+    (snapshot: OrcamentoSnapshotData) => {
+      setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
+      setKcKwhMes(snapshot.kcKwhMes, snapshot.consumoManual ? 'user' : 'auto')
+      setUsarEnderecoCliente(snapshot.usarEnderecoCliente ?? false)
+      setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
+      setTipoEdificacaoOutro(snapshot.tipoEdificacaoOutro || '')
+      leasingActions.updateContrato({
+        localEntrega: snapshot.leasingSnapshot?.contrato?.localEntrega ?? '',
+      })
+    },
+    [
+      setKcKwhMes,
+      setSegmentoCliente,
+      setTipoEdificacaoOutro,
+      setUcsBeneficiarias,
+      setUsarEnderecoCliente,
+    ],
+  )
+
   const handleEditarCliente = useCallback(
     (registro: ClienteRegistro) => {
       setCliente(cloneClienteDados(registro.dados))
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
+      if (registro.propostaSnapshot) {
+        applyClienteSnapshot(registro.propostaSnapshot)
+      }
       fecharClientesPainel()
     },
-    [fecharClientesPainel, setCliente, setClienteEmEdicaoId, setClienteMensagens],
+    [
+      applyClienteSnapshot,
+      fecharClientesPainel,
+      setCliente,
+      setClienteEmEdicaoId,
+      setClienteMensagens,
+    ],
   )
 
   const handleExcluirCliente = useCallback(
