@@ -916,6 +916,7 @@ type OrcamentoSnapshotData = {
   segmentoCliente: SegmentoCliente
   tipoEdificacaoOutro: string
   numeroModulosManual: number | ''
+  configuracaoUsinaObservacoes: string
   composicaoTelhado: UfvComposicaoTelhadoValores
   composicaoSolo: UfvComposicaoSoloValores
   aprovadoresText: string
@@ -974,6 +975,7 @@ type OrcamentoSnapshotData = {
   autoBudgetReasonCode: string | null
   tipoRede: TipoRede
   tipoRedeControle: 'auto' | 'manual'
+  leasingAnexosSelecionados: LeasingAnexoId[]
   vendaSnapshot: VendaSnapshot
   leasingSnapshot: LeasingState
 }
@@ -1584,6 +1586,7 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
   clienteMensagens: snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : undefined,
   ucBeneficiarias: cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []),
   pageShared: { ...snapshot.pageShared },
+  configuracaoUsinaObservacoes: snapshot.configuracaoUsinaObservacoes ?? '',
   propostaImagens: Array.isArray(snapshot.propostaImagens)
     ? snapshot.propostaImagens.map((imagem) => ({ ...imagem }))
     : [],
@@ -1605,6 +1608,9 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
   vendasConfig: JSON.parse(JSON.stringify(snapshot.vendasConfig)) as VendasConfig,
   vendasSimulacoes: cloneVendasSimulacoes(snapshot.vendasSimulacoes),
   vendaForm: { ...snapshot.vendaForm },
+  leasingAnexosSelecionados: Array.isArray(snapshot.leasingAnexosSelecionados)
+    ? [...snapshot.leasingAnexosSelecionados]
+    : [],
   parsedVendaPdf: snapshot.parsedVendaPdf
     ? (JSON.parse(JSON.stringify(snapshot.parsedVendaPdf)) as ParsedVendaPdfData)
     : null,
@@ -6055,7 +6061,18 @@ export default function App() {
   const contratoClientePayloadRef = useRef<ClienteContratoPayload | null>(null)
 
   useEffect(() => {
-    setLeasingAnexosSelecionados(getDefaultLeasingAnexos(leasingContrato.tipoContrato))
+    setLeasingAnexosSelecionados((prev) => {
+      const anexosValidos = new Set(
+        LEASING_ANEXOS_CONFIG.filter((anexo) =>
+          anexo.tipos.includes(leasingContrato.tipoContrato),
+        ).map((anexo) => anexo.id),
+      )
+      const filtrados = prev.filter((id) => anexosValidos.has(id))
+      if (filtrados.length > 0) {
+        return filtrados
+      }
+      return getDefaultLeasingAnexos(leasingContrato.tipoContrato)
+    })
   }, [leasingContrato.tipoContrato])
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
@@ -11464,6 +11481,7 @@ export default function App() {
       segmentoCliente: segmentoClienteNormalizado,
       tipoEdificacaoOutro,
       numeroModulosManual,
+      configuracaoUsinaObservacoes,
       composicaoTelhado: { ...composicaoTelhado },
       composicaoSolo: { ...composicaoSolo },
       aprovadoresText,
@@ -11533,6 +11551,7 @@ export default function App() {
       autoBudgetReasonCode,
       tipoRede,
       tipoRedeControle,
+      leasingAnexosSelecionados: [...leasingAnexosSelecionados],
       vendaSnapshot: vendaSnapshotAtual,
       leasingSnapshot: leasingSnapshotAtual,
     }
@@ -11752,14 +11771,22 @@ export default function App() {
       setUsarEnderecoCliente(snapshot.usarEnderecoCliente ?? false)
       setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
       setTipoEdificacaoOutro(snapshot.tipoEdificacaoOutro || '')
+      setConfiguracaoUsinaObservacoes(snapshot.configuracaoUsinaObservacoes ?? '')
+      setLeasingAnexosSelecionados(
+        Array.isArray(snapshot.leasingAnexosSelecionados)
+          ? [...snapshot.leasingAnexosSelecionados]
+          : getDefaultLeasingAnexos(snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial'),
+      )
       leasingActions.updateContrato({
         localEntrega: snapshot.leasingSnapshot?.contrato?.localEntrega ?? '',
       })
     },
     [
       setKcKwhMes,
+      setLeasingAnexosSelecionados,
       setSegmentoCliente,
       setTipoEdificacaoOutro,
+      setConfiguracaoUsinaObservacoes,
       setUcsBeneficiarias,
       setUsarEnderecoCliente,
     ],
@@ -11783,6 +11810,30 @@ export default function App() {
       setClienteMensagens,
     ],
   )
+
+  const clienteRegistroEmEdicao = clienteEmEdicaoId
+    ? clientesSalvos.find((registro) => registro.id === clienteEmEdicaoId) ?? null
+    : null
+  const clienteFormularioAlterado = (() => {
+    if (!clienteRegistroEmEdicao) {
+      return false
+    }
+    const snapshotAtual = cloneSnapshotData(getCurrentSnapshot())
+    const snapshotSalvo = clienteRegistroEmEdicao.propostaSnapshot
+      ? cloneSnapshotData(clienteRegistroEmEdicao.propostaSnapshot)
+      : null
+    const assinaturaAtual = stableStringify({
+      dados: cloneClienteDados(cliente),
+      snapshot: snapshotAtual,
+    })
+    const assinaturaSalva = stableStringify({
+      dados: cloneClienteDados(clienteRegistroEmEdicao.dados),
+      snapshot: snapshotSalvo,
+    })
+    return assinaturaAtual !== assinaturaSalva
+  })()
+  const clienteSaveLabel =
+    clienteEmEdicaoId && clienteFormularioAlterado ? 'Atualizar cliente' : 'Salvar cliente'
 
   const handleExcluirCliente = useCallback(
     (registro: ClienteRegistro) => {
@@ -12072,10 +12123,15 @@ export default function App() {
 
     if (remoto !== undefined) {
       if (remoto === null) {
+        const registrosLocais = carregarOrcamentosSalvos()
+        if (registrosLocais.length > 0) {
+          await persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(registrosLocais))
+          return registrosLocais
+        }
         window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
-      } else {
-        window.localStorage.setItem(BUDGETS_STORAGE_KEY, remoto)
+        return []
       }
+      window.localStorage.setItem(BUDGETS_STORAGE_KEY, remoto)
       return parseOrcamentosSalvos(remoto)
     }
 
@@ -12099,7 +12155,7 @@ export default function App() {
 
     const fallbackRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
     return parseOrcamentosSalvos(fallbackRaw)
-  }, [parseOrcamentosSalvos])
+  }, [carregarOrcamentosSalvos, parseOrcamentosSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -12188,6 +12244,7 @@ export default function App() {
     setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
     setTipoEdificacaoOutro(snapshot.tipoEdificacaoOutro)
     setNumeroModulosManual(snapshot.numeroModulosManual)
+    setConfiguracaoUsinaObservacoes(snapshot.configuracaoUsinaObservacoes ?? '')
     setComposicaoTelhado({ ...snapshot.composicaoTelhado })
     setComposicaoSolo({ ...snapshot.composicaoSolo })
     setAprovadoresText(snapshot.aprovadoresText)
@@ -12271,6 +12328,11 @@ export default function App() {
     setAutoBudgetReasonCode(snapshot.autoBudgetReasonCode ?? null)
     setTipoRede(snapshot.tipoRede ?? 'monofasico')
     setTipoRedeControle(snapshot.tipoRedeControle ?? 'auto')
+    setLeasingAnexosSelecionados(
+      Array.isArray(snapshot.leasingAnexosSelecionados)
+        ? [...snapshot.leasingAnexosSelecionados]
+        : getDefaultLeasingAnexos(snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial'),
+    )
 
     vendaStore.setState((draft) => {
       Object.assign(draft, JSON.parse(JSON.stringify(snapshot.vendaSnapshot)) as VendaSnapshot)
@@ -15697,7 +15759,7 @@ export default function App() {
       </div>
       <div className="card-actions">
         <button type="button" className="primary" onClick={handleSalvarCliente}>
-          {clienteEmEdicaoId ? 'Atualizar cliente' : 'Salvar cliente'}
+          {clienteSaveLabel}
         </button>
         <button type="button" className="ghost" onClick={() => void abrirClientesPainel()}>
           Ver clientes
