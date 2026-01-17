@@ -19693,7 +19693,7 @@ export default function App() {
       items: [
         {
           id: 'relatorios-pdfs',
-          label: 'PDFs gerados',
+          label: 'Ver propostas',
           icon: '📂',
           onSelect: () => {
             setActivePage('app')
