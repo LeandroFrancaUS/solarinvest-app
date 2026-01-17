@@ -14062,10 +14062,9 @@ export default function App() {
   }, [carregarClientesSalvos, runWithUnsavedChangesGuard, setActivePage])
 
   const abrirPesquisaOrcamentos = useCallback(async () => {
-    const canProceed = await runWithUnsavedChangesGuard(() => {
-      return carregarOrcamentosPrioritarios().then((registros) => {
-        setOrcamentosSalvos(registros)
-      })
+    const canProceed = await runWithUnsavedChangesGuard(async () => {
+      const registros = await carregarOrcamentosPrioritarios()
+      setOrcamentosSalvos(registros)
       setOrcamentoSearchTerm('')
       setActivePage('consultar')
     })
