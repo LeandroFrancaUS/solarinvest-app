@@ -4426,6 +4426,7 @@ export default function App() {
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
+  const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
@@ -11722,6 +11723,7 @@ export default function App() {
 
     clienteEmEdicaoIdRef.current = registroConfirmado.id
     setClienteEmEdicaoId(registroConfirmado.id)
+    lastSavedClienteRef.current = cloneClienteDados(dadosClonados)
     scheduleMarkStateAsSaved()
 
     if (sincronizadoComSucesso) {
@@ -11794,9 +11796,11 @@ export default function App() {
 
   const handleEditarCliente = useCallback(
     (registro: ClienteRegistro) => {
-      setCliente(cloneClienteDados(registro.dados))
+      const dadosClonados = cloneClienteDados(registro.dados)
+      setCliente(dadosClonados)
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
+      lastSavedClienteRef.current = dadosClonados
       if (registro.propostaSnapshot) {
         applyClienteSnapshot(registro.propostaSnapshot)
       }
@@ -11886,6 +11890,7 @@ export default function App() {
         setCliente(cloneClienteDados(CLIENTE_INICIAL))
         setClienteMensagens({})
         clienteEmEdicaoIdRef.current = null
+        lastSavedClienteRef.current = null
         setClienteEmEdicaoId(null)
       }
     },
@@ -12193,8 +12198,10 @@ export default function App() {
     fieldSyncActions.reset()
     setActiveTab(snapshot.activeTab)
     setSettingsTab(snapshot.settingsTab)
-    setCliente(cloneClienteDados(snapshot.cliente))
+    const clienteClonado = cloneClienteDados(snapshot.cliente)
+    setCliente(clienteClonado)
     setClienteEmEdicaoId(snapshot.clienteEmEdicaoId)
+    lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
     setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
     setPageSharedState({ ...snapshot.pageShared })
@@ -14329,6 +14336,7 @@ export default function App() {
     setCliente(cloneClienteDados(CLIENTE_INICIAL))
     setClienteMensagens({})
     clienteEmEdicaoIdRef.current = null
+    lastSavedClienteRef.current = null
     setClienteEmEdicaoId(null)
     setActivePage('app')
     setNotificacoes([])
@@ -15758,9 +15766,11 @@ export default function App() {
         </Field>
       </div>
       <div className="card-actions">
-        <button type="button" className="primary" onClick={handleSalvarCliente}>
-          {clienteSaveLabel}
-        </button>
+        {(!clienteEmEdicaoId || clienteFormularioAlterado) && (
+          <button type="button" className="primary" onClick={handleSalvarCliente}>
+            {clienteSaveLabel}
+          </button>
+        )}
         <button type="button" className="ghost" onClick={() => void abrirClientesPainel()}>
           Ver clientes
         </button>
