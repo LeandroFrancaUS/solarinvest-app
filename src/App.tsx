@@ -11574,6 +11574,11 @@ export default function App() {
     dadosClonados.herdeiros = ensureClienteHerdeiros(dadosClonados.herdeiros).map((item) =>
       typeof item === 'string' ? item.trim() : '',
     )
+    
+    // Debug: Log cliente endereco before saving
+    console.log('[ClienteSave] Cliente endereco BEFORE clone:', cliente.endereco)
+    console.log('[ClienteSave] DadosClonados endereco AFTER clone:', dadosClonados.endereco)
+    
     const snapshotAtual = getCurrentSnapshot()
     console.log('[ClienteSave] Capturing FULL proposal snapshot with', Object.keys(snapshotAtual).length, 'fields')
     console.log('[ClienteSave] Sample fields:', {
@@ -11583,6 +11588,7 @@ export default function App() {
       numeroModulosManual: snapshotAtual.numeroModulosManual,
       potenciaModulo: snapshotAtual.potenciaModulo,
     })
+    console.log('[ClienteSave] Snapshot cliente endereco:', snapshotAtual.cliente?.endereco)
     
     // Salvar snapshot completo no IndexedDB para persistência cross-browser robusta
     try {
@@ -11736,6 +11742,7 @@ export default function App() {
     clienteEmEdicaoIdRef.current = registroConfirmado.id
     setClienteEmEdicaoId(registroConfirmado.id)
     lastSavedClienteRef.current = cloneClienteDados(dadosClonados)
+    console.log('[ClienteSave] lastSavedClienteRef updated with endereco:', lastSavedClienteRef.current?.endereco)
     scheduleMarkStateAsSaved()
 
     if (sincronizadoComSucesso) {
@@ -11809,10 +11816,12 @@ export default function App() {
   const handleEditarCliente = useCallback(
     (registro: ClienteRegistro) => {
       const dadosClonados = cloneClienteDados(registro.dados)
+      console.log('[handleEditarCliente] Loading cliente with endereco:', dadosClonados.endereco)
       setCliente(dadosClonados)
       setClienteMensagens({})
       setClienteEmEdicaoId(registro.id)
       lastSavedClienteRef.current = dadosClonados
+      console.log('[handleEditarCliente] lastSavedClienteRef set with endereco:', lastSavedClienteRef.current?.endereco)
       if (registro.propostaSnapshot) {
         applyClienteSnapshot(registro.propostaSnapshot)
       }
