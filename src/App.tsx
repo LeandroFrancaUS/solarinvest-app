@@ -12323,7 +12323,7 @@ export default function App() {
 
   const aplicarSnapshot = (
     snapshotEntrada: OrcamentoSnapshotData,
-    options?: { budgetIdOverride?: string },
+    options?: { budgetIdOverride?: string; allowEmpty?: boolean },
   ) => {
     console.log('[aplicarSnapshot] Starting to apply snapshot')
     console.log('[aplicarSnapshot] Snapshot cliente data:', {
@@ -12332,6 +12332,25 @@ export default function App() {
       cidade: snapshotEntrada.cliente?.cidade,
       documento: snapshotEntrada.cliente?.documento,
     })
+    
+    // Guard: Block empty snapshot applications that would wipe form data
+    const nome = snapshotEntrada?.cliente?.nome ?? ''
+    const endereco = snapshotEntrada?.cliente?.endereco ?? ''
+    const kwh = snapshotEntrada?.kcKwhMes ?? 0
+    
+    const isEmptyApply = !nome && !endereco && kwh === 0
+    
+    // Allow empty only if explicitly requested (intentional reset)
+    if (isEmptyApply && !options?.allowEmpty) {
+      console.warn('[aplicarSnapshot] BLOCKED empty snapshot apply (would wipe form)', {
+        cliente: snapshotEntrada?.cliente,
+        kcKwhMes: snapshotEntrada?.kcKwhMes,
+        currentBudgetId: snapshotEntrada?.currentBudgetId,
+        activeTab: snapshotEntrada?.activeTab,
+      })
+      console.trace('[aplicarSnapshot] caller stacktrace (who called apply with empty snapshot)')
+      return
+    }
     
     const snapshot = cloneSnapshotData(snapshotEntrada)
     snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
