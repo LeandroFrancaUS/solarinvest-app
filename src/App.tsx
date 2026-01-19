@@ -4429,6 +4429,7 @@ export default function App() {
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isHydratingRef = useRef(false)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
@@ -12227,7 +12228,21 @@ export default function App() {
             cidade: envelope.data.cliente?.cidade,
           })
           
-          aplicarSnapshot(envelope.data)
+          // Enable hydration mode to prevent state reset and auto-save during apply
+          isHydratingRef.current = true
+          console.log('[App] Hydration mode enabled')
+          
+          try {
+            aplicarSnapshot(envelope.data)
+            
+            // Wait for React to apply all setState calls
+            await new Promise((resolve) => setTimeout(resolve, 0))
+            
+            console.log('[App] Hydration done')
+          } finally {
+            isHydratingRef.current = false
+            console.log('[App] Hydration mode disabled')
+          }
           
           // Verify after a short delay to let React updates process
           setTimeout(() => {
@@ -12257,6 +12272,12 @@ export default function App() {
 
   // Auto-save debounced: salva o snapshot a cada 5 segundos quando houver mudanças
   useEffect(() => {
+    // Skip auto-save during hydration to prevent overwriting draft with empty/partial state
+    if (isHydratingRef.current) {
+      console.log('[App] Auto-save skipped: hydrating')
+      return
+    }
+    
     const AUTO_SAVE_INTERVAL_MS = 5000
     
     const scheduleAutoSave = () => {
@@ -12265,6 +12286,12 @@ export default function App() {
       }
       
       autoSaveTimeoutRef.current = setTimeout(async () => {
+        // Double-check hydration status before saving
+        if (isHydratingRef.current) {
+          console.log('[App] Auto-save cancelled: hydrating')
+          return
+        }
+        
         try {
           const snapshot = getCurrentSnapshot()
           await saveFormDraft(snapshot)
