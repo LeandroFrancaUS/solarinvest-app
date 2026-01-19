@@ -12294,6 +12294,22 @@ export default function App() {
         
         try {
           const snapshot = getCurrentSnapshot()
+          
+          // Guard: Don't save empty snapshots that would corrupt the draft
+          const snapshotNome = (snapshot?.cliente?.nome ?? '').trim()
+          const snapshotEndereco = (snapshot?.cliente?.endereco ?? '').trim()
+          const snapshotKwh = Number(snapshot?.kcKwhMes ?? 0)
+          
+          const isEmptySnapshot = !snapshotNome && !snapshotEndereco && snapshotKwh === 0
+          
+          if (isEmptySnapshot) {
+            console.warn('[App] Auto-save skipped: snapshot is empty (would corrupt draft)', {
+              cliente: snapshot?.cliente,
+              kcKwhMes: snapshot?.kcKwhMes,
+            })
+            return
+          }
+          
           await saveFormDraft(snapshot)
           console.log('[App] Auto-saved form draft to IndexedDB')
         } catch (error) {
@@ -12334,9 +12350,9 @@ export default function App() {
     })
     
     // Guard: Block empty snapshot applications that would wipe form data
-    const nome = snapshotEntrada?.cliente?.nome ?? ''
-    const endereco = snapshotEntrada?.cliente?.endereco ?? ''
-    const kwh = snapshotEntrada?.kcKwhMes ?? 0
+    const nome = (snapshotEntrada?.cliente?.nome ?? '').trim()
+    const endereco = (snapshotEntrada?.cliente?.endereco ?? '').trim()
+    const kwh = Number(snapshotEntrada?.kcKwhMes ?? 0)
     
     const isEmptyApply = !nome && !endereco && kwh === 0
     
