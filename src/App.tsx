@@ -4428,6 +4428,7 @@ export default function App() {
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
@@ -12248,14 +12249,13 @@ export default function App() {
   // Auto-save debounced: salva o snapshot a cada 5 segundos quando houver mudanças
   useEffect(() => {
     const AUTO_SAVE_INTERVAL_MS = 5000
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
     
     const scheduleAutoSave = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId)
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
       }
       
-      timeoutId = setTimeout(async () => {
+      autoSaveTimeoutRef.current = setTimeout(async () => {
         try {
           const snapshot = getCurrentSnapshot()
           await saveFormDraft(snapshot)
@@ -12270,8 +12270,8 @@ export default function App() {
     scheduleAutoSave()
     
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId)
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
       }
     }
   }, [
