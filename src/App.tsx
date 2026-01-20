@@ -11698,19 +11698,24 @@ export default function App() {
     console.log('[ClienteSave] DadosClonados endereco AFTER clone:', dadosClonados.endereco)
     
     const snapshotAtual = getCurrentSnapshot()
-    console.log('[ClienteSave] Capturing FULL proposal snapshot with', Object.keys(snapshotAtual).length, 'fields')
+    const snapshotClonado = cloneSnapshotData(snapshotAtual)
+    console.log(
+      '[ClienteSave] Capturing FULL proposal snapshot with',
+      Object.keys(snapshotClonado).length,
+      'fields',
+    )
     console.log('[ClienteSave] Sample fields:', {
-      kcKwhMes: snapshotAtual.kcKwhMes,
-      tarifaCheia: snapshotAtual.tarifaCheia,
-      entradaRs: snapshotAtual.entradaRs,
-      numeroModulosManual: snapshotAtual.numeroModulosManual,
-      potenciaModulo: snapshotAtual.potenciaModulo,
+      kcKwhMes: snapshotClonado.kcKwhMes,
+      tarifaCheia: snapshotClonado.tarifaCheia,
+      entradaRs: snapshotClonado.entradaRs,
+      numeroModulosManual: snapshotClonado.numeroModulosManual,
+      potenciaModulo: snapshotClonado.potenciaModulo,
     })
-    console.log('[ClienteSave] Snapshot cliente endereco:', snapshotAtual.cliente?.endereco)
+    console.log('[ClienteSave] Snapshot cliente endereco:', snapshotClonado.cliente?.endereco)
     
     // Salvar snapshot completo no IndexedDB para persistência cross-browser robusta
     try {
-      await saveFormDraft(snapshotAtual)
+      await saveFormDraft(snapshotClonado)
       console.log('[ClienteSave] Form draft saved to IndexedDB successfully')
     } catch (error) {
       console.warn('[ClienteSave] Failed to save form draft to IndexedDB:', error)
@@ -11765,7 +11770,7 @@ export default function App() {
               ...registro,
               dados: dadosClonados,
               atualizadoEm: agoraIso,
-              propostaSnapshot: snapshotAtual,
+              propostaSnapshot: snapshotClonado,
             }
             registroAtualizado = atualizado
             return atualizado
@@ -11779,7 +11784,7 @@ export default function App() {
             criadoEm: agoraIso,
             atualizadoEm: agoraIso,
             dados: dadosClonados,
-            propostaSnapshot: snapshotAtual,
+            propostaSnapshot: snapshotClonado,
           }
           registroAtualizado = novoRegistro
           registrosAtualizados = [novoRegistro, ...prevRegistros]
@@ -11790,7 +11795,7 @@ export default function App() {
           criadoEm: agoraIso,
           atualizadoEm: agoraIso,
           dados: dadosClonados,
-          propostaSnapshot: snapshotAtual,
+          propostaSnapshot: snapshotClonado,
         }
         registroAtualizado = novoRegistro
         registrosAtualizados = [novoRegistro, ...prevRegistros]
@@ -12750,21 +12755,22 @@ export default function App() {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
         const snapshotAtual = getCurrentSnapshot()
+        const snapshotClonado = cloneSnapshotData(snapshotAtual)
         
         // Log snapshot quality before saving
         console.log('[salvarOrcamentoLocalmente] Snapshot from getCurrentSnapshot():', {
-          clienteNome: snapshotAtual.cliente?.nome ?? '',
-          clienteEndereco: snapshotAtual.cliente?.endereco ?? '',
-          clienteDocumento: snapshotAtual.cliente?.documento ?? '',
-          kcKwhMes: snapshotAtual.kcKwhMes ?? 0,
-          totalFields: Object.keys(snapshotAtual).length,
+          clienteNome: snapshotClonado.cliente?.nome ?? '',
+          clienteEndereco: snapshotClonado.cliente?.endereco ?? '',
+          clienteDocumento: snapshotClonado.cliente?.documento ?? '',
+          kcKwhMes: snapshotClonado.kcKwhMes ?? 0,
+          totalFields: Object.keys(snapshotClonado).length,
         })
         
         // Check if snapshot is meaningful
-        const nome = (snapshotAtual.cliente?.nome ?? '').trim()
-        const endereco = (snapshotAtual.cliente?.endereco ?? '').trim()
-        const documento = (snapshotAtual.cliente?.documento ?? '').trim()
-        const kc = Number(snapshotAtual.kcKwhMes ?? 0)
+        const nome = (snapshotClonado.cliente?.nome ?? '').trim()
+        const endereco = (snapshotClonado.cliente?.endereco ?? '').trim()
+        const documento = (snapshotClonado.cliente?.documento ?? '').trim()
+        const kc = Number(snapshotClonado.kcKwhMes ?? 0)
         const hasCliente = Boolean(nome || endereco || documento)
         const hasConsumption = kc > 0
         const isSnapshotMeaningful = hasCliente || hasConsumption
@@ -12775,7 +12781,7 @@ export default function App() {
           return null
         }
         
-        const fingerprint = computeSnapshotSignature(snapshotAtual, dadosClonados)
+        const fingerprint = computeSnapshotSignature(snapshotClonado, dadosClonados)
 
         const registroExistenteIndex = registrosExistentes.findIndex((registro) => {
           if (registro.snapshot) {
@@ -12790,7 +12796,7 @@ export default function App() {
             console.error('Orçamento salvo não encontrado para atualização.')
             return null
           }
-          const snapshotAtualizado = cloneSnapshotData(snapshotAtual)
+          const snapshotAtualizado = cloneSnapshotData(snapshotClonado)
           snapshotAtualizado.currentBudgetId = existente.id
           if (snapshotAtualizado.vendaSnapshot.codigos) {
             snapshotAtualizado.vendaSnapshot.codigos = {
@@ -12849,7 +12855,7 @@ export default function App() {
           candidatoInformado && !existingIds.has(candidatoInformado)
             ? candidatoInformado
             : generateBudgetId(existingIds, dadosClonados.tipoProposta)
-        const snapshotParaArmazenar = cloneSnapshotData(snapshotAtual)
+        const snapshotParaArmazenar = cloneSnapshotData(snapshotClonado)
         snapshotParaArmazenar.currentBudgetId = novoId
         if (snapshotParaArmazenar.vendaSnapshot.codigos) {
           snapshotParaArmazenar.vendaSnapshot.codigos = {
