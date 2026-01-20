@@ -71,6 +71,12 @@ import {
   loadProposalSnapshotById,
 } from './lib/persist/proposalStore'
 import {
+  upsertClienteRegistro,
+  getClienteRegistroById,
+  getAllClienteRegistros,
+  type ClienteRegistro as ClienteRegistroType,
+} from './app/services/clientStore'
+import {
   computeROI,
   type ModoPagamento,
   type PagamentoCondicao,
@@ -11582,6 +11588,27 @@ export default function App() {
     return snapshotData
   }
 
+  // Helper: Hydrate cliente registro with latest data from clientStore
+  const hydrateClienteRegistroFromStore = async (
+    registro: ClienteRegistro,
+  ): Promise<ClienteRegistro> => {
+    try {
+      const latestRegistro = await getClienteRegistroById(registro.id)
+      if (latestRegistro) {
+        console.log('[hydrateClienteRegistro] Loaded latest from clientStore:', {
+          id: registro.id,
+          nome: latestRegistro.dados?.nome,
+          endereco: latestRegistro.dados?.endereco,
+          updatedAt: latestRegistro.atualizadoEm,
+        })
+        return latestRegistro
+      }
+    } catch (e) {
+      console.warn('[hydrateClienteRegistro] Failed to load latest for', registro.id, e)
+    }
+    return registro
+  }
+
   const handleSalvarCliente = useCallback(async (options?: { skipGuard?: boolean }) => {
     if (typeof window === 'undefined') {
       return false
@@ -11765,6 +11792,20 @@ export default function App() {
     setClienteEmEdicaoId(registroConfirmado.id)
     lastSavedClienteRef.current = cloneClienteDados(dadosClonados)
     console.log('[ClienteSave] lastSavedClienteRef updated with endereco:', lastSavedClienteRef.current?.endereco)
+    
+    // Save to clientStore (IndexedDB) for guaranteed latest data
+    try {
+      await upsertClienteRegistro(registroConfirmado)
+      console.log('[ClienteSave] Cliente saved to clientStore (IndexedDB):', {
+        id: registroConfirmado.id,
+        nome: registroConfirmado.dados?.nome,
+        endereco: registroConfirmado.dados?.endereco,
+      })
+    } catch (error) {
+      console.warn('[ClienteSave] Failed to save cliente to clientStore:', error)
+      // Continue - localStorage is the source of truth
+    }
+    
     scheduleMarkStateAsSaved()
 
     if (sincronizadoComSucesso) {
@@ -11836,16 +11877,18 @@ export default function App() {
   )
 
   const handleEditarCliente = useCallback(
-    (registro: ClienteRegistro) => {
-      const dadosClonados = cloneClienteDados(registro.dados)
+    async (registro: ClienteRegistro) => {
+      // Load latest data from clientStore
+      const registroHidratado = await hydrateClienteRegistroFromStore(registro)
+      const dadosClonados = cloneClienteDados(registroHidratado.dados)
       console.log('[handleEditarCliente] Loading cliente with endereco:', dadosClonados.endereco)
       setCliente(dadosClonados)
       setClienteMensagens({})
-      setClienteEmEdicaoId(registro.id)
+      setClienteEmEdicaoId(registroHidratado.id)
       lastSavedClienteRef.current = dadosClonados
       console.log('[handleEditarCliente] lastSavedClienteRef set with endereco:', lastSavedClienteRef.current?.endereco)
-      if (registro.propostaSnapshot) {
-        applyClienteSnapshot(registro.propostaSnapshot)
+      if (registroHidratado.propostaSnapshot) {
+        applyClienteSnapshot(registroHidratado.propostaSnapshot)
       }
       fecharClientesPainel()
     },
@@ -12576,13 +12619,24 @@ export default function App() {
         const completeSnapshot = await loadProposalSnapshotById(budgetIdKey)
         
         if (completeSnapshot) {
-          console.log('[carregarOrcamentoParaEdicao] Using complete snapshot from proposalStore', {
-            clienteNome: completeSnapshot.cliente?.nome,
-            clienteEndereco: completeSnapshot.cliente?.endereco,
-            kcKwhMes: completeSnapshot.kcKwhMes,
-            totalFields: Object.keys(completeSnapshot).length,
-          })
-          snapshotToApply = completeSnapshot
+          // Validate that loaded snapshot is meaningful
+          const nome = (completeSnapshot.cliente?.nome ?? '').trim()
+          const endereco = (completeSnapshot.cliente?.endereco ?? '').trim()
+          const documento = (completeSnapshot.cliente?.documento ?? '').trim()
+          const kc = Number(completeSnapshot.kcKwhMes ?? 0)
+          const isMeaningful = Boolean(nome || endereco || documento) || kc > 0
+          
+          if (isMeaningful) {
+            console.log('[carregarOrcamentoParaEdicao] Using complete snapshot from proposalStore', {
+              clienteNome: completeSnapshot.cliente?.nome,
+              clienteEndereco: completeSnapshot.cliente?.endereco,
+              kcKwhMes: completeSnapshot.kcKwhMes,
+              totalFields: Object.keys(completeSnapshot).length,
+            })
+            snapshotToApply = completeSnapshot
+          } else {
+            console.warn('[carregarOrcamentoParaEdicao] proposalStore snapshot is empty, falling back to registro.snapshot')
+          }
         } else {
           console.warn('[carregarOrcamentoParaEdicao] Complete snapshot not found, falling back to registro.snapshot')
         }
@@ -14404,9 +14458,17 @@ export default function App() {
   ])
 
   const abrirClientesPainel = useCallback(async () => {
-    const canProceed = await runWithUnsavedChangesGuard(() => {
+    const canProceed = await runWithUnsavedChangesGuard(async () => {
       const registros = carregarClientesSalvos()
-      setClientesSalvos(registros)
+      
+      // Hydrate with latest data from clientStore
+      console.log('[abrirClientesPainel] Hydrating', registros.length, 'clientes from clientStore')
+      const hidratados = await Promise.all(
+        registros.map((r) => hydrateClienteRegistroFromStore(r))
+      )
+      console.log('[abrirClientesPainel] Hydration complete, displaying fresh data')
+      
+      setClientesSalvos(hidratados)
       setActivePage('clientes')
     })
 
@@ -14456,13 +14518,27 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage])
 
-  const iniciarNovaProposta = useCallback(() => {
-    fieldSyncActions.reset()
-    setSettingsTab(INITIAL_VALUES.settingsTab)
-    setActivePage('app')
-    setOrcamentoSearchTerm('')
-    limparOrcamentoAtivo()
-    setCurrentBudgetId(createDraftBudgetId())
+  const iniciarNovaProposta = useCallback(async () => {
+    // Protect against auto-save during reset
+    console.log('[Nova Proposta] Starting - protecting against auto-save')
+    isHydratingRef.current = true
+    
+    try {
+      // Clear form draft to prevent stale data
+      try {
+        await saveFormDraft(null as any) // Clear the draft
+        console.log('[Nova Proposta] Form draft cleared')
+      } catch (error) {
+        console.warn('[Nova Proposta] Failed to clear form draft:', error)
+      }
+      
+      fieldSyncActions.reset()
+      setSettingsTab(INITIAL_VALUES.settingsTab)
+      setActivePage('app')
+      setOrcamentoSearchTerm('')
+      limparOrcamentoAtivo()
+      setCurrentBudgetId(createDraftBudgetId())
+      console.log('[Nova Proposta] New budget ID created')
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
     setIsBudgetProcessing(false)
@@ -14590,6 +14666,13 @@ export default function App() {
     setActivePage('app')
     setNotificacoes([])
     scheduleMarkStateAsSaved()
+    
+    // Wait for React to process state updates
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    console.log('[Nova Proposta] Reset complete, re-enabling auto-save')
+    } finally {
+      isHydratingRef.current = false
+    }
   }, [
     createPageSharedSettings,
     setActivePage,
