@@ -3565,8 +3565,8 @@ export default function App() {
     setOneDriveIntegrationAvailable(isOneDriveIntegrationAvailable())
     setProposalPdfIntegrationAvailable(isProposalPdfIntegrationAvailable())
   }, [])
-  const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
-  const currentBudgetIdRef = useRef<string>(currentBudgetId)
+  const budgetIdRef = useRef<string>(createDraftBudgetId())
+  const [currentBudgetId, setCurrentBudgetId] = useState<string>(budgetIdRef.current)
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetTableContentId = useId()
@@ -3712,6 +3712,28 @@ export default function App() {
   const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
   const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
+
+  const getActiveBudgetId = useCallback(() => {
+    return budgetIdRef.current || currentBudgetId
+  }, [currentBudgetId])
+
+  const switchBudgetId = useCallback(
+    (nextId: string) => {
+      const prevId = getActiveBudgetId()
+      if (!nextId || nextId === prevId) {
+        return
+      }
+
+      budgetIdRef.current = nextId
+      try {
+        renameVendasSimulacao(prevId, nextId)
+      } catch (error) {
+        console.warn('[switchBudgetId] rename failed', error)
+      }
+      setCurrentBudgetId(nextId)
+    },
+    [getActiveBudgetId, renameVendasSimulacao],
+  )
 
   const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
   const capexBaseManualValor =
@@ -4519,7 +4541,7 @@ export default function App() {
   }, [pageSharedState])
 
   useEffect(() => {
-    currentBudgetIdRef.current = currentBudgetId
+    budgetIdRef.current = currentBudgetId
   }, [currentBudgetId])
   
   // Update prazoContratualMeses in leasing store when leasingPrazo (in years) changes
@@ -5933,7 +5955,7 @@ export default function App() {
           ignoredByNoise: result.structured.meta?.ignoredByNoise ?? 0,
         })
         setBudgetStructuredItems(result.structured.itens)
-        setCurrentBudgetId(createDraftBudgetId())
+        switchBudgetId(createDraftBudgetId())
         autoFillVendaFromBudget(result.structured, totalValue, result.plainText)
       } catch (error) {
         console.error('Erro ao processar orçamento', error)
@@ -11477,13 +11499,15 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
-  const getCurrentSnapshot = (): OrcamentoSnapshotData | null => {
+  const getCurrentSnapshot = (
+    options?: { budgetIdOverride?: string },
+  ): OrcamentoSnapshotData | null => {
     const vendasConfigState = useVendasConfigStore.getState()
     const vendasSimState = useVendasSimulacoesStore.getState()
     const vendaSnapshotAtual = getVendaSnapshot()
     const leasingSnapshotAtual = getLeasingSnapshot()
     const tab = activeTabRef.current
-    const budgetId = currentBudgetIdRef.current
+    const budgetId = options?.budgetIdOverride ?? getActiveBudgetId()
     const clienteFonte = clienteRef.current ?? cliente
     const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
     const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
@@ -12582,7 +12606,7 @@ export default function App() {
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
     setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
     setPageSharedState({ ...snapshot.pageShared })
-    setCurrentBudgetId(budgetId)
+    switchBudgetId(budgetId)
     setBudgetStructuredItems(cloneStructuredItems(snapshot.budgetStructuredItems))
     setKitBudget(cloneKitBudgetState(snapshot.kitBudget))
     setPropostaImagens(
@@ -12636,13 +12660,6 @@ export default function App() {
     useVendasConfigStore.getState().replace(snapshot.vendasConfig)
     const simulacoesClonadas = cloneVendasSimulacoes(snapshot.vendasSimulacoes)
     useVendasSimulacoesStore.setState({ simulations: simulacoesClonadas })
-    if (
-      options?.budgetIdOverride &&
-      snapshot.currentBudgetId &&
-      snapshot.currentBudgetId !== options.budgetIdOverride
-    ) {
-      useVendasSimulacoesStore.getState().rename(snapshot.currentBudgetId, options.budgetIdOverride)
-    }
     setMultiUcAtivo(snapshot.multiUc.ativo)
     setMultiUcRows(snapshot.multiUc.rows.map((row) => ({ ...row })))
     setMultiUcRateioModo(snapshot.multiUc.rateioModo)
@@ -12770,9 +12787,11 @@ export default function App() {
         return
       }
 
+      const targetBudgetId = normalizeProposalId(registro.id) || registro.id
+      switchBudgetId(targetBudgetId)
       isHydratingRef.current = true
       try {
-        aplicarSnapshot(snapshotToApply)
+        aplicarSnapshot(snapshotToApply, { budgetIdOverride: targetBudgetId })
         await new Promise((resolve) => setTimeout(resolve, 0))
       } finally {
         isHydratingRef.current = false
@@ -12911,6 +12930,7 @@ export default function App() {
           candidatoInformado && !existingIds.has(candidatoInformado)
             ? candidatoInformado
             : generateBudgetId(existingIds, dadosClonados.tipoProposta)
+        switchBudgetId(novoId)
         const snapshotParaArmazenar = cloneSnapshotData(snapshotClonado)
         snapshotParaArmazenar.currentBudgetId = novoId
         if (snapshotParaArmazenar.vendaSnapshot.codigos) {
@@ -13248,7 +13268,7 @@ export default function App() {
   const handlePreviewActionRequest = useCallback(
     async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
       const previewData = pendingPreviewDataRef.current
-      const budgetIdAtual = normalizeProposalId(currentBudgetId)
+      const budgetIdAtual = normalizeProposalId(getActiveBudgetId())
 
       if (!previewData) {
         return { proceed: true }
@@ -13258,10 +13278,7 @@ export default function App() {
       const idExistente = normalizeProposalId(dados.budgetId ?? budgetIdAtual)
       if (idExistente) {
         const emissaoIso = new Date().toISOString().slice(0, 10)
-        if (currentBudgetId !== idExistente) {
-          renameVendasSimulacao(currentBudgetId, idExistente)
-          setCurrentBudgetId(idExistente)
-        }
+        switchBudgetId(idExistente)
         vendaActions.updateCodigos({
           codigo_orcamento_interno: idExistente,
           data_emissao: emissaoIso,
@@ -13288,10 +13305,7 @@ export default function App() {
 
         dados.budgetId = registro.id
         const emissaoIso = new Date().toISOString().slice(0, 10)
-        if (currentBudgetId !== registro.id) {
-          renameVendasSimulacao(currentBudgetId, registro.id)
-          setCurrentBudgetId(registro.id)
-        }
+        switchBudgetId(registro.id)
 
         vendaActions.updateCodigos({
           codigo_orcamento_interno: registro.id,
@@ -13371,14 +13385,13 @@ export default function App() {
       [
         activeTab,
         adicionarNotificacao,
-        clienteEmEdicaoId,
-        currentBudgetId,
         atualizarOrcamentoAtivo,
+        clienteEmEdicaoId,
+        getActiveBudgetId,
         isProposalPdfIntegrationAvailable,
-        renameVendasSimulacao,
         salvarOrcamentoLocalmente,
-        setCurrentBudgetId,
         setProposalPdfIntegrationAvailable,
+        switchBudgetId,
       ],
     )
 
@@ -14405,10 +14418,7 @@ export default function App() {
       }
 
       const emissaoIso = new Date().toISOString().slice(0, 10)
-      if (currentBudgetId !== registroSalvo.id) {
-        renameVendasSimulacao(currentBudgetId, registroSalvo.id)
-        setCurrentBudgetId(registroSalvo.id)
-      }
+      switchBudgetId(registroSalvo.id)
 
       vendaActions.updateCodigos({
         codigo_orcamento_interno: registroSalvo.id,
@@ -14437,17 +14447,15 @@ export default function App() {
   }, [
     adicionarNotificacao,
     atualizarOrcamentoAtivo,
-    currentBudgetId,
     confirmarAlertasAntesDeSalvar,
     guardClientFieldsOrReturn,
     handleSalvarCliente,
     isVendaDiretaTab,
     prepararPropostaParaExportacao,
-    renameVendasSimulacao,
     salvarOrcamentoLocalmente,
     salvandoPropostaLeasing,
     scheduleMarkStateAsSaved,
-    setCurrentBudgetId,
+    switchBudgetId,
     vendaActions,
   ])
 
@@ -14491,10 +14499,7 @@ export default function App() {
       dados.budgetId = registroSalvo.id
 
       const emissaoIso = new Date().toISOString().slice(0, 10)
-      if (currentBudgetId !== registroSalvo.id) {
-        renameVendasSimulacao(currentBudgetId, registroSalvo.id)
-        setCurrentBudgetId(registroSalvo.id)
-      }
+      switchBudgetId(registroSalvo.id)
 
       vendaActions.updateCodigos({
         codigo_orcamento_interno: registroSalvo.id,
@@ -14573,16 +14578,15 @@ export default function App() {
     adicionarNotificacao,
     guardClientFieldsOrReturn,
     handleSalvarCliente,
-    currentBudgetId,
     isProposalPdfIntegrationAvailable,
     isVendaDiretaTab,
     prepararPropostaParaExportacao,
-    renameVendasSimulacao,
     salvarOrcamentoLocalmente,
     salvandoPropostaPdf,
     atualizarOrcamentoAtivo,
     setProposalPdfIntegrationAvailable,
     scheduleMarkStateAsSaved,
+    switchBudgetId,
   ])
 
   const runWithUnsavedChangesGuard = useCallback(
@@ -14715,8 +14719,7 @@ export default function App() {
       setOrcamentoSearchTerm('')
       limparOrcamentoAtivo()
       const novoBudgetId = createDraftBudgetId()
-      currentBudgetIdRef.current = novoBudgetId
-      setCurrentBudgetId(novoBudgetId)
+      switchBudgetId(novoBudgetId)
       console.log('[Nova Proposta] New budget ID created')
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
@@ -14880,6 +14883,7 @@ export default function App() {
     setMultiUcRows,
     limparOrcamentoAtivo,
     setClienteSync,
+    switchBudgetId,
   ])
 
   const handleNovaProposta = useCallback(async () => {
@@ -14923,6 +14927,7 @@ export default function App() {
     }
 
     const novoBudgetId = createDraftBudgetId()
+    switchBudgetId(novoBudgetId)
     isHydratingRef.current = true
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
     setTimeout(() => {
