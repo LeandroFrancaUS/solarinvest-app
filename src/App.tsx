@@ -1025,6 +1025,7 @@ const CLIENTE_ID_LENGTH = 5
 const CLIENTE_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
 const CLIENTE_ID_MAX_ATTEMPTS = 10000
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 // SolarInvest company information for contracts
 const CLIENTE_INICIAL: ClienteDados = {
@@ -3382,6 +3383,7 @@ export default function App() {
     const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
+  const activeTabRef = useRef(activeTab)
   const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>('nova')
   const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
   const [aprovacaoChecklist, setAprovacaoChecklist] = useState<
@@ -3564,7 +3566,8 @@ export default function App() {
     setOneDriveIntegrationAvailable(isOneDriveIntegrationAvailable())
     setProposalPdfIntegrationAvailable(isProposalPdfIntegrationAvailable())
   }, [])
-  const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
+  const budgetIdRef = useRef<string>(createDraftBudgetId())
+  const [currentBudgetId, setCurrentBudgetId] = useState<string>(budgetIdRef.current)
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetTableContentId = useId()
@@ -3710,6 +3713,25 @@ export default function App() {
   const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
   const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
+
+  const getActiveBudgetId = useCallback(() => budgetIdRef.current, [])
+
+  const switchBudgetId = useCallback(
+    (nextId: string) => {
+      const prevId = getActiveBudgetId()
+      if (!nextId || nextId === prevId) {
+        return
+      }
+
+      try {
+        renameVendasSimulacao(prevId, nextId)
+      } catch (error) {
+        console.warn('[switchBudgetId] rename failed', error)
+      }
+      setCurrentBudgetId(nextId)
+    },
+    [getActiveBudgetId, renameVendasSimulacao],
+  )
 
   const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
   const capexBaseManualValor =
@@ -4440,12 +4462,36 @@ export default function App() {
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isHydratingRef = useRef(false)
+  const [isHydrating, setIsHydrating] = useState(false)
+  const isApplyingCepRef = useRef(false)
+  const isEditingEnderecoRef = useRef(false)
+  const lastCepAppliedRef = useRef<string>('')
+  const budgetIdMismatchLoggedRef = useRef(false)
+  const novaPropostaEmAndamentoRef = useRef(false)
   
   // Refs to prevent stale closures in getCurrentSnapshot
   const clienteRef = useRef(cliente)
   const kcKwhMesRef = useRef(kcKwhMes)
   const pageSharedStateRef = useRef(pageSharedState)
   
+  const setClienteSync = useCallback(
+    (next: ClienteDados) => {
+      clienteRef.current = next
+      setCliente(next)
+    },
+    [setCliente],
+  )
+
+  const updateClienteSync = useCallback(
+    (patch: Partial<ClienteDados>) => {
+      const base = clienteRef.current ?? cliente
+      const merged = { ...base, ...patch }
+      clienteRef.current = merged
+      setCliente(merged)
+    },
+    [cliente, setCliente],
+  )
+
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
@@ -4476,6 +4522,10 @@ export default function App() {
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
   }, [clienteEmEdicaoId])
+
+  useEffect(() => {
+    activeTabRef.current = activeTab
+  }, [activeTab])
   
   // Sync refs to prevent stale closures in getCurrentSnapshot
   useEffect(() => {
@@ -4489,6 +4539,10 @@ export default function App() {
   useEffect(() => {
     pageSharedStateRef.current = pageSharedState
   }, [pageSharedState])
+
+  useEffect(() => {
+    budgetIdRef.current = currentBudgetId
+  }, [currentBudgetId])
   
   // Update prazoContratualMeses in leasing store when leasingPrazo (in years) changes
   useEffect(() => {
@@ -5379,13 +5433,10 @@ export default function App() {
       updateSegmentoCliente(novoValor)
 
       if (!isSegmentoCondominio(novoValor)) {
-        setCliente((prev) => {
-          if (!prev.nomeSindico && !prev.cpfSindico && !prev.contatoSindico) {
-            return prev
-          }
-
-          return { ...prev, nomeSindico: '', cpfSindico: '', contatoSindico: '' }
-        })
+        const base = clienteRef.current ?? cliente
+        if (base.nomeSindico || base.cpfSindico || base.contatoSindico) {
+          setClienteSync({ ...base, nomeSindico: '', cpfSindico: '', contatoSindico: '' })
+        }
       }
 
       // Se o outro lado NÃO foi editado manualmente, sincronizar
@@ -5395,7 +5446,7 @@ export default function App() {
 
       resetRetorno?.()
     },
-    [resetRetorno, setCliente, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
+    [cliente, resetRetorno, setClienteSync, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
   )
 
   const handleTusdTipoClienteChange = useCallback(
@@ -5904,7 +5955,7 @@ export default function App() {
           ignoredByNoise: result.structured.meta?.ignoredByNoise ?? 0,
         })
         setBudgetStructuredItems(result.structured.itens)
-        setCurrentBudgetId(createDraftBudgetId())
+        switchBudgetId(createDraftBudgetId())
         autoFillVendaFromBudget(result.structured, totalValue, result.plainText)
       } catch (error) {
         console.error('Erro ao processar orçamento', error)
@@ -11448,11 +11499,185 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
-  const getCurrentSnapshot = (): OrcamentoSnapshotData => {
+  const isSnapshotEmpty = (snapshot: OrcamentoSnapshotData): boolean =>
+    !snapshot?.cliente?.nome &&
+    !snapshot?.cliente?.endereco &&
+    !snapshot?.cliente?.documento &&
+    Number(snapshot?.kcKwhMes ?? 0) === 0
+
+  const createEmptySnapshot = (budgetId: string, activeTab: TabKey): OrcamentoSnapshotData => ({
+    activeTab,
+    settingsTab: INITIAL_VALUES.settingsTab,
+    cliente: cloneClienteDados(CLIENTE_INICIAL),
+    clienteEmEdicaoId: null,
+    ucBeneficiarias: [],
+    pageShared: createPageSharedSettings(),
+    currentBudgetId: budgetId,
+    budgetStructuredItems: [],
+    kitBudget: createEmptyKitBudget(),
+    budgetProcessing: {
+      isProcessing: false,
+      error: null,
+      progress: null,
+      isTableCollapsed: false,
+      ocrDpi: DEFAULT_OCR_DPI,
+    },
+    propostaImagens: [],
+    ufTarifa: INITIAL_VALUES.ufTarifa,
+    distribuidoraTarifa: INITIAL_VALUES.distribuidoraTarifa,
+    ufsDisponiveis: [...distribuidorasFallback.ufs],
+    distribuidorasPorUf: cloneDistribuidorasMapa(distribuidorasFallback.distribuidorasPorUf),
+    mesReajuste: INITIAL_VALUES.mesReajuste,
+    kcKwhMes: INITIAL_VALUES.kcKwhMes,
+    consumoManual: false,
+    tarifaCheia: INITIAL_VALUES.tarifaCheia,
+    desconto: INITIAL_VALUES.desconto,
+    taxaMinima: INITIAL_VALUES.taxaMinima,
+    taxaMinimaInputEmpty: INITIAL_VALUES.taxaMinima === 0,
+    encargosFixosExtras: INITIAL_VALUES.encargosFixosExtras,
+    tusdPercent: INITIAL_VALUES.tusdPercent,
+    tusdTipoCliente: INITIAL_VALUES.tusdTipoCliente,
+    tusdSubtipo: INITIAL_VALUES.tusdSubtipo,
+    tusdSimultaneidade: INITIAL_VALUES.tusdSimultaneidade,
+    tusdTarifaRkwh: INITIAL_VALUES.tusdTarifaRkwh,
+    tusdAnoReferencia: INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
+    tusdOpcoesExpandidas: false,
+    leasingPrazo: INITIAL_VALUES.leasingPrazo,
+    usarEnderecoCliente: false,
+    potenciaModulo: INITIAL_VALUES.potenciaModulo,
+    potenciaModuloDirty: false,
+    tipoInstalacao: normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao),
+    tipoInstalacaoOutro: INITIAL_VALUES.tipoInstalacaoOutro,
+    tipoInstalacaoDirty: false,
+    tipoSistema: INITIAL_VALUES.tipoSistema,
+    segmentoCliente: normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
+    tipoEdificacaoOutro: INITIAL_VALUES.tipoEdificacaoOutro,
+    numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
+    configuracaoUsinaObservacoes: INITIAL_VALUES.configuracaoUsinaObservacoes,
+    composicaoTelhado: createInitialComposicaoTelhado(),
+    composicaoSolo: createInitialComposicaoSolo(),
+    aprovadoresText: '',
+    impostosOverridesDraft: {},
+    vendasConfig: JSON.parse(JSON.stringify(useVendasConfigStore.getState().config)) as VendasConfig,
+    vendasSimulacoes: {},
+    multiUc: {
+      ativo: INITIAL_VALUES.multiUcAtivo,
+      rows: [],
+      rateioModo: INITIAL_VALUES.multiUcRateioModo,
+      energiaGeradaKWh: INITIAL_VALUES.multiUcEnergiaGeradaKWh,
+      energiaGeradaTouched: false,
+      anoVigencia: INITIAL_VALUES.multiUcAnoVigencia,
+      overrideEscalonamento: INITIAL_VALUES.multiUcOverrideEscalonamento,
+      escalonamentoCustomPercent: INITIAL_VALUES.multiUcEscalonamentoCustomPercent,
+    },
+    precoPorKwp: INITIAL_VALUES.precoPorKwp,
+    irradiacao: IRRADIACAO_FALLBACK,
+    eficiencia: INITIAL_VALUES.eficiencia,
+    diasMes: INITIAL_VALUES.diasMes,
+    inflacaoAa: INITIAL_VALUES.inflacaoAa,
+    vendaForm: createInitialVendaForm(),
+    capexManualOverride: INITIAL_VALUES.capexManualOverride,
+    parsedVendaPdf: null,
+    estruturaTipoWarning: null,
+    jurosFinAa: INITIAL_VALUES.jurosFinanciamentoAa,
+    prazoFinMeses: INITIAL_VALUES.prazoFinanciamentoMeses,
+    entradaFinPct: INITIAL_VALUES.entradaFinanciamentoPct,
+    mostrarFinanciamento: INITIAL_VALUES.mostrarFinanciamento,
+    mostrarGrafico: INITIAL_VALUES.mostrarGrafico,
+    prazoMeses: INITIAL_VALUES.prazoMeses,
+    bandeiraEncargo: INITIAL_VALUES.bandeiraEncargo,
+    cipEncargo: INITIAL_VALUES.cipEncargo,
+    entradaRs: INITIAL_VALUES.entradaRs,
+    entradaModo: INITIAL_VALUES.entradaModo,
+    mostrarValorMercadoLeasing: INITIAL_VALUES.mostrarValorMercadoLeasing,
+    mostrarTabelaParcelas: INITIAL_VALUES.tabelaVisivel,
+    mostrarTabelaBuyout: INITIAL_VALUES.tabelaVisivel,
+    mostrarTabelaParcelasConfig: INITIAL_VALUES.tabelaVisivel,
+    mostrarTabelaBuyoutConfig: INITIAL_VALUES.tabelaVisivel,
+    oemBase: INITIAL_VALUES.oemBase,
+    oemInflacao: INITIAL_VALUES.oemInflacao,
+    seguroModo: INITIAL_VALUES.seguroModo,
+    seguroReajuste: INITIAL_VALUES.seguroReajuste,
+    seguroValorA: INITIAL_VALUES.seguroValorA,
+    seguroPercentualB: INITIAL_VALUES.seguroPercentualB,
+    exibirLeasingLinha: INITIAL_VALUES.exibirLeasingLinha,
+    exibirFinLinha: INITIAL_VALUES.exibirFinanciamentoLinha,
+    cashbackPct: INITIAL_VALUES.cashbackPct,
+    depreciacaoAa: INITIAL_VALUES.depreciacaoAa,
+    inadimplenciaAa: INITIAL_VALUES.inadimplenciaAa,
+    tributosAa: INITIAL_VALUES.tributosAa,
+    ipcaAa: INITIAL_VALUES.ipcaAa,
+    custosFixosM: INITIAL_VALUES.custosFixosM,
+    opexM: INITIAL_VALUES.opexM,
+    seguroM: INITIAL_VALUES.seguroM,
+    duracaoMeses: INITIAL_VALUES.duracaoMeses,
+    pagosAcumAteM: INITIAL_VALUES.pagosAcumManual,
+    modoOrcamento: 'auto',
+    autoKitValor: null,
+    autoCustoFinal: null,
+    autoPricingRede: null,
+    autoPricingVersion: null,
+    autoBudgetReason: null,
+    autoBudgetReasonCode: null,
+    tipoRede: INITIAL_VALUES.tipoRede ?? 'monofasico',
+    tipoRedeControle: 'auto',
+    leasingAnexosSelecionados: [],
+    vendaSnapshot: getVendaSnapshot(),
+    leasingSnapshot: getLeasingSnapshot(),
+  })
+
+  const mergeSnapshotWithDefaults = (
+    snapshot: OrcamentoSnapshotData,
+    budgetId: string,
+  ): OrcamentoSnapshotData => {
+    const base = createEmptySnapshot(budgetId, snapshot.activeTab)
+
+    return {
+      ...base,
+      ...snapshot,
+      cliente: cloneClienteDados(snapshot.cliente ?? base.cliente),
+      clienteMensagens: snapshot.clienteMensagens ?? base.clienteMensagens,
+      ucBeneficiarias: snapshot.ucBeneficiarias ?? base.ucBeneficiarias,
+      pageShared: { ...base.pageShared, ...(snapshot.pageShared ?? {}) },
+      budgetStructuredItems: snapshot.budgetStructuredItems ?? base.budgetStructuredItems,
+      kitBudget: snapshot.kitBudget ?? base.kitBudget,
+      budgetProcessing: { ...base.budgetProcessing, ...(snapshot.budgetProcessing ?? {}) },
+      propostaImagens: snapshot.propostaImagens ?? base.propostaImagens,
+      ufsDisponiveis: snapshot.ufsDisponiveis ?? base.ufsDisponiveis,
+      distribuidorasPorUf: snapshot.distribuidorasPorUf ?? base.distribuidorasPorUf,
+      composicaoTelhado: { ...base.composicaoTelhado, ...(snapshot.composicaoTelhado ?? {}) },
+      composicaoSolo: { ...base.composicaoSolo, ...(snapshot.composicaoSolo ?? {}) },
+      impostosOverridesDraft: {
+        ...base.impostosOverridesDraft,
+        ...(snapshot.impostosOverridesDraft ?? {}),
+      },
+      vendasConfig: snapshot.vendasConfig ?? base.vendasConfig,
+      vendasSimulacoes: snapshot.vendasSimulacoes ?? base.vendasSimulacoes,
+      multiUc: {
+        ...base.multiUc,
+        ...(snapshot.multiUc ?? {}),
+        rows: snapshot.multiUc?.rows ?? base.multiUc.rows,
+      },
+      vendaForm: { ...base.vendaForm, ...(snapshot.vendaForm ?? {}) },
+      leasingAnexosSelecionados:
+        snapshot.leasingAnexosSelecionados ?? base.leasingAnexosSelecionados,
+      vendaSnapshot: snapshot.vendaSnapshot ?? base.vendaSnapshot,
+      leasingSnapshot: snapshot.leasingSnapshot ?? base.leasingSnapshot,
+    }
+  }
+
+  const getCurrentSnapshot = (
+    options?: { budgetIdOverride?: string },
+  ): OrcamentoSnapshotData | null => {
     const vendasConfigState = useVendasConfigStore.getState()
     const vendasSimState = useVendasSimulacoesStore.getState()
     const vendaSnapshotAtual = getVendaSnapshot()
     const leasingSnapshotAtual = getLeasingSnapshot()
+    const tab = activeTabRef.current
+    const budgetIdRefNow = budgetIdRef.current
+    const budgetIdStateNow = currentBudgetId
+    const budgetId = options?.budgetIdOverride ?? getActiveBudgetId()
+    const clienteFonte = clienteRef.current ?? cliente
     const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
     const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
     const vendaFormNormalizado: VendaForm = {
@@ -11466,12 +11691,36 @@ export default function App() {
     }
 
     // Log sources before building snapshot (using refs for accuracy)
+    if (budgetId !== currentBudgetId && !budgetIdMismatchLoggedRef.current) {
+      setTimeout(() => {
+        if (budgetIdRef.current === currentBudgetId || budgetIdMismatchLoggedRef.current) {
+          return
+        }
+        budgetIdMismatchLoggedRef.current = true
+        console.debug('[budgetId] mismatch', {
+          budgetIdRef: budgetIdRef.current,
+          budgetIdState: currentBudgetId,
+        })
+      }, 0)
+    }
+
+    if (budgetIdRefNow && budgetIdStateNow && budgetIdRefNow !== budgetIdStateNow) {
+      console.warn('[getCurrentSnapshot] budget id mismatch (using active budgetId)', {
+        budgetIdRef: budgetIdRefNow,
+        budgetIdState: budgetIdStateNow,
+        activeBudgetId: budgetId,
+      })
+    }
+
     console.log('[getCurrentSnapshot] sources', {
-      activeTab,
+      activeTab: tab,
+      activeTabState: activeTab,
+      budgetIdRef: budgetId,
+      budgetIdState: currentBudgetId,
       clienteState: { 
-        nome: clienteRef.current.nome, 
-        endereco: clienteRef.current.endereco, 
-        documento: clienteRef.current.documento 
+        nome: clienteFonte.nome, 
+        endereco: clienteFonte.endereco, 
+        documento: clienteFonte.documento 
       },
       vendaStoreCliente: vendaSnapshotAtual?.cliente?.endereco ?? 'n/a',
       leasingStoreCliente: leasingSnapshotAtual?.cliente?.endereco ?? 'n/a',
@@ -11484,15 +11733,22 @@ export default function App() {
     const kcFallback = Number(pageSharedStateRef.current?.kcKwhMes ?? 0)
     const kcKwhMesFinal = kcAtual || kcFallback
 
+    if (isHydratingRef.current) {
+      console.warn('[getCurrentSnapshot] skipped during hydration', {
+        budgetId,
+      })
+      return createEmptySnapshot(budgetId, tab)
+    }
+
     const snapshotData = {
-      activeTab,
+      activeTab: tab,
       settingsTab,
-      cliente: cloneClienteDados(clienteRef.current), // Use ref instead of closure
+      cliente: cloneClienteDados(clienteFonte), // Use ref instead of closure
       clienteEmEdicaoId,
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
       pageShared: { ...pageSharedStateRef.current }, // Use ref instead of closure
-      currentBudgetId,
+      currentBudgetId: budgetId,
       budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
       kitBudget: cloneKitBudgetState(kitBudget),
       budgetProcessing: {
@@ -11621,18 +11877,45 @@ export default function App() {
       kcKwhMes: snapshotKwh,
       totalFields: Object.keys(snapshotData).length,
     })
-    
-    if (!snapshotNome && !snapshotEndereco && snapshotKwh === 0) {
-      console.warn('[getCurrentSnapshot] returning EMPTY snapshot', {
-        cliente: snapshotData.cliente,
-        kcKwhMes: snapshotData.kcKwhMes,
-        activeTab: snapshotData.activeTab,
-        currentBudgetId: snapshotData.currentBudgetId,
-      })
-      console.trace('[getCurrentSnapshot] trace - call site')
+
+    if (isSnapshotEmpty(snapshotData)) {
+      return snapshotData
     }
     
+    console.log('[getCurrentSnapshot] clienteFonte', {
+      nome: clienteFonte?.nome ?? '',
+      endereco: clienteFonte?.endereco ?? '',
+      documento: clienteFonte?.documento ?? '',
+    })
+
     return snapshotData
+  }
+
+  const buildEmptySnapshotForNewProposal = (
+    tab: TabKey,
+    budgetId: string,
+  ): OrcamentoSnapshotData => {
+    const baseSnapshot = getCurrentSnapshot({ budgetIdOverride: budgetId })
+    const snapshot = baseSnapshot
+      ? cloneSnapshotData(baseSnapshot)
+      : createEmptySnapshot(budgetId, tab)
+
+    snapshot.activeTab = tab
+    snapshot.currentBudgetId = budgetId
+    snapshot.cliente = {
+      ...cloneClienteDados(CLIENTE_INICIAL),
+      nome: '',
+      endereco: '',
+      documento: '',
+    }
+    snapshot.kcKwhMes = 0
+    snapshot.consumoManual = false
+    snapshot.tarifaCheia = snapshot.tarifaCheia ?? 0
+    snapshot.entradaRs = 0
+    snapshot.numeroModulosManual = ''
+    snapshot.potenciaModulo = snapshot.potenciaModulo ?? 0
+
+    return snapshot
   }
 
   // Helper: Hydrate cliente registro with latest data from clientStore
@@ -11676,19 +11959,28 @@ export default function App() {
     console.log('[ClienteSave] DadosClonados endereco AFTER clone:', dadosClonados.endereco)
     
     const snapshotAtual = getCurrentSnapshot()
-    console.log('[ClienteSave] Capturing FULL proposal snapshot with', Object.keys(snapshotAtual).length, 'fields')
+    if (!snapshotAtual || isHydratingRef.current) {
+      console.warn('[ClienteSave] Snapshot indisponível durante hidratação.')
+      return false
+    }
+    const snapshotClonado = cloneSnapshotData(snapshotAtual)
+    console.log(
+      '[ClienteSave] Capturing FULL proposal snapshot with',
+      Object.keys(snapshotClonado).length,
+      'fields',
+    )
     console.log('[ClienteSave] Sample fields:', {
-      kcKwhMes: snapshotAtual.kcKwhMes,
-      tarifaCheia: snapshotAtual.tarifaCheia,
-      entradaRs: snapshotAtual.entradaRs,
-      numeroModulosManual: snapshotAtual.numeroModulosManual,
-      potenciaModulo: snapshotAtual.potenciaModulo,
+      kcKwhMes: snapshotClonado.kcKwhMes,
+      tarifaCheia: snapshotClonado.tarifaCheia,
+      entradaRs: snapshotClonado.entradaRs,
+      numeroModulosManual: snapshotClonado.numeroModulosManual,
+      potenciaModulo: snapshotClonado.potenciaModulo,
     })
-    console.log('[ClienteSave] Snapshot cliente endereco:', snapshotAtual.cliente?.endereco)
+    console.log('[ClienteSave] Snapshot cliente endereco:', snapshotClonado.cliente?.endereco)
     
     // Salvar snapshot completo no IndexedDB para persistência cross-browser robusta
     try {
-      await saveFormDraft(snapshotAtual)
+      await saveFormDraft(snapshotClonado)
       console.log('[ClienteSave] Form draft saved to IndexedDB successfully')
     } catch (error) {
       console.warn('[ClienteSave] Failed to save form draft to IndexedDB:', error)
@@ -11743,7 +12035,7 @@ export default function App() {
               ...registro,
               dados: dadosClonados,
               atualizadoEm: agoraIso,
-              propostaSnapshot: snapshotAtual,
+              propostaSnapshot: snapshotClonado,
             }
             registroAtualizado = atualizado
             return atualizado
@@ -11757,7 +12049,7 @@ export default function App() {
             criadoEm: agoraIso,
             atualizadoEm: agoraIso,
             dados: dadosClonados,
-            propostaSnapshot: snapshotAtual,
+            propostaSnapshot: snapshotClonado,
           }
           registroAtualizado = novoRegistro
           registrosAtualizados = [novoRegistro, ...prevRegistros]
@@ -11768,7 +12060,7 @@ export default function App() {
           criadoEm: agoraIso,
           atualizadoEm: agoraIso,
           dados: dadosClonados,
-          propostaSnapshot: snapshotAtual,
+          propostaSnapshot: snapshotClonado,
         }
         registroAtualizado = novoRegistro
         registrosAtualizados = [novoRegistro, ...prevRegistros]
@@ -11929,7 +12221,7 @@ export default function App() {
       const registroHidratado = await hydrateClienteRegistroFromStore(registro)
       const dadosClonados = cloneClienteDados(registroHidratado.dados)
       console.log('[handleEditarCliente] Loading cliente with endereco:', dadosClonados.endereco)
-      setCliente(dadosClonados)
+      setClienteSync(dadosClonados)
       setClienteMensagens({})
       setClienteEmEdicaoId(registroHidratado.id)
       lastSavedClienteRef.current = dadosClonados
@@ -11942,9 +12234,9 @@ export default function App() {
     [
       applyClienteSnapshot,
       fecharClientesPainel,
-      setCliente,
       setClienteEmEdicaoId,
       setClienteMensagens,
+      setClienteSync,
     ],
   )
 
@@ -11955,7 +12247,11 @@ export default function App() {
     if (!clienteRegistroEmEdicao) {
       return false
     }
-    const snapshotAtual = cloneSnapshotData(getCurrentSnapshot())
+    const snapshotAtualRaw = getCurrentSnapshot()
+    if (!snapshotAtualRaw) {
+      return false
+    }
+    const snapshotAtual = cloneSnapshotData(snapshotAtualRaw)
     const snapshotSalvo = clienteRegistroEmEdicao.propostaSnapshot
       ? cloneSnapshotData(clienteRegistroEmEdicao.propostaSnapshot)
       : null
@@ -12020,14 +12316,14 @@ export default function App() {
       }
 
       if (removeuEdicaoAtual) {
-        setCliente(cloneClienteDados(CLIENTE_INICIAL))
+        setClienteSync(cloneClienteDados(CLIENTE_INICIAL))
         setClienteMensagens({})
         clienteEmEdicaoIdRef.current = null
         lastSavedClienteRef.current = null
         setClienteEmEdicaoId(null)
       }
     },
-    [clienteEmEdicaoId, setCliente, setClienteEmEdicaoId, setClienteMensagens],
+    [clienteEmEdicaoId, setClienteEmEdicaoId, setClienteMensagens, setClienteSync],
   )
 
   const parseOrcamentosSalvos = useCallback(
@@ -12341,31 +12637,22 @@ export default function App() {
           
           // Enable hydration mode to prevent state reset and auto-save during apply
           isHydratingRef.current = true
+          setIsHydrating(true)
           console.log('[App] Hydration mode enabled')
           
           try {
             aplicarSnapshot(envelope.data)
             
             // Wait for React to apply all setState calls
-            await new Promise((resolve) => setTimeout(resolve, 0))
+            await tick()
             
             console.log('[App] Hydration done')
           } finally {
             isHydratingRef.current = false
+            setIsHydrating(false)
             console.log('[App] Hydration mode disabled')
           }
-          
-          // Verify after a short delay to let React updates process
-          setTimeout(() => {
-            if (!cancelado) {
-              console.log('[App] AFTER APPLY - Verificando estado:', {
-                clienteNome: cliente.nome,
-                clienteEndereco: cliente.endereco,
-                clienteCidade: cliente.cidade,
-              })
-            }
-          }, 100)
-          
+
           console.log('[App] Form draft applied successfully')
         } else {
           console.log('[App] No form draft found in IndexedDB')
@@ -12398,13 +12685,22 @@ export default function App() {
       
       autoSaveTimeoutRef.current = setTimeout(async () => {
         // Double-check hydration status before saving
-        if (isHydratingRef.current) {
-          console.log('[App] Auto-save cancelled: hydrating')
+        const activeBudgetId = getActiveBudgetId()
+        if (isHydratingRef.current || !activeBudgetId) {
+          console.log('[App] Auto-save skipped: hydrating or missing budgetId', {
+            hydrating: isHydratingRef.current,
+            budgetIdRef: budgetIdRef.current,
+            budgetIdState: currentBudgetId,
+          })
           return
         }
         
         try {
           const snapshot = getCurrentSnapshot()
+          if (!snapshot || isHydratingRef.current) {
+            console.warn('[AutoSave] Snapshot indisponível durante hidratação.')
+            return
+          }
           
           // Guard: Don't save empty snapshots that would corrupt the draft
           const snapshotNome = (snapshot?.cliente?.nome ?? '').trim()
@@ -12414,13 +12710,6 @@ export default function App() {
           const isEmptySnapshot = !snapshotNome && !snapshotEndereco && snapshotKwh === 0
           
           if (isEmptySnapshot) {
-            console.warn('[AutoSave] EMPTY SNAPSHOT DETECTED', {
-              cliente: snapshot?.cliente,
-              kcKwhMes: snapshot?.kcKwhMes,
-              activeTab: snapshot?.activeTab,
-              currentBudgetId: snapshot?.currentBudgetId,
-            })
-            console.trace('[AutoSave] trace - who triggered autosave when snapshot is empty')
             return
           }
           
@@ -12482,7 +12771,9 @@ export default function App() {
       return
     }
     
-    const snapshot = cloneSnapshotData(snapshotEntrada)
+    const snapshotClonado = cloneSnapshotData(snapshotEntrada)
+    const budgetId = options?.budgetIdOverride ?? snapshotClonado.currentBudgetId
+    const snapshot = mergeSnapshotWithDefaults(snapshotClonado, budgetId)
     snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
     snapshot.tipoInstalacaoOutro = snapshot.tipoInstalacaoOutro || ''
     snapshot.tipoEdificacaoOutro = snapshot.tipoEdificacaoOutro || ''
@@ -12491,7 +12782,6 @@ export default function App() {
       tipoInstalacao: normalizeTipoInstalacao(snapshot.pageShared.tipoInstalacao),
       tipoInstalacaoOutro: snapshot.pageShared.tipoInstalacaoOutro || '',
     }
-    const budgetId = options?.budgetIdOverride ?? snapshot.currentBudgetId
 
     fieldSyncActions.reset()
     setActiveTab(snapshot.activeTab)
@@ -12502,13 +12792,14 @@ export default function App() {
       endereco: clienteClonado.endereco,
       cidade: clienteClonado.cidade,
     })
-    setCliente(clienteClonado)
+    setClienteSync(clienteClonado)
+    console.log('[aplicarSnapshot] clienteRef after setCliente:', clienteRef.current?.endereco)
     setClienteEmEdicaoId(snapshot.clienteEmEdicaoId)
     lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
     setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
     setPageSharedState({ ...snapshot.pageShared })
-    setCurrentBudgetId(budgetId)
+    switchBudgetId(budgetId)
     setBudgetStructuredItems(cloneStructuredItems(snapshot.budgetStructuredItems))
     setKitBudget(cloneKitBudgetState(snapshot.kitBudget))
     setPropostaImagens(
@@ -12562,13 +12853,6 @@ export default function App() {
     useVendasConfigStore.getState().replace(snapshot.vendasConfig)
     const simulacoesClonadas = cloneVendasSimulacoes(snapshot.vendasSimulacoes)
     useVendasSimulacoesStore.setState({ simulations: simulacoesClonadas })
-    if (
-      options?.budgetIdOverride &&
-      snapshot.currentBudgetId &&
-      snapshot.currentBudgetId !== options.budgetIdOverride
-    ) {
-      useVendasSimulacoesStore.getState().rename(snapshot.currentBudgetId, options.budgetIdOverride)
-    }
     setMultiUcAtivo(snapshot.multiUc.ativo)
     setMultiUcRows(snapshot.multiUc.rows.map((row) => ({ ...row })))
     setMultiUcRateioModo(snapshot.multiUc.rateioModo)
@@ -12696,7 +12980,18 @@ export default function App() {
         return
       }
 
-      aplicarSnapshot(snapshotToApply)
+      const targetBudgetId = normalizeProposalId(registro.id) || registro.id
+      isHydratingRef.current = true
+      setIsHydrating(true)
+      try {
+        switchBudgetId(targetBudgetId)
+        await tick()
+        aplicarSnapshot(snapshotToApply, { budgetIdOverride: targetBudgetId })
+        await tick()
+      } finally {
+        isHydratingRef.current = false
+        setIsHydrating(false)
+      }
       setActivePage('app')
       atualizarOrcamentoAtivo(registro)
       adicionarNotificacao(
@@ -12727,21 +13022,31 @@ export default function App() {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
         const snapshotAtual = getCurrentSnapshot()
+        const activeBudgetId = getActiveBudgetId()
+        if (!snapshotAtual || isHydratingRef.current || !activeBudgetId) {
+          console.warn('[salvarOrcamentoLocalmente] blocked: hydrating or missing budgetId', {
+            hydrating: isHydratingRef.current,
+            budgetIdRef: budgetIdRef.current,
+            budgetIdState: currentBudgetId,
+          })
+          return null
+        }
+        const snapshotClonado = cloneSnapshotData(snapshotAtual)
         
         // Log snapshot quality before saving
         console.log('[salvarOrcamentoLocalmente] Snapshot from getCurrentSnapshot():', {
-          clienteNome: snapshotAtual.cliente?.nome ?? '',
-          clienteEndereco: snapshotAtual.cliente?.endereco ?? '',
-          clienteDocumento: snapshotAtual.cliente?.documento ?? '',
-          kcKwhMes: snapshotAtual.kcKwhMes ?? 0,
-          totalFields: Object.keys(snapshotAtual).length,
+          clienteNome: snapshotClonado.cliente?.nome ?? '',
+          clienteEndereco: snapshotClonado.cliente?.endereco ?? '',
+          clienteDocumento: snapshotClonado.cliente?.documento ?? '',
+          kcKwhMes: snapshotClonado.kcKwhMes ?? 0,
+          totalFields: Object.keys(snapshotClonado).length,
         })
         
         // Check if snapshot is meaningful
-        const nome = (snapshotAtual.cliente?.nome ?? '').trim()
-        const endereco = (snapshotAtual.cliente?.endereco ?? '').trim()
-        const documento = (snapshotAtual.cliente?.documento ?? '').trim()
-        const kc = Number(snapshotAtual.kcKwhMes ?? 0)
+        const nome = (snapshotClonado.cliente?.nome ?? '').trim()
+        const endereco = (snapshotClonado.cliente?.endereco ?? '').trim()
+        const documento = (snapshotClonado.cliente?.documento ?? '').trim()
+        const kc = Number(snapshotClonado.kcKwhMes ?? 0)
         const hasCliente = Boolean(nome || endereco || documento)
         const hasConsumption = kc > 0
         const isSnapshotMeaningful = hasCliente || hasConsumption
@@ -12752,7 +13057,7 @@ export default function App() {
           return null
         }
         
-        const fingerprint = computeSnapshotSignature(snapshotAtual, dadosClonados)
+        const fingerprint = computeSnapshotSignature(snapshotClonado, dadosClonados)
 
         const registroExistenteIndex = registrosExistentes.findIndex((registro) => {
           if (registro.snapshot) {
@@ -12767,7 +13072,7 @@ export default function App() {
             console.error('Orçamento salvo não encontrado para atualização.')
             return null
           }
-          const snapshotAtualizado = cloneSnapshotData(snapshotAtual)
+          const snapshotAtualizado = cloneSnapshotData(snapshotClonado)
           snapshotAtualizado.currentBudgetId = existente.id
           if (snapshotAtualizado.vendaSnapshot.codigos) {
             snapshotAtualizado.vendaSnapshot.codigos = {
@@ -12776,10 +13081,12 @@ export default function App() {
             }
           }
           const clienteIdAtual = clienteEmEdicaoIdRef.current
-          const registroAtualizado: OrcamentoSalvo = {
-            ...existente,
-            clienteId: clienteIdAtual ?? existente.clienteId,
-            clienteNome: dados.cliente.nome,
+        const effectiveBudgetId = getActiveBudgetId()
+        snapshotAtualizado.currentBudgetId = effectiveBudgetId
+        const registroAtualizado: OrcamentoSalvo = {
+          ...existente,
+          clienteId: clienteIdAtual ?? existente.clienteId,
+          clienteNome: dados.cliente.nome,
             clienteCidade: dados.cliente.cidade,
             clienteUf: dados.cliente.uf,
             clienteDocumento: dados.cliente.documento,
@@ -12804,7 +13111,7 @@ export default function App() {
           })
           
           // Save complete snapshot to proposalStore for full restoration
-          const budgetIdKey = normalizeProposalId(registroAtualizado.id) || registroAtualizado.id
+          const budgetIdKey = normalizeProposalId(effectiveBudgetId) || effectiveBudgetId
           console.log('[salvarOrcamentoLocalmente] Saving to proposalStore (update):', {
             budgetId: budgetIdKey,
             clienteNome: snapshotAtualizado.cliente?.nome ?? '',
@@ -12826,7 +13133,8 @@ export default function App() {
           candidatoInformado && !existingIds.has(candidatoInformado)
             ? candidatoInformado
             : generateBudgetId(existingIds, dadosClonados.tipoProposta)
-        const snapshotParaArmazenar = cloneSnapshotData(snapshotAtual)
+        switchBudgetId(novoId)
+        const snapshotParaArmazenar = cloneSnapshotData(snapshotClonado)
         snapshotParaArmazenar.currentBudgetId = novoId
         if (snapshotParaArmazenar.vendaSnapshot.codigos) {
           snapshotParaArmazenar.vendaSnapshot.codigos = {
@@ -12889,6 +13197,10 @@ export default function App() {
   useEffect(() => {
     computeSignatureRef.current = () => {
       const snapshot = getCurrentSnapshot()
+      if (!snapshot) {
+        const dadosAtuais = clonePrintableData(printableData)
+        return stableStringify({ snapshot: null, dados: dadosAtuais })
+      }
       const dadosAtuais = clonePrintableData(printableData)
       return stableStringify({ snapshot, dados: dadosAtuais })
     }
@@ -12925,6 +13237,18 @@ export default function App() {
       document.removeEventListener('change', handleUserInput, true)
     }
   }, [])
+
+  useEffect(() => {
+    if (isHydrating) {
+      return
+    }
+    console.log('[Hydration] DONE - cliente state:', {
+      nome: cliente?.nome ?? '',
+      endereco: cliente?.endereco ?? '',
+      cidade: cliente?.cidade ?? '',
+      documento: cliente?.documento ?? '',
+    })
+  }, [cliente?.cidade, cliente?.documento, cliente?.endereco, cliente?.nome, isHydrating])
 
   const hasUnsavedChanges = useCallback(() => {
     if (!userInteractedSinceSaveRef.current) {
@@ -13159,7 +13483,7 @@ export default function App() {
   const handlePreviewActionRequest = useCallback(
     async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
       const previewData = pendingPreviewDataRef.current
-      const budgetIdAtual = normalizeProposalId(currentBudgetId)
+      const budgetIdAtual = normalizeProposalId(getActiveBudgetId())
 
       if (!previewData) {
         return { proceed: true }
@@ -13169,10 +13493,7 @@ export default function App() {
       const idExistente = normalizeProposalId(dados.budgetId ?? budgetIdAtual)
       if (idExistente) {
         const emissaoIso = new Date().toISOString().slice(0, 10)
-        if (currentBudgetId !== idExistente) {
-          renameVendasSimulacao(currentBudgetId, idExistente)
-          setCurrentBudgetId(idExistente)
-        }
+        switchBudgetId(idExistente)
         vendaActions.updateCodigos({
           codigo_orcamento_interno: idExistente,
           data_emissao: emissaoIso,
@@ -13199,10 +13520,7 @@ export default function App() {
 
         dados.budgetId = registro.id
         const emissaoIso = new Date().toISOString().slice(0, 10)
-        if (currentBudgetId !== registro.id) {
-          renameVendasSimulacao(currentBudgetId, registro.id)
-          setCurrentBudgetId(registro.id)
-        }
+        switchBudgetId(registro.id)
 
         vendaActions.updateCodigos({
           codigo_orcamento_interno: registro.id,
@@ -13282,14 +13600,13 @@ export default function App() {
       [
         activeTab,
         adicionarNotificacao,
-        clienteEmEdicaoId,
-        currentBudgetId,
         atualizarOrcamentoAtivo,
+        clienteEmEdicaoId,
+        getActiveBudgetId,
         isProposalPdfIntegrationAvailable,
-        renameVendasSimulacao,
         salvarOrcamentoLocalmente,
-        setCurrentBudgetId,
         setProposalPdfIntegrationAvailable,
+        switchBudgetId,
       ],
     )
 
@@ -14316,10 +14633,7 @@ export default function App() {
       }
 
       const emissaoIso = new Date().toISOString().slice(0, 10)
-      if (currentBudgetId !== registroSalvo.id) {
-        renameVendasSimulacao(currentBudgetId, registroSalvo.id)
-        setCurrentBudgetId(registroSalvo.id)
-      }
+      switchBudgetId(registroSalvo.id)
 
       vendaActions.updateCodigos({
         codigo_orcamento_interno: registroSalvo.id,
@@ -14348,17 +14662,15 @@ export default function App() {
   }, [
     adicionarNotificacao,
     atualizarOrcamentoAtivo,
-    currentBudgetId,
     confirmarAlertasAntesDeSalvar,
     guardClientFieldsOrReturn,
     handleSalvarCliente,
     isVendaDiretaTab,
     prepararPropostaParaExportacao,
-    renameVendasSimulacao,
     salvarOrcamentoLocalmente,
     salvandoPropostaLeasing,
     scheduleMarkStateAsSaved,
-    setCurrentBudgetId,
+    switchBudgetId,
     vendaActions,
   ])
 
@@ -14402,10 +14714,7 @@ export default function App() {
       dados.budgetId = registroSalvo.id
 
       const emissaoIso = new Date().toISOString().slice(0, 10)
-      if (currentBudgetId !== registroSalvo.id) {
-        renameVendasSimulacao(currentBudgetId, registroSalvo.id)
-        setCurrentBudgetId(registroSalvo.id)
-      }
+      switchBudgetId(registroSalvo.id)
 
       vendaActions.updateCodigos({
         codigo_orcamento_interno: registroSalvo.id,
@@ -14484,16 +14793,15 @@ export default function App() {
     adicionarNotificacao,
     guardClientFieldsOrReturn,
     handleSalvarCliente,
-    currentBudgetId,
     isProposalPdfIntegrationAvailable,
     isVendaDiretaTab,
     prepararPropostaParaExportacao,
-    renameVendasSimulacao,
     salvarOrcamentoLocalmente,
     salvandoPropostaPdf,
     atualizarOrcamentoAtivo,
     setProposalPdfIntegrationAvailable,
     scheduleMarkStateAsSaved,
+    switchBudgetId,
   ])
 
   const runWithUnsavedChangesGuard = useCallback(
@@ -14607,9 +14915,17 @@ export default function App() {
   }, [runWithUnsavedChangesGuard, setActivePage])
 
   const iniciarNovaProposta = useCallback(async () => {
+    if (novaPropostaEmAndamentoRef.current) {
+      console.warn('[Nova Proposta] Ignored (already running)')
+      return
+    }
+
+    novaPropostaEmAndamentoRef.current = true
+
     // Protect against auto-save during reset
     console.log('[Nova Proposta] Starting - protecting against auto-save')
     isHydratingRef.current = true
+    setIsHydrating(true)
     
     try {
       // Clear form draft to prevent stale data
@@ -14619,147 +14935,162 @@ export default function App() {
       } catch (error) {
         console.warn('[Nova Proposta] Failed to clear form draft:', error)
       }
-      
+
       fieldSyncActions.reset()
       setSettingsTab(INITIAL_VALUES.settingsTab)
       setActivePage('app')
       setOrcamentoSearchTerm('')
       limparOrcamentoAtivo()
-      setCurrentBudgetId(createDraftBudgetId())
-      console.log('[Nova Proposta] New budget ID created')
-    setBudgetStructuredItems([])
-    setKitBudget(createEmptyKitBudget())
-    setIsBudgetProcessing(false)
-    setBudgetProcessingError(null)
-    setPageSharedState(createPageSharedSettings())
-    if (budgetUploadInputRef.current) {
-      budgetUploadInputRef.current.value = ''
-    }
-    if (imagensUploadInputRef.current) {
-      imagensUploadInputRef.current.value = ''
-    }
+      setBudgetStructuredItems([])
+      setKitBudget(createEmptyKitBudget())
+      setIsBudgetProcessing(false)
+      setBudgetProcessingError(null)
+      setPageSharedState(createPageSharedSettings())
+      if (budgetUploadInputRef.current) {
+        budgetUploadInputRef.current.value = ''
+      }
+      if (imagensUploadInputRef.current) {
+        imagensUploadInputRef.current.value = ''
+      }
 
-    setPropostaImagens([])
-    setUcsBeneficiarias([])
+      setPropostaImagens([])
+      setUcsBeneficiarias([])
 
-    setUfTarifa(INITIAL_VALUES.ufTarifa)
-    setDistribuidoraTarifa(INITIAL_VALUES.distribuidoraTarifa)
-    setMesReajuste(INITIAL_VALUES.mesReajuste)
-    mesReferenciaRef.current = new Date().getMonth() + 1
-    setKcKwhMes(INITIAL_VALUES.kcKwhMes)
-    setPotenciaFonteManual(false)
-    setTarifaCheia(INITIAL_VALUES.tarifaCheia)
-    setDesconto(INITIAL_VALUES.desconto)
-    setTaxaMinima(INITIAL_VALUES.taxaMinima)
-    setTaxaMinimaInputEmpty(INITIAL_VALUES.taxaMinima === 0)
-    setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
-    setTusdPercent(INITIAL_VALUES.tusdPercent)
-    setTusdTipoCliente(normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente))
-    setTusdSubtipo(INITIAL_VALUES.tusdSubtipo)
-    setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
-    setTusdSimultaneidadeManualOverride(false)
-    setTusdTarifaRkwh(INITIAL_VALUES.tusdTarifaRkwh)
-    setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
-    setTusdOpcoesExpandidas(false)
-    setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
-    setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
-    setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
-    setTipoRedeControle('auto')
-    setPotenciaModuloDirty(false)
-    setTipoInstalacao(normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao))
-    setTipoInstalacaoOutro(INITIAL_VALUES.tipoInstalacaoOutro)
-    setTipoInstalacaoDirty(false)
-    setTipoSistema(INITIAL_VALUES.tipoSistema)
-    setSegmentoCliente(normalizeTipoBasico(INITIAL_VALUES.segmentoCliente))
-    setTipoEdificacaoOutro(INITIAL_VALUES.tipoEdificacaoOutro)
-    setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
-    setConfiguracaoUsinaObservacoes(INITIAL_VALUES.configuracaoUsinaObservacoes)
-    setConfiguracaoUsinaObservacoesExpanded(false)
-    setComposicaoTelhado(createInitialComposicaoTelhado())
-    setComposicaoSolo(createInitialComposicaoSolo())
-    setCapexManualOverride(INITIAL_VALUES.capexManualOverride)
-    setParsedVendaPdf(null)
-    setEstruturaTipoWarning(null)
+      setUfTarifa(INITIAL_VALUES.ufTarifa)
+      setDistribuidoraTarifa(INITIAL_VALUES.distribuidoraTarifa)
+      setMesReajuste(INITIAL_VALUES.mesReajuste)
+      mesReferenciaRef.current = new Date().getMonth() + 1
+      setKcKwhMes(0)
+      setPotenciaFonteManual(false)
+      setTarifaCheia(INITIAL_VALUES.tarifaCheia)
+      setDesconto(INITIAL_VALUES.desconto)
+      setTaxaMinima(INITIAL_VALUES.taxaMinima)
+      setTaxaMinimaInputEmpty(INITIAL_VALUES.taxaMinima === 0)
+      setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
+      setTusdPercent(INITIAL_VALUES.tusdPercent)
+      setTusdTipoCliente(normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente))
+      setTusdSubtipo(INITIAL_VALUES.tusdSubtipo)
+      setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
+      setTusdSimultaneidadeManualOverride(false)
+      setTusdTarifaRkwh(INITIAL_VALUES.tusdTarifaRkwh)
+      setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
+      setTusdOpcoesExpandidas(false)
+      setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
+      setUsarEnderecoCliente(false)
+      leasingActions.updateContrato({ localEntrega: '' })
+      setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
+      setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
+      setTipoRedeControle('auto')
+      setPotenciaModuloDirty(false)
+      setTipoInstalacao(normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao))
+      setTipoInstalacaoOutro(INITIAL_VALUES.tipoInstalacaoOutro)
+      setTipoInstalacaoDirty(false)
+      setTipoSistema(INITIAL_VALUES.tipoSistema)
+      setSegmentoCliente(normalizeTipoBasico(INITIAL_VALUES.segmentoCliente))
+      setTipoEdificacaoOutro(INITIAL_VALUES.tipoEdificacaoOutro)
+      setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
+      setConfiguracaoUsinaObservacoes(INITIAL_VALUES.configuracaoUsinaObservacoes)
+      setConfiguracaoUsinaObservacoesExpanded(false)
+      setComposicaoTelhado(createInitialComposicaoTelhado())
+      setComposicaoSolo(createInitialComposicaoSolo())
+      setCapexManualOverride(INITIAL_VALUES.capexManualOverride)
+      setParsedVendaPdf(null)
+      setEstruturaTipoWarning(null)
 
-    setPrecoPorKwp(INITIAL_VALUES.precoPorKwp)
-    setIrradiacao(IRRADIACAO_FALLBACK)
-    setEficiencia(INITIAL_VALUES.eficiencia)
-    setDiasMes(INITIAL_VALUES.diasMes)
-    setInflacaoAa(INITIAL_VALUES.inflacaoAa)
+      setPrecoPorKwp(INITIAL_VALUES.precoPorKwp)
+      setIrradiacao(IRRADIACAO_FALLBACK)
+      setEficiencia(INITIAL_VALUES.eficiencia)
+      setDiasMes(INITIAL_VALUES.diasMes)
+      setInflacaoAa(INITIAL_VALUES.inflacaoAa)
 
-    setMultiUcAtivo(INITIAL_VALUES.multiUcAtivo)
-    setMultiUcRateioModo(INITIAL_VALUES.multiUcRateioModo)
-    setMultiUcEnergiaGeradaKWhState(INITIAL_VALUES.multiUcEnergiaGeradaKWh)
-    setMultiUcEnergiaGeradaTouched(false)
-    setMultiUcAnoVigencia(INITIAL_VALUES.multiUcAnoVigencia)
-    setMultiUcOverrideEscalonamento(INITIAL_VALUES.multiUcOverrideEscalonamento)
-    setMultiUcEscalonamentoCustomPercent(INITIAL_VALUES.multiUcEscalonamentoCustomPercent)
-    multiUcConsumoAnteriorRef.current = null
-    const multiUcInicialQuantidade = Math.max(1, INITIAL_VALUES.multiUcUcs.length)
-    multiUcIdCounterRef.current = multiUcInicialQuantidade + 1
-    setMultiUcRows(() =>
-      Array.from({ length: multiUcInicialQuantidade }, (_, index) =>
-        applyTarifasAutomaticas(createDefaultMultiUcRow(index + 1), undefined, true),
-      ),
-    )
+      setMultiUcAtivo(INITIAL_VALUES.multiUcAtivo)
+      setMultiUcRateioModo(INITIAL_VALUES.multiUcRateioModo)
+      setMultiUcEnergiaGeradaKWhState(INITIAL_VALUES.multiUcEnergiaGeradaKWh)
+      setMultiUcEnergiaGeradaTouched(false)
+      setMultiUcAnoVigencia(INITIAL_VALUES.multiUcAnoVigencia)
+      setMultiUcOverrideEscalonamento(INITIAL_VALUES.multiUcOverrideEscalonamento)
+      setMultiUcEscalonamentoCustomPercent(INITIAL_VALUES.multiUcEscalonamentoCustomPercent)
+      multiUcConsumoAnteriorRef.current = null
+      const multiUcInicialQuantidade = Math.max(1, INITIAL_VALUES.multiUcUcs.length)
+      multiUcIdCounterRef.current = multiUcInicialQuantidade + 1
+      setMultiUcRows(() =>
+        Array.from({ length: multiUcInicialQuantidade }, (_, index) =>
+          applyTarifasAutomaticas(createDefaultMultiUcRow(index + 1), undefined, true),
+        ),
+      )
 
-    setVendaForm(createInitialVendaForm())
-    setVendaFormErrors({})
-    resetRetorno()
+      setVendaForm(createInitialVendaForm())
+      setVendaFormErrors({})
+      resetRetorno()
 
-    setJurosFinAa(INITIAL_VALUES.jurosFinanciamentoAa)
-    setPrazoFinMeses(INITIAL_VALUES.prazoFinanciamentoMeses)
-    setEntradaFinPct(INITIAL_VALUES.entradaFinanciamentoPct)
-    setMostrarFinanciamento(INITIAL_VALUES.mostrarFinanciamento)
-    setMostrarGrafico(INITIAL_VALUES.mostrarGrafico)
+      setJurosFinAa(INITIAL_VALUES.jurosFinanciamentoAa)
+      setPrazoFinMeses(INITIAL_VALUES.prazoFinanciamentoMeses)
+      setEntradaFinPct(INITIAL_VALUES.entradaFinanciamentoPct)
+      setMostrarFinanciamento(INITIAL_VALUES.mostrarFinanciamento)
+      setMostrarGrafico(INITIAL_VALUES.mostrarGrafico)
 
-    setPrazoMeses(INITIAL_VALUES.prazoMeses)
-    setBandeiraEncargo(INITIAL_VALUES.bandeiraEncargo)
-    setCipEncargo(INITIAL_VALUES.cipEncargo)
-    setEntradaRs(INITIAL_VALUES.entradaRs)
-    setEntradaModo(INITIAL_VALUES.entradaModo)
-    setMostrarValorMercadoLeasing(INITIAL_VALUES.mostrarValorMercadoLeasing)
-    setMostrarTabelaParcelas(INITIAL_VALUES.tabelaVisivel)
-    setMostrarTabelaBuyout(INITIAL_VALUES.tabelaVisivel)
-    setMostrarTabelaParcelasConfig(INITIAL_VALUES.tabelaVisivel)
-    setMostrarTabelaBuyoutConfig(INITIAL_VALUES.tabelaVisivel)
-    setSalvandoPropostaLeasing(false)
-    setSalvandoPropostaPdf(false)
+      setPrazoMeses(INITIAL_VALUES.prazoMeses)
+      setBandeiraEncargo(INITIAL_VALUES.bandeiraEncargo)
+      setCipEncargo(INITIAL_VALUES.cipEncargo)
+      setEntradaRs(INITIAL_VALUES.entradaRs)
+      setEntradaModo(INITIAL_VALUES.entradaModo)
+      setMostrarValorMercadoLeasing(INITIAL_VALUES.mostrarValorMercadoLeasing)
+      setMostrarTabelaParcelas(INITIAL_VALUES.tabelaVisivel)
+      setMostrarTabelaBuyout(INITIAL_VALUES.tabelaVisivel)
+      setMostrarTabelaParcelasConfig(INITIAL_VALUES.tabelaVisivel)
+      setMostrarTabelaBuyoutConfig(INITIAL_VALUES.tabelaVisivel)
+      setSalvandoPropostaLeasing(false)
+      setSalvandoPropostaPdf(false)
 
-    setOemBase(INITIAL_VALUES.oemBase)
-    setOemInflacao(INITIAL_VALUES.oemInflacao)
-    setSeguroModo(INITIAL_VALUES.seguroModo)
-    setSeguroReajuste(INITIAL_VALUES.seguroReajuste)
-    setSeguroValorA(INITIAL_VALUES.seguroValorA)
-    setSeguroPercentualB(INITIAL_VALUES.seguroPercentualB)
-    setExibirLeasingLinha(INITIAL_VALUES.exibirLeasingLinha)
-    setExibirFinLinha(INITIAL_VALUES.exibirFinanciamentoLinha)
+      setOemBase(INITIAL_VALUES.oemBase)
+      setOemInflacao(INITIAL_VALUES.oemInflacao)
+      setSeguroModo(INITIAL_VALUES.seguroModo)
+      setSeguroReajuste(INITIAL_VALUES.seguroReajuste)
+      setSeguroValorA(INITIAL_VALUES.seguroValorA)
+      setSeguroPercentualB(INITIAL_VALUES.seguroPercentualB)
+      setExibirLeasingLinha(INITIAL_VALUES.exibirLeasingLinha)
+      setExibirFinLinha(INITIAL_VALUES.exibirFinanciamentoLinha)
 
-    setCashbackPct(INITIAL_VALUES.cashbackPct)
-    setDepreciacaoAa(INITIAL_VALUES.depreciacaoAa)
-    setInadimplenciaAa(INITIAL_VALUES.inadimplenciaAa)
-    setTributosAa(INITIAL_VALUES.tributosAa)
-    setIpcaAa(INITIAL_VALUES.ipcaAa)
-    setCustosFixosM(INITIAL_VALUES.custosFixosM)
-    setOpexM(INITIAL_VALUES.opexM)
-    setSeguroM(INITIAL_VALUES.seguroM)
-    setDuracaoMeses(INITIAL_VALUES.duracaoMeses)
-    setPagosAcumAteM(INITIAL_VALUES.pagosAcumManual)
+      setCashbackPct(INITIAL_VALUES.cashbackPct)
+      setDepreciacaoAa(INITIAL_VALUES.depreciacaoAa)
+      setInadimplenciaAa(INITIAL_VALUES.inadimplenciaAa)
+      setTributosAa(INITIAL_VALUES.tributosAa)
+      setIpcaAa(INITIAL_VALUES.ipcaAa)
+      setCustosFixosM(INITIAL_VALUES.custosFixosM)
+      setOpexM(INITIAL_VALUES.opexM)
+      setSeguroM(INITIAL_VALUES.seguroM)
+      setDuracaoMeses(INITIAL_VALUES.duracaoMeses)
+      setPagosAcumAteM(INITIAL_VALUES.pagosAcumManual)
 
-    setCliente(cloneClienteDados(CLIENTE_INICIAL))
-    setClienteMensagens({})
-    clienteEmEdicaoIdRef.current = null
-    lastSavedClienteRef.current = null
-    setClienteEmEdicaoId(null)
-    setActivePage('app')
-    setNotificacoes([])
-    scheduleMarkStateAsSaved()
-    
-    // Wait for React to process state updates
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    console.log('[Nova Proposta] Reset complete, re-enabling auto-save')
+      setClienteSync(cloneClienteDados(CLIENTE_INICIAL))
+      setClienteMensagens({})
+      clienteEmEdicaoIdRef.current = null
+      lastSavedClienteRef.current = null
+      setClienteEmEdicaoId(null)
+      setActivePage('app')
+      setNotificacoes([])
+      const novoBudgetId = createDraftBudgetId()
+      console.log('[Nova Proposta] New budget ID created', novoBudgetId)
+
+      setCurrentBudgetId(novoBudgetId)
+
+      await Promise.resolve()
+      await tick()
+
+      const snapshotVazio = buildEmptySnapshotForNewProposal(activeTabRef.current, novoBudgetId)
+      aplicarSnapshot(snapshotVazio, { budgetIdOverride: novoBudgetId, allowEmpty: true })
+      scheduleMarkStateAsSaved()
+      
+      console.log('[Nova Proposta] Reset complete, re-enabling auto-save', {
+        budgetIdRef: budgetIdRef.current,
+        budgetIdState: novoBudgetId,
+      })
+    } catch (error) {
+      console.error('[Nova Proposta] Failed', error)
     } finally {
       isHydratingRef.current = false
+      setIsHydrating(false)
+      novaPropostaEmAndamentoRef.current = false
     }
   }, [
     createPageSharedSettings,
@@ -14769,6 +15100,7 @@ export default function App() {
     scheduleMarkStateAsSaved,
     setDistribuidoraTarifa,
     setKcKwhMes,
+    leasingActions,
     setNumeroModulosManual,
     setPageSharedState,
     setPotenciaModulo,
@@ -14788,6 +15120,8 @@ export default function App() {
     setMultiUcAtivo,
     setMultiUcRows,
     limparOrcamentoAtivo,
+    setClienteSync,
+    setCurrentBudgetId,
   ])
 
   const handleNovaProposta = useCallback(async () => {
@@ -14831,7 +15165,19 @@ export default function App() {
     }
 
     const novoBudgetId = createDraftBudgetId()
+    switchBudgetId(novoBudgetId)
+    isHydratingRef.current = true
+    setIsHydrating(true)
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
+    tick()
+      .then(() => {
+        isHydratingRef.current = false
+        setIsHydrating(false)
+      })
+      .catch(() => {
+        isHydratingRef.current = false
+        setIsHydrating(false)
+      })
     limparOrcamentoAtivo()
     lastSavedSignatureRef.current = null
     userInteractedSinceSaveRef.current = true
@@ -14887,22 +15233,28 @@ export default function App() {
       const ufNormalizada = value.toUpperCase()
       setUfTarifa(ufNormalizada)
       applyFieldSyncChange('uf', 'parametros', () => {
-        setCliente((prev) => (prev.uf === ufNormalizada ? prev : { ...prev, uf: ufNormalizada }))
+        const base = clienteRef.current ?? cliente
+        if (base.uf === ufNormalizada) {
+          return
+        }
+        updateClienteSync({ uf: ufNormalizada })
       })
     },
-    [setCliente, setUfTarifa],
+    [cliente, setUfTarifa, updateClienteSync],
   )
 
   const handleParametrosDistribuidoraChange = useCallback(
     (value: string) => {
       setDistribuidoraTarifa(value)
       applyFieldSyncChange('distribuidora', 'parametros', () => {
-        setCliente((prev) =>
-          prev.distribuidora === value ? prev : { ...prev, distribuidora: value },
-        )
+        const base = clienteRef.current ?? cliente
+        if (base.distribuidora === value) {
+          return
+        }
+        updateClienteSync({ distribuidora: value })
       })
     },
-    [setCliente, setDistribuidoraTarifa],
+    [cliente, setDistribuidoraTarifa, updateClienteSync],
   )
 
   const clearFieldHighlight = (element?: HTMLElement | null) => {
@@ -14916,17 +15268,20 @@ export default function App() {
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
     if (key === 'temIndicacao') {
       const checked = Boolean(rawValue)
-      setCliente((prev) => {
-        if (prev.temIndicacao === checked) {
-          if (!checked && prev.indicacaoNome) {
-            return { ...prev, temIndicacao: false, indicacaoNome: '' }
-          }
-          return prev
+      const base = clienteRef.current ?? cliente
+      let next = base
+      if (base.temIndicacao === checked) {
+        if (!checked && base.indicacaoNome) {
+          next = { ...base, temIndicacao: false, indicacaoNome: '' }
         }
-        return checked
-          ? { ...prev, temIndicacao: true }
-          : { ...prev, temIndicacao: false, indicacaoNome: '' }
-      })
+      } else {
+        next = checked
+          ? { ...base, temIndicacao: true }
+          : { ...base, temIndicacao: false, indicacaoNome: '' }
+      }
+      if (next !== base) {
+        setClienteSync(next)
+      }
       return
     }
 
@@ -14935,26 +15290,23 @@ export default function App() {
       let distribuidoraAtualizada: string | undefined
       let ufAlterada = false
       let distribuidoraAlterada = false
-      setCliente((prev) => {
-        const ufNormalizada = value
-        const listaDistribuidoras = distribuidorasPorUf[ufNormalizada] ?? []
-        let proximaDistribuidora = prev.distribuidora
+      const base = clienteRef.current ?? cliente
+      const ufNormalizada = value
+      const listaDistribuidoras = distribuidorasPorUf[ufNormalizada] ?? []
+      let proximaDistribuidora = base.distribuidora
 
-        if (listaDistribuidoras.length === 1) {
-          proximaDistribuidora = listaDistribuidoras[0]
-        } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
-          proximaDistribuidora = ''
-        }
+      if (listaDistribuidoras.length === 1) {
+        proximaDistribuidora = listaDistribuidoras[0]
+      } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
+        proximaDistribuidora = ''
+      }
 
-        if (prev.uf === ufNormalizada && prev.distribuidora === proximaDistribuidora) {
-          return prev
-        }
-
-        ufAlterada = prev.uf !== ufNormalizada
-        distribuidoraAlterada = proximaDistribuidora !== prev.distribuidora
+      if (base.uf !== ufNormalizada || base.distribuidora !== proximaDistribuidora) {
+        ufAlterada = base.uf !== ufNormalizada
+        distribuidoraAlterada = proximaDistribuidora !== base.distribuidora
         distribuidoraAtualizada = proximaDistribuidora
-        return { ...prev, uf: ufNormalizada, distribuidora: proximaDistribuidora }
-      })
+        setClienteSync({ ...base, uf: ufNormalizada, distribuidora: proximaDistribuidora })
+      }
       if (ufAlterada) {
         syncClienteField('uf', value)
       }
@@ -14978,14 +15330,11 @@ export default function App() {
       }
     }
 
-    let clienteAtualizado = false
-    setCliente((prev) => {
-      if (prev[key] === nextValue) {
-        return prev
-      }
-      clienteAtualizado = true
-      return { ...prev, [key]: nextValue }
-    })
+    const base = clienteRef.current ?? cliente
+    const clienteAtualizado = base[key] !== nextValue
+    if (clienteAtualizado) {
+      updateClienteSync({ [key]: nextValue } as Partial<ClienteDados>)
+    }
 
     if (clienteAtualizado && isSyncedClienteField(key) && typeof nextValue === 'string') {
       syncClienteField(key, nextValue)
@@ -15063,58 +15412,71 @@ export default function App() {
   )
 
   const handleHerdeiroChange = useCallback((index: number, value: string) => {
-    setCliente((prev) => {
-      const atual = ensureClienteHerdeiros(prev.herdeiros)
-      if (index < 0 || index >= atual.length) {
-        return prev
-      }
+    const base = clienteRef.current ?? cliente
+    const atual = ensureClienteHerdeiros(base.herdeiros)
+    if (index < 0 || index >= atual.length) {
+      return
+    }
 
-      if (atual[index] === value) {
-        return prev
-      }
+    if (atual[index] === value) {
+      return
+    }
 
-      const proximo = [...atual]
-      proximo[index] = value
-      return { ...prev, herdeiros: proximo }
-    })
-  }, [])
+    const proximo = [...atual]
+    proximo[index] = value
+    setClienteSync({ ...base, herdeiros: proximo })
+  }, [cliente, setClienteSync])
 
   const handleAdicionarHerdeiro = useCallback(() => {
-    setCliente((prev) => {
-      const atual = ensureClienteHerdeiros(prev.herdeiros)
-      return { ...prev, herdeiros: [...atual, ''] }
-    })
+    const base = clienteRef.current ?? cliente
+    const atual = ensureClienteHerdeiros(base.herdeiros)
+    setClienteSync({ ...base, herdeiros: [...atual, ''] })
     setClienteHerdeirosExpandidos(true)
-  }, [])
+  }, [cliente, setClienteSync])
 
   const handleRemoverHerdeiro = useCallback((index: number) => {
-    setCliente((prev) => {
-      const atual = ensureClienteHerdeiros(prev.herdeiros)
-      if (index < 0 || index >= atual.length) {
-        return prev
-      }
+    const base = clienteRef.current ?? cliente
+    const atual = ensureClienteHerdeiros(base.herdeiros)
+    if (index < 0 || index >= atual.length) {
+      return
+    }
 
-      if (atual.length === 1) {
-        if (atual[0] === '') {
-          return prev
-        }
-        return { ...prev, herdeiros: [''] }
+    if (atual.length === 1) {
+      if (atual[0] === '') {
+        return
       }
+      setClienteSync({ ...base, herdeiros: [''] })
+      return
+    }
 
-      const proximo = atual.filter((_, idx) => idx !== index)
-      return { ...prev, herdeiros: proximo.length > 0 ? proximo : [''] }
-    })
-  }, [])
+    const proximo = atual.filter((_, idx) => idx !== index)
+    setClienteSync({ ...base, herdeiros: proximo.length > 0 ? proximo : [''] })
+  }, [cliente, setClienteSync])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
     }
 
-    const cepNumeros = normalizeNumbers(cliente.cep)
-    if (cepNumeros.length < 8) {
+    const cepNumeros = normalizeNumbers(clienteRef.current?.cep ?? cliente.cep)
+    console.log('[CEP effect] run', {
+      cep: cepNumeros,
+      hydrating: isHydratingRef.current,
+      editingEndereco: isEditingEnderecoRef.current,
+      last: lastCepAppliedRef.current,
+    })
+
+    if (isHydratingRef.current || isApplyingCepRef.current || isEditingEnderecoRef.current) {
+      return
+    }
+
+    if (cepNumeros.length !== 8) {
       setBuscandoCep(false)
       setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
+      return
+    }
+
+    if (cepNumeros === lastCepAppliedRef.current) {
       return
     }
 
@@ -15126,6 +15488,7 @@ export default function App() {
       setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
 
       try {
+        isApplyingCepRef.current = true
         const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`, {
           signal: controller.signal,
         })
@@ -15148,33 +15511,28 @@ export default function App() {
         const localidade = data?.localidade?.trim() ?? ''
         const uf = data?.uf?.trim().toUpperCase() ?? ''
 
-        setCliente((prev) => {
-          let alterado = false
-          const proximo: ClienteDados = { ...prev }
+        const base = clienteRef.current ?? cliente
+        const enderecoAtual = base.endereco?.trim() ?? ''
+        const patch: Partial<ClienteDados> = {}
+        if (localidade && localidade !== base.cidade) {
+          patch.cidade = localidade
+        }
+        if (uf && uf !== base.uf) {
+          patch.uf = uf
+        }
+        if (!enderecoAtual && logradouro) {
+          patch.endereco = logradouro
+        }
+        if (Object.keys(patch).length > 0) {
+          updateClienteSync(patch)
+        }
 
-          if (logradouro && logradouro !== prev.endereco) {
-            proximo.endereco = logradouro
-            alterado = true
-          }
-
-          if (localidade && localidade !== prev.cidade) {
-            proximo.cidade = localidade
-            alterado = true
-          }
-
-          if (uf && uf !== prev.uf) {
-            proximo.uf = uf
-            alterado = true
-          }
-
-          if (!alterado) {
-            return prev
-          }
-
-          return proximo
-        })
-
-        setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined, cidade: undefined }))
+        lastCepAppliedRef.current = cepNumeros
+        setClienteMensagens((prev): ClienteMensagens => ({
+          ...prev,
+          cep: undefined,
+          cidade: undefined,
+        }))
       } catch (error) {
         if (!ativo || controller.signal.aborted) {
           return
@@ -15188,6 +15546,7 @@ export default function App() {
         if (ativo) {
           setBuscandoCep(false)
         }
+        isApplyingCepRef.current = false
       }
     }
 
@@ -15871,10 +16230,16 @@ export default function App() {
         >
           <input
             data-field="cliente-enderecoContratante"
-            value={cliente.endereco}
+            value={cliente.endereco ?? ''}
             onChange={(e) => {
-              handleClienteChange('endereco', e.target.value)
+              updateClienteSync({ endereco: e.target.value })
               clearFieldHighlight(e.currentTarget)
+            }}
+            onFocus={() => {
+              isEditingEnderecoRef.current = true
+            }}
+            onBlur={() => {
+              isEditingEnderecoRef.current = false
             }}
             autoComplete="street-address"
             placeholder="Rua, número, complemento"
