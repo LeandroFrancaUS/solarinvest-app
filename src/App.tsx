@@ -66,6 +66,10 @@ import {
   persistRemoteStorageEntry,
 } from './app/services/serverStorage'
 import {
+  saveCompleteSnapshot,
+  loadCompleteSnapshot,
+} from './app/services/proposalStore'
+import {
   computeROI,
   type ModoPagamento,
   type PagamentoCondicao,
@@ -12347,18 +12351,63 @@ export default function App() {
 }
 
   const carregarOrcamentoParaEdicao = useCallback(
-    (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
-      if (!registro.snapshot) {
+    async (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
+      console.log('[carregarOrcamentoParaEdicao] start', {
+        registroId: registro.id,
+        hasRegistroSnapshot: !!registro.snapshot,
+      })
+
+      // Try loading from proposalStore first
+      let snapshotToApply: OrcamentoSnapshotData | null = null
+      let source = 'none'
+
+      try {
+        const completeSnapshot = await loadCompleteSnapshot(registro.id)
+        if (completeSnapshot) {
+          // Check if snapshot has meaningful data
+          const hasData =
+            !!(completeSnapshot.cliente?.nome || completeSnapshot.cliente?.endereco) ||
+            (completeSnapshot.kcKwhMes ?? 0) > 0
+
+          if (hasData) {
+            snapshotToApply = completeSnapshot
+            source = 'proposalStore'
+            console.log('[carregarOrcamentoParaEdicao] using proposalStore complete snapshot')
+          }
+        }
+      } catch (error) {
+        console.error('[carregarOrcamentoParaEdicao] proposalStore load failed', error)
+      }
+
+      // Fallback to registro.snapshot
+      if (!snapshotToApply && registro.snapshot) {
+        const hasData =
+          !!(registro.snapshot.cliente?.nome || registro.snapshot.cliente?.endereco) ||
+          (registro.snapshot.kcKwhMes ?? 0) > 0
+
+        if (hasData) {
+          snapshotToApply = registro.snapshot
+          source = 'registro'
+          console.log('[carregarOrcamentoParaEdicao] fallback to registro.snapshot')
+        }
+      }
+
+      // No usable snapshot found
+      if (!snapshotToApply) {
+        console.log('[carregarOrcamentoParaEdicao] no usable snapshot found')
         window.alert(
           'Este orçamento foi salvo sem histórico completo. Visualize o PDF ou salve novamente para gerar uma cópia editável.',
         )
         return
       }
 
-      console.log('[carregarOrcamentoParaEdicao] Loading complete snapshot for budget:', registro.id)
+      console.log('[carregarOrcamentoParaEdicao] applying snapshot from:', source)
+
+      // Apply snapshot with force flag to bypass guards
+      aplicarSnapshot(snapshotToApply)
       
-      // Force apply snapshot - ignore any hydration/budgetId guards
-      aplicarSnapshot(registro.snapshot)
+      console.log('[carregarOrcamentoParaEdicao] applySnapshot done')
+
       setActivePage('app')
       atualizarOrcamentoAtivo(registro)
       adicionarNotificacao(
@@ -12433,6 +12482,12 @@ export default function App() {
           setOrcamentosSalvos(persisted)
           alertPrunedBudgets(pruned)
           void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
+          
+          // Save complete snapshot to proposalStore with logging
+          void saveCompleteSnapshot(existente.id, snapshotAtualizado).catch((error) => {
+            console.error('[salvarOrcamentoLocalmente] Failed to save snapshot to proposalStore', error)
+          })
+          
           void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
             if (error instanceof OneDriveIntegrationMissingError) {
               return
@@ -12477,6 +12532,12 @@ export default function App() {
         setOrcamentosSalvos(persisted)
         alertPrunedBudgets(pruned)
         void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
+        
+        // Save complete snapshot to proposalStore with logging
+        void saveCompleteSnapshot(novoId, snapshotParaArmazenar).catch((error) => {
+          console.error('[salvarOrcamentoLocalmente] Failed to save snapshot to proposalStore', error)
+        })
+        
         void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
           if (error instanceof OneDriveIntegrationMissingError) {
             return
@@ -14996,7 +15057,7 @@ export default function App() {
       let registro = registroInicial
 
       if (!registro.snapshot) {
-        carregarOrcamentoParaEdicao(registro)
+        await carregarOrcamentoParaEdicao(registro)
         return
       }
 
@@ -15004,7 +15065,7 @@ export default function App() {
       const assinaturaRegistro = computeSnapshotSignature(registro.snapshot, registro.dados)
 
       if (assinaturaRegistro === assinaturaAtual) {
-        carregarOrcamentoParaEdicao(registro, {
+        await carregarOrcamentoParaEdicao(registro, {
           notificationMessage:
             'Os dados desta proposta já estavam carregados. A versão salva foi reaplicada.',
         })
@@ -15044,7 +15105,7 @@ export default function App() {
         limparDadosModalidade(tipoRegistro)
       }
 
-      carregarOrcamentoParaEdicao(registro)
+      await carregarOrcamentoParaEdicao(registro)
     },
     [
       carregarOrcamentoParaEdicao,
