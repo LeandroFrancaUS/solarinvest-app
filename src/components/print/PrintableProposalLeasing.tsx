@@ -908,8 +908,12 @@ function PrintableProposalLeasingInner(
   const heroSummary =
     'A SolarInvest apresenta uma solução completa de energia solar em modelo de leasing, com investimento integral realizado pela SolarInvest e operação completa: instalação, seguro, manutenção, monitoramento e suporte técnico.'
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
-  const economiaExplainer: React.ReactNode =
-    'Em 30 anos de geração solar, sua economia pode alcançar R$ 175.867,37 — um retorno sustentável, previsível e duradouro.'
+  const economiaExplainer: React.ReactNode = (
+    <>
+      Em 30 anos de geração solar, sua economia pode alcançar <strong>R$ 175.867,37</strong> — um retorno sustentável,
+      previsível e duradouro.
+    </>
+  )
   const informacoesImportantesObservacaoTexto = useMemo(() => {
     const texto = sanitizeTextField(informacoesImportantesObservacao)
     if (!texto || texto === INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO) {
@@ -1378,7 +1382,7 @@ function PrintableProposalLeasingInner(
                     })}
                   </div>
                 </div>
-                <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
+                <p className="leasing-chart-note leasing-chart-note--divider no-break-inside">{economiaExplainer}</p>
                 <p className="muted print-footnote print-footnote--spaced print-footnote--divider">{AVISO_PATRIMONIO}</p>
               </>
             ) : (

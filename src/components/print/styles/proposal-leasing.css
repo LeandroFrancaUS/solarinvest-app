@@ -763,6 +763,11 @@ table.leasing-economia-table,
   color: #1f2933;
 }
 
+.leasing-chart-note--divider {
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+  padding-top: 8px;
+}
+
 .leasing-horizontal-chart {
   margin-top: 24px;
   display: flex;
