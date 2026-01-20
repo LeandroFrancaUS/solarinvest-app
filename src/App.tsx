@@ -4446,6 +4446,24 @@ export default function App() {
   const kcKwhMesRef = useRef(kcKwhMes)
   const pageSharedStateRef = useRef(pageSharedState)
   
+  const setClienteSync = useCallback(
+    (next: ClienteDados) => {
+      clienteRef.current = next
+      setCliente(next)
+    },
+    [setCliente],
+  )
+
+  const updateClienteSync = useCallback(
+    (patch: Partial<ClienteDados>) => {
+      const base = clienteRef.current ?? cliente
+      const merged = { ...base, ...patch }
+      clienteRef.current = merged
+      setCliente(merged)
+    },
+    [cliente, setCliente],
+  )
+
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
@@ -5379,13 +5397,10 @@ export default function App() {
       updateSegmentoCliente(novoValor)
 
       if (!isSegmentoCondominio(novoValor)) {
-        setCliente((prev) => {
-          if (!prev.nomeSindico && !prev.cpfSindico && !prev.contatoSindico) {
-            return prev
-          }
-
-          return { ...prev, nomeSindico: '', cpfSindico: '', contatoSindico: '' }
-        })
+        const base = clienteRef.current ?? cliente
+        if (base.nomeSindico || base.cpfSindico || base.contatoSindico) {
+          setClienteSync({ ...base, nomeSindico: '', cpfSindico: '', contatoSindico: '' })
+        }
       }
 
       // Se o outro lado NÃO foi editado manualmente, sincronizar
@@ -5395,7 +5410,7 @@ export default function App() {
 
       resetRetorno?.()
     },
-    [resetRetorno, setCliente, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
+    [cliente, resetRetorno, setClienteSync, syncStateRef, updateSegmentoCliente, updateTusdTipoCliente],
   )
 
   const handleTusdTipoClienteChange = useCallback(
@@ -11453,6 +11468,7 @@ export default function App() {
     const vendasSimState = useVendasSimulacoesStore.getState()
     const vendaSnapshotAtual = getVendaSnapshot()
     const leasingSnapshotAtual = getLeasingSnapshot()
+    const clienteFonte = clienteRef.current ?? cliente
     const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
     const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
     const vendaFormNormalizado: VendaForm = {
@@ -11469,9 +11485,9 @@ export default function App() {
     console.log('[getCurrentSnapshot] sources', {
       activeTab,
       clienteState: { 
-        nome: clienteRef.current.nome, 
-        endereco: clienteRef.current.endereco, 
-        documento: clienteRef.current.documento 
+        nome: clienteFonte.nome, 
+        endereco: clienteFonte.endereco, 
+        documento: clienteFonte.documento 
       },
       vendaStoreCliente: vendaSnapshotAtual?.cliente?.endereco ?? 'n/a',
       leasingStoreCliente: leasingSnapshotAtual?.cliente?.endereco ?? 'n/a',
@@ -11487,7 +11503,7 @@ export default function App() {
     const snapshotData = {
       activeTab,
       settingsTab,
-      cliente: cloneClienteDados(clienteRef.current), // Use ref instead of closure
+      cliente: cloneClienteDados(clienteFonte), // Use ref instead of closure
       clienteEmEdicaoId,
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
@@ -11632,6 +11648,12 @@ export default function App() {
       console.trace('[getCurrentSnapshot] trace - call site')
     }
     
+    console.log('[getCurrentSnapshot] clienteFonte', {
+      nome: clienteFonte?.nome ?? '',
+      endereco: clienteFonte?.endereco ?? '',
+      documento: clienteFonte?.documento ?? '',
+    })
+
     return snapshotData
   }
 
@@ -11929,7 +11951,7 @@ export default function App() {
       const registroHidratado = await hydrateClienteRegistroFromStore(registro)
       const dadosClonados = cloneClienteDados(registroHidratado.dados)
       console.log('[handleEditarCliente] Loading cliente with endereco:', dadosClonados.endereco)
-      setCliente(dadosClonados)
+      setClienteSync(dadosClonados)
       setClienteMensagens({})
       setClienteEmEdicaoId(registroHidratado.id)
       lastSavedClienteRef.current = dadosClonados
@@ -11942,9 +11964,9 @@ export default function App() {
     [
       applyClienteSnapshot,
       fecharClientesPainel,
-      setCliente,
       setClienteEmEdicaoId,
       setClienteMensagens,
+      setClienteSync,
     ],
   )
 
@@ -12020,14 +12042,14 @@ export default function App() {
       }
 
       if (removeuEdicaoAtual) {
-        setCliente(cloneClienteDados(CLIENTE_INICIAL))
+        setClienteSync(cloneClienteDados(CLIENTE_INICIAL))
         setClienteMensagens({})
         clienteEmEdicaoIdRef.current = null
         lastSavedClienteRef.current = null
         setClienteEmEdicaoId(null)
       }
     },
-    [clienteEmEdicaoId, setCliente, setClienteEmEdicaoId, setClienteMensagens],
+    [clienteEmEdicaoId, setClienteEmEdicaoId, setClienteMensagens, setClienteSync],
   )
 
   const parseOrcamentosSalvos = useCallback(
@@ -12502,7 +12524,7 @@ export default function App() {
       endereco: clienteClonado.endereco,
       cidade: clienteClonado.cidade,
     })
-    setCliente(clienteClonado)
+    setClienteSync(clienteClonado)
     console.log('[aplicarSnapshot] clienteRef after setCliente:', clienteRef.current?.endereco)
     setClienteEmEdicaoId(snapshot.clienteEmEdicaoId)
     lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
@@ -14747,7 +14769,7 @@ export default function App() {
     setDuracaoMeses(INITIAL_VALUES.duracaoMeses)
     setPagosAcumAteM(INITIAL_VALUES.pagosAcumManual)
 
-    setCliente(cloneClienteDados(CLIENTE_INICIAL))
+    setClienteSync(cloneClienteDados(CLIENTE_INICIAL))
     setClienteMensagens({})
     clienteEmEdicaoIdRef.current = null
     lastSavedClienteRef.current = null
@@ -14789,6 +14811,7 @@ export default function App() {
     setMultiUcAtivo,
     setMultiUcRows,
     limparOrcamentoAtivo,
+    setClienteSync,
   ])
 
   const handleNovaProposta = useCallback(async () => {
@@ -14888,22 +14911,28 @@ export default function App() {
       const ufNormalizada = value.toUpperCase()
       setUfTarifa(ufNormalizada)
       applyFieldSyncChange('uf', 'parametros', () => {
-        setCliente((prev) => (prev.uf === ufNormalizada ? prev : { ...prev, uf: ufNormalizada }))
+        const base = clienteRef.current ?? cliente
+        if (base.uf === ufNormalizada) {
+          return
+        }
+        updateClienteSync({ uf: ufNormalizada })
       })
     },
-    [setCliente, setUfTarifa],
+    [cliente, setUfTarifa, updateClienteSync],
   )
 
   const handleParametrosDistribuidoraChange = useCallback(
     (value: string) => {
       setDistribuidoraTarifa(value)
       applyFieldSyncChange('distribuidora', 'parametros', () => {
-        setCliente((prev) =>
-          prev.distribuidora === value ? prev : { ...prev, distribuidora: value },
-        )
+        const base = clienteRef.current ?? cliente
+        if (base.distribuidora === value) {
+          return
+        }
+        updateClienteSync({ distribuidora: value })
       })
     },
-    [setCliente, setDistribuidoraTarifa],
+    [cliente, setDistribuidoraTarifa, updateClienteSync],
   )
 
   const clearFieldHighlight = (element?: HTMLElement | null) => {
@@ -14917,17 +14946,20 @@ export default function App() {
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
     if (key === 'temIndicacao') {
       const checked = Boolean(rawValue)
-      setCliente((prev) => {
-        if (prev.temIndicacao === checked) {
-          if (!checked && prev.indicacaoNome) {
-            return { ...prev, temIndicacao: false, indicacaoNome: '' }
-          }
-          return prev
+      const base = clienteRef.current ?? cliente
+      let next = base
+      if (base.temIndicacao === checked) {
+        if (!checked && base.indicacaoNome) {
+          next = { ...base, temIndicacao: false, indicacaoNome: '' }
         }
-        return checked
-          ? { ...prev, temIndicacao: true }
-          : { ...prev, temIndicacao: false, indicacaoNome: '' }
-      })
+      } else {
+        next = checked
+          ? { ...base, temIndicacao: true }
+          : { ...base, temIndicacao: false, indicacaoNome: '' }
+      }
+      if (next !== base) {
+        setClienteSync(next)
+      }
       return
     }
 
@@ -14936,26 +14968,23 @@ export default function App() {
       let distribuidoraAtualizada: string | undefined
       let ufAlterada = false
       let distribuidoraAlterada = false
-      setCliente((prev) => {
-        const ufNormalizada = value
-        const listaDistribuidoras = distribuidorasPorUf[ufNormalizada] ?? []
-        let proximaDistribuidora = prev.distribuidora
+      const base = clienteRef.current ?? cliente
+      const ufNormalizada = value
+      const listaDistribuidoras = distribuidorasPorUf[ufNormalizada] ?? []
+      let proximaDistribuidora = base.distribuidora
 
-        if (listaDistribuidoras.length === 1) {
-          proximaDistribuidora = listaDistribuidoras[0]
-        } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
-          proximaDistribuidora = ''
-        }
+      if (listaDistribuidoras.length === 1) {
+        proximaDistribuidora = listaDistribuidoras[0]
+      } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
+        proximaDistribuidora = ''
+      }
 
-        if (prev.uf === ufNormalizada && prev.distribuidora === proximaDistribuidora) {
-          return prev
-        }
-
-        ufAlterada = prev.uf !== ufNormalizada
-        distribuidoraAlterada = proximaDistribuidora !== prev.distribuidora
+      if (base.uf !== ufNormalizada || base.distribuidora !== proximaDistribuidora) {
+        ufAlterada = base.uf !== ufNormalizada
+        distribuidoraAlterada = proximaDistribuidora !== base.distribuidora
         distribuidoraAtualizada = proximaDistribuidora
-        return { ...prev, uf: ufNormalizada, distribuidora: proximaDistribuidora }
-      })
+        setClienteSync({ ...base, uf: ufNormalizada, distribuidora: proximaDistribuidora })
+      }
       if (ufAlterada) {
         syncClienteField('uf', value)
       }
@@ -14979,14 +15008,11 @@ export default function App() {
       }
     }
 
-    let clienteAtualizado = false
-    setCliente((prev) => {
-      if (prev[key] === nextValue) {
-        return prev
-      }
-      clienteAtualizado = true
-      return { ...prev, [key]: nextValue }
-    })
+    const base = clienteRef.current ?? cliente
+    const clienteAtualizado = base[key] !== nextValue
+    if (clienteAtualizado) {
+      updateClienteSync({ [key]: nextValue } as Partial<ClienteDados>)
+    }
 
     if (clienteAtualizado && isSyncedClienteField(key) && typeof nextValue === 'string') {
       syncClienteField(key, nextValue)
@@ -15064,48 +15090,46 @@ export default function App() {
   )
 
   const handleHerdeiroChange = useCallback((index: number, value: string) => {
-    setCliente((prev) => {
-      const atual = ensureClienteHerdeiros(prev.herdeiros)
-      if (index < 0 || index >= atual.length) {
-        return prev
-      }
+    const base = clienteRef.current ?? cliente
+    const atual = ensureClienteHerdeiros(base.herdeiros)
+    if (index < 0 || index >= atual.length) {
+      return
+    }
 
-      if (atual[index] === value) {
-        return prev
-      }
+    if (atual[index] === value) {
+      return
+    }
 
-      const proximo = [...atual]
-      proximo[index] = value
-      return { ...prev, herdeiros: proximo }
-    })
-  }, [])
+    const proximo = [...atual]
+    proximo[index] = value
+    setClienteSync({ ...base, herdeiros: proximo })
+  }, [cliente, setClienteSync])
 
   const handleAdicionarHerdeiro = useCallback(() => {
-    setCliente((prev) => {
-      const atual = ensureClienteHerdeiros(prev.herdeiros)
-      return { ...prev, herdeiros: [...atual, ''] }
-    })
+    const base = clienteRef.current ?? cliente
+    const atual = ensureClienteHerdeiros(base.herdeiros)
+    setClienteSync({ ...base, herdeiros: [...atual, ''] })
     setClienteHerdeirosExpandidos(true)
-  }, [])
+  }, [cliente, setClienteSync])
 
   const handleRemoverHerdeiro = useCallback((index: number) => {
-    setCliente((prev) => {
-      const atual = ensureClienteHerdeiros(prev.herdeiros)
-      if (index < 0 || index >= atual.length) {
-        return prev
-      }
+    const base = clienteRef.current ?? cliente
+    const atual = ensureClienteHerdeiros(base.herdeiros)
+    if (index < 0 || index >= atual.length) {
+      return
+    }
 
-      if (atual.length === 1) {
-        if (atual[0] === '') {
-          return prev
-        }
-        return { ...prev, herdeiros: [''] }
+    if (atual.length === 1) {
+      if (atual[0] === '') {
+        return
       }
+      setClienteSync({ ...base, herdeiros: [''] })
+      return
+    }
 
-      const proximo = atual.filter((_, idx) => idx !== index)
-      return { ...prev, herdeiros: proximo.length > 0 ? proximo : [''] }
-    })
-  }, [])
+    const proximo = atual.filter((_, idx) => idx !== index)
+    setClienteSync({ ...base, herdeiros: proximo.length > 0 ? proximo : [''] })
+  }, [cliente, setClienteSync])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -15149,31 +15173,20 @@ export default function App() {
         const localidade = data?.localidade?.trim() ?? ''
         const uf = data?.uf?.trim().toUpperCase() ?? ''
 
-        setCliente((prev) => {
-          let alterado = false
-          const proximo: ClienteDados = { ...prev }
-
-          if (logradouro && logradouro !== prev.endereco) {
-            proximo.endereco = logradouro
-            alterado = true
-          }
-
-          if (localidade && localidade !== prev.cidade) {
-            proximo.cidade = localidade
-            alterado = true
-          }
-
-          if (uf && uf !== prev.uf) {
-            proximo.uf = uf
-            alterado = true
-          }
-
-          if (!alterado) {
-            return prev
-          }
-
-          return proximo
-        })
+        const base = clienteRef.current ?? cliente
+        const patch: Partial<ClienteDados> = {}
+        if (logradouro && logradouro !== base.endereco) {
+          patch.endereco = logradouro
+        }
+        if (localidade && localidade !== base.cidade) {
+          patch.cidade = localidade
+        }
+        if (uf && uf !== base.uf) {
+          patch.uf = uf
+        }
+        if (Object.keys(patch).length > 0) {
+          updateClienteSync(patch)
+        }
 
         setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined, cidade: undefined }))
       } catch (error) {
@@ -15198,7 +15211,7 @@ export default function App() {
       ativo = false
       controller.abort()
     }
-  }, [cliente.cep])
+  }, [cliente, cliente.cep, updateClienteSync])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -15876,15 +15889,8 @@ export default function App() {
             onChange={(e) => {
               const value = e.target.value
               console.log('[UI] Endereco do Contratante value now:', value)
-              let updated = false
-              setCliente((prev) => {
-                if (prev.endereco === value) {
-                  return prev
-                }
-                updated = true
-                return { ...prev, endereco: value }
-              })
-              if (updated) {
+              if ((clienteRef.current ?? cliente).endereco !== value) {
+                updateClienteSync({ endereco: value })
                 syncClienteField('endereco', value)
               }
               clearFieldHighlight(e.currentTarget)
