@@ -766,44 +766,6 @@ function PrintableProposalLeasingInner(
     tarifaCheiaBase,
   ])
 
-  const calcularIntensidadeContaDistribuidora = useCallback(
-    (ano: number) => {
-      if (ano < 1 || ano > prazoContratualTotalAnos) {
-        return null
-      }
-      if (prazoContratualTotalAnos <= 1) {
-        return 1
-      }
-
-      const progresso = (ano - 1) / (prazoContratualTotalAnos - 1)
-      return Math.min(1, Math.max(0, progresso))
-    },
-    [prazoContratualTotalAnos],
-  )
-
-  const estiloContaDistribuidora = useCallback(
-    (ano: number): React.CSSProperties | undefined => {
-      const intensidade = calcularIntensidadeContaDistribuidora(ano)
-
-      if (intensidade == null) {
-        return undefined
-      }
-
-      const mix = (inicio: number, fim: number) => Math.round(inicio + (fim - inicio) * intensidade)
-      const background = `rgb(${mix(255, 255)}, ${mix(229, 143)}, ${mix(224, 126)})`
-      const border = `rgb(${mix(241, 223)}, ${mix(188, 99)}, ${mix(180, 89)})`
-
-      return {
-        background,
-        boxShadow: `inset 0 0 0 1px ${border}`,
-        color: '#7f1b1b',
-        ['--leasing-negative-bg' as string]: background,
-        ['--leasing-negative-border' as string]: border,
-      }
-    },
-    [calcularIntensidadeContaDistribuidora],
-  )
-
   const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
   const prazoEconomiaMeses = prazoContratualMeses
   const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
@@ -1250,27 +1212,26 @@ function PrintableProposalLeasingInner(
           ) : null}
     
             <section className="print-section keep-together avoid-break">
-              <h2 className="section-title keep-with-next">Como sua economia evolui</h2>
+              <h2 className="section-title keep-with-next">Economia Gerada com a Solução SolarInvest</h2>
               <p className="section-subtitle keep-with-next">Valores estimados por período contratual</p>
             <table className="no-break-inside leasing-economia-table">
               <colgroup>
                 <col style={{ width: '18%' }} />
-                <col style={{ width: '44%' }} />
-                <col style={{ width: '38%' }} />
+                <col style={{ width: '46%' }} />
+                <col style={{ width: '36%' }} />
               </colgroup>
               <thead>
                 <tr>
                   <th>Período</th>
                   <th>Tarifas (cheia / com desconto)</th>
-                  <th className="leasing-table-negative">Encargos da distribuidora (projeção)</th>
+                  <th className="leasing-table-positive leasing-table-positive-emphasis">Mensalidade SolarInvest (R$)</th>
                 </tr>
               </thead>
             <tbody>
               {mensalidadesPorAno.map((linha, index) => {
                 const isPosPrazo = linha.ano > prazoContratualTotalAnos
                 const isUltimaLinha = index === mensalidadesPorAno.length - 1
-
-                const contaDistribuidoraStyle = estiloContaDistribuidora(linha.ano)
+                const isMensalidadeZero = linha.mensalidadeSolarInvest === 0
 
                 const rowClassName = [
                   isPosPrazo ? 'leasing-row-post-contract' : undefined,
@@ -1293,24 +1254,23 @@ function PrintableProposalLeasingInner(
                     <td
                       className={[
                         'leasing-table-value',
-                        'leasing-table-negative',
-                        contaDistribuidoraStyle ? 'leasing-table-negative-gradient' : undefined,
+                        'leasing-table-positive',
+                        'leasing-table-positive-emphasis',
                       ]
                         .filter(Boolean)
                         .join(' ')}
-                      style={contaDistribuidoraStyle}
                     >
-                      {currency(linha.encargosDistribuidora)}
+                      {isMensalidadeZero ? (
+                        <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
+                      ) : (
+                        currency(linha.mensalidadeSolarInvest)
+                      )}
                     </td>
                   </tr>
                 )
               })}
             </tbody>
             </table>
-            <p className="muted no-break-inside">
-              Encargos estimados incluem TUSD Fio B, taxa mínima da concessionária e demais encargos regulatórios
-              aplicáveis. Valores apresentados são projeções e podem variar conforme reajustes tarifários e inflação.
-            </p>
             <div className="leasing-total-summary no-break-inside">
               <h3 className="print-subheading keep-with-next">Despesa Mensal Estimada (Energia + Encargos)</h3>
               {mensalidadesPorAno[0] ? (
@@ -1336,6 +1296,10 @@ function PrintableProposalLeasingInner(
                 </div>
               ) : null}
             </div>
+            <p className="muted no-break-inside">
+              Encargos estimados incluem TUSD Fio B, taxa mínima da concessionária e demais encargos regulatórios
+              aplicáveis. Valores apresentados são projeções e podem variar conforme reajustes tarifários e inflação.
+            </p>
             <p>{avisoMensalidadeEvolucao}</p>
           </section>
 

@@ -554,12 +554,12 @@ describe('PrintableProposal (leasing)', () => {
     const mensalidadeSolarInvest = energiaContratada * (1 - desconto / 100)
     const despesaTotal = mensalidadeSolarInvest + tusdMensal
 
-    expect(linhaPrimeiroAno).toContain(currency(tusdMensal))
-    expect(linhaPrimeiroAno).not.toContain(currency(mensalidadeSolarInvest))
+    expect(linhaPrimeiroAno).toContain(currency(mensalidadeSolarInvest))
+    expect(linhaPrimeiroAno).not.toContain(currency(tusdMensal))
     expect(markup).toContain('Despesa Mensal Estimada (Energia + Encargos)')
     expect(markup).toContain('Referência: 1º ano')
     expect(markup).toContain(currency(despesaTotal))
-    expect(markup).toContain(currency(mensalidadeSolarInvest))
+    expect(markup).toContain(currency(tusdMensal))
   })
 
   it('prioriza os modelos informados manualmente na configuração da usina', () => {
