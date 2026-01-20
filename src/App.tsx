@@ -11499,6 +11499,12 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
+  const isSnapshotEmpty = (snapshot: OrcamentoSnapshotData): boolean =>
+    !snapshot?.cliente?.nome &&
+    !snapshot?.cliente?.endereco &&
+    !snapshot?.cliente?.documento &&
+    Number(snapshot?.kcKwhMes ?? 0) === 0
+
   const getCurrentSnapshot = (
     options?: { budgetIdOverride?: string },
   ): OrcamentoSnapshotData | null => {
@@ -11700,15 +11706,9 @@ export default function App() {
       kcKwhMes: snapshotKwh,
       totalFields: Object.keys(snapshotData).length,
     })
-    
-    if (!snapshotNome && !snapshotEndereco && snapshotKwh === 0) {
-      console.warn('[getCurrentSnapshot] returning EMPTY snapshot', {
-        cliente: snapshotData.cliente,
-        kcKwhMes: snapshotData.kcKwhMes,
-        activeTab: snapshotData.activeTab,
-        currentBudgetId: snapshotData.currentBudgetId,
-      })
-      console.trace('[getCurrentSnapshot] trace - call site')
+
+    if (isSnapshotEmpty(snapshotData)) {
+      return snapshotData
     }
     
     console.log('[getCurrentSnapshot] clienteFonte', {
@@ -14710,147 +14710,150 @@ export default function App() {
       } catch (error) {
         console.warn('[Nova Proposta] Failed to clear form draft:', error)
       }
-      
+
+      const novoBudgetId = createDraftBudgetId()
+      switchBudgetId(novoBudgetId)
+      console.log('[Nova Proposta] New budget ID created')
+
+      // Wait for React to apply the budgetId change
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
       fieldSyncActions.reset()
       setSettingsTab(INITIAL_VALUES.settingsTab)
       setActivePage('app')
       setOrcamentoSearchTerm('')
       limparOrcamentoAtivo()
-      const novoBudgetId = createDraftBudgetId()
-      switchBudgetId(novoBudgetId)
-      console.log('[Nova Proposta] New budget ID created')
-    setBudgetStructuredItems([])
-    setKitBudget(createEmptyKitBudget())
-    setIsBudgetProcessing(false)
-    setBudgetProcessingError(null)
-    setPageSharedState(createPageSharedSettings())
-    if (budgetUploadInputRef.current) {
-      budgetUploadInputRef.current.value = ''
-    }
-    if (imagensUploadInputRef.current) {
-      imagensUploadInputRef.current.value = ''
-    }
+      setBudgetStructuredItems([])
+      setKitBudget(createEmptyKitBudget())
+      setIsBudgetProcessing(false)
+      setBudgetProcessingError(null)
+      setPageSharedState(createPageSharedSettings())
+      if (budgetUploadInputRef.current) {
+        budgetUploadInputRef.current.value = ''
+      }
+      if (imagensUploadInputRef.current) {
+        imagensUploadInputRef.current.value = ''
+      }
 
-    setPropostaImagens([])
-    setUcsBeneficiarias([])
+      setPropostaImagens([])
+      setUcsBeneficiarias([])
 
-    setUfTarifa(INITIAL_VALUES.ufTarifa)
-    setDistribuidoraTarifa(INITIAL_VALUES.distribuidoraTarifa)
-    setMesReajuste(INITIAL_VALUES.mesReajuste)
-    mesReferenciaRef.current = new Date().getMonth() + 1
-    setKcKwhMes(INITIAL_VALUES.kcKwhMes)
-    setPotenciaFonteManual(false)
-    setTarifaCheia(INITIAL_VALUES.tarifaCheia)
-    setDesconto(INITIAL_VALUES.desconto)
-    setTaxaMinima(INITIAL_VALUES.taxaMinima)
-    setTaxaMinimaInputEmpty(INITIAL_VALUES.taxaMinima === 0)
-    setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
-    setTusdPercent(INITIAL_VALUES.tusdPercent)
-    setTusdTipoCliente(normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente))
-    setTusdSubtipo(INITIAL_VALUES.tusdSubtipo)
-    setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
-    setTusdSimultaneidadeManualOverride(false)
-    setTusdTarifaRkwh(INITIAL_VALUES.tusdTarifaRkwh)
-    setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
-    setTusdOpcoesExpandidas(false)
-    setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
-    setUsarEnderecoCliente(false)
-    setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
-    setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
-    setTipoRedeControle('auto')
-    setPotenciaModuloDirty(false)
-    setTipoInstalacao(normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao))
-    setTipoInstalacaoOutro(INITIAL_VALUES.tipoInstalacaoOutro)
-    setTipoInstalacaoDirty(false)
-    setTipoSistema(INITIAL_VALUES.tipoSistema)
-    setSegmentoCliente(normalizeTipoBasico(INITIAL_VALUES.segmentoCliente))
-    setTipoEdificacaoOutro(INITIAL_VALUES.tipoEdificacaoOutro)
-    setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
-    setConfiguracaoUsinaObservacoes(INITIAL_VALUES.configuracaoUsinaObservacoes)
-    setConfiguracaoUsinaObservacoesExpanded(false)
-    setComposicaoTelhado(createInitialComposicaoTelhado())
-    setComposicaoSolo(createInitialComposicaoSolo())
-    setCapexManualOverride(INITIAL_VALUES.capexManualOverride)
-    setParsedVendaPdf(null)
-    setEstruturaTipoWarning(null)
+      setUfTarifa(INITIAL_VALUES.ufTarifa)
+      setDistribuidoraTarifa(INITIAL_VALUES.distribuidoraTarifa)
+      setMesReajuste(INITIAL_VALUES.mesReajuste)
+      mesReferenciaRef.current = new Date().getMonth() + 1
+      setKcKwhMes(INITIAL_VALUES.kcKwhMes)
+      setPotenciaFonteManual(false)
+      setTarifaCheia(INITIAL_VALUES.tarifaCheia)
+      setDesconto(INITIAL_VALUES.desconto)
+      setTaxaMinima(INITIAL_VALUES.taxaMinima)
+      setTaxaMinimaInputEmpty(INITIAL_VALUES.taxaMinima === 0)
+      setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
+      setTusdPercent(INITIAL_VALUES.tusdPercent)
+      setTusdTipoCliente(normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente))
+      setTusdSubtipo(INITIAL_VALUES.tusdSubtipo)
+      setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
+      setTusdSimultaneidadeManualOverride(false)
+      setTusdTarifaRkwh(INITIAL_VALUES.tusdTarifaRkwh)
+      setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
+      setTusdOpcoesExpandidas(false)
+      setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
+      setUsarEnderecoCliente(false)
+      leasingActions.updateContrato({ localEntrega: '' })
+      setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
+      setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
+      setTipoRedeControle('auto')
+      setPotenciaModuloDirty(false)
+      setTipoInstalacao(normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao))
+      setTipoInstalacaoOutro(INITIAL_VALUES.tipoInstalacaoOutro)
+      setTipoInstalacaoDirty(false)
+      setTipoSistema(INITIAL_VALUES.tipoSistema)
+      setSegmentoCliente(normalizeTipoBasico(INITIAL_VALUES.segmentoCliente))
+      setTipoEdificacaoOutro(INITIAL_VALUES.tipoEdificacaoOutro)
+      setNumeroModulosManual(INITIAL_VALUES.numeroModulosManual)
+      setConfiguracaoUsinaObservacoes(INITIAL_VALUES.configuracaoUsinaObservacoes)
+      setConfiguracaoUsinaObservacoesExpanded(false)
+      setComposicaoTelhado(createInitialComposicaoTelhado())
+      setComposicaoSolo(createInitialComposicaoSolo())
+      setCapexManualOverride(INITIAL_VALUES.capexManualOverride)
+      setParsedVendaPdf(null)
+      setEstruturaTipoWarning(null)
 
-    setPrecoPorKwp(INITIAL_VALUES.precoPorKwp)
-    setIrradiacao(IRRADIACAO_FALLBACK)
-    setEficiencia(INITIAL_VALUES.eficiencia)
-    setDiasMes(INITIAL_VALUES.diasMes)
-    setInflacaoAa(INITIAL_VALUES.inflacaoAa)
+      setPrecoPorKwp(INITIAL_VALUES.precoPorKwp)
+      setIrradiacao(IRRADIACAO_FALLBACK)
+      setEficiencia(INITIAL_VALUES.eficiencia)
+      setDiasMes(INITIAL_VALUES.diasMes)
+      setInflacaoAa(INITIAL_VALUES.inflacaoAa)
 
-    setMultiUcAtivo(INITIAL_VALUES.multiUcAtivo)
-    setMultiUcRateioModo(INITIAL_VALUES.multiUcRateioModo)
-    setMultiUcEnergiaGeradaKWhState(INITIAL_VALUES.multiUcEnergiaGeradaKWh)
-    setMultiUcEnergiaGeradaTouched(false)
-    setMultiUcAnoVigencia(INITIAL_VALUES.multiUcAnoVigencia)
-    setMultiUcOverrideEscalonamento(INITIAL_VALUES.multiUcOverrideEscalonamento)
-    setMultiUcEscalonamentoCustomPercent(INITIAL_VALUES.multiUcEscalonamentoCustomPercent)
-    multiUcConsumoAnteriorRef.current = null
-    const multiUcInicialQuantidade = Math.max(1, INITIAL_VALUES.multiUcUcs.length)
-    multiUcIdCounterRef.current = multiUcInicialQuantidade + 1
-    setMultiUcRows(() =>
-      Array.from({ length: multiUcInicialQuantidade }, (_, index) =>
-        applyTarifasAutomaticas(createDefaultMultiUcRow(index + 1), undefined, true),
-      ),
-    )
+      setMultiUcAtivo(INITIAL_VALUES.multiUcAtivo)
+      setMultiUcRateioModo(INITIAL_VALUES.multiUcRateioModo)
+      setMultiUcEnergiaGeradaKWhState(INITIAL_VALUES.multiUcEnergiaGeradaKWh)
+      setMultiUcEnergiaGeradaTouched(false)
+      setMultiUcAnoVigencia(INITIAL_VALUES.multiUcAnoVigencia)
+      setMultiUcOverrideEscalonamento(INITIAL_VALUES.multiUcOverrideEscalonamento)
+      setMultiUcEscalonamentoCustomPercent(INITIAL_VALUES.multiUcEscalonamentoCustomPercent)
+      multiUcConsumoAnteriorRef.current = null
+      const multiUcInicialQuantidade = Math.max(1, INITIAL_VALUES.multiUcUcs.length)
+      multiUcIdCounterRef.current = multiUcInicialQuantidade + 1
+      setMultiUcRows(() =>
+        Array.from({ length: multiUcInicialQuantidade }, (_, index) =>
+          applyTarifasAutomaticas(createDefaultMultiUcRow(index + 1), undefined, true),
+        ),
+      )
 
-    setVendaForm(createInitialVendaForm())
-    setVendaFormErrors({})
-    resetRetorno()
+      setVendaForm(createInitialVendaForm())
+      setVendaFormErrors({})
+      resetRetorno()
 
-    setJurosFinAa(INITIAL_VALUES.jurosFinanciamentoAa)
-    setPrazoFinMeses(INITIAL_VALUES.prazoFinanciamentoMeses)
-    setEntradaFinPct(INITIAL_VALUES.entradaFinanciamentoPct)
-    setMostrarFinanciamento(INITIAL_VALUES.mostrarFinanciamento)
-    setMostrarGrafico(INITIAL_VALUES.mostrarGrafico)
+      setJurosFinAa(INITIAL_VALUES.jurosFinanciamentoAa)
+      setPrazoFinMeses(INITIAL_VALUES.prazoFinanciamentoMeses)
+      setEntradaFinPct(INITIAL_VALUES.entradaFinanciamentoPct)
+      setMostrarFinanciamento(INITIAL_VALUES.mostrarFinanciamento)
+      setMostrarGrafico(INITIAL_VALUES.mostrarGrafico)
 
-    setPrazoMeses(INITIAL_VALUES.prazoMeses)
-    setBandeiraEncargo(INITIAL_VALUES.bandeiraEncargo)
-    setCipEncargo(INITIAL_VALUES.cipEncargo)
-    setEntradaRs(INITIAL_VALUES.entradaRs)
-    setEntradaModo(INITIAL_VALUES.entradaModo)
-    setMostrarValorMercadoLeasing(INITIAL_VALUES.mostrarValorMercadoLeasing)
-    setMostrarTabelaParcelas(INITIAL_VALUES.tabelaVisivel)
-    setMostrarTabelaBuyout(INITIAL_VALUES.tabelaVisivel)
-    setMostrarTabelaParcelasConfig(INITIAL_VALUES.tabelaVisivel)
-    setMostrarTabelaBuyoutConfig(INITIAL_VALUES.tabelaVisivel)
-    setSalvandoPropostaLeasing(false)
-    setSalvandoPropostaPdf(false)
+      setPrazoMeses(INITIAL_VALUES.prazoMeses)
+      setBandeiraEncargo(INITIAL_VALUES.bandeiraEncargo)
+      setCipEncargo(INITIAL_VALUES.cipEncargo)
+      setEntradaRs(INITIAL_VALUES.entradaRs)
+      setEntradaModo(INITIAL_VALUES.entradaModo)
+      setMostrarValorMercadoLeasing(INITIAL_VALUES.mostrarValorMercadoLeasing)
+      setMostrarTabelaParcelas(INITIAL_VALUES.tabelaVisivel)
+      setMostrarTabelaBuyout(INITIAL_VALUES.tabelaVisivel)
+      setMostrarTabelaParcelasConfig(INITIAL_VALUES.tabelaVisivel)
+      setMostrarTabelaBuyoutConfig(INITIAL_VALUES.tabelaVisivel)
+      setSalvandoPropostaLeasing(false)
+      setSalvandoPropostaPdf(false)
 
-    setOemBase(INITIAL_VALUES.oemBase)
-    setOemInflacao(INITIAL_VALUES.oemInflacao)
-    setSeguroModo(INITIAL_VALUES.seguroModo)
-    setSeguroReajuste(INITIAL_VALUES.seguroReajuste)
-    setSeguroValorA(INITIAL_VALUES.seguroValorA)
-    setSeguroPercentualB(INITIAL_VALUES.seguroPercentualB)
-    setExibirLeasingLinha(INITIAL_VALUES.exibirLeasingLinha)
-    setExibirFinLinha(INITIAL_VALUES.exibirFinanciamentoLinha)
+      setOemBase(INITIAL_VALUES.oemBase)
+      setOemInflacao(INITIAL_VALUES.oemInflacao)
+      setSeguroModo(INITIAL_VALUES.seguroModo)
+      setSeguroReajuste(INITIAL_VALUES.seguroReajuste)
+      setSeguroValorA(INITIAL_VALUES.seguroValorA)
+      setSeguroPercentualB(INITIAL_VALUES.seguroPercentualB)
+      setExibirLeasingLinha(INITIAL_VALUES.exibirLeasingLinha)
+      setExibirFinLinha(INITIAL_VALUES.exibirFinanciamentoLinha)
 
-    setCashbackPct(INITIAL_VALUES.cashbackPct)
-    setDepreciacaoAa(INITIAL_VALUES.depreciacaoAa)
-    setInadimplenciaAa(INITIAL_VALUES.inadimplenciaAa)
-    setTributosAa(INITIAL_VALUES.tributosAa)
-    setIpcaAa(INITIAL_VALUES.ipcaAa)
-    setCustosFixosM(INITIAL_VALUES.custosFixosM)
-    setOpexM(INITIAL_VALUES.opexM)
-    setSeguroM(INITIAL_VALUES.seguroM)
-    setDuracaoMeses(INITIAL_VALUES.duracaoMeses)
-    setPagosAcumAteM(INITIAL_VALUES.pagosAcumManual)
+      setCashbackPct(INITIAL_VALUES.cashbackPct)
+      setDepreciacaoAa(INITIAL_VALUES.depreciacaoAa)
+      setInadimplenciaAa(INITIAL_VALUES.inadimplenciaAa)
+      setTributosAa(INITIAL_VALUES.tributosAa)
+      setIpcaAa(INITIAL_VALUES.ipcaAa)
+      setCustosFixosM(INITIAL_VALUES.custosFixosM)
+      setOpexM(INITIAL_VALUES.opexM)
+      setSeguroM(INITIAL_VALUES.seguroM)
+      setDuracaoMeses(INITIAL_VALUES.duracaoMeses)
+      setPagosAcumAteM(INITIAL_VALUES.pagosAcumManual)
 
-    setClienteSync(cloneClienteDados(CLIENTE_INICIAL))
-    setClienteMensagens({})
-    clienteEmEdicaoIdRef.current = null
-    lastSavedClienteRef.current = null
-    setClienteEmEdicaoId(null)
-    setActivePage('app')
-    setNotificacoes([])
-    scheduleMarkStateAsSaved()
-    
-    // Wait for React to process state updates
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    console.log('[Nova Proposta] Reset complete, re-enabling auto-save')
+      setClienteSync(cloneClienteDados(CLIENTE_INICIAL))
+      setClienteMensagens({})
+      clienteEmEdicaoIdRef.current = null
+      lastSavedClienteRef.current = null
+      setClienteEmEdicaoId(null)
+      setActivePage('app')
+      setNotificacoes([])
+      scheduleMarkStateAsSaved()
+      
+      console.log('[Nova Proposta] Reset complete, re-enabling auto-save')
     } finally {
       isHydratingRef.current = false
     }
@@ -14862,6 +14865,7 @@ export default function App() {
     scheduleMarkStateAsSaved,
     setDistribuidoraTarifa,
     setKcKwhMes,
+    leasingActions,
     setNumeroModulosManual,
     setPageSharedState,
     setPotenciaModulo,
