@@ -3382,6 +3382,7 @@ export default function App() {
     const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
+  const activeTabRef = useRef(activeTab)
   const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>('nova')
   const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
   const [aprovacaoChecklist, setAprovacaoChecklist] = useState<
@@ -3565,6 +3566,7 @@ export default function App() {
     setProposalPdfIntegrationAvailable(isProposalPdfIntegrationAvailable())
   }, [])
   const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
+  const currentBudgetIdRef = useRef<string>(currentBudgetId)
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetTableContentId = useId()
@@ -4497,6 +4499,10 @@ export default function App() {
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
   }, [clienteEmEdicaoId])
+
+  useEffect(() => {
+    activeTabRef.current = activeTab
+  }, [activeTab])
   
   // Sync refs to prevent stale closures in getCurrentSnapshot
   useEffect(() => {
@@ -4510,6 +4516,10 @@ export default function App() {
   useEffect(() => {
     pageSharedStateRef.current = pageSharedState
   }, [pageSharedState])
+
+  useEffect(() => {
+    currentBudgetIdRef.current = currentBudgetId
+  }, [currentBudgetId])
   
   // Update prazoContratualMeses in leasing store when leasingPrazo (in years) changes
   useEffect(() => {
@@ -11466,11 +11476,13 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
-  const getCurrentSnapshot = (): OrcamentoSnapshotData => {
+  const getCurrentSnapshot = (): OrcamentoSnapshotData | null => {
     const vendasConfigState = useVendasConfigStore.getState()
     const vendasSimState = useVendasSimulacoesStore.getState()
     const vendaSnapshotAtual = getVendaSnapshot()
     const leasingSnapshotAtual = getLeasingSnapshot()
+    const tab = activeTabRef.current
+    const budgetId = currentBudgetIdRef.current
     const clienteFonte = clienteRef.current ?? cliente
     const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
     const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
@@ -11486,7 +11498,10 @@ export default function App() {
 
     // Log sources before building snapshot (using refs for accuracy)
     console.log('[getCurrentSnapshot] sources', {
-      activeTab,
+      activeTab: tab,
+      activeTabState: activeTab,
+      budgetIdRef: budgetId,
+      budgetIdState: currentBudgetId,
       clienteState: { 
         nome: clienteFonte.nome, 
         endereco: clienteFonte.endereco, 
@@ -11503,15 +11518,22 @@ export default function App() {
     const kcFallback = Number(pageSharedStateRef.current?.kcKwhMes ?? 0)
     const kcKwhMesFinal = kcAtual || kcFallback
 
+    if (isHydratingRef.current) {
+      console.warn('[getCurrentSnapshot] skipped during hydration', {
+        budgetId,
+      })
+      return null
+    }
+
     const snapshotData = {
-      activeTab,
+      activeTab: tab,
       settingsTab,
       cliente: cloneClienteDados(clienteFonte), // Use ref instead of closure
       clienteEmEdicaoId,
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
       pageShared: { ...pageSharedStateRef.current }, // Use ref instead of closure
-      currentBudgetId,
+      currentBudgetId: budgetId,
       budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
       kitBudget: cloneKitBudgetState(kitBudget),
       budgetProcessing: {
@@ -11701,6 +11723,10 @@ export default function App() {
     console.log('[ClienteSave] DadosClonados endereco AFTER clone:', dadosClonados.endereco)
     
     const snapshotAtual = getCurrentSnapshot()
+    if (!snapshotAtual || isHydratingRef.current) {
+      console.warn('[ClienteSave] Snapshot indisponível durante hidratação.')
+      return false
+    }
     const snapshotClonado = cloneSnapshotData(snapshotAtual)
     console.log(
       '[ClienteSave] Capturing FULL proposal snapshot with',
@@ -11985,7 +12011,11 @@ export default function App() {
     if (!clienteRegistroEmEdicao) {
       return false
     }
-    const snapshotAtual = cloneSnapshotData(getCurrentSnapshot())
+    const snapshotAtualRaw = getCurrentSnapshot()
+    if (!snapshotAtualRaw) {
+      return false
+    }
+    const snapshotAtual = cloneSnapshotData(snapshotAtualRaw)
     const snapshotSalvo = clienteRegistroEmEdicao.propostaSnapshot
       ? cloneSnapshotData(clienteRegistroEmEdicao.propostaSnapshot)
       : null
@@ -12435,6 +12465,10 @@ export default function App() {
         
         try {
           const snapshot = getCurrentSnapshot()
+          if (!snapshot || isHydratingRef.current) {
+            console.warn('[AutoSave] Snapshot indisponível durante hidratação.')
+            return
+          }
           
           // Guard: Don't save empty snapshots that would corrupt the draft
           const snapshotNome = (snapshot?.cliente?.nome ?? '').trim()
@@ -12764,6 +12798,10 @@ export default function App() {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
         const snapshotAtual = getCurrentSnapshot()
+        if (!snapshotAtual || isHydratingRef.current) {
+          console.warn('[salvarOrcamentoLocalmente] Snapshot indisponível durante hidratação.')
+          return null
+        }
         const snapshotClonado = cloneSnapshotData(snapshotAtual)
         
         // Log snapshot quality before saving
@@ -12927,6 +12965,10 @@ export default function App() {
   useEffect(() => {
     computeSignatureRef.current = () => {
       const snapshot = getCurrentSnapshot()
+      if (!snapshot) {
+        const dadosAtuais = clonePrintableData(printableData)
+        return stableStringify({ snapshot: null, dados: dadosAtuais })
+      }
       const dadosAtuais = clonePrintableData(printableData)
       return stableStringify({ snapshot, dados: dadosAtuais })
     }
@@ -14663,7 +14705,9 @@ export default function App() {
       setActivePage('app')
       setOrcamentoSearchTerm('')
       limparOrcamentoAtivo()
-      setCurrentBudgetId(createDraftBudgetId())
+      const novoBudgetId = createDraftBudgetId()
+      setCurrentBudgetId(novoBudgetId)
+      currentBudgetIdRef.current = novoBudgetId
       console.log('[Nova Proposta] New budget ID created')
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
