@@ -4440,6 +4440,12 @@ export default function App() {
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isHydratingRef = useRef(false)
+  
+  // Refs to prevent stale closures in getCurrentSnapshot
+  const clienteRef = useRef(cliente)
+  const kcKwhMesRef = useRef(kcKwhMes)
+  const pageSharedStateRef = useRef(pageSharedState)
+  
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
@@ -4470,6 +4476,19 @@ export default function App() {
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
   }, [clienteEmEdicaoId])
+  
+  // Sync refs to prevent stale closures in getCurrentSnapshot
+  useEffect(() => {
+    clienteRef.current = cliente
+  }, [cliente])
+  
+  useEffect(() => {
+    kcKwhMesRef.current = kcKwhMes
+  }, [kcKwhMes])
+  
+  useEffect(() => {
+    pageSharedStateRef.current = pageSharedState
+  }, [pageSharedState])
   
   // Update prazoContratualMeses in leasing store when leasingPrazo (in years) changes
   useEffect(() => {
@@ -11446,28 +11465,33 @@ export default function App() {
         : undefined,
     }
 
-    // Log sources before building snapshot
+    // Log sources before building snapshot (using refs for accuracy)
     console.log('[getCurrentSnapshot] sources', {
       activeTab,
       clienteState: { 
-        nome: cliente.nome, 
-        endereco: cliente.endereco, 
-        documento: cliente.documento 
+        nome: clienteRef.current.nome, 
+        endereco: clienteRef.current.endereco, 
+        documento: clienteRef.current.documento 
       },
       vendaStoreCliente: vendaSnapshotAtual?.cliente?.endereco ?? 'n/a',
       leasingStoreCliente: leasingSnapshotAtual?.cliente?.endereco ?? 'n/a',
-      kcKwhMesState: kcKwhMes,
-      pageSharedStateKc: pageSharedState?.kcKwhMes,
+      kcKwhMesState: kcKwhMesRef.current,
+      pageSharedStateKc: pageSharedStateRef.current?.kcKwhMes,
     })
+
+    // 🔒 CRITICAL: Use refs to get current state, not closure variables
+    const kcAtual = Number(kcKwhMesRef.current ?? 0)
+    const kcFallback = Number(pageSharedStateRef.current?.kcKwhMes ?? 0)
+    const kcKwhMesFinal = kcAtual || kcFallback
 
     const snapshotData = {
       activeTab,
       settingsTab,
-      cliente: cloneClienteDados(cliente),
+      cliente: cloneClienteDados(clienteRef.current), // Use ref instead of closure
       clienteEmEdicaoId,
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
-      pageShared: { ...pageSharedState },
+      pageShared: { ...pageSharedStateRef.current }, // Use ref instead of closure
       currentBudgetId,
       budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
       kitBudget: cloneKitBudgetState(kitBudget),
@@ -11484,7 +11508,7 @@ export default function App() {
       ufsDisponiveis: [...ufsDisponiveis],
       distribuidorasPorUf: cloneDistribuidorasMapa(distribuidorasPorUf),
       mesReajuste,
-      kcKwhMes,
+      kcKwhMes: kcKwhMesFinal, // Use computed value from refs
       consumoManual,
       tarifaCheia,
       desconto,
@@ -11588,6 +11612,15 @@ export default function App() {
     const snapshotNome = (snapshotData.cliente?.nome ?? '').trim()
     const snapshotEndereco = (snapshotData.cliente?.endereco ?? '').trim()
     const snapshotKwh = Number(snapshotData.kcKwhMes ?? 0)
+    
+    // Final log showing what we're returning
+    console.log('[getCurrentSnapshot] FINAL snapshot', {
+      clienteNome: snapshotNome,
+      clienteEndereco: snapshotEndereco,
+      clienteDocumento: snapshotData.cliente?.documento ?? '',
+      kcKwhMes: snapshotKwh,
+      totalFields: Object.keys(snapshotData).length,
+    })
     
     if (!snapshotNome && !snapshotEndereco && snapshotKwh === 0) {
       console.warn('[getCurrentSnapshot] returning EMPTY snapshot', {
