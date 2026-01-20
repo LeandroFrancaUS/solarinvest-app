@@ -3714,13 +3714,21 @@ export default function App() {
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
   const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
 
-  const getActiveBudgetId = useCallback(() => {
-    return budgetIdRef.current || currentBudgetId
+  const getEffectiveBudgetId = useCallback(() => {
+    const refId = budgetIdRef.current
+    const stateId = currentBudgetId
+    return refId || stateId
+  }, [currentBudgetId])
+
+  const isBudgetIdSynced = useCallback(() => {
+    const refId = budgetIdRef.current
+    const stateId = currentBudgetId
+    return Boolean(refId && stateId && refId === stateId)
   }, [currentBudgetId])
 
   const switchBudgetId = useCallback(
     (nextId: string) => {
-      const prevId = getActiveBudgetId()
+      const prevId = getEffectiveBudgetId()
       if (!nextId || nextId === prevId) {
         return
       }
@@ -3733,7 +3741,7 @@ export default function App() {
       }
       setCurrentBudgetId(nextId)
     },
-    [getActiveBudgetId, renameVendasSimulacao],
+    [getEffectiveBudgetId, renameVendasSimulacao],
   )
 
   const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
@@ -11507,6 +11515,127 @@ export default function App() {
     !snapshot?.cliente?.documento &&
     Number(snapshot?.kcKwhMes ?? 0) === 0
 
+  const createEmptySnapshot = (budgetId: string, activeTab: TabKey): OrcamentoSnapshotData => ({
+    activeTab,
+    settingsTab: INITIAL_VALUES.settingsTab,
+    cliente: cloneClienteDados(CLIENTE_INICIAL),
+    clienteEmEdicaoId: null,
+    ucBeneficiarias: [],
+    pageShared: createPageSharedSettings(),
+    currentBudgetId: budgetId,
+    budgetStructuredItems: [],
+    kitBudget: createEmptyKitBudget(),
+    budgetProcessing: {
+      isProcessing: false,
+      error: null,
+      progress: null,
+      isTableCollapsed: false,
+      ocrDpi: DEFAULT_OCR_DPI,
+    },
+    propostaImagens: [],
+    ufTarifa: INITIAL_VALUES.ufTarifa,
+    distribuidoraTarifa: INITIAL_VALUES.distribuidoraTarifa,
+    ufsDisponiveis: [...distribuidorasFallback.ufs],
+    distribuidorasPorUf: cloneDistribuidorasMapa(distribuidorasFallback.distribuidorasPorUf),
+    mesReajuste: INITIAL_VALUES.mesReajuste,
+    kcKwhMes: INITIAL_VALUES.kcKwhMes,
+    consumoManual: false,
+    tarifaCheia: INITIAL_VALUES.tarifaCheia,
+    desconto: INITIAL_VALUES.desconto,
+    taxaMinima: INITIAL_VALUES.taxaMinima,
+    taxaMinimaInputEmpty: INITIAL_VALUES.taxaMinima === 0,
+    encargosFixosExtras: INITIAL_VALUES.encargosFixosExtras,
+    tusdPercent: INITIAL_VALUES.tusdPercent,
+    tusdTipoCliente: INITIAL_VALUES.tusdTipoCliente,
+    tusdSubtipo: INITIAL_VALUES.tusdSubtipo,
+    tusdSimultaneidade: INITIAL_VALUES.tusdSimultaneidade,
+    tusdTarifaRkwh: INITIAL_VALUES.tusdTarifaRkwh,
+    tusdAnoReferencia: INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
+    tusdOpcoesExpandidas: false,
+    leasingPrazo: INITIAL_VALUES.leasingPrazo,
+    usarEnderecoCliente: false,
+    potenciaModulo: INITIAL_VALUES.potenciaModulo,
+    potenciaModuloDirty: false,
+    tipoInstalacao: normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao),
+    tipoInstalacaoOutro: INITIAL_VALUES.tipoInstalacaoOutro,
+    tipoInstalacaoDirty: false,
+    tipoSistema: INITIAL_VALUES.tipoSistema,
+    segmentoCliente: normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
+    tipoEdificacaoOutro: INITIAL_VALUES.tipoEdificacaoOutro,
+    numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
+    configuracaoUsinaObservacoes: INITIAL_VALUES.configuracaoUsinaObservacoes,
+    composicaoTelhado: createInitialComposicaoTelhado(),
+    composicaoSolo: createInitialComposicaoSolo(),
+    aprovadoresText: '',
+    impostosOverridesDraft: {},
+    vendasConfig: JSON.parse(JSON.stringify(useVendasConfigStore.getState().config)) as VendasConfig,
+    vendasSimulacoes: {},
+    multiUc: {
+      ativo: INITIAL_VALUES.multiUcAtivo,
+      rows: [],
+      rateioModo: INITIAL_VALUES.multiUcRateioModo,
+      energiaGeradaKWh: INITIAL_VALUES.multiUcEnergiaGeradaKWh,
+      energiaGeradaTouched: false,
+      anoVigencia: INITIAL_VALUES.multiUcAnoVigencia,
+      overrideEscalonamento: INITIAL_VALUES.multiUcOverrideEscalonamento,
+      escalonamentoCustomPercent: INITIAL_VALUES.multiUcEscalonamentoCustomPercent,
+    },
+    precoPorKwp: INITIAL_VALUES.precoPorKwp,
+    irradiacao: IRRADIACAO_FALLBACK,
+    eficiencia: INITIAL_VALUES.eficiencia,
+    diasMes: INITIAL_VALUES.diasMes,
+    inflacaoAa: INITIAL_VALUES.inflacaoAa,
+    vendaForm: createInitialVendaForm(),
+    capexManualOverride: INITIAL_VALUES.capexManualOverride,
+    parsedVendaPdf: null,
+    estruturaTipoWarning: null,
+    jurosFinAa: INITIAL_VALUES.jurosFinanciamentoAa,
+    prazoFinMeses: INITIAL_VALUES.prazoFinanciamentoMeses,
+    entradaFinPct: INITIAL_VALUES.entradaFinanciamentoPct,
+    mostrarFinanciamento: INITIAL_VALUES.mostrarFinanciamento,
+    mostrarGrafico: INITIAL_VALUES.mostrarGrafico,
+    prazoMeses: INITIAL_VALUES.prazoMeses,
+    bandeiraEncargo: INITIAL_VALUES.bandeiraEncargo,
+    cipEncargo: INITIAL_VALUES.cipEncargo,
+    entradaRs: INITIAL_VALUES.entradaRs,
+    entradaModo: INITIAL_VALUES.entradaModo,
+    mostrarValorMercadoLeasing: INITIAL_VALUES.mostrarValorMercadoLeasing,
+    mostrarTabelaParcelas: INITIAL_VALUES.tabelaVisivel,
+    mostrarTabelaBuyout: INITIAL_VALUES.tabelaVisivel,
+    mostrarTabelaParcelasConfig: INITIAL_VALUES.tabelaVisivel,
+    mostrarTabelaBuyoutConfig: INITIAL_VALUES.tabelaVisivel,
+    oemBase: INITIAL_VALUES.oemBase,
+    oemInflacao: INITIAL_VALUES.oemInflacao,
+    seguroModo: INITIAL_VALUES.seguroModo,
+    seguroReajuste: INITIAL_VALUES.seguroReajuste,
+    seguroValorA: INITIAL_VALUES.seguroValorA,
+    seguroPercentualB: INITIAL_VALUES.seguroPercentualB,
+    exibirLeasingLinha: INITIAL_VALUES.exibirLeasingLinha,
+    exibirFinLinha: INITIAL_VALUES.exibirFinanciamentoLinha,
+    cashbackPct: INITIAL_VALUES.cashbackPct,
+    depreciacaoAa: INITIAL_VALUES.depreciacaoAa,
+    inadimplenciaAa: INITIAL_VALUES.inadimplenciaAa,
+    tributosAa: INITIAL_VALUES.tributosAa,
+    ipcaAa: INITIAL_VALUES.ipcaAa,
+    custosFixosM: INITIAL_VALUES.custosFixosM,
+    opexM: INITIAL_VALUES.opexM,
+    seguroM: INITIAL_VALUES.seguroM,
+    duracaoMeses: INITIAL_VALUES.duracaoMeses,
+    pagosAcumAteM: INITIAL_VALUES.pagosAcumManual,
+    modoOrcamento: 'auto',
+    autoKitValor: null,
+    autoCustoFinal: null,
+    autoPricingRede: null,
+    autoPricingVersion: null,
+    autoBudgetReason: null,
+    autoBudgetReasonCode: null,
+    tipoRede: INITIAL_VALUES.tipoRede ?? 'monofasico',
+    tipoRedeControle: 'auto',
+    leasingAnexosSelecionados: [],
+    vendaSnapshot: getVendaSnapshot(),
+    leasingSnapshot: getLeasingSnapshot(),
+  })
+
   const getCurrentSnapshot = (
     options?: { budgetIdOverride?: string },
   ): OrcamentoSnapshotData | null => {
@@ -11515,7 +11644,7 @@ export default function App() {
     const vendaSnapshotAtual = getVendaSnapshot()
     const leasingSnapshotAtual = getLeasingSnapshot()
     const tab = activeTabRef.current
-    const budgetId = options?.budgetIdOverride ?? getActiveBudgetId()
+    const budgetId = options?.budgetIdOverride ?? getEffectiveBudgetId()
     const clienteFonte = clienteRef.current ?? cliente
     const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
     const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
@@ -11568,7 +11697,15 @@ export default function App() {
       console.warn('[getCurrentSnapshot] skipped during hydration', {
         budgetId,
       })
-      return null
+      return createEmptySnapshot(budgetId, tab)
+    }
+
+    if (!isBudgetIdSynced()) {
+      console.warn('[getCurrentSnapshot] blocked: budgetIdRef != budgetIdState', {
+        budgetIdRef: budgetIdRef.current,
+        budgetIdState: currentBudgetId,
+      })
+      return createEmptySnapshot(budgetId, tab)
     }
 
     const snapshotData = {
@@ -12489,14 +12626,18 @@ export default function App() {
       
       autoSaveTimeoutRef.current = setTimeout(async () => {
         // Double-check hydration status before saving
-        if (isHydratingRef.current) {
-          console.log('[App] Auto-save cancelled: hydrating')
+        if (isHydratingRef.current || !isBudgetIdSynced()) {
+          console.log('[App] Auto-save skipped: hydrating or budget mismatch', {
+            hydrating: isHydratingRef.current,
+            budgetIdRef: budgetIdRef.current,
+            budgetIdState: currentBudgetId,
+          })
           return
         }
         
         try {
           const snapshot = getCurrentSnapshot()
-          if (!snapshot || isHydratingRef.current) {
+          if (!snapshot || isHydratingRef.current || !isBudgetIdSynced()) {
             console.warn('[AutoSave] Snapshot indisponível durante hidratação.')
             return
           }
@@ -12819,8 +12960,12 @@ export default function App() {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
         const snapshotAtual = getCurrentSnapshot()
-        if (!snapshotAtual || isHydratingRef.current) {
-          console.warn('[salvarOrcamentoLocalmente] Snapshot indisponível durante hidratação.')
+        if (!snapshotAtual || isHydratingRef.current || !isBudgetIdSynced()) {
+          console.warn('[salvarOrcamentoLocalmente] blocked: budget mismatch', {
+            hydrating: isHydratingRef.current,
+            budgetIdRef: budgetIdRef.current,
+            budgetIdState: currentBudgetId,
+          })
           return null
         }
         const snapshotClonado = cloneSnapshotData(snapshotAtual)
@@ -12873,10 +13018,12 @@ export default function App() {
             }
           }
           const clienteIdAtual = clienteEmEdicaoIdRef.current
-          const registroAtualizado: OrcamentoSalvo = {
-            ...existente,
-            clienteId: clienteIdAtual ?? existente.clienteId,
-            clienteNome: dados.cliente.nome,
+        const effectiveBudgetId = getEffectiveBudgetId()
+        snapshotAtualizado.currentBudgetId = effectiveBudgetId
+        const registroAtualizado: OrcamentoSalvo = {
+          ...existente,
+          clienteId: clienteIdAtual ?? existente.clienteId,
+          clienteNome: dados.cliente.nome,
             clienteCidade: dados.cliente.cidade,
             clienteUf: dados.cliente.uf,
             clienteDocumento: dados.cliente.documento,
@@ -12901,7 +13048,7 @@ export default function App() {
           })
           
           // Save complete snapshot to proposalStore for full restoration
-          const budgetIdKey = normalizeProposalId(registroAtualizado.id) || registroAtualizado.id
+          const budgetIdKey = normalizeProposalId(effectiveBudgetId) || effectiveBudgetId
           console.log('[salvarOrcamentoLocalmente] Saving to proposalStore (update):', {
             budgetId: budgetIdKey,
             clienteNome: snapshotAtualizado.cliente?.nome ?? '',
@@ -14724,8 +14871,25 @@ export default function App() {
       setCurrentBudgetId(novoBudgetId)
       console.log('[Nova Proposta] New budget ID created', novoBudgetId)
 
-      // Wait for React to apply the budgetId change
+      const waitBudgetSync = async (expectedId: string) => {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          if (currentBudgetId === expectedId) {
+            return true
+          }
+          await tick()
+        }
+        return false
+      }
+
       await tick()
+      const synced = await waitBudgetSync(novoBudgetId)
+      if (!synced) {
+        console.error('[Nova Proposta] BudgetId sync failed, keeping hydration on', {
+          budgetIdRef: budgetIdRef.current,
+          budgetIdState: currentBudgetId,
+        })
+        return
+      }
 
       fieldSyncActions.reset()
       setSettingsTab(INITIAL_VALUES.settingsTab)
@@ -14865,8 +15029,10 @@ export default function App() {
       await tick()
       console.log('[Nova Proposta] Reset complete, re-enabling auto-save')
     } finally {
-      isHydratingRef.current = false
-      setIsHydrating(false)
+      if (budgetIdRef.current === currentBudgetId) {
+        isHydratingRef.current = false
+        setIsHydrating(false)
+      }
     }
   }, [
     createPageSharedSettings,
