@@ -4426,6 +4426,8 @@ export default function App() {
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
+  const editingEnderecoContratanteRef = useRef(false)
+  const lastCepFetchedRef = useRef<string>('')
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
@@ -14486,6 +14488,16 @@ export default function App() {
   }
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
+    // Reset editing flag when CEP changes to allow auto-fill again
+    if (key === 'cep') {
+      editingEnderecoContratanteRef.current = false
+    }
+
+    // Mark manual editing when user types in address field
+    if (key === 'endereco') {
+      editingEnderecoContratanteRef.current = true
+    }
+
     if (key === 'temIndicacao') {
       const checked = Boolean(rawValue)
       setCliente((prev) => {
@@ -14684,16 +14696,19 @@ export default function App() {
     }
 
     const cepNumeros = normalizeNumbers(cliente.cep)
-    if (cepNumeros.length < 8) {
+    if (cepNumeros.length !== 8) {
       setBuscandoCep(false)
       setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
       return
     }
 
-    let ativo = true
-    const controller = new AbortController()
+    // Evita refazer fetch pro mesmo CEP
+    if (lastCepFetchedRef.current === cepNumeros) {
+      return
+    }
 
-    const consultarCep = async () => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(async () => {
       setBuscandoCep(true)
       setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
 
@@ -14707,26 +14722,35 @@ export default function App() {
         }
 
         const data: ViaCepResponse = await response.json()
-        if (!ativo) {
-          return
-        }
 
         if (data?.erro) {
           setClienteMensagens((prev) => ({ ...prev, cep: 'CEP não encontrado.' }))
+          setBuscandoCep(false)
           return
         }
 
+        lastCepFetchedRef.current = cepNumeros
+
         const logradouro = data?.logradouro?.trim() ?? ''
+        const bairro = data?.bairro?.trim() ?? ''
         const localidade = data?.localidade?.trim() ?? ''
         const uf = data?.uf?.trim().toUpperCase() ?? ''
+
+        // Montar endereço com logradouro + bairro
+        const enderecoAuto = [logradouro, bairro].filter(Boolean).join(', ').trim()
 
         setCliente((prev) => {
           let alterado = false
           const proximo: ClienteDados = { ...prev }
 
-          if (logradouro && logradouro !== prev.endereco) {
-            proximo.endereco = logradouro
+          // Só preencher endereço se ainda não editou manualmente OU se campo está vazio
+          const enderecoAtual = (prev.endereco ?? '').trim()
+          const podeAutoPreencher = !editingEnderecoContratanteRef.current || !enderecoAtual
+
+          if (enderecoAuto && podeAutoPreencher && enderecoAuto !== prev.endereco) {
+            proximo.endereco = enderecoAuto
             alterado = true
+            console.debug('[CEP] autopreenchido enderecoContratante', { cep: cepNumeros, enderecoAuto })
           }
 
           if (localidade && localidade !== prev.cidade) {
@@ -14748,7 +14772,7 @@ export default function App() {
 
         setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined, cidade: undefined }))
       } catch (error) {
-        if (!ativo || controller.signal.aborted) {
+        if (controller.signal.aborted) {
           return
         }
 
@@ -14757,17 +14781,13 @@ export default function App() {
           cep: 'Não foi possível consultar o CEP agora.',
         }))
       } finally {
-        if (ativo) {
-          setBuscandoCep(false)
-        }
+        setBuscandoCep(false)
       }
-    }
-
-    consultarCep()
+    }, 300)
 
     return () => {
-      ativo = false
       controller.abort()
+      clearTimeout(timeoutId)
     }
   }, [cliente.cep])
 
