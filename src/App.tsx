@@ -11523,11 +11523,16 @@ export default function App() {
 
     // Log sources before building snapshot (using refs for accuracy)
     if (budgetId !== currentBudgetId && !budgetIdMismatchLoggedRef.current) {
-      budgetIdMismatchLoggedRef.current = true
-      console.warn('[budgetId] mismatch', {
-        budgetIdRef: budgetId,
-        budgetIdState: currentBudgetId,
-      })
+      setTimeout(() => {
+        if (budgetIdRef.current === currentBudgetId || budgetIdMismatchLoggedRef.current) {
+          return
+        }
+        budgetIdMismatchLoggedRef.current = true
+        console.debug('[budgetId] mismatch', {
+          budgetIdRef: budgetIdRef.current,
+          budgetIdState: currentBudgetId,
+        })
+      }, 0)
     }
 
     console.log('[getCurrentSnapshot] sources', {
@@ -12511,13 +12516,6 @@ export default function App() {
           const isEmptySnapshot = !snapshotNome && !snapshotEndereco && snapshotKwh === 0
           
           if (isEmptySnapshot) {
-            console.warn('[AutoSave] EMPTY SNAPSHOT DETECTED', {
-              cliente: snapshot?.cliente,
-              kcKwhMes: snapshot?.kcKwhMes,
-              activeTab: snapshot?.activeTab,
-              currentBudgetId: snapshot?.currentBudgetId,
-            })
-            console.trace('[AutoSave] trace - who triggered autosave when snapshot is empty')
             return
           }
           
@@ -14756,6 +14754,7 @@ export default function App() {
     setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
     setTusdOpcoesExpandidas(false)
     setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
+    setUsarEnderecoCliente(false)
     setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
     setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
     setTipoRedeControle('auto')
