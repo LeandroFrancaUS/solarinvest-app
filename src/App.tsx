@@ -11421,7 +11421,7 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
-  const getCurrentSnapshot = (): OrcamentoSnapshotData => {
+  const getCurrentSnapshot = (options?: { force?: boolean; budgetIdOverride?: string }): OrcamentoSnapshotData => {
     const vendasConfigState = useVendasConfigStore.getState()
     const vendasSimState = useVendasSimulacoesStore.getState()
     const vendaSnapshotAtual = getVendaSnapshot()
@@ -11438,6 +11438,8 @@ export default function App() {
         : undefined,
     }
 
+    const effectiveBudgetId = options?.budgetIdOverride ?? currentBudgetId
+
     return {
       activeTab,
       settingsTab,
@@ -11446,7 +11448,7 @@ export default function App() {
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
       pageShared: { ...pageSharedState },
-      currentBudgetId,
+      currentBudgetId: effectiveBudgetId,
       budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
       kitBudget: cloneKitBudgetState(kitBudget),
       budgetProcessing: {
@@ -12483,10 +12485,33 @@ export default function App() {
           alertPrunedBudgets(pruned)
           void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
           
-          // Save complete snapshot to proposalStore with logging
-          void saveCompleteSnapshot(existente.id, snapshotAtualizado).catch((error) => {
-            console.error('[salvarOrcamentoLocalmente] Failed to save snapshot to proposalStore', error)
-          })
+          // Save complete snapshot to proposalStore with fresh snapshot and final budgetId
+          const budgetIdToSave = existente.id
+          const snapshotToStore = cloneSnapshotData(
+            getCurrentSnapshot({ force: true, budgetIdOverride: budgetIdToSave })
+          )
+          snapshotToStore.currentBudgetId = budgetIdToSave
+          
+          // Guard: Don't save empty snapshots
+          const nome = (snapshotToStore?.cliente?.nome ?? '').trim()
+          const endereco = (snapshotToStore?.cliente?.endereco ?? '').trim()
+          const documento = (snapshotToStore?.cliente?.documento ?? '').trim()
+          const kwh = Number(snapshotToStore?.kcKwhMes ?? 0)
+          const isEmpty = !nome && !endereco && !documento && kwh === 0
+          
+          if (isEmpty) {
+            console.warn('[salvarOrcamentoLocalmente] BLOCKED empty snapshot for proposalStore', { budgetIdToSave })
+            // Fallback to existing snapshot if available
+            if (snapshotAtualizado && snapshotAtualizado.cliente?.nome) {
+              void saveCompleteSnapshot(budgetIdToSave, snapshotAtualizado).catch((error) => {
+                console.error('[salvarOrcamentoLocalmente] Failed to save fallback snapshot to proposalStore', error)
+              })
+            }
+          } else {
+            void saveCompleteSnapshot(budgetIdToSave, snapshotToStore).catch((error) => {
+              console.error('[salvarOrcamentoLocalmente] Failed to save snapshot to proposalStore', error)
+            })
+          }
           
           void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
             if (error instanceof OneDriveIntegrationMissingError) {
@@ -12533,10 +12558,33 @@ export default function App() {
         alertPrunedBudgets(pruned)
         void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
         
-        // Save complete snapshot to proposalStore with logging
-        void saveCompleteSnapshot(novoId, snapshotParaArmazenar).catch((error) => {
-          console.error('[salvarOrcamentoLocalmente] Failed to save snapshot to proposalStore', error)
-        })
+        // Save complete snapshot to proposalStore with fresh snapshot and final budgetId
+        const budgetIdToSave = novoId
+        const snapshotToStore = cloneSnapshotData(
+          getCurrentSnapshot({ force: true, budgetIdOverride: budgetIdToSave })
+        )
+        snapshotToStore.currentBudgetId = budgetIdToSave
+        
+        // Guard: Don't save empty snapshots
+        const nome = (snapshotToStore?.cliente?.nome ?? '').trim()
+        const endereco = (snapshotToStore?.cliente?.endereco ?? '').trim()
+        const documento = (snapshotToStore?.cliente?.documento ?? '').trim()
+        const kwh = Number(snapshotToStore?.kcKwhMes ?? 0)
+        const isEmpty = !nome && !endereco && !documento && kwh === 0
+        
+        if (isEmpty) {
+          console.warn('[salvarOrcamentoLocalmente] BLOCKED empty snapshot for proposalStore', { budgetIdToSave })
+          // Fallback to existing snapshot if available
+          if (snapshotParaArmazenar && snapshotParaArmazenar.cliente?.nome) {
+            void saveCompleteSnapshot(budgetIdToSave, snapshotParaArmazenar).catch((error) => {
+              console.error('[salvarOrcamentoLocalmente] Failed to save fallback snapshot to proposalStore', error)
+            })
+          }
+        } else {
+          void saveCompleteSnapshot(budgetIdToSave, snapshotToStore).catch((error) => {
+            console.error('[salvarOrcamentoLocalmente] Failed to save snapshot to proposalStore', error)
+          })
+        }
         
         void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
           if (error instanceof OneDriveIntegrationMissingError) {
