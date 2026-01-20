@@ -1026,6 +1026,7 @@ const CLIENTE_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
 const CLIENTE_ID_MAX_ATTEMPTS = 10000
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
 // SolarInvest company information for contracts
 const CLIENTE_INICIAL: ClienteDados = {
@@ -4478,6 +4479,7 @@ export default function App() {
   const isEditingEnderecoRef = useRef(false)
   const lastCepAppliedRef = useRef<string>('')
   const budgetIdMismatchLoggedRef = useRef(false)
+  const novaPropostaEmAndamentoRef = useRef(false)
   
   // Refs to prevent stale closures in getCurrentSnapshot
   const clienteRef = useRef(cliente)
@@ -11644,7 +11646,9 @@ export default function App() {
     const vendaSnapshotAtual = getVendaSnapshot()
     const leasingSnapshotAtual = getLeasingSnapshot()
     const tab = activeTabRef.current
-    const budgetId = options?.budgetIdOverride ?? getEffectiveBudgetId()
+    const budgetIdRefNow = budgetIdRef.current
+    const budgetIdStateNow = currentBudgetId
+    const budgetId = options?.budgetIdOverride ?? (budgetIdRefNow || budgetIdStateNow)
     const clienteFonte = clienteRef.current ?? cliente
     const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
     const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
@@ -11672,6 +11676,14 @@ export default function App() {
       }, 0)
     }
 
+    if (budgetIdRefNow && budgetIdStateNow && budgetIdRefNow !== budgetIdStateNow) {
+      console.warn('[getCurrentSnapshot] budget id mismatch (using effectiveBudgetId)', {
+        budgetIdRef: budgetIdRefNow,
+        budgetIdState: budgetIdStateNow,
+        effectiveBudgetId: budgetId,
+      })
+    }
+
     console.log('[getCurrentSnapshot] sources', {
       activeTab: tab,
       activeTabState: activeTab,
@@ -11696,14 +11708,6 @@ export default function App() {
     if (isHydratingRef.current) {
       console.warn('[getCurrentSnapshot] skipped during hydration', {
         budgetId,
-      })
-      return createEmptySnapshot(budgetId, tab)
-    }
-
-    if (!isBudgetIdSynced()) {
-      console.warn('[getCurrentSnapshot] blocked: budgetIdRef != budgetIdState', {
-        budgetIdRef: budgetIdRef.current,
-        budgetIdState: currentBudgetId,
       })
       return createEmptySnapshot(budgetId, tab)
     }
@@ -14852,6 +14856,13 @@ export default function App() {
   }, [runWithUnsavedChangesGuard, setActivePage])
 
   const iniciarNovaProposta = useCallback(async () => {
+    if (novaPropostaEmAndamentoRef.current) {
+      console.warn('[Nova Proposta] Ignored (already running)')
+      return
+    }
+
+    novaPropostaEmAndamentoRef.current = true
+
     // Protect against auto-save during reset
     console.log('[Nova Proposta] Starting - protecting against auto-save')
     isHydratingRef.current = true
@@ -14867,28 +14878,16 @@ export default function App() {
       }
 
       const novoBudgetId = createDraftBudgetId()
-      budgetIdRef.current = novoBudgetId
-      setCurrentBudgetId(novoBudgetId)
       console.log('[Nova Proposta] New budget ID created', novoBudgetId)
 
-      const waitBudgetSync = async (expectedId: string) => {
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          if (currentBudgetId === expectedId) {
-            return true
-          }
-          await tick()
-        }
-        return false
-      }
+      budgetIdRef.current = novoBudgetId
+      setCurrentBudgetId(novoBudgetId)
 
-      await tick()
-      const synced = await waitBudgetSync(novoBudgetId)
-      if (!synced) {
-        console.error('[Nova Proposta] BudgetId sync failed, keeping hydration on', {
-          budgetIdRef: budgetIdRef.current,
-          budgetIdState: currentBudgetId,
-        })
-        return
+      await Promise.resolve()
+      await nextFrame()
+
+      if (budgetIdRef.current !== novoBudgetId) {
+        budgetIdRef.current = novoBudgetId
       }
 
       fieldSyncActions.reset()
@@ -15026,13 +15025,16 @@ export default function App() {
       setNotificacoes([])
       scheduleMarkStateAsSaved()
       
-      await tick()
-      console.log('[Nova Proposta] Reset complete, re-enabling auto-save')
+      console.log('[Nova Proposta] Reset complete, re-enabling auto-save', {
+        budgetIdRef: budgetIdRef.current,
+        budgetIdState: novoBudgetId,
+      })
+    } catch (error) {
+      console.error('[Nova Proposta] Failed', error)
     } finally {
-      if (budgetIdRef.current === currentBudgetId) {
-        isHydratingRef.current = false
-        setIsHydrating(false)
-      }
+      isHydratingRef.current = false
+      setIsHydrating(false)
+      novaPropostaEmAndamentoRef.current = false
     }
   }, [
     createPageSharedSettings,
