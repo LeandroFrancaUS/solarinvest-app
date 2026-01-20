@@ -1044,6 +1044,133 @@ const CLIENTE_INICIAL: ClienteDados = {
 const isSyncedClienteField = (key: keyof ClienteDados): key is FieldSyncKey =>
   key === 'uf' || key === 'cidade' || key === 'distribuidora' || key === 'cep' || key === 'endereco'
 
+// Helper: Create minimal safe snapshot for getCurrentSnapshot guards
+const createMinimalSnapshot = (
+  budgetId: string,
+  activeTab: TabKey,
+  settingsTab: SettingsTabKey,
+  createPageSharedSettings: () => PageSharedSettings,
+): OrcamentoSnapshotData => ({
+  currentBudgetId: budgetId,
+  activeTab,
+  settingsTab,
+  cliente: cloneClienteDados(CLIENTE_INICIAL),
+  clienteEmEdicaoId: null,
+  ucBeneficiarias: [],
+  pageShared: createPageSharedSettings(),
+  budgetStructuredItems: [],
+  kitBudget: createEmptyKitBudget(),
+  budgetProcessing: {
+    isProcessing: false,
+    error: null,
+    progress: null,
+    isTableCollapsed: false,
+    ocrDpi: DEFAULT_OCR_DPI,
+  },
+  propostaImagens: [],
+  ufTarifa: INITIAL_VALUES.ufTarifa,
+  distribuidoraTarifa: INITIAL_VALUES.distribuidoraTarifa,
+  ufsDisponiveis: [],
+  distribuidorasPorUf: {},
+  mesReajuste: INITIAL_VALUES.mesReajuste,
+  kcKwhMes: INITIAL_VALUES.kcKwhMes,
+  consumoManual: false,
+  tarifaCheia: INITIAL_VALUES.tarifaCheia,
+  desconto: INITIAL_VALUES.desconto,
+  taxaMinima: INITIAL_VALUES.taxaMinima,
+  taxaMinimaInputEmpty: true,
+  encargosFixosExtras: INITIAL_VALUES.encargosFixosExtras,
+  tusdPercent: INITIAL_VALUES.tusdPercent,
+  tusdTipoCliente: normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente),
+  tusdSubtipo: INITIAL_VALUES.tusdSubtipo,
+  tusdSimultaneidade: INITIAL_VALUES.tusdSimultaneidade,
+  tusdTarifaRkwh: INITIAL_VALUES.tusdTarifaRkwh,
+  tusdAnoReferencia: INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
+  tusdOpcoesExpandidas: false,
+  leasingPrazo: INITIAL_VALUES.leasingPrazo,
+  usarEnderecoCliente: false,
+  potenciaModulo: INITIAL_VALUES.potenciaModulo,
+  potenciaModuloDirty: false,
+  tipoInstalacao: normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao),
+  tipoInstalacaoOutro: INITIAL_VALUES.tipoInstalacaoOutro,
+  tipoInstalacaoDirty: false,
+  tipoSistema: INITIAL_VALUES.tipoSistema,
+  segmentoCliente: normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
+  tipoEdificacaoOutro: INITIAL_VALUES.tipoEdificacaoOutro,
+  numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
+  configuracaoUsinaObservacoes: INITIAL_VALUES.configuracaoUsinaObservacoes,
+  composicaoTelhado: createInitialComposicaoTelhado(),
+  composicaoSolo: createInitialComposicaoSolo(),
+  aprovadoresText: '',
+  impostosOverridesDraft: {},
+  vendasConfig: useVendasConfigStore.getState().config,
+  vendasSimulacoes: {},
+  multiUc: {
+    ativo: INITIAL_VALUES.multiUcAtivo,
+    rows: [],
+    rateioModo: INITIAL_VALUES.multiUcRateioModo,
+    energiaGeradaKWh: INITIAL_VALUES.multiUcEnergiaGeradaKWh,
+    energiaGeradaTouched: false,
+    anoVigencia: INITIAL_VALUES.multiUcAnoVigencia,
+    overrideEscalonamento: INITIAL_VALUES.multiUcOverrideEscalonamento,
+    escalonamentoCustomPercent: INITIAL_VALUES.multiUcEscalonamentoCustomPercent,
+  },
+  precoPorKwp: INITIAL_VALUES.precoPorKwp,
+  irradiacao: IRRADIACAO_FALLBACK,
+  eficiencia: INITIAL_VALUES.eficiencia,
+  diasMes: INITIAL_VALUES.diasMes,
+  inflacaoAa: INITIAL_VALUES.inflacaoAa,
+  vendaForm: createInitialVendaForm(),
+  capexManualOverride: INITIAL_VALUES.capexManualOverride,
+  parsedVendaPdf: null,
+  estruturaTipoWarning: null,
+  jurosFinAa: INITIAL_VALUES.jurosFinanciamentoAa,
+  prazoFinMeses: INITIAL_VALUES.prazoFinanciamentoMeses,
+  entradaFinPct: INITIAL_VALUES.entradaFinanciamentoPct,
+  mostrarFinanciamento: INITIAL_VALUES.mostrarFinanciamento,
+  mostrarGrafico: INITIAL_VALUES.mostrarGrafico,
+  prazoMeses: INITIAL_VALUES.prazoMeses,
+  bandeiraEncargo: INITIAL_VALUES.bandeiraEncargo,
+  cipEncargo: INITIAL_VALUES.cipEncargo,
+  entradaRs: INITIAL_VALUES.entradaRs,
+  entradaModo: INITIAL_VALUES.entradaModo,
+  mostrarValorMercadoLeasing: INITIAL_VALUES.mostrarValorMercadoLeasing,
+  mostrarTabelaParcelas: INITIAL_VALUES.tabelaVisivel,
+  mostrarTabelaBuyout: INITIAL_VALUES.tabelaVisivel,
+  mostrarTabelaParcelasConfig: INITIAL_VALUES.tabelaVisivel,
+  mostrarTabelaBuyoutConfig: INITIAL_VALUES.tabelaVisivel,
+  oemBase: INITIAL_VALUES.oemBase,
+  oemInflacao: INITIAL_VALUES.oemInflacao,
+  seguroModo: INITIAL_VALUES.seguroModo,
+  seguroReajuste: INITIAL_VALUES.seguroReajuste,
+  seguroValorA: INITIAL_VALUES.seguroValorA,
+  seguroPercentualB: INITIAL_VALUES.seguroPercentualB,
+  exibirLeasingLinha: INITIAL_VALUES.exibirLeasingLinha,
+  exibirFinLinha: INITIAL_VALUES.exibirFinanciamentoLinha,
+  cashbackPct: INITIAL_VALUES.cashbackPct,
+  depreciacaoAa: INITIAL_VALUES.depreciacaoAa,
+  inadimplenciaAa: INITIAL_VALUES.inadimplenciaAa,
+  tributosAa: INITIAL_VALUES.tributosAa,
+  ipcaAa: INITIAL_VALUES.ipcaAa,
+  custosFixosM: INITIAL_VALUES.custosFixosM,
+  opexM: INITIAL_VALUES.opexM,
+  seguroM: INITIAL_VALUES.seguroM,
+  duracaoMeses: INITIAL_VALUES.duracaoMeses,
+  pagosAcumAteM: INITIAL_VALUES.pagosAcumManual,
+  modoOrcamento: 'auto',
+  autoKitValor: null,
+  autoCustoFinal: null,
+  autoPricingRede: null,
+  autoPricingVersion: null,
+  autoBudgetReason: null,
+  autoBudgetReasonCode: null,
+  tipoRede: INITIAL_VALUES.tipoRede ?? 'monofasico',
+  tipoRedeControle: 'auto',
+  leasingAnexosSelecionados: [],
+  vendaSnapshot: getVendaSnapshot(),
+  leasingSnapshot: getLeasingSnapshot(),
+})
+
 const generateBudgetId = (
   existingIds: Set<string> = new Set(),
   tipoProposta: PrintableProposalTipo = 'LEASING',
@@ -3573,12 +3700,12 @@ export default function App() {
     setProposalPdfIntegrationAvailable(isProposalPdfIntegrationAvailable())
   }, [])
   
+  const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
+  
   // ITEM 1: Sync budgetIdRef with currentBudgetId on mount
   useEffect(() => {
     budgetIdRef.current = currentBudgetId
   }, [currentBudgetId])
-  
-  const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetTableContentId = useId()
@@ -11446,132 +11573,10 @@ export default function App() {
     const budgetIdRefNow = budgetIdRef.current
     const effectiveBudgetId = budgetIdRefNow || budgetIdState
     
-    // Helper: Create minimal safe snapshot
-    const createMinimalSnapshot = (): OrcamentoSnapshotData => ({
-      currentBudgetId: effectiveBudgetId,
-      activeTab,
-      settingsTab,
-      cliente: cloneClienteDados(CLIENTE_INICIAL),
-      clienteEmEdicaoId: null,
-      ucBeneficiarias: [],
-      pageShared: createPageSharedSettings(),
-      budgetStructuredItems: [],
-      kitBudget: createEmptyKitBudget(),
-      budgetProcessing: {
-        isProcessing: false,
-        error: null,
-        progress: null,
-        isTableCollapsed: false,
-        ocrDpi: DEFAULT_OCR_DPI,
-      },
-      propostaImagens: [],
-      ufTarifa: INITIAL_VALUES.ufTarifa,
-      distribuidoraTarifa: INITIAL_VALUES.distribuidoraTarifa,
-      ufsDisponiveis: [],
-      distribuidorasPorUf: {},
-      mesReajuste: INITIAL_VALUES.mesReajuste,
-      kcKwhMes: INITIAL_VALUES.kcKwhMes,
-      consumoManual: false,
-      tarifaCheia: INITIAL_VALUES.tarifaCheia,
-      desconto: INITIAL_VALUES.desconto,
-      taxaMinima: INITIAL_VALUES.taxaMinima,
-      taxaMinimaInputEmpty: true,
-      encargosFixosExtras: INITIAL_VALUES.encargosFixosExtras,
-      tusdPercent: INITIAL_VALUES.tusdPercent,
-      tusdTipoCliente: normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente),
-      tusdSubtipo: INITIAL_VALUES.tusdSubtipo,
-      tusdSimultaneidade: INITIAL_VALUES.tusdSimultaneidade,
-      tusdTarifaRkwh: INITIAL_VALUES.tusdTarifaRkwh,
-      tusdAnoReferencia: INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
-      tusdOpcoesExpandidas: false,
-      leasingPrazo: INITIAL_VALUES.leasingPrazo,
-      usarEnderecoCliente: false,
-      potenciaModulo: INITIAL_VALUES.potenciaModulo,
-      potenciaModuloDirty: false,
-      tipoInstalacao: normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao),
-      tipoInstalacaoOutro: INITIAL_VALUES.tipoInstalacaoOutro,
-      tipoInstalacaoDirty: false,
-      tipoSistema: INITIAL_VALUES.tipoSistema,
-      segmentoCliente: normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
-      tipoEdificacaoOutro: INITIAL_VALUES.tipoEdificacaoOutro,
-      numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
-      configuracaoUsinaObservacoes: INITIAL_VALUES.configuracaoUsinaObservacoes,
-      composicaoTelhado: createInitialComposicaoTelhado(),
-      composicaoSolo: createInitialComposicaoSolo(),
-      aprovadoresText: '',
-      impostosOverridesDraft: {},
-      vendasConfig: useVendasConfigStore.getState().config,
-      vendasSimulacoes: {},
-      multiUc: {
-        ativo: INITIAL_VALUES.multiUcAtivo,
-        rows: [],
-        rateioModo: INITIAL_VALUES.multiUcRateioModo,
-        energiaGeradaKWh: INITIAL_VALUES.multiUcEnergiaGeradaKWh,
-        energiaGeradaTouched: false,
-        anoVigencia: INITIAL_VALUES.multiUcAnoVigencia,
-        overrideEscalonamento: INITIAL_VALUES.multiUcOverrideEscalonamento,
-        escalonamentoCustomPercent: INITIAL_VALUES.multiUcEscalonamentoCustomPercent,
-      },
-      precoPorKwp: INITIAL_VALUES.precoPorKwp,
-      irradiacao: IRRADIACAO_FALLBACK,
-      eficiencia: INITIAL_VALUES.eficiencia,
-      diasMes: INITIAL_VALUES.diasMes,
-      inflacaoAa: INITIAL_VALUES.inflacaoAa,
-      vendaForm: createInitialVendaForm(),
-      capexManualOverride: INITIAL_VALUES.capexManualOverride,
-      parsedVendaPdf: null,
-      estruturaTipoWarning: null,
-      jurosFinAa: INITIAL_VALUES.jurosFinanciamentoAa,
-      prazoFinMeses: INITIAL_VALUES.prazoFinanciamentoMeses,
-      entradaFinPct: INITIAL_VALUES.entradaFinanciamentoPct,
-      mostrarFinanciamento: INITIAL_VALUES.mostrarFinanciamento,
-      mostrarGrafico: INITIAL_VALUES.mostrarGrafico,
-      prazoMeses: INITIAL_VALUES.prazoMeses,
-      bandeiraEncargo: INITIAL_VALUES.bandeiraEncargo,
-      cipEncargo: INITIAL_VALUES.cipEncargo,
-      entradaRs: INITIAL_VALUES.entradaRs,
-      entradaModo: INITIAL_VALUES.entradaModo,
-      mostrarValorMercadoLeasing: INITIAL_VALUES.mostrarValorMercadoLeasing,
-      mostrarTabelaParcelas: INITIAL_VALUES.tabelaVisivel,
-      mostrarTabelaBuyout: INITIAL_VALUES.tabelaVisivel,
-      mostrarTabelaParcelasConfig: INITIAL_VALUES.tabelaVisivel,
-      mostrarTabelaBuyoutConfig: INITIAL_VALUES.tabelaVisivel,
-      oemBase: INITIAL_VALUES.oemBase,
-      oemInflacao: INITIAL_VALUES.oemInflacao,
-      seguroModo: INITIAL_VALUES.seguroModo,
-      seguroReajuste: INITIAL_VALUES.seguroReajuste,
-      seguroValorA: INITIAL_VALUES.seguroValorA,
-      seguroPercentualB: INITIAL_VALUES.seguroPercentualB,
-      exibirLeasingLinha: INITIAL_VALUES.exibirLeasingLinha,
-      exibirFinLinha: INITIAL_VALUES.exibirFinanciamentoLinha,
-      cashbackPct: INITIAL_VALUES.cashbackPct,
-      depreciacaoAa: INITIAL_VALUES.depreciacaoAa,
-      inadimplenciaAa: INITIAL_VALUES.inadimplenciaAa,
-      tributosAa: INITIAL_VALUES.tributosAa,
-      ipcaAa: INITIAL_VALUES.ipcaAa,
-      custosFixosM: INITIAL_VALUES.custosFixosM,
-      opexM: INITIAL_VALUES.opexM,
-      seguroM: INITIAL_VALUES.seguroM,
-      duracaoMeses: INITIAL_VALUES.duracaoMeses,
-      pagosAcumAteM: INITIAL_VALUES.pagosAcumManual,
-      modoOrcamento: 'auto',
-      autoKitValor: null,
-      autoCustoFinal: null,
-      autoPricingRede: null,
-      autoPricingVersion: null,
-      autoBudgetReason: null,
-      autoBudgetReasonCode: null,
-      tipoRede: INITIAL_VALUES.tipoRede ?? 'monofasico',
-      tipoRedeControle: 'auto',
-      leasingAnexosSelecionados: [],
-      vendaSnapshot: getVendaSnapshot(),
-      leasingSnapshot: getLeasingSnapshot(),
-    })
-    
     // Guard 1: Skip during hydration
     if (hydrating) {
       console.debug('[getCurrentSnapshot] skipped during hydration', { effectiveBudgetId })
-      return createMinimalSnapshot()
+      return createMinimalSnapshot(effectiveBudgetId, activeTab, settingsTab, createPageSharedSettings)
     }
     
     // Guard 2: Block if ref/state mismatch
@@ -11581,7 +11586,7 @@ export default function App() {
         budgetIdState,
         effectiveBudgetId,
       })
-      return createMinimalSnapshot()
+      return createMinimalSnapshot(effectiveBudgetId, activeTab, settingsTab, createPageSharedSettings)
     }
     
     const vendasConfigState = useVendasConfigStore.getState()
@@ -14415,8 +14420,8 @@ export default function App() {
     setMesReajuste(INITIAL_VALUES.mesReajuste)
     mesReferenciaRef.current = new Date().getMonth() + 1
     
-    // CRITICAL: Reset kcKwhMes to 0 (was missing explicit reset to 0)
-    setKcKwhMes(0)
+    // CRITICAL: Reset kcKwhMes to 0 (INITIAL_VALUES.kcKwhMes is 0)
+    setKcKwhMes(INITIAL_VALUES.kcKwhMes)
     setConsumoManualState(false)
     setPotenciaFonteManual(false)
     setTarifaCheia(INITIAL_VALUES.tarifaCheia)
