@@ -907,11 +907,14 @@ function PrintableProposalLeasingInner(
   )
   const heroSummary =
     'A SolarInvest apresenta uma solução completa de energia solar em modelo de leasing, com investimento integral realizado pela SolarInvest e operação completa: instalação, seguro, manutenção, monitoramento e suporte técnico.'
-  const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
+  const beneficioAno30 = useMemo(() => calcularEconomiaTotalAteAno(30), [calcularEconomiaTotalAteAno])
+  const economiaExplainerValor = Number.isFinite(beneficioAno30) && beneficioAno30 > 0
+    ? formatMoneyBR(beneficioAno30)
+    : '—'
   const economiaExplainer: React.ReactNode = (
     <>
-      Em 30 anos de geração solar, sua economia pode alcançar <strong>R$ 175.867,37</strong> — um retorno sustentável,
-      previsível e duradouro.
+      Em 30 anos de geração solar, sua economia pode alcançar <strong>{economiaExplainerValor}</strong> — um retorno
+      sustentável, previsível e duradouro.
     </>
   )
   const informacoesImportantesObservacaoTexto = useMemo(() => {
