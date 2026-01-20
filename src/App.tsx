@@ -12355,6 +12355,9 @@ export default function App() {
         return
       }
 
+      console.log('[carregarOrcamentoParaEdicao] Loading complete snapshot for budget:', registro.id)
+      
+      // Force apply snapshot - ignore any hydration/budgetId guards
       aplicarSnapshot(registro.snapshot)
       setActivePage('app')
       atualizarOrcamentoAtivo(registro)
