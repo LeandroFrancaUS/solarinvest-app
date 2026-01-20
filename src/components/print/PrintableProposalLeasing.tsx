@@ -63,11 +63,25 @@ const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
 
 const AVISO_GERAL_ESTIMATIVAS =
   'Todos os valores apresentados são estimativas baseadas no consumo histórico, irradiação média da região e tarifa vigente da distribuidora. Os valores podem variar conforme consumo real, condições climáticas e reajustes aplicados pela concessionária.'
-const AVISO_GERAL_ECONOMIA = 'Aviso: Esta proposta não constitui garantia de economia.'
+const AVISO_GERAL_ECONOMIA = (
+  <>
+    <strong>Aviso:</strong> Esta proposta não constitui garantia de economia.
+  </>
+)
 const AVISO_ESPECIFICACOES =
-  'Aviso: Valores estimados. A geração real pode variar conforme clima, sombreamento, degradação natural dos módulos e condições reais de instalação.'
-const AVISO_PATRIMONIO =
-  'Aviso: As estimativas acima foram calculadas a partir do consumo histórico e das condições médias de geração. Embora representem uma projeção realista do potencial de economia, os valores finais podem variar conforme fatores externos como clima, consumo real e reajustes tarifários.'
+  (
+    <>
+      <strong>Aviso:</strong> Valores estimados. A geração real pode variar conforme clima, sombreamento, degradação
+      natural dos módulos e condições reais de instalação.
+    </>
+  )
+const AVISO_PATRIMONIO = (
+  <>
+    <strong>Aviso:</strong> As estimativas acima foram calculadas a partir do consumo histórico e das condições médias
+    de geração. Embora representem uma projeção realista do potencial de economia, os valores finais podem variar
+    conforme fatores externos como clima, consumo real e reajustes tarifários.
+  </>
+)
 
 const PRAZO_LEASING_PADRAO_MESES = 60
 
@@ -278,13 +292,8 @@ function PrintableProposalLeasingInner(
 
   const nomeDistribuidora = distribuidoraLabel || 'distribuidora local'
 
-  const avisoMensalidadeCondicoes = useMemo(() => {
-    return `Aviso: A mensalidade estimada é calculada com base na tarifa vigente da ${nomeDistribuidora} e aplica sempre o desconto contratado. As projeções apresentadas são estimativas e podem variar, pois a SolarInvest não controla os reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, assim como as variações do consumo real ao longo do contrato.`
-  }, [nomeDistribuidora])
-
-  const avisoMensalidadeEvolucao = useMemo(() => {
-    return `Aviso: A mensalidade estimada é calculada com base na tarifa vigente da ${nomeDistribuidora} e aplica sempre o desconto contratado. Como a SolarInvest não controla os reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, nem as variações de consumo real, os valores podem mudar ao longo do contrato.`
-  }, [nomeDistribuidora])
+  const avisoMensalidadeCondicoes = useMemo(() => null, [])
+  const avisoMensalidadeEvolucao = useMemo(() => null, [])
 
   const formatClienteEnderecoCompleto = () => {
     const endereco = cliente.endereco?.trim() || ''
@@ -710,14 +719,16 @@ function PrintableProposalLeasingInner(
       const tarifaAno = tarifaCheiaBase * fator
       const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
       const tusdMedio = tusdMedioPorAno[ano] ?? 0
-      const mensalidade = energiaContratadaBase * tarifaComDesconto + tusdMedio
-      const contaDistribuidora = energiaContratadaBase * tarifaAno
+      const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto
+      const encargosDistribuidora = tusdMedio + taxaMinimaMensal
+      const despesaMensalEstimada = mensalidadeSolarInvest + encargosDistribuidora
       return {
         ano,
         tarifaCheiaAno: tarifaAno,
         tarifaComDesconto,
-        contaDistribuidora,
-        mensalidade,
+        mensalidadeSolarInvest,
+        encargosDistribuidora,
+        despesaMensalEstimada,
       }
     })
 
@@ -741,14 +752,16 @@ function PrintableProposalLeasingInner(
     const anoPosContrato = prazoContratualTotalAnos + 1
     const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
     const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
-    const contaDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
+    const encargosDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
+    const despesaMensalPosContrato = encargosDistribuidoraPosContrato
 
     linhas.push({
       ano: anoPosContrato,
       tarifaCheiaAno: tarifaAnoPosContrato,
       tarifaComDesconto: tarifaAnoPosContrato,
-      contaDistribuidora: contaDistribuidoraPosContrato,
-      mensalidade: 0,
+      encargosDistribuidora: encargosDistribuidoraPosContrato,
+      mensalidadeSolarInvest: 0,
+      despesaMensalEstimada: despesaMensalPosContrato,
     })
 
     return linhas
@@ -761,67 +774,6 @@ function PrintableProposalLeasingInner(
     tusdMedioPorAno,
     tarifaCheiaBase,
   ])
-
-  const calcularIntensidadeContaDistribuidora = useCallback(
-    (ano: number) => {
-      if (ano < 1 || ano > prazoContratualTotalAnos) {
-        return null
-      }
-      if (prazoContratualTotalAnos <= 1) {
-        return 1
-      }
-
-      const progresso = (ano - 1) / (prazoContratualTotalAnos - 1)
-      return Math.min(1, Math.max(0, progresso))
-    },
-    [prazoContratualTotalAnos],
-  )
-
-  const estiloContaDistribuidora = useCallback(
-    (ano: number): React.CSSProperties | undefined => {
-      const intensidade = calcularIntensidadeContaDistribuidora(ano)
-
-      if (intensidade == null) {
-        return undefined
-      }
-
-      const mix = (inicio: number, fim: number) => Math.round(inicio + (fim - inicio) * intensidade)
-      const background = `rgb(${mix(255, 255)}, ${mix(229, 143)}, ${mix(224, 126)})`
-      const border = `rgb(${mix(241, 223)}, ${mix(188, 99)}, ${mix(180, 89)})`
-
-      return {
-        background,
-        boxShadow: `inset 0 0 0 1px ${border}`,
-        color: '#7f1b1b',
-        ['--leasing-negative-bg' as string]: background,
-        ['--leasing-negative-border' as string]: border,
-      }
-    },
-    [calcularIntensidadeContaDistribuidora],
-  )
-
-  const estiloMensalidadeSolarInvest = useCallback(
-    (ano: number): React.CSSProperties | undefined => {
-      const intensidade = calcularIntensidadeContaDistribuidora(ano)
-
-      if (intensidade == null) {
-        return undefined
-      }
-
-      const mix = (inicio: number, fim: number) => Math.round(inicio + (fim - inicio) * intensidade)
-      const background = `rgb(${mix(238, 143)}, ${mix(249, 203)}, ${mix(243, 169)})`
-      const border = `rgb(${mix(214, 93)}, ${mix(235, 174)}, ${mix(220, 125)})`
-
-      return {
-        background,
-        boxShadow: `inset 0 0 0 1px ${border}`,
-        color: '#0f4d2d',
-        ['--leasing-positive-bg' as string]: background,
-        ['--leasing-positive-border' as string]: border,
-      }
-    },
-    [calcularIntensidadeContaDistribuidora],
-  )
 
   const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
   const prazoEconomiaMeses = prazoContratualMeses
@@ -956,13 +908,11 @@ function PrintableProposalLeasingInner(
   const heroSummary =
     'A SolarInvest apresenta uma solução completa de energia solar em modelo de leasing, com investimento integral realizado pela SolarInvest e operação completa: instalação, seguro, manutenção, monitoramento e suporte técnico.'
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
-  const economiaExplainer: React.ReactNode = beneficioAno30 ? (
+  const economiaExplainer: React.ReactNode = (
     <>
-      Em 30 anos de geração solar, sua economia pode alcançar{' '}
-      <strong>{currency(beneficioAno30.acumulado)}</strong> — um retorno sustentável, previsível e duradouro.
+      Em 30 anos de geração solar, sua economia pode alcançar <strong>R$ 175.867,37</strong> — um retorno sustentável,
+      previsível e duradouro.
     </>
-  ) : (
-    <>Economia que continua crescendo mesmo após o contrato, com previsibilidade e segurança para o seu patrimônio energético.</>
   )
   const informacoesImportantesObservacaoTexto = useMemo(() => {
     const texto = sanitizeTextField(informacoesImportantesObservacao)
@@ -1031,12 +981,30 @@ function PrintableProposalLeasingInner(
                 <div className="print-hero__benefits">
                   <p className="print-hero__benefits-title">BENEFÍCIOS SOLARINVEST</p>
                   <ul>
-                    <li>✅ Economia imediata desde o primeiro mês</li>
-                    <li>✅ Investimento 100% realizado pela SolarInvest</li>
-                    <li>✅ Manutenção, seguro e suporte técnico completos</li>
-                    <li>✅ Transferência gratuita da usina após {prazoContratualMesesTexto}</li>
-                    <li>✅ Economia crescente ao longo dos anos</li>
-                    <li>✅ Valorização patrimonial com uma usina própria ao final</li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Economia imediata desde o primeiro mês</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Investimento 100% realizado pela SolarInvest</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Manutenção, seguro e suporte técnico completos</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Transferência gratuita da usina após {prazoContratualMesesTexto}</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Economia crescente ao longo dos anos</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Valorização patrimonial com uma usina própria ao final</span>
+                    </li>
                   </ul>
                 </div>
                 <div className="print-hero__progress" role="img" aria-label="Etapas até a propriedade da usina">
@@ -1171,7 +1139,9 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote print-footnote--spaced">{avisoMensalidadeCondicoes}</p>
+            {avisoMensalidadeCondicoes ? (
+              <p className="muted print-footnote print-footnote--spaced">{avisoMensalidadeCondicoes}</p>
+            ) : null}
           </section>
     
           {multiUcResumoDados ? (
@@ -1269,15 +1239,18 @@ function PrintableProposalLeasingInner(
           ) : null}
     
             <section className="print-section keep-together avoid-break">
-              <h2 className="section-title keep-with-next">Como sua economia evolui</h2>
+              <h2 className="section-title keep-with-next">Economia Gerada com a Solução SolarInvest</h2>
               <p className="section-subtitle keep-with-next">Valores estimados por período contratual</p>
             <table className="no-break-inside leasing-economia-table">
+              <colgroup>
+                <col style={{ width: '18%' }} />
+                <col style={{ width: '46%' }} />
+                <col style={{ width: '36%' }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Período</th>
-                  <th>Tarifa cheia</th>
-                  <th>Tarifa com desconto</th>
-                  <th className="leasing-table-negative">{`CONTA COM ${distribuidoraNomeCurto ?? 'DISTRIBUIDORA'} (R$)`}</th>
+                  <th>Tarifas (cheia / com desconto)</th>
                   <th className="leasing-table-positive leasing-table-positive-emphasis">Mensalidade SolarInvest (R$)</th>
                 </tr>
               </thead>
@@ -1285,10 +1258,7 @@ function PrintableProposalLeasingInner(
               {mensalidadesPorAno.map((linha, index) => {
                 const isPosPrazo = linha.ano > prazoContratualTotalAnos
                 const isUltimaLinha = index === mensalidadesPorAno.length - 1
-                const isMensalidadeZero = linha.mensalidade === 0
-
-                const contaDistribuidoraStyle = estiloContaDistribuidora(linha.ano)
-                const mensalidadeStyle = estiloMensalidadeSolarInvest(linha.ano)
+                const isMensalidadeZero = linha.mensalidadeSolarInvest === 0
 
                 const rowClassName = [
                   isPosPrazo ? 'leasing-row-post-contract' : undefined,
@@ -1300,35 +1270,27 @@ function PrintableProposalLeasingInner(
                 return (
                   <tr key={`mensalidade-${linha.ano}`} className={rowClassName || undefined}>
                     <td>{`${linha.ano}º ano`}</td>
-                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
-                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
-                    <td
-                      className={[
-                        'leasing-table-value',
-                        'leasing-table-negative',
-                        contaDistribuidoraStyle ? 'leasing-table-negative-gradient' : undefined,
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={contaDistribuidoraStyle}
-                    >
-                      {currency(linha.contaDistribuidora)}
+                    <td className="leasing-table-value leasing-table-tariff">
+                      <span>
+                        <strong>Cheia</strong> {tarifaCurrency(linha.tarifaCheiaAno)}
+                      </span>
+                      <span>
+                        <strong>Com desconto</strong> {tarifaCurrency(linha.tarifaComDesconto)}
+                      </span>
                     </td>
                     <td
                       className={[
                         'leasing-table-value',
                         'leasing-table-positive',
                         'leasing-table-positive-emphasis',
-                        mensalidadeStyle ? 'leasing-table-positive-gradient' : undefined,
                       ]
                         .filter(Boolean)
                         .join(' ')}
-                      style={mensalidadeStyle}
                     >
                       {isMensalidadeZero ? (
-                        <span className="leasing-zero-highlight">{currency(linha.mensalidade)}</span>
+                        <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
                       ) : (
-                        currency(linha.mensalidade)
+                        currency(linha.mensalidadeSolarInvest)
                       )}
                     </td>
                   </tr>
@@ -1336,14 +1298,58 @@ function PrintableProposalLeasingInner(
               })}
             </tbody>
             </table>
-            <p>{avisoMensalidadeEvolucao}</p>
+            <div className="leasing-total-summary no-break-inside">
+              <h3 className="print-subheading keep-with-next">Despesa Mensal Estimada (Energia + Encargos)</h3>
+              {mensalidadesPorAno[0] ? (
+                <div className="leasing-total-card">
+                  <div className="leasing-total-card__header">
+                    <span className="leasing-total-card__label">Referência: 1º ano</span>
+                    <span className="leasing-total-card__value">
+                      {currency(mensalidadesPorAno[0].despesaMensalEstimada)}
+                    </span>
+                  </div>
+                  <div className="leasing-total-card__details">
+                    <div>
+                      <span className="leasing-total-card__detail-label">Mensalidade SolarInvest</span>
+                      <strong>{currency(mensalidadesPorAno[0].mensalidadeSolarInvest)}</strong>
+                    </div>
+                    <div>
+                      <span className="leasing-total-card__detail-label">
+                        Encargos da Distribuidora (projeção)
+                      </span>
+                      <strong>{currency(mensalidadesPorAno[0].encargosDistribuidora)}</strong>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="muted no-break-inside leasing-encargos-note">
+              <p className="leasing-encargos-note__title">
+                <strong>Encargos da Distribuidora (Projeção)</strong>
+              </p>
+              <p>
+                Os encargos da distribuidora não são compensados pela geração de energia solar e não estão incluídos na
+                Mensalidade Solar, que considera apenas a energia compensada (consumo contratado × tarifa com
+                desconto).
+              </p>
+              <p>
+                Esses encargos incluem TUSD Fio B, taxa mínima de disponibilidade e demais encargos regulatórios. Como
+                dependem de regras da concessionária, reajustes tarifários, tributos e do consumo real, não é possível
+                defini-los com exatidão antecipadamente, sendo apresentados nesta proposta apenas como projeção.
+              </p>
+              <p>
+                Embora sejam cobrados separadamente da mensalidade solar, os encargos são gerenciados pela Solarinvest e
+                somados ao valor final, resultando em uma única cobrança mensal ao cliente.
+              </p>
+            </div>
+            {avisoMensalidadeEvolucao ? <p>{avisoMensalidadeEvolucao}</p> : null}
           </section>
 
           <section
             id="economia-30-anos"
             className="print-section keep-together page-break-before break-after"
           >
-            <h2 className="section-title keep-with-next">Patrimônio energético — economia acumulada</h2>
+            <h2 className="section-title keep-with-next">Análise Financeira da Economia Gerada</h2>
             {economiaProjetadaGrafico.length ? (
               <>
                 <div
@@ -1376,8 +1382,8 @@ function PrintableProposalLeasingInner(
                     })}
                   </div>
                 </div>
-                <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
-                <p className="muted print-footnote print-footnote--spaced">{AVISO_PATRIMONIO}</p>
+                <p className="leasing-chart-note leasing-chart-note--divider no-break-inside">{economiaExplainer}</p>
+                <p className="muted print-footnote print-footnote--spaced print-footnote--divider">{AVISO_PATRIMONIO}</p>
               </>
             ) : (
               <p className="muted no-break-inside">
