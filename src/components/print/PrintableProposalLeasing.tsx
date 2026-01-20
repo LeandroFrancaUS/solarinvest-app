@@ -974,12 +974,30 @@ function PrintableProposalLeasingInner(
                 <div className="print-hero__benefits">
                   <p className="print-hero__benefits-title">BENEFÍCIOS SOLARINVEST</p>
                   <ul>
-                    <li>✅ Economia imediata desde o primeiro mês</li>
-                    <li>✅ Investimento 100% realizado pela SolarInvest</li>
-                    <li>✅ Manutenção, seguro e suporte técnico completos</li>
-                    <li>✅ Transferência gratuita da usina após {prazoContratualMesesTexto}</li>
-                    <li>✅ Economia crescente ao longo dos anos</li>
-                    <li>✅ Valorização patrimonial com uma usina própria ao final</li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Economia imediata desde o primeiro mês</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Investimento 100% realizado pela SolarInvest</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Manutenção, seguro e suporte técnico completos</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Transferência gratuita da usina após {prazoContratualMesesTexto}</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Economia crescente ao longo dos anos</span>
+                    </li>
+                    <li>
+                      <span className="print-hero__benefits-icon" aria-hidden="true">✅</span>
+                      <span>Valorização patrimonial com uma usina própria ao final</span>
+                    </li>
                   </ul>
                 </div>
                 <div className="print-hero__progress" role="img" aria-label="Etapas até a propriedade da usina">
