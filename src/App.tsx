@@ -11563,6 +11563,23 @@ export default function App() {
       vendaSnapshot: vendaSnapshotAtual,
       leasingSnapshot: leasingSnapshotAtual,
     }
+    
+    // Debug: Check if returning empty snapshot
+    const snapshotNome = (snapshotData.cliente?.nome ?? '').trim()
+    const snapshotEndereco = (snapshotData.cliente?.endereco ?? '').trim()
+    const snapshotKwh = Number(snapshotData.kcKwhMes ?? 0)
+    
+    if (!snapshotNome && !snapshotEndereco && snapshotKwh === 0) {
+      console.warn('[getCurrentSnapshot] returning EMPTY snapshot', {
+        cliente: snapshotData.cliente,
+        kcKwhMes: snapshotData.kcKwhMes,
+        activeTab: snapshotData.activeTab,
+        currentBudgetId: snapshotData.currentBudgetId,
+      })
+      console.trace('[getCurrentSnapshot] trace - call site')
+    }
+    
+    return snapshotData
   }
 
   const handleSalvarCliente = useCallback(async (options?: { skipGuard?: boolean }) => {
@@ -12307,10 +12324,13 @@ export default function App() {
           const isEmptySnapshot = !snapshotNome && !snapshotEndereco && snapshotKwh === 0
           
           if (isEmptySnapshot) {
-            console.warn('[App] Auto-save skipped: snapshot is empty (would corrupt draft)', {
+            console.warn('[AutoSave] EMPTY SNAPSHOT DETECTED', {
               cliente: snapshot?.cliente,
               kcKwhMes: snapshot?.kcKwhMes,
+              activeTab: snapshot?.activeTab,
+              currentBudgetId: snapshot?.currentBudgetId,
             })
+            console.trace('[AutoSave] trace - who triggered autosave when snapshot is empty')
             return
           }
           
