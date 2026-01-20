@@ -278,13 +278,8 @@ function PrintableProposalLeasingInner(
 
   const nomeDistribuidora = distribuidoraLabel || 'distribuidora local'
 
-  const avisoMensalidadeCondicoes = useMemo(() => {
-    return `Aviso: A Mensalidade SolarInvest considera apenas a energia compensada (consumo contratado × tarifa com desconto). Os encargos da distribuidora permanecem separados e são estimados com base na tarifa vigente da ${nomeDistribuidora}. As projeções podem variar, pois a SolarInvest não controla reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, assim como as variações do consumo real ao longo do contrato.`
-  }, [nomeDistribuidora])
-
-  const avisoMensalidadeEvolucao = useMemo(() => {
-    return `Aviso: A Mensalidade SolarInvest considera apenas a energia compensada (consumo contratado × tarifa com desconto). Os encargos da distribuidora permanecem separados e são estimados com base na tarifa vigente da ${nomeDistribuidora}. Como a SolarInvest não controla reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, nem as variações de consumo real, os valores podem mudar ao longo do contrato.`
-  }, [nomeDistribuidora])
+  const avisoMensalidadeCondicoes = useMemo(() => null, [])
+  const avisoMensalidadeEvolucao = useMemo(() => null, [])
 
   const formatClienteEnderecoCompleto = () => {
     const endereco = cliente.endereco?.trim() || ''
@@ -1132,7 +1127,9 @@ function PrintableProposalLeasingInner(
                 ))}
               </tbody>
             </table>
-            <p className="muted print-footnote print-footnote--spaced">{avisoMensalidadeCondicoes}</p>
+            {avisoMensalidadeCondicoes ? (
+              <p className="muted print-footnote print-footnote--spaced">{avisoMensalidadeCondicoes}</p>
+            ) : null}
           </section>
     
           {multiUcResumoDados ? (
@@ -1315,10 +1312,12 @@ function PrintableProposalLeasingInner(
               ) : null}
             </div>
             <div className="muted no-break-inside leasing-encargos-note">
-              <p>Encargos da Distribuidora (Projeção)</p>
+              <p className="leasing-encargos-note__title">
+                <strong>Encargos da Distribuidora (Projeção)</strong>
+              </p>
               <p>
                 Os encargos da distribuidora não são compensados pela geração de energia solar e não estão incluídos na
-                Mensalidade Solar MESH, que considera apenas a energia compensada (consumo contratado × tarifa com
+                Mensalidade Solar, que considera apenas a energia compensada (consumo contratado × tarifa com
                 desconto).
               </p>
               <p>
@@ -1331,7 +1330,7 @@ function PrintableProposalLeasingInner(
                 somados ao valor final, resultando em uma única cobrança mensal ao cliente.
               </p>
             </div>
-            <p>{avisoMensalidadeEvolucao}</p>
+            {avisoMensalidadeEvolucao ? <p>{avisoMensalidadeEvolucao}</p> : null}
           </section>
 
           <section

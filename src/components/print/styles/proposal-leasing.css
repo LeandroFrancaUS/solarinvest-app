@@ -279,6 +279,16 @@
   line-height: 1.4;
 }
 
+.leasing-encargos-note {
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+  margin-top: 12px;
+  padding-top: 8px;
+}
+
+.leasing-encargos-note__title {
+  margin-top: 0;
+}
+
 .print-hero__summary h2 {
   margin: 0 0 14px;
   font-size: 18px;
