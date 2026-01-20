@@ -12570,11 +12570,18 @@ export default function App() {
       let snapshotToApply = registro.snapshot
       
       if (registro.id) {
-        console.log(`[carregarOrcamentoParaEdicao] Loading complete snapshot for budget: ${registro.id}`)
-        const completeSnapshot = await loadProposalSnapshotById(registro.id)
+        // Use normalized ID for consistent lookup
+        const budgetIdKey = normalizeProposalId(registro.id) || registro.id
+        console.log(`[carregarOrcamentoParaEdicao] Loading complete snapshot for budget: ${budgetIdKey} (original: ${registro.id})`)
+        const completeSnapshot = await loadProposalSnapshotById(budgetIdKey)
         
         if (completeSnapshot) {
-          console.log('[carregarOrcamentoParaEdicao] Using complete snapshot from proposalStore')
+          console.log('[carregarOrcamentoParaEdicao] Using complete snapshot from proposalStore', {
+            clienteNome: completeSnapshot.cliente?.nome,
+            clienteEndereco: completeSnapshot.cliente?.endereco,
+            kcKwhMes: completeSnapshot.kcKwhMes,
+            totalFields: Object.keys(completeSnapshot).length,
+          })
           snapshotToApply = completeSnapshot
         } else {
           console.warn('[carregarOrcamentoParaEdicao] Complete snapshot not found, falling back to registro.snapshot')
@@ -12671,9 +12678,19 @@ export default function App() {
           })
           
           // Save complete snapshot to proposalStore for full restoration
-          void saveProposalSnapshotById(registroAtualizado.id, snapshotAtualizado).catch((error) => {
-            console.error('Erro ao salvar snapshot completo no proposalStore:', error)
-          })
+          const budgetIdKey = normalizeProposalId(registroAtualizado.id) || registroAtualizado.id
+          void saveProposalSnapshotById(budgetIdKey, snapshotAtualizado)
+            .then(() => {
+              console.log('[proposalStore] SAVED snapshot for budget:', budgetIdKey, {
+                clienteNome: snapshotAtualizado.cliente?.nome,
+                clienteEndereco: snapshotAtualizado.cliente?.endereco,
+                kcKwhMes: snapshotAtualizado.kcKwhMes,
+                totalFields: Object.keys(snapshotAtualizado).length,
+              })
+            })
+            .catch((error) => {
+              console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
+            })
           
           return persisted.find((registro) => registro.id === registroAtualizado.id) ?? registroAtualizado
         }
@@ -12721,9 +12738,19 @@ export default function App() {
         })
         
         // Save complete snapshot to proposalStore for full restoration
-        void saveProposalSnapshotById(registro.id, snapshotParaArmazenar).catch((error) => {
-          console.error('Erro ao salvar snapshot completo no proposalStore:', error)
-        })
+        const budgetIdKey = normalizeProposalId(registro.id) || registro.id
+        void saveProposalSnapshotById(budgetIdKey, snapshotParaArmazenar)
+          .then(() => {
+            console.log('[proposalStore] SAVED snapshot for budget:', budgetIdKey, {
+              clienteNome: snapshotParaArmazenar.cliente?.nome,
+              clienteEndereco: snapshotParaArmazenar.cliente?.endereco,
+              kcKwhMes: snapshotParaArmazenar.kcKwhMes,
+              totalFields: Object.keys(snapshotParaArmazenar).length,
+            })
+          })
+          .catch((error) => {
+            console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
+          })
         
         return persisted.find((item) => item.id === registro.id) ?? registro
       } catch (error) {
