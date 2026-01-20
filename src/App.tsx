@@ -67,6 +67,10 @@ import {
 } from './app/services/serverStorage'
 import { saveFormDraft, loadFormDraft } from './lib/persist/formDraft'
 import {
+  saveProposalSnapshotById,
+  loadProposalSnapshotById,
+} from './lib/persist/proposalStore'
+import {
   computeROI,
   type ModoPagamento,
   type PagamentoCondicao,
@@ -12541,15 +12545,30 @@ export default function App() {
 }
 
   const carregarOrcamentoParaEdicao = useCallback(
-    (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
-      if (!registro.snapshot) {
+    async (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
+      // Try to load complete snapshot from proposalStore first
+      let snapshotToApply = registro.snapshot
+      
+      if (registro.id) {
+        console.log(`[carregarOrcamentoParaEdicao] Loading complete snapshot for budget: ${registro.id}`)
+        const completeSnapshot = await loadProposalSnapshotById(registro.id)
+        
+        if (completeSnapshot) {
+          console.log('[carregarOrcamentoParaEdicao] Using complete snapshot from proposalStore')
+          snapshotToApply = completeSnapshot
+        } else {
+          console.warn('[carregarOrcamentoParaEdicao] Complete snapshot not found, falling back to registro.snapshot')
+        }
+      }
+      
+      if (!snapshotToApply) {
         window.alert(
           'Este orçamento foi salvo sem histórico completo. Visualize o PDF ou salve novamente para gerar uma cópia editável.',
         )
         return
       }
 
-      aplicarSnapshot(registro.snapshot)
+      aplicarSnapshot(snapshotToApply)
       setActivePage('app')
       atualizarOrcamentoAtivo(registro)
       adicionarNotificacao(
@@ -12630,6 +12649,12 @@ export default function App() {
             }
             console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
           })
+          
+          // Save complete snapshot to proposalStore for full restoration
+          void saveProposalSnapshotById(registroAtualizado.id, snapshotAtualizado).catch((error) => {
+            console.error('Erro ao salvar snapshot completo no proposalStore:', error)
+          })
+          
           return persisted.find((registro) => registro.id === registroAtualizado.id) ?? registroAtualizado
         }
 
@@ -12674,6 +12699,12 @@ export default function App() {
           }
           console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
         })
+        
+        // Save complete snapshot to proposalStore for full restoration
+        void saveProposalSnapshotById(registro.id, snapshotParaArmazenar).catch((error) => {
+          console.error('Erro ao salvar snapshot completo no proposalStore:', error)
+        })
+        
         return persisted.find((item) => item.id === registro.id) ?? registro
       } catch (error) {
         console.error('Erro ao salvar orçamento localmente.', error)
