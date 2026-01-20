@@ -804,29 +804,6 @@ function PrintableProposalLeasingInner(
     [calcularIntensidadeContaDistribuidora],
   )
 
-  const estiloMensalidadeSolarInvest = useCallback(
-    (ano: number): React.CSSProperties | undefined => {
-      const intensidade = calcularIntensidadeContaDistribuidora(ano)
-
-      if (intensidade == null) {
-        return undefined
-      }
-
-      const mix = (inicio: number, fim: number) => Math.round(inicio + (fim - inicio) * intensidade)
-      const background = `rgb(${mix(238, 143)}, ${mix(249, 203)}, ${mix(243, 169)})`
-      const border = `rgb(${mix(214, 93)}, ${mix(235, 174)}, ${mix(220, 125)})`
-
-      return {
-        background,
-        boxShadow: `inset 0 0 0 1px ${border}`,
-        color: '#0f4d2d',
-        ['--leasing-positive-bg' as string]: background,
-        ['--leasing-positive-border' as string]: border,
-      }
-    },
-    [calcularIntensidadeContaDistribuidora],
-  )
-
   const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
   const prazoEconomiaMeses = prazoContratualMeses
   const prazoContratualAnos = useMemo(() => (prazoContratual > 0 ? prazoContratual / 12 : 0), [prazoContratual])
@@ -1276,22 +1253,24 @@ function PrintableProposalLeasingInner(
               <h2 className="section-title keep-with-next">Como sua economia evolui</h2>
               <p className="section-subtitle keep-with-next">Valores estimados por período contratual</p>
             <table className="no-break-inside leasing-economia-table">
+              <colgroup>
+                <col style={{ width: '18%' }} />
+                <col style={{ width: '44%' }} />
+                <col style={{ width: '38%' }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Período</th>
                   <th>Tarifas (cheia / com desconto)</th>
                   <th className="leasing-table-negative">Encargos da distribuidora (projeção)</th>
-                  <th className="leasing-table-positive leasing-table-positive-emphasis">Mensalidade SolarInvest (R$)</th>
                 </tr>
               </thead>
             <tbody>
               {mensalidadesPorAno.map((linha, index) => {
                 const isPosPrazo = linha.ano > prazoContratualTotalAnos
                 const isUltimaLinha = index === mensalidadesPorAno.length - 1
-                const isMensalidadeZero = linha.mensalidadeSolarInvest === 0
 
                 const contaDistribuidoraStyle = estiloContaDistribuidora(linha.ano)
-                const mensalidadeStyle = estiloMensalidadeSolarInvest(linha.ano)
 
                 const rowClassName = [
                   isPosPrazo ? 'leasing-row-post-contract' : undefined,
@@ -1323,23 +1302,6 @@ function PrintableProposalLeasingInner(
                     >
                       {currency(linha.encargosDistribuidora)}
                     </td>
-                    <td
-                      className={[
-                        'leasing-table-value',
-                        'leasing-table-positive',
-                        'leasing-table-positive-emphasis',
-                        mensalidadeStyle ? 'leasing-table-positive-gradient' : undefined,
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={mensalidadeStyle}
-                    >
-                      {isMensalidadeZero ? (
-                        <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
-                      ) : (
-                        currency(linha.mensalidadeSolarInvest)
-                      )}
-                    </td>
                   </tr>
                 )
               })}
@@ -1347,28 +1309,32 @@ function PrintableProposalLeasingInner(
             </table>
             <p className="muted no-break-inside">
               Encargos estimados incluem TUSD Fio B, taxa mínima da concessionária e demais encargos regulatórios
-              aplicáveis.
+              aplicáveis. Valores apresentados são projeções e podem variar conforme reajustes tarifários e inflação.
             </p>
             <div className="leasing-total-summary no-break-inside">
               <h3 className="print-subheading keep-with-next">Despesa Mensal Estimada (Energia + Encargos)</h3>
-              <table className="no-break-inside leasing-total-table">
-                <thead>
-                  <tr>
-                    <th>Período</th>
-                    <th>Despesa mensal estimada</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mensalidadesPorAno.map((linha) => (
-                    <tr key={`despesa-${linha.ano}`}>
-                      <td>{`${linha.ano}º ano`}</td>
-                      <td className="leasing-table-value leasing-total-value">
-                        {currency(linha.despesaMensalEstimada)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {mensalidadesPorAno[0] ? (
+                <div className="leasing-total-card">
+                  <div className="leasing-total-card__header">
+                    <span className="leasing-total-card__label">Referência: 1º ano</span>
+                    <span className="leasing-total-card__value">
+                      {currency(mensalidadesPorAno[0].despesaMensalEstimada)}
+                    </span>
+                  </div>
+                  <div className="leasing-total-card__details">
+                    <div>
+                      <span className="leasing-total-card__detail-label">Mensalidade SolarInvest</span>
+                      <strong>{currency(mensalidadesPorAno[0].mensalidadeSolarInvest)}</strong>
+                    </div>
+                    <div>
+                      <span className="leasing-total-card__detail-label">
+                        Encargos da Distribuidora (projeção)
+                      </span>
+                      <strong>{currency(mensalidadesPorAno[0].encargosDistribuidora)}</strong>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
             <p>{avisoMensalidadeEvolucao}</p>
           </section>

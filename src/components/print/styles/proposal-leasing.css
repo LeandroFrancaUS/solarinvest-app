@@ -542,6 +542,11 @@ table.leasing-economia-table,
   overflow: visible;
 }
 
+.leasing-economia-table th,
+.leasing-economia-table td {
+  padding: 8px 10px;
+}
+
 .leasing-economia-table th:last-child,
 .leasing-economia-table td:last-child {
   border-left: 3px solid #0f4d2d;
@@ -594,26 +599,46 @@ table.leasing-economia-table,
   margin-top: 12px;
 }
 
-table.leasing-total-table,
-.print-section .leasing-total-table {
-  border-radius: 8px;
-  overflow: hidden;
-  border: 2px solid #0f4d2d;
-}
-
-.leasing-total-table th,
-.leasing-total-table td {
+.leasing-total-card {
   background: #f1fbf5;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 6px 16px rgba(15, 77, 45, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.leasing-total-table th:last-child,
-.leasing-total-table td:last-child {
-  border-left: 2px solid #0f4d2d;
+.leasing-total-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.leasing-total-value {
+.leasing-total-card__label {
+  font-weight: 600;
+  color: #2d3b50;
+}
+
+.leasing-total-card__value {
+  font-size: 1.3rem;
   font-weight: 700;
   color: #0f4d2d;
+}
+
+.leasing-total-card__details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  color: #0c162c;
+}
+
+.leasing-total-card__detail-label {
+  display: block;
+  font-size: 0.9rem;
+  color: #4b586c;
+  margin-bottom: 4px;
 }
 
 .leasing-row-post-contract--gradient td:nth-child(1) {
