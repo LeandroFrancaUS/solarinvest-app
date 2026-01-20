@@ -18,36 +18,54 @@ const DRAFT_VERSION = 1
  */
 export async function saveFormDraft<T>(snapshotData: T): Promise<DraftEnvelope<T>> {
   try {
+    // Check if snapshot is empty/null - treat as clear semantics
+    if (!snapshotData || (typeof snapshotData === 'object' && Object.keys(snapshotData as object).length === 0)) {
+      console.log('[formDraft] Empty snapshot detected, clearing draft instead of saving')
+      await clearFormDraft()
+      // Return a dummy envelope to maintain API compatibility
+      return {
+        version: DRAFT_VERSION,
+        updatedAt: new Date().toISOString(),
+        data: snapshotData,
+      } as DraftEnvelope<T>
+    }
+    
     console.log('[formDraft] Saving complete form snapshot to IndexedDB')
     const envelope = await saveDraft(FORM_DRAFT_KEY, snapshotData, DRAFT_VERSION)
+    const hasData = !!envelope.data && Object.keys(envelope.data as object).length > 0
+    
     console.log('[formDraft] Form snapshot saved successfully:', {
       version: envelope.version,
       updatedAt: new Date(envelope.updatedAt).toISOString(),
-      hasData: !!envelope.data,
+      hasData,
       dataKeys: envelope.data ? Object.keys(envelope.data as object).length : 0,
     })
     
-    // READ-AFTER-WRITE VERIFICATION: Immediately read back to verify
-    try {
-      const verification = await loadDraft<T>(FORM_DRAFT_KEY)
-      if (!verification || !verification.data) {
-        console.error('[formDraft] READ-AFTER-WRITE FAILED: Data not found after save!')
-        return envelope
+    // READ-AFTER-WRITE VERIFICATION: Only verify if we saved meaningful data
+    if (hasData) {
+      try {
+        const verification = await loadDraft<T>(FORM_DRAFT_KEY)
+        if (!verification || !verification.data) {
+          console.error('[formDraft] READ-AFTER-WRITE FAILED: Data not found after save!')
+          return envelope
+        }
+        
+        const verifyData = verification.data as unknown as Record<string, unknown>
+        const clienteData = verifyData.cliente as Record<string, unknown> | undefined
+        console.log('[formDraft] READ-AFTER-WRITE VERIFICATION SUCCESS:', {
+          hasCliente: !!clienteData,
+          clienteNome: clienteData?.nome,
+          clienteEndereco: clienteData?.endereco,
+          clienteCidade: clienteData?.cidade,
+          kcKwhMes: verifyData.kcKwhMes,
+          tarifaCheia: verifyData.tarifaCheia,
+          totalFields: Object.keys(verifyData).length,
+        })
+      } catch (verifyError) {
+        console.error('[formDraft] READ-AFTER-WRITE verification failed:', verifyError)
       }
-      
-      const verifyData = verification.data as unknown as Record<string, unknown>
-      const clienteData = verifyData.cliente as Record<string, unknown> | undefined
-      console.log('[formDraft] READ-AFTER-WRITE VERIFICATION SUCCESS:', {
-        hasCliente: !!clienteData,
-        clienteNome: clienteData?.nome,
-        clienteEndereco: clienteData?.endereco,
-        clienteCidade: clienteData?.cidade,
-        kcKwhMes: verifyData.kcKwhMes,
-        tarifaCheia: verifyData.tarifaCheia,
-        totalFields: Object.keys(verifyData).length,
-      })
-    } catch (verifyError) {
-      console.error('[formDraft] READ-AFTER-WRITE verification failed:', verifyError)
+    } else {
+      console.log('[formDraft] Skipping read-after-write: payload is empty (clear semantics)')
     }
     
     return envelope
@@ -117,6 +135,18 @@ export async function removeFormDraft(): Promise<void> {
   } catch (error) {
     console.error('[formDraft] Failed to remove form snapshot:', error)
     throw error
+  }
+}
+
+/**
+ * Limpa o draft do formulário (alias para removeFormDraft com nome mais claro)
+ */
+export async function clearFormDraft(): Promise<void> {
+  try {
+    await removeDraft(FORM_DRAFT_KEY)
+    console.log('[formDraft] Draft cleared (removeItem)')
+  } catch (e) {
+    console.warn('[formDraft] Failed to clear draft:', e)
   }
 }
 

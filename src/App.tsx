@@ -65,7 +65,7 @@ import {
   fetchRemoteStorageEntry,
   persistRemoteStorageEntry,
 } from './app/services/serverStorage'
-import { saveFormDraft, loadFormDraft } from './lib/persist/formDraft'
+import { saveFormDraft, loadFormDraft, clearFormDraft } from './lib/persist/formDraft'
 import {
   saveProposalSnapshotById,
   loadProposalSnapshotById,
@@ -14526,7 +14526,7 @@ export default function App() {
     try {
       // Clear form draft to prevent stale data
       try {
-        await saveFormDraft(null as any) // Clear the draft
+        await clearFormDraft() // Use clearFormDraft instead of saveFormDraft(null)
         console.log('[Nova Proposta] Form draft cleared')
       } catch (error) {
         console.warn('[Nova Proposta] Failed to clear form draft:', error)
