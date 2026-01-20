@@ -11863,6 +11863,33 @@ export default function App() {
     return snapshotData
   }
 
+  const buildEmptySnapshotForNewProposal = (
+    tab: TabKey,
+    budgetId: string,
+  ): OrcamentoSnapshotData => {
+    const baseSnapshot = getCurrentSnapshot({ budgetIdOverride: budgetId })
+    const snapshot = baseSnapshot
+      ? cloneSnapshotData(baseSnapshot)
+      : createEmptySnapshot(budgetId, tab)
+
+    snapshot.activeTab = tab
+    snapshot.currentBudgetId = budgetId
+    snapshot.cliente = {
+      ...cloneClienteDados(CLIENTE_INICIAL),
+      nome: '',
+      endereco: '',
+      documento: '',
+    }
+    snapshot.kcKwhMes = 0
+    snapshot.consumoManual = false
+    snapshot.tarifaCheia = snapshot.tarifaCheia ?? 0
+    snapshot.entradaRs = 0
+    snapshot.numeroModulosManual = ''
+    snapshot.potenciaModulo = snapshot.potenciaModulo ?? 0
+
+    return snapshot
+  }
+
   // Helper: Hydrate cliente registro with latest data from clientStore
   const hydrateClienteRegistroFromStore = async (
     registro: ClienteRegistro,
@@ -14890,6 +14917,9 @@ export default function App() {
         budgetIdRef.current = novoBudgetId
       }
 
+      const snapshotVazio = buildEmptySnapshotForNewProposal(activeTabRef.current, novoBudgetId)
+      aplicarSnapshot(snapshotVazio, { budgetIdOverride: novoBudgetId, allowEmpty: true })
+
       fieldSyncActions.reset()
       setSettingsTab(INITIAL_VALUES.settingsTab)
       setActivePage('app')
@@ -14914,7 +14944,7 @@ export default function App() {
       setDistribuidoraTarifa(INITIAL_VALUES.distribuidoraTarifa)
       setMesReajuste(INITIAL_VALUES.mesReajuste)
       mesReferenciaRef.current = new Date().getMonth() + 1
-      setKcKwhMes(INITIAL_VALUES.kcKwhMes)
+      setKcKwhMes(0)
       setPotenciaFonteManual(false)
       setTarifaCheia(INITIAL_VALUES.tarifaCheia)
       setDesconto(INITIAL_VALUES.desconto)
