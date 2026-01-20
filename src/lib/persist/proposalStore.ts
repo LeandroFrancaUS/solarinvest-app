@@ -21,6 +21,24 @@ type ProposalPayload = {
 }
 
 /**
+ * Check if a snapshot has meaningful data (not empty)
+ */
+function isMeaningfulSnapshot(snapshot: OrcamentoSnapshotData): boolean {
+  if (!snapshot) return false
+  
+  const nome = (snapshot.cliente?.nome ?? '').trim()
+  const endereco = (snapshot.cliente?.endereco ?? '').trim()
+  const documento = (snapshot.cliente?.documento ?? '').trim()
+  const kc = Number(snapshot.kcKwhMes ?? 0)
+  
+  const hasCliente = Boolean(nome || endereco || documento)
+  const hasConsumption = kc > 0
+  
+  // Accept if has client data OR consumption, or any other strong signal
+  return hasCliente || hasConsumption
+}
+
+/**
  * Save a complete proposal snapshot by budget ID with read-after-write verification
  */
 export async function saveProposalSnapshotById(
@@ -28,6 +46,18 @@ export async function saveProposalSnapshotById(
   snapshot: OrcamentoSnapshotData,
 ): Promise<void> {
   const key = `proposal:${budgetId}`
+  
+  // Guard: Block empty snapshots from being saved
+  if (!isMeaningfulSnapshot(snapshot)) {
+    console.warn('[proposalStore] BLOCKED save of empty snapshot', {
+      budgetId,
+      clienteNome: snapshot?.cliente?.nome ?? '',
+      clienteEndereco: snapshot?.cliente?.endereco ?? '',
+      clienteDocumento: snapshot?.cliente?.documento ?? '',
+      kcKwhMes: snapshot?.kcKwhMes ?? 0,
+    })
+    return
+  }
   
   // Create payload with versioning
   const payload: ProposalPayload = {
@@ -42,9 +72,19 @@ export async function saveProposalSnapshotById(
   const verify = await proposalStore.getItem<ProposalPayload>(key)
   const snap = verify?.snapshot
   
+  // Check if verified data is meaningful
+  const hasCliente = Boolean(
+    (snap?.cliente?.nome ?? '').trim() ||
+    (snap?.cliente?.endereco ?? '').trim() ||
+    (snap?.cliente?.documento ?? '').trim()
+  )
+  const hasConsumption = Number(snap?.kcKwhMes ?? 0) > 0
+  
   console.log('[proposalStore] SAVED+VERIFIED', budgetId, {
     hasPayload: !!verify,
     hasSnapshot: !!snap,
+    hasCliente,
+    hasConsumption,
     clienteNome: snap?.cliente?.nome ?? '',
     clienteEndereco: snap?.cliente?.endereco ?? '',
     kcKwhMes: snap?.kcKwhMes ?? 0,
