@@ -295,7 +295,7 @@ function PrintableProposalLeasingInner(
   const avisoMensalidadeCondicoes = useMemo(() => null, [])
   const avisoMensalidadeEvolucao = useMemo(() => null, [])
 
-  const formatClienteEnderecoCompleto = () => {
+  const formatClienteEnderecoCompleto = (incluirCep = true) => {
     const endereco = cliente.endereco?.trim() || ''
     const cidade = cliente.cidade?.trim() || ''
     const uf = cliente.uf?.trim() || ''
@@ -307,7 +307,7 @@ function PrintableProposalLeasingInner(
     if (cidade || uf) {
       partes.push([cidade, uf].filter(Boolean).join(' / '))
     }
-    if (cep) {
+    if (incluirCep && cep) {
       partes.push(`CEP ${cep}`)
     }
     return partes.filter(Boolean).join(' • ')
@@ -315,7 +315,7 @@ function PrintableProposalLeasingInner(
 
   const ucGeradoraNumero = ucGeradora?.numero?.trim() || ucCliente || ''
   const ucGeradoraEndereco = ucGeradora?.endereco?.trim() || formatClienteEnderecoCompleto()
-  const enderecoCompletoCliente = formatClienteEnderecoCompleto()
+  const enderecoCompletoCliente = formatClienteEnderecoCompleto(false)
   const infoPessoalCliente = [
     { label: 'Cliente', value: nomeCliente || '—' },
     { label: 'CPF/CNPJ', value: documentoCliente || '—' },
