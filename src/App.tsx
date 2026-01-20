@@ -4445,6 +4445,7 @@ export default function App() {
   const isApplyingCepRef = useRef(false)
   const isEditingEnderecoRef = useRef(false)
   const lastCepAppliedRef = useRef<string>('')
+  const budgetIdMismatchLoggedRef = useRef(false)
   
   // Refs to prevent stale closures in getCurrentSnapshot
   const clienteRef = useRef(cliente)
@@ -11497,6 +11498,14 @@ export default function App() {
     }
 
     // Log sources before building snapshot (using refs for accuracy)
+    if (budgetId !== currentBudgetId && !budgetIdMismatchLoggedRef.current) {
+      budgetIdMismatchLoggedRef.current = true
+      console.warn('[budgetId] mismatch', {
+        budgetIdRef: budgetId,
+        budgetIdState: currentBudgetId,
+      })
+    }
+
     console.log('[getCurrentSnapshot] sources', {
       activeTab: tab,
       activeTabState: activeTab,
@@ -14706,8 +14715,8 @@ export default function App() {
       setOrcamentoSearchTerm('')
       limparOrcamentoAtivo()
       const novoBudgetId = createDraftBudgetId()
-      setCurrentBudgetId(novoBudgetId)
       currentBudgetIdRef.current = novoBudgetId
+      setCurrentBudgetId(novoBudgetId)
       console.log('[Nova Proposta] New budget ID created')
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
