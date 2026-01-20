@@ -712,12 +712,14 @@ function PrintableProposalLeasingInner(
       const tusdMedio = tusdMedioPorAno[ano] ?? 0
       const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto
       const encargosDistribuidora = tusdMedio + taxaMinimaMensal
+      const despesaMensalEstimada = mensalidadeSolarInvest + encargosDistribuidora
       return {
         ano,
         tarifaCheiaAno: tarifaAno,
         tarifaComDesconto,
         mensalidadeSolarInvest,
         encargosDistribuidora,
+        despesaMensalEstimada,
       }
     })
 
@@ -742,6 +744,7 @@ function PrintableProposalLeasingInner(
     const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
     const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
     const encargosDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
+    const despesaMensalPosContrato = encargosDistribuidoraPosContrato
 
     linhas.push({
       ano: anoPosContrato,
@@ -749,6 +752,7 @@ function PrintableProposalLeasingInner(
       tarifaComDesconto: tarifaAnoPosContrato,
       encargosDistribuidora: encargosDistribuidoraPosContrato,
       mensalidadeSolarInvest: 0,
+      despesaMensalEstimada: despesaMensalPosContrato,
     })
 
     return linhas
@@ -1275,8 +1279,7 @@ function PrintableProposalLeasingInner(
               <thead>
                 <tr>
                   <th>Período</th>
-                  <th>Tarifa cheia</th>
-                  <th>Tarifa com desconto</th>
+                  <th>Tarifas (cheia / com desconto)</th>
                   <th className="leasing-table-negative">Encargos da distribuidora (projeção)</th>
                   <th className="leasing-table-positive leasing-table-positive-emphasis">Mensalidade SolarInvest (R$)</th>
                 </tr>
@@ -1300,8 +1303,14 @@ function PrintableProposalLeasingInner(
                 return (
                   <tr key={`mensalidade-${linha.ano}`} className={rowClassName || undefined}>
                     <td>{`${linha.ano}º ano`}</td>
-                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaCheiaAno)}</td>
-                    <td className="leasing-table-value">{tarifaCurrency(linha.tarifaComDesconto)}</td>
+                    <td className="leasing-table-value leasing-table-tariff">
+                      <span>
+                        <strong>Cheia</strong> {tarifaCurrency(linha.tarifaCheiaAno)}
+                      </span>
+                      <span>
+                        <strong>Com desconto</strong> {tarifaCurrency(linha.tarifaComDesconto)}
+                      </span>
+                    </td>
                     <td
                       className={[
                         'leasing-table-value',
@@ -1340,6 +1349,27 @@ function PrintableProposalLeasingInner(
               Encargos estimados incluem TUSD Fio B, taxa mínima da concessionária e demais encargos regulatórios
               aplicáveis.
             </p>
+            <div className="leasing-total-summary no-break-inside">
+              <h3 className="print-subheading keep-with-next">Despesa Mensal Estimada (Energia + Encargos)</h3>
+              <table className="no-break-inside leasing-total-table">
+                <thead>
+                  <tr>
+                    <th>Período</th>
+                    <th>Despesa mensal estimada</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mensalidadesPorAno.map((linha) => (
+                    <tr key={`despesa-${linha.ano}`}>
+                      <td>{`${linha.ano}º ano`}</td>
+                      <td className="leasing-table-value leasing-total-value">
+                        {currency(linha.despesaMensalEstimada)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <p>{avisoMensalidadeEvolucao}</p>
           </section>
 
