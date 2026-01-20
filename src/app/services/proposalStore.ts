@@ -16,6 +16,13 @@ type SnapshotSummary = {
   totalFields: number
 }
 
+type StoragePayload = {
+  version: number
+  updatedAt: string
+  data: OrcamentoSnapshotData
+  snapshot: OrcamentoSnapshotData  // For backward compatibility
+}
+
 /**
  * Generate storage key for a budget ID
  */
@@ -39,10 +46,22 @@ function createSnapshotSummary(snapshot: OrcamentoSnapshotData): SnapshotSummary
 /**
  * Check if snapshot has meaningful data
  */
-function hasSnapshotData(snapshot: OrcamentoSnapshotData): boolean {
+function hasSnapshotData(snapshot: OrcamentoSnapshotData | null | undefined): boolean {
+  if (!snapshot) return false
+  
+  const totalFields = Object.keys(snapshot).length
+  if (totalFields < 20) return false  // Too few fields to be a real snapshot
+  
   const hasCliente = !!(snapshot.cliente?.nome || snapshot.cliente?.endereco)
   const hasConsumo = (snapshot.kcKwhMes ?? 0) > 0
   return hasCliente || hasConsumo
+}
+
+/**
+ * Clone snapshot data to avoid mutations
+ */
+function cloneSnapshot(snapshot: OrcamentoSnapshotData): OrcamentoSnapshotData {
+  return JSON.parse(JSON.stringify(snapshot)) as OrcamentoSnapshotData
 }
 
 /**
@@ -66,7 +85,15 @@ export async function saveCompleteSnapshot(
   })
 
   try {
-    const serialized = JSON.stringify(snapshot)
+    // Create payload with both data and snapshot keys for compatibility
+    const payload: StoragePayload = {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      data: cloneSnapshot(snapshot),
+      snapshot: cloneSnapshot(snapshot),
+    }
+    
+    const serialized = JSON.stringify(payload)
     localStorage.setItem(storageKey, serialized)
     
     // Read-after-write verification
@@ -103,22 +130,47 @@ export async function loadCompleteSnapshot(
       return null
     }
     
-    const snapshot = JSON.parse(serialized) as OrcamentoSnapshotData
+    const payload = JSON.parse(serialized) as Partial<StoragePayload> | OrcamentoSnapshotData
+    
+    // Extract snapshot from payload (support both old and new formats)
+    let snapshot: OrcamentoSnapshotData | null = null
+    
+    if ('data' in payload && payload.data) {
+      snapshot = payload.data
+    } else if ('snapshot' in payload && payload.snapshot) {
+      snapshot = payload.snapshot
+    } else {
+      // Old format: payload is the snapshot itself
+      snapshot = payload as OrcamentoSnapshotData
+    }
+    
     const hasData = hasSnapshotData(snapshot)
+    
+    if (!hasData || !snapshot) {
+      console.log('[proposalStore] LOAD result', {
+        budgetId,
+        found: true,
+        hasSnapshot: !!snapshot,
+        hasData: false,
+        reason: 'Snapshot has insufficient data',
+      })
+      return null
+    }
+    
     const summary = createSnapshotSummary(snapshot)
     
     console.log('[proposalStore] LOAD result', {
       budgetId,
       found: true,
       hasSnapshot: true,
-      hasData,
+      hasData: true,
       clienteNome: summary.clienteNome,
       clienteEndereco: summary.clienteEndereco,
       kcKwhMes: summary.kcKwhMes,
       totalFields: summary.totalFields,
     })
     
-    return snapshot
+    return cloneSnapshot(snapshot)
   } catch (error) {
     console.error('[proposalStore] LOAD ERROR', { budgetId, error })
     return null

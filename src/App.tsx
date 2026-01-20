@@ -12366,37 +12366,38 @@ export default function App() {
       try {
         const completeSnapshot = await loadCompleteSnapshot(registro.id)
         if (completeSnapshot) {
-          // Check if snapshot has meaningful data
-          const hasData =
-            !!(completeSnapshot.cliente?.nome || completeSnapshot.cliente?.endereco) ||
-            (completeSnapshot.kcKwhMes ?? 0) > 0
-
-          if (hasData) {
-            snapshotToApply = completeSnapshot
-            source = 'proposalStore'
-            console.log('[carregarOrcamentoParaEdicao] using proposalStore complete snapshot')
-          }
+          snapshotToApply = completeSnapshot
+          source = 'proposalStore'
+          console.log('[carregarOrcamentoParaEdicao] using proposalStore complete snapshot')
         }
       } catch (error) {
         console.error('[carregarOrcamentoParaEdicao] proposalStore load failed', error)
       }
 
-      // Fallback to registro.snapshot
+      // Fallback to registro.snapshot if proposalStore failed or returned null
       if (!snapshotToApply && registro.snapshot) {
-        const hasData =
-          !!(registro.snapshot.cliente?.nome || registro.snapshot.cliente?.endereco) ||
-          (registro.snapshot.kcKwhMes ?? 0) > 0
-
-        if (hasData) {
+        // More lenient check: just verify it has some basic fields
+        const totalFields = Object.keys(registro.snapshot).length
+        const hasMinimumFields = totalFields > 10  // Very lenient
+        
+        if (hasMinimumFields) {
           snapshotToApply = registro.snapshot
           source = 'registro'
-          console.log('[carregarOrcamentoParaEdicao] fallback to registro.snapshot')
+          console.log('[carregarOrcamentoParaEdicao] fallback to registro.snapshot', {
+            totalFields,
+            hasCliente: !!registro.snapshot.cliente,
+            hasKcKwhMes: !!(registro.snapshot.kcKwhMes),
+          })
         }
       }
 
       // No usable snapshot found
       if (!snapshotToApply) {
-        console.log('[carregarOrcamentoParaEdicao] no usable snapshot found')
+        console.log('[carregarOrcamentoParaEdicao] no usable snapshot found', {
+          proposalStoreChecked: true,
+          registroSnapshotExists: !!registro.snapshot,
+          registroSnapshotFields: registro.snapshot ? Object.keys(registro.snapshot).length : 0,
+        })
         window.alert(
           'Este orçamento foi salvo sem histórico completo. Visualize o PDF ou salve novamente para gerar uma cópia editável.',
         )
