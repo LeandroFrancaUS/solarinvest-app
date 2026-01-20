@@ -4440,6 +4440,9 @@ export default function App() {
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isHydratingRef = useRef(false)
+  const isApplyingCepRef = useRef(false)
+  const isEditingEnderecoRef = useRef(false)
+  const lastCepAppliedRef = useRef<string>('')
   
   // Refs to prevent stale closures in getCurrentSnapshot
   const clienteRef = useRef(cliente)
@@ -12724,7 +12727,13 @@ export default function App() {
         return
       }
 
-      aplicarSnapshot(snapshotToApply)
+      isHydratingRef.current = true
+      try {
+        aplicarSnapshot(snapshotToApply)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      } finally {
+        isHydratingRef.current = false
+      }
       setActivePage('app')
       atualizarOrcamentoAtivo(registro)
       adicionarNotificacao(
@@ -14861,7 +14870,11 @@ export default function App() {
     }
 
     const novoBudgetId = createDraftBudgetId()
+    isHydratingRef.current = true
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
+    setTimeout(() => {
+      isHydratingRef.current = false
+    }, 0)
     limparOrcamentoAtivo()
     lastSavedSignatureRef.current = null
     userInteractedSinceSaveRef.current = true
@@ -15142,10 +15155,25 @@ export default function App() {
       return
     }
 
-    const cepNumeros = normalizeNumbers(cliente.cep)
-    if (cepNumeros.length < 8) {
+    const cepNumeros = normalizeNumbers(clienteRef.current?.cep ?? cliente.cep)
+    console.log('[CEP effect] run', {
+      cep: cepNumeros,
+      hydrating: isHydratingRef.current,
+      editingEndereco: isEditingEnderecoRef.current,
+      last: lastCepAppliedRef.current,
+    })
+
+    if (isHydratingRef.current || isApplyingCepRef.current || isEditingEnderecoRef.current) {
+      return
+    }
+
+    if (cepNumeros.length !== 8) {
       setBuscandoCep(false)
       setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
+      return
+    }
+
+    if (cepNumeros === lastCepAppliedRef.current) {
       return
     }
 
@@ -15157,6 +15185,7 @@ export default function App() {
       setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
 
       try {
+        isApplyingCepRef.current = true
         const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`, {
           signal: controller.signal,
         })
@@ -15180,21 +15209,27 @@ export default function App() {
         const uf = data?.uf?.trim().toUpperCase() ?? ''
 
         const base = clienteRef.current ?? cliente
+        const enderecoAtual = base.endereco?.trim() ?? ''
         const patch: Partial<ClienteDados> = {}
-        if (logradouro && logradouro !== base.endereco) {
-          patch.endereco = logradouro
-        }
         if (localidade && localidade !== base.cidade) {
           patch.cidade = localidade
         }
         if (uf && uf !== base.uf) {
           patch.uf = uf
         }
+        if (!enderecoAtual && logradouro) {
+          patch.endereco = logradouro
+        }
         if (Object.keys(patch).length > 0) {
           updateClienteSync(patch)
         }
 
-        setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined, cidade: undefined }))
+        lastCepAppliedRef.current = cepNumeros
+        setClienteMensagens((prev): ClienteMensagens => ({
+          ...prev,
+          cep: undefined,
+          cidade: undefined,
+        }))
       } catch (error) {
         if (!ativo || controller.signal.aborted) {
           return
@@ -15208,6 +15243,7 @@ export default function App() {
         if (ativo) {
           setBuscandoCep(false)
         }
+        isApplyingCepRef.current = false
       }
     }
 
@@ -15217,7 +15253,7 @@ export default function App() {
       ativo = false
       controller.abort()
     }
-  }, [cliente, cliente.cep, updateClienteSync])
+  }, [cliente.cep])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -15891,15 +15927,16 @@ export default function App() {
         >
           <input
             data-field="cliente-enderecoContratante"
-            value={cliente.endereco}
+            value={cliente.endereco ?? ''}
             onChange={(e) => {
-              const value = e.target.value
-              console.log('[UI] Endereco do Contratante value now:', value)
-              if ((clienteRef.current ?? cliente).endereco !== value) {
-                updateClienteSync({ endereco: value })
-                syncClienteField('endereco', value)
-              }
+              updateClienteSync({ endereco: e.target.value })
               clearFieldHighlight(e.currentTarget)
+            }}
+            onFocus={() => {
+              isEditingEnderecoRef.current = true
+            }}
+            onBlur={() => {
+              isEditingEnderecoRef.current = false
             }}
             autoComplete="street-address"
             placeholder="Rua, número, complemento"
