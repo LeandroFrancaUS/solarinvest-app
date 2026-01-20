@@ -1026,7 +1026,6 @@ const CLIENTE_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
 const CLIENTE_ID_MAX_ATTEMPTS = 10000
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
-const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
 // SolarInvest company information for contracts
 const CLIENTE_INICIAL: ClienteDados = {
@@ -3715,26 +3714,15 @@ export default function App() {
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
   const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
 
-  const getEffectiveBudgetId = useCallback(() => {
-    const refId = budgetIdRef.current
-    const stateId = currentBudgetId
-    return refId || stateId
-  }, [currentBudgetId])
-
-  const isBudgetIdSynced = useCallback(() => {
-    const refId = budgetIdRef.current
-    const stateId = currentBudgetId
-    return Boolean(refId && stateId && refId === stateId)
-  }, [currentBudgetId])
+  const getActiveBudgetId = useCallback(() => budgetIdRef.current, [])
 
   const switchBudgetId = useCallback(
     (nextId: string) => {
-      const prevId = getEffectiveBudgetId()
+      const prevId = getActiveBudgetId()
       if (!nextId || nextId === prevId) {
         return
       }
 
-      budgetIdRef.current = nextId
       try {
         renameVendasSimulacao(prevId, nextId)
       } catch (error) {
@@ -3742,7 +3730,7 @@ export default function App() {
       }
       setCurrentBudgetId(nextId)
     },
-    [getEffectiveBudgetId, renameVendasSimulacao],
+    [getActiveBudgetId, renameVendasSimulacao],
   )
 
   const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
@@ -11638,6 +11626,46 @@ export default function App() {
     leasingSnapshot: getLeasingSnapshot(),
   })
 
+  const mergeSnapshotWithDefaults = (
+    snapshot: OrcamentoSnapshotData,
+    budgetId: string,
+  ): OrcamentoSnapshotData => {
+    const base = createEmptySnapshot(budgetId, snapshot.activeTab)
+
+    return {
+      ...base,
+      ...snapshot,
+      cliente: cloneClienteDados(snapshot.cliente ?? base.cliente),
+      clienteMensagens: snapshot.clienteMensagens ?? base.clienteMensagens,
+      ucBeneficiarias: snapshot.ucBeneficiarias ?? base.ucBeneficiarias,
+      pageShared: { ...base.pageShared, ...(snapshot.pageShared ?? {}) },
+      budgetStructuredItems: snapshot.budgetStructuredItems ?? base.budgetStructuredItems,
+      kitBudget: snapshot.kitBudget ?? base.kitBudget,
+      budgetProcessing: { ...base.budgetProcessing, ...(snapshot.budgetProcessing ?? {}) },
+      propostaImagens: snapshot.propostaImagens ?? base.propostaImagens,
+      ufsDisponiveis: snapshot.ufsDisponiveis ?? base.ufsDisponiveis,
+      distribuidorasPorUf: snapshot.distribuidorasPorUf ?? base.distribuidorasPorUf,
+      composicaoTelhado: { ...base.composicaoTelhado, ...(snapshot.composicaoTelhado ?? {}) },
+      composicaoSolo: { ...base.composicaoSolo, ...(snapshot.composicaoSolo ?? {}) },
+      impostosOverridesDraft: {
+        ...base.impostosOverridesDraft,
+        ...(snapshot.impostosOverridesDraft ?? {}),
+      },
+      vendasConfig: snapshot.vendasConfig ?? base.vendasConfig,
+      vendasSimulacoes: snapshot.vendasSimulacoes ?? base.vendasSimulacoes,
+      multiUc: {
+        ...base.multiUc,
+        ...(snapshot.multiUc ?? {}),
+        rows: snapshot.multiUc?.rows ?? base.multiUc.rows,
+      },
+      vendaForm: { ...base.vendaForm, ...(snapshot.vendaForm ?? {}) },
+      leasingAnexosSelecionados:
+        snapshot.leasingAnexosSelecionados ?? base.leasingAnexosSelecionados,
+      vendaSnapshot: snapshot.vendaSnapshot ?? base.vendaSnapshot,
+      leasingSnapshot: snapshot.leasingSnapshot ?? base.leasingSnapshot,
+    }
+  }
+
   const getCurrentSnapshot = (
     options?: { budgetIdOverride?: string },
   ): OrcamentoSnapshotData | null => {
@@ -11648,7 +11676,7 @@ export default function App() {
     const tab = activeTabRef.current
     const budgetIdRefNow = budgetIdRef.current
     const budgetIdStateNow = currentBudgetId
-    const budgetId = options?.budgetIdOverride ?? (budgetIdRefNow || budgetIdStateNow)
+    const budgetId = options?.budgetIdOverride ?? getActiveBudgetId()
     const clienteFonte = clienteRef.current ?? cliente
     const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
     const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
@@ -11677,10 +11705,10 @@ export default function App() {
     }
 
     if (budgetIdRefNow && budgetIdStateNow && budgetIdRefNow !== budgetIdStateNow) {
-      console.warn('[getCurrentSnapshot] budget id mismatch (using effectiveBudgetId)', {
+      console.warn('[getCurrentSnapshot] budget id mismatch (using active budgetId)', {
         budgetIdRef: budgetIdRefNow,
         budgetIdState: budgetIdStateNow,
-        effectiveBudgetId: budgetId,
+        activeBudgetId: budgetId,
       })
     }
 
@@ -12657,8 +12685,9 @@ export default function App() {
       
       autoSaveTimeoutRef.current = setTimeout(async () => {
         // Double-check hydration status before saving
-        if (isHydratingRef.current || !isBudgetIdSynced()) {
-          console.log('[App] Auto-save skipped: hydrating or budget mismatch', {
+        const activeBudgetId = getActiveBudgetId()
+        if (isHydratingRef.current || !activeBudgetId) {
+          console.log('[App] Auto-save skipped: hydrating or missing budgetId', {
             hydrating: isHydratingRef.current,
             budgetIdRef: budgetIdRef.current,
             budgetIdState: currentBudgetId,
@@ -12668,7 +12697,7 @@ export default function App() {
         
         try {
           const snapshot = getCurrentSnapshot()
-          if (!snapshot || isHydratingRef.current || !isBudgetIdSynced()) {
+          if (!snapshot || isHydratingRef.current) {
             console.warn('[AutoSave] Snapshot indisponível durante hidratação.')
             return
           }
@@ -12742,7 +12771,9 @@ export default function App() {
       return
     }
     
-    const snapshot = cloneSnapshotData(snapshotEntrada)
+    const snapshotClonado = cloneSnapshotData(snapshotEntrada)
+    const budgetId = options?.budgetIdOverride ?? snapshotClonado.currentBudgetId
+    const snapshot = mergeSnapshotWithDefaults(snapshotClonado, budgetId)
     snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
     snapshot.tipoInstalacaoOutro = snapshot.tipoInstalacaoOutro || ''
     snapshot.tipoEdificacaoOutro = snapshot.tipoEdificacaoOutro || ''
@@ -12751,7 +12782,6 @@ export default function App() {
       tipoInstalacao: normalizeTipoInstalacao(snapshot.pageShared.tipoInstalacao),
       tipoInstalacaoOutro: snapshot.pageShared.tipoInstalacaoOutro || '',
     }
-    const budgetId = options?.budgetIdOverride ?? snapshot.currentBudgetId
 
     fieldSyncActions.reset()
     setActiveTab(snapshot.activeTab)
@@ -12951,10 +12981,11 @@ export default function App() {
       }
 
       const targetBudgetId = normalizeProposalId(registro.id) || registro.id
-      switchBudgetId(targetBudgetId)
       isHydratingRef.current = true
       setIsHydrating(true)
       try {
+        switchBudgetId(targetBudgetId)
+        await tick()
         aplicarSnapshot(snapshotToApply, { budgetIdOverride: targetBudgetId })
         await tick()
       } finally {
@@ -12991,8 +13022,9 @@ export default function App() {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
         const snapshotAtual = getCurrentSnapshot()
-        if (!snapshotAtual || isHydratingRef.current || !isBudgetIdSynced()) {
-          console.warn('[salvarOrcamentoLocalmente] blocked: budget mismatch', {
+        const activeBudgetId = getActiveBudgetId()
+        if (!snapshotAtual || isHydratingRef.current || !activeBudgetId) {
+          console.warn('[salvarOrcamentoLocalmente] blocked: hydrating or missing budgetId', {
             hydrating: isHydratingRef.current,
             budgetIdRef: budgetIdRef.current,
             budgetIdState: currentBudgetId,
@@ -13049,7 +13081,7 @@ export default function App() {
             }
           }
           const clienteIdAtual = clienteEmEdicaoIdRef.current
-        const effectiveBudgetId = getEffectiveBudgetId()
+        const effectiveBudgetId = getActiveBudgetId()
         snapshotAtualizado.currentBudgetId = effectiveBudgetId
         const registroAtualizado: OrcamentoSalvo = {
           ...existente,
@@ -13451,7 +13483,7 @@ export default function App() {
   const handlePreviewActionRequest = useCallback(
     async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
       const previewData = pendingPreviewDataRef.current
-      const budgetIdAtual = normalizeProposalId(getEffectiveBudgetId())
+      const budgetIdAtual = normalizeProposalId(getActiveBudgetId())
 
       if (!previewData) {
         return { proceed: true }
@@ -13570,7 +13602,7 @@ export default function App() {
         adicionarNotificacao,
         atualizarOrcamentoAtivo,
         clienteEmEdicaoId,
-        getEffectiveBudgetId,
+        getActiveBudgetId,
         isProposalPdfIntegrationAvailable,
         salvarOrcamentoLocalmente,
         setProposalPdfIntegrationAvailable,
@@ -14904,22 +14936,6 @@ export default function App() {
         console.warn('[Nova Proposta] Failed to clear form draft:', error)
       }
 
-      const novoBudgetId = createDraftBudgetId()
-      console.log('[Nova Proposta] New budget ID created', novoBudgetId)
-
-      budgetIdRef.current = novoBudgetId
-      setCurrentBudgetId(novoBudgetId)
-
-      await Promise.resolve()
-      await nextFrame()
-
-      if (budgetIdRef.current !== novoBudgetId) {
-        budgetIdRef.current = novoBudgetId
-      }
-
-      const snapshotVazio = buildEmptySnapshotForNewProposal(activeTabRef.current, novoBudgetId)
-      aplicarSnapshot(snapshotVazio, { budgetIdOverride: novoBudgetId, allowEmpty: true })
-
       fieldSyncActions.reset()
       setSettingsTab(INITIAL_VALUES.settingsTab)
       setActivePage('app')
@@ -15053,6 +15069,16 @@ export default function App() {
       setClienteEmEdicaoId(null)
       setActivePage('app')
       setNotificacoes([])
+      const novoBudgetId = createDraftBudgetId()
+      console.log('[Nova Proposta] New budget ID created', novoBudgetId)
+
+      setCurrentBudgetId(novoBudgetId)
+
+      await Promise.resolve()
+      await tick()
+
+      const snapshotVazio = buildEmptySnapshotForNewProposal(activeTabRef.current, novoBudgetId)
+      aplicarSnapshot(snapshotVazio, { budgetIdOverride: novoBudgetId, allowEmpty: true })
       scheduleMarkStateAsSaved()
       
       console.log('[Nova Proposta] Reset complete, re-enabling auto-save', {
