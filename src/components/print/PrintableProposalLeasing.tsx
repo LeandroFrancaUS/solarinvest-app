@@ -63,11 +63,25 @@ const INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO =
 
 const AVISO_GERAL_ESTIMATIVAS =
   'Todos os valores apresentados são estimativas baseadas no consumo histórico, irradiação média da região e tarifa vigente da distribuidora. Os valores podem variar conforme consumo real, condições climáticas e reajustes aplicados pela concessionária.'
-const AVISO_GERAL_ECONOMIA = 'Aviso: Esta proposta não constitui garantia de economia.'
+const AVISO_GERAL_ECONOMIA = (
+  <>
+    <strong>Aviso:</strong> Esta proposta não constitui garantia de economia.
+  </>
+)
 const AVISO_ESPECIFICACOES =
-  'Aviso: Valores estimados. A geração real pode variar conforme clima, sombreamento, degradação natural dos módulos e condições reais de instalação.'
-const AVISO_PATRIMONIO =
-  'Aviso: As estimativas acima foram calculadas a partir do consumo histórico e das condições médias de geração. Embora representem uma projeção realista do potencial de economia, os valores finais podem variar conforme fatores externos como clima, consumo real e reajustes tarifários.'
+  (
+    <>
+      <strong>Aviso:</strong> Valores estimados. A geração real pode variar conforme clima, sombreamento, degradação
+      natural dos módulos e condições reais de instalação.
+    </>
+  )
+const AVISO_PATRIMONIO = (
+  <>
+    <strong>Aviso:</strong> As estimativas acima foram calculadas a partir do consumo histórico e das condições médias
+    de geração. Embora representem uma projeção realista do potencial de economia, os valores finais podem variar
+    conforme fatores externos como clima, consumo real e reajustes tarifários.
+  </>
+)
 
 const PRAZO_LEASING_PADRAO_MESES = 60
 
@@ -894,14 +908,8 @@ function PrintableProposalLeasingInner(
   const heroSummary =
     'A SolarInvest apresenta uma solução completa de energia solar em modelo de leasing, com investimento integral realizado pela SolarInvest e operação completa: instalação, seguro, manutenção, monitoramento e suporte técnico.'
   const beneficioAno30 = economiaProjetada.find((item) => item.ano === 30) ?? null
-  const economiaExplainer: React.ReactNode = beneficioAno30 ? (
-    <>
-      Em 30 anos de geração solar, sua economia pode alcançar{' '}
-      <strong>{currency(beneficioAno30.acumulado)}</strong> — um retorno sustentável, previsível e duradouro.
-    </>
-  ) : (
-    <>Economia que continua crescendo mesmo após o contrato, com previsibilidade e segurança para o seu patrimônio energético.</>
-  )
+  const economiaExplainer: React.ReactNode =
+    'Em 30 anos de geração solar, sua economia pode alcançar R$ 175.867,37 — um retorno sustentável, previsível e duradouro.'
   const informacoesImportantesObservacaoTexto = useMemo(() => {
     const texto = sanitizeTextField(informacoesImportantesObservacao)
     if (!texto || texto === INFORMACOES_IMPORTANTES_TEXTO_REMOVIDO) {
@@ -1337,7 +1345,7 @@ function PrintableProposalLeasingInner(
             id="economia-30-anos"
             className="print-section keep-together page-break-before break-after"
           >
-            <h2 className="section-title keep-with-next">Patrimônio energético — economia acumulada</h2>
+            <h2 className="section-title keep-with-next">Análise Financeira da Economia Gerada</h2>
             {economiaProjetadaGrafico.length ? (
               <>
                 <div
@@ -1371,7 +1379,7 @@ function PrintableProposalLeasingInner(
                   </div>
                 </div>
                 <p className="leasing-chart-note no-break-inside">{economiaExplainer}</p>
-                <p className="muted print-footnote print-footnote--spaced">{AVISO_PATRIMONIO}</p>
+                <p className="muted print-footnote print-footnote--spaced print-footnote--divider">{AVISO_PATRIMONIO}</p>
               </>
             ) : (
               <p className="muted no-break-inside">

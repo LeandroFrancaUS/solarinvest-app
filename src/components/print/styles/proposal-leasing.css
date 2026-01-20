@@ -297,6 +297,12 @@
   color: #f97316;
 }
 
+.print-footnote--divider {
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+  padding-top: 8px;
+  margin-top: 12px;
+}
+
 
 .print-hero__meta {
   position: relative;
