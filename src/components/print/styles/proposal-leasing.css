@@ -165,7 +165,7 @@
 .print-hero__summary {
   position: relative;
   z-index: 1;
-  padding: 20px 24px;
+  padding: 18px 20px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.94);
   font-size: 13px;
@@ -190,12 +190,12 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  padding: 14px 22px;
+  padding: 10px 16px;
   border-radius: 999px;
   background: rgba(249, 200, 140, 0.22);
   border: 1px solid rgba(247, 147, 30, 0.35);
   width: 100%;
-  max-width: 560px;
+  max-width: 520px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -205,7 +205,7 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  width: 150px;
+  width: 140px;
   text-align: center;
 }
 
@@ -239,7 +239,7 @@
 
 .print-hero__benefits {
   margin-top: 16px;
-  padding: 16px 18px;
+  padding: 12px 14px;
   border-radius: 16px;
   background: rgba(169, 207, 70, 0.18);
   border: 1px solid rgba(169, 207, 70, 0.45);
@@ -258,7 +258,7 @@
   padding-left: 0;
   list-style: none;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .print-hero__benefits li {
@@ -266,9 +266,9 @@
   line-height: 1.6;
   color: #0f172a;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: start;
-  column-gap: 10px;
+  column-gap: 8px;
 }
 
 .print-hero__benefits-icon {

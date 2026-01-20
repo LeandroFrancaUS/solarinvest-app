@@ -1314,10 +1314,23 @@ function PrintableProposalLeasingInner(
                 </div>
               ) : null}
             </div>
-            <p className="muted no-break-inside">
-              Encargos estimados incluem TUSD Fio B, taxa mínima da concessionária e demais encargos regulatórios
-              aplicáveis. Valores apresentados são projeções e podem variar conforme reajustes tarifários e inflação.
-            </p>
+            <div className="muted no-break-inside leasing-encargos-note">
+              <p>Encargos da Distribuidora (Projeção)</p>
+              <p>
+                Os encargos da distribuidora não são compensados pela geração de energia solar e não estão incluídos na
+                Mensalidade Solar MESH, que considera apenas a energia compensada (consumo contratado × tarifa com
+                desconto).
+              </p>
+              <p>
+                Esses encargos incluem TUSD Fio B, taxa mínima de disponibilidade e demais encargos regulatórios. Como
+                dependem de regras da concessionária, reajustes tarifários, tributos e do consumo real, não é possível
+                defini-los com exatidão antecipadamente, sendo apresentados nesta proposta apenas como projeção.
+              </p>
+              <p>
+                Embora sejam cobrados separadamente da mensalidade solar, os encargos são gerenciados pela Solarinvest e
+                somados ao valor final, resultando em uma única cobrança mensal ao cliente.
+              </p>
+            </div>
             <p>{avisoMensalidadeEvolucao}</p>
           </section>
 
