@@ -1025,6 +1025,7 @@ const CLIENTE_ID_LENGTH = 5
 const CLIENTE_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
 const CLIENTE_ID_MAX_ATTEMPTS = 10000
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 // SolarInvest company information for contracts
 const CLIENTE_INICIAL: ClienteDados = {
@@ -4464,6 +4465,7 @@ export default function App() {
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isHydratingRef = useRef(false)
+  const [isHydrating, setIsHydrating] = useState(false)
   const isApplyingCepRef = useRef(false)
   const isEditingEnderecoRef = useRef(false)
   const lastCepAppliedRef = useRef<string>('')
@@ -12439,31 +12441,22 @@ export default function App() {
           
           // Enable hydration mode to prevent state reset and auto-save during apply
           isHydratingRef.current = true
+          setIsHydrating(true)
           console.log('[App] Hydration mode enabled')
           
           try {
             aplicarSnapshot(envelope.data)
             
             // Wait for React to apply all setState calls
-            await new Promise((resolve) => setTimeout(resolve, 0))
+            await tick()
             
             console.log('[App] Hydration done')
           } finally {
             isHydratingRef.current = false
+            setIsHydrating(false)
             console.log('[App] Hydration mode disabled')
           }
-          
-          // Verify after a short delay to let React updates process
-          setTimeout(() => {
-            if (!cancelado) {
-              console.log('[App] AFTER APPLY - Verificando estado:', {
-                clienteNome: cliente.nome,
-                clienteEndereco: cliente.endereco,
-                clienteCidade: cliente.cidade,
-              })
-            }
-          }, 100)
-          
+
           console.log('[App] Form draft applied successfully')
         } else {
           console.log('[App] No form draft found in IndexedDB')
@@ -12788,11 +12781,13 @@ export default function App() {
       const targetBudgetId = normalizeProposalId(registro.id) || registro.id
       switchBudgetId(targetBudgetId)
       isHydratingRef.current = true
+      setIsHydrating(true)
       try {
         aplicarSnapshot(snapshotToApply, { budgetIdOverride: targetBudgetId })
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await tick()
       } finally {
         isHydratingRef.current = false
+        setIsHydrating(false)
       }
       setActivePage('app')
       atualizarOrcamentoAtivo(registro)
@@ -13032,6 +13027,18 @@ export default function App() {
       document.removeEventListener('change', handleUserInput, true)
     }
   }, [])
+
+  useEffect(() => {
+    if (isHydrating) {
+      return
+    }
+    console.log('[Hydration] DONE - cliente state:', {
+      nome: cliente?.nome ?? '',
+      endereco: cliente?.endereco ?? '',
+      cidade: cliente?.cidade ?? '',
+      documento: cliente?.documento ?? '',
+    })
+  }, [cliente?.cidade, cliente?.documento, cliente?.endereco, cliente?.nome, isHydrating])
 
   const hasUnsavedChanges = useCallback(() => {
     if (!userInteractedSinceSaveRef.current) {
@@ -14701,6 +14708,7 @@ export default function App() {
     // Protect against auto-save during reset
     console.log('[Nova Proposta] Starting - protecting against auto-save')
     isHydratingRef.current = true
+    setIsHydrating(true)
     
     try {
       // Clear form draft to prevent stale data
@@ -14712,11 +14720,12 @@ export default function App() {
       }
 
       const novoBudgetId = createDraftBudgetId()
-      switchBudgetId(novoBudgetId)
-      console.log('[Nova Proposta] New budget ID created')
+      budgetIdRef.current = novoBudgetId
+      setCurrentBudgetId(novoBudgetId)
+      console.log('[Nova Proposta] New budget ID created', novoBudgetId)
 
       // Wait for React to apply the budgetId change
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await tick()
 
       fieldSyncActions.reset()
       setSettingsTab(INITIAL_VALUES.settingsTab)
@@ -14853,9 +14862,11 @@ export default function App() {
       setNotificacoes([])
       scheduleMarkStateAsSaved()
       
+      await tick()
       console.log('[Nova Proposta] Reset complete, re-enabling auto-save')
     } finally {
       isHydratingRef.current = false
+      setIsHydrating(false)
     }
   }, [
     createPageSharedSettings,
@@ -14886,7 +14897,7 @@ export default function App() {
     setMultiUcRows,
     limparOrcamentoAtivo,
     setClienteSync,
-    switchBudgetId,
+    setCurrentBudgetId,
   ])
 
   const handleNovaProposta = useCallback(async () => {
@@ -14932,10 +14943,17 @@ export default function App() {
     const novoBudgetId = createDraftBudgetId()
     switchBudgetId(novoBudgetId)
     isHydratingRef.current = true
+    setIsHydrating(true)
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
-    setTimeout(() => {
-      isHydratingRef.current = false
-    }, 0)
+    tick()
+      .then(() => {
+        isHydratingRef.current = false
+        setIsHydrating(false)
+      })
+      .catch(() => {
+        isHydratingRef.current = false
+        setIsHydrating(false)
+      })
     limparOrcamentoAtivo()
     lastSavedSignatureRef.current = null
     userInteractedSinceSaveRef.current = true
