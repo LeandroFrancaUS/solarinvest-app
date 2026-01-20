@@ -523,7 +523,7 @@ describe('PrintableProposal (leasing)', () => {
     expect(markup).toContain('<td>10º ano</td>')
   })
 
-  it('soma a TUSD média anual ao valor exibido da mensalidade quando disponível', () => {
+  it('separa os encargos da distribuidora da mensalidade SolarInvest quando disponível', () => {
     const tusdMensal = 50
     const energiaContratada = 500
     const desconto = 10
@@ -551,8 +551,15 @@ describe('PrintableProposal (leasing)', () => {
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
     const linhaPrimeiroAno = markup.match(/<td>1º ano<\/td>(.*?)<\/tr>/s)?.[1] ?? ''
 
-    expect(linhaPrimeiroAno).toContain(currency(energiaContratada * (1 - desconto / 100) + tusdMensal))
-    expect(linhaPrimeiroAno).not.toContain(currency(energiaContratada * (1 - desconto / 100)))
+    const mensalidadeSolarInvest = energiaContratada * (1 - desconto / 100)
+    const despesaTotal = mensalidadeSolarInvest + tusdMensal
+
+    expect(linhaPrimeiroAno).toContain(currency(mensalidadeSolarInvest))
+    expect(linhaPrimeiroAno).not.toContain(currency(tusdMensal))
+    expect(markup).toContain('Despesa Mensal Estimada (Energia + Encargos)')
+    expect(markup).toContain('Referência: 1º ano')
+    expect(markup).toContain(currency(despesaTotal))
+    expect(markup).toContain(currency(tusdMensal))
   })
 
   it('prioriza os modelos informados manualmente na configuração da usina', () => {
