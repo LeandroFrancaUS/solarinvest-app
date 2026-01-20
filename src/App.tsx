@@ -3471,11 +3471,30 @@ export default function App() {
   const userInteractedSinceSaveRef = useRef(false)
   const computeSignatureRef = useRef<() => string>(() => '')
   const initialSignatureSetRef = useRef(false)
+  
+  // ITEM 1: Budget ID synchronization - single source of truth
+  const budgetIdRef = useRef<string>(createDraftBudgetId())
+  const [hydrating, setHydrating] = useState(false)
+  const autoSaveEnabledRef = useRef(true)
   const limparOrcamentoAtivo = useCallback(() => {
     setOrcamentoAtivoInfo(null)
     setOrcamentoRegistroBase(null)
     setOrcamentoDisponivelParaDuplicar(null)
   }, [])
+  
+  // ITEM 1: Deterministic budget ID setter - single atomic operation
+  const setActiveBudgetId = useCallback((nextId: string) => {
+    console.debug('[Budget] setActiveBudgetId', { nextId })
+    // Step a) Disable autosave/set hydrating before any changes
+    setHydrating(true)
+    autoSaveEnabledRef.current = false
+    // Step b) Set ref IMMEDIATELY (source of truth)
+    budgetIdRef.current = nextId
+    // Step c) Then update state
+    setCurrentBudgetId(nextId)
+    // Note: hydrating will be cleared by caller after all state updates
+  }, [])
+  
   const scheduleMarkStateAsSaved = useCallback((signatureOverride?: string | null) => {
     userInteractedSinceSaveRef.current = false
     lastSavedSignatureRef.current = signatureOverride ?? computeSignatureRef.current()
@@ -3553,6 +3572,12 @@ export default function App() {
     setOneDriveIntegrationAvailable(isOneDriveIntegrationAvailable())
     setProposalPdfIntegrationAvailable(isProposalPdfIntegrationAvailable())
   }, [])
+  
+  // ITEM 1: Sync budgetIdRef with currentBudgetId on mount
+  useEffect(() => {
+    budgetIdRef.current = currentBudgetId
+  }, [currentBudgetId])
+  
   const [currentBudgetId, setCurrentBudgetId] = useState<string>(() => createDraftBudgetId())
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
@@ -11416,6 +11441,267 @@ export default function App() {
     ])
 
   const getCurrentSnapshot = (): OrcamentoSnapshotData => {
+    // ITEM 2: Guard against hydration and ref/state mismatch
+    const budgetIdState = currentBudgetId
+    const budgetIdRefNow = budgetIdRef.current
+    const effectiveBudgetId = budgetIdRefNow || budgetIdState
+    
+    // Guard 1: Skip during hydration
+    if (hydrating) {
+      console.debug('[getCurrentSnapshot] skipped during hydration', { effectiveBudgetId })
+      // Return minimal safe snapshot - callers must handle this
+      return {
+        currentBudgetId: effectiveBudgetId,
+        activeTab,
+        settingsTab,
+        cliente: cloneClienteDados(CLIENTE_INICIAL),
+        clienteEmEdicaoId: null,
+        ucBeneficiarias: [],
+        pageShared: createPageSharedSettings(),
+        budgetStructuredItems: [],
+        kitBudget: createEmptyKitBudget(),
+        budgetProcessing: {
+          isProcessing: false,
+          error: null,
+          progress: null,
+          isTableCollapsed: false,
+          ocrDpi: DEFAULT_OCR_DPI,
+        },
+        propostaImagens: [],
+        ufTarifa: INITIAL_VALUES.ufTarifa,
+        distribuidoraTarifa: INITIAL_VALUES.distribuidoraTarifa,
+        ufsDisponiveis: [],
+        distribuidorasPorUf: {},
+        mesReajuste: INITIAL_VALUES.mesReajuste,
+        kcKwhMes: INITIAL_VALUES.kcKwhMes,
+        consumoManual: false,
+        tarifaCheia: INITIAL_VALUES.tarifaCheia,
+        desconto: INITIAL_VALUES.desconto,
+        taxaMinima: INITIAL_VALUES.taxaMinima,
+        taxaMinimaInputEmpty: true,
+        encargosFixosExtras: INITIAL_VALUES.encargosFixosExtras,
+        tusdPercent: INITIAL_VALUES.tusdPercent,
+        tusdTipoCliente: normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente),
+        tusdSubtipo: INITIAL_VALUES.tusdSubtipo,
+        tusdSimultaneidade: INITIAL_VALUES.tusdSimultaneidade,
+        tusdTarifaRkwh: INITIAL_VALUES.tusdTarifaRkwh,
+        tusdAnoReferencia: INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
+        tusdOpcoesExpandidas: false,
+        leasingPrazo: INITIAL_VALUES.leasingPrazo,
+        usarEnderecoCliente: false,
+        potenciaModulo: INITIAL_VALUES.potenciaModulo,
+        potenciaModuloDirty: false,
+        tipoInstalacao: normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao),
+        tipoInstalacaoOutro: INITIAL_VALUES.tipoInstalacaoOutro,
+        tipoInstalacaoDirty: false,
+        tipoSistema: INITIAL_VALUES.tipoSistema,
+        segmentoCliente: normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
+        tipoEdificacaoOutro: INITIAL_VALUES.tipoEdificacaoOutro,
+        numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
+        configuracaoUsinaObservacoes: INITIAL_VALUES.configuracaoUsinaObservacoes,
+        composicaoTelhado: createInitialComposicaoTelhado(),
+        composicaoSolo: createInitialComposicaoSolo(),
+        aprovadoresText: '',
+        impostosOverridesDraft: {},
+        vendasConfig: useVendasConfigStore.getState().config,
+        vendasSimulacoes: {},
+        multiUc: {
+          ativo: INITIAL_VALUES.multiUcAtivo,
+          rows: [],
+          rateioModo: INITIAL_VALUES.multiUcRateioModo,
+          energiaGeradaKWh: INITIAL_VALUES.multiUcEnergiaGeradaKWh,
+          energiaGeradaTouched: false,
+          anoVigencia: INITIAL_VALUES.multiUcAnoVigencia,
+          overrideEscalonamento: INITIAL_VALUES.multiUcOverrideEscalonamento,
+          escalonamentoCustomPercent: INITIAL_VALUES.multiUcEscalonamentoCustomPercent,
+        },
+        precoPorKwp: INITIAL_VALUES.precoPorKwp,
+        irradiacao: IRRADIACAO_FALLBACK,
+        eficiencia: INITIAL_VALUES.eficiencia,
+        diasMes: INITIAL_VALUES.diasMes,
+        inflacaoAa: INITIAL_VALUES.inflacaoAa,
+        vendaForm: createInitialVendaForm(),
+        capexManualOverride: INITIAL_VALUES.capexManualOverride,
+        parsedVendaPdf: null,
+        estruturaTipoWarning: null,
+        jurosFinAa: INITIAL_VALUES.jurosFinanciamentoAa,
+        prazoFinMeses: INITIAL_VALUES.prazoFinanciamentoMeses,
+        entradaFinPct: INITIAL_VALUES.entradaFinanciamentoPct,
+        mostrarFinanciamento: INITIAL_VALUES.mostrarFinanciamento,
+        mostrarGrafico: INITIAL_VALUES.mostrarGrafico,
+        prazoMeses: INITIAL_VALUES.prazoMeses,
+        bandeiraEncargo: INITIAL_VALUES.bandeiraEncargo,
+        cipEncargo: INITIAL_VALUES.cipEncargo,
+        entradaRs: INITIAL_VALUES.entradaRs,
+        entradaModo: INITIAL_VALUES.entradaModo,
+        mostrarValorMercadoLeasing: INITIAL_VALUES.mostrarValorMercadoLeasing,
+        mostrarTabelaParcelas: INITIAL_VALUES.tabelaVisivel,
+        mostrarTabelaBuyout: INITIAL_VALUES.tabelaVisivel,
+        mostrarTabelaParcelasConfig: INITIAL_VALUES.tabelaVisivel,
+        mostrarTabelaBuyoutConfig: INITIAL_VALUES.tabelaVisivel,
+        oemBase: INITIAL_VALUES.oemBase,
+        oemInflacao: INITIAL_VALUES.oemInflacao,
+        seguroModo: INITIAL_VALUES.seguroModo,
+        seguroReajuste: INITIAL_VALUES.seguroReajuste,
+        seguroValorA: INITIAL_VALUES.seguroValorA,
+        seguroPercentualB: INITIAL_VALUES.seguroPercentualB,
+        exibirLeasingLinha: INITIAL_VALUES.exibirLeasingLinha,
+        exibirFinLinha: INITIAL_VALUES.exibirFinanciamentoLinha,
+        cashbackPct: INITIAL_VALUES.cashbackPct,
+        depreciacaoAa: INITIAL_VALUES.depreciacaoAa,
+        inadimplenciaAa: INITIAL_VALUES.inadimplenciaAa,
+        tributosAa: INITIAL_VALUES.tributosAa,
+        ipcaAa: INITIAL_VALUES.ipcaAa,
+        custosFixosM: INITIAL_VALUES.custosFixosM,
+        opexM: INITIAL_VALUES.opexM,
+        seguroM: INITIAL_VALUES.seguroM,
+        duracaoMeses: INITIAL_VALUES.duracaoMeses,
+        pagosAcumAteM: INITIAL_VALUES.pagosAcumManual,
+        modoOrcamento: 'auto',
+        autoKitValor: null,
+        autoCustoFinal: null,
+        autoPricingRede: null,
+        autoPricingVersion: null,
+        autoBudgetReason: null,
+        autoBudgetReasonCode: null,
+        tipoRede: INITIAL_VALUES.tipoRede ?? 'monofasico',
+        tipoRedeControle: 'auto',
+        leasingAnexosSelecionados: [],
+        vendaSnapshot: getVendaSnapshot(),
+        leasingSnapshot: getLeasingSnapshot(),
+      } as OrcamentoSnapshotData
+    }
+    
+    // Guard 2: Block if ref/state mismatch
+    if (budgetIdRefNow && budgetIdState && budgetIdRefNow !== budgetIdState) {
+      console.warn('[getCurrentSnapshot] blocked: budgetIdRef != budgetIdState', {
+        budgetIdRefNow,
+        budgetIdState,
+        effectiveBudgetId,
+      })
+      // Return a minimal safe snapshot
+      return {
+        currentBudgetId: effectiveBudgetId,
+        activeTab,
+        settingsTab,
+        cliente: cloneClienteDados(CLIENTE_INICIAL),
+        clienteEmEdicaoId: null,
+        ucBeneficiarias: [],
+        pageShared: createPageSharedSettings(),
+        budgetStructuredItems: [],
+        kitBudget: createEmptyKitBudget(),
+        budgetProcessing: {
+          isProcessing: false,
+          error: null,
+          progress: null,
+          isTableCollapsed: false,
+          ocrDpi: DEFAULT_OCR_DPI,
+        },
+        propostaImagens: [],
+        ufTarifa: INITIAL_VALUES.ufTarifa,
+        distribuidoraTarifa: INITIAL_VALUES.distribuidoraTarifa,
+        ufsDisponiveis: [],
+        distribuidorasPorUf: {},
+        mesReajuste: INITIAL_VALUES.mesReajuste,
+        kcKwhMes: INITIAL_VALUES.kcKwhMes,
+        consumoManual: false,
+        tarifaCheia: INITIAL_VALUES.tarifaCheia,
+        desconto: INITIAL_VALUES.desconto,
+        taxaMinima: INITIAL_VALUES.taxaMinima,
+        taxaMinimaInputEmpty: true,
+        encargosFixosExtras: INITIAL_VALUES.encargosFixosExtras,
+        tusdPercent: INITIAL_VALUES.tusdPercent,
+        tusdTipoCliente: normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente),
+        tusdSubtipo: INITIAL_VALUES.tusdSubtipo,
+        tusdSimultaneidade: INITIAL_VALUES.tusdSimultaneidade,
+        tusdTarifaRkwh: INITIAL_VALUES.tusdTarifaRkwh,
+        tusdAnoReferencia: INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
+        tusdOpcoesExpandidas: false,
+        leasingPrazo: INITIAL_VALUES.leasingPrazo,
+        usarEnderecoCliente: false,
+        potenciaModulo: INITIAL_VALUES.potenciaModulo,
+        potenciaModuloDirty: false,
+        tipoInstalacao: normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao),
+        tipoInstalacaoOutro: INITIAL_VALUES.tipoInstalacaoOutro,
+        tipoInstalacaoDirty: false,
+        tipoSistema: INITIAL_VALUES.tipoSistema,
+        segmentoCliente: normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
+        tipoEdificacaoOutro: INITIAL_VALUES.tipoEdificacaoOutro,
+        numeroModulosManual: INITIAL_VALUES.numeroModulosManual,
+        configuracaoUsinaObservacoes: INITIAL_VALUES.configuracaoUsinaObservacoes,
+        composicaoTelhado: createInitialComposicaoTelhado(),
+        composicaoSolo: createInitialComposicaoSolo(),
+        aprovadoresText: '',
+        impostosOverridesDraft: {},
+        vendasConfig: useVendasConfigStore.getState().config,
+        vendasSimulacoes: {},
+        multiUc: {
+          ativo: INITIAL_VALUES.multiUcAtivo,
+          rows: [],
+          rateioModo: INITIAL_VALUES.multiUcRateioModo,
+          energiaGeradaKWh: INITIAL_VALUES.multiUcEnergiaGeradaKWh,
+          energiaGeradaTouched: false,
+          anoVigencia: INITIAL_VALUES.multiUcAnoVigencia,
+          overrideEscalonamento: INITIAL_VALUES.multiUcOverrideEscalonamento,
+          escalonamentoCustomPercent: INITIAL_VALUES.multiUcEscalonamentoCustomPercent,
+        },
+        precoPorKwp: INITIAL_VALUES.precoPorKwp,
+        irradiacao: IRRADIACAO_FALLBACK,
+        eficiencia: INITIAL_VALUES.eficiencia,
+        diasMes: INITIAL_VALUES.diasMes,
+        inflacaoAa: INITIAL_VALUES.inflacaoAa,
+        vendaForm: createInitialVendaForm(),
+        capexManualOverride: INITIAL_VALUES.capexManualOverride,
+        parsedVendaPdf: null,
+        estruturaTipoWarning: null,
+        jurosFinAa: INITIAL_VALUES.jurosFinanciamentoAa,
+        prazoFinMeses: INITIAL_VALUES.prazoFinanciamentoMeses,
+        entradaFinPct: INITIAL_VALUES.entradaFinanciamentoPct,
+        mostrarFinanciamento: INITIAL_VALUES.mostrarFinanciamento,
+        mostrarGrafico: INITIAL_VALUES.mostrarGrafico,
+        prazoMeses: INITIAL_VALUES.prazoMeses,
+        bandeiraEncargo: INITIAL_VALUES.bandeiraEncargo,
+        cipEncargo: INITIAL_VALUES.cipEncargo,
+        entradaRs: INITIAL_VALUES.entradaRs,
+        entradaModo: INITIAL_VALUES.entradaModo,
+        mostrarValorMercadoLeasing: INITIAL_VALUES.mostrarValorMercadoLeasing,
+        mostrarTabelaParcelas: INITIAL_VALUES.tabelaVisivel,
+        mostrarTabelaBuyout: INITIAL_VALUES.tabelaVisivel,
+        mostrarTabelaParcelasConfig: INITIAL_VALUES.tabelaVisivel,
+        mostrarTabelaBuyoutConfig: INITIAL_VALUES.tabelaVisivel,
+        oemBase: INITIAL_VALUES.oemBase,
+        oemInflacao: INITIAL_VALUES.oemInflacao,
+        seguroModo: INITIAL_VALUES.seguroModo,
+        seguroReajuste: INITIAL_VALUES.seguroReajuste,
+        seguroValorA: INITIAL_VALUES.seguroValorA,
+        seguroPercentualB: INITIAL_VALUES.seguroPercentualB,
+        exibirLeasingLinha: INITIAL_VALUES.exibirLeasingLinha,
+        exibirFinLinha: INITIAL_VALUES.exibirFinanciamentoLinha,
+        cashbackPct: INITIAL_VALUES.cashbackPct,
+        depreciacaoAa: INITIAL_VALUES.depreciacaoAa,
+        inadimplenciaAa: INITIAL_VALUES.inadimplenciaAa,
+        tributosAa: INITIAL_VALUES.tributosAa,
+        ipcaAa: INITIAL_VALUES.ipcaAa,
+        custosFixosM: INITIAL_VALUES.custosFixosM,
+        opexM: INITIAL_VALUES.opexM,
+        seguroM: INITIAL_VALUES.seguroM,
+        duracaoMeses: INITIAL_VALUES.duracaoMeses,
+        pagosAcumAteM: INITIAL_VALUES.pagosAcumManual,
+        modoOrcamento: 'auto',
+        autoKitValor: null,
+        autoCustoFinal: null,
+        autoPricingRede: null,
+        autoPricingVersion: null,
+        autoBudgetReason: null,
+        autoBudgetReasonCode: null,
+        tipoRede: INITIAL_VALUES.tipoRede ?? 'monofasico',
+        tipoRedeControle: 'auto',
+        leasingAnexosSelecionados: [],
+        vendaSnapshot: getVendaSnapshot(),
+        leasingSnapshot: getLeasingSnapshot(),
+      } as OrcamentoSnapshotData
+    }
+    
     const vendasConfigState = useVendasConfigStore.getState()
     const vendasSimState = useVendasSimulacoesStore.getState()
     const vendaSnapshotAtual = getVendaSnapshot()
@@ -11440,7 +11726,7 @@ export default function App() {
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
       pageShared: { ...pageSharedState },
-      currentBudgetId,
+      currentBudgetId: effectiveBudgetId,
       budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
       kitBudget: cloneKitBudgetState(kitBudget),
       budgetProcessing: {
@@ -12198,7 +12484,8 @@ export default function App() {
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
     setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
     setPageSharedState({ ...snapshot.pageShared })
-    setCurrentBudgetId(budgetId)
+    // Use setActiveBudgetId for deterministic budget switching
+    setActiveBudgetId(budgetId)
     setBudgetStructuredItems(cloneStructuredItems(snapshot.budgetStructuredItems))
     setKitBudget(cloneKitBudgetState(snapshot.kitBudget))
     setPropostaImagens(
@@ -12342,6 +12629,12 @@ export default function App() {
   if (options?.budgetIdOverride) {
     vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
   }
+  
+  // Re-enable autosave after snapshot application completes
+  window.setTimeout(() => {
+    setHydrating(false)
+    autoSaveEnabledRef.current = true
+  }, 0)
 }
 
   const carregarOrcamentoParaEdicao = useCallback(
@@ -14201,12 +14494,25 @@ export default function App() {
   }, [runWithUnsavedChangesGuard, setActivePage])
 
   const iniciarNovaProposta = useCallback(() => {
+    // ITEM 3: Complete reset with proper budget synchronization
+    // Step 1: Disable autosave and set hydrating
+    setHydrating(true)
+    autoSaveEnabledRef.current = false
+    
+    // Step 2: Clear form draft
     fieldSyncActions.reset()
     setSettingsTab(INITIAL_VALUES.settingsTab)
     setActivePage('app')
     setOrcamentoSearchTerm('')
     limparOrcamentoAtivo()
-    setCurrentBudgetId(createDraftBudgetId())
+    
+    // Step 3: Generate new ID
+    const novoId = createDraftBudgetId()
+    
+    // Step 4: Use setActiveBudgetId helper
+    setActiveBudgetId(novoId)
+    
+    // Step 5: Reset ALL states to defaults
     setBudgetStructuredItems([])
     setKitBudget(createEmptyKitBudget())
     setIsBudgetProcessing(false)
@@ -14226,7 +14532,10 @@ export default function App() {
     setDistribuidoraTarifa(INITIAL_VALUES.distribuidoraTarifa)
     setMesReajuste(INITIAL_VALUES.mesReajuste)
     mesReferenciaRef.current = new Date().getMonth() + 1
-    setKcKwhMes(INITIAL_VALUES.kcKwhMes)
+    
+    // CRITICAL: Reset kcKwhMes to 0 (was missing explicit reset to 0)
+    setKcKwhMes(0)
+    setConsumoManualState(false)
     setPotenciaFonteManual(false)
     setTarifaCheia(INITIAL_VALUES.tarifaCheia)
     setDesconto(INITIAL_VALUES.desconto)
@@ -14242,6 +14551,10 @@ export default function App() {
     setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
     setTusdOpcoesExpandidas(false)
     setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
+    
+    // CRITICAL: Reset "Mesmo que endereço do contratante" checkbox to FALSE
+    setUsarEnderecoCliente(false)
+    
     setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
     setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
     setTipoRedeControle('auto')
@@ -14332,7 +14645,24 @@ export default function App() {
     setClienteEmEdicaoId(null)
     setActivePage('app')
     setNotificacoes([])
-    scheduleMarkStateAsSaved()
+    
+    // Step 6: Clear auxiliary refs that can cause legacy effects
+    lastSavedSignatureRef.current = null
+    userInteractedSinceSaveRef.current = false
+    
+    // Step 7: Optional tick to allow React to process state updates
+    window.setTimeout(() => {
+      // Step 8: Re-enable autosave and clear hydrating
+      setHydrating(false)
+      autoSaveEnabledRef.current = true
+      scheduleMarkStateAsSaved()
+      
+      // Step 9: Log completion
+      console.info('[Nova Proposta] Reset complete', {
+        budgetIdRef: budgetIdRef.current,
+        budgetIdState: novoId,
+      })
+    }, 0)
   }, [
     createPageSharedSettings,
     setActivePage,
@@ -14360,6 +14690,8 @@ export default function App() {
     setMultiUcAtivo,
     setMultiUcRows,
     limparOrcamentoAtivo,
+    setActiveBudgetId,
+    setConsumoManualState,
   ])
 
   const handleNovaProposta = useCallback(async () => {
@@ -14403,10 +14735,18 @@ export default function App() {
     }
 
     const novoBudgetId = createDraftBudgetId()
+    // Use setActiveBudgetId for deterministic budget switching
+    setActiveBudgetId(novoBudgetId)
     aplicarSnapshot(registroParaDuplicar.snapshot, { budgetIdOverride: novoBudgetId })
     limparOrcamentoAtivo()
+    // Clear auxiliary refs
     lastSavedSignatureRef.current = null
     userInteractedSinceSaveRef.current = true
+    // Re-enable autosave after snapshot application
+    window.setTimeout(() => {
+      setHydrating(false)
+      autoSaveEnabledRef.current = true
+    }, 0)
     setActivePage('app')
     adicionarNotificacao(
       'Uma cópia do orçamento foi carregada para edição. Salve para gerar um novo número.',
