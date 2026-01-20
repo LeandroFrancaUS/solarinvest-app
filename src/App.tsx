@@ -12680,6 +12680,31 @@ export default function App() {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
         const snapshotAtual = getCurrentSnapshot()
+        
+        // Log snapshot quality before saving
+        console.log('[salvarOrcamentoLocalmente] Snapshot from getCurrentSnapshot():', {
+          clienteNome: snapshotAtual.cliente?.nome ?? '',
+          clienteEndereco: snapshotAtual.cliente?.endereco ?? '',
+          clienteDocumento: snapshotAtual.cliente?.documento ?? '',
+          kcKwhMes: snapshotAtual.kcKwhMes ?? 0,
+          totalFields: Object.keys(snapshotAtual).length,
+        })
+        
+        // Check if snapshot is meaningful
+        const nome = (snapshotAtual.cliente?.nome ?? '').trim()
+        const endereco = (snapshotAtual.cliente?.endereco ?? '').trim()
+        const documento = (snapshotAtual.cliente?.documento ?? '').trim()
+        const kc = Number(snapshotAtual.kcKwhMes ?? 0)
+        const hasCliente = Boolean(nome || endereco || documento)
+        const hasConsumption = kc > 0
+        const isSnapshotMeaningful = hasCliente || hasConsumption
+        
+        if (!isSnapshotMeaningful) {
+          console.warn('[salvarOrcamentoLocalmente] Snapshot is empty - cannot save proposal without data')
+          window.alert('Proposta sem dados para salvar. Preencha os campos do cliente e/ou consumo.')
+          return null
+        }
+        
         const fingerprint = computeSnapshotSignature(snapshotAtual, dadosClonados)
 
         const registroExistenteIndex = registrosExistentes.findIndex((registro) => {
@@ -12733,6 +12758,14 @@ export default function App() {
           
           // Save complete snapshot to proposalStore for full restoration
           const budgetIdKey = normalizeProposalId(registroAtualizado.id) || registroAtualizado.id
+          console.log('[salvarOrcamentoLocalmente] Saving to proposalStore (update):', {
+            budgetId: budgetIdKey,
+            clienteNome: snapshotAtualizado.cliente?.nome ?? '',
+            clienteEndereco: snapshotAtualizado.cliente?.endereco ?? '',
+            clienteDocumento: snapshotAtualizado.cliente?.documento ?? '',
+            kcKwhMes: snapshotAtualizado.kcKwhMes ?? 0,
+            totalFields: Object.keys(snapshotAtualizado).length,
+          })
           void saveProposalSnapshotById(budgetIdKey, snapshotAtualizado).catch((error) => {
             console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
           })
@@ -12784,6 +12817,14 @@ export default function App() {
         
         // Save complete snapshot to proposalStore for full restoration
         const budgetIdKey = normalizeProposalId(registro.id) || registro.id
+        console.log('[salvarOrcamentoLocalmente] Saving to proposalStore (new):', {
+          budgetId: budgetIdKey,
+          clienteNome: snapshotParaArmazenar.cliente?.nome ?? '',
+          clienteEndereco: snapshotParaArmazenar.cliente?.endereco ?? '',
+          clienteDocumento: snapshotParaArmazenar.cliente?.documento ?? '',
+          kcKwhMes: snapshotParaArmazenar.kcKwhMes ?? 0,
+          totalFields: Object.keys(snapshotParaArmazenar).length,
+        })
         void saveProposalSnapshotById(budgetIdKey, snapshotParaArmazenar).catch((error) => {
           console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
         })
