@@ -13420,7 +13420,7 @@ export default function App() {
   const handlePreviewActionRequest = useCallback(
     async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
       const previewData = pendingPreviewDataRef.current
-      const budgetIdAtual = normalizeProposalId(getActiveBudgetId())
+      const budgetIdAtual = normalizeProposalId(getEffectiveBudgetId())
 
       if (!previewData) {
         return { proceed: true }
@@ -13539,7 +13539,7 @@ export default function App() {
         adicionarNotificacao,
         atualizarOrcamentoAtivo,
         clienteEmEdicaoId,
-        getActiveBudgetId,
+        getEffectiveBudgetId,
         isProposalPdfIntegrationAvailable,
         salvarOrcamentoLocalmente,
         setProposalPdfIntegrationAvailable,
