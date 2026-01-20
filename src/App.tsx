@@ -11446,7 +11446,21 @@ export default function App() {
         : undefined,
     }
 
-    return {
+    // Log sources before building snapshot
+    console.log('[getCurrentSnapshot] sources', {
+      activeTab,
+      clienteState: { 
+        nome: cliente.nome, 
+        endereco: cliente.endereco, 
+        documento: cliente.documento 
+      },
+      vendaStoreCliente: vendaSnapshotAtual?.cliente?.endereco ?? 'n/a',
+      leasingStoreCliente: leasingSnapshotAtual?.cliente?.endereco ?? 'n/a',
+      kcKwhMesState: kcKwhMes,
+      pageSharedStateKc: pageSharedState?.kcKwhMes,
+    })
+
+    const snapshotData = {
       activeTab,
       settingsTab,
       cliente: cloneClienteDados(cliente),
