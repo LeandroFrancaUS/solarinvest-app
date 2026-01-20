@@ -12503,6 +12503,7 @@ export default function App() {
       cidade: clienteClonado.cidade,
     })
     setCliente(clienteClonado)
+    console.log('[aplicarSnapshot] clienteRef after setCliente:', clienteRef.current?.endereco)
     setClienteEmEdicaoId(snapshot.clienteEmEdicaoId)
     lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
@@ -15873,7 +15874,19 @@ export default function App() {
             data-field="cliente-enderecoContratante"
             value={cliente.endereco}
             onChange={(e) => {
-              handleClienteChange('endereco', e.target.value)
+              const value = e.target.value
+              console.log('[UI] Endereco do Contratante value now:', value)
+              let updated = false
+              setCliente((prev) => {
+                if (prev.endereco === value) {
+                  return prev
+                }
+                updated = true
+                return { ...prev, endereco: value }
+              })
+              if (updated) {
+                syncClienteField('endereco', value)
+              }
               clearFieldHighlight(e.currentTarget)
             }}
             autoComplete="street-address"
