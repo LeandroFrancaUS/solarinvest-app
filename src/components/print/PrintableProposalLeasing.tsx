@@ -279,11 +279,11 @@ function PrintableProposalLeasingInner(
   const nomeDistribuidora = distribuidoraLabel || 'distribuidora local'
 
   const avisoMensalidadeCondicoes = useMemo(() => {
-    return `Aviso: A mensalidade estimada é calculada com base na tarifa vigente da ${nomeDistribuidora} e aplica sempre o desconto contratado. As projeções apresentadas são estimativas e podem variar, pois a SolarInvest não controla os reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, assim como as variações do consumo real ao longo do contrato.`
+    return `Aviso: A Mensalidade SolarInvest considera apenas a energia compensada (consumo contratado × tarifa com desconto). Os encargos da distribuidora permanecem separados e são estimados com base na tarifa vigente da ${nomeDistribuidora}. As projeções podem variar, pois a SolarInvest não controla reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, assim como as variações do consumo real ao longo do contrato.`
   }, [nomeDistribuidora])
 
   const avisoMensalidadeEvolucao = useMemo(() => {
-    return `Aviso: A mensalidade estimada é calculada com base na tarifa vigente da ${nomeDistribuidora} e aplica sempre o desconto contratado. Como a SolarInvest não controla os reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, nem as variações de consumo real, os valores podem mudar ao longo do contrato.`
+    return `Aviso: A Mensalidade SolarInvest considera apenas a energia compensada (consumo contratado × tarifa com desconto). Os encargos da distribuidora permanecem separados e são estimados com base na tarifa vigente da ${nomeDistribuidora}. Como a SolarInvest não controla reajustes anuais, revisões tarifárias, bandeiras, tributos ou quaisquer alterações definidas pela ${nomeDistribuidora} e pela ANEEL, nem as variações de consumo real, os valores podem mudar ao longo do contrato.`
   }, [nomeDistribuidora])
 
   const formatClienteEnderecoCompleto = () => {
@@ -710,14 +710,14 @@ function PrintableProposalLeasingInner(
       const tarifaAno = tarifaCheiaBase * fator
       const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
       const tusdMedio = tusdMedioPorAno[ano] ?? 0
-      const mensalidade = energiaContratadaBase * tarifaComDesconto + tusdMedio
-      const contaDistribuidora = energiaContratadaBase * tarifaAno
+      const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto
+      const encargosDistribuidora = tusdMedio + taxaMinimaMensal
       return {
         ano,
         tarifaCheiaAno: tarifaAno,
         tarifaComDesconto,
-        contaDistribuidora,
-        mensalidade,
+        mensalidadeSolarInvest,
+        encargosDistribuidora,
       }
     })
 
@@ -741,14 +741,14 @@ function PrintableProposalLeasingInner(
     const anoPosContrato = prazoContratualTotalAnos + 1
     const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
     const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
-    const contaDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
+    const encargosDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
 
     linhas.push({
       ano: anoPosContrato,
       tarifaCheiaAno: tarifaAnoPosContrato,
       tarifaComDesconto: tarifaAnoPosContrato,
-      contaDistribuidora: contaDistribuidoraPosContrato,
-      mensalidade: 0,
+      encargosDistribuidora: encargosDistribuidoraPosContrato,
+      mensalidadeSolarInvest: 0,
     })
 
     return linhas
@@ -1277,7 +1277,7 @@ function PrintableProposalLeasingInner(
                   <th>Período</th>
                   <th>Tarifa cheia</th>
                   <th>Tarifa com desconto</th>
-                  <th className="leasing-table-negative">{`CONTA COM ${distribuidoraNomeCurto ?? 'DISTRIBUIDORA'} (R$)`}</th>
+                  <th className="leasing-table-negative">Encargos da distribuidora (projeção)</th>
                   <th className="leasing-table-positive leasing-table-positive-emphasis">Mensalidade SolarInvest (R$)</th>
                 </tr>
               </thead>
@@ -1285,7 +1285,7 @@ function PrintableProposalLeasingInner(
               {mensalidadesPorAno.map((linha, index) => {
                 const isPosPrazo = linha.ano > prazoContratualTotalAnos
                 const isUltimaLinha = index === mensalidadesPorAno.length - 1
-                const isMensalidadeZero = linha.mensalidade === 0
+                const isMensalidadeZero = linha.mensalidadeSolarInvest === 0
 
                 const contaDistribuidoraStyle = estiloContaDistribuidora(linha.ano)
                 const mensalidadeStyle = estiloMensalidadeSolarInvest(linha.ano)
@@ -1312,7 +1312,7 @@ function PrintableProposalLeasingInner(
                         .join(' ')}
                       style={contaDistribuidoraStyle}
                     >
-                      {currency(linha.contaDistribuidora)}
+                      {currency(linha.encargosDistribuidora)}
                     </td>
                     <td
                       className={[
@@ -1326,9 +1326,9 @@ function PrintableProposalLeasingInner(
                       style={mensalidadeStyle}
                     >
                       {isMensalidadeZero ? (
-                        <span className="leasing-zero-highlight">{currency(linha.mensalidade)}</span>
+                        <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
                       ) : (
-                        currency(linha.mensalidade)
+                        currency(linha.mensalidadeSolarInvest)
                       )}
                     </td>
                   </tr>
@@ -1336,6 +1336,10 @@ function PrintableProposalLeasingInner(
               })}
             </tbody>
             </table>
+            <p className="muted no-break-inside">
+              Encargos estimados incluem TUSD Fio B, taxa mínima da concessionária e demais encargos regulatórios
+              aplicáveis.
+            </p>
             <p>{avisoMensalidadeEvolucao}</p>
           </section>
 
