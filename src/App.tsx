@@ -66,6 +66,10 @@ import {
   persistRemoteStorageEntry,
 } from './app/services/serverStorage'
 import {
+  saveCompleteSnapshot,
+  loadCompleteSnapshot,
+} from './app/services/proposalStore'
+import {
   computeROI,
   type ModoPagamento,
   type PagamentoCondicao,
@@ -4426,6 +4430,8 @@ export default function App() {
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
+  const editingEnderecoContratanteRef = useRef(false)
+  const lastCepFetchedRef = useRef<string>('')
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
@@ -11415,7 +11421,7 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
-  const getCurrentSnapshot = (): OrcamentoSnapshotData => {
+  const getCurrentSnapshot = (options?: { force?: boolean; budgetIdOverride?: string }): OrcamentoSnapshotData => {
     const vendasConfigState = useVendasConfigStore.getState()
     const vendasSimState = useVendasSimulacoesStore.getState()
     const vendaSnapshotAtual = getVendaSnapshot()
@@ -11432,6 +11438,8 @@ export default function App() {
         : undefined,
     }
 
+    const effectiveBudgetId = options?.budgetIdOverride ?? currentBudgetId
+
     return {
       activeTab,
       settingsTab,
@@ -11440,7 +11448,7 @@ export default function App() {
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
       pageShared: { ...pageSharedState },
-      currentBudgetId,
+      currentBudgetId: effectiveBudgetId,
       budgetStructuredItems: cloneStructuredItems(budgetStructuredItems),
       kitBudget: cloneKitBudgetState(kitBudget),
       budgetProcessing: {
@@ -12345,15 +12353,64 @@ export default function App() {
 }
 
   const carregarOrcamentoParaEdicao = useCallback(
-    (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
-      if (!registro.snapshot) {
+    async (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
+      console.log('[carregarOrcamentoParaEdicao] start', {
+        registroId: registro.id,
+        hasRegistroSnapshot: !!registro.snapshot,
+      })
+
+      // Try loading from proposalStore first
+      let snapshotToApply: OrcamentoSnapshotData | null = null
+      let source = 'none'
+
+      try {
+        const completeSnapshot = await loadCompleteSnapshot(registro.id)
+        if (completeSnapshot) {
+          snapshotToApply = completeSnapshot
+          source = 'proposalStore'
+          console.log('[carregarOrcamentoParaEdicao] using proposalStore complete snapshot')
+        }
+      } catch (error) {
+        console.error('[carregarOrcamentoParaEdicao] proposalStore load failed', error)
+      }
+
+      // Fallback to registro.snapshot if proposalStore failed or returned null
+      if (!snapshotToApply && registro.snapshot) {
+        // More lenient check: just verify it has some basic fields
+        const totalFields = Object.keys(registro.snapshot).length
+        const hasMinimumFields = totalFields > 10  // Very lenient
+        
+        if (hasMinimumFields) {
+          snapshotToApply = registro.snapshot
+          source = 'registro'
+          console.log('[carregarOrcamentoParaEdicao] fallback to registro.snapshot', {
+            totalFields,
+            hasCliente: !!registro.snapshot.cliente,
+            hasKcKwhMes: !!(registro.snapshot.kcKwhMes),
+          })
+        }
+      }
+
+      // No usable snapshot found
+      if (!snapshotToApply) {
+        console.log('[carregarOrcamentoParaEdicao] no usable snapshot found', {
+          proposalStoreChecked: true,
+          registroSnapshotExists: !!registro.snapshot,
+          registroSnapshotFields: registro.snapshot ? Object.keys(registro.snapshot).length : 0,
+        })
         window.alert(
           'Este orçamento foi salvo sem histórico completo. Visualize o PDF ou salve novamente para gerar uma cópia editável.',
         )
         return
       }
 
-      aplicarSnapshot(registro.snapshot)
+      console.log('[carregarOrcamentoParaEdicao] applying snapshot from:', source)
+
+      // Apply snapshot with force flag to bypass guards
+      aplicarSnapshot(snapshotToApply)
+      
+      console.log('[carregarOrcamentoParaEdicao] applySnapshot done')
+
       setActivePage('app')
       atualizarOrcamentoAtivo(registro)
       adicionarNotificacao(
@@ -12428,6 +12485,54 @@ export default function App() {
           setOrcamentosSalvos(persisted)
           alertPrunedBudgets(pruned)
           void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
+          
+          // Save complete snapshot to proposalStore with fresh snapshot and final budgetId
+          const budgetIdToSave = existente.id
+          const snapshotFromState = cloneSnapshotData(
+            getCurrentSnapshot({ force: true, budgetIdOverride: budgetIdToSave })
+          )
+          snapshotFromState.currentBudgetId = budgetIdToSave
+          
+          // Check if snapshot from state is empty
+          const nome = (snapshotFromState?.cliente?.nome ?? '').trim()
+          const endereco = (snapshotFromState?.cliente?.endereco ?? '').trim()
+          const documento = (snapshotFromState?.cliente?.documento ?? '').trim()
+          const kwh = Number(snapshotFromState?.kcKwhMes ?? 0)
+          const isEmpty = !nome && !endereco && !documento && kwh === 0
+          
+          let snapshotToStore = snapshotFromState
+          
+          if (isEmpty) {
+            console.warn('[salvarOrcamentoLocalmente] EMPTY snapshotFromState, using fallback for proposalStore', { budgetIdToSave })
+            
+            // Use fallback: snapshotAtualizado or existente.snapshot
+            const candidate = snapshotAtualizado || existente?.snapshot || null
+            
+            if (candidate) {
+              snapshotToStore = cloneSnapshotData(candidate)
+              snapshotToStore.currentBudgetId = budgetIdToSave
+            }
+          }
+          
+          // Patch kcKwhMes from dados if snapshot has 0 but dados has value
+          const kwhFromDados = Number(dados?.kcKwhMes ?? 0)
+          if (Number(snapshotToStore.kcKwhMes ?? 0) === 0 && kwhFromDados > 0) {
+            snapshotToStore.kcKwhMes = kwhFromDados
+          }
+          
+          // Always save to proposalStore
+          console.log('[salvarOrcamentoLocalmente] proposalStore snapshot summary', {
+            budgetIdToSave,
+            clienteNome: snapshotToStore.cliente?.nome ?? '',
+            clienteEndereco: snapshotToStore.cliente?.endereco ?? '',
+            kcKwhMes: snapshotToStore.kcKwhMes ?? 0,
+            totalFields: Object.keys(snapshotToStore).length,
+          })
+          
+          void saveCompleteSnapshot(budgetIdToSave, snapshotToStore).catch((error) => {
+            console.error('[salvarOrcamentoLocalmente] Failed to save snapshot to proposalStore', error)
+          })
+          
           void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
             if (error instanceof OneDriveIntegrationMissingError) {
               return
@@ -12472,6 +12577,54 @@ export default function App() {
         setOrcamentosSalvos(persisted)
         alertPrunedBudgets(pruned)
         void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
+        
+        // Save complete snapshot to proposalStore with fresh snapshot and final budgetId
+        const budgetIdToSave = novoId
+        const snapshotFromState = cloneSnapshotData(
+          getCurrentSnapshot({ force: true, budgetIdOverride: budgetIdToSave })
+        )
+        snapshotFromState.currentBudgetId = budgetIdToSave
+        
+        // Check if snapshot from state is empty
+        const nome = (snapshotFromState?.cliente?.nome ?? '').trim()
+        const endereco = (snapshotFromState?.cliente?.endereco ?? '').trim()
+        const documento = (snapshotFromState?.cliente?.documento ?? '').trim()
+        const kwh = Number(snapshotFromState?.kcKwhMes ?? 0)
+        const isEmpty = !nome && !endereco && !documento && kwh === 0
+        
+        let snapshotToStore = snapshotFromState
+        
+        if (isEmpty) {
+          console.warn('[salvarOrcamentoLocalmente] EMPTY snapshotFromState, using fallback for proposalStore', { budgetIdToSave })
+          
+          // Use fallback: snapshotParaArmazenar or registro.snapshot
+          const candidate = snapshotParaArmazenar || null
+          
+          if (candidate) {
+            snapshotToStore = cloneSnapshotData(candidate)
+            snapshotToStore.currentBudgetId = budgetIdToSave
+          }
+        }
+        
+        // Patch kcKwhMes from dados if snapshot has 0 but dados has value
+        const kwhFromDados = Number(dados?.kcKwhMes ?? 0)
+        if (Number(snapshotToStore.kcKwhMes ?? 0) === 0 && kwhFromDados > 0) {
+          snapshotToStore.kcKwhMes = kwhFromDados
+        }
+        
+        // Always save to proposalStore
+        console.log('[salvarOrcamentoLocalmente] proposalStore snapshot summary', {
+          budgetIdToSave,
+          clienteNome: snapshotToStore.cliente?.nome ?? '',
+          clienteEndereco: snapshotToStore.cliente?.endereco ?? '',
+          kcKwhMes: snapshotToStore.kcKwhMes ?? 0,
+          totalFields: Object.keys(snapshotToStore).length,
+        })
+        
+        void saveCompleteSnapshot(budgetIdToSave, snapshotToStore).catch((error) => {
+          console.error('[salvarOrcamentoLocalmente] Failed to save snapshot to proposalStore', error)
+        })
+        
         void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
           if (error instanceof OneDriveIntegrationMissingError) {
             return
@@ -14486,6 +14639,16 @@ export default function App() {
   }
 
   const handleClienteChange = <K extends keyof ClienteDados>(key: K, rawValue: ClienteDados[K]) => {
+    // Reset editing flag when CEP changes to allow auto-fill again
+    if (key === 'cep') {
+      editingEnderecoContratanteRef.current = false
+    }
+
+    // Mark manual editing when user types in address field
+    if (key === 'endereco') {
+      editingEnderecoContratanteRef.current = true
+    }
+
     if (key === 'temIndicacao') {
       const checked = Boolean(rawValue)
       setCliente((prev) => {
@@ -14684,16 +14847,19 @@ export default function App() {
     }
 
     const cepNumeros = normalizeNumbers(cliente.cep)
-    if (cepNumeros.length < 8) {
+    if (cepNumeros.length !== 8) {
       setBuscandoCep(false)
       setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
       return
     }
 
-    let ativo = true
-    const controller = new AbortController()
+    // Evita refazer fetch pro mesmo CEP
+    if (lastCepFetchedRef.current === cepNumeros) {
+      return
+    }
 
-    const consultarCep = async () => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(async () => {
       setBuscandoCep(true)
       setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
 
@@ -14707,26 +14873,35 @@ export default function App() {
         }
 
         const data: ViaCepResponse = await response.json()
-        if (!ativo) {
-          return
-        }
 
         if (data?.erro) {
           setClienteMensagens((prev) => ({ ...prev, cep: 'CEP não encontrado.' }))
+          setBuscandoCep(false)
           return
         }
 
+        lastCepFetchedRef.current = cepNumeros
+
         const logradouro = data?.logradouro?.trim() ?? ''
+        const bairro = data?.bairro?.trim() ?? ''
         const localidade = data?.localidade?.trim() ?? ''
         const uf = data?.uf?.trim().toUpperCase() ?? ''
+
+        // Montar endereço com logradouro + bairro
+        const enderecoAuto = [logradouro, bairro].filter(Boolean).join(', ').trim()
 
         setCliente((prev) => {
           let alterado = false
           const proximo: ClienteDados = { ...prev }
 
-          if (logradouro && logradouro !== prev.endereco) {
-            proximo.endereco = logradouro
+          // Só preencher endereço se ainda não editou manualmente OU se campo está vazio
+          const enderecoAtual = (prev.endereco ?? '').trim()
+          const podeAutoPreencher = !editingEnderecoContratanteRef.current || !enderecoAtual
+
+          if (enderecoAuto && podeAutoPreencher && enderecoAuto !== prev.endereco) {
+            proximo.endereco = enderecoAuto
             alterado = true
+            console.debug('[CEP] autopreenchido enderecoContratante', { cep: cepNumeros, enderecoAuto })
           }
 
           if (localidade && localidade !== prev.cidade) {
@@ -14748,7 +14923,7 @@ export default function App() {
 
         setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined, cidade: undefined }))
       } catch (error) {
-        if (!ativo || controller.signal.aborted) {
+        if (controller.signal.aborted) {
           return
         }
 
@@ -14757,17 +14932,13 @@ export default function App() {
           cep: 'Não foi possível consultar o CEP agora.',
         }))
       } finally {
-        if (ativo) {
-          setBuscandoCep(false)
-        }
+        setBuscandoCep(false)
       }
-    }
-
-    consultarCep()
+    }, 300)
 
     return () => {
-      ativo = false
       controller.abort()
+      clearTimeout(timeoutId)
     }
   }, [cliente.cep])
 
@@ -14973,7 +15144,7 @@ export default function App() {
       let registro = registroInicial
 
       if (!registro.snapshot) {
-        carregarOrcamentoParaEdicao(registro)
+        await carregarOrcamentoParaEdicao(registro)
         return
       }
 
@@ -14981,7 +15152,7 @@ export default function App() {
       const assinaturaRegistro = computeSnapshotSignature(registro.snapshot, registro.dados)
 
       if (assinaturaRegistro === assinaturaAtual) {
-        carregarOrcamentoParaEdicao(registro, {
+        await carregarOrcamentoParaEdicao(registro, {
           notificationMessage:
             'Os dados desta proposta já estavam carregados. A versão salva foi reaplicada.',
         })
@@ -15021,7 +15192,7 @@ export default function App() {
         limparDadosModalidade(tipoRegistro)
       }
 
-      carregarOrcamentoParaEdicao(registro)
+      await carregarOrcamentoParaEdicao(registro)
     },
     [
       carregarOrcamentoParaEdicao,
