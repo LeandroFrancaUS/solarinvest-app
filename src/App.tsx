@@ -221,6 +221,7 @@ import type {
   PrintableProposalTipo,
   PrintableUcBeneficiaria,
   PrintableUcGeradora,
+  PrintableUcGeradoraTitular,
   TipoInstalacao,
   UfvComposicaoResumo,
   UfvComposicaoSoloValores,
@@ -1592,6 +1593,12 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
     clone.ucGeradora = { ...dados.ucGeradora }
   } else {
     delete clone.ucGeradora
+  }
+
+  if (dados.ucGeradoraTitular) {
+    clone.ucGeradoraTitular = { ...dados.ucGeradoraTitular }
+  } else {
+    delete clone.ucGeradoraTitular
   }
 
   if (Array.isArray(dados.ucsBeneficiarias)) {
@@ -8481,8 +8488,23 @@ export default function App() {
         return partes.join(' • ')
       }
 
+      const ucGeradoraTitularAtivo =
+        !isVendaDiretaTab &&
+        leasingContrato.ucGeradoraTitularDiferente &&
+        Boolean(leasingContrato.ucGeradoraTitular)
+      const ucGeradoraTitularEndereco = ucGeradoraTitularAtivo
+        ? sanitizeText(formatUcGeradoraTitularEndereco(leasingContrato.ucGeradoraTitular?.endereco))
+        : null
+      const ucGeradoraTitularPrintable: PrintableUcGeradoraTitular | null = ucGeradoraTitularAtivo
+        ? {
+            nomeCompleto: sanitizeText(leasingContrato.ucGeradoraTitular?.nomeCompleto) ?? '',
+            cpf: sanitizeText(leasingContrato.ucGeradoraTitular?.cpf) ?? '',
+            rg: sanitizeText(leasingContrato.ucGeradoraTitular?.rg) ?? '',
+            endereco: ucGeradoraTitularEndereco ?? '',
+          }
+        : null
       const ucGeradoraNumero = sanitizeText(cliente.uc) ?? ''
-      const ucGeradoraEndereco = formatClienteEnderecoCompleto()
+      const ucGeradoraEndereco = ucGeradoraTitularEndereco ?? formatClienteEnderecoCompleto()
       const ucGeradoraPrintable: PrintableUcGeradora | null =
         ucGeradoraNumero || ucGeradoraEndereco
           ? { numero: ucGeradoraNumero, endereco: ucGeradoraEndereco }
@@ -8671,6 +8693,7 @@ export default function App() {
         })(),
         imagensInstalacao: propostaImagens.map((imagem) => ({ ...imagem })),
         ucGeradora: ucGeradoraPrintable,
+        ucGeradoraTitular: ucGeradoraTitularPrintable,
         ucsBeneficiarias: ucsBeneficiariasPrintable,
       }
     },
@@ -8748,6 +8771,7 @@ export default function App() {
       ucsBeneficiarias,
       vendaSnapshotSignal,
       leasingSnapshotSignal,
+      leasingContrato,
     ],
   )
 
@@ -12483,6 +12507,23 @@ export default function App() {
             dadosNormalizados.ucGeradora = { numero, endereco }
           } else {
             delete dadosNormalizados.ucGeradora
+          }
+
+          if (dados.ucGeradoraTitular && typeof dados.ucGeradoraTitular === 'object') {
+            const nomeCompleto =
+              typeof dados.ucGeradoraTitular.nomeCompleto === 'string'
+                ? dados.ucGeradoraTitular.nomeCompleto
+                : ''
+            const cpf =
+              typeof dados.ucGeradoraTitular.cpf === 'string' ? dados.ucGeradoraTitular.cpf : ''
+            const rg = typeof dados.ucGeradoraTitular.rg === 'string' ? dados.ucGeradoraTitular.rg : ''
+            const endereco =
+              typeof dados.ucGeradoraTitular.endereco === 'string'
+                ? dados.ucGeradoraTitular.endereco
+                : ''
+            dadosNormalizados.ucGeradoraTitular = { nomeCompleto, cpf, rg, endereco }
+          } else {
+            delete dadosNormalizados.ucGeradoraTitular
           }
 
           dadosNormalizados.ucsBeneficiarias = Array.isArray(dados.ucsBeneficiarias)

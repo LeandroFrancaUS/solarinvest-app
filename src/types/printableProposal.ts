@@ -199,6 +199,13 @@ export type PrintableUcGeradora = {
   endereco: string
 }
 
+export type PrintableUcGeradoraTitular = {
+  nomeCompleto: string
+  cpf: string
+  rg: string
+  endereco: string
+}
+
 export type PrintableUcBeneficiaria = {
   numero: string
   endereco: string
@@ -268,6 +275,7 @@ export type PrintableProposalProps = {
   modoVenda?: ModoVenda | undefined
   imagensInstalacao?: PrintableProposalImage[] | undefined
   ucGeradora?: PrintableUcGeradora | null | undefined
+  ucGeradoraTitular?: PrintableUcGeradoraTitular | null | undefined
   ucsBeneficiarias?: PrintableUcBeneficiaria[] | null | undefined
   tipoEdificacaoCodigo?: string | null | undefined
   tipoEdificacaoLabel?: string | null | undefined
