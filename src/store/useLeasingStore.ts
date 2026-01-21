@@ -34,12 +34,32 @@ export type LeasingContratoProprietario = {
   cpfCnpj: string
 }
 
+export type LeasingEndereco = {
+  logradouro: string
+  numero: string
+  complemento: string
+  bairro: string
+  cidade: string
+  uf: string
+  cep: string
+}
+
+export type LeasingUcGeradoraTitular = {
+  nomeCompleto: string
+  cpf: string
+  rg: string
+  endereco: LeasingEndereco
+}
+
 export type LeasingContratoDados = {
   tipoContrato: 'residencial' | 'condominio'
   dataInicio: string
   dataFim: string
   dataHomologacao: string
   localEntrega: string
+  ucGeradoraTitularDiferente: boolean
+  ucGeradoraTitular: LeasingUcGeradoraTitular | null
+  ucGeradoraTitularDraft: LeasingUcGeradoraTitular | null
   modulosFV: string
   inversoresFV: string
   nomeCondominio: string
@@ -102,6 +122,9 @@ const createInitialState = (): LeasingState => ({
     dataFim: '',
     dataHomologacao: '',
     localEntrega: '',
+    ucGeradoraTitularDiferente: false,
+    ucGeradoraTitular: null,
+    ucGeradoraTitularDraft: null,
     modulosFV: '',
     inversoresFV: '',
     nomeCondominio: '',
@@ -112,11 +135,49 @@ const createInitialState = (): LeasingState => ({
   },
 })
 
+const cloneUcGeradoraTitular = (
+  input: LeasingUcGeradoraTitular | null | undefined,
+): LeasingUcGeradoraTitular | null => {
+  if (!input) {
+    return null
+  }
+  return {
+    ...input,
+    endereco: { ...input.endereco },
+  }
+}
+
+const resolveUcGeradoraTitular = (
+  value: LeasingUcGeradoraTitular | null | undefined,
+  fallback: LeasingUcGeradoraTitular | null,
+): LeasingUcGeradoraTitular | null => {
+  if (value === null) {
+    return null
+  }
+  if (value === undefined) {
+    return fallback
+  }
+  return cloneUcGeradoraTitular(value)
+}
+
 const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
   const base = createInitialState()
   if (!incoming) {
     return base
   }
+  const contratoIncoming = incoming.contrato
+  const ucGeradoraTitular = resolveUcGeradoraTitular(
+    contratoIncoming?.ucGeradoraTitular,
+    base.contrato.ucGeradoraTitular,
+  )
+  const ucGeradoraTitularDraft = resolveUcGeradoraTitular(
+    contratoIncoming?.ucGeradoraTitularDraft,
+    base.contrato.ucGeradoraTitularDraft,
+  )
+  const ucGeradoraTitularDiferente = Boolean(
+    (incoming.contrato?.ucGeradoraTitularDiferente ?? base.contrato.ucGeradoraTitularDiferente) &&
+      ucGeradoraTitular,
+  )
   return {
     ...base,
     ...incoming,
@@ -135,6 +196,9 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
       proprietarios: Array.isArray(incoming.contrato?.proprietarios)
         ? incoming.contrato.proprietarios.map((item) => ({ ...item }))
         : base.contrato.proprietarios,
+      ucGeradoraTitularDiferente,
+      ucGeradoraTitular,
+      ucGeradoraTitularDraft,
     },
   }
 }
@@ -161,7 +225,12 @@ const persistState = (next: LeasingState) => {
     return
   }
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    const payload = cloneState(next)
+    payload.contrato.ucGeradoraTitularDraft = null
+    payload.contrato.ucGeradoraTitularDiferente = Boolean(
+      payload.contrato.ucGeradoraTitularDiferente && payload.contrato.ucGeradoraTitular,
+    )
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   } catch (error) {
     console.warn('[useLeasingStore] failed to persist state', error)
   }
@@ -180,6 +249,8 @@ const cloneState = (input: LeasingState): LeasingState => ({
   contrato: {
     ...input.contrato,
     proprietarios: input.contrato.proprietarios.map((item) => ({ ...item })),
+    ucGeradoraTitular: cloneUcGeradoraTitular(input.contrato.ucGeradoraTitular),
+    ucGeradoraTitularDraft: cloneUcGeradoraTitular(input.contrato.ucGeradoraTitularDraft),
   },
 })
 
@@ -220,7 +291,14 @@ export const useLeasingStore = <T,>(selector: (state: LeasingState) => T): T => 
   return useSyncExternalStore(leasingStore.subscribe, getSnapshot)
 }
 
-export const getLeasingSnapshot = (): LeasingState => cloneState(leasingStore.getState())
+export const getLeasingSnapshot = (): LeasingState => {
+  const snapshot = cloneState(leasingStore.getState())
+  snapshot.contrato.ucGeradoraTitularDraft = null
+  snapshot.contrato.ucGeradoraTitularDiferente = Boolean(
+    snapshot.contrato.ucGeradoraTitularDiferente && snapshot.contrato.ucGeradoraTitular,
+  )
+  return snapshot
+}
 
 export const selectLeasingValorDeMercadoEstimado = (state: LeasingState): number =>
   state.valorDeMercadoEstimado
@@ -271,10 +349,20 @@ export const leasingActions = {
       const proprietarios = partial.proprietarios
         ? partial.proprietarios.map((item) => ({ ...item }))
         : draft.contrato.proprietarios.map((item) => ({ ...item }))
+      const ucGeradoraTitular = resolveUcGeradoraTitular(
+        partial.ucGeradoraTitular,
+        draft.contrato.ucGeradoraTitular,
+      )
+      const ucGeradoraTitularDraft = resolveUcGeradoraTitular(
+        partial.ucGeradoraTitularDraft,
+        draft.contrato.ucGeradoraTitularDraft,
+      )
       draft.contrato = {
         ...draft.contrato,
         ...partial,
         proprietarios,
+        ucGeradoraTitular,
+        ucGeradoraTitularDraft,
       }
     })
   },
