@@ -143,7 +143,9 @@ import {
   useLeasingValorDeMercadoEstimado,
   type LeasingContratoDados,
   type LeasingContratoProprietario,
+  type LeasingEndereco,
   type LeasingState,
+  type LeasingUcGeradoraTitular,
 } from './store/useLeasingStore'
 import { applyFieldSyncChange, fieldSyncActions, type FieldSyncKey } from './store/useFieldSyncStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
@@ -1012,6 +1014,18 @@ type UcBeneficiariaFormState = {
   rateioPercentual: string
 }
 
+type UcGeradoraTitularErrors = {
+  nomeCompleto?: string
+  cpf?: string
+  rg?: string
+  logradouro?: string
+  numero?: string
+  bairro?: string
+  cidade?: string
+  uf?: string
+  cep?: string
+}
+
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
 const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
@@ -1088,6 +1102,55 @@ const createEmptyUcBeneficiaria = (): UcBeneficiariaFormState => ({
   consumoKWh: '',
   rateioPercentual: '',
 })
+
+const createEmptyUcGeradoraTitularEndereco = (): LeasingEndereco => ({
+  logradouro: '',
+  numero: '',
+  complemento: '',
+  bairro: '',
+  cidade: '',
+  uf: '',
+  cep: '',
+})
+
+const createEmptyUcGeradoraTitular = (): LeasingUcGeradoraTitular => ({
+  nomeCompleto: '',
+  cpf: '',
+  rg: '',
+  endereco: createEmptyUcGeradoraTitularEndereco(),
+})
+
+const cloneUcGeradoraTitular = (
+  input: LeasingUcGeradoraTitular,
+): LeasingUcGeradoraTitular => ({
+  ...input,
+  endereco: { ...input.endereco },
+})
+
+const formatUcGeradoraTitularEndereco = (
+  endereco?: LeasingEndereco | null,
+): string => {
+  if (!endereco) {
+    return ''
+  }
+  const logradouro = endereco.logradouro?.trim() ?? ''
+  const numero = endereco.numero?.trim() ?? ''
+  const complemento = endereco.complemento?.trim() ?? ''
+  const bairro = endereco.bairro?.trim() ?? ''
+  const cidade = endereco.cidade?.trim() ?? ''
+  const uf = endereco.uf?.trim() ?? ''
+  const cep = endereco.cep?.trim() ?? ''
+  const primeiraLinha = [logradouro, numero].filter(Boolean).join(', ')
+  const primeiraLinhaCompleta =
+    complemento && primeiraLinha ? `${primeiraLinha}, ${complemento}` : primeiraLinha || complemento
+  const partes = [
+    primeiraLinhaCompleta,
+    bairro || '',
+    [cidade, uf].filter(Boolean).join('/'),
+    cep ? `CEP ${cep}` : '',
+  ].filter(Boolean)
+  return partes.join(' — ')
+}
 
 const isQuotaExceededError = (error: unknown) => {
   if (!error) {
@@ -3635,6 +3698,9 @@ export default function App() {
   const [tusdOpcoesExpandidas, setTusdOpcoesExpandidas] = useState(false)
   const [leasingPrazo, setLeasingPrazo] = useState<LeasingPrazoAnos>(INITIAL_VALUES.leasingPrazo)
   const [usarEnderecoCliente, setUsarEnderecoCliente] = useState(false)
+  const [ucGeradoraTitularPanelOpen, setUcGeradoraTitularPanelOpen] = useState(false)
+  const [ucGeradoraTitularErrors, setUcGeradoraTitularErrors] =
+    useState<UcGeradoraTitularErrors>({})
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'monofasico')
   const [tipoRedeControle, setTipoRedeControle] = useState<'auto' | 'manual'>('auto')
@@ -13802,6 +13868,44 @@ export default function App() {
       }))
       .filter((uc) => uc.numero || uc.endereco)
 
+    const formatEnderecoContratanteParaTag = (): string => {
+      const partes = []
+      const endereco = cliente.endereco?.trim() ?? ''
+      const cidade = cliente.cidade?.trim() ?? ''
+      const uf = cliente.uf?.trim() ?? ''
+      const cep = cliente.cep?.trim() ?? ''
+      if (endereco) {
+        partes.push(endereco)
+      }
+      const cidadeUf = [cidade, uf].filter(Boolean).join('/')
+      if (cidadeUf) {
+        partes.push(cidadeUf)
+      }
+      if (cep) {
+        partes.push(`CEP ${cep}`)
+      }
+      return partes.join(' — ')
+    }
+
+    const ucGeradoraTitularAtivo = Boolean(
+      leasingContrato.ucGeradoraTitularDiferente && leasingContrato.ucGeradoraTitular,
+    )
+    const titularUcGeradora = ucGeradoraTitularAtivo
+      ? leasingContrato.ucGeradoraTitular
+      : null
+    const titularUcGeradoraEndereco = ucGeradoraTitularAtivo
+      ? formatUcGeradoraTitularEndereco(titularUcGeradora?.endereco)
+      : formatEnderecoContratanteParaTag()
+    const titularUcGeradoraNomeCompleto = ucGeradoraTitularAtivo
+      ? titularUcGeradora?.nomeCompleto?.trim() ?? ''
+      : cliente.nome?.trim() ?? ''
+    const titularUcGeradoraCpf = ucGeradoraTitularAtivo
+      ? titularUcGeradora?.cpf?.trim() ?? ''
+      : cliente.documento?.trim() ?? ''
+    const titularUcGeradoraRg = ucGeradoraTitularAtivo
+      ? titularUcGeradora?.rg?.trim() ?? ''
+      : cliente.rg?.trim() ?? ''
+
     const dadosLeasing = {
       ...dadosBase,
       cpfCnpj: formatCpfCnpj(dadosBase.cpfCnpj),
@@ -13838,6 +13942,11 @@ export default function App() {
       cnpjCondominio: formatCpfCnpj(leasingContrato.cnpjCondominio),
       nomeSindico: leasingContrato.nomeSindico.trim(),
       cpfSindico: formatCpfCnpj(leasingContrato.cpfSindico),
+      ucGeradoraTitularDiferente: ucGeradoraTitularAtivo,
+      titularUcGeradoraNomeCompleto: titularUcGeradoraNomeCompleto,
+      titularUcGeradoraCPF: formatCpfCnpj(titularUcGeradoraCpf),
+      titularUcGeradoraRG: titularUcGeradoraRg,
+      titularUcGeradoraEndereco: titularUcGeradoraEndereco,
     }
 
     return {
@@ -15376,12 +15485,154 @@ export default function App() {
     [enderecoClienteCompleto],
   )
 
+  const clearUcGeradoraTitularError = useCallback(
+    (field: keyof UcGeradoraTitularErrors) => {
+      setUcGeradoraTitularErrors((prev) => {
+        if (!prev[field]) {
+          return prev
+        }
+        const next = { ...prev }
+        delete next[field]
+        return next
+      })
+    },
+    [],
+  )
+
+  const updateUcGeradoraTitularDraft = useCallback(
+    (patch: Partial<LeasingUcGeradoraTitular> & { endereco?: Partial<LeasingEndereco> }) => {
+      const baseDraft = leasingContrato.ucGeradoraTitularDraft ?? createEmptyUcGeradoraTitular()
+      const nextDraft: LeasingUcGeradoraTitular = {
+        ...baseDraft,
+        ...patch,
+        endereco: {
+          ...baseDraft.endereco,
+          ...(patch.endereco ?? {}),
+        },
+      }
+      leasingActions.updateContrato({ ucGeradoraTitularDraft: nextDraft })
+    },
+    [leasingContrato.ucGeradoraTitularDraft],
+  )
+
+  const buildUcGeradoraTitularErrors = useCallback((draft: LeasingUcGeradoraTitular) => {
+    const errors: UcGeradoraTitularErrors = {}
+    if (!draft.nomeCompleto.trim()) {
+      errors.nomeCompleto = 'Informe o nome completo.'
+    }
+    if (!draft.cpf.trim()) {
+      errors.cpf = 'Informe o CPF.'
+    }
+    if (!draft.rg.trim()) {
+      errors.rg = 'Informe o RG.'
+    }
+    if (!draft.endereco.logradouro.trim()) {
+      errors.logradouro = 'Informe o logradouro.'
+    }
+    if (!draft.endereco.numero.trim()) {
+      errors.numero = 'Informe o número.'
+    }
+    if (!draft.endereco.bairro.trim()) {
+      errors.bairro = 'Informe o bairro.'
+    }
+    if (!draft.endereco.cidade.trim()) {
+      errors.cidade = 'Informe a cidade.'
+    }
+    if (!draft.endereco.uf.trim()) {
+      errors.uf = 'Informe a UF.'
+    }
+    if (!draft.endereco.cep.trim()) {
+      errors.cep = 'Informe o CEP.'
+    }
+    return errors
+  }, [])
+
+  const handleToggleUcGeradoraTitularDiferente = useCallback(
+    (checked: boolean) => {
+      if (checked) {
+        const baseDraft = leasingContrato.ucGeradoraTitular
+          ? cloneUcGeradoraTitular(leasingContrato.ucGeradoraTitular)
+          : createEmptyUcGeradoraTitular()
+        leasingActions.updateContrato({
+          ucGeradoraTitularDiferente: true,
+          ucGeradoraTitularDraft: baseDraft,
+        })
+        setUcGeradoraTitularPanelOpen(true)
+        setUcGeradoraTitularErrors({})
+        return
+      }
+      leasingActions.updateContrato({
+        ucGeradoraTitularDiferente: false,
+        ucGeradoraTitular: null,
+        ucGeradoraTitularDraft: null,
+      })
+      setUcGeradoraTitularPanelOpen(false)
+      setUcGeradoraTitularErrors({})
+    },
+    [leasingContrato.ucGeradoraTitular],
+  )
+
+  const handleCancelarUcGeradoraTitular = useCallback(() => {
+    const hasSavedTitular = Boolean(leasingContrato.ucGeradoraTitular)
+    if (hasSavedTitular) {
+      leasingActions.updateContrato({
+        ucGeradoraTitularDraft: null,
+        ucGeradoraTitularDiferente: true,
+      })
+    } else {
+      leasingActions.updateContrato({
+        ucGeradoraTitularDiferente: false,
+        ucGeradoraTitular: null,
+        ucGeradoraTitularDraft: null,
+      })
+    }
+    setUcGeradoraTitularPanelOpen(false)
+    setUcGeradoraTitularErrors({})
+  }, [leasingContrato.ucGeradoraTitular])
+
+  const handleSalvarUcGeradoraTitular = useCallback(() => {
+    const draft = leasingContrato.ucGeradoraTitularDraft ?? createEmptyUcGeradoraTitular()
+    const errors = buildUcGeradoraTitularErrors(draft)
+    if (Object.keys(errors).length > 0) {
+      setUcGeradoraTitularErrors(errors)
+      return
+    }
+    leasingActions.updateContrato({
+      ucGeradoraTitular: cloneUcGeradoraTitular(draft),
+      ucGeradoraTitularDiferente: true,
+      ucGeradoraTitularDraft: null,
+    })
+    setUcGeradoraTitularErrors({})
+    setUcGeradoraTitularPanelOpen(false)
+  }, [buildUcGeradoraTitularErrors, leasingContrato.ucGeradoraTitularDraft])
+
+  const handleEditarUcGeradoraTitular = useCallback(() => {
+    if (!leasingContrato.ucGeradoraTitular) {
+      return
+    }
+    leasingActions.updateContrato({
+      ucGeradoraTitularDraft: cloneUcGeradoraTitular(leasingContrato.ucGeradoraTitular),
+      ucGeradoraTitularDiferente: true,
+    })
+    setUcGeradoraTitularPanelOpen(true)
+    setUcGeradoraTitularErrors({})
+  }, [leasingContrato.ucGeradoraTitular])
+
   useEffect(() => {
     if (!usarEnderecoCliente) {
       return
     }
     leasingActions.updateContrato({ localEntrega: enderecoClienteCompleto })
   }, [enderecoClienteCompleto, usarEnderecoCliente])
+
+  useEffect(() => {
+    if (
+      leasingContrato.ucGeradoraTitularDiferente &&
+      !leasingContrato.ucGeradoraTitular
+    ) {
+      setUcGeradoraTitularPanelOpen(true)
+    }
+  }, [leasingContrato.ucGeradoraTitular, leasingContrato.ucGeradoraTitularDiferente])
 
   const handleLeasingContratoProprietarioChange = useCallback(
     (index: number, campo: keyof LeasingContratoProprietario, valor: string) => {
@@ -16248,9 +16499,20 @@ export default function App() {
         <Field
           label={
             <div className="leasing-location-label">
-              <span className="leasing-field-label-text">
-                Endereço de instalação da UC geradora
-              </span>
+              <div className="leasing-location-title">
+                <span className="leasing-field-label-text">
+                  Informações da UC geradora
+                </span>
+                <label className="leasing-location-checkbox flex items-center gap-2">
+                  <CheckboxSmall
+                    checked={leasingContrato.ucGeradoraTitularDiferente}
+                    onChange={(event) =>
+                      handleToggleUcGeradoraTitularDiferente(event.target.checked)
+                    }
+                  />
+                  <span>Diferente titular da UC geradora</span>
+                </label>
+              </div>
               <label className="leasing-location-checkbox flex items-center gap-2">
                 <CheckboxSmall
                   checked={usarEnderecoCliente}
@@ -16275,6 +16537,214 @@ export default function App() {
             placeholder="Endereço completo da instalação"
           />
         </Field>
+        {leasingContrato.ucGeradoraTitularDiferente ? (
+          <div className="uc-geradora-titular-panel">
+            {ucGeradoraTitularPanelOpen ? (
+              <>
+                <div className="grid g3">
+                  <Field
+                    label="Nome completo"
+                    hint={<FieldError message={ucGeradoraTitularErrors.nomeCompleto} />}
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-nomeCompleto"
+                      value={leasingContrato.ucGeradoraTitularDraft?.nomeCompleto ?? ''}
+                      onChange={(event) => {
+                        updateUcGeradoraTitularDraft({ nomeCompleto: event.target.value })
+                        clearUcGeradoraTitularError('nomeCompleto')
+                      }}
+                      placeholder="Nome completo"
+                    />
+                  </Field>
+                  <Field
+                    label="CPF"
+                    hint={<FieldError message={ucGeradoraTitularErrors.cpf} />}
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-cpf"
+                      value={leasingContrato.ucGeradoraTitularDraft?.cpf ?? ''}
+                      onChange={(event) => {
+                        updateUcGeradoraTitularDraft({
+                          cpf: formatCpfCnpj(event.target.value),
+                        })
+                        clearUcGeradoraTitularError('cpf')
+                      }}
+                      placeholder="000.000.000-00"
+                      inputMode="numeric"
+                    />
+                  </Field>
+                  <Field
+                    label="RG"
+                    hint={<FieldError message={ucGeradoraTitularErrors.rg} />}
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-rg"
+                      value={leasingContrato.ucGeradoraTitularDraft?.rg ?? ''}
+                      onChange={(event) => {
+                        updateUcGeradoraTitularDraft({ rg: event.target.value })
+                        clearUcGeradoraTitularError('rg')
+                      }}
+                      placeholder="RG"
+                    />
+                  </Field>
+                </div>
+                <div className="grid g3">
+                  <Field
+                    label="Logradouro"
+                    hint={<FieldError message={ucGeradoraTitularErrors.logradouro} />}
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-logradouro"
+                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.logradouro ?? ''}
+                      onChange={(event) => {
+                        updateUcGeradoraTitularDraft({
+                          endereco: { logradouro: event.target.value },
+                        })
+                        clearUcGeradoraTitularError('logradouro')
+                      }}
+                      placeholder="Rua, avenida, etc."
+                    />
+                  </Field>
+                  <Field
+                    label="Número"
+                    hint={<FieldError message={ucGeradoraTitularErrors.numero} />}
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-numero"
+                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.numero ?? ''}
+                      onChange={(event) => {
+                        updateUcGeradoraTitularDraft({
+                          endereco: { numero: event.target.value },
+                        })
+                        clearUcGeradoraTitularError('numero')
+                      }}
+                      placeholder="Número"
+                    />
+                  </Field>
+                  <Field label="Complemento">
+                    <input
+                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.complemento ?? ''}
+                      onChange={(event) =>
+                        updateUcGeradoraTitularDraft({
+                          endereco: { complemento: event.target.value },
+                        })
+                      }
+                      placeholder="Apto, bloco, etc."
+                    />
+                  </Field>
+                </div>
+                <div className="grid g3">
+                  <Field
+                    label="Bairro"
+                    hint={<FieldError message={ucGeradoraTitularErrors.bairro} />}
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-bairro"
+                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.bairro ?? ''}
+                      onChange={(event) => {
+                        updateUcGeradoraTitularDraft({
+                          endereco: { bairro: event.target.value },
+                        })
+                        clearUcGeradoraTitularError('bairro')
+                      }}
+                      placeholder="Bairro"
+                    />
+                  </Field>
+                  <Field
+                    label="Cidade"
+                    hint={<FieldError message={ucGeradoraTitularErrors.cidade} />}
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-cidade"
+                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.cidade ?? ''}
+                      onChange={(event) => {
+                        updateUcGeradoraTitularDraft({
+                          endereco: { cidade: event.target.value },
+                        })
+                        clearUcGeradoraTitularError('cidade')
+                      }}
+                      placeholder="Cidade"
+                    />
+                  </Field>
+                  <Field
+                    label="UF"
+                    hint={<FieldError message={ucGeradoraTitularErrors.uf} />}
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-uf"
+                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.uf ?? ''}
+                      onChange={(event) => {
+                        updateUcGeradoraTitularDraft({
+                          endereco: { uf: event.target.value.toUpperCase() },
+                        })
+                        clearUcGeradoraTitularError('uf')
+                      }}
+                      placeholder="UF"
+                      maxLength={2}
+                    />
+                  </Field>
+                </div>
+                <div className="grid g3">
+                  <Field
+                    label="CEP"
+                    hint={<FieldError message={ucGeradoraTitularErrors.cep} />}
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-cep"
+                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.cep ?? ''}
+                      onChange={(event) => {
+                        updateUcGeradoraTitularDraft({
+                          endereco: { cep: formatCep(event.target.value) },
+                        })
+                        clearUcGeradoraTitularError('cep')
+                      }}
+                      placeholder="00000-000"
+                      inputMode="numeric"
+                    />
+                  </Field>
+                </div>
+                <div className="uc-geradora-titular-actions">
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={handleSalvarUcGeradoraTitular}
+                  >
+                    Salvar
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={handleCancelarUcGeradoraTitular}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : leasingContrato.ucGeradoraTitular ? (
+              <div className="uc-geradora-titular-summary">
+                <div className="uc-geradora-titular-summary-info">
+                  <strong>{leasingContrato.ucGeradoraTitular.nomeCompleto}</strong>
+                  <span>CPF: {leasingContrato.ucGeradoraTitular.cpf}</span>
+                  <span>RG: {leasingContrato.ucGeradoraTitular.rg}</span>
+                  <span>
+                    {formatUcGeradoraTitularEndereco(
+                      leasingContrato.ucGeradoraTitular.endereco,
+                    )}
+                  </span>
+                </div>
+                <div className="uc-geradora-titular-summary-actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={handleEditarUcGeradoraTitular}
+                  >
+                    Editar
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {isCondominio ? (
           <div className="grid g3">
             <Field label="Nome do síndico">
