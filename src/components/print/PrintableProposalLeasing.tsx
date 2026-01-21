@@ -269,6 +269,7 @@ function PrintableProposalLeasingInner(
     vendaSnapshot,
     vendasConfigSnapshot,
     ucGeradora,
+    ucGeradoraTitular,
     ucsBeneficiarias,
     tusdTipoClienteCompleto,
   } = props
@@ -313,8 +314,13 @@ function PrintableProposalLeasingInner(
     return partes.filter(Boolean).join(' • ')
   }
 
+  const ucGeradoraTitularNome = ucGeradoraTitular?.nomeCompleto?.trim() || null
+  const ucGeradoraTitularCpf = ucGeradoraTitular?.cpf?.trim() || null
+  const ucGeradoraTitularRg = ucGeradoraTitular?.rg?.trim() || null
+  const ucGeradoraTitularEndereco = ucGeradoraTitular?.endereco?.trim() || null
   const ucGeradoraNumero = ucGeradora?.numero?.trim() || ucCliente || ''
-  const ucGeradoraEndereco = ucGeradora?.endereco?.trim() || formatClienteEnderecoCompleto()
+  const ucGeradoraEnderecoBase = ucGeradoraTitularEndereco ?? ucGeradora?.endereco?.trim() ?? ''
+  const ucGeradoraEndereco = ucGeradoraEnderecoBase || formatClienteEnderecoCompleto()
   const enderecoCompletoCliente = formatClienteEnderecoCompleto(false)
   const infoPessoalCliente = [
     { label: 'Cliente', value: nomeCliente || '—' },
@@ -361,6 +367,16 @@ function PrintableProposalLeasingInner(
 
   const ucGeradoraNumeroLabel = ucGeradoraNumero || '—'
   const ucGeradoraEnderecoLabel = ucGeradoraEndereco || '—'
+  const ucGeradoraTitularDocumento = ucGeradoraTitularCpf
+    ? `CPF: ${formatCpfCnpj(ucGeradoraTitularCpf)}`
+    : null
+  const ucGeradoraTitularRgLabel = ucGeradoraTitularRg ? `RG: ${ucGeradoraTitularRg}` : null
+  const ucGeradoraTitularInfo = [ucGeradoraTitularDocumento, ucGeradoraTitularRgLabel]
+    .filter(Boolean)
+    .join(' — ')
+  const ucGeradoraTitularLabel = [ucGeradoraTitularNome, ucGeradoraTitularInfo]
+    .filter(Boolean)
+    .join(' — ')
   const hasBeneficiarias = ucsBeneficiariasLista.length > 0
 
   const prazoContratual = useMemo(() => {
@@ -1051,6 +1067,9 @@ function PrintableProposalLeasingInner(
                 <p className="print-uc-text">
                   Distribuidora: {distribuidoraLabel || '—'}
                 </p>
+                {ucGeradoraTitularLabel ? (
+                  <p className="print-uc-text">Titular da UC: {ucGeradoraTitularLabel}</p>
+                ) : null}
               </div>
               {hasBeneficiarias ? (
                 <div className="print-uc-beneficiarias">
