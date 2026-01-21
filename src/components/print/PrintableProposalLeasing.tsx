@@ -1491,19 +1491,28 @@ function PrintableProposalLeasingInner(
               </p>
 
               <p>
-                <strong className="clause-title">9. Ajuste da Energia Contratada (Kc)</strong>
+                <strong className="clause-title">9. Prazo para Ativação do Rateio de Energia</strong>
+                <br />
+                Em projetos com rateio de energia entre duas ou mais unidades consumidoras, a ativação do rateio não ocorre de forma imediata.
+                Isso acontece porque a solicitação de rateio junto à distribuidora só é realizada após a homologação do sistema fotovoltaico.
+                Após essa etapa, a concessionária processa o pedido conforme seus prazos operacionais, podendo levar algum tempo até que todas as
+                unidades beneficiárias passem a receber os créditos de energia normalmente.
+              </p>
+
+              <p>
+                <strong className="clause-title">10. Ajuste da Energia Contratada (Kc)</strong>
                 <br />
                 Caso a capacidade real da usina seja diferente da estimada, a energia contratada poderá ser ajustada, mantendo o desconto sobre o kWh.
               </p>
 
               <p>
-                <strong className="clause-title">10. Compra Antecipada (Buyout)</strong>
+                <strong className="clause-title">11. Compra Antecipada (Buyout)</strong>
                 <br />
                 Disponível a partir do 7º mês, considerando valor de mercado, tempo de uso e pagamentos já realizados.
               </p>
 
               <p>
-                <strong className="clause-title">11. Transferência de Propriedade</strong>
+                <strong className="clause-title">12. Transferência de Propriedade</strong>
                 <br />
                 Ao final do contrato, com todas as obrigações quitadas, essa usina será sua — e continuará gerando economia por décadas.
               </p>
