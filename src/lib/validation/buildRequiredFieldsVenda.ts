@@ -136,22 +136,16 @@ export const buildRequiredFieldsBase = ({
           getValue: () => leasingContrato.ucGeradoraTitular?.rg,
         },
         {
+          key: 'ucGeradoraTitularEnderecoCep',
+          label: 'CEP do titular da UC geradora',
+          selector: '[data-field="ucGeradoraTitular-cep"]',
+          getValue: () => leasingContrato.ucGeradoraTitular?.endereco.cep,
+        },
+        {
           key: 'ucGeradoraTitularEnderecoLogradouro',
           label: 'Logradouro do titular da UC geradora',
           selector: '[data-field="ucGeradoraTitular-logradouro"]',
           getValue: () => leasingContrato.ucGeradoraTitular?.endereco.logradouro,
-        },
-        {
-          key: 'ucGeradoraTitularEnderecoNumero',
-          label: 'Número do endereço do titular da UC geradora',
-          selector: '[data-field="ucGeradoraTitular-numero"]',
-          getValue: () => leasingContrato.ucGeradoraTitular?.endereco.numero,
-        },
-        {
-          key: 'ucGeradoraTitularEnderecoBairro',
-          label: 'Bairro do titular da UC geradora',
-          selector: '[data-field="ucGeradoraTitular-bairro"]',
-          getValue: () => leasingContrato.ucGeradoraTitular?.endereco.bairro,
         },
         {
           key: 'ucGeradoraTitularEnderecoCidade',
@@ -164,12 +158,6 @@ export const buildRequiredFieldsBase = ({
           label: 'UF do titular da UC geradora',
           selector: '[data-field="ucGeradoraTitular-uf"]',
           getValue: () => leasingContrato.ucGeradoraTitular?.endereco.uf,
-        },
-        {
-          key: 'ucGeradoraTitularEnderecoCep',
-          label: 'CEP do titular da UC geradora',
-          selector: '[data-field="ucGeradoraTitular-cep"]',
-          getValue: () => leasingContrato.ucGeradoraTitular?.endereco.cep,
         },
       ]
     : []),

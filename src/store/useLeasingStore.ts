@@ -174,6 +174,10 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
     contratoIncoming?.ucGeradoraTitularDraft,
     base.contrato.ucGeradoraTitularDraft,
   )
+  const ucGeradoraTitularDiferente = Boolean(
+    (incoming.contrato?.ucGeradoraTitularDiferente ?? base.contrato.ucGeradoraTitularDiferente) &&
+      ucGeradoraTitular,
+  )
   return {
     ...base,
     ...incoming,
@@ -192,9 +196,7 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
       proprietarios: Array.isArray(incoming.contrato?.proprietarios)
         ? incoming.contrato.proprietarios.map((item) => ({ ...item }))
         : base.contrato.proprietarios,
-      ucGeradoraTitularDiferente: Boolean(
-        incoming.contrato?.ucGeradoraTitularDiferente ?? base.contrato.ucGeradoraTitularDiferente,
-      ),
+      ucGeradoraTitularDiferente,
       ucGeradoraTitular,
       ucGeradoraTitularDraft,
     },
@@ -223,7 +225,12 @@ const persistState = (next: LeasingState) => {
     return
   }
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    const payload = cloneState(next)
+    payload.contrato.ucGeradoraTitularDraft = null
+    payload.contrato.ucGeradoraTitularDiferente = Boolean(
+      payload.contrato.ucGeradoraTitularDiferente && payload.contrato.ucGeradoraTitular,
+    )
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   } catch (error) {
     console.warn('[useLeasingStore] failed to persist state', error)
   }
@@ -284,7 +291,14 @@ export const useLeasingStore = <T,>(selector: (state: LeasingState) => T): T => 
   return useSyncExternalStore(leasingStore.subscribe, getSnapshot)
 }
 
-export const getLeasingSnapshot = (): LeasingState => cloneState(leasingStore.getState())
+export const getLeasingSnapshot = (): LeasingState => {
+  const snapshot = cloneState(leasingStore.getState())
+  snapshot.contrato.ucGeradoraTitularDraft = null
+  snapshot.contrato.ucGeradoraTitularDiferente = Boolean(
+    snapshot.contrato.ucGeradoraTitularDiferente && snapshot.contrato.ucGeradoraTitular,
+  )
+  return snapshot
+}
 
 export const selectLeasingValorDeMercadoEstimado = (state: LeasingState): number =>
   state.valorDeMercadoEstimado

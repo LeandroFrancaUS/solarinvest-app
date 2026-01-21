@@ -919,7 +919,6 @@ type OrcamentoSnapshotData = {
   tusdAnoReferencia: number
   tusdOpcoesExpandidas: boolean
   leasingPrazo: LeasingPrazoAnos
-  usarEnderecoCliente: boolean
   potenciaModulo: number
   potenciaModuloDirty: boolean
   tipoInstalacao: TipoInstalacao
@@ -1019,8 +1018,6 @@ type UcGeradoraTitularErrors = {
   cpf?: string
   rg?: string
   logradouro?: string
-  numero?: string
-  bairro?: string
   cidade?: string
   uf?: string
   cep?: string
@@ -3697,10 +3694,13 @@ export default function App() {
   )
   const [tusdOpcoesExpandidas, setTusdOpcoesExpandidas] = useState(false)
   const [leasingPrazo, setLeasingPrazo] = useState<LeasingPrazoAnos>(INITIAL_VALUES.leasingPrazo)
-  const [usarEnderecoCliente, setUsarEnderecoCliente] = useState(false)
   const [ucGeradoraTitularPanelOpen, setUcGeradoraTitularPanelOpen] = useState(false)
   const [ucGeradoraTitularErrors, setUcGeradoraTitularErrors] =
     useState<UcGeradoraTitularErrors>({})
+  const [ucGeradoraTitularCepMessage, setUcGeradoraTitularCepMessage] = useState<
+    string | undefined
+  >(undefined)
+  const [ucGeradoraTitularBuscandoCep, setUcGeradoraTitularBuscandoCep] = useState(false)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
   const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'monofasico')
   const [tipoRedeControle, setTipoRedeControle] = useState<'auto' | 'manual'>('auto')
@@ -4532,6 +4532,8 @@ export default function App() {
   const isApplyingCepRef = useRef(false)
   const isEditingEnderecoRef = useRef(false)
   const lastCepAppliedRef = useRef<string>('')
+  const isApplyingUcGeradoraCepRef = useRef(false)
+  const lastUcGeradoraCepAppliedRef = useRef<string>('')
   const budgetIdMismatchLoggedRef = useRef(false)
   const novaPropostaEmAndamentoRef = useRef(false)
   
@@ -4562,28 +4564,6 @@ export default function App() {
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
   const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
-  const enderecoClienteCompleto = useMemo(() => {
-    const partes: string[] = []
-    const endereco = cliente.endereco.trim()
-    const cidade = cliente.cidade.trim()
-    const uf = cliente.uf.trim()
-    const cep = cliente.cep.trim()
-
-    if (endereco) {
-      partes.push(endereco)
-    }
-
-    const cidadeUf = [cidade, uf].filter(Boolean).join(' - ')
-    if (cidadeUf) {
-      partes.push(cidadeUf)
-    }
-
-    if (cep) {
-      partes.push(formatCep(cep))
-    }
-
-    return partes.join(', ')
-  }, [cliente.cidade, cliente.endereco, cliente.uf, cliente.cep])
 
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
@@ -11609,7 +11589,6 @@ export default function App() {
     tusdAnoReferencia: INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
     tusdOpcoesExpandidas: false,
     leasingPrazo: INITIAL_VALUES.leasingPrazo,
-    usarEnderecoCliente: false,
     potenciaModulo: INITIAL_VALUES.potenciaModulo,
     potenciaModuloDirty: false,
     tipoInstalacao: normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao),
@@ -11845,7 +11824,6 @@ export default function App() {
       tusdAnoReferencia,
       tusdOpcoesExpandidas,
       leasingPrazo,
-      usarEnderecoCliente,
       potenciaModulo,
       potenciaModuloDirty,
       tipoInstalacao,
@@ -12257,7 +12235,6 @@ export default function App() {
     (snapshot: OrcamentoSnapshotData) => {
       setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
       setKcKwhMes(snapshot.kcKwhMes, snapshot.consumoManual ? 'user' : 'auto')
-      setUsarEnderecoCliente(snapshot.usarEnderecoCliente ?? false)
       setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
       setTipoEdificacaoOutro(snapshot.tipoEdificacaoOutro || '')
       setConfiguracaoUsinaObservacoes(snapshot.configuracaoUsinaObservacoes ?? '')
@@ -12277,7 +12254,6 @@ export default function App() {
       setTipoEdificacaoOutro,
       setConfiguracaoUsinaObservacoes,
       setUcsBeneficiarias,
-      setUsarEnderecoCliente,
     ],
   )
 
@@ -12901,7 +12877,6 @@ export default function App() {
     setTusdAnoReferencia(snapshot.tusdAnoReferencia)
     setTusdOpcoesExpandidas(snapshot.tusdOpcoesExpandidas)
     setLeasingPrazo(snapshot.leasingPrazo)
-    setUsarEnderecoCliente(snapshot.usarEnderecoCliente ?? false)
     setPotenciaModulo(snapshot.potenciaModulo)
     setPotenciaModuloDirty(snapshot.potenciaModuloDirty)
     setTipoInstalacao(snapshot.tipoInstalacao)
@@ -15085,8 +15060,16 @@ export default function App() {
       setTusdAnoReferencia(INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA)
       setTusdOpcoesExpandidas(false)
       setLeasingPrazo(INITIAL_VALUES.leasingPrazo)
-      setUsarEnderecoCliente(false)
-      leasingActions.updateContrato({ localEntrega: '' })
+      leasingActions.updateContrato({
+        localEntrega: '',
+        ucGeradoraTitularDiferente: false,
+        ucGeradoraTitular: null,
+        ucGeradoraTitularDraft: null,
+      })
+      setUcGeradoraTitularPanelOpen(false)
+      setUcGeradoraTitularErrors({})
+      setUcGeradoraTitularCepMessage(undefined)
+      setUcGeradoraTitularBuscandoCep(false)
       setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
       setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
       setTipoRedeControle('auto')
@@ -15467,22 +15450,9 @@ export default function App() {
 
   const handleLeasingLocalEntregaChange = useCallback(
     (value: string) => {
-      if (usarEnderecoCliente) {
-        setUsarEnderecoCliente(false)
-      }
       leasingActions.updateContrato({ localEntrega: value })
     },
-    [usarEnderecoCliente],
-  )
-
-  const handleToggleUsarEnderecoCliente = useCallback(
-    (checked: boolean) => {
-      setUsarEnderecoCliente(checked)
-      if (checked && enderecoClienteCompleto) {
-        leasingActions.updateContrato({ localEntrega: enderecoClienteCompleto })
-      }
-    },
-    [enderecoClienteCompleto],
+    [leasingActions],
   )
 
   const clearUcGeradoraTitularError = useCallback(
@@ -15526,23 +15496,17 @@ export default function App() {
     if (!draft.rg.trim()) {
       errors.rg = 'Informe o RG.'
     }
+    if (!draft.endereco.cep.trim()) {
+      errors.cep = 'Informe o CEP.'
+    }
     if (!draft.endereco.logradouro.trim()) {
       errors.logradouro = 'Informe o logradouro.'
-    }
-    if (!draft.endereco.numero.trim()) {
-      errors.numero = 'Informe o número.'
-    }
-    if (!draft.endereco.bairro.trim()) {
-      errors.bairro = 'Informe o bairro.'
     }
     if (!draft.endereco.cidade.trim()) {
       errors.cidade = 'Informe a cidade.'
     }
     if (!draft.endereco.uf.trim()) {
       errors.uf = 'Informe a UF.'
-    }
-    if (!draft.endereco.cep.trim()) {
-      errors.cep = 'Informe o CEP.'
     }
     return errors
   }, [])
@@ -15559,6 +15523,8 @@ export default function App() {
         })
         setUcGeradoraTitularPanelOpen(true)
         setUcGeradoraTitularErrors({})
+        setUcGeradoraTitularCepMessage(undefined)
+        setUcGeradoraTitularBuscandoCep(false)
         return
       }
       leasingActions.updateContrato({
@@ -15568,6 +15534,8 @@ export default function App() {
       })
       setUcGeradoraTitularPanelOpen(false)
       setUcGeradoraTitularErrors({})
+      setUcGeradoraTitularCepMessage(undefined)
+      setUcGeradoraTitularBuscandoCep(false)
     },
     [leasingContrato.ucGeradoraTitular],
   )
@@ -15588,6 +15556,8 @@ export default function App() {
     }
     setUcGeradoraTitularPanelOpen(false)
     setUcGeradoraTitularErrors({})
+    setUcGeradoraTitularCepMessage(undefined)
+    setUcGeradoraTitularBuscandoCep(false)
   }, [leasingContrato.ucGeradoraTitular])
 
   const handleSalvarUcGeradoraTitular = useCallback(() => {
@@ -15603,6 +15573,8 @@ export default function App() {
       ucGeradoraTitularDraft: null,
     })
     setUcGeradoraTitularErrors({})
+    setUcGeradoraTitularCepMessage(undefined)
+    setUcGeradoraTitularBuscandoCep(false)
     setUcGeradoraTitularPanelOpen(false)
   }, [buildUcGeradoraTitularErrors, leasingContrato.ucGeradoraTitularDraft])
 
@@ -15616,14 +15588,9 @@ export default function App() {
     })
     setUcGeradoraTitularPanelOpen(true)
     setUcGeradoraTitularErrors({})
+    setUcGeradoraTitularCepMessage(undefined)
+    setUcGeradoraTitularBuscandoCep(false)
   }, [leasingContrato.ucGeradoraTitular])
-
-  useEffect(() => {
-    if (!usarEnderecoCliente) {
-      return
-    }
-    leasingActions.updateContrato({ localEntrega: enderecoClienteCompleto })
-  }, [enderecoClienteCompleto, usarEnderecoCliente])
 
   useEffect(() => {
     if (
@@ -15808,6 +15775,99 @@ export default function App() {
       controller.abort()
     }
   }, [cliente.cep])
+
+  useEffect(() => {
+    const draft = leasingContrato.ucGeradoraTitularDraft
+    if (!draft) {
+      setUcGeradoraTitularBuscandoCep(false)
+      setUcGeradoraTitularCepMessage(undefined)
+      return
+    }
+
+    const cepNumeros = normalizeNumbers(draft.endereco.cep ?? '')
+
+    if (isHydratingRef.current || isApplyingUcGeradoraCepRef.current) {
+      return
+    }
+
+    if (cepNumeros.length !== 8) {
+      setUcGeradoraTitularBuscandoCep(false)
+      setUcGeradoraTitularCepMessage(undefined)
+      return
+    }
+
+    if (cepNumeros === lastUcGeradoraCepAppliedRef.current) {
+      return
+    }
+
+    let ativo = true
+    const controller = new AbortController()
+
+    const consultarCep = async () => {
+      setUcGeradoraTitularBuscandoCep(true)
+      setUcGeradoraTitularCepMessage(undefined)
+
+      try {
+        isApplyingUcGeradoraCepRef.current = true
+        const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`, {
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error('Falha ao consultar CEP.')
+        }
+
+        const data: ViaCepResponse = await response.json()
+        if (!ativo) {
+          return
+        }
+
+        if (data?.erro) {
+          setUcGeradoraTitularCepMessage('CEP não encontrado.')
+          return
+        }
+
+        const logradouro = data?.logradouro?.trim() ?? ''
+        const localidade = data?.localidade?.trim() ?? ''
+        const uf = data?.uf?.trim().toUpperCase() ?? ''
+
+        const patchEndereco: Partial<LeasingEndereco> = {}
+        if (logradouro && !draft.endereco.logradouro.trim()) {
+          patchEndereco.logradouro = logradouro
+        }
+        if (localidade && localidade !== draft.endereco.cidade) {
+          patchEndereco.cidade = localidade
+        }
+        if (uf && uf !== draft.endereco.uf) {
+          patchEndereco.uf = uf
+        }
+        if (Object.keys(patchEndereco).length > 0) {
+          updateUcGeradoraTitularDraft({ endereco: patchEndereco })
+        }
+
+        lastUcGeradoraCepAppliedRef.current = cepNumeros
+        setUcGeradoraTitularCepMessage(undefined)
+      } catch (error) {
+        if (!ativo || controller.signal.aborted) {
+          return
+        }
+
+        setUcGeradoraTitularCepMessage('Não foi possível consultar o CEP agora.')
+      } finally {
+        if (ativo) {
+          setUcGeradoraTitularBuscandoCep(false)
+        }
+        isApplyingUcGeradoraCepRef.current = false
+      }
+    }
+
+    consultarCep()
+
+    return () => {
+      ativo = false
+      controller.abort()
+    }
+  }, [leasingContrato.ucGeradoraTitularDraft, updateUcGeradoraTitularDraft])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -16513,14 +16573,6 @@ export default function App() {
                   <span>Diferente titular da UC geradora</span>
                 </label>
               </div>
-              <label className="leasing-location-checkbox flex items-center gap-2">
-                <CheckboxSmall
-                  checked={usarEnderecoCliente}
-                  onChange={(event) => handleToggleUsarEnderecoCliente(event.target.checked)}
-                  disabled={!enderecoClienteCompleto}
-                />
-                <span>Mesmo que endereço do contratante</span>
-              </label>
             </div>
           }
           hint="Endereço onde a UC geradora será instalada (pode ser diferente do endereço do contratante)"
@@ -16590,6 +16642,38 @@ export default function App() {
                 </div>
                 <div className="grid g3">
                   <Field
+                    label="CEP"
+                    hint={
+                      ucGeradoraTitularErrors.cep ||
+                      ucGeradoraTitularBuscandoCep ||
+                      ucGeradoraTitularCepMessage ? (
+                        <>
+                          <FieldError message={ucGeradoraTitularErrors.cep} />
+                          {ucGeradoraTitularBuscandoCep ? (
+                            <span>Buscando CEP...</span>
+                          ) : ucGeradoraTitularCepMessage ? (
+                            <span>{ucGeradoraTitularCepMessage}</span>
+                          ) : null}
+                        </>
+                      ) : undefined
+                    }
+                  >
+                    <input
+                      data-field="ucGeradoraTitular-cep"
+                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.cep ?? ''}
+                      onChange={(event) => {
+                        setUcGeradoraTitularCepMessage(undefined)
+                        setUcGeradoraTitularBuscandoCep(false)
+                        updateUcGeradoraTitularDraft({
+                          endereco: { cep: formatCep(event.target.value) },
+                        })
+                        clearUcGeradoraTitularError('cep')
+                      }}
+                      placeholder="00000-000"
+                      inputMode="numeric"
+                    />
+                  </Field>
+                  <Field
                     label="Logradouro"
                     hint={<FieldError message={ucGeradoraTitularErrors.logradouro} />}
                   >
@@ -16603,51 +16687,6 @@ export default function App() {
                         clearUcGeradoraTitularError('logradouro')
                       }}
                       placeholder="Rua, avenida, etc."
-                    />
-                  </Field>
-                  <Field
-                    label="Número"
-                    hint={<FieldError message={ucGeradoraTitularErrors.numero} />}
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-numero"
-                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.numero ?? ''}
-                      onChange={(event) => {
-                        updateUcGeradoraTitularDraft({
-                          endereco: { numero: event.target.value },
-                        })
-                        clearUcGeradoraTitularError('numero')
-                      }}
-                      placeholder="Número"
-                    />
-                  </Field>
-                  <Field label="Complemento">
-                    <input
-                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.complemento ?? ''}
-                      onChange={(event) =>
-                        updateUcGeradoraTitularDraft({
-                          endereco: { complemento: event.target.value },
-                        })
-                      }
-                      placeholder="Apto, bloco, etc."
-                    />
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field
-                    label="Bairro"
-                    hint={<FieldError message={ucGeradoraTitularErrors.bairro} />}
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-bairro"
-                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.bairro ?? ''}
-                      onChange={(event) => {
-                        updateUcGeradoraTitularDraft({
-                          endereco: { bairro: event.target.value },
-                        })
-                        clearUcGeradoraTitularError('bairro')
-                      }}
-                      placeholder="Bairro"
                     />
                   </Field>
                   <Field
@@ -16666,6 +16705,8 @@ export default function App() {
                       placeholder="Cidade"
                     />
                   </Field>
+                </div>
+                <div className="grid g3">
                   <Field
                     label="UF"
                     hint={<FieldError message={ucGeradoraTitularErrors.uf} />}
@@ -16681,25 +16722,6 @@ export default function App() {
                       }}
                       placeholder="UF"
                       maxLength={2}
-                    />
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field
-                    label="CEP"
-                    hint={<FieldError message={ucGeradoraTitularErrors.cep} />}
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-cep"
-                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.cep ?? ''}
-                      onChange={(event) => {
-                        updateUcGeradoraTitularDraft({
-                          endereco: { cep: formatCep(event.target.value) },
-                        })
-                        clearUcGeradoraTitularError('cep')
-                      }}
-                      placeholder="00000-000"
-                      inputMode="numeric"
                     />
                   </Field>
                 </div>
