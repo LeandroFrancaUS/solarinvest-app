@@ -16618,10 +16618,11 @@ export default function App() {
           <div aria-hidden="true" />
         </Field>
         {leasingContrato.ucGeradoraTitularDiferente ? (
-          <div className="uc-geradora-titular-panel">
-            {ucGeradoraTitularPanelOpen ? (
-              <>
-                <div className="uc-geradora-titular-grid">
+          <div className="uc-geradora-titular-panel-row">
+            <div className="uc-geradora-titular-panel">
+              {ucGeradoraTitularPanelOpen ? (
+                <>
+                  <div className="uc-geradora-titular-grid">
                   <Field
                     label="Nome completo"
                     hint={<FieldError message={ucGeradoraTitularErrors.nomeCompleto} />}
@@ -16751,46 +16752,47 @@ export default function App() {
                     </Field>
                   </div>
                 </div>
-                <div className="uc-geradora-titular-actions">
-                  <button
-                    type="button"
-                    className="primary uc-geradora-titular-button"
-                    onClick={handleSalvarUcGeradoraTitular}
-                  >
-                    Salvar
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost uc-geradora-titular-button"
-                    onClick={handleCancelarUcGeradoraTitular}
-                  >
-                    Cancelar
-                  </button>
+                  <div className="uc-geradora-titular-actions">
+                    <button
+                      type="button"
+                      className="primary uc-geradora-titular-button"
+                      onClick={handleSalvarUcGeradoraTitular}
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost uc-geradora-titular-button"
+                      onClick={handleCancelarUcGeradoraTitular}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              ) : leasingContrato.ucGeradoraTitular ? (
+                <div className="uc-geradora-titular-summary">
+                  <div className="uc-geradora-titular-summary-info">
+                    <strong>{leasingContrato.ucGeradoraTitular.nomeCompleto}</strong>
+                    <span>CPF: {leasingContrato.ucGeradoraTitular.cpf}</span>
+                    <span>RG: {leasingContrato.ucGeradoraTitular.rg}</span>
+                    <span>
+                      {formatUcGeradoraTitularEndereco(
+                        leasingContrato.ucGeradoraTitular.endereco,
+                      )}
+                    </span>
+                  </div>
+                  <div className="uc-geradora-titular-summary-actions">
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={handleEditarUcGeradoraTitular}
+                    >
+                      Editar
+                    </button>
+                  </div>
                 </div>
-              </>
-            ) : leasingContrato.ucGeradoraTitular ? (
-              <div className="uc-geradora-titular-summary">
-                <div className="uc-geradora-titular-summary-info">
-                  <strong>{leasingContrato.ucGeradoraTitular.nomeCompleto}</strong>
-                  <span>CPF: {leasingContrato.ucGeradoraTitular.cpf}</span>
-                  <span>RG: {leasingContrato.ucGeradoraTitular.rg}</span>
-                  <span>
-                    {formatUcGeradoraTitularEndereco(
-                      leasingContrato.ucGeradoraTitular.endereco,
-                    )}
-                  </span>
-                </div>
-                <div className="uc-geradora-titular-summary-actions">
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={handleEditarUcGeradoraTitular}
-                  >
-                    Editar
-                  </button>
-                </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         ) : null}
         {isCondominio ? (
