@@ -3640,7 +3640,6 @@ export default function App() {
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
   const editableContentRef = useRef<HTMLDivElement | null>(null)
-  const leasingLocalEntregaInputId = useId()
   const leasingHomologacaoInputId = useId()
   const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
   const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
@@ -12243,9 +12242,21 @@ export default function App() {
           ? [...snapshot.leasingAnexosSelecionados]
           : getDefaultLeasingAnexos(snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial'),
       )
+      const ucGeradoraTitularDiferente = Boolean(
+        snapshot.leasingSnapshot?.contrato?.ucGeradoraTitularDiferente,
+      )
+      const ucGeradoraTitular =
+        snapshot.leasingSnapshot?.contrato?.ucGeradoraTitular ?? null
       leasingActions.updateContrato({
         localEntrega: snapshot.leasingSnapshot?.contrato?.localEntrega ?? '',
+        ucGeradoraTitularDiferente,
+        ucGeradoraTitular,
+        ucGeradoraTitularDraft: null,
       })
+      setUcGeradoraTitularPanelOpen(false)
+      setUcGeradoraTitularErrors({})
+      setUcGeradoraTitularCepMessage(undefined)
+      setUcGeradoraTitularBuscandoCep(false)
     },
     [
       setKcKwhMes,
@@ -12254,6 +12265,10 @@ export default function App() {
       setTipoEdificacaoOutro,
       setConfiguracaoUsinaObservacoes,
       setUcsBeneficiarias,
+      setUcGeradoraTitularPanelOpen,
+      setUcGeradoraTitularErrors,
+      setUcGeradoraTitularCepMessage,
+      setUcGeradoraTitularBuscandoCep,
     ],
   )
 
@@ -13766,7 +13781,6 @@ export default function App() {
     }
 
     const pendencias: string[] = []
-    if (!leasingContrato.localEntrega.trim()) pendencias.push('local de entrega / instalação')
 
     const anexosSelecionadosSet = new Set<LeasingAnexoId>(leasingAnexosSelecionados)
     const requerEspecificacoesTecnicas = anexosSelecionadosSet.has('ANEXO_I')
@@ -13899,8 +13913,8 @@ export default function App() {
       tarifaBase: tarifaBaseFormatada,
       dataInicio: formatDateForContract(leasingContrato.dataInicio),
       dataFim: formatDateForContract(leasingContrato.dataFim),
-      localEntrega: leasingContrato.localEntrega.trim(),
-      enderecoUCGeradora: leasingContrato.localEntrega.trim(), // Endereço da UC geradora (pode ser diferente do contratante)
+      localEntrega: titularUcGeradoraEndereco,
+      enderecoUCGeradora: titularUcGeradoraEndereco,
       dataHomologacao: formatDateForContract(leasingContrato.dataHomologacao),
       dataAtualExtenso,
       diaVencimento: cliente.diaVencimento || '10',
@@ -15448,13 +15462,6 @@ export default function App() {
     [],
   )
 
-  const handleLeasingLocalEntregaChange = useCallback(
-    (value: string) => {
-      leasingActions.updateContrato({ localEntrega: value })
-    },
-    [leasingActions],
-  )
-
   const clearUcGeradoraTitularError = useCallback(
     (field: keyof UcGeradoraTitularErrors) => {
       setUcGeradoraTitularErrors((prev) => {
@@ -15560,15 +15567,40 @@ export default function App() {
     setUcGeradoraTitularBuscandoCep(false)
   }, [leasingContrato.ucGeradoraTitular])
 
-  const handleSalvarUcGeradoraTitular = useCallback(() => {
+  const handleSalvarUcGeradoraTitular = useCallback(async () => {
     const draft = leasingContrato.ucGeradoraTitularDraft ?? createEmptyUcGeradoraTitular()
     const errors = buildUcGeradoraTitularErrors(draft)
     if (Object.keys(errors).length > 0) {
       setUcGeradoraTitularErrors(errors)
       return
     }
+
+    const titularAnterior = leasingContrato.ucGeradoraTitular
+      ? cloneUcGeradoraTitular(leasingContrato.ucGeradoraTitular)
+      : null
+    const titularAtualizado = cloneUcGeradoraTitular(draft)
+
     leasingActions.updateContrato({
-      ucGeradoraTitular: cloneUcGeradoraTitular(draft),
+      ucGeradoraTitular: titularAtualizado,
+      ucGeradoraTitularDiferente: true,
+    })
+
+    const salvou = await handleSalvarCliente({ skipGuard: true })
+    if (!salvou) {
+      leasingActions.updateContrato({
+        ucGeradoraTitular: titularAnterior,
+        ucGeradoraTitularDiferente: true,
+        ucGeradoraTitularDraft: draft,
+      })
+      adicionarNotificacao(
+        'Não foi possível salvar os dados do titular da UC geradora. Tente novamente.',
+        'error',
+      )
+      return
+    }
+
+    leasingActions.updateContrato({
+      ucGeradoraTitular: titularAtualizado,
       ucGeradoraTitularDiferente: true,
       ucGeradoraTitularDraft: null,
     })
@@ -15576,7 +15608,13 @@ export default function App() {
     setUcGeradoraTitularCepMessage(undefined)
     setUcGeradoraTitularBuscandoCep(false)
     setUcGeradoraTitularPanelOpen(false)
-  }, [buildUcGeradoraTitularErrors, leasingContrato.ucGeradoraTitularDraft])
+  }, [
+    adicionarNotificacao,
+    buildUcGeradoraTitularErrors,
+    handleSalvarCliente,
+    leasingContrato.ucGeradoraTitular,
+    leasingContrato.ucGeradoraTitularDraft,
+  ])
 
   const handleEditarUcGeradoraTitular = useCallback(() => {
     if (!leasingContrato.ucGeradoraTitular) {
@@ -16575,19 +16613,9 @@ export default function App() {
               </div>
             </div>
           }
-          hint="Endereço onde a UC geradora será instalada (pode ser diferente do endereço do contratante)"
+          hint="O endereço da UC geradora seguirá o endereço do contratante, exceto quando houver titular diferente."
         >
-          <input
-            id={leasingLocalEntregaInputId}
-            data-field="cliente-enderecoInstalacaoUcGeradora"
-            className="leasing-compact-input h-[46px]"
-            value={leasingContrato.localEntrega}
-            onChange={(event) => {
-              handleLeasingLocalEntregaChange(event.target.value)
-              clearFieldHighlight(event.currentTarget)
-            }}
-            placeholder="Endereço completo da instalação"
-          />
+          <div aria-hidden="true" />
         </Field>
         {leasingContrato.ucGeradoraTitularDiferente ? (
           <div className="uc-geradora-titular-panel">

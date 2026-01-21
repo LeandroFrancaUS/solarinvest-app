@@ -100,12 +100,6 @@ export const buildRequiredFieldsBase = ({
     getValue: () => cliente.endereco,
   },
   {
-    key: 'enderecoInstalacaoUcGeradora',
-    label: 'Informações da UC geradora',
-    selector: '[data-field="cliente-enderecoInstalacaoUcGeradora"]',
-    getValue: () => leasingContrato.localEntrega,
-  },
-  {
     key: 'cidadeUf',
     label: 'Cidade e UF ou Estado',
     selector: '[data-field="cliente-cidade"], [data-field="cliente-uf"]',
