@@ -1493,10 +1493,9 @@ function PrintableProposalLeasingInner(
               <p>
                 <strong className="clause-title">9. Prazo para Ativação do Rateio de Energia</strong>
                 <br />
-                Em projetos com rateio de energia entre duas ou mais unidades consumidoras, a ativação do rateio não ocorre de forma imediata.
-                Isso acontece porque a solicitação de rateio junto à distribuidora só é realizada após a homologação do sistema fotovoltaico.
-                Após essa etapa, a concessionária processa o pedido conforme seus prazos operacionais, podendo levar algum tempo até que todas as
-                unidades beneficiárias passem a receber os créditos de energia normalmente.
+                Em projetos com rateio de energia entre duas ou mais unidades consumidoras, é importante considerar que as unidades beneficiárias
+                não passam a receber os créditos de forma imediata. A solicitação de rateio é feita após a homologação do sistema, e a
+                concessionária pode levar algum tempo para ativar os créditos em todas as UCs beneficiárias.
               </p>
 
               <p>
