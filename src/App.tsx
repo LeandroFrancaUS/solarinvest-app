@@ -16621,7 +16621,7 @@ export default function App() {
           <div className="uc-geradora-titular-panel">
             {ucGeradoraTitularPanelOpen ? (
               <>
-                <div className="grid g3">
+                <div className="uc-geradora-titular-grid">
                   <Field
                     label="Nome completo"
                     hint={<FieldError message={ucGeradoraTitularErrors.nomeCompleto} />}
@@ -16667,8 +16667,6 @@ export default function App() {
                       placeholder="RG"
                     />
                   </Field>
-                </div>
-                <div className="grid g3">
                   <Field
                     label="CEP"
                     hint={
@@ -16717,53 +16715,53 @@ export default function App() {
                       placeholder="Rua, avenida, etc."
                     />
                   </Field>
-                  <Field
-                    label="Cidade"
-                    hint={<FieldError message={ucGeradoraTitularErrors.cidade} />}
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-cidade"
-                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.cidade ?? ''}
-                      onChange={(event) => {
-                        updateUcGeradoraTitularDraft({
-                          endereco: { cidade: event.target.value },
-                        })
-                        clearUcGeradoraTitularError('cidade')
-                      }}
-                      placeholder="Cidade"
-                    />
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field
-                    label="UF"
-                    hint={<FieldError message={ucGeradoraTitularErrors.uf} />}
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-uf"
-                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.uf ?? ''}
-                      onChange={(event) => {
-                        updateUcGeradoraTitularDraft({
-                          endereco: { uf: event.target.value.toUpperCase() },
-                        })
-                        clearUcGeradoraTitularError('uf')
-                      }}
-                      placeholder="UF"
-                      maxLength={2}
-                    />
-                  </Field>
+                  <div className="uc-geradora-titular-city-uf">
+                    <Field
+                      label="Cidade"
+                      hint={<FieldError message={ucGeradoraTitularErrors.cidade} />}
+                    >
+                      <input
+                        data-field="ucGeradoraTitular-cidade"
+                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.cidade ?? ''}
+                        onChange={(event) => {
+                          updateUcGeradoraTitularDraft({
+                            endereco: { cidade: event.target.value },
+                          })
+                          clearUcGeradoraTitularError('cidade')
+                        }}
+                        placeholder="Cidade"
+                      />
+                    </Field>
+                    <Field
+                      label="UF"
+                      hint={<FieldError message={ucGeradoraTitularErrors.uf} />}
+                    >
+                      <input
+                        data-field="ucGeradoraTitular-uf"
+                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.uf ?? ''}
+                        onChange={(event) => {
+                          updateUcGeradoraTitularDraft({
+                            endereco: { uf: event.target.value.toUpperCase() },
+                          })
+                          clearUcGeradoraTitularError('uf')
+                        }}
+                        placeholder="UF"
+                        maxLength={2}
+                      />
+                    </Field>
+                  </div>
                 </div>
                 <div className="uc-geradora-titular-actions">
                   <button
                     type="button"
-                    className="primary"
+                    className="primary uc-geradora-titular-button"
                     onClick={handleSalvarUcGeradoraTitular}
                   >
                     Salvar
                   </button>
                   <button
                     type="button"
-                    className="ghost"
+                    className="ghost uc-geradora-titular-button"
                     onClick={handleCancelarUcGeradoraTitular}
                   >
                     Cancelar
