@@ -1171,6 +1171,26 @@ const getDiaContrato = (data) => {
   return format(new Date(), 'dd', { locale: ptBR })
 }
 
+const getMesContrato = (data) => {
+  if (typeof data === 'string' && data.trim()) {
+    const parsed = new Date(data)
+    if (!isNaN(parsed.getTime())) {
+      return format(parsed, 'MMMM', { locale: ptBR })
+    }
+  }
+  return format(new Date(), 'MMMM', { locale: ptBR })
+}
+
+const getAnoContrato = (data) => {
+  if (typeof data === 'string' && data.trim()) {
+    const parsed = new Date(data)
+    if (!isNaN(parsed.getTime())) {
+      return format(parsed, 'yyyy', { locale: ptBR })
+    }
+  }
+  return format(new Date(), 'yyyy', { locale: ptBR })
+}
+
 const buildTemplateData = (data) => {
   const base = data && typeof data === 'object' ? data : {}
   const kwhValue = base.kWhContratado ?? base.kwhContratado ?? base.kcKwhMes ?? ''
@@ -1210,6 +1230,12 @@ const buildTemplateData = (data) => {
   const diaValue = typeof base.dia === 'string' && base.dia.trim()
     ? base.dia.trim()
     : getDiaContrato(base.dataInicio)
+  const mesValue = typeof base.mes === 'string' && base.mes.trim()
+    ? base.mes.trim()
+    : getMesContrato(base.dataInicio)
+  const anoContratoValue = typeof base.anoContrato === 'string' && base.anoContrato.trim()
+    ? base.anoContrato.trim()
+    : getAnoContrato(base.dataInicio)
 
   return {
     ...base,
@@ -1227,8 +1253,8 @@ const buildTemplateData = (data) => {
     prazoContratual: base.prazoContratual ?? '',
     cidade: cidadeValue,
     UF: ufValue,
-    mes: base.mes ?? base.mesContrato ?? '',
-    anoContrato: base.anoContrato ?? '',
+    mes: mesValue || base.mesContrato || '',
+    anoContrato: anoContratoValue || '',
     unidadeConsumidora: base.unidadeConsumidora ?? '',
     potencia: base.potencia ?? base.potenciaSistema ?? '',
     modulosFV: base.modulosFV ?? '',
@@ -1288,53 +1314,6 @@ const extractTemplateTags = (xml) => {
     tags.add(match[1])
   }
   return tags
-}
-
-const normalizeMustacheAcrossTextNodes = (xml) => {
-  const textTagRegex = /<w:t([^>]*)>([\s\S]*?)<\/w:t>/g
-  const nodes = []
-  let match
-
-  while ((match = textTagRegex.exec(xml)) !== null) {
-    nodes.push({ attrs: match[1], text: match[2] })
-  }
-
-  if (nodes.length === 0) {
-    return xml
-  }
-
-  const separator = '\u0001'
-  const combined = nodes.map((node) => node.text).join(separator)
-  let normalized = combined
-    .replace(new RegExp(`\\{${separator}\\{`, 'g'), '{{')
-    .replace(new RegExp(`\\}${separator}\\}`, 'g'), '}}')
-
-  normalized = normalized.replace(
-    /{{([\s\S]*?)}}/g,
-    (full, inner) => {
-      const cleaned = inner.replace(new RegExp(separator, 'g'), '').replace(/\s+/g, ' ').trim()
-      if (/^[a-zA-Z0-9_]+$/.test(cleaned)) {
-        return `{{${cleaned}}}`
-      }
-      return full
-    },
-  )
-  normalized = normalized.replace(new RegExp(separator, 'g'), '')
-
-  const firstIndex = xml.indexOf('<w:t')
-  if (firstIndex === -1) {
-    return xml
-  }
-
-  let nodeIndex = 0
-  return xml.replace(textTagRegex, (full, attrs) => {
-    if (nodeIndex === 0) {
-      nodeIndex += 1
-      return `<w:t${attrs}>${normalized}</w:t>`
-    }
-    nodeIndex += 1
-    return `<w:t${attrs}></w:t>`
-  })
 }
 
 const repairMustachePlaceholdersXml = (xml, { templateName, partName, uf, requestId } = {}) => {
@@ -1572,10 +1551,9 @@ const renderDocxTemplate = async (fileName, data, uf, { requestId } = {}) => {
       continue
     }
     const xmlContent = await file.async('string')
-    // Normalize XML to fix broken placeholders before rendering
+    // NOTE: never rewrite XML globally; only adjust <w:t> text for placeholders.
     const normalizedXml = normalizeWordXmlForMustache(xmlContent)
-    const flattenedXml = normalizeMustacheAcrossTextNodes(normalizedXml)
-    const repairedXml = repairMustachePlaceholdersXml(flattenedXml, {
+    const repairedXml = repairMustachePlaceholdersXml(normalizedXml, {
       templateName: fileName,
       partName,
       uf,
