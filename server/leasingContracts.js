@@ -1233,6 +1233,37 @@ const buildTemplateData = (data) => {
 }
 
 const TEMPLATE_TAG_REGEX = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
+const ALLOWED_TEMPLATE_TAGS = new Set([
+  'nomeCompleto',
+  'nacionalidade',
+  'estadoCivil',
+  'profissao',
+  'cpfCnpj',
+  'rg',
+  'enderecoCompleto',
+  'email',
+  'telefone',
+  'kwhContratado',
+  'kWhContratado',
+  'prazoContratual',
+  'cidade',
+  'UF',
+  'mes',
+  'anoContrato',
+  'procuracaoNome',
+  'procuracaoCPF',
+  'procuracaoRG',
+  'procuracaoEndereco',
+  'unidadeConsumidora',
+  'potencia',
+  'modulosFV',
+  'inversoresFV',
+  'tarifaBase',
+  'dataInicio',
+  'dataFim',
+  'dataAtualExtenso',
+  'dataHomologacao',
+])
 
 const extractTemplateTags = (xml) => {
   const tags = new Set()
@@ -1380,7 +1411,10 @@ const logUnrenderedTemplateTags = ({ templateName, uf, requestId, leftoverTags }
   })
 }
 
-const escapeInvalidMustacheMarkers = (xml, { templateName, partName, uf, requestId } = {}) => {
+const escapeInvalidMustacheMarkers = (
+  xml,
+  { templateName, partName, uf, requestId, allowedTags = ALLOWED_TEMPLATE_TAGS } = {},
+) => {
   let result = ''
   let cursor = 0
   let invalidMarkers = 0
@@ -1399,18 +1433,19 @@ const escapeInvalidMustacheMarkers = (xml, { templateName, partName, uf, request
     const closeIndex = xml.indexOf(closeToken, startIndex + (isTriple ? 3 : 2))
 
     if (closeIndex === -1) {
-      result += '{ {'
+      result += '&#123;&#123;'
       invalidMarkers += 1
       cursor = startIndex + 2
       continue
     }
 
     const innerStart = startIndex + (isTriple ? 3 : 2)
-    const inner = xml.slice(innerStart, closeIndex).trim()
-    if (validTagNameRegex.test(inner)) {
-      result += xml.slice(startIndex, closeIndex + closeToken.length)
+    const innerRaw = xml.slice(innerStart, closeIndex)
+    const inner = innerRaw.replace(/<[^>]+>/g, '').trim()
+    if (validTagNameRegex.test(inner) && allowedTags.has(inner)) {
+      result += `{{${inner}}}`
     } else {
-      result += `{ {${inner}} }`
+      result += `&#123;&#123;${inner}&#125;&#125;`
       invalidMarkers += 1
     }
 
@@ -1429,6 +1464,32 @@ const escapeInvalidMustacheMarkers = (xml, { templateName, partName, uf, request
 
   return result
 }
+
+const superSafeEscapeMustache = (xml, allowedTags = ALLOWED_TEMPLATE_TAGS) => {
+  const tokenPrefix = '__MUSTACHE_TOKEN_'
+  let tokenIndex = 0
+  const tokens = new Map()
+
+  const withTokens = xml.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (match, tag) => {
+    if (!allowedTags.has(tag)) {
+      return match
+    }
+    const token = `${tokenPrefix}${tokenIndex}__`
+    tokenIndex += 1
+    tokens.set(token, `{{${tag}}}`)
+    return token
+  })
+
+  let escaped = withTokens.replace(/{{/g, '&#123;&#123;').replace(/}}/g, '&#125;&#125;')
+  for (const [token, value] of tokens.entries()) {
+    escaped = escaped.replace(token, value)
+  }
+  return escaped
+}
+
+const maskSensitiveSnippet = (snippet) => snippet
+  .replace(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/g, '***.***.***-**')
+  .replace(/\d{2}\.?\d{3}\.?\d{3}\/\d{4}-?\d{2}/g, '**.***.***/****-**')
 
 const renderDocxTemplate = async (fileName, data, uf, { requestId } = {}) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
@@ -1461,7 +1522,41 @@ const renderDocxTemplate = async (fileName, data, uf, { requestId } = {}) => {
       requestId,
     })
     extractTemplateTags(safeXml).forEach((tag) => templateTags.add(tag))
-    const rendered = Mustache.render(safeXml, templateData)
+    let rendered
+    try {
+      rendered = Mustache.render(safeXml, templateData)
+    } catch (error) {
+      const message = typeof error?.message === 'string' ? error.message : ''
+      const offsetMatch = message.match(/Unclosed tag at (\d+)/)
+      if (offsetMatch) {
+        const offset = Number(offsetMatch[1])
+        const start = Math.max(0, offset - 200)
+        const end = Math.min(safeXml.length, offset + 200)
+        console.warn('[leasing-contracts] Mustache parse error, retrying with safe escape', {
+          template: fileName,
+          part: partName,
+          uf,
+          requestId,
+          offset,
+          snippet: maskSensitiveSnippet(safeXml.slice(start, end)),
+        })
+        const superSafeXml = superSafeEscapeMustache(safeXml)
+        try {
+          rendered = Mustache.render(superSafeXml, templateData)
+        } catch (retryError) {
+          throw new LeasingContractsError(
+            422,
+            'Template possui marcador inválido que não pôde ser sanitizado.',
+            {
+              code: 'INVALID_TEMPLATE',
+              hint: `Template: ${fileName} (${partName}).`,
+            },
+          )
+        }
+      } else {
+        throw error
+      }
+    }
     // Clean up extra commas from empty optional fields
     const cleaned = cleanupExtraPunctuation(rendered)
     if (cleaned.includes('{{') || cleaned.includes('}}')) {
