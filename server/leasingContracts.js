@@ -77,6 +77,24 @@ const getProcuracaoTemplatePath = (contratanteUf) => {
   )
 }
 
+const getProcuracaoFileBaseName = (contratanteUf) => {
+  const normalizedUf = normalizeUfForProcuracao(contratanteUf)
+  if (normalizedUf === 'DF') {
+    return 'procuracaoDF'
+  }
+  if (normalizedUf === 'GO') {
+    return 'procuracaoGO'
+  }
+  throw new LeasingContractsError(
+    422,
+    'UF não suportada para procuração automática.',
+    {
+      code: 'INVALID_UF',
+      hint: 'Atualize o cadastro do contratante com UF DF ou GO.',
+    },
+  )
+}
+
 export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
 export const LEASING_CONTRACTS_AVAILABILITY_PATH = '/api/contracts/leasing/availability'
 export const LEASING_CONTRACTS_SMOKE_PATH = '/api/contracts/leasing/smoke'
@@ -1728,9 +1746,16 @@ export const handleLeasingContractsRequest = async (req, res) => {
           ...dadosLeasing,
           tipoContrato,
         }, clienteUf)
-        
-        const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
-        const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
+
+        const procuracaoBaseName = anexo.id === 'ANEXO_VIII'
+          ? getProcuracaoFileBaseName(clienteUf)
+          : null
+        const anexoDocxName = procuracaoBaseName
+          ? `${procuracaoBaseName}.docx`
+          : buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
+        const anexoPdfName = procuracaoBaseName
+          ? `${procuracaoBaseName}.pdf`
+          : buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
         await pushPdfOrDocx({
           buffer,
           docxName: anexoDocxName,
