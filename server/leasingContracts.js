@@ -46,6 +46,37 @@ const isValidUf = (uf) => {
   return normalized.length === 2 && VALID_UF_CODES.has(normalized)
 }
 
+const normalizeUfForProcuracao = (value) => {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  if (!raw) {
+    return ''
+  }
+  const normalized = raw.toUpperCase()
+  const withoutDiacritics = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  if (withoutDiacritics === 'BRASILIA') {
+    return 'DF'
+  }
+  return normalized
+}
+
+const getProcuracaoTemplatePath = (contratanteUf) => {
+  const normalizedUf = normalizeUfForProcuracao(contratanteUf)
+  if (normalizedUf === 'DF') {
+    return path.join('anexos', 'Procuracao Neoenergia - PF.docx')
+  }
+  if (normalizedUf === 'GO') {
+    return path.join('anexos', 'Procuracao Equatorial - PF.docx')
+  }
+  throw new LeasingContractsError(
+    422,
+    'UF não suportada para procuração automática.',
+    {
+      code: 'INVALID_UF',
+      hint: 'Atualize o cadastro do contratante com UF DF ou GO.',
+    },
+  )
+}
+
 export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
 export const LEASING_CONTRACTS_AVAILABILITY_PATH = '/api/contracts/leasing/availability'
 export const LEASING_CONTRACTS_SMOKE_PATH = '/api/contracts/leasing/smoke'
@@ -634,6 +665,10 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     nomeCompleto: nomeCompletoValue,
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
     rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
+    procuracaoNome: typeof dados.procuracaoNome === 'string' ? dados.procuracaoNome.trim() : '',
+    procuracaoCPF: typeof dados.procuracaoCPF === 'string' ? dados.procuracaoCPF.trim() : '',
+    procuracaoRG: typeof dados.procuracaoRG === 'string' ? dados.procuracaoRG.trim() : '',
+    procuracaoEndereco: typeof dados.procuracaoEndereco === 'string' ? dados.procuracaoEndereco.trim() : '',
     
     // Personal info - in uppercase for contracts
     estadoCivil: estadoCivilValue,
@@ -1145,7 +1180,7 @@ const buildZipFileName = (tipoContrato, cpfCnpj) => {
   return `leasing-${tipoContrato}-${id}.zip`
 }
 
-const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
+const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados, contratanteUf) => {
   const resolved = []
   for (const anexoId of anexosSelecionados) {
     const definicao = ANEXO_BY_ID.get(anexoId)
@@ -1153,6 +1188,11 @@ const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
       continue
     }
     if (!definicao.appliesTo.has(tipoContrato)) {
+      continue
+    }
+    if (anexoId === 'ANEXO_VIII') {
+      const template = getProcuracaoTemplatePath(contratanteUf)
+      resolved.push({ id: anexoId, template, number: definicao.number })
       continue
     }
     // Create a template reference for auto-discovery
@@ -1241,7 +1281,17 @@ export const handleLeasingContractsAvailabilityRequest = async (req, res) => {
       if (!definicao.appliesTo.has(tipoContrato)) {
         continue
       }
-      
+
+      if (definicao.id === 'ANEXO_VIII') {
+        try {
+          const template = getProcuracaoTemplatePath(clienteUf)
+          availability[definicao.id] = await checkTemplateAvailability(template, clienteUf)
+        } catch (error) {
+          availability[definicao.id] = false
+        }
+        continue
+      }
+
       // Use auto-discovery to check availability
       const foundFile = await findAnexoFile(definicao.number, clienteUf)
       availability[definicao.id] = foundFile !== null
@@ -1454,7 +1504,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
     const clienteUf = dadosLeasing.uf
 
-    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
+    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados, clienteUf)
     const anexosDisponiveis = []
     const anexosIndisponiveis = []
 

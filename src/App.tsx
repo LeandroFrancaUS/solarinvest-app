@@ -1150,6 +1150,98 @@ const formatUcGeradoraTitularEndereco = (
   return partes.join(' — ')
 }
 
+type ProcuracaoTags = {
+  procuracaoNome: string
+  procuracaoCPF: string
+  procuracaoRG: string
+  procuracaoEndereco: string
+}
+
+const normalizeCepForProcuracao = (cep?: string | null): string => {
+  const digits = (cep ?? '').replace(/\D/g, '')
+  if (digits.length === 8) {
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`
+  }
+  return digits
+}
+
+const formatEndereco = (endereco?: Partial<LeasingEndereco> | null): string => {
+  if (!endereco) {
+    return ''
+  }
+  const logradouro = endereco.logradouro?.trim() ?? ''
+  const numero = endereco.numero?.trim() ?? ''
+  const complemento = endereco.complemento?.trim() ?? ''
+  const bairro = endereco.bairro?.trim() ?? ''
+  const cidade = endereco.cidade?.trim() ?? ''
+  const uf = endereco.uf?.trim().toUpperCase() ?? ''
+  const cep = normalizeCepForProcuracao(endereco.cep)
+
+  const primeiraParteBase = [logradouro, numero].filter(Boolean).join(', ')
+  const primeiraParte = complemento && primeiraParteBase
+    ? `${primeiraParteBase}, ${complemento}`
+    : primeiraParteBase || complemento
+
+  const cidadeUf = [cidade, uf].filter(Boolean).join('/')
+
+  const partes = [
+    primeiraParte,
+    bairro,
+    cidadeUf,
+    cep ? `CEP ${cep}` : '',
+  ].filter(Boolean)
+
+  return partes.join(' - ')
+}
+
+const buildProcuracaoTags = ({
+  cliente,
+  leasingContrato,
+}: {
+  cliente: ClienteDados
+  leasingContrato: LeasingContratoDados
+}): ProcuracaoTags => {
+  const titularDiferente = Boolean(leasingContrato.ucGeradoraTitularDiferente)
+
+  if (titularDiferente) {
+    const titular = leasingContrato.ucGeradoraTitular
+    const endereco = titular?.endereco
+    const camposObrigatorios = [
+      titular?.nomeCompleto?.trim(),
+      titular?.cpf?.trim(),
+      titular?.rg?.trim(),
+      endereco?.logradouro?.trim(),
+      endereco?.cidade?.trim(),
+      endereco?.uf?.trim(),
+      endereco?.cep?.trim(),
+    ]
+    if (camposObrigatorios.some((campo) => !campo)) {
+      throw new Error(
+        'Preencha os dados do titular diferente da UC geradora para gerar a procuração.',
+      )
+    }
+
+    return {
+      procuracaoNome: titular?.nomeCompleto?.trim() ?? '',
+      procuracaoCPF: formatCpfCnpj(titular?.cpf ?? ''),
+      procuracaoRG: titular?.rg?.trim() ?? '',
+      procuracaoEndereco: formatEndereco(endereco),
+    }
+  }
+
+  return {
+    procuracaoNome: cliente.nome?.trim() ?? '',
+    procuracaoCPF: formatCpfCnpj(cliente.documento ?? ''),
+    procuracaoRG: cliente.rg?.trim() ?? '',
+    procuracaoEndereco: formatEndereco({
+      logradouro: cliente.endereco ?? '',
+      cidade: cliente.cidade ?? '',
+      uf: cliente.uf ?? '',
+      cep: cliente.cep ?? '',
+    }),
+  }
+}
+
 const isQuotaExceededError = (error: unknown) => {
   if (!error) {
     return false
@@ -13946,6 +14038,18 @@ export default function App() {
       ? titularUcGeradora?.rg?.trim() ?? ''
       : cliente.rg?.trim() ?? ''
 
+    let procuracaoTags: ProcuracaoTags
+    try {
+      procuracaoTags = buildProcuracaoTags({ cliente, leasingContrato })
+    } catch (error) {
+      const mensagem =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Preencha os dados do titular diferente da UC geradora para gerar a procuração.'
+      adicionarNotificacao(mensagem, 'error')
+      return null
+    }
+
     const dadosLeasing = {
       ...dadosBase,
       cpfCnpj: formatCpfCnpj(dadosBase.cpfCnpj),
@@ -13987,6 +14091,7 @@ export default function App() {
       titularUcGeradoraCPF: formatCpfCnpj(titularUcGeradoraCpf),
       titularUcGeradoraRG: titularUcGeradoraRg,
       titularUcGeradoraEndereco: titularUcGeradoraEndereco,
+      ...procuracaoTags,
     }
 
     return {
