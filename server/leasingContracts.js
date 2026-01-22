@@ -1380,6 +1380,51 @@ const logUnrenderedTemplateTags = ({ templateName, uf, requestId, leftoverTags }
   })
 }
 
+const escapeInvalidMustacheMarkers = (xml, { templateName, partName, uf, requestId } = {}) => {
+  let result = ''
+  let i = 0
+  let invalidMarkers = 0
+  const tagRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/y
+
+  while (i < xml.length) {
+    if (xml.startsWith('{{', i)) {
+      tagRegex.lastIndex = i
+      const match = tagRegex.exec(xml)
+      if (match && match.index === i) {
+        result += match[0]
+        i += match[0].length
+        continue
+      }
+      result += '{ {'
+      i += 2
+      invalidMarkers += 1
+      continue
+    }
+
+    if (xml.startsWith('}}', i)) {
+      result += '} }'
+      i += 2
+      invalidMarkers += 1
+      continue
+    }
+
+    result += xml[i]
+    i += 1
+  }
+
+  if (invalidMarkers > 0) {
+    console.warn('[leasing-contracts] Marcadores Mustache inválidos foram escapados', {
+      template: templateName,
+      part: partName,
+      uf,
+      requestId,
+      count: invalidMarkers,
+    })
+  }
+
+  return result
+}
+
 const renderDocxTemplate = async (fileName, data, uf, { requestId } = {}) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
@@ -1404,8 +1449,14 @@ const renderDocxTemplate = async (fileName, data, uf, { requestId } = {}) => {
       uf,
       requestId,
     })
-    extractTemplateTags(repairedXml).forEach((tag) => templateTags.add(tag))
-    const rendered = Mustache.render(repairedXml, templateData)
+    const safeXml = escapeInvalidMustacheMarkers(repairedXml, {
+      templateName: fileName,
+      partName,
+      uf,
+      requestId,
+    })
+    extractTemplateTags(safeXml).forEach((tag) => templateTags.add(tag))
+    const rendered = Mustache.render(safeXml, templateData)
     // Clean up extra commas from empty optional fields
     const cleaned = cleanupExtraPunctuation(rendered)
     if (cleaned.includes('{{') || cleaned.includes('}}')) {
