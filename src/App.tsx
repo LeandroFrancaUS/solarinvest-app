@@ -3634,6 +3634,7 @@ export default function App() {
     setProposalPdfIntegrationAvailable(isProposalPdfIntegrationAvailable())
   }, [])
   const budgetIdRef = useRef<string>(createDraftBudgetId())
+  const budgetIdTransitionRef = useRef(false)
   const [currentBudgetId, setCurrentBudgetId] = useState<string>(budgetIdRef.current)
   const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
@@ -3800,6 +3801,8 @@ export default function App() {
       } catch (error) {
         console.warn('[switchBudgetId] rename failed', error)
       }
+      budgetIdTransitionRef.current = true
+      budgetIdRef.current = nextId
       setCurrentBudgetId(nextId)
     },
     [getActiveBudgetId, renameVendasSimulacao],
@@ -4594,6 +4597,7 @@ export default function App() {
 
   useEffect(() => {
     budgetIdRef.current = currentBudgetId
+    budgetIdTransitionRef.current = false
   }, [currentBudgetId])
   
   // Update prazoContratualMeses in leasing store when leasingPrazo (in years) changes
@@ -11772,7 +11776,13 @@ export default function App() {
       }, 0)
     }
 
-    if (budgetIdRefNow && budgetIdStateNow && budgetIdRefNow !== budgetIdStateNow) {
+    if (
+      budgetIdRefNow &&
+      budgetIdStateNow &&
+      budgetIdRefNow !== budgetIdStateNow &&
+      !isHydratingRef.current &&
+      !budgetIdTransitionRef.current
+    ) {
       console.warn('[getCurrentSnapshot] budget id mismatch (using active budgetId)', {
         budgetIdRef: budgetIdRefNow,
         budgetIdState: budgetIdStateNow,
@@ -14031,7 +14041,12 @@ export default function App() {
           .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
           .map((item) => item.trim())
         if (nomes.length === 0) {
-          throw new Error('Nenhum template de contrato disponível.')
+          setContractTemplates([])
+          setSelectedContractTemplates([])
+          setContractTemplatesError(
+            `Nenhum template de contrato disponível para ${category}.`,
+          )
+          return
         }
 
         const unicos = Array.from(new Set(nomes))
@@ -15219,6 +15234,8 @@ export default function App() {
       const novoBudgetId = createDraftBudgetId()
       console.log('[Nova Proposta] New budget ID created', novoBudgetId)
 
+      budgetIdTransitionRef.current = true
+      budgetIdRef.current = novoBudgetId
       setCurrentBudgetId(novoBudgetId)
 
       await Promise.resolve()
