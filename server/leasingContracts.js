@@ -1142,11 +1142,111 @@ const normalizeTemplateContentTypes = async (zip) => {
   zip.file('[Content_Types].xml', updated)
 }
 
+const buildTemplateData = (data) => {
+  const base = data && typeof data === 'object' ? data : {}
+  const kwhValue = base.kWhContratado ?? base.kwhContratado ?? ''
+  const cidadeValue = typeof base.cidade === 'string' ? base.cidade.trim() : ''
+  const ufValue = typeof base.uf === 'string' ? base.uf.trim().toUpperCase() : ''
+
+  return {
+    ...base,
+    nomeCompleto: base.nomeCompleto ?? '',
+    nacionalidade: base.nacionalidade ?? '',
+    estadoCivil: base.estadoCivil ?? '',
+    profissao: base.profissao ?? '',
+    cpfCnpj: base.cpfCnpj ?? '',
+    rg: base.rg ?? '',
+    enderecoCompleto: base.enderecoCompleto ?? '',
+    email: base.email ?? '',
+    telefone: base.telefone ?? '',
+    kwhContratado: kwhValue,
+    kWhContratado: kwhValue,
+    prazoContratual: base.prazoContratual ?? '',
+    cidade: cidadeValue,
+    UF: ufValue,
+    mes: base.mes ?? '',
+    anoContrato: base.anoContrato ?? '',
+    unidadeConsumidora: base.unidadeConsumidora ?? '',
+    potencia: base.potencia ?? '',
+    modulosFV: base.modulosFV ?? '',
+    inversoresFV: base.inversoresFV ?? '',
+    tarifaBase: base.tarifaBase ?? '',
+    dataInicio: base.dataInicio ?? '',
+    dataFim: base.dataFim ?? '',
+    dataAtualExtenso: base.dataAtualExtenso ?? '',
+    dataHomologacao: base.dataHomologacao ?? '',
+    procuracaoNome: base.procuracaoNome ?? '',
+    procuracaoCPF: base.procuracaoCPF ?? '',
+    procuracaoRG: base.procuracaoRG ?? '',
+    procuracaoEndereco: base.procuracaoEndereco ?? '',
+  }
+}
+
+const TAG_REGEX = /{{\s*([^}]+?)\s*}}/g
+
+const extractTemplateTags = (xml) => {
+  const tags = new Set()
+  TAG_REGEX.lastIndex = 0
+  let match
+  while ((match = TAG_REGEX.exec(xml))) {
+    const raw = match[1].trim()
+    if (!raw) {
+      continue
+    }
+    if (/^[#^\/!>]/.test(raw)) {
+      continue
+    }
+    const normalized = raw.replace(/^&/, '')
+    if (normalized) {
+      tags.add(normalized)
+    }
+  }
+  return tags
+}
+
+const hasRenderableValue = (value) => {
+  if (value === null || value === undefined) {
+    return false
+  }
+  if (typeof value === 'string') {
+    return value.trim().length > 0
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0
+  }
+  return true
+}
+
+const logMissingTemplateTags = ({ templateName, uf, missingTags }) => {
+  if (!missingTags.length) {
+    return
+  }
+  console.warn('[leasing-contracts] Tags sem valor para renderização', {
+    template: templateName,
+    uf,
+    tags: missingTags,
+  })
+}
+
+const logUnrenderedTemplateTags = ({ templateName, uf, leftoverTags }) => {
+  if (!leftoverTags.length) {
+    return
+  }
+  console.warn('[leasing-contracts] Tags não substituídas após renderização', {
+    template: templateName,
+    uf,
+    tags: leftoverTags,
+  })
+}
+
 const renderDocxTemplate = async (fileName, data, uf) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
   const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
   const isDotxTemplate = fileName.toLowerCase().endsWith('.dotx')
+  const templateData = buildTemplateData(data)
+  const templateTags = new Set()
+  const leftoverTags = new Set()
 
   for (const partName of partNames) {
     const file = zip.file(partName)
@@ -1156,14 +1256,25 @@ const renderDocxTemplate = async (fileName, data, uf) => {
     const xmlContent = await file.async('string')
     // Normalize XML to fix broken placeholders before rendering
     const normalizedXml = normalizeWordXmlForMustache(xmlContent)
-    const rendered = Mustache.render(normalizedXml, data)
+    extractTemplateTags(normalizedXml).forEach((tag) => templateTags.add(tag))
+    const rendered = Mustache.render(normalizedXml, templateData)
     // Clean up extra commas from empty optional fields
     const cleaned = cleanupExtraPunctuation(rendered)
+    extractTemplateTags(cleaned).forEach((tag) => leftoverTags.add(tag))
     zip.file(partName, cleaned)
   }
 
   if (isDotxTemplate) {
     await normalizeTemplateContentTypes(zip)
+  }
+
+  if (templateTags.size > 0) {
+    const missingTags = Array.from(templateTags).filter((tag) => !hasRenderableValue(templateData[tag]))
+    logMissingTemplateTags({ templateName: fileName, uf, missingTags })
+  }
+
+  if (leftoverTags.size > 0) {
+    logUnrenderedTemplateTags({ templateName: fileName, uf, leftoverTags: Array.from(leftoverTags) })
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })
