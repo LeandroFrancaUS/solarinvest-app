@@ -472,9 +472,9 @@ const ANEXO_DEFINITIONS = [
   {
     id: 'ANEXO_VIII',
     number: 8,
-    label: 'Anexo VIII – Procuração do Condomínio',
-    appliesTo: new Set(['condominio']),
-    autoInclude: new Set(['condominio']),
+    label: 'Anexo VIII – Procuração',
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set(['residencial', 'comercial', 'condominio']),
   },
   {
     id: 'ANEXO_IX',

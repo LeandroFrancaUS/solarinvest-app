@@ -1242,6 +1242,24 @@ const buildProcuracaoTags = ({
   }
 }
 
+const normalizeUfForProcuracao = (value?: string | null): string => {
+  const raw = value?.trim() ?? ''
+  if (!raw) {
+    return ''
+  }
+  const upper = raw.toUpperCase()
+  const withoutDiacritics = upper.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  if (withoutDiacritics === 'BRASILIA') {
+    return 'DF'
+  }
+  return upper
+}
+
+const isProcuracaoUfSupported = (value?: string | null): boolean => {
+  const normalized = normalizeUfForProcuracao(value)
+  return normalized === 'DF' || normalized === 'GO'
+}
+
 const isQuotaExceededError = (error: unknown) => {
   if (!error) {
     return false
@@ -2480,9 +2498,9 @@ const LEASING_ANEXOS_CONFIG: LeasingAnexoConfig[] = [
   },
   {
     id: 'ANEXO_VIII',
-    label: 'Procuração do Condomínio',
-    descricao: 'Documento obrigatório para representação do condomínio.',
-    tipos: ['condominio'],
+    label: 'Procuração',
+    descricao: 'Documento obrigatório para representação.',
+    tipos: ['residencial', 'condominio'],
     autoInclude: true,
   },
   {
@@ -2499,7 +2517,19 @@ const LEASING_ANEXOS_CONFIG: LeasingAnexoConfig[] = [
   },
 ]
 
-const getDefaultLeasingAnexos = (tipo: LeasingContratoTipo): LeasingAnexoId[] => []
+const getDefaultLeasingAnexos = (tipo: LeasingContratoTipo): LeasingAnexoId[] => (
+  LEASING_ANEXOS_CONFIG.filter((anexo) => anexo.autoInclude && anexo.tipos.includes(tipo))
+    .map((anexo) => anexo.id)
+)
+
+const ensureRequiredLeasingAnexos = (
+  anexosSelecionados: LeasingAnexoId[],
+  tipo: LeasingContratoTipo,
+): LeasingAnexoId[] => {
+  const required = getDefaultLeasingAnexos(tipo)
+  const merged = new Set<LeasingAnexoId>([...anexosSelecionados, ...required])
+  return Array.from(merged)
+}
 
 type PropostaEnvioMetodo = 'whatsapp' | 'whatsapp-business' | 'airdrop' | 'quick-share'
 
@@ -2860,7 +2890,7 @@ function LeasingContractsModal({
                         <span className="filename">{config.descricao}</span>
                       ) : null}
                       {config.autoInclude ? (
-                        <span className="filename">Incluso automaticamente</span>
+                        <span className="filename">Documento obrigatório</span>
                       ) : null}
                       {!isAvailable ? (
                         <span className="filename" style={{ color: '#dc2626', fontSize: '0.875rem' }}>
@@ -6300,10 +6330,10 @@ export default function App() {
         ).map((anexo) => anexo.id),
       )
       const filtrados = prev.filter((id) => anexosValidos.has(id))
-      if (filtrados.length > 0) {
-        return filtrados
-      }
-      return getDefaultLeasingAnexos(leasingContrato.tipoContrato)
+      const baseSelecionados = filtrados.length > 0
+        ? filtrados
+        : getDefaultLeasingAnexos(leasingContrato.tipoContrato)
+      return ensureRequiredLeasingAnexos(baseSelecionados, leasingContrato.tipoContrato)
     })
   }, [leasingContrato.tipoContrato])
 
@@ -12364,9 +12394,14 @@ export default function App() {
       setTipoEdificacaoOutro(snapshot.tipoEdificacaoOutro || '')
       setConfiguracaoUsinaObservacoes(snapshot.configuracaoUsinaObservacoes ?? '')
       setLeasingAnexosSelecionados(
-        Array.isArray(snapshot.leasingAnexosSelecionados)
-          ? [...snapshot.leasingAnexosSelecionados]
-          : getDefaultLeasingAnexos(snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial'),
+        ensureRequiredLeasingAnexos(
+          Array.isArray(snapshot.leasingAnexosSelecionados)
+            ? [...snapshot.leasingAnexosSelecionados]
+            : getDefaultLeasingAnexos(
+                snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial',
+              ),
+          snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial',
+        ),
       )
       const ucGeradoraTitularDiferente = Boolean(
         snapshot.leasingSnapshot?.contrato?.ucGeradoraTitularDiferente,
@@ -13122,9 +13157,14 @@ export default function App() {
     setTipoRede(snapshot.tipoRede ?? 'monofasico')
     setTipoRedeControle(snapshot.tipoRedeControle ?? 'auto')
     setLeasingAnexosSelecionados(
-      Array.isArray(snapshot.leasingAnexosSelecionados)
-        ? [...snapshot.leasingAnexosSelecionados]
-        : getDefaultLeasingAnexos(snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial'),
+      ensureRequiredLeasingAnexos(
+        Array.isArray(snapshot.leasingAnexosSelecionados)
+          ? [...snapshot.leasingAnexosSelecionados]
+          : getDefaultLeasingAnexos(
+              snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial',
+            ),
+        snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial',
+      ),
     )
 
     vendaStore.setState((draft) => {
@@ -13951,6 +13991,14 @@ export default function App() {
       return null
     }
 
+    if (!isProcuracaoUfSupported(cliente.uf)) {
+      adicionarNotificacao(
+        'UF não suportada para procuração automática. Atualize o cadastro do contratante.',
+        'error',
+      )
+      return null
+    }
+
     const formatDateForContract = (value: string) => {
       if (!value) {
         return ''
@@ -14197,9 +14245,10 @@ export default function App() {
       const payload = (await response.json()) as { availability?: Record<string, boolean> }
       const availability = payload.availability || {}
       setLeasingAnexosAvailability(availability as Record<LeasingAnexoId, boolean>)
-      setLeasingAnexosSelecionados((prev) =>
-        prev.filter((anexoId) => availability[anexoId] !== false),
-      )
+      setLeasingAnexosSelecionados((prev) => {
+        const filtrados = prev.filter((anexoId) => availability[anexoId] !== false)
+        return ensureRequiredLeasingAnexos(filtrados, leasingContrato.tipoContrato)
+      })
     } catch (error) {
       console.error('Erro ao verificar disponibilidade dos anexos:', error)
       // Set all as available by default if check fails
@@ -14241,7 +14290,9 @@ export default function App() {
   const handleSelectAllLeasingAnexos = useCallback(
     (selectAll: boolean) => {
       if (!selectAll) {
-        setLeasingAnexosSelecionados([])
+        setLeasingAnexosSelecionados(
+          ensureRequiredLeasingAnexos([], leasingContrato.tipoContrato),
+        )
         return
       }
       const disponiveis = LEASING_ANEXOS_CONFIG.filter(
@@ -14250,7 +14301,9 @@ export default function App() {
           !config.autoInclude &&
           leasingAnexosAvailability[config.id] !== false,
       ).map((config) => config.id)
-      setLeasingAnexosSelecionados(disponiveis)
+      setLeasingAnexosSelecionados(
+        ensureRequiredLeasingAnexos(disponiveis, leasingContrato.tipoContrato),
+      )
     },
     [leasingContrato.tipoContrato, leasingAnexosAvailability],
   )
@@ -14751,13 +14804,18 @@ export default function App() {
         )
       }
 
+      const anexosSelecionados = ensureRequiredLeasingAnexos(
+        leasingAnexosSelecionados,
+        leasingContrato.tipoContrato,
+      )
+
       const response = await fetch(resolveApiUrl('/api/contracts/leasing'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipoContrato: payload.tipoContrato,
           dadosLeasing: payload.dadosLeasing,
-          anexosSelecionados: leasingAnexosSelecionados,
+          anexosSelecionados,
           propostaHtml,
         }),
       })
@@ -14825,6 +14883,7 @@ export default function App() {
     }
   }, [
     adicionarNotificacao,
+    leasingContrato.tipoContrato,
     leasingAnexosSelecionados,
     prepararPropostaParaExportacao,
     prepararPayloadContratosLeasing,
