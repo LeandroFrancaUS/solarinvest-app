@@ -1382,34 +1382,39 @@ const logUnrenderedTemplateTags = ({ templateName, uf, requestId, leftoverTags }
 
 const escapeInvalidMustacheMarkers = (xml, { templateName, partName, uf, requestId } = {}) => {
   let result = ''
-  let i = 0
+  let cursor = 0
   let invalidMarkers = 0
-  const tagRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/y
+  const validTagNameRegex = /^[a-zA-Z0-9_]+$/
 
-  while (i < xml.length) {
-    if (xml.startsWith('{{', i)) {
-      tagRegex.lastIndex = i
-      const match = tagRegex.exec(xml)
-      if (match && match.index === i) {
-        result += match[0]
-        i += match[0].length
-        continue
-      }
+  while (true) {
+    const startIndex = xml.indexOf('{{', cursor)
+    if (startIndex === -1) {
+      result += xml.slice(cursor)
+      break
+    }
+
+    result += xml.slice(cursor, startIndex)
+    const isTriple = xml[startIndex + 2] === '{'
+    const closeToken = isTriple ? '}}}' : '}}'
+    const closeIndex = xml.indexOf(closeToken, startIndex + (isTriple ? 3 : 2))
+
+    if (closeIndex === -1) {
       result += '{ {'
-      i += 2
       invalidMarkers += 1
+      cursor = startIndex + 2
       continue
     }
 
-    if (xml.startsWith('}}', i)) {
-      result += '} }'
-      i += 2
+    const innerStart = startIndex + (isTriple ? 3 : 2)
+    const inner = xml.slice(innerStart, closeIndex).trim()
+    if (validTagNameRegex.test(inner)) {
+      result += xml.slice(startIndex, closeIndex + closeToken.length)
+    } else {
+      result += `{ {${inner}} }`
       invalidMarkers += 1
-      continue
     }
 
-    result += xml[i]
-    i += 1
+    cursor = closeIndex + closeToken.length
   }
 
   if (invalidMarkers > 0) {
