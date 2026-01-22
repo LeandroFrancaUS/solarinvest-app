@@ -1184,6 +1184,19 @@ const buildTemplateData = (data) => {
     ?? base.clienteRazaoSocial
     ?? ''
   const cpfCnpjValue = base.cpfCnpj ?? base.clienteDocumento ?? base.cnpj ?? ''
+  const titularDiferente = Boolean(base.ucGeradoraTitularDiferente)
+  const procuracaoNomeValue = base.procuracaoNome
+    ?? (titularDiferente ? base.titularUcGeradoraNomeCompleto : nomeCompletoValue)
+    ?? ''
+  const procuracaoCpfValue = base.procuracaoCPF
+    ?? (titularDiferente ? base.titularUcGeradoraCPF : cpfCnpjValue)
+    ?? ''
+  const procuracaoRgValue = base.procuracaoRG
+    ?? (titularDiferente ? base.titularUcGeradoraRG : base.rg ?? base.clienteRG)
+    ?? ''
+  const procuracaoEnderecoValue = base.procuracaoEndereco
+    ?? (titularDiferente ? base.titularUcGeradoraEndereco : enderecoCompletoValue)
+    ?? ''
 
   return {
     ...base,
@@ -1212,10 +1225,10 @@ const buildTemplateData = (data) => {
     dataFim: base.dataFim ?? '',
     dataAtualExtenso: base.dataAtualExtenso ?? '',
     dataHomologacao: base.dataHomologacao ?? '',
-    procuracaoNome: base.procuracaoNome ?? '',
-    procuracaoCPF: base.procuracaoCPF ?? '',
-    procuracaoRG: base.procuracaoRG ?? '',
-    procuracaoEndereco: base.procuracaoEndereco ?? '',
+    procuracaoNome: typeof procuracaoNomeValue === 'string' ? procuracaoNomeValue.trim() : '',
+    procuracaoCPF: typeof procuracaoCpfValue === 'string' ? procuracaoCpfValue.trim() : '',
+    procuracaoRG: typeof procuracaoRgValue === 'string' ? procuracaoRgValue.trim() : '',
+    procuracaoEndereco: typeof procuracaoEnderecoValue === 'string' ? procuracaoEnderecoValue.trim() : '',
   }
 }
 
@@ -1232,25 +1245,56 @@ const extractTemplateTags = (xml) => {
 }
 
 const repairMustachePlaceholdersXml = (xml, { templateName, partName, uf, requestId } = {}) => {
+  const textTagRegex = /<w:t([^>]*)>([\s\S]*?)<\/w:t>/g
+  const nodes = []
+  let match
+
+  while ((match = textTagRegex.exec(xml)) !== null) {
+    nodes.push({
+      attrs: match[1],
+      text: match[2],
+    })
+  }
+
+  if (nodes.length === 0) {
+    return xml
+  }
+
+  const ranges = []
+  let combinedText = ''
+  nodes.forEach((node, index) => {
+    const start = combinedText.length
+    combinedText += node.text
+    ranges[index] = { start, end: combinedText.length }
+  })
+
+  const mapPositionToNode = (position) => {
+    for (let i = 0; i < ranges.length; i += 1) {
+      const range = ranges[i]
+      if (position >= range.start && position < range.end) {
+        return { nodeIndex: i, offset: position - range.start }
+      }
+    }
+    if (ranges.length > 0 && position === ranges[ranges.length - 1].end) {
+      return { nodeIndex: ranges.length - 1, offset: ranges[ranges.length - 1].end - ranges[ranges.length - 1].start }
+    }
+    return null
+  }
+
   let cursor = 0
-  let result = ''
   while (true) {
-    const startIndex = xml.indexOf('{{', cursor)
+    const startIndex = combinedText.indexOf('{{', cursor)
     if (startIndex === -1) {
-      result += xml.slice(cursor)
       break
     }
-    const endIndex = xml.indexOf('}}', startIndex + 2)
+    const endIndex = combinedText.indexOf('}}', startIndex + 2)
     if (endIndex === -1) {
-      result += xml.slice(cursor)
       break
     }
 
-    result += xml.slice(cursor, startIndex)
-    const chunk = xml.slice(startIndex, endIndex + 2)
-    const inner = chunk.replace(/<[^>]+>/g, '')
+    const inner = combinedText.slice(startIndex + 2, endIndex)
     const normalizedInner = inner.replace(/\s+/g, ' ').trim()
-    const name = normalizedInner.replace(/^\{\{\s*/, '').replace(/\s*\}\}$/, '').trim()
+    const name = normalizedInner.trim()
 
     if (!/^[a-zA-Z0-9_]+$/.test(name)) {
       console.warn('[leasing-contracts] Placeholder inválido ao reparar template', {
@@ -1258,36 +1302,45 @@ const repairMustachePlaceholdersXml = (xml, { templateName, partName, uf, reques
         part: partName,
         uf,
         requestId,
-        snippet: chunk.slice(0, 200),
+        snippet: combinedText.slice(startIndex, Math.min(endIndex + 2, startIndex + 200)),
       })
-      result += chunk
       cursor = endIndex + 2
       continue
     }
 
-    const textTagRegex = /<w:t([^>]*)>([\s\S]*?)<\/w:t>/g
-    let hasTextTag = false
-    let textTagIndex = 0
-    const repairedChunk = chunk.replace(textTagRegex, (match, attrs) => {
-      hasTextTag = true
-      textTagIndex += 1
-      if (textTagIndex === 1) {
-        return `<w:t${attrs}>{{${name}}}</w:t>`
+    const startInfo = mapPositionToNode(startIndex)
+    const endInfo = mapPositionToNode(endIndex + 2)
+    if (!startInfo || !endInfo) {
+      cursor = endIndex + 2
+      continue
+    }
+
+    if (startInfo.nodeIndex === endInfo.nodeIndex) {
+      const node = nodes[startInfo.nodeIndex]
+      node.text = [
+        node.text.slice(0, startInfo.offset),
+        `{{${name}}}`,
+        node.text.slice(endInfo.offset),
+      ].join('')
+    } else {
+      const startNode = nodes[startInfo.nodeIndex]
+      const endNode = nodes[endInfo.nodeIndex]
+      startNode.text = `${startNode.text.slice(0, startInfo.offset)}{{${name}}}`
+      endNode.text = endNode.text.slice(endInfo.offset)
+      for (let i = startInfo.nodeIndex + 1; i < endInfo.nodeIndex; i += 1) {
+        nodes[i].text = ''
       }
-      return `<w:t${attrs}></w:t>`
-    })
-
-    if (!hasTextTag) {
-      result += `{{${name}}}`
-      cursor = endIndex + 2
-      continue
     }
 
-    result += repairedChunk
     cursor = endIndex + 2
   }
 
-  return result
+  let nodeIndex = 0
+  return xml.replace(textTagRegex, (full, attrs) => {
+    const node = nodes[nodeIndex]
+    nodeIndex += 1
+    return `<w:t${attrs}>${node.text}</w:t>`
+  })
 }
 
 const hasRenderableValue = (value) => {
