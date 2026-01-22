@@ -1265,23 +1265,25 @@ const repairMustachePlaceholdersXml = (xml, { templateName, partName, uf, reques
       continue
     }
 
-    const textTagIndex = chunk.indexOf('<w:t')
-    if (textTagIndex === -1) {
+    const textTagRegex = /<w:t([^>]*)>([\s\S]*?)<\/w:t>/g
+    let hasTextTag = false
+    let textTagIndex = 0
+    const repairedChunk = chunk.replace(textTagRegex, (match, attrs) => {
+      hasTextTag = true
+      textTagIndex += 1
+      if (textTagIndex === 1) {
+        return `<w:t${attrs}>{{${name}}}</w:t>`
+      }
+      return `<w:t${attrs}></w:t>`
+    })
+
+    if (!hasTextTag) {
       result += `{{${name}}}`
       cursor = endIndex + 2
       continue
     }
 
-    const textTagCloseIndex = chunk.indexOf('>', textTagIndex)
-    if (textTagCloseIndex === -1) {
-      result += chunk
-      cursor = endIndex + 2
-      continue
-    }
-
-    const prefix = chunk.slice(0, textTagCloseIndex + 1)
-    const hasRunTag = /<w:r[^>]*>/.test(prefix)
-    result += `${prefix}{{${name}}}</w:t>${hasRunTag ? '</w:r>' : ''}`
+    result += repairedChunk
     cursor = endIndex + 2
   }
 
