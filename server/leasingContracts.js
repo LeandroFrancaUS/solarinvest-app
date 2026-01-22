@@ -46,6 +46,55 @@ const isValidUf = (uf) => {
   return normalized.length === 2 && VALID_UF_CODES.has(normalized)
 }
 
+const normalizeUfForProcuracao = (value) => {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  if (!raw) {
+    return ''
+  }
+  const normalized = raw.toUpperCase()
+  const withoutDiacritics = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  if (withoutDiacritics === 'BRASILIA') {
+    return 'DF'
+  }
+  return normalized
+}
+
+const getProcuracaoTemplatePath = (contratanteUf) => {
+  const normalizedUf = normalizeUfForProcuracao(contratanteUf)
+  if (normalizedUf === 'DF') {
+    return path.join('anexos', 'Procuracao Neoenergia - PF.docx')
+  }
+  if (normalizedUf === 'GO') {
+    return path.join('anexos', 'Procuracao Equatorial - PF.docx')
+  }
+  throw new LeasingContractsError(
+    422,
+    'UF não suportada para procuração automática.',
+    {
+      code: 'INVALID_UF',
+      hint: 'Atualize o cadastro do contratante com UF DF ou GO.',
+    },
+  )
+}
+
+const getProcuracaoFileBaseName = (contratanteUf) => {
+  const normalizedUf = normalizeUfForProcuracao(contratanteUf)
+  if (normalizedUf === 'DF') {
+    return 'procuracaoDF'
+  }
+  if (normalizedUf === 'GO') {
+    return 'procuracaoGO'
+  }
+  throw new LeasingContractsError(
+    422,
+    'UF não suportada para procuração automática.',
+    {
+      code: 'INVALID_UF',
+      hint: 'Atualize o cadastro do contratante com UF DF ou GO.',
+    },
+  )
+}
+
 export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
 export const LEASING_CONTRACTS_AVAILABILITY_PATH = '/api/contracts/leasing/availability'
 export const LEASING_CONTRACTS_SMOKE_PATH = '/api/contracts/leasing/smoke'
@@ -441,9 +490,9 @@ const ANEXO_DEFINITIONS = [
   {
     id: 'ANEXO_VIII',
     number: 8,
-    label: 'Anexo VIII – Procuração do Condomínio',
-    appliesTo: new Set(['condominio']),
-    autoInclude: new Set(['condominio']),
+    label: 'Anexo VIII – Procuração',
+    appliesTo: new Set(['residencial', 'comercial', 'condominio']),
+    autoInclude: new Set(['residencial', 'comercial', 'condominio']),
   },
   {
     id: 'ANEXO_IX',
@@ -634,6 +683,10 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     nomeCompleto: nomeCompletoValue,
     cpfCnpj: ensureField(dados, 'cpfCnpj', 'CPF/CNPJ'),
     rg: typeof dados.rg === 'string' ? dados.rg.trim() : '',
+    procuracaoNome: typeof dados.procuracaoNome === 'string' ? dados.procuracaoNome.trim() : '',
+    procuracaoCPF: typeof dados.procuracaoCPF === 'string' ? dados.procuracaoCPF.trim() : '',
+    procuracaoRG: typeof dados.procuracaoRG === 'string' ? dados.procuracaoRG.trim() : '',
+    procuracaoEndereco: typeof dados.procuracaoEndereco === 'string' ? dados.procuracaoEndereco.trim() : '',
     
     // Personal info - in uppercase for contracts
     estadoCivil: estadoCivilValue,
@@ -947,7 +1000,9 @@ const normalizeWordXmlForMustache = (xml) => {
   // Strategy: Remove proofErr markers and merge adjacent text runs
   
   // Step 1: Remove spell-check markers that break up placeholders
-  let result = xml.replace(/<w:proofErr[^>]*\/>/g, '')
+  let result = xml
+    .replace(/<w:proofErr[^>]*\/>/g, '')
+    .replace(/<w:proofErr[^>]*><\/w:proofErr>/g, '')
   
   // Step 2: Merge consecutive <w:r> elements that only contain text
   // This handles the case where placeholder parts are in consecutive runs
@@ -1145,7 +1200,7 @@ const buildZipFileName = (tipoContrato, cpfCnpj) => {
   return `leasing-${tipoContrato}-${id}.zip`
 }
 
-const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
+const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados, contratanteUf) => {
   const resolved = []
   for (const anexoId of anexosSelecionados) {
     const definicao = ANEXO_BY_ID.get(anexoId)
@@ -1153,6 +1208,11 @@ const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados) => {
       continue
     }
     if (!definicao.appliesTo.has(tipoContrato)) {
+      continue
+    }
+    if (anexoId === 'ANEXO_VIII') {
+      const template = getProcuracaoTemplatePath(contratanteUf)
+      resolved.push({ id: anexoId, template, number: definicao.number })
       continue
     }
     // Create a template reference for auto-discovery
@@ -1241,7 +1301,17 @@ export const handleLeasingContractsAvailabilityRequest = async (req, res) => {
       if (!definicao.appliesTo.has(tipoContrato)) {
         continue
       }
-      
+
+      if (definicao.id === 'ANEXO_VIII') {
+        try {
+          const template = getProcuracaoTemplatePath(clienteUf)
+          availability[definicao.id] = await checkTemplateAvailability(template, clienteUf)
+        } catch (error) {
+          availability[definicao.id] = false
+        }
+        continue
+      }
+
       // Use auto-discovery to check availability
       const foundFile = await findAnexoFile(definicao.number, clienteUf)
       availability[definicao.id] = foundFile !== null
@@ -1454,7 +1524,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
     const clienteUf = dadosLeasing.uf
 
-    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados)
+    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados, clienteUf)
     const anexosDisponiveis = []
     const anexosIndisponiveis = []
 
@@ -1674,13 +1744,46 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     for (const anexo of anexosDisponiveis) {
       try {
+        if (anexo.id === 'ANEXO_VIII') {
+          const procuracaoData = {
+            procuracaoNome: dadosLeasing.procuracaoNome,
+            procuracaoCPF: dadosLeasing.procuracaoCPF,
+            procuracaoRG: dadosLeasing.procuracaoRG,
+            procuracaoEndereco: dadosLeasing.procuracaoEndereco,
+          }
+          console.info('[leasing-contracts] procuracao_render', {
+            uf: clienteUf,
+            template: anexo.template,
+            data: procuracaoData,
+          })
+          const missing = Object.entries(procuracaoData)
+            .filter(([, value]) => !String(value ?? '').trim())
+            .map(([key]) => key)
+          if (missing.length > 0) {
+            throw new LeasingContractsError(
+              422,
+              'Dados de procuração não encontrados para preenchimento. Verifique o Contratante/Titular e tente novamente.',
+              {
+                code: 'PROCURACAO_DATA_MISSING',
+                hint: `Campos faltando: ${missing.join(', ')}.`,
+              },
+            )
+          }
+        }
         const buffer = await renderDocxTemplate(anexo.template, {
           ...dadosLeasing,
           tipoContrato,
         }, clienteUf)
-        
-        const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
-        const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
+
+        const procuracaoBaseName = anexo.id === 'ANEXO_VIII'
+          ? getProcuracaoFileBaseName(clienteUf)
+          : null
+        const anexoDocxName = procuracaoBaseName
+          ? `${procuracaoBaseName}.docx`
+          : buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
+        const anexoPdfName = procuracaoBaseName
+          ? `${procuracaoBaseName}.pdf`
+          : buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
         await pushPdfOrDocx({
           buffer,
           docxName: anexoDocxName,
