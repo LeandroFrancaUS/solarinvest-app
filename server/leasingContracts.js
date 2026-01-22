@@ -1000,7 +1000,9 @@ const normalizeWordXmlForMustache = (xml) => {
   // Strategy: Remove proofErr markers and merge adjacent text runs
   
   // Step 1: Remove spell-check markers that break up placeholders
-  let result = xml.replace(/<w:proofErr[^>]*\/>/g, '')
+  let result = xml
+    .replace(/<w:proofErr[^>]*\/>/g, '')
+    .replace(/<w:proofErr[^>]*><\/w:proofErr>/g, '')
   
   // Step 2: Merge consecutive <w:r> elements that only contain text
   // This handles the case where placeholder parts are in consecutive runs
@@ -1742,6 +1744,32 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     for (const anexo of anexosDisponiveis) {
       try {
+        if (anexo.id === 'ANEXO_VIII') {
+          const procuracaoData = {
+            procuracaoNome: dadosLeasing.procuracaoNome,
+            procuracaoCPF: dadosLeasing.procuracaoCPF,
+            procuracaoRG: dadosLeasing.procuracaoRG,
+            procuracaoEndereco: dadosLeasing.procuracaoEndereco,
+          }
+          console.info('[leasing-contracts] procuracao_render', {
+            uf: clienteUf,
+            template: anexo.template,
+            data: procuracaoData,
+          })
+          const missing = Object.entries(procuracaoData)
+            .filter(([, value]) => !String(value ?? '').trim())
+            .map(([key]) => key)
+          if (missing.length > 0) {
+            throw new LeasingContractsError(
+              422,
+              'Dados de procuração não encontrados para preenchimento. Verifique o Contratante/Titular e tente novamente.',
+              {
+                code: 'PROCURACAO_DATA_MISSING',
+                hint: `Campos faltando: ${missing.join(', ')}.`,
+              },
+            )
+          }
+        }
         const buffer = await renderDocxTemplate(anexo.template, {
           ...dadosLeasing,
           tipoContrato,
