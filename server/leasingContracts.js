@@ -685,10 +685,11 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     
     // Procuração fields - map from client data for power of attorney documents
     // These fields are used in anexo procuração templates (e.g., Equatorial, Neoenergia)
+    // Note: procuracaoEndereco is set below (line ~710) after enderecoContratante is calculated
     procuracaoNome: nomeCompletoValue,
     procuracaoCPF: normalized.cpfCnpj,
     procuracaoRG: normalized.rg,
-    procuracaoEndereco: '', // Will be set below after enderecoContratante is calculated
+    procuracaoEndereco: '', // Set below after enderecoContratante calculation (see line ~710)
   }
 
   // Derived fields
