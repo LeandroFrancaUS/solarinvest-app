@@ -1142,11 +1142,408 @@ const normalizeTemplateContentTypes = async (zip) => {
   zip.file('[Content_Types].xml', updated)
 }
 
-const renderDocxTemplate = async (fileName, data, uf) => {
+const buildEnderecoCompletoFromParts = (dados) => {
+  const endereco = typeof dados.endereco === 'string' ? dados.endereco.trim() : ''
+  const cidade = typeof dados.cidade === 'string' ? dados.cidade.trim() : ''
+  const uf = typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : ''
+  const cep = typeof dados.cep === 'string' ? dados.cep.trim() : ''
+  const partes = []
+  if (endereco) {
+    partes.push(endereco)
+  }
+  const cidadeUf = [cidade, uf].filter(Boolean).join('/')
+  if (cidadeUf) {
+    partes.push(cidadeUf)
+  }
+  if (cep) {
+    partes.push(`CEP ${cep}`)
+  }
+  return partes.join(', ')
+}
+
+const getDiaContrato = (data) => {
+  if (typeof data === 'string' && data.trim()) {
+    const parsed = new Date(data)
+    if (!isNaN(parsed.getTime())) {
+      return format(parsed, 'dd', { locale: ptBR })
+    }
+  }
+  return format(new Date(), 'dd', { locale: ptBR })
+}
+
+const getMesContrato = (data) => {
+  if (typeof data === 'string' && data.trim()) {
+    const parsed = new Date(data)
+    if (!isNaN(parsed.getTime())) {
+      return format(parsed, 'MMMM', { locale: ptBR })
+    }
+  }
+  return format(new Date(), 'MMMM', { locale: ptBR })
+}
+
+const getAnoContrato = (data) => {
+  if (typeof data === 'string' && data.trim()) {
+    const parsed = new Date(data)
+    if (!isNaN(parsed.getTime())) {
+      return format(parsed, 'yyyy', { locale: ptBR })
+    }
+  }
+  return format(new Date(), 'yyyy', { locale: ptBR })
+}
+
+const buildTemplateData = (data) => {
+  const base = data && typeof data === 'object' ? data : {}
+  const kwhValue = base.kWhContratado ?? base.kwhContratado ?? base.kcKwhMes ?? ''
+  const cidadeValue = typeof base.cidade === 'string'
+    ? base.cidade.trim()
+    : typeof base.clienteCidade === 'string'
+      ? base.clienteCidade.trim()
+      : ''
+  const ufValue = typeof base.UF === 'string' && base.UF.trim()
+    ? base.UF.trim().toUpperCase()
+    : typeof base.uf === 'string'
+      ? base.uf.trim().toUpperCase()
+      : typeof base.clienteUF === 'string'
+        ? base.clienteUF.trim().toUpperCase()
+        : ''
+  const enderecoCompletoValue = typeof base.enderecoCompleto === 'string' && base.enderecoCompleto.trim()
+    ? base.enderecoCompleto.trim()
+    : buildEnderecoCompletoFromParts(base)
+  const nomeCompletoValue = base.nomeCompleto
+    ?? base.clienteNome
+    ?? base.clienteRazaoSocial
+    ?? ''
+  const cpfCnpjValue = base.cpfCnpj ?? base.clienteDocumento ?? base.cnpj ?? ''
+  const titularDiferente = Boolean(base.ucGeradoraTitularDiferente)
+  const procuracaoNomeValue = base.procuracaoNome
+    ?? (titularDiferente ? base.titularUcGeradoraNomeCompleto : nomeCompletoValue)
+    ?? ''
+  const procuracaoCpfValue = base.procuracaoCPF
+    ?? (titularDiferente ? base.titularUcGeradoraCPF : cpfCnpjValue)
+    ?? ''
+  const procuracaoRgValue = base.procuracaoRG
+    ?? (titularDiferente ? base.titularUcGeradoraRG : base.rg ?? base.clienteRG)
+    ?? ''
+  const procuracaoEnderecoValue = base.procuracaoEndereco
+    ?? (titularDiferente ? base.titularUcGeradoraEndereco : enderecoCompletoValue)
+    ?? ''
+  const diaValue = typeof base.dia === 'string' && base.dia.trim()
+    ? base.dia.trim()
+    : getDiaContrato(base.dataInicio)
+  const mesValue = typeof base.mes === 'string' && base.mes.trim()
+    ? base.mes.trim()
+    : getMesContrato(base.dataInicio)
+  const anoContratoValue = typeof base.anoContrato === 'string' && base.anoContrato.trim()
+    ? base.anoContrato.trim()
+    : getAnoContrato(base.dataInicio)
+
+  return {
+    ...base,
+    nomeCompleto: typeof nomeCompletoValue === 'string' ? nomeCompletoValue.trim() : '',
+    nacionalidade: base.nacionalidade ?? base.clienteNacionalidade ?? '',
+    estadoCivil: base.estadoCivil ?? base.clienteEstadoCivil ?? '',
+    profissao: base.profissao ?? base.clienteProfissao ?? '',
+    cpfCnpj: typeof cpfCnpjValue === 'string' ? cpfCnpjValue.trim() : '',
+    rg: base.rg ?? base.clienteRG ?? '',
+    enderecoCompleto: enderecoCompletoValue,
+    email: base.email ?? base.clienteEmail ?? '',
+    telefone: base.telefone ?? base.clienteTelefone ?? '',
+    kwhContratado: kwhValue,
+    kWhContratado: kwhValue,
+    prazoContratual: base.prazoContratual ?? '',
+    cidade: cidadeValue,
+    UF: ufValue,
+    mes: mesValue || base.mesContrato || '',
+    anoContrato: anoContratoValue || '',
+    unidadeConsumidora: base.unidadeConsumidora ?? '',
+    potencia: base.potencia ?? base.potenciaSistema ?? '',
+    modulosFV: base.modulosFV ?? '',
+    inversoresFV: base.inversoresFV ?? '',
+    tarifaBase: base.tarifaBase ?? '',
+    dataInicio: base.dataInicio ?? '',
+    dataFim: base.dataFim ?? '',
+    dataAtualExtenso: base.dataAtualExtenso ?? '',
+    dataHomologacao: base.dataHomologacao ?? '',
+    dia: typeof diaValue === 'string' ? diaValue : '',
+    procuracaoNome: typeof procuracaoNomeValue === 'string' ? procuracaoNomeValue.trim() : '',
+    procuracaoCPF: typeof procuracaoCpfValue === 'string' ? procuracaoCpfValue.trim() : '',
+    procuracaoRG: typeof procuracaoRgValue === 'string' ? procuracaoRgValue.trim() : '',
+    procuracaoEndereco: typeof procuracaoEnderecoValue === 'string' ? procuracaoEnderecoValue.trim() : '',
+  }
+}
+
+const TEMPLATE_TAG_REGEX = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
+const ALLOWED_TEMPLATE_TAGS = new Set([
+  'nomeCompleto',
+  'nacionalidade',
+  'estadoCivil',
+  'profissao',
+  'cpfCnpj',
+  'rg',
+  'enderecoCompleto',
+  'email',
+  'telefone',
+  'kwhContratado',
+  'kWhContratado',
+  'prazoContratual',
+  'cidade',
+  'UF',
+  'mes',
+  'anoContrato',
+  'procuracaoNome',
+  'procuracaoCPF',
+  'procuracaoRG',
+  'procuracaoEndereco',
+  'unidadeConsumidora',
+  'potencia',
+  'modulosFV',
+  'inversoresFV',
+  'tarifaBase',
+  'dataInicio',
+  'dataFim',
+  'dataAtualExtenso',
+  'dataHomologacao',
+  'dia',
+])
+
+const extractTemplateTags = (xml) => {
+  const tags = new Set()
+  TEMPLATE_TAG_REGEX.lastIndex = 0
+  let match
+  while ((match = TEMPLATE_TAG_REGEX.exec(xml))) {
+    tags.add(match[1])
+  }
+  return tags
+}
+
+const repairMustachePlaceholdersXml = (xml, { templateName, partName, uf, requestId } = {}) => {
+  const textTagRegex = /<w:t([^>]*)>([\s\S]*?)<\/w:t>/g
+  const nodes = []
+  let match
+
+  while ((match = textTagRegex.exec(xml)) !== null) {
+    nodes.push({
+      attrs: match[1],
+      text: match[2],
+    })
+  }
+
+  if (nodes.length === 0) {
+    return xml
+  }
+
+  const ranges = []
+  let combinedText = ''
+  nodes.forEach((node, index) => {
+    const start = combinedText.length
+    combinedText += node.text
+    ranges[index] = { start, end: combinedText.length }
+  })
+
+  const mapPositionToNode = (position) => {
+    for (let i = 0; i < ranges.length; i += 1) {
+      const range = ranges[i]
+      if (position >= range.start && position < range.end) {
+        return { nodeIndex: i, offset: position - range.start }
+      }
+    }
+    if (ranges.length > 0 && position === ranges[ranges.length - 1].end) {
+      return { nodeIndex: ranges.length - 1, offset: ranges[ranges.length - 1].end - ranges[ranges.length - 1].start }
+    }
+    return null
+  }
+
+  let cursor = 0
+  while (true) {
+    const startIndex = combinedText.indexOf('{{', cursor)
+    if (startIndex === -1) {
+      break
+    }
+    const endIndex = combinedText.indexOf('}}', startIndex + 2)
+    if (endIndex === -1) {
+      break
+    }
+
+    const inner = combinedText.slice(startIndex + 2, endIndex)
+    const normalizedInner = inner.replace(/\s+/g, ' ').trim()
+    const name = normalizedInner.trim()
+
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+      console.warn('[leasing-contracts] Placeholder inválido ao reparar template', {
+        template: templateName,
+        part: partName,
+        uf,
+        requestId,
+        snippet: combinedText.slice(startIndex, Math.min(endIndex + 2, startIndex + 200)),
+      })
+      cursor = endIndex + 2
+      continue
+    }
+
+    const startInfo = mapPositionToNode(startIndex)
+    const endInfo = mapPositionToNode(endIndex + 2)
+    if (!startInfo || !endInfo) {
+      cursor = endIndex + 2
+      continue
+    }
+
+    if (startInfo.nodeIndex === endInfo.nodeIndex) {
+      const node = nodes[startInfo.nodeIndex]
+      node.text = [
+        node.text.slice(0, startInfo.offset),
+        `{{${name}}}`,
+        node.text.slice(endInfo.offset),
+      ].join('')
+    } else {
+      const startNode = nodes[startInfo.nodeIndex]
+      const endNode = nodes[endInfo.nodeIndex]
+      startNode.text = `${startNode.text.slice(0, startInfo.offset)}{{${name}}}`
+      endNode.text = endNode.text.slice(endInfo.offset)
+      for (let i = startInfo.nodeIndex + 1; i < endInfo.nodeIndex; i += 1) {
+        nodes[i].text = ''
+      }
+    }
+
+    cursor = endIndex + 2
+  }
+
+  let nodeIndex = 0
+  return xml.replace(textTagRegex, (full, attrs) => {
+    const node = nodes[nodeIndex]
+    nodeIndex += 1
+    return `<w:t${attrs}>${node.text}</w:t>`
+  })
+}
+
+const hasRenderableValue = (value) => {
+  if (value === null || value === undefined) {
+    return false
+  }
+  if (typeof value === 'string') {
+    return value.trim().length > 0
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0
+  }
+  return true
+}
+
+const logMissingTemplateTags = ({ templateName, uf, requestId, missingTags }) => {
+  if (!missingTags.length) {
+    return
+  }
+  console.warn('[leasing-contracts] Tags sem valor para renderização', {
+    template: templateName,
+    uf,
+    requestId,
+    tags: missingTags,
+  })
+}
+
+const logUnrenderedTemplateTags = ({ templateName, uf, requestId, leftoverTags }) => {
+  if (!leftoverTags.length) {
+    return
+  }
+  console.warn('[leasing-contracts] Tags não substituídas após renderização', {
+    template: templateName,
+    uf,
+    requestId,
+    tags: leftoverTags,
+  })
+}
+
+const escapeInvalidMustacheMarkers = (
+  xml,
+  { templateName, partName, uf, requestId, allowedTags = ALLOWED_TEMPLATE_TAGS } = {},
+) => {
+  let result = ''
+  let cursor = 0
+  let invalidMarkers = 0
+  const validTagNameRegex = /^[a-zA-Z0-9_]+$/
+
+  while (true) {
+    const startIndex = xml.indexOf('{{', cursor)
+    if (startIndex === -1) {
+      result += xml.slice(cursor)
+      break
+    }
+
+    result += xml.slice(cursor, startIndex)
+    const isTriple = xml[startIndex + 2] === '{'
+    const closeToken = isTriple ? '}}}' : '}}'
+    const closeIndex = xml.indexOf(closeToken, startIndex + (isTriple ? 3 : 2))
+
+    if (closeIndex === -1) {
+      result += '&#123;&#123;'
+      invalidMarkers += 1
+      cursor = startIndex + 2
+      continue
+    }
+
+    const innerStart = startIndex + (isTriple ? 3 : 2)
+    const innerRaw = xml.slice(innerStart, closeIndex)
+    const inner = innerRaw.replace(/<[^>]+>/g, '').trim()
+    if (validTagNameRegex.test(inner) && allowedTags.has(inner)) {
+      result += `{{${inner}}}`
+    } else {
+      result += `&#123;&#123;${inner}&#125;&#125;`
+      invalidMarkers += 1
+    }
+
+    cursor = closeIndex + closeToken.length
+  }
+
+  if (invalidMarkers > 0) {
+    console.warn('[leasing-contracts] Marcadores Mustache inválidos foram escapados', {
+      template: templateName,
+      part: partName,
+      uf,
+      requestId,
+      count: invalidMarkers,
+    })
+  }
+
+  return result
+}
+
+const superSafeEscapeMustache = (xml, allowedTags = ALLOWED_TEMPLATE_TAGS) => {
+  const tokenPrefix = '__MUSTACHE_TOKEN_'
+  let tokenIndex = 0
+  const tokens = new Map()
+
+  const withTokens = xml.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (match, tag) => {
+    if (!allowedTags.has(tag)) {
+      return match
+    }
+    const token = `${tokenPrefix}${tokenIndex}__`
+    tokenIndex += 1
+    tokens.set(token, `{{${tag}}}`)
+    return token
+  })
+
+  let escaped = withTokens.replace(/{{/g, '&#123;&#123;').replace(/}}/g, '&#125;&#125;')
+  for (const [token, value] of tokens.entries()) {
+    escaped = escaped.replace(token, value)
+  }
+  return escaped
+}
+
+const maskSensitiveSnippet = (snippet) => snippet
+  .replace(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/g, '***.***.***-**')
+  .replace(/\d{2}\.?\d{3}\.?\d{3}\/\d{4}-?\d{2}/g, '**.***.***/****-**')
+
+const escapeRemainingMustacheMarkers = (xml) =>
+  xml.replace(/{{/g, '&#123;&#123;').replace(/}}/g, '&#125;&#125;')
+
+const renderDocxTemplate = async (fileName, data, uf, { requestId } = {}) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
   const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
   const isDotxTemplate = fileName.toLowerCase().endsWith('.dotx')
+  const templateData = buildTemplateData(data)
+  const templateTags = new Set()
+  const leftoverTags = new Set()
+  const leftoverMarkers = new Set()
 
   for (const partName of partNames) {
     const file = zip.file(partName)
@@ -1154,16 +1551,100 @@ const renderDocxTemplate = async (fileName, data, uf) => {
       continue
     }
     const xmlContent = await file.async('string')
-    // Normalize XML to fix broken placeholders before rendering
+    // NOTE: never rewrite XML globally; only adjust <w:t> text for placeholders.
     const normalizedXml = normalizeWordXmlForMustache(xmlContent)
-    const rendered = Mustache.render(normalizedXml, data)
+    const repairedXml = repairMustachePlaceholdersXml(normalizedXml, {
+      templateName: fileName,
+      partName,
+      uf,
+      requestId,
+    })
+    const safeXml = escapeInvalidMustacheMarkers(repairedXml, {
+      templateName: fileName,
+      partName,
+      uf,
+      requestId,
+    })
+    extractTemplateTags(safeXml).forEach((tag) => templateTags.add(tag))
+    let rendered
+    try {
+      rendered = Mustache.render(safeXml, templateData)
+    } catch (error) {
+      const message = typeof error?.message === 'string' ? error.message : ''
+      const offsetMatch = message.match(/Unclosed tag at (\d+)/)
+      if (offsetMatch) {
+        const offset = Number(offsetMatch[1])
+        const start = Math.max(0, offset - 200)
+        const end = Math.min(safeXml.length, offset + 200)
+        console.warn('[leasing-contracts] Mustache parse error, retrying with safe escape', {
+          template: fileName,
+          part: partName,
+          uf,
+          requestId,
+          offset,
+          snippet: maskSensitiveSnippet(safeXml.slice(start, end)),
+        })
+        const superSafeXml = superSafeEscapeMustache(safeXml)
+        try {
+          rendered = Mustache.render(superSafeXml, templateData)
+        } catch (retryError) {
+          throw new LeasingContractsError(
+            422,
+            'Template possui marcador inválido que não pôde ser sanitizado.',
+            {
+              code: 'INVALID_TEMPLATE',
+              hint: `Template: ${fileName} (${partName}).`,
+            },
+          )
+        }
+      } else {
+        throw error
+      }
+    }
     // Clean up extra commas from empty optional fields
     const cleaned = cleanupExtraPunctuation(rendered)
-    zip.file(partName, cleaned)
+    if (cleaned.includes('{{') || cleaned.includes('}}')) {
+      const rawMatches = cleaned.match(/{{[^}]*}}/g) ?? []
+      rawMatches.forEach((tag) => leftoverMarkers.add(tag))
+    }
+    extractTemplateTags(cleaned).forEach((tag) => leftoverTags.add(tag))
+    if (cleaned.includes('{{') || cleaned.includes('}}')) {
+      const firstIndex = Math.max(0, cleaned.indexOf('{{'))
+      const start = Math.max(0, firstIndex - 200)
+      const end = Math.min(cleaned.length, firstIndex + 200)
+      console.warn('[leasing-contracts] Marcadores Mustache remanescentes após renderização', {
+        template: fileName,
+        part: partName,
+        uf,
+        requestId,
+        snippet: maskSensitiveSnippet(cleaned.slice(start, end)),
+      })
+      zip.file(partName, escapeRemainingMustacheMarkers(cleaned))
+    } else {
+      zip.file(partName, cleaned)
+    }
   }
 
   if (isDotxTemplate) {
     await normalizeTemplateContentTypes(zip)
+  }
+
+  if (templateTags.size > 0) {
+    const missingTags = Array.from(templateTags).filter((tag) => !hasRenderableValue(templateData[tag]))
+    logMissingTemplateTags({ templateName: fileName, uf, requestId, missingTags })
+  }
+
+  const remainingTags = Array.from(new Set([
+    ...leftoverTags,
+    ...Array.from(leftoverMarkers).map((value) => value.replace(/{{|}}/g, '').trim()).filter(Boolean),
+  ]))
+  if (remainingTags.length > 0) {
+    logUnrenderedTemplateTags({
+      templateName: fileName,
+      uf,
+      requestId,
+      leftoverTags: remainingTags,
+    })
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })
@@ -1418,7 +1899,7 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
-    }, dadosLeasing.uf)
+    }, dadosLeasing.uf, { requestId })
     mark('renderDocxMs', renderStart)
 
     const tempDir = await createRequestTempDir(requestId)
@@ -1720,7 +2201,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
-    }, clienteUf)
+    }, clienteUf, { requestId })
     console.info('[leasing-contracts] render_docx', {
       requestId,
       durationMs: Date.now() - renderStart,
@@ -1773,7 +2254,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
         const buffer = await renderDocxTemplate(anexo.template, {
           ...dadosLeasing,
           tipoContrato,
-        }, clienteUf)
+        }, clienteUf, { requestId })
 
         const procuracaoBaseName = anexo.id === 'ANEXO_VIII'
           ? getProcuracaoFileBaseName(clienteUf)
