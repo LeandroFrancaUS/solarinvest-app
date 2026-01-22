@@ -1142,32 +1142,69 @@ const normalizeTemplateContentTypes = async (zip) => {
   zip.file('[Content_Types].xml', updated)
 }
 
+const buildEnderecoCompletoFromParts = (dados) => {
+  const endereco = typeof dados.endereco === 'string' ? dados.endereco.trim() : ''
+  const cidade = typeof dados.cidade === 'string' ? dados.cidade.trim() : ''
+  const uf = typeof dados.uf === 'string' ? dados.uf.trim().toUpperCase() : ''
+  const cep = typeof dados.cep === 'string' ? dados.cep.trim() : ''
+  const partes = []
+  if (endereco) {
+    partes.push(endereco)
+  }
+  const cidadeUf = [cidade, uf].filter(Boolean).join('/')
+  if (cidadeUf) {
+    partes.push(cidadeUf)
+  }
+  if (cep) {
+    partes.push(`CEP ${cep}`)
+  }
+  return partes.join(', ')
+}
+
 const buildTemplateData = (data) => {
   const base = data && typeof data === 'object' ? data : {}
-  const kwhValue = base.kWhContratado ?? base.kwhContratado ?? ''
-  const cidadeValue = typeof base.cidade === 'string' ? base.cidade.trim() : ''
-  const ufValue = typeof base.uf === 'string' ? base.uf.trim().toUpperCase() : ''
+  const kwhValue = base.kWhContratado ?? base.kwhContratado ?? base.kcKwhMes ?? ''
+  const cidadeValue = typeof base.cidade === 'string'
+    ? base.cidade.trim()
+    : typeof base.clienteCidade === 'string'
+      ? base.clienteCidade.trim()
+      : ''
+  const ufValue = typeof base.UF === 'string' && base.UF.trim()
+    ? base.UF.trim().toUpperCase()
+    : typeof base.uf === 'string'
+      ? base.uf.trim().toUpperCase()
+      : typeof base.clienteUF === 'string'
+        ? base.clienteUF.trim().toUpperCase()
+        : ''
+  const enderecoCompletoValue = typeof base.enderecoCompleto === 'string' && base.enderecoCompleto.trim()
+    ? base.enderecoCompleto.trim()
+    : buildEnderecoCompletoFromParts(base)
+  const nomeCompletoValue = base.nomeCompleto
+    ?? base.clienteNome
+    ?? base.clienteRazaoSocial
+    ?? ''
+  const cpfCnpjValue = base.cpfCnpj ?? base.clienteDocumento ?? base.cnpj ?? ''
 
   return {
     ...base,
-    nomeCompleto: base.nomeCompleto ?? '',
-    nacionalidade: base.nacionalidade ?? '',
-    estadoCivil: base.estadoCivil ?? '',
-    profissao: base.profissao ?? '',
-    cpfCnpj: base.cpfCnpj ?? '',
-    rg: base.rg ?? '',
-    enderecoCompleto: base.enderecoCompleto ?? '',
-    email: base.email ?? '',
-    telefone: base.telefone ?? '',
+    nomeCompleto: typeof nomeCompletoValue === 'string' ? nomeCompletoValue.trim() : '',
+    nacionalidade: base.nacionalidade ?? base.clienteNacionalidade ?? '',
+    estadoCivil: base.estadoCivil ?? base.clienteEstadoCivil ?? '',
+    profissao: base.profissao ?? base.clienteProfissao ?? '',
+    cpfCnpj: typeof cpfCnpjValue === 'string' ? cpfCnpjValue.trim() : '',
+    rg: base.rg ?? base.clienteRG ?? '',
+    enderecoCompleto: enderecoCompletoValue,
+    email: base.email ?? base.clienteEmail ?? '',
+    telefone: base.telefone ?? base.clienteTelefone ?? '',
     kwhContratado: kwhValue,
     kWhContratado: kwhValue,
     prazoContratual: base.prazoContratual ?? '',
     cidade: cidadeValue,
     UF: ufValue,
-    mes: base.mes ?? '',
+    mes: base.mes ?? base.mesContrato ?? '',
     anoContrato: base.anoContrato ?? '',
     unidadeConsumidora: base.unidadeConsumidora ?? '',
-    potencia: base.potencia ?? '',
+    potencia: base.potencia ?? base.potenciaSistema ?? '',
     modulosFV: base.modulosFV ?? '',
     inversoresFV: base.inversoresFV ?? '',
     tarifaBase: base.tarifaBase ?? '',
@@ -1182,26 +1219,73 @@ const buildTemplateData = (data) => {
   }
 }
 
-const TAG_REGEX = /{{\s*([^}]+?)\s*}}/g
+const TEMPLATE_TAG_REGEX = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
 
 const extractTemplateTags = (xml) => {
   const tags = new Set()
-  TAG_REGEX.lastIndex = 0
+  TEMPLATE_TAG_REGEX.lastIndex = 0
   let match
-  while ((match = TAG_REGEX.exec(xml))) {
-    const raw = match[1].trim()
-    if (!raw) {
-      continue
-    }
-    if (/^[#^\/!>]/.test(raw)) {
-      continue
-    }
-    const normalized = raw.replace(/^&/, '')
-    if (normalized) {
-      tags.add(normalized)
-    }
+  while ((match = TEMPLATE_TAG_REGEX.exec(xml))) {
+    tags.add(match[1])
   }
   return tags
+}
+
+const repairMustachePlaceholdersXml = (xml, { templateName, partName, uf, requestId } = {}) => {
+  let cursor = 0
+  let result = ''
+  while (true) {
+    const startIndex = xml.indexOf('{{', cursor)
+    if (startIndex === -1) {
+      result += xml.slice(cursor)
+      break
+    }
+    const endIndex = xml.indexOf('}}', startIndex + 2)
+    if (endIndex === -1) {
+      result += xml.slice(cursor)
+      break
+    }
+
+    result += xml.slice(cursor, startIndex)
+    const chunk = xml.slice(startIndex, endIndex + 2)
+    const inner = chunk.replace(/<[^>]+>/g, '')
+    const normalizedInner = inner.replace(/\s+/g, ' ').trim()
+    const name = normalizedInner.replace(/^\{\{\s*/, '').replace(/\s*\}\}$/, '').trim()
+
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+      console.warn('[leasing-contracts] Placeholder inválido ao reparar template', {
+        template: templateName,
+        part: partName,
+        uf,
+        requestId,
+        snippet: chunk.slice(0, 200),
+      })
+      result += chunk
+      cursor = endIndex + 2
+      continue
+    }
+
+    const textTagIndex = chunk.indexOf('<w:t')
+    if (textTagIndex === -1) {
+      result += `{{${name}}}`
+      cursor = endIndex + 2
+      continue
+    }
+
+    const textTagCloseIndex = chunk.indexOf('>', textTagIndex)
+    if (textTagCloseIndex === -1) {
+      result += chunk
+      cursor = endIndex + 2
+      continue
+    }
+
+    const prefix = chunk.slice(0, textTagCloseIndex + 1)
+    const hasRunTag = /<w:r[^>]*>/.test(prefix)
+    result += `${prefix}{{${name}}}</w:t>${hasRunTag ? '</w:r>' : ''}`
+    cursor = endIndex + 2
+  }
+
+  return result
 }
 
 const hasRenderableValue = (value) => {
@@ -1217,29 +1301,31 @@ const hasRenderableValue = (value) => {
   return true
 }
 
-const logMissingTemplateTags = ({ templateName, uf, missingTags }) => {
+const logMissingTemplateTags = ({ templateName, uf, requestId, missingTags }) => {
   if (!missingTags.length) {
     return
   }
   console.warn('[leasing-contracts] Tags sem valor para renderização', {
     template: templateName,
     uf,
+    requestId,
     tags: missingTags,
   })
 }
 
-const logUnrenderedTemplateTags = ({ templateName, uf, leftoverTags }) => {
+const logUnrenderedTemplateTags = ({ templateName, uf, requestId, leftoverTags }) => {
   if (!leftoverTags.length) {
     return
   }
   console.warn('[leasing-contracts] Tags não substituídas após renderização', {
     template: templateName,
     uf,
+    requestId,
     tags: leftoverTags,
   })
 }
 
-const renderDocxTemplate = async (fileName, data, uf) => {
+const renderDocxTemplate = async (fileName, data, uf, { requestId } = {}) => {
   const templateBuffer = await loadDocxTemplate(fileName, uf)
   const zip = await JSZip.loadAsync(templateBuffer)
   const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
@@ -1247,6 +1333,7 @@ const renderDocxTemplate = async (fileName, data, uf) => {
   const templateData = buildTemplateData(data)
   const templateTags = new Set()
   const leftoverTags = new Set()
+  const leftoverMarkers = new Set()
 
   for (const partName of partNames) {
     const file = zip.file(partName)
@@ -1256,10 +1343,20 @@ const renderDocxTemplate = async (fileName, data, uf) => {
     const xmlContent = await file.async('string')
     // Normalize XML to fix broken placeholders before rendering
     const normalizedXml = normalizeWordXmlForMustache(xmlContent)
-    extractTemplateTags(normalizedXml).forEach((tag) => templateTags.add(tag))
-    const rendered = Mustache.render(normalizedXml, templateData)
+    const repairedXml = repairMustachePlaceholdersXml(normalizedXml, {
+      templateName: fileName,
+      partName,
+      uf,
+      requestId,
+    })
+    extractTemplateTags(repairedXml).forEach((tag) => templateTags.add(tag))
+    const rendered = Mustache.render(repairedXml, templateData)
     // Clean up extra commas from empty optional fields
     const cleaned = cleanupExtraPunctuation(rendered)
+    if (cleaned.includes('{{') || cleaned.includes('}}')) {
+      const rawMatches = cleaned.match(/{{[^}]*}}/g) ?? []
+      rawMatches.forEach((tag) => leftoverMarkers.add(tag))
+    }
     extractTemplateTags(cleaned).forEach((tag) => leftoverTags.add(tag))
     zip.file(partName, cleaned)
   }
@@ -1270,11 +1367,20 @@ const renderDocxTemplate = async (fileName, data, uf) => {
 
   if (templateTags.size > 0) {
     const missingTags = Array.from(templateTags).filter((tag) => !hasRenderableValue(templateData[tag]))
-    logMissingTemplateTags({ templateName: fileName, uf, missingTags })
+    logMissingTemplateTags({ templateName: fileName, uf, requestId, missingTags })
   }
 
-  if (leftoverTags.size > 0) {
-    logUnrenderedTemplateTags({ templateName: fileName, uf, leftoverTags: Array.from(leftoverTags) })
+  const remainingTags = Array.from(new Set([
+    ...leftoverTags,
+    ...Array.from(leftoverMarkers).map((value) => value.replace(/{{|}}/g, '').trim()).filter(Boolean),
+  ]))
+  if (remainingTags.length > 0) {
+    logUnrenderedTemplateTags({
+      templateName: fileName,
+      uf,
+      requestId,
+      leftoverTags: remainingTags,
+    })
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })
@@ -1529,7 +1635,7 @@ export const handleLeasingContractsSmokeRequest = async (req, res) => {
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
-    }, dadosLeasing.uf)
+    }, dadosLeasing.uf, { requestId })
     mark('renderDocxMs', renderStart)
 
     const tempDir = await createRequestTempDir(requestId)
@@ -1831,7 +1937,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     const contratoBuffer = await renderDocxTemplate(contratoTemplate, {
       ...dadosLeasing,
       tipoContrato,
-    }, clienteUf)
+    }, clienteUf, { requestId })
     console.info('[leasing-contracts] render_docx', {
       requestId,
       durationMs: Date.now() - renderStart,
@@ -1884,7 +1990,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
         const buffer = await renderDocxTemplate(anexo.template, {
           ...dadosLeasing,
           tipoContrato,
-        }, clienteUf)
+        }, clienteUf, { requestId })
 
         const procuracaoBaseName = anexo.id === 'ANEXO_VIII'
           ? getProcuracaoFileBaseName(clienteUf)
