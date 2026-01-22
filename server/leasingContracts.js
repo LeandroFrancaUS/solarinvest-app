@@ -682,6 +682,13 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
       typeof dados.cnpjCondominio === 'string' ? dados.cnpjCondominio.trim() : '',
     nomeSindico: typeof dados.nomeSindico === 'string' ? dados.nomeSindico.trim() : '',
     cpfSindico: typeof dados.cpfSindico === 'string' ? dados.cpfSindico.trim() : '',
+    
+    // Procuração fields - map from client data for power of attorney documents
+    // These fields are used in anexo procuração templates (e.g., Equatorial, Neoenergia)
+    procuracaoNome: nomeCompletoValue,
+    procuracaoCPF: normalized.cpfCnpj,
+    procuracaoRG: normalized.rg,
+    procuracaoEndereco: '', // Will be set below after enderecoContratante is calculated
   }
 
   // Derived fields
@@ -707,6 +714,9 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
   } else {
     normalized.enderecoUCGeradora = normalized.enderecoContratante
   }
+  
+  // procuracaoEndereco - use enderecoContratante (formatted address in uppercase)
+  normalized.procuracaoEndereco = normalized.enderecoContratante
   
   // anoContrato from dataInicio if available
   if (normalized.dataInicio) {
@@ -1114,6 +1124,72 @@ const renderDocxTemplate = async (fileName, data, uf) => {
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
+/**
+ * Validates a rendered DOCX template to ensure all Mustache placeholders were substituted.
+ * This prevents generating documents with unfilled placeholders like {{variableName}}.
+ * 
+ * @param {Buffer} docxBuffer - The rendered DOCX document buffer
+ * @param {string} templateName - Name of the template (for logging)
+ * @param {string} requestId - Request ID (for logging)
+ * @param {string} [uf] - Optional UF code (for logging)
+ * @throws {LeasingContractsError} if unsubstituted placeholders are found
+ */
+const validateRenderedTemplate = async (docxBuffer, templateName, requestId, uf = undefined) => {
+  try {
+    const zip = await JSZip.loadAsync(docxBuffer)
+    const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
+    
+    const unsubstitutedPlaceholders = []
+    
+    for (const partName of partNames) {
+      const file = zip.file(partName)
+      if (!file) {
+        continue
+      }
+      const xmlContent = await file.async('string')
+      
+      // Check for any remaining Mustache placeholders {{...}}
+      const placeholderMatches = xmlContent.match(/\{\{[^}]*\}\}/g)
+      if (placeholderMatches && placeholderMatches.length > 0) {
+        unsubstitutedPlaceholders.push(...placeholderMatches)
+      }
+    }
+    
+    if (unsubstitutedPlaceholders.length > 0) {
+      // Remove duplicates and log
+      const uniquePlaceholders = [...new Set(unsubstitutedPlaceholders)]
+      
+      console.error('[leasing-contracts] Template validation failed: unsubstituted placeholders', {
+        requestId,
+        template: templateName,
+        uf: uf || 'default',
+        placeholders: uniquePlaceholders,
+      })
+      
+      throw new LeasingContractsError(
+        500,
+        `Template "${templateName}" contém placeholders não substituídos. Verifique o template DOCX.`,
+        {
+          code: 'TEMPLATE_VALIDATION_FAILED',
+          hint: `Placeholders não substituídos: ${uniquePlaceholders.join(', ')}. O template pode estar com tags fragmentadas ou faltando dados.`,
+        },
+      )
+    }
+  } catch (error) {
+    // If it's already a LeasingContractsError, re-throw it
+    if (error instanceof LeasingContractsError) {
+      throw error
+    }
+    
+    // Otherwise, log and continue (don't block document generation for validation errors)
+    console.warn('[leasing-contracts] Template validation error (non-blocking)', {
+      requestId,
+      template: templateName,
+      errMessage: error?.message,
+    })
+  }
+}
+
 const createZipFromFiles = async (files) => {
   const zip = new JSZip()
   files.forEach((file) => {
@@ -1450,6 +1526,18 @@ export const handleLeasingContractsRequest = async (req, res) => {
     })
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
+    
+    // Log procuração data for debugging (as mentioned in problem statement logs)
+    console.info({
+      scope: 'leasing-contracts',
+      step: 'procuracao_render',
+      requestId,
+      procuracaoNome: dadosLeasing.procuracaoNome,
+      procuracaoCPF: dadosLeasing.procuracaoCPF,
+      procuracaoRG: dadosLeasing.procuracaoRG,
+      procuracaoEndereco: dadosLeasing.procuracaoEndereco,
+    })
+    
     const propostaHtml = typeof body?.propostaHtml === 'string' ? body.propostaHtml.trim() : ''
     const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
     const clienteUf = dadosLeasing.uf
@@ -1651,6 +1739,10 @@ export const handleLeasingContractsRequest = async (req, res) => {
       ...dadosLeasing,
       tipoContrato,
     }, clienteUf)
+    
+    // Validate that all placeholders were substituted
+    await validateRenderedTemplate(contratoBuffer, contratoTemplate, requestId, clienteUf)
+    
     console.info('[leasing-contracts] render_docx', {
       requestId,
       durationMs: Date.now() - renderStart,
@@ -1678,6 +1770,9 @@ export const handleLeasingContractsRequest = async (req, res) => {
           ...dadosLeasing,
           tipoContrato,
         }, clienteUf)
+        
+        // Validate that all placeholders were substituted in anexo
+        await validateRenderedTemplate(buffer, anexo.template, requestId, clienteUf)
         
         const anexoDocxName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'docx')
         const anexoPdfName = buildAnexoFileName(anexo.id, dadosLeasing.cpfCnpj, 'pdf')
