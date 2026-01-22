@@ -3800,6 +3800,7 @@ export default function App() {
       } catch (error) {
         console.warn('[switchBudgetId] rename failed', error)
       }
+      budgetIdRef.current = nextId
       setCurrentBudgetId(nextId)
     },
     [getActiveBudgetId, renameVendasSimulacao],
@@ -15219,6 +15220,7 @@ export default function App() {
       const novoBudgetId = createDraftBudgetId()
       console.log('[Nova Proposta] New budget ID created', novoBudgetId)
 
+      budgetIdRef.current = novoBudgetId
       setCurrentBudgetId(novoBudgetId)
 
       await Promise.resolve()
