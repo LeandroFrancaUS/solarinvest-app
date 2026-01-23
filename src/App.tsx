@@ -1068,6 +1068,17 @@ const CLIENTE_INICIAL: ClienteDados = {
 const isSyncedClienteField = (key: keyof ClienteDados): key is FieldSyncKey =>
   key === 'uf' || key === 'cidade' || key === 'distribuidora' || key === 'cep' || key === 'endereco'
 
+const getDistribuidoraDefaultForUf = (uf?: string | null): string => {
+  const normalized = uf?.trim().toUpperCase() ?? ''
+  if (normalized === 'GO') {
+    return 'Equatorial Goiás'
+  }
+  if (normalized === 'DF') {
+    return 'Neoenergia Brasília'
+  }
+  return ''
+}
+
 const generateBudgetId = (
   existingIds: Set<string> = new Set(),
   tipoProposta: PrintableProposalTipo = 'LEASING',
@@ -1152,6 +1163,7 @@ const formatUcGeradoraTitularEndereco = (
 
 type DistribuidoraAneelState = {
   clienteDistribuidoraAneel?: string | null
+  clienteUf?: string | null
   titularUcGeradoraDistribuidoraAneel?: string | null
   titularUcGeradoraDiferente?: boolean
 }
@@ -1161,7 +1173,18 @@ const getDistribuidoraAneelEfetiva = (state: DistribuidoraAneelState): string =>
   if (isTitularDiferente) {
     return state.titularUcGeradoraDistribuidoraAneel?.trim() ?? ''
   }
-  return state.clienteDistribuidoraAneel?.trim() ?? ''
+  const clienteDistribuidora = state.clienteDistribuidoraAneel?.trim() ?? ''
+  if (clienteDistribuidora) {
+    return clienteDistribuidora
+  }
+  const uf = state.clienteUf?.trim().toUpperCase() ?? ''
+  if (uf === 'GO') {
+    return 'Equatorial Goiás'
+  }
+  if (uf === 'DF') {
+    return 'Neoenergia Brasília'
+  }
+  return ''
 }
 
 type ProcuracaoTags = {
@@ -4380,6 +4403,7 @@ export default function App() {
     () =>
       getDistribuidoraAneelEfetiva({
         clienteDistribuidoraAneel: cliente.distribuidora,
+        clienteUf: cliente.uf,
         titularUcGeradoraDistribuidoraAneel:
           leasingContrato.ucGeradoraTitularDistribuidoraAneel,
         titularUcGeradoraDiferente: leasingContrato.ucGeradoraTitularDiferente,
@@ -4796,6 +4820,20 @@ export default function App() {
   useEffect(() => {
     pageSharedStateRef.current = pageSharedState
   }, [pageSharedState])
+
+  useEffect(() => {
+    if (isTitularDiferente) {
+      return
+    }
+    const defaultDistribuidora = getDistribuidoraDefaultForUf(cliente.uf)
+    if (!defaultDistribuidora) {
+      return
+    }
+    if ((cliente.distribuidora ?? '').trim()) {
+      return
+    }
+    updateClienteSync({ distribuidora: defaultDistribuidora })
+  }, [cliente.distribuidora, cliente.uf, isTitularDiferente, updateClienteSync])
 
   useEffect(() => {
     budgetIdRef.current = currentBudgetId
@@ -15705,6 +15743,12 @@ export default function App() {
         proximaDistribuidora = listaDistribuidoras[0]
       } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
         proximaDistribuidora = ''
+      }
+      if (!proximaDistribuidora) {
+        const defaultDistribuidora = getDistribuidoraDefaultForUf(ufNormalizada)
+        if (defaultDistribuidora) {
+          proximaDistribuidora = defaultDistribuidora
+        }
       }
 
       if (base.uf !== ufNormalizada || base.distribuidora !== proximaDistribuidora) {
