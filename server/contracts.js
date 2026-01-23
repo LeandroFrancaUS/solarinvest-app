@@ -99,8 +99,96 @@ const XML_CHAR_ESCAPE_MAP = {
   "'": '&apos;',
 }
 
+// Maximum iterations for merging split placeholder runs in Word XML
+// Most placeholders split by Word's spell checker need 2-3 merge passes,
+// but we allow more iterations to handle pathologically fragmented text.
+const MAX_PLACEHOLDER_MERGE_ITERATIONS = 20
+
 const escapeXmlValue = (value) =>
   String(value ?? '').replace(XML_CHAR_ESCAPE_REGEX, (char) => XML_CHAR_ESCAPE_MAP[char] ?? char)
+
+/**
+ * Normalize Word XML to fix broken {{placeholder}} text across runs.
+ *
+ * Word can split the placeholder into multiple <w:r>/<w:t> nodes, e.g.:
+ * {{</w:t></w:r><w:r><w:t>nomeCompleto</w:t></w:r><w:r><w:t>}}
+ * This function merges adjacent runs when it detects split placeholder markers.
+ */
+const normalizeWordXmlForPlaceholders = (xml) => {
+  let result = xml
+    .replace(/<w:proofErr[^>]*\/>/g, '')
+    .replace(/<w:proofErr[^>]*><\/w:proofErr>/g, '')
+
+  let changed = true
+  let iterations = 0
+
+  while (changed && iterations < MAX_PLACEHOLDER_MERGE_ITERATIONS) {
+    iterations += 1
+    const before = result.length
+    const adjacentRunsPattern = /<w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r><w:r[^>]*>((?:(?!<w:r|<\/w:r).)*?)<w:t[^>]*>((?:(?!<\/w:t>).)*?)<\/w:t><\/w:r>/g
+
+    result = result.replace(
+      adjacentRunsPattern,
+      (match, runContent, text1, nextRunContent, text2) => {
+        const lastOpenInFirst = text1.lastIndexOf('{{')
+        const lastCloseInFirst = text1.lastIndexOf('}}')
+        const hasUnclosedOpen = lastOpenInFirst !== -1 && lastOpenInFirst > lastCloseInFirst
+        const firstCloseInSecond = text2.indexOf('}}')
+        const firstOpenInSecond = text2.indexOf('{{')
+        const hasUnopenedClose = firstCloseInSecond !== -1 && (firstOpenInSecond === -1 || firstCloseInSecond < firstOpenInSecond)
+        const looksLikePlaceholderSplit = hasUnclosedOpen || hasUnopenedClose
+        if (!looksLikePlaceholderSplit) {
+          return match
+        }
+
+        const runPropsRegex = /<w:rPr[\s\S]*?<\/w:rPr>/
+        const runPropsMatch = runContent.match(runPropsRegex)
+        const nextRunPropsMatch = nextRunContent.match(runPropsRegex)
+        const runProps = runPropsMatch ? runPropsMatch[0] : nextRunPropsMatch ? nextRunPropsMatch[0] : ''
+        const runContentWithoutProps = runContent.replace(runPropsRegex, '')
+        const nextRunContentWithoutProps = nextRunContent.replace(runPropsRegex, '')
+        const mergedRunContent = `${runContentWithoutProps}${nextRunContentWithoutProps}`
+
+        const combinedText = text1 + text2
+        const needsPreserve = /^\s|\s$|\s\s/.test(combinedText)
+        const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
+        return `<w:r>${runProps}${mergedRunContent}${tTag}${combinedText}</w:t></w:r>`
+      },
+    )
+
+    changed = result.length !== before
+  }
+
+  result = result.replace(
+    /<w:r([^>]*)>([\s\S]*?)<\/w:r>/g,
+    (match, runAttrs, runContent) => {
+      const hasLineBreaks = /<w:(br|cr|tab)\b/.test(runContent)
+      if (hasLineBreaks) {
+        return match
+      }
+      const texts = []
+      const textPattern = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g
+      let textMatch
+
+      while ((textMatch = textPattern.exec(runContent)) !== null) {
+        texts.push(textMatch[1])
+      }
+
+      if (texts.length <= 1) {
+        return match
+      }
+
+      const mergedText = texts.join('')
+      let cleanedContent = runContent.replace(/<w:t[^>]*>[\s\S]*?<\/w:t>/g, '')
+      const needsPreserve = /^\s|\s$|\s\s/.test(mergedText)
+      const tTag = needsPreserve ? '<w:t xml:space="preserve">' : '<w:t>'
+
+      return `<w:r${runAttrs}>${cleanedContent}${tTag}${mergedText}</w:t></w:r>`
+    },
+  )
+
+  return result
+}
 
 const buildPlaceholderMap = (data) => {
   // Formata endereço do contratante em ALL CAPS
@@ -195,7 +283,10 @@ const applyPlaceholderReplacements = (text, data, { escapeXml = false } = {}) =>
   return output
 }
 
-const replaceTagsInXml = (xmlContent, data) => applyPlaceholderReplacements(xmlContent, data, { escapeXml: true })
+const replaceTagsInXml = (xmlContent, data) => {
+  const normalizedXml = normalizeWordXmlForPlaceholders(xmlContent)
+  return applyPlaceholderReplacements(normalizedXml, data, { escapeXml: true })
+}
 
 
 const readJsonBody = async (req) => {
