@@ -17126,7 +17126,7 @@ export default function App() {
                           clearUcGeradoraTitularError('uf')
                         }}
                       >
-                        <option value="">Selecione a UF</option>
+                        <option value="">UF</option>
                         {ufsDisponiveis.map((uf) => (
                           <option key={uf} value={uf}>
                             {uf}
