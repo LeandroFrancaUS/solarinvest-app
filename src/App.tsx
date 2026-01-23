@@ -2640,6 +2640,20 @@ function ClientesPanel({
   isImportando,
 }: ClientesPanelProps) {
   const panelTitleId = useId()
+  const [clienteSearchTerm, setClienteSearchTerm] = useState('')
+  const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
+  const registrosFiltrados = useMemo(() => {
+    if (!normalizedSearchTerm) {
+      return registros
+    }
+
+    return registros.filter((registro) => {
+      const nomeCliente = registro.dados.nome?.trim().toLowerCase()
+      return nomeCliente ? nomeCliente.includes(normalizedSearchTerm) : false
+    })
+  }, [normalizedSearchTerm, registros])
+  const totalRegistros = registros.length
+  const totalResultados = registrosFiltrados.length
 
   return (
     <div className="budget-search-page clients-page" aria-labelledby={panelTitleId}>
@@ -2691,8 +2705,38 @@ function ClientesPanel({
               </button>
             </div>
           </div>
+          <Field
+            label={labelWithTooltip(
+              'Pesquisar cliente',
+              'Filtra os clientes salvos pelo nome informado.',
+            )}
+            hint="Digite o nome do cliente para filtrar os registros salvos."
+          >
+            <input
+              type="search"
+              value={clienteSearchTerm}
+              onChange={(event) => setClienteSearchTerm(event.target.value)}
+              placeholder="Ex.: Maria Silva"
+            />
+          </Field>
+          <div className="budget-search-summary">
+            <span>
+              {totalRegistros === 0
+                ? 'Nenhum cliente salvo até o momento.'
+                : `${totalResultados} de ${totalRegistros} cliente(s) exibidos.`}
+            </span>
+            {clienteSearchTerm ? (
+              <button type="button" className="link" onClick={() => setClienteSearchTerm('')}>
+                Limpar busca
+              </button>
+            ) : null}
+          </div>
           {registros.length === 0 ? (
             <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
+          ) : registrosFiltrados.length === 0 ? (
+            <p className="budget-search-empty">
+              Nenhum cliente encontrado para "<strong>{clienteSearchTerm}</strong>".
+            </p>
           ) : (
             <div className="budget-search-table clients-table">
               <div className="table-wrapper">
@@ -2709,7 +2753,7 @@ function ClientesPanel({
                     </tr>
                   </thead>
                   <tbody>
-                    {registros.map((registro) => {
+                    {registrosFiltrados.map((registro) => {
                       const { dados } = registro
                       const nomeCliente = dados.nome?.trim()
                       const emailCliente = dados.email?.trim()
