@@ -1068,6 +1068,63 @@ const CLIENTE_INICIAL: ClienteDados = {
 const isSyncedClienteField = (key: keyof ClienteDados): key is FieldSyncKey =>
   key === 'uf' || key === 'cidade' || key === 'distribuidora' || key === 'cep' || key === 'endereco'
 
+const getDistribuidoraDefaultForUf = (uf?: string | null): string => {
+  const normalized = uf?.trim().toUpperCase() ?? ''
+  if (normalized === 'GO') {
+    return 'Equatorial Goiás'
+  }
+  if (normalized === 'DF') {
+    return 'Neoenergia Brasília'
+  }
+  return ''
+}
+
+const getDistribuidoraValidationMessage = (
+  ufRaw?: string | null,
+  distribuidoraRaw?: string | null,
+): string | null => {
+  const uf = ufRaw?.trim().toUpperCase() ?? ''
+  const distribuidora = distribuidoraRaw?.trim() ?? ''
+  const expected = getDistribuidoraDefaultForUf(uf)
+
+  if (!uf && distribuidora) {
+    return 'Informe a UF antes de definir a distribuidora.'
+  }
+
+  if (expected) {
+    if (!distribuidora) {
+      return `Informe a distribuidora para a UF ${uf}. Sugestão: ${expected}.`
+    }
+    if (distribuidora !== expected) {
+      return `Distribuidora incompatível com a UF ${uf}. Use ${expected}.`
+    }
+    return null
+  }
+
+  if (uf && !distribuidora) {
+    return 'Informe a distribuidora para a UF selecionada.'
+  }
+
+  return null
+}
+
+const resolveUfForDistribuidora = (
+  distribuidorasPorUf: Record<string, string[]>,
+  distribuidora?: string | null,
+): string => {
+  const alvo = distribuidora?.trim()
+  if (!alvo) {
+    return ''
+  }
+  const alvoNormalizado = alvo.toLowerCase()
+  for (const [uf, distribuidoras] of Object.entries(distribuidorasPorUf)) {
+    if (distribuidoras.some((item) => item.toLowerCase() === alvoNormalizado)) {
+      return uf
+    }
+  }
+  return ''
+}
+
 const generateBudgetId = (
   existingIds: Set<string> = new Set(),
   tipoProposta: PrintableProposalTipo = 'LEASING',
@@ -1148,6 +1205,32 @@ const formatUcGeradoraTitularEndereco = (
     cep ? `CEP ${cep}` : '',
   ].filter(Boolean)
   return partes.join(' — ')
+}
+
+type DistribuidoraAneelState = {
+  clienteDistribuidoraAneel?: string | null
+  clienteUf?: string | null
+  titularUcGeradoraDistribuidoraAneel?: string | null
+  titularUcGeradoraDiferente?: boolean
+}
+
+const getDistribuidoraAneelEfetiva = (state: DistribuidoraAneelState): string => {
+  const isTitularDiferente = Boolean(state.titularUcGeradoraDiferente)
+  if (isTitularDiferente) {
+    return state.titularUcGeradoraDistribuidoraAneel?.trim() ?? ''
+  }
+  const clienteDistribuidora = state.clienteDistribuidoraAneel?.trim() ?? ''
+  if (clienteDistribuidora) {
+    return clienteDistribuidora
+  }
+  const uf = state.clienteUf?.trim().toUpperCase() ?? ''
+  if (uf === 'GO') {
+    return 'Equatorial Goiás'
+  }
+  if (uf === 'DF') {
+    return 'Neoenergia Brasília'
+  }
+  return ''
 }
 
 type ProcuracaoTags = {
@@ -4305,11 +4388,122 @@ export default function App() {
     [distribuidoraTarifa, updatePageSharedState],
   )
 
+  const [cliente, setCliente] = useState<ClienteDados>(() =>
+    cloneClienteDados(CLIENTE_INICIAL),
+  )
+  const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
+  const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
+  const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
+  const lastSavedClienteRef = useRef<ClienteDados | null>(null)
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isHydratingRef = useRef(false)
+  const [isHydrating, setIsHydrating] = useState(false)
+  const isApplyingCepRef = useRef(false)
+  const isEditingEnderecoRef = useRef(false)
+  const lastCepAppliedRef = useRef<string>('')
+  const isApplyingUcGeradoraCepRef = useRef(false)
+  const lastUcGeradoraCepAppliedRef = useRef<string>('')
+  const budgetIdMismatchLoggedRef = useRef(false)
+  const novaPropostaEmAndamentoRef = useRef(false)
+
+  // Refs to prevent stale closures in getCurrentSnapshot
+  const clienteRef = useRef(cliente)
+  const kcKwhMesRef = useRef(kcKwhMes)
+  const pageSharedStateRef = useRef(pageSharedState)
+
+  const setClienteSync = useCallback(
+    (next: ClienteDados) => {
+      clienteRef.current = next
+      setCliente(next)
+    },
+    [setCliente],
+  )
+
+  const updateClienteSync = useCallback(
+    (patch: Partial<ClienteDados>) => {
+      const base = clienteRef.current ?? cliente
+      const merged = { ...base, ...patch }
+      clienteRef.current = merged
+      setCliente(merged)
+    },
+    [cliente, setCliente],
+  )
+
+  const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+  const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
+  const leasingContrato = useLeasingStore((state) => state.contrato)
+  const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
+
+  const distribuidorasDisponiveis = useMemo(() => {
+    if (!ufTarifa) return [] as string[]
+    return distribuidorasPorUf[ufTarifa] ?? []
+  }, [distribuidorasPorUf, ufTarifa])
+
+  const clienteUf = cliente.uf
+  const clienteDistribuidorasDisponiveis = useMemo(() => {
+    if (!clienteUf) return [] as string[]
+    return distribuidorasPorUf[clienteUf] ?? []
+  }, [clienteUf, distribuidorasPorUf])
+  const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
+  const distribuidoraAneelEfetiva = useMemo(
+    () =>
+      getDistribuidoraAneelEfetiva({
+        clienteDistribuidoraAneel: cliente.distribuidora,
+        clienteUf: cliente.uf,
+        titularUcGeradoraDistribuidoraAneel:
+          leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+        titularUcGeradoraDiferente: leasingContrato.ucGeradoraTitularDiferente,
+      }),
+    [
+      cliente.distribuidora,
+      leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+      leasingContrato.ucGeradoraTitularDiferente,
+    ],
+  )
+  const procuracaoUf = useMemo(() => {
+    if (isTitularDiferente) {
+      return (
+        leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
+        leasingContrato.ucGeradoraTitular?.endereco.uf ??
+        ''
+      )
+    }
+    return cliente.uf ?? ''
+  }, [
+    cliente.uf,
+    isTitularDiferente,
+    leasingContrato.ucGeradoraTitularDraft?.endereco.uf,
+    leasingContrato.ucGeradoraTitular?.endereco.uf,
+  ])
+  const ucGeradoraTitularUf = (
+    leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
+    leasingContrato.ucGeradoraTitular?.endereco.uf ??
+    ''
+  )
+    .trim()
+    .toUpperCase()
+  const ucGeradoraTitularDistribuidorasDisponiveis = useMemo(() => {
+    if (!ucGeradoraTitularUf) return [] as string[]
+    return distribuidorasPorUf[ucGeradoraTitularUf] ?? []
+  }, [distribuidorasPorUf, ucGeradoraTitularUf])
+  const disableClienteDistribuidora = isTitularDiferente
+  const disableTitularDistribuidora = !isTitularDiferente
+  const clienteDistribuidoraDisabled =
+    disableClienteDistribuidora ||
+    !cliente.uf ||
+    clienteDistribuidorasDisponiveis.length === 0
+  const titularDistribuidoraDisabled =
+    disableTitularDistribuidora ||
+    !ucGeradoraTitularUf ||
+    ucGeradoraTitularDistribuidorasDisponiveis.length === 0
+
   const applyTarifasAutomaticas = useCallback(
     (row: MultiUcRowState, classe?: MultiUcClasse, force = false): MultiUcRowState => {
       const classeFinal = classe ?? row.classe
       const distribuidoraReferencia =
-        distribuidoraTarifa && distribuidoraTarifa.trim() ? distribuidoraTarifa : 'DEFAULT'
+        distribuidoraAneelEfetiva && distribuidoraAneelEfetiva.trim()
+          ? distribuidoraAneelEfetiva
+          : 'DEFAULT'
       const sugestao = buscarTarifaPorClasse(distribuidoraReferencia, classeFinal, multiUcReferenciaData)
 
       let next = row
@@ -4331,7 +4525,7 @@ export default function App() {
 
       return next
     },
-    [distribuidoraTarifa, multiUcReferenciaData],
+    [distribuidoraAneelEfetiva, multiUcReferenciaData],
   )
 
   const updateMultiUcRow = useCallback(
@@ -4652,50 +4846,6 @@ export default function App() {
     )
   }, [activeTab, pageSharedState])
 
-  const [cliente, setCliente] = useState<ClienteDados>(() => cloneClienteDados(CLIENTE_INICIAL))
-  const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
-  const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
-  const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
-  const lastSavedClienteRef = useRef<ClienteDados | null>(null)
-  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isHydratingRef = useRef(false)
-  const [isHydrating, setIsHydrating] = useState(false)
-  const isApplyingCepRef = useRef(false)
-  const isEditingEnderecoRef = useRef(false)
-  const lastCepAppliedRef = useRef<string>('')
-  const isApplyingUcGeradoraCepRef = useRef(false)
-  const lastUcGeradoraCepAppliedRef = useRef<string>('')
-  const budgetIdMismatchLoggedRef = useRef(false)
-  const novaPropostaEmAndamentoRef = useRef(false)
-  
-  // Refs to prevent stale closures in getCurrentSnapshot
-  const clienteRef = useRef(cliente)
-  const kcKwhMesRef = useRef(kcKwhMes)
-  const pageSharedStateRef = useRef(pageSharedState)
-  
-  const setClienteSync = useCallback(
-    (next: ClienteDados) => {
-      clienteRef.current = next
-      setCliente(next)
-    },
-    [setCliente],
-  )
-
-  const updateClienteSync = useCallback(
-    (patch: Partial<ClienteDados>) => {
-      const base = clienteRef.current ?? cliente
-      const merged = { ...base, ...patch }
-      clienteRef.current = merged
-      setCliente(merged)
-    },
-    [cliente, setCliente],
-  )
-
-  const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
-  const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
-  const leasingContrato = useLeasingStore((state) => state.contrato)
-  const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
-
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
   }, [clienteEmEdicaoId])
@@ -4716,6 +4866,20 @@ export default function App() {
   useEffect(() => {
     pageSharedStateRef.current = pageSharedState
   }, [pageSharedState])
+
+  useEffect(() => {
+    if (isTitularDiferente) {
+      return
+    }
+    const defaultDistribuidora = getDistribuidoraDefaultForUf(cliente.uf)
+    if (!defaultDistribuidora) {
+      return
+    }
+    if ((cliente.distribuidora ?? '').trim()) {
+      return
+    }
+    updateClienteSync({ distribuidora: defaultDistribuidora })
+  }, [cliente.distribuidora, cliente.uf, isTitularDiferente, updateClienteSync])
 
   useEffect(() => {
     budgetIdRef.current = currentBudgetId
@@ -5256,18 +5420,6 @@ export default function App() {
 
     return errors
   }, [])
-
-  const distribuidorasDisponiveis = useMemo(() => {
-    if (!ufTarifa) return [] as string[]
-    return distribuidorasPorUf[ufTarifa] ?? []
-  }, [distribuidorasPorUf, ufTarifa])
-
-  const clienteUf = cliente.uf
-  const clienteDistribuidora = cliente.distribuidora
-  const clienteDistribuidorasDisponiveis = useMemo(() => {
-    if (!clienteUf) return [] as string[]
-    return distribuidorasPorUf[clienteUf] ?? []
-  }, [clienteUf, distribuidorasPorUf])
 
   const [precoPorKwp, setPrecoPorKwp] = useState(INITIAL_VALUES.precoPorKwp)
   const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
@@ -6423,9 +6575,16 @@ export default function App() {
   }, [multiUcAtivo, setKcKwhMes])
 
   useEffect(() => {
+    if (distribuidoraTarifa === distribuidoraAneelEfetiva) {
+      return
+    }
+    setDistribuidoraTarifa(distribuidoraAneelEfetiva)
+  }, [distribuidoraAneelEfetiva, distribuidoraTarifa, setDistribuidoraTarifa])
+
+  useEffect(() => {
     let cancelado = false
     const uf = ufTarifa.trim()
-    const dist = distribuidoraTarifa.trim()
+    const dist = distribuidoraAneelEfetiva.trim()
 
     if (!uf || !dist) {
       setMesReajuste(6)
@@ -6449,7 +6608,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [distribuidoraTarifa, ufTarifa])
+  }, [distribuidoraAneelEfetiva, ufTarifa])
 
   useEffect(() => {
     const ufAtual = (ufTarifa || clienteUf || '').trim()
@@ -6457,7 +6616,7 @@ export default function App() {
       return undefined
     }
 
-    const distribuidoraAtual = (distribuidoraTarifa || clienteDistribuidora || '').trim()
+    const distribuidoraAtual = distribuidoraAneelEfetiva.trim()
     let cancelado = false
 
     void getTarifaCheia({ uf: ufAtual, distribuidora: distribuidoraAtual || undefined })
@@ -6480,7 +6639,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [clienteDistribuidora, clienteUf, distribuidoraTarifa, ufTarifa])
+  }, [clienteUf, distribuidoraAneelEfetiva, ufTarifa])
 
   useEffect(() => {
     let cancelado = false
@@ -7117,15 +7276,14 @@ export default function App() {
       taxa_desconto_aa: taxaDesconto > 0 ? taxaDesconto : 0,
       horizonte_meses: 360,
       uf: cliente.uf ?? '',
-      distribuidora: distribuidoraTarifa || cliente.distribuidora || '',
+      distribuidora: distribuidoraAneelEfetiva,
       irradiacao_kwhm2_dia: baseIrradiacao > 0 ? baseIrradiacao : 0,
       aplica_taxa_minima: aplicaTaxaMinima,
     })
   }, [
     baseIrradiacao,
-    cliente.distribuidora,
     cliente.uf,
-    distribuidoraTarifa,
+    distribuidoraAneelEfetiva,
     inflacaoAa,
     kcKwhMes,
     tarifaCheia,
@@ -8586,7 +8744,7 @@ export default function App() {
         vendaSnapshot.parametros.consumo_kwh_mes,
       )
 
-      const distribuidoraAtual = sanitizeText(distribuidoraTarifa)
+      const distribuidoraAtual = sanitizeText(distribuidoraAneelEfetiva)
       const clienteDistribuidoraAtual = sanitizeText(cliente.distribuidora)
       const distribuidoraSnapshot = sanitizeText(vendaSnapshot.parametros.distribuidora)
 
@@ -8867,7 +9025,7 @@ export default function App() {
       numeroModulosEstimado,
       parcelasSolarInvest,
       duracaoMeses,
-      distribuidoraTarifa,
+      distribuidoraAneelEfetiva,
       tipoInstalacao,
       tipoInstalacaoOutro,
       tipoSistema,
@@ -11960,7 +12118,7 @@ export default function App() {
       },
       propostaImagens: propostaImagens.map((imagem) => ({ ...imagem })),
       ufTarifa,
-      distribuidoraTarifa,
+      distribuidoraTarifa: distribuidoraAneelEfetiva,
       ufsDisponiveis: [...ufsDisponiveis],
       distribuidorasPorUf: cloneDistribuidorasMapa(distribuidorasPorUf),
       mesReajuste,
@@ -12145,6 +12303,15 @@ export default function App() {
 
     const mode = isVendaDiretaTab ? 'venda' : 'leasing'
     if (!options?.skipGuard && !guardClientFieldsOrReturn(mode)) {
+      return false
+    }
+
+    const distribuidoraValidation = getDistribuidoraValidationMessage(
+      procuracaoUf || cliente.uf,
+      distribuidoraAneelEfetiva,
+    )
+    if (distribuidoraValidation) {
+      adicionarNotificacao(distribuidoraValidation, 'error')
       return false
     }
 
@@ -12413,6 +12580,8 @@ export default function App() {
         ucGeradoraTitularDiferente,
         ucGeradoraTitular,
         ucGeradoraTitularDraft: null,
+        ucGeradoraTitularDistribuidoraAneel:
+          snapshot.leasingSnapshot?.contrato?.ucGeradoraTitularDistribuidoraAneel ?? '',
       })
       setUcGeradoraTitularPanelOpen(false)
       setUcGeradoraTitularErrors({})
@@ -13257,6 +13426,15 @@ export default function App() {
         return null
       }
 
+      const distribuidoraValidation = getDistribuidoraValidationMessage(
+        procuracaoUf || cliente.uf,
+        distribuidoraAneelEfetiva,
+      )
+      if (distribuidoraValidation) {
+        adicionarNotificacao(distribuidoraValidation, 'error')
+        return null
+      }
+
       try {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
@@ -13869,8 +14047,8 @@ export default function App() {
     const cep = cliente.cep?.trim() ?? ''
     const enderecoPrincipal = cliente.endereco?.trim() ?? ''
     const cidade = cliente.cidade?.trim() ?? ''
-    const uf = cliente.uf?.trim().toUpperCase() ?? ''
-    const distribuidora = cliente.distribuidora?.trim() ?? ''
+    const uf = (procuracaoUf || cliente.uf)?.trim().toUpperCase() ?? ''
+    const distribuidora = distribuidoraAneelEfetiva
     const temIndicacao = Boolean(cliente.temIndicacao)
     const indicacaoNome = cliente.indicacaoNome?.trim() ?? ''
     const telefone = cliente.telefone?.trim() ?? ''
@@ -13944,7 +14122,6 @@ export default function App() {
     adicionarNotificacao,
     cliente.cidade,
     cliente.cep,
-    cliente.distribuidora,
     cliente.documento,
     cliente.email,
     cliente.endereco,
@@ -13954,6 +14131,8 @@ export default function App() {
     cliente.temIndicacao,
     cliente.uc,
     cliente.uf,
+    procuracaoUf,
+    distribuidoraAneelEfetiva,
     kcKwhMes,
   ])
 
@@ -13991,9 +14170,18 @@ export default function App() {
       return null
     }
 
-    if (!isProcuracaoUfSupported(cliente.uf)) {
+    const distribuidoraValidation = getDistribuidoraValidationMessage(
+      procuracaoUf || cliente.uf,
+      distribuidoraAneelEfetiva,
+    )
+    if (distribuidoraValidation) {
+      adicionarNotificacao(distribuidoraValidation, 'error')
+      return null
+    }
+
+    if (!isProcuracaoUfSupported(procuracaoUf)) {
       adicionarNotificacao(
-        'UF não suportada para procuração automática. Atualize o cadastro do contratante.',
+        'UF não suportada para procuração automática. Atualize a UF selecionada.',
         'error',
       )
       return null
@@ -14156,6 +14344,7 @@ export default function App() {
     prepararDadosContratoCliente,
     tarifaCheia,
     ucsBeneficiarias,
+    procuracaoUf,
   ])
 
   const carregarTemplatesContrato = useCallback(
@@ -15299,6 +15488,7 @@ export default function App() {
         ucGeradoraTitularDiferente: false,
         ucGeradoraTitular: null,
         ucGeradoraTitularDraft: null,
+        ucGeradoraTitularDistribuidoraAneel: '',
       })
       setUcGeradoraTitularPanelOpen(false)
       setUcGeradoraTitularErrors({})
@@ -15628,6 +15818,12 @@ export default function App() {
       } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
         proximaDistribuidora = ''
       }
+      if (!proximaDistribuidora) {
+        const defaultDistribuidora = getDistribuidoraDefaultForUf(ufNormalizada)
+        if (defaultDistribuidora) {
+          proximaDistribuidora = defaultDistribuidora
+        }
+      }
 
       if (base.uf !== ufNormalizada || base.distribuidora !== proximaDistribuidora) {
         ufAlterada = base.uf !== ufNormalizada
@@ -15713,6 +15909,99 @@ export default function App() {
     },
     [leasingContrato.ucGeradoraTitularDraft],
   )
+
+  const handleUcGeradoraTitularUfChange = useCallback(
+    (value: string) => {
+      const ufNormalizada = value.toUpperCase()
+      updateUcGeradoraTitularDraft({ endereco: { uf: ufNormalizada } })
+      const listaDistribuidoras = distribuidorasPorUf[ufNormalizada] ?? []
+      const atual = leasingContrato.ucGeradoraTitularDistribuidoraAneel
+      let proximaDistribuidora = atual
+      if (listaDistribuidoras.length === 1) {
+        proximaDistribuidora = listaDistribuidoras[0]
+      } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
+        proximaDistribuidora = ''
+      }
+      if (!proximaDistribuidora) {
+        const defaultDistribuidora = getDistribuidoraDefaultForUf(ufNormalizada)
+        if (defaultDistribuidora) {
+          proximaDistribuidora = defaultDistribuidora
+        }
+      }
+      if (proximaDistribuidora !== atual) {
+        leasingActions.updateContrato({
+          ucGeradoraTitularDistribuidoraAneel: proximaDistribuidora ?? '',
+        })
+      }
+    },
+    [
+      distribuidorasPorUf,
+      leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+      updateUcGeradoraTitularDraft,
+    ],
+  )
+
+  const handleUcGeradoraTitularDistribuidoraChange = useCallback(
+    (value: string) => {
+      leasingActions.updateContrato({
+        ucGeradoraTitularDistribuidoraAneel: value,
+      })
+      const ufAssociada = resolveUfForDistribuidora(distribuidorasPorUf, value)
+      if (!ufAssociada) {
+        return
+      }
+      const ufAtual = (
+        leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
+        leasingContrato.ucGeradoraTitular?.endereco.uf ??
+        ''
+      )
+        .trim()
+        .toUpperCase()
+      if (ufAtual !== ufAssociada) {
+        updateUcGeradoraTitularDraft({ endereco: { uf: ufAssociada } })
+      }
+    },
+    [
+      distribuidorasPorUf,
+      leasingContrato.ucGeradoraTitular?.endereco.uf,
+      leasingContrato.ucGeradoraTitularDraft?.endereco.uf,
+      updateUcGeradoraTitularDraft,
+    ],
+  )
+
+  useEffect(() => {
+    if (!leasingContrato.ucGeradoraTitularDiferente) {
+      return
+    }
+    const distribuidoraAtual = leasingContrato.ucGeradoraTitularDistribuidoraAneel
+    if (!distribuidoraAtual) {
+      return
+    }
+    const ufAssociada = resolveUfForDistribuidora(
+      distribuidorasPorUf,
+      distribuidoraAtual,
+    )
+    if (!ufAssociada) {
+      return
+    }
+    const ufAtual = (
+      leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
+      leasingContrato.ucGeradoraTitular?.endereco.uf ??
+      ''
+    )
+      .trim()
+      .toUpperCase()
+    if (ufAtual && ufAtual !== ufAssociada) {
+      updateUcGeradoraTitularDraft({ endereco: { uf: ufAssociada } })
+    }
+  }, [
+    distribuidorasPorUf,
+    leasingContrato.ucGeradoraTitularDiferente,
+    leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+    leasingContrato.ucGeradoraTitularDraft?.endereco.uf,
+    leasingContrato.ucGeradoraTitular?.endereco.uf,
+    updateUcGeradoraTitularDraft,
+  ])
 
   const buildUcGeradoraTitularErrors = useCallback((draft: LeasingUcGeradoraTitular) => {
     const errors: UcGeradoraTitularErrors = {}
@@ -15998,6 +16287,27 @@ export default function App() {
         if (uf && uf !== base.uf) {
           patch.uf = uf
         }
+        if (uf && uf !== base.uf) {
+          const listaDistribuidoras = distribuidorasPorUf[uf] ?? []
+          let proximaDistribuidora = base.distribuidora
+          if (listaDistribuidoras.length === 1) {
+            proximaDistribuidora = listaDistribuidoras[0]
+          } else if (
+            proximaDistribuidora &&
+            !listaDistribuidoras.includes(proximaDistribuidora)
+          ) {
+            proximaDistribuidora = ''
+          }
+          if (!proximaDistribuidora) {
+            const defaultDistribuidora = getDistribuidoraDefaultForUf(uf)
+            if (defaultDistribuidora) {
+              proximaDistribuidora = defaultDistribuidora
+            }
+          }
+          if (proximaDistribuidora !== base.distribuidora) {
+            patch.distribuidora = proximaDistribuidora
+          }
+        }
         if (!enderecoAtual && logradouro) {
           patch.endereco = logradouro
         }
@@ -16034,7 +16344,7 @@ export default function App() {
       ativo = false
       controller.abort()
     }
-  }, [cliente.cep])
+  }, [cliente.cep, distribuidorasPorUf])
 
   useEffect(() => {
     const draft = leasingContrato.ucGeradoraTitularDraft
@@ -16732,7 +17042,13 @@ export default function App() {
               handleClienteChange('distribuidora', e.target.value)
               clearFieldHighlight(e.currentTarget)
             }}
-            disabled={!cliente.uf || clienteDistribuidorasDisponiveis.length === 0}
+            disabled={clienteDistribuidoraDisabled}
+            aria-disabled={clienteDistribuidoraDisabled}
+            style={
+              clienteDistribuidoraDisabled
+                ? { opacity: 0.6, cursor: 'not-allowed' }
+                : undefined
+            }
           >
             <option value="">
               {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
@@ -16959,18 +17275,61 @@ export default function App() {
                       label="UF"
                       hint={<FieldError message={ucGeradoraTitularErrors.uf} />}
                     >
-                      <input
+                      <select
                         data-field="ucGeradoraTitular-uf"
                         value={leasingContrato.ucGeradoraTitularDraft?.endereco.uf ?? ''}
                         onChange={(event) => {
-                          updateUcGeradoraTitularDraft({
-                            endereco: { uf: event.target.value.toUpperCase() },
-                          })
+                          handleUcGeradoraTitularUfChange(event.target.value)
                           clearUcGeradoraTitularError('uf')
                         }}
-                        placeholder="UF"
-                        maxLength={2}
-                      />
+                      >
+                        <option value="">UF</option>
+                        {ufsDisponiveis.map((uf) => (
+                          <option key={uf} value={uf}>
+                            {uf}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <Field
+                      label={labelWithTooltip(
+                        'Distribuidora (ANEEL)',
+                        'Concessionária responsável pela UC geradora; define tarifas homologadas e regras de compensação.',
+                      )}
+                    >
+                      <select
+                        data-field="ucGeradoraTitular-distribuidoraAneel"
+                        value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+                        onChange={(event) =>
+                          handleUcGeradoraTitularDistribuidoraChange(event.target.value)
+                        }
+                        disabled={titularDistribuidoraDisabled}
+                        aria-disabled={titularDistribuidoraDisabled}
+                        style={
+                          titularDistribuidoraDisabled
+                            ? { opacity: 0.6, cursor: 'not-allowed' }
+                            : undefined
+                        }
+                      >
+                        <option value="">
+                          {ucGeradoraTitularUf ? 'Selecione a distribuidora' : 'Selecione a UF'}
+                        </option>
+                        {ucGeradoraTitularDistribuidorasDisponiveis.map((nome) => (
+                          <option key={nome} value={nome}>
+                            {nome}
+                          </option>
+                        ))}
+                        {leasingContrato.ucGeradoraTitularDistribuidoraAneel &&
+                        !ucGeradoraTitularDistribuidorasDisponiveis.includes(
+                          leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+                        ) ? (
+                          <option value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}>
+                            {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+                          </option>
+                        ) : null}
+                      </select>
                     </Field>
                   </div>
                 </div>
@@ -17002,6 +17361,11 @@ export default function App() {
                         leasingContrato.ucGeradoraTitular.endereco,
                       )}
                     </span>
+                    {leasingContrato.ucGeradoraTitularDistribuidoraAneel ? (
+                      <span>
+                        Distribuidora (ANEEL): {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="uc-geradora-titular-summary-actions">
                     <button
@@ -17876,45 +18240,6 @@ export default function App() {
             />
           </Field>
           <Field
-            label={labelWithTooltip(
-              'UF (ANEEL)',
-              'Estado utilizado para buscar tarifas homologadas pela ANEEL e sugerir parâmetros regionais.',
-            )}
-          >
-            <select
-              value={ufTarifa}
-              onChange={(e) => handleParametrosUfChange(e.target.value)}
-            >
-              <option value="">Selecione a UF</option>
-              {ufsDisponiveis.map((uf) => (
-                <option key={uf} value={uf}>
-                  {uf} — {UF_LABELS[uf] ?? uf}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              'Distribuidora (ANEEL)',
-              'Concessionária selecionada para carregar automaticamente tarifas de TE e TUSD.',
-            )}
-          >
-            <select
-              value={distribuidoraTarifa}
-              onChange={(e) => handleParametrosDistribuidoraChange(e.target.value)}
-              disabled={!ufTarifa || distribuidorasDisponiveis.length === 0}
-            >
-              <option value="">
-                {ufTarifa ? 'Selecione a distribuidora' : 'Selecione a UF'}
-              </option>
-              {distribuidorasDisponiveis.map((nome) => (
-                <option key={nome} value={nome}>
-                  {nome}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field
             label={
               <>
                 Irradiação média (kWh/m²/dia)
@@ -18192,7 +18517,7 @@ export default function App() {
                   </button>
                 </div>
                 <span className="muted">
-                  Distribuidora de referência: {distribuidoraTarifa ?? ''}
+                  Distribuidora de referência: {distribuidoraAneelEfetiva ?? ''}
                 </span>
               </div>
               <div className="table-wrapper multi-uc-table">

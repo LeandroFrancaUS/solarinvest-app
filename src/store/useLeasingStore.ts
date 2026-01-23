@@ -60,6 +60,7 @@ export type LeasingContratoDados = {
   ucGeradoraTitularDiferente: boolean
   ucGeradoraTitular: LeasingUcGeradoraTitular | null
   ucGeradoraTitularDraft: LeasingUcGeradoraTitular | null
+  ucGeradoraTitularDistribuidoraAneel: string
   modulosFV: string
   inversoresFV: string
   nomeCondominio: string
@@ -125,6 +126,7 @@ const createInitialState = (): LeasingState => ({
     ucGeradoraTitularDiferente: false,
     ucGeradoraTitular: null,
     ucGeradoraTitularDraft: null,
+    ucGeradoraTitularDistribuidoraAneel: '',
     modulosFV: '',
     inversoresFV: '',
     nomeCondominio: '',
