@@ -137,6 +137,7 @@ import {
 import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta'
 import {
   getLeasingSnapshot,
+  getInitialLeasingSnapshot,
   hasLeasingStateChanges,
   leasingActions,
   useLeasingStore,
@@ -12412,7 +12413,7 @@ export default function App() {
     tipoRedeControle: 'auto',
     leasingAnexosSelecionados: [],
     vendaSnapshot: getVendaSnapshot(),
-    leasingSnapshot: getLeasingSnapshot(),
+    leasingSnapshot: getInitialLeasingSnapshot(),
   })
 
   const mergeSnapshotWithDefaults = (
@@ -13051,7 +13052,15 @@ export default function App() {
       lastSavedClienteRef.current = dadosClonados
       console.log('[handleEditarCliente] lastSavedClienteRef set with endereco:', lastSavedClienteRef.current?.endereco)
       if (registroHidratado.propostaSnapshot) {
-        applyClienteSnapshot(registroHidratado.propostaSnapshot)
+        const snapshotComDefaults = mergeSnapshotWithDefaults(
+          registroHidratado.propostaSnapshot,
+          registroHidratado.propostaSnapshot.currentBudgetId ?? getActiveBudgetId(),
+        )
+        applyClienteSnapshot(snapshotComDefaults)
+      } else {
+        applyClienteSnapshot(
+          createEmptySnapshot(getActiveBudgetId(), activeTabRef.current ?? activeTab),
+        )
       }
       fecharClientesPainel()
     },

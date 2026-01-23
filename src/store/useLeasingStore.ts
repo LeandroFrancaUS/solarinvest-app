@@ -302,6 +302,8 @@ export const getLeasingSnapshot = (): LeasingState => {
   return snapshot
 }
 
+export const getInitialLeasingSnapshot = (): LeasingState => createInitialState()
+
 export const selectLeasingValorDeMercadoEstimado = (state: LeasingState): number =>
   state.valorDeMercadoEstimado
 
