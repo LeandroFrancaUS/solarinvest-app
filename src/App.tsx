@@ -1974,6 +1974,7 @@ const CLIENTES_CSV_HEADERS: { key: string; label: string }[] = [
   { key: 'contatoSindico', label: 'contato_sindico' },
   { key: 'diaVencimento', label: 'dia_vencimento' },
   { key: 'herdeiros', label: 'herdeiros' },
+  { key: 'propostaSnapshot', label: 'proposta_snapshot' },
 ]
 
 const CSV_HEADER_KEY_MAP: Record<string, string> = {
@@ -2015,6 +2016,9 @@ const CSV_HEADER_KEY_MAP: Record<string, string> = {
   contatosindico: 'contatoSindico',
   diavencimento: 'diaVencimento',
   herdeiros: 'herdeiros',
+  propostasnapshot: 'propostaSnapshot',
+  proposta: 'propostaSnapshot',
+  snapshot: 'propostaSnapshot',
 }
 
 const normalizeCsvHeader = (value: string) =>
@@ -2166,12 +2170,23 @@ const parseClientesCsv = (content: string): unknown[] => {
           case 'diaVencimento':
             registro.dados!.diaVencimento = value
             break
-          case 'herdeiros':
-            registro.dados!.herdeiros = parseHerdeirosCsvValue(value)
-            break
-          default:
-            registro.dados![key as keyof ClienteDados] = value
+        case 'herdeiros':
+          registro.dados!.herdeiros = parseHerdeirosCsvValue(value)
+          break
+        case 'propostaSnapshot': {
+          try {
+            const parsedSnapshot = JSON.parse(value)
+            if (parsedSnapshot && typeof parsedSnapshot === 'object') {
+              registro.propostaSnapshot = parsedSnapshot as OrcamentoSnapshotData
+            }
+          } catch (error) {
+            console.warn('Não foi possível interpretar proposta_snapshot do CSV.', error)
+          }
+          break
         }
+        default:
+          registro.dados![key as keyof ClienteDados] = value
+      }
       })
 
       return registro
@@ -2227,6 +2242,9 @@ const buildClientesCsv = (registros: ClienteRegistro[]): string => {
       contatoSindico: dados.contatoSindico ?? '',
       diaVencimento: dados.diaVencimento ?? '',
       herdeiros,
+      propostaSnapshot: registro.propostaSnapshot
+        ? JSON.stringify(registro.propostaSnapshot)
+        : '',
     }
 
     return CLIENTES_CSV_HEADERS.map((item) => escapeCsvValue(values[item.key] ?? '', CLIENTES_CSV_DELIMITER)).join(
