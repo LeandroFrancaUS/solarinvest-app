@@ -4319,6 +4319,52 @@ export default function App() {
     [distribuidoraTarifa, updatePageSharedState],
   )
 
+  const [cliente, setCliente] = useState<ClienteDados>(() =>
+    cloneClienteDados(CLIENTE_INICIAL),
+  )
+  const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
+  const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
+  const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
+  const lastSavedClienteRef = useRef<ClienteDados | null>(null)
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isHydratingRef = useRef(false)
+  const [isHydrating, setIsHydrating] = useState(false)
+  const isApplyingCepRef = useRef(false)
+  const isEditingEnderecoRef = useRef(false)
+  const lastCepAppliedRef = useRef<string>('')
+  const isApplyingUcGeradoraCepRef = useRef(false)
+  const lastUcGeradoraCepAppliedRef = useRef<string>('')
+  const budgetIdMismatchLoggedRef = useRef(false)
+  const novaPropostaEmAndamentoRef = useRef(false)
+
+  // Refs to prevent stale closures in getCurrentSnapshot
+  const clienteRef = useRef(cliente)
+  const kcKwhMesRef = useRef(kcKwhMes)
+  const pageSharedStateRef = useRef(pageSharedState)
+
+  const setClienteSync = useCallback(
+    (next: ClienteDados) => {
+      clienteRef.current = next
+      setCliente(next)
+    },
+    [setCliente],
+  )
+
+  const updateClienteSync = useCallback(
+    (patch: Partial<ClienteDados>) => {
+      const base = clienteRef.current ?? cliente
+      const merged = { ...base, ...patch }
+      clienteRef.current = merged
+      setCliente(merged)
+    },
+    [cliente, setCliente],
+  )
+
+  const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+  const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
+  const leasingContrato = useLeasingStore((state) => state.contrato)
+  const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
+
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
     return distribuidorasPorUf[ufTarifa] ?? []
@@ -4714,50 +4760,6 @@ export default function App() {
       prev === snapshot.tipoInstalacaoDirty ? prev : snapshot.tipoInstalacaoDirty,
     )
   }, [activeTab, pageSharedState])
-
-  const [cliente, setCliente] = useState<ClienteDados>(() => cloneClienteDados(CLIENTE_INICIAL))
-  const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
-  const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
-  const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
-  const lastSavedClienteRef = useRef<ClienteDados | null>(null)
-  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isHydratingRef = useRef(false)
-  const [isHydrating, setIsHydrating] = useState(false)
-  const isApplyingCepRef = useRef(false)
-  const isEditingEnderecoRef = useRef(false)
-  const lastCepAppliedRef = useRef<string>('')
-  const isApplyingUcGeradoraCepRef = useRef(false)
-  const lastUcGeradoraCepAppliedRef = useRef<string>('')
-  const budgetIdMismatchLoggedRef = useRef(false)
-  const novaPropostaEmAndamentoRef = useRef(false)
-  
-  // Refs to prevent stale closures in getCurrentSnapshot
-  const clienteRef = useRef(cliente)
-  const kcKwhMesRef = useRef(kcKwhMes)
-  const pageSharedStateRef = useRef(pageSharedState)
-  
-  const setClienteSync = useCallback(
-    (next: ClienteDados) => {
-      clienteRef.current = next
-      setCliente(next)
-    },
-    [setCliente],
-  )
-
-  const updateClienteSync = useCallback(
-    (patch: Partial<ClienteDados>) => {
-      const base = clienteRef.current ?? cliente
-      const merged = { ...base, ...patch }
-      clienteRef.current = merged
-      setCliente(merged)
-    },
-    [cliente, setCliente],
-  )
-
-  const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
-  const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
-  const leasingContrato = useLeasingStore((state) => state.contrato)
-  const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
 
   useEffect(() => {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
