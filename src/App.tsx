@@ -16151,6 +16151,27 @@ export default function App() {
         if (uf && uf !== base.uf) {
           patch.uf = uf
         }
+        if (uf && uf !== base.uf) {
+          const listaDistribuidoras = distribuidorasPorUf[uf] ?? []
+          let proximaDistribuidora = base.distribuidora
+          if (listaDistribuidoras.length === 1) {
+            proximaDistribuidora = listaDistribuidoras[0]
+          } else if (
+            proximaDistribuidora &&
+            !listaDistribuidoras.includes(proximaDistribuidora)
+          ) {
+            proximaDistribuidora = ''
+          }
+          if (!proximaDistribuidora) {
+            const defaultDistribuidora = getDistribuidoraDefaultForUf(uf)
+            if (defaultDistribuidora) {
+              proximaDistribuidora = defaultDistribuidora
+            }
+          }
+          if (proximaDistribuidora !== base.distribuidora) {
+            patch.distribuidora = proximaDistribuidora
+          }
+        }
         if (!enderecoAtual && logradouro) {
           patch.endereco = logradouro
         }
@@ -16187,7 +16208,7 @@ export default function App() {
       ativo = false
       controller.abort()
     }
-  }, [cliente.cep])
+  }, [cliente.cep, distribuidorasPorUf])
 
   useEffect(() => {
     const draft = leasingContrato.ucGeradoraTitularDraft
