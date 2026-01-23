@@ -17129,7 +17129,7 @@ export default function App() {
                         <option value="">Selecione a UF</option>
                         {ufsDisponiveis.map((uf) => (
                           <option key={uf} value={uf}>
-                            {uf} — {UF_LABELS[uf] ?? uf}
+                            {uf}
                           </option>
                         ))}
                       </select>
