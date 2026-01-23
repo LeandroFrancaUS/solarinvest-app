@@ -14000,7 +14000,7 @@ export default function App() {
     const cep = cliente.cep?.trim() ?? ''
     const enderecoPrincipal = cliente.endereco?.trim() ?? ''
     const cidade = cliente.cidade?.trim() ?? ''
-    const uf = cliente.uf?.trim().toUpperCase() ?? ''
+    const uf = (procuracaoUf || cliente.uf)?.trim().toUpperCase() ?? ''
     const distribuidora = distribuidoraAneelEfetiva
     const temIndicacao = Boolean(cliente.temIndicacao)
     const indicacaoNome = cliente.indicacaoNome?.trim() ?? ''
@@ -14084,6 +14084,7 @@ export default function App() {
     cliente.temIndicacao,
     cliente.uc,
     cliente.uf,
+    procuracaoUf,
     distribuidoraAneelEfetiva,
     kcKwhMes,
   ])
