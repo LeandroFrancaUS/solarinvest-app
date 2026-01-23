@@ -17075,6 +17075,61 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
+            'Cidade',
+            'Município da instalação utilizado em relatórios, cálculo de impostos locais e validação de CEP.',
+          )}
+          hint={verificandoCidade ? 'Verificando cidade...' : clienteMensagens.cidade}
+        >
+          <input
+            data-field="cliente-cidade"
+            value={cliente.cidade}
+            onChange={(e) => {
+              const nextCidade = e.target.value
+              handleClienteChange('cidade', nextCidade)
+              clearFieldHighlight(e.currentTarget)
+              if (nextCidade.trim() && cliente.uf.trim()) {
+                clearFieldHighlight(
+                  document.querySelector('[data-field="cliente-uf"]') as HTMLElement | null,
+                )
+              }
+            }}
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'UF ou Estado',
+            'Estado da instalação; utilizado para listar distribuidoras disponíveis, definir tarifas e parâmetros regionais.',
+          )}
+        >
+          <select
+            data-field="cliente-uf"
+            value={cliente.uf}
+            onChange={(e) => {
+              const nextUf = e.target.value
+              handleClienteChange('uf', nextUf)
+              clearFieldHighlight(e.currentTarget)
+              if (cliente.cidade.trim() && nextUf.trim()) {
+                clearFieldHighlight(
+                  document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
+                )
+              }
+            }}
+          >
+            <option value="">Selecione um estado</option>
+            {ufsDisponiveis.map((uf) => (
+              <option key={uf} value={uf}>
+                {uf} — {UF_LABELS[uf] ?? uf}
+              </option>
+            ))}
+            {cliente.uf && !ufsDisponiveis.includes(cliente.uf) ? (
+              <option value={cliente.uf}>
+                {cliente.uf} — {UF_LABELS[cliente.uf] ?? cliente.uf}
+              </option>
+            ) : null}
+          </select>
+        </Field>
+        <Field
+          label={labelWithTooltip(
             'Distribuidora (ANEEL)',
             'Concessionária responsável pela unidade consumidora; define tarifas homologadas e regras de compensação.',
           )}
@@ -17205,100 +17260,99 @@ export default function App() {
               {ucGeradoraTitularPanelOpen ? (
                 <>
                   <div className="uc-geradora-titular-grid">
-                  <Field
-                    label="Nome completo"
-                    hint={<FieldError message={ucGeradoraTitularErrors.nomeCompleto} />}
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-nomeCompleto"
-                      value={leasingContrato.ucGeradoraTitularDraft?.nomeCompleto ?? ''}
-                      onChange={(event) => {
-                        updateUcGeradoraTitularDraft({ nomeCompleto: event.target.value })
-                        clearUcGeradoraTitularError('nomeCompleto')
-                      }}
-                      placeholder="Nome completo"
-                    />
-                  </Field>
-                  <Field
-                    label="CPF"
-                    hint={<FieldError message={ucGeradoraTitularErrors.cpf} />}
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-cpf"
-                      value={leasingContrato.ucGeradoraTitularDraft?.cpf ?? ''}
-                      onChange={(event) => {
-                        updateUcGeradoraTitularDraft({
-                          cpf: formatCpfCnpj(event.target.value),
-                        })
-                        clearUcGeradoraTitularError('cpf')
-                      }}
-                      placeholder="000.000.000-00"
-                      inputMode="numeric"
-                    />
-                  </Field>
-                  <Field
-                    label="RG"
-                    hint={<FieldError message={ucGeradoraTitularErrors.rg} />}
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-rg"
-                      value={leasingContrato.ucGeradoraTitularDraft?.rg ?? ''}
-                      onChange={(event) => {
-                        updateUcGeradoraTitularDraft({ rg: event.target.value })
-                        clearUcGeradoraTitularError('rg')
-                      }}
-                      placeholder="RG"
-                    />
-                  </Field>
-                  <Field
-                    label="CEP"
-                    hint={
-                      ucGeradoraTitularErrors.cep ||
-                      ucGeradoraTitularBuscandoCep ||
-                      ucGeradoraTitularCepMessage ? (
-                        <>
-                          <FieldError message={ucGeradoraTitularErrors.cep} />
-                          {ucGeradoraTitularBuscandoCep ? (
-                            <span>Buscando CEP...</span>
-                          ) : ucGeradoraTitularCepMessage ? (
-                            <span>{ucGeradoraTitularCepMessage}</span>
-                          ) : null}
-                        </>
-                      ) : undefined
-                    }
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-cep"
-                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.cep ?? ''}
-                      onChange={(event) => {
-                        setUcGeradoraTitularCepMessage(undefined)
-                        setUcGeradoraTitularBuscandoCep(false)
-                        updateUcGeradoraTitularDraft({
-                          endereco: { cep: formatCep(event.target.value) },
-                        })
-                        clearUcGeradoraTitularError('cep')
-                      }}
-                      placeholder="00000-000"
-                      inputMode="numeric"
-                    />
-                  </Field>
-                  <Field
-                    label="Logradouro"
-                    hint={<FieldError message={ucGeradoraTitularErrors.logradouro} />}
-                  >
-                    <input
-                      data-field="ucGeradoraTitular-logradouro"
-                      value={leasingContrato.ucGeradoraTitularDraft?.endereco.logradouro ?? ''}
-                      onChange={(event) => {
-                        updateUcGeradoraTitularDraft({
-                          endereco: { logradouro: event.target.value },
-                        })
-                        clearUcGeradoraTitularError('logradouro')
-                      }}
-                      placeholder="Rua, avenida, etc."
-                    />
-                  </Field>
-                  <div className="uc-geradora-titular-city-uf">
+                    <Field
+                      label="Nome completo"
+                      hint={<FieldError message={ucGeradoraTitularErrors.nomeCompleto} />}
+                    >
+                      <input
+                        data-field="ucGeradoraTitular-nomeCompleto"
+                        value={leasingContrato.ucGeradoraTitularDraft?.nomeCompleto ?? ''}
+                        onChange={(event) => {
+                          updateUcGeradoraTitularDraft({ nomeCompleto: event.target.value })
+                          clearUcGeradoraTitularError('nomeCompleto')
+                        }}
+                        placeholder="Nome completo"
+                      />
+                    </Field>
+                    <Field
+                      label="CPF"
+                      hint={<FieldError message={ucGeradoraTitularErrors.cpf} />}
+                    >
+                      <input
+                        data-field="ucGeradoraTitular-cpf"
+                        value={leasingContrato.ucGeradoraTitularDraft?.cpf ?? ''}
+                        onChange={(event) => {
+                          updateUcGeradoraTitularDraft({
+                            cpf: formatCpfCnpj(event.target.value),
+                          })
+                          clearUcGeradoraTitularError('cpf')
+                        }}
+                        placeholder="000.000.000-00"
+                        inputMode="numeric"
+                      />
+                    </Field>
+                    <Field
+                      label="RG"
+                      hint={<FieldError message={ucGeradoraTitularErrors.rg} />}
+                    >
+                      <input
+                        data-field="ucGeradoraTitular-rg"
+                        value={leasingContrato.ucGeradoraTitularDraft?.rg ?? ''}
+                        onChange={(event) => {
+                          updateUcGeradoraTitularDraft({ rg: event.target.value })
+                          clearUcGeradoraTitularError('rg')
+                        }}
+                        placeholder="RG"
+                      />
+                    </Field>
+                    <Field
+                      label="CEP"
+                      hint={
+                        ucGeradoraTitularErrors.cep ||
+                        ucGeradoraTitularBuscandoCep ||
+                        ucGeradoraTitularCepMessage ? (
+                          <>
+                            <FieldError message={ucGeradoraTitularErrors.cep} />
+                            {ucGeradoraTitularBuscandoCep ? (
+                              <span>Buscando CEP...</span>
+                            ) : ucGeradoraTitularCepMessage ? (
+                              <span>{ucGeradoraTitularCepMessage}</span>
+                            ) : null}
+                          </>
+                        ) : undefined
+                      }
+                    >
+                      <input
+                        data-field="ucGeradoraTitular-cep"
+                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.cep ?? ''}
+                        onChange={(event) => {
+                          setUcGeradoraTitularCepMessage(undefined)
+                          setUcGeradoraTitularBuscandoCep(false)
+                          updateUcGeradoraTitularDraft({
+                            endereco: { cep: formatCep(event.target.value) },
+                          })
+                          clearUcGeradoraTitularError('cep')
+                        }}
+                        placeholder="00000-000"
+                        inputMode="numeric"
+                      />
+                    </Field>
+                    <Field
+                      label="Logradouro"
+                      hint={<FieldError message={ucGeradoraTitularErrors.logradouro} />}
+                    >
+                      <input
+                        data-field="ucGeradoraTitular-logradouro"
+                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.logradouro ?? ''}
+                        onChange={(event) => {
+                          updateUcGeradoraTitularDraft({
+                            endereco: { logradouro: event.target.value },
+                          })
+                          clearUcGeradoraTitularError('logradouro')
+                        }}
+                        placeholder="Rua, avenida, etc."
+                      />
+                    </Field>
                     <Field
                       label="Cidade"
                       hint={<FieldError message={ucGeradoraTitularErrors.cidade} />}
@@ -17335,48 +17389,47 @@ export default function App() {
                         ))}
                       </select>
                     </Field>
-                  </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <Field
-                      label={labelWithTooltip(
-                        'Distribuidora (ANEEL)',
-                        'Concessionária responsável pela UC geradora; define tarifas homologadas e regras de compensação.',
-                      )}
-                    >
-                      <select
-                        data-field="ucGeradoraTitular-distribuidoraAneel"
-                        value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}
-                        onChange={(event) =>
-                          handleUcGeradoraTitularDistribuidoraChange(event.target.value)
-                        }
-                        disabled={titularDistribuidoraDisabled}
-                        aria-disabled={titularDistribuidoraDisabled}
-                        style={
-                          titularDistribuidoraDisabled
-                            ? { opacity: 0.6, cursor: 'not-allowed' }
-                            : undefined
-                        }
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <Field
+                        label={labelWithTooltip(
+                          'Distribuidora (ANEEL)',
+                          'Concessionária responsável pela UC geradora; define tarifas homologadas e regras de compensação.',
+                        )}
                       >
-                        <option value="">
-                          {ucGeradoraTitularUf ? 'Selecione a distribuidora' : 'Selecione a UF'}
-                        </option>
-                        {ucGeradoraTitularDistribuidorasDisponiveis.map((nome) => (
-                          <option key={nome} value={nome}>
-                            {nome}
+                        <select
+                          data-field="ucGeradoraTitular-distribuidoraAneel"
+                          value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+                          onChange={(event) =>
+                            handleUcGeradoraTitularDistribuidoraChange(event.target.value)
+                          }
+                          disabled={titularDistribuidoraDisabled}
+                          aria-disabled={titularDistribuidoraDisabled}
+                          style={
+                            titularDistribuidoraDisabled
+                              ? { opacity: 0.6, cursor: 'not-allowed' }
+                              : undefined
+                          }
+                        >
+                          <option value="">
+                            {ucGeradoraTitularUf ? 'Selecione a distribuidora' : 'Selecione a UF'}
                           </option>
-                        ))}
-                        {leasingContrato.ucGeradoraTitularDistribuidoraAneel &&
-                        !ucGeradoraTitularDistribuidorasDisponiveis.includes(
-                          leasingContrato.ucGeradoraTitularDistribuidoraAneel,
-                        ) ? (
-                          <option value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}>
-                            {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
-                          </option>
-                        ) : null}
-                      </select>
-                    </Field>
+                          {ucGeradoraTitularDistribuidorasDisponiveis.map((nome) => (
+                            <option key={nome} value={nome}>
+                              {nome}
+                            </option>
+                          ))}
+                          {leasingContrato.ucGeradoraTitularDistribuidoraAneel &&
+                          !ucGeradoraTitularDistribuidorasDisponiveis.includes(
+                            leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+                          ) ? (
+                            <option value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}>
+                              {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+                            </option>
+                          ) : null}
+                        </select>
+                      </Field>
+                    </div>
                   </div>
-                </div>
                   <div className="uc-geradora-titular-actions">
                     <button
                       type="button"
@@ -17549,65 +17602,6 @@ export default function App() {
             kWh/mês). Ajuste os valores para manter o rateio consistente.
           </div>
         ) : null}
-        <Field
-          label={labelWithTooltip(
-            'Cidade',
-            'Município da instalação utilizado em relatórios, cálculo de impostos locais e validação de CEP.',
-          )}
-          hint={
-            verificandoCidade
-              ? 'Verificando cidade...'
-              : clienteMensagens.cidade
-          }
-        >
-          <input
-            data-field="cliente-cidade"
-            value={cliente.cidade}
-            onChange={(e) => {
-              const nextCidade = e.target.value
-              handleClienteChange('cidade', nextCidade)
-              clearFieldHighlight(e.currentTarget)
-              if (nextCidade.trim() && cliente.uf.trim()) {
-                clearFieldHighlight(
-                  document.querySelector('[data-field="cliente-uf"]') as HTMLElement | null,
-                )
-              }
-            }}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'UF ou Estado',
-            'Estado da instalação; utilizado para listar distribuidoras disponíveis, definir tarifas e parâmetros regionais.',
-          )}
-        >
-          <select
-            data-field="cliente-uf"
-            value={cliente.uf}
-            onChange={(e) => {
-              const nextUf = e.target.value
-              handleClienteChange('uf', nextUf)
-              clearFieldHighlight(e.currentTarget)
-              if (cliente.cidade.trim() && nextUf.trim()) {
-                clearFieldHighlight(
-                  document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
-                )
-              }
-            }}
-          >
-            <option value="">Selecione um estado</option>
-            {ufsDisponiveis.map((uf) => (
-              <option key={uf} value={uf}>
-                {uf} — {UF_LABELS[uf] ?? uf}
-              </option>
-            ))}
-            {cliente.uf && !ufsDisponiveis.includes(cliente.uf) ? (
-              <option value={cliente.uf}>
-                {cliente.uf} — {UF_LABELS[cliente.uf] ?? cliente.uf}
-              </option>
-            ) : null}
-          </select>
-        </Field>
         <Field
           label={labelWithTooltip(
             'Indicação',
@@ -17791,25 +17785,17 @@ export default function App() {
                 ))}
               </select>
             </Field>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="mb-4">
-              <label
-                className="mb-1 text-sm font-medium text-gray-600"
-                htmlFor={leasingHomologacaoInputId}
-              >
-                Data da homologação (opcional)
-              </label>
+            <Field label={renderLeasingLabel('Data da homologação (opcional)')}>
               <input
                 id={leasingHomologacaoInputId}
-                className="leasing-compact-input h-[46px]"
+                className="leasing-compact-input"
                 type="date"
                 value={leasingContrato.dataHomologacao}
                 onChange={(event) =>
                   handleLeasingContratoCampoChange('dataHomologacao', event.target.value)
                 }
               />
-            </div>
+            </Field>
           </div>
           <div className="leasing-equipments-grid">
             <Field label="Módulos fotovoltaicos instalados">
@@ -18244,16 +18230,16 @@ export default function App() {
               'Valor cobrado por kWh sem descontos; multiplicado pelo consumo projetado para estimar a conta cheia.',
             )}
           >
-          <input
-            type="text"
-            inputMode="decimal"
-            value={tarifaCheiaField.value}
-            onChange={tarifaCheiaField.onChange}
-            onFocus={tarifaCheiaField.onFocus}
-            onBlur={tarifaCheiaField.onBlur}
-            onKeyDown={tarifaCheiaField.onKeyDown}
-          />
-        </Field>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={tarifaCheiaField.value}
+              onChange={tarifaCheiaField.onChange}
+              onFocus={tarifaCheiaField.onFocus}
+              onBlur={tarifaCheiaField.onBlur}
+              onKeyDown={tarifaCheiaField.onKeyDown}
+            />
+          </Field>
           <Field
             label={labelWithTooltip(
               'Custos Fixos da Conta de Energia (R$/MÊS)',
