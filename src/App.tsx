@@ -1150,6 +1150,20 @@ const formatUcGeradoraTitularEndereco = (
   return partes.join(' — ')
 }
 
+type DistribuidoraAneelState = {
+  clienteDistribuidoraAneel?: string | null
+  titularUcGeradoraDistribuidoraAneel?: string | null
+  titularUcGeradoraDiferente?: boolean
+}
+
+const getDistribuidoraAneelEfetiva = (state: DistribuidoraAneelState): string => {
+  const isTitularDiferente = Boolean(state.titularUcGeradoraDiferente)
+  if (isTitularDiferente) {
+    return state.titularUcGeradoraDistribuidoraAneel?.trim() ?? ''
+  }
+  return state.clienteDistribuidoraAneel?.trim() ?? ''
+}
+
 type ProcuracaoTags = {
   procuracaoNome: string
   procuracaoCPF: string
@@ -4309,7 +4323,9 @@ export default function App() {
     (row: MultiUcRowState, classe?: MultiUcClasse, force = false): MultiUcRowState => {
       const classeFinal = classe ?? row.classe
       const distribuidoraReferencia =
-        distribuidoraTarifa && distribuidoraTarifa.trim() ? distribuidoraTarifa : 'DEFAULT'
+        distribuidoraAneelEfetiva && distribuidoraAneelEfetiva.trim()
+          ? distribuidoraAneelEfetiva
+          : 'DEFAULT'
       const sugestao = buscarTarifaPorClasse(distribuidoraReferencia, classeFinal, multiUcReferenciaData)
 
       let next = row
@@ -4331,7 +4347,7 @@ export default function App() {
 
       return next
     },
-    [distribuidoraTarifa, multiUcReferenciaData],
+    [distribuidoraAneelEfetiva, multiUcReferenciaData],
   )
 
   const updateMultiUcRow = useCallback(
@@ -5263,11 +5279,46 @@ export default function App() {
   }, [distribuidorasPorUf, ufTarifa])
 
   const clienteUf = cliente.uf
-  const clienteDistribuidora = cliente.distribuidora
   const clienteDistribuidorasDisponiveis = useMemo(() => {
     if (!clienteUf) return [] as string[]
     return distribuidorasPorUf[clienteUf] ?? []
   }, [clienteUf, distribuidorasPorUf])
+  const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
+  const distribuidoraAneelEfetiva = useMemo(
+    () =>
+      getDistribuidoraAneelEfetiva({
+        clienteDistribuidoraAneel: cliente.distribuidora,
+        titularUcGeradoraDistribuidoraAneel:
+          leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+        titularUcGeradoraDiferente: leasingContrato.ucGeradoraTitularDiferente,
+      }),
+    [
+      cliente.distribuidora,
+      leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+      leasingContrato.ucGeradoraTitularDiferente,
+    ],
+  )
+  const ucGeradoraTitularUf = (
+    leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
+    leasingContrato.ucGeradoraTitular?.endereco.uf ??
+    ''
+  )
+    .trim()
+    .toUpperCase()
+  const ucGeradoraTitularDistribuidorasDisponiveis = useMemo(() => {
+    if (!ucGeradoraTitularUf) return [] as string[]
+    return distribuidorasPorUf[ucGeradoraTitularUf] ?? []
+  }, [distribuidorasPorUf, ucGeradoraTitularUf])
+  const disableClienteDistribuidora = isTitularDiferente
+  const disableTitularDistribuidora = !isTitularDiferente
+  const clienteDistribuidoraDisabled =
+    disableClienteDistribuidora ||
+    !cliente.uf ||
+    clienteDistribuidorasDisponiveis.length === 0
+  const titularDistribuidoraDisabled =
+    disableTitularDistribuidora ||
+    !ucGeradoraTitularUf ||
+    ucGeradoraTitularDistribuidorasDisponiveis.length === 0
 
   const [precoPorKwp, setPrecoPorKwp] = useState(INITIAL_VALUES.precoPorKwp)
   const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
@@ -6423,9 +6474,16 @@ export default function App() {
   }, [multiUcAtivo, setKcKwhMes])
 
   useEffect(() => {
+    if (distribuidoraTarifa === distribuidoraAneelEfetiva) {
+      return
+    }
+    setDistribuidoraTarifa(distribuidoraAneelEfetiva)
+  }, [distribuidoraAneelEfetiva, distribuidoraTarifa, setDistribuidoraTarifa])
+
+  useEffect(() => {
     let cancelado = false
     const uf = ufTarifa.trim()
-    const dist = distribuidoraTarifa.trim()
+    const dist = distribuidoraAneelEfetiva.trim()
 
     if (!uf || !dist) {
       setMesReajuste(6)
@@ -6449,7 +6507,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [distribuidoraTarifa, ufTarifa])
+  }, [distribuidoraAneelEfetiva, ufTarifa])
 
   useEffect(() => {
     const ufAtual = (ufTarifa || clienteUf || '').trim()
@@ -6457,7 +6515,7 @@ export default function App() {
       return undefined
     }
 
-    const distribuidoraAtual = (distribuidoraTarifa || clienteDistribuidora || '').trim()
+    const distribuidoraAtual = distribuidoraAneelEfetiva.trim()
     let cancelado = false
 
     void getTarifaCheia({ uf: ufAtual, distribuidora: distribuidoraAtual || undefined })
@@ -6480,7 +6538,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [clienteDistribuidora, clienteUf, distribuidoraTarifa, ufTarifa])
+  }, [clienteUf, distribuidoraAneelEfetiva, ufTarifa])
 
   useEffect(() => {
     let cancelado = false
@@ -7117,15 +7175,14 @@ export default function App() {
       taxa_desconto_aa: taxaDesconto > 0 ? taxaDesconto : 0,
       horizonte_meses: 360,
       uf: cliente.uf ?? '',
-      distribuidora: distribuidoraTarifa || cliente.distribuidora || '',
+      distribuidora: distribuidoraAneelEfetiva,
       irradiacao_kwhm2_dia: baseIrradiacao > 0 ? baseIrradiacao : 0,
       aplica_taxa_minima: aplicaTaxaMinima,
     })
   }, [
     baseIrradiacao,
-    cliente.distribuidora,
     cliente.uf,
-    distribuidoraTarifa,
+    distribuidoraAneelEfetiva,
     inflacaoAa,
     kcKwhMes,
     tarifaCheia,
@@ -8586,7 +8643,7 @@ export default function App() {
         vendaSnapshot.parametros.consumo_kwh_mes,
       )
 
-      const distribuidoraAtual = sanitizeText(distribuidoraTarifa)
+      const distribuidoraAtual = sanitizeText(distribuidoraAneelEfetiva)
       const clienteDistribuidoraAtual = sanitizeText(cliente.distribuidora)
       const distribuidoraSnapshot = sanitizeText(vendaSnapshot.parametros.distribuidora)
 
@@ -8867,7 +8924,7 @@ export default function App() {
       numeroModulosEstimado,
       parcelasSolarInvest,
       duracaoMeses,
-      distribuidoraTarifa,
+      distribuidoraAneelEfetiva,
       tipoInstalacao,
       tipoInstalacaoOutro,
       tipoSistema,
@@ -11960,7 +12017,7 @@ export default function App() {
       },
       propostaImagens: propostaImagens.map((imagem) => ({ ...imagem })),
       ufTarifa,
-      distribuidoraTarifa,
+      distribuidoraTarifa: distribuidoraAneelEfetiva,
       ufsDisponiveis: [...ufsDisponiveis],
       distribuidorasPorUf: cloneDistribuidorasMapa(distribuidorasPorUf),
       mesReajuste,
@@ -12413,6 +12470,8 @@ export default function App() {
         ucGeradoraTitularDiferente,
         ucGeradoraTitular,
         ucGeradoraTitularDraft: null,
+        ucGeradoraTitularDistribuidoraAneel:
+          snapshot.leasingSnapshot?.contrato?.ucGeradoraTitularDistribuidoraAneel ?? '',
       })
       setUcGeradoraTitularPanelOpen(false)
       setUcGeradoraTitularErrors({})
@@ -13870,7 +13929,7 @@ export default function App() {
     const enderecoPrincipal = cliente.endereco?.trim() ?? ''
     const cidade = cliente.cidade?.trim() ?? ''
     const uf = cliente.uf?.trim().toUpperCase() ?? ''
-    const distribuidora = cliente.distribuidora?.trim() ?? ''
+    const distribuidora = distribuidoraAneelEfetiva
     const temIndicacao = Boolean(cliente.temIndicacao)
     const indicacaoNome = cliente.indicacaoNome?.trim() ?? ''
     const telefone = cliente.telefone?.trim() ?? ''
@@ -13944,7 +14003,6 @@ export default function App() {
     adicionarNotificacao,
     cliente.cidade,
     cliente.cep,
-    cliente.distribuidora,
     cliente.documento,
     cliente.email,
     cliente.endereco,
@@ -13954,6 +14012,7 @@ export default function App() {
     cliente.temIndicacao,
     cliente.uc,
     cliente.uf,
+    distribuidoraAneelEfetiva,
     kcKwhMes,
   ])
 
@@ -15299,6 +15358,7 @@ export default function App() {
         ucGeradoraTitularDiferente: false,
         ucGeradoraTitular: null,
         ucGeradoraTitularDraft: null,
+        ucGeradoraTitularDistribuidoraAneel: '',
       })
       setUcGeradoraTitularPanelOpen(false)
       setUcGeradoraTitularErrors({})
@@ -16732,7 +16792,13 @@ export default function App() {
               handleClienteChange('distribuidora', e.target.value)
               clearFieldHighlight(e.currentTarget)
             }}
-            disabled={!cliente.uf || clienteDistribuidorasDisponiveis.length === 0}
+            disabled={clienteDistribuidoraDisabled}
+            aria-disabled={clienteDistribuidoraDisabled}
+            style={
+              clienteDistribuidoraDisabled
+                ? { opacity: 0.6, cursor: 'not-allowed' }
+                : undefined
+            }
           >
             <option value="">
               {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
@@ -16973,6 +17039,49 @@ export default function App() {
                       />
                     </Field>
                   </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <Field
+                      label={labelWithTooltip(
+                        'Distribuidora (ANEEL)',
+                        'Concessionária responsável pela UC geradora; define tarifas homologadas e regras de compensação.',
+                      )}
+                    >
+                      <select
+                        data-field="ucGeradoraTitular-distribuidoraAneel"
+                        value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+                        onChange={(event) =>
+                          handleLeasingContratoCampoChange(
+                            'ucGeradoraTitularDistribuidoraAneel',
+                            event.target.value,
+                          )
+                        }
+                        disabled={titularDistribuidoraDisabled}
+                        aria-disabled={titularDistribuidoraDisabled}
+                        style={
+                          titularDistribuidoraDisabled
+                            ? { opacity: 0.6, cursor: 'not-allowed' }
+                            : undefined
+                        }
+                      >
+                        <option value="">
+                          {ucGeradoraTitularUf ? 'Selecione a distribuidora' : 'Selecione a UF'}
+                        </option>
+                        {ucGeradoraTitularDistribuidorasDisponiveis.map((nome) => (
+                          <option key={nome} value={nome}>
+                            {nome}
+                          </option>
+                        ))}
+                        {leasingContrato.ucGeradoraTitularDistribuidoraAneel &&
+                        !ucGeradoraTitularDistribuidorasDisponiveis.includes(
+                          leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+                        ) ? (
+                          <option value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}>
+                            {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+                          </option>
+                        ) : null}
+                      </select>
+                    </Field>
+                  </div>
                 </div>
                   <div className="uc-geradora-titular-actions">
                     <button
@@ -17002,6 +17111,11 @@ export default function App() {
                         leasingContrato.ucGeradoraTitular.endereco,
                       )}
                     </span>
+                    {leasingContrato.ucGeradoraTitularDistribuidoraAneel ? (
+                      <span>
+                        Distribuidora (ANEEL): {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="uc-geradora-titular-summary-actions">
                     <button
@@ -17876,45 +17990,6 @@ export default function App() {
             />
           </Field>
           <Field
-            label={labelWithTooltip(
-              'UF (ANEEL)',
-              'Estado utilizado para buscar tarifas homologadas pela ANEEL e sugerir parâmetros regionais.',
-            )}
-          >
-            <select
-              value={ufTarifa}
-              onChange={(e) => handleParametrosUfChange(e.target.value)}
-            >
-              <option value="">Selecione a UF</option>
-              {ufsDisponiveis.map((uf) => (
-                <option key={uf} value={uf}>
-                  {uf} — {UF_LABELS[uf] ?? uf}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              'Distribuidora (ANEEL)',
-              'Concessionária selecionada para carregar automaticamente tarifas de TE e TUSD.',
-            )}
-          >
-            <select
-              value={distribuidoraTarifa}
-              onChange={(e) => handleParametrosDistribuidoraChange(e.target.value)}
-              disabled={!ufTarifa || distribuidorasDisponiveis.length === 0}
-            >
-              <option value="">
-                {ufTarifa ? 'Selecione a distribuidora' : 'Selecione a UF'}
-              </option>
-              {distribuidorasDisponiveis.map((nome) => (
-                <option key={nome} value={nome}>
-                  {nome}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field
             label={
               <>
                 Irradiação média (kWh/m²/dia)
@@ -18192,7 +18267,7 @@ export default function App() {
                   </button>
                 </div>
                 <span className="muted">
-                  Distribuidora de referência: {distribuidoraTarifa ?? ''}
+                  Distribuidora de referência: {distribuidoraAneelEfetiva ?? ''}
                 </span>
               </div>
               <div className="table-wrapper multi-uc-table">
