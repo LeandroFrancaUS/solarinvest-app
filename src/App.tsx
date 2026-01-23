@@ -1079,6 +1079,35 @@ const getDistribuidoraDefaultForUf = (uf?: string | null): string => {
   return ''
 }
 
+const getDistribuidoraValidationMessage = (
+  ufRaw?: string | null,
+  distribuidoraRaw?: string | null,
+): string | null => {
+  const uf = ufRaw?.trim().toUpperCase() ?? ''
+  const distribuidora = distribuidoraRaw?.trim() ?? ''
+  const expected = getDistribuidoraDefaultForUf(uf)
+
+  if (!uf && distribuidora) {
+    return 'Informe a UF antes de definir a distribuidora.'
+  }
+
+  if (expected) {
+    if (!distribuidora) {
+      return `Informe a distribuidora para a UF ${uf}. Sugestão: ${expected}.`
+    }
+    if (distribuidora !== expected) {
+      return `Distribuidora incompatível com a UF ${uf}. Use ${expected}.`
+    }
+    return null
+  }
+
+  if (uf && !distribuidora) {
+    return 'Informe a distribuidora para a UF selecionada.'
+  }
+
+  return null
+}
+
 const resolveUfForDistribuidora = (
   distribuidorasPorUf: Record<string, string[]>,
   distribuidora?: string | null,
@@ -12277,6 +12306,15 @@ export default function App() {
       return false
     }
 
+    const distribuidoraValidation = getDistribuidoraValidationMessage(
+      procuracaoUf || cliente.uf,
+      distribuidoraAneelEfetiva,
+    )
+    if (distribuidoraValidation) {
+      adicionarNotificacao(distribuidoraValidation, 'error')
+      return false
+    }
+
     const dadosClonados = cloneClienteDados(cliente)
     dadosClonados.herdeiros = ensureClienteHerdeiros(dadosClonados.herdeiros).map((item) =>
       typeof item === 'string' ? item.trim() : '',
@@ -13388,6 +13426,15 @@ export default function App() {
         return null
       }
 
+      const distribuidoraValidation = getDistribuidoraValidationMessage(
+        procuracaoUf || cliente.uf,
+        distribuidoraAneelEfetiva,
+      )
+      if (distribuidoraValidation) {
+        adicionarNotificacao(distribuidoraValidation, 'error')
+        return null
+      }
+
       try {
         const registrosExistentes = carregarOrcamentosSalvos()
         const dadosClonados = clonePrintableData(dados)
@@ -14120,6 +14167,15 @@ export default function App() {
         `Preencha os campos contratuais obrigatórios antes de gerar os documentos: ${lista}.`,
         'error',
       )
+      return null
+    }
+
+    const distribuidoraValidation = getDistribuidoraValidationMessage(
+      procuracaoUf || cliente.uf,
+      distribuidoraAneelEfetiva,
+    )
+    if (distribuidoraValidation) {
+      adicionarNotificacao(distribuidoraValidation, 'error')
       return null
     }
 
