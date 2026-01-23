@@ -919,11 +919,6 @@ button.secondary.small {
   width: 100%;
 }
 
-.uc-geradora-titular-city-uf {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 96px);
-  gap: 12px;
-}
 
 .uc-geradora-titular-panel .field {
   width: 100%;
@@ -968,10 +963,6 @@ button.secondary.small {
 
   .uc-geradora-titular-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .uc-geradora-titular-city-uf {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 80px);
   }
 
   .uc-geradora-titular-actions {
