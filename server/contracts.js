@@ -130,12 +130,13 @@ const normalizeWordXmlForPlaceholders = (xml) => {
     result = result.replace(
       adjacentRunsPattern,
       (match, runContent, text1, nextRunContent, text2) => {
-        const text1HasOpen = /{{/.test(text1)
-        const text1HasClose = /}}/.test(text1)
-        const text2HasOpen = /{{/.test(text2)
-        const text2HasClose = /}}/.test(text2)
-        const looksLikePlaceholderSplit =
-          (text1HasOpen && !text1HasClose) || (!text2HasOpen && text2HasClose)
+        const lastOpenInFirst = text1.lastIndexOf('{{')
+        const lastCloseInFirst = text1.lastIndexOf('}}')
+        const hasUnclosedOpen = lastOpenInFirst !== -1 && lastOpenInFirst > lastCloseInFirst
+        const firstCloseInSecond = text2.indexOf('}}')
+        const firstOpenInSecond = text2.indexOf('{{')
+        const hasUnopenedClose = firstCloseInSecond !== -1 && (firstOpenInSecond === -1 || firstCloseInSecond < firstOpenInSecond)
+        const looksLikePlaceholderSplit = hasUnclosedOpen || hasUnopenedClose
         if (!looksLikePlaceholderSplit) {
           return match
         }
