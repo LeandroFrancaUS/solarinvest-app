@@ -1079,6 +1079,23 @@ const getDistribuidoraDefaultForUf = (uf?: string | null): string => {
   return ''
 }
 
+const resolveUfForDistribuidora = (
+  distribuidorasPorUf: Record<string, string[]>,
+  distribuidora?: string | null,
+): string => {
+  const alvo = distribuidora?.trim()
+  if (!alvo) {
+    return ''
+  }
+  const alvoNormalizado = alvo.toLowerCase()
+  for (const [uf, distribuidoras] of Object.entries(distribuidorasPorUf)) {
+    if (distribuidoras.some((item) => item.toLowerCase() === alvoNormalizado)) {
+      return uf
+    }
+  }
+  return ''
+}
+
 const generateBudgetId = (
   existingIds: Set<string> = new Set(),
   tipoProposta: PrintableProposalTipo = 'LEASING',
@@ -15867,6 +15884,68 @@ export default function App() {
     ],
   )
 
+  const handleUcGeradoraTitularDistribuidoraChange = useCallback(
+    (value: string) => {
+      leasingActions.updateContrato({
+        ucGeradoraTitularDistribuidoraAneel: value,
+      })
+      const ufAssociada = resolveUfForDistribuidora(distribuidorasPorUf, value)
+      if (!ufAssociada) {
+        return
+      }
+      const ufAtual = (
+        leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
+        leasingContrato.ucGeradoraTitular?.endereco.uf ??
+        ''
+      )
+        .trim()
+        .toUpperCase()
+      if (ufAtual !== ufAssociada) {
+        updateUcGeradoraTitularDraft({ endereco: { uf: ufAssociada } })
+      }
+    },
+    [
+      distribuidorasPorUf,
+      leasingContrato.ucGeradoraTitular?.endereco.uf,
+      leasingContrato.ucGeradoraTitularDraft?.endereco.uf,
+      updateUcGeradoraTitularDraft,
+    ],
+  )
+
+  useEffect(() => {
+    if (!leasingContrato.ucGeradoraTitularDiferente) {
+      return
+    }
+    const distribuidoraAtual = leasingContrato.ucGeradoraTitularDistribuidoraAneel
+    if (!distribuidoraAtual) {
+      return
+    }
+    const ufAssociada = resolveUfForDistribuidora(
+      distribuidorasPorUf,
+      distribuidoraAtual,
+    )
+    if (!ufAssociada) {
+      return
+    }
+    const ufAtual = (
+      leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
+      leasingContrato.ucGeradoraTitular?.endereco.uf ??
+      ''
+    )
+      .trim()
+      .toUpperCase()
+    if (ufAtual && ufAtual !== ufAssociada) {
+      updateUcGeradoraTitularDraft({ endereco: { uf: ufAssociada } })
+    }
+  }, [
+    distribuidorasPorUf,
+    leasingContrato.ucGeradoraTitularDiferente,
+    leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+    leasingContrato.ucGeradoraTitularDraft?.endereco.uf,
+    leasingContrato.ucGeradoraTitular?.endereco.uf,
+    updateUcGeradoraTitularDraft,
+  ])
+
   const buildUcGeradoraTitularErrors = useCallback((draft: LeasingUcGeradoraTitular) => {
     const errors: UcGeradoraTitularErrors = {}
     if (!draft.nomeCompleto.trim()) {
@@ -17167,10 +17246,7 @@ export default function App() {
                         data-field="ucGeradoraTitular-distribuidoraAneel"
                         value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}
                         onChange={(event) =>
-                          handleLeasingContratoCampoChange(
-                            'ucGeradoraTitularDistribuidoraAneel',
-                            event.target.value,
-                          )
+                          handleUcGeradoraTitularDistribuidoraChange(event.target.value)
                         }
                         disabled={titularDistribuidoraDisabled}
                         aria-disabled={titularDistribuidoraDisabled}
