@@ -4319,6 +4319,53 @@ export default function App() {
     [distribuidoraTarifa, updatePageSharedState],
   )
 
+  const distribuidorasDisponiveis = useMemo(() => {
+    if (!ufTarifa) return [] as string[]
+    return distribuidorasPorUf[ufTarifa] ?? []
+  }, [distribuidorasPorUf, ufTarifa])
+
+  const clienteUf = cliente.uf
+  const clienteDistribuidorasDisponiveis = useMemo(() => {
+    if (!clienteUf) return [] as string[]
+    return distribuidorasPorUf[clienteUf] ?? []
+  }, [clienteUf, distribuidorasPorUf])
+  const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
+  const distribuidoraAneelEfetiva = useMemo(
+    () =>
+      getDistribuidoraAneelEfetiva({
+        clienteDistribuidoraAneel: cliente.distribuidora,
+        titularUcGeradoraDistribuidoraAneel:
+          leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+        titularUcGeradoraDiferente: leasingContrato.ucGeradoraTitularDiferente,
+      }),
+    [
+      cliente.distribuidora,
+      leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+      leasingContrato.ucGeradoraTitularDiferente,
+    ],
+  )
+  const ucGeradoraTitularUf = (
+    leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
+    leasingContrato.ucGeradoraTitular?.endereco.uf ??
+    ''
+  )
+    .trim()
+    .toUpperCase()
+  const ucGeradoraTitularDistribuidorasDisponiveis = useMemo(() => {
+    if (!ucGeradoraTitularUf) return [] as string[]
+    return distribuidorasPorUf[ucGeradoraTitularUf] ?? []
+  }, [distribuidorasPorUf, ucGeradoraTitularUf])
+  const disableClienteDistribuidora = isTitularDiferente
+  const disableTitularDistribuidora = !isTitularDiferente
+  const clienteDistribuidoraDisabled =
+    disableClienteDistribuidora ||
+    !cliente.uf ||
+    clienteDistribuidorasDisponiveis.length === 0
+  const titularDistribuidoraDisabled =
+    disableTitularDistribuidora ||
+    !ucGeradoraTitularUf ||
+    ucGeradoraTitularDistribuidorasDisponiveis.length === 0
+
   const applyTarifasAutomaticas = useCallback(
     (row: MultiUcRowState, classe?: MultiUcClasse, force = false): MultiUcRowState => {
       const classeFinal = classe ?? row.classe
@@ -5272,53 +5319,6 @@ export default function App() {
 
     return errors
   }, [])
-
-  const distribuidorasDisponiveis = useMemo(() => {
-    if (!ufTarifa) return [] as string[]
-    return distribuidorasPorUf[ufTarifa] ?? []
-  }, [distribuidorasPorUf, ufTarifa])
-
-  const clienteUf = cliente.uf
-  const clienteDistribuidorasDisponiveis = useMemo(() => {
-    if (!clienteUf) return [] as string[]
-    return distribuidorasPorUf[clienteUf] ?? []
-  }, [clienteUf, distribuidorasPorUf])
-  const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
-  const distribuidoraAneelEfetiva = useMemo(
-    () =>
-      getDistribuidoraAneelEfetiva({
-        clienteDistribuidoraAneel: cliente.distribuidora,
-        titularUcGeradoraDistribuidoraAneel:
-          leasingContrato.ucGeradoraTitularDistribuidoraAneel,
-        titularUcGeradoraDiferente: leasingContrato.ucGeradoraTitularDiferente,
-      }),
-    [
-      cliente.distribuidora,
-      leasingContrato.ucGeradoraTitularDistribuidoraAneel,
-      leasingContrato.ucGeradoraTitularDiferente,
-    ],
-  )
-  const ucGeradoraTitularUf = (
-    leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
-    leasingContrato.ucGeradoraTitular?.endereco.uf ??
-    ''
-  )
-    .trim()
-    .toUpperCase()
-  const ucGeradoraTitularDistribuidorasDisponiveis = useMemo(() => {
-    if (!ucGeradoraTitularUf) return [] as string[]
-    return distribuidorasPorUf[ucGeradoraTitularUf] ?? []
-  }, [distribuidorasPorUf, ucGeradoraTitularUf])
-  const disableClienteDistribuidora = isTitularDiferente
-  const disableTitularDistribuidora = !isTitularDiferente
-  const clienteDistribuidoraDisabled =
-    disableClienteDistribuidora ||
-    !cliente.uf ||
-    clienteDistribuidorasDisponiveis.length === 0
-  const titularDistribuidoraDisabled =
-    disableTitularDistribuidora ||
-    !ucGeradoraTitularUf ||
-    ucGeradoraTitularDistribuidorasDisponiveis.length === 0
 
   const [precoPorKwp, setPrecoPorKwp] = useState(INITIAL_VALUES.precoPorKwp)
   const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
