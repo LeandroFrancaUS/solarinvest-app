@@ -15836,6 +15836,37 @@ export default function App() {
     [leasingContrato.ucGeradoraTitularDraft],
   )
 
+  const handleUcGeradoraTitularUfChange = useCallback(
+    (value: string) => {
+      const ufNormalizada = value.toUpperCase()
+      updateUcGeradoraTitularDraft({ endereco: { uf: ufNormalizada } })
+      const listaDistribuidoras = distribuidorasPorUf[ufNormalizada] ?? []
+      const atual = leasingContrato.ucGeradoraTitularDistribuidoraAneel
+      let proximaDistribuidora = atual
+      if (listaDistribuidoras.length === 1) {
+        proximaDistribuidora = listaDistribuidoras[0]
+      } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
+        proximaDistribuidora = ''
+      }
+      if (!proximaDistribuidora) {
+        const defaultDistribuidora = getDistribuidoraDefaultForUf(ufNormalizada)
+        if (defaultDistribuidora) {
+          proximaDistribuidora = defaultDistribuidora
+        }
+      }
+      if (proximaDistribuidora !== atual) {
+        leasingActions.updateContrato({
+          ucGeradoraTitularDistribuidoraAneel: proximaDistribuidora ?? '',
+        })
+      }
+    },
+    [
+      distribuidorasPorUf,
+      leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+      updateUcGeradoraTitularDraft,
+    ],
+  )
+
   const buildUcGeradoraTitularErrors = useCallback((draft: LeasingUcGeradoraTitular) => {
     const errors: UcGeradoraTitularErrors = {}
     if (!draft.nomeCompleto.trim()) {
@@ -17087,18 +17118,21 @@ export default function App() {
                       label="UF"
                       hint={<FieldError message={ucGeradoraTitularErrors.uf} />}
                     >
-                      <input
+                      <select
                         data-field="ucGeradoraTitular-uf"
                         value={leasingContrato.ucGeradoraTitularDraft?.endereco.uf ?? ''}
                         onChange={(event) => {
-                          updateUcGeradoraTitularDraft({
-                            endereco: { uf: event.target.value.toUpperCase() },
-                          })
+                          handleUcGeradoraTitularUfChange(event.target.value)
                           clearUcGeradoraTitularError('uf')
                         }}
-                        placeholder="UF"
-                        maxLength={2}
-                      />
+                      >
+                        <option value="">Selecione a UF</option>
+                        {ufsDisponiveis.map((uf) => (
+                          <option key={uf} value={uf}>
+                            {uf} — {UF_LABELS[uf] ?? uf}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
