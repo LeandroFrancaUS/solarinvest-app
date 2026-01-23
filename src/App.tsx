@@ -2941,7 +2941,12 @@ function ClientesPanel({
 
     return registros.filter((registro) => {
       const nomeCliente = registro.dados.nome?.trim().toLowerCase()
-      return nomeCliente ? nomeCliente.includes(normalizedSearchTerm) : false
+      const documentoCliente = registro.dados.documento?.trim().toLowerCase()
+      const matchNome = nomeCliente ? nomeCliente.includes(normalizedSearchTerm) : false
+      const matchDocumento = documentoCliente
+        ? documentoCliente.replace(/\D/g, '').includes(normalizedSearchTerm.replace(/\D/g, ''))
+        : false
+      return matchNome || matchDocumento
     })
   }, [normalizedSearchTerm, registros])
   const totalRegistros = registros.length
@@ -3010,15 +3015,15 @@ function ClientesPanel({
           <Field
             label={labelWithTooltip(
               'Pesquisar cliente',
-              'Filtra os clientes salvos pelo nome informado.',
+              'Filtra os clientes salvos pelo nome ou CPF/CNPJ informado.',
             )}
-            hint="Digite o nome do cliente para filtrar os registros salvos."
+            hint="Digite o nome ou CPF/CNPJ do cliente para filtrar os registros salvos."
           >
             <input
               type="search"
               value={clienteSearchTerm}
               onChange={(event) => setClienteSearchTerm(event.target.value)}
-              placeholder="Ex.: Maria Silva"
+              placeholder="Ex.: Maria Silva ou 123.456.789-00"
             />
           </Field>
           <div className="budget-search-summary">
