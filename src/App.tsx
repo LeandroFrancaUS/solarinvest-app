@@ -1947,6 +1947,296 @@ const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({
   herdeiros: ensureClienteHerdeiros(dados.herdeiros),
 })
 
+const CLIENTES_CSV_DELIMITER = ';'
+const CLIENTES_CSV_HEADERS: { key: string; label: string }[] = [
+  { key: 'id', label: 'id' },
+  { key: 'criadoEm', label: 'criado_em' },
+  { key: 'atualizadoEm', label: 'atualizado_em' },
+  { key: 'nome', label: 'nome' },
+  { key: 'documento', label: 'documento' },
+  { key: 'rg', label: 'rg' },
+  { key: 'estadoCivil', label: 'estado_civil' },
+  { key: 'nacionalidade', label: 'nacionalidade' },
+  { key: 'profissao', label: 'profissao' },
+  { key: 'representanteLegal', label: 'representante_legal' },
+  { key: 'email', label: 'email' },
+  { key: 'telefone', label: 'telefone' },
+  { key: 'cep', label: 'cep' },
+  { key: 'distribuidora', label: 'distribuidora' },
+  { key: 'uc', label: 'uc' },
+  { key: 'endereco', label: 'endereco' },
+  { key: 'cidade', label: 'cidade' },
+  { key: 'uf', label: 'uf' },
+  { key: 'temIndicacao', label: 'tem_indicacao' },
+  { key: 'indicacaoNome', label: 'indicacao_nome' },
+  { key: 'nomeSindico', label: 'nome_sindico' },
+  { key: 'cpfSindico', label: 'cpf_sindico' },
+  { key: 'contatoSindico', label: 'contato_sindico' },
+  { key: 'diaVencimento', label: 'dia_vencimento' },
+  { key: 'herdeiros', label: 'herdeiros' },
+]
+
+const CSV_HEADER_KEY_MAP: Record<string, string> = {
+  id: 'id',
+  clienteid: 'id',
+  criadoem: 'criadoEm',
+  criadoemiso: 'criadoEm',
+  createdat: 'criadoEm',
+  atualizadoem: 'atualizadoEm',
+  atualizadoemiso: 'atualizadoEm',
+  updatedat: 'atualizadoEm',
+  nome: 'nome',
+  cliente: 'nome',
+  razaosocial: 'nome',
+  document: 'documento',
+  documento: 'documento',
+  cpfcnpj: 'documento',
+  cpf_cnpj: 'documento',
+  rg: 'rg',
+  estadocivil: 'estadoCivil',
+  nacionalidade: 'nacionalidade',
+  profissao: 'profissao',
+  representantelegal: 'representanteLegal',
+  email: 'email',
+  telefone: 'telefone',
+  celular: 'telefone',
+  cep: 'cep',
+  distribuidora: 'distribuidora',
+  uc: 'uc',
+  unidadeconsumidora: 'uc',
+  endereco: 'endereco',
+  logradouro: 'endereco',
+  cidade: 'cidade',
+  uf: 'uf',
+  temindicacao: 'temIndicacao',
+  indicacaonome: 'indicacaoNome',
+  nomesindico: 'nomeSindico',
+  cpfsindico: 'cpfSindico',
+  contatosindico: 'contatoSindico',
+  diavencimento: 'diaVencimento',
+  herdeiros: 'herdeiros',
+}
+
+const normalizeCsvHeader = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+
+const parseCsvLine = (line: string, delimiter: string): string[] => {
+  const values: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (char === delimiter && !inQuotes) {
+      values.push(current)
+      current = ''
+      continue
+    }
+
+    current += char
+  }
+
+  values.push(current)
+  return values
+}
+
+const countDelimiterOccurrences = (line: string, delimiter: string): number => {
+  let count = 0
+  let inQuotes = false
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+    if (!inQuotes && char === delimiter) {
+      count += 1
+    }
+  }
+
+  return count
+}
+
+const detectCsvDelimiter = (line: string): string => {
+  const candidates = [CLIENTES_CSV_DELIMITER, ',', '\t']
+  let best = candidates[0]
+  let bestCount = -1
+
+  for (const candidate of candidates) {
+    const count = countDelimiterOccurrences(line, candidate)
+    if (count > bestCount) {
+      best = candidate
+      bestCount = count
+    }
+  }
+
+  return best
+}
+
+const parseBooleanCsvValue = (value: string): boolean =>
+  ['1', 'true', 'sim', 'yes', 'y'].includes(value.trim().toLowerCase())
+
+const parseHerdeirosCsvValue = (value: string): string[] => {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ['']
+  }
+
+  const items = trimmed
+    .split(/[|,;]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  return items.length > 0 ? items : ['']
+}
+
+const parseClientesCsv = (content: string): unknown[] => {
+  const lines = content
+    .split(/\r\n|\n|\r/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0)
+
+  if (lines.length === 0) {
+    return []
+  }
+
+  const delimiter = detectCsvDelimiter(lines[0])
+  const headerCells = parseCsvLine(lines[0], delimiter).map(normalizeCsvHeader)
+  const headerKeys = headerCells.map((header) => CSV_HEADER_KEY_MAP[header] ?? null)
+  if (headerKeys.every((key) => !key)) {
+    return []
+  }
+
+  return lines
+    .slice(1)
+    .map((line) => {
+      const values = parseCsvLine(line, delimiter)
+      if (values.every((value) => !value.trim())) {
+        return null
+      }
+      const registro: Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> } = {
+        dados: {},
+      }
+
+      headerKeys.forEach((key, index) => {
+        if (!key) {
+          return
+        }
+        const value = values[index]?.trim() ?? ''
+        if (!value) {
+          return
+        }
+
+        switch (key) {
+          case 'id':
+            registro.id = value
+            break
+          case 'criadoEm':
+            registro.criadoEm = value
+            break
+          case 'atualizadoEm':
+            registro.atualizadoEm = value
+            break
+          case 'temIndicacao':
+            registro.dados!.temIndicacao = parseBooleanCsvValue(value)
+            break
+          case 'indicacaoNome':
+            registro.dados!.indicacaoNome = value
+            break
+          case 'diaVencimento':
+            registro.dados!.diaVencimento = value
+            break
+          case 'herdeiros':
+            registro.dados!.herdeiros = parseHerdeirosCsvValue(value)
+            break
+          default:
+            registro.dados![key as keyof ClienteDados] = value
+        }
+      })
+
+      return registro
+    })
+    .filter((item): item is Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> } => Boolean(item))
+}
+
+const escapeCsvValue = (value: string, delimiter: string): string => {
+  const stringValue = value ?? ''
+  if (
+    stringValue.includes('"') ||
+    stringValue.includes('\n') ||
+    stringValue.includes('\r') ||
+    stringValue.includes(delimiter)
+  ) {
+    return `"${stringValue.replace(/"/g, '""')}"`
+  }
+  return stringValue
+}
+
+const buildClientesCsv = (registros: ClienteRegistro[]): string => {
+  const header = CLIENTES_CSV_HEADERS.map((item) => escapeCsvValue(item.label, CLIENTES_CSV_DELIMITER)).join(
+    CLIENTES_CSV_DELIMITER,
+  )
+  const rows = registros.map((registro) => {
+    const dados = registro.dados
+    const herdeiros = Array.isArray(dados.herdeiros)
+      ? dados.herdeiros.map((item) => item.trim()).filter(Boolean).join(' | ')
+      : ''
+    const values: Record<string, string> = {
+      id: registro.id,
+      criadoEm: registro.criadoEm,
+      atualizadoEm: registro.atualizadoEm,
+      nome: dados.nome ?? '',
+      documento: dados.documento ?? '',
+      rg: dados.rg ?? '',
+      estadoCivil: dados.estadoCivil ?? '',
+      nacionalidade: dados.nacionalidade ?? '',
+      profissao: dados.profissao ?? '',
+      representanteLegal: dados.representanteLegal ?? '',
+      email: dados.email ?? '',
+      telefone: dados.telefone ?? '',
+      cep: dados.cep ?? '',
+      distribuidora: dados.distribuidora ?? '',
+      uc: dados.uc ?? '',
+      endereco: dados.endereco ?? '',
+      cidade: dados.cidade ?? '',
+      uf: dados.uf ?? '',
+      temIndicacao: dados.temIndicacao ? 'true' : 'false',
+      indicacaoNome: dados.indicacaoNome ?? '',
+      nomeSindico: dados.nomeSindico ?? '',
+      cpfSindico: dados.cpfSindico ?? '',
+      contatoSindico: dados.contatoSindico ?? '',
+      diaVencimento: dados.diaVencimento ?? '',
+      herdeiros,
+    }
+
+    return CLIENTES_CSV_HEADERS.map((item) => escapeCsvValue(values[item.key] ?? '', CLIENTES_CSV_DELIMITER)).join(
+      CLIENTES_CSV_DELIMITER,
+    )
+  })
+
+  return [header, ...rows].join('\n')
+}
+
 type NormalizeClienteRegistrosOptions = {
   existingIds?: Set<string>
   agoraIso?: string
@@ -2512,7 +2802,8 @@ type ClientesPanelProps = {
   onClose: () => void
   onEditar: (registro: ClienteRegistro) => void
   onExcluir: (registro: ClienteRegistro) => void
-  onExportar: () => void
+  onExportarCsv: () => void
+  onExportarJson: () => void
   onImportar: () => void
   isImportando: boolean
 }
@@ -2635,7 +2926,8 @@ function ClientesPanel({
   onClose,
   onEditar,
   onExcluir,
-  onExportar,
+  onExportarCsv,
+  onExportarJson,
   onImportar,
   isImportando,
 }: ClientesPanelProps) {
@@ -2685,12 +2977,22 @@ function ClientesPanel({
               <button
                 type="button"
                 className="ghost with-icon"
-                onClick={onExportar}
+                onClick={onExportarJson}
                 disabled={registros.length === 0}
-                title="Exportar clientes salvos para um arquivo"
+                title="Exportar clientes salvos para um arquivo JSON"
               >
                 <span aria-hidden="true">⬆️</span>
-                <span>Exportar</span>
+                <span>Exportar JSON</span>
+              </button>
+              <button
+                type="button"
+                className="ghost with-icon"
+                onClick={onExportarCsv}
+                disabled={registros.length === 0}
+                title="Exportar clientes salvos para um arquivo CSV"
+              >
+                <span aria-hidden="true">📄</span>
+                <span>Exportar CSV</span>
               </button>
               <button
                 type="button"
@@ -2698,7 +3000,7 @@ function ClientesPanel({
                 onClick={onImportar}
                 disabled={isImportando}
                 aria-busy={isImportando}
-                title="Importar clientes a partir de um arquivo"
+                title="Importar clientes a partir de um arquivo JSON ou CSV"
               >
                 <span aria-hidden="true">⬇️</span>
                 <span>{isImportando ? 'Importando…' : 'Importar'}</span>
@@ -11765,7 +12067,30 @@ export default function App() {
     </div>
   )
 
-  const handleExportarClientes = useCallback(() => {
+  const downloadClientesArquivo = useCallback((blob: Blob, fileName: string) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const link = window.document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.href = url
+    link.download = fileName
+    window.document.body.appendChild(link)
+    link.click()
+    window.document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, [])
+
+  const buildClientesFileName = useCallback((extensao: string) => {
+    const agora = new Date()
+    const pad = (value: number) => value.toString().padStart(2, '0')
+    return `solarinvest-clientes-${agora.getFullYear()}${pad(agora.getMonth() + 1)}${pad(
+      agora.getDate(),
+    )}-${pad(agora.getHours())}${pad(agora.getMinutes())}${pad(agora.getSeconds())}.${extensao}`
+  }, [])
+
+  const handleExportarClientesJson = useCallback(() => {
     if (typeof window === 'undefined') {
       return
     }
@@ -11791,27 +12116,56 @@ export default function App() {
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: 'application/json',
       })
-      const agora = new Date()
-      const pad = (value: number) => value.toString().padStart(2, '0')
-      const fileName = `solarinvest-clientes-${agora.getFullYear()}${pad(agora.getMonth() + 1)}${pad(
-        agora.getDate(),
-      )}-${pad(agora.getHours())}${pad(agora.getMinutes())}${pad(agora.getSeconds())}.json`
 
-      const link = window.document.createElement('a')
-      const url = URL.createObjectURL(blob)
-      link.href = url
-      link.download = fileName
-      window.document.body.appendChild(link)
-      link.click()
-      window.document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      const fileName = buildClientesFileName('json')
+      downloadClientesArquivo(blob, fileName)
 
       adicionarNotificacao('Arquivo de clientes exportado com sucesso.', 'success')
     } catch (error) {
       console.error('Erro ao exportar clientes salvos.', error)
       window.alert('Não foi possível exportar os clientes. Tente novamente.')
     }
-  }, [adicionarNotificacao, carregarClientesSalvos, setClientesSalvos])
+  }, [
+    adicionarNotificacao,
+    buildClientesFileName,
+    carregarClientesSalvos,
+    downloadClientesArquivo,
+    setClientesSalvos,
+  ])
+
+  const handleExportarClientesCsv = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const registros = carregarClientesSalvos()
+    setClientesSalvos(registros)
+
+    if (registros.length === 0) {
+      window.alert('Nenhum cliente salvo para exportar.')
+      return
+    }
+
+    try {
+      const csv = buildClientesCsv(registros)
+      const blob = new Blob([`\ufeff${csv}`], {
+        type: 'text/csv;charset=utf-8',
+      })
+      const fileName = buildClientesFileName('csv')
+      downloadClientesArquivo(blob, fileName)
+
+      adicionarNotificacao('Arquivo CSV exportado com sucesso.', 'success')
+    } catch (error) {
+      console.error('Erro ao exportar clientes salvos em CSV.', error)
+      window.alert('Não foi possível exportar os clientes em CSV. Tente novamente.')
+    }
+  }, [
+    adicionarNotificacao,
+    buildClientesFileName,
+    carregarClientesSalvos,
+    downloadClientesArquivo,
+    setClientesSalvos,
+  ])
 
   const handleClientesImportarClick = useCallback(() => {
     if (isImportandoClientes) {
@@ -11837,19 +12191,35 @@ export default function App() {
 
       try {
         const conteudo = await arquivo.text()
-        let parsed: unknown
+        let lista: unknown[] | null = null
+        const isCsvFile =
+          arquivo.name.toLowerCase().endsWith('.csv') ||
+          arquivo.type.toLowerCase().includes('csv')
 
-        try {
-          parsed = JSON.parse(conteudo)
-        } catch (error) {
-          throw new Error('invalid-json')
+        if (isCsvFile) {
+          lista = parseClientesCsv(conteudo)
+        } else {
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(conteudo)
+          } catch (error) {
+            const fallbackCsv = parseClientesCsv(conteudo)
+            if (fallbackCsv.length > 0) {
+              lista = fallbackCsv
+            } else {
+              throw new Error('invalid-json')
+            }
+            parsed = null
+          }
+
+          if (parsed) {
+            lista = Array.isArray(parsed)
+              ? parsed
+              : parsed && typeof parsed === 'object' && Array.isArray((parsed as { clientes?: unknown }).clientes)
+              ? ((parsed as { clientes?: unknown }).clientes as unknown[])
+              : null
+          }
         }
-
-        const lista = Array.isArray(parsed)
-          ? parsed
-          : parsed && typeof parsed === 'object' && Array.isArray((parsed as { clientes?: unknown }).clientes)
-          ? ((parsed as { clientes?: unknown }).clientes as unknown[])
-          : null
 
         if (!lista || lista.length === 0) {
           window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
@@ -11881,7 +12251,7 @@ export default function App() {
         adicionarNotificacao('Clientes importados com sucesso.', 'success')
       } catch (error) {
         if ((error as Error).message === 'invalid-json') {
-          window.alert('O arquivo selecionado está em um formato inválido.')
+          window.alert('O arquivo selecionado está em um formato inválido (JSON ou CSV).')
         } else {
           console.error('Erro ao importar clientes salvos.', error)
           window.alert('Não foi possível importar os clientes. Verifique o arquivo e tente novamente.')
@@ -22998,7 +23368,8 @@ export default function App() {
       onClose={fecharClientesPainel}
       onEditar={handleEditarCliente}
       onExcluir={handleExcluirCliente}
-      onExportar={handleExportarClientes}
+      onExportarCsv={handleExportarClientesCsv}
+      onExportarJson={handleExportarClientesJson}
       onImportar={handleClientesImportarClick}
       isImportando={isImportandoClientes}
     />
@@ -23808,7 +24179,7 @@ export default function App() {
       <input
         ref={clientesImportInputRef}
         type="file"
-        accept="application/json"
+        accept="application/json,text/csv,.csv"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
       />
