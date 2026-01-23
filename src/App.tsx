@@ -1269,23 +1269,6 @@ const normalizeUfForProcuracao = (value?: string | null): string => {
   return upper
 }
 
-const resolveUfForDistribuidora = (
-  distribuidorasPorUf: Record<string, string[]>,
-  distribuidora?: string | null,
-): string => {
-  const alvo = distribuidora?.trim()
-  if (!alvo) {
-    return ''
-  }
-  const alvoNormalizado = alvo.toLowerCase()
-  for (const [uf, distribuidoras] of Object.entries(distribuidorasPorUf)) {
-    if (distribuidoras.some((item) => item.toLowerCase() === alvoNormalizado)) {
-      return uf
-    }
-  }
-  return ''
-}
-
 const isProcuracaoUfSupported = (value?: string | null): boolean => {
   const normalized = normalizeUfForProcuracao(value)
   return normalized === 'DF' || normalized === 'GO'
@@ -4407,11 +4390,21 @@ export default function App() {
       leasingContrato.ucGeradoraTitularDiferente,
     ],
   )
-  const procuracaoUf = useMemo(
-    () =>
-      resolveUfForDistribuidora(distribuidorasPorUf, distribuidoraAneelEfetiva),
-    [distribuidoraAneelEfetiva, distribuidorasPorUf],
-  )
+  const procuracaoUf = useMemo(() => {
+    if (isTitularDiferente) {
+      return (
+        leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
+        leasingContrato.ucGeradoraTitular?.endereco.uf ??
+        ''
+      )
+    }
+    return cliente.uf ?? ''
+  }, [
+    cliente.uf,
+    isTitularDiferente,
+    leasingContrato.ucGeradoraTitularDraft?.endereco.uf,
+    leasingContrato.ucGeradoraTitular?.endereco.uf,
+  ])
   const ucGeradoraTitularUf = (
     leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
     leasingContrato.ucGeradoraTitular?.endereco.uf ??
@@ -14076,7 +14069,7 @@ export default function App() {
 
     if (!isProcuracaoUfSupported(procuracaoUf)) {
       adicionarNotificacao(
-        'Distribuidora não suportada para procuração automática. Atualize a seleção da distribuidora.',
+        'UF não suportada para procuração automática. Atualize a UF selecionada.',
         'error',
       )
       return null
