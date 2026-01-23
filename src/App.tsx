@@ -1269,6 +1269,23 @@ const normalizeUfForProcuracao = (value?: string | null): string => {
   return upper
 }
 
+const resolveUfForDistribuidora = (
+  distribuidorasPorUf: Record<string, string[]>,
+  distribuidora?: string | null,
+): string => {
+  const alvo = distribuidora?.trim()
+  if (!alvo) {
+    return ''
+  }
+  const alvoNormalizado = alvo.toLowerCase()
+  for (const [uf, distribuidoras] of Object.entries(distribuidorasPorUf)) {
+    if (distribuidoras.some((item) => item.toLowerCase() === alvoNormalizado)) {
+      return uf
+    }
+  }
+  return ''
+}
+
 const isProcuracaoUfSupported = (value?: string | null): boolean => {
   const normalized = normalizeUfForProcuracao(value)
   return normalized === 'DF' || normalized === 'GO'
@@ -4389,6 +4406,11 @@ export default function App() {
       leasingContrato.ucGeradoraTitularDistribuidoraAneel,
       leasingContrato.ucGeradoraTitularDiferente,
     ],
+  )
+  const procuracaoUf = useMemo(
+    () =>
+      resolveUfForDistribuidora(distribuidorasPorUf, distribuidoraAneelEfetiva),
+    [distribuidoraAneelEfetiva, distribuidorasPorUf],
   )
   const ucGeradoraTitularUf = (
     leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
@@ -14052,9 +14074,9 @@ export default function App() {
       return null
     }
 
-    if (!isProcuracaoUfSupported(cliente.uf)) {
+    if (!isProcuracaoUfSupported(procuracaoUf)) {
       adicionarNotificacao(
-        'UF não suportada para procuração automática. Atualize o cadastro do contratante.',
+        'Distribuidora não suportada para procuração automática. Atualize a seleção da distribuidora.',
         'error',
       )
       return null
@@ -14217,6 +14239,7 @@ export default function App() {
     prepararDadosContratoCliente,
     tarifaCheia,
     ucsBeneficiarias,
+    procuracaoUf,
   ])
 
   const carregarTemplatesContrato = useCallback(
