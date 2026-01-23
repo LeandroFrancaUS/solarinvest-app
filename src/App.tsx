@@ -23237,12 +23237,12 @@ export default function App() {
                         </section>
                       </>
                     ) : null}
-                    {activeTab === 'leasing' ? renderLeasingContratoSection() : null}
                     {renderPropostaImagensSection()}
               {activeTab === 'leasing' ? (
                 <>
                   {renderParametrosPrincipaisSection()}
                   {renderConfiguracaoUsinaSection()}
+                  {renderLeasingContratoSection()}
                   <section className="card">
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
