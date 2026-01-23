@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { CheckboxSmall } from './components/CheckboxSmall'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
+import { ProjectMainParamsCard } from './components/forms/ProjectMainParamsCard'
 import { createRoot } from 'react-dom/client'
 import {
   LineChart,
@@ -17054,114 +17055,119 @@ export default function App() {
             placeholder="(00) 00000-0000"
           />
         </Field>
-        <Field
-          label={labelWithTooltip(
-            'CEP',
-            'Código postal da instalação; utilizado para preencher endereço automaticamente e consultar tarifas locais.',
-          )}
-          hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}
-        >
-          <input
-            data-field="cliente-cep"
-            value={cliente.cep}
-            onChange={(e) => {
-              handleClienteChange('cep', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            inputMode="numeric"
-            autoComplete="postal-code"
-            placeholder="00000-000"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Cidade',
-            'Município da instalação utilizado em relatórios, cálculo de impostos locais e validação de CEP.',
-          )}
-          hint={verificandoCidade ? 'Verificando cidade...' : clienteMensagens.cidade}
-        >
-          <input
-            data-field="cliente-cidade"
-            value={cliente.cidade}
-            onChange={(e) => {
-              const nextCidade = e.target.value
-              handleClienteChange('cidade', nextCidade)
-              clearFieldHighlight(e.currentTarget)
-              if (nextCidade.trim() && cliente.uf.trim()) {
-                clearFieldHighlight(
-                  document.querySelector('[data-field="cliente-uf"]') as HTMLElement | null,
-                )
-              }
-            }}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'UF ou Estado',
-            'Estado da instalação; utilizado para listar distribuidoras disponíveis, definir tarifas e parâmetros regionais.',
-          )}
-        >
-          <select
-            data-field="cliente-uf"
-            value={cliente.uf}
-            onChange={(e) => {
-              const nextUf = e.target.value
-              handleClienteChange('uf', nextUf)
-              clearFieldHighlight(e.currentTarget)
-              if (cliente.cidade.trim() && nextUf.trim()) {
-                clearFieldHighlight(
-                  document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
-                )
-              }
-            }}
-          >
-            <option value="">Selecione um estado</option>
-            {ufsDisponiveis.map((uf) => (
-              <option key={uf} value={uf}>
-                {uf} — {UF_LABELS[uf] ?? uf}
-              </option>
-            ))}
-            {cliente.uf && !ufsDisponiveis.includes(cliente.uf) ? (
-              <option value={cliente.uf}>
-                {cliente.uf} — {UF_LABELS[cliente.uf] ?? cliente.uf}
-              </option>
-            ) : null}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Distribuidora (ANEEL)',
-            'Concessionária responsável pela unidade consumidora; define tarifas homologadas e regras de compensação.',
-          )}
-        >
-          <select
-            data-field="cliente-distribuidoraAneel"
-            value={cliente.distribuidora}
-            onChange={(e) => {
-              handleClienteChange('distribuidora', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            disabled={clienteDistribuidoraDisabled}
-            aria-disabled={clienteDistribuidoraDisabled}
-            style={
-              clienteDistribuidoraDisabled
-                ? { opacity: 0.6, cursor: 'not-allowed' }
-                : undefined
-            }
-          >
-            <option value="">
-              {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
-            </option>
-            {clienteDistribuidorasDisponiveis.map((nome) => (
-              <option key={nome} value={nome}>
-                {nome}
-              </option>
-            ))}
-            {cliente.distribuidora && !clienteDistribuidorasDisponiveis.includes(cliente.distribuidora) ? (
-              <option value={cliente.distribuidora}>{cliente.distribuidora}</option>
-            ) : null}
-          </select>
-        </Field>
+        {activeTab === 'vendas' ? null : (
+          <>
+            <Field
+              label={labelWithTooltip(
+                'CEP',
+                'Código postal da instalação; utilizado para preencher endereço automaticamente e consultar tarifas locais.',
+              )}
+              hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}
+            >
+              <input
+                data-field="cliente-cep"
+                value={cliente.cep}
+                onChange={(e) => {
+                  handleClienteChange('cep', e.target.value)
+                  clearFieldHighlight(e.currentTarget)
+                }}
+                inputMode="numeric"
+                autoComplete="postal-code"
+                placeholder="00000-000"
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Cidade',
+                'Município da instalação utilizado em relatórios, cálculo de impostos locais e validação de CEP.',
+              )}
+              hint={verificandoCidade ? 'Verificando cidade...' : clienteMensagens.cidade}
+            >
+              <input
+                data-field="cliente-cidade"
+                value={cliente.cidade}
+                onChange={(e) => {
+                  const nextCidade = e.target.value
+                  handleClienteChange('cidade', nextCidade)
+                  clearFieldHighlight(e.currentTarget)
+                  if (nextCidade.trim() && cliente.uf.trim()) {
+                    clearFieldHighlight(
+                      document.querySelector('[data-field="cliente-uf"]') as HTMLElement | null,
+                    )
+                  }
+                }}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'UF ou Estado',
+                'Estado da instalação; utilizado para listar distribuidoras disponíveis, definir tarifas e parâmetros regionais.',
+              )}
+            >
+              <select
+                data-field="cliente-uf"
+                value={cliente.uf}
+                onChange={(e) => {
+                  const nextUf = e.target.value
+                  handleClienteChange('uf', nextUf)
+                  clearFieldHighlight(e.currentTarget)
+                  if (cliente.cidade.trim() && nextUf.trim()) {
+                    clearFieldHighlight(
+                      document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
+                    )
+                  }
+                }}
+              >
+                <option value="">Selecione um estado</option>
+                {ufsDisponiveis.map((uf) => (
+                  <option key={uf} value={uf}>
+                    {uf} — {UF_LABELS[uf] ?? uf}
+                  </option>
+                ))}
+                {cliente.uf && !ufsDisponiveis.includes(cliente.uf) ? (
+                  <option value={cliente.uf}>
+                    {cliente.uf} — {UF_LABELS[cliente.uf] ?? cliente.uf}
+                  </option>
+                ) : null}
+              </select>
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Distribuidora (ANEEL)',
+                'Concessionária responsável pela unidade consumidora; define tarifas homologadas e regras de compensação.',
+              )}
+            >
+              <select
+                data-field="cliente-distribuidoraAneel"
+                value={cliente.distribuidora}
+                onChange={(e) => {
+                  handleClienteChange('distribuidora', e.target.value)
+                  clearFieldHighlight(e.currentTarget)
+                }}
+                disabled={clienteDistribuidoraDisabled}
+                aria-disabled={clienteDistribuidoraDisabled}
+                style={
+                  clienteDistribuidoraDisabled
+                    ? { opacity: 0.6, cursor: 'not-allowed' }
+                    : undefined
+                }
+              >
+                <option value="">
+                  {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
+                </option>
+                {clienteDistribuidorasDisponiveis.map((nome) => (
+                  <option key={nome} value={nome}>
+                    {nome}
+                  </option>
+                ))}
+                {cliente.distribuidora &&
+                !clienteDistribuidorasDisponiveis.includes(cliente.distribuidora) ? (
+                  <option value={cliente.distribuidora}>{cliente.distribuidora}</option>
+                ) : null}
+              </select>
+            </Field>
+          </>
+        )}
         <Field
           label={labelWithTooltip(
             'Tipo de Edificação',
@@ -18195,7 +18201,7 @@ export default function App() {
 
     return (
       <section className="card">
-        <h2>Parâmetros principais</h2>
+        <h2>Parâmetros de consumo e tarifas</h2>
         <div className="grid g3">
           <Field
             label={labelWithTooltip(
@@ -18748,7 +18754,7 @@ export default function App() {
   const renderConfiguracaoUsinaSection = () => (
     <section className="card configuracao-usina-card">
       <div className="configuracao-usina-card__header">
-        <h2>Configuração da UF</h2>
+        <h2>Configuração da usina</h2>
         <button
           type="button"
           className="configuracao-usina-card__toggle"
@@ -18973,553 +18979,617 @@ export default function App() {
     </section>
   )
 
-  const renderVendaParametrosSection = () => (
-    <section className="card">
-      <h2>Parâmetros principais</h2>
-      <div className="grid g3">
-        <Field
-          label={
-            <>
-              Consumo (kWh/mês)
-              <InfoTooltip text="Consumo médio mensal utilizado para projetar a geração e a economia." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.consumo_kwh_mes) ? vendaForm.consumo_kwh_mes : ''
-            }
-            onChange={(event) => {
-              const { value } = event.target
-              if (value === '') {
-                setNumeroModulosManual('')
-                setKcKwhMes(0, 'auto')
-                applyVendaUpdates({
-                  consumo_kwh_mes: undefined,
-                  geracao_estimada_kwh_mes: undefined,
-                  potencia_instalada_kwp: undefined,
-                  quantidade_modulos: undefined,
-                })
-                return
-              }
-
-              const parsed = Number(value)
-              const consumoDesejado = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              const modulosCalculados = calcularModulosPorGeracao(consumoDesejado)
-
-              let potenciaCalculada = 0
-              let geracaoCalculada = consumoDesejado
-
-              if (modulosCalculados != null) {
-                potenciaCalculada = calcularPotenciaSistemaKwp(modulosCalculados)
-                if (potenciaCalculada > 0) {
-                  const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
-                  if (estimada > 0) {
-                    geracaoCalculada = normalizarGeracaoMensal(estimada)
-                  }
-                }
-              }
-
-              if (geracaoCalculada <= 0 && consumoDesejado > 0) {
-                geracaoCalculada = consumoDesejado
-              }
-
-              const consumoFinal = consumoDesejado
-              setKcKwhMes(consumoFinal, 'user')
-
-              applyVendaUpdates({
-                consumo_kwh_mes: consumoFinal,
-                geracao_estimada_kwh_mes:
-                  geracaoCalculada > 0
-                    ? geracaoCalculada
-                    : consumoFinal === 0
-                    ? 0
-                    : undefined,
-                potencia_instalada_kwp:
-                  potenciaCalculada > 0
-                    ? normalizarPotenciaKwp(potenciaCalculada)
-                    : consumoFinal === 0
-                    ? 0
-                    : undefined,
-                quantidade_modulos: modulosCalculados ?? undefined,
-              })
-
-              if (modulosCalculados != null) {
-                setNumeroModulosManual('')
-              }
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.consumo_kwh_mes} />
-          <div className="mt-2 flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">
-              Taxa mínima ({tipoRedeLabel})
-            </label>
-            <Switch
-              checked={vendaForm.aplica_taxa_minima ?? true}
-              onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}
-            />
-            <span className="text-xs text-gray-500">
-              {vendaForm.aplica_taxa_minima ?? true
-                ? 'Cliente paga taxa mínima (padrão)'
-                : 'Cliente isento de taxa mínima'}
-            </span>
-          </div>
-        </Field>
+  const renderProjectMainParamsCard = () => {
+    const localSection = (
+      <div className="grid g2">
         <Field
           label={labelWithTooltip(
-            'Tarifa cheia (R$/kWh)',
-            'Valor cobrado por kWh sem descontos contratuais; base para calcular a conta de energia projetada.',
+            'CEP',
+            'Código postal da instalação; utilizado para preencher endereço automaticamente e consultar tarifas locais.',
           )}
+          hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}
         >
           <input
-            type="text"
-            inputMode="decimal"
-            value={tarifaCheiaVendaField.value}
-            onChange={tarifaCheiaVendaField.onChange}
-            onFocus={tarifaCheiaVendaField.onFocus}
-            onBlur={tarifaCheiaVendaField.onBlur}
-            onKeyDown={tarifaCheiaVendaField.onKeyDown}
-          />
-          <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Custos Fixos da Conta de Energia (R$/MÊS)',
-            'Total de custos fixos mensais cobrados pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
-          )}
-        >
-          <input
-            type="number"
-            min={0}
-            value={
-              taxaMinimaInputEmpty
-                ? ''
-                : Number.isFinite(vendaForm.taxa_minima_mensal)
-                ? vendaForm.taxa_minima_mensal
-                : taxaMinima
-            }
-            onChange={(event) => {
-              const normalized = normalizeTaxaMinimaInputValue(event.target.value)
-              applyVendaUpdates({ taxa_minima_mensal: normalized })
+            data-field="cliente-cep"
+            value={cliente.cep}
+            onChange={(e) => {
+              handleClienteChange('cep', e.target.value)
+              clearFieldHighlight(e.currentTarget)
             }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.taxa_minima_mensal} />
-        </Field>
-      </div>
-      {renderTusdParametersSection()}
-      <div className="grid g3">
-        <Field
-          label={
-            <>
-              Inflação de energia (% a.a.)
-              <InfoTooltip text="Reajuste anual estimado para a tarifa de energia." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            step="0.1"
-            value={
-              Number.isFinite(vendaForm.inflacao_energia_aa_pct)
-                ? vendaForm.inflacao_energia_aa_pct
-                : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setInflacaoAa(normalized)
-              applyVendaUpdates({ inflacao_energia_aa_pct: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
+            inputMode="numeric"
+            autoComplete="postal-code"
+            placeholder="00000-000"
           />
         </Field>
         <Field
           label={labelWithTooltip(
-            'Horizonte de análise (meses)',
-            'Quantidade de meses simulados para payback, ROI e fluxo de caixa projetado.',
+            'Cidade',
+            'Município da instalação utilizado em relatórios, cálculo de impostos locais e validação de CEP.',
           )}
+          hint={verificandoCidade ? 'Verificando cidade...' : clienteMensagens.cidade}
         >
           <input
-            type="number"
-            min={1}
-            step={1}
-            value={
-              Number.isFinite(vendaForm.horizonte_meses) ? vendaForm.horizonte_meses : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed)
-                ? Math.max(1, Math.round(parsed))
-                : 1
-              applyVendaUpdates({ horizonte_meses: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.horizonte_meses} />
-        </Field>
-        <Field
-          label={
-            <>
-              Taxa de desconto (% a.a.)
-              <InfoTooltip text="Opcional: utilizada para calcular o Valor Presente Líquido (VPL)." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            step="0.1"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.taxa_desconto_aa_pct)
-                ? vendaForm.taxa_desconto_aa_pct
-                : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              if (event.target.value === '') {
-                applyVendaUpdates({ taxa_desconto_aa_pct: undefined })
-                return
+            data-field="cliente-cidade"
+            value={cliente.cidade}
+            onChange={(e) => {
+              const nextCidade = e.target.value
+              handleClienteChange('cidade', nextCidade)
+              clearFieldHighlight(e.currentTarget)
+              if (nextCidade.trim() && cliente.uf.trim()) {
+                clearFieldHighlight(
+                  document.querySelector('[data-field="cliente-uf"]') as HTMLElement | null,
+                )
               }
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              applyVendaUpdates({ taxa_desconto_aa_pct: normalized })
             }}
-            onFocus={selectNumberInputOnFocus}
           />
-          <FieldError message={vendaFormErrors.taxa_desconto_aa_pct} />
         </Field>
-      </div>
-      <div className="grid g3">
         <Field
           label={labelWithTooltip(
-            'UF (ANEEL)',
-            'Estado utilizado para consultar automaticamente tarifas homologadas e irradiação base.',
+            'UF',
+            'Estado da instalação; utilizado para listar distribuidoras disponíveis, definir tarifas e parâmetros regionais.',
           )}
         >
-          <select value={ufTarifa} onChange={(event) => handleParametrosUfChange(event.target.value)}>
+          <select
+            data-field="cliente-uf"
+            value={cliente.uf}
+            onChange={(e) => {
+              const nextUf = e.target.value
+              handleClienteChange('uf', nextUf)
+              clearFieldHighlight(e.currentTarget)
+              if (cliente.cidade.trim() && nextUf.trim()) {
+                clearFieldHighlight(
+                  document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
+                )
+              }
+            }}
+          >
             <option value="">Selecione a UF</option>
             {ufsDisponiveis.map((uf) => (
               <option key={uf} value={uf}>
                 {uf} — {UF_LABELS[uf] ?? uf}
               </option>
             ))}
+            {cliente.uf && !ufsDisponiveis.includes(cliente.uf) ? (
+              <option value={cliente.uf}>
+                {cliente.uf} — {UF_LABELS[cliente.uf] ?? cliente.uf}
+              </option>
+            ) : null}
           </select>
         </Field>
         <Field
           label={labelWithTooltip(
             'Distribuidora (ANEEL)',
-            'Concessionária da UC; determina TE, TUSD e reajustes aplicados nas simulações.',
+            'Concessionária responsável pela unidade consumidora; define tarifas homologadas e regras de compensação.',
           )}
         >
           <select
-            value={distribuidoraTarifa}
-            onChange={(event) => handleParametrosDistribuidoraChange(event.target.value)}
-            disabled={!ufTarifa || distribuidorasDisponiveis.length === 0}
+            data-field="cliente-distribuidoraAneel"
+            value={cliente.distribuidora}
+            onChange={(e) => {
+              handleClienteChange('distribuidora', e.target.value)
+              clearFieldHighlight(e.currentTarget)
+            }}
+            disabled={clienteDistribuidoraDisabled}
+            aria-disabled={clienteDistribuidoraDisabled}
+            style={
+              clienteDistribuidoraDisabled
+                ? { opacity: 0.6, cursor: 'not-allowed' }
+                : undefined
+            }
           >
             <option value="">
-              {ufTarifa ? 'Selecione a distribuidora' : 'Selecione a UF'}
+              {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
             </option>
-            {distribuidorasDisponiveis.map((nome) => (
+            {clienteDistribuidorasDisponiveis.map((nome) => (
               <option key={nome} value={nome}>
                 {nome}
               </option>
             ))}
+            {cliente.distribuidora &&
+            !clienteDistribuidorasDisponiveis.includes(cliente.distribuidora) ? (
+              <option value={cliente.distribuidora}>{cliente.distribuidora}</option>
+            ) : null}
           </select>
         </Field>
-        <Field
-          label={
-            <>
-              Irradiação média (kWh/m²/dia)
-              <InfoTooltip text="Valor sugerido automaticamente conforme a UF ou distribuidora." />
-            </>
-          }
-          hint="Atualizado automaticamente conforme a região selecionada."
-        >
-          <input
-            readOnly
-            value={
-              baseIrradiacao > 0
-                ? formatNumberBRWithOptions(baseIrradiacao, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })
-                : ''
-            }
-          />
-        </Field>
       </div>
-    </section>
-  )
+    )
 
-  const renderVendaConfiguracaoSection = () => (
-    <section className="card configuracao-usina-card">
-      <div className="configuracao-usina-card__header">
-        <h2>Configuração da UF</h2>
-        <button
-          type="button"
-          className="configuracao-usina-card__toggle"
-          aria-expanded={configuracaoUsinaObservacoesExpanded}
-          aria-controls={configuracaoUsinaObservacoesVendaContainerId}
-          onClick={() =>
-            setConfiguracaoUsinaObservacoesExpanded((previous) => !previous)
-          }
-        >
-          {configuracaoUsinaObservacoesExpanded
-            ? 'Ocultar observações'
-            : configuracaoUsinaObservacoes.trim()
-            ? 'Editar observações'
-            : 'Adicionar observações'}
-        </button>
-      </div>
-      <div
-        id={configuracaoUsinaObservacoesVendaContainerId}
-        className="configuracao-usina-card__observacoes"
-        hidden={!configuracaoUsinaObservacoesExpanded}
-      >
-        <label className="configuracao-usina-card__observacoes-label" htmlFor={configuracaoUsinaObservacoesVendaId}>
-          Observações
-        </label>
-        <textarea
-          id={configuracaoUsinaObservacoesVendaId}
-          value={configuracaoUsinaObservacoes}
-          onChange={(event) => setConfiguracaoUsinaObservacoes(event.target.value)}
-          placeholder="Inclua observações relevantes sobre a configuração da usina"
-          rows={3}
-        />
-      </div>
-      <div className="grid g4">
-        <Field
-          label={labelWithTooltip(
-            'Potência do módulo (Wp)',
-            'Potência nominal de cada módulo fotovoltaico; usada na conversão kWp = (módulos × Wp) ÷ 1000.',
-          )}
-        >
-          <select
-            value={potenciaModulo}
-            onChange={(event) => {
-              setPotenciaModuloDirty(true)
-              const parsed = Number(event.target.value)
-              const potenciaSelecionada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setPotenciaModulo(potenciaSelecionada)
-            }}
-          >
-            {PAINEL_OPCOES.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Nº de módulos (estimado)',
-            'Quantidade de módulos utilizada no dimensionamento. Estimativa = ceil(Consumo alvo ÷ (Irradiação × Eficiência × dias) × 1000 ÷ Potência do módulo).',
-          )}
-        >
-          <input
-            type="number"
-            min={0}
-            step={1}
-            ref={moduleQuantityInputRef}
-            value={
-              numeroModulosManual === ''
-                ? numeroModulosEstimado > 0
-                  ? numeroModulosEstimado
-                  : 0
-                : numeroModulosManual
-            }
-            onChange={(event) => {
-              const { value } = event.target
-              if (value === '') {
-                setNumeroModulosManual('')
-                applyVendaUpdates({ quantidade_modulos: undefined })
-                return
+    const mainSection =
+      modoOrcamento === 'manual' ? (
+        <>
+          <div className="grid g2">
+            <Field
+              label={
+                <>
+                  Consumo (kWh/mês)
+                  <InfoTooltip text="Consumo médio mensal utilizado para projetar a geração e a economia." />
+                </>
               }
-              const parsed = Number(value)
-              if (!Number.isFinite(parsed) || parsed <= 0) {
-                setNumeroModulosManual('')
-                applyVendaUpdates({ quantidade_modulos: undefined })
-                return
-              }
-              const inteiro = Math.max(1, Math.round(parsed))
-              setNumeroModulosManual(inteiro)
-              applyVendaUpdates({ quantidade_modulos: inteiro })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de instalação',
-            'Selecione entre Telhado de fibrocimento, Telhas metálicas, Telhas cerâmicas, Laje, Solo ou Outros (texto); a escolha impacta área estimada e custos de estrutura.',
-          )}
-        >
-          <select
-            value={tipoInstalacao}
-            onChange={(event) =>
-              handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
-            }
-          >
-            {TIPOS_INSTALACAO.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de sistema',
-            'Escolha entre on-grid, híbrido ou off-grid para registrar a topologia elétrica da proposta.',
-          )}
-        >
-          <select
-            value={tipoSistema}
-            onChange={(event) => handleTipoSistemaChange(event.target.value as TipoSistema)}
-          >
-            <option value="ON_GRID">On-grid</option>
-            <option value="HIBRIDO">Híbrido</option>
-            <option value="OFF_GRID">Off-grid</option>
-          </select>
-        </Field>
-          <Field
-            label={labelWithTooltip(
-              'Tipo de rede',
-              'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
-            )}
-          >
-            <select
-              value={tipoRede}
-              onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
             >
-              {TIPOS_REDE.map((rede) => (
-                <option key={rede.value} value={rede.value}>
-                  {rede.label}
-                </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={
-            <>
-              Potência do sistema (kWp)
-              <InfoTooltip text="Potência do sistema = (Nº de módulos × Potência do módulo) ÷ 1000. Sem entrada manual de módulos, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={
-              potenciaFonteManual
-                ? vendaForm.potencia_instalada_kwp ?? ''
-                : potenciaInstaladaKwp || ''
-            }
-            onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={
-            <>
-              Geração estimada (kWh/mês)
-              <InfoTooltip text="Geração estimada = Potência do sistema × Irradiação média × Eficiência × 30 dias." />
-            </>
-          }
-        >
-          <input
-            readOnly
-            value={formatNumberBRWithOptions(geracaoMensalKwh, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Área utilizada (m²)',
-            'Estimativa de área ocupada: Nº de módulos × fator (3,3 m² para telhado ou 7 m² para solo).',
-          )}
-        >
-          <input
-            readOnly
-            value={
-              areaInstalacao > 0
-                ? formatNumberBRWithOptions(areaInstalacao, {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
+              <input
+                type="number"
+                min={0}
+                value={
+                  Number.isFinite(vendaForm.consumo_kwh_mes)
+                    ? vendaForm.consumo_kwh_mes
+                    : ''
+                }
+                onChange={(event) => {
+                  const { value } = event.target
+                  if (value === '') {
+                    setNumeroModulosManual('')
+                    setKcKwhMes(0, 'auto')
+                    applyVendaUpdates({
+                      consumo_kwh_mes: undefined,
+                      geracao_estimada_kwh_mes: undefined,
+                      potencia_instalada_kwp: undefined,
+                      quantidade_modulos: undefined,
+                    })
+                    return
+                  }
+
+                  const parsed = Number(value)
+                  const consumoDesejado = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+                  const modulosCalculados = calcularModulosPorGeracao(consumoDesejado)
+
+                  let potenciaCalculada = 0
+                  let geracaoCalculada = consumoDesejado
+
+                  if (modulosCalculados != null) {
+                    potenciaCalculada = calcularPotenciaSistemaKwp(modulosCalculados)
+                    if (potenciaCalculada > 0) {
+                      const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
+                      if (estimada > 0) {
+                        geracaoCalculada = normalizarGeracaoMensal(estimada)
+                      }
+                    }
+                  }
+
+                  if (geracaoCalculada <= 0 && consumoDesejado > 0) {
+                    geracaoCalculada = consumoDesejado
+                  }
+
+                  const consumoFinal = consumoDesejado
+                  setKcKwhMes(consumoFinal, 'user')
+
+                  applyVendaUpdates({
+                    consumo_kwh_mes: consumoFinal,
+                    geracao_estimada_kwh_mes:
+                      geracaoCalculada > 0
+                        ? geracaoCalculada
+                        : consumoFinal === 0
+                        ? 0
+                        : undefined,
+                    potencia_instalada_kwp:
+                      potenciaCalculada > 0
+                        ? normalizarPotenciaKwp(potenciaCalculada)
+                        : consumoFinal === 0
+                        ? 0
+                        : undefined,
+                    quantidade_modulos: modulosCalculados ?? undefined,
                   })
-                : ''
-            }
-          />
-        </Field>
-      </div>
-      {tipoRedeCompatMessage ? (
-        <div className="warning rede-compat-warning" role="alert">
-          <strong>Incompatibilidade entre potência e rede.</strong> {tipoRedeCompatMessage}
-        </div>
-      ) : null}
-      {estruturaTipoWarning ? (
-        <div className="estrutura-warning-alert" role="alert">
-          <div>
-            <h3>Estrutura utilizada não identificada</h3>
-            <p>
-              Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
-              <strong>Estrutura utilizada</strong> no documento enviado. Tente enviar um arquivo em outro formato.
-            </p>
+
+                  if (modulosCalculados != null) {
+                    setNumeroModulosManual('')
+                  }
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.consumo_kwh_mes} />
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Taxa mínima ({tipoRedeLabel})
+                </label>
+                <Switch
+                  checked={vendaForm.aplica_taxa_minima ?? true}
+                  onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}
+                />
+                <span className="text-xs text-gray-500">
+                  {vendaForm.aplica_taxa_minima ?? true
+                    ? 'Cliente paga taxa mínima (padrão)'
+                    : 'Cliente isento de taxa mínima'}
+                </span>
+              </div>
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Tarifa cheia (R$/kWh)',
+                'Valor cobrado por kWh sem descontos contratuais; base para calcular a conta de energia projetada.',
+              )}
+            >
+              <input
+                type="text"
+                inputMode="decimal"
+                value={tarifaCheiaVendaField.value}
+                onChange={tarifaCheiaVendaField.onChange}
+                onFocus={tarifaCheiaVendaField.onFocus}
+                onBlur={tarifaCheiaVendaField.onBlur}
+                onKeyDown={tarifaCheiaVendaField.onKeyDown}
+              />
+              <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Custos Fixos da Conta de Energia (R$/MÊS)',
+                'Total de custos fixos mensais cobrados pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                value={
+                  taxaMinimaInputEmpty
+                    ? ''
+                    : Number.isFinite(vendaForm.taxa_minima_mensal)
+                    ? vendaForm.taxa_minima_mensal
+                    : taxaMinima
+                }
+                onChange={(event) => {
+                  const normalized = normalizeTaxaMinimaInputValue(event.target.value)
+                  applyVendaUpdates({ taxa_minima_mensal: normalized })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.taxa_minima_mensal} />
+            </Field>
           </div>
-          <div className="estrutura-warning-alert-actions">
-            <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
-              Enviar outro arquivo
+          {renderTusdParametersSection()}
+          <div className="grid g2">
+            <Field
+              label={
+                <>
+                  Inflação de energia (% a.a.)
+                  <InfoTooltip text="Reajuste anual estimado para a tarifa de energia." />
+                </>
+              }
+            >
+              <input
+                type="number"
+                step="0.1"
+                value={
+                  Number.isFinite(vendaForm.inflacao_energia_aa_pct)
+                    ? vendaForm.inflacao_energia_aa_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const parsed = Number(event.target.value)
+                  const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+                  setInflacaoAa(normalized)
+                  applyVendaUpdates({ inflacao_energia_aa_pct: normalized })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Horizonte de análise (meses)',
+                'Quantidade de meses simulados para payback, ROI e fluxo de caixa projetado.',
+              )}
+            >
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={
+                  Number.isFinite(vendaForm.horizonte_meses)
+                    ? vendaForm.horizonte_meses
+                    : ''
+                }
+                onChange={(event) => {
+                  const parsed = Number(event.target.value)
+                  const normalized = Number.isFinite(parsed)
+                    ? Math.max(1, Math.round(parsed))
+                    : 1
+                  applyVendaUpdates({ horizonte_meses: normalized })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.horizonte_meses} />
+            </Field>
+            <Field
+              label={
+                <>
+                  Taxa de desconto (% a.a.)
+                  <InfoTooltip text="Opcional: utilizada para calcular o Valor Presente Líquido (VPL)." />
+                </>
+              }
+            >
+              <input
+                type="number"
+                step="0.1"
+                min={0}
+                value={
+                  Number.isFinite(vendaForm.taxa_desconto_aa_pct)
+                    ? vendaForm.taxa_desconto_aa_pct
+                    : ''
+                }
+                onChange={(event) => {
+                  const parsed = Number(event.target.value)
+                  if (event.target.value === '') {
+                    applyVendaUpdates({ taxa_desconto_aa_pct: undefined })
+                    return
+                  }
+                  const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+                  applyVendaUpdates({ taxa_desconto_aa_pct: normalized })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+              <FieldError message={vendaFormErrors.taxa_desconto_aa_pct} />
+            </Field>
+            <Field
+              label={
+                <>
+                  Irradiação média (kWh/m²/dia)
+                  <InfoTooltip text="Valor sugerido automaticamente conforme a UF ou distribuidora." />
+                </>
+              }
+              hint="Atualizado automaticamente conforme a região selecionada."
+            >
+              <input
+                readOnly
+                value={
+                  baseIrradiacao > 0
+                    ? formatNumberBRWithOptions(baseIrradiacao, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : ''
+                }
+              />
+            </Field>
+          </div>
+        </>
+      ) : null
+
+    const systemSection =
+      modoOrcamento === 'manual' ? (
+        <>
+          <div className="configuracao-usina-card__header">
+            <h5 className="project-main-params-card__subheading">Observações da usina</h5>
+            <button
+              type="button"
+              className="configuracao-usina-card__toggle"
+              aria-expanded={configuracaoUsinaObservacoesExpanded}
+              aria-controls={configuracaoUsinaObservacoesVendaContainerId}
+              onClick={() =>
+                setConfiguracaoUsinaObservacoesExpanded((previous) => !previous)
+              }
+            >
+              {configuracaoUsinaObservacoesExpanded
+                ? 'Ocultar observações'
+                : configuracaoUsinaObservacoes.trim()
+                ? 'Editar observações'
+                : 'Adicionar observações'}
             </button>
           </div>
-        </div>
-      ) : null}
-      <div className="grid g3">
-        <Field
-          label={labelWithTooltip(
-            'Modelo do módulo',
-            'Descrição comercial do módulo fotovoltaico utilizado na proposta.',
-          )}
-        >
-          <input
-            type="text"
-            value={vendaForm.modelo_modulo ?? ''}
-            onChange={(event) => applyVendaUpdates({ modelo_modulo: event.target.value || undefined })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Modelo do inversor',
-            'Modelo comercial do inversor responsável pela conversão CC/CA.',
-          )}
-        >
-          <input
-            type="text"
-            ref={inverterModelInputRef}
-            value={vendaForm.modelo_inversor ?? ''}
-            onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
-          />
-        </Field>
-      </div>
-      <div className="info-inline">
-        <span className="pill">
-          <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ 30 dias." />
-          Consumo diário
-          <strong>
-            {`${formatNumberBRWithOptions(geracaoDiariaKwh, {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            })} kWh`}
-          </strong>
-        </span>
-      </div>
-    </section>
-  )
+          <div
+            id={configuracaoUsinaObservacoesVendaContainerId}
+            className="configuracao-usina-card__observacoes"
+            hidden={!configuracaoUsinaObservacoesExpanded}
+          >
+            <label
+              className="configuracao-usina-card__observacoes-label"
+              htmlFor={configuracaoUsinaObservacoesVendaId}
+            >
+              Observações
+            </label>
+            <textarea
+              id={configuracaoUsinaObservacoesVendaId}
+              value={configuracaoUsinaObservacoes}
+              onChange={(event) => setConfiguracaoUsinaObservacoes(event.target.value)}
+              placeholder="Inclua observações relevantes sobre a configuração da usina"
+              rows={3}
+            />
+          </div>
+          <div className="grid g2">
+            <Field
+              label={labelWithTooltip(
+                'Potência do módulo (Wp)',
+                'Potência nominal de cada módulo fotovoltaico; usada na conversão kWp = (módulos × Wp) ÷ 1000.',
+              )}
+            >
+              <select
+                value={potenciaModulo}
+                onChange={(event) => {
+                  setPotenciaModuloDirty(true)
+                  const parsed = Number(event.target.value)
+                  const potenciaSelecionada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+                  setPotenciaModulo(potenciaSelecionada)
+                }}
+              >
+                {PAINEL_OPCOES.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Nº de módulos (estimado)',
+                'Quantidade de módulos utilizada no dimensionamento. Estimativa = ceil(Consumo alvo ÷ (Irradiação × Eficiência × dias) × 1000 ÷ Potência do módulo).',
+              )}
+            >
+              <input
+                type="number"
+                min={0}
+                step={1}
+                ref={moduleQuantityInputRef}
+                value={
+                  numeroModulosManual === ''
+                    ? numeroModulosEstimado > 0
+                      ? numeroModulosEstimado
+                      : 0
+                    : numeroModulosManual
+                }
+                onChange={(event) => {
+                  const { value } = event.target
+                  if (value === '') {
+                    setNumeroModulosManual('')
+                    applyVendaUpdates({ quantidade_modulos: undefined })
+                    return
+                  }
+                  const parsed = Number(value)
+                  if (!Number.isFinite(parsed) || parsed <= 0) {
+                    setNumeroModulosManual('')
+                    applyVendaUpdates({ quantidade_modulos: undefined })
+                    return
+                  }
+                  const inteiro = Math.max(1, Math.round(parsed))
+                  setNumeroModulosManual(inteiro)
+                  applyVendaUpdates({ quantidade_modulos: inteiro })
+                }}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Tipo de rede',
+                'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
+              )}
+            >
+              <select
+                value={tipoRede}
+                onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
+              >
+                {TIPOS_REDE.map((rede) => (
+                  <option key={rede.value} value={rede.value}>
+                    {rede.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label={
+                <>
+                  Potência do sistema (kWp)
+                  <InfoTooltip text="Potência do sistema = (Nº de módulos × Potência do módulo) ÷ 1000. Sem entrada manual de módulos, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
+                </>
+              }
+            >
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={
+                  potenciaFonteManual
+                    ? vendaForm.potencia_instalada_kwp ?? ''
+                    : potenciaInstaladaKwp || ''
+                }
+                onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
+                onFocus={selectNumberInputOnFocus}
+              />
+            </Field>
+            <Field
+              label={
+                <>
+                  Geração estimada (kWh/mês)
+                  <InfoTooltip text="Geração estimada = Potência do sistema × Irradiação média × Eficiência × 30 dias." />
+                </>
+              }
+            >
+              <input
+                readOnly
+                value={formatNumberBRWithOptions(geracaoMensalKwh, {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                })}
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Área utilizada (m²)',
+                'Estimativa de área ocupada: Nº de módulos × fator (3,3 m² para telhado ou 7 m² para solo).',
+              )}
+            >
+              <input
+                readOnly
+                value={
+                  areaInstalacao > 0
+                    ? formatNumberBRWithOptions(areaInstalacao, {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      })
+                    : ''
+                }
+              />
+            </Field>
+          </div>
+          {tipoRedeCompatMessage ? (
+            <div className="warning rede-compat-warning" role="alert">
+              <strong>Incompatibilidade entre potência e rede.</strong> {tipoRedeCompatMessage}
+            </div>
+          ) : null}
+          {estruturaTipoWarning ? (
+            <div className="estrutura-warning-alert" role="alert">
+              <div>
+                <h3>Estrutura utilizada não identificada</h3>
+                <p>
+                  Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
+                  <strong>Estrutura utilizada</strong> no documento enviado. Tente enviar um arquivo em outro formato.
+                </p>
+              </div>
+              <div className="estrutura-warning-alert-actions">
+                <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
+                  Enviar outro arquivo
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div className="grid g2">
+            <Field
+              label={labelWithTooltip(
+                'Modelo do módulo',
+                'Descrição comercial do módulo fotovoltaico utilizado na proposta.',
+              )}
+            >
+              <input
+                type="text"
+                value={vendaForm.modelo_modulo ?? ''}
+                onChange={(event) =>
+                  applyVendaUpdates({ modelo_modulo: event.target.value || undefined })
+                }
+              />
+            </Field>
+            <Field
+              label={labelWithTooltip(
+                'Modelo do inversor',
+                'Modelo comercial do inversor responsável pela conversão CC/CA.',
+              )}
+            >
+              <input
+                type="text"
+                ref={inverterModelInputRef}
+                value={vendaForm.modelo_inversor ?? ''}
+                onChange={(event) =>
+                  applyVendaUpdates({ modelo_inversor: event.target.value || undefined })
+                }
+              />
+            </Field>
+          </div>
+          <div className="info-inline">
+            <span className="pill">
+              <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ 30 dias." />
+              Consumo diário
+              <strong>
+                {`${formatNumberBRWithOptions(geracaoDiariaKwh, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })} kWh`}
+              </strong>
+            </span>
+          </div>
+        </>
+      ) : null
+
+    return (
+      <ProjectMainParamsCard
+        localSection={localSection}
+        mainSection={mainSection ?? undefined}
+        systemSection={systemSection ?? undefined}
+      />
+    )
+  }
 
   const renderVendaResumoPublicoSection = () => (
     <section className="card">
@@ -23130,6 +23200,7 @@ export default function App() {
                     </div>
                     ) : null}
                     {renderClienteDadosSection()}
+                    {activeTab === 'vendas' ? renderProjectMainParamsCard() : null}
                     {activeTab === 'vendas' ? (
                       <>
                         <section className="card">
@@ -23545,8 +23616,6 @@ export default function App() {
             ) : null}
             {modoOrcamento === 'manual' ? (
               <>
-                {renderVendaParametrosSection()}
-                {renderVendaConfiguracaoSection()}
                 {renderVendaResumoPublicoSection()}
                 {renderComposicaoUfvSection()}
                 <section className="card">

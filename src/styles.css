@@ -651,6 +651,61 @@ button.secondary.small {
   padding-bottom: 4px;
 }
 
+.project-main-params-card h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--text-strong);
+}
+
+.project-main-params-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.project-main-params-card__subtitle {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-s);
+}
+
+.project-main-params-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.project-main-params-card__section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.project-main-params-card__section-header h4 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-strong);
+}
+
+.project-main-params-card__section-header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-s);
+}
+
+.project-main-params-card__subheading {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-strong);
+}
+
+.project-main-params-card__divider {
+  height: 1px;
+  background: var(--border);
+  border-radius: 999px;
+}
+
 .proposal-images-card .card-header {
   flex-wrap: wrap;
   gap: var(--space-2);
