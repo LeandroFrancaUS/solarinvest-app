@@ -13014,87 +13014,6 @@ export default function App() {
     setClienteEmEdicaoId,
   ])
 
-  const applyClienteSnapshot = useCallback(
-    (snapshot: OrcamentoSnapshotData) => {
-      setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
-      setKcKwhMes(snapshot.kcKwhMes, snapshot.consumoManual ? 'user' : 'auto')
-      setSegmentoCliente(normalizeTipoBasico(snapshot.segmentoCliente))
-      setTipoEdificacaoOutro(snapshot.tipoEdificacaoOutro || '')
-      setConfiguracaoUsinaObservacoes(snapshot.configuracaoUsinaObservacoes ?? '')
-      setLeasingAnexosSelecionados(
-        ensureRequiredLeasingAnexos(
-          Array.isArray(snapshot.leasingAnexosSelecionados)
-            ? [...snapshot.leasingAnexosSelecionados]
-            : getDefaultLeasingAnexos(
-                snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial',
-              ),
-          snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial',
-        ),
-      )
-      const ucGeradoraTitularDiferente = Boolean(
-        snapshot.leasingSnapshot?.contrato?.ucGeradoraTitularDiferente,
-      )
-      const ucGeradoraTitular =
-        snapshot.leasingSnapshot?.contrato?.ucGeradoraTitular ?? null
-      leasingActions.updateContrato({
-        localEntrega: snapshot.leasingSnapshot?.contrato?.localEntrega ?? '',
-        ucGeradoraTitularDiferente,
-        ucGeradoraTitular,
-        ucGeradoraTitularDraft: null,
-        ucGeradoraTitularDistribuidoraAneel:
-          snapshot.leasingSnapshot?.contrato?.ucGeradoraTitularDistribuidoraAneel ?? '',
-      })
-      setUcGeradoraTitularPanelOpen(false)
-      setUcGeradoraTitularErrors({})
-      setUcGeradoraTitularCepMessage(undefined)
-      setUcGeradoraTitularBuscandoCep(false)
-    },
-    [
-      setKcKwhMes,
-      setLeasingAnexosSelecionados,
-      setSegmentoCliente,
-      setTipoEdificacaoOutro,
-      setConfiguracaoUsinaObservacoes,
-      setUcsBeneficiarias,
-      setUcGeradoraTitularPanelOpen,
-      setUcGeradoraTitularErrors,
-      setUcGeradoraTitularCepMessage,
-      setUcGeradoraTitularBuscandoCep,
-    ],
-  )
-
-  const handleEditarCliente = useCallback(
-    async (registro: ClienteRegistro) => {
-      // Load latest data from clientStore
-      const registroHidratado = await hydrateClienteRegistroFromStore(registro)
-      const dadosClonados = cloneClienteDados(registroHidratado.dados)
-      console.log('[handleEditarCliente] Loading cliente with endereco:', dadosClonados.endereco)
-      setClienteSync(dadosClonados)
-      setClienteMensagens({})
-      setClienteEmEdicaoId(registroHidratado.id)
-      lastSavedClienteRef.current = dadosClonados
-      console.log('[handleEditarCliente] lastSavedClienteRef set with endereco:', lastSavedClienteRef.current?.endereco)
-      if (registroHidratado.propostaSnapshot) {
-        const snapshotComDefaults = mergeSnapshotWithDefaults(
-          registroHidratado.propostaSnapshot,
-          registroHidratado.propostaSnapshot.currentBudgetId ?? getActiveBudgetId(),
-        )
-        applyClienteSnapshot(snapshotComDefaults)
-      } else {
-        applyClienteSnapshot(
-          createEmptySnapshot(getActiveBudgetId(), activeTabRef.current ?? activeTab),
-        )
-      }
-      fecharClientesPainel()
-    },
-    [
-      applyClienteSnapshot,
-      fecharClientesPainel,
-      setClienteEmEdicaoId,
-      setClienteMensagens,
-      setClienteSync,
-    ],
-  )
 
   const clienteRegistroEmEdicao = clienteEmEdicaoId
     ? clientesSalvos.find((registro) => registro.id === clienteEmEdicaoId) ?? null
@@ -13810,10 +13729,46 @@ export default function App() {
     })
     leasingActions.update(snapshot.leasingSnapshot)
 
-  if (options?.budgetIdOverride) {
-    vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
+    if (options?.budgetIdOverride) {
+      vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
+    }
   }
-}
+
+  const handleEditarCliente = useCallback(
+    async (registro: ClienteRegistro) => {
+      const registroHidratado = await hydrateClienteRegistroFromStore(registro)
+      const dadosClonados = cloneClienteDados(registroHidratado.dados)
+      const snapshotBase = registroHidratado.propostaSnapshot
+        ? mergeSnapshotWithDefaults(
+            registroHidratado.propostaSnapshot,
+            registroHidratado.propostaSnapshot.currentBudgetId ?? getActiveBudgetId(),
+          )
+        : createEmptySnapshot(getActiveBudgetId(), activeTabRef.current ?? activeTab)
+      const snapshotToApply: OrcamentoSnapshotData = {
+        ...snapshotBase,
+        cliente: dadosClonados,
+        clienteEmEdicaoId: registroHidratado.id,
+        clienteMensagens: {},
+      }
+      const allowEmpty =
+        !registroHidratado.propostaSnapshot || isSnapshotEmpty(snapshotToApply)
+      aplicarSnapshot(snapshotToApply, {
+        budgetIdOverride: snapshotToApply.currentBudgetId ?? getActiveBudgetId(),
+        allowEmpty,
+      })
+      fecharClientesPainel()
+    },
+    [
+      activeTab,
+      aplicarSnapshot,
+      createEmptySnapshot,
+      fecharClientesPainel,
+      getActiveBudgetId,
+      hydrateClienteRegistroFromStore,
+      isSnapshotEmpty,
+      mergeSnapshotWithDefaults,
+    ],
+  )
 
   const carregarOrcamentoParaEdicao = useCallback(
     async (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
