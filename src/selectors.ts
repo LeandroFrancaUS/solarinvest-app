@@ -7,7 +7,12 @@ import {
   valorCompraCliente,
   type EntradaModo,
 } from './utils/calcs'
-import { calcularValorContaRede, type TusdConfig } from './lib/finance/calculations'
+import {
+  calcularTarifaProjetada,
+  calcularTaxaMinima,
+  calcularValorContaRede,
+  type TusdConfig,
+} from './lib/finance/calculations'
 import type { TipoRede } from './app/config'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 
@@ -78,7 +83,7 @@ export function selectMensalidades(state: SimulationState): number[] {
   const kcContratado = selectKcAjustado(state)
   return Array.from({ length: prazo }, (_, index) => {
     const anosDecorridos = index / 12
-    const encargosDistribuidora = calcularValorContaRede({
+    const encargosDistribuidoraBase = calcularValorContaRede({
       tarifaCheia: state.tarifaCheia,
       inflacaoEnergetica: state.inflacaoAa,
       anosDecorridos,
@@ -90,6 +95,12 @@ export function selectMensalidades(state: SimulationState): number[] {
       } satisfies TusdConfig,
       energiaGeradaKwh: state.geracaoMensalKwh,
     })
+    const tarifaProjetada = calcularTarifaProjetada(state.tarifaCheia, state.inflacaoAa, anosDecorridos)
+    const taxaMinimaCalculada = calcularTaxaMinima(state.tipoRede, tarifaProjetada)
+    const aplicaTaxaMinima = state.aplicaTaxaMinima ?? true
+    const taxaMinimaAplicada = aplicaTaxaMinima ? Math.max(0, state.taxaMinima) : 0
+    const ajusteTaxaMinima = taxaMinimaAplicada - taxaMinimaCalculada
+    const encargosDistribuidora = Math.max(0, encargosDistribuidoraBase + ajusteTaxaMinima)
     const mes = index + 1
     const tarifaComDesconto = selectTarifaDescontada(state, mes)
     const energiaComDesconto = Math.max(0, kcContratado) * tarifaComDesconto
