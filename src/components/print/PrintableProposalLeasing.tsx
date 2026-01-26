@@ -17,6 +17,7 @@ import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 import type { SegmentoCliente } from '../../lib/finance/roi'
 import { sanitizePrintableText } from '../../utils/textSanitizer'
+import { calcularTaxaMinima } from '../../utils/calcs'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -419,7 +420,13 @@ function PrintableProposalLeasingInner(
 
   const taxaMinimaMensal = (() => {
     const valor = vendaSnapshot?.parametros?.taxa_minima_rs_mes
-    return Number.isFinite(valor) ? Math.max(0, valor ?? 0) : 0
+    if (Number.isFinite(valor)) {
+      return Math.max(0, valor ?? 0)
+    }
+    if (tipoRede && tarifaCheiaBase > 0) {
+      return calcularTaxaMinima(tipoRede, tarifaCheiaBase)
+    }
+    return 0
   })()
 
   const formatKwhValor = (valor: number, fractionDigits = 2): string =>
