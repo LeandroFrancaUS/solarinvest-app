@@ -735,8 +735,8 @@ function PrintableProposalLeasingInner(
       const tarifaAno = tarifaCheiaBase * fator
       const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
       const tusdMedio = tusdMedioPorAno[ano] ?? 0
-      const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto
-      const encargosDistribuidora = tusdMedio + taxaMinimaMensal
+      const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto + taxaMinimaMensal
+      const encargosDistribuidora = tusdMedio
       const despesaMensalEstimada = mensalidadeSolarInvest + encargosDistribuidora
       return {
         ano,
