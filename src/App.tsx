@@ -6045,7 +6045,7 @@ export default function App() {
   ])
 
   const resolveDefaultTusdSimultaneidade = useCallback((tipo: TipoClienteTUSD): number | null => {
-    if (tipo === 'residencial') return 50
+    if (tipo === 'residencial') return 60
     if (tipo === 'comercial') return 70
     return null
   }, [])
