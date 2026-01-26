@@ -75,9 +75,10 @@ export function selectTarifaDescontada(state: SimulationState, m: number): numbe
 
 export function selectMensalidades(state: SimulationState): number[] {
   const prazo = Math.max(0, Math.floor(state.prazoMeses))
+  const kcContratado = selectKcAjustado(state)
   return Array.from({ length: prazo }, (_, index) => {
     const anosDecorridos = index / 12
-    return calcularValorContaRede({
+    const encargosDistribuidora = calcularValorContaRede({
       tarifaCheia: state.tarifaCheia,
       inflacaoEnergetica: state.inflacaoAa,
       anosDecorridos,
@@ -89,6 +90,11 @@ export function selectMensalidades(state: SimulationState): number[] {
       } satisfies TusdConfig,
       energiaGeradaKwh: state.geracaoMensalKwh,
     })
+    const mes = index + 1
+    const tarifaComDesconto = selectTarifaDescontada(state, mes)
+    const energiaComDesconto = Math.max(0, kcContratado) * tarifaComDesconto
+    const total = energiaComDesconto + encargosDistribuidora
+    return Number.isFinite(total) ? total : 0
   })
 }
 
