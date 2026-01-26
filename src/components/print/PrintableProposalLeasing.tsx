@@ -419,8 +419,15 @@ function PrintableProposalLeasingInner(
     : null
 
   const taxaMinimaMensal = (() => {
+    const aplicaTaxaMinima =
+      typeof vendaSnapshot?.parametros?.aplica_taxa_minima === 'boolean'
+        ? vendaSnapshot.parametros.aplica_taxa_minima
+        : true
+    if (!aplicaTaxaMinima) {
+      return 0
+    }
     const valor = vendaSnapshot?.parametros?.taxa_minima_rs_mes
-    if (Number.isFinite(valor)) {
+    if (Number.isFinite(valor) && (valor ?? 0) > 0) {
       return Math.max(0, valor ?? 0)
     }
     if (tipoRede && tarifaCheiaBase > 0) {
