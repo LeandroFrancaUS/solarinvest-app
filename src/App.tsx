@@ -5992,30 +5992,46 @@ export default function App() {
   const taxaMinimaAutoRef = useRef<number | null>(null)
 
   useEffect(() => {
-    const taxaAtual =
-      Number.isFinite(taxaMinima) && (taxaMinima ?? 0) > 0 ? Number(taxaMinima) : 0
+    const taxaAtual = Number.isFinite(taxaMinima) ? Math.max(0, Number(taxaMinima)) : 0
     const vendaTaxaAtual = Number.isFinite(vendaForm.taxa_minima_mensal)
       ? Number(vendaForm.taxa_minima_mensal)
+      : null
+    const vendaTaxaEnergiaAtual = Number.isFinite(vendaForm.taxa_minima_r_mes)
+      ? Number(vendaForm.taxa_minima_r_mes)
       : null
     const ultimaAuto = taxaMinimaAutoRef.current
     const deveAtualizarTaxaMinima =
       taxaMinimaInputEmpty || ultimaAuto == null || numbersAreClose(taxaAtual, ultimaAuto)
-    const deveAtualizarVenda =
-      vendaTaxaAtual == null || ultimaAuto == null || numbersAreClose(vendaTaxaAtual, ultimaAuto)
 
     if (deveAtualizarTaxaMinima && !numbersAreClose(taxaAtual, taxaMinimaCalculadaBase)) {
       setTaxaMinimaInputEmpty(false)
       setTaxaMinima(taxaMinimaCalculadaBase)
     }
 
-    if (
-      deveAtualizarVenda &&
-      !numbersAreClose(vendaTaxaAtual ?? 0, taxaMinimaCalculadaBase)
-    ) {
-      applyVendaUpdates({
-        taxa_minima_mensal: taxaMinimaCalculadaBase,
-        taxa_minima_r_mes: taxaMinimaCalculadaBase,
-      })
+    if (!taxaMinimaInputEmpty) {
+      const needsUpdate =
+        vendaTaxaAtual == null ||
+        vendaTaxaEnergiaAtual == null ||
+        !numbersAreClose(vendaTaxaAtual, taxaAtual) ||
+        !numbersAreClose(vendaTaxaEnergiaAtual, taxaAtual)
+      if (needsUpdate) {
+        applyVendaUpdates({
+          taxa_minima_mensal: taxaAtual,
+          taxa_minima_r_mes: taxaAtual,
+        })
+      }
+    } else {
+      const deveAtualizarVendaAuto =
+        vendaTaxaAtual == null || ultimaAuto == null || numbersAreClose(vendaTaxaAtual, ultimaAuto)
+      if (
+        deveAtualizarVendaAuto &&
+        !numbersAreClose(vendaTaxaAtual ?? 0, taxaMinimaCalculadaBase)
+      ) {
+        applyVendaUpdates({
+          taxa_minima_mensal: taxaMinimaCalculadaBase,
+          taxa_minima_r_mes: taxaMinimaCalculadaBase,
+        })
+      }
     }
 
     taxaMinimaAutoRef.current = taxaMinimaCalculadaBase
@@ -6027,6 +6043,7 @@ export default function App() {
     taxaMinimaCalculadaBase,
     taxaMinimaInputEmpty,
     vendaForm.taxa_minima_mensal,
+    vendaForm.taxa_minima_r_mes,
   ])
 
   const resolveDefaultTusdSimultaneidade = useCallback((tipo: TipoClienteTUSD): number | null => {
@@ -7629,11 +7646,13 @@ export default function App() {
     const aplicaTaxaMinima =
       typeof vendaForm.aplica_taxa_minima === 'boolean' ? vendaForm.aplica_taxa_minima : true
     const taxaMinimaCalculada = calcularTaxaMinima(tipoRede, Math.max(0, tarifaAtual))
-    const taxaMinimaEnergia = Number.isFinite(vendaForm.taxa_minima_r_mes)
-      ? Number(vendaForm.taxa_minima_r_mes)
-      : Math.max(0, taxaMinima) > 0
-        ? taxaMinima
-        : taxaMinimaCalculada
+    const taxaMinimaEnergia = aplicaTaxaMinima
+      ? taxaMinimaInputEmpty
+        ? taxaMinimaCalculada
+        : Number.isFinite(taxaMinima)
+          ? Math.max(0, taxaMinima)
+          : 0
+      : 0
     const taxaDesconto = Number.isFinite(vendaForm.taxa_desconto_aa_pct)
       ? Number(vendaForm.taxa_desconto_aa_pct)
       : 0
@@ -7658,6 +7677,7 @@ export default function App() {
     kcKwhMes,
     tarifaCheia,
     taxaMinima,
+    taxaMinimaInputEmpty,
     vendaForm.consumo_kwh_mes,
     vendaForm.inflacao_energia_aa_pct,
     vendaForm.tarifa_r_kwh,
@@ -8474,7 +8494,11 @@ export default function App() {
       ? Math.max(1, Math.trunc(tusdAnoReferencia))
       : DEFAULT_TUSD_ANO_REFERENCIA
     const taxaMinimaCalculadaBase = calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
-    const taxaMinimaFonte = Math.max(0, taxaMinima) > 0 ? Math.max(0, taxaMinima) : taxaMinimaCalculadaBase
+    const taxaMinimaFonte = taxaMinimaInputEmpty
+      ? taxaMinimaCalculadaBase
+      : Number.isFinite(taxaMinima)
+        ? Math.max(0, taxaMinima)
+        : 0
     return {
       kcKwhMes: Math.max(0, kcKwhMes),
       tarifaCheia: Math.max(0, tarifaCheia),
@@ -8532,6 +8556,7 @@ export default function App() {
     seguroM,
     tarifaCheia,
     taxaMinima,
+    taxaMinimaInputEmpty,
     tributosAa,
     encargosFixosExtras,
     depreciacaoAa,
