@@ -4252,9 +4252,7 @@ export default function App() {
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
   const [taxaMinima, setTaxaMinimaState] = useState(INITIAL_VALUES.taxaMinima)
-  const [taxaMinimaInputEmpty, setTaxaMinimaInputEmpty] = useState(
-    () => INITIAL_VALUES.taxaMinima === 0,
-  )
+  const [taxaMinimaInputEmpty, setTaxaMinimaInputEmpty] = useState(() => false)
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(
     INITIAL_VALUES.encargosFixosExtras,
   )
@@ -12349,7 +12347,7 @@ export default function App() {
     tarifaCheia: INITIAL_VALUES.tarifaCheia,
     desconto: INITIAL_VALUES.desconto,
     taxaMinima: INITIAL_VALUES.taxaMinima,
-    taxaMinimaInputEmpty: INITIAL_VALUES.taxaMinima === 0,
+    taxaMinimaInputEmpty: false,
     encargosFixosExtras: INITIAL_VALUES.encargosFixosExtras,
     tusdPercent: INITIAL_VALUES.tusdPercent,
     tusdTipoCliente: INITIAL_VALUES.tusdTipoCliente,
@@ -15943,7 +15941,7 @@ export default function App() {
       setTarifaCheia(INITIAL_VALUES.tarifaCheia)
       setDesconto(INITIAL_VALUES.desconto)
       setTaxaMinima(INITIAL_VALUES.taxaMinima)
-      setTaxaMinimaInputEmpty(INITIAL_VALUES.taxaMinima === 0)
+      setTaxaMinimaInputEmpty(false)
       setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
       setTusdPercent(INITIAL_VALUES.tusdPercent)
       setTusdTipoCliente(normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente))
