@@ -5999,7 +5999,7 @@ export default function App() {
       : null
     const ultimaAuto = taxaMinimaAutoRef.current
     const deveAtualizarTaxaMinima =
-      taxaMinimaInputEmpty || ultimaAuto == null || numbersAreClose(taxaAtual, ultimaAuto)
+      taxaMinimaInputEmpty || (ultimaAuto != null && numbersAreClose(taxaAtual, ultimaAuto))
 
     if (deveAtualizarTaxaMinima && !numbersAreClose(taxaAtual, taxaMinimaCalculadaBase)) {
       setTaxaMinimaInputEmpty(false)
