@@ -5829,7 +5829,7 @@ export default function App() {
       }
       if (consumoKwhMes < 300) {
         adicionarNotificacao(
-          'O consumo médio está abaixo do perfil que a SolarInvest pode atender no leasing.',
+          'O consumo médio do cliente está abaixo do perfil que a SolarInvest pode atender no leasing.',
           'error',
         )
         return false
