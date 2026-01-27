@@ -6127,8 +6127,6 @@ export default function App() {
               result.kwMaxUpgrade,
             )} kW)`
           : 'sem upgrade sugerido para este caso'
-      const clienteCienteTexto = action === 'proceed' && clienteCiente ? 'sim' : 'não'
-
       return [
         `Pré-check normativo (${result.uf}).`,
         `Tipo de ligação informado: ${tipoLabel}.`,
@@ -6136,7 +6134,7 @@ export default function App() {
           result.kwMaxPermitido,
         )} kW).`,
         `Situação: ${statusTextMap[result.status]}.`,
-        `Recomendação: ${recomendacao}. Cliente ciente: ${clienteCienteTexto}.`,
+        `Recomendação: ${recomendacao}.`,
       ].join('\n')
     },
     [],
@@ -6148,6 +6146,7 @@ export default function App() {
     if (lines.some((line) => line.trim().length === 0)) return false
     if (lines.some((line) => line.length > 120)) return false
     if (/(\[PRECHECK|{|}|<|>|•)/.test(text)) return false
+    if (/cliente ciente/i.test(text)) return false
     if (/[\u{1F300}-\u{1FAFF}]/u.test(text)) return false
     return true
   }, [])
