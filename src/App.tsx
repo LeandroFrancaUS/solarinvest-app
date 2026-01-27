@@ -5820,6 +5820,18 @@ export default function App() {
     [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato],
   )
 
+  const validateConsumoMinimoLeasing = useCallback(
+    (mensagem: string) => {
+      const consumoKwhMes = Number(kcKwhMes)
+      if (!Number.isFinite(consumoKwhMes) || consumoKwhMes < 300) {
+        adicionarNotificacao(mensagem, 'error')
+        return false
+      }
+      return true
+    },
+    [adicionarNotificacao, kcKwhMes],
+  )
+
   const validatePropostaLeasingMinimal = useCallback(() => {
     const nomeCliente = cliente.nome?.trim() ?? ''
     if (!nomeCliente) {
@@ -5827,14 +5839,12 @@ export default function App() {
       return false
     }
 
-    const consumoKwhMes = Number(kcKwhMes)
-    if (!Number.isFinite(consumoKwhMes) || consumoKwhMes <= 0) {
-      adicionarNotificacao('Informe o Consumo (kWh/mês) para gerar a proposta.', 'error')
+    if (!validateConsumoMinimoLeasing('Informe o Consumo (kWh/mês) para gerar a proposta.')) {
       return false
     }
 
     return true
-  }, [adicionarNotificacao, cliente.nome, kcKwhMes])
+  }, [adicionarNotificacao, cliente.nome, validateConsumoMinimoLeasing])
 
   const guardClientFieldsOrReturn = useCallback(
     (mode: 'venda' | 'leasing') => {
@@ -14580,6 +14590,10 @@ export default function App() {
   ])
 
   const prepararPayloadContratosLeasing = useCallback(() => {
+    if (!validateConsumoMinimoLeasing('Informe o Consumo (kWh/mês) para gerar os documentos.')) {
+      return null
+    }
+
     const dadosBase = prepararDadosContratoCliente()
     if (!dadosBase) {
       return null
@@ -14788,6 +14802,7 @@ export default function App() {
     tarifaCheia,
     ucsBeneficiarias,
     procuracaoUf,
+    validateConsumoMinimoLeasing,
   ])
 
   const carregarTemplatesContrato = useCallback(
@@ -15005,6 +15020,9 @@ export default function App() {
     if (!guardClientFieldsOrReturn('leasing')) {
       return
     }
+    if (!validateConsumoMinimoLeasing('Informe o Consumo (kWh/mês) para gerar os documentos.')) {
+      return
+    }
     const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
     if (!clienteSalvo) {
       return
@@ -15022,6 +15040,7 @@ export default function App() {
     guardClientFieldsOrReturn,
     handleSalvarCliente,
     prepararDadosContratoCliente,
+    validateConsumoMinimoLeasing,
   ])
 
   const handleGerarContratoVendas = useCallback(async () => {
