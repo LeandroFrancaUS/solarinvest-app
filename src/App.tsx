@@ -6091,7 +6091,7 @@ export default function App() {
   const [precheckModalClienteCiente, setPrecheckModalClienteCiente] = useState(false)
   const precheckDecisionResolverRef = useRef<((value: PrecheckDecision) => void) | null>(null)
 
-  const formatPrecheckObservationHuman = useCallback(
+  const buildPrecheckObservationText = useCallback(
     (params: {
       result: NormComplianceResult
       action: PrecheckDecisionAction
@@ -6114,46 +6114,28 @@ export default function App() {
             })
           : '—'
 
-      const statusLabelMap: Record<NormComplianceStatus, string> = {
-        OK: 'Dentro do limite',
-        WARNING: 'Regra provisória / validar',
-        FORA_DA_NORMA: 'Acima do limite do padrão',
-        LIMITADO: 'Acima do limite mesmo com upgrade',
+      const statusTextMap: Record<NormComplianceStatus, string> = {
+        OK: 'dentro do limite do padrão',
+        WARNING: 'regra provisória',
+        FORA_DA_NORMA: 'acima do limite do padrão',
+        LIMITADO: 'acima do limite mesmo com upgrade',
       }
 
-      const actionMap: Record<PrecheckDecisionAction, string> = {
-        adjust_current: 'Ajuste para o limite do padrão atual',
-        adjust_upgrade: 'Upgrade do padrão de entrada',
-        proceed: 'Gerar sem ajuste',
-        cancel: 'Cancelado',
-      }
+      const baseLine = `Pré-check normativo (${result.uf}): potência informada ${formatKw(
+        result.potenciaInversorKw,
+      )} kW ${statusTextMap[result.status]} do padrão ${tipoLabel.toLowerCase()} (${formatKw(
+        result.kwMaxPermitido,
+      )} kW).`
 
-      const linhas = [
-        `Pré-check normativo — ${result.uf}`,
-        '',
-        `• Tipo de ligação informado: ${tipoLabel}`,
-        `• Potência informada: ${formatKw(result.potenciaInversorKw)} kW`,
-        `• Limite do padrão atual: ${formatKw(result.kwMaxPermitido)} kW`,
-        '',
-        `• Situação: ${statusLabelMap[result.status]}`,
-      ]
+      const recommendation = upgradeLabel && result.kwMaxUpgrade != null
+        ? `Recomendação: upgrade do padrão de entrada para ${upgradeLabel.toLowerCase()} (até ${formatKw(
+            result.kwMaxUpgrade,
+          )} kW).`
+        : 'Recomendação: sem upgrade sugerido para este caso.'
 
-      if (upgradeLabel && result.kwMaxUpgrade != null) {
-        linhas.push(`• Upgrade recomendado: ${upgradeLabel} (até ${formatKw(result.kwMaxUpgrade)} kW)`)
-      } else {
-        linhas.push('• Upgrade recomendado: sem upgrade sugerido para este caso.')
-      }
+      const clienteCienteSuffix = action === 'proceed' ? ' Cliente ciente.' : ''
 
-      if (action !== 'cancel') {
-        let actionLine = `Ação escolhida: ${actionMap[action]}`
-        if ((action === 'adjust_current' || action === 'adjust_upgrade') && potenciaAplicada != null) {
-          actionLine += ` — potência aplicada: ${formatKw(potenciaAplicada)} kW`
-        }
-        linhas.push('', actionLine)
-        linhas.push(`Cliente ciente: ${clienteCiente ? 'Sim' : 'Não'}`)
-      }
-
-      return linhas.join('\n')
+      return `${baseLine}\n${recommendation}${action === 'proceed' ? clienteCienteSuffix : ''}`
     },
     [],
   )
@@ -6165,14 +6147,14 @@ export default function App() {
       clienteCiente: boolean
       potenciaAplicada?: number
       tipoLigacaoAplicada?: TipoLigacaoNorma
-    }) => formatPrecheckObservationHuman(params),
-    [formatPrecheckObservationHuman],
+    }) => buildPrecheckObservationText(params),
+    [buildPrecheckObservationText],
   )
 
   const upsertPrecheckObservation = useCallback(
     (block: string) => {
       setConfiguracaoUsinaObservacoes((prev) => {
-        const cleaned = prev.replace(/(^|\n)Pré-check normativo —[\s\S]*?(?:\n{2,}|$)/g, '$1').trim()
+        const cleaned = prev.replace(/(^|\n)Pré-check normativo[\s\S]*?(?:\n{2,}|$)/g, '$1').trim()
         if (!cleaned) {
           return block
         }
