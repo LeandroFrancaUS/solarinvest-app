@@ -35,6 +35,9 @@ packages or configure an internal registry so Vitest can be installed successful
 Before submitting large refactors, run `npm run check:prod` to validate circular
 dependencies and production builds.
 
+Note: Vercel installs currently use `npm install --legacy-peer-deps` while we
+align Stackframe peer dependencies with React 18.
+
 ## Neon PostgreSQL storage
 
 The Solarinvest app now persists CRM datasets, budgets and other workspace
