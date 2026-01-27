@@ -5737,6 +5737,7 @@ i:hover {
   text-transform: uppercase;
 }
 
+.budget-upload-header {
   display: flex;
   flex-direction: column;
   gap: 18px;

@@ -1,6 +1,11 @@
 import type { ParsedVendaPdfData } from '../lib/pdf/extractVendas'
 import type { RetornoProjetado, SegmentoCliente, TipoSistema, VendaForm } from '../lib/finance/roi'
-import type { TipoRede } from '../app/config'
+import type { TipoRede } from '../shared/rede'
+import type {
+  TipoInstalacao,
+  UfvComposicaoSoloValores,
+  UfvComposicaoTelhadoValores,
+} from '../shared/ufvComposicao'
 import type {
   BasePercentualComissao,
   ComissaoTipo,
@@ -12,37 +17,11 @@ import type { VendasConfig } from './vendasConfig'
 import type { ModoVenda, VendaSnapshot } from '../store/useVendaStore'
 import type { MultiUcClasse } from './multiUc'
 
-export type TipoInstalacao =
-  | 'fibrocimento'
-  | 'metalico'
-  | 'ceramico'
-  | 'laje'
-  | 'solo'
-  | 'outros'
-
-export type UfvComposicaoTelhadoValores = {
-  projeto: number
-  instalacao: number
-  materialCa: number
-  crea: number
-  art: number
-  placa: number
-  comissaoLiquida: number
-  lucroBruto: number
-  impostoRetido: number
-}
-
-export type UfvComposicaoSoloValores = UfvComposicaoTelhadoValores & {
-  estruturaSolo: number
-  tela: number
-  portaoTela: number
-  maoObraTela: number
-  casaInversor: number
-  brita: number
-  terraplanagem: number
-  trafo: number
-  rede: number
-}
+export type {
+  TipoInstalacao,
+  UfvComposicaoSoloValores,
+  UfvComposicaoTelhadoValores,
+} from '../shared/ufvComposicao'
 
 export type UfvComposicaoResumo = {
   telhado: UfvComposicaoTelhadoValores

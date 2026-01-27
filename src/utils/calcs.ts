@@ -3,7 +3,7 @@
  * O objetivo é manter uma única implementação por regra de negócio.
  */
 
-export type EntradaModo = 'CREDITO' | 'REDUZ' | 'NONE'
+export type { EntradaModo } from '../shared/entradaModo'
 
 /**
  * Converte uma taxa anual em equivalente mensal composto.

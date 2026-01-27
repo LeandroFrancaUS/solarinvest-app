@@ -32,6 +32,9 @@ uses [Vitest](https://vitest.dev/) for unit tests, exposed through `npm run test
 If your environment blocks access to the public npm registry, mirror the required
 packages or configure an internal registry so Vitest can be installed successfully.
 
+Before submitting large refactors, run `npm run check:prod` to validate circular
+dependencies and production builds.
+
 ## Neon PostgreSQL storage
 
 The Solarinvest app now persists CRM datasets, budgets and other workspace

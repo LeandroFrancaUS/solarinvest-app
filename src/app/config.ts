@@ -1,10 +1,11 @@
-import type { EntradaModo } from '../utils/calcs'
+import type { EntradaModo } from '../shared/entradaModo'
 import type { EssentialInfoSummary } from '../utils/moduleDetection'
 import type {
   TipoInstalacao,
   UfvComposicaoSoloValores,
   UfvComposicaoTelhadoValores,
-} from '../types/printableProposal'
+} from '../shared/ufvComposicao'
+import type { TipoRede } from '../shared/rede'
 import type { SegmentoCliente, TipoSistema, VendaForm } from '../lib/finance/roi'
 import type { MultiUcClasse } from '../types/multiUc'
 import { ESCALONAMENTO_PADRAO } from '../utils/multiUc'
@@ -142,13 +143,7 @@ export function createInitialComposicaoSolo(): UfvComposicaoSoloValores {
   return { ...COMPOSICAO_SOLO_BASE }
 }
 
-export type TipoRede = 'monofasico' | 'bifasico' | 'trifasico'
-
-export const CONSUMO_MINIMO_FICTICIO: Record<TipoRede, number> = {
-  monofasico: 30,
-  bifasico: 50,
-  trifasico: 100,
-}
+export { CONSUMO_MINIMO_FICTICIO, type TipoRede } from '../shared/rede'
 
 export const LEASING_PRAZO_OPCOES = [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10] as const
 export type LeasingPrazoAnos = (typeof LEASING_PRAZO_OPCOES)[number]
