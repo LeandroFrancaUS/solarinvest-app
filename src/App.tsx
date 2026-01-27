@@ -6051,6 +6051,16 @@ export default function App() {
     [applyVendaUpdates, potenciaModulo, setNumeroModulosManual, setPotenciaFonteManual],
   )
 
+  const handleTipoRedeSelection = useCallback(
+    (value: TipoRede, controle: 'auto' | 'manual' = 'manual') => {
+      if (controle === 'manual') {
+        setTipoRedeControle('manual')
+      }
+      setTipoRede(value)
+    },
+    [],
+  )
+
   function mapTipoLigacaoToRede(tipo: TipoLigacaoNorma): TipoRede {
     switch (tipo) {
       case 'MONOFASICO':
@@ -19331,16 +19341,6 @@ export default function App() {
       setTipoInstalacaoOutro('')
     }
   }
-
-  const handleTipoRedeSelection = useCallback(
-    (value: TipoRede, controle: 'auto' | 'manual' = 'manual') => {
-      if (controle === 'manual') {
-        setTipoRedeControle('manual')
-      }
-      setTipoRede(value)
-    },
-    [],
-  )
 
   const buildPrecheckObservationBlock = useCallback(
     (params: {
