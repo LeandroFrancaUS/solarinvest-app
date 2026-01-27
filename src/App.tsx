@@ -6157,73 +6157,6 @@ export default function App() {
     setPrecheckModalData(null)
   }, [])
 
-  const ensureNormativePrecheck = useCallback(async (): Promise<boolean> => {
-    if (!normCompliance) {
-      return true
-    }
-
-    if (normCompliance.status === 'OK' || normCompliance.status === 'WARNING') {
-      return true
-    }
-
-    const decision = await requestPrecheckDecision(normCompliance)
-    if (decision.action === 'cancel') {
-      return false
-    }
-
-    if (decision.action === 'adjust_current') {
-      const limite = normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
-      applyNormativeAdjustment({ potenciaKw: limite })
-      upsertPrecheckObservation(
-        buildPrecheckObservationBlock({
-          result: normCompliance,
-          action: 'Ajuste automático para limite do padrão atual',
-          clienteCiente: decision.clienteCiente,
-          potenciaAplicada: limite,
-        }),
-      )
-      return true
-    }
-
-    if (decision.action === 'adjust_upgrade') {
-      const limite =
-        normCompliance.kwMaxUpgrade ?? normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
-      const tipo = normCompliance.upgradeTo ?? normCompliance.tipoLigacao
-      applyNormativeAdjustment({ potenciaKw: limite, tipoLigacao: tipo })
-      upsertPrecheckObservation(
-        buildPrecheckObservationBlock({
-          result: normCompliance,
-          action: 'Upgrade de padrão com ajuste automático',
-          clienteCiente: decision.clienteCiente,
-          potenciaAplicada: limite,
-          tipoLigacaoAplicada: tipo,
-        }),
-      )
-      return true
-    }
-
-    if (decision.action === 'proceed' && decision.clienteCiente) {
-      setPrecheckClienteCiente(true)
-      upsertPrecheckObservation(
-        buildPrecheckObservationBlock({
-          result: normCompliance,
-          action: 'Gerado sem ajuste (cliente ciente)',
-          clienteCiente: decision.clienteCiente,
-        }),
-      )
-      return true
-    }
-
-    return false
-  }, [
-    applyNormativeAdjustment,
-    buildPrecheckObservationBlock,
-    normCompliance,
-    requestPrecheckDecision,
-    setPrecheckClienteCiente,
-    upsertPrecheckObservation,
-  ])
-
   const taxaMinimaCalculadaBase = useMemo(() => {
     const calculada = calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
     return Math.round(calculada * 100) / 100
@@ -7527,6 +7460,73 @@ export default function App() {
     normCompliance?.potenciaInversorKw,
     normCompliance?.kwMaxPermitido,
     normCompliance?.kwMaxUpgrade,
+  ])
+
+  const ensureNormativePrecheck = useCallback(async (): Promise<boolean> => {
+    if (!normCompliance) {
+      return true
+    }
+
+    if (normCompliance.status === 'OK' || normCompliance.status === 'WARNING') {
+      return true
+    }
+
+    const decision = await requestPrecheckDecision(normCompliance)
+    if (decision.action === 'cancel') {
+      return false
+    }
+
+    if (decision.action === 'adjust_current') {
+      const limite = normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
+      applyNormativeAdjustment({ potenciaKw: limite })
+      upsertPrecheckObservation(
+        buildPrecheckObservationBlock({
+          result: normCompliance,
+          action: 'Ajuste automático para limite do padrão atual',
+          clienteCiente: decision.clienteCiente,
+          potenciaAplicada: limite,
+        }),
+      )
+      return true
+    }
+
+    if (decision.action === 'adjust_upgrade') {
+      const limite =
+        normCompliance.kwMaxUpgrade ?? normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
+      const tipo = normCompliance.upgradeTo ?? normCompliance.tipoLigacao
+      applyNormativeAdjustment({ potenciaKw: limite, tipoLigacao: tipo })
+      upsertPrecheckObservation(
+        buildPrecheckObservationBlock({
+          result: normCompliance,
+          action: 'Upgrade de padrão com ajuste automático',
+          clienteCiente: decision.clienteCiente,
+          potenciaAplicada: limite,
+          tipoLigacaoAplicada: tipo,
+        }),
+      )
+      return true
+    }
+
+    if (decision.action === 'proceed' && decision.clienteCiente) {
+      setPrecheckClienteCiente(true)
+      upsertPrecheckObservation(
+        buildPrecheckObservationBlock({
+          result: normCompliance,
+          action: 'Gerado sem ajuste (cliente ciente)',
+          clienteCiente: decision.clienteCiente,
+        }),
+      )
+      return true
+    }
+
+    return false
+  }, [
+    applyNormativeAdjustment,
+    buildPrecheckObservationBlock,
+    normCompliance,
+    requestPrecheckDecision,
+    setPrecheckClienteCiente,
+    upsertPrecheckObservation,
   ])
 
   const numeroModulosEstimado = useMemo(() => {
