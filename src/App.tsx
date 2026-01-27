@@ -6081,6 +6081,7 @@ export default function App() {
         handleTipoRedeSelection(mapTipoLigacaoToRede(tipoLigacao), 'manual')
       }
       handlePotenciaInstaladaChange(String(potenciaKw))
+      return { potenciaKw, tipoLigacao }
     },
     [handlePotenciaInstaladaChange, handleTipoRedeSelection, mapTipoLigacaoToRede],
   )
@@ -6090,109 +6091,90 @@ export default function App() {
   const [precheckModalClienteCiente, setPrecheckModalClienteCiente] = useState(false)
   const precheckDecisionResolverRef = useRef<((value: PrecheckDecision) => void) | null>(null)
 
-  const buildPrecheckUserMessage = (params: {
-    result: NormComplianceResult
-    action: string
-    clienteCiente: boolean
-    potenciaAplicada?: number
-    tipoLigacaoAplicada?: TipoLigacaoNorma
-  }): string => {
-    const { result, tipoLigacaoAplicada } = params
-    const tipoLabel = formatTipoLigacaoLabel(tipoLigacaoAplicada ?? result.tipoLigacao)
-    const potenciaLabel = formatNumberBRWithOptions(result.potenciaInversorKw, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    })
-    const limiteAtualLabel =
-      result.kwMaxPermitido != null
-        ? formatNumberBRWithOptions(result.kwMaxPermitido, {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 2,
-          })
-        : '—'
-    const upgradeLabel =
-      result.upgradeTo && result.upgradeTo !== result.tipoLigacao
-        ? formatTipoLigacaoLabel(result.upgradeTo)
-        : null
-
-    const lines = [
-      `Pré-check normativo (${result.uf})`,
-      '',
-      `• Tipo de ligação informado: ${tipoLabel}`,
-      `• Potência informada: ${potenciaLabel} kW`,
-      `• Limite do padrão atual: ${limiteAtualLabel} kW`,
-      '',
-    ]
-
-    switch (result.status) {
-      case 'OK':
-        lines.push('Dentro do padrão da distribuidora. Nenhuma ação é necessária.')
-        break
-      case 'FORA_DA_NORMA':
-        lines.push('⚠️ A potência informada está acima do limite do padrão atual.')
-        if (upgradeLabel) {
-          lines.push(`➡️ Sugestão: realizar upgrade do padrão de entrada para ${upgradeLabel}.`)
-        }
-        break
-      case 'LIMITADO':
-        lines.push(
-          '⚠️ Mesmo com upgrade de padrão, a potência excede o limite permitido.',
-          '➡️ É necessário revisar o projeto e validar com a distribuidora antes de prosseguir.',
-        )
-        break
-      case 'WARNING':
-        lines.push(
-          'ℹ️ Regra normativa provisória.',
-          '➡️ Confirme com a distribuidora local antes do envio da proposta.',
-        )
-        break
-      default:
-        break
-    }
-
-    return lines.join('\n')
-  }
-
-  const buildPrecheckTechBlock = (params: {
-    result: NormComplianceResult
-    action: string
-    clienteCiente: boolean
-    potenciaAplicada?: number
-    tipoLigacaoAplicada?: TipoLigacaoNorma
-  }): string => {
-    const { result, action, clienteCiente, potenciaAplicada, tipoLigacaoAplicada } = params
-    const lines = [
-      '[PRECHECK_NORMA_TECH]',
-      `status=${result.status}`,
-      `uf=${result.uf}`,
-      `tipo=${tipoLigacaoAplicada ?? result.tipoLigacao}`,
-      `potenciaInformadaKw=${result.potenciaInversorKw}`,
-      `kwMaxPermitido=${result.kwMaxPermitido ?? ''}`,
-      `upgradeTo=${result.upgradeTo ?? ''}`,
-      `kwMaxUpgrade=${result.kwMaxUpgrade ?? ''}`,
-      `acao=${action}`,
-      `clienteCiente=${clienteCiente}`,
-      `potenciaAplicadaKw=${potenciaAplicada ?? ''}`,
-      '[/PRECHECK_NORMA_TECH]',
-    ]
-    return lines.join('\n')
-  }
-
   const buildPrecheckObservationBlock = useCallback(
     (params: {
       result: NormComplianceResult
-      action: string
+      action: PrecheckDecisionAction
       clienteCiente: boolean
       potenciaAplicada?: number
       tipoLigacaoAplicada?: TipoLigacaoNorma
-      includeTechBlock?: boolean
     }) => {
-      const { includeTechBlock, ...rest } = params
-      const userMessage = buildPrecheckUserMessage(rest)
-      if (!includeTechBlock) {
-        return userMessage
+      const { result, action, clienteCiente, potenciaAplicada, tipoLigacaoAplicada } = params
+      const tipoLabel = formatTipoLigacaoLabel(tipoLigacaoAplicada ?? result.tipoLigacao)
+      const upgradeLabel =
+        result.upgradeTo && result.upgradeTo !== result.tipoLigacao
+          ? formatTipoLigacaoLabel(result.upgradeTo)
+          : null
+      const statusLabelMap: Record<NormComplianceStatus, string> = {
+        OK: 'Dentro do limite',
+        WARNING: 'Regra provisória / validar',
+        FORA_DA_NORMA: 'Acima do limite do padrão',
+        LIMITADO: 'Acima do limite mesmo com upgrade',
       }
-      return `${userMessage}\n\n${buildPrecheckTechBlock(rest)}`
+
+      const formatKw = (value?: number | null) =>
+        value != null
+          ? formatNumberBRWithOptions(value, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })
+          : null
+
+      const potenciaLabel = formatKw(result.potenciaInversorKw)
+      const limiteAtualLabel = formatKw(result.kwMaxPermitido)
+      const limiteUpgradeLabel = formatKw(result.kwMaxUpgrade)
+      const potenciaAplicadaLabel = formatKw(potenciaAplicada)
+
+      const auditPayload = {
+        uf: result.uf,
+        status: result.status,
+        tipoLigacao: tipoLigacaoAplicada ?? result.tipoLigacao,
+        potenciaInformadaKw: result.potenciaInversorKw,
+        limiteAtualKw: result.kwMaxPermitido ?? null,
+        upgradeSugerido: result.upgradeTo ?? null,
+        limiteUpgradeKw: result.kwMaxUpgrade ?? null,
+        acao: action,
+        potenciaAplicadaKw: potenciaAplicada ?? null,
+        clienteCiente,
+        timestamp: new Date().toISOString(),
+      }
+
+      const actionMap: Record<PrecheckDecisionAction, string> = {
+        adjust_current: 'ajuste automático para o limite do padrão atual',
+        adjust_upgrade: 'upgrade automático do padrão de entrada',
+        proceed: 'geração sem ajuste',
+        cancel: 'cancelado',
+      }
+
+      const readableLines = [
+        `Pré-check normativo (${result.uf})`,
+        `• Situação: ${statusLabelMap[result.status]}.`,
+        `• Padrão atual informado: ${tipoLabel}${limiteAtualLabel ? ` — limite até ${limiteAtualLabel} kW.` : '.'}`,
+        `• Potência informada: ${potenciaLabel} kW.`,
+      ]
+
+      if (upgradeLabel && limiteUpgradeLabel) {
+        readableLines.push(`• Recomendação: upgrade para ${upgradeLabel} (até ${limiteUpgradeLabel} kW).`)
+      } else {
+        readableLines.push('• Recomendação: sem upgrade sugerido para este caso.')
+      }
+
+      if (action !== 'cancel') {
+        const actionText = actionMap[action]
+        if (action === 'adjust_current' || action === 'adjust_upgrade') {
+          readableLines.push(
+            `• Ação aplicada: ${actionText}${potenciaAplicadaLabel ? ` + ajuste de potência para ${potenciaAplicadaLabel} kW.` : '.'}`,
+          )
+        } else {
+          readableLines.push(`• Ação aplicada: ${actionText}.`)
+        }
+      }
+
+      readableLines.push(`• Cliente ciente: ${clienteCiente ? 'Sim' : 'Não'}.`)
+
+      return `[PRECHECK_NORMA_JSON]${JSON.stringify(auditPayload)}[/PRECHECK_NORMA_JSON]\n${readableLines.join(
+        '\n',
+      )}`
     },
     [],
   )
@@ -6201,8 +6183,8 @@ export default function App() {
     (block: string) => {
       setConfiguracaoUsinaObservacoes((prev) => {
         const cleaned = prev
+          .replace(/\s*\[PRECHECK_NORMA_JSON\][\s\S]*?\[\/PRECHECK_NORMA_JSON\]\s*/g, '')
           .replace(/\s*\[PRECHECK_NORMA\][\s\S]*?\[\/PRECHECK_NORMA\]\s*/g, '')
-          .replace(/\s*\[PRECHECK_NORMA_TECH\][\s\S]*?\[\/PRECHECK_NORMA_TECH\]\s*/g, '')
           .trim()
         if (!cleaned) {
           return block
@@ -7490,7 +7472,7 @@ export default function App() {
     }
 
     if (normCompliance.status === 'FORA_DA_NORMA' || normCompliance.status === 'LIMITADO') {
-      return normCompliance.message ?? ''
+      return `Padrão de entrada: atenção — potência acima do limite do padrão atual (${normCompliance.uf}). Clique para revisar.`
     }
 
     return ''
@@ -7499,7 +7481,7 @@ export default function App() {
     if (!normCompliance) {
       return {
         tone: 'neutral',
-        title: 'Pré-check normativo pendente',
+        title: 'Pré-check normativo (padrão de entrada)',
         statusLabel: 'PENDENTE',
         message: 'Informe UF, tipo de rede e potência para validar o padrão de entrada.',
         details: [] as string[],
@@ -7507,29 +7489,47 @@ export default function App() {
     }
 
     const tipoLabel = formatTipoLigacaoLabel(normCompliance.tipoLigacao)
+    const formatKw = (value?: number | null) =>
+      value != null
+        ? formatNumberBRWithOptions(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+        : null
     const details: string[] = []
-    if (normCompliance.kwMaxPermitido) {
-      details.push(`Limite ${tipoLabel}: ${normCompliance.kwMaxPermitido} kW.`)
+    if (normCompliance.kwMaxPermitido != null) {
+      const limiteLabel = formatKw(normCompliance.kwMaxPermitido)
+      details.push(`Limite ${tipoLabel}: ${limiteLabel} kW.`)
     }
-    if (normCompliance.upgradeTo && normCompliance.kwMaxUpgrade) {
+    if (normCompliance.upgradeTo && normCompliance.kwMaxUpgrade != null) {
+      const limiteUpgradeLabel = formatKw(normCompliance.kwMaxUpgrade)
       details.push(
-        `Upgrade sugerido: ${formatTipoLigacaoLabel(normCompliance.upgradeTo)} até ${normCompliance.kwMaxUpgrade} kW.`,
+        `Upgrade sugerido: ${formatTipoLigacaoLabel(normCompliance.upgradeTo)} até ${limiteUpgradeLabel} kW.`,
       )
     }
 
     const statusMap = {
-      OK: { tone: 'ok', label: 'OK' },
-      WARNING: { tone: 'warning', label: 'WARNING' },
-      FORA_DA_NORMA: { tone: 'warning', label: 'FORA DA NORMA' },
-      LIMITADO: { tone: 'danger', label: 'LIMITADO' },
+      OK: { tone: 'ok', label: 'Dentro do limite', message: 'Dentro do limite do padrão informado.' },
+      WARNING: {
+        tone: 'warning',
+        label: 'Regra provisória',
+        message: 'Regra provisória: valide com a distribuidora antes do envio.',
+      },
+      FORA_DA_NORMA: {
+        tone: 'warning',
+        label: 'Acima do limite',
+        message: 'A potência informada está acima do limite do padrão atual.',
+      },
+      LIMITADO: {
+        tone: 'danger',
+        label: 'Acima do limite',
+        message: 'A potência informada excede o limite mesmo com upgrade.',
+      },
     } as const
 
     const statusInfo = statusMap[normCompliance.status]
     return {
       tone: statusInfo.tone,
-      title: `Pré-check normativo — ${ufNorma || 'UF não informada'}`,
+      title: `Pré-check normativo (padrão de entrada)`,
       statusLabel: statusInfo.label,
-      message: normCompliance.message,
+      message: statusInfo.message,
       details,
     }
   }, [normCompliance, ufNorma])
@@ -7562,10 +7562,11 @@ export default function App() {
     if (decision.action === 'adjust_current') {
       const limite = normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
       applyNormativeAdjustment({ potenciaKw: limite })
+      await Promise.resolve()
       upsertPrecheckObservation(
         buildPrecheckObservationBlock({
           result: normCompliance,
-          action: 'Ajuste automático para limite do padrão atual',
+          action: 'adjust_current',
           clienteCiente: decision.clienteCiente,
           potenciaAplicada: limite,
         }),
@@ -7578,10 +7579,11 @@ export default function App() {
         normCompliance.kwMaxUpgrade ?? normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
       const tipo = normCompliance.upgradeTo ?? normCompliance.tipoLigacao
       applyNormativeAdjustment({ potenciaKw: limite, tipoLigacao: tipo })
+      await Promise.resolve()
       upsertPrecheckObservation(
         buildPrecheckObservationBlock({
           result: normCompliance,
-          action: 'Upgrade de padrão com ajuste automático',
+          action: 'adjust_upgrade',
           clienteCiente: decision.clienteCiente,
           potenciaAplicada: limite,
           tipoLigacaoAplicada: tipo,
@@ -7595,7 +7597,7 @@ export default function App() {
       upsertPrecheckObservation(
         buildPrecheckObservationBlock({
           result: normCompliance,
-          action: 'Gerado sem ajuste (cliente ciente)',
+          action: 'proceed',
           clienteCiente: decision.clienteCiente,
         }),
       )
@@ -19751,6 +19753,7 @@ export default function App() {
 
     const isFora = precheckModalData.status === 'FORA_DA_NORMA'
     const isLimitado = precheckModalData.status === 'LIMITADO'
+    const isWarning = precheckModalData.status === 'WARNING'
     const tipoLabel = formatTipoLigacaoLabel(precheckModalData.tipoLigacao)
     const limiteAtual = precheckModalData.kwMaxPermitido
     const upgradeLabel = precheckModalData.upgradeTo
@@ -19758,8 +19761,26 @@ export default function App() {
       : null
     const limiteUpgrade = precheckModalData.kwMaxUpgrade
 
+    const formatKw = (value?: number | null) =>
+      value != null
+        ? formatNumberBRWithOptions(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+        : null
+
+    const potenciaLabel = formatKw(precheckModalData.potenciaInversorKw) ?? '—'
+    const limiteAtualLabel = formatKw(limiteAtual)
+    const limiteUpgradeLabel = formatKw(limiteUpgrade)
+
     const canAdjustCurrent = Boolean(limiteAtual)
     const canAdjustUpgrade = Boolean(upgradeLabel && limiteUpgrade)
+
+    const statusMessageMap: Record<NormComplianceStatus, string> = {
+      OK: 'Dentro do limite do padrão informado.',
+      WARNING: 'Regra provisória: valide com a distribuidora antes do envio. Você pode continuar, mas recomendamos confirmar o padrão.',
+      FORA_DA_NORMA:
+        'A potência informada está acima do limite do padrão atual. Você pode ajustar para o limite atual ou simular o upgrade do padrão.',
+      LIMITADO:
+        'A potência informada excede o limite do padrão atual e também o limite do próximo upgrade. É necessário adequar a potência/projeto.',
+    }
 
     return (
       <div className="modal precheck-modal" role="dialog" aria-modal="true">
@@ -19770,7 +19791,12 @@ export default function App() {
         />
         <div className="modal-content precheck-modal__content">
           <div className="modal-header">
-            <h3>Pré-check normativo</h3>
+            <div>
+              <h3>Pré-check normativo (padrão de entrada)</h3>
+              <p className="muted">
+                UF: {precheckModalData.uf} • Padrão atual: {tipoLabel} • Potência informada: {potenciaLabel} kW
+              </p>
+            </div>
             <button
               type="button"
               className="icon"
@@ -19781,17 +19807,19 @@ export default function App() {
             </button>
           </div>
           <div className="modal-body">
-            <p>
-              {precheckModalData.message} (UF {precheckModalData.uf}, {tipoLabel})
-            </p>
-            <ul>
-              {limiteAtual ? <li>Limite atual: {limiteAtual} kW.</li> : null}
-              {upgradeLabel && limiteUpgrade ? (
-                <li>
-                  Upgrade sugerido: {upgradeLabel} até {limiteUpgrade} kW.
-                </li>
-              ) : null}
-            </ul>
+            <p>{statusMessageMap[precheckModalData.status]}</p>
+            <div className="precheck-modal__limits">
+              <ul>
+                <li>Limite do padrão atual: {limiteAtualLabel ? `${limiteAtualLabel} kW` : '—'}</li>
+                {upgradeLabel && limiteUpgradeLabel ? (
+                  <li>
+                    Upgrade sugerido: {upgradeLabel} (até {limiteUpgradeLabel} kW)
+                  </li>
+                ) : (
+                  <li>Sem upgrade sugerido para este caso.</li>
+                )}
+              </ul>
+            </div>
             {isFora ? (
               <label className="precheck-modal__ack">
                 <input
@@ -19799,13 +19827,17 @@ export default function App() {
                   checked={precheckModalClienteCiente}
                   onChange={(event) => setPrecheckModalClienteCiente(event.target.checked)}
                 />
-                <span>Cliente ciente e fará adequação do padrão.</span>
+                <span>
+                  Cliente ciente. A SolarInvest seguirá com a proposta, e o cliente se compromete a adequar o
+                  padrão junto à distribuidora.
+                </span>
               </label>
             ) : null}
             {isLimitado ? (
-              <p className="muted">
-                Este cenário exige ajuste automático para o limite permitido antes de gerar a proposta.
-              </p>
+              <p className="muted">Este cenário exige ajuste antes de gerar a proposta.</p>
+            ) : null}
+            {isWarning ? (
+              <p className="muted">Você pode continuar, mas recomendamos confirmar a regra com a distribuidora.</p>
             ) : null}
           </div>
           <div className="modal-actions precheck-modal__actions">
@@ -19817,7 +19849,7 @@ export default function App() {
                   resolvePrecheckDecision({ action: 'adjust_current', clienteCiente: precheckModalClienteCiente })
                 }
               >
-                Ajustar para {limiteAtual} kW
+                Ajustar para {limiteAtualLabel} kW
               </button>
             ) : null}
             {canAdjustUpgrade ? (
@@ -19828,7 +19860,7 @@ export default function App() {
                   resolvePrecheckDecision({ action: 'adjust_upgrade', clienteCiente: precheckModalClienteCiente })
                 }
               >
-                Upgrade para {upgradeLabel} ({limiteUpgrade} kW)
+                Upgrade para {upgradeLabel} ({limiteUpgradeLabel} kW)
               </button>
             ) : null}
             {isFora ? (
@@ -19836,6 +19868,11 @@ export default function App() {
                 type="button"
                 className="ghost"
                 disabled={!precheckModalClienteCiente}
+                title={
+                  precheckModalClienteCiente
+                    ? undefined
+                    : 'Marque cliente ciente para continuar sem ajuste'
+                }
                 onClick={() =>
                   resolvePrecheckDecision({ action: 'proceed', clienteCiente: precheckModalClienteCiente })
                 }
