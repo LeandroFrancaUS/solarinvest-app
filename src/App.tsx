@@ -5878,6 +5878,22 @@ export default function App() {
     ],
   )
 
+  const validateClienteParaSalvar = useCallback(() => {
+    const nomeCliente = cliente.nome?.trim() ?? ''
+    if (!nomeCliente) {
+      adicionarNotificacao('Informe o Nome ou Razão Social para salvar o cliente.', 'error')
+      return false
+    }
+
+    const cidadeCliente = cliente.cidade?.trim() ?? ''
+    if (!cidadeCliente) {
+      adicionarNotificacao('Informe a Cidade para salvar o cliente.', 'error')
+      return false
+    }
+
+    return true
+  }, [adicionarNotificacao, cliente.cidade, cliente.nome])
+
   useEffect(() => {
     if (!isVendaDiretaTab) {
       vendaActions.updateResumoProposta({ valor_total_proposta: null })
@@ -12795,17 +12811,7 @@ export default function App() {
       return false
     }
 
-    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
-    if (!options?.skipGuard && !guardClientFieldsOrReturn(mode)) {
-      return false
-    }
-
-    const distribuidoraValidation = getDistribuidoraValidationMessage(
-      procuracaoUf || cliente.uf,
-      distribuidoraAneelEfetiva,
-    )
-    if (distribuidoraValidation) {
-      adicionarNotificacao(distribuidoraValidation, 'error')
+    if (!validateClienteParaSalvar()) {
       return false
     }
 
@@ -13038,13 +13044,12 @@ export default function App() {
     cliente,
     clienteEmEdicaoId,
     getCurrentSnapshot,
-    guardClientFieldsOrReturn,
-    isVendaDiretaTab,
     isOneDriveIntegrationAvailable,
     persistClienteRegistroToOneDrive,
     scheduleMarkStateAsSaved,
     setOneDriveIntegrationAvailable,
     setClienteEmEdicaoId,
+    validateClienteParaSalvar,
   ])
 
 
