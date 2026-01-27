@@ -6085,6 +6085,11 @@ export default function App() {
     [handlePotenciaInstaladaChange, handleTipoRedeSelection, mapTipoLigacaoToRede],
   )
 
+  const [precheckClienteCiente, setPrecheckClienteCiente] = useState(false)
+  const [precheckModalData, setPrecheckModalData] = useState<NormComplianceResult | null>(null)
+  const [precheckModalClienteCiente, setPrecheckModalClienteCiente] = useState(false)
+  const precheckDecisionResolverRef = useRef<((value: PrecheckDecision) => void) | null>(null)
+
   const buildPrecheckObservationBlock = useCallback(
     (params: {
       result: NormComplianceResult
@@ -7512,11 +7517,6 @@ export default function App() {
       details,
     }
   }, [normCompliance, ufNorma])
-  const [precheckClienteCiente, setPrecheckClienteCiente] = useState(false)
-  const [precheckModalData, setPrecheckModalData] = useState<NormComplianceResult | null>(null)
-  const [precheckModalClienteCiente, setPrecheckModalClienteCiente] = useState(false)
-  const precheckDecisionResolverRef = useRef<((value: PrecheckDecision) => void) | null>(null)
-
   useEffect(() => {
     setPrecheckClienteCiente(false)
     setPrecheckModalClienteCiente(false)
