@@ -28,9 +28,9 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
-    "@stackframe/react": "2.8.60",
-    "@stackframe/stack-shared": "2.8.60",
-    "@stackframe/stack-ui": "2.8.60",
+    "@stackframe/react": "2.8.58",
+    "@stackframe/stack-shared": "2.8.58",
+    "@stackframe/stack-ui": "2.8.58",
     "@vercel/analytics": "^1.6.1",
     "date-fns": "^3.3.1",
     "fast-xml-parser": "^4.4.0",
