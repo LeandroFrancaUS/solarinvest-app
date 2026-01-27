@@ -6127,8 +6127,7 @@ export default function App() {
               result.kwMaxUpgrade,
             )} kW)`
           : 'sem upgrade sugerido para este caso'
-
-      const clienteCienteTexto = action === 'proceed' ? (clienteCiente ? 'Cliente ciente.' : 'Cliente ciente: não.') : ''
+      const clienteCienteTexto = action === 'proceed' && clienteCiente ? 'sim' : 'não'
 
       return [
         `Pré-check normativo (${result.uf}).`,
@@ -6137,7 +6136,7 @@ export default function App() {
           result.kwMaxPermitido,
         )} kW).`,
         `Situação: ${statusTextMap[result.status]}.`,
-        `Recomendação: ${recomendacao}.${clienteCienteTexto ? ` ${clienteCienteTexto}` : ''}`,
+        `Recomendação: ${recomendacao}. Cliente ciente: ${clienteCienteTexto}.`,
       ].join('\n')
     },
     [],
@@ -6147,7 +6146,8 @@ export default function App() {
     const lines = text.split('\n')
     if (lines.length > 5) return false
     if (lines.some((line) => line.trim().length === 0)) return false
-    if (/(\[PRECHECK|{|}|<|>)/.test(text)) return false
+    if (lines.some((line) => line.length > 120)) return false
+    if (/(\[PRECHECK|{|}|<|>|•)/.test(text)) return false
     if (/[\u{1F300}-\u{1FAFF}]/u.test(text)) return false
     return true
   }, [])
@@ -6168,7 +6168,10 @@ export default function App() {
       setConfiguracaoUsinaObservacoes((prev) => {
         const cleaned = prev
           .replace(/(^|\n)Pré-check normativo[\s\S]*?(?:\n{2,}|$)/g, '$1')
-          .replace(/(^|\n).*(?:\[PRECHECK|\{|\}).*(?:\n|$)/g, '$1')
+          .split('\n')
+          .filter((line) => !/Pré-check normativo|\[PRECHECK|\{|\}|•/.test(line))
+          .join('\n')
+          .replace(/\n{3,}/g, '\n\n')
           .trim()
         if (!cleaned) {
           return block
