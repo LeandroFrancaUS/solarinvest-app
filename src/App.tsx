@@ -5824,7 +5824,10 @@ export default function App() {
     (mensagem: string) => {
       const consumoKwhMes = Number(kcKwhMes)
       if (!Number.isFinite(consumoKwhMes) || consumoKwhMes < 300) {
-        adicionarNotificacao(mensagem, 'error')
+        adicionarNotificacao(
+          `${mensagem} O consumo médio está abaixo do perfil que a SolarInvest pode atender no leasing.`,
+          'error',
+        )
         return false
       }
       return true
