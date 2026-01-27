@@ -5823,9 +5823,13 @@ export default function App() {
   const validateConsumoMinimoLeasing = useCallback(
     (mensagem: string) => {
       const consumoKwhMes = Number(kcKwhMes)
-      if (!Number.isFinite(consumoKwhMes) || consumoKwhMes < 300) {
+      if (!Number.isFinite(consumoKwhMes)) {
+        adicionarNotificacao(mensagem, 'error')
+        return false
+      }
+      if (consumoKwhMes < 300) {
         adicionarNotificacao(
-          `${mensagem} O consumo médio está abaixo do perfil que a SolarInvest pode atender no leasing.`,
+          'O consumo médio está abaixo do perfil que a SolarInvest pode atender no leasing.',
           'error',
         )
         return false
