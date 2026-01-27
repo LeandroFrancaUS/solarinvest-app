@@ -38,15 +38,39 @@ describe('evaluateNormCompliance', () => {
     expect(result?.upgradeTo).toBe('TRIFASICO')
   })
 
-  it('retorna WARNING para GO com regra provisória', () => {
+  it('marca GO monofásico acima do limite como fora da norma', () => {
+    const result = evaluateNormCompliance({
+      uf: 'GO',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 31,
+    })
+
+    expect(result?.status).toBe('FORA_DA_NORMA')
+    expect(result?.kwMaxPermitido).toBe(30)
+    expect(result?.upgradeTo).toBe('BIFASICO')
+  })
+
+  it('marca GO bifásico acima do limite como fora da norma', () => {
     const result = evaluateNormCompliance({
       uf: 'GO',
       tipoLigacao: 'BIFASICO',
-      potenciaInversorKw: 12,
+      potenciaInversorKw: 17,
     })
 
-    expect(result?.status).toBe('WARNING')
-    expect(result?.isProvisional).toBe(true)
+    expect(result?.status).toBe('FORA_DA_NORMA')
+    expect(result?.kwMaxPermitido).toBe(16)
+    expect(result?.upgradeTo).toBe('TRIFASICO')
+  })
+
+  it('marca GO trifásico acima do limite como limitado', () => {
+    const result = evaluateNormCompliance({
+      uf: 'GO',
+      tipoLigacao: 'TRIFASICO',
+      potenciaInversorKw: 76,
+    })
+
+    expect(result?.status).toBe('LIMITADO')
+    expect(result?.kwMaxPermitido).toBe(75)
   })
 
   it('marca LIMITADO quando excede o upgrade máximo', () => {

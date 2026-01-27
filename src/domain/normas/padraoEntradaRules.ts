@@ -24,6 +24,11 @@ const RULES_BY_UF: Record<string, Record<TipoLigacaoNorma, NormRule>> = {
     BIFASICO: { kwMax: 15, upgradeTo: 'TRIFASICO' },
     TRIFASICO: { kwMax: 30 },
   },
+  GO: {
+    MONOFASICO: { kwMax: 30, upgradeTo: 'BIFASICO' },
+    BIFASICO: { kwMax: 16, upgradeTo: 'TRIFASICO' },
+    TRIFASICO: { kwMax: 75 },
+  },
   TO: {
     MONOFASICO: { kwMax: 12, upgradeTo: 'BIFASICO' },
     BIFASICO: { kwMax: 26.3, upgradeTo: 'TRIFASICO' },
@@ -31,9 +36,10 @@ const RULES_BY_UF: Record<string, Record<TipoLigacaoNorma, NormRule>> = {
   },
 }
 
-const PROVISIONAL_UFS = new Set(['GO'])
+const PROVISIONAL_UFS = new Set<string>([])
 
 const normalizeUf = (uf?: string | null): string => (uf ?? '').trim().toUpperCase()
+const DEBUG_NORMA = Boolean((globalThis as any)?.localStorage?.getItem?.('DEBUG_NORMA'))
 
 const resolveUpgradeRule = (
   uf: string,
@@ -65,6 +71,19 @@ export const evaluateNormCompliance = (
   const uf = normalizeUf(input.uf)
   const tipoLigacao = input.tipoLigacao ?? null
   const potencia = Number(input.potenciaInversorKw)
+
+  if (DEBUG_NORMA && typeof window !== 'undefined') {
+    console.log('[NORMA DEBUG]', {
+      ufRaw: input.uf,
+      uf,
+      tipoLigacao,
+      potenciaInversorKw: input.potenciaInversorKw,
+      potenciaParsed: potencia,
+      provisional: PROVISIONAL_UFS.has(uf),
+      hasRulesForUf: Boolean(RULES_BY_UF[uf]),
+      ruleForTipo: tipoLigacao ? RULES_BY_UF[uf]?.[tipoLigacao] : null,
+    }) // DEBUG TEMP — remover depois de validar em GO
+  }
 
   if (!uf || !tipoLigacao || !Number.isFinite(potencia) || potencia <= 0) {
     return null
@@ -104,6 +123,17 @@ export const evaluateNormCompliance = (
       kwMaxPermitido: rule.kwMax,
       upgradeTo: rule.upgradeTo,
       kwMaxUpgrade,
+    }
+  }
+
+  if (!rule.upgradeTo) {
+    return {
+      status: 'LIMITADO',
+      uf,
+      tipoLigacao,
+      potenciaInversorKw: potencia,
+      message: `Potência excede o limite máximo permitido (${rule.kwMax} kW).`,
+      kwMaxPermitido: rule.kwMax,
     }
   }
 
