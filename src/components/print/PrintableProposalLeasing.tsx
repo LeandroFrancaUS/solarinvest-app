@@ -324,13 +324,13 @@ function PrintableProposalLeasingInner(
   const ucGeradoraEndereco = ucGeradoraEnderecoBase || formatClienteEnderecoCompleto()
   const enderecoCompletoCliente = formatClienteEnderecoCompleto(false)
   const infoPessoalCliente = [
-    { label: 'Cliente', value: nomeCliente || '—' },
-    { label: 'CPF/CNPJ', value: documentoCliente || '—' },
-    { label: 'E-mail', value: emailCliente || '—' },
-    { label: 'Telefone', value: telefoneCliente || '—' },
-    { label: 'Endereço', value: enderecoCompletoCliente || '—' },
-    { label: 'CEP', value: cepCliente || '—' },
-  ]
+    { label: 'Cliente', value: nomeCliente },
+    { label: 'CPF/CNPJ', value: documentoCliente },
+    { label: 'E-mail', value: emailCliente },
+    { label: 'Telefone', value: telefoneCliente },
+    { label: 'Endereço', value: enderecoCompletoCliente || null },
+    { label: 'CEP', value: cepCliente },
+  ].filter((item): item is { label: string; value: string } => Boolean(item.value))
 
   const ucsBeneficiariasLista = useMemo(() => {
     if (!Array.isArray(ucsBeneficiarias)) {

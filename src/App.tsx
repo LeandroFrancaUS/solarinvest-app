@@ -89,7 +89,10 @@ import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/financ
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
-import { buildRequiredFieldsLeasing } from './lib/validation/buildRequiredFieldsLeasing'
+import {
+  buildRequiredFieldsLeasing,
+  buildRequiredFieldsLeasingProposta,
+} from './lib/validation/buildRequiredFieldsLeasing'
 import { buildRequiredFieldsVenda } from './lib/validation/buildRequiredFieldsVenda'
 import { validateRequiredFields } from './lib/validation/validateRequiredFields'
 import {
@@ -5805,23 +5808,32 @@ export default function App() {
     ? Math.max(0, Number(vendaForm.capex_total))
     : 0
 
+  type ClientGuardMode = 'venda' | 'leasing' | 'leasing-proposta'
+
   const buildRequiredClientFields = useCallback(
-    (mode: 'venda' | 'leasing') => {
+    (mode: ClientGuardMode) => {
       const input = {
         cliente,
         segmentoCliente,
         tipoEdificacaoOutro,
         leasingContrato,
       }
-      return mode === 'venda'
-        ? buildRequiredFieldsVenda(input)
-        : buildRequiredFieldsLeasing(input)
+      if (mode === 'venda') {
+        return buildRequiredFieldsVenda(input)
+      }
+      if (mode === 'leasing-proposta') {
+        return buildRequiredFieldsLeasingProposta({
+          clienteNome: cliente.nome ?? '',
+          consumoKwhMes: kcKwhMes,
+        })
+      }
+      return buildRequiredFieldsLeasing(input)
     },
-    [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato],
+    [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato, kcKwhMes],
   )
 
   const guardClientFieldsOrReturn = useCallback(
-    (mode: 'venda' | 'leasing') => {
+    (mode: ClientGuardMode) => {
       clearClientHighlights()
       const fields = buildRequiredClientFields(mode)
       const result = validateRequiredFields(fields)
@@ -15531,7 +15543,7 @@ export default function App() {
       return false
     }
 
-    if (!guardClientFieldsOrReturn('leasing')) {
+    if (!guardClientFieldsOrReturn('leasing-proposta')) {
       return false
     }
 
@@ -15610,7 +15622,7 @@ export default function App() {
       return false
     }
 
-    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
+    const mode = isVendaDiretaTab ? 'venda' : 'leasing-proposta'
     if (!guardClientFieldsOrReturn(mode)) {
       return false
     }
@@ -18588,6 +18600,7 @@ export default function App() {
               value={kcKwhMes}
               onChange={(e) => setKcKwhMes(Number(e.target.value) || 0, 'user')}
               onFocus={selectNumberInputOnFocus}
+              data-field="proposta-consumoKwhMes"
             />
             <div className="mt-2 flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">
@@ -23848,6 +23861,7 @@ export default function App() {
                       inputMode="decimal"
                       value={kcKwhMes || ''}
                       onChange={(event) => setKcKwhMes(Number(event.target.value) || 0, 'user')}
+                      data-field="proposta-consumoKwhMes"
                     />
                   </Field>
                   <Field label="Potência (kWp)">
