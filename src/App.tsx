@@ -6090,6 +6090,94 @@ export default function App() {
   const [precheckModalClienteCiente, setPrecheckModalClienteCiente] = useState(false)
   const precheckDecisionResolverRef = useRef<((value: PrecheckDecision) => void) | null>(null)
 
+  const buildPrecheckUserMessage = (params: {
+    result: NormComplianceResult
+    action: string
+    clienteCiente: boolean
+    potenciaAplicada?: number
+    tipoLigacaoAplicada?: TipoLigacaoNorma
+  }): string => {
+    const { result, tipoLigacaoAplicada } = params
+    const tipoLabel = formatTipoLigacaoLabel(tipoLigacaoAplicada ?? result.tipoLigacao)
+    const potenciaLabel = formatNumberBRWithOptions(result.potenciaInversorKw, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })
+    const limiteAtualLabel =
+      result.kwMaxPermitido != null
+        ? formatNumberBRWithOptions(result.kwMaxPermitido, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          })
+        : '—'
+    const upgradeLabel =
+      result.upgradeTo && result.upgradeTo !== result.tipoLigacao
+        ? formatTipoLigacaoLabel(result.upgradeTo)
+        : null
+
+    const lines = [
+      `Pré-check normativo (${result.uf})`,
+      '',
+      `• Tipo de ligação informado: ${tipoLabel}`,
+      `• Potência informada: ${potenciaLabel} kW`,
+      `• Limite do padrão atual: ${limiteAtualLabel} kW`,
+      '',
+    ]
+
+    switch (result.status) {
+      case 'OK':
+        lines.push('Dentro do padrão da distribuidora. Nenhuma ação é necessária.')
+        break
+      case 'FORA_DA_NORMA':
+        lines.push('⚠️ A potência informada está acima do limite do padrão atual.')
+        if (upgradeLabel) {
+          lines.push(`➡️ Sugestão: realizar upgrade do padrão de entrada para ${upgradeLabel}.`)
+        }
+        break
+      case 'LIMITADO':
+        lines.push(
+          '⚠️ Mesmo com upgrade de padrão, a potência excede o limite permitido.',
+          '➡️ É necessário revisar o projeto e validar com a distribuidora antes de prosseguir.',
+        )
+        break
+      case 'WARNING':
+        lines.push(
+          'ℹ️ Regra normativa provisória.',
+          '➡️ Confirme com a distribuidora local antes do envio da proposta.',
+        )
+        break
+      default:
+        break
+    }
+
+    return lines.join('\n')
+  }
+
+  const buildPrecheckTechBlock = (params: {
+    result: NormComplianceResult
+    action: string
+    clienteCiente: boolean
+    potenciaAplicada?: number
+    tipoLigacaoAplicada?: TipoLigacaoNorma
+  }): string => {
+    const { result, action, clienteCiente, potenciaAplicada, tipoLigacaoAplicada } = params
+    const lines = [
+      '[PRECHECK_NORMA_TECH]',
+      `status=${result.status}`,
+      `uf=${result.uf}`,
+      `tipo=${tipoLigacaoAplicada ?? result.tipoLigacao}`,
+      `potenciaInformadaKw=${result.potenciaInversorKw}`,
+      `kwMaxPermitido=${result.kwMaxPermitido ?? ''}`,
+      `upgradeTo=${result.upgradeTo ?? ''}`,
+      `kwMaxUpgrade=${result.kwMaxUpgrade ?? ''}`,
+      `acao=${action}`,
+      `clienteCiente=${clienteCiente}`,
+      `potenciaAplicadaKw=${potenciaAplicada ?? ''}`,
+      '[/PRECHECK_NORMA_TECH]',
+    ]
+    return lines.join('\n')
+  }
+
   const buildPrecheckObservationBlock = useCallback(
     (params: {
       result: NormComplianceResult
@@ -6097,33 +6185,14 @@ export default function App() {
       clienteCiente: boolean
       potenciaAplicada?: number
       tipoLigacaoAplicada?: TipoLigacaoNorma
+      includeTechBlock?: boolean
     }) => {
-      const { result, action, clienteCiente, potenciaAplicada, tipoLigacaoAplicada } = params
-      const tipoLabel = formatTipoLigacaoLabel(tipoLigacaoAplicada ?? result.tipoLigacao)
-      const lines = [
-        '[PRECHECK_NORMA]',
-        `Status: ${result.status}`,
-        `UF: ${result.uf}`,
-        `Tipo de ligação: ${tipoLabel}`,
-        `Potência informada: ${result.potenciaInversorKw} kW`,
-      ]
-
-      if (result.kwMaxPermitido) {
-        lines.push(`Limite atual: ${result.kwMaxPermitido} kW`)
+      const { includeTechBlock, ...rest } = params
+      const userMessage = buildPrecheckUserMessage(rest)
+      if (!includeTechBlock) {
+        return userMessage
       }
-      if (result.kwMaxUpgrade && result.upgradeTo) {
-        lines.push(
-          `Upgrade sugerido: ${formatTipoLigacaoLabel(result.upgradeTo)} (${result.kwMaxUpgrade} kW)`,
-        )
-      }
-      if (potenciaAplicada != null) {
-        lines.push(`Potência aplicada: ${potenciaAplicada} kW`)
-      }
-      lines.push(`Ação: ${action}`)
-      lines.push(`Cliente ciente: ${clienteCiente ? 'Sim' : 'Não'}`)
-      lines.push('[/PRECHECK_NORMA]')
-
-      return lines.join('\n')
+      return `${userMessage}\n\n${buildPrecheckTechBlock(rest)}`
     },
     [],
   )
@@ -6131,7 +6200,10 @@ export default function App() {
   const upsertPrecheckObservation = useCallback(
     (block: string) => {
       setConfiguracaoUsinaObservacoes((prev) => {
-        const cleaned = prev.replace(/\s*\[PRECHECK_NORMA\][\s\S]*?\[\/PRECHECK_NORMA\]\s*/g, '').trim()
+        const cleaned = prev
+          .replace(/\s*\[PRECHECK_NORMA\][\s\S]*?\[\/PRECHECK_NORMA\]\s*/g, '')
+          .replace(/\s*\[PRECHECK_NORMA_TECH\][\s\S]*?\[\/PRECHECK_NORMA_TECH\]\s*/g, '')
+          .trim()
         if (!cleaned) {
           return block
         }
