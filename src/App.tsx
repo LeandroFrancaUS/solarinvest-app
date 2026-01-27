@@ -6099,7 +6099,7 @@ export default function App() {
       potenciaAplicada?: number
       tipoLigacaoAplicada?: TipoLigacaoNorma
     }) => {
-      const { result, action, clienteCiente, potenciaAplicada, tipoLigacaoAplicada } = params
+      const { result, action, clienteCiente, tipoLigacaoAplicada } = params
       const tipoLabel = formatTipoLigacaoLabel(tipoLigacaoAplicada ?? result.tipoLigacao)
       const upgradeLabel =
         result.upgradeTo && result.upgradeTo !== result.tipoLigacao
@@ -6121,24 +6121,36 @@ export default function App() {
         LIMITADO: 'acima do limite mesmo com upgrade',
       }
 
-      const baseLine = `Pré-check normativo (${result.uf}): potência informada ${formatKw(
-        result.potenciaInversorKw,
-      )} kW ${statusTextMap[result.status]} do padrão ${tipoLabel.toLowerCase()} (${formatKw(
-        result.kwMaxPermitido,
-      )} kW).`
+      const recomendacao =
+        upgradeLabel && result.kwMaxUpgrade != null
+          ? `upgrade do padrão de entrada para ${upgradeLabel.toLowerCase()} (até ${formatKw(
+              result.kwMaxUpgrade,
+            )} kW)`
+          : 'sem upgrade sugerido para este caso'
 
-      const recommendation = upgradeLabel && result.kwMaxUpgrade != null
-        ? `Recomendação: upgrade do padrão de entrada para ${upgradeLabel.toLowerCase()} (até ${formatKw(
-            result.kwMaxUpgrade,
-          )} kW).`
-        : 'Recomendação: sem upgrade sugerido para este caso.'
+      const clienteCienteTexto = action === 'proceed' ? (clienteCiente ? 'Cliente ciente.' : 'Cliente ciente: não.') : ''
 
-      const clienteCienteSuffix = action === 'proceed' ? ' Cliente ciente.' : ''
-
-      return `${baseLine}\n${recommendation}${action === 'proceed' ? clienteCienteSuffix : ''}`
+      return [
+        `Pré-check normativo (${result.uf}).`,
+        `Tipo de ligação informado: ${tipoLabel}.`,
+        `Potência informada: ${formatKw(result.potenciaInversorKw)} kW (limite do padrão: ${formatKw(
+          result.kwMaxPermitido,
+        )} kW).`,
+        `Situação: ${statusTextMap[result.status]}.`,
+        `Recomendação: ${recomendacao}.${clienteCienteTexto ? ` ${clienteCienteTexto}` : ''}`,
+      ].join('\n')
     },
     [],
   )
+
+  const isPrecheckObservationTextValid = useCallback((text: string) => {
+    const lines = text.split('\n')
+    if (lines.length > 5) return false
+    if (lines.some((line) => line.trim().length === 0)) return false
+    if (/(\[PRECHECK|{|}|<|>)/.test(text)) return false
+    if (/[\u{1F300}-\u{1FAFF}]/u.test(text)) return false
+    return true
+  }, [])
 
   const buildPrecheckObservationBlock = useCallback(
     (params: {
@@ -6154,7 +6166,10 @@ export default function App() {
   const upsertPrecheckObservation = useCallback(
     (block: string) => {
       setConfiguracaoUsinaObservacoes((prev) => {
-        const cleaned = prev.replace(/(^|\n)Pré-check normativo[\s\S]*?(?:\n{2,}|$)/g, '$1').trim()
+        const cleaned = prev
+          .replace(/(^|\n)Pré-check normativo[\s\S]*?(?:\n{2,}|$)/g, '$1')
+          .replace(/(^|\n).*(?:\[PRECHECK|\{|\}).*(?:\n|$)/g, '$1')
+          .trim()
         if (!cleaned) {
           return block
         }
@@ -7532,13 +7547,17 @@ export default function App() {
       const limite = normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
       applyNormativeAdjustment({ potenciaKw: limite })
       await Promise.resolve()
+      const observation = buildPrecheckObservationBlock({
+        result: normCompliance,
+        action: 'adjust_current',
+        clienteCiente: decision.clienteCiente,
+        potenciaAplicada: limite,
+      })
+      if (!isPrecheckObservationTextValid(observation)) {
+        return false
+      }
       upsertPrecheckObservation(
-        buildPrecheckObservationBlock({
-          result: normCompliance,
-          action: 'adjust_current',
-          clienteCiente: decision.clienteCiente,
-          potenciaAplicada: limite,
-        }),
+        observation,
       )
       return true
     }
@@ -7549,26 +7568,34 @@ export default function App() {
       const tipo = normCompliance.upgradeTo ?? normCompliance.tipoLigacao
       applyNormativeAdjustment({ potenciaKw: limite, tipoLigacao: tipo })
       await Promise.resolve()
+      const observation = buildPrecheckObservationBlock({
+        result: normCompliance,
+        action: 'adjust_upgrade',
+        clienteCiente: decision.clienteCiente,
+        potenciaAplicada: limite,
+        tipoLigacaoAplicada: tipo,
+      })
+      if (!isPrecheckObservationTextValid(observation)) {
+        return false
+      }
       upsertPrecheckObservation(
-        buildPrecheckObservationBlock({
-          result: normCompliance,
-          action: 'adjust_upgrade',
-          clienteCiente: decision.clienteCiente,
-          potenciaAplicada: limite,
-          tipoLigacaoAplicada: tipo,
-        }),
+        observation,
       )
       return true
     }
 
     if (decision.action === 'proceed' && decision.clienteCiente) {
       setPrecheckClienteCiente(true)
+      const observation = buildPrecheckObservationBlock({
+        result: normCompliance,
+        action: 'proceed',
+        clienteCiente: decision.clienteCiente,
+      })
+      if (!isPrecheckObservationTextValid(observation)) {
+        return false
+      }
       upsertPrecheckObservation(
-        buildPrecheckObservationBlock({
-          result: normCompliance,
-          action: 'proceed',
-          clienteCiente: decision.clienteCiente,
-        }),
+        observation,
       )
       return true
     }
@@ -7577,6 +7604,7 @@ export default function App() {
   }, [
     applyNormativeAdjustment,
     buildPrecheckObservationBlock,
+    isPrecheckObservationTextValid,
     normCompliance,
     requestPrecheckDecision,
     setPrecheckClienteCiente,
