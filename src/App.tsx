@@ -5820,6 +5820,39 @@ export default function App() {
     [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato],
   )
 
+  const validateConsumoMinimoLeasing = useCallback(
+    (mensagem: string) => {
+      const consumoKwhMes = Number(kcKwhMes)
+      if (!Number.isFinite(consumoKwhMes)) {
+        adicionarNotificacao(mensagem, 'error')
+        return false
+      }
+      if (consumoKwhMes < 300) {
+        adicionarNotificacao(
+          'O consumo médio do cliente está abaixo do perfil que a SolarInvest pode atender no leasing.',
+          'error',
+        )
+        return false
+      }
+      return true
+    },
+    [adicionarNotificacao, kcKwhMes],
+  )
+
+  const validatePropostaLeasingMinimal = useCallback(() => {
+    const nomeCliente = cliente.nome?.trim() ?? ''
+    if (!nomeCliente) {
+      adicionarNotificacao('Informe o Nome ou Razão Social para gerar a proposta.', 'error')
+      return false
+    }
+
+    if (!validateConsumoMinimoLeasing('Informe o Consumo (kWh/mês) para gerar a proposta.')) {
+      return false
+    }
+
+    return true
+  }, [adicionarNotificacao, cliente.nome, validateConsumoMinimoLeasing])
+
   const guardClientFieldsOrReturn = useCallback(
     (mode: 'venda' | 'leasing') => {
       clearClientHighlights()
@@ -5844,6 +5877,31 @@ export default function App() {
       valorTotalPropostaNormalizado,
     ],
   )
+
+  const validateClienteParaSalvar = useCallback(() => {
+    const nomeCliente = cliente.nome?.trim() ?? ''
+    if (!nomeCliente) {
+      adicionarNotificacao('Informe o Nome ou Razão Social para salvar o cliente.', 'error')
+      return false
+    }
+
+    const cidadeCliente = cliente.cidade?.trim() ?? ''
+    if (!cidadeCliente) {
+      adicionarNotificacao('Informe a Cidade para salvar o cliente.', 'error')
+      return false
+    }
+
+    const consumoKwhMes = Number(kcKwhMes)
+    if (Number.isFinite(consumoKwhMes) && consumoKwhMes > 0 && consumoKwhMes < 300) {
+      adicionarNotificacao(
+        'O consumo médio do cliente está abaixo do perfil que a SolarInvest pode atender no leasing.',
+        'error',
+      )
+      return false
+    }
+
+    return true
+  }, [adicionarNotificacao, cliente.cidade, cliente.nome, kcKwhMes])
 
   useEffect(() => {
     if (!isVendaDiretaTab) {
@@ -12762,17 +12820,7 @@ export default function App() {
       return false
     }
 
-    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
-    if (!options?.skipGuard && !guardClientFieldsOrReturn(mode)) {
-      return false
-    }
-
-    const distribuidoraValidation = getDistribuidoraValidationMessage(
-      procuracaoUf || cliente.uf,
-      distribuidoraAneelEfetiva,
-    )
-    if (distribuidoraValidation) {
-      adicionarNotificacao(distribuidoraValidation, 'error')
+    if (!validateClienteParaSalvar()) {
       return false
     }
 
@@ -13005,13 +13053,12 @@ export default function App() {
     cliente,
     clienteEmEdicaoId,
     getCurrentSnapshot,
-    guardClientFieldsOrReturn,
-    isVendaDiretaTab,
     isOneDriveIntegrationAvailable,
     persistClienteRegistroToOneDrive,
     scheduleMarkStateAsSaved,
     setOneDriveIntegrationAvailable,
     setClienteEmEdicaoId,
+    validateClienteParaSalvar,
   ])
 
 
@@ -14205,8 +14252,11 @@ export default function App() {
     setEficiencia(valor)
   }
   const handlePrint = async () => {
-    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
-    if (!guardClientFieldsOrReturn(mode)) {
+    if (isVendaDiretaTab) {
+      if (!guardClientFieldsOrReturn('venda')) {
+        return
+      }
+    } else if (!validatePropostaLeasingMinimal()) {
       return
     }
 
@@ -14561,6 +14611,10 @@ export default function App() {
   ])
 
   const prepararPayloadContratosLeasing = useCallback(() => {
+    if (!validateConsumoMinimoLeasing('Informe o Consumo (kWh/mês) para gerar os documentos.')) {
+      return null
+    }
+
     const dadosBase = prepararDadosContratoCliente()
     if (!dadosBase) {
       return null
@@ -14769,6 +14823,7 @@ export default function App() {
     tarifaCheia,
     ucsBeneficiarias,
     procuracaoUf,
+    validateConsumoMinimoLeasing,
   ])
 
   const carregarTemplatesContrato = useCallback(
@@ -14986,6 +15041,9 @@ export default function App() {
     if (!guardClientFieldsOrReturn('leasing')) {
       return
     }
+    if (!validateConsumoMinimoLeasing('Informe o Consumo (kWh/mês) para gerar os documentos.')) {
+      return
+    }
     const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
     if (!clienteSalvo) {
       return
@@ -15003,6 +15061,7 @@ export default function App() {
     guardClientFieldsOrReturn,
     handleSalvarCliente,
     prepararDadosContratoCliente,
+    validateConsumoMinimoLeasing,
   ])
 
   const handleGerarContratoVendas = useCallback(async () => {
@@ -15610,8 +15669,11 @@ export default function App() {
       return false
     }
 
-    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
-    if (!guardClientFieldsOrReturn(mode)) {
+    if (isVendaDiretaTab) {
+      if (!guardClientFieldsOrReturn('venda')) {
+        return false
+      }
+    } else if (!validatePropostaLeasingMinimal()) {
       return false
     }
 
@@ -15733,6 +15795,7 @@ export default function App() {
     setProposalPdfIntegrationAvailable,
     scheduleMarkStateAsSaved,
     switchBudgetId,
+    validatePropostaLeasingMinimal,
   ])
 
   const runWithUnsavedChangesGuard = useCallback(

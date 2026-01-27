@@ -323,14 +323,30 @@ function PrintableProposalLeasingInner(
   const ucGeradoraEnderecoBase = ucGeradoraTitularEndereco ?? ucGeradora?.endereco?.trim() ?? ''
   const ucGeradoraEndereco = ucGeradoraEnderecoBase || formatClienteEnderecoCompleto()
   const enderecoCompletoCliente = formatClienteEnderecoCompleto(false)
+  const isPresentValue = (value: unknown): boolean => {
+    if (typeof value === 'string') {
+      return value.trim().length > 0
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value)
+    }
+    if (typeof value === 'boolean') {
+      return true
+    }
+    if (Array.isArray(value)) {
+      return value.length > 0
+    }
+    return Boolean(value)
+  }
+
   const infoPessoalCliente = [
-    { label: 'Cliente', value: nomeCliente || '—' },
-    { label: 'CPF/CNPJ', value: documentoCliente || '—' },
-    { label: 'E-mail', value: emailCliente || '—' },
-    { label: 'Telefone', value: telefoneCliente || '—' },
-    { label: 'Endereço', value: enderecoCompletoCliente || '—' },
-    { label: 'CEP', value: cepCliente || '—' },
-  ]
+    { label: 'Nome/Razão social', value: nomeCliente?.trim() ?? '' },
+    { label: 'CPF/CNPJ', value: documentoCliente?.trim() ?? '' },
+    { label: 'E-mail', value: emailCliente?.trim() ?? '' },
+    { label: 'Telefone', value: telefoneCliente?.trim() ?? '' },
+    { label: 'Endereço', value: enderecoCompletoCliente?.trim() ?? '' },
+    { label: 'CEP', value: cepCliente?.trim() ?? '' },
+  ].filter((item) => isPresentValue(item.value))
 
   const ucsBeneficiariasLista = useMemo(() => {
     if (!Array.isArray(ucsBeneficiarias)) {
@@ -442,9 +458,14 @@ function PrintableProposalLeasingInner(
       maximumFractionDigits: fractionDigits,
     })} kWh`
 
-  const resumoCampos: ClientInfoField[] = [
-    { label: 'Código do orçamento', value: codigoOrcamento || '—' },
-    {
+  const resumoCampos: ClientInfoField[] = []
+
+  if (isPresentValue(codigoOrcamento)) {
+    resumoCampos.push({ label: 'Código do orçamento', value: codigoOrcamento })
+  }
+
+  if (infoPessoalCliente.length > 0) {
+    resumoCampos.push({
       label: 'Informações do cliente',
       value: (
         <div className="print-client-lines">
@@ -456,8 +477,8 @@ function PrintableProposalLeasingInner(
         </div>
       ),
       wide: true,
-    },
-  ]
+    })
+  }
 
   const snapshotPagamento = vendaSnapshot?.pagamento ?? null
   const validadePropostaDiasPadrao = Number.isFinite(vendasConfigSnapshot?.validade_proposta_dias)
@@ -1060,15 +1081,17 @@ function PrintableProposalLeasingInner(
             </div>
           </section>
     
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
-            <ClientInfoGrid
-              fields={resumoCampos}
-              className="print-client-grid no-break-inside"
-              fieldClassName="print-client-field"
-              wideFieldClassName="print-client-field--wide"
-            />
-          </section>
+          {resumoCampos.length > 0 ? (
+            <section className="print-section keep-together avoid-break">
+              <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
+              <ClientInfoGrid
+                fields={resumoCampos}
+                className="print-client-grid no-break-inside"
+                fieldClassName="print-client-field"
+                wideFieldClassName="print-client-field--wide"
+              />
+            </section>
+          ) : null}
 
           <section className="print-section keep-together avoid-break">
             <h2 className="section-title keep-with-next">Dados da Instalação</h2>
