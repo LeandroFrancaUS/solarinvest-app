@@ -2596,6 +2596,66 @@ tbody tr:hover {
   font-size: 13px;
 }
 
+.norm-precheck-banner {
+  border-radius: 12px;
+  padding: 16px;
+  margin: 12px 0 18px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.norm-precheck-banner__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.norm-precheck-banner__status {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.norm-precheck-banner ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.norm-precheck-banner__ack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.norm-precheck-banner__ack input {
+  accent-color: var(--color-accent, #38bdf8);
+}
+
+.norm-precheck-banner--ok {
+  border-color: rgba(52, 211, 153, 0.6);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.norm-precheck-banner--warning {
+  border-color: rgba(251, 191, 36, 0.6);
+  background: rgba(251, 191, 36, 0.14);
+}
+
+.norm-precheck-banner--danger {
+  border-color: rgba(248, 113, 113, 0.7);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.norm-precheck-banner--neutral {
+  border-color: rgba(148, 163, 184, 0.6);
+  background: rgba(148, 163, 184, 0.12);
+}
+
 .crm-table {
   width: 100%;
   border-collapse: collapse;
@@ -4596,6 +4656,45 @@ table tbody tr:hover {
 .save-changes-modal__content .modal-actions {
   padding: 0 24px 20px;
   justify-content: flex-end;
+}
+
+.precheck-modal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.precheck-modal__backdrop {
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.precheck-modal__content {
+  width: min(560px, calc(100% - 32px));
+  max-height: min(80vh, 620px);
+  margin: 64px auto;
+  border-radius: 18px;
+}
+
+.precheck-modal__content .modal-header {
+  padding: 18px 24px 12px;
+  box-shadow: none;
+}
+
+.precheck-modal__content .modal-body {
+  padding: 0 24px 20px;
+}
+
+.precheck-modal__content .modal-actions {
+  padding: 0 24px 24px;
+  justify-content: flex-end;
+}
+
+.precheck-modal__ack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 @media (max-width: 540px) {
