@@ -5820,6 +5820,22 @@ export default function App() {
     [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato],
   )
 
+  const validatePropostaLeasingMinimal = useCallback(() => {
+    const nomeCliente = cliente.nome?.trim() ?? ''
+    if (!nomeCliente) {
+      adicionarNotificacao('Informe o Nome ou Razão Social para gerar a proposta.', 'error')
+      return false
+    }
+
+    const consumoKwhMes = Number(kcKwhMes)
+    if (!Number.isFinite(consumoKwhMes) || consumoKwhMes <= 0) {
+      adicionarNotificacao('Informe o Consumo (kWh/mês) para gerar a proposta.', 'error')
+      return false
+    }
+
+    return true
+  }, [adicionarNotificacao, cliente.nome, kcKwhMes])
+
   const guardClientFieldsOrReturn = useCallback(
     (mode: 'venda' | 'leasing') => {
       clearClientHighlights()
@@ -14205,8 +14221,11 @@ export default function App() {
     setEficiencia(valor)
   }
   const handlePrint = async () => {
-    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
-    if (!guardClientFieldsOrReturn(mode)) {
+    if (isVendaDiretaTab) {
+      if (!guardClientFieldsOrReturn('venda')) {
+        return
+      }
+    } else if (!validatePropostaLeasingMinimal()) {
       return
     }
 
@@ -15610,8 +15629,11 @@ export default function App() {
       return false
     }
 
-    const mode = isVendaDiretaTab ? 'venda' : 'leasing'
-    if (!guardClientFieldsOrReturn(mode)) {
+    if (isVendaDiretaTab) {
+      if (!guardClientFieldsOrReturn('venda')) {
+        return false
+      }
+    } else if (!validatePropostaLeasingMinimal()) {
       return false
     }
 
@@ -15733,6 +15755,7 @@ export default function App() {
     setProposalPdfIntegrationAvailable,
     scheduleMarkStateAsSaved,
     switchBudgetId,
+    validatePropostaLeasingMinimal,
   ])
 
   const runWithUnsavedChangesGuard = useCallback(
