@@ -6085,6 +6085,73 @@ export default function App() {
     [handlePotenciaInstaladaChange, handleTipoRedeSelection, mapTipoLigacaoToRede],
   )
 
+  const buildPrecheckObservationBlock = useCallback(
+    (params: {
+      result: NormComplianceResult
+      action: string
+      clienteCiente: boolean
+      potenciaAplicada?: number
+      tipoLigacaoAplicada?: TipoLigacaoNorma
+    }) => {
+      const { result, action, clienteCiente, potenciaAplicada, tipoLigacaoAplicada } = params
+      const tipoLabel = formatTipoLigacaoLabel(tipoLigacaoAplicada ?? result.tipoLigacao)
+      const lines = [
+        '[PRECHECK_NORMA]',
+        `Status: ${result.status}`,
+        `UF: ${result.uf}`,
+        `Tipo de ligação: ${tipoLabel}`,
+        `Potência informada: ${result.potenciaInversorKw} kW`,
+      ]
+
+      if (result.kwMaxPermitido) {
+        lines.push(`Limite atual: ${result.kwMaxPermitido} kW`)
+      }
+      if (result.kwMaxUpgrade && result.upgradeTo) {
+        lines.push(
+          `Upgrade sugerido: ${formatTipoLigacaoLabel(result.upgradeTo)} (${result.kwMaxUpgrade} kW)`,
+        )
+      }
+      if (potenciaAplicada != null) {
+        lines.push(`Potência aplicada: ${potenciaAplicada} kW`)
+      }
+      lines.push(`Ação: ${action}`)
+      lines.push(`Cliente ciente: ${clienteCiente ? 'Sim' : 'Não'}`)
+      lines.push('[/PRECHECK_NORMA]')
+
+      return lines.join('\n')
+    },
+    [],
+  )
+
+  const upsertPrecheckObservation = useCallback(
+    (block: string) => {
+      setConfiguracaoUsinaObservacoes((prev) => {
+        const cleaned = prev.replace(/\s*\[PRECHECK_NORMA\][\s\S]*?\[\/PRECHECK_NORMA\]\s*/g, '').trim()
+        if (!cleaned) {
+          return block
+        }
+        return `${cleaned}\n\n${block}`
+      })
+    },
+    [setConfiguracaoUsinaObservacoes],
+  )
+
+  const requestPrecheckDecision = useCallback(
+    (result: NormComplianceResult) =>
+      new Promise<PrecheckDecision>((resolve) => {
+        precheckDecisionResolverRef.current = resolve
+        setPrecheckModalData(result)
+        setPrecheckModalClienteCiente(precheckClienteCiente)
+      }),
+    [precheckClienteCiente],
+  )
+
+  const resolvePrecheckDecision = useCallback((decision: PrecheckDecision) => {
+    precheckDecisionResolverRef.current?.(decision)
+    precheckDecisionResolverRef.current = null
+    setPrecheckModalData(null)
+  }, [])
+
   const ensureNormativePrecheck = useCallback(async (): Promise<boolean> => {
     if (!normCompliance) {
       return true
@@ -19341,73 +19408,6 @@ export default function App() {
       setTipoInstalacaoOutro('')
     }
   }
-
-  const buildPrecheckObservationBlock = useCallback(
-    (params: {
-      result: NormComplianceResult
-      action: string
-      clienteCiente: boolean
-      potenciaAplicada?: number
-      tipoLigacaoAplicada?: TipoLigacaoNorma
-    }) => {
-      const { result, action, clienteCiente, potenciaAplicada, tipoLigacaoAplicada } = params
-      const tipoLabel = formatTipoLigacaoLabel(tipoLigacaoAplicada ?? result.tipoLigacao)
-      const lines = [
-        '[PRECHECK_NORMA]',
-        `Status: ${result.status}`,
-        `UF: ${result.uf}`,
-        `Tipo de ligação: ${tipoLabel}`,
-        `Potência informada: ${result.potenciaInversorKw} kW`,
-      ]
-
-      if (result.kwMaxPermitido) {
-        lines.push(`Limite atual: ${result.kwMaxPermitido} kW`)
-      }
-      if (result.kwMaxUpgrade && result.upgradeTo) {
-        lines.push(
-          `Upgrade sugerido: ${formatTipoLigacaoLabel(result.upgradeTo)} (${result.kwMaxUpgrade} kW)`,
-        )
-      }
-      if (potenciaAplicada != null) {
-        lines.push(`Potência aplicada: ${potenciaAplicada} kW`)
-      }
-      lines.push(`Ação: ${action}`)
-      lines.push(`Cliente ciente: ${clienteCiente ? 'Sim' : 'Não'}`)
-      lines.push('[/PRECHECK_NORMA]')
-
-      return lines.join('\n')
-    },
-    [],
-  )
-
-  const upsertPrecheckObservation = useCallback(
-    (block: string) => {
-      setConfiguracaoUsinaObservacoes((prev) => {
-        const cleaned = prev.replace(/\s*\[PRECHECK_NORMA\][\s\S]*?\[\/PRECHECK_NORMA\]\s*/g, '').trim()
-        if (!cleaned) {
-          return block
-        }
-        return `${cleaned}\n\n${block}`
-      })
-    },
-    [setConfiguracaoUsinaObservacoes],
-  )
-
-  const requestPrecheckDecision = useCallback(
-    (result: NormComplianceResult) =>
-      new Promise<PrecheckDecision>((resolve) => {
-        precheckDecisionResolverRef.current = resolve
-        setPrecheckModalData(result)
-        setPrecheckModalClienteCiente(precheckClienteCiente)
-      }),
-    [precheckClienteCiente],
-  )
-
-  const resolvePrecheckDecision = useCallback((decision: PrecheckDecision) => {
-    precheckDecisionResolverRef.current?.(decision)
-    precheckDecisionResolverRef.current = null
-    setPrecheckModalData(null)
-  }, [])
 
   const renderConfiguracaoUsinaSection = () => (
     <section className="card configuracao-usina-card">
