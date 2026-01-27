@@ -7412,6 +7412,17 @@ export default function App() {
       potenciaInversorKw: potenciaInstaladaKwp,
     })
   }, [potenciaInstaladaKwp, tipoLigacaoNorma, ufNorma])
+  const tipoRedeCompatMessage = useMemo(() => {
+    if (!normCompliance) {
+      return ''
+    }
+
+    if (normCompliance.status === 'FORA_DA_NORMA' || normCompliance.status === 'LIMITADO') {
+      return normCompliance.message ?? ''
+    }
+
+    return ''
+  }, [normCompliance])
   const normComplianceBanner = useMemo(() => {
     if (!normCompliance) {
       return {
