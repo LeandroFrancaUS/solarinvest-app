@@ -5891,8 +5891,17 @@ export default function App() {
       return false
     }
 
+    const consumoKwhMes = Number(kcKwhMes)
+    if (Number.isFinite(consumoKwhMes) && consumoKwhMes > 0 && consumoKwhMes < 300) {
+      adicionarNotificacao(
+        'O consumo médio do cliente está abaixo do perfil que a SolarInvest pode atender no leasing.',
+        'error',
+      )
+      return false
+    }
+
     return true
-  }, [adicionarNotificacao, cliente.cidade, cliente.nome])
+  }, [adicionarNotificacao, cliente.cidade, cliente.nome, kcKwhMes])
 
   useEffect(() => {
     if (!isVendaDiretaTab) {
