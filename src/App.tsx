@@ -6051,6 +6051,19 @@ export default function App() {
     [applyVendaUpdates, potenciaModulo, setNumeroModulosManual, setPotenciaFonteManual],
   )
 
+  function mapTipoLigacaoToRede(tipo: TipoLigacaoNorma): TipoRede {
+    switch (tipo) {
+      case 'MONOFASICO':
+        return 'monofasico'
+      case 'BIFASICO':
+        return 'bifasico'
+      case 'TRIFASICO':
+        return 'trifasico'
+      default:
+        return 'monofasico'
+    }
+  }
+
   const applyNormativeAdjustment = useCallback(
     (params: { potenciaKw: number; tipoLigacao?: TipoLigacaoNorma }) => {
       const { potenciaKw, tipoLigacao } = params
@@ -19328,19 +19341,6 @@ export default function App() {
     },
     [],
   )
-
-  const mapTipoLigacaoToRede = (tipo: TipoLigacaoNorma): TipoRede => {
-    switch (tipo) {
-      case 'MONOFASICO':
-        return 'monofasico'
-      case 'BIFASICO':
-        return 'bifasico'
-      case 'TRIFASICO':
-        return 'trifasico'
-      default:
-        return 'monofasico'
-    }
-  }
 
   const buildPrecheckObservationBlock = useCallback(
     (params: {

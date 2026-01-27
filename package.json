@@ -11,6 +11,7 @@
     "start": "node server/index.js",
     "test": "vitest run",
     "lint": "eslint --max-warnings=0 .",
+    "lint:cycles": "madge --circular src --extensions ts,tsx",
     "typecheck": "tsc --noEmit",
     "e2e:headless": "node scripts/run-e2e-placeholder.mjs",
     "test:neon": "node test-neon-connection.mjs",
