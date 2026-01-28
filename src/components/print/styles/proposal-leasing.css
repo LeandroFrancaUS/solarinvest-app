@@ -549,30 +549,18 @@
   color: #0c162c;
 }
 
-.leasing-table-monthly {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.leasing-table-monthly__secondary {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  font-size: 0.72rem;
+.leasing-table-distribuidora {
+  margin-top: 6px;
+  font-size: 0.75rem;
   line-height: 1.2;
   font-weight: 500;
-  color: #64748b;
+  color: #b91c1c;
 }
 
-.leasing-table-monthly__secondary-label {
-  white-space: nowrap;
-}
-
-.leasing-table-monthly__secondary-value {
-  color: #334155;
-  font-weight: 600;
+.leasing-table-distribuidora__label,
+.leasing-table-distribuidora__value {
+  display: block;
+  color: inherit;
 }
 
 .leasing-table-positive {
