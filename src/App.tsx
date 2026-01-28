@@ -70,6 +70,7 @@ import {
   saveProposalSnapshotById,
   loadProposalSnapshotById,
 } from './lib/persist/proposalStore'
+import { cidadesPorUF } from './data/cidadesPorUF'
 import {
   upsertClienteRegistro,
   getClienteRegistroById,
@@ -122,6 +123,7 @@ import {
   type NormComplianceResult,
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
+import { lookupCep } from './shared/cepLookup'
 import {
   getAutoEligibility,
   normalizeInstallType,
@@ -600,13 +602,6 @@ type IbgeMunicipio = {
       }
     }
   }
-}
-
-type ViaCepResponse = {
-  logradouro?: string
-  localidade?: string
-  uf?: string
-  erro?: boolean | string
 }
 
 type ClienteRegistro = {
@@ -4798,8 +4793,10 @@ export default function App() {
   const lastCepAppliedRef = useRef<string>('')
   const isApplyingUcGeradoraCepRef = useRef(false)
   const lastUcGeradoraCepAppliedRef = useRef<string>('')
+  const cepCidadeAvisoRef = useRef<string | null>(null)
   const budgetIdMismatchLoggedRef = useRef(false)
   const novaPropostaEmAndamentoRef = useRef(false)
+  const lastUfSelecionadaRef = useRef<string>(cliente.uf)
 
   // Refs to prevent stale closures in getCurrentSnapshot
   const clienteRef = useRef(cliente)
@@ -4825,6 +4822,8 @@ export default function App() {
   )
 
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+  const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
+  const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
   const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
@@ -4839,6 +4838,18 @@ export default function App() {
     if (!clienteUf) return [] as string[]
     return distribuidorasPorUf[clienteUf] ?? []
   }, [clienteUf, distribuidorasPorUf])
+  const clienteUfNormalizada = cliente.uf.trim().toUpperCase()
+  const cidadesDisponiveis = useMemo(() => {
+    if (!clienteUfNormalizada) return [] as string[]
+    return cidadesPorUF[clienteUfNormalizada] ?? []
+  }, [clienteUfNormalizada])
+  const cidadesFiltradas = useMemo(() => {
+    const termo = normalizeText(cidadeSearchTerm.trim())
+    if (!termo) {
+      return cidadesDisponiveis
+    }
+    return cidadesDisponiveis.filter((cidade) => normalizeText(cidade).includes(termo))
+  }, [cidadeSearchTerm, cidadesDisponiveis])
   const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
   const distribuidoraAneelEfetiva = useMemo(
     () =>
@@ -5325,6 +5336,13 @@ export default function App() {
       setClienteHerdeirosExpandidos(true)
     }
   }, [cliente.herdeiros, clienteHerdeirosExpandidos])
+  useEffect(() => {
+    if (lastUfSelecionadaRef.current !== clienteUfNormalizada) {
+      setCidadeSearchTerm('')
+      setCidadeSelectOpen(false)
+      lastUfSelecionadaRef.current = clienteUfNormalizada
+    }
+  }, [clienteUfNormalizada])
   const [verificandoCidade, setVerificandoCidade] = useState(false)
   const [buscandoCep, setBuscandoCep] = useState(false)
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
@@ -17134,37 +17152,47 @@ export default function App() {
 
       try {
         isApplyingCepRef.current = true
-        const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`, {
-          signal: controller.signal,
-        })
-
-        if (!response.ok) {
-          throw new Error('Falha ao consultar CEP.')
-        }
-
-        const data: ViaCepResponse = await response.json()
+        const data = await lookupCep(cepNumeros, controller.signal)
         if (!ativo) {
           return
         }
 
-        if (data?.erro) {
+        if (!data) {
           setClienteMensagens((prev) => ({ ...prev, cep: 'CEP não encontrado.' }))
           return
         }
 
         const logradouro = data?.logradouro?.trim() ?? ''
-        const localidade = data?.localidade?.trim() ?? ''
+        const localidade = data?.cidade?.trim() ?? ''
         const uf = data?.uf?.trim().toUpperCase() ?? ''
 
         const base = clienteRef.current ?? cliente
         const enderecoAtual = base.endereco?.trim() ?? ''
         const patch: Partial<ClienteDados> = {}
-        if (localidade && localidade !== base.cidade) {
-          patch.cidade = localidade
-        }
+        const cidadesDaUf = uf ? cidadesPorUF[uf] ?? [] : []
+        const cidadeNormalizada = normalizeText(localidade)
+        const cidadeAtual = base.cidade?.trim() ?? ''
+        const cidadeAtualNaLista = cidadesDaUf.some(
+          (cidade) => normalizeText(cidade) === normalizeText(cidadeAtual),
+        )
+        const cidadeEncontrada = cidadesDaUf.find(
+          (cidade) => normalizeText(cidade) === cidadeNormalizada,
+        )
+        let avisoCidade: string | undefined
+
         if (uf && uf !== base.uf) {
           patch.uf = uf
         }
+
+        if (cidadeEncontrada && cidadeEncontrada !== base.cidade) {
+          patch.cidade = cidadeEncontrada
+        } else if (localidade && uf && !cidadeEncontrada) {
+          avisoCidade = 'Cidade do CEP não encontrada na lista. Selecione manualmente.'
+          if (uf !== base.uf && !cidadeAtualNaLista) {
+            patch.cidade = ''
+          }
+        }
+
         if (uf && uf !== base.uf) {
           const listaDistribuidoras = distribuidorasPorUf[uf] ?? []
           let proximaDistribuidora = base.distribuidora
@@ -17194,10 +17222,11 @@ export default function App() {
         }
 
         lastCepAppliedRef.current = cepNumeros
+        cepCidadeAvisoRef.current = avisoCidade ? base.cidade?.trim() ?? '' : null
         setClienteMensagens((prev): ClienteMensagens => ({
           ...prev,
           cep: undefined,
-          cidade: undefined,
+          cidade: avisoCidade,
         }))
       } catch (error) {
         if (!ativo || controller.signal.aborted) {
@@ -17206,7 +17235,7 @@ export default function App() {
 
         setClienteMensagens((prev) => ({
           ...prev,
-          cep: 'Não foi possível consultar o CEP agora.',
+          cep: 'Não foi possível consultar o CEP.',
         }))
       } finally {
         if (ativo) {
@@ -17216,11 +17245,14 @@ export default function App() {
       }
     }
 
-    consultarCep()
+    const timeoutId = window.setTimeout(() => {
+      consultarCep()
+    }, 500)
 
     return () => {
       ativo = false
       controller.abort()
+      window.clearTimeout(timeoutId)
     }
   }, [cliente.cep, distribuidorasPorUf])
 
@@ -17257,26 +17289,18 @@ export default function App() {
 
       try {
         isApplyingUcGeradoraCepRef.current = true
-        const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`, {
-          signal: controller.signal,
-        })
-
-        if (!response.ok) {
-          throw new Error('Falha ao consultar CEP.')
-        }
-
-        const data: ViaCepResponse = await response.json()
+        const data = await lookupCep(cepNumeros, controller.signal)
         if (!ativo) {
           return
         }
 
-        if (data?.erro) {
+        if (!data) {
           setUcGeradoraTitularCepMessage('CEP não encontrado.')
           return
         }
 
         const logradouro = data?.logradouro?.trim() ?? ''
-        const localidade = data?.localidade?.trim() ?? ''
+        const localidade = data?.cidade?.trim() ?? ''
         const uf = data?.uf?.trim().toUpperCase() ?? ''
 
         const patchEndereco: Partial<LeasingEndereco> = {}
@@ -17300,7 +17324,7 @@ export default function App() {
           return
         }
 
-        setUcGeradoraTitularCepMessage('Não foi possível consultar o CEP agora.')
+        setUcGeradoraTitularCepMessage('Não foi possível consultar o CEP.')
       } finally {
         if (ativo) {
           setUcGeradoraTitularBuscandoCep(false)
@@ -17324,6 +17348,14 @@ export default function App() {
 
     const nomeCidade = cliente.cidade.trim()
     const ufSelecionada = cliente.uf.trim().toUpperCase()
+
+    if (cepCidadeAvisoRef.current !== null) {
+      if (nomeCidade === cepCidadeAvisoRef.current) {
+        setVerificandoCidade(false)
+        return
+      }
+      cepCidadeAvisoRef.current = null
+    }
 
     if (nomeCidade.length < 3) {
       setVerificandoCidade(false)
@@ -17912,22 +17944,95 @@ export default function App() {
             'Cidade',
             'Município da instalação utilizado em relatórios, cálculo de impostos locais e validação de CEP.',
           )}
-          hint={verificandoCidade ? 'Verificando cidade...' : clienteMensagens.cidade}
+          hint={
+            !cliente.uf.trim()
+              ? 'Selecione a UF para escolher a cidade.'
+              : verificandoCidade
+                ? 'Verificando cidade...'
+                : clienteMensagens.cidade
+          }
         >
-          <input
-            data-field="cliente-cidade"
-            value={cliente.cidade}
-            onChange={(e) => {
-              const nextCidade = e.target.value
-              handleClienteChange('cidade', nextCidade)
-              clearFieldHighlight(e.currentTarget)
-              if (nextCidade.trim() && cliente.uf.trim()) {
-                clearFieldHighlight(
-                  document.querySelector('[data-field="cliente-uf"]') as HTMLElement | null,
-                )
-              }
-            }}
-          />
+          <div className={`city-select${!cliente.uf.trim() ? ' is-disabled' : ''}`}>
+            <details
+              open={cidadeSelectOpen}
+              onToggle={(event) => {
+                if (!cliente.uf.trim()) {
+                  event.preventDefault()
+                  event.currentTarget.open = false
+                  setCidadeSelectOpen(false)
+                  return
+                }
+                setCidadeSelectOpen(event.currentTarget.open)
+              }}
+            >
+              <summary
+                data-field="cliente-cidade"
+                role="button"
+                aria-disabled={!cliente.uf.trim()}
+                onClick={(event) => {
+                  if (!cliente.uf.trim()) {
+                    event.preventDefault()
+                  }
+                }}
+              >
+                {cliente.cidade.trim()
+                  ? cliente.cidade
+                  : cliente.uf.trim()
+                    ? 'Selecione a cidade'
+                    : 'Selecione a UF para escolher a cidade'}
+              </summary>
+              <div className="city-select-panel">
+                <input
+                  type="text"
+                  placeholder="Buscar cidade…"
+                  value={cidadeSearchTerm}
+                  onChange={(event) => setCidadeSearchTerm(event.target.value)}
+                  disabled={!cliente.uf.trim()}
+                />
+                <div className="city-select-list" role="listbox">
+                  {cidadesFiltradas.length > 0 ? (
+                    cidadesFiltradas.map((cidade) => {
+                      const selecionada = cidade === cliente.cidade
+                      return (
+                        <button
+                          key={cidade}
+                          type="button"
+                          className={`city-select-option${selecionada ? ' is-selected' : ''}`}
+                          role="option"
+                          aria-selected={selecionada}
+                          onClick={() => {
+                            handleClienteChange('cidade', cidade)
+                            setCidadeSearchTerm('')
+                            setCidadeSelectOpen(false)
+                            cepCidadeAvisoRef.current = null
+                            setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
+                            clearFieldHighlight(
+                              document.querySelector('[data-field="cliente-cidade"]') as
+                                | HTMLElement
+                                | null,
+                            )
+                            if (cliente.uf.trim()) {
+                              clearFieldHighlight(
+                                document.querySelector('[data-field="cliente-uf"]') as
+                                  | HTMLElement
+                                  | null,
+                              )
+                            }
+                          }}
+                        >
+                          {cidade}
+                        </button>
+                      )
+                    })
+                  ) : (
+                    <div className="city-select-empty">
+                      Nenhuma cidade disponível para esta UF.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </details>
+          </div>
         </Field>
         <Field
           label={labelWithTooltip(
@@ -17940,13 +18045,16 @@ export default function App() {
             value={cliente.uf}
             onChange={(e) => {
               const nextUf = e.target.value
-              handleClienteChange('uf', nextUf)
-              clearFieldHighlight(e.currentTarget)
-              if (cliente.cidade.trim() && nextUf.trim()) {
-                clearFieldHighlight(
-                  document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
-                )
+              if (nextUf !== cliente.uf) {
+                handleClienteChange('uf', nextUf)
+                if (cliente.cidade.trim()) {
+                  handleClienteChange('cidade', '')
+                }
+                setCidadeSearchTerm('')
+                setCidadeSelectOpen(false)
+                cepCidadeAvisoRef.current = null
               }
+              clearFieldHighlight(e.currentTarget)
             }}
           >
             <option value="">Selecione um estado</option>
