@@ -579,14 +579,16 @@
 }
 
 .leasing-table-tariff {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: table-cell;
 }
 
 .leasing-table-tariff span {
   display: block;
   white-space: nowrap;
+}
+
+.leasing-table-tariff span + span {
+  margin-top: 4px;
 }
 
 table.leasing-economia-table,
