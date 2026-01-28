@@ -6168,7 +6168,7 @@ export default function App() {
         const cleaned = prev
           .replace(/(^|\n)Pré-check normativo[\s\S]*?(?:\n{2,}|$)/g, '$1')
           .split('\n')
-          .filter((line) => !/Pré-check normativo|\[PRECHECK|\{|\}|•/.test(line))
+          .filter((line) => !/Pré-check normativo|\[PRECHECK|\{|\}|•|Cliente ciente/i.test(line))
           .join('\n')
           .replace(/\n{3,}/g, '\n\n')
           .trim()
