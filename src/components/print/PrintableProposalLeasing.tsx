@@ -691,39 +691,6 @@ function PrintableProposalLeasingInner(
 
   const tarifaInicialProjetada = tarifaCheiaBase > 0 ? tarifaCheiaBase * (1 - descontoFracao) : 0
 
-  const tusdMedioPorAno = useMemo<Record<number, number>>(() => {
-    if (!Array.isArray(parcelasLeasing) || parcelasLeasing.length === 0) {
-      return {}
-    }
-
-    const acumulado: Record<number, { soma: number; quantidade: number }> = {}
-
-    parcelasLeasing.forEach((parcela) => {
-      const mes = Number.isFinite(parcela?.mes) ? Math.max(1, Math.floor(parcela.mes)) : NaN
-      if (!Number.isFinite(mes)) {
-        return
-      }
-
-      const ano = Math.ceil(mes / 12)
-      if (!Number.isFinite(ano) || ano <= 0) {
-        return
-      }
-
-      const tusd = Number.isFinite(parcela?.tusd) ? Math.max(0, parcela.tusd) : 0
-      const grupo = acumulado[ano] ?? { soma: 0, quantidade: 0 }
-      grupo.soma += tusd
-      grupo.quantidade += 1
-      acumulado[ano] = grupo
-    })
-
-    return Object.keys(acumulado).reduce<Record<number, number>>((acc, chave) => {
-      const ano = Number(chave)
-      const { soma, quantidade } = acumulado[ano]
-      acc[ano] = quantidade > 0 ? soma / quantidade : 0
-      return acc
-    }, {})
-  }, [parcelasLeasing])
-
   const condicoesFinanceiras = [
     {
       label: 'Investimento no sistema',
@@ -769,9 +736,8 @@ function PrintableProposalLeasingInner(
       const fator = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, ano - 1))
       const tarifaAno = tarifaCheiaBase * fator
       const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
-      const tusdMedio = tusdMedioPorAno[ano] ?? 0
       const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto + taxaMinimaMensal
-      const encargosDistribuidora = tusdMedio
+      const encargosDistribuidora = energiaContratadaBase * tarifaAno + taxaMinimaMensal
       const despesaMensalEstimada = mensalidadeSolarInvest + encargosDistribuidora
       return {
         ano,
@@ -783,27 +749,10 @@ function PrintableProposalLeasingInner(
       }
     })
 
-    const anosTusdOrdenados = Object.keys(tusdMedioPorAno)
-      .map((chave) => Number(chave))
-      .filter((valor) => Number.isFinite(valor) && valor > 0)
-      .sort((a, b) => a - b)
-
-    let tusdPosContrato = 0
-    for (let index = anosTusdOrdenados.length - 1; index >= 0; index -= 1) {
-      const ano = anosTusdOrdenados[index]
-      if (ano <= prazoContratualTotalAnos) {
-        const valorTusd = tusdMedioPorAno[ano]
-        if (Number.isFinite(valorTusd)) {
-          tusdPosContrato = Math.max(0, valorTusd ?? 0)
-          break
-        }
-      }
-    }
-
     const anoPosContrato = prazoContratualTotalAnos + 1
     const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
     const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
-    const encargosDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
+    const encargosDistribuidoraPosContrato = energiaContratadaBase * tarifaAnoPosContrato + taxaMinimaMensal
     const despesaMensalPosContrato = encargosDistribuidoraPosContrato
 
     linhas.push({
@@ -822,7 +771,6 @@ function PrintableProposalLeasingInner(
     inflacaoEnergiaFracao,
     prazoContratualTotalAnos,
     taxaMinimaMensal,
-    tusdMedioPorAno,
     tarifaCheiaBase,
   ])
 
