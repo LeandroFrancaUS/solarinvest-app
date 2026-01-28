@@ -549,6 +549,32 @@
   color: #0c162c;
 }
 
+.leasing-table-monthly {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.leasing-table-monthly__secondary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.leasing-table-monthly__secondary-label {
+  white-space: nowrap;
+}
+
+.leasing-table-monthly__secondary-value {
+  color: #334155;
+  font-weight: 600;
+}
+
 .leasing-table-positive {
   background: #c7f0d5;
   color: #0f4d2d;

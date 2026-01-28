@@ -1342,15 +1342,26 @@ function PrintableProposalLeasingInner(
                         'leasing-table-value',
                         'leasing-table-positive',
                         'leasing-table-positive-emphasis',
+                        'leasing-table-monthly',
                       ]
                         .filter(Boolean)
                         .join(' ')}
                     >
-                      {isMensalidadeZero ? (
-                        <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
-                      ) : (
-                        currency(linha.mensalidadeSolarInvest)
-                      )}
+                      <div className="leasing-table-monthly__value">
+                        {isMensalidadeZero ? (
+                          <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
+                        ) : (
+                          currency(linha.mensalidadeSolarInvest)
+                        )}
+                      </div>
+                      <div className="leasing-table-monthly__secondary">
+                        <span className="leasing-table-monthly__secondary-label">
+                          Fatura da distribuidora (estimada)
+                        </span>
+                        <span className="leasing-table-monthly__secondary-value">
+                          {currency(linha.encargosDistribuidora)}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 )
