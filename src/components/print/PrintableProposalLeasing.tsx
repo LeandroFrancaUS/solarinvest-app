@@ -820,7 +820,7 @@ function PrintableProposalLeasingInner(
     linhas.push({
       ano: anoPosContrato,
       tarifaCheiaAno: tarifaAnoPosContrato,
-      tarifaComDesconto: tarifaAnoPosContrato,
+      tarifaComDesconto: 0,
       encargosDistribuidora: encargosDistribuidoraPosContrato,
       mensalidadeSolarInvest: 0,
       mensalidadeDistribuidora: mensalidadeDistribuidoraPosContrato,
