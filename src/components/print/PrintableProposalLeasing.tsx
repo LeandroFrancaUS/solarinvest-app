@@ -1352,9 +1352,7 @@ function PrintableProposalLeasingInner(
                         currency(linha.mensalidadeSolarInvest)
                       )}
                       <div className="leasing-table-distribuidora">
-                        <span className="leasing-table-distribuidora__label">
-                          Fatura da distribuidora (estimada)
-                        </span>
+                        <span className="leasing-table-distribuidora__label">Distribuidora</span>
                         <span className="leasing-table-distribuidora__value">
                           {currency(linha.encargosDistribuidora)}
                         </span>

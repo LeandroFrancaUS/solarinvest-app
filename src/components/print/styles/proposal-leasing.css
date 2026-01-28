@@ -554,13 +554,16 @@
   font-size: 0.75rem;
   line-height: 1.2;
   font-weight: 500;
-  color: #b91c1c;
+  color: #6b7280;
 }
 
 .leasing-table-distribuidora__label,
 .leasing-table-distribuidora__value {
   display: block;
-  color: inherit;
+}
+
+.leasing-table-distribuidora__value {
+  color: #8b1e1e;
 }
 
 .leasing-table-positive {
