@@ -137,16 +137,40 @@ export const evaluateNormCompliance = (
     }
   }
 
-  if (kwMaxUpgrade && potencia > kwMaxUpgrade) {
+  let nextTipo = rule.upgradeTo
+  let lastUpgrade: { tipo: TipoLigacaoNorma; rule: NormRule } | null = null
+
+  while (nextTipo) {
+    const nextRule = resolveUpgradeRule(uf, nextTipo)
+    if (!nextRule) break
+    lastUpgrade = { tipo: nextTipo, rule: nextRule }
+
+    if (potencia <= nextRule.kwMax) {
+      return {
+        status: 'FORA_DA_NORMA',
+        uf,
+        tipoLigacao,
+        potenciaInversorKw: potencia,
+        message: `Potência acima do limite para ${tipoLigacao.toLowerCase()} (${rule.kwMax} kW).`,
+        kwMaxPermitido: rule.kwMax,
+        upgradeTo: nextTipo,
+        kwMaxUpgrade: nextRule.kwMax,
+      }
+    }
+
+    nextTipo = nextRule.upgradeTo
+  }
+
+  if (lastUpgrade) {
     return {
       status: 'LIMITADO',
       uf,
       tipoLigacao,
       potenciaInversorKw: potencia,
-      message: `Potência excede o limite máximo mesmo após upgrade (${kwMaxUpgrade} kW).`,
+      message: `Potência excede o limite máximo mesmo após upgrade (${lastUpgrade.rule.kwMax} kW).`,
       kwMaxPermitido: rule.kwMax,
-      upgradeTo: rule.upgradeTo,
-      kwMaxUpgrade,
+      upgradeTo: lastUpgrade.tipo,
+      kwMaxUpgrade: lastUpgrade.rule.kwMax,
     }
   }
 

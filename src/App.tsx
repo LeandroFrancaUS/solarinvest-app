@@ -19545,9 +19545,8 @@ export default function App() {
           </ul>
         ) : null}
         {normCompliance?.status === 'FORA_DA_NORMA' ? (
-          <label className="norm-precheck-banner__ack">
-            <input
-              type="checkbox"
+          <label className="norm-precheck-banner__ack flex items-center gap-3">
+            <CheckboxSmall
               checked={precheckClienteCiente}
               onChange={(event) => setPrecheckClienteCiente(event.target.checked)}
             />
@@ -19840,8 +19839,7 @@ export default function App() {
             </div>
             {isFora ? (
               <label className="precheck-modal__ack">
-                <input
-                  type="checkbox"
+                <CheckboxSmall
                   checked={precheckModalClienteCiente}
                   onChange={(event) => setPrecheckModalClienteCiente(event.target.checked)}
                 />
