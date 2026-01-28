@@ -1258,7 +1258,9 @@ function PrintableProposalLeasingInner(
                 <tr>
                   <th>Período</th>
                   <th>Tarifas (cheia / com desconto)</th>
-                  <th className="leasing-table-positive leasing-table-positive-emphasis">Mensalidade SolarInvest (R$)</th>
+                  <th className="leasing-table-positive leasing-table-positive-emphasis">
+                    Faturas mensais (comparação)
+                  </th>
                 </tr>
               </thead>
             <tbody>
@@ -1310,7 +1312,7 @@ function PrintableProposalLeasingInner(
                             {currency(linha.mensalidadeSolarInvest)}
                           </span>
                         )}
-                        <span className="leasing-table-solarinvest__label">mensalidade SolarInvest</span>
+                        <span className="leasing-table-solarinvest__label">SolarInvest</span>
                       </div>
                     </td>
                   </tr>
