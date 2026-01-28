@@ -770,8 +770,8 @@ function PrintableProposalLeasingInner(
       const tarifaAno = tarifaCheiaBase * fator
       const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
       const tusdMedio = tusdMedioPorAno[ano] ?? 0
-      const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto + taxaMinimaMensal
-      const encargosDistribuidora = tusdMedio
+      const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto
+      const encargosDistribuidora = tusdMedio + taxaMinimaMensal
       const despesaMensalEstimada = mensalidadeSolarInvest + encargosDistribuidora
       return {
         ano,
@@ -1310,7 +1310,9 @@ function PrintableProposalLeasingInner(
                 <tr>
                   <th>Período</th>
                   <th>Tarifas (cheia / com desconto)</th>
-                  <th className="leasing-table-positive leasing-table-positive-emphasis">Mensalidade SolarInvest (R$)</th>
+                  <th className="leasing-table-positive leasing-table-positive-emphasis">
+                    Faturas mensais (comparação)
+                  </th>
                 </tr>
               </thead>
             <tbody>
@@ -1346,11 +1348,24 @@ function PrintableProposalLeasingInner(
                         .filter(Boolean)
                         .join(' ')}
                     >
-                      {isMensalidadeZero ? (
-                        <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
-                      ) : (
-                        currency(linha.mensalidadeSolarInvest)
-                      )}
+                      <div className="leasing-table-distribuidora">
+                        <span className="leasing-table-distribuidora__label">Distribuidora</span>
+                        <span className="leasing-table-distribuidora__value">
+                          {currency(linha.encargosDistribuidora)}
+                        </span>
+                      </div>
+                      <div className="leasing-table-solarinvest">
+                        {isMensalidadeZero ? (
+                          <span className="leasing-zero-highlight leasing-table-solarinvest__value">
+                            {currency(linha.mensalidadeSolarInvest)}
+                          </span>
+                        ) : (
+                          <span className="leasing-table-solarinvest__value">
+                            {currency(linha.mensalidadeSolarInvest)}
+                          </span>
+                        )}
+                        <span className="leasing-table-solarinvest__label">SolarInvest</span>
+                      </div>
                     </td>
                   </tr>
                 )
