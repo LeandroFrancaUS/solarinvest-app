@@ -452,6 +452,14 @@ function PrintableProposalLeasingInner(
     return 0
   })()
 
+  const custosFixosContaEnergia = useMemo(() => {
+    const valor = vendaSnapshot?.parametros?.taxa_minima_rs_mes
+    if (Number.isFinite(valor) && (valor ?? 0) > 0) {
+      return Math.max(0, valor ?? 0)
+    }
+    return 0
+  }, [vendaSnapshot?.parametros?.taxa_minima_rs_mes])
+
   const formatKwhValor = (valor: number, fractionDigits = 2): string =>
     `${formatNumberBRWithOptions(valor, {
       minimumFractionDigits: fractionDigits,
@@ -771,7 +779,7 @@ function PrintableProposalLeasingInner(
       const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
       const tusdMedio = tusdMedioPorAno[ano] ?? 0
       const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto
-      const mensalidadeDistribuidora = energiaContratadaBase * tarifaAno + taxaMinimaMensal
+      const mensalidadeDistribuidora = energiaContratadaBase * tarifaAno + custosFixosContaEnergia
       const encargosDistribuidora = tusdMedio + taxaMinimaMensal
       const despesaMensalEstimada = mensalidadeSolarInvest + encargosDistribuidora
       return {
@@ -805,7 +813,7 @@ function PrintableProposalLeasingInner(
     const anoPosContrato = prazoContratualTotalAnos + 1
     const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
     const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
-    const mensalidadeDistribuidoraPosContrato = energiaContratadaBase * tarifaAnoPosContrato + taxaMinimaMensal
+    const mensalidadeDistribuidoraPosContrato = energiaContratadaBase * tarifaAnoPosContrato + custosFixosContaEnergia
     const encargosDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
     const despesaMensalPosContrato = encargosDistribuidoraPosContrato
 
@@ -821,6 +829,7 @@ function PrintableProposalLeasingInner(
 
     return linhas
   }, [
+    custosFixosContaEnergia,
     descontoFracao,
     energiaContratadaBase,
     inflacaoEnergiaFracao,
