@@ -25,8 +25,8 @@ const RULES_BY_UF: Record<string, Record<TipoLigacaoNorma, NormRule>> = {
     TRIFASICO: { kwMax: 30 },
   },
   GO: {
-    MONOFASICO: { kwMax: 30, upgradeTo: 'BIFASICO' },
-    BIFASICO: { kwMax: 16, upgradeTo: 'TRIFASICO' },
+    MONOFASICO: { kwMax: 12, upgradeTo: 'BIFASICO' },
+    BIFASICO: { kwMax: 25, upgradeTo: 'TRIFASICO' },
     TRIFASICO: { kwMax: 75 },
   },
   TO: {
