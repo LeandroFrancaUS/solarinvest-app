@@ -115,8 +115,8 @@ import {
   getRedeByPotencia,
   type Rede,
 } from './lib/pricing/pricingPorKwp'
+import { calcularPrecheckNormativo } from './domain/normas/precheckNormativo'
 import {
-  evaluateNormCompliance,
   formatTipoLigacaoLabel,
   normalizeTipoLigacaoNorma,
   type NormComplianceResult,
@@ -6162,24 +6162,32 @@ export default function App() {
     [buildPrecheckObservationText],
   )
 
+  const cleanPrecheckObservation = useCallback((value: string) => {
+    return value
+      .replace(/(^|\n)Pré-check normativo[\s\S]*?(?:\n{2,}|$)/g, '$1')
+      .split('\n')
+      .filter((line) => !/Pré-check normativo|\[PRECHECK|\{|\}|•|Cliente ciente/i.test(line))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  }, [])
+
   const upsertPrecheckObservation = useCallback(
     (block: string) => {
       setConfiguracaoUsinaObservacoes((prev) => {
-        const cleaned = prev
-          .replace(/(^|\n)Pré-check normativo[\s\S]*?(?:\n{2,}|$)/g, '$1')
-          .split('\n')
-          .filter((line) => !/Pré-check normativo|\[PRECHECK|\{|\}|•|Cliente ciente/i.test(line))
-          .join('\n')
-          .replace(/\n{3,}/g, '\n\n')
-          .trim()
+        const cleaned = cleanPrecheckObservation(prev)
         if (!cleaned) {
           return block
         }
         return `${cleaned}\n\n${block}`
       })
     },
-    [setConfiguracaoUsinaObservacoes],
+    [cleanPrecheckObservation, setConfiguracaoUsinaObservacoes],
   )
+
+  const removePrecheckObservation = useCallback(() => {
+    setConfiguracaoUsinaObservacoes((prev) => cleanPrecheckObservation(prev))
+  }, [cleanPrecheckObservation, setConfiguracaoUsinaObservacoes])
 
   const requestPrecheckDecision = useCallback(
     (result: NormComplianceResult) =>
@@ -7445,13 +7453,16 @@ export default function App() {
     ufTarifa,
   ])
   const tipoLigacaoNorma = useMemo(() => normalizeTipoLigacaoNorma(tipoRede), [tipoRede])
-  const normCompliance = useMemo<NormComplianceResult | null>(() => {
-    return evaluateNormCompliance({
-      uf: ufNorma,
-      tipoLigacao: tipoLigacaoNorma,
-      potenciaInversorKw: potenciaInstaladaKwp,
-    })
-  }, [potenciaInstaladaKwp, tipoLigacaoNorma, ufNorma])
+  const precheckNormativo = useMemo(
+    () =>
+      calcularPrecheckNormativo({
+        uf: ufNorma,
+        tipoRede,
+        potenciaKw: potenciaInstaladaKwp,
+      }),
+    [potenciaInstaladaKwp, tipoRede, ufNorma],
+  )
+  const normCompliance = precheckNormativo.compliance
   const tipoRedeCompatMessage = useMemo(() => {
     if (!normCompliance) {
       return ''
@@ -7465,6 +7476,15 @@ export default function App() {
   }, [normCompliance])
   const normComplianceBanner = useMemo(() => {
     if (!normCompliance) {
+      if (precheckNormativo.status === 'INDETERMINADO') {
+        return {
+          tone: 'neutral',
+          title: 'Pré-check normativo (padrão de entrada)',
+          statusLabel: 'INDETERMINADO',
+          message: precheckNormativo.observacoes.join(' '),
+          details: [] as string[],
+        }
+      }
       return {
         tone: 'neutral',
         title: 'Pré-check normativo (padrão de entrada)',
@@ -7520,7 +7540,7 @@ export default function App() {
       message: statusInfo.message,
       details,
     }
-  }, [normCompliance, ufNorma])
+  }, [normCompliance, precheckNormativo, ufNorma])
   useEffect(() => {
     setPrecheckClienteCiente(false)
     setPrecheckModalClienteCiente(false)
@@ -7531,6 +7551,41 @@ export default function App() {
     normCompliance?.potenciaInversorKw,
     normCompliance?.kwMaxPermitido,
     normCompliance?.kwMaxUpgrade,
+  ])
+  useEffect(() => {
+    if (!precheckModalData || !normCompliance) {
+      return
+    }
+
+    setPrecheckModalData(normCompliance)
+  }, [normCompliance, precheckModalData])
+  useEffect(() => {
+    if (!normCompliance) {
+      if (precheckNormativo.status === 'INDETERMINADO') {
+        removePrecheckObservation()
+      }
+      return
+    }
+
+    const observation = buildPrecheckObservationBlock({
+      result: normCompliance,
+      action: 'proceed',
+      clienteCiente: precheckClienteCiente,
+    })
+
+    if (!isPrecheckObservationTextValid(observation)) {
+      return
+    }
+
+    upsertPrecheckObservation(observation)
+  }, [
+    buildPrecheckObservationBlock,
+    isPrecheckObservationTextValid,
+    normCompliance,
+    precheckClienteCiente,
+    precheckNormativo.status,
+    removePrecheckObservation,
+    upsertPrecheckObservation,
   ])
 
   const ensureNormativePrecheck = useCallback(async (): Promise<boolean> => {
@@ -7551,18 +7606,6 @@ export default function App() {
       const limite = normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
       applyNormativeAdjustment({ potenciaKw: limite })
       await Promise.resolve()
-      const observation = buildPrecheckObservationBlock({
-        result: normCompliance,
-        action: 'adjust_current',
-        clienteCiente: decision.clienteCiente,
-        potenciaAplicada: limite,
-      })
-      if (!isPrecheckObservationTextValid(observation)) {
-        return false
-      }
-      upsertPrecheckObservation(
-        observation,
-      )
       return true
     }
 
@@ -7572,47 +7615,20 @@ export default function App() {
       const tipo = normCompliance.upgradeTo ?? normCompliance.tipoLigacao
       applyNormativeAdjustment({ potenciaKw: limite, tipoLigacao: tipo })
       await Promise.resolve()
-      const observation = buildPrecheckObservationBlock({
-        result: normCompliance,
-        action: 'adjust_upgrade',
-        clienteCiente: decision.clienteCiente,
-        potenciaAplicada: limite,
-        tipoLigacaoAplicada: tipo,
-      })
-      if (!isPrecheckObservationTextValid(observation)) {
-        return false
-      }
-      upsertPrecheckObservation(
-        observation,
-      )
       return true
     }
 
     if (decision.action === 'proceed' && decision.clienteCiente) {
       setPrecheckClienteCiente(true)
-      const observation = buildPrecheckObservationBlock({
-        result: normCompliance,
-        action: 'proceed',
-        clienteCiente: decision.clienteCiente,
-      })
-      if (!isPrecheckObservationTextValid(observation)) {
-        return false
-      }
-      upsertPrecheckObservation(
-        observation,
-      )
       return true
     }
 
     return false
   }, [
     applyNormativeAdjustment,
-    buildPrecheckObservationBlock,
-    isPrecheckObservationTextValid,
     normCompliance,
     requestPrecheckDecision,
     setPrecheckClienteCiente,
-    upsertPrecheckObservation,
   ])
 
   const numeroModulosEstimado = useMemo(() => {
