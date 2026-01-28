@@ -70,6 +70,12 @@ This ensures:
 
 ---
 
+Before submitting large refactors, run `npm run check:prod` to validate circular
+dependencies and production builds.
+
+Note: Vercel installs currently use `npm install --legacy-peer-deps` while we
+align Stackframe peer dependencies with React 18.
+
 ## Neon PostgreSQL storage
 
 The app persists CRM data and workspace preferences in a Neon PostgreSQL database.

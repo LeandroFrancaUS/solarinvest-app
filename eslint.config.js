@@ -38,6 +38,7 @@ export default [
     rules: {
       ...tsRecommended.rules,
       ...baseRules,
+      'import/no-cycle': ['error', { maxDepth: 2 }],
     },
   },
   {

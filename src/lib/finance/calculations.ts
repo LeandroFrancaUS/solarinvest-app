@@ -1,4 +1,4 @@
-import { CONSUMO_MINIMO_FICTICIO, type TipoRede } from '../../app/config'
+import { CONSUMO_MINIMO_FICTICIO, type TipoRede } from '../../shared/rede'
 
 export type TusdConfig = {
   percentualFioB?: number | null
