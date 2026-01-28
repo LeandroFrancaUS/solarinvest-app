@@ -269,10 +269,27 @@ const TIPOS_INSTALACAO = [
 ]
 
 const TIPOS_REDE: { value: TipoRede; label: string }[] = [
+  { value: 'nenhum', label: 'Não informado' },
   { value: 'monofasico', label: 'Monofásico' },
   { value: 'bifasico', label: 'Bifásico' },
   { value: 'trifasico', label: 'Trifásico' },
 ]
+
+const normalizeCidade = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+
+const getCustosFixosContaEnergiaPadrao = (cidade?: string | null): number | null => {
+  const normalized = normalizeCidade(cidade ?? '')
+  if (!normalized) return null
+  if (normalized.includes('goiania')) return 15
+  if (normalized.includes('brasilia')) return 10
+  if (normalized.includes('anapolis')) return 6
+  return null
+}
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
@@ -4292,7 +4309,7 @@ export default function App() {
   >(undefined)
   const [ucGeradoraTitularBuscandoCep, setUcGeradoraTitularBuscandoCep] = useState(false)
   const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
-  const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'monofasico')
+  const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'nenhum')
   const [tipoRedeControle, setTipoRedeControle] = useState<'auto' | 'manual'>('auto')
   const tipoRedeLabel = useMemo(
     () => TIPOS_REDE.find((rede) => rede.value === tipoRede)?.label ?? tipoRede,
@@ -5849,6 +5866,17 @@ export default function App() {
     [adicionarNotificacao, kcKwhMes],
   )
 
+  const validateTipoRedeLeasing = useCallback(
+    (mensagem: string) => {
+      if (tipoRede === 'nenhum') {
+        adicionarNotificacao(mensagem, 'error')
+        return false
+      }
+      return true
+    },
+    [adicionarNotificacao, tipoRede],
+  )
+
   const validatePropostaLeasingMinimal = useCallback(() => {
     const nomeCliente = cliente.nome?.trim() ?? ''
     if (!nomeCliente) {
@@ -5860,8 +5888,12 @@ export default function App() {
       return false
     }
 
+    if (!validateTipoRedeLeasing('Selecione o tipo de rede para gerar a proposta.')) {
+      return false
+    }
+
     return true
-  }, [adicionarNotificacao, cliente.nome, validateConsumoMinimoLeasing])
+  }, [adicionarNotificacao, cliente.nome, validateConsumoMinimoLeasing, validateTipoRedeLeasing])
 
   const guardClientFieldsOrReturn = useCallback(
     (mode: 'venda' | 'leasing') => {
@@ -5895,6 +5927,10 @@ export default function App() {
       return false
     }
 
+    if (activeTab === 'leasing' && !validateTipoRedeLeasing('Selecione o tipo de rede para salvar o cliente.')) {
+      return false
+    }
+
     const cidadeCliente = cliente.cidade?.trim() ?? ''
     if (!cidadeCliente) {
       adicionarNotificacao('Informe a Cidade para salvar o cliente.', 'error')
@@ -5911,7 +5947,7 @@ export default function App() {
     }
 
     return true
-  }, [adicionarNotificacao, cliente.cidade, cliente.nome, kcKwhMes])
+  }, [activeTab, adicionarNotificacao, cliente.cidade, cliente.nome, kcKwhMes, validateTipoRedeLeasing])
 
   useEffect(() => {
     if (!isVendaDiretaTab) {
@@ -6070,7 +6106,7 @@ export default function App() {
       case 'TRIFASICO':
         return 'trifasico'
       default:
-        return 'monofasico'
+        return 'nenhum'
     }
   }
 
@@ -6206,9 +6242,13 @@ export default function App() {
   }, [])
 
   const taxaMinimaCalculadaBase = useMemo(() => {
+    const custosFixosPadrao = getCustosFixosContaEnergiaPadrao(cliente.cidade)
+    if (custosFixosPadrao != null) {
+      return custosFixosPadrao
+    }
     const calculada = calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
     return Math.round(calculada * 100) / 100
-  }, [tarifaCheia, tipoRede])
+  }, [cliente.cidade, tarifaCheia, tipoRede])
   const taxaMinimaAutoRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -6267,8 +6307,8 @@ export default function App() {
   ])
 
   const resolveDefaultTusdSimultaneidade = useCallback((tipo: TipoClienteTUSD): number | null => {
-    if (tipo === 'residencial') return 60
-    if (tipo === 'comercial') return 70
+    if (tipo === 'residencial') return 70
+    if (tipo === 'comercial') return 80
     return null
   }, [])
 
@@ -7668,6 +7708,19 @@ export default function App() {
     const rede = getRedeByPotencia(potenciaInstaladaKwp)
     return rede === 'mono' ? 'monofasico' : 'trifasico'
   }, [autoPricingRede, potenciaInstaladaKwp])
+
+  useEffect(() => {
+    if (tipoRedeControle !== 'auto') {
+      return
+    }
+    if (!tipoRedeAutoSugestao) {
+      return
+    }
+    if (tipoRede === tipoRedeAutoSugestao) {
+      return
+    }
+    setTipoRede(tipoRedeAutoSugestao)
+  }, [tipoRede, tipoRedeAutoSugestao, tipoRedeControle])
 
   const autoBudgetFallbackMessage = useMemo(() => {
     switch (autoBudgetReasonCode) {
@@ -12809,7 +12862,7 @@ export default function App() {
     autoPricingVersion: null,
     autoBudgetReason: null,
     autoBudgetReasonCode: null,
-    tipoRede: INITIAL_VALUES.tipoRede ?? 'monofasico',
+    tipoRede: INITIAL_VALUES.tipoRede ?? 'nenhum',
     tipoRedeControle: 'auto',
     leasingAnexosSelecionados: [],
     vendaSnapshot: getVendaSnapshot(),
@@ -14077,7 +14130,7 @@ export default function App() {
     setAutoPricingVersion(snapshot.autoPricingVersion ?? null)
     setAutoBudgetReason(snapshot.autoBudgetReason ?? null)
     setAutoBudgetReasonCode(snapshot.autoBudgetReasonCode ?? null)
-    setTipoRede(snapshot.tipoRede ?? 'monofasico')
+    setTipoRede(snapshot.tipoRede ?? 'nenhum')
     setTipoRedeControle(snapshot.tipoRedeControle ?? 'auto')
     setLeasingAnexosSelecionados(
       ensureRequiredLeasingAnexos(
@@ -14938,6 +14991,10 @@ export default function App() {
       return null
     }
 
+    if (!validateTipoRedeLeasing('Selecione o tipo de rede para gerar os documentos.')) {
+      return null
+    }
+
     const dadosBase = prepararDadosContratoCliente()
     if (!dadosBase) {
       return null
@@ -15147,6 +15204,7 @@ export default function App() {
     ucsBeneficiarias,
     procuracaoUf,
     validateConsumoMinimoLeasing,
+    validateTipoRedeLeasing,
   ])
 
   const carregarTemplatesContrato = useCallback(
@@ -16315,7 +16373,7 @@ export default function App() {
       setUcGeradoraTitularCepMessage(undefined)
       setUcGeradoraTitularBuscandoCep(false)
       setPotenciaModulo(INITIAL_VALUES.potenciaModulo)
-      setTipoRede(INITIAL_VALUES.tipoRede ?? 'monofasico')
+      setTipoRede(INITIAL_VALUES.tipoRede ?? 'nenhum')
       setTipoRedeControle('auto')
       setPotenciaModuloDirty(false)
       setTipoInstalacao(normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao))
