@@ -7484,7 +7484,9 @@ export default function App() {
       const limiteLabel = formatKw(normCompliance.kwMaxPermitido)
       details.push(`Limite ${tipoLabel}: ${limiteLabel} kW.`)
     }
-    if (normCompliance.upgradeTo && normCompliance.kwMaxUpgrade != null) {
+    const isAboveLimit =
+      normCompliance.status === 'FORA_DA_NORMA' || normCompliance.status === 'LIMITADO'
+    if (isAboveLimit && normCompliance.upgradeTo && normCompliance.kwMaxUpgrade != null) {
       const limiteUpgradeLabel = formatKw(normCompliance.kwMaxUpgrade)
       details.push(
         `Upgrade sugerido: ${formatTipoLigacaoLabel(normCompliance.upgradeTo)} até ${limiteUpgradeLabel} kW.`,
@@ -19770,6 +19772,7 @@ export default function App() {
     const limiteUpgradeLabel = formatKw(limiteUpgrade)
 
     const canAdjustCurrent = Boolean(limiteAtual)
+    const isAboveLimit = precheckModalData.status === 'FORA_DA_NORMA' || precheckModalData.status === 'LIMITADO'
     const canAdjustUpgrade = Boolean(upgradeLabel && limiteUpgrade)
 
     const statusMessageMap: Record<NormComplianceStatus, string> = {
@@ -19810,7 +19813,7 @@ export default function App() {
             <div className="precheck-modal__limits">
               <ul>
                 <li>Limite do padrão atual: {limiteAtualLabel ? `${limiteAtualLabel} kW` : '—'}</li>
-                {upgradeLabel && limiteUpgradeLabel ? (
+                {isAboveLimit && upgradeLabel && limiteUpgradeLabel ? (
                   <li>
                     Upgrade sugerido: {upgradeLabel} (até {limiteUpgradeLabel} kW)
                   </li>
