@@ -2,7 +2,7 @@ import type { TipoBasicoCliente } from '../../types/tipoBasico'
 
 export type TipoClienteTUSD = TipoBasicoCliente
 
-export const DEFAULT_TUSD_ANO_REFERENCIA = 2025
+export const DEFAULT_TUSD_ANO_REFERENCIA = 2026
 
 export interface TUSDInput {
   ano: number

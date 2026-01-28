@@ -538,6 +538,7 @@ describe('PrintableProposal (leasing)', () => {
       totalAcumulado: 0,
     }))
 
+    const custosFixosContaEnergia = 40
     const props = createPrintableProps({
       tipoProposta: 'LEASING',
       energiaContratadaKwh: energiaContratada,
@@ -546,15 +547,96 @@ describe('PrintableProposal (leasing)', () => {
       leasingInflacaoEnergiaAa: 0,
       leasingPrazoContratualMeses: 24,
       parcelasLeasing: parcelas,
+      vendaSnapshot: {
+        cliente: createPrintableProps().cliente,
+        parametros: {
+          consumo_kwh_mes: 0,
+          tarifa_r_kwh: 0,
+          inflacao_energia_aa: 0,
+          taxa_minima_rs_mes: custosFixosContaEnergia,
+          taxa_desconto_aa: 0,
+          horizonte_meses: 0,
+          uf: 'PR',
+          distribuidora: 'Copel',
+          irradiacao_kwhm2_dia: 0,
+          aplica_taxa_minima: true,
+        },
+        configuracao: {
+          potencia_modulo_wp: 0,
+          n_modulos: 0,
+          potencia_sistema_kwp: 0,
+          geracao_estimada_kwh_mes: 0,
+          area_m2: 0,
+          tipo_instalacao: '',
+          segmento: '',
+          modelo_modulo: '',
+          modelo_inversor: '',
+          estrutura_suporte: '',
+          tipo_sistema: 'ON_GRID',
+        },
+        orcamento: {
+          itens: [],
+          valor_total_orcamento: 0,
+        },
+        composicao: {
+          capex_base: 0,
+          margem_operacional_valor: 0,
+          venda_total: 0,
+          venda_liquida: 0,
+          comissao_liquida_valor: 0,
+          imposto_retido_valor: 0,
+          impostos_regime_valor: 0,
+          impostos_totais_valor: 0,
+          capex_total: 0,
+          total_contrato_R$: 0,
+          regime_breakdown: [],
+          preco_minimo: 0,
+          venda_total_sem_guardrails: 0,
+          preco_minimo_aplicado: false,
+          arredondamento_aplicado: 0,
+          desconto_percentual: 0,
+          desconto_requer_aprovacao: false,
+          descontos: 0,
+        },
+        pagamento: {
+          forma_pagamento: '',
+          moeda: '',
+          mdr_pix: 0,
+          mdr_debito: 0,
+          mdr_credito_avista: 0,
+          validade_proposta_txt: '',
+          prazo_execucao_txt: '',
+          condicoes_adicionais_txt: '',
+        },
+        codigos: {
+          codigo_orcamento_interno: '',
+          data_emissao: '',
+        },
+        resultados: {
+          payback_meses: null,
+          roi_acumulado_30a: null,
+          autonomia_frac: null,
+          energia_contratada_kwh_mes: null,
+        },
+        resumoProposta: {
+          modo_venda: 'leasing',
+          valor_total_proposta: null,
+          custo_implantacao_referencia: null,
+          economia_estimativa_valor: null,
+          economia_estimativa_horizonte_anos: null,
+        },
+      },
     })
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
     const linhaPrimeiroAno = markup.match(/<td>1º ano<\/td>(.*?)<\/tr>/s)?.[1] ?? ''
 
     const mensalidadeSolarInvest = energiaContratada * (1 - desconto / 100)
-    const despesaTotal = mensalidadeSolarInvest + tusdMensal
+    const mensalidadeDistribuidora = energiaContratada * 1 + custosFixosContaEnergia
+    const despesaTotal = mensalidadeSolarInvest + tusdMensal + custosFixosContaEnergia
 
     expect(linhaPrimeiroAno).toContain(currency(mensalidadeSolarInvest))
+    expect(linhaPrimeiroAno).toContain(currency(mensalidadeDistribuidora))
     expect(linhaPrimeiroAno).not.toContain(currency(tusdMensal))
     expect(markup).toContain('Despesa Mensal Estimada (Energia + Encargos)')
     expect(markup).toContain('Referência: 1º ano')
