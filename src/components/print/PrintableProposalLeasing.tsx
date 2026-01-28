@@ -1346,16 +1346,23 @@ function PrintableProposalLeasingInner(
                         .filter(Boolean)
                         .join(' ')}
                     >
-                      {isMensalidadeZero ? (
-                        <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
-                      ) : (
-                        currency(linha.mensalidadeSolarInvest)
-                      )}
                       <div className="leasing-table-distribuidora">
                         <span className="leasing-table-distribuidora__label">Distribuidora</span>
                         <span className="leasing-table-distribuidora__value">
                           {currency(linha.encargosDistribuidora)}
                         </span>
+                      </div>
+                      <div className="leasing-table-solarinvest">
+                        {isMensalidadeZero ? (
+                          <span className="leasing-zero-highlight leasing-table-solarinvest__value">
+                            {currency(linha.mensalidadeSolarInvest)}
+                          </span>
+                        ) : (
+                          <span className="leasing-table-solarinvest__value">
+                            {currency(linha.mensalidadeSolarInvest)}
+                          </span>
+                        )}
+                        <span className="leasing-table-solarinvest__label">mensalidade SolarInvest</span>
                       </div>
                     </td>
                   </tr>

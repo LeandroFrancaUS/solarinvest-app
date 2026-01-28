@@ -550,7 +550,7 @@
 }
 
 .leasing-table-distribuidora {
-  margin-top: 6px;
+  margin-bottom: 6px;
   font-size: 0.75rem;
   line-height: 1.2;
   font-weight: 500;
@@ -564,6 +564,23 @@
 
 .leasing-table-distribuidora__value {
   color: #8b1e1e;
+}
+
+.leasing-table-solarinvest {
+  display: block;
+}
+
+.leasing-table-solarinvest__value {
+  display: block;
+  font-size: 1.18em;
+  font-weight: 700;
+}
+
+.leasing-table-solarinvest__label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #2f3b52;
 }
 
 .leasing-table-positive {
