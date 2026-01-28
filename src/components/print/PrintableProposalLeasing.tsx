@@ -771,6 +771,7 @@ function PrintableProposalLeasingInner(
       const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
       const tusdMedio = tusdMedioPorAno[ano] ?? 0
       const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto
+      const mensalidadeDistribuidora = energiaContratadaBase * tarifaAno + taxaMinimaMensal
       const encargosDistribuidora = tusdMedio + taxaMinimaMensal
       const despesaMensalEstimada = mensalidadeSolarInvest + encargosDistribuidora
       return {
@@ -778,6 +779,7 @@ function PrintableProposalLeasingInner(
         tarifaCheiaAno: tarifaAno,
         tarifaComDesconto,
         mensalidadeSolarInvest,
+        mensalidadeDistribuidora,
         encargosDistribuidora,
         despesaMensalEstimada,
       }
@@ -803,6 +805,7 @@ function PrintableProposalLeasingInner(
     const anoPosContrato = prazoContratualTotalAnos + 1
     const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
     const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
+    const mensalidadeDistribuidoraPosContrato = energiaContratadaBase * tarifaAnoPosContrato + taxaMinimaMensal
     const encargosDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
     const despesaMensalPosContrato = encargosDistribuidoraPosContrato
 
@@ -812,6 +815,7 @@ function PrintableProposalLeasingInner(
       tarifaComDesconto: tarifaAnoPosContrato,
       encargosDistribuidora: encargosDistribuidoraPosContrato,
       mensalidadeSolarInvest: 0,
+      mensalidadeDistribuidora: mensalidadeDistribuidoraPosContrato,
       despesaMensalEstimada: despesaMensalPosContrato,
     })
 
@@ -1351,7 +1355,7 @@ function PrintableProposalLeasingInner(
                       <div className="leasing-table-distribuidora">
                         <span className="leasing-table-distribuidora__label">Distribuidora</span>
                         <span className="leasing-table-distribuidora__value">
-                          {currency(linha.encargosDistribuidora)}
+                          {currency(linha.mensalidadeDistribuidora)}
                         </span>
                       </div>
                       <div className="leasing-table-solarinvest">

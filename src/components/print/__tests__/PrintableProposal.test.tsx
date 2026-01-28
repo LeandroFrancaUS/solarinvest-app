@@ -7,6 +7,7 @@ import { computeROI, type VendaForm } from '../../../lib/finance/roi'
 import type { PrintableProposalProps } from '../../../types/printableProposal'
 import type { ParsedVendaPdfData } from '../../../lib/pdf/extractVendas'
 import { currency } from '../../../utils/formatters'
+import { calcularTaxaMinima } from '../../../utils/calcs'
 
 const anosBase = Array.from({ length: 30 }, (_, index) => index + 1)
 const createParsedVenda = (overrides: Partial<ParsedVendaPdfData> = {}): ParsedVendaPdfData => ({
@@ -551,10 +552,14 @@ describe('PrintableProposal (leasing)', () => {
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
     const linhaPrimeiroAno = markup.match(/<td>1º ano<\/td>(.*?)<\/tr>/s)?.[1] ?? ''
 
+    const tarifaCheia = 1
+    const taxaMinimaMensal = calcularTaxaMinima('monofasico', tarifaCheia)
     const mensalidadeSolarInvest = energiaContratada * (1 - desconto / 100)
-    const despesaTotal = mensalidadeSolarInvest + tusdMensal
+    const mensalidadeDistribuidora = energiaContratada * tarifaCheia + taxaMinimaMensal
+    const despesaTotal = mensalidadeSolarInvest + tusdMensal + taxaMinimaMensal
 
     expect(linhaPrimeiroAno).toContain(currency(mensalidadeSolarInvest))
+    expect(linhaPrimeiroAno).toContain(currency(mensalidadeDistribuidora))
     expect(linhaPrimeiroAno).not.toContain(currency(tusdMensal))
     expect(markup).toContain('Despesa Mensal Estimada (Energia + Encargos)')
     expect(markup).toContain('Referência: 1º ano')
