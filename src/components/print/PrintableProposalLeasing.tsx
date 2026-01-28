@@ -16,6 +16,8 @@ import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 import type { SegmentoCliente } from '../../lib/finance/roi'
+import { getDistribuidoraLabel } from '../../domain/distribuidoras/getDistribuidoraLabel'
+import { buildEconomiaRows } from '../../domain/proposta/buildPropostaEconomiaRows'
 import { sanitizePrintableText } from '../../utils/textSanitizer'
 import { calcularTaxaMinima } from '../../utils/calcs'
 
@@ -282,17 +284,14 @@ function PrintableProposalLeasingInner(
   const codigoOrcamento = budgetId?.trim() || null
   const nomeCliente = cliente.nome?.trim() || null
   const ucCliente = cliente.uc?.trim() || null
-  const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
-
-  const distribuidoraNomeCurto = useMemo(() => {
-    if (!distribuidoraLabel) {
-      return null
-    }
-    const [primeiroNome] = distribuidoraLabel.split(/\s+/)
-    return primeiroNome || null
-  }, [distribuidoraLabel])
-
-  const nomeDistribuidora = distribuidoraLabel || 'distribuidora local'
+  const distribuidoraLabel = useMemo(
+    () =>
+      getDistribuidoraLabel({
+        uf: cliente.uf,
+        distribuidoraSelecionada: distribuidoraTarifa ?? cliente.distribuidora ?? null,
+      }),
+    [cliente.distribuidora, cliente.uf, distribuidoraTarifa],
+  )
 
   const avisoMensalidadeCondicoes = useMemo(() => null, [])
   const avisoMensalidadeEvolucao = useMemo(() => null, [])
@@ -418,7 +417,6 @@ function PrintableProposalLeasingInner(
 
   const descontoFracao = Number.isFinite(descontoContratualPct) ? (descontoContratualPct ?? 0) / 100 : 0
   const tarifaCheiaBase = Number.isFinite(tarifaCheia) ? Math.max(0, tarifaCheia ?? 0) : 0
-  const energiaContratadaBase = Number.isFinite(energiaContratadaKwh) ? Math.max(0, energiaContratadaKwh ?? 0) : 0
   const valorInstalacaoCliente = Number.isFinite(leasingValorInstalacaoCliente)
     ? Math.max(0, leasingValorInstalacaoCliente ?? 0)
     : 0
@@ -532,8 +530,8 @@ function PrintableProposalLeasingInner(
       value: tipoInstalacaoDescricao,
     },
     {
-      label: 'Distribuidora',
-      value: distribuidoraLabel || '—',
+      label: 'Concessionária',
+      value: distribuidoraLabel,
     },
     {
       label: 'Responsabilidades SolarInvest',
@@ -734,7 +732,7 @@ function PrintableProposalLeasingInner(
       value: currency(valorInstalacaoCliente),
     },
     {
-      label: 'Tarifa cheia da distribuidora',
+      label: `Tarifa cheia da ${distribuidoraLabel}`,
       value: tarifaCheiaBase > 0 ? tarifaCurrency(tarifaCheiaBase) : '—',
     },
     {
@@ -762,69 +760,27 @@ function PrintableProposalLeasingInner(
     return 5
   }, [prazoContratual])
 
-  const mensalidadesPorAno = useMemo(() => {
-    const anosConsiderados = Array.from({ length: prazoContratualTotalAnos }, (_, index) => index + 1)
-
-    const linhas = anosConsiderados.map((ano) => {
-      const fator = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, ano - 1))
-      const tarifaAno = tarifaCheiaBase * fator
-      const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
-      const tusdMedio = tusdMedioPorAno[ano] ?? 0
-      const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto + taxaMinimaMensal
-      const encargosDistribuidora = tusdMedio
-      const despesaMensalEstimada = mensalidadeSolarInvest + encargosDistribuidora
-      return {
-        ano,
-        tarifaCheiaAno: tarifaAno,
-        tarifaComDesconto,
-        mensalidadeSolarInvest,
-        encargosDistribuidora,
-        despesaMensalEstimada,
-      }
-    })
-
-    const anosTusdOrdenados = Object.keys(tusdMedioPorAno)
-      .map((chave) => Number(chave))
-      .filter((valor) => Number.isFinite(valor) && valor > 0)
-      .sort((a, b) => a - b)
-
-    let tusdPosContrato = 0
-    for (let index = anosTusdOrdenados.length - 1; index >= 0; index -= 1) {
-      const ano = anosTusdOrdenados[index]
-      if (ano <= prazoContratualTotalAnos) {
-        const valorTusd = tusdMedioPorAno[ano]
-        if (Number.isFinite(valorTusd)) {
-          tusdPosContrato = Math.max(0, valorTusd ?? 0)
-          break
-        }
-      }
-    }
-
-    const anoPosContrato = prazoContratualTotalAnos + 1
-    const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
-    const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
-    const encargosDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
-    const despesaMensalPosContrato = encargosDistribuidoraPosContrato
-
-    linhas.push({
-      ano: anoPosContrato,
-      tarifaCheiaAno: tarifaAnoPosContrato,
-      tarifaComDesconto: tarifaAnoPosContrato,
-      encargosDistribuidora: encargosDistribuidoraPosContrato,
-      mensalidadeSolarInvest: 0,
-      despesaMensalEstimada: despesaMensalPosContrato,
-    })
-
-    return linhas
-  }, [
-    descontoFracao,
-    energiaContratadaBase,
-    inflacaoEnergiaFracao,
-    prazoContratualTotalAnos,
-    taxaMinimaMensal,
-    tusdMedioPorAno,
-    tarifaCheiaBase,
-  ])
+  const mensalidadesPorAno = useMemo(
+    () =>
+      buildEconomiaRows({
+        prazoContratualTotalAnos,
+        tarifaCheiaBase,
+        descontoFracao,
+        inflacaoEnergiaFracao,
+        energiaContratadaKwh,
+        taxaMinimaMensal,
+        tusdMedioPorAno,
+      }),
+    [
+      descontoFracao,
+      energiaContratadaKwh,
+      inflacaoEnergiaFracao,
+      prazoContratualTotalAnos,
+      taxaMinimaMensal,
+      tarifaCheiaBase,
+      tusdMedioPorAno,
+    ],
+  )
 
   const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
   const prazoEconomiaMeses = prazoContratualMeses
@@ -1102,7 +1058,7 @@ function PrintableProposalLeasingInner(
                   UC nº {ucGeradoraNumeroLabel} — {ucGeradoraEnderecoLabel}
                 </p>
                 <p className="print-uc-text">
-                  Distribuidora: {distribuidoraLabel || '—'}
+                  Distribuidora: {distribuidoraLabel}
                 </p>
                 {ucGeradoraTitularLabel ? (
                   <p className="print-uc-text">Titular da UC: {ucGeradoraTitularLabel}</p>
@@ -1315,9 +1271,20 @@ function PrintableProposalLeasingInner(
               </thead>
             <tbody>
               {mensalidadesPorAno.map((linha, index) => {
-                const isPosPrazo = linha.ano > prazoContratualTotalAnos
+                const isPosPrazo = linha.anoIndex > prazoContratualTotalAnos
                 const isUltimaLinha = index === mensalidadesPorAno.length - 1
                 const isMensalidadeZero = linha.mensalidadeSolarInvest === 0
+                const tarifaCheiaValida = linha.tarifaCheia > 0
+                const consumoInformado = linha.consumoKwhMes != null
+                const faturaDistribuidoraLabel =
+                  linha.faturaDistribuidora != null ? currency(linha.faturaDistribuidora) : '—'
+                const faturaDistribuidoraAvisos = [
+                  !consumoInformado ? 'Consumo não informado.' : null,
+                  !tarifaCheiaValida ? 'Tarifa não informada.' : null,
+                  linha.encargosEstimados ? 'Encargos estimados; podem variar conforme a distribuidora.' : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ')
 
                 const rowClassName = [
                   isPosPrazo ? 'leasing-row-post-contract' : undefined,
@@ -1327,11 +1294,11 @@ function PrintableProposalLeasingInner(
                   .join(' ')
 
                 return (
-                  <tr key={`mensalidade-${linha.ano}`} className={rowClassName || undefined}>
-                    <td>{`${linha.ano}º ano`}</td>
+                  <tr key={`mensalidade-${linha.anoIndex}`} className={rowClassName || undefined}>
+                    <td>{`${linha.anoIndex}º ano`}</td>
                     <td className="leasing-table-value leasing-table-tariff">
                       <span>
-                        <strong>Cheia</strong> {tarifaCurrency(linha.tarifaCheiaAno)}
+                        <strong>Cheia</strong> {tarifaCurrency(linha.tarifaCheia)}
                       </span>
                       <span>
                         <strong>Com desconto</strong> {tarifaCurrency(linha.tarifaComDesconto)}
@@ -1346,11 +1313,24 @@ function PrintableProposalLeasingInner(
                         .filter(Boolean)
                         .join(' ')}
                     >
-                      {isMensalidadeZero ? (
-                        <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
-                      ) : (
-                        currency(linha.mensalidadeSolarInvest)
-                      )}
+                      <div>
+                        {isMensalidadeZero ? (
+                          <span className="leasing-zero-highlight">{currency(linha.mensalidadeSolarInvest)}</span>
+                        ) : (
+                          <span className="text-base font-semibold text-foreground">
+                            {currency(linha.mensalidadeSolarInvest)}
+                          </span>
+                        )}
+                        <div
+                          className="mt-1 text-xs font-medium text-red-600"
+                          title={faturaDistribuidoraAvisos || undefined}
+                        >
+                          {distribuidoraLabel}: {faturaDistribuidoraLabel}
+                        </div>
+                        <div className="text-[10px] text-red-500">
+                          Tarifa cheia: {tarifaCheiaValida ? tarifaCurrency(linha.tarifaCheia) : '—'}
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -1374,7 +1354,17 @@ function PrintableProposalLeasingInner(
                     </div>
                     <div>
                       <span className="leasing-total-card__detail-label">
-                        Encargos da Distribuidora (projeção)
+                        Fatura da {distribuidoraLabel} (estimada)
+                      </span>
+                      <strong>
+                        {mensalidadesPorAno[0].faturaDistribuidora != null
+                          ? currency(mensalidadesPorAno[0].faturaDistribuidora)
+                          : '—'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="leasing-total-card__detail-label">
+                        Encargos da {distribuidoraLabel} (projeção)
                       </span>
                       <strong>{currency(mensalidadesPorAno[0].encargosDistribuidora)}</strong>
                     </div>
@@ -1384,12 +1374,12 @@ function PrintableProposalLeasingInner(
             </div>
             <div className="muted no-break-inside leasing-encargos-note">
               <p className="leasing-encargos-note__title">
-                <strong>Encargos da Distribuidora (Projeção)</strong>
+                <strong>Encargos da {distribuidoraLabel} (Projeção)</strong>
               </p>
               <p>
-                Os encargos da distribuidora não são compensados pela geração de energia solar e não estão incluídos na
-                Mensalidade Solar, que considera apenas a energia compensada (consumo contratado × tarifa com
-                desconto).
+                Os encargos da {distribuidoraLabel} não são compensados pela geração de energia solar e não estão
+                incluídos na Mensalidade Solar, que considera apenas a energia compensada (consumo contratado × tarifa
+                com desconto).
               </p>
               <p>
                 Esses encargos incluem TUSD Fio B, taxa mínima de disponibilidade e demais encargos regulatórios. Como
