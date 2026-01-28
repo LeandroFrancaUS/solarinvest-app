@@ -70,6 +70,42 @@ describe('evaluateNormCompliance', () => {
     expect(result?.status).toBe('LIMITADO')
   })
 
+  it('valida DF monofásico com 20 kW', () => {
+    const result = evaluateNormCompliance({
+      uf: 'DF',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 20,
+    })
+
+    expect(result?.status).toBe('FORA_DA_NORMA')
+    expect(result?.upgradeTo).toBe('BIFASICO')
+    expect(result?.kwMaxUpgrade).toBe(25)
+  })
+
+  it('valida DF monofásico com 50 kW sugerindo trifásico', () => {
+    const result = evaluateNormCompliance({
+      uf: 'DF',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 50,
+    })
+
+    expect(result?.status).toBe('FORA_DA_NORMA')
+    expect(result?.upgradeTo).toBe('TRIFASICO')
+    expect(result?.kwMaxUpgrade).toBe(75)
+  })
+
+  it('valida DF monofásico com 90 kW como limitado', () => {
+    const result = evaluateNormCompliance({
+      uf: 'DF',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 90,
+    })
+
+    expect(result?.status).toBe('LIMITADO')
+    expect(result?.upgradeTo).toBe('TRIFASICO')
+    expect(result?.kwMaxUpgrade).toBe(75)
+  })
+
   it('marca TO monofásico no limite como ok', () => {
     const result = evaluateNormCompliance({
       uf: 'TO',
@@ -126,6 +162,42 @@ describe('evaluateNormCompliance', () => {
     })
 
     expect(result?.status).toBe('LIMITADO')
+  })
+
+  it('valida TO monofásico com 20 kW', () => {
+    const result = evaluateNormCompliance({
+      uf: 'TO',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 20,
+    })
+
+    expect(result?.status).toBe('FORA_DA_NORMA')
+    expect(result?.upgradeTo).toBe('BIFASICO')
+    expect(result?.kwMaxUpgrade).toBe(26.3)
+  })
+
+  it('valida TO monofásico com 50 kW sugerindo trifásico', () => {
+    const result = evaluateNormCompliance({
+      uf: 'TO',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 50,
+    })
+
+    expect(result?.status).toBe('FORA_DA_NORMA')
+    expect(result?.upgradeTo).toBe('TRIFASICO')
+    expect(result?.kwMaxUpgrade).toBe(75)
+  })
+
+  it('valida TO monofásico com 90 kW como limitado', () => {
+    const result = evaluateNormCompliance({
+      uf: 'TO',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 90,
+    })
+
+    expect(result?.status).toBe('LIMITADO')
+    expect(result?.upgradeTo).toBe('TRIFASICO')
+    expect(result?.kwMaxUpgrade).toBe(75)
   })
 
   it('marca GO monofásico no limite como ok', () => {
@@ -210,6 +282,42 @@ describe('evaluateNormCompliance', () => {
     expect(result?.status).toBe('LIMITADO')
     expect(result?.kwMaxPermitido).toBe(75)
     expect(result?.kwMaxUpgrade).toBeUndefined()
+  })
+
+  it('valida GO monofásico com 20 kW', () => {
+    const result = evaluateNormCompliance({
+      uf: 'GO',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 20,
+    })
+
+    expect(result?.status).toBe('FORA_DA_NORMA')
+    expect(result?.upgradeTo).toBe('BIFASICO')
+    expect(result?.kwMaxUpgrade).toBe(25)
+  })
+
+  it('valida GO monofásico com 50 kW sugerindo trifásico', () => {
+    const result = evaluateNormCompliance({
+      uf: 'GO',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 50,
+    })
+
+    expect(result?.status).toBe('FORA_DA_NORMA')
+    expect(result?.upgradeTo).toBe('TRIFASICO')
+    expect(result?.kwMaxUpgrade).toBe(75)
+  })
+
+  it('valida GO monofásico com 90 kW como limitado', () => {
+    const result = evaluateNormCompliance({
+      uf: 'GO',
+      tipoLigacao: 'MONOFASICO',
+      potenciaInversorKw: 90,
+    })
+
+    expect(result?.status).toBe('LIMITADO')
+    expect(result?.upgradeTo).toBe('TRIFASICO')
+    expect(result?.kwMaxUpgrade).toBe(75)
   })
 
   it('normaliza UF de GO sem retornar warning provisório', () => {
