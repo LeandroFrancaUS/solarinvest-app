@@ -2,7 +2,7 @@
  * Paged.js Integration Module
  * Orchestrates pagination lifecycle and Playwright synchronization
  * 
- * Uses client-side dynamic import to avoid SSR/build issues
+ * Loads Paged.js polyfill from CDN to avoid build/bundler issues
  */
 
 declare global {
@@ -18,12 +18,57 @@ declare global {
   }
 }
 
+// CDN URL for Paged.js polyfill (unpkg provides automatic latest version)
+const PAGEDJS_CDN_URL = 'https://unpkg.com/pagedjs@0.4.3/dist/paged.polyfill.js'
+
+/**
+ * Load Paged.js polyfill from CDN via script tag
+ * Returns a promise that resolves when the script is loaded
+ */
+function loadPagedJSPolyfill(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Check if already loaded
+    if (window.PagedPolyfill) {
+      console.log('[Paged.js] Polyfill already loaded')
+      resolve()
+      return
+    }
+
+    // Check if script tag already exists
+    const existingScript = document.querySelector(`script[src="${PAGEDJS_CDN_URL}"]`)
+    if (existingScript) {
+      console.log('[Paged.js] Script tag already exists, waiting for load...')
+      existingScript.addEventListener('load', () => resolve())
+      existingScript.addEventListener('error', reject)
+      return
+    }
+
+    // Create and inject script tag
+    const script = document.createElement('script')
+    script.src = PAGEDJS_CDN_URL
+    script.async = false // Load synchronously to ensure PagedConfig is applied
+    
+    script.onload = () => {
+      console.log('[Paged.js] Polyfill loaded from CDN')
+      // Wait a tick for the polyfill to fully initialize
+      setTimeout(() => resolve(), 100)
+    }
+    
+    script.onerror = () => {
+      reject(new Error(`Failed to load Paged.js from ${PAGEDJS_CDN_URL}`))
+    }
+
+    document.head.appendChild(script)
+    console.log('[Paged.js] Loading polyfill from CDN...')
+  })
+}
+
 /**
  * Initialize Paged.js with proper lifecycle management
  * Waits for fonts and images before triggering pagination
  * Sets up Playwright handshake signal
  * 
- * Uses dynamic import to load polyfill client-side only
+ * Loads polyfill from CDN to avoid bundler deep import issues
  */
 export async function initializePagedJS(): Promise<void> {
   // Server-side guard
@@ -52,13 +97,8 @@ export async function initializePagedJS(): Promise<void> {
     await waitForImages()
     console.log('[Paged.js] Images loaded')
 
-    // Dynamically load Paged.js polyfill (client-side only)
-    console.log('[Paged.js] Loading polyfill...')
-    await import('pagedjs/dist/paged.polyfill.js')
-    console.log('[Paged.js] Polyfill loaded')
-
-    // Wait a tick for polyfill to initialize
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // Load Paged.js polyfill from CDN
+    await loadPagedJSPolyfill()
 
     // Check if polyfill is available
     if (!window.PagedPolyfill?.preview) {
