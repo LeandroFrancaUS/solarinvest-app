@@ -11,6 +11,11 @@ import {
 } from '../../../lib/locale/br-number'
 import type { PrintableProposalProps } from '../../../types/printableProposal'
 import PrintableProposalImages from '../PrintableProposalImages'
+import KeyValueGrid from '../common/KeyValueGrid'
+import Notice from '../common/Notice'
+import PdfSection from '../common/PdfSection'
+import PdfTable from '../common/PdfTable'
+import { hasMeaningfulValue, sectionShouldRender } from '../common/pdfLayoutUtils'
 import { PMT, toMonthly } from '../../../lib/finance/roi'
 import {
   formatCondicaoLabel,
@@ -1148,6 +1153,31 @@ function PrintableProposalInner(
     () => economiaProjetadaGrafico.reduce((maior, linha) => Math.max(maior, linha.valor ?? 0), 0),
     [economiaProjetadaGrafico],
   )
+  const shouldRenderValoresProposta =
+    isVendaDireta && hasMeaningfulValue(valorTotalPropostaLabel)
+  const installationRows = [
+    {
+      label: 'UC Geradora',
+      value: ucGeradoraNumeroLabel
+        ? `UC nº ${ucGeradoraNumeroLabel} — ${ucGeradoraEnderecoLabel}`
+        : null,
+    },
+    {
+      label: 'Distribuidora',
+      value: distribuidoraTarifaLabel,
+    },
+  ]
+  const shouldRenderInstalacao = sectionShouldRender([
+    ucGeradoraNumeroLabel,
+    ucGeradoraEnderecoLabel,
+    distribuidoraTarifaLabel,
+    hasBeneficiarias ? ucsBeneficiariasLista.length : null,
+  ])
+  const detalhamentoRows = detalhamentoCampos.map((campo) => ({
+    item: campo.label,
+    valor: campo.value,
+  }))
+  const shouldRenderDetalhamento = mostrarDetalhamento && detalhamentoRows.length > 0
   return (
     <div ref={ref} className="print-root">
       <div className="print-layout">
@@ -1180,9 +1210,8 @@ function PrintableProposalInner(
             </div>
           </section>
     
-          {isVendaDireta ? (
-            <section className="print-section keep-together avoid-break print-values-section">
-              <h2 className="keep-with-next">Valores da proposta</h2>
+          {shouldRenderValoresProposta ? (
+            <PdfSection className="keep-together avoid-break print-values-section" title="Valores da proposta">
               <div className="print-values-grid">
                 <div className="print-value-card print-value-card--highlight">
                   <span className="print-value-card__label">
@@ -1195,73 +1224,54 @@ function PrintableProposalInner(
                 O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos,
                 instalação, documentação, garantia e suporte técnico.
               </p>
-            </section>
+            </PdfSection>
           ) : null}
     
-          <section className="print-section keep-together avoid-break">
-            <h2 className="keep-with-next">Identificação do cliente</h2>
+          <PdfSection className="keep-together avoid-break" title="Identificação do cliente">
             <ClientInfoGrid
               fields={clienteCampos}
               className="print-client-grid no-break-inside"
               fieldClassName="print-client-field"
               wideFieldClassName="print-client-field--wide"
             />
-          </section>
+          </PdfSection>
 
-          <section className="print-section keep-together avoid-break">
-            <h2 className="keep-with-next">Dados da instalação</h2>
-            <div className="print-uc-details">
-              <div className="print-uc-geradora">
-                <h3 className="print-uc-heading">UC Geradora</h3>
-                <p className="print-uc-text">
-                  UC nº {ucGeradoraNumeroLabel} — {ucGeradoraEnderecoLabel}
-                </p>
-                <p className="print-uc-text">
-                  Distribuidora: {distribuidoraTarifaLabel || '—'}
-                </p>
+          {shouldRenderInstalacao ? (
+            <PdfSection className="keep-together avoid-break" title="Dados da instalação">
+              <div className="print-uc-details">
+                <KeyValueGrid rows={installationRows} columns={2} className="no-break-inside" />
+                {hasBeneficiarias ? (
+                  <div className="print-uc-beneficiarias">
+                    <h4 className="print-uc-beneficiarias-title">UCs Beneficiárias</h4>
+                    <ul className="print-uc-beneficiarias-list">
+                      {ucsBeneficiariasLista.map((uc, index) => {
+                        const rateioLabel = formatRateioLabel(uc.rateioPercentual)
+                        return (
+                          <li key={`${uc.numero || 'uc'}-${index}`}>
+                            UC nº {uc.numero || '—'}
+                            {uc.endereco ? ` — ${uc.endereco}` : ''}
+                            {rateioLabel ? ` — Rateio: ${rateioLabel}` : ''}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
-              {hasBeneficiarias ? (
-                <div className="print-uc-beneficiarias">
-                  <h4 className="print-uc-beneficiarias-title">UCs Beneficiárias</h4>
-                  <ul className="print-uc-beneficiarias-list">
-                    {ucsBeneficiariasLista.map((uc, index) => {
-                      const rateioLabel = formatRateioLabel(uc.rateioPercentual)
-                      return (
-                        <li key={`${uc.numero || 'uc'}-${index}`}>
-                          UC nº {uc.numero || '—'}
-                          {uc.endereco ? ` — ${uc.endereco}` : ''}
-                          {rateioLabel ? ` — Rateio: ${rateioLabel}` : ''}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          </section>
+            </PdfSection>
+          ) : null}
 
-          {mostrarDetalhamento ? (
-            <section className="print-section keep-together avoid-break">
-              <h2 className="keep-with-next">Detalhamento do Projeto</h2>
-              {detalhamentoCampos.length > 0 ? (
-                <table className="print-table no-break-inside">
-                  <thead>
-                    <tr>
-                      <th>Item</th>
-                      <th>Valor/Descrição</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detalhamentoCampos.map((campo) => (
-                      <tr key={campo.label}>
-                        <td>{campo.label}</td>
-                        <td>{campo.value}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : null}
-            </section>
+          {shouldRenderDetalhamento ? (
+            <PdfSection className="keep-together avoid-break" title="Detalhamento do Projeto">
+              <PdfTable
+                className="no-break-inside"
+                columns={[
+                  { key: 'item', label: 'Item' },
+                  { key: 'valor', label: 'Valor/Descrição' },
+                ]}
+                rows={detalhamentoRows}
+              />
+            </PdfSection>
           ) : null}
           {!isVendaDireta ? (
             <section id="resumo-proposta" className="print-section keep-together page-break-before break-after">
@@ -1780,11 +1790,12 @@ function PrintableProposalInner(
           <PrintableProposalImages images={imagensInstalacao} />
 
           {configuracaoUsinaObservacoesParagrafos.length > 0 ? (
-            <section
+            <PdfSection
               id="observacoes-configuracao"
-              className="print-section keep-together avoid-break"
+              className="keep-together avoid-break"
+              title="Observações sobre a configuração"
+              headingClassName="section-title"
             >
-              <h2 className="section-title keep-with-next">Observações sobre a configuração</h2>
               <div className="print-observacoes no-break-inside">
                 {configuracaoUsinaObservacoesParagrafos.map((paragrafo, index) => {
                   const linhas = normalizeNewlines(paragrafo).split('\n')
@@ -1804,7 +1815,7 @@ function PrintableProposalInner(
                   )
                 })}
               </div>
-            </section>
+            </PdfSection>
           ) : null}
 
           <section
@@ -1888,7 +1899,9 @@ function PrintableProposalInner(
               )}
             </ul>
             {pdfConfig.observacaoPadrao ? (
-              <p className="print-important__observation no-break-inside">{pdfConfig.observacaoPadrao}</p>
+              <Notice className="no-break-inside" title="Observação importante">
+                <p>{pdfConfig.observacaoPadrao}</p>
+              </Notice>
             ) : null}
           </section>
     
