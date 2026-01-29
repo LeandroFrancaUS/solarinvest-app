@@ -16,3 +16,8 @@ build/
 # Test scripts
 test-*.mjs
 test-anexo-discovery.mjs
+
+# Debug artifacts from PDF generation
+debug/
+*.debug.html
+*.debug.png

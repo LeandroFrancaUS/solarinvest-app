@@ -50,6 +50,7 @@
     "eslint-plugin-import": "^2.31.0",
     "husky": "^9.1.6",
     "madge": "^8.0.0",
+    "playwright": "^1.58.0",
     "process": "^0.11.10",
     "rollup": "4.52.4",
     "terser": "^5.33.0",

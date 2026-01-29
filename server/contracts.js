@@ -545,6 +545,10 @@ const getGotenbergUrl = () => {
 
 export const isConvertApiConfigured = () => Boolean(getConvertApiSecret())
 export const isGotenbergConfigured = () => Boolean(getGotenbergUrl())
+export const isPlaywrightConfigured = () => {
+  const enabled = process.env.PLAYWRIGHT_PDF_ENABLED
+  return enabled === 'true' || enabled === '1'
+}
 
 const isConvertApiAvailable = () => Date.now() >= convertApiCircuit.disabledUntil
 
@@ -862,6 +866,124 @@ const convertHtmlToPdfUsingGotenberg = async (htmlPath, pdfPath) => {
   await fs.writeFile(pdfPath, Buffer.from(arrayBuffer))
 }
 
+const convertHtmlToPdfUsingPlaywright = async (htmlPath, pdfPath) => {
+  let browser = null
+  let debugDir = null
+
+  try {
+    const { chromium } = await import('playwright')
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    })
+
+    const page = await browser.newPage({
+      viewport: { width: 794, height: 1123 } // A4 at 96dpi
+    })
+
+    const htmlContent = await fs.readFile(htmlPath, 'utf8')
+    await page.setContent(htmlContent, {
+      waitUntil: 'networkidle',
+      timeout: 30000
+    })
+
+    // Create debug directory
+    const projectRoot = process.cwd()
+    debugDir = path.join(projectRoot, 'debug')
+    await fs.mkdir(debugDir, { recursive: true })
+
+    // Save debug HTML
+    const debugHtmlPath = path.join(debugDir, `proposal-${Date.now()}.html`)
+    await fs.writeFile(debugHtmlPath, htmlContent, 'utf8')
+
+    // Validate CSS delivery by checking computed styles
+    const validation = await page.evaluate(() => {
+      const body = document.body
+      const bodyBg = window.getComputedStyle(body).backgroundColor
+      
+      // Find a card element to validate styling
+      const card = document.querySelector('.print-hero, .print-section, .print-card')
+      const cardStyles = card ? window.getComputedStyle(card) : null
+      
+      const banner = document.getElementById('pdf-validation-banner')
+      const bannerPresent = Boolean(banner)
+      const pdfVersion = document.documentElement.getAttribute('data-pdf-version')
+      const cssStatus = document.documentElement.querySelector('#embedded-print-styles') !== null
+
+      return {
+        bodyBg,
+        cardBorderRadius: cardStyles?.borderRadius || 'none',
+        cardBoxShadow: cardStyles?.boxShadow || 'none',
+        bannerPresent,
+        pdfVersion,
+        cssEmbedded: cssStatus,
+        validationPassed: bannerPresent && cssStatus && pdfVersion === 'premium-v1'
+      }
+    })
+
+    console.info('[playwright-pdf] CSS validation results:', validation)
+
+    if (!validation.validationPassed) {
+      const debugScreenshotPath = path.join(debugDir, `validation-failed-${Date.now()}.png`)
+      await page.screenshot({ 
+        path: debugScreenshotPath, 
+        fullPage: true 
+      })
+      
+      throw new ContractRenderError(
+        500,
+        `CSS validation failed. Banner: ${validation.bannerPresent}, CSS: ${validation.cssEmbedded}, Version: ${validation.pdfVersion}`,
+        {
+          code: 'CSS_VALIDATION_FAILED',
+          hint: `Debug artifacts saved to ${debugDir}. Check HTML and screenshot.`
+        }
+      )
+    }
+
+    // Take debug screenshot before PDF generation
+    const debugScreenshotPath = path.join(debugDir, `proposal-${Date.now()}.png`)
+    await page.screenshot({ 
+      path: debugScreenshotPath, 
+      fullPage: true 
+    })
+
+    // Generate PDF
+    await page.pdf({
+      path: pdfPath,
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '0mm',
+        right: '0mm',
+        bottom: '0mm',
+        left: '0mm'
+      }
+    })
+
+    console.info('[playwright-pdf] PDF generated successfully', {
+      htmlPath,
+      pdfPath,
+      debugHtml: debugHtmlPath,
+      debugScreenshot: debugScreenshotPath,
+      validation
+    })
+
+  } catch (error) {
+    if (error instanceof ContractRenderError) {
+      throw error
+    }
+    throw new ContractRenderError(
+      502,
+      `Falha ao converter HTML para PDF usando Playwright: ${error.message}`,
+      { code: 'PLAYWRIGHT_PDF_FAILED', retryable: false }
+    )
+  } finally {
+    if (browser) {
+      await browser.close()
+    }
+  }
+}
+
 export const convertDocxToPdf = async (docxPath, pdfPath) => {
   const convertApiConfigured = isConvertApiConfigured()
   const gotenbergConfigured = isGotenbergConfigured()
@@ -928,9 +1050,10 @@ export const convertDocxToPdf = async (docxPath, pdfPath) => {
 export const convertHtmlToPdf = async (htmlPath, pdfPath) => {
   const convertApiConfigured = isConvertApiConfigured()
   const gotenbergConfigured = isGotenbergConfigured()
+  const playwrightConfigured = isPlaywrightConfigured()
   const convertApiAvailable = convertApiConfigured && isConvertApiAvailable()
 
-  if (!convertApiAvailable && convertApiConfigured && !gotenbergConfigured) {
+  if (!convertApiAvailable && convertApiConfigured && !gotenbergConfigured && !playwrightConfigured) {
     throw new ContractRenderError(
       503,
       'Conversão para PDF indisponível temporariamente.',
@@ -943,6 +1066,10 @@ export const convertHtmlToPdf = async (htmlPath, pdfPath) => {
   }
 
   const providers = []
+  // Playwright has highest priority when enabled (local, fast, with validation)
+  if (playwrightConfigured) {
+    providers.push({ name: 'playwright', handler: () => convertHtmlToPdfUsingPlaywright(htmlPath, pdfPath) })
+  }
   if (convertApiAvailable) {
     providers.push({ name: 'convertapi', handler: () => convertHtmlToPdfUsingConvertApi(htmlPath, pdfPath) })
   }
@@ -956,7 +1083,7 @@ export const convertHtmlToPdf = async (htmlPath, pdfPath) => {
       'Conversão para PDF indisponível no servidor.',
       {
         code: 'PDF_CONVERSION_MISCONFIGURED',
-        hint: 'Configure CONVERTAPI_SECRET ou GOTENBERG_URL para habilitar a conversão.',
+        hint: 'Configure CONVERTAPI_SECRET, GOTENBERG_URL ou PLAYWRIGHT_PDF_ENABLED para habilitar a conversão.',
       },
     )
   }
@@ -968,6 +1095,7 @@ export const convertHtmlToPdf = async (htmlPath, pdfPath) => {
       if (provider.name === 'convertapi') {
         clearConvertApiFailures()
       }
+      console.info(`[contracts] PDF conversion succeeded using ${provider.name}`)
       return result
     } catch (error) {
       lastError = error

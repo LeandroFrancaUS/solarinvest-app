@@ -3234,19 +3234,56 @@ const buildProposalPdfDocument = (layoutHtml: string, nomeCliente: string, varia
   const safeCliente = nomeCliente?.trim() || 'SolarInvest'
   const safeHtml = layoutHtml || ''
 
+  // Validation banner for CSS delivery verification
+  const validationBanner = `
+    <div id="pdf-validation-banner" data-pdf-version="premium-v1" data-css-status="embedded" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#10b981,#3b82f6);color:#fff;padding:8px 16px;font-family:monospace;font-size:11px;font-weight:600;text-align:center;letter-spacing:0.5px;border-bottom:2px solid #059669;">
+      PDF v1.0 | CSS: Embedded | Styles: ${printStyles.length + simplePrintStyles.length} chars | Client: ${safeCliente}
+    </div>
+  `.trim()
+
   return `<!DOCTYPE html>
-<html data-print-mode="download" data-print-variant="${variant}">
+<html data-print-mode="download" data-print-variant="${variant}" data-pdf-version="premium-v1">
   <head>
     <meta charset="utf-8" />
     <title>Proposta-${safeCliente}</title>
-    <style>
+    <meta name="pdf-generator" content="SolarInvest Premium v1" />
+    <meta name="css-delivery" content="embedded" />
+    <style id="embedded-print-styles">
+      /* SolarInvest Print Styles - Embedded for PDF Generation */
       ${printStyles}
       ${simplePrintStyles}
-      body{margin:0;background:#f8fafc;}
-      .preview-container{max-width:calc(210mm - 32mm);width:100%;margin:0 auto;padding:24px 0 40px;}
+      
+      /* Container and body baseline */
+      body{
+        margin:0;
+        background:#f8fafc;
+        color:#0f172a;
+        font-family:'Inter','Roboto','Source Sans Pro',system-ui,sans-serif;
+      }
+      .preview-container{
+        max-width:calc(210mm - 32mm);
+        width:100%;
+        margin:0 auto;
+        padding:24px 0 40px;
+      }
+      
+      /* Validation banner - visible for debugging, hidden in print */
+      #pdf-validation-banner {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 9999;
+      }
+      @media print {
+        #pdf-validation-banner {
+          display: none !important;
+        }
+      }
     </style>
   </head>
   <body data-print-mode="download" data-print-variant="${variant}">
+    ${validationBanner}
     <div class="preview-container">${safeHtml}</div>
   </body>
 </html>`

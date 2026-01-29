@@ -6,7 +6,7 @@ import JSZip from 'jszip'
 import Mustache from 'mustache'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { convertDocxToPdf, convertHtmlToPdf, isConvertApiConfigured, isGotenbergConfigured } from './contracts.js'
+import { convertDocxToPdf, convertHtmlToPdf, isConvertApiConfigured, isGotenbergConfigured, isPlaywrightConfigured } from './contracts.js'
 
 const JSON_BODY_LIMIT = 6 * 1024 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
@@ -1495,7 +1495,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     const files = []
     const fallbackNotices = []
-    const pdfProvidersConfigured = isConvertApiConfigured() || isGotenbergConfigured()
+    const pdfProvidersConfigured = isConvertApiConfigured() || isGotenbergConfigured() || isPlaywrightConfigured()
     const registerFallback = (message) => {
       if (!fallbackNotices.includes(message)) {
         fallbackNotices.push(message)
