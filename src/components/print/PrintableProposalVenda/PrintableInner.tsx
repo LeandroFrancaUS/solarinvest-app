@@ -1264,7 +1264,7 @@ function PrintableProposalInner(
             </section>
           ) : null}
           {!isVendaDireta ? (
-            <section id="resumo-proposta" className="print-section keep-together page-break-before break-after">
+            <section id="resumo-proposta" className="print-section keep-together">
               <h2 className="keep-with-next">Resumo de Custos e Investimento</h2>
               <table className="print-table no-break-inside">
               <thead>
@@ -1646,7 +1646,7 @@ function PrintableProposalInner(
           {isVendaDireta ? (
             <section
               id="condicoes-financeiras"
-              className="print-section keep-together page-break-before break-after"
+              className="print-section keep-together"
             >
               <h2 className="keep-with-next">{isVendaDireta ? 'Retorno Financeiro' : 'Retorno projetado'}</h2>
               {snapshotResultados || retornoVenda ? (
@@ -1676,7 +1676,7 @@ function PrintableProposalInner(
     
           <section
             id="economia-30-anos"
-            className="print-section keep-together page-break-before break-after"
+            className="print-section keep-together"
             data-chart-palette={chartPalette.join(',')}
             style={chartPaletteStyles}
           >
