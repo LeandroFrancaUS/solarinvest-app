@@ -46,15 +46,30 @@ export async function generateSolarProposal(targetUrl, outputPath, options = {})
 
     const page = await context.newPage()
 
+    // Disable cache to ensure fresh content
+    await page.setCacheEnabled(false)
+
     console.log(`[PDF Generator] Navigating to ${targetUrl}...`)
     
-    // Navigate and wait for DOM to be ready
-    await page.goto(targetUrl, { 
-      waitUntil: 'domcontentloaded',
+    // Cache-bust URL to prevent stale renders
+    const cacheBustedUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}v=${Date.now()}`
+    console.log(`[PDF Generator] Rendering URL: ${cacheBustedUrl}`)
+    
+    // Navigate and wait for network to be idle
+    await page.goto(cacheBustedUrl, { 
+      waitUntil: 'networkidle',
       timeout,
     })
 
-    console.log('[PDF Generator] DOM loaded. Optimizing assets...')
+    console.log('[PDF Generator] Network idle. Optimizing assets...')
+
+    // Sanity check: Wait for Bento Grid root
+    try {
+      await page.waitForSelector('[data-testid="proposal-bento-root"]', { timeout: 10000 })
+      console.log('[PDF Generator] Bento Grid layout detected')
+    } catch (error) {
+      console.warn('[PDF Generator] Bento Grid root not found, continuing anyway...')
+    }
 
     // Wait for fonts and images to load
     await page.evaluate(async () => {
@@ -114,6 +129,14 @@ export async function generateSolarProposal(targetUrl, outputPath, options = {})
     }
 
     console.log('[PDF Generator] Generating PDF...')
+
+    // Save debug screenshot
+    const debugScreenshotPath = outputPath.replace('.pdf', '-debug.png')
+    await page.screenshot({ 
+      path: debugScreenshotPath, 
+      fullPage: true 
+    })
+    console.log(`[PDF Generator] Debug screenshot saved to ${debugScreenshotPath}`)
 
     // Generate PDF with exact specifications
     await page.pdf({

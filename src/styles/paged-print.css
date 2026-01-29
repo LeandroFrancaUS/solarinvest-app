@@ -9,6 +9,13 @@
   margin: 0;
 }
 
+/* Body background for Bento Grid */
+body {
+  background: rgb(248 250 252); /* slate-50 */
+  margin: 0;
+  padding: 0;
+}
+
 /* Page Margins - controlled internally via padding */
 @page {
   @top-left {
@@ -62,7 +69,8 @@ thead {
 }
 
 /* Grid fragmentation - ensure Bento cards don't break awkwardly */
-.bento-card {
+.bento-card,
+.break-inside-avoid {
   break-inside: avoid;
   page-break-inside: avoid;
 }
