@@ -54,6 +54,7 @@
     "eslint": "^9.14.0",
     "eslint-plugin-import": "^2.31.0",
     "husky": "^9.1.6",
+    "jsdom": "^27.4.0",
     "madge": "^8.0.0",
     "pagedjs": "^0.4.3",
     "postcss": "^8.5.6",

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Bento Grid Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 20px; background: #e5e7eb; }
+    .page { padding: 36px 40px; box-sizing: border-box; max-width: 210mm; margin: 20px auto; }
+  </style>
+</head>
+<body>
+  <div class="page bg-slate-50">
+    <div class="grid grid-cols-12 gap-1">
+      <div class="col-span-12 bg-yellow-400 text-white rounded-3xl p-6">
+        <h1 class="text-3xl font-bold">Proposta de Leasing Solar</h1>
+      </div>
+      <div class="col-span-4 bg-white rounded-3xl p-6 shadow-sm">
+        <p class="text-xs text-slate-500 mb-2">Potência Instalada</p>
+        <p class="text-3xl font-bold">10.50 kWp</p>
+      </div>
+      <div class="col-span-4 bg-white rounded-3xl p-6 shadow-sm">
+        <p class="text-xs text-slate-500 mb-2">Geração Mensal</p>
+        <p class="text-3xl font-bold">1,250 kWh</p>
+      </div>
+      <div class="col-span-4 bg-white rounded-3xl p-6 shadow-sm">
+        <p class="text-xs text-slate-500 mb-2">Desconto</p>
+        <p class="text-3xl font-bold text-yellow-600">15%</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
