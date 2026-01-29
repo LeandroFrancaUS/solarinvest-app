@@ -1,6 +1,6 @@
 @page {
   size: A4;
-  margin: 18mm 16mm;
+  margin: 16mm 14mm;
 }
 
 * {
@@ -14,10 +14,14 @@ body {
   font-family: 'Inter', 'Roboto', 'Helvetica', sans-serif;
   color: #0f172a;
   background: #ffffff;
+  border: 0;
+  outline: 0;
 }
 
 .proposal-document {
   width: 100%;
+  border: 0;
+  outline: 0;
 }
 
 .cover {
@@ -88,7 +92,7 @@ body {
 }
 
 .proposal-body {
-  margin-top: 24px;
+  margin-top: 16px;
 }
 
 .proposal-header {
@@ -96,7 +100,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .proposal-header__brand {
@@ -137,8 +141,8 @@ body {
 }
 
 .section {
-  margin-bottom: 18px;
-  padding-bottom: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -212,16 +216,15 @@ body {
 
 .notice {
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #f8fafc;
   color: #0f172a;
-  border: 1px solid #e2e8f0;
+  border: none;
   margin-top: 10px;
 }
 
 .notice--warning {
   background: #fff7ed;
-  border-color: #fed7aa;
   color: #7c2d12;
 }
 
@@ -233,7 +236,7 @@ body {
 .proposal-footer {
   margin-top: 24px;
   padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: none;
   font-size: 12px;
   color: #475569;
 }

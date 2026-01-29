@@ -1,11 +1,12 @@
 import React from 'react'
 
-import { joinClassNames, sectionShouldRender } from '../utils.js'
+import { hasRenderableChildren, joinClassNames, sectionShouldRender } from '../utils.js'
 
 const h = React.createElement
 
 export const Section = ({ title, subtitle, rows, className, children, id }) => {
-  const shouldRender = sectionShouldRender(rows ?? []) || sectionShouldRender([children])
+  const shouldRender =
+    sectionShouldRender(rows ?? []) || hasRenderableChildren(children, React)
   if (!shouldRender) {
     return null
   }

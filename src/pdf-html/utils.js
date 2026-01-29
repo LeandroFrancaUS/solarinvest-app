@@ -21,3 +21,13 @@ export const sectionShouldRender = (rows = []) =>
     }
     return hasMeaningfulValue(row)
   })
+
+export const hasRenderableChildren = (children, React) => {
+  const childArray = React.Children.toArray(children)
+  return childArray.some((child) => {
+    if (child == null || typeof child === 'boolean') return false
+    if (typeof child === 'string') return child.trim().length > 0
+    if (typeof child === 'number') return Number.isFinite(child)
+    return true
+  })
+}
