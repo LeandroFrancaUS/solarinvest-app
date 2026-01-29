@@ -1143,7 +1143,7 @@ function PrintableProposalLeasingInner(
 
           <section
             id="resumo-proposta"
-            className="print-section keep-together avoid-break page-break-before break-after"
+            className="print-section keep-together avoid-break"
           >
             <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
             <p className="section-subtitle keep-with-next">
@@ -1191,7 +1191,7 @@ function PrintableProposalLeasingInner(
     
           <section
             id="condicoes-financeiras"
-            className="print-section keep-together avoid-break page-break-before break-after"
+            className="print-section keep-together avoid-break"
           >
             <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
             <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
@@ -1434,7 +1434,7 @@ function PrintableProposalLeasingInner(
 
           <section
             id="economia-30-anos"
-            className="print-section keep-together page-break-before break-after"
+            className="print-section keep-together"
           >
             <h2 className="section-title keep-with-next">Análise Financeira da Economia Gerada</h2>
             {economiaProjetadaGrafico.length ? (
