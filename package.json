@@ -43,6 +43,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
     "@tailwindcss/typography": "^0.5.19",
     "@types/localforage": "^0.0.33",
     "@types/react": "^18.3.5",
