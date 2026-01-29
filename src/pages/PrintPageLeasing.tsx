@@ -1,0 +1,89 @@
+import React, { useEffect, useState } from 'react'
+import { PrintableProposalLeasingBento } from '../components/pdf/PrintableProposalLeasingBento'
+import { usePagedRender } from '../components/pdf/usePagedRender'
+import type { PrintableProposalProps } from '../types/printableProposal'
+import '../styles/print-bento.css'
+
+interface PrintPageLeasingProps {
+  data: PrintableProposalProps
+}
+
+/**
+ * Standalone print page for Leasing proposals
+ * This component is meant to be rendered in isolation for PDF generation
+ */
+export const PrintPageLeasing: React.FC<PrintPageLeasingProps> = ({ data }) => {
+  const [isScriptLoaded, setIsScriptLoaded] = useState(false)
+
+  // Load Paged.js polyfill
+  useEffect(() => {
+    // Set PagedConfig before loading the polyfill
+    if (typeof window !== 'undefined') {
+      (window as any).PagedConfig = { auto: false }
+
+      // Check if script is already loaded
+      const existingScript = document.querySelector('script[src*="paged.polyfill.js"]')
+      if (existingScript) {
+        setIsScriptLoaded(true)
+        return
+      }
+
+      // Load the polyfill script
+      const script = document.createElement('script')
+      script.src = '/vendor/paged.polyfill.js'
+      script.async = true
+      script.onload = () => {
+        console.log('✓ Paged.js polyfill loaded')
+        setIsScriptLoaded(true)
+      }
+      script.onerror = () => {
+        console.error('✗ Failed to load Paged.js polyfill')
+      }
+
+      // Add config script first
+      const configScript = document.createElement('script')
+      configScript.textContent = 'window.PagedConfig = { auto: false };'
+      document.head.appendChild(configScript)
+      
+      // Then add polyfill
+      document.head.appendChild(script)
+
+      return () => {
+        // Cleanup
+        if (script.parentNode) {
+          script.parentNode.removeChild(script)
+        }
+      }
+    }
+  }, [])
+
+  // Trigger Paged.js rendering once the script is loaded
+  const { isRendering, isComplete, error } = usePagedRender({
+    onComplete: () => {
+      console.log('✓ Paged.js rendering complete')
+    },
+    onError: (err) => {
+      console.error('✗ Paged.js rendering error:', err)
+    },
+  })
+
+  if (error) {
+    return (
+      <div className="p-8 text-red-600">
+        <h1 className="text-2xl font-bold mb-4">Erro ao Renderizar PDF</h1>
+        <p>{error.message}</p>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {isRendering && (
+        <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm">
+          Renderizando páginas...
+        </div>
+      )}
+      <PrintableProposalLeasingBento {...data} />
+    </>
+  )
+}
