@@ -16,3 +16,4 @@ build/
 # Test scripts
 test-*.mjs
 test-anexo-discovery.mjs
+debug/
