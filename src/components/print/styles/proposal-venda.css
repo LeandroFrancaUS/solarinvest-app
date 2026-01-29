@@ -81,7 +81,7 @@
 
 .print-hero__eyebrow {
   font-size: 12px;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 600;
   color: rgba(248, 250, 252, 0.74);
@@ -131,7 +131,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-hero__summary h2 {
   margin: 0 0 12px;
   font-size: 18px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #f8fafc;
 }
@@ -153,7 +153,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
   margin: 0;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: rgba(12, 22, 44, 0.62);
 }
@@ -240,7 +240,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-value-card span {
   font-size: 12px;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 600;
   color: rgba(248, 250, 252, 0.72);
@@ -384,7 +384,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-key-values strong {
   display: block;
   font-size: 11px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #0c162c;
   margin-bottom: 6px;
@@ -494,7 +494,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-horizontal-chart__header-row {
   font-size: 11px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #c2410c;
 }
@@ -621,7 +621,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-yearly-payments__year-label {
   font-size: 11px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(12, 22, 44, 0.6);
 }
@@ -649,7 +649,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-yearly-payments__metrics dt {
   margin: 0;
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: rgba(12, 22, 44, 0.55);
 }
@@ -789,7 +789,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-brand-footer strong {
   font-size: 13px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: inherit !important;
 }

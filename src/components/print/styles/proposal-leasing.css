@@ -292,7 +292,7 @@
 .print-hero__summary h2 {
   margin: 0 0 14px;
   font-size: 18px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #f97316;
 }
@@ -335,7 +335,7 @@
 .print-hero__meta-item small {
   margin: 0;
   font-size: 11px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: rgba(15, 23, 42, 0.6);
   grid-column: 1;
@@ -479,7 +479,7 @@
   background: #f5f5f5;
   color: #1f2933;
   font-size: 11px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -840,7 +840,7 @@ table.leasing-economia-table,
 
 .leasing-horizontal-chart__header-row {
   font-size: 11px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #94a3b8;
 }
