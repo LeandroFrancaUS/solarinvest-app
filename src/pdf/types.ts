@@ -15,15 +15,15 @@ export type { ClienteDados, MensalidadeRow } from '../types/printableProposal'
 export type LeasingProposalData = {
   // Client Information
   cliente: ClienteDados
-  budgetId?: string
+  budgetId?: string | undefined
   
   // System Specifications
   potenciaInstaladaKwp: number
   geracaoMensalKwh: number
   numeroModulos: number
   potenciaModulo: number
-  modeloModulo?: string | null
-  modeloInversor?: string | null
+  modeloModulo?: string | null | undefined
+  modeloInversor?: string | null | undefined
   areaInstalacao: number
   tipoInstalacao: string
   tipoEdificacao: string
@@ -64,16 +64,16 @@ export type LeasingProposalData = {
   }>
   
   // System Value
-  valorMercadoEstimado?: number | null
-  mostrarValorMercado?: boolean
+  valorMercadoEstimado?: number | null | undefined
+  mostrarValorMercado?: boolean | undefined
   
   // Additional Info
-  dataInicioOperacao?: string | null
-  observacoes?: string | null
-  multiUcResumo?: any | null
+  dataInicioOperacao?: string | null | undefined
+  observacoes?: string | null | undefined
+  multiUcResumo?: any | null | undefined
   
   // Validation
-  validadeDias?: number
+  validadeDias?: number | undefined
 }
 
 /**
