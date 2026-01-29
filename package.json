@@ -28,7 +28,6 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
-    "@react-pdf/renderer": "^4.3.2",
     "@stackframe/react": "2.8.58",
     "@stackframe/stack-shared": "2.8.58",
     "@stackframe/stack-ui": "2.8.58",
