@@ -1,9 +1,9 @@
 /**
  * Paged.js Integration Module
  * Orchestrates pagination lifecycle and Playwright synchronization
+ * 
+ * Uses client-side dynamic import to avoid SSR/build issues
  */
-
-import { Paged } from 'pagedjs'
 
 declare global {
   interface Window {
@@ -11,7 +11,9 @@ declare global {
       auto?: boolean
       after?: (flow: unknown) => void
     }
-    PagedPolyfill?: Paged
+    PagedPolyfill?: {
+      preview?: () => Promise<void>
+    }
     pagedRenderingComplete?: boolean
   }
 }
@@ -20,9 +22,17 @@ declare global {
  * Initialize Paged.js with proper lifecycle management
  * Waits for fonts and images before triggering pagination
  * Sets up Playwright handshake signal
+ * 
+ * Uses dynamic import to load polyfill client-side only
  */
 export async function initializePagedJS(): Promise<void> {
-  // Configure Paged.js behavior
+  // Server-side guard
+  if (typeof window === 'undefined') {
+    console.warn('[Paged.js] Skipping initialization on server')
+    return
+  }
+
+  // Configure Paged.js behavior BEFORE loading polyfill
   window.PagedConfig = {
     auto: false, // Manual control of pagination trigger
     after: (flow) => {
@@ -42,12 +52,21 @@ export async function initializePagedJS(): Promise<void> {
     await waitForImages()
     console.log('[Paged.js] Images loaded')
 
-    // Initialize Paged.js
-    const paged = new Paged()
-    window.PagedPolyfill = paged
+    // Dynamically load Paged.js polyfill (client-side only)
+    console.log('[Paged.js] Loading polyfill...')
+    await import('pagedjs/dist/paged.polyfill.js')
+    console.log('[Paged.js] Polyfill loaded')
+
+    // Wait a tick for polyfill to initialize
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    // Check if polyfill is available
+    if (!window.PagedPolyfill?.preview) {
+      throw new Error('PagedPolyfill.preview not available after loading')
+    }
 
     // Trigger pagination
-    await paged.preview()
+    await window.PagedPolyfill.preview()
     console.log('[Paged.js] Preview initiated')
   } catch (error) {
     console.error('[Paged.js] Initialization error:', error)
