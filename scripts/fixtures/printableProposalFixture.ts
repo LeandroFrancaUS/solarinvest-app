@@ -87,6 +87,8 @@ export const createPrintableProposalFixture = (): PrintableProposalProps => ({
   configuracaoUsinaObservacoes:
     'Observação 1: instalação sujeita a vistoria técnica.\n\nObservação 2: prazos podem variar conforme aprovação da distribuidora.',
   imagensInstalacao: [],
+  emissaoTexto: '01/01/2025',
+  validadePropostaLabel: '30 dias',
 })
 
 export default createPrintableProposalFixture

@@ -182,11 +182,11 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-section {
   margin-bottom: var(--print-section-gap);
-  background: var(--print-color-surface);
-  border-radius: var(--print-section-radius);
+  background: transparent;
+  border-radius: 0;
   padding: var(--print-section-padding-y) var(--print-section-padding-x);
-  box-shadow: 0 16px 34px rgba(12, 22, 44, 0.1);
-  border: var(--print-border-width) solid var(--print-color-border);
+  box-shadow: none;
+  border: none;
   break-inside: avoid-page;
   page-break-inside: avoid;
   -webkit-column-break-inside: avoid;

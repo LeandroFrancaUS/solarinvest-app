@@ -90,7 +90,8 @@ const resolveProposalPdfBridge = (): ProposalPdfBridge | null => {
   return candidates.find((candidate): candidate is ProposalPdfBridge => typeof candidate === 'function') ?? null
 }
 
-const getProposalPdfEndpoint = () => import.meta.env?.VITE_PROPOSAL_PDF_ENDPOINT?.trim() || ''
+const getProposalPdfEndpoint = () =>
+  import.meta.env?.VITE_PROPOSAL_PDF_ENDPOINT?.trim() || '/api/proposal/pdf'
 
 export const isProposalPdfIntegrationAvailable = (): boolean => {
   if (typeof window !== 'undefined' && resolveProposalPdfBridge()) {

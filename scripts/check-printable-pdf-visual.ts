@@ -6,7 +6,7 @@ import { PNG } from 'pngjs'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-import PrintableProposal from '../src/components/print/PrintableProposal'
+import ProposalTemplate from '../src/pdf-html/ProposalTemplate.js'
 import { createPrintableProposalFixture } from './fixtures/printableProposalFixture'
 
 const OUTPUT_DIR = path.resolve('artifacts', 'printable-visual-check')
@@ -21,15 +21,14 @@ const readCss = async (filePath: string) => {
 }
 
 const buildHtml = async () => {
-  const cssFiles = [
-    'src/components/print/styles/print-common.css',
-    'src/components/print/styles/proposal-venda.css',
-    'src/components/print/styles/proposal-leasing.css',
-    'src/components/print/PrintableProposalVenda/printable-v7.css',
-  ]
-  const cssBlocks = await Promise.all(cssFiles.map((file) => readCss(path.resolve(file))))
-  const styles = cssBlocks.join('\n')
-  const markup = renderToStaticMarkup(<PrintableProposal {...createPrintableProposalFixture()} />)
+  const styles = await readCss(path.resolve('src/pdf-html/proposal.css'))
+  const logoSvg = await readCss(path.resolve('public/proposal-header-logo.svg'))
+  const logoUrl = `data:image/svg+xml;base64,${Buffer.from(logoSvg).toString('base64')}`
+  const markup = renderToStaticMarkup(
+    React.createElement(ProposalTemplate, {
+      data: { ...createPrintableProposalFixture(), logoUrl },
+    }),
+  )
 
   return `<!doctype html>
 <html lang="pt-BR" data-print-mode="print">
@@ -37,7 +36,7 @@ const buildHtml = async () => {
     <meta charset="utf-8" />
     <style>${styles}</style>
   </head>
-  <body class="printable-v7-wrapper" data-print-variant="standard">
+  <body>
     ${markup}
   </body>
 </html>`
@@ -93,7 +92,7 @@ const main = async () => {
   await page.pdf({ path: pdfPath, format: 'A4', printBackground: true })
 
   const emptySections = await page.evaluate(() => {
-    const sections = Array.from(document.querySelectorAll<HTMLElement>('.print-section'))
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('.section'))
     return sections
       .map((section) => {
         const heading = section.querySelector('h1, h2, h3, h4')
