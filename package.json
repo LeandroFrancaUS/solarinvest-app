@@ -57,6 +57,7 @@
     "husky": "^9.1.6",
     "madge": "^8.0.0",
     "pagedjs": "^0.4.3",
+    "playwright": "^1.58.0",
     "postcss": "^8.5.6",
     "process": "^0.11.10",
     "rollup": "4.52.4",

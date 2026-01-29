@@ -12,6 +12,7 @@ declare global {
       after?: (flow: unknown) => void
     }
     PagedPolyfill?: Paged
+    pagedRenderingComplete?: boolean
   }
 }
 
@@ -26,6 +27,7 @@ export async function initializePagedJS(): Promise<void> {
     auto: false, // Manual control of pagination trigger
     after: (flow) => {
       // Signal to Playwright that rendering is complete
+      window.pagedRenderingComplete = true
       document.body.classList.add('render-success')
       console.log('[Paged.js] Pagination complete, ready for capture')
     },
@@ -49,7 +51,8 @@ export async function initializePagedJS(): Promise<void> {
     console.log('[Paged.js] Preview initiated')
   } catch (error) {
     console.error('[Paged.js] Initialization error:', error)
-    // Still add success class to avoid Playwright timeout
+    // Still add error class and flag to avoid Playwright timeout
+    window.pagedRenderingComplete = true
     document.body.classList.add('render-error')
     throw error
   }
@@ -88,6 +91,7 @@ function waitForImages(): Promise<void> {
  */
 export function isPagedRenderComplete(): boolean {
   return (
+    window.pagedRenderingComplete === true ||
     document.body.classList.contains('render-success') ||
     document.body.classList.contains('render-error')
   )
