@@ -283,7 +283,7 @@
     [data-print-mode='download']
   ) .crm-kanban-column {
   background: #fff !important;
-  border: 1px solid #e5e7eb !important;
+  border: 0 !important;
   box-shadow: none !important;
 }
 
@@ -466,7 +466,7 @@
   .crm-card,
   .crm-kanban-column {
     background: #fff !important;
-    border: 1px solid #e5e7eb !important;
+    border: 0 !important;
     box-shadow: none !important;
   }
 
