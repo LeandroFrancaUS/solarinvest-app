@@ -32,6 +32,7 @@ import {
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
+import { generateProposalPdf } from './proposalPdfHtml.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -224,6 +225,26 @@ export default async function handler(req, res) {
           error: error.message || 'Falha ao conectar ao banco de dados',
           latencyMs
         }, requestId, vercelId)
+      }
+      return
+    }
+
+    if (pathname === '/api/proposal/pdf' && method === 'POST') {
+      try {
+        const payload = await readJsonBody(req)
+        const pdfBuffer = await generateProposalPdf(payload)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/pdf')
+        res.setHeader('Content-Disposition', 'inline; filename="proposta.pdf"')
+        res.end(pdfBuffer)
+      } catch (error) {
+        sendServerError(
+          res,
+          500,
+          { error: 'Falha ao gerar PDF da proposta.' },
+          requestId,
+          vercelId,
+        )
       }
       return
     }

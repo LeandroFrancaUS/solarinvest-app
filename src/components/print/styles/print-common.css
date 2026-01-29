@@ -1,3 +1,23 @@
+:where(.print-layout, .leasing-print-layout) {
+  --print-page-padding-x: 40px;
+  --print-page-padding-y: 28px;
+  --print-section-padding-x: 26px;
+  --print-section-padding-y: 22px;
+  --print-section-radius: 22px;
+  --print-section-gap: 18px;
+  --print-card-padding: 12px;
+  --print-paragraph-gap: 8px;
+  --print-table-row-padding-y: 6px;
+  --print-border-width: 0.5px;
+  --print-color-text: #0c162c;
+  --print-color-muted: rgba(12, 22, 44, 0.62);
+  --print-color-accent: #1f3a6f;
+  --print-color-surface: #ffffff;
+  --print-color-surface-muted: #f4f6fb;
+  --print-color-border: rgba(12, 22, 44, 0.12);
+  --print-color-header: #0b1120;
+}
+
 :where(
     html[data-print-mode='print'],
     body[data-print-mode='print'],
@@ -190,10 +210,83 @@
   border-color: #ddd !important;
 }
 
+.print-key-value-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 20px;
+  margin: 0;
+}
+
+.print-key-value-grid--cols-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.print-key-value-grid--cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.print-key-value-grid__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.print-key-value-grid__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--print-color-muted);
+}
+
+.print-key-value-grid__value {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--print-color-text);
+  line-height: 1.35;
+}
+
+.print-table thead th {
+  background: #f1f5f9;
+  font-weight: 600;
+}
+
+.print-table th,
+.print-table td {
+  padding: var(--print-table-row-padding-y) 10px;
+}
+
+.print-notice {
+  border-radius: 14px;
+  padding: var(--print-card-padding);
+  background: #f8fafc;
+  border: var(--print-border-width) solid var(--print-color-border);
+  color: var(--print-color-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.print-notice--warning {
+  background: #fff7ed;
+  border-color: rgba(234, 88, 12, 0.25);
+  color: #7c2d12;
+}
+
+.print-notice__title {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.print-notice__body p {
+  margin: 0;
+}
+
 .print-uc-details {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
   font-size: 13px;
   line-height: 1.35;
 }

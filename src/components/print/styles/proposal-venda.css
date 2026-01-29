@@ -1,7 +1,7 @@
 .print-layout {
-  background: #f4f6fb;
-  color: #0c162c;
-  padding: 36px 44px;
+  background: var(--print-color-surface-muted);
+  color: var(--print-color-text);
+  padding: var(--print-page-padding-y) var(--print-page-padding-x);
   font-family: 'Inter', 'Roboto', sans-serif;
 }
 
@@ -9,14 +9,14 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 40px 44px;
-  border-radius: 40px;
+  gap: 20px;
+  padding: 32px 36px;
+  border-radius: 30px;
   background:
     radial-gradient(140% 160% at 0% 0%, rgba(255, 255, 255, 0.18) 0%, rgba(12, 22, 44, 0) 70%),
     linear-gradient(135deg, #0c162c 0%, #13294c 58%, #1f3a6f 100%);
   color: #f8fafc;
-  box-shadow: 0 26px 60px rgba(12, 22, 44, 0.36);
+  box-shadow: 0 20px 44px rgba(12, 22, 44, 0.32);
   overflow: hidden;
 }
 
@@ -81,7 +81,7 @@
 
 .print-hero__eyebrow {
   font-size: 12px;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   font-weight: 600;
   color: rgba(248, 250, 252, 0.74);
@@ -118,21 +118,21 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-hero__summary {
   position: relative;
   z-index: 1;
-  padding: 28px 30px;
-  border-radius: 28px;
+  padding: 20px 22px;
+  border-radius: 22px;
   background: rgba(12, 22, 44, 0.7);
   backdrop-filter: blur(6px);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.5;
   color: rgba(248, 250, 252, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .print-hero__summary h2 {
   margin: 0 0 12px;
-  font-size: 18px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  text-transform: none;
   color: #f8fafc;
 }
 
@@ -140,7 +140,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
   margin: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 28px;
+  gap: 12px 22px;
 }
 
 .print-client-field {
@@ -153,9 +153,9 @@ html[data-print-mode='print'] .print-hero__title h1 {
   margin: 0;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(12, 22, 44, 0.62);
+  color: var(--print-color-muted);
 }
 
 .print-client-field dd {
@@ -181,12 +181,12 @@ html[data-print-mode='print'] .print-hero__title h1 {
 }
 
 .print-section {
-  margin-bottom: 30px;
-  background: #ffffff;
-  border-radius: 28px;
-  padding: 30px 34px;
-  box-shadow: 0 20px 44px rgba(12, 22, 44, 0.12);
-  border: 1px solid rgba(12, 22, 44, 0.08);
+  margin-bottom: var(--print-section-gap);
+  background: transparent;
+  border-radius: 0;
+  padding: var(--print-section-padding-y) var(--print-section-padding-x);
+  box-shadow: none;
+  border: none;
   break-inside: avoid-page;
   page-break-inside: avoid;
   -webkit-column-break-inside: avoid;
@@ -308,8 +308,8 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-section th,
 .print-section td {
-  border: 1px solid rgba(12, 22, 44, 0.12);
-  padding: 10px 14px;
+  border: var(--print-border-width) solid rgba(12, 22, 44, 0.12);
+  padding: var(--print-table-row-padding-y) 12px;
   font-size: 12px;
   text-align: left;
   break-inside: avoid-page;
@@ -320,10 +320,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-section th {
   background: #f1f5f9;
-  color: #0c162c;
+  color: var(--print-color-header);
   font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-transform: none;
 }
 
 .print-table__cell--emphasis {

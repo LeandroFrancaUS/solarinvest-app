@@ -1,0 +1,272 @@
+@page {
+  size: A4;
+  margin: 16mm 14mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', 'Roboto', 'Helvetica', sans-serif;
+  color: #0f172a;
+  background: #ffffff;
+  border: 0;
+  outline: 0;
+}
+
+.proposal-document {
+  width: 100%;
+  border: 0;
+  outline: 0;
+}
+
+.cover {
+  position: relative;
+  min-height: 92vh;
+  padding: 56px 52px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+  color: #f8fafc;
+  border-radius: 24px;
+  overflow: hidden;
+  break-after: page;
+}
+
+.cover__background-shape {
+  position: absolute;
+  inset: -120px auto auto -120px;
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.35), transparent 70%);
+  opacity: 0.8;
+}
+
+.cover__header img {
+  width: 84px;
+  height: auto;
+}
+
+.cover__content {
+  position: relative;
+  z-index: 1;
+  margin-top: 60px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cover__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 12px;
+  color: rgba(248, 250, 252, 0.65);
+}
+
+.cover h1 {
+  font-size: 40px;
+  margin: 0;
+}
+
+.cover__subtitle {
+  font-size: 15px;
+  color: rgba(248, 250, 252, 0.8);
+  margin: 0;
+}
+
+.cover__client {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 16px;
+}
+
+.cover__code {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(248, 250, 252, 0.7);
+}
+
+.proposal-body {
+  margin-top: 16px;
+}
+
+.proposal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.proposal-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.proposal-header__brand img {
+  width: 48px;
+  height: auto;
+}
+
+.proposal-header__eyebrow {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.proposal-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.proposal-header__meta {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.proposal-header__meta-item strong {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.section {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.section:last-child {
+  border-bottom: none;
+}
+
+.section-title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.section-subtitle {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.key-value-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  margin: 0;
+}
+
+.key-value-grid--cols-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.key-value-grid__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.key-value-grid__value {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.conditions-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.notice {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  border: none;
+  margin-top: 10px;
+}
+
+.notice--warning {
+  background: #fff7ed;
+  color: #7c2d12;
+}
+
+.notice__title {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.proposal-footer {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: none;
+  font-size: 12px;
+  color: #475569;
+}
+
+.proposal-footer__signature {
+  margin-top: 16px;
+}
+
+.signature-line {
+  width: 220px;
+  height: 1px;
+  background: #cbd5f5;
+  margin-bottom: 6px;
+}
+
+.proposal-footer__note {
+  margin-top: 12px;
+}
+
+.keep-together {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.no-break-after-title {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.break-before {
+  break-before: page;
+  page-break-before: always;
+}

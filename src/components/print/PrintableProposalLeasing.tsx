@@ -12,6 +12,10 @@ import type { PrintableProposalProps } from '../../types/printableProposal'
 import { TIPO_BASICO_LABELS } from '../../types/tipoBasico'
 import PrintableProposalImages from './PrintableProposalImages'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
+import KeyValueGrid from './common/KeyValueGrid'
+import Notice from './common/Notice'
+import PdfSection from './common/PdfSection'
+import { sectionShouldRender } from './common/pdfLayoutUtils'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
@@ -1003,6 +1007,24 @@ function PrintableProposalLeasingInner(
       .map((paragrafo) => paragrafo.trim())
       .filter(Boolean)
   }, [configuracaoUsinaObservacoesTexto])
+  const installationRows = [
+    {
+      label: 'UC Geradora',
+      value: ucGeradoraNumeroLabel
+        ? `UC nº ${ucGeradoraNumeroLabel} — ${ucGeradoraEnderecoLabel}`
+        : null,
+    },
+    { label: 'Distribuidora', value: distribuidoraLabel },
+    { label: 'Titular da UC', value: ucGeradoraTitularLabel ?? null },
+  ]
+  const shouldRenderInstalacao = sectionShouldRender([
+    ucGeradoraNumeroLabel,
+    ucGeradoraEnderecoLabel,
+    distribuidoraLabel,
+    ucGeradoraTitularLabel,
+    hasBeneficiarias ? ucsBeneficiariasLista.length : null,
+  ])
+  const shouldRenderResumoCliente = resumoCampos.length > 0
 
   return (
     <div ref={ref} className="print-root">
@@ -1094,52 +1116,41 @@ function PrintableProposalLeasingInner(
             </div>
           </section>
     
-          {resumoCampos.length > 0 ? (
-            <section className="print-section keep-together avoid-break">
-              <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
+          {shouldRenderResumoCliente ? (
+            <PdfSection className="keep-together avoid-break" title="Identificação do Cliente" headingClassName="section-title">
               <ClientInfoGrid
                 fields={resumoCampos}
                 className="print-client-grid no-break-inside"
                 fieldClassName="print-client-field"
                 wideFieldClassName="print-client-field--wide"
               />
-            </section>
+            </PdfSection>
           ) : null}
 
-          <section className="print-section keep-together avoid-break">
-            <h2 className="section-title keep-with-next">Dados da Instalação</h2>
-            <div className="print-uc-details">
-              <div className="print-uc-geradora">
-                <h3 className="print-uc-heading">UC Geradora</h3>
-                <p className="print-uc-text">
-                  UC nº {ucGeradoraNumeroLabel} — {ucGeradoraEnderecoLabel}
-                </p>
-                <p className="print-uc-text">
-                  Distribuidora: {distribuidoraLabel || '—'}
-                </p>
-                {ucGeradoraTitularLabel ? (
-                  <p className="print-uc-text">Titular da UC: {ucGeradoraTitularLabel}</p>
+          {shouldRenderInstalacao ? (
+            <PdfSection className="keep-together avoid-break" title="Dados da Instalação" headingClassName="section-title">
+              <div className="print-uc-details">
+                <KeyValueGrid rows={installationRows} columns={2} className="no-break-inside" />
+                {hasBeneficiarias ? (
+                  <div className="print-uc-beneficiarias">
+                    <h4 className="print-uc-beneficiarias-title">UCs Beneficiárias</h4>
+                    <ul className="print-uc-beneficiarias-list">
+                      {ucsBeneficiariasLista.map((uc, index) => {
+                        const rateioLabel = formatRateioLabel(uc.rateioPercentual)
+                        return (
+                          <li key={`${uc.numero || 'uc'}-${index}`}>
+                            UC nº {uc.numero || '—'}
+                            {uc.endereco ? ` — ${uc.endereco}` : ''}
+                            {rateioLabel ? ` — Rateio: ${rateioLabel}` : ''}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
                 ) : null}
               </div>
-              {hasBeneficiarias ? (
-                <div className="print-uc-beneficiarias">
-                  <h4 className="print-uc-beneficiarias-title">UCs Beneficiárias</h4>
-                  <ul className="print-uc-beneficiarias-list">
-                    {ucsBeneficiariasLista.map((uc, index) => {
-                      const rateioLabel = formatRateioLabel(uc.rateioPercentual)
-                      return (
-                        <li key={`${uc.numero || 'uc'}-${index}`}>
-                          UC nº {uc.numero || '—'}
-                          {uc.endereco ? ` — ${uc.endereco}` : ''}
-                          {rateioLabel ? ` — Rateio: ${rateioLabel}` : ''}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          </section>
+            </PdfSection>
+          ) : null}
 
           <section
             id="resumo-proposta"
@@ -1601,7 +1612,9 @@ function PrintableProposalLeasingInner(
               </p>
             </div>
             {informacoesImportantesObservacaoTexto ? (
-              <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
+              <Notice className="no-break-inside" title="Observação importante">
+                <p>{informacoesImportantesObservacaoTexto}</p>
+              </Notice>
             ) : null}
           </section>
     
