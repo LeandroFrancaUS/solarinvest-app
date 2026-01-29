@@ -16,12 +16,16 @@ const __dirname = dirname(__filename)
  * @param {string} targetUrl - URL of the proposal page to render
  * @param {string} outputPath - Path where PDF should be saved
  * @param {Object} options - Optional configuration
+ * @param {number} options.timeout - Timeout in milliseconds (default: 60000)
+ * @param {boolean} options.injectPagedJS - Inject Paged.js fallback (default: false)
+ * @param {boolean} options.debugScreenshot - Save debug screenshot (default: false)
  * @returns {Promise<void>}
  */
 export async function generateSolarProposal(targetUrl, outputPath, options = {}) {
   const {
     timeout = 60000,
     injectPagedJS = false,
+    debugScreenshot = false,
   } = options
 
   let browser = null
@@ -130,13 +134,15 @@ export async function generateSolarProposal(targetUrl, outputPath, options = {})
 
     console.log('[PDF Generator] Generating PDF...')
 
-    // Save debug screenshot
-    const debugScreenshotPath = outputPath.replace('.pdf', '-debug.png')
-    await page.screenshot({ 
-      path: debugScreenshotPath, 
-      fullPage: true 
-    })
-    console.log(`[PDF Generator] Debug screenshot saved to ${debugScreenshotPath}`)
+    // Save debug screenshot (optional, for development/debugging)
+    if (debugScreenshot) {
+      const debugScreenshotPath = outputPath.replace('.pdf', '-debug.png')
+      await page.screenshot({ 
+        path: debugScreenshotPath, 
+        fullPage: true 
+      })
+      console.log(`[PDF Generator] Debug screenshot saved to ${debugScreenshotPath}`)
+    }
 
     // Generate PDF with exact specifications
     await page.pdf({

@@ -3,21 +3,12 @@
  * CSS @page rules and fragmentation control for PDF generation
  */
 
-/* A4 Page Configuration */
+/* A4 Page Configuration with margin boxes */
 @page {
   size: A4;
   margin: 0;
-}
-
-/* Body background for Bento Grid */
-body {
-  background: rgb(248 250 252); /* slate-50 */
-  margin: 0;
-  padding: 0;
-}
-
-/* Page Margins - controlled internally via padding */
-@page {
+  
+  /* Page margin boxes - controlled internally via padding */
   @top-left {
     content: none;
   }
@@ -38,6 +29,13 @@ body {
   @bottom-right {
     content: none;
   }
+}
+
+/* Body background for Bento Grid */
+body {
+  background: rgb(248 250 252); /* slate-50 */
+  margin: 0;
+  padding: 0;
 }
 
 /* Fragmentation Control */
