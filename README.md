@@ -120,12 +120,34 @@ DATABASE_URL=postgresql://your-connection-string
 
 ## PDF conversion for leasing contracts
 
-Leasing contracts are rendered from `.dotx` templates and converted to PDF using external services. Configure at least one provider:
+Leasing contracts and commercial proposals are rendered from `.dotx` templates and HTML, then converted to PDF using one of three methods. The system automatically selects the best available provider in priority order.
 
-- `CONVERTAPI_SECRET` – API token for ConvertAPI (primary provider).
-- `GOTENBERG_URL` – optional HTTP endpoint for a Gotenberg instance (fallback provider).
+**Supported PDF Generators (in priority order):**
 
-If no provider is configured, the leasing endpoint will fall back to delivering DOCX files (or a ZIP with DOCX files) and will include a warning header in the response.
+1. **Playwright** (recommended for development) - `PLAYWRIGHT_PDF_ENABLED=true`
+   - Local generation with full CSS validation
+   - Creates debug artifacts (HTML + screenshots) in `debug/` folder
+   - Fastest during development, no external API costs
+   - Requires: `npx playwright install chromium`
+
+2. **ConvertAPI** (recommended for production) - `CONVERTAPI_SECRET=your_token`
+   - Cloud-based, fast and reliable
+   - Requires paid API key from https://www.convertapi.com/
+
+3. **Gotenberg** (self-hosted fallback) - `GOTENBERG_URL=http://your-instance`
+   - Self-hosted Docker container
+   - No external API costs after setup
+
+**For detailed information** on PDF generation, CSS validation, debug artifacts, and troubleshooting, see **[PDF_GENERATION_GUIDE.md](./PDF_GENERATION_GUIDE.md)**.
+
+Quick setup for development:
+```bash
+# Install Playwright
+npx playwright install chromium
+
+# Enable in .env.local
+PLAYWRIGHT_PDF_ENABLED=true
+```
 
 Templates must be deployed alongside the app in `public/templates/contratos` so the serverless runtime can read them at `/public` during execution.
 
