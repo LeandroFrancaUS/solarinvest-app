@@ -44,7 +44,9 @@ export async function renderPdfToStream(document: ReactElement) {
 export async function renderPdfToBlob(document: ReactElement): Promise<Blob> {
   try {
     const buffer = await renderToBuffer(document)
-    return new Blob([buffer], { type: 'application/pdf' })
+    // Convert Buffer to Uint8Array for Blob constructor
+    const uint8Array = new Uint8Array(buffer)
+    return new Blob([uint8Array], { type: 'application/pdf' })
   } catch (error) {
     console.error('Error rendering PDF to blob:', error)
     throw new Error(`Failed to render PDF: ${error instanceof Error ? error.message : 'Unknown error'}`)

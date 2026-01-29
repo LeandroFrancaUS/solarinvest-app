@@ -45,11 +45,11 @@ const styles = StyleSheet.create({
 })
 
 type PdfHeaderProps = {
-  eyebrow?: string
+  eyebrow?: string | undefined
   title: string
-  subtitle?: string
-  budgetId?: string
-  date?: string
+  subtitle?: string | undefined
+  budgetId?: string | undefined
+  date?: string | undefined
 }
 
 export const PdfHeader: React.FC<PdfHeaderProps> = ({

@@ -36,13 +36,13 @@ export type LeasingProposalData = {
     titular?: {
       nomeCompleto: string
       cpf: string
-    }
-  }
+    } | undefined
+  } | undefined
   ucsBeneficiarias?: Array<{
     numero: string
     endereco: string
-    rateioPercentual?: number
-  }>
+    rateioPercentual?: number | undefined
+  }> | undefined
   
   // Financial Terms
   prazoContratualMeses: number
