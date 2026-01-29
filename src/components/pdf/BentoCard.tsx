@@ -37,13 +37,14 @@ export const BentoCard: React.FC<BentoCardProps> = ({
 
 /**
  * BentoCardTitle - Typography component for card titles
+ * Adapts text color based on context (use text-white class for dark backgrounds)
  */
 export const BentoCardTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({
   children,
   className = '',
 }) => {
   return (
-    <h3 className={`font-bold text-slate-800 tracking-tight text-base mb-3 ${className}`}>
+    <h3 className={`font-bold tracking-tight text-base mb-3 ${className || 'text-slate-800'}`}>
       {children}
     </h3>
   )

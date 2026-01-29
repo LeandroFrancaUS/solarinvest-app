@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { PrintableProposalLeasingBento } from '../components/pdf/PrintableProposalLeasingBento'
 import { usePagedRender } from '../components/pdf/usePagedRender'
 import type { PrintableProposalProps } from '../types/printableProposal'
@@ -28,6 +28,11 @@ export const PrintPageLeasing: React.FC<PrintPageLeasingProps> = ({ data }) => {
         return
       }
 
+      // Create config script
+      const configScript = document.createElement('script')
+      configScript.textContent = 'window.PagedConfig = { auto: false };'
+      document.head.appendChild(configScript)
+
       // Load the polyfill script
       const script = document.createElement('script')
       script.src = '/vendor/paged.polyfill.js'
@@ -39,32 +44,33 @@ export const PrintPageLeasing: React.FC<PrintPageLeasingProps> = ({ data }) => {
       script.onerror = () => {
         console.error('✗ Failed to load Paged.js polyfill')
       }
-
-      // Add config script first
-      const configScript = document.createElement('script')
-      configScript.textContent = 'window.PagedConfig = { auto: false };'
-      document.head.appendChild(configScript)
-      
-      // Then add polyfill
       document.head.appendChild(script)
 
       return () => {
-        // Cleanup
+        // Cleanup both scripts
         if (script.parentNode) {
           script.parentNode.removeChild(script)
+        }
+        if (configScript.parentNode) {
+          configScript.parentNode.removeChild(configScript)
         }
       }
     }
   }, [])
 
+  // Stable callbacks for usePagedRender
+  const handleComplete = useCallback(() => {
+    console.log('✓ Paged.js rendering complete')
+  }, [])
+
+  const handleError = useCallback((err: Error) => {
+    console.error('✗ Paged.js rendering error:', err)
+  }, [])
+
   // Trigger Paged.js rendering once the script is loaded
-  const { isRendering, isComplete, error } = usePagedRender({
-    onComplete: () => {
-      console.log('✓ Paged.js rendering complete')
-    },
-    onError: (err) => {
-      console.error('✗ Paged.js rendering error:', err)
-    },
+  const { isRendering, error } = usePagedRender({
+    onComplete: handleComplete,
+    onError: handleError,
   })
 
   if (error) {

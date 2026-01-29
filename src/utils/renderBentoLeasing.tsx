@@ -82,7 +82,16 @@ export function renderBentoLeasingToHtml(dados: PrintableProposalProps): Promise
  * Includes Tailwind CSS and Paged.js configuration
  */
 export function buildBentoLeasingPdfDocument(layoutHtml: string, nomeCliente: string): string {
-  const safeCliente = nomeCliente?.trim() || 'SolarInvest'
+  const safeCliente = (nomeCliente?.trim() || 'SolarInvest').replace(/[<>"'&]/g, (match) => {
+    const escapes: Record<string, string> = {
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+      '&': '&amp;',
+    }
+    return escapes[match] || match
+  })
   const safeHtml = layoutHtml || ''
 
   return `<!DOCTYPE html>

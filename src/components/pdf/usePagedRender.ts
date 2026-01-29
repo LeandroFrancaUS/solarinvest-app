@@ -23,6 +23,9 @@ export const usePagedRender = (options: UsePagedRenderOptions = {}) => {
   const [error, setError] = useState<Error | null>(null)
   const hasRendered = useRef(false)
 
+  // Extract callbacks to avoid dependency issues
+  const { onComplete, onError } = options
+
   useEffect(() => {
     // Only render once
     if (hasRendered.current) {
@@ -75,12 +78,12 @@ export const usePagedRender = (options: UsePagedRenderOptions = {}) => {
 
         setIsComplete(true)
         setIsRendering(false)
-        options.onComplete?.()
+        onComplete?.()
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err))
         setError(error)
         setIsRendering(false)
-        options.onError?.(error)
+        onError?.(error)
       }
     }
 
@@ -88,7 +91,7 @@ export const usePagedRender = (options: UsePagedRenderOptions = {}) => {
     const timer = setTimeout(renderPages, 300)
 
     return () => clearTimeout(timer)
-  }, [options])
+  }, [onComplete, onError])
 
   return { isRendering, isComplete, error }
 }

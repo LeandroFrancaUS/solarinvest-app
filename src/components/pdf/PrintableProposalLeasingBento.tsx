@@ -52,14 +52,34 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
 
   // Calculate accumulated savings
   const calcularEconomiaAcumulada = (anos: number[]) => {
+    if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
+      return anos.map(ano => ({ ano, economia: 0 }))
+    }
+    
     return anos.map(ano => {
-      const roiAte = leasingROI.slice(0, ano)
-      const acumulado = roiAte.reduce((sum, val) => sum + val, 0)
+      const maxAno = Math.min(ano, leasingROI.length)
+      const roiAte = leasingROI.slice(0, maxAno)
+      const acumulado = roiAte.reduce((sum, val) => sum + (val || 0), 0)
       return { ano, economia: acumulado }
     })
   }
 
   const economiasPorAno = calcularEconomiaAcumulada([5, 10, 20, 30])
+
+  // Helper to sanitize text for safe rendering
+  const sanitize = (text?: string | null): string => {
+    if (!text) return ''
+    return String(text).replace(/[<>"'&]/g, (match) => {
+      const escapes: Record<string, string> = {
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+        '&': '&amp;',
+      }
+      return escapes[match] || match
+    })
+  }
 
   return (
     <div 
@@ -77,9 +97,9 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
               <p className="text-white/90 text-sm">SolarInvest - Energia Solar sob Medida</p>
             </div>
             <div className="text-right text-white/90 text-sm">
-              {budgetId && <p className="font-semibold">Proposta #{budgetId}</p>}
-              <p>{cliente.nome}</p>
-              {cliente.cidade && cliente.uf && <p>{cliente.cidade}, {cliente.uf}</p>}
+              {budgetId && <p className="font-semibold">Proposta #{sanitize(budgetId)}</p>}
+              <p>{sanitize(cliente.nome)}</p>
+              {cliente.cidade && cliente.uf && <p>{sanitize(cliente.cidade)}, {sanitize(cliente.uf)}</p>}
             </div>
           </div>
         </BentoCard>
@@ -315,19 +335,19 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
               <div>
                 <p className="text-xs text-slate-500 mb-1">Conta Distribuidora (atual)</p>
                 <p className="text-2xl font-bold text-red-600">
-                  {parcelasLeasing[0] ? formatMoneyBR(parcelasLeasing[0].mensalidadeCheia) : '—'}
+                  {(parcelasLeasing && parcelasLeasing.length > 0) ? formatMoneyBR(parcelasLeasing[0].mensalidadeCheia) : '—'}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 mb-1">Com SolarInvest</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {parcelasLeasing[0] ? formatMoneyBR(parcelasLeasing[0].mensalidade) : '—'}
+                  {(parcelasLeasing && parcelasLeasing.length > 0) ? formatMoneyBR(parcelasLeasing[0].mensalidade) : '—'}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 mb-1">Economia Mensal</p>
                 <p className="text-2xl font-bold text-solar-brand">
-                  {parcelasLeasing[0] 
+                  {(parcelasLeasing && parcelasLeasing.length > 0)
                     ? formatMoneyBR(parcelasLeasing[0].mensalidadeCheia - parcelasLeasing[0].mensalidade)
                     : '—'
                   }
