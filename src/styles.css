@@ -1674,6 +1674,111 @@ textarea::placeholder {
   opacity: 1;
 }
 
+.city-select {
+  position: relative;
+  width: 100%;
+}
+
+.city-select details {
+  position: relative;
+  width: 100%;
+}
+
+.city-select summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-h);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text-base);
+  padding: 10px 12px;
+  font-size: max(14px, var(--font-m));
+  cursor: pointer;
+  list-style: none;
+}
+
+.city-select summary::-webkit-details-marker {
+  display: none;
+}
+
+.city-select summary::after {
+  content: '▾';
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.city-select details[open] summary {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.city-select-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.15);
+}
+
+.city-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.city-select-option {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-base);
+  font-size: 14px;
+}
+
+.city-select-option:hover,
+.city-select-option:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.city-select-option.is-selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.city-select-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 6px 4px;
+}
+
+.city-select.is-disabled summary {
+  cursor: not-allowed;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--input-bg) 80%, var(--surface) 20%);
+}
+
+.city-select.is-disabled summary::after {
+  color: var(--text-muted);
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
