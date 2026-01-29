@@ -24,7 +24,7 @@
     "vercel-prebuild": "rm -rf node_modules package-lock.json && npm install",
     "vercel-clean": "rm -rf node_modules .next dist .turbo",
     "prepush": "npm run lint && npm run typecheck && npm run check:cycles && npm run test",
-    "postinstall": "node scripts/clean-esbuild.mjs"
+    "postinstall": "node scripts/clean-esbuild.mjs && node scripts/copy-pagedjs-polyfill.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
@@ -49,13 +49,17 @@
     "@typescript-eslint/eslint-plugin": "^8.11.0",
     "@typescript-eslint/parser": "^8.11.0",
     "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.23",
     "esbuild": "^0.27.1",
     "eslint": "^9.14.0",
     "eslint-plugin-import": "^2.31.0",
     "husky": "^9.1.6",
     "madge": "^8.0.0",
+    "pagedjs": "^0.4.3",
+    "postcss": "^8.5.6",
     "process": "^0.11.10",
     "rollup": "4.52.4",
+    "tailwindcss": "^4.1.18",
     "terser": "^5.33.0",
     "typescript": "^5.6.3",
     "vite": "^7.2.7",
