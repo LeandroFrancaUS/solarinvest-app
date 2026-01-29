@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo } from 'react'
 
 import './styles/print-common.css'
 import './styles/proposal-leasing.css'
@@ -12,6 +12,9 @@ import type { PrintableProposalProps } from '../../types/printableProposal'
 import { TIPO_BASICO_LABELS } from '../../types/tipoBasico'
 import PrintableProposalImages from './PrintableProposalImages'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
+import { LayoutContainer } from './bento/LayoutContainer'
+import { BentoCard } from './bento/BentoCard'
+import { initializePagedJS } from '../../lib/pagedjs-integration'
 import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
@@ -1004,15 +1007,22 @@ function PrintableProposalLeasingInner(
       .filter(Boolean)
   }, [configuracaoUsinaObservacoesTexto])
 
+  useEffect(() => {
+    initializePagedJS().catch((error) => {
+      console.error('[PrintableProposalLeasing] PagedJS initialization failed:', error)
+    })
+  }, [])
+
   return (
-    <div ref={ref} className="print-root">
+    <div ref={ref} className="print-root bg-slate-50">
       <div
         className="print-layout leasing-print-layout"
         data-print-section="proposal"
         aria-hidden="false"
+        data-testid="proposal-bento-root"
       >
-        <div className="print-page">
-          <section className="print-section print-section--hero avoid-break">
+        <LayoutContainer className="print-page">
+          <BentoCard colSpan={12} className="print-section--hero break-inside-avoid bg-white rounded-3xl shadow">
             <div className="print-hero">
               <div className="print-hero__header">
                 <div className="print-hero__identity">
@@ -1092,10 +1102,10 @@ function PrintableProposalLeasingInner(
                 </div>
               </div>
             </div>
-          </section>
+          </BentoCard>
     
           {resumoCampos.length > 0 ? (
-            <section className="print-section keep-together avoid-break">
+            <BentoCard colSpan={12} className="print-section break-inside-avoid bg-white rounded-3xl shadow">
               <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
               <ClientInfoGrid
                 fields={resumoCampos}
@@ -1103,10 +1113,10 @@ function PrintableProposalLeasingInner(
                 fieldClassName="print-client-field"
                 wideFieldClassName="print-client-field--wide"
               />
-            </section>
+            </BentoCard>
           ) : null}
 
-          <section className="print-section keep-together avoid-break">
+          <BentoCard colSpan={8} className="print-section break-inside-avoid bg-white rounded-3xl shadow">
             <h2 className="section-title keep-with-next">Dados da Instalação</h2>
             <div className="print-uc-details">
               <div className="print-uc-geradora">
@@ -1139,15 +1149,16 @@ function PrintableProposalLeasingInner(
                 </div>
               ) : null}
             </div>
-          </section>
+          </BentoCard>
 
-          <section
+          <BentoCard
+            colSpan={4}
             id="resumo-proposta"
-            className="print-section keep-together avoid-break page-break-before break-after"
+            className="print-section break-inside-avoid bg-white rounded-3xl shadow"
           >
-            <h2 className="section-title keep-with-next">Resumo da Proposta</h2>
+            <h2 className="section-title keep-with-next">Resumo</h2>
             <p className="section-subtitle keep-with-next">
-              Tudo o que você precisa saber — de forma simples e transparente.
+              Tudo o que você precisa saber.
             </p>
               <table className="no-break-inside">
               <thead>
@@ -1165,9 +1176,9 @@ function PrintableProposalLeasingInner(
               ))}
             </tbody>
             </table>
-          </section>
+          </BentoCard>
     
-          <section className="print-section keep-together avoid-break">
+          <BentoCard colSpan={12} className="print-section break-inside-avoid bg-white rounded-3xl shadow">
             <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
             <p className="section-subtitle keep-with-next">Especificações da usina projetada</p>
             <table className="no-break-inside">
@@ -1187,11 +1198,12 @@ function PrintableProposalLeasingInner(
               </tbody>
             </table>
             <p className="muted print-footnote print-footnote--spaced">{AVISO_ESPECIFICACOES}</p>
-          </section>
+          </BentoCard>
     
-          <section
+          <BentoCard
+            colSpan={12}
             id="condicoes-financeiras"
-            className="print-section keep-together avoid-break page-break-before break-after"
+            className="print-section break-inside-avoid bg-white rounded-3xl shadow"
           >
             <h2 className="section-title keep-with-next">Condições Financeiras do Leasing</h2>
             <p className="section-subtitle keep-with-next">Valores projetados e vigência contratual</p>
@@ -1214,10 +1226,10 @@ function PrintableProposalLeasingInner(
             {avisoMensalidadeCondicoes ? (
               <p className="muted print-footnote print-footnote--spaced">{avisoMensalidadeCondicoes}</p>
             ) : null}
-          </section>
+          </BentoCard>
     
           {multiUcResumoDados ? (
-            <section id="multi-uc" className="print-section keep-together">
+            <BentoCard colSpan={12} id="multi-uc" className="print-section break-inside-avoid bg-white rounded-3xl shadow">
               <h2 className="section-title keep-with-next">Cenário Misto (Multi-UC)</h2>
               <p className="section-subtitle keep-with-next">
                 Distribuição dos créditos de energia entre unidades consumidoras
@@ -1307,10 +1319,10 @@ function PrintableProposalLeasingInner(
                 TUSD não compensável calculada sobre a energia compensada de cada UC conforme Lei 14.300/2022 e
                 escalonamento vigente.
               </p>
-            </section>
+            </BentoCard>
           ) : null}
     
-            <section className="print-section keep-together avoid-break">
+            <BentoCard colSpan={12} className="print-section break-inside-avoid bg-white rounded-3xl shadow">
               <h2 className="section-title keep-with-next">Economia Gerada com a Solução SolarInvest</h2>
               <p className="section-subtitle keep-with-next">Valores estimados por período contratual</p>
             <table className="no-break-inside leasing-economia-table">
@@ -1430,11 +1442,12 @@ function PrintableProposalLeasingInner(
               </p>
             </div>
             {avisoMensalidadeEvolucao ? <p>{avisoMensalidadeEvolucao}</p> : null}
-          </section>
+          </BentoCard>
 
-          <section
+          <BentoCard
+            colSpan={12}
             id="economia-30-anos"
-            className="print-section keep-together page-break-before break-after"
+            className="print-section break-inside-avoid bg-white rounded-3xl shadow"
           >
             <h2 className="section-title keep-with-next">Análise Financeira da Economia Gerada</h2>
             {economiaProjetadaGrafico.length ? (
@@ -1477,14 +1490,15 @@ function PrintableProposalLeasingInner(
                 Não há dados suficientes para projetar a economia acumulada desta proposta.
               </p>
             )}
-          </section>
+          </BentoCard>
 
           <PrintableProposalImages images={imagensInstalacao} />
 
           {configuracaoUsinaObservacoesParagrafos.length > 0 ? (
-            <section
+            <BentoCard
+              colSpan={12}
               id="observacoes-configuracao"
-              className="print-section keep-together avoid-break"
+              className="print-section break-inside-avoid bg-white rounded-3xl shadow"
             >
               <h2 className="section-title keep-with-next">Observações</h2>
               <div className="print-observacoes no-break-inside">
@@ -1507,12 +1521,13 @@ function PrintableProposalLeasingInner(
                   )
                 })}
               </div>
-            </section>
+            </BentoCard>
           ) : null}
 
-          <section
+          <BentoCard
+            colSpan={12}
             id="infos-importantes"
-            className="print-section print-important keep-together page-break-before break-after"
+            className="print-section print-important break-inside-avoid page-break-before break-after bg-white rounded-3xl shadow"
           >
             <h2 className="section-title keep-with-next">Informações Importantes</h2>
             <p className="section-subtitle keep-with-next">
@@ -1603,9 +1618,9 @@ function PrintableProposalLeasingInner(
             {informacoesImportantesObservacaoTexto ? (
               <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
             ) : null}
-          </section>
+          </BentoCard>
     
-          <section className="print-section print-section--footer no-break-inside avoid-break">
+          <BentoCard colSpan={12} className="print-section--footer break-inside-avoid bg-white rounded-3xl shadow">
             <footer className="print-final-footer no-break-inside">
               <div className="print-final-footer__dates">
                 <p>
@@ -1635,8 +1650,8 @@ function PrintableProposalLeasingInner(
               <strong>SolarInvest</strong>
               <span>Transformando sua economia mensal em patrimônio real</span>
             </div>
-          </section>
-        </div>
+          </BentoCard>
+        </LayoutContainer>
       </div>
     </div>
   )

@@ -81,7 +81,7 @@
 
 .print-hero__eyebrow {
   font-size: 12px;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 600;
   color: rgba(248, 250, 252, 0.74);
@@ -125,13 +125,13 @@ html[data-print-mode='print'] .print-hero__title h1 {
   font-size: 14px;
   line-height: 1.6;
   color: rgba(248, 250, 252, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 0;
 }
 
 .print-hero__summary h2 {
   margin: 0 0 12px;
   font-size: 18px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #f8fafc;
 }
@@ -153,7 +153,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
   margin: 0;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: rgba(12, 22, 44, 0.62);
 }
@@ -183,10 +183,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-section {
   margin-bottom: 30px;
   background: #ffffff;
-  border-radius: 28px;
+  border-radius: 0;
   padding: 30px 34px;
-  box-shadow: 0 20px 44px rgba(12, 22, 44, 0.12);
-  border: 1px solid rgba(12, 22, 44, 0.08);
+  box-shadow: none;
+  border: 0;
   break-inside: avoid-page;
   page-break-inside: avoid;
   -webkit-column-break-inside: avoid;
@@ -224,11 +224,11 @@ html[data-print-mode='print'] .print-hero__title h1 {
   flex-direction: column;
   gap: 10px;
   padding: 24px;
-  border-radius: 24px;
+  border-radius: 0;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   color: #f8fafc;
-  box-shadow: 0 18px 42px rgba(12, 22, 44, 0.18);
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: none;
+  border: 0;
 }
 
 .print-value-card--highlight {
@@ -240,7 +240,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-value-card span {
   font-size: 12px;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 600;
   color: rgba(248, 250, 252, 0.72);
@@ -373,10 +373,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-key-values p {
   margin: 0;
   padding: 18px 20px;
-  border-radius: 22px;
+  border-radius: 0;
   background: rgba(12, 22, 44, 0.03);
-  border: 1px solid rgba(12, 22, 44, 0.1);
-  box-shadow: 0 12px 26px rgba(12, 22, 44, 0.08);
+  border: 0;
+  box-shadow: none;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -384,7 +384,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-key-values strong {
   display: block;
   font-size: 11px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #0c162c;
   margin-bottom: 6px;
@@ -439,11 +439,11 @@ html[data-print-mode='print'] .print-hero__title h1 {
 }
 
 .print-card {
-  border-radius: 26px;
-  border: 1px solid rgba(12, 22, 44, 0.1);
+  border-radius: 0;
+  border: 0;
   background: linear-gradient(135deg, #f8fafc 0%, #e9eef6 100%);
   padding: 26px 28px;
-  box-shadow: 0 18px 40px rgba(12, 22, 44, 0.14);
+  box-shadow: none;
 }
 
 .print-card h3 {
@@ -464,10 +464,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
   flex-direction: column;
   gap: 12px;
   padding: 20px 22px;
-  border-radius: 22px;
+  border-radius: 0;
   background: rgba(12, 22, 44, 0.04);
-  border: 1px solid rgba(12, 22, 44, 0.12);
-  box-shadow: 0 12px 26px rgba(12, 22, 44, 0.12);
+  border: 0;
+  box-shadow: none;
 }
 
 .print-horizontal-chart {
@@ -476,10 +476,10 @@ html[data-print-mode='print'] .print-hero__title h1 {
   flex-direction: column;
   gap: 16px;
   padding: 22px 24px;
-  border-radius: 20px;
+  border-radius: 0;
   background: linear-gradient(135deg, #fff7ed 0%, #ffe8d8 100%);
-  border: 1px solid rgba(249, 115, 22, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.86);
+  border: 0;
+  box-shadow: none;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
@@ -494,7 +494,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-horizontal-chart__header-row {
   font-size: 11px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #c2410c;
 }
@@ -621,7 +621,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-yearly-payments__year-label {
   font-size: 11px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(12, 22, 44, 0.6);
 }
@@ -649,7 +649,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 .print-yearly-payments__metrics dt {
   margin: 0;
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: rgba(12, 22, 44, 0.55);
 }
@@ -789,7 +789,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
 .print-brand-footer strong {
   font-size: 13px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: inherit !important;
 }
@@ -820,8 +820,8 @@ html[data-print-mode='print'] .print-hero__title h1 {
     [data-print-mode='download']
   ) .print-section {
   background: #ffffff !important;
-  border-radius: 4px !important;
-  border: 1px solid #e5e7eb !important;
+  border-radius: 0 !important;
+  border: 0 !important;
   box-shadow: none !important;
   padding: 8mm !important;
 }
@@ -947,7 +947,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
   .print-key-values p {
   background: #ffffff !important;
   color: #111827 !important;
-  border: 1px solid #e5e7eb !important;
+  border: 0 !important;
   box-shadow: none !important;
 }
 
@@ -1037,8 +1037,8 @@ html[data-print-mode='print'] .print-hero__title h1 {
 
   .print-section {
     background: #ffffff !important;
-    border-radius: 4px !important;
-    border: 1px solid #e5e7eb !important;
+    border-radius: 0 !important;
+    border: 0 !important;
     box-shadow: none !important;
     padding: 8mm !important;
   }
@@ -1080,7 +1080,7 @@ html[data-print-mode='print'] .print-hero__title h1 {
   .print-key-values p {
     background: #ffffff !important;
     color: #111827 !important;
-    border: 1px solid #e5e7eb !important;
+    border: 0 !important;
     box-shadow: none !important;
   }
 

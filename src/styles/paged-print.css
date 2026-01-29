@@ -1,0 +1,93 @@
+/**
+ * Paged.js Print Media Styles
+ * CSS @page rules and fragmentation control for PDF generation
+ */
+
+/* A4 Page Configuration with margin boxes */
+@page {
+  size: A4;
+  margin: 0;
+  
+  /* Page margin boxes - controlled internally via padding */
+  @top-left {
+    content: none;
+  }
+  @top-center {
+    content: none;
+  }
+  @top-right {
+    content: none;
+  }
+  @bottom-left {
+    content: none;
+  }
+  @bottom-center {
+    content: counter(page) " / " counter(pages);
+    font-size: 9pt;
+    color: #64748b;
+  }
+  @bottom-right {
+    content: none;
+  }
+}
+
+/* Body background for Bento Grid */
+body {
+  background: rgb(248 250 252); /* slate-50 */
+  margin: 0;
+  padding: 0;
+}
+
+/* Fragmentation Control */
+.pagedjs_page_content {
+  width: 210mm !important;
+  height: 297mm !important;
+}
+
+/* Prevent orphans and widows */
+p, li, td {
+  orphans: 2;
+  widows: 2;
+}
+
+/* Heading fragmentation control */
+h1, h2, h3, h4, h5, h6 {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* Table fragmentation */
+table {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+thead {
+  display: table-header-group;
+}
+
+/* Grid fragmentation - ensure Bento cards don't break awkwardly */
+.bento-card,
+.break-inside-avoid {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* Print optimization */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  /* Remove any default browser margins */
+  @page {
+    margin: 0;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+  }
+}
