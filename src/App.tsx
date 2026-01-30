@@ -1106,7 +1106,7 @@ const getDistribuidoraDefaultForUf = (uf?: string | null): string => {
     return 'Equatorial Goiás'
   }
   if (normalized === 'DF') {
-    return 'Neoenergia Brasília'
+    return 'Neoenergia Brasilia'
   }
   return ''
 }
@@ -1260,7 +1260,7 @@ const getDistribuidoraAneelEfetiva = (state: DistribuidoraAneelState): string =>
     return 'Equatorial Goiás'
   }
   if (uf === 'DF') {
-    return 'Neoenergia Brasília'
+    return 'Neoenergia Brasilia'
   }
   return ''
 }
