@@ -16,10 +16,8 @@ export type ClienteRegistroSyncPayload = {
   dados: {
     nome: string
     documento: string
-    rg: string
     estadoCivil: string
     nacionalidade: string
-    profissao: string
     representanteLegal: string
     email: string
     telefone: string

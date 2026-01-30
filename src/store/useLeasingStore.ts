@@ -47,7 +47,6 @@ export type LeasingEndereco = {
 export type LeasingUcGeradoraTitular = {
   nomeCompleto: string
   cpf: string
-  rg: string
   endereco: LeasingEndereco
 }
 

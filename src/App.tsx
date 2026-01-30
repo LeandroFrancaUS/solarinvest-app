@@ -70,7 +70,6 @@ import {
   saveProposalSnapshotById,
   loadProposalSnapshotById,
 } from './lib/persist/proposalStore'
-import { cidadesPorUF } from './data/cidadesPorUF'
 import {
   upsertClienteRegistro,
   getClienteRegistroById,
@@ -1037,7 +1036,6 @@ type UcBeneficiariaFormState = {
 type UcGeradoraTitularErrors = {
   nomeCompleto?: string
   cpf?: string
-  rg?: string
   logradouro?: string
   cidade?: string
   uf?: string
@@ -1063,10 +1061,8 @@ const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
   documento: '',
-  rg: '',
   estadoCivil: '',
   nacionalidade: '',
-  profissao: '',
   representanteLegal: '',
   email: '',
   telefone: '',
@@ -1191,7 +1187,6 @@ const createEmptyUcGeradoraTitularEndereco = (): LeasingEndereco => ({
 const createEmptyUcGeradoraTitular = (): LeasingUcGeradoraTitular => ({
   nomeCompleto: '',
   cpf: '',
-  rg: '',
   endereco: createEmptyUcGeradoraTitularEndereco(),
 })
 
@@ -1256,7 +1251,6 @@ const getDistribuidoraAneelEfetiva = (state: DistribuidoraAneelState): string =>
 type ProcuracaoTags = {
   procuracaoNome: string
   procuracaoCPF: string
-  procuracaoRG: string
   procuracaoEndereco: string
 }
 
@@ -1312,7 +1306,6 @@ const buildProcuracaoTags = ({
     const camposObrigatorios = [
       titular?.nomeCompleto?.trim(),
       titular?.cpf?.trim(),
-      titular?.rg?.trim(),
       endereco?.logradouro?.trim(),
       endereco?.cidade?.trim(),
       endereco?.uf?.trim(),
@@ -1327,7 +1320,6 @@ const buildProcuracaoTags = ({
     return {
       procuracaoNome: titular?.nomeCompleto?.trim() ?? '',
       procuracaoCPF: formatCpfCnpj(titular?.cpf ?? ''),
-      procuracaoRG: titular?.rg?.trim() ?? '',
       procuracaoEndereco: formatEndereco(endereco),
     }
   }
@@ -1335,7 +1327,6 @@ const buildProcuracaoTags = ({
   return {
     procuracaoNome: cliente.nome?.trim() ?? '',
     procuracaoCPF: formatCpfCnpj(cliente.documento ?? ''),
-    procuracaoRG: cliente.rg?.trim() ?? '',
     procuracaoEndereco: formatEndereco({
       logradouro: cliente.endereco ?? '',
       cidade: cliente.cidade ?? '',
@@ -1974,10 +1965,8 @@ const CLIENTES_CSV_HEADERS: { key: string; label: string }[] = [
   { key: 'atualizadoEm', label: 'atualizado_em' },
   { key: 'nome', label: 'nome' },
   { key: 'documento', label: 'documento' },
-  { key: 'rg', label: 'rg' },
   { key: 'estadoCivil', label: 'estado_civil' },
   { key: 'nacionalidade', label: 'nacionalidade' },
-  { key: 'profissao', label: 'profissao' },
   { key: 'representanteLegal', label: 'representante_legal' },
   { key: 'email', label: 'email' },
   { key: 'telefone', label: 'telefone' },
@@ -2013,10 +2002,8 @@ const CSV_HEADER_KEY_MAP: Record<string, string> = {
   documento: 'documento',
   cpfcnpj: 'documento',
   cpf_cnpj: 'documento',
-  rg: 'rg',
   estadocivil: 'estadoCivil',
   nacionalidade: 'nacionalidade',
-  profissao: 'profissao',
   representantelegal: 'representanteLegal',
   email: 'email',
   telefone: 'telefone',
@@ -2242,10 +2229,8 @@ const buildClientesCsv = (registros: ClienteRegistro[]): string => {
       atualizadoEm: registro.atualizadoEm,
       nome: dados.nome ?? '',
       documento: dados.documento ?? '',
-      rg: dados.rg ?? '',
       estadoCivil: dados.estadoCivil ?? '',
       nacionalidade: dados.nacionalidade ?? '',
-      profissao: dados.profissao ?? '',
       representanteLegal: dados.representanteLegal ?? '',
       email: dados.email ?? '',
       telefone: dados.telefone ?? '',
@@ -2334,10 +2319,8 @@ const normalizeClienteRegistros = (
       dados: {
         nome: dados?.nome ?? '',
         documento: dados?.documento ?? '',
-        rg: dados?.rg ?? '',
         estadoCivil: dados?.estadoCivil ?? '',
         nacionalidade: dados?.nacionalidade ?? '',
-        profissao: dados?.profissao ?? '',
         representanteLegal: dados?.representanteLegal ?? '',
         email: dados?.email ?? '',
         telefone: dados?.telefone ?? '',
@@ -2796,7 +2779,6 @@ const createClienteComparisonData = (dados: ClienteDados) => {
   const normalized = {
     nome: normalizeClienteString(dados.nome),
     documento: normalizeClienteNumbers(dados.documento),
-    rg: normalizeClienteNumbers(dados.rg),
     email: normalizeClienteEmail(dados.email),
     telefone: normalizeClienteNumbers(dados.telefone),
     cep: normalizeClienteNumbers(dados.cep),
@@ -2819,7 +2801,6 @@ const createClienteComparisonData = (dados: ClienteDados) => {
     signature: JSON.stringify(normalized),
     nome: normalized.nome,
     documento: normalized.documento,
-    rg: normalized.rg,
     uc: normalized.uc,
     telefone: normalized.telefone,
     email: normalized.email,
@@ -4794,6 +4775,8 @@ export default function App() {
   const isApplyingUcGeradoraCepRef = useRef(false)
   const lastUcGeradoraCepAppliedRef = useRef<string>('')
   const cepCidadeAvisoRef = useRef<string | null>(null)
+  const ibgeMunicipiosCacheRef = useRef<Record<string, string[]>>({})
+  const ibgeMunicipiosInFlightRef = useRef<Record<string, Promise<string[]>>>({})
   const budgetIdMismatchLoggedRef = useRef(false)
   const novaPropostaEmAndamentoRef = useRef(false)
   const lastUfSelecionadaRef = useRef<string>(cliente.uf)
@@ -4822,11 +4805,72 @@ export default function App() {
   )
 
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+  const [cidadesIbgePorUf, setCidadesIbgePorUf] = useState<Record<string, string[]>>({})
+  const [cidadesIbgeLoading, setCidadesIbgeLoading] = useState<Record<string, boolean>>({})
+  const [cidadesIbgeErro, setCidadesIbgeErro] = useState<Record<string, string | null>>({})
   const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
   const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
   const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
+
+  const loadIbgeMunicipios = useCallback(
+    async (ufRaw: string, signal?: AbortSignal): Promise<string[]> => {
+      const uf = ufRaw.trim().toUpperCase()
+      if (!uf) {
+        return []
+      }
+
+      const cached = ibgeMunicipiosCacheRef.current[uf]
+      if (cached) {
+        return cached
+      }
+
+      if (!signal && ibgeMunicipiosInFlightRef.current[uf]) {
+        return ibgeMunicipiosInFlightRef.current[uf]
+      }
+
+      const promise = (async () => {
+        setCidadesIbgeLoading((prev) => ({ ...prev, [uf]: true }))
+        setCidadesIbgeErro((prev) => ({ ...prev, [uf]: null }))
+        try {
+          const response = await fetch(
+            `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`,
+            { signal },
+          )
+          if (!response.ok) {
+            throw new Error('Falha ao buscar municípios no IBGE.')
+          }
+          const data: IbgeMunicipio[] = await response.json()
+          const lista = Array.isArray(data)
+            ? data
+                .map((municipio) => municipio?.nome?.trim() ?? '')
+                .filter(Boolean)
+            : []
+          ibgeMunicipiosCacheRef.current[uf] = lista
+          setCidadesIbgePorUf((prev) => ({ ...prev, [uf]: lista }))
+          return lista
+        } catch (error) {
+          if (!(error instanceof DOMException) || error.name !== 'AbortError') {
+            setCidadesIbgeErro((prev) => ({
+              ...prev,
+              [uf]: 'Não foi possível carregar os municípios do IBGE.',
+            }))
+          }
+          return []
+        } finally {
+          setCidadesIbgeLoading((prev) => ({ ...prev, [uf]: false }))
+          delete ibgeMunicipiosInFlightRef.current[uf]
+        }
+      })()
+
+      if (!signal) {
+        ibgeMunicipiosInFlightRef.current[uf] = promise
+      }
+      return promise
+    },
+    [],
+  )
 
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
@@ -4841,8 +4885,8 @@ export default function App() {
   const clienteUfNormalizada = cliente.uf.trim().toUpperCase()
   const cidadesDisponiveis = useMemo(() => {
     if (!clienteUfNormalizada) return [] as string[]
-    return cidadesPorUF[clienteUfNormalizada] ?? []
-  }, [clienteUfNormalizada])
+    return cidadesIbgePorUf[clienteUfNormalizada] ?? []
+  }, [cidadesIbgePorUf, clienteUfNormalizada])
   const cidadesFiltradas = useMemo(() => {
     const termo = normalizeText(cidadeSearchTerm.trim())
     if (!termo) {
@@ -4850,6 +4894,21 @@ export default function App() {
     }
     return cidadesDisponiveis.filter((cidade) => normalizeText(cidade).includes(termo))
   }, [cidadeSearchTerm, cidadesDisponiveis])
+  const cidadeSearchNormalized = normalizeText(cidadeSearchTerm.trim())
+  const cidadeExisteNaLista = Boolean(
+    cidadeSearchNormalized &&
+      cidadesDisponiveis.some((cidade) => normalizeText(cidade) === cidadeSearchNormalized),
+  )
+  const cidadesIbgeCarregando = Boolean(
+    clienteUfNormalizada && cidadesIbgeLoading[clienteUfNormalizada],
+  )
+
+  useEffect(() => {
+    if (!clienteUfNormalizada) {
+      return
+    }
+    loadIbgeMunicipios(clienteUfNormalizada).catch(() => undefined)
+  }, [clienteUfNormalizada, loadIbgeMunicipios])
   const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
   const distribuidoraAneelEfetiva = useMemo(
     () =>
@@ -4892,6 +4951,12 @@ export default function App() {
     if (!ucGeradoraTitularUf) return [] as string[]
     return distribuidorasPorUf[ucGeradoraTitularUf] ?? []
   }, [distribuidorasPorUf, ucGeradoraTitularUf])
+  useEffect(() => {
+    if (!ucGeradoraTitularUf) {
+      return
+    }
+    loadIbgeMunicipios(ucGeradoraTitularUf).catch(() => undefined)
+  }, [loadIbgeMunicipios, ucGeradoraTitularUf])
   const disableClienteDistribuidora = isTitularDiferente
   const disableTitularDistribuidora = !isTitularDiferente
   const clienteDistribuidoraDisabled =
@@ -5856,13 +5921,15 @@ export default function App() {
         cliente,
         segmentoCliente,
         tipoEdificacaoOutro,
-        leasingContrato,
+        kcKwhMes,
+        tarifaCheia,
+        tipoRede,
       }
       return mode === 'venda'
         ? buildRequiredFieldsVenda(input)
         : buildRequiredFieldsLeasing(input)
     },
-    [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato],
+    [cliente, segmentoCliente, tipoEdificacaoOutro, kcKwhMes, tarifaCheia, tipoRede],
   )
 
   const validateConsumoMinimoLeasing = useCallback(
@@ -5939,33 +6006,19 @@ export default function App() {
   )
 
   const validateClienteParaSalvar = useCallback(() => {
-    const nomeCliente = cliente.nome?.trim() ?? ''
-    if (!nomeCliente) {
-      adicionarNotificacao('Informe o Nome ou Razão Social para salvar o cliente.', 'error')
-      return false
-    }
-
-    if (activeTab === 'leasing' && !validateTipoRedeLeasing('Selecione o tipo de rede para salvar o cliente.')) {
-      return false
-    }
-
-    const cidadeCliente = cliente.cidade?.trim() ?? ''
-    if (!cidadeCliente) {
-      adicionarNotificacao('Informe a Cidade para salvar o cliente.', 'error')
-      return false
-    }
-
-    const consumoKwhMes = Number(kcKwhMes)
-    if (Number.isFinite(consumoKwhMes) && consumoKwhMes > 0 && consumoKwhMes < 300) {
-      adicionarNotificacao(
-        'O consumo médio do cliente está abaixo do perfil que a SolarInvest pode atender no leasing.',
-        'error',
-      )
+    clearClientHighlights()
+    const mode = activeTab === 'leasing' ? 'leasing' : 'venda'
+    const fields = buildRequiredClientFields(mode)
+    const result = validateRequiredFields(fields)
+    if (!result.ok) {
+      const orderedSelectors = fields.map((field) => field.selector)
+      highlightMissingFields(orderedSelectors, result.missingSelectors)
+      adicionarNotificacao('Preencha os campos obrigatórios destacados.', 'error')
       return false
     }
 
     return true
-  }, [activeTab, adicionarNotificacao, cliente.cidade, cliente.nome, kcKwhMes, validateTipoRedeLeasing])
+  }, [activeTab, adicionarNotificacao, buildRequiredClientFields])
 
   useEffect(() => {
     if (!isVendaDiretaTab) {
@@ -9624,7 +9677,6 @@ export default function App() {
         ? {
             nomeCompleto: sanitizeText(leasingContrato.ucGeradoraTitular?.nomeCompleto) ?? '',
             cpf: sanitizeText(leasingContrato.ucGeradoraTitular?.cpf) ?? '',
-            rg: sanitizeText(leasingContrato.ucGeradoraTitular?.rg) ?? '',
             endereco: ucGeradoraTitularEndereco ?? '',
           }
         : null
@@ -13273,14 +13325,13 @@ export default function App() {
         const documentoIgual =
           novoComparacao.documento &&
           novoComparacao.documento === existenteComparacao.documento
-        const rgIgual = novoComparacao.rg && novoComparacao.rg === existenteComparacao.rg
 
         if (novoComparacao.signature === existenteComparacao.signature) {
           registroCorrespondente = registro
           break
         }
 
-        if (documentoIgual || rgIgual) {
+        if (documentoIgual) {
           registroCorrespondente = registro
           break
         }
@@ -13601,10 +13652,8 @@ export default function App() {
           const clienteNormalizado: ClienteDados = {
             nome: clienteDados.nome ?? '',
             documento: clienteDados.documento ?? '',
-            rg: clienteDados.rg ?? '',
             estadoCivil: clienteDados.estadoCivil ?? '',
             nacionalidade: clienteDados.nacionalidade ?? '',
-            profissao: clienteDados.profissao ?? '',
             representanteLegal: clienteDados.representanteLegal ?? '',
             email: clienteDados.email ?? '',
             telefone: clienteDados.telefone ?? '',
@@ -13647,12 +13696,11 @@ export default function App() {
                 : ''
             const cpf =
               typeof dados.ucGeradoraTitular.cpf === 'string' ? dados.ucGeradoraTitular.cpf : ''
-            const rg = typeof dados.ucGeradoraTitular.rg === 'string' ? dados.ucGeradoraTitular.rg : ''
             const endereco =
               typeof dados.ucGeradoraTitular.endereco === 'string'
                 ? dados.ucGeradoraTitular.endereco
                 : ''
-            dadosNormalizados.ucGeradoraTitular = { nomeCompleto, cpf, rg, endereco }
+            dadosNormalizados.ucGeradoraTitular = { nomeCompleto, cpf, endereco }
           } else {
             delete dadosNormalizados.ucGeradoraTitular
           }
@@ -15146,9 +15194,6 @@ export default function App() {
     const titularUcGeradoraCpf = ucGeradoraTitularAtivo
       ? titularUcGeradora?.cpf?.trim() ?? ''
       : cliente.documento?.trim() ?? ''
-    const titularUcGeradoraRg = ucGeradoraTitularAtivo
-      ? titularUcGeradora?.rg?.trim() ?? ''
-      : cliente.rg?.trim() ?? ''
 
     let procuracaoTags: ProcuracaoTags
     try {
@@ -15166,10 +15211,8 @@ export default function App() {
       ...dadosBase,
       cpfCnpj: formatCpfCnpj(dadosBase.cpfCnpj),
       // Additional personal/company information
-      rg: cliente.rg?.trim() || '',
       estadoCivil: cliente.estadoCivil?.trim() || '',
       nacionalidade: cliente.nacionalidade?.trim() || '',
-      profissao: cliente.profissao?.trim() || '',
       // representanteLegal for companies
       representanteLegal: cliente.representanteLegal?.trim() || '',
       // cnpj is mapped from the main documento field for template compatibility
@@ -15201,7 +15244,6 @@ export default function App() {
       ucGeradoraTitularDiferente: ucGeradoraTitularAtivo,
       titularUcGeradoraNomeCompleto: titularUcGeradoraNomeCompleto,
       titularUcGeradoraCPF: formatCpfCnpj(titularUcGeradoraCpf),
-      titularUcGeradoraRG: titularUcGeradoraRg,
       titularUcGeradoraEndereco: titularUcGeradoraEndereco,
       ...procuracaoTags,
     }
@@ -16907,9 +16949,6 @@ export default function App() {
     if (!draft.cpf.trim()) {
       errors.cpf = 'Informe o CPF.'
     }
-    if (!draft.rg.trim()) {
-      errors.rg = 'Informe o RG.'
-    }
     if (!draft.endereco.cep.trim()) {
       errors.cep = 'Informe o CEP.'
     }
@@ -17169,12 +17208,9 @@ export default function App() {
         const base = clienteRef.current ?? cliente
         const enderecoAtual = base.endereco?.trim() ?? ''
         const patch: Partial<ClienteDados> = {}
-        const cidadesDaUf = uf ? cidadesPorUF[uf] ?? [] : []
+        const cidadesDaUf = uf ? await loadIbgeMunicipios(uf, controller.signal) : []
         const cidadeNormalizada = normalizeText(localidade)
         const cidadeAtual = base.cidade?.trim() ?? ''
-        const cidadeAtualNaLista = cidadesDaUf.some(
-          (cidade) => normalizeText(cidade) === normalizeText(cidadeAtual),
-        )
         const cidadeEncontrada = cidadesDaUf.find(
           (cidade) => normalizeText(cidade) === cidadeNormalizada,
         )
@@ -17187,9 +17223,13 @@ export default function App() {
         if (cidadeEncontrada && cidadeEncontrada !== base.cidade) {
           patch.cidade = cidadeEncontrada
         } else if (localidade && uf && !cidadeEncontrada) {
-          avisoCidade = 'Cidade do CEP não encontrada na lista. Selecione manualmente.'
-          if (uf !== base.uf && !cidadeAtualNaLista) {
-            patch.cidade = ''
+          if (cidadesDaUf.length === 0) {
+            avisoCidade = 'Não foi possível validar a cidade no IBGE. Informe manualmente.'
+            if (!cidadeAtual) {
+              patch.cidade = localidade
+            }
+          } else {
+            avisoCidade = 'Cidade do CEP não encontrada na base do IBGE. Informe manualmente.'
           }
         }
 
@@ -17254,7 +17294,7 @@ export default function App() {
       controller.abort()
       window.clearTimeout(timeoutId)
     }
-  }, [cliente.cep, distribuidorasPorUf])
+  }, [cliente.cep, distribuidorasPorUf, loadIbgeMunicipios])
 
   useEffect(() => {
     const draft = leasingContrato.ucGeradoraTitularDraft
@@ -17302,13 +17342,28 @@ export default function App() {
         const logradouro = data?.logradouro?.trim() ?? ''
         const localidade = data?.cidade?.trim() ?? ''
         const uf = data?.uf?.trim().toUpperCase() ?? ''
+        const cidadesDaUf = uf ? await loadIbgeMunicipios(uf, controller.signal) : []
+        const cidadeNormalizada = normalizeText(localidade)
+        const cidadeEncontrada = cidadesDaUf.find(
+          (cidade) => normalizeText(cidade) === cidadeNormalizada,
+        )
+        let avisoCidade: string | undefined
 
         const patchEndereco: Partial<LeasingEndereco> = {}
         if (logradouro && !draft.endereco.logradouro.trim()) {
           patchEndereco.logradouro = logradouro
         }
-        if (localidade && localidade !== draft.endereco.cidade) {
-          patchEndereco.cidade = localidade
+        if (cidadeEncontrada && cidadeEncontrada !== draft.endereco.cidade) {
+          patchEndereco.cidade = cidadeEncontrada
+        } else if (localidade && uf && !cidadeEncontrada) {
+          if (cidadesDaUf.length === 0) {
+            avisoCidade = 'Não foi possível validar a cidade no IBGE. Informe manualmente.'
+            if (!draft.endereco.cidade.trim()) {
+              patchEndereco.cidade = localidade
+            }
+          } else {
+            avisoCidade = 'Cidade do CEP não encontrada na base do IBGE. Informe manualmente.'
+          }
         }
         if (uf && uf !== draft.endereco.uf) {
           patchEndereco.uf = uf
@@ -17318,7 +17373,7 @@ export default function App() {
         }
 
         lastUcGeradoraCepAppliedRef.current = cepNumeros
-        setUcGeradoraTitularCepMessage(undefined)
+        setUcGeradoraTitularCepMessage(avisoCidade)
       } catch (error) {
         if (!ativo || controller.signal.aborted) {
           return
@@ -17339,7 +17394,7 @@ export default function App() {
       ativo = false
       controller.abort()
     }
-  }, [leasingContrato.ucGeradoraTitularDraft, updateUcGeradoraTitularDraft])
+  }, [leasingContrato.ucGeradoraTitularDraft, loadIbgeMunicipios, updateUcGeradoraTitularDraft])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -17824,22 +17879,6 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'RG',
-            'Registro Geral (documento de identidade) do contratante pessoa física.',
-          )}
-        >
-          <input
-            data-field="cliente-rg"
-            value={cliente.rg || ''}
-            onChange={(e) => {
-              handleClienteChange('rg', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            placeholder="00.000.000-0"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
             'Estado Civil',
             'Estado civil do contratante pessoa física (solteiro, casado, divorciado, viúvo, etc.).',
           )}
@@ -17870,18 +17909,6 @@ export default function App() {
             value={cliente.nacionalidade || ''}
             onChange={(e) => handleClienteChange('nacionalidade', e.target.value)}
             placeholder="Brasileira"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Profissão',
-            'Ocupação ou profissão do contratante pessoa física.',
-          )}
-        >
-          <input
-            value={cliente.profissao || ''}
-            onChange={(e) => handleClienteChange('profissao', e.target.value)}
-            placeholder="Ex: Engenheiro, Advogado, Empresário"
           />
         </Field>
         <Field
@@ -17990,7 +18017,35 @@ export default function App() {
                   disabled={!cliente.uf.trim()}
                 />
                 <div className="city-select-list" role="listbox">
-                  {cidadesFiltradas.length > 0 ? (
+                  {cidadeSearchNormalized && !cidadeExisteNaLista ? (
+                    <button
+                      type="button"
+                      className="city-select-option"
+                      role="option"
+                      aria-selected="false"
+                      onClick={() => {
+                        const cidadeManual = cidadeSearchTerm.trim()
+                        if (!cidadeManual) {
+                          return
+                        }
+                        handleClienteChange('cidade', cidadeManual)
+                        setCidadeSearchTerm('')
+                        setCidadeSelectOpen(false)
+                        cepCidadeAvisoRef.current = null
+                        setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
+                        clearFieldHighlight(
+                          document.querySelector('[data-field="cliente-cidade"]') as
+                            | HTMLElement
+                            | null,
+                        )
+                      }}
+                    >
+                      Usar “{cidadeSearchTerm.trim()}”
+                    </button>
+                  ) : null}
+                  {cidadesIbgeCarregando ? (
+                    <div className="city-select-empty">Carregando cidades do IBGE...</div>
+                  ) : cidadesFiltradas.length > 0 ? (
                     cidadesFiltradas.map((cidade) => {
                       const selecionada = cidade === cliente.cidade
                       return (
@@ -18026,7 +18081,9 @@ export default function App() {
                     })
                   ) : (
                     <div className="city-select-empty">
-                      Nenhuma cidade disponível para esta UF.
+                      {clienteUfNormalizada && cidadesIbgeErro[clienteUfNormalizada]
+                        ? cidadesIbgeErro[clienteUfNormalizada]
+                        : 'Nenhuma cidade disponível para esta UF.'}
                     </div>
                   )}
                 </div>
@@ -18234,20 +18291,6 @@ export default function App() {
                       />
                     </Field>
                     <Field
-                      label="RG"
-                      hint={<FieldError message={ucGeradoraTitularErrors.rg} />}
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-rg"
-                        value={leasingContrato.ucGeradoraTitularDraft?.rg ?? ''}
-                        onChange={(event) => {
-                          updateUcGeradoraTitularDraft({ rg: event.target.value })
-                          clearUcGeradoraTitularError('rg')
-                        }}
-                        placeholder="RG"
-                      />
-                    </Field>
-                    <Field
                       label="CEP"
                       hint={
                         ucGeradoraTitularErrors.cep ||
@@ -18394,7 +18437,6 @@ export default function App() {
                   <div className="uc-geradora-titular-summary-info">
                     <strong>{leasingContrato.ucGeradoraTitular.nomeCompleto}</strong>
                     <span>CPF: {leasingContrato.ucGeradoraTitular.cpf}</span>
-                    <span>RG: {leasingContrato.ucGeradoraTitular.rg}</span>
                     <span>
                       {formatUcGeradoraTitularEndereco(
                         leasingContrato.ucGeradoraTitular.endereco,
@@ -19147,6 +19189,7 @@ export default function App() {
           >
             <input
               type="number"
+              data-field="cliente-consumoKwhMes"
               value={kcKwhMes}
               onChange={(e) => setKcKwhMes(Number(e.target.value) || 0, 'user')}
               onFocus={selectNumberInputOnFocus}
@@ -19175,6 +19218,7 @@ export default function App() {
             <input
               type="text"
               inputMode="decimal"
+              data-field="cliente-tarifaCheia"
               value={tarifaCheiaField.value}
               onChange={tarifaCheiaField.onChange}
               onFocus={tarifaCheiaField.onFocus}
@@ -19799,6 +19843,7 @@ export default function App() {
           )}
         >
           <select
+            data-field="cliente-tipoRede"
             value={tipoRede}
             onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
           >

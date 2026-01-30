@@ -27,7 +27,6 @@ const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /\bwhatsapp\b/i,
   /\bcnpj\b/i,
   /\bcpf\b/i,
-  /\brg\b/i,
   /\bdados do cliente\b/i,
   /\bcliente\b/i,
   /^or[cç]amento\b/i,
@@ -317,7 +316,6 @@ function PrintableProposalLeasingInner(
 
   const ucGeradoraTitularNome = ucGeradoraTitular?.nomeCompleto?.trim() || null
   const ucGeradoraTitularCpf = ucGeradoraTitular?.cpf?.trim() || null
-  const ucGeradoraTitularRg = ucGeradoraTitular?.rg?.trim() || null
   const ucGeradoraTitularEndereco = ucGeradoraTitular?.endereco?.trim() || null
   const ucGeradoraNumero = ucGeradora?.numero?.trim() || ucCliente || ''
   const ucGeradoraEnderecoBase = ucGeradoraTitularEndereco ?? ucGeradora?.endereco?.trim() ?? ''
@@ -387,8 +385,7 @@ function PrintableProposalLeasingInner(
   const ucGeradoraTitularDocumento = ucGeradoraTitularCpf
     ? `CPF: ${formatCpfCnpj(ucGeradoraTitularCpf)}`
     : null
-  const ucGeradoraTitularRgLabel = ucGeradoraTitularRg ? `RG: ${ucGeradoraTitularRg}` : null
-  const ucGeradoraTitularInfo = [ucGeradoraTitularDocumento, ucGeradoraTitularRgLabel]
+  const ucGeradoraTitularInfo = [ucGeradoraTitularDocumento]
     .filter(Boolean)
     .join(' — ')
   const ucGeradoraTitularLabel = [ucGeradoraTitularNome, ucGeradoraTitularInfo]

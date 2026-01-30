@@ -34,10 +34,8 @@ const createPrintableProps = (
   cliente: {
     nome: 'Cliente Teste',
     documento: '000.000.000-00',
-    rg: '',
     estadoCivil: '',
     nacionalidade: '',
-    profissao: '',
     representanteLegal: '',
     email: 'cliente@teste.com',
     telefone: '(41) 99999-9999',

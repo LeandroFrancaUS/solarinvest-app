@@ -73,10 +73,8 @@ export type PrintableProposalImage = {
 export type ClienteDados = {
   nome: string
   documento: string
-  rg: string
   estadoCivil: string
   nacionalidade: string
-  profissao: string
   representanteLegal: string
   email: string
   telefone: string
@@ -181,7 +179,6 @@ export type PrintableUcGeradora = {
 export type PrintableUcGeradoraTitular = {
   nomeCompleto: string
   cpf: string
-  rg: string
   endereco: string
 }
 

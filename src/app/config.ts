@@ -170,7 +170,7 @@ export const INITIAL_VALUES = {
   tipoRede: 'nenhum' as TipoRede,
   tipoInstalacao: 'fibrocimento' as TipoInstalacao,
   tipoInstalacaoOutro: '',
-  segmentoCliente: 'residencial' as SegmentoCliente,
+  segmentoCliente: '' as SegmentoCliente,
   tipoEdificacaoOutro: '',
   tipoSistema: 'ON_GRID' as TipoSistema,
   numeroModulosManual: '' as number | '',

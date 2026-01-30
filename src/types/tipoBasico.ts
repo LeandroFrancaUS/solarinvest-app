@@ -1,4 +1,5 @@
 export type TipoBasicoCliente =
+  | ''
   | 'residencial'
   | 'comercial'
   | 'cond_vertical'
@@ -9,7 +10,7 @@ export type TipoBasicoCliente =
 export function normalizeTipoBasico(
   value: string | undefined | null,
 ): TipoBasicoCliente {
-  if (!value) return 'residencial'
+  if (!value) return ''
 
   const v = value.toLowerCase()
 
@@ -28,6 +29,7 @@ export function normalizeTipoBasico(
 }
 
 export const TIPO_BASICO_LABELS: Record<TipoBasicoCliente, string> = {
+  '': 'Selecione',
   residencial: 'Residencial',
   comercial: 'Comercial',
   cond_vertical: 'Cond. Vertical',
@@ -42,6 +44,9 @@ export const TIPO_BASICO_OPTIONS = Object.entries(TIPO_BASICO_LABELS).map(([valu
 }))
 
 export const mapTipoBasicoToLabel = (value: string): string => {
+  if (!value) {
+    return 'Selecione'
+  }
   const match = TIPO_BASICO_OPTIONS.find((tipo) => tipo.value === value)
   return match ? match.label : 'Outros (texto)'
 }
