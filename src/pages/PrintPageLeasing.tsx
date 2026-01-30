@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { PrintableProposalLeasingBento } from '../components/pdf/PrintableProposalLeasingBento'
 import { usePagedRender } from '../components/pdf/usePagedRender'
+import { attachBentoValidationToWindow } from '../utils/bentoValidation'
 import type { PrintableProposalProps } from '../types/printableProposal'
 import '../styles/print-bento.css'
 
@@ -72,6 +73,11 @@ export const PrintPageLeasing: React.FC<PrintPageLeasingProps> = ({ data }) => {
     onComplete: handleComplete,
     onError: handleError,
   })
+
+  // Attach validation functions to window for Playwright
+  useEffect(() => {
+    attachBentoValidationToWindow()
+  }, [])
 
   if (error) {
     return (

@@ -204,3 +204,32 @@ export function playwrightValidate(): ValidationResult {
   
   return validateAll(document, 'premium-v3')
 }
+
+/**
+ * Attach all validation functions to window for Playwright access
+ * Call this in the print page to make validations available to Playwright
+ */
+export function attachBentoValidationToWindow(): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  // Check if already attached (idempotent)
+  if ((window as any).__bentoValidation) {
+    console.log('✓ Bento validation already attached to window')
+    return
+  }
+
+  // Attach all validation functions
+  (window as any).__bentoValidation = {
+    validateBentoRoot,
+    validateTailwindCSS,
+    validatePagedJsComplete,
+    validateNoTables,
+    validateBrandAssets,
+    validateAll,
+    playwrightValidate
+  }
+
+  console.log('✓ Bento validation attached to window.__bentoValidation')
+}
