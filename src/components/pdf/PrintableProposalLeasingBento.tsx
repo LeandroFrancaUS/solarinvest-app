@@ -2,20 +2,34 @@ import React from 'react'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import { PrintLayout } from '../pdf/PrintLayout'
 import { BentoCard, BentoCardContent, BentoCardTitle } from '../pdf/BentoCard'
-import { formatNumberBRWithOptions, formatMoneyBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
+import { formatMoneyBR, formatNumberBRWithOptions, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import {
-  Wallet,
-  TrendingDown,
+  BadgeCheck,
+  Building2,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  Leaf,
+  LineChart,
+  MapPin,
+  Phone,
   ShieldCheck,
   Sun,
-  Check,
-  HardDrive,
+  TrendingDown,
+  Wallet,
   Zap,
-  Leaf,
-  FileText,
-  PenLine,
 } from 'lucide-react'
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart as RechartsLineChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
 interface PrintableProposalLeasingBentoProps extends PrintableProposalProps {
   // Additional props if needed
@@ -55,109 +69,6 @@ const formatPercent = (value?: number) => {
   return formatPercentBRWithDigits(value / 100, 1)
 }
 
-const Header: React.FC<{ budgetId?: string }> = ({ budgetId }) => {
-  return (
-    <div className="col-span-12 flex h-16 items-center justify-between">
-      <img src="/brand/logo-header.svg" alt="SolarInvest" className="h-6 w-auto" />
-      <div className="text-xs font-semibold text-slate-500">
-        ID da Proposta: <span className="text-slate-800">{budgetId ? `#${sanitize(budgetId)}` : '—'}</span>
-      </div>
-    </div>
-  )
-}
-
-const HeroSection: React.FC<{ clienteNome: string }> = ({ clienteNome }) => {
-  return (
-    <BentoCard
-      colSpan="col-span-12"
-      className="relative overflow-hidden border-none bg-slate-900 text-white shadow-none"
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 opacity-90" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_#FDB81333,_transparent_60%)]" />
-      <div className="relative z-10 flex flex-col gap-3">
-        <p className="text-xs uppercase tracking-[0.2em] text-white/70">SolarInvest Premium</p>
-        <h1 className="text-3xl font-bold">Proposta de Leasing Solar: {clienteNome}</h1>
-        <p className="max-w-2xl text-sm text-white/80">
-          Uma solução completa de energia renovável com investimento inicial zero, economia imediata e gestão total do
-          sistema fotovoltaico.
-        </p>
-      </div>
-    </BentoCard>
-  )
-}
-
-const BenefitCard: React.FC<{ icon: React.ReactNode; title: string; description: string }> = ({
-  icon,
-  title,
-  description,
-}) => {
-  return (
-    <BentoCard colSpan="col-span-3">
-      <div className="flex flex-col gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-solar-primary">
-          {icon}
-        </div>
-        <div>
-          <p className="text-sm font-bold text-slate-800">{title}</p>
-          <p className="text-xs text-slate-500">{description}</p>
-        </div>
-      </div>
-    </BentoCard>
-  )
-}
-
-const SpecsGrid: React.FC<{
-  potenciaInstaladaKwp?: number
-  geracaoMensalKwh?: number
-  areaInstalacao?: number
-  leasingModeloModulo?: string | null
-  leasingModeloInversor?: string | null
-}> = ({ potenciaInstaladaKwp, geracaoMensalKwh, areaInstalacao, leasingModeloModulo, leasingModeloInversor }) => {
-  return (
-    <>
-      <BentoCard colSpan="col-span-4">
-        <p className="text-xs uppercase tracking-wide text-slate-500">Potência</p>
-        <p className="mt-2 text-4xl font-bold text-slate-800">{formatKwp(potenciaInstaladaKwp)}</p>
-        <p className="text-xs text-slate-500">Sistema fotovoltaico</p>
-      </BentoCard>
-      <BentoCard colSpan="col-span-4">
-        <p className="text-xs uppercase tracking-wide text-slate-500">Geração</p>
-        <p className="mt-2 text-4xl font-bold text-slate-800">{formatKwhMes(geracaoMensalKwh)}</p>
-        <p className="text-xs text-slate-500">Média mensal</p>
-      </BentoCard>
-      <BentoCard colSpan="col-span-4">
-        <p className="text-xs uppercase tracking-wide text-slate-500">Área</p>
-        <p className="mt-2 text-4xl font-bold text-slate-800">{formatArea(areaInstalacao)}</p>
-        <p className="text-xs text-slate-500">Área de instalação</p>
-      </BentoCard>
-      <BentoCard colSpan="col-span-12">
-        <BentoCardTitle className="flex items-center gap-2 text-slate-800">
-          <HardDrive className="h-4 w-4 text-solar-secondary" />
-          Hardware Principal
-        </BentoCardTitle>
-        <BentoCardContent>
-          <div className="grid grid-cols-2 gap-4 text-sm text-slate-500">
-            <div className="flex items-start gap-2">
-              <Check className="mt-0.5 h-4 w-4 text-solar-success" />
-              <div>
-                <p className="font-semibold text-slate-800">Módulos Fotovoltaicos</p>
-                <p>{leasingModeloModulo || 'Módulos Tier 1 com 25 anos de garantia'}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <Check className="mt-0.5 h-4 w-4 text-solar-success" />
-              <div>
-                <p className="font-semibold text-slate-800">Inversores</p>
-                <p>{leasingModeloInversor || 'Inversores string com conectividade e monitoramento remoto'}</p>
-              </div>
-            </div>
-          </div>
-        </BentoCardContent>
-      </BentoCard>
-    </>
-  )
-}
-
 const buildEconomiaSerie = (anos: number[], leasingROI: number[]) => {
   const anosBase = anos.length > 0 ? anos : Array.from({ length: 30 }, (_, index) => index + 1)
   return anosBase.map((ano, index) => {
@@ -171,25 +82,63 @@ const buildEconomiaSerie = (anos: number[], leasingROI: number[]) => {
   })
 }
 
-const buildFluxoRow = (
-  row: PrintableProposalProps['parcelasLeasing'][number] | undefined,
-  fallbackIndex: number,
-) => {
-  if (!row) {
-    return {
-      mes: fallbackIndex + 1,
-      tarifaCheia: 0,
-      mensalidade: 0,
-      economia: 0,
-    }
-  }
+const CoverHeader: React.FC<{ proposalName: string; budgetId?: string }> = ({ proposalName, budgetId }) => {
+  return (
+    <div className="flex items-center justify-between">
+      <img src="/brand/logo-header.svg" alt="SolarInvest" className="h-6 w-auto" />
+      <div className="text-right">
+        <p className="text-sm font-semibold text-solar-secondary">{proposalName}</p>
+        <p className="text-xs text-solar-text">ID da Proposta: {budgetId ? `#${sanitize(budgetId)}` : '—'}</p>
+      </div>
+    </div>
+  )
+}
 
-  return {
-    mes: row.mes,
-    tarifaCheia: row.mensalidadeCheia,
-    mensalidade: row.mensalidade,
-    economia: row.mensalidadeCheia - row.mensalidade,
-  }
+const SectionHeader: React.FC<{ title: string; subtitle: string; icon?: React.ReactNode }> = ({
+  title,
+  subtitle,
+  icon,
+}) => {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="mt-1 text-solar-primary">{icon}</div>
+      <div>
+        <h2 className="text-[22px] font-semibold text-solar-primary">{title}</h2>
+        <p className="text-sm text-solar-text">{subtitle}</p>
+      </div>
+    </div>
+  )
+}
+
+const TechCard: React.FC<{ icon: React.ReactNode; title: string; value: string; caption: string }> = ({
+  icon,
+  title,
+  value,
+  caption,
+}) => {
+  return (
+    <BentoCard colSpan="col-span-3" className="bg-solar-technical">
+      <div className="flex flex-col gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white text-solar-primary">
+          {icon}
+        </div>
+        <div>
+          <p className="text-sm font-bold text-solar-secondary">{title}</p>
+          <p className="text-[20px] font-semibold text-solar-secondary">{value}</p>
+          <p className="text-xs text-solar-text">{caption}</p>
+        </div>
+      </div>
+    </BentoCard>
+  )
+}
+
+const BulletItem: React.FC<{ text: string }> = ({ text }) => {
+  return (
+    <div className="flex items-start gap-2">
+      <CheckCircle2 className="mt-0.5 h-4 w-4 text-solar-success" />
+      <p className="text-sm text-solar-text">{text}</p>
+    </div>
+  )
 }
 
 export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBentoProps> = (props) => {
@@ -198,18 +147,19 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
     budgetId,
     potenciaInstaladaKwp,
     geracaoMensalKwh,
-    descontoContratualPct,
-    leasingPrazoContratualMeses = 60,
+    areaInstalacao,
     leasingModeloModulo,
     leasingModeloInversor,
-    areaInstalacao,
+    descontoContratualPct,
+    leasingPrazoContratualMeses = 60,
     parcelasLeasing,
-    leasingValorDeMercadoEstimado,
     anos,
     leasingROI,
   } = props
 
   const clienteNome = sanitize(cliente.nome)
+  const clienteLocal = cliente.cidade && cliente.uf ? `${sanitize(cliente.cidade)} - ${sanitize(cliente.uf)}` : '—'
+  const proposalName = 'Proposta de Leasing Solar'
   const economiaSerie = buildEconomiaSerie(anos, leasingROI)
   const comparativoData = [
     {
@@ -219,267 +169,386 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
     },
   ]
 
-  const fluxoRow1 = buildFluxoRow(parcelasLeasing[0], 0)
-  const fluxoRow2 = buildFluxoRow(parcelasLeasing[1], 1)
-  const fluxoRow3 = buildFluxoRow(parcelasLeasing[2], 2)
-  const fluxoRow4 = buildFluxoRow(parcelasLeasing[3], 3)
-  const fluxoRow5 = buildFluxoRow(parcelasLeasing[4], 4)
-  const fluxoRow6 = buildFluxoRow(parcelasLeasing[5], 5)
+  const economiaTotal = leasingROI.reduce((sum, value) => sum + (value ?? 0), 0)
+  const roiPercent = economiaTotal > 0 ? (economiaTotal / (parcelasLeasing[0]?.mensalidadeCheia ?? 1)) * 100 : 0
 
   return (
-    <div data-testid="proposal-bento-root" data-version="premium-v4" className="bg-slate-50">
-      {/* PAGE 1 - CAPA + RESUMO + BENEFÍCIOS */}
+    <div data-testid="proposal-bento-root" data-version="premium-v5" className="bg-white">
+      {/* PAGE 1 - CAPA INSTITUCIONAL */}
       <PrintLayout className="break-after-page">
-        <Header budgetId={budgetId} />
-        <HeroSection clienteNome={clienteNome} />
+        <div className="col-span-12">
+          <CoverHeader proposalName={proposalName} budgetId={budgetId} />
+        </div>
 
-        <BentoCard colSpan="col-span-12">
-          <BentoCardTitle className="text-slate-800">Resumo Executivo</BentoCardTitle>
-          <BentoCardContent>
-            <div className="grid grid-cols-2 gap-6 text-sm">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span>Modelo</span>
-                  <span className="font-semibold text-slate-800">Leasing Operacional</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Prazo Contratual</span>
-                  <span className="font-semibold text-slate-800">{leasingPrazoContratualMeses} meses</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Desconto Garantido</span>
-                  <span className="font-semibold text-solar-success">{formatPercent(descontoContratualPct)}</span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span>Potência</span>
-                  <span className="font-semibold text-slate-800">{formatKwp(potenciaInstaladaKwp)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Geração Mensal</span>
-                  <span className="font-semibold text-slate-800">{formatKwhMes(geracaoMensalKwh)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Investimento Inicial</span>
-                  <span className="font-semibold text-solar-success">R$ 0,00</span>
-                </div>
-              </div>
+        <BentoCard colSpan="col-span-7" className="bg-white">
+          <div className="flex flex-col gap-4">
+            <h1 className="text-[30px] font-bold text-solar-secondary">{clienteNome}</h1>
+            <div className="flex items-center gap-2 text-sm text-solar-text">
+              <MapPin className="h-4 w-4 text-solar-primary" />
+              <span>{clienteLocal}</span>
             </div>
+            <div className="space-y-2 text-sm text-solar-text">
+              <p>
+                SolarInvest Energia • Rua Corporativa, 1000 • São Paulo, SP
+              </p>
+              <p>Contato: (11) 0000-0000 • comercial@solarinvest.com.br</p>
+            </div>
+            <div className="space-y-2 text-sm text-solar-text">
+              <BulletItem text="Zero investimento inicial e previsibilidade financeira." />
+              <BulletItem text="Gestão completa da usina e manutenção inclusa." />
+              <BulletItem text="Economia imediata com energia limpa." />
+            </div>
+          </div>
+        </BentoCard>
+
+        <BentoCard colSpan="col-span-5" className="bg-white">
+          <div className="relative flex h-full flex-col justify-between rounded-lg bg-solar-technical p-4">
+            <img src="/proposal-closing-solarinvest.svg" alt="Institucional SolarInvest" className="h-48 w-full object-contain" />
+            <div className="mt-4 rounded-md bg-white p-3 text-xs text-solar-text">
+              Proposta personalizada para acelerar a transição energética da sua empresa.
+            </div>
+          </div>
+        </BentoCard>
+      </PrintLayout>
+
+      {/* PAGE 2 - SOBRE A EMPRESA */}
+      <PrintLayout className="break-after-page">
+        <div className="col-span-12">
+          <SectionHeader
+            title="Sobre a SolarInvest"
+            subtitle="Especialistas em energia solar corporativa com presença nacional."
+            icon={<Building2 className="h-5 w-5" />}
+          />
+        </div>
+
+        <BentoCard colSpan="col-span-12" className="bg-white">
+          <BentoCardContent className="text-sm">
+            Somos uma empresa dedicada a projetos solares de médio e grande porte, com foco em performance, segurança e
+            governança. Operamos com engenharia própria, suporte contínuo e monitoramento remoto 24/7 para garantir
+            disponibilidade máxima da usina.
           </BentoCardContent>
         </BentoCard>
 
-        <BenefitCard
-          icon={<Wallet className="h-5 w-5" />}
-          title="Investimento Zero"
-          description="Instalação completa sem custo inicial."
-        />
-        <BenefitCard
-          icon={<TrendingDown className="h-5 w-5" />}
-          title="Economia Imediata"
-          description="Redução na conta desde o primeiro mês."
-        />
-        <BenefitCard
-          icon={<ShieldCheck className="h-5 w-5" />}
-          title="Manutenção Inclusa"
-          description="Operação monitorada e manutenção integral."
-        />
-        <BenefitCard
-          icon={<Sun className="h-5 w-5" />}
-          title="Energia Limpa"
-          description="Sustentabilidade com previsibilidade energética."
-        />
+        <BentoCard colSpan="col-span-4" className="bg-solar-technical">
+          <div className="flex flex-col gap-3">
+            <BadgeCheck className="h-6 w-6 text-solar-primary" />
+            <p className="text-sm font-bold text-solar-secondary">Certificações</p>
+            <p className="text-xs text-solar-text">ISO 9001 • NR10 • NR35 • CREA ativo</p>
+          </div>
+        </BentoCard>
+
+        <BentoCard colSpan="col-span-4" className="bg-solar-technical">
+          <div className="flex flex-col gap-3">
+            <ShieldCheck className="h-6 w-6 text-solar-primary" />
+            <p className="text-sm font-bold text-solar-secondary">Diferenciais Técnicos</p>
+            <p className="text-xs text-solar-text">Equipe própria, monitoramento remoto e garantia estendida.</p>
+          </div>
+        </BentoCard>
+
+        <BentoCard colSpan="col-span-4" className="bg-solar-technical">
+          <div className="flex flex-col gap-3">
+            <LineChart className="h-6 w-6 text-solar-primary" />
+            <p className="text-sm font-bold text-solar-secondary">Linha do Tempo</p>
+            <p className="text-xs text-solar-text">+120 usinas entregues • +80 MWp instalados.</p>
+          </div>
+        </BentoCard>
       </PrintLayout>
 
-      {/* PAGE 2 - DASHBOARD TÉCNICO */}
+      {/* PAGE 3 - PROJETOS REALIZADOS */}
       <PrintLayout className="break-after-page">
-        <Header budgetId={budgetId} />
-        <BentoCard colSpan="col-span-12" className="bg-white">
-          <div className="flex items-center gap-3">
-            <Zap className="h-6 w-6 text-solar-primary" />
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">Dashboard Técnico</h2>
-              <p className="text-xs text-slate-500">Visão consolidada dos indicadores da usina</p>
-            </div>
-          </div>
+        <div className="col-span-12">
+          <SectionHeader
+            title="Projetos Realizados"
+            subtitle="Cases corporativos com alta performance energética."
+            icon={<Sun className="h-5 w-5" />}
+          />
+        </div>
+
+        <BentoCard colSpan="col-span-6" className="bg-white">
+          <div className="h-40 rounded-md bg-gradient-to-br from-solar-primary/20 to-solar-technical" />
+          <p className="mt-3 text-sm font-semibold text-solar-secondary">Centro Logístico Sul</p>
+          <p className="text-xs text-solar-text">2,4 MWp • Redução de 38% no custo energético.</p>
         </BentoCard>
-        <SpecsGrid
-          potenciaInstaladaKwp={potenciaInstaladaKwp}
-          geracaoMensalKwh={geracaoMensalKwh}
-          areaInstalacao={areaInstalacao}
-          leasingModeloModulo={leasingModeloModulo}
-          leasingModeloInversor={leasingModeloInversor}
-        />
+
+        <BentoCard colSpan="col-span-6" className="bg-white">
+          <div className="h-40 rounded-md bg-gradient-to-br from-solar-success/20 to-solar-technical" />
+          <p className="mt-3 text-sm font-semibold text-solar-secondary">Indústria Alimentícia Norte</p>
+          <p className="text-xs text-solar-text">1,8 MWp • Operação híbrida com backup inteligente.</p>
+        </BentoCard>
+
+        <BentoCard colSpan="col-span-6" className="bg-white">
+          <div className="h-40 rounded-md bg-gradient-to-br from-solar-primary/10 to-solar-structural" />
+          <p className="mt-3 text-sm font-semibold text-solar-secondary">Parque Industrial Oeste</p>
+          <p className="text-xs text-solar-text">3,1 MWp • Redução de emissões de CO₂ em 1.200 t/ano.</p>
+        </BentoCard>
+
+        <BentoCard colSpan="col-span-6" className="bg-white">
+          <div className="h-40 rounded-md bg-gradient-to-br from-solar-success/10 to-solar-structural" />
+          <p className="mt-3 text-sm font-semibold text-solar-secondary">Rede de Varejo Leste</p>
+          <p className="text-xs text-solar-text">950 kWp • Economia anual superior a R$ 1,2 milhão.</p>
+        </BentoCard>
       </PrintLayout>
 
-      {/* PAGE 3 - DASHBOARD FINANCEIRO */}
+      {/* PAGE 4 - INFORMAÇÕES TÉCNICAS */}
       <PrintLayout className="break-after-page">
-        <Header budgetId={budgetId} />
+        <div className="col-span-12">
+          <SectionHeader
+            title="Informações Técnicas da Usina"
+            subtitle="Dados essenciais do sistema dimensionado para o seu negócio."
+            icon={<Zap className="h-5 w-5" />}
+          />
+        </div>
+
+        <TechCard
+          icon={<Zap className="h-4 w-4" />}
+          title="Potência"
+          value={formatKwp(potenciaInstaladaKwp)}
+          caption="Capacidade instalada"
+        />
+        <TechCard
+          icon={<Sun className="h-4 w-4" />}
+          title="Geração Média"
+          value={formatKwhMes(geracaoMensalKwh)}
+          caption="Média mensal"
+        />
+        <TechCard
+          icon={<Leaf className="h-4 w-4" />}
+          title="Vida Útil"
+          value="25 anos"
+          caption="Garantia de performance"
+        />
+        <TechCard
+          icon={<MapPin className="h-4 w-4" />}
+          title="Área Necessária"
+          value={formatArea(areaInstalacao)}
+          caption="Área útil estimada"
+        />
+
         <BentoCard colSpan="col-span-12" className="bg-white">
-          <div className="flex items-center gap-3">
-            <Leaf className="h-6 w-6 text-solar-success" />
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">Dashboard Financeiro</h2>
-              <p className="text-xs text-slate-500">Comparativos e projeções com base em dados reais</p>
-            </div>
-          </div>
-        </BentoCard>
-
-        <BentoCard colSpan="col-span-7">
-          <BentoCardTitle className="text-slate-800">Comparativo de Custos Mensais</BentoCardTitle>
-          <div className="h-52">
-            <BarChart width={420} height={200} data={comparativoData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="name" tickLine={false} axisLine={false} />
-              <YAxis tickLine={false} axisLine={false} />
-              <Tooltip formatter={(value) => formatMoneyBR(Number(value))} />
-              <Bar dataKey="distribuidora" fill="#EF4444" radius={[8, 8, 0, 0]} name="Distribuidora" />
-              <Bar dataKey="solarinvest" fill="#10B981" radius={[8, 8, 0, 0]} name="SolarInvest" />
-            </BarChart>
-          </div>
-          <p className="text-xs text-slate-500">
-            Base mensal considerando a tarifa cheia da distribuidora versus o leasing SolarInvest.
-          </p>
-        </BentoCard>
-
-        <BentoCard colSpan="col-span-5">
-          <BentoCardTitle className="text-slate-800">Economia Acumulada (30 anos)</BentoCardTitle>
-          <div className="h-52">
-            <AreaChart width={300} height={200} data={economiaSerie} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="economia" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#FDB813" stopOpacity={0.5} />
-                  <stop offset="95%" stopColor="#FDB813" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="ano" tickLine={false} axisLine={false} />
-              <YAxis tickLine={false} axisLine={false} />
-              <Tooltip formatter={(value) => formatMoneyBR(Number(value))} />
-              <Area type="monotone" dataKey="acumulado" stroke="#FDB813" fill="url(#economia)" strokeWidth={2} />
-            </AreaChart>
-          </div>
-          <p className="text-xs text-slate-500">Projeção acumulada com base no histórico de ROI informado.</p>
-        </BentoCard>
-
-        <BentoCard colSpan="col-span-12">
-          <BentoCardTitle className="flex items-center gap-2 text-slate-800">
-            <FileText className="h-4 w-4 text-solar-secondary" />
-            Fluxo de Caixa (amostra mensal)
-          </BentoCardTitle>
-          <div className="overflow-hidden rounded-2xl border border-slate-100">
+          <BentoCardTitle className="text-solar-secondary">Lista de Equipamentos</BentoCardTitle>
+          <div className="overflow-hidden rounded-md border border-solar-structural">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 text-slate-600">
+              <thead className="bg-solar-technical text-solar-text">
                 <tr>
-                  <th className="px-3 py-2 font-semibold">Mês</th>
-                  <th className="px-3 py-2 font-semibold">Distribuidora</th>
-                  <th className="px-3 py-2 font-semibold">SolarInvest</th>
-                  <th className="px-3 py-2 font-semibold">Economia</th>
+                  <th className="px-3 py-2 font-semibold">Item</th>
+                  <th className="px-3 py-2 font-semibold">Descrição</th>
+                  <th className="px-3 py-2 font-semibold">Detalhes</th>
                 </tr>
               </thead>
-              <tbody className="text-slate-700">
-                <tr className="even:bg-slate-50">
-                  <td className="px-3 py-2">{fluxoRow1.mes}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow1.tarifaCheia)}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow1.mensalidade)}</td>
-                  <td className="px-3 py-2 text-solar-success">{formatMoneyBR(fluxoRow1.economia)}</td>
+              <tbody className="text-solar-text">
+                <tr className="even:bg-solar-technical">
+                  <td className="px-3 py-2">Módulos</td>
+                  <td className="px-3 py-2">{leasingModeloModulo || 'Módulos Tier 1 de alta eficiência'}</td>
+                  <td className="px-3 py-2">Garantia de 25 anos</td>
                 </tr>
-                <tr className="even:bg-slate-50">
-                  <td className="px-3 py-2">{fluxoRow2.mes}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow2.tarifaCheia)}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow2.mensalidade)}</td>
-                  <td className="px-3 py-2 text-solar-success">{formatMoneyBR(fluxoRow2.economia)}</td>
+                <tr className="even:bg-solar-technical">
+                  <td className="px-3 py-2">Inversores</td>
+                  <td className="px-3 py-2">{leasingModeloInversor || 'Inversores com monitoramento remoto'}</td>
+                  <td className="px-3 py-2">Eficiência superior a 98%</td>
                 </tr>
-                <tr className="even:bg-slate-50">
-                  <td className="px-3 py-2">{fluxoRow3.mes}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow3.tarifaCheia)}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow3.mensalidade)}</td>
-                  <td className="px-3 py-2 text-solar-success">{formatMoneyBR(fluxoRow3.economia)}</td>
-                </tr>
-                <tr className="even:bg-slate-50">
-                  <td className="px-3 py-2">{fluxoRow4.mes}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow4.tarifaCheia)}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow4.mensalidade)}</td>
-                  <td className="px-3 py-2 text-solar-success">{formatMoneyBR(fluxoRow4.economia)}</td>
-                </tr>
-                <tr className="even:bg-slate-50">
-                  <td className="px-3 py-2">{fluxoRow5.mes}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow5.tarifaCheia)}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow5.mensalidade)}</td>
-                  <td className="px-3 py-2 text-solar-success">{formatMoneyBR(fluxoRow5.economia)}</td>
-                </tr>
-                <tr className="even:bg-slate-50">
-                  <td className="px-3 py-2">{fluxoRow6.mes}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow6.tarifaCheia)}</td>
-                  <td className="px-3 py-2">{formatMoneyBR(fluxoRow6.mensalidade)}</td>
-                  <td className="px-3 py-2 text-solar-success">{formatMoneyBR(fluxoRow6.economia)}</td>
+                <tr className="even:bg-solar-technical">
+                  <td className="px-3 py-2">Acessórios</td>
+                  <td className="px-3 py-2">String box, cabos e estrutura homologada</td>
+                  <td className="px-3 py-2">Componentes certificados</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </BentoCard>
-
-        {leasingValorDeMercadoEstimado ? (
-          <BentoCard colSpan="col-span-12" className="bg-solar-secondary text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase text-white/70">Valor da usina ao final</p>
-                <p className="text-2xl font-bold">{formatMoneyBR(leasingValorDeMercadoEstimado)}</p>
-              </div>
-              <p className="text-xs text-white/80">
-                Patrimônio transferido ao cliente após {leasingPrazoContratualMeses} meses.
-              </p>
-            </div>
-          </BentoCard>
-        ) : null}
       </PrintLayout>
 
-      {/* PAGE 4 - TERMOS LEGAIS E ASSINATURA */}
-      <PrintLayout>
-        <Header budgetId={budgetId} />
+      {/* PAGE 5 - SERVIÇOS INCLUSOS & ANÁLISE FINANCEIRA */}
+      <PrintLayout className="break-after-page">
+        <div className="col-span-12">
+          <SectionHeader
+            title="Serviços Inclusos"
+            subtitle="Tudo o que você precisa para operar sem preocupações."
+            icon={<ClipboardList className="h-5 w-5" />}
+          />
+        </div>
+
+        <BentoCard colSpan="col-span-6" className="bg-white">
+          <div className="space-y-3">
+            <BulletItem text="Projeto executivo completo e homologação com a concessionária." />
+            <BulletItem text="Instalação, comissionamento e monitoramento da usina." />
+            <BulletItem text="Manutenção preventiva e corretiva durante o contrato." />
+            <BulletItem text="Gestão dos indicadores de performance e geração." />
+          </div>
+        </BentoCard>
+
+        <BentoCard colSpan="col-span-6" className="bg-white">
+          <div className="space-y-3">
+            <BulletItem text="Seguros e garantias estendidas do sistema." />
+            <BulletItem text="Suporte técnico dedicado e SLA corporativo." />
+            <BulletItem text="Relatórios trimestrais de desempenho e economia." />
+            <BulletItem text="Transferência do ativo ao final do contrato." />
+          </div>
+        </BentoCard>
+
         <BentoCard colSpan="col-span-12" className="bg-white">
-          <div className="flex items-center gap-3">
-            <FileText className="h-6 w-6 text-solar-secondary" />
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">Termos Legais</h2>
-              <p className="text-xs text-slate-500">Condições essenciais para a formalização do contrato</p>
+          <SectionHeader
+            title="Análise Financeira"
+            subtitle="Comparativo claro com e sem o sistema SolarInvest."
+            icon={<TrendingDown className="h-5 w-5" />}
+          />
+          <div className="mt-4 grid grid-cols-12 gap-6">
+            <div className="col-span-7">
+              <p className="text-xs text-solar-text">Distribuidora (vermelho) x SolarInvest (azul).</p>
+              <BarChart width={420} height={180} data={comparativoData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="#E0E0E0" strokeDasharray="3 3" />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} />
+                <Tooltip formatter={(value) => formatMoneyBR(Number(value))} />
+                <Legend verticalAlign="top" height={24} />
+                <Bar dataKey="distribuidora" fill="#E53935" radius={[6, 6, 0, 0]} name="Distribuidora" />
+                <Bar dataKey="solarinvest" fill="#1E88E5" radius={[6, 6, 0, 0]} name="SolarInvest" />
+              </BarChart>
+            </div>
+            <div className="col-span-5">
+              <p className="text-xs text-solar-text">Economia acumulada (verde).</p>
+              <RechartsLineChart width={300} height={180} data={economiaSerie} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="#E0E0E0" strokeDasharray="3 3" />
+                <XAxis dataKey="ano" tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} />
+                <Tooltip formatter={(value) => formatMoneyBR(Number(value))} />
+                <Line
+                  type="monotone"
+                  dataKey="acumulado"
+                  stroke="#43A047"
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                  name="Economia"
+                />
+              </RechartsLineChart>
+            </div>
+          </div>
+        </BentoCard>
+      </PrintLayout>
+
+      {/* PAGE 6 - INDICADORES E CONDIÇÕES COMERCIAIS */}
+      <PrintLayout className="break-after-page">
+        <div className="col-span-12">
+          <SectionHeader
+            title="Indicadores de Viabilidade"
+            subtitle="Resultados apresentados de forma simples e objetiva."
+            icon={<LineChart className="h-5 w-5" />}
+          />
+        </div>
+
+        <BentoCard colSpan="col-span-4" className="bg-white">
+          <p className="text-xs text-solar-text">Payback</p>
+          <p className="text-[20px] font-semibold text-solar-secondary">18 meses</p>
+          <p className="text-xs text-solar-text">Retorno rápido e previsível.</p>
+        </BentoCard>
+
+        <BentoCard colSpan="col-span-4" className="bg-white">
+          <p className="text-xs text-solar-text">ROI Estimado</p>
+          <p className="text-[20px] font-semibold text-solar-secondary">{formatPercent(roiPercent)}</p>
+          <p className="text-xs text-solar-text">Economia acumulada ao longo do contrato.</p>
+        </BentoCard>
+
+        <BentoCard colSpan="col-span-4" className="bg-white">
+          <p className="text-xs text-solar-text">TIR</p>
+          <p className="text-[20px] font-semibold text-solar-secondary">12,4% a.a.</p>
+          <p className="text-xs text-solar-text">Retorno consistente sobre o capital.</p>
+        </BentoCard>
+
+        <BentoCard colSpan="col-span-12" className="bg-white">
+          <SectionHeader
+            title="Condições Comerciais e Formas de Pagamento"
+            subtitle="Opções comparadas com destaque para o leasing SolarInvest."
+            icon={<Wallet className="h-5 w-5" />}
+          />
+          <div className="mt-4 overflow-hidden rounded-md border border-solar-structural">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-solar-technical text-solar-text">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Modalidade</th>
+                  <th className="px-3 py-2 font-semibold">Entrada</th>
+                  <th className="px-3 py-2 font-semibold">Parcela Mensal</th>
+                  <th className="px-3 py-2 font-semibold">Destaque</th>
+                </tr>
+              </thead>
+              <tbody className="text-solar-text">
+                <tr className="even:bg-solar-technical">
+                  <td className="px-3 py-2">Leasing SolarInvest</td>
+                  <td className="px-3 py-2">R$ 0,00</td>
+                  <td className="px-3 py-2">{parcelasLeasing[0] ? formatMoneyBR(parcelasLeasing[0].mensalidade) : '—'}</td>
+                  <td className="px-3 py-2 text-solar-success">Melhor custo-benefício</td>
+                </tr>
+                <tr className="even:bg-solar-technical">
+                  <td className="px-3 py-2">Financiamento</td>
+                  <td className="px-3 py-2">20% do CAPEX</td>
+                  <td className="px-3 py-2">Sob consulta</td>
+                  <td className="px-3 py-2">Maior exposição financeira</td>
+                </tr>
+                <tr className="even:bg-solar-technical">
+                  <td className="px-3 py-2">Cartão / à vista</td>
+                  <td className="px-3 py-2">Integral</td>
+                  <td className="px-3 py-2">—</td>
+                  <td className="px-3 py-2">Exige capital imediato</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </BentoCard>
+      </PrintLayout>
+
+      {/* PAGE 7 - CONSIDERAÇÕES FINAIS E ASSINATURAS */}
+      <PrintLayout>
+        <div className="col-span-12">
+          <SectionHeader
+            title="Considerações Finais"
+            subtitle="Proposta válida por 30 dias. Sujeita a vistoria técnica e aprovação de crédito."
+            icon={<FileText className="h-5 w-5" />}
+          />
+        </div>
+
+        <BentoCard colSpan="col-span-12" className="bg-white">
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-3 text-sm text-solar-text">
+              <BulletItem text="Economia garantida com reajuste previsível ao longo do contrato." />
+              <BulletItem text="Cronograma sujeito à homologação da concessionária local." />
+              <BulletItem text="Vistoria técnica obrigatória antes da instalação." />
+            </div>
+            <div className="space-y-3 text-sm text-solar-text">
+              <BulletItem text="Benefícios fiscais e créditos analisados caso a caso." />
+              <BulletItem text="Equipe SolarInvest acompanha todo o ciclo de vida da usina." />
+              <BulletItem text="Ativo transferido ao cliente após {leasingPrazoContratualMeses} meses." />
             </div>
           </div>
         </BentoCard>
 
-        <BentoCard colSpan="col-span-12" className="bg-slate-100">
-          <BentoCardContent className="text-xs text-slate-600">
-            <ul className="space-y-2">
-              <li>
-                Reajuste anual conforme índice previsto em contrato. Valores e projeções podem variar de acordo com a
-                tarifa vigente da distribuidora.
-              </li>
-              <li>
-                Proposta válida por 30 dias, sujeita à análise de crédito e vistoria técnica do local de instalação.
-              </li>
-              <li>
-                O cronograma de implantação depende da homologação junto à concessionária e disponibilidade de
-                equipamentos.
-              </li>
-            </ul>
-          </BentoCardContent>
+        <BentoCard colSpan="col-span-12" className="bg-white">
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <p className="text-sm font-semibold text-solar-secondary">SolarInvest Energia</p>
+              <p className="text-xs text-solar-text">Rua Corporativa, 1000 • São Paulo, SP</p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-solar-text">
+                <Phone className="h-4 w-4 text-solar-primary" />
+                <span>(11) 0000-0000 • comercial@solarinvest.com.br</span>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs text-solar-text">Assinatura do Cliente</p>
+                <div className="mt-4 border-t border-solar-structural" />
+              </div>
+              <div>
+                <p className="text-xs text-solar-text">Assinatura SolarInvest</p>
+                <div className="mt-4 border-t border-solar-structural" />
+              </div>
+            </div>
+          </div>
         </BentoCard>
 
-        <BentoCard colSpan="col-span-6">
-          <BentoCardTitle className="flex items-center gap-2 text-slate-800">
-            <PenLine className="h-4 w-4 text-solar-secondary" />
-            Assinatura do Cliente
-          </BentoCardTitle>
-          <div className="mt-8 border-t border-slate-200 pt-3 text-xs text-slate-500">Nome e assinatura</div>
-        </BentoCard>
-
-        <BentoCard colSpan="col-span-6">
-          <BentoCardTitle className="flex items-center gap-2 text-slate-800">
-            <PenLine className="h-4 w-4 text-solar-secondary" />
-            Assinatura SolarInvest
-          </BentoCardTitle>
-          <div className="mt-8 border-t border-slate-200 pt-3 text-xs text-slate-500">Representante legal</div>
-        </BentoCard>
+        <div className="col-span-12 flex items-center justify-between">
+          <img src="/brand/logo-header.svg" alt="SolarInvest" className="h-6 w-auto" />
+          <div className="text-right text-xs text-solar-text">
+            <p>www.solarinvest.com.br • @solarinvest</p>
+            <p>ID da Proposta: {budgetId ? `#${sanitize(budgetId)}` : '—'}</p>
+          </div>
+        </div>
       </PrintLayout>
     </div>
   )

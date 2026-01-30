@@ -17,12 +17,12 @@ export const BentoCard: React.FC<BentoCardProps> = ({
   className = '',
   variant = 'default',
 }) => {
-  const baseClasses = 'rounded-3xl p-6 break-inside-avoid'
+  const baseClasses = 'rounded-lg p-6 break-inside-avoid border border-solar-structural'
   
   const variantClasses = {
-    default: 'bg-white shadow-sm border border-slate-100',
-    highlight: 'bg-solar-brand text-white border-none shadow-md',
-    dark: 'bg-solar-dark text-white border-none shadow-md',
+    default: 'bg-solar-technical text-solar-text shadow-sm',
+    highlight: 'bg-solar-primary text-white border-none shadow-md',
+    dark: 'bg-solar-secondary text-white border-none shadow-md',
   }
 
   return (
@@ -44,7 +44,7 @@ export const BentoCardTitle: React.FC<{ children: React.ReactNode; className?: s
   className = '',
 }) => {
   return (
-    <h3 className={`font-bold tracking-tight text-base mb-3 ${className || 'text-slate-800'}`}>
+    <h3 className={`font-bold tracking-tight text-base mb-3 ${className || 'text-solar-secondary'}`}>
       {children}
     </h3>
   )
@@ -58,7 +58,7 @@ export const BentoCardContent: React.FC<{ children: React.ReactNode; className?:
   className = '',
 }) => {
   return (
-    <div className={`text-slate-500 text-sm leading-6 ${className}`}>
+    <div className={`text-solar-text text-sm leading-6 ${className}`}>
       {children}
     </div>
   )

@@ -13,13 +13,17 @@ export default {
       // Solar brand colors
       colors: {
         solar: {
-          brand: '#FDB813',
-          dark: '#1E293B',
-          accent: '#0056b3',
-          bg: '#F8FAFC',
-          primary: '#FDB813',
-          secondary: '#1E293B',
-          success: '#10B981',
+          brand: '#1E88E5',
+          dark: '#212121',
+          accent: '#1E88E5',
+          bg: '#FFFFFF',
+          primary: '#1E88E5',
+          secondary: '#212121',
+          success: '#43A047',
+          technical: '#F5F5F5',
+          structural: '#E0E0E0',
+          text: '#333333',
+          danger: '#E53935',
         },
       },
       fontFamily: {
