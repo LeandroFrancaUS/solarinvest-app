@@ -1,3 +1,9 @@
+/* Import Tailwind CSS for Bento Grid PDF system */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
 :root {
   color-scheme: light;
 
@@ -52,6 +58,11 @@
   --safe-area-left: env(safe-area-inset-left, 0px);
   --safe-area-right: env(safe-area-inset-right, 0px);
   --safe-area-inline: calc(var(--safe-area-left) + var(--safe-area-right));
+}
+
+body {
+  background: #f8fafc;
+  font-family: 'Inter', sans-serif;
 }
 
 :root[data-theme='light'] {

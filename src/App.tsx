@@ -52,6 +52,8 @@ import {
   isProposalPdfIntegrationAvailable,
   ProposalPdfIntegrationMissingError,
 } from './utils/proposalPdf'
+import { shouldUseBentoGrid } from './utils/pdfVariant'
+import { renderBentoLeasingToHtml, buildBentoLeasingPdfDocument } from './utils/renderBentoLeasing'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
   analyzeEssentialInfo,
@@ -294,6 +296,7 @@ const getCustosFixosContaEnergiaPadrao = (cidade?: string | null): number | null
 }
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
+const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
@@ -971,6 +974,7 @@ type OrcamentoSnapshotData = {
   entradaFinPct: number
   mostrarFinanciamento: boolean
   mostrarGrafico: boolean
+  useBentoGridPdf: boolean
   prazoMeses: number
   bandeiraEncargo: number
   cipEncargo: number
@@ -3713,11 +3717,20 @@ type BudgetPreviewOptions = {
   initialVariant?: PrintVariant | undefined
 }
 
-function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<string | null> {
+function renderPrintableProposalToHtml(
+  dados: PrintableProposalProps,
+  userBentoPreference?: boolean
+): Promise<string | null> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return Promise.resolve(null)
   }
 
+  // Use Bento Grid for leasing proposals when feature flag is enabled
+  if (shouldUseBentoGrid(dados, userBentoPreference)) {
+    return renderBentoLeasingToHtml(dados)
+  }
+
+  // Legacy rendering for other proposal types
   return new Promise((resolve) => {
     const container = document.createElement('div')
     container.style.position = 'fixed'
@@ -3831,6 +3844,13 @@ const buildProposalPdfDocument = (layoutHtml: string, nomeCliente: string, varia
   const safeCliente = nomeCliente?.trim() || 'SolarInvest'
   const safeHtml = layoutHtml || ''
 
+  // Check if this is Bento Grid HTML (contains the marker)
+  if (safeHtml.includes('data-testid="proposal-bento-root"')) {
+    // Use Bento Grid document wrapper
+    return buildBentoLeasingPdfDocument(safeHtml, safeCliente)
+  }
+
+  // Legacy PDF document structure
   return `<!DOCTYPE html>
 <html data-print-mode="download" data-print-variant="${variant}">
   <head>
@@ -3917,6 +3937,13 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 }
 
 export default function App() {
+  // Check if we're in print mode (for Bento Grid PDF generation)
+  const isPrintMode = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    const params = new URLSearchParams(window.location.search)
+    return params.get('mode') === 'print' && params.get('type') === 'leasing'
+  }, [])
+
   const distribuidorasFallback = useMemo(() => getDistribuidorasFallback(), [])
   const custoImplantacaoReferencia = useVendaStore(
     (state) => state.resumoProposta.custo_implantacao_referencia,
@@ -7075,6 +7102,13 @@ export default function App() {
     INITIAL_VALUES.mostrarFinanciamento,
   )
   const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_VALUES.mostrarGrafico)
+  const [useBentoGridPdf, setUseBentoGridPdf] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+    const stored = window.localStorage.getItem('useBentoGridPdf')
+    return stored !== null ? stored === 'true' : true
+  })
   const [density, setDensity] = useState<DensityMode>(() => {
     if (typeof window === 'undefined') {
       return DEFAULT_DENSITY
@@ -7099,6 +7133,18 @@ export default function App() {
       console.warn('Não foi possível persistir a densidade da interface.', error)
     }
   }, [density])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    
+    try {
+      window.localStorage.setItem('useBentoGridPdf', useBentoGridPdf.toString())
+    } catch (error) {
+      console.warn('Não foi possível persistir a preferência de Bento Grid PDF.', error)
+    }
+  }, [useBentoGridPdf])
 
   const [prazoMeses, setPrazoMeses] = useState(INITIAL_VALUES.prazoMeses)
   const [bandeiraEncargo, setBandeiraEncargo] = useState(INITIAL_VALUES.bandeiraEncargo)
@@ -10182,7 +10228,7 @@ export default function App() {
     let layoutHtml: string | null = null
 
     try {
-      layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
+      layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao, useBentoGridPdf)
     } catch (error) {
       console.error('Erro ao preparar a proposta para exportação.', error)
     }
@@ -10211,7 +10257,7 @@ export default function App() {
     }
 
     return { html: sanitizedLayoutHtml, dados: dadosParaImpressao }
-  }, [printableData])
+  }, [printableData, useBentoGridPdf])
 
 
   const mapClienteRegistroToSyncPayload = (
@@ -12845,6 +12891,7 @@ export default function App() {
     entradaFinPct: INITIAL_VALUES.entradaFinanciamentoPct,
     mostrarFinanciamento: INITIAL_VALUES.mostrarFinanciamento,
     mostrarGrafico: INITIAL_VALUES.mostrarGrafico,
+    useBentoGridPdf: INITIAL_VALUES.useBentoGridPdf,
     prazoMeses: INITIAL_VALUES.prazoMeses,
     bandeiraEncargo: INITIAL_VALUES.bandeiraEncargo,
     cipEncargo: INITIAL_VALUES.cipEncargo,
@@ -13088,6 +13135,7 @@ export default function App() {
       entradaFinPct,
       mostrarFinanciamento,
       mostrarGrafico,
+      useBentoGridPdf,
       prazoMeses,
       bandeiraEncargo,
       cipEncargo,
@@ -14113,6 +14161,7 @@ export default function App() {
     setEntradaFinPct(snapshot.entradaFinPct)
     setMostrarFinanciamento(snapshot.mostrarFinanciamento)
     setMostrarGrafico(snapshot.mostrarGrafico)
+    setUseBentoGridPdf(snapshot.useBentoGridPdf ?? INITIAL_VALUES.useBentoGridPdf)
     setPrazoMeses(snapshot.prazoMeses)
     setBandeiraEncargo(snapshot.bandeiraEncargo)
     setCipEncargo(snapshot.cipEncargo)
@@ -14816,7 +14865,7 @@ export default function App() {
 
         let htmlAtualizado = sanitizePrintableHtml(previewData.html) || ''
         try {
-          const reprocessado = await renderPrintableProposalToHtml(dados)
+          const reprocessado = await renderPrintableProposalToHtml(dados, useBentoGridPdf)
           if (reprocessado) {
             const sanitized = sanitizePrintableHtml(reprocessado)
             if (sanitized) {
@@ -16126,7 +16175,7 @@ export default function App() {
 
       let htmlComCodigo = sanitizePrintableHtml(html) || ''
       try {
-        const atualizado = await renderPrintableProposalToHtml(dados)
+        const atualizado = await renderPrintableProposalToHtml(dados, useBentoGridPdf)
         if (atualizado) {
           const sanitized = sanitizePrintableHtml(atualizado)
           if (sanitized) {
@@ -16440,6 +16489,7 @@ export default function App() {
       setEntradaFinPct(INITIAL_VALUES.entradaFinanciamentoPct)
       setMostrarFinanciamento(INITIAL_VALUES.mostrarFinanciamento)
       setMostrarGrafico(INITIAL_VALUES.mostrarGrafico)
+      setUseBentoGridPdf(INITIAL_VALUES.useBentoGridPdf)
 
       setPrazoMeses(INITIAL_VALUES.prazoMeses)
       setBandeiraEncargo(INITIAL_VALUES.bandeiraEncargo)
@@ -17446,7 +17496,7 @@ export default function App() {
           tipoProposta:
             registro.dados.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
         }
-        const layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao)
+        const layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao, useBentoGridPdf)
         const sanitizedLayoutHtml = sanitizePrintableHtml(layoutHtml)
 
         if (!sanitizedLayoutHtml) {
@@ -17476,7 +17526,7 @@ export default function App() {
         window.alert('Não foi possível abrir o orçamento selecionado. Tente novamente.')
       }
     },
-    [openBudgetPreviewWindow],
+    [openBudgetPreviewWindow, useBentoGridPdf],
   )
 
   const confirmarRemocaoOrcamento = useCallback(
@@ -24074,6 +24124,17 @@ export default function App() {
                 </Field>
                 <Field
                   label={labelWithTooltip(
+                    'PDF Bento Grid (Leasing)',
+                    'Ativa o layout premium com cards Bento Grid para propostas de leasing. Desabilite para usar o formato legado.',
+                  )}
+                >
+                  <select value={useBentoGridPdf ? '1' : '0'} onChange={(e) => setUseBentoGridPdf(e.target.value === '1')}>
+                    <option value="1">Ativado (Premium)</option>
+                    <option value="0">Desativado (Legado)</option>
+                  </select>
+                </Field>
+                <Field
+                  label={labelWithTooltip(
                     'Mostrar coluna financiamento',
                     'Exibe ou oculta a coluna de comparação com financiamento na tela principal.',
                   )}
@@ -24124,6 +24185,15 @@ export default function App() {
                   ? 'propostas-vendas'
                   : 'propostas-leasing'
 
+
+  // If in print mode, render the Bento Grid print page
+  if (isPrintMode) {
+    return (
+      <React.Suspense fallback={<div style={{ padding: '20px' }}>Carregando proposta...</div>}>
+        <PrintPageLeasing data={printableData} />
+      </React.Suspense>
+    )
+  }
 
   return (
     <>
