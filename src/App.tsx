@@ -4859,6 +4859,8 @@ export default function App() {
   )
 
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+  const [cidadeBloqueadaPorCep, setCidadeBloqueadaPorCep] = useState(false)
+  const [ucGeradoraCidadeBloqueadaPorCep, setUcGeradoraCidadeBloqueadaPorCep] = useState(false)
   const [ibgeMunicipiosPorUf, setIbgeMunicipiosPorUf] = useState<Record<string, string[]>>({})
   const [ibgeMunicipiosLoading, setIbgeMunicipiosLoading] = useState<Record<string, boolean>>({})
   const ibgeMunicipiosInFlightRef = useRef(new Map<string, Promise<string[]>>())
@@ -5000,6 +5002,13 @@ export default function App() {
       controller.abort()
     }
   }, [clienteUfNormalizada, ensureIbgeMunicipios])
+
+  useEffect(() => {
+    if (cidadeBloqueadaPorCep) {
+      setCidadeSelectOpen(false)
+      setCidadeSearchTerm('')
+    }
+  }, [cidadeBloqueadaPorCep])
   const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
   const distribuidoraAneelEfetiva = useMemo(
     () =>
@@ -17315,6 +17324,7 @@ export default function App() {
     if (cepNumeros.length !== 8) {
       setBuscandoCep(false)
       setClienteMensagens((prev): ClienteMensagens => ({ ...prev, cep: undefined }))
+      setCidadeBloqueadaPorCep(false)
       return
     }
 
@@ -17338,6 +17348,7 @@ export default function App() {
 
         if (!data) {
           setClienteMensagens((prev) => ({ ...prev, cep: 'CEP não encontrado.' }))
+          setCidadeBloqueadaPorCep(false)
           return
         }
 
@@ -17360,14 +17371,20 @@ export default function App() {
         }
 
         if (localidade && uf) {
-          if (cidadeEncontrada && cidadeEncontrada !== base.cidade) {
-            patch.cidade = cidadeEncontrada
-          } else if (!cidadeEncontrada) {
+          if (cidadeEncontrada) {
+            if (cidadeEncontrada !== base.cidade) {
+              patch.cidade = cidadeEncontrada
+            }
+            setCidadeBloqueadaPorCep(true)
+          } else {
             avisoCidade = 'Cidade do CEP não encontrada na base do IBGE. Informe manualmente.'
+            setCidadeBloqueadaPorCep(false)
             if (localidade !== base.cidade) {
               patch.cidade = localidade
             }
           }
+        } else {
+          setCidadeBloqueadaPorCep(false)
         }
 
         if (uf && uf !== base.uf) {
@@ -17414,6 +17431,7 @@ export default function App() {
           ...prev,
           cep: 'Não foi possível consultar o CEP.',
         }))
+        setCidadeBloqueadaPorCep(false)
       } finally {
         if (ativo) {
           setBuscandoCep(false)
@@ -17450,6 +17468,7 @@ export default function App() {
     if (cepNumeros.length !== 8) {
       setUcGeradoraTitularBuscandoCep(false)
       setUcGeradoraTitularCepMessage(undefined)
+      setUcGeradoraCidadeBloqueadaPorCep(false)
       return
     }
 
@@ -17473,6 +17492,7 @@ export default function App() {
 
         if (!data) {
           setUcGeradoraTitularCepMessage('CEP não encontrado.')
+          setUcGeradoraCidadeBloqueadaPorCep(false)
           return
         }
 
@@ -17491,12 +17511,20 @@ export default function App() {
           patchEndereco.logradouro = logradouro
         }
         if (localidade) {
-          if (cidadeEncontrada && cidadeEncontrada !== draft.endereco.cidade) {
-            patchEndereco.cidade = cidadeEncontrada
-          } else if (!cidadeEncontrada && localidade !== draft.endereco.cidade) {
+          if (cidadeEncontrada) {
+            if (cidadeEncontrada !== draft.endereco.cidade) {
+              patchEndereco.cidade = cidadeEncontrada
+            }
+            setUcGeradoraCidadeBloqueadaPorCep(true)
+          } else {
             avisoCidade = 'Cidade do CEP não encontrada na base do IBGE. Informe manualmente.'
-            patchEndereco.cidade = localidade
+            setUcGeradoraCidadeBloqueadaPorCep(false)
+            if (localidade !== draft.endereco.cidade) {
+              patchEndereco.cidade = localidade
+            }
           }
+        } else {
+          setUcGeradoraCidadeBloqueadaPorCep(false)
         }
         if (uf && uf !== draft.endereco.uf) {
           patchEndereco.uf = uf
@@ -17513,6 +17541,7 @@ export default function App() {
         }
 
         setUcGeradoraTitularCepMessage('Não foi possível consultar o CEP.')
+        setUcGeradoraCidadeBloqueadaPorCep(false)
       } finally {
         if (ativo) {
           setUcGeradoraTitularBuscandoCep(false)
@@ -18092,6 +18121,7 @@ export default function App() {
             value={cliente.cep}
             onChange={(e) => {
               handleClienteChange('cep', e.target.value)
+              setCidadeBloqueadaPorCep(false)
               clearFieldHighlight(e.currentTarget)
             }}
             inputMode="numeric"
@@ -18107,16 +18137,20 @@ export default function App() {
           hint={
             !cliente.uf.trim()
               ? 'Selecione a UF para escolher a cidade.'
-              : verificandoCidade
-                ? 'Verificando cidade...'
-                : clienteMensagens.cidade
+              : cidadeBloqueadaPorCep
+                ? 'Cidade definida pelo CEP. Altere o CEP para modificar.'
+                : verificandoCidade
+                  ? 'Verificando cidade...'
+                  : clienteMensagens.cidade
           }
         >
-          <div className={`city-select${!cliente.uf.trim() ? ' is-disabled' : ''}`}>
+          <div
+            className={`city-select${!cliente.uf.trim() || cidadeBloqueadaPorCep ? ' is-disabled' : ''}`}
+          >
             <details
               open={cidadeSelectOpen}
               onToggle={(event) => {
-                if (!cliente.uf.trim()) {
+                if (!cliente.uf.trim() || cidadeBloqueadaPorCep) {
                   event.preventDefault()
                   event.currentTarget.open = false
                   setCidadeSelectOpen(false)
@@ -18128,9 +18162,9 @@ export default function App() {
               <summary
                 data-field="cliente-cidade"
                 role="button"
-                aria-disabled={!cliente.uf.trim()}
+                aria-disabled={!cliente.uf.trim() || cidadeBloqueadaPorCep}
                 onClick={(event) => {
-                  if (!cliente.uf.trim()) {
+                  if (!cliente.uf.trim() || cidadeBloqueadaPorCep) {
                     event.preventDefault()
                   }
                 }}
@@ -18147,9 +18181,31 @@ export default function App() {
                   placeholder="Buscar cidade…"
                   value={cidadeSearchTerm}
                   onChange={(event) => setCidadeSearchTerm(event.target.value)}
-                  disabled={!cliente.uf.trim()}
+                  disabled={!cliente.uf.trim() || cidadeBloqueadaPorCep}
                 />
                 <div className="city-select-list" role="listbox">
+                  {!cidadeBloqueadaPorCep && cliente.cidade.trim() ? (
+                    <button
+                      type="button"
+                      className="city-select-option is-manual"
+                      role="option"
+                      aria-selected={false}
+                      onClick={() => {
+                        handleClienteChange('cidade', '')
+                        setCidadeSearchTerm('')
+                        setCidadeSelectOpen(false)
+                        cepCidadeAvisoRef.current = null
+                        setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
+                        clearFieldHighlight(
+                          document.querySelector('[data-field="cliente-cidade"]') as
+                            | HTMLElement
+                            | null,
+                        )
+                      }}
+                    >
+                      Limpar cidade
+                    </button>
+                  ) : null}
                   {cidadesCarregando ? (
                     <div className="city-select-empty">Carregando cidades...</div>
                   ) : cidadesFiltradas.length > 0 ? (
@@ -18162,6 +18218,7 @@ export default function App() {
                           className={`city-select-option${selecionada ? ' is-selected' : ''}`}
                           role="option"
                           aria-selected={selecionada}
+                          disabled={cidadeBloqueadaPorCep}
                           onClick={() => {
                             handleClienteChange('cidade', cidade)
                             setCidadeSearchTerm('')
@@ -18191,7 +18248,7 @@ export default function App() {
                       Nenhuma cidade encontrada para esta UF.
                     </div>
                   )}
-                  {!cidadesCarregando && cidadeManualDisponivel ? (
+                  {!cidadeBloqueadaPorCep && !cidadesCarregando && cidadeManualDisponivel ? (
                     <button
                       type="button"
                       className="city-select-option is-manual"
@@ -18238,7 +18295,7 @@ export default function App() {
               const nextUf = e.target.value
               if (nextUf !== cliente.uf) {
                 handleClienteChange('uf', nextUf)
-                if (cliente.cidade.trim()) {
+                if (cliente.cidade.trim() && !cidadeBloqueadaPorCep) {
                   handleClienteChange('cidade', '')
                 }
                 setCidadeSearchTerm('')
@@ -18448,6 +18505,7 @@ export default function App() {
                         onChange={(event) => {
                           setUcGeradoraTitularCepMessage(undefined)
                           setUcGeradoraTitularBuscandoCep(false)
+                          setUcGeradoraCidadeBloqueadaPorCep(false)
                           updateUcGeradoraTitularDraft({
                             endereco: { cep: formatCep(event.target.value) },
                           })
@@ -18475,12 +18533,23 @@ export default function App() {
                     </Field>
                     <Field
                       label="Cidade"
-                      hint={<FieldError message={ucGeradoraTitularErrors.cidade} />}
+                      hint={
+                        ucGeradoraCidadeBloqueadaPorCep ? (
+                          <span>Cidade definida pelo CEP. Altere o CEP para modificar.</span>
+                        ) : (
+                          <FieldError message={ucGeradoraTitularErrors.cidade} />
+                        )
+                      }
                     >
                       <input
                         data-field="ucGeradoraTitular-cidade"
                         value={leasingContrato.ucGeradoraTitularDraft?.endereco.cidade ?? ''}
+                        readOnly={ucGeradoraCidadeBloqueadaPorCep}
+                        aria-readonly={ucGeradoraCidadeBloqueadaPorCep}
                         onChange={(event) => {
+                          if (ucGeradoraCidadeBloqueadaPorCep) {
+                            return
+                          }
                           updateUcGeradoraTitularDraft({
                             endereco: { cidade: event.target.value },
                           })
