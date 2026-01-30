@@ -58,7 +58,7 @@ export const BentoCardContent: React.FC<{ children: React.ReactNode; className?:
   className = '',
 }) => {
   return (
-    <div className={`text-slate-600 text-sm leading-6 ${className}`}>
+    <div className={`text-slate-500 text-sm leading-6 ${className}`}>
       {children}
     </div>
   )

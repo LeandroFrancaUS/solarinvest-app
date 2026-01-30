@@ -17,7 +17,13 @@ export default {
           dark: '#1E293B',
           accent: '#0056b3',
           bg: '#F8FAFC',
+          primary: '#FDB813',
+          secondary: '#1E293B',
+          success: '#10B981',
         },
+      },
+      fontFamily: {
+        inter: ['Inter', 'system-ui', 'sans-serif'],
       },
       // A4 dimensions (210mm x 297mm)
       width: {
