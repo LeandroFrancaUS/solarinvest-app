@@ -2,6 +2,9 @@ import React from 'react'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 import { PrintLayout } from '../pdf/PrintLayout'
 import { BentoCard, BentoCardTitle, BentoCardContent } from '../pdf/BentoCard'
+import { BrandHeader } from '../pdf/BrandHeader'
+import { KpiCard } from '../pdf/KpiCard'
+import { ListCard } from '../pdf/ListCard'
 import { formatNumberBRWithOptions, formatMoneyBR, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 
 interface PrintableProposalLeasingBentoProps extends PrintableProposalProps {
@@ -9,8 +12,8 @@ interface PrintableProposalLeasingBentoProps extends PrintableProposalProps {
 }
 
 /**
- * Premium Bento Grid PDF for Leasing Proposals
- * 5-6 pages with modern design, no broken tables
+ * Premium Bento Grid PDF for Leasing Proposals - Version 3
+ * Professional branding, enhanced components, 5-6 pages with modern design
  */
 export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBentoProps> = (props) => {
   const {
@@ -84,47 +87,65 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
   return (
     <div 
       data-testid="proposal-bento-root" 
-      data-version="premium-v1"
+      data-version="premium-v3"
       className="bg-solar-bg"
     >
       {/* PAGE 1 - HERO COVER */}
       <PrintLayout>
-        {/* Header with logo and client info */}
-        <BentoCard colSpan="col-span-12" variant="highlight">
-          <div className="flex items-center justify-between">
+        {/* Brand Header with logo */}
+        <BrandHeader 
+          title="Proposta de Leasing Solar"
+          subtitle="SolarInvest - Energia Solar sob Medida"
+          showLogo={true}
+        />
+
+        {/* Client Info Card */}
+        <BentoCard colSpan="col-span-12">
+          <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Proposta de Leasing Solar</h1>
-              <p className="text-white/90 text-sm">SolarInvest - Energia Solar sob Medida</p>
+              <p className="text-slate-500 mb-1">Cliente</p>
+              <p className="font-semibold text-slate-900">{sanitize(cliente.nome)}</p>
             </div>
-            <div className="text-right text-white/90 text-sm">
-              {budgetId && <p className="font-semibold">Proposta #{sanitize(budgetId)}</p>}
-              <p>{sanitize(cliente.nome)}</p>
-              {cliente.cidade && cliente.uf && <p>{sanitize(cliente.cidade)}, {sanitize(cliente.uf)}</p>}
-            </div>
+            {budgetId && (
+              <div>
+                <p className="text-slate-500 mb-1">Proposta</p>
+                <p className="font-semibold text-slate-900">#{sanitize(budgetId)}</p>
+              </div>
+            )}
+            {cliente.cidade && cliente.uf && (
+              <div>
+                <p className="text-slate-500 mb-1">Localização</p>
+                <p className="font-semibold text-slate-900">{sanitize(cliente.cidade)}, {sanitize(cliente.uf)}</p>
+              </div>
+            )}
+            {cliente.endereco && (
+              <div>
+                <p className="text-slate-500 mb-1">Endereço</p>
+                <p className="font-semibold text-slate-900">{sanitize(cliente.endereco)}</p>
+              </div>
+            )}
           </div>
         </BentoCard>
 
-        {/* Main KPIs - 3 columns */}
-        <BentoCard colSpan="col-span-4">
-          <BentoCardContent>
-            <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Potência Instalada</p>
-            <p className="text-3xl font-bold text-solar-dark">{formatKwp(potenciaInstaladaKwp)}</p>
-          </BentoCardContent>
-        </BentoCard>
-
-        <BentoCard colSpan="col-span-4">
-          <BentoCardContent>
-            <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Geração Mensal</p>
-            <p className="text-3xl font-bold text-solar-dark">{formatKwhMes(geracaoMensalKwh)}</p>
-          </BentoCardContent>
-        </BentoCard>
-
-        <BentoCard colSpan="col-span-4">
-          <BentoCardContent>
-            <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Desconto na Tarifa</p>
-            <p className="text-3xl font-bold text-solar-brand">{formatPercent(descontoContratualPct)}</p>
-          </BentoCardContent>
-        </BentoCard>
+        {/* Main KPIs using KpiCard */}
+        <KpiCard 
+          label="Potência Instalada"
+          value={formatKwp(potenciaInstaladaKwp) || '—'}
+          colSpan="col-span-4"
+          variant="highlight"
+          className="col-span-4"
+        />
+        <KpiCard 
+          label="Geração Mensal Estimada"
+          value={formatKwhMes(geracaoMensalKwh) || '—'}
+          className="col-span-4"
+        />
+        <KpiCard 
+          label="Desconto Contratual"
+          value={formatPercent(descontoContratualPct) || '—'}
+          variant="accent"
+          className="col-span-4"
+        />
 
         {/* How it works - 3 steps in one row */}
         <BentoCard colSpan="col-span-12">
