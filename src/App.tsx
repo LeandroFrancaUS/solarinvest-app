@@ -1100,6 +1100,13 @@ const CLIENTE_INICIAL: ClienteDados = {
 const isSyncedClienteField = (key: keyof ClienteDados): key is FieldSyncKey =>
   key === 'uf' || key === 'cidade' || key === 'distribuidora' || key === 'cep' || key === 'endereco'
 
+const normalizeDistribuidoraName = (value?: string | null): string =>
+  value
+    ?.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase() ?? ''
+
 const getDistribuidoraDefaultForUf = (uf?: string | null): string => {
   const normalized = uf?.trim().toUpperCase() ?? ''
   if (normalized === 'GO') {
@@ -1118,6 +1125,8 @@ const getDistribuidoraValidationMessage = (
   const uf = ufRaw?.trim().toUpperCase() ?? ''
   const distribuidora = distribuidoraRaw?.trim() ?? ''
   const expected = getDistribuidoraDefaultForUf(uf)
+  const distribuidoraNormalizada = normalizeDistribuidoraName(distribuidora)
+  const expectedNormalizada = normalizeDistribuidoraName(expected)
 
   if (!uf && distribuidora) {
     return 'Informe a UF antes de definir a distribuidora.'
@@ -1127,7 +1136,7 @@ const getDistribuidoraValidationMessage = (
     if (!distribuidora) {
       return `Informe a distribuidora para a UF ${uf}. Sugestão: ${expected}.`
     }
-    if (distribuidora !== expected) {
+    if (distribuidoraNormalizada !== expectedNormalizada) {
       return `Distribuidora incompatível com a UF ${uf}. Use ${expected}.`
     }
     return null
