@@ -72,7 +72,6 @@ import {
   saveProposalSnapshotById,
   loadProposalSnapshotById,
 } from './lib/persist/proposalStore'
-import { cidadesPorUF } from './data/cidadesPorUF'
 import {
   upsertClienteRegistro,
   getClienteRegistroById,
@@ -426,6 +425,11 @@ const normalizeSegmentoClienteValue = (value: unknown): SegmentoCliente | undefi
   return undefined
 }
 
+const normalizeTusdTipoClienteValue = (value: unknown): TipoClienteTUSD => {
+  const normalized = normalizeTipoBasico(typeof value === 'string' ? value : null)
+  return (normalized || 'residencial') as TipoClienteTUSD
+}
+
 function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
   if (!value) return 'fibrocimento'
   const v = value.toLowerCase()
@@ -487,6 +491,7 @@ const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
 } as Record<TipoClienteTUSD, SegmentoCliente>
 
 const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
+  '': 'residencial' as TipoClienteTUSD,
   residencial: 'residencial' as TipoClienteTUSD,
   comercial: 'comercial' as TipoClienteTUSD,
   cond_vertical: 'cond_vertical' as TipoClienteTUSD,
@@ -518,7 +523,7 @@ const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
 const SEGMENTO_OPTIONS = NOVOS_TIPOS_EDIFICACAO.map(({ value }) => value as SegmentoCliente)
 const SEGMENTO_LABELS = NOVOS_TIPOS_EDIFICACAO.reduce(
   (acc, { value, label }) => ({ ...acc, [value as SegmentoCliente]: label }),
-  {} as Record<SegmentoCliente, string>,
+  { '': 'Selecione' } as Record<SegmentoCliente, string>,
 )
 const isSegmentoCondominio = (segmento: SegmentoCliente) =>
   segmento === 'cond_vertical' || segmento === 'cond_horizontal'
@@ -605,6 +610,10 @@ type IbgeMunicipio = {
       }
     }
   }
+}
+
+type IbgeEstado = {
+  sigla?: string
 }
 
 type ClienteRegistro = {
@@ -1041,7 +1050,6 @@ type UcBeneficiariaFormState = {
 type UcGeradoraTitularErrors = {
   nomeCompleto?: string
   cpf?: string
-  rg?: string
   logradouro?: string
   cidade?: string
   uf?: string
@@ -4307,7 +4315,7 @@ export default function App() {
   )
   const [tusdPercent, setTusdPercent] = useState(INITIAL_VALUES.tusdPercent)
   const [tusdTipoCliente, setTusdTipoCliente] = useState<TipoClienteTUSD>(() =>
-    normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente),
+    normalizeTusdTipoClienteValue(INITIAL_VALUES.tusdTipoCliente),
   )
   const [tusdSubtipo, setTusdSubtipo] = useState(INITIAL_VALUES.tusdSubtipo)
   const [tusdSimultaneidade, setTusdSimultaneidade] = useState<number | null>(
@@ -4374,7 +4382,9 @@ export default function App() {
       : ''
   }, [tipoInstalacao, tipoSistema])
   const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(() =>
-    normalizeTipoBasico(INITIAL_VALUES.segmentoCliente),
+    INITIAL_VALUES.segmentoCliente
+      ? normalizeTipoBasico(INITIAL_VALUES.segmentoCliente)
+      : '',
   )
   const [tipoEdificacaoOutro, setTipoEdificacaoOutro] = useState(
     INITIAL_VALUES.tipoEdificacaoOutro,
@@ -4849,6 +4859,9 @@ export default function App() {
   )
 
   const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
+  const [ibgeMunicipiosPorUf, setIbgeMunicipiosPorUf] = useState<Record<string, string[]>>({})
+  const [ibgeMunicipiosLoading, setIbgeMunicipiosLoading] = useState<Record<string, boolean>>({})
+  const ibgeMunicipiosInFlightRef = useRef(new Map<string, Promise<string[]>>())
   const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
   const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
@@ -4860,6 +4873,96 @@ export default function App() {
     return distribuidorasPorUf[ufTarifa] ?? []
   }, [distribuidorasPorUf, ufTarifa])
 
+  const ensureIbgeMunicipios = useCallback(
+    async (uf: string, signal?: AbortSignal): Promise<string[]> => {
+      const normalizedUf = uf.trim().toUpperCase()
+      if (!normalizedUf) {
+        return []
+      }
+      if (ibgeMunicipiosPorUf[normalizedUf]?.length) {
+        return ibgeMunicipiosPorUf[normalizedUf]
+      }
+      const inflight = ibgeMunicipiosInFlightRef.current.get(normalizedUf)
+      if (inflight) {
+        return inflight
+      }
+      const promise = (async () => {
+        setIbgeMunicipiosLoading((prev) => ({ ...prev, [normalizedUf]: true }))
+        try {
+          const response = await fetch(
+            `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${normalizedUf}/municipios`,
+            { signal },
+          )
+          if (!response.ok) {
+            throw new Error('Falha ao buscar municípios no IBGE.')
+          }
+          const data: IbgeMunicipio[] = await response.json()
+          const municipios = Array.isArray(data)
+            ? data
+                .map((item) => item?.nome?.trim())
+                .filter((item): item is string => Boolean(item))
+                .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+            : []
+          setIbgeMunicipiosPorUf((prev) => ({
+            ...prev,
+            [normalizedUf]: municipios,
+          }))
+          return municipios
+        } catch (error) {
+          if (!(error instanceof DOMException) || error.name !== 'AbortError') {
+            console.warn('[IBGE] Não foi possível carregar municípios:', error)
+          }
+          setIbgeMunicipiosPorUf((prev) => ({
+            ...prev,
+            [normalizedUf]: prev[normalizedUf] ?? [],
+          }))
+          return ibgeMunicipiosPorUf[normalizedUf] ?? []
+        } finally {
+          ibgeMunicipiosInFlightRef.current.delete(normalizedUf)
+          setIbgeMunicipiosLoading((prev) => ({ ...prev, [normalizedUf]: false }))
+        }
+      })()
+      ibgeMunicipiosInFlightRef.current.set(normalizedUf, promise)
+      return promise
+    },
+    [ibgeMunicipiosPorUf],
+  )
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const carregarEstadosIbge = async () => {
+      try {
+        const response = await fetch(
+          'https://servicodados.ibge.gov.br/api/v1/localidades/estados',
+          { signal: controller.signal },
+        )
+        if (!response.ok) {
+          throw new Error('Falha ao buscar estados no IBGE.')
+        }
+        const data: IbgeEstado[] = await response.json()
+        const estados = Array.isArray(data)
+          ? data
+              .map((item) => item?.sigla?.trim().toUpperCase())
+              .filter((item): item is string => Boolean(item))
+              .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+          : []
+        if (estados.length > 0) {
+          setUfsDisponiveis(estados)
+        }
+      } catch (error) {
+        if (!(error instanceof DOMException) || error.name !== 'AbortError') {
+          console.warn('[IBGE] Não foi possível carregar estados:', error)
+        }
+      }
+    }
+
+    void carregarEstadosIbge()
+
+    return () => {
+      controller.abort()
+    }
+  }, [setUfsDisponiveis])
+
   const clienteUf = cliente.uf
   const clienteDistribuidorasDisponiveis = useMemo(() => {
     if (!clienteUf) return [] as string[]
@@ -4868,8 +4971,11 @@ export default function App() {
   const clienteUfNormalizada = cliente.uf.trim().toUpperCase()
   const cidadesDisponiveis = useMemo(() => {
     if (!clienteUfNormalizada) return [] as string[]
-    return cidadesPorUF[clienteUfNormalizada] ?? []
-  }, [clienteUfNormalizada])
+    return ibgeMunicipiosPorUf[clienteUfNormalizada] ?? []
+  }, [clienteUfNormalizada, ibgeMunicipiosPorUf])
+  const cidadesCarregando = Boolean(
+    clienteUfNormalizada && ibgeMunicipiosLoading[clienteUfNormalizada],
+  )
   const cidadesFiltradas = useMemo(() => {
     const termo = normalizeText(cidadeSearchTerm.trim())
     if (!termo) {
@@ -4877,6 +4983,23 @@ export default function App() {
     }
     return cidadesDisponiveis.filter((cidade) => normalizeText(cidade).includes(termo))
   }, [cidadeSearchTerm, cidadesDisponiveis])
+  const cidadeManualDigitada = cidadeSearchTerm.trim()
+  const cidadeManualDisponivel =
+    Boolean(cidadeManualDigitada) &&
+    !cidadesDisponiveis.some(
+      (cidade) => normalizeText(cidade) === normalizeText(cidadeManualDigitada),
+    )
+
+  useEffect(() => {
+    if (!clienteUfNormalizada) {
+      return
+    }
+    const controller = new AbortController()
+    void ensureIbgeMunicipios(clienteUfNormalizada, controller.signal)
+    return () => {
+      controller.abort()
+    }
+  }, [clienteUfNormalizada, ensureIbgeMunicipios])
   const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
   const distribuidoraAneelEfetiva = useMemo(
     () =>
@@ -5883,27 +6006,22 @@ export default function App() {
         cliente,
         segmentoCliente,
         tipoEdificacaoOutro,
-        leasingContrato,
+        kcKwhMes,
+        tarifaCheia,
+        tipoRede,
       }
       return mode === 'venda'
         ? buildRequiredFieldsVenda(input)
         : buildRequiredFieldsLeasing(input)
     },
-    [cliente, segmentoCliente, tipoEdificacaoOutro, leasingContrato],
+    [cliente, segmentoCliente, tipoEdificacaoOutro, kcKwhMes, tarifaCheia, tipoRede],
   )
 
   const validateConsumoMinimoLeasing = useCallback(
     (mensagem: string) => {
       const consumoKwhMes = Number(kcKwhMes)
-      if (!Number.isFinite(consumoKwhMes)) {
+      if (!Number.isFinite(consumoKwhMes) || consumoKwhMes <= 0) {
         adicionarNotificacao(mensagem, 'error')
-        return false
-      }
-      if (consumoKwhMes < 300) {
-        adicionarNotificacao(
-          'O consumo médio do cliente está abaixo do perfil que a SolarInvest pode atender no leasing.',
-          'error',
-        )
         return false
       }
       return true
@@ -5933,12 +6051,8 @@ export default function App() {
       return false
     }
 
-    if (!validateTipoRedeLeasing('Selecione o tipo de rede para gerar a proposta.')) {
-      return false
-    }
-
     return true
-  }, [adicionarNotificacao, cliente.nome, validateConsumoMinimoLeasing, validateTipoRedeLeasing])
+  }, [adicionarNotificacao, cliente.nome, validateConsumoMinimoLeasing])
 
   const guardClientFieldsOrReturn = useCallback(
     (mode: 'venda' | 'leasing') => {
@@ -5965,34 +6079,68 @@ export default function App() {
     ],
   )
 
-  const validateClienteParaSalvar = useCallback(() => {
+  const validateClienteParaSalvar = useCallback((options?: { silent?: boolean }) => {
+    const reportError = (mensagem: string) => {
+      if (!options?.silent) {
+        adicionarNotificacao(mensagem, 'error')
+      }
+    }
     const nomeCliente = cliente.nome?.trim() ?? ''
     if (!nomeCliente) {
-      adicionarNotificacao('Informe o Nome ou Razão Social para salvar o cliente.', 'error')
+      reportError('Informe o Nome ou Razão Social para salvar o cliente.')
       return false
     }
 
-    if (activeTab === 'leasing' && !validateTipoRedeLeasing('Selecione o tipo de rede para salvar o cliente.')) {
+    const documentoCliente = cliente.documento?.trim() ?? ''
+    if (!documentoCliente) {
+      reportError('Informe o CPF/CNPJ para salvar o cliente.')
       return false
     }
 
-    const cidadeCliente = cliente.cidade?.trim() ?? ''
-    if (!cidadeCliente) {
-      adicionarNotificacao('Informe a Cidade para salvar o cliente.', 'error')
+    const cepCliente = cliente.cep?.trim() ?? ''
+    if (!cepCliente) {
+      reportError('Informe o CEP para salvar o cliente.')
+      return false
+    }
+
+    if (!segmentoCliente) {
+      reportError('Selecione o Tipo de Edificação para salvar o cliente.')
+      return false
+    }
+
+    if (segmentoCliente === 'outros' && !tipoEdificacaoOutro.trim()) {
+      reportError('Descreva o Tipo de Edificação para salvar o cliente.')
       return false
     }
 
     const consumoKwhMes = Number(kcKwhMes)
-    if (Number.isFinite(consumoKwhMes) && consumoKwhMes > 0 && consumoKwhMes < 300) {
-      adicionarNotificacao(
-        'O consumo médio do cliente está abaixo do perfil que a SolarInvest pode atender no leasing.',
-        'error',
-      )
+    if (!Number.isFinite(consumoKwhMes) || consumoKwhMes <= 0) {
+      reportError('Informe o Consumo (kWh/mês) para salvar o cliente.')
+      return false
+    }
+
+    const tarifaValor = Number.isFinite(tarifaCheia) ? tarifaCheia : 0
+    if (tarifaValor < 0.9) {
+      reportError('Perfil de cliente inelegivel. Tarifa cheia deve ser maior do que R$ 0,90')
+      return false
+    }
+
+    if (tipoRede === 'nenhum') {
+      reportError('Selecione o tipo de rede para salvar o cliente.')
       return false
     }
 
     return true
-  }, [activeTab, adicionarNotificacao, cliente.cidade, cliente.nome, kcKwhMes, validateTipoRedeLeasing])
+  }, [
+    cliente.cep,
+    cliente.documento,
+    cliente.nome,
+    kcKwhMes,
+    segmentoCliente,
+    tarifaCheia,
+    tipoEdificacaoOutro,
+    tipoRede,
+  ])
 
   useEffect(() => {
     if (!isVendaDiretaTab) {
@@ -7909,10 +8057,9 @@ export default function App() {
   )
 
   useEffect(() => {
-    const tusdBase = vendaForm.tusd_tipo_cliente
-      ? normalizeTipoBasico(vendaForm.tusd_tipo_cliente)
-      : null
-    const tusdValido: TipoClienteTUSD = tusdBase ?? INITIAL_VALUES.tusdTipoCliente
+    const tusdValido: TipoClienteTUSD = vendaForm.tusd_tipo_cliente
+      ? normalizeTusdTipoClienteValue(vendaForm.tusd_tipo_cliente)
+      : INITIAL_VALUES.tusdTipoCliente
     const segmentoPreferido = TUSD_TO_SEGMENTO[tusdValido] ?? INITIAL_VALUES.segmentoCliente
     const segmentoAtual = vendaForm.segmento_cliente
       ? normalizeTipoBasico(vendaForm.segmento_cliente)
@@ -12986,7 +13133,7 @@ export default function App() {
     const budgetIdStateNow = currentBudgetId
     const budgetId = options?.budgetIdOverride ?? getActiveBudgetId()
     const clienteFonte = clienteRef.current ?? cliente
-    const tusdTipoClienteNormalizado = normalizeTipoBasico(tusdTipoCliente)
+    const tusdTipoClienteNormalizado = normalizeTusdTipoClienteValue(tusdTipoCliente)
     const segmentoClienteNormalizado = normalizeTipoBasico(segmentoCliente)
     const vendaFormNormalizado: VendaForm = {
       ...vendaForm,
@@ -12994,7 +13141,7 @@ export default function App() {
         ? normalizeTipoBasico(vendaForm.segmento_cliente)
         : undefined,
       tusd_tipo_cliente: vendaForm.tusd_tipo_cliente
-        ? normalizeTipoBasico(vendaForm.tusd_tipo_cliente)
+        ? normalizeTusdTipoClienteValue(vendaForm.tusd_tipo_cliente)
         : undefined,
     }
 
@@ -13253,12 +13400,13 @@ export default function App() {
     return registro
   }
 
-  const handleSalvarCliente = useCallback(async (options?: { skipGuard?: boolean }) => {
+  const handleSalvarCliente = useCallback(
+    async (options?: { skipGuard?: boolean; silent?: boolean }) => {
     if (typeof window === 'undefined') {
       return false
     }
 
-    if (!validateClienteParaSalvar()) {
+    if (!validateClienteParaSalvar({ silent: options?.silent })) {
       return false
     }
 
@@ -13766,7 +13914,7 @@ export default function App() {
               if (snapshotNormalizado.currentBudgetId !== id) {
                 snapshotNormalizado.currentBudgetId = id
               }
-              snapshotNormalizado.tusdTipoCliente = normalizeTipoBasico(
+              snapshotNormalizado.tusdTipoCliente = normalizeTusdTipoClienteValue(
                 snapshotNormalizado.tusdTipoCliente,
               )
               snapshotNormalizado.segmentoCliente = normalizeTipoBasico(
@@ -13778,7 +13926,7 @@ export default function App() {
                   ? normalizeTipoBasico(snapshotNormalizado.vendaForm.segmento_cliente)
                   : undefined,
                 tusd_tipo_cliente: snapshotNormalizado.vendaForm.tusd_tipo_cliente
-                  ? normalizeTipoBasico(snapshotNormalizado.vendaForm.tusd_tipo_cliente)
+                  ? normalizeTusdTipoClienteValue(snapshotNormalizado.vendaForm.tusd_tipo_cliente)
                   : undefined,
               }
             } catch (error) {
@@ -14102,7 +14250,7 @@ export default function App() {
     setTaxaMinima(snapshot.taxaMinima)
     setTaxaMinimaInputEmpty(snapshot.taxaMinimaInputEmpty)
     setEncargosFixosExtras(snapshot.encargosFixosExtras)
-    const tusdNormalizado = normalizeTipoBasico(snapshot.tusdTipoCliente)
+    const tusdNormalizado = normalizeTusdTipoClienteValue(snapshot.tusdTipoCliente)
     setTusdPercent(snapshot.tusdPercent)
     setTusdTipoCliente(tusdNormalizado)
     setTusdSubtipo(snapshot.tusdSubtipo)
@@ -14150,7 +14298,7 @@ export default function App() {
         ? normalizeTipoBasico(snapshot.vendaForm.segmento_cliente)
         : undefined,
       tusd_tipo_cliente: snapshot.vendaForm.tusd_tipo_cliente
-        ? normalizeTipoBasico(snapshot.vendaForm.tusd_tipo_cliente)
+        ? normalizeTusdTipoClienteValue(snapshot.vendaForm.tusd_tipo_cliente)
         : undefined,
     })
     setCapexManualOverride(snapshot.capexManualOverride)
@@ -14531,7 +14679,9 @@ export default function App() {
       const dadosAtuais = clonePrintableData(printableData)
       return stableStringify({ snapshot, dados: dadosAtuais })
     }
-  })
+  },
+  [validateClienteParaSalvar],
+  )
 
   useEffect(() => {
     if (initialSignatureSetRef.current) {
@@ -14691,11 +14841,7 @@ export default function App() {
     setEficiencia(valor)
   }
   const handlePrint = async () => {
-    if (isVendaDiretaTab) {
-      if (!guardClientFieldsOrReturn('venda')) {
-        return
-      }
-    } else if (!validatePropostaLeasingMinimal()) {
+    if (!validatePropostaLeasingMinimal()) {
       return
     }
 
@@ -14707,10 +14853,7 @@ export default function App() {
       return
     }
 
-    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
-    if (!clienteSalvo) {
-      return
-    }
+    await handleSalvarCliente({ skipGuard: true, silent: true })
 
     const resultado = await prepararPropostaParaExportacao({
       incluirTabelaBuyout: isVendaDiretaTab,
@@ -16038,7 +16181,7 @@ export default function App() {
       return false
     }
 
-    if (!guardClientFieldsOrReturn('leasing')) {
+    if (!validatePropostaLeasingMinimal()) {
       return false
     }
 
@@ -16051,10 +16194,7 @@ export default function App() {
       return false
     }
 
-    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
-    if (!clienteSalvo) {
-      return false
-    }
+    await handleSalvarCliente({ skipGuard: true, silent: true })
 
     setSalvandoPropostaLeasing(true)
 
@@ -16106,7 +16246,6 @@ export default function App() {
     atualizarOrcamentoAtivo,
     confirmarAlertasAntesDeSalvar,
     ensureNormativePrecheck,
-    guardClientFieldsOrReturn,
     handleSalvarCliente,
     isVendaDiretaTab,
     prepararPropostaParaExportacao,
@@ -16114,6 +16253,7 @@ export default function App() {
     salvandoPropostaLeasing,
     scheduleMarkStateAsSaved,
     switchBudgetId,
+    validatePropostaLeasingMinimal,
     vendaActions,
   ])
 
@@ -16122,11 +16262,7 @@ export default function App() {
       return false
     }
 
-    if (isVendaDiretaTab) {
-      if (!guardClientFieldsOrReturn('venda')) {
-        return false
-      }
-    } else if (!validatePropostaLeasingMinimal()) {
+    if (!validatePropostaLeasingMinimal()) {
       return false
     }
 
@@ -16134,10 +16270,7 @@ export default function App() {
       return false
     }
 
-    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
-    if (!clienteSalvo) {
-      return false
-    }
+    await handleSalvarCliente({ skipGuard: true, silent: true })
 
     setSalvandoPropostaPdf(true)
 
@@ -16242,7 +16375,6 @@ export default function App() {
     activeTab,
     adicionarNotificacao,
     ensureNormativePrecheck,
-    guardClientFieldsOrReturn,
     handleSalvarCliente,
     isProposalPdfIntegrationAvailable,
     isVendaDiretaTab,
@@ -16420,7 +16552,7 @@ export default function App() {
       setTaxaMinimaInputEmpty(false)
       setEncargosFixosExtras(INITIAL_VALUES.encargosFixosExtras)
       setTusdPercent(INITIAL_VALUES.tusdPercent)
-      setTusdTipoCliente(normalizeTipoBasico(INITIAL_VALUES.tusdTipoCliente))
+      setTusdTipoCliente(normalizeTusdTipoClienteValue(INITIAL_VALUES.tusdTipoCliente))
       setTusdSubtipo(INITIAL_VALUES.tusdSubtipo)
       setTusdSimultaneidade(INITIAL_VALUES.tusdSimultaneidade)
       setTusdSimultaneidadeManualOverride(false)
@@ -16957,9 +17089,6 @@ export default function App() {
     if (!draft.cpf.trim()) {
       errors.cpf = 'Informe o CPF.'
     }
-    if (!draft.rg.trim()) {
-      errors.rg = 'Informe o RG.'
-    }
     if (!draft.endereco.cep.trim()) {
       errors.cep = 'Informe o CEP.'
     }
@@ -17219,12 +17348,8 @@ export default function App() {
         const base = clienteRef.current ?? cliente
         const enderecoAtual = base.endereco?.trim() ?? ''
         const patch: Partial<ClienteDados> = {}
-        const cidadesDaUf = uf ? cidadesPorUF[uf] ?? [] : []
+        const cidadesDaUf = uf ? await ensureIbgeMunicipios(uf, controller.signal) : []
         const cidadeNormalizada = normalizeText(localidade)
-        const cidadeAtual = base.cidade?.trim() ?? ''
-        const cidadeAtualNaLista = cidadesDaUf.some(
-          (cidade) => normalizeText(cidade) === normalizeText(cidadeAtual),
-        )
         const cidadeEncontrada = cidadesDaUf.find(
           (cidade) => normalizeText(cidade) === cidadeNormalizada,
         )
@@ -17234,12 +17359,14 @@ export default function App() {
           patch.uf = uf
         }
 
-        if (cidadeEncontrada && cidadeEncontrada !== base.cidade) {
-          patch.cidade = cidadeEncontrada
-        } else if (localidade && uf && !cidadeEncontrada) {
-          avisoCidade = 'Cidade do CEP não encontrada na lista. Selecione manualmente.'
-          if (uf !== base.uf && !cidadeAtualNaLista) {
-            patch.cidade = ''
+        if (localidade && uf) {
+          if (cidadeEncontrada && cidadeEncontrada !== base.cidade) {
+            patch.cidade = cidadeEncontrada
+          } else if (!cidadeEncontrada) {
+            avisoCidade = 'Cidade do CEP não encontrada na base do IBGE. Informe manualmente.'
+            if (localidade !== base.cidade) {
+              patch.cidade = localidade
+            }
           }
         }
 
@@ -17304,7 +17431,7 @@ export default function App() {
       controller.abort()
       window.clearTimeout(timeoutId)
     }
-  }, [cliente.cep, distribuidorasPorUf])
+  }, [cliente.cep, distribuidorasPorUf, ensureIbgeMunicipios])
 
   useEffect(() => {
     const draft = leasingContrato.ucGeradoraTitularDraft
@@ -17352,13 +17479,24 @@ export default function App() {
         const logradouro = data?.logradouro?.trim() ?? ''
         const localidade = data?.cidade?.trim() ?? ''
         const uf = data?.uf?.trim().toUpperCase() ?? ''
+        const cidadesDaUf = uf ? await ensureIbgeMunicipios(uf, controller.signal) : []
+        const cidadeNormalizada = normalizeText(localidade)
+        const cidadeEncontrada = cidadesDaUf.find(
+          (cidade) => normalizeText(cidade) === cidadeNormalizada,
+        )
+        let avisoCidade: string | undefined
 
         const patchEndereco: Partial<LeasingEndereco> = {}
         if (logradouro && !draft.endereco.logradouro.trim()) {
           patchEndereco.logradouro = logradouro
         }
-        if (localidade && localidade !== draft.endereco.cidade) {
-          patchEndereco.cidade = localidade
+        if (localidade) {
+          if (cidadeEncontrada && cidadeEncontrada !== draft.endereco.cidade) {
+            patchEndereco.cidade = cidadeEncontrada
+          } else if (!cidadeEncontrada && localidade !== draft.endereco.cidade) {
+            avisoCidade = 'Cidade do CEP não encontrada na base do IBGE. Informe manualmente.'
+            patchEndereco.cidade = localidade
+          }
         }
         if (uf && uf !== draft.endereco.uf) {
           patchEndereco.uf = uf
@@ -17368,7 +17506,7 @@ export default function App() {
         }
 
         lastUcGeradoraCepAppliedRef.current = cepNumeros
-        setUcGeradoraTitularCepMessage(undefined)
+        setUcGeradoraTitularCepMessage(avisoCidade)
       } catch (error) {
         if (!ativo || controller.signal.aborted) {
           return
@@ -17389,7 +17527,7 @@ export default function App() {
       ativo = false
       controller.abort()
     }
-  }, [leasingContrato.ucGeradoraTitularDraft, updateUcGeradoraTitularDraft])
+  }, [ensureIbgeMunicipios, leasingContrato.ucGeradoraTitularDraft, updateUcGeradoraTitularDraft])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -17874,22 +18012,6 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'RG',
-            'Registro Geral (documento de identidade) do contratante pessoa física.',
-          )}
-        >
-          <input
-            data-field="cliente-rg"
-            value={cliente.rg || ''}
-            onChange={(e) => {
-              handleClienteChange('rg', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            placeholder="00.000.000-0"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
             'Estado Civil',
             'Estado civil do contratante pessoa física (solteiro, casado, divorciado, viúvo, etc.).',
           )}
@@ -17920,18 +18042,6 @@ export default function App() {
             value={cliente.nacionalidade || ''}
             onChange={(e) => handleClienteChange('nacionalidade', e.target.value)}
             placeholder="Brasileira"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Profissão',
-            'Ocupação ou profissão do contratante pessoa física.',
-          )}
-        >
-          <input
-            value={cliente.profissao || ''}
-            onChange={(e) => handleClienteChange('profissao', e.target.value)}
-            placeholder="Ex: Engenheiro, Advogado, Empresário"
           />
         </Field>
         <Field
@@ -18040,7 +18150,9 @@ export default function App() {
                   disabled={!cliente.uf.trim()}
                 />
                 <div className="city-select-list" role="listbox">
-                  {cidadesFiltradas.length > 0 ? (
+                  {cidadesCarregando ? (
+                    <div className="city-select-empty">Carregando cidades...</div>
+                  ) : cidadesFiltradas.length > 0 ? (
                     cidadesFiltradas.map((cidade) => {
                       const selecionada = cidade === cliente.cidade
                       return (
@@ -18076,9 +18188,38 @@ export default function App() {
                     })
                   ) : (
                     <div className="city-select-empty">
-                      Nenhuma cidade disponível para esta UF.
+                      Nenhuma cidade encontrada para esta UF.
                     </div>
                   )}
+                  {!cidadesCarregando && cidadeManualDisponivel ? (
+                    <button
+                      type="button"
+                      className="city-select-option is-manual"
+                      role="option"
+                      aria-selected={false}
+                      onClick={() => {
+                        handleClienteChange('cidade', cidadeManualDigitada)
+                        setCidadeSearchTerm('')
+                        setCidadeSelectOpen(false)
+                        cepCidadeAvisoRef.current = null
+                        setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
+                        clearFieldHighlight(
+                          document.querySelector('[data-field="cliente-cidade"]') as
+                            | HTMLElement
+                            | null,
+                        )
+                        if (cliente.uf.trim()) {
+                          clearFieldHighlight(
+                            document.querySelector('[data-field="cliente-uf"]') as
+                              | HTMLElement
+                              | null,
+                          )
+                        }
+                      }}
+                    >
+                      Usar “{cidadeManualDigitada}”
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </details>
@@ -18168,6 +18309,7 @@ export default function App() {
               clearFieldHighlight(event.currentTarget)
             }}
           >
+            <option value="">Selecione</option>
             {NOVOS_TIPOS_EDIFICACAO.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -18281,20 +18423,6 @@ export default function App() {
                         }}
                         placeholder="000.000.000-00"
                         inputMode="numeric"
-                      />
-                    </Field>
-                    <Field
-                      label="RG"
-                      hint={<FieldError message={ucGeradoraTitularErrors.rg} />}
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-rg"
-                        value={leasingContrato.ucGeradoraTitularDraft?.rg ?? ''}
-                        onChange={(event) => {
-                          updateUcGeradoraTitularDraft({ rg: event.target.value })
-                          clearUcGeradoraTitularError('rg')
-                        }}
-                        placeholder="RG"
                       />
                     </Field>
                     <Field
@@ -18444,7 +18572,6 @@ export default function App() {
                   <div className="uc-geradora-titular-summary-info">
                     <strong>{leasingContrato.ucGeradoraTitular.nomeCompleto}</strong>
                     <span>CPF: {leasingContrato.ucGeradoraTitular.cpf}</span>
-                    <span>RG: {leasingContrato.ucGeradoraTitular.rg}</span>
                     <span>
                       {formatUcGeradoraTitularEndereco(
                         leasingContrato.ucGeradoraTitular.endereco,
@@ -19196,6 +19323,7 @@ export default function App() {
             )}
           >
             <input
+              data-field="cliente-consumo"
               type="number"
               value={kcKwhMes}
               onChange={(e) => setKcKwhMes(Number(e.target.value) || 0, 'user')}
@@ -19223,6 +19351,7 @@ export default function App() {
             )}
           >
             <input
+              data-field="cliente-tarifaCheia"
               type="text"
               inputMode="decimal"
               value={tarifaCheiaField.value}
@@ -19849,6 +19978,7 @@ export default function App() {
           )}
         >
           <select
+            data-field="cliente-tipoRede"
             value={tipoRede}
             onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
           >
@@ -24635,6 +24765,7 @@ export default function App() {
                 <div className="grid g2">
                   <Field label="Consumo (kWh/mês)">
                     <input
+                      data-field="cliente-consumo"
                       type="number"
                       placeholder="Ex.: 800"
                       inputMode="decimal"
@@ -24660,6 +24791,7 @@ export default function App() {
                   <Field label="Tipo de rede">
                     <div className="grid g1 gap-1">
                       <select
+                        data-field="cliente-tipoRede"
                         value={tipoRedeControle === 'auto' ? 'auto' : tipoRede}
                         onChange={(event) => {
                           const value = event.target.value
