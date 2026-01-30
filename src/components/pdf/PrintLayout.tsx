@@ -12,7 +12,7 @@ interface PrintLayoutProps {
 export const PrintLayout: React.FC<PrintLayoutProps> = ({ children, className = '' }) => {
   return (
     <div
-      className={`w-a4 min-h-a4 bg-white page relative box-border overflow-hidden print-typography font-inter px-10 py-8 ${className}`}
+      className={`w-a4 min-h-a4 bg-slate-50 page relative box-border overflow-hidden print-typography font-inter px-10 py-8 ${className}`}
       data-testid="print-layout"
     >
       <div className="grid grid-cols-bento-12 gap-gutter auto-rows-min">
