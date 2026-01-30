@@ -8,8 +8,8 @@ export type TipoBasicoCliente =
 
 export function normalizeTipoBasico(
   value: string | undefined | null,
-): TipoBasicoCliente {
-  if (!value) return 'residencial'
+): TipoBasicoCliente | '' {
+  if (!value) return ''
 
   const v = value.toLowerCase()
 

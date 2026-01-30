@@ -86,7 +86,10 @@ const AVISO_PATRIMONIO = (
 
 const PRAZO_LEASING_PADRAO_MESES = 60
 
-const SEGMENTO_LABELS: Record<SegmentoCliente, string> = TIPO_BASICO_LABELS
+const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
+  ...TIPO_BASICO_LABELS,
+  '': 'Selecione',
+}
 
 const formatAnosDetalhado = (valor: number): string => {
   const fractionDigits = Number.isInteger(valor) ? 0 : 1
@@ -317,7 +320,6 @@ function PrintableProposalLeasingInner(
 
   const ucGeradoraTitularNome = ucGeradoraTitular?.nomeCompleto?.trim() || null
   const ucGeradoraTitularCpf = ucGeradoraTitular?.cpf?.trim() || null
-  const ucGeradoraTitularRg = ucGeradoraTitular?.rg?.trim() || null
   const ucGeradoraTitularEndereco = ucGeradoraTitular?.endereco?.trim() || null
   const ucGeradoraNumero = ucGeradora?.numero?.trim() || ucCliente || ''
   const ucGeradoraEnderecoBase = ucGeradoraTitularEndereco ?? ucGeradora?.endereco?.trim() ?? ''
@@ -387,10 +389,7 @@ function PrintableProposalLeasingInner(
   const ucGeradoraTitularDocumento = ucGeradoraTitularCpf
     ? `CPF: ${formatCpfCnpj(ucGeradoraTitularCpf)}`
     : null
-  const ucGeradoraTitularRgLabel = ucGeradoraTitularRg ? `RG: ${ucGeradoraTitularRg}` : null
-  const ucGeradoraTitularInfo = [ucGeradoraTitularDocumento, ucGeradoraTitularRgLabel]
-    .filter(Boolean)
-    .join(' — ')
+  const ucGeradoraTitularInfo = [ucGeradoraTitularDocumento].filter(Boolean).join(' — ')
   const ucGeradoraTitularLabel = [ucGeradoraTitularNome, ucGeradoraTitularInfo]
     .filter(Boolean)
     .join(' — ')

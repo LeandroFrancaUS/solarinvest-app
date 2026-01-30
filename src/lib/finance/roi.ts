@@ -10,7 +10,7 @@ export type PagamentoCondicao =
   | 'FINANCIAMENTO'
 export type ModoPagamento = 'PIX' | 'DEBITO' | 'CREDITO'
 
-export type SegmentoCliente = TipoBasicoCliente
+export type SegmentoCliente = TipoBasicoCliente | ''
 export type TipoSistema = 'ON_GRID' | 'HIBRIDO' | 'OFF_GRID'
 
 export interface VendaForm {

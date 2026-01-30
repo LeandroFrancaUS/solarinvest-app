@@ -10,7 +10,7 @@ const FALLBACK_DISTRIBUIDORAS: Record<string, string[]> = {
   AP: ['Equatorial Amapá', 'Companhia de Eletricidade do Amapá'],
   BA: ['Neoenergia Coelba', 'Coelba'],
   CE: ['Enel Ceará', 'Enel Distribuição Ceará'],
-  DF: ['Neoenergia Brasília'],
+  DF: ['Neoenergia Brasilia'],
   ES: ['EDP Espírito Santo'],
   GO: ['Equatorial Goiás', 'Enel Goiás'],
   MA: ['Equatorial Maranhão'],
@@ -193,4 +193,3 @@ export async function loadDistribuidorasAneel(): Promise<DistribuidorasAneel> {
   cachePromise = null
   return resultado
 }
-
