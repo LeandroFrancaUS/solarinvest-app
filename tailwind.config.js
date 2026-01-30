@@ -13,11 +13,21 @@ export default {
       // Solar brand colors
       colors: {
         solar: {
-          brand: '#FDB813',
-          dark: '#1E293B',
-          accent: '#0056b3',
-          bg: '#F8FAFC',
+          brand: '#1E88E5',
+          dark: '#212121',
+          accent: '#1E88E5',
+          bg: '#FFFFFF',
+          primary: '#1E88E5',
+          secondary: '#212121',
+          success: '#43A047',
+          technical: '#F5F5F5',
+          structural: '#E0E0E0',
+          text: '#333333',
+          danger: '#E53935',
         },
+      },
+      fontFamily: {
+        inter: ['Inter', 'system-ui', 'sans-serif'],
       },
       // A4 dimensions (210mm x 297mm)
       width: {
