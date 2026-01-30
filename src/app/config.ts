@@ -183,7 +183,7 @@ export const INITIAL_VALUES = {
   entradaFinanciamentoPct: 20,
   mostrarFinanciamento: false,
   mostrarGrafico: true,
-  useBentoGridPdf: true,
+  useBentoGridPdf: false,
   prazoMeses: 60,
   bandeiraEncargo: 0,
   cipEncargo: 0,

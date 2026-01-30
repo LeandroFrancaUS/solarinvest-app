@@ -24260,7 +24260,7 @@ export default function App() {
                 >
                   <select value={useBentoGridPdf ? '1' : '0'} onChange={(e) => setUseBentoGridPdf(e.target.value === '1')}>
                     <option value="1">Ativado (Premium)</option>
-                    <option value="0">Desativado (Legado)</option>
+                    <option value="0">Desativado (leagado)</option>
                   </select>
                 </Field>
                 <Field
