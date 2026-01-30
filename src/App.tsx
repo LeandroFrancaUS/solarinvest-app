@@ -8071,7 +8071,7 @@ export default function App() {
       updateVenda: segmentoAtual !== segmentoResolvido,
     })
     updateTusdTipoCliente(tusdResolvido, {
-      updateVenda: tusdBase !== tusdResolvido,
+      updateVenda: tusdValido !== tusdResolvido,
       reset: false,
     })
   }, [
