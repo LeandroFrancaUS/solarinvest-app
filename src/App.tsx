@@ -52,6 +52,8 @@ import {
   isProposalPdfIntegrationAvailable,
   ProposalPdfIntegrationMissingError,
 } from './utils/proposalPdf'
+import { shouldUseBentoGrid } from './utils/pdfVariant'
+import { renderBentoLeasingToHtml, buildBentoLeasingPdfDocument } from './utils/renderBentoLeasing'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
   analyzeEssentialInfo,
@@ -294,6 +296,7 @@ const getCustosFixosContaEnergiaPadrao = (cidade?: string | null): number | null
 }
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
+const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
@@ -3718,6 +3721,12 @@ function renderPrintableProposalToHtml(dados: PrintableProposalProps): Promise<s
     return Promise.resolve(null)
   }
 
+  // Use Bento Grid for leasing proposals when feature flag is enabled
+  if (shouldUseBentoGrid(dados)) {
+    return renderBentoLeasingToHtml(dados)
+  }
+
+  // Legacy rendering for other proposal types
   return new Promise((resolve) => {
     const container = document.createElement('div')
     container.style.position = 'fixed'
@@ -3831,6 +3840,13 @@ const buildProposalPdfDocument = (layoutHtml: string, nomeCliente: string, varia
   const safeCliente = nomeCliente?.trim() || 'SolarInvest'
   const safeHtml = layoutHtml || ''
 
+  // Check if this is Bento Grid HTML (contains the marker)
+  if (safeHtml.includes('data-testid="proposal-bento-root"')) {
+    // Use Bento Grid document wrapper
+    return buildBentoLeasingPdfDocument(safeHtml, safeCliente)
+  }
+
+  // Legacy PDF document structure
   return `<!DOCTYPE html>
 <html data-print-mode="download" data-print-variant="${variant}">
   <head>
@@ -3917,6 +3933,13 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 }
 
 export default function App() {
+  // Check if we're in print mode (for Bento Grid PDF generation)
+  const isPrintMode = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    const params = new URLSearchParams(window.location.search)
+    return params.get('mode') === 'print' && params.get('type') === 'leasing'
+  }, [])
+
   const distribuidorasFallback = useMemo(() => getDistribuidorasFallback(), [])
   const custoImplantacaoReferencia = useVendaStore(
     (state) => state.resumoProposta.custo_implantacao_referencia,
@@ -24124,6 +24147,15 @@ export default function App() {
                   ? 'propostas-vendas'
                   : 'propostas-leasing'
 
+
+  // If in print mode, render the Bento Grid print page
+  if (isPrintMode) {
+    return (
+      <React.Suspense fallback={<div style={{ padding: '20px' }}>Carregando proposta...</div>}>
+        <PrintPageLeasing data={printableData} />
+      </React.Suspense>
+    )
+  }
 
   return (
     <>

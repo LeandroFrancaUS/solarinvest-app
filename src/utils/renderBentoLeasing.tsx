@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import React, { useEffect, useRef } from 'react'
 import type { PrintableProposalProps } from '../types/printableProposal'
-import { PrintPageLeasing } from '../pages/PrintPageLeasing'
+import { PrintableProposalLeasingBento } from '../components/pdf/PrintableProposalLeasingBento'
 
 /**
  * Render the Bento Grid Leasing proposal to HTML string for PDF generation
@@ -49,7 +49,7 @@ export function renderBentoLeasingToHtml(dados: PrintableProposalProps): Promise
             resolve(containerEl.outerHTML)
             cleanup(rootInstance)
           }
-        }, 500) // Increased timeout to allow for Paged.js if needed
+        }, 500)
 
         return () => {
           window.clearTimeout(timeoutId)
@@ -58,7 +58,7 @@ export function renderBentoLeasingToHtml(dados: PrintableProposalProps): Promise
 
       return (
         <div ref={wrapperRef}>
-          <PrintPageLeasing data={dados} />
+          <PrintableProposalLeasingBento {...dados} />
         </div>
       )
     }
