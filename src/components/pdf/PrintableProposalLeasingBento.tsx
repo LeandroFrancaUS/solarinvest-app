@@ -75,7 +75,7 @@ const buildEconomiaSerie = (anos: number[], leasingROI: number[]) => {
 const CoverHeader: React.FC<{ proposalId?: string }> = ({ proposalId }) => {
   return (
     <div className="flex items-center justify-between">
-      <img src="/brand/logo-header.svg" alt="SolarInvest" className="h-8 w-auto" />
+      <img src="/brand/logo-header.svg" alt="SolarInvest" className="h-[12px] w-auto" />
       <p className="text-xs text-slate-400">Proposta {proposalId ? `#${sanitize(proposalId)}` : ''}</p>
     </div>
   )
@@ -494,7 +494,7 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
         </BentoCard>
 
         <div className="col-span-12 flex items-center justify-between">
-          <img src="/brand/logo-header.svg" alt="SolarInvest" className="h-8 w-auto" />
+          <img src="/brand/logo-header.svg" alt="SolarInvest" className="h-[12px] w-auto" />
           <div className="text-right text-xs text-slate-400">
             <p>www.solarinvest.com.br • @solarinvest</p>
             <p>Proposta {budgetId ? `#${sanitize(budgetId)}` : ''}</p>

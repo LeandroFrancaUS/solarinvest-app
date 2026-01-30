@@ -2,18 +2,18 @@ import type { PrintableProposalProps } from '../types/printableProposal'
 
 /**
  * Feature flag to enable/disable Bento Grid PDF generator
- * Defaults to TRUE - Bento Grid is enabled by default for leasing proposals
- * Set VITE_USE_BENTO_GRID_PDF=false to explicitly disable and use legacy layout
+ * Defaults to FALSE - Bento Grid is disabled by default for leasing proposals
+ * Set VITE_USE_BENTO_GRID_PDF=true to explicitly enable and use Bento layout
  */
-export const USE_BENTO_GRID_PDF = import.meta.env.VITE_USE_BENTO_GRID_PDF !== 'false'
+export const USE_BENTO_GRID_PDF = import.meta.env.VITE_USE_BENTO_GRID_PDF === 'true'
 
 /**
  * Get user preference for Bento Grid from settings
- * Falls back to default (true) if not set
+ * Falls back to default (false) if not set
  */
 export function getUserBentoGridPreference(): boolean {
   if (typeof window === 'undefined') {
-    return true
+    return false
   }
   
   // Check localStorage for user preference
@@ -22,8 +22,8 @@ export function getUserBentoGridPreference(): boolean {
     return stored === 'true'
   }
   
-  // Default to enabled
-  return true
+  // Default to disabled
+  return false
 }
 
 /**
