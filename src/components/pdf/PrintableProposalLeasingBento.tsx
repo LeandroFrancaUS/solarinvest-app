@@ -3,6 +3,7 @@ import type { PrintableProposalProps } from '../../types/printableProposal'
 import { PrintLayout } from '../pdf/PrintLayout'
 import { BentoCard, BentoCardContent, BentoCardTitle } from '../pdf/BentoCard'
 import { formatMoneyBR, formatNumberBRWithOptions, formatPercentBRWithDigits } from '../../lib/locale/br-number'
+import { buildMicroBlocks, MicroBlockId } from './bento/microBlocks'
 import {
   BadgeCheck,
   Building2,
@@ -116,6 +117,33 @@ const BulletItem: React.FC<{ text: string }> = ({ text }) => {
   )
 }
 
+const MicroBlockCard: React.FC<{ title?: string; body: string; colSpan?: string; className?: string }> = ({
+  title,
+  body,
+  colSpan = 'col-span-12',
+  className = '',
+}) => {
+  return (
+    <BentoCard colSpan={colSpan} className={className}>
+      {title ? <p className="text-sm font-semibold text-slate-900">{title}</p> : null}
+      <p className="text-xs text-slate-500 whitespace-pre-line">{body}</p>
+    </BentoCard>
+  )
+}
+
+const MicroBlockInline: React.FC<{ title?: string; body: string; className?: string }> = ({
+  title,
+  body,
+  className = '',
+}) => {
+  return (
+    <div className={className}>
+      {title ? <p className="text-xs font-semibold text-slate-700">{title}</p> : null}
+      <p className="text-xs text-slate-500 whitespace-pre-line">{body}</p>
+    </div>
+  )
+}
+
 export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBentoProps> = (props) => {
   const {
     cliente,
@@ -126,7 +154,7 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
     leasingModeloModulo,
     leasingModeloInversor,
     descontoContratualPct,
-    leasingPrazoContratualMeses = 60,
+    leasingPrazoContratualMeses,
     parcelasLeasing,
     anos,
     leasingROI,
@@ -147,11 +175,22 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
 
   const economiaTotal = leasingROI.reduce((sum, value) => sum + (value ?? 0), 0)
   const roiPercent = economiaTotal > 0 ? (economiaTotal / (parcelasLeasing[0]?.mensalidadeCheia ?? 1)) * 100 : 0
+  const showROI = Number.isFinite(roiPercent) && roiPercent > 0
+  const showComparativo = comparativoData.length > 0
+  const microBlocks = buildMicroBlocks({
+    potenciaKwp: potenciaInstaladaKwp ?? null,
+    geracaoKwhMes: geracaoMensalKwh ?? null,
+    prazoMeses: leasingPrazoContratualMeses ?? null,
+    showROI,
+    showComparativo,
+  })
+  const microBlockById = new Map(microBlocks.map((block) => [block.id, block]))
+  const footerCopy = microBlockById.get(MicroBlockId.MB11)?.body ?? ''
 
   return (
     <div data-testid="proposal-bento-root" data-version="premium-v6" className="bg-slate-50">
       {/* PAGE 1 - CAPA INSTITUCIONAL */}
-      <PrintLayout className="break-after-page">
+      <PrintLayout className="break-after-page" footer={footerCopy}>
         <div className="col-span-12">
           <CoverHeader proposalId={budgetId} />
         </div>
@@ -165,6 +204,15 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
           <p className="mt-4 text-base text-slate-500">{clienteLocal}</p>
         </div>
 
+        {microBlockById.get(MicroBlockId.MB01) ? (
+          <MicroBlockCard
+            colSpan="col-span-12"
+            className="mt-6"
+            title={microBlockById.get(MicroBlockId.MB01)?.title}
+            body={microBlockById.get(MicroBlockId.MB01)?.body ?? ''}
+          />
+        ) : null}
+
         <div className="col-span-12 mt-8 grid grid-cols-12 gap-6">
           <MetricCard label="Potência" value={formatKwp(potenciaInstaladaKwp)} caption="Capacidade instalada" />
           <MetricCard label="Economia Anual" value={formatMoneyBR(economiaAnual)} caption="Estimativa anual" />
@@ -173,7 +221,7 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
       </PrintLayout>
 
       {/* PAGE 2 - SOBRE A EMPRESA */}
-      <PrintLayout className="break-after-page">
+      <PrintLayout className="break-after-page" footer={footerCopy}>
         <div className="col-span-12">
           <SectionHeader
             title="Sobre a SolarInvest"
@@ -216,7 +264,7 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
       </PrintLayout>
 
       {/* PAGE 3 - PROJETOS REALIZADOS */}
-      <PrintLayout className="break-after-page">
+      <PrintLayout className="break-after-page" footer={footerCopy}>
         <div className="col-span-12">
           <SectionHeader
             title="Projetos Realizados"
@@ -251,7 +299,7 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
       </PrintLayout>
 
       {/* PAGE 4 - INFORMAÇÕES TÉCNICAS */}
-      <PrintLayout className="break-after-page">
+      <PrintLayout className="break-after-page" footer={footerCopy}>
         <div className="col-span-12">
           <SectionHeader
             title="Informações Técnicas da Usina"
@@ -318,7 +366,7 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
       </PrintLayout>
 
       {/* PAGE 5 - SERVIÇOS INCLUSOS & ANÁLISE FINANCEIRA */}
-      <PrintLayout className="break-after-page">
+      <PrintLayout className="break-after-page" footer={footerCopy}>
         <div className="col-span-12">
           <SectionHeader
             title="Serviços Inclusos"
@@ -351,6 +399,13 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
             subtitle="Comparativo claro com e sem o sistema SolarInvest."
             icon={<TrendingDown className="h-5 w-5" />}
           />
+          {microBlockById.get(MicroBlockId.MB02) ? (
+            <MicroBlockInline
+              className="mt-4"
+              title={microBlockById.get(MicroBlockId.MB02)?.title}
+              body={microBlockById.get(MicroBlockId.MB02)?.body ?? ''}
+            />
+          ) : null}
           <div className="mt-6 grid grid-cols-12 gap-6">
             <div className="col-span-7">
               <p className="text-xs text-slate-500">Distribuidora x SolarInvest.</p>
@@ -373,11 +428,20 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
               </RechartsLineChart>
             </div>
           </div>
+          {microBlockById.get(MicroBlockId.MB03) ? (
+            <MicroBlockInline className="mt-4" body={microBlockById.get(MicroBlockId.MB03)?.body ?? ''} />
+          ) : null}
+          {microBlockById.get(MicroBlockId.MB06) ? (
+            <MicroBlockInline className="mt-3" body={microBlockById.get(MicroBlockId.MB06)?.body ?? ''} />
+          ) : null}
+          {microBlockById.get(MicroBlockId.MB07) ? (
+            <MicroBlockInline className="mt-3" body={microBlockById.get(MicroBlockId.MB07)?.body ?? ''} />
+          ) : null}
         </BentoCard>
       </PrintLayout>
 
       {/* PAGE 6 - INDICADORES E CONDIÇÕES COMERCIAIS */}
-      <PrintLayout className="break-after-page">
+      <PrintLayout className="break-after-page" footer={footerCopy}>
         <div className="col-span-12">
           <SectionHeader
             title="Indicadores de Viabilidade"
@@ -389,14 +453,20 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
         <BentoCard colSpan="col-span-4">
           <BentoCardTitle>Payback</BentoCardTitle>
           <p className="text-3xl font-bold text-slate-900">18 meses</p>
-          <p className="text-sm text-slate-500">Retorno rápido e previsível.</p>
+          {microBlockById.get(MicroBlockId.MB04) ? (
+            <p className="text-xs text-slate-500">{microBlockById.get(MicroBlockId.MB04)?.body}</p>
+          ) : null}
         </BentoCard>
 
-        <BentoCard colSpan="col-span-4">
-          <BentoCardTitle>ROI Estimado</BentoCardTitle>
-          <p className="text-3xl font-bold text-slate-900">{formatPercent(roiPercent)}</p>
-          <p className="text-sm text-slate-500">Economia acumulada ao longo do contrato.</p>
-        </BentoCard>
+        {showROI ? (
+          <BentoCard colSpan="col-span-4">
+            <BentoCardTitle>ROI Estimado</BentoCardTitle>
+            <p className="text-3xl font-bold text-slate-900">{formatPercent(roiPercent)}</p>
+            {microBlockById.get(MicroBlockId.MB05) ? (
+              <p className="text-xs text-slate-500 whitespace-pre-line">{microBlockById.get(MicroBlockId.MB05)?.body}</p>
+            ) : null}
+          </BentoCard>
+        ) : null}
 
         <BentoCard colSpan="col-span-4">
           <BentoCardTitle>TIR</BentoCardTitle>
@@ -442,11 +512,17 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
               </tbody>
             </table>
           </div>
+          {microBlockById.get(MicroBlockId.MB08) ? (
+            <MicroBlockInline className="mt-4" body={microBlockById.get(MicroBlockId.MB08)?.body ?? ''} />
+          ) : null}
+          {microBlockById.get(MicroBlockId.MB09) ? (
+            <MicroBlockInline className="mt-3" body={microBlockById.get(MicroBlockId.MB09)?.body ?? ''} />
+          ) : null}
         </BentoCard>
       </PrintLayout>
 
       {/* PAGE 7 - CONSIDERAÇÕES FINAIS E ASSINATURAS */}
-      <PrintLayout>
+      <PrintLayout footer={footerCopy}>
         <div className="col-span-12">
           <SectionHeader
             title="Considerações Finais"
@@ -458,17 +534,29 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
         <BentoCard colSpan="col-span-12">
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-3 text-sm text-slate-600">
-              <BulletItem text="Economia garantida com reajuste previsível ao longo do contrato." />
+              <BulletItem text="Economia estimada com reajuste previsível ao longo do contrato." />
               <BulletItem text="Cronograma sujeito à homologação da concessionária local." />
               <BulletItem text="Vistoria técnica obrigatória antes da instalação." />
             </div>
             <div className="space-y-3 text-sm text-slate-600">
               <BulletItem text="Benefícios fiscais e créditos analisados caso a caso." />
               <BulletItem text="Equipe SolarInvest acompanha todo o ciclo de vida da usina." />
-              <BulletItem text={`Ativo transferido ao cliente após ${leasingPrazoContratualMeses} meses.`} />
+              <BulletItem text={`Ativo transferido ao cliente após ${leasingPrazoContratualMeses ?? '—'} meses.`} />
             </div>
           </div>
         </BentoCard>
+
+        {microBlockById.get(MicroBlockId.MB10) ? (
+          <MicroBlockCard
+            colSpan="col-span-12"
+            title={microBlockById.get(MicroBlockId.MB10)?.title}
+            body={microBlockById.get(MicroBlockId.MB10)?.body ?? ''}
+          />
+        ) : null}
+
+        {microBlockById.get(MicroBlockId.MB12) ? (
+          <MicroBlockCard colSpan="col-span-12" body={microBlockById.get(MicroBlockId.MB12)?.body ?? ''} />
+        ) : null}
 
         <BentoCard colSpan="col-span-12">
           <div className="grid grid-cols-2 gap-6">
