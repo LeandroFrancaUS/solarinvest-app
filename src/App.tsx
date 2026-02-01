@@ -3742,7 +3742,7 @@ function renderPrintableProposalToHtml(
     return Promise.resolve(null)
   }
 
-  // Use Bento Grid for leasing proposals when feature flag is enabled
+  // Use Bento Grid for leasing proposals when user preference is enabled
   if (shouldUseBentoGrid(dados, userBentoPreference)) {
     return renderBentoLeasingToHtml(dados)
   }
@@ -7270,10 +7270,10 @@ export default function App() {
   const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_VALUES.mostrarGrafico)
   const [useBentoGridPdf, setUseBentoGridPdf] = useState(() => {
     if (typeof window === 'undefined') {
-      return true
+      return false
     }
     const stored = window.localStorage.getItem('useBentoGridPdf')
-    return stored !== null ? stored === 'true' : true
+    return stored !== null ? stored === 'true' : false
   })
   const [density, setDensity] = useState<DensityMode>(() => {
     if (typeof window === 'undefined') {
