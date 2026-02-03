@@ -1375,7 +1375,7 @@ const buildProcuracaoTags = ({
   const titularDiferente = Boolean(leasingContrato.ucGeradoraTitularDiferente)
 
   if (titularDiferente) {
-    const titular = leasingContrato.ucGeradoraTitular
+    const titular = leasingContrato.ucGeradoraTitular ?? leasingContrato.ucGeradoraTitularDraft
     const endereco = titular?.endereco
     const camposObrigatorios = [
       titular?.nomeCompleto?.trim(),
@@ -15604,12 +15604,12 @@ export default function App() {
       return partes.join(' — ')
     }
 
-    const ucGeradoraTitularAtivo = Boolean(
-      leasingContrato.ucGeradoraTitularDiferente && leasingContrato.ucGeradoraTitular,
-    )
-    const titularUcGeradora = ucGeradoraTitularAtivo
-      ? leasingContrato.ucGeradoraTitular
-      : null
+  const ucGeradoraTitularReferencia =
+    leasingContrato.ucGeradoraTitular ?? leasingContrato.ucGeradoraTitularDraft ?? null
+  const ucGeradoraTitularAtivo = Boolean(
+    leasingContrato.ucGeradoraTitularDiferente && ucGeradoraTitularReferencia,
+  )
+  const titularUcGeradora = ucGeradoraTitularAtivo ? ucGeradoraTitularReferencia : null
     const titularUcGeradoraEndereco = ucGeradoraTitularAtivo
       ? formatUcGeradoraTitularEndereco(titularUcGeradora?.endereco)
       : formatEnderecoContratanteParaTag()
@@ -15691,10 +15691,10 @@ export default function App() {
       titularUcGeradoraEndereco: titularUcGeradoraEndereco,
       ucGeradora_importarEnderecoCliente: leasingContrato.ucGeradora_importarEnderecoCliente,
       ucGeradoraEndereco: {
-        cep: leasingContrato.ucGeradoraTitularDraft?.endereco.cep ?? '',
-        logradouro: leasingContrato.ucGeradoraTitularDraft?.endereco.logradouro ?? '',
-        cidade: leasingContrato.ucGeradoraTitularDraft?.endereco.cidade ?? '',
-        uf: leasingContrato.ucGeradoraTitularDraft?.endereco.uf ?? '',
+        cep: ucGeradoraTitularReferencia?.endereco.cep ?? '',
+        logradouro: ucGeradoraTitularReferencia?.endereco.logradouro ?? '',
+        cidade: ucGeradoraTitularReferencia?.endereco.cidade ?? '',
+        uf: ucGeradoraTitularReferencia?.endereco.uf ?? '',
         distribuidora: leasingContrato.ucGeradoraTitularDistribuidoraAneel ?? '',
       },
       temCorresponsavelFinanceiro: leasingContrato.temCorresponsavelFinanceiro,
