@@ -1023,6 +1023,8 @@ type OrcamentoSnapshotData = {
   autoBudgetReasonCode: string | null
   tipoRede: TipoRede
   tipoRedeControle: 'auto' | 'manual'
+  temCorresponsavelFinanceiro: boolean
+  corresponsavel: LeasingCorresponsavel | null
   leasingAnexosSelecionados: LeasingAnexoId[]
   vendaSnapshot: VendaSnapshot
   leasingSnapshot: LeasingState
@@ -13368,6 +13370,8 @@ export default function App() {
     autoBudgetReasonCode: null,
     tipoRede: INITIAL_VALUES.tipoRede ?? 'nenhum',
     tipoRedeControle: 'auto',
+    temCorresponsavelFinanceiro: false,
+    corresponsavel: null,
     leasingAnexosSelecionados: [],
     vendaSnapshot: getVendaSnapshot(),
     leasingSnapshot: getInitialLeasingSnapshot(),
@@ -13493,6 +13497,21 @@ export default function App() {
       return createEmptySnapshot(budgetId, tab)
     }
 
+    const temCorresponsavelFinanceiroSnapshot = Boolean(
+      leasingSnapshotAtual?.contrato?.temCorresponsavelFinanceiro,
+    )
+    const corresponsavelSnapshot = leasingSnapshotAtual?.contrato?.corresponsavel
+    const corresponsavelSnapshotClonado = corresponsavelSnapshot
+      ? {
+          ...corresponsavelSnapshot,
+          endereco:
+            typeof corresponsavelSnapshot.endereco === 'object' &&
+            corresponsavelSnapshot.endereco
+              ? { ...corresponsavelSnapshot.endereco }
+              : corresponsavelSnapshot.endereco ?? null,
+        }
+      : null
+
     const snapshotData = {
       activeTab: tab,
       settingsTab,
@@ -13612,6 +13631,8 @@ export default function App() {
       autoBudgetReasonCode,
       tipoRede,
       tipoRedeControle,
+      temCorresponsavelFinanceiro: temCorresponsavelFinanceiroSnapshot,
+      corresponsavel: corresponsavelSnapshotClonado,
       leasingAnexosSelecionados: [...leasingAnexosSelecionados],
       vendaSnapshot: vendaSnapshotAtual,
       leasingSnapshot: leasingSnapshotAtual,
@@ -13728,6 +13749,8 @@ export default function App() {
       entradaRs: snapshotClonado.entradaRs,
       numeroModulosManual: snapshotClonado.numeroModulosManual,
       potenciaModulo: snapshotClonado.potenciaModulo,
+      temCorresponsavelFinanceiro: snapshotClonado.temCorresponsavelFinanceiro,
+      corresponsavelNome: snapshotClonado.corresponsavel?.nome ?? '',
     })
     console.log('[ClienteSave] Snapshot cliente endereco:', snapshotClonado.cliente?.endereco)
     
