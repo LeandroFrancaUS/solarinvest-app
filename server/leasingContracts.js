@@ -386,6 +386,26 @@ const extractAnexoNumber = (fileName) => {
   return null
 }
 
+const ANEXO_X_REGEX = /anexo\s*x(?:\s|\W|$)/i
+const ANEXO_TEMPLATE_EXTENSIONS = ['.dotx', '.docx']
+
+const isAnexoTemplateFile = (fileName) =>
+  ANEXO_TEMPLATE_EXTENSIONS.some((ext) => fileName.toLowerCase().endsWith(ext))
+
+const pickPreferredAnexoXFile = (entries) => {
+  const matching = entries
+    .filter((entry) => ANEXO_X_REGEX.test(entry))
+    .filter((entry) => isAnexoTemplateFile(entry))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  if (matching.length === 0) {
+    return null
+  }
+
+  const dotxMatch = matching.find((entry) => entry.toLowerCase().endsWith('.dotx'))
+  return dotxMatch ?? matching[0]
+}
+
 /**
  * Search for anexo file in the anexos directory by number (supports Roman/Arabic)
  * @param {number} anexoNum - Anexo number (1, 2, 3, etc.)
@@ -399,9 +419,15 @@ const findAnexoFile = async (anexoNum, uf) => {
       const ufAnexosDir = path.join(LEASING_ANEXOS_DIR, uf.toUpperCase())
       try {
         const ufEntries = await fs.readdir(ufAnexosDir)
+        if (anexoNum === 10) {
+          const match = pickPreferredAnexoXFile(ufEntries)
+          if (match) {
+            return path.join('anexos', uf.toUpperCase(), match)
+          }
+        }
         const match = ufEntries.find((entry) => 
           matchesAnexoPrefix(entry, anexoNum) && 
-          (entry.toLowerCase().endsWith('.docx') || entry.toLowerCase().endsWith('.dotx'))
+          isAnexoTemplateFile(entry)
         )
         if (match) {
           return path.join('anexos', uf.toUpperCase(), match)
@@ -413,9 +439,15 @@ const findAnexoFile = async (anexoNum, uf) => {
 
     // Search in default anexos directory
     const entries = await fs.readdir(LEASING_ANEXOS_DIR)
+    if (anexoNum === 10) {
+      const match = pickPreferredAnexoXFile(entries)
+      if (match) {
+        return path.join('anexos', match)
+      }
+    }
     const match = entries.find((entry) => 
       matchesAnexoPrefix(entry, anexoNum) && 
-      (entry.toLowerCase().endsWith('.docx') || entry.toLowerCase().endsWith('.dotx'))
+      isAnexoTemplateFile(entry)
     )
     
     if (match) {
@@ -663,6 +695,41 @@ const formatarEnderecoCompleto = (dados) => {
   return partes.join(', ')
 }
 
+/**
+ * Formata endereço completo do corresponsável
+ * Formato: Logradouro, nº 123, Complemento, Bairro, Cidade – UF, CEP 00000-000
+ * @param {object|string|null|undefined} endereco
+ * @returns {string}
+ */
+const formatEnderecoCompleto = (endereco) => {
+  if (!endereco) {
+    return ''
+  }
+  if (typeof endereco === 'string') {
+    return endereco.trim()
+  }
+  const logradouro = typeof endereco.logradouro === 'string' ? endereco.logradouro.trim() : ''
+  const numero = typeof endereco.numero === 'string' ? endereco.numero.trim() : ''
+  const complemento = typeof endereco.complemento === 'string' ? endereco.complemento.trim() : ''
+  const bairro = typeof endereco.bairro === 'string' ? endereco.bairro.trim() : ''
+  const cidade = typeof endereco.cidade === 'string' ? endereco.cidade.trim() : ''
+  const uf = typeof endereco.uf === 'string' ? endereco.uf.trim() : ''
+  const cepRaw = typeof endereco.cep === 'string' ? endereco.cep.trim() : ''
+
+  const cepDigits = cepRaw.replace(/\D/g, '')
+  const cep = cepDigits.length === 8 ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}` : cepRaw
+
+  const numeroTexto = numero ? `nº ${numero}` : ''
+  const primeiraLinhaBase = [logradouro, numeroTexto].filter(Boolean).join(', ')
+  const primeiraLinha = complemento
+    ? [primeiraLinhaBase, complemento].filter(Boolean).join(', ')
+    : primeiraLinhaBase
+  const cidadeUf = [cidade, uf].filter(Boolean).join(' – ')
+  const cepTexto = cep ? `CEP ${cep}` : ''
+
+  return [primeiraLinha, bairro, cidadeUf, cepTexto].filter(Boolean).join(', ')
+}
+
 const sanitizeDadosLeasing = (dados, tipoContrato) => {
   if (!dados || typeof dados !== 'object') {
     throw new LeasingContractsError(
@@ -677,6 +744,31 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
   const nacionalidadeValue = typeof dados.nacionalidade === 'string' ? dados.nacionalidade.trim().toUpperCase() : ''
   const profissaoValue = typeof dados.profissao === 'string' ? dados.profissao.trim().toUpperCase() : ''
   const estadoCivilValue = typeof dados.estadoCivil === 'string' ? dados.estadoCivil.trim().toUpperCase() : ''
+
+  const corresponsavelRaw =
+    dados?.corresponsavel && typeof dados.corresponsavel === 'object' ? dados.corresponsavel : null
+  const temCorresponsavelFinanceiro = Boolean(dados?.temCorresponsavelFinanceiro)
+  const nomeCorresponsavelRaw =
+    typeof corresponsavelRaw?.nome === 'string' ? corresponsavelRaw.nome.trim() : ''
+  const nacionalidadeCorresponsavelRaw =
+    typeof corresponsavelRaw?.nacionalidade === 'string'
+      ? corresponsavelRaw.nacionalidade.trim()
+      : ''
+  const estadoCivilCorresponsavelRaw =
+    typeof corresponsavelRaw?.estadoCivil === 'string'
+      ? corresponsavelRaw.estadoCivil.trim()
+      : ''
+  const cpfCorresponsavelRaw =
+    typeof corresponsavelRaw?.cpf === 'string' ? corresponsavelRaw.cpf.trim() : ''
+  const enderecoCorresponsavelRaw =
+    typeof dados.enderecoCorresponsavel === 'string'
+      ? dados.enderecoCorresponsavel.trim()
+      : formatEnderecoCompleto(corresponsavelRaw?.endereco)
+  const emailCorresponsavelRaw =
+    typeof corresponsavelRaw?.email === 'string' ? corresponsavelRaw.email.trim() : ''
+  const telefoneCorresponsavelRaw =
+    typeof corresponsavelRaw?.telefone === 'string' ? corresponsavelRaw.telefone.trim() : ''
+  const resolveCorresponsavelValue = (value) => (value ? value : '—')
   
   const normalized = {
     // Core client info - in uppercase for contracts
@@ -735,6 +827,16 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
       typeof dados.cnpjCondominio === 'string' ? dados.cnpjCondominio.trim() : '',
     nomeSindico: typeof dados.nomeSindico === 'string' ? dados.nomeSindico.trim() : '',
     cpfSindico: typeof dados.cpfSindico === 'string' ? dados.cpfSindico.trim() : '',
+
+    // Corresponsável financeiro
+    temCorresponsavelFinanceiro,
+    nomeCorresponsavel: resolveCorresponsavelValue(nomeCorresponsavelRaw),
+    nacionalidadeCorresponsavel: resolveCorresponsavelValue(nacionalidadeCorresponsavelRaw),
+    estadoCivilCorresponsavel: resolveCorresponsavelValue(estadoCivilCorresponsavelRaw),
+    cpfCorresponsavel: resolveCorresponsavelValue(cpfCorresponsavelRaw),
+    enderecoCorresponsavel: resolveCorresponsavelValue(enderecoCorresponsavelRaw),
+    emailCorresponsavel: resolveCorresponsavelValue(emailCorresponsavelRaw),
+    telefoneCorresponsavel: resolveCorresponsavelValue(telefoneCorresponsavelRaw),
   }
 
   // Derived fields
@@ -2003,7 +2105,17 @@ export const handleLeasingContractsRequest = async (req, res) => {
 
     const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
     const propostaHtml = typeof body?.propostaHtml === 'string' ? body.propostaHtml.trim() : ''
-    const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
+    const anexosSelecionadosBase = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
+    const corresponsavelAtivo = Boolean(
+      dadosLeasing.temCorresponsavelFinanceiro &&
+        dadosLeasing.nomeCorresponsavel &&
+        dadosLeasing.nomeCorresponsavel !== '—' &&
+        dadosLeasing.cpfCorresponsavel &&
+        dadosLeasing.cpfCorresponsavel !== '—',
+    )
+    const anexosSelecionados = corresponsavelAtivo
+      ? Array.from(new Set([...anexosSelecionadosBase, 'ANEXO_X']))
+      : anexosSelecionadosBase
     const clienteUf = dadosLeasing.uf
 
     const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados, clienteUf)

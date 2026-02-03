@@ -72,6 +72,7 @@ import {
   saveProposalSnapshotById,
   loadProposalSnapshotById,
 } from './lib/persist/proposalStore'
+import { formatEnderecoCompleto } from './lib/formatEnderecoCompleto'
 import {
   upsertClienteRegistro,
   getClienteRegistroById,
@@ -152,6 +153,7 @@ import {
   leasingActions,
   useLeasingStore,
   useLeasingValorDeMercadoEstimado,
+  type LeasingCorresponsavel,
   type LeasingContratoDados,
   type LeasingContratoProprietario,
   type LeasingEndereco,
@@ -1056,6 +1058,14 @@ type UcGeradoraTitularErrors = {
   cep?: string
 }
 
+type CorresponsavelErrors = {
+  nome?: string
+  cpf?: string
+  telefone?: string
+  email?: string
+  endereco?: string
+}
+
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
 const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
@@ -1216,6 +1226,16 @@ const createEmptyUcGeradoraTitular = (): LeasingUcGeradoraTitular => ({
   endereco: createEmptyUcGeradoraTitularEndereco(),
 })
 
+const createEmptyCorresponsavel = (): LeasingCorresponsavel => ({
+  nome: '',
+  nacionalidade: '',
+  estadoCivil: '',
+  cpf: '',
+  endereco: createEmptyUcGeradoraTitularEndereco(),
+  email: '',
+  telefone: '',
+})
+
 const cloneUcGeradoraTitular = (
   input: LeasingUcGeradoraTitular,
 ): LeasingUcGeradoraTitular => ({
@@ -1316,6 +1336,33 @@ const formatEndereco = (endereco?: Partial<LeasingEndereco> | null): string => {
   ].filter(Boolean)
 
   return partes.join(' - ')
+}
+
+const resolveCorresponsavelEndereco = (
+  endereco?: LeasingCorresponsavel['endereco'] | null,
+): LeasingEndereco => {
+  if (!endereco) {
+    return createEmptyUcGeradoraTitularEndereco()
+  }
+  if (typeof endereco === 'string') {
+    return { ...createEmptyUcGeradoraTitularEndereco(), logradouro: endereco }
+  }
+  return {
+    ...createEmptyUcGeradoraTitularEndereco(),
+    ...endereco,
+  }
+}
+
+const buildCorresponsavelDraft = (
+  value?: LeasingCorresponsavel | null,
+): LeasingCorresponsavel => {
+  if (!value) {
+    return createEmptyCorresponsavel()
+  }
+  return {
+    ...value,
+    endereco: resolveCorresponsavelEndereco(value.endereco),
+  }
 }
 
 const buildProcuracaoTags = ({
@@ -2897,7 +2944,14 @@ type ContractTemplatesModalProps = {
 
 type LeasingContratoTipo = 'residencial' | 'condominio'
 
-type LeasingAnexoId = 'ANEXO_I' | 'ANEXO_II' | 'ANEXO_III' | 'ANEXO_IV' | 'ANEXO_VII' | 'ANEXO_VIII'
+type LeasingAnexoId =
+  | 'ANEXO_I'
+  | 'ANEXO_II'
+  | 'ANEXO_III'
+  | 'ANEXO_IV'
+  | 'ANEXO_VII'
+  | 'ANEXO_VIII'
+  | 'ANEXO_X'
 
 type LeasingAnexoConfig = {
   id: LeasingAnexoId
@@ -2948,18 +3002,33 @@ const LEASING_ANEXOS_CONFIG: LeasingAnexoConfig[] = [
     descricao: 'Registro de entrega técnica da usina.',
     tipos: ['residencial', 'condominio'],
   },
+  {
+    id: 'ANEXO_X',
+    label: 'Corresponsável financeiro',
+    descricao: 'Dados do corresponsável financeiro para assinatura complementar.',
+    tipos: ['residencial', 'condominio'],
+  },
 ]
 
-const getDefaultLeasingAnexos = (tipo: LeasingContratoTipo): LeasingAnexoId[] => (
-  LEASING_ANEXOS_CONFIG.filter((anexo) => anexo.autoInclude && anexo.tipos.includes(tipo))
-    .map((anexo) => anexo.id)
-)
+const getDefaultLeasingAnexos = (
+  tipo: LeasingContratoTipo,
+  options?: { corresponsavelAtivo?: boolean },
+): LeasingAnexoId[] => {
+  const defaults = LEASING_ANEXOS_CONFIG.filter(
+    (anexo) => anexo.autoInclude && anexo.tipos.includes(tipo),
+  ).map((anexo) => anexo.id)
+  if (options?.corresponsavelAtivo) {
+    defaults.push('ANEXO_X')
+  }
+  return defaults
+}
 
 const ensureRequiredLeasingAnexos = (
   anexosSelecionados: LeasingAnexoId[],
   tipo: LeasingContratoTipo,
+  options?: { corresponsavelAtivo?: boolean },
 ): LeasingAnexoId[] => {
-  const required = getDefaultLeasingAnexos(tipo)
+  const required = getDefaultLeasingAnexos(tipo, options)
   const merged = new Set<LeasingAnexoId>([...anexosSelecionados, ...required])
   return Array.from(merged)
 }
@@ -3289,6 +3358,7 @@ type LeasingContractsModalProps = {
   anexosSelecionados: LeasingAnexoId[]
   anexosAvailability: Record<LeasingAnexoId, boolean>
   isLoadingAvailability: boolean
+  corresponsavelAtivo: boolean
   onToggleAnexo: (anexoId: LeasingAnexoId) => void
   onSelectAll: (selectAll: boolean) => void
   onConfirm: () => void
@@ -3301,6 +3371,7 @@ function LeasingContractsModal({
   anexosSelecionados,
   anexosAvailability,
   isLoadingAvailability,
+  corresponsavelAtivo,
   onToggleAnexo,
   onSelectAll,
   onConfirm,
@@ -3313,7 +3384,12 @@ function LeasingContractsModal({
     () => LEASING_ANEXOS_CONFIG.filter((config) => config.tipos.includes(tipoContrato)),
     [tipoContrato],
   )
-  const opcionais = anexosDisponiveis.filter((config) => !config.autoInclude)
+  const isRequired = useCallback(
+    (config: LeasingAnexoConfig) =>
+      Boolean(config.autoInclude || (corresponsavelAtivo && config.id === 'ANEXO_X')),
+    [corresponsavelAtivo],
+  )
+  const opcionais = anexosDisponiveis.filter((config) => !isRequired(config))
   const allOptionalSelected =
     opcionais.length > 0 && opcionais.every((config) => anexosSelecionados.includes(config.id))
 
@@ -3361,8 +3437,9 @@ function LeasingContractsModal({
             {anexosDisponiveis.map((config, index) => {
               const checkboxId = `${checkboxBaseId}-${index}`
               const isAvailable = anexosAvailability[config.id] !== false
-              const checked = config.autoInclude || anexosSelecionados.includes(config.id)
-              const disabled = Boolean(config.autoInclude) || !isAvailable
+              const required = isRequired(config)
+              const checked = required || anexosSelecionados.includes(config.id)
+              const disabled = required || !isAvailable
               return (
                 <li key={config.id} className="contract-template-item">
                   <label htmlFor={checkboxId} className="flex items-center gap-2">
@@ -3382,7 +3459,7 @@ function LeasingContractsModal({
                       {config.descricao ? (
                         <span className="filename">{config.descricao}</span>
                       ) : null}
-                      {config.autoInclude ? (
+                      {required ? (
                         <span className="filename">Documento obrigatório</span>
                       ) : null}
                       {!isAvailable ? (
@@ -3408,6 +3485,166 @@ function LeasingContractsModal({
             disabled={isGenerating}
           >
             {isGenerating ? 'Gerando…' : 'Gerar pacote'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type CorresponsavelModalProps = {
+  draft: LeasingCorresponsavel
+  errors: CorresponsavelErrors
+  temCorresponsavelFinanceiro: boolean
+  onChange: (field: keyof LeasingCorresponsavel, value: string) => void
+  onChangeEndereco: (field: keyof LeasingEndereco, value: string) => void
+  onSave: () => void
+  onDeactivate: () => void
+  onClose: () => void
+}
+
+function CorresponsavelModal({
+  draft,
+  errors,
+  temCorresponsavelFinanceiro,
+  onChange,
+  onChangeEndereco,
+  onSave,
+  onDeactivate,
+  onClose,
+}: CorresponsavelModalProps) {
+  const modalTitleId = useId()
+  const endereco = resolveCorresponsavelEndereco(draft.endereco)
+
+  return (
+    <div className="modal corresponsavel-modal" role="dialog" aria-modal="true" aria-labelledby={modalTitleId}>
+      <div className="modal-backdrop" onClick={onClose} />
+      <div className="modal-content corresponsavel-modal__content">
+        <div className="modal-header">
+          <h3 id={modalTitleId}>Corresponsável financeiro</h3>
+          <button className="icon" onClick={onClose} aria-label="Fechar cadastro do corresponsável">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body corresponsavel-modal__body">
+          <div className="grid g3">
+            <Field label="Nome completo" hint={<FieldError message={errors.nome} />}>
+              <input
+                value={draft.nome}
+                onChange={(event) => onChange('nome', event.target.value)}
+                placeholder="Nome completo"
+              />
+            </Field>
+            <Field label="CPF" hint={<FieldError message={errors.cpf} />}>
+              <input
+                value={draft.cpf}
+                onChange={(event) => onChange('cpf', formatCpfCnpj(event.target.value))}
+                placeholder="000.000.000-00"
+                inputMode="numeric"
+              />
+            </Field>
+            <Field label="Estado civil">
+              <input
+                value={draft.estadoCivil}
+                onChange={(event) => onChange('estadoCivil', event.target.value)}
+                placeholder="Ex.: Solteiro(a)"
+              />
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field label="Nacionalidade">
+              <input
+                value={draft.nacionalidade}
+                onChange={(event) => onChange('nacionalidade', event.target.value)}
+                placeholder="Ex.: Brasileira"
+              />
+            </Field>
+            <Field label="E-mail" hint={<FieldError message={errors.email} />}>
+              <input
+                type="email"
+                value={draft.email}
+                onChange={(event) => onChange('email', event.target.value)}
+                placeholder="nome@email.com"
+                autoComplete="email"
+              />
+            </Field>
+            <Field label="Telefone" hint={<FieldError message={errors.telefone} />}>
+              <input
+                value={draft.telefone}
+                onChange={(event) => onChange('telefone', event.target.value)}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
+                autoComplete="tel"
+              />
+            </Field>
+          </div>
+          <div className="grid g3">
+            <Field label="CEP">
+              <input
+                value={endereco.cep}
+                onChange={(event) => onChangeEndereco('cep', formatCep(event.target.value))}
+                placeholder="00000-000"
+                inputMode="numeric"
+              />
+            </Field>
+            <Field label="Número">
+              <input
+                value={endereco.numero}
+                onChange={(event) => onChangeEndereco('numero', event.target.value)}
+                placeholder="Número"
+              />
+            </Field>
+            <Field label="Complemento">
+              <input
+                value={endereco.complemento}
+                onChange={(event) => onChangeEndereco('complemento', event.target.value)}
+                placeholder="Apto, bloco, etc."
+              />
+            </Field>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Field label="Logradouro" hint={<FieldError message={errors.endereco} />}>
+                <input
+                  value={endereco.logradouro}
+                  onChange={(event) => onChangeEndereco('logradouro', event.target.value)}
+                  placeholder="Rua, avenida, etc."
+                />
+              </Field>
+            </div>
+            <Field label="Bairro">
+              <input
+                value={endereco.bairro}
+                onChange={(event) => onChangeEndereco('bairro', event.target.value)}
+                placeholder="Bairro"
+              />
+            </Field>
+            <Field label="Cidade">
+              <input
+                value={endereco.cidade}
+                onChange={(event) => onChangeEndereco('cidade', event.target.value)}
+                placeholder="Cidade"
+              />
+            </Field>
+            <Field label="UF">
+              <input
+                value={endereco.uf}
+                onChange={(event) => onChangeEndereco('uf', event.target.value.toUpperCase())}
+                placeholder="UF"
+                maxLength={2}
+              />
+            </Field>
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="ghost" onClick={onClose}>
+            Cancelar
+          </button>
+          {temCorresponsavelFinanceiro ? (
+            <button type="button" className="ghost" onClick={onDeactivate}>
+              Desativar
+            </button>
+          ) : null}
+          <button type="button" className="primary" onClick={onSave}>
+            Salvar
           </button>
         </div>
       </div>
@@ -4878,6 +5115,13 @@ export default function App() {
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const leasingContrato = useLeasingStore((state) => state.contrato)
   const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
+  const corresponsavelAtivo = useMemo(() => {
+    const corresponsavel = leasingContrato.corresponsavel
+    if (!leasingContrato.temCorresponsavelFinanceiro || !corresponsavel) {
+      return false
+    }
+    return Boolean(corresponsavel.nome?.trim() && corresponsavel.cpf?.trim())
+  }, [leasingContrato.corresponsavel, leasingContrato.temCorresponsavelFinanceiro])
 
   const distribuidorasDisponiveis = useMemo(() => {
     if (!ufTarifa) return [] as string[]
@@ -5470,6 +5714,10 @@ export default function App() {
   const clienteIndicacaoNomeId = useId()
   const clienteHerdeirosContentId = useId()
   const [clienteHerdeirosExpandidos, setClienteHerdeirosExpandidos] = useState(false)
+  const [isCorresponsavelModalOpen, setIsCorresponsavelModalOpen] = useState(false)
+  const [corresponsavelDraft, setCorresponsavelDraft] =
+    useState<LeasingCorresponsavel>(createEmptyCorresponsavel)
+  const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
   const fecharClientesPainel = useCallback(() => {
@@ -7337,7 +7585,7 @@ export default function App() {
   const [isContractTemplatesModalOpen, setIsContractTemplatesModalOpen] = useState(false)
   const [isLeasingContractsModalOpen, setIsLeasingContractsModalOpen] = useState(false)
   const [leasingAnexosSelecionados, setLeasingAnexosSelecionados] = useState<LeasingAnexoId[]>(() =>
-    getDefaultLeasingAnexos(leasingContrato.tipoContrato),
+    getDefaultLeasingAnexos(leasingContrato.tipoContrato, { corresponsavelAtivo }),
   )
   const [leasingAnexosAvailability, setLeasingAnexosAvailability] = useState<
     Record<LeasingAnexoId, boolean>
@@ -7361,10 +7609,23 @@ export default function App() {
       const filtrados = prev.filter((id) => anexosValidos.has(id))
       const baseSelecionados = filtrados.length > 0
         ? filtrados
-        : getDefaultLeasingAnexos(leasingContrato.tipoContrato)
-      return ensureRequiredLeasingAnexos(baseSelecionados, leasingContrato.tipoContrato)
+        : getDefaultLeasingAnexos(leasingContrato.tipoContrato, { corresponsavelAtivo })
+      return ensureRequiredLeasingAnexos(baseSelecionados, leasingContrato.tipoContrato, {
+        corresponsavelAtivo,
+      })
     })
-  }, [leasingContrato.tipoContrato])
+  }, [corresponsavelAtivo, leasingContrato.tipoContrato])
+
+  useEffect(() => {
+    setLeasingAnexosSelecionados((prev) => {
+      if (!corresponsavelAtivo) {
+        return prev.filter((id) => id !== 'ANEXO_X')
+      }
+      return ensureRequiredLeasingAnexos(prev, leasingContrato.tipoContrato, {
+        corresponsavelAtivo,
+      })
+    })
+  }, [corresponsavelAtivo, leasingContrato.tipoContrato])
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
   const [oemInflacao, setOemInflacao] = useState(INITIAL_VALUES.oemInflacao)
@@ -14371,8 +14632,10 @@ export default function App() {
           ? [...snapshot.leasingAnexosSelecionados]
           : getDefaultLeasingAnexos(
               snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial',
+              { corresponsavelAtivo },
             ),
         snapshot.leasingSnapshot?.contrato?.tipoContrato ?? 'residencial',
+        { corresponsavelAtivo },
       ),
     )
 
@@ -15360,6 +15623,19 @@ export default function App() {
       ? titularUcGeradora?.rg?.trim() ?? ''
       : cliente.rg?.trim() ?? ''
 
+    const corresponsavelEndereco = formatEnderecoCompleto(leasingContrato.corresponsavel?.endereco)
+    const corresponsavelPayload = leasingContrato.corresponsavel
+      ? {
+          nome: leasingContrato.corresponsavel.nome.trim(),
+          nacionalidade: leasingContrato.corresponsavel.nacionalidade.trim(),
+          estadoCivil: leasingContrato.corresponsavel.estadoCivil.trim(),
+          cpf: formatCpfCnpj(leasingContrato.corresponsavel.cpf),
+          endereco: leasingContrato.corresponsavel.endereco,
+          email: leasingContrato.corresponsavel.email.trim(),
+          telefone: leasingContrato.corresponsavel.telefone.trim(),
+        }
+      : null
+
     let procuracaoTags: ProcuracaoTags
     try {
       procuracaoTags = buildProcuracaoTags({ cliente, leasingContrato })
@@ -15413,6 +15689,23 @@ export default function App() {
       titularUcGeradoraCPF: formatCpfCnpj(titularUcGeradoraCpf),
       titularUcGeradoraRG: titularUcGeradoraRg,
       titularUcGeradoraEndereco: titularUcGeradoraEndereco,
+      ucGeradora_importarEnderecoCliente: leasingContrato.ucGeradora_importarEnderecoCliente,
+      ucGeradoraEndereco: {
+        cep: leasingContrato.ucGeradoraTitularDraft?.endereco.cep ?? '',
+        logradouro: leasingContrato.ucGeradoraTitularDraft?.endereco.logradouro ?? '',
+        cidade: leasingContrato.ucGeradoraTitularDraft?.endereco.cidade ?? '',
+        uf: leasingContrato.ucGeradoraTitularDraft?.endereco.uf ?? '',
+        distribuidora: leasingContrato.ucGeradoraTitularDistribuidoraAneel ?? '',
+      },
+      temCorresponsavelFinanceiro: leasingContrato.temCorresponsavelFinanceiro,
+      corresponsavel: corresponsavelPayload,
+      nomeCorresponsavel: corresponsavelPayload?.nome ?? '',
+      nacionalidadeCorresponsavel: corresponsavelPayload?.nacionalidade ?? '',
+      estadoCivilCorresponsavel: corresponsavelPayload?.estadoCivil ?? '',
+      cpfCorresponsavel: corresponsavelPayload?.cpf ?? '',
+      enderecoCorresponsavel: corresponsavelEndereco,
+      emailCorresponsavel: corresponsavelPayload?.email ?? '',
+      telefoneCorresponsavel: corresponsavelPayload?.telefone ?? '',
       ...procuracaoTags,
     }
 
@@ -15524,7 +15817,9 @@ export default function App() {
       setLeasingAnexosAvailability(availability as Record<LeasingAnexoId, boolean>)
       setLeasingAnexosSelecionados((prev) => {
         const filtrados = prev.filter((anexoId) => availability[anexoId] !== false)
-        return ensureRequiredLeasingAnexos(filtrados, leasingContrato.tipoContrato)
+        return ensureRequiredLeasingAnexos(filtrados, leasingContrato.tipoContrato, {
+          corresponsavelAtivo,
+        })
       })
     } catch (error) {
       console.error('Erro ao verificar disponibilidade dos anexos:', error)
@@ -15533,7 +15828,7 @@ export default function App() {
     } finally {
       setLeasingAnexosLoading(false)
     }
-  }, [leasingContrato.tipoContrato, cliente.uf])
+  }, [corresponsavelAtivo, leasingContrato.tipoContrato, cliente.uf])
 
   const handleToggleContractTemplate = useCallback((template: string) => {
     setSelectedContractTemplates((prev) => {
@@ -15553,7 +15848,7 @@ export default function App() {
 
   const handleToggleLeasingAnexo = useCallback((anexoId: LeasingAnexoId) => {
     const config = LEASING_ANEXOS_CONFIG.find((item) => item.id === anexoId)
-    if (config?.autoInclude) {
+    if (config?.autoInclude || (corresponsavelAtivo && anexoId === 'ANEXO_X')) {
       return
     }
     setLeasingAnexosSelecionados((prev) => {
@@ -15562,27 +15857,29 @@ export default function App() {
       }
       return [...prev, anexoId]
     })
-  }, [])
+  }, [corresponsavelAtivo])
 
   const handleSelectAllLeasingAnexos = useCallback(
     (selectAll: boolean) => {
-      if (!selectAll) {
-        setLeasingAnexosSelecionados(
-          ensureRequiredLeasingAnexos([], leasingContrato.tipoContrato),
-        )
-        return
-      }
-      const disponiveis = LEASING_ANEXOS_CONFIG.filter(
-        (config) =>
-          config.tipos.includes(leasingContrato.tipoContrato) &&
-          !config.autoInclude &&
-          leasingAnexosAvailability[config.id] !== false,
-      ).map((config) => config.id)
+    if (!selectAll) {
       setLeasingAnexosSelecionados(
-        ensureRequiredLeasingAnexos(disponiveis, leasingContrato.tipoContrato),
+        ensureRequiredLeasingAnexos([], leasingContrato.tipoContrato, { corresponsavelAtivo }),
       )
-    },
-    [leasingContrato.tipoContrato, leasingAnexosAvailability],
+      return
+    }
+    const disponiveis = LEASING_ANEXOS_CONFIG.filter(
+      (config) =>
+        config.tipos.includes(leasingContrato.tipoContrato) &&
+        !(config.autoInclude || (corresponsavelAtivo && config.id === 'ANEXO_X')) &&
+        leasingAnexosAvailability[config.id] !== false,
+    ).map((config) => config.id)
+    setLeasingAnexosSelecionados(
+      ensureRequiredLeasingAnexos(disponiveis, leasingContrato.tipoContrato, {
+        corresponsavelAtivo,
+      }),
+    )
+  },
+    [corresponsavelAtivo, leasingContrato.tipoContrato, leasingAnexosAvailability],
   )
 
   const handleFecharModalContratos = useCallback(() => {
@@ -16088,6 +16385,7 @@ export default function App() {
       const anexosSelecionados = ensureRequiredLeasingAnexos(
         leasingAnexosSelecionados,
         leasingContrato.tipoContrato,
+        { corresponsavelAtivo },
       )
 
       const response = await fetch(resolveApiUrl('/api/contracts/leasing'), {
@@ -16164,6 +16462,7 @@ export default function App() {
     }
   }, [
     adicionarNotificacao,
+    corresponsavelAtivo,
     leasingContrato.tipoContrato,
     leasingAnexosSelecionados,
     prepararPropostaParaExportacao,
@@ -17122,6 +17421,148 @@ export default function App() {
     return errors
   }, [])
 
+  const updateCorresponsavelDraft = useCallback(
+    (partial: Partial<LeasingCorresponsavel>) => {
+      setCorresponsavelDraft((prev) => ({
+        ...prev,
+        ...partial,
+        endereco: partial.endereco
+          ? resolveCorresponsavelEndereco(partial.endereco)
+          : prev.endereco,
+      }))
+    },
+    [],
+  )
+
+  const updateCorresponsavelEndereco = useCallback(
+    (partial: Partial<LeasingEndereco>) => {
+      setCorresponsavelDraft((prev) => ({
+        ...prev,
+        endereco: {
+          ...resolveCorresponsavelEndereco(prev.endereco),
+          ...partial,
+        },
+      }))
+    },
+    [],
+  )
+
+  const buildCorresponsavelErrors = useCallback((draft: LeasingCorresponsavel) => {
+    const errors: CorresponsavelErrors = {}
+    if (!draft.nome.trim()) {
+      errors.nome = 'Informe o nome completo.'
+    }
+    const cpfDigits = draft.cpf.replace(/\D/g, '')
+    if (!cpfDigits) {
+      errors.cpf = 'Informe o CPF.'
+    } else if (cpfDigits.length !== 11) {
+      errors.cpf = 'CPF deve conter 11 dígitos.'
+    }
+    const telefoneDigits = draft.telefone.replace(/\D/g, '')
+    if (!telefoneDigits) {
+      errors.telefone = 'Informe o telefone.'
+    } else if (telefoneDigits.length < 10) {
+      errors.telefone = 'Telefone deve conter ao menos 10 dígitos.'
+    }
+    const email = draft.email.trim()
+    if (email && !email.includes('@')) {
+      errors.email = 'Informe um e-mail válido.'
+    }
+    const endereco = resolveCorresponsavelEndereco(draft.endereco)
+    if (!endereco.cidade.trim() && !endereco.uf.trim() && !endereco.logradouro.trim()) {
+      errors.endereco = 'Informe ao menos cidade/UF ou endereço.'
+    }
+    return errors
+  }, [])
+
+  const handleImportEnderecoClienteParaUcGeradora = useCallback(
+    (checked: boolean) => {
+      leasingActions.updateContrato({ ucGeradora_importarEnderecoCliente: checked })
+      if (!checked) {
+        return
+      }
+      if (!leasingContrato.ucGeradoraTitularDraft) {
+        const baseDraft = leasingContrato.ucGeradoraTitular
+          ? cloneUcGeradoraTitular(leasingContrato.ucGeradoraTitular)
+          : createEmptyUcGeradoraTitular()
+        leasingActions.updateContrato({
+          ucGeradoraTitularDiferente: true,
+          ucGeradoraTitularDraft: baseDraft,
+        })
+        setUcGeradoraTitularPanelOpen(true)
+      }
+      leasingActions.importEnderecoClienteParaUcGeradora({
+        cep: cliente.cep?.trim(),
+        logradouro: cliente.endereco?.trim(),
+        cidade: cliente.cidade?.trim(),
+        uf: cliente.uf?.trim(),
+        distribuidora: cliente.distribuidora?.trim(),
+      })
+    },
+    [
+      cliente.cidade,
+      cliente.cep,
+      cliente.distribuidora,
+      cliente.endereco,
+      cliente.uf,
+      leasingContrato.ucGeradoraTitular,
+      leasingContrato.ucGeradoraTitularDraft,
+      setUcGeradoraTitularPanelOpen,
+    ],
+  )
+
+  const handleAbrirCorresponsavelModal = useCallback(() => {
+    setCorresponsavelDraft(buildCorresponsavelDraft(leasingContrato.corresponsavel))
+    setCorresponsavelErrors({})
+    setIsCorresponsavelModalOpen(true)
+  }, [leasingContrato.corresponsavel])
+
+  const handleFecharCorresponsavelModal = useCallback(() => {
+    setIsCorresponsavelModalOpen(false)
+    setCorresponsavelErrors({})
+  }, [])
+
+  const handleSalvarCorresponsavel = useCallback(() => {
+    const errors = buildCorresponsavelErrors(corresponsavelDraft)
+    if (Object.keys(errors).length > 0) {
+      setCorresponsavelErrors(errors)
+      return
+    }
+    const endereco = resolveCorresponsavelEndereco(corresponsavelDraft.endereco)
+    const normalized: LeasingCorresponsavel = {
+      nome: corresponsavelDraft.nome.trim(),
+      nacionalidade: corresponsavelDraft.nacionalidade.trim(),
+      estadoCivil: corresponsavelDraft.estadoCivil.trim(),
+      cpf: formatCpfCnpj(corresponsavelDraft.cpf),
+      endereco: {
+        ...endereco,
+        logradouro: endereco.logradouro.trim(),
+        numero: endereco.numero.trim(),
+        complemento: endereco.complemento.trim(),
+        bairro: endereco.bairro.trim(),
+        cidade: endereco.cidade.trim(),
+        uf: endereco.uf.trim(),
+        cep: endereco.cep.trim(),
+      },
+      email: corresponsavelDraft.email.trim(),
+      telefone: corresponsavelDraft.telefone.trim(),
+    }
+    leasingActions.updateContrato({
+      temCorresponsavelFinanceiro: true,
+      corresponsavel: normalized,
+    })
+    setIsCorresponsavelModalOpen(false)
+    setCorresponsavelErrors({})
+  }, [buildCorresponsavelErrors, corresponsavelDraft])
+
+  const handleDesativarCorresponsavel = useCallback(() => {
+    leasingActions.updateContrato({
+      temCorresponsavelFinanceiro: false,
+    })
+    setIsCorresponsavelModalOpen(false)
+    setCorresponsavelErrors({})
+  }, [])
+
   const handleToggleUcGeradoraTitularDiferente = useCallback(
     (checked: boolean) => {
       if (checked) {
@@ -17142,6 +17583,7 @@ export default function App() {
         ucGeradoraTitularDiferente: false,
         ucGeradoraTitular: null,
         ucGeradoraTitularDraft: null,
+        ucGeradora_importarEnderecoCliente: false,
       })
       setUcGeradoraTitularPanelOpen(false)
       setUcGeradoraTitularErrors({})
@@ -18438,15 +18880,27 @@ export default function App() {
                 <span className="leasing-field-label-text">
                   Informações da UC geradora
                 </span>
-                <label className="leasing-location-checkbox flex items-center gap-2">
-                  <CheckboxSmall
-                    checked={leasingContrato.ucGeradoraTitularDiferente}
-                    onChange={(event) =>
-                      handleToggleUcGeradoraTitularDiferente(event.target.checked)
-                    }
-                  />
-                  <span>Diferente titular da UC geradora</span>
-                </label>
+                <div className="leasing-location-checkboxes">
+                  <label className="leasing-location-checkbox flex items-center gap-2">
+                    <CheckboxSmall
+                      checked={leasingContrato.ucGeradoraTitularDiferente}
+                      onChange={(event) =>
+                        handleToggleUcGeradoraTitularDiferente(event.target.checked)
+                      }
+                    />
+                    <span>Diferente titular da UC geradora</span>
+                  </label>
+                  <label className="leasing-location-checkbox flex items-center gap-2">
+                    <CheckboxSmall
+                      checked={leasingContrato.ucGeradora_importarEnderecoCliente}
+                      disabled={!leasingContrato.ucGeradoraTitularDiferente}
+                      onChange={(event) =>
+                        handleImportEnderecoClienteParaUcGeradora(event.target.checked)
+                      }
+                    />
+                    <span>Importar endereço do cliente</span>
+                  </label>
+                </div>
               </div>
             </div>
           }
@@ -18838,15 +19292,28 @@ export default function App() {
           hint="As tags seguem o formato {{herdeiro#n}} conforme a ordem dos campos."
         >
           <div className="cliente-herdeiros-group">
-            <button
-              type="button"
-              className="cliente-herdeiros-toggle"
-              onClick={() => setClienteHerdeirosExpandidos((prev) => !prev)}
-              aria-expanded={clienteHerdeirosExpandidos}
-              aria-controls={clienteHerdeirosContentId}
-            >
-              {clienteHerdeirosExpandidos ? 'Ocultar herdeiros' : 'Gerenciar herdeiros'}
-            </button>
+            <div className="cliente-herdeiros-toolbar">
+              <button
+                type="button"
+                className="cliente-herdeiros-toggle"
+                onClick={() => setClienteHerdeirosExpandidos((prev) => !prev)}
+                aria-expanded={clienteHerdeirosExpandidos}
+                aria-controls={clienteHerdeirosContentId}
+              >
+                {clienteHerdeirosExpandidos ? 'Ocultar herdeiros' : 'Gerenciar herdeiros'}
+              </button>
+              <button
+                type="button"
+                className="cliente-herdeiros-toggle"
+                onClick={handleAbrirCorresponsavelModal}
+                aria-haspopup="dialog"
+              >
+                Corresponsável financeiro
+              </button>
+              {leasingContrato.temCorresponsavelFinanceiro ? (
+                <span className="cliente-corresponsavel-status">Corresponsável cadastrado</span>
+              ) : null}
+            </div>
             <small className="cliente-herdeiros-summary">{herdeirosResumo}</small>
             {clienteHerdeirosExpandidos ? (
               <div
@@ -25184,6 +25651,22 @@ export default function App() {
           onClose={fecharEnvioPropostaModal}
         />
       ) : null}
+      {isCorresponsavelModalOpen ? (
+        <CorresponsavelModal
+          draft={corresponsavelDraft}
+          errors={corresponsavelErrors}
+          temCorresponsavelFinanceiro={leasingContrato.temCorresponsavelFinanceiro}
+          onChange={(field, value) =>
+            updateCorresponsavelDraft({ [field]: value } as Partial<LeasingCorresponsavel>)
+          }
+          onChangeEndereco={(field, value) =>
+            updateCorresponsavelEndereco({ [field]: value } as Partial<LeasingEndereco>)
+          }
+          onSave={handleSalvarCorresponsavel}
+          onDeactivate={handleDesativarCorresponsavel}
+          onClose={handleFecharCorresponsavelModal}
+        />
+      ) : null}
 
       <input
         ref={clientesImportInputRef}
@@ -25199,6 +25682,7 @@ export default function App() {
           anexosSelecionados={leasingAnexosSelecionados}
           anexosAvailability={leasingAnexosAvailability}
           isLoadingAvailability={leasingAnexosLoading}
+          corresponsavelAtivo={corresponsavelAtivo}
           onToggleAnexo={handleToggleLeasingAnexo}
           onSelectAll={handleSelectAllLeasingAnexos}
           onConfirm={handleConfirmarGeracaoLeasing}

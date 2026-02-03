@@ -896,6 +896,12 @@ button.secondary.small {
   gap: 6px;
 }
 
+.leasing-location-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .leasing-location-checkbox {
   display: inline-flex;
   align-items: center;
@@ -1053,6 +1059,19 @@ button.secondary.small {
   gap: var(--space-1);
 }
 
+.cliente-herdeiros-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cliente-corresponsavel-status {
+  color: var(--accent-strong);
+  font-size: var(--font-s);
+  font-weight: 600;
+}
+
 .cliente-herdeiros-toggle {
   align-self: flex-start;
   display: inline-flex;
@@ -1196,6 +1215,12 @@ button.secondary.small {
   display: flex;
   justify-content: flex-start;
   margin-top: var(--space-1);
+}
+
+.corresponsavel-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .field-label,
