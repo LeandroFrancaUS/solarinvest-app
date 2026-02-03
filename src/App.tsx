@@ -1387,6 +1387,19 @@ const buildProcuracaoTags = ({
       endereco?.cep?.trim(),
     ]
     if (camposObrigatorios.some((campo) => !campo)) {
+      if (leasingContrato.ucGeradora_importarEnderecoCliente) {
+        return {
+          procuracaoNome: cliente.nome?.trim() ?? '',
+          procuracaoCPF: formatCpfCnpj(cliente.documento ?? ''),
+          procuracaoRG: cliente.rg?.trim() ?? '',
+          procuracaoEndereco: formatEndereco({
+            logradouro: cliente.endereco ?? '',
+            cidade: cliente.cidade ?? '',
+            uf: cliente.uf ?? '',
+            cep: cliente.cep ?? '',
+          }),
+        }
+      }
       throw new Error(
         'Preencha os dados do titular diferente da UC geradora para gerar a procuração.',
       )
