@@ -387,7 +387,7 @@ const extractAnexoNumber = (fileName) => {
 }
 
 const ANEXO_X_REGEX = /anexo\s*x(?:\s|\W|$)/i
-const ANEXO_TEMPLATE_EXTENSIONS = ['.dotx', '.docx']
+const ANEXO_TEMPLATE_EXTENSIONS = ['.docx', '.dotx']
 
 const isAnexoTemplateFile = (fileName) =>
   ANEXO_TEMPLATE_EXTENSIONS.some((ext) => fileName.toLowerCase().endsWith(ext))
@@ -402,6 +402,10 @@ const pickPreferredAnexoXFile = (entries) => {
     return null
   }
 
+  const docxMatch = matching.find((entry) => entry.toLowerCase().endsWith('.docx'))
+  if (docxMatch) {
+    return docxMatch
+  }
   const dotxMatch = matching.find((entry) => entry.toLowerCase().endsWith('.dotx'))
   return dotxMatch ?? matching[0]
 }
@@ -422,7 +426,12 @@ const findAnexoFile = async (anexoNum, uf) => {
         if (anexoNum === 10) {
           const match = pickPreferredAnexoXFile(ufEntries)
           if (match) {
-            return path.join('anexos', uf.toUpperCase(), match)
+            const resolved = path.join('anexos', uf.toUpperCase(), match)
+            console.log('[ANEXO_X] resolved template:', {
+              filename: match,
+              path: resolved,
+            })
+            return resolved
           }
         }
         const match = ufEntries.find((entry) => 
@@ -442,7 +451,12 @@ const findAnexoFile = async (anexoNum, uf) => {
     if (anexoNum === 10) {
       const match = pickPreferredAnexoXFile(entries)
       if (match) {
-        return path.join('anexos', match)
+        const resolved = path.join('anexos', match)
+        console.log('[ANEXO_X] resolved template:', {
+          filename: match,
+          path: resolved,
+        })
+        return resolved
       }
     }
     const match = entries.find((entry) => 
@@ -946,6 +960,18 @@ const buildAnexoXContext = ({ dadosLeasing, rawDadosLeasing }) => {
     emailCorresponsavel: fallbackValue(email),
     telefoneCorresponsavel: fallbackValue(formatTelefoneForContract(telefone)),
   }
+}
+
+const maskSensitiveValue = (value) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    return ''
+  }
+  const digits = trimmed.replace(/\D/g, '')
+  if (digits.length <= 4) {
+    return `***${digits}`
+  }
+  return `***${digits.slice(-4)}`
 }
 
 const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
@@ -1832,6 +1858,25 @@ const extractTemplateTagsFromDocx = async (fileName, uf, { requestId } = {}) => 
   return templateTags
 }
 
+const inspectDocxTemplateXml = async (fileName, uf, { requestId } = {}) => {
+  const templateBuffer = await loadDocxTemplate(fileName, uf)
+  const zip = await JSZip.loadAsync(templateBuffer)
+  const documentXmlFile = zip.file('word/document.xml')
+  if (!documentXmlFile) {
+    return {
+      hasBraces: false,
+      hasNomeKey: false,
+      hasContiguousTag: false,
+    }
+  }
+  const xml = await documentXmlFile.async('string')
+  return {
+    hasBraces: xml.includes('{{'),
+    hasNomeKey: /nomeCorresponsavel/i.test(xml),
+    hasContiguousTag: xml.includes('{{nomeCorresponsavel}}'),
+  }
+}
+
 const createZipFromFiles = async (files) => {
   const zip = new JSZip()
   files.forEach((file) => {
@@ -2454,9 +2499,23 @@ export const handleLeasingContractsRequest = async (req, res) => {
         }
         if (anexo.id === 'ANEXO_X') {
           const contextAnexoX = buildAnexoXContext({ dadosLeasing, rawDadosLeasing })
+          console.log('[ANEXO_X] context preview', {
+            nomeCorresponsavel: contextAnexoX.nomeCorresponsavel,
+            nacionalidadeCorresponsavel: contextAnexoX.nacionalidadeCorresponsavel,
+            estadoCivilCorresponsavel: contextAnexoX.estadoCivilCorresponsavel,
+            cpfCorresponsavel: maskSensitiveValue(contextAnexoX.cpfCorresponsavel),
+            enderecoCorresponsavel: contextAnexoX.enderecoCorresponsavel,
+            emailCorresponsavel: contextAnexoX.emailCorresponsavel,
+            telefoneCorresponsavel: maskSensitiveValue(contextAnexoX.telefoneCorresponsavel),
+          })
+          console.log('[ANEXO_X] rendering via:', 'renderDocxTemplate')
           const templateTags = await extractTemplateTagsFromDocx(anexo.template, clienteUf, {
             requestId,
           })
+          const xmlInspection = await inspectDocxTemplateXml(anexo.template, clienteUf, {
+            requestId,
+          })
+          console.log('[ANEXO_X][XML]', xmlInspection)
           const aliasMap = {
             nomecorresponsavel: 'nomeCorresponsavel',
             nacionalidadecorresponsavel: 'nacionalidadeCorresponsavel',
@@ -2481,6 +2540,12 @@ export const handleLeasingContractsRequest = async (req, res) => {
         const buffer = await renderDocxTemplate(anexo.template, renderContext, clienteUf, {
           requestId,
         })
+        if (anexo.id === 'ANEXO_X') {
+          console.log('[ANEXO_X] render completed', {
+            template: anexo.template,
+            bufferBytes: buffer.length,
+          })
+        }
 
         const procuracaoBaseName = anexo.id === 'ANEXO_VIII'
           ? getProcuracaoFileBaseName(clienteUf)
