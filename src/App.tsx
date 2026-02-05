@@ -15725,6 +15725,7 @@ export default function App() {
       titularUcGeradoraCPF: formatCpfCnpj(titularUcGeradoraCpf),
       titularUcGeradoraRG: titularUcGeradoraRg,
       titularUcGeradoraEndereco: titularUcGeradoraEndereco,
+      procuracaoUf: (procuracaoUf || cliente.uf || '').trim().toUpperCase(),
       ucGeradora_importarEnderecoCliente: leasingContrato.ucGeradora_importarEnderecoCliente,
       ucGeradoraEndereco: {
         cep: ucGeradoraTitularReferencia?.endereco.cep ?? '',

@@ -1449,6 +1449,32 @@ const buildTemplateData = (data) => {
   }
 }
 
+const resolveUfForProcuracao = (dadosLeasing = {}) => {
+  const fromExplicit = normalizeUfForProcuracao(dadosLeasing?.procuracaoUf)
+  if (fromExplicit) {
+    return fromExplicit
+  }
+
+  const fromClienteUf = normalizeUfForProcuracao(dadosLeasing?.uf)
+  if (fromClienteUf) {
+    return fromClienteUf
+  }
+
+  const distribuidora = String(
+    dadosLeasing?.ucGeradoraEndereco?.distribuidora
+      ?? dadosLeasing?.clienteDistribuidoraAneel
+      ?? '',
+  ).trim().toUpperCase()
+  if (distribuidora.includes('NEOENERGIA')) {
+    return 'DF'
+  }
+  if (distribuidora.includes('EQUATORIAL')) {
+    return 'GO'
+  }
+
+  return ''
+}
+
 const TEMPLATE_TAG_REGEX = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
 const ALLOWED_TEMPLATE_TAGS = new Set([
   'nomeCompleto',
@@ -2246,8 +2272,9 @@ export const handleLeasingContractsRequest = async (req, res) => {
       ? Array.from(new Set([...anexosSelecionadosBase, 'ANEXO_X']))
       : anexosSelecionadosBase
     const clienteUf = dadosLeasing.uf
+    const procuracaoUf = resolveUfForProcuracao(rawDadosLeasing)
 
-    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados, clienteUf)
+    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados, procuracaoUf || clienteUf)
     const anexosDisponiveis = []
     const anexosIndisponiveis = []
 
@@ -2557,7 +2584,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
         }
 
         const procuracaoBaseName = anexo.id === 'ANEXO_VIII'
-          ? getProcuracaoFileBaseName(clienteUf)
+          ? getProcuracaoFileBaseName(procuracaoUf || clienteUf)
           : null
         const anexoDocxName = procuracaoBaseName
           ? `${procuracaoBaseName}.docx`
