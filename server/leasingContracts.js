@@ -386,6 +386,30 @@ const extractAnexoNumber = (fileName) => {
   return null
 }
 
+const ANEXO_X_REGEX = /anexo\s*x(?:\s|\W|$)/i
+const ANEXO_TEMPLATE_EXTENSIONS = ['.docx', '.dotx']
+
+const isAnexoTemplateFile = (fileName) =>
+  ANEXO_TEMPLATE_EXTENSIONS.some((ext) => fileName.toLowerCase().endsWith(ext))
+
+const pickPreferredAnexoXFile = (entries) => {
+  const matching = entries
+    .filter((entry) => ANEXO_X_REGEX.test(entry))
+    .filter((entry) => isAnexoTemplateFile(entry))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  if (matching.length === 0) {
+    return null
+  }
+
+  const docxMatch = matching.find((entry) => entry.toLowerCase().endsWith('.docx'))
+  if (docxMatch) {
+    return docxMatch
+  }
+  const dotxMatch = matching.find((entry) => entry.toLowerCase().endsWith('.dotx'))
+  return dotxMatch ?? matching[0]
+}
+
 /**
  * Search for anexo file in the anexos directory by number (supports Roman/Arabic)
  * @param {number} anexoNum - Anexo number (1, 2, 3, etc.)
@@ -399,9 +423,20 @@ const findAnexoFile = async (anexoNum, uf) => {
       const ufAnexosDir = path.join(LEASING_ANEXOS_DIR, uf.toUpperCase())
       try {
         const ufEntries = await fs.readdir(ufAnexosDir)
+        if (anexoNum === 10) {
+          const match = pickPreferredAnexoXFile(ufEntries)
+          if (match) {
+            const resolved = path.join('anexos', uf.toUpperCase(), match)
+            console.log('[ANEXO_X] resolved template:', {
+              filename: match,
+              path: resolved,
+            })
+            return resolved
+          }
+        }
         const match = ufEntries.find((entry) => 
           matchesAnexoPrefix(entry, anexoNum) && 
-          (entry.toLowerCase().endsWith('.docx') || entry.toLowerCase().endsWith('.dotx'))
+          isAnexoTemplateFile(entry)
         )
         if (match) {
           return path.join('anexos', uf.toUpperCase(), match)
@@ -413,9 +448,20 @@ const findAnexoFile = async (anexoNum, uf) => {
 
     // Search in default anexos directory
     const entries = await fs.readdir(LEASING_ANEXOS_DIR)
+    if (anexoNum === 10) {
+      const match = pickPreferredAnexoXFile(entries)
+      if (match) {
+        const resolved = path.join('anexos', match)
+        console.log('[ANEXO_X] resolved template:', {
+          filename: match,
+          path: resolved,
+        })
+        return resolved
+      }
+    }
     const match = entries.find((entry) => 
       matchesAnexoPrefix(entry, anexoNum) && 
-      (entry.toLowerCase().endsWith('.docx') || entry.toLowerCase().endsWith('.dotx'))
+      isAnexoTemplateFile(entry)
     )
     
     if (match) {
@@ -602,6 +648,20 @@ const formatTelefoneForContract = (value) => {
   return trimmed
 }
 
+const formatCpfForContract = (value) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    return ''
+  }
+
+  const digits = trimmed.replace(/\D/g, '')
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+  }
+
+  return trimmed
+}
+
 const normalizeArray = (value) => {
   if (!Array.isArray(value)) {
     return []
@@ -663,6 +723,41 @@ const formatarEnderecoCompleto = (dados) => {
   return partes.join(', ')
 }
 
+/**
+ * Formata endereço completo do corresponsável
+ * Formato: Logradouro, nº 123, Complemento, Bairro, Cidade – UF, CEP 00000-000
+ * @param {object|string|null|undefined} endereco
+ * @returns {string}
+ */
+const formatEnderecoCompleto = (endereco) => {
+  if (!endereco) {
+    return ''
+  }
+  if (typeof endereco === 'string') {
+    return endereco.trim()
+  }
+  const logradouro = typeof endereco.logradouro === 'string' ? endereco.logradouro.trim() : ''
+  const numero = typeof endereco.numero === 'string' ? endereco.numero.trim() : ''
+  const complemento = typeof endereco.complemento === 'string' ? endereco.complemento.trim() : ''
+  const bairro = typeof endereco.bairro === 'string' ? endereco.bairro.trim() : ''
+  const cidade = typeof endereco.cidade === 'string' ? endereco.cidade.trim() : ''
+  const uf = typeof endereco.uf === 'string' ? endereco.uf.trim() : ''
+  const cepRaw = typeof endereco.cep === 'string' ? endereco.cep.trim() : ''
+
+  const cepDigits = cepRaw.replace(/\D/g, '')
+  const cep = cepDigits.length === 8 ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}` : cepRaw
+
+  const numeroTexto = numero ? `nº ${numero}` : ''
+  const primeiraLinhaBase = [logradouro, numeroTexto].filter(Boolean).join(', ')
+  const primeiraLinha = complemento
+    ? [primeiraLinhaBase, complemento].filter(Boolean).join(', ')
+    : primeiraLinhaBase
+  const cidadeUf = [cidade, uf].filter(Boolean).join(' – ')
+  const cepTexto = cep ? `CEP ${cep}` : ''
+
+  return [primeiraLinha, bairro, cidadeUf, cepTexto].filter(Boolean).join(', ')
+}
+
 const sanitizeDadosLeasing = (dados, tipoContrato) => {
   if (!dados || typeof dados !== 'object') {
     throw new LeasingContractsError(
@@ -677,6 +772,31 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
   const nacionalidadeValue = typeof dados.nacionalidade === 'string' ? dados.nacionalidade.trim().toUpperCase() : ''
   const profissaoValue = typeof dados.profissao === 'string' ? dados.profissao.trim().toUpperCase() : ''
   const estadoCivilValue = typeof dados.estadoCivil === 'string' ? dados.estadoCivil.trim().toUpperCase() : ''
+
+  const corresponsavelRaw =
+    dados?.corresponsavel && typeof dados.corresponsavel === 'object' ? dados.corresponsavel : null
+  const temCorresponsavelFinanceiro = Boolean(dados?.temCorresponsavelFinanceiro)
+  const nomeCorresponsavelRaw =
+    typeof corresponsavelRaw?.nome === 'string' ? corresponsavelRaw.nome.trim() : ''
+  const nacionalidadeCorresponsavelRaw =
+    typeof corresponsavelRaw?.nacionalidade === 'string'
+      ? corresponsavelRaw.nacionalidade.trim()
+      : ''
+  const estadoCivilCorresponsavelRaw =
+    typeof corresponsavelRaw?.estadoCivil === 'string'
+      ? corresponsavelRaw.estadoCivil.trim()
+      : ''
+  const cpfCorresponsavelRaw =
+    typeof corresponsavelRaw?.cpf === 'string' ? corresponsavelRaw.cpf.trim() : ''
+  const enderecoCorresponsavelRaw =
+    typeof dados.enderecoCorresponsavel === 'string'
+      ? dados.enderecoCorresponsavel.trim()
+      : formatEnderecoCompleto(corresponsavelRaw?.endereco)
+  const emailCorresponsavelRaw =
+    typeof corresponsavelRaw?.email === 'string' ? corresponsavelRaw.email.trim() : ''
+  const telefoneCorresponsavelRaw =
+    typeof corresponsavelRaw?.telefone === 'string' ? corresponsavelRaw.telefone.trim() : ''
+  const resolveCorresponsavelValue = (value) => (value ? value : '—')
   
   const normalized = {
     // Core client info - in uppercase for contracts
@@ -735,6 +855,16 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
       typeof dados.cnpjCondominio === 'string' ? dados.cnpjCondominio.trim() : '',
     nomeSindico: typeof dados.nomeSindico === 'string' ? dados.nomeSindico.trim() : '',
     cpfSindico: typeof dados.cpfSindico === 'string' ? dados.cpfSindico.trim() : '',
+
+    // Corresponsável financeiro
+    temCorresponsavelFinanceiro,
+    nomeCorresponsavel: resolveCorresponsavelValue(nomeCorresponsavelRaw),
+    nacionalidadeCorresponsavel: resolveCorresponsavelValue(nacionalidadeCorresponsavelRaw),
+    estadoCivilCorresponsavel: resolveCorresponsavelValue(estadoCivilCorresponsavelRaw),
+    cpfCorresponsavel: resolveCorresponsavelValue(cpfCorresponsavelRaw),
+    enderecoCorresponsavel: resolveCorresponsavelValue(enderecoCorresponsavelRaw),
+    emailCorresponsavel: resolveCorresponsavelValue(emailCorresponsavelRaw),
+    telefoneCorresponsavel: resolveCorresponsavelValue(telefoneCorresponsavelRaw),
   }
 
   // Derived fields
@@ -796,6 +926,52 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
   }
 
   return normalized
+}
+
+const buildAnexoXContext = ({ dadosLeasing, rawDadosLeasing }) => {
+  const corresponsavelRaw =
+    rawDadosLeasing?.corresponsavel && typeof rawDadosLeasing.corresponsavel === 'object'
+      ? rawDadosLeasing.corresponsavel
+      : {}
+  const rawValue = (value) => (typeof value === 'string' ? value.trim() : '')
+  const fallbackValue = (value) => (value ? value : '—')
+
+  const nome = rawValue(corresponsavelRaw.nome) || rawValue(dadosLeasing?.nomeCorresponsavel)
+  const nacionalidade =
+    rawValue(corresponsavelRaw.nacionalidade) ||
+    rawValue(dadosLeasing?.nacionalidadeCorresponsavel)
+  const estadoCivil =
+    rawValue(corresponsavelRaw.estadoCivil) ||
+    rawValue(dadosLeasing?.estadoCivilCorresponsavel)
+  const cpf = rawValue(corresponsavelRaw.cpf) || rawValue(dadosLeasing?.cpfCorresponsavel)
+  const email = rawValue(corresponsavelRaw.email) || rawValue(dadosLeasing?.emailCorresponsavel)
+  const telefone =
+    rawValue(corresponsavelRaw.telefone) || rawValue(dadosLeasing?.telefoneCorresponsavel)
+  const enderecoRaw =
+    corresponsavelRaw.endereco ??
+    rawValue(dadosLeasing?.enderecoCorresponsavel)
+
+  return {
+    nomeCorresponsavel: fallbackValue(nome),
+    nacionalidadeCorresponsavel: fallbackValue(nacionalidade),
+    estadoCivilCorresponsavel: fallbackValue(estadoCivil),
+    cpfCorresponsavel: fallbackValue(formatCpfForContract(cpf)),
+    enderecoCorresponsavel: fallbackValue(formatEnderecoCompleto(enderecoRaw)),
+    emailCorresponsavel: fallbackValue(email),
+    telefoneCorresponsavel: fallbackValue(formatTelefoneForContract(telefone)),
+  }
+}
+
+const maskSensitiveValue = (value) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    return ''
+  }
+  const digits = trimmed.replace(/\D/g, '')
+  if (digits.length <= 4) {
+    return `***${digits}`
+  }
+  return `***${digits.slice(-4)}`
 }
 
 const sanitizeAnexosSelecionados = (lista, tipoContrato) => {
@@ -1273,6 +1449,32 @@ const buildTemplateData = (data) => {
   }
 }
 
+const resolveUfForProcuracao = (dadosLeasing = {}) => {
+  const fromExplicit = normalizeUfForProcuracao(dadosLeasing?.procuracaoUf)
+  if (fromExplicit) {
+    return fromExplicit
+  }
+
+  const fromClienteUf = normalizeUfForProcuracao(dadosLeasing?.uf)
+  if (fromClienteUf) {
+    return fromClienteUf
+  }
+
+  const distribuidora = String(
+    dadosLeasing?.ucGeradoraEndereco?.distribuidora
+      ?? dadosLeasing?.clienteDistribuidoraAneel
+      ?? '',
+  ).trim().toUpperCase()
+  if (distribuidora.includes('NEOENERGIA')) {
+    return 'DF'
+  }
+  if (distribuidora.includes('EQUATORIAL')) {
+    return 'GO'
+  }
+
+  return ''
+}
+
 const TEMPLATE_TAG_REGEX = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
 const ALLOWED_TEMPLATE_TAGS = new Set([
   'nomeCompleto',
@@ -1651,6 +1853,56 @@ const renderDocxTemplate = async (fileName, data, uf, { requestId } = {}) => {
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
+const extractTemplateTagsFromDocx = async (fileName, uf, { requestId } = {}) => {
+  const templateBuffer = await loadDocxTemplate(fileName, uf)
+  const zip = await JSZip.loadAsync(templateBuffer)
+  const partNames = Object.keys(zip.files).filter((name) => DOCX_TEMPLATE_PARTS_REGEX.test(name))
+  const templateTags = new Set()
+
+  for (const partName of partNames) {
+    const file = zip.file(partName)
+    if (!file) {
+      continue
+    }
+    const xmlContent = await file.async('string')
+    const normalizedXml = normalizeWordXmlForMustache(xmlContent)
+    const repairedXml = repairMustachePlaceholdersXml(normalizedXml, {
+      templateName: fileName,
+      partName,
+      uf,
+      requestId,
+    })
+    const safeXml = escapeInvalidMustacheMarkers(repairedXml, {
+      templateName: fileName,
+      partName,
+      uf,
+      requestId,
+    })
+    extractTemplateTags(safeXml).forEach((tag) => templateTags.add(tag))
+  }
+
+  return templateTags
+}
+
+const inspectDocxTemplateXml = async (fileName, uf, { requestId } = {}) => {
+  const templateBuffer = await loadDocxTemplate(fileName, uf)
+  const zip = await JSZip.loadAsync(templateBuffer)
+  const documentXmlFile = zip.file('word/document.xml')
+  if (!documentXmlFile) {
+    return {
+      hasBraces: false,
+      hasNomeKey: false,
+      hasContiguousTag: false,
+    }
+  }
+  const xml = await documentXmlFile.async('string')
+  return {
+    hasBraces: xml.includes('{{'),
+    hasNomeKey: /nomeCorresponsavel/i.test(xml),
+    hasContiguousTag: xml.includes('{{nomeCorresponsavel}}'),
+  }
+}
+
 const createZipFromFiles = async (files) => {
   const zip = new JSZip()
   files.forEach((file) => {
@@ -2001,12 +2253,28 @@ export const handleLeasingContractsRequest = async (req, res) => {
       tipoContrato,
     })
 
-    const dadosLeasing = sanitizeDadosLeasing(body?.dadosLeasing ?? {}, tipoContrato)
+    const rawDadosLeasing = body?.dadosLeasing ?? {}
+    const dadosLeasing = sanitizeDadosLeasing(rawDadosLeasing, tipoContrato)
     const propostaHtml = typeof body?.propostaHtml === 'string' ? body.propostaHtml.trim() : ''
-    const anexosSelecionados = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
+    const anexosSelecionadosBase = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
+    const corresponsavelRaw =
+      rawDadosLeasing?.corresponsavel && typeof rawDadosLeasing.corresponsavel === 'object'
+        ? rawDadosLeasing.corresponsavel
+        : null
+    const corresponsavelAtivo = Boolean(
+      rawDadosLeasing?.temCorresponsavelFinanceiro === true &&
+        typeof corresponsavelRaw?.nome === 'string' &&
+        corresponsavelRaw.nome.trim() &&
+        typeof corresponsavelRaw?.cpf === 'string' &&
+        corresponsavelRaw.cpf.trim(),
+    )
+    const anexosSelecionados = corresponsavelAtivo
+      ? Array.from(new Set([...anexosSelecionadosBase, 'ANEXO_X']))
+      : anexosSelecionadosBase
     const clienteUf = dadosLeasing.uf
+    const procuracaoUf = resolveUfForProcuracao(rawDadosLeasing)
 
-    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados, clienteUf)
+    const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados, procuracaoUf || clienteUf)
     const anexosDisponiveis = []
     const anexosIndisponiveis = []
 
@@ -2230,16 +2498,19 @@ export const handleLeasingContractsRequest = async (req, res) => {
           const procuracaoData = {
             procuracaoNome: dadosLeasing.procuracaoNome,
             procuracaoCPF: dadosLeasing.procuracaoCPF,
-            procuracaoRG: dadosLeasing.procuracaoRG,
+            procuracaoRG: dadosLeasing.procuracaoRG || '—',
             procuracaoEndereco: dadosLeasing.procuracaoEndereco,
           }
           console.info('[leasing-contracts] procuracao_render', {
             uf: clienteUf,
             template: anexo.template,
-            data: procuracaoData,
+            data: {
+              ...procuracaoData,
+              procuracaoCPF: maskSensitiveValue(procuracaoData.procuracaoCPF),
+            },
           })
           const missing = Object.entries(procuracaoData)
-            .filter(([, value]) => !String(value ?? '').trim())
+            .filter(([key, value]) => key !== 'procuracaoRG' && !String(value ?? '').trim())
             .map(([key]) => key)
           if (missing.length > 0) {
             throw new LeasingContractsError(
@@ -2252,13 +2523,68 @@ export const handleLeasingContractsRequest = async (req, res) => {
             )
           }
         }
-        const buffer = await renderDocxTemplate(anexo.template, {
+        let renderContext = {
           ...dadosLeasing,
           tipoContrato,
-        }, clienteUf, { requestId })
+        }
+        if (anexo.id === 'ANEXO_VIII' && !String(renderContext.procuracaoRG ?? '').trim()) {
+          renderContext = {
+            ...renderContext,
+            procuracaoRG: '—',
+          }
+        }
+        if (anexo.id === 'ANEXO_X') {
+          const contextAnexoX = buildAnexoXContext({ dadosLeasing, rawDadosLeasing })
+          console.log('[ANEXO_X] context preview', {
+            nomeCorresponsavel: contextAnexoX.nomeCorresponsavel,
+            nacionalidadeCorresponsavel: contextAnexoX.nacionalidadeCorresponsavel,
+            estadoCivilCorresponsavel: contextAnexoX.estadoCivilCorresponsavel,
+            cpfCorresponsavel: maskSensitiveValue(contextAnexoX.cpfCorresponsavel),
+            enderecoCorresponsavel: contextAnexoX.enderecoCorresponsavel,
+            emailCorresponsavel: contextAnexoX.emailCorresponsavel,
+            telefoneCorresponsavel: maskSensitiveValue(contextAnexoX.telefoneCorresponsavel),
+          })
+          console.log('[ANEXO_X] rendering via:', 'renderDocxTemplate')
+          const templateTags = await extractTemplateTagsFromDocx(anexo.template, clienteUf, {
+            requestId,
+          })
+          const xmlInspection = await inspectDocxTemplateXml(anexo.template, clienteUf, {
+            requestId,
+          })
+          console.log('[ANEXO_X][XML]', xmlInspection)
+          const aliasMap = {
+            nomecorresponsavel: 'nomeCorresponsavel',
+            nacionalidadecorresponsavel: 'nacionalidadeCorresponsavel',
+            estadocivilcorresponsavel: 'estadoCivilCorresponsavel',
+            cpfcorresponsavel: 'cpfCorresponsavel',
+            enderecocorresponsavel: 'enderecoCorresponsavel',
+            emailcorresponsavel: 'emailCorresponsavel',
+            telefonecorresponsavel: 'telefoneCorresponsavel',
+          }
+          const aliasContext = {}
+          for (const [alias, key] of Object.entries(aliasMap)) {
+            if (templateTags.has(alias)) {
+              aliasContext[alias] = contextAnexoX[key]
+            }
+          }
+          renderContext = {
+            ...renderContext,
+            ...contextAnexoX,
+            ...aliasContext,
+          }
+        }
+        const buffer = await renderDocxTemplate(anexo.template, renderContext, clienteUf, {
+          requestId,
+        })
+        if (anexo.id === 'ANEXO_X') {
+          console.log('[ANEXO_X] render completed', {
+            template: anexo.template,
+            bufferBytes: buffer.length,
+          })
+        }
 
         const procuracaoBaseName = anexo.id === 'ANEXO_VIII'
-          ? getProcuracaoFileBaseName(clienteUf)
+          ? getProcuracaoFileBaseName(procuracaoUf || clienteUf)
           : null
         const anexoDocxName = procuracaoBaseName
           ? `${procuracaoBaseName}.docx`

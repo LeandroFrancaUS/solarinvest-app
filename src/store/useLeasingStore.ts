@@ -44,6 +44,16 @@ export type LeasingEndereco = {
   cep: string
 }
 
+export type LeasingCorresponsavel = {
+  nome: string
+  nacionalidade: string
+  estadoCivil: string
+  cpf: string
+  endereco: LeasingEndereco | string
+  email: string
+  telefone: string
+}
+
 export type LeasingUcGeradoraTitular = {
   nomeCompleto: string
   cpf: string
@@ -61,12 +71,15 @@ export type LeasingContratoDados = {
   ucGeradoraTitular: LeasingUcGeradoraTitular | null
   ucGeradoraTitularDraft: LeasingUcGeradoraTitular | null
   ucGeradoraTitularDistribuidoraAneel: string
+  ucGeradora_importarEnderecoCliente: boolean
   modulosFV: string
   inversoresFV: string
   nomeCondominio: string
   cnpjCondominio: string
   nomeSindico: string
   cpfSindico: string
+  temCorresponsavelFinanceiro: boolean
+  corresponsavel: LeasingCorresponsavel | null
   proprietarios: LeasingContratoProprietario[]
 }
 
@@ -127,12 +140,15 @@ const createInitialState = (): LeasingState => ({
     ucGeradoraTitular: null,
     ucGeradoraTitularDraft: null,
     ucGeradoraTitularDistribuidoraAneel: '',
+    ucGeradora_importarEnderecoCliente: false,
     modulosFV: '',
     inversoresFV: '',
     nomeCondominio: '',
     cnpjCondominio: '',
     nomeSindico: '',
     cpfSindico: '',
+    temCorresponsavelFinanceiro: false,
+    corresponsavel: null,
     proprietarios: [{ nome: '', cpfCnpj: '' }],
   },
 })
@@ -162,6 +178,31 @@ const resolveUcGeradoraTitular = (
   return cloneUcGeradoraTitular(value)
 }
 
+const cloneCorresponsavel = (
+  input: LeasingCorresponsavel | null | undefined,
+): LeasingCorresponsavel | null => {
+  if (!input) {
+    return null
+  }
+  return {
+    ...input,
+    endereco: typeof input.endereco === 'string' ? input.endereco : { ...input.endereco },
+  }
+}
+
+const resolveCorresponsavel = (
+  value: LeasingCorresponsavel | null | undefined,
+  fallback: LeasingCorresponsavel | null,
+): LeasingCorresponsavel | null => {
+  if (value === null) {
+    return null
+  }
+  if (value === undefined) {
+    return fallback
+  }
+  return cloneCorresponsavel(value)
+}
+
 const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
   const base = createInitialState()
   if (!incoming) {
@@ -175,6 +216,10 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
   const ucGeradoraTitularDraft = resolveUcGeradoraTitular(
     contratoIncoming?.ucGeradoraTitularDraft,
     base.contrato.ucGeradoraTitularDraft,
+  )
+  const corresponsavel = resolveCorresponsavel(
+    contratoIncoming?.corresponsavel,
+    base.contrato.corresponsavel,
   )
   const ucGeradoraTitularDiferente = Boolean(
     (incoming.contrato?.ucGeradoraTitularDiferente ?? base.contrato.ucGeradoraTitularDiferente) &&
@@ -201,6 +246,13 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
       ucGeradoraTitularDiferente,
       ucGeradoraTitular,
       ucGeradoraTitularDraft,
+      ucGeradora_importarEnderecoCliente:
+        incoming.contrato?.ucGeradora_importarEnderecoCliente ??
+        base.contrato.ucGeradora_importarEnderecoCliente,
+      temCorresponsavelFinanceiro:
+        incoming.contrato?.temCorresponsavelFinanceiro ??
+        base.contrato.temCorresponsavelFinanceiro,
+      corresponsavel,
     },
   }
 }
@@ -253,6 +305,7 @@ const cloneState = (input: LeasingState): LeasingState => ({
     proprietarios: input.contrato.proprietarios.map((item) => ({ ...item })),
     ucGeradoraTitular: cloneUcGeradoraTitular(input.contrato.ucGeradoraTitular),
     ucGeradoraTitularDraft: cloneUcGeradoraTitular(input.contrato.ucGeradoraTitularDraft),
+    corresponsavel: cloneCorresponsavel(input.contrato.corresponsavel),
   },
 })
 
@@ -361,12 +414,47 @@ export const leasingActions = {
         partial.ucGeradoraTitularDraft,
         draft.contrato.ucGeradoraTitularDraft,
       )
+      const corresponsavel = resolveCorresponsavel(
+        partial.corresponsavel,
+        draft.contrato.corresponsavel,
+      )
       draft.contrato = {
         ...draft.contrato,
         ...partial,
         proprietarios,
         ucGeradoraTitular,
         ucGeradoraTitularDraft,
+        corresponsavel,
+      }
+    })
+  },
+  importEnderecoClienteParaUcGeradora(source: {
+    cep?: string
+    logradouro?: string
+    cidade?: string
+    uf?: string
+    distribuidora?: string
+  }) {
+    setState((draft) => {
+      const contrato = draft.contrato
+      const destino = contrato.ucGeradoraTitularDraft
+      if (!destino) {
+        return
+      }
+      if (source.cep) {
+        destino.endereco.cep = source.cep
+      }
+      if (source.logradouro) {
+        destino.endereco.logradouro = source.logradouro
+      }
+      if (source.cidade) {
+        destino.endereco.cidade = source.cidade
+      }
+      if (source.uf) {
+        destino.endereco.uf = source.uf
+      }
+      if (source.distribuidora) {
+        contrato.ucGeradoraTitularDistribuidoraAneel = source.distribuidora
       }
     })
   },
