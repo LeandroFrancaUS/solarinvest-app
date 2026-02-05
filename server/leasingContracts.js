@@ -2471,16 +2471,19 @@ export const handleLeasingContractsRequest = async (req, res) => {
           const procuracaoData = {
             procuracaoNome: dadosLeasing.procuracaoNome,
             procuracaoCPF: dadosLeasing.procuracaoCPF,
-            procuracaoRG: dadosLeasing.procuracaoRG,
+            procuracaoRG: dadosLeasing.procuracaoRG || '—',
             procuracaoEndereco: dadosLeasing.procuracaoEndereco,
           }
           console.info('[leasing-contracts] procuracao_render', {
             uf: clienteUf,
             template: anexo.template,
-            data: procuracaoData,
+            data: {
+              ...procuracaoData,
+              procuracaoCPF: maskSensitiveValue(procuracaoData.procuracaoCPF),
+            },
           })
           const missing = Object.entries(procuracaoData)
-            .filter(([, value]) => !String(value ?? '').trim())
+            .filter(([key, value]) => key !== 'procuracaoRG' && !String(value ?? '').trim())
             .map(([key]) => key)
           if (missing.length > 0) {
             throw new LeasingContractsError(
@@ -2496,6 +2499,12 @@ export const handleLeasingContractsRequest = async (req, res) => {
         let renderContext = {
           ...dadosLeasing,
           tipoContrato,
+        }
+        if (anexo.id === 'ANEXO_VIII' && !String(renderContext.procuracaoRG ?? '').trim()) {
+          renderContext = {
+            ...renderContext,
+            procuracaoRG: '—',
+          }
         }
         if (anexo.id === 'ANEXO_X') {
           const contextAnexoX = buildAnexoXContext({ dadosLeasing, rawDadosLeasing })
