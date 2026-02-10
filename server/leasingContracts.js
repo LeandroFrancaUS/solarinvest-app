@@ -724,6 +724,14 @@ const formatarEnderecoCompleto = (dados) => {
 }
 
 /**
+ * Converts value to uppercase with fallback to '—' for empty values
+ * Used for contract text fields that should be uppercased
+ * @param {string} value - Value to convert
+ * @returns {string} Uppercased value or '—' if empty
+ */
+const toUpperCaseOrFallback = (value) => (value ? value.toUpperCase() : '—')
+
+/**
  * Formata endereço completo do corresponsável
  * Formato: Logradouro, nº 123, Complemento, Bairro, Cidade – UF, CEP 00000-000
  * @param {object|string|null|undefined} endereco
@@ -796,7 +804,6 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     typeof corresponsavelRaw?.email === 'string' ? corresponsavelRaw.email.trim() : ''
   const telefoneCorresponsavelRaw =
     typeof corresponsavelRaw?.telefone === 'string' ? corresponsavelRaw.telefone.trim() : ''
-  const toUpperCaseOrFallback = (value) => (value ? value.toUpperCase() : '—')
   const resolveCorresponsavelValue = (value) => (value ? value : '—')
   
   const normalized = {
@@ -935,7 +942,6 @@ const buildAnexoXContext = ({ dadosLeasing, rawDadosLeasing }) => {
       ? rawDadosLeasing.corresponsavel
       : {}
   const rawValue = (value) => (typeof value === 'string' ? value.trim() : '')
-  const toUpperCaseOrFallback = (value) => (value ? value.toUpperCase() : '—')
   const fallbackValue = (value) => (value ? value : '—')
 
   const nome = rawValue(corresponsavelRaw.nome) || rawValue(dadosLeasing?.nomeCorresponsavel)
