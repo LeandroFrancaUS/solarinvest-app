@@ -1382,7 +1382,6 @@ const buildProcuracaoTags = ({
     const camposObrigatorios = [
       titular?.nomeCompleto?.trim(),
       titular?.cpf?.trim(),
-      titular?.rg?.trim(),
       endereco?.logradouro?.trim(),
       endereco?.cidade?.trim(),
       endereco?.uf?.trim(),

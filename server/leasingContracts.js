@@ -724,6 +724,14 @@ const formatarEnderecoCompleto = (dados) => {
 }
 
 /**
+ * Converts value to uppercase with fallback to '—' for empty values
+ * Used for contract text fields that should be uppercased
+ * @param {string} value - Value to convert
+ * @returns {string} Uppercased value or '—' if empty
+ */
+const toUpperCaseOrFallback = (value) => (value ? value.toUpperCase() : '—')
+
+/**
  * Formata endereço completo do corresponsável
  * Formato: Logradouro, nº 123, Complemento, Bairro, Cidade – UF, CEP 00000-000
  * @param {object|string|null|undefined} endereco
@@ -858,9 +866,9 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
 
     // Corresponsável financeiro
     temCorresponsavelFinanceiro,
-    nomeCorresponsavel: resolveCorresponsavelValue(nomeCorresponsavelRaw),
-    nacionalidadeCorresponsavel: resolveCorresponsavelValue(nacionalidadeCorresponsavelRaw),
-    estadoCivilCorresponsavel: resolveCorresponsavelValue(estadoCivilCorresponsavelRaw),
+    nomeCorresponsavel: toUpperCaseOrFallback(nomeCorresponsavelRaw),
+    nacionalidadeCorresponsavel: toUpperCaseOrFallback(nacionalidadeCorresponsavelRaw),
+    estadoCivilCorresponsavel: toUpperCaseOrFallback(estadoCivilCorresponsavelRaw),
     cpfCorresponsavel: resolveCorresponsavelValue(cpfCorresponsavelRaw),
     enderecoCorresponsavel: resolveCorresponsavelValue(enderecoCorresponsavelRaw),
     emailCorresponsavel: resolveCorresponsavelValue(emailCorresponsavelRaw),
@@ -952,9 +960,9 @@ const buildAnexoXContext = ({ dadosLeasing, rawDadosLeasing }) => {
     rawValue(dadosLeasing?.enderecoCorresponsavel)
 
   return {
-    nomeCorresponsavel: fallbackValue(nome),
-    nacionalidadeCorresponsavel: fallbackValue(nacionalidade),
-    estadoCivilCorresponsavel: fallbackValue(estadoCivil),
+    nomeCorresponsavel: toUpperCaseOrFallback(nome),
+    nacionalidadeCorresponsavel: toUpperCaseOrFallback(nacionalidade),
+    estadoCivilCorresponsavel: toUpperCaseOrFallback(estadoCivil),
     cpfCorresponsavel: fallbackValue(formatCpfForContract(cpf)),
     enderecoCorresponsavel: fallbackValue(formatEnderecoCompleto(enderecoRaw)),
     emailCorresponsavel: fallbackValue(email),
@@ -1507,6 +1515,14 @@ const ALLOWED_TEMPLATE_TAGS = new Set([
   'dataAtualExtenso',
   'dataHomologacao',
   'dia',
+  // Corresponsável financeiro tags
+  'nomeCorresponsavel',
+  'nacionalidadeCorresponsavel',
+  'estadoCivilCorresponsavel',
+  'cpfCorresponsavel',
+  'enderecoCorresponsavel',
+  'emailCorresponsavel',
+  'telefoneCorresponsavel',
 ])
 
 const extractTemplateTags = (xml) => {
