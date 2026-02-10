@@ -858,9 +858,9 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
 
     // Corresponsável financeiro
     temCorresponsavelFinanceiro,
-    nomeCorresponsavel: resolveCorresponsavelValue(nomeCorresponsavelRaw),
-    nacionalidadeCorresponsavel: resolveCorresponsavelValue(nacionalidadeCorresponsavelRaw),
-    estadoCivilCorresponsavel: resolveCorresponsavelValue(estadoCivilCorresponsavelRaw),
+    nomeCorresponsavel: resolveCorresponsavelValue(nomeCorresponsavelRaw ? nomeCorresponsavelRaw.toUpperCase() : ''),
+    nacionalidadeCorresponsavel: resolveCorresponsavelValue(nacionalidadeCorresponsavelRaw ? nacionalidadeCorresponsavelRaw.toUpperCase() : ''),
+    estadoCivilCorresponsavel: resolveCorresponsavelValue(estadoCivilCorresponsavelRaw ? estadoCivilCorresponsavelRaw.toUpperCase() : ''),
     cpfCorresponsavel: resolveCorresponsavelValue(cpfCorresponsavelRaw),
     enderecoCorresponsavel: resolveCorresponsavelValue(enderecoCorresponsavelRaw),
     emailCorresponsavel: resolveCorresponsavelValue(emailCorresponsavelRaw),
@@ -952,9 +952,9 @@ const buildAnexoXContext = ({ dadosLeasing, rawDadosLeasing }) => {
     rawValue(dadosLeasing?.enderecoCorresponsavel)
 
   return {
-    nomeCorresponsavel: fallbackValue(nome),
-    nacionalidadeCorresponsavel: fallbackValue(nacionalidade),
-    estadoCivilCorresponsavel: fallbackValue(estadoCivil),
+    nomeCorresponsavel: fallbackValue(nome ? nome.toUpperCase() : ''),
+    nacionalidadeCorresponsavel: fallbackValue(nacionalidade ? nacionalidade.toUpperCase() : ''),
+    estadoCivilCorresponsavel: fallbackValue(estadoCivil ? estadoCivil.toUpperCase() : ''),
     cpfCorresponsavel: fallbackValue(formatCpfForContract(cpf)),
     enderecoCorresponsavel: fallbackValue(formatEnderecoCompleto(enderecoRaw)),
     emailCorresponsavel: fallbackValue(email),
@@ -1507,6 +1507,14 @@ const ALLOWED_TEMPLATE_TAGS = new Set([
   'dataAtualExtenso',
   'dataHomologacao',
   'dia',
+  // Corresponsável financeiro tags
+  'nomeCorresponsavel',
+  'nacionalidadeCorresponsavel',
+  'estadoCivilCorresponsavel',
+  'cpfCorresponsavel',
+  'enderecoCorresponsavel',
+  'emailCorresponsavel',
+  'telefoneCorresponsavel',
 ])
 
 const extractTemplateTags = (xml) => {
