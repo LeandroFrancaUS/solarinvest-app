@@ -796,6 +796,7 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
     typeof corresponsavelRaw?.email === 'string' ? corresponsavelRaw.email.trim() : ''
   const telefoneCorresponsavelRaw =
     typeof corresponsavelRaw?.telefone === 'string' ? corresponsavelRaw.telefone.trim() : ''
+  const toUpperCaseOrFallback = (value) => (value ? value.toUpperCase() : '—')
   const resolveCorresponsavelValue = (value) => (value ? value : '—')
   
   const normalized = {
@@ -858,9 +859,9 @@ const sanitizeDadosLeasing = (dados, tipoContrato) => {
 
     // Corresponsável financeiro
     temCorresponsavelFinanceiro,
-    nomeCorresponsavel: resolveCorresponsavelValue(nomeCorresponsavelRaw ? nomeCorresponsavelRaw.toUpperCase() : ''),
-    nacionalidadeCorresponsavel: resolveCorresponsavelValue(nacionalidadeCorresponsavelRaw ? nacionalidadeCorresponsavelRaw.toUpperCase() : ''),
-    estadoCivilCorresponsavel: resolveCorresponsavelValue(estadoCivilCorresponsavelRaw ? estadoCivilCorresponsavelRaw.toUpperCase() : ''),
+    nomeCorresponsavel: toUpperCaseOrFallback(nomeCorresponsavelRaw),
+    nacionalidadeCorresponsavel: toUpperCaseOrFallback(nacionalidadeCorresponsavelRaw),
+    estadoCivilCorresponsavel: toUpperCaseOrFallback(estadoCivilCorresponsavelRaw),
     cpfCorresponsavel: resolveCorresponsavelValue(cpfCorresponsavelRaw),
     enderecoCorresponsavel: resolveCorresponsavelValue(enderecoCorresponsavelRaw),
     emailCorresponsavel: resolveCorresponsavelValue(emailCorresponsavelRaw),
@@ -934,6 +935,7 @@ const buildAnexoXContext = ({ dadosLeasing, rawDadosLeasing }) => {
       ? rawDadosLeasing.corresponsavel
       : {}
   const rawValue = (value) => (typeof value === 'string' ? value.trim() : '')
+  const toUpperCaseOrFallback = (value) => (value ? value.toUpperCase() : '—')
   const fallbackValue = (value) => (value ? value : '—')
 
   const nome = rawValue(corresponsavelRaw.nome) || rawValue(dadosLeasing?.nomeCorresponsavel)
@@ -952,9 +954,9 @@ const buildAnexoXContext = ({ dadosLeasing, rawDadosLeasing }) => {
     rawValue(dadosLeasing?.enderecoCorresponsavel)
 
   return {
-    nomeCorresponsavel: fallbackValue(nome ? nome.toUpperCase() : ''),
-    nacionalidadeCorresponsavel: fallbackValue(nacionalidade ? nacionalidade.toUpperCase() : ''),
-    estadoCivilCorresponsavel: fallbackValue(estadoCivil ? estadoCivil.toUpperCase() : ''),
+    nomeCorresponsavel: toUpperCaseOrFallback(nome),
+    nacionalidadeCorresponsavel: toUpperCaseOrFallback(nacionalidade),
+    estadoCivilCorresponsavel: toUpperCaseOrFallback(estadoCivil),
     cpfCorresponsavel: fallbackValue(formatCpfForContract(cpf)),
     enderecoCorresponsavel: fallbackValue(formatEnderecoCompleto(enderecoRaw)),
     emailCorresponsavel: fallbackValue(email),
