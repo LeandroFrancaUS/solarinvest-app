@@ -102,7 +102,7 @@ export const createDefaultMultiUcRow = (index = 1): MultiUcRowState => ({
 
 export const ANALISE_ANOS_PADRAO = 30
 export const DIAS_MES_PADRAO = 30
-export const PAINEL_OPCOES = [450, 500, 540, 545, 550, 600, 605, 610, 640, 650, 680, 700]
+export const PAINEL_OPCOES = [450, 500, 540, 545, 550, 600, 605, 610, 625, 640, 650, 680, 700]
 
 export const STORAGE_KEYS = {
   activePage: 'solarinvest-active-page',
