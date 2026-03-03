@@ -1950,6 +1950,44 @@ const buildZipFileName = (tipoContrato, cpfCnpj) => {
   return `leasing-${tipoContrato}-${id}.zip`
 }
 
+const normalizeNamePartForFileName = (value) => {
+  const cleaned = String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+
+  if (!cleaned) {
+    return ''
+  }
+
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase()
+}
+
+const buildFreteTxtFileName = (nomeCompleto) => {
+  const parts = String(nomeCompleto ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  const first = normalizeNamePartForFileName(parts[0])
+  const last = normalizeNamePartForFileName(parts.length > 1 ? parts[parts.length - 1] : parts[0])
+  const baseName = `${first}${last}` || 'cliente'
+
+  return `${baseName}_frete.txt`
+}
+
+const buildFreteTxtContent = ({ nomeCompleto, enderecoCompleto, telefone }) => {
+  const safeNomeCompleto = String(nomeCompleto ?? '').trim() || '—'
+  const safeEnderecoCompleto = String(enderecoCompleto ?? '').trim() || '—'
+  const safeTelefone = String(telefone ?? '').trim() || '—'
+
+  return [
+    `Nome completo: ${safeNomeCompleto}`,
+    `Endereco: ${safeEnderecoCompleto}`,
+    `Telefone: ${safeTelefone}`,
+  ].join('\n')
+}
+
 const resolveTemplatesForAnexos = (tipoContrato, anexosSelecionados, contratanteUf) => {
   const resolved = []
   for (const anexoId of anexosSelecionados) {
@@ -2500,6 +2538,17 @@ export const handleLeasingContractsRequest = async (req, res) => {
       docxName: contratoDocxName,
       pdfName: contratoPdfName,
       label: 'Contrato principal',
+    })
+
+    const freteTxtName = buildFreteTxtFileName(rawDadosLeasing?.nomeCompleto || dadosLeasing.nomeCompleto)
+    const freteTxtContent = buildFreteTxtContent({
+      nomeCompleto: rawDadosLeasing?.nomeCompleto || dadosLeasing.nomeCompleto,
+      enderecoCompleto: rawDadosLeasing?.enderecoCompleto || dadosLeasing.enderecoCompleto,
+      telefone: rawDadosLeasing?.telefone || dadosLeasing.telefone,
+    })
+    files.push({
+      name: freteTxtName,
+      buffer: Buffer.from(freteTxtContent, 'utf8'),
     })
 
     if (propostaHtml) {
