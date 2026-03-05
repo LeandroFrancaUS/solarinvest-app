@@ -1,4 +1,4 @@
-import React, { useCallback, useId, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { PropostaImportData } from '../types/proposalImport'
 import type { ClienteDados } from '../types/printableProposal'
 import type { BudgetUploadProgress } from '../app/services/budgetUpload'
@@ -69,6 +69,11 @@ export type PdfImportDialogProps = {
   extractImportData: (text: string) => PropostaImportData | null
   /** Compute diff between imported client and existing client. */
   computeDiffs: (imported: ClienteDados, existing: ClienteDados) => FieldDiff[]
+  /**
+   * Optional file to process immediately when the dialog opens (e.g. from drag-drop).
+   * When provided and `isOpen` changes to `true`, the dialog starts processing this file.
+   */
+  initialFile?: File | null
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +104,7 @@ export function PdfImportDialog({
   extractTextFromFile,
   extractImportData,
   computeDiffs,
+  initialFile,
 }: PdfImportDialogProps) {
   const titleId = useId()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -203,6 +209,18 @@ export function PdfImportDialog({
     },
     [advanceToComparison, extractImportData, extractTextFromFile, hasUnsavedChanges],
   )
+
+  // When the dialog opens with an initialFile (e.g. from drag-and-drop), start processing.
+  // processFile is a stable useCallback ref so it is safe to omit from the dependency array.
+  useEffect(() => {
+    if (isOpen && initialFile) {
+      void processFile(initialFile)
+    }
+    // Reset to file-pick when dialog is closed
+    if (!isOpen) {
+      setState({ phase: 'file-pick' })
+    }
+  }, [isOpen, initialFile]) // processFile omitted: stable useCallback
 
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -497,7 +515,7 @@ function ProgressIndicator({ progress }: { progress: BudgetUploadProgress | null
   return (
     <div className="pdf-import-modal__progress">
       <p className="pdf-import-modal__progress-text">{stageLabel[stage]}</p>
-      <div className="pdf-import-progress-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={1}>
+      <div className="pdf-import-progress-bar" role="progressbar" aria-valuenow={Math.round(pct * 100)} aria-valuemin={0} aria-valuemax={100}>
         <div
           className="pdf-import-progress-bar__fill"
           style={{ width: `${Math.round(pct * 100)}%` }}

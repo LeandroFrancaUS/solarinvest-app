@@ -6,19 +6,37 @@ import type { PropostaImportData } from '../../types/proposalImport'
 // Encoding helpers
 // ---------------------------------------------------------------------------
 
+/** Base64-encode a possibly unicode string without using deprecated escape/unescape. */
+function toBase64(str: string): string {
+  const bytes = new TextEncoder().encode(str)
+  let binary = ''
+  bytes.forEach((b) => {
+    binary += String.fromCharCode(b)
+  })
+  return btoa(binary)
+}
+
+/** Base64-decode back to a unicode string. */
+function fromBase64(b64: string): string {
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return new TextDecoder().decode(bytes)
+}
+
 /** Base64-encode a possibly unicode string. */
 export function encodeImportPayload(data: PropostaImportData): string {
   const json = JSON.stringify(data)
-  // encodeURIComponent handles non-ASCII; escape converts percent-encoded back
-  // to a safe string for btoa which only handles Latin-1.
-  const b64 = btoa(unescape(encodeURIComponent(json)))
+  const b64 = toBase64(json)
   return `${IMPORT_MARKER_START}${b64}${IMPORT_MARKER_END}`
 }
 
 /** Decode a base64 payload (inverse of encodeImportPayload). */
 function decodeImportPayload(b64: string): PropostaImportData | null {
   try {
-    const json = decodeURIComponent(escape(atob(b64)))
+    const json = fromBase64(b64)
     const parsed: unknown = JSON.parse(json)
     if (parsed !== null && typeof parsed === 'object' && (parsed as { _v?: unknown })._v === 1) {
       return parsed as PropostaImportData

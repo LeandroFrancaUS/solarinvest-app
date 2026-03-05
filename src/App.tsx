@@ -5740,6 +5740,7 @@ export default function App() {
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
   const [showPdfImportDialog, setShowPdfImportDialog] = useState(false)
   const [dropOverMain, setDropOverMain] = useState(false)
+  const pendingDropFileRef = useRef<File | null>(null)
   const fecharClientesPainel = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -14930,7 +14931,7 @@ export default function App() {
             valor_total_orcamento: kitTotal,
           },
         },
-        activeTab: (data.tipo === 'LEASING' ? 'leasing' : 'vendas') as typeof snap.activeTab,
+        activeTab: (data.tipo === 'LEASING' ? 'leasing' : data.tipo === 'VENDA_DIRETA' ? 'vendas' : snap.activeTab) as typeof snap.activeTab,
       }
 
       aplicarSnapshot(novoSnapshot, {
@@ -25223,19 +25224,8 @@ export default function App() {
               setDropOverMain(false)
               const file = e.dataTransfer.files[0]
               if (file && /\.pdf$/i.test(file.name)) {
+                pendingDropFileRef.current = file
                 setShowPdfImportDialog(true)
-                // Defer to give dialog time to mount and show file-pick phase
-                setTimeout(() => {
-                  const inputEl = document.querySelector<HTMLInputElement>(
-                    '.pdf-import-file-input',
-                  )
-                  if (inputEl) {
-                    const dt = new DataTransfer()
-                    dt.items.add(file)
-                    inputEl.files = dt.files
-                    inputEl.dispatchEvent(new Event('change', { bubbles: true }))
-                  }
-                }, 100)
               }
             }}
           >
@@ -25969,7 +25959,10 @@ export default function App() {
       ) : null}
       <PdfImportDialog
         isOpen={showPdfImportDialog}
-        onClose={() => setShowPdfImportDialog(false)}
+        onClose={() => {
+          setShowPdfImportDialog(false)
+          pendingDropFileRef.current = null
+        }}
         hasUnsavedChanges={hasUnsavedChanges()}
         findExistingCliente={findExistingClienteForImport}
         isCurrentData={isCurrentDataForImport}
@@ -25977,6 +25970,7 @@ export default function App() {
         extractTextFromFile={extractTextFromPdfFile}
         extractImportData={extractProposalImportData}
         computeDiffs={computeImportDiffs}
+        initialFile={pendingDropFileRef.current}
       />
       {isCorresponsavelModalOpen ? (
         <CorresponsavelModal
