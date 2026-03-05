@@ -1,5 +1,9 @@
 import React, { useMemo } from 'react'
 
+import {
+  buildImportPayloadFromProps,
+  encodeImportPayload,
+} from '../../../lib/pdf/importProposal'
 import { currency, formatCpfCnpj } from '../../../utils/formatters'
 import { ClientInfoGrid, type ClientInfoField } from '../common/ClientInfoGrid'
 import { classifyBudgetItem } from '../../../utils/moduleDetection'
@@ -1148,6 +1152,13 @@ function PrintableProposalInner(
     () => economiaProjetadaGrafico.reduce((maior, linha) => Math.max(maior, linha.valor ?? 0), 0),
     [economiaProjetadaGrafico],
   )
+  const importMetadata = useMemo(() => {
+    try {
+      return encodeImportPayload(buildImportPayloadFromProps(props))
+    } catch {
+      return null
+    }
+  }, [props])
   return (
     <div ref={ref} className="print-root">
       <div className="print-layout">
@@ -1928,6 +1939,21 @@ function PrintableProposalInner(
           </section>
         </div>
       </div>
+      {importMetadata ? (
+        <div
+          aria-hidden="true"
+          style={{
+            color: 'transparent',
+            fontSize: '1px',
+            lineHeight: '1',
+            wordBreak: 'break-all',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+        >
+          {importMetadata}
+        </div>
+      ) : null}
     </div>
   )
 }

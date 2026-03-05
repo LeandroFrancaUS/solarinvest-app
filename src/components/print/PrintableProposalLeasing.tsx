@@ -18,6 +18,7 @@ import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 import type { SegmentoCliente } from '../../lib/finance/roi'
 import { sanitizePrintableText } from '../../utils/textSanitizer'
 import { calcularTaxaMinima } from '../../utils/calcs'
+import { buildImportPayloadFromProps, encodeImportPayload } from '../../lib/pdf/importProposal'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -1003,6 +1004,14 @@ function PrintableProposalLeasingInner(
       .filter(Boolean)
   }, [configuracaoUsinaObservacoesTexto])
 
+  const importMetadata = useMemo(() => {
+    try {
+      return encodeImportPayload(buildImportPayloadFromProps(props))
+    } catch {
+      return null
+    }
+  }, [props])
+
   return (
     <div ref={ref} className="print-root">
       <div
@@ -1637,6 +1646,21 @@ function PrintableProposalLeasingInner(
           </section>
         </div>
       </div>
+      {importMetadata ? (
+        <div
+          aria-hidden="true"
+          style={{
+            color: 'transparent',
+            fontSize: '1px',
+            lineHeight: '1',
+            wordBreak: 'break-all',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+        >
+          {importMetadata}
+        </div>
+      ) : null}
     </div>
   )
 }
