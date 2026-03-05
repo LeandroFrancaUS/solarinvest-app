@@ -244,11 +244,9 @@ export function ImportProposalModal({ state, onConfirm, onCancel }: ImportPropos
               </p>
               {parsed.cliente.nome ? (
                 <ul className="import-summary-list">
-                  {parsed.cliente.nome ? (
-                    <li>
-                      <strong>Cliente:</strong> {val(parsed.cliente.nome)}
-                    </li>
-                  ) : null}
+                  <li>
+                    <strong>Cliente:</strong> {val(parsed.cliente.nome)}
+                  </li>
                   {parsed.cliente.documento ? (
                     <li>
                       <strong>CPF/CNPJ:</strong> {val(parsed.cliente.documento)}

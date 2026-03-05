@@ -255,7 +255,7 @@ function extractLeasingFields(text: string): {
   const potKwpRaw = extractAfterLabel(t, /Potência instalada \(kWp\)[:\s]+([\d.,]+)/i)
   const modeloInversorRaw = extractAfterLabel(t, /Inversores fotovoltaicos[:\s]+([^\n|•]+)/i)
   const modeloModuloRaw = extractAfterLabel(t, /Módulos fotovoltaicos[:\s]+([^\n|•]+)/i)
-  const potModuloRaw = extractAfterLabel(t, /Potência do Módulos?\s*\(Wp\)[:\s]+([\d.,]+)/i)
+  const potModuloRaw = extractAfterLabel(t, /Potência d[oe]s?\s+Módulos?\s*\(Wp\)[:\s]+([\d.,]+)/i)
   const numModulosRaw = extractAfterLabel(t, /Número de módulos[:\s]+([\d.,]+)/i)
   const energiaContratadaRaw = extractAfterLabel(
     t,
@@ -336,7 +336,7 @@ function extractVendaFields(text: string): {
     extractAfterLabel(t, /Módulos fotovoltaicos[:\s]+([^\n|•]+)/i) ??
     extractAfterLabel(t, /^Módulos[:\s]+([^\n|•]+)/im)
   const potModuloRaw =
-    extractAfterLabel(t, /Potência do Módulos?\s*\(Wp\)[:\s]+([\d.,]+)/i) ??
+    extractAfterLabel(t, /Potência d[oe]s?\s+Módulos?\s*\(Wp\)[:\s]+([\d.,]+)/i) ??
     extractAfterLabel(t, /Potência dos módulos[:\s]+([\d.,]+)/i)
   const geracaoRaw = extractAfterLabel(t, /Geração estimada\s*\(kWh\/mês\)[:\s]+([\d.,]+)/i)
   const tipoInstalacaoRaw = extractAfterLabel(t, /Tipo de instalação[:\s]+([^\n|•]+)/i)

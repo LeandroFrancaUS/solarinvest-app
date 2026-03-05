@@ -13253,8 +13253,7 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
-
- const isSnapshotEmpty = (snapshot: OrcamentoSnapshotData): boolean =>
+  const isSnapshotEmpty = (snapshot: OrcamentoSnapshotData): boolean =>
     !snapshot?.cliente?.nome &&
     !snapshot?.cliente?.endereco &&
     !snapshot?.cliente?.documento &&
