@@ -13071,6 +13071,53 @@ export default function App() {
     )}-${pad(agora.getHours())}${pad(agora.getMinutes())}${pad(agora.getSeconds())}.${extensao}`
   }, [])
 
+  const downloadPropostaImportJson = useCallback(
+    (snapshot: OrcamentoSnapshotData, clienteNome: string, budgetId: string) => {
+      if (typeof window === 'undefined') {
+        return
+      }
+      try {
+        const agora = new Date()
+        const pad = (value: number) => value.toString().padStart(2, '0')
+        const dataStr = `${agora.getFullYear()}${pad(agora.getMonth() + 1)}${pad(agora.getDate())}`
+        const nomeSeguro = (clienteNome || 'proposta')
+          .trim()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '')
+          .slice(0, 40)
+        const idSeguro = (budgetId || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)
+        const fileName = idSeguro
+          ? `proposta-${nomeSeguro}-${idSeguro}-${dataStr}.json`
+          : `proposta-${nomeSeguro}-${dataStr}.json`
+
+        const payload = {
+          version: 1,
+          exportedAt: agora.toISOString(),
+          snapshot: cloneSnapshotData(snapshot),
+        }
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: 'application/json',
+        })
+        const link = window.document.createElement('a')
+        const url = URL.createObjectURL(blob)
+        link.href = url
+        link.download = fileName
+        window.document.body.appendChild(link)
+        link.click()
+        window.document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      } catch (error) {
+        console.warn('Não foi possível gerar o arquivo JSON de importação.', error)
+      }
+    },
+    [],
+  )
+
   const handleExportarClientesJson = useCallback(() => {
     if (typeof window === 'undefined') {
       return
@@ -15274,7 +15321,7 @@ export default function App() {
   ])
 
   const handlePreviewActionRequest = useCallback(
-    async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
+    async ({ action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
       const previewData = pendingPreviewDataRef.current
       const budgetIdAtual = normalizeProposalId(getActiveBudgetId())
 
@@ -15291,6 +15338,12 @@ export default function App() {
           codigo_orcamento_interno: idExistente,
           data_emissao: emissaoIso,
         })
+        if (action === 'download') {
+          const snapshotAtual = getCurrentSnapshot()
+          if (snapshotAtual) {
+            downloadPropostaImportJson(snapshotAtual, dados.cliente.nome, idExistente)
+          }
+        }
         return { proceed: true, budgetId: idExistente }
       }
 
@@ -15377,6 +15430,10 @@ export default function App() {
           return { proceed: false }
         }
 
+        if (action === 'download' && registro.snapshot) {
+          downloadPropostaImportJson(registro.snapshot, dados.cliente.nome, registro.id)
+        }
+
         previewData.dados = dados
 
         return {
@@ -15395,6 +15452,7 @@ export default function App() {
         adicionarNotificacao,
         atualizarOrcamentoAtivo,
         clienteEmEdicaoId,
+        downloadPropostaImportJson,
         getActiveBudgetId,
         isProposalPdfIntegrationAvailable,
         salvarOrcamentoLocalmente,
