@@ -260,7 +260,7 @@ import {
 import { Switch } from './components/ui/switch'
 import { PdfImportDialog } from './components/PdfImportDialog'
 import type { FieldDiff } from './components/PdfImportDialog'
-import { extractProposalImportData } from './lib/pdf/importProposal'
+import { buildImportPayloadFromProps, extractProposalImportData } from './lib/pdf/importProposal'
 import type { PropostaImportData } from './types/proposalImport'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -3976,6 +3976,7 @@ declare global {
     __solarinvestOnPreviewAction?: (
       request: PreviewActionRequest,
     ) => PreviewActionResponse | void | Promise<PreviewActionResponse | void>
+    __solarinvestDownloadProposalJson?: () => void
   }
 }
 
@@ -10477,6 +10478,7 @@ export default function App() {
               <div class="preview-toolbar-actions">
                 <button type="button" data-action="print">Imprimir</button>
                 <button type="button" data-action="download">Baixar PDF</button>
+                <button type="button" data-action="download-json" class="secondary">Baixar dados (.json)</button>
                 <button
                   type="button"
                   data-action="toggle-buyout"
@@ -10509,6 +10511,7 @@ export default function App() {
                 setPrintMode(defaultMode);
                 var printBtn = document.querySelector('[data-action=\"print\"]');
                 var downloadBtn = document.querySelector('[data-action=\"download\"]');
+                var downloadJsonBtn = document.querySelector('[data-action=\"download-json\"]');
                 var closeBtn = document.querySelector('[data-action=\"close\"]');
                 var variantToggleBtn = document.querySelector('[data-action=\"toggle-variant\"]');
                 var buyoutToggleBtn = document.querySelector('[data-action=\"toggle-buyout\"]');
@@ -10614,6 +10617,17 @@ export default function App() {
                 }
                 if(downloadBtn){
                   downloadBtn.addEventListener('click', function(){ performAction('download'); });
+                }
+                if(downloadJsonBtn){
+                  downloadJsonBtn.addEventListener('click', function(){
+                    try {
+                      if(window.opener && typeof window.opener.__solarinvestDownloadProposalJson === 'function'){
+                        window.opener.__solarinvestDownloadProposalJson();
+                      }
+                    } catch(e){
+                      console.warn('Não foi possível baixar os dados da proposta.', e);
+                    }
+                  });
                 }
                 if(closeBtn){
                   closeBtn.addEventListener('click', function(){ window.close(); });
@@ -15648,6 +15662,40 @@ export default function App() {
       }
     }
   }, [handlePreviewActionRequest])
+
+  const handleDownloadProposalJson = useCallback(() => {
+    const previewData = pendingPreviewDataRef.current
+    if (!previewData) {
+      return
+    }
+    try {
+      const payload = buildImportPayloadFromProps(previewData.dados)
+      const json = JSON.stringify(payload, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const budgetId = normalizeProposalId(previewData.dados.budgetId ?? '')
+      const nomeCliente = previewData.dados.cliente.nome?.trim().replace(/\s+/g, '-') || 'proposta'
+      a.href = url
+      a.download = budgetId ? `proposta-${budgetId}.json` : `proposta-${nomeCliente}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Erro ao gerar arquivo JSON da proposta.', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.__solarinvestDownloadProposalJson = handleDownloadProposalJson
+    return () => {
+      if (window.__solarinvestDownloadProposalJson === handleDownloadProposalJson) {
+        delete window.__solarinvestDownloadProposalJson
+      }
+    }
+  }, [handleDownloadProposalJson])
 
   const prepararDadosContratoCliente = useCallback((): ClienteContratoPayload | null => {
     const nomeCompleto = cliente.nome?.trim() ?? ''
