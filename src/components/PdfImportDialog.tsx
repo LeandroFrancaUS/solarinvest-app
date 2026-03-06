@@ -81,13 +81,35 @@ export type PdfImportDialogProps = {
 // ---------------------------------------------------------------------------
 
 const PHASE_TITLE: Record<ImportPhase, string> = {
-  'file-pick': 'Importar proposta em PDF',
-  processing: 'Processando PDF…',
+  'file-pick': 'Importar proposta',
+  processing: 'Processando arquivo…',
   'unsaved-warning': 'Dados não salvos',
   'identical-confirm': 'Proposta já existe',
   'client-diff': 'Cliente já cadastrado',
   'new-client': 'Novo cliente detectado',
   error: 'Erro na importação',
+}
+
+function isJsonFile(file: File): boolean {
+  return (
+    file.type === 'application/json' ||
+    file.type === 'text/json' ||
+    file.name.toLowerCase().endsWith('.json')
+  )
+}
+
+function validatePropostaImportData(parsed: unknown): parsed is PropostaImportData {
+  if (!parsed || typeof parsed !== 'object') {
+    return false
+  }
+  const obj = parsed as Record<string, unknown>
+  return (
+    obj._v === 1 &&
+    typeof obj.tipo === 'string' &&
+    obj.tipo.length > 0 &&
+    obj.cliente !== null &&
+    typeof obj.cliente === 'object'
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +164,50 @@ export function PdfImportDialog({
 
   const processFile = useCallback(
     async (file: File, bypassUnsavedWarning = false) => {
+      // ---- JSON branch ----
+      if (isJsonFile(file)) {
+        setState({ phase: 'processing', progress: null })
+        let importData: PropostaImportData
+        let rawText: string
+        try {
+          rawText = await file.text()
+        } catch {
+          setState({
+            phase: 'error',
+            message: 'Não foi possível ler o arquivo. Verifique se o arquivo está acessível.',
+          })
+          return
+        }
+        try {
+          const parsed: unknown = JSON.parse(rawText)
+          if (!validatePropostaImportData(parsed)) {
+            setState({
+              phase: 'error',
+              message:
+                'Este arquivo JSON não contém dados de importação reconhecidos pela SolarInvest. ' +
+                'Certifique-se de usar o arquivo .json gerado junto com a proposta.',
+            })
+            return
+          }
+          importData = parsed
+        } catch {
+          setState({
+            phase: 'error',
+            message:
+              'O arquivo selecionado não é um JSON válido. Verifique se o arquivo está íntegro.',
+          })
+          return
+        }
+
+        if (!bypassUnsavedWarning && hasUnsavedChanges) {
+          setState({ phase: 'unsaved-warning', pendingData: importData })
+          return
+        }
+        advanceToComparison(importData)
+        return
+      }
+
+      // ---- PDF branch ----
       if (!bypassUnsavedWarning && hasUnsavedChanges) {
         // We need to show the unsaved warning first; process after confirmation.
         // We'll store the file reference via a temporary processing step.
@@ -168,7 +234,7 @@ export function PdfImportDialog({
             phase: 'error',
             message:
               'Este PDF não contém dados de importação reconhecidos pela SolarInvest. ' +
-              'Certifique-se de importar uma proposta gerada pela ferramenta de geração de propostas.',
+              'Utilize o arquivo .json gerado junto com a proposta para importação.',
           })
           return
         }
@@ -200,7 +266,7 @@ export function PdfImportDialog({
           phase: 'error',
           message:
             'Este PDF não contém dados de importação reconhecidos pela SolarInvest. ' +
-            'Certifique-se de importar uma proposta gerada pela ferramenta de geração de propostas.',
+            'Utilize o arquivo .json gerado junto com a proposta para importação.',
         })
         return
       }
@@ -280,8 +346,9 @@ export function PdfImportDialog({
         {phase === 'file-pick' && (
           <div className="modal-body">
             <p className="pdf-import-modal__description">
-              Selecione ou arraste uma proposta em PDF gerada pela SolarInvest para importar as
-              informações do cliente e da proposta de volta ao formulário.
+              Selecione ou arraste o arquivo <strong>.json</strong> gerado junto com a proposta para
+              importar as informações de volta ao formulário. Também é possível importar uma
+              proposta em <strong>.pdf</strong> caso contenha dados de importação incorporados.
             </p>
             <div
               className={`pdf-import-dropzone${dragOver ? ' pdf-import-dropzone--over' : ''}`}
@@ -299,19 +366,19 @@ export function PdfImportDialog({
                   fileInputRef.current?.click()
                 }
               }}
-              aria-label="Área para selecionar ou arrastar PDF"
+              aria-label="Área para selecionar ou arrastar arquivo de proposta"
             >
               <span className="pdf-import-dropzone__icon" aria-hidden="true">
                 📄
               </span>
               <span className="pdf-import-dropzone__text">
-                Clique para selecionar ou arraste o PDF aqui
+                Clique para selecionar ou arraste o arquivo aqui
               </span>
-              <span className="pdf-import-dropzone__hint">.pdf · máx. 40 MB</span>
+              <span className="pdf-import-dropzone__hint">.json ou .pdf · máx. 40 MB</span>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,application/pdf"
+                accept=".json,application/json,.pdf,application/pdf"
                 className="pdf-import-file-input"
                 onChange={handleFileChange}
                 aria-hidden="true"
@@ -336,7 +403,7 @@ export function PdfImportDialog({
                 Existem dados inseridos manualmente no formulário que ainda não foram salvos. Se
                 prosseguir com a importação,{' '}
                 <strong>todos esses dados serão descartados</strong> e o formulário será
-                preenchido com as informações do PDF.
+                preenchido com as informações do arquivo importado.
               </p>
               <p>Deseja prosseguir mesmo assim?</p>
             </div>
@@ -363,9 +430,9 @@ export function PdfImportDialog({
           <>
             <div className="modal-body">
               <p>
-                Esta proposta já está carregada no sistema com dados idênticos aos do arquivo PDF.
+                Esta proposta já está carregada no sistema com dados idênticos aos do arquivo importado.
               </p>
-              <p>Deseja recarregar as informações do PDF (isso descartará as alterações atuais)?</p>
+              <p>Deseja recarregar as informações (isso descartará as alterações atuais)?</p>
             </div>
             <div className="modal-actions">
               <button type="button" className="ghost" onClick={handleClose}>
@@ -379,7 +446,7 @@ export function PdfImportDialog({
                   handleClose()
                 }}
               >
-                Recarregar do PDF
+                Recarregar proposta
               </button>
             </div>
           </>
@@ -391,7 +458,7 @@ export function PdfImportDialog({
             <div className="modal-body">
               <p>
                 O cliente <strong>{state.data.cliente.nome}</strong> já está cadastrado no sistema,
-                mas os dados do PDF são diferentes dos cadastrados.
+                mas os dados importados são diferentes dos cadastrados.
               </p>
               {state.diffs.length > 0 ? (
                 <>
@@ -401,7 +468,7 @@ export function PdfImportDialog({
                       <tr>
                         <th>Campo</th>
                         <th>Cadastrado</th>
-                        <th>Importado (PDF)</th>
+                        <th>Importado</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -431,7 +498,7 @@ export function PdfImportDialog({
                   handleClose()
                 }}
               >
-                Importar dados do PDF
+                Importar dados
               </button>
             </div>
           </>
