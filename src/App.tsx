@@ -25271,7 +25271,7 @@ export default function App() {
               e.preventDefault()
               setDropOverMain(false)
               const file = e.dataTransfer.files[0]
-              if (file && /\.json$/i.test(file.name)) {
+              if (file) {
                 pendingDropFileRef.current = file
                 setShowPdfImportDialog(true)
               }
