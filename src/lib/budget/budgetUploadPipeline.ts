@@ -191,7 +191,7 @@ async function pdfToText(
 ): Promise<PdfToTextResult> {
   const pdfjs = await loadPdfJs()
   const pdfBytes = await toUint8(file)
-  const loadingTask = pdfjs.getDocument({ data: pdfBytes })
+  const loadingTask = pdfjs.getDocument({ data: pdfBytes, useSystemFonts: true })
   const pdf = await loadingTask.promise
   const totalPages = pdf.numPages
 

@@ -25271,7 +25271,7 @@ export default function App() {
               e.preventDefault()
               setDropOverMain(false)
               const file = e.dataTransfer.files[0]
-              if (file && (/\.pdf$/i.test(file.name) || /\.json$/i.test(file.name))) {
+              if (file && /\.json$/i.test(file.name)) {
                 pendingDropFileRef.current = file
                 setShowPdfImportDialog(true)
               }
@@ -25280,7 +25280,7 @@ export default function App() {
             {dropOverMain ? (
               <div className="pdf-drop-overlay" aria-live="polite">
                 <span className="pdf-drop-overlay__icon" aria-hidden="true">📥</span>
-                <span className="pdf-drop-overlay__text">Solte para importar a proposta (.json ou .pdf)</span>
+                <span className="pdf-drop-overlay__text">Solte para importar a proposta (.json)</span>
               </div>
             ) : null}
             <div className="app-main">
