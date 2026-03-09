@@ -3972,6 +3972,7 @@ declare global {
     __solarinvestOnPreviewAction?: (
       request: PreviewActionRequest,
     ) => PreviewActionResponse | void | Promise<PreviewActionResponse | void>
+    __solarinvestDownloadProposalJson?: () => void
   }
 }
 
@@ -5734,6 +5735,8 @@ export default function App() {
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
+  const [isImportandoProposta, setIsImportandoProposta] = useState(false)
+  const propostaImportInputRef = useRef<HTMLInputElement | null>(null)
   const fecharClientesPainel = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -10470,6 +10473,7 @@ export default function App() {
               <div class="preview-toolbar-actions">
                 <button type="button" data-action="print">Imprimir</button>
                 <button type="button" data-action="download">Baixar PDF</button>
+                <button type="button" data-action="download-json" class="secondary">Baixar dados (.json)</button>
                 <button
                   type="button"
                   data-action="toggle-buyout"
@@ -10608,6 +10612,18 @@ export default function App() {
                 if(downloadBtn){
                   downloadBtn.addEventListener('click', function(){ performAction('download'); });
                 }
+                var downloadJsonBtn = document.querySelector('[data-action="download-json"]');
+                if(downloadJsonBtn){
+                  downloadJsonBtn.addEventListener('click', function(){
+                    try {
+                      if(window.opener && typeof window.opener.__solarinvestDownloadProposalJson === 'function'){
+                        window.opener.__solarinvestDownloadProposalJson();
+                      }
+                    } catch(e) {
+                      console.warn('Não foi possível baixar os dados da proposta.', e);
+                    }
+                  });
+                }
                 if(closeBtn){
                   closeBtn.addEventListener('click', function(){ window.close(); });
                 }
@@ -10698,7 +10714,6 @@ export default function App() {
 
     return { html: sanitizedLayoutHtml, dados: dadosParaImpressao }
   }, [printableData, useBentoGridPdf])
-
 
   const mapClienteRegistroToSyncPayload = (
     registro: ClienteRegistro,
@@ -13247,6 +13262,16 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
+  const handlePropostaImportarClick = useCallback(() => {
+    if (isImportandoProposta) {
+      return
+    }
+    const input = propostaImportInputRef.current
+    if (input) {
+      input.click()
+    }
+  }, [propostaImportInputRef, isImportandoProposta])
+
   const isSnapshotEmpty = (snapshot: OrcamentoSnapshotData): boolean =>
     !snapshot?.cliente?.nome &&
     !snapshot?.cliente?.endereco &&
@@ -13663,6 +13688,41 @@ export default function App() {
 
     return snapshotData
   }
+
+  const handleDownloadProposalJson = useCallback(() => {
+    const snapshot = getCurrentSnapshot()
+    if (!snapshot) {
+      window.alert('Não foi possível exportar os dados da proposta.')
+      return
+    }
+    try {
+      const payload = {
+        _v: 1,
+        tipo: 'proposta',
+        exportedAt: new Date().toISOString(),
+        nomeCliente: snapshot.cliente?.nome?.trim() ?? '',
+        snapshot,
+      }
+      const json = JSON.stringify(payload, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const safeName = (snapshot.cliente?.nome?.trim() || 'proposta')
+        .replace(/[^a-zA-Z0-9À-ÿ\s_-]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+      a.href = url
+      a.download = `proposta_${safeName}_${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Erro ao exportar dados da proposta.', error)
+      window.alert('Não foi possível exportar os dados da proposta. Tente novamente.')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const buildEmptySnapshotForNewProposal = (
     tab: TabKey,
@@ -14684,6 +14744,169 @@ export default function App() {
     }
   }
 
+  const handlePropostaImportarArquivo = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const arquivo = event.target.files?.[0]
+      event.target.value = ''
+
+      if (!arquivo || typeof window === 'undefined') {
+        return
+      }
+
+      if (arquivo.name.toLowerCase().endsWith('.pdf') || arquivo.type === 'application/pdf') {
+        window.alert(
+          'Arquivos PDF não podem ser usados para importação. Utilize o arquivo .json gerado junto com a proposta. Para baixar os dados de uma proposta já gerada, abra-a na pré-visualização e clique em "Baixar dados (.json)".',
+        )
+        return
+      }
+
+      setIsImportandoProposta(true)
+
+      try {
+        const conteudo = await arquivo.text()
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(conteudo)
+        } catch {
+          window.alert('O arquivo selecionado não é um JSON válido.')
+          return
+        }
+
+        if (
+          !parsed ||
+          typeof parsed !== 'object' ||
+          (parsed as Record<string, unknown>)._v !== 1 ||
+          (parsed as Record<string, unknown>).tipo !== 'proposta'
+        ) {
+          window.alert(
+            'O arquivo selecionado não é um arquivo de proposta válido. Utilize o arquivo .json gerado pelo botão "Baixar dados (.json)" na pré-visualização.',
+          )
+          return
+        }
+
+        const payload = parsed as { _v: 1; tipo: 'proposta'; snapshot: OrcamentoSnapshotData }
+        const snapshotImportado = payload.snapshot
+
+        if (!snapshotImportado || typeof snapshotImportado !== 'object') {
+          window.alert('O arquivo de proposta está corrompido ou incompleto.')
+          return
+        }
+
+        const nome = (snapshotImportado.cliente?.nome ?? '').trim()
+        const kc = Number(snapshotImportado.kcKwhMes ?? 0)
+        if (!nome && kc === 0) {
+          window.alert('O arquivo de proposta não contém dados suficientes para importação.')
+          return
+        }
+
+        isHydratingRef.current = true
+        setIsHydrating(true)
+        try {
+          aplicarSnapshot(snapshotImportado, { allowEmpty: false })
+          await tick()
+        } finally {
+          isHydratingRef.current = false
+          setIsHydrating(false)
+        }
+        setActivePage('app')
+        adicionarNotificacao('Proposta importada com sucesso. Revise os dados e salve para preservar as alterações.', 'success')
+      } catch (error) {
+        console.error('Erro ao importar proposta.', error)
+        window.alert('Não foi possível importar a proposta. Verifique o arquivo e tente novamente.')
+      } finally {
+        setIsImportandoProposta(false)
+      }
+    },
+    [adicionarNotificacao, aplicarSnapshot, setActivePage, setIsHydrating],
+  )
+
+  const handlePropostaDragOver = useCallback((e: React.DragEvent<HTMLElement>) => {
+    const items = e.dataTransfer.items
+    const hasFile = Array.from(items).some((item) => item.kind === 'file')
+    if (hasFile) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    }
+  }, [])
+
+  const handlePropostaDrop = useCallback(
+    async (e: React.DragEvent<HTMLElement>) => {
+      const files = Array.from(e.dataTransfer.files)
+      if (files.length === 0) {
+        return
+      }
+      e.preventDefault()
+      const arquivo = files[0]
+      if (!arquivo) {
+        return
+      }
+      if (arquivo.name.toLowerCase().endsWith('.pdf') || arquivo.type === 'application/pdf') {
+        adicionarNotificacao(
+          'Arquivos PDF não podem ser usados para importação. Utilize o arquivo .json gerado junto com a proposta. Para baixar os dados de uma proposta já gerada, abra-a na pré-visualização e clique em "Baixar dados (.json)".',
+          'error',
+        )
+        return
+      }
+      if (!arquivo.name.toLowerCase().endsWith('.json') && arquivo.type !== 'application/json') {
+        return
+      }
+      if (isImportandoProposta) {
+        return
+      }
+      setIsImportandoProposta(true)
+      try {
+        const conteudo = await arquivo.text()
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(conteudo)
+        } catch {
+          window.alert('O arquivo arrastado não é um JSON válido.')
+          return
+        }
+        if (
+          !parsed ||
+          typeof parsed !== 'object' ||
+          (parsed as Record<string, unknown>)._v !== 1 ||
+          (parsed as Record<string, unknown>).tipo !== 'proposta'
+        ) {
+          window.alert(
+            'O arquivo selecionado não é um arquivo de proposta válido. Utilize o arquivo .json gerado pelo botão "Baixar dados (.json)" na pré-visualização.',
+          )
+          return
+        }
+        const payload = parsed as { _v: 1; tipo: 'proposta'; snapshot: OrcamentoSnapshotData }
+        const snapshotImportado = payload.snapshot
+        if (!snapshotImportado || typeof snapshotImportado !== 'object') {
+          window.alert('O arquivo de proposta está corrompido ou incompleto.')
+          return
+        }
+        const nome = (snapshotImportado.cliente?.nome ?? '').trim()
+        const kc = Number(snapshotImportado.kcKwhMes ?? 0)
+        if (!nome && kc === 0) {
+          window.alert('O arquivo de proposta não contém dados suficientes para importação.')
+          return
+        }
+        isHydratingRef.current = true
+        setIsHydrating(true)
+        try {
+          aplicarSnapshot(snapshotImportado, { allowEmpty: false })
+          await tick()
+        } finally {
+          isHydratingRef.current = false
+          setIsHydrating(false)
+        }
+        setActivePage('app')
+        adicionarNotificacao('Proposta importada com sucesso. Revise os dados e salve para preservar as alterações.', 'success')
+      } catch (error) {
+        console.error('Erro ao importar proposta arrastada.', error)
+        window.alert('Não foi possível importar a proposta. Verifique o arquivo e tente novamente.')
+      } finally {
+        setIsImportandoProposta(false)
+      }
+    },
+    [adicionarNotificacao, aplicarSnapshot, isImportandoProposta, setActivePage, setIsHydrating],
+  )
+
   const handleEditarCliente = useCallback(
     async (registro: ClienteRegistro) => {
       const registroHidratado = await hydrateClienteRegistroFromStore(registro)
@@ -15415,6 +15638,19 @@ export default function App() {
       }
     }
   }, [handlePreviewActionRequest])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.__solarinvestDownloadProposalJson = handleDownloadProposalJson
+    return () => {
+      if (window.__solarinvestDownloadProposalJson === handleDownloadProposalJson) {
+        delete window.__solarinvestDownloadProposalJson
+      }
+    }
+  }, [handleDownloadProposalJson])
 
   const prepararDadosContratoCliente = useCallback((): ClienteContratoPayload | null => {
     const nomeCompleto = cliente.nome?.trim() ?? ''
@@ -23659,6 +23895,14 @@ export default function App() {
             void abrirPesquisaOrcamentos()
           },
         },
+        {
+          id: 'orcamentos-importar-json',
+          label: isImportandoProposta ? 'Importando…' : 'Importar proposta',
+          icon: '📥',
+          onSelect: () => {
+            handlePropostaImportarClick()
+          },
+        },
       ],
     },
     {
@@ -24966,7 +25210,11 @@ export default function App() {
         ) : (
           <div className="page">
             <div className="app-main">
-              <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
+              <main
+                className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}
+                onDragOver={handlePropostaDragOver}
+                onDrop={handlePropostaDrop}
+              >
               {orcamentoAtivoInfo ? (
                 <section className="card loaded-budget-viewer">
                   <div className="card-header loaded-budget-header">
@@ -25710,6 +25958,14 @@ export default function App() {
         accept="application/json,text/csv,.csv"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
+      />
+
+      <input
+        ref={propostaImportInputRef}
+        type="file"
+        accept="application/json,.json"
+        style={{ display: 'none' }}
+        onChange={handlePropostaImportarArquivo}
       />
 
       {isLeasingContractsModalOpen ? (
