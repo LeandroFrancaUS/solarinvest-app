@@ -14744,6 +14744,41 @@ export default function App() {
     }
   }
 
+  const MSG_PDF_NAO_SUPORTADO =
+    'Arquivos PDF não podem ser usados para importação. Utilize o arquivo .json gerado junto com a proposta. Para baixar os dados de uma proposta já gerada, abra-a na pré-visualização e clique em "Baixar dados (.json)".'
+
+  const parsePropostaJsonArquivo = (
+    conteudo: string,
+  ): { snapshot: OrcamentoSnapshotData } | { error: string } => {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(conteudo)
+    } catch {
+      return { error: 'O arquivo selecionado não é um JSON válido.' }
+    }
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      (parsed as Record<string, unknown>)._v !== 1 ||
+      (parsed as Record<string, unknown>).tipo !== 'proposta'
+    ) {
+      return {
+        error: 'O arquivo selecionado não é um arquivo de proposta válido. Utilize o arquivo .json gerado pelo botão "Baixar dados (.json)" na pré-visualização.',
+      }
+    }
+    const payload = parsed as { _v: 1; tipo: 'proposta'; snapshot: OrcamentoSnapshotData }
+    const snapshotImportado = payload.snapshot
+    if (!snapshotImportado || typeof snapshotImportado !== 'object') {
+      return { error: 'O arquivo de proposta está corrompido ou incompleto.' }
+    }
+    const nome = (snapshotImportado.cliente?.nome ?? '').trim()
+    const kc = Number(snapshotImportado.kcKwhMes ?? 0)
+    if (!nome && kc === 0) {
+      return { error: 'O arquivo de proposta não contém dados suficientes para importação.' }
+    }
+    return { snapshot: snapshotImportado }
+  }
+
   const handlePropostaImportarArquivo = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const arquivo = event.target.files?.[0]
@@ -14754,9 +14789,7 @@ export default function App() {
       }
 
       if (arquivo.name.toLowerCase().endsWith('.pdf') || arquivo.type === 'application/pdf') {
-        window.alert(
-          'Arquivos PDF não podem ser usados para importação. Utilize o arquivo .json gerado junto com a proposta. Para baixar os dados de uma proposta já gerada, abra-a na pré-visualização e clique em "Baixar dados (.json)".',
-        )
+        window.alert(MSG_PDF_NAO_SUPORTADO)
         return
       }
 
@@ -14764,45 +14797,16 @@ export default function App() {
 
       try {
         const conteudo = await arquivo.text()
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(conteudo)
-        } catch {
-          window.alert('O arquivo selecionado não é um JSON válido.')
-          return
-        }
-
-        if (
-          !parsed ||
-          typeof parsed !== 'object' ||
-          (parsed as Record<string, unknown>)._v !== 1 ||
-          (parsed as Record<string, unknown>).tipo !== 'proposta'
-        ) {
-          window.alert(
-            'O arquivo selecionado não é um arquivo de proposta válido. Utilize o arquivo .json gerado pelo botão "Baixar dados (.json)" na pré-visualização.',
-          )
-          return
-        }
-
-        const payload = parsed as { _v: 1; tipo: 'proposta'; snapshot: OrcamentoSnapshotData }
-        const snapshotImportado = payload.snapshot
-
-        if (!snapshotImportado || typeof snapshotImportado !== 'object') {
-          window.alert('O arquivo de proposta está corrompido ou incompleto.')
-          return
-        }
-
-        const nome = (snapshotImportado.cliente?.nome ?? '').trim()
-        const kc = Number(snapshotImportado.kcKwhMes ?? 0)
-        if (!nome && kc === 0) {
-          window.alert('O arquivo de proposta não contém dados suficientes para importação.')
+        const resultado = parsePropostaJsonArquivo(conteudo)
+        if ('error' in resultado) {
+          window.alert(resultado.error)
           return
         }
 
         isHydratingRef.current = true
         setIsHydrating(true)
         try {
-          aplicarSnapshot(snapshotImportado, { allowEmpty: false })
+          aplicarSnapshot(resultado.snapshot, { allowEmpty: false })
           await tick()
         } finally {
           isHydratingRef.current = false
@@ -14841,10 +14845,7 @@ export default function App() {
         return
       }
       if (arquivo.name.toLowerCase().endsWith('.pdf') || arquivo.type === 'application/pdf') {
-        adicionarNotificacao(
-          'Arquivos PDF não podem ser usados para importação. Utilize o arquivo .json gerado junto com a proposta. Para baixar os dados de uma proposta já gerada, abra-a na pré-visualização e clique em "Baixar dados (.json)".',
-          'error',
-        )
+        adicionarNotificacao(MSG_PDF_NAO_SUPORTADO, 'error')
         return
       }
       if (!arquivo.name.toLowerCase().endsWith('.json') && arquivo.type !== 'application/json') {
@@ -14856,40 +14857,15 @@ export default function App() {
       setIsImportandoProposta(true)
       try {
         const conteudo = await arquivo.text()
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(conteudo)
-        } catch {
-          window.alert('O arquivo arrastado não é um JSON válido.')
-          return
-        }
-        if (
-          !parsed ||
-          typeof parsed !== 'object' ||
-          (parsed as Record<string, unknown>)._v !== 1 ||
-          (parsed as Record<string, unknown>).tipo !== 'proposta'
-        ) {
-          window.alert(
-            'O arquivo selecionado não é um arquivo de proposta válido. Utilize o arquivo .json gerado pelo botão "Baixar dados (.json)" na pré-visualização.',
-          )
-          return
-        }
-        const payload = parsed as { _v: 1; tipo: 'proposta'; snapshot: OrcamentoSnapshotData }
-        const snapshotImportado = payload.snapshot
-        if (!snapshotImportado || typeof snapshotImportado !== 'object') {
-          window.alert('O arquivo de proposta está corrompido ou incompleto.')
-          return
-        }
-        const nome = (snapshotImportado.cliente?.nome ?? '').trim()
-        const kc = Number(snapshotImportado.kcKwhMes ?? 0)
-        if (!nome && kc === 0) {
-          window.alert('O arquivo de proposta não contém dados suficientes para importação.')
+        const resultado = parsePropostaJsonArquivo(conteudo)
+        if ('error' in resultado) {
+          window.alert(resultado.error)
           return
         }
         isHydratingRef.current = true
         setIsHydrating(true)
         try {
-          aplicarSnapshot(snapshotImportado, { allowEmpty: false })
+          aplicarSnapshot(resultado.snapshot, { allowEmpty: false })
           await tick()
         } finally {
           isHydratingRef.current = false
