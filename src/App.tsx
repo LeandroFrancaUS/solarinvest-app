@@ -9857,6 +9857,7 @@ export default function App() {
     opex: opexM,
     seguro: seguroM,
     duracao: duracaoMeses,
+    geracaoMensalKwh: simulationState.geracaoMensalKwh,
   }
 
   const printableRef = useRef<HTMLDivElement>(null)

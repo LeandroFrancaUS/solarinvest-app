@@ -3,9 +3,15 @@ import React, { useMemo } from 'react'
 import './styles/print-common.css'
 import './styles/proposal-leasing.css'
 import { currency, tarifaCurrency } from '../../utils/formatters'
-import { formatMoneyBR, formatNumberBRWithOptions } from '../../lib/locale/br-number'
+import { formatMoneyBR, formatNumberBRWithOptions, formatPercentBRWithDigits } from '../../lib/locale/br-number'
 import type { BuyoutResumo, BuyoutRow, ClienteDados } from '../../types/printableProposal'
 import { ClientInfoGrid, type ClientInfoField } from './common/ClientInfoGrid'
+import {
+  analisarBuyout,
+  MESES_ROI_BUYOUT_PADRAO,
+  LIMITE_MELHOR_MES_PADRAO,
+  VIDA_UTIL_PADRAO_MESES,
+} from '../../lib/finance/leasing-buyout-analysis'
 
 const formatPrazoContratual = (meses: number): string => {
   if (!Number.isFinite(meses) || meses <= 0) {
@@ -87,6 +93,28 @@ function PrintableBuyoutTableInner(
       .sort((a, b) => a.mes - b.mes)
   }, [tabelaBuyout])
 
+  // Análise de melhor mês e ROI do buyout (meses 7–36 e tabela 7→45 em intervalos de 6 meses)
+  const buyoutAnalise = useMemo(() => {
+    const geracaoKwhMes = buyoutResumo?.geracaoMensalKwh ?? 0
+    const inflacaoAa = buyoutResumo?.infEnergia ?? 0
+
+    if (
+      !Array.isArray(tabelaBuyout) ||
+      tabelaBuyout.length === 0 ||
+      geracaoKwhMes <= 0
+    ) {
+      return null
+    }
+
+    return analisarBuyout({
+      tabelaBuyout,
+      geracaoKwhMes,
+      inflacaoAa,
+      limiteMelhorMes: LIMITE_MELHOR_MES_PADRAO,
+      mesesRoi: MESES_ROI_BUYOUT_PADRAO,
+    })
+  }, [tabelaBuyout, buyoutResumo])
+
   const buyoutTabelaDisponivel = buyoutRowsElegiveis.length > 0
   const buyoutPrimeiroRow = buyoutRowsElegiveis.length > 0 ? buyoutRowsElegiveis[0] : null
   const buyoutUltimoRow = buyoutRowsElegiveis.length > 0 ? buyoutRowsElegiveis[buyoutRowsElegiveis.length - 1] : null
@@ -138,6 +166,14 @@ function PrintableBuyoutTableInner(
     { label: 'Prestação acumulada até o mês final', value: buyoutPrestacaoAcumuladaTexto },
     { label: 'Compra no primeiro mês elegível', value: buyoutPrimeiroValorTexto },
     { label: 'Compra ao final do contrato', value: buyoutUltimoValorTexto },
+    ...(buyoutAnalise?.melhorMes != null
+      ? [
+          {
+            label: `Melhor mês para buyout (até o ${LIMITE_MELHOR_MES_PADRAO}º mês)`,
+            value: `${buyoutAnalise.melhorMes}º mês — valor de compra ${formatCurrencyOrDash(buyoutAnalise.melhorMesValorResidual)}`,
+          },
+        ]
+      : []),
   ]
 
   const observacaoTexto = observacaoImportante?.trim() || null
@@ -244,6 +280,56 @@ function PrintableBuyoutTableInner(
               </p>
             )}
           </section>
+
+          {buyoutAnalise && buyoutAnalise.roiPorMes.length > 0 && (
+            <section className="print-section keep-together avoid-break">
+              <h2 className="section-title keep-with-next">Análise de ROI do Buyout</h2>
+              <p className="section-subtitle keep-with-next">
+                ROI projetado em intervalos de 6 meses considerando inflação energética de{' '}
+                {formatPercentBRWithDigits(buyoutResumo?.infEnergia ?? 0, 1)} a.a. e vida útil de{' '}
+                {VIDA_UTIL_PADRAO_MESES / 12} anos.
+                Investimento total = prestações pagas acumuladas + valor de compra no mês.
+              </p>
+              <table className="no-break-inside buyout-table">
+                <thead>
+                  <tr>
+                    <th>Mês</th>
+                    <th>Prestações acumuladas (R$)</th>
+                    <th>Valor de compra (R$)</th>
+                    <th>Investimento total (R$)</th>
+                    <th>ROI projetado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {buyoutAnalise.roiPorMes.map((ponto) => (
+                    <tr
+                      key={`roi-${ponto.mes}`}
+                      className={ponto.mes === buyoutAnalise.melhorMes ? 'buyout-best-month' : undefined}
+                    >
+                      <td>
+                        {`${ponto.mes}º mês`}
+                        {ponto.mes === buyoutAnalise.melhorMes ? ' ★' : ''}
+                      </td>
+                      <td className="leasing-table-value">{currency(ponto.prestacaoAcum)}</td>
+                      <td className="leasing-table-value">{currency(ponto.valorResidual)}</td>
+                      <td className="leasing-table-value">{currency(ponto.totalInvestido)}</td>
+                      <td className="leasing-table-value">
+                        {formatPercentBRWithDigits(ponto.roi, 1)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {buyoutAnalise.melhorMes != null && (
+                <p className="buyout-footnote no-break-inside">
+                  ★ Melhor mês para buyout até o {LIMITE_MELHOR_MES_PADRAO}º mês:{' '}
+                  <strong>{buyoutAnalise.melhorMes}º mês</strong> — valor de compra{' '}
+                  {formatCurrencyOrDash(buyoutAnalise.melhorMesValorResidual)}, ROI projetado{' '}
+                  {formatPercentBRWithDigits(buyoutAnalise.melhorMesRoi, 1)}.
+                </p>
+              )}
+            </section>
+          )}
 
           <section className="print-section print-important keep-together page-break-before break-after">
             <h2 className="section-title keep-with-next">Informações importantes</h2>
