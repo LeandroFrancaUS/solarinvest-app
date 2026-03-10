@@ -9845,6 +9845,69 @@ export default function App() {
     [tabelaBuyout, duracaoMesesNormalizada],
   )
 
+  const BUYOUT_JANELA_RECOMENDADA = 36
+  const BUYOUT_ROI_CHECKPOINTS = [7, 13, 19, 25, 31, 37, 43] as const
+
+  // Melhor mês para buyout (meses 7-36): menor custo total pago pelo cliente
+  // Considera prestações acumuladas + valor de compra, com inflação já refletida nas parcelas
+  const melhorMesBuyout = useMemo(() => {
+    const candidatos = tabelaBuyout.filter(
+      (row) =>
+        row.mes >= 7 &&
+        row.mes <= BUYOUT_JANELA_RECOMENDADA &&
+        row.valorResidual != null &&
+        Number.isFinite(row.valorResidual),
+    )
+    if (candidatos.length === 0) return null
+
+    let melhor = candidatos[0]
+    let menorCusto = melhor.prestacaoAcum + (melhor.valorResidual ?? 0)
+
+    for (const row of candidatos) {
+      const custo = row.prestacaoAcum + (row.valorResidual ?? 0)
+      if (custo < menorCusto) {
+        menorCusto = custo
+        melhor = row
+      }
+    }
+
+    return {
+      mes: melhor.mes,
+      totalCusto: menorCusto,
+      prestacaoAcum: melhor.prestacaoAcum,
+      valorResidual: melhor.valorResidual ?? 0,
+    }
+  }, [tabelaBuyout])
+
+  // ROI do buyout nos checkpoints: (total recebido - vm0) / vm0
+  // Total recebido = prestações acumuladas + valor de compra no mês M
+  // ROI positivo indica retorno acima do investimento inicial (VM0) para a empresa
+  type BuyoutCheckpoint = {
+    mes: number
+    roi: number | null
+    totalCusto: number | null
+    prestacaoAcum: number | null
+    valorResidual: number | null
+  }
+  const buyoutRoiCheckpoints = useMemo<BuyoutCheckpoint[]>(() => {
+    return BUYOUT_ROI_CHECKPOINTS.map((mes) => {
+      const row = tabelaBuyout.find((r) => r.mes === mes)
+      if (!row || row.valorResidual == null || !Number.isFinite(row.valorResidual)) {
+        return { mes, roi: null, totalCusto: null, prestacaoAcum: null, valorResidual: null }
+      }
+      const totalCusto = row.prestacaoAcum + row.valorResidual
+      // ROI = (total pago pelo cliente − investimento inicial) / investimento inicial
+      const roi = vm0 > 0 ? (totalCusto - vm0) / vm0 : null
+      return {
+        mes,
+        roi,
+        totalCusto,
+        prestacaoAcum: row.prestacaoAcum,
+        valorResidual: row.valorResidual,
+      }
+    })
+  }, [tabelaBuyout, vm0])
+
   const buyoutResumo: BuyoutResumo = {
     vm0,
     cashbackPct: cashbackPct,
@@ -23133,6 +23196,60 @@ export default function App() {
         <h2>Compra antecipada (Buyout)</h2>
         <span className="muted">Valores entre o mês 7 e o mês {duracaoMesesExibicao}.</span>
       </div>
+
+      {melhorMesBuyout ? (
+        <div className="buyout-melhor-mes">
+          <p className="buyout-melhor-mes__title">
+            <strong>Melhor mês para buyout (até o mês {BUYOUT_JANELA_RECOMENDADA}):</strong>{' '}
+            <span className="buyout-melhor-mes__highlight">mês {melhorMesBuyout.mes}</span>
+          </p>
+          <p className="buyout-melhor-mes__detail muted">
+            Custo total acumulado: {currency(melhorMesBuyout.totalCusto)} (prestações pagas:{' '}
+            {currency(melhorMesBuyout.prestacaoAcum)} + valor de compra:{' '}
+            {currency(melhorMesBuyout.valorResidual)})
+          </p>
+          <p className="buyout-melhor-mes__nota muted">
+            Considerando inflação de energia de {formatPercentBR(inflacaoAa / 100)} a.a. e IPCA de{' '}
+            {formatPercentBR(ipcaAa / 100)} a.a., com todas as mensalidades pagas em dia.
+          </p>
+        </div>
+      ) : null}
+
+      <div className="buyout-roi-checkpoints">
+        <h3 className="buyout-roi-checkpoints__title">ROI acumulado por mês de buyout</h3>
+        <p className="muted buyout-roi-checkpoints__subtitle">
+          Retorno sobre o investimento (ROI) = (prestações acumuladas + valor de compra − VM0) ÷ VM0.
+          Prestações calculadas com inflação de {formatPercentBR(inflacaoAa / 100)} a.a.
+        </p>
+        <div className="table-wrapper">
+          <table className="buyout-roi-table">
+            <thead>
+              <tr>
+                <th>Mês</th>
+                <th>Prestações acumuladas</th>
+                <th>Valor de compra</th>
+                <th>Total pago</th>
+                <th>ROI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {buyoutRoiCheckpoints.map((item) => (
+                <tr
+                  key={item.mes}
+                  className={melhorMesBuyout?.mes === item.mes ? 'buyout-roi-table__row--highlight' : undefined}
+                >
+                  <td>{item.mes}º mês</td>
+                  <td>{item.prestacaoAcum != null ? currency(item.prestacaoAcum) : '—'}</td>
+                  <td>{item.valorResidual != null ? currency(item.valorResidual) : '—'}</td>
+                  <td>{item.totalCusto != null ? currency(item.totalCusto) : '—'}</td>
+                  <td>{item.roi != null ? formatPercentBR(item.roi) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="table-controls">
         <button
           type="button"
@@ -23160,6 +23277,7 @@ export default function App() {
                 <th>Mês</th>
                 <th>Tarifa projetada</th>
                 <th>Prestação efetiva</th>
+                <th>Prestações acumuladas</th>
                 <th>Valor de compra</th>
               </tr>
             </thead>
@@ -23167,10 +23285,14 @@ export default function App() {
               {tabelaBuyout
                 .filter((row) => row.mes >= 7 && row.mes <= buyoutMesAceiteFinal)
                 .map((row) => (
-                  <tr key={row.mes}>
+                  <tr
+                    key={row.mes}
+                    className={melhorMesBuyout?.mes === row.mes ? 'buyout-roi-table__row--highlight' : undefined}
+                  >
                     <td>{row.mes}</td>
                     <td>{tarifaCurrency(row.tarifa)}</td>
                     <td>{currency(row.prestacaoEfetiva)}</td>
+                    <td>{currency(row.prestacaoAcum)}</td>
                     <td>{row.valorResidual == null ? '' : currency(row.valorResidual)}</td>
                   </tr>
                 ))}
