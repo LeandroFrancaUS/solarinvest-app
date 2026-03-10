@@ -14744,9 +14744,6 @@ export default function App() {
     }
   }
 
-  const MSG_PDF_NAO_SUPORTADO =
-    'Arquivos PDF não podem ser usados para importação. Utilize o arquivo .json gerado junto com a proposta. Para baixar os dados de uma proposta já gerada, abra-a na pré-visualização e clique em "Baixar dados (.json)".'
-
   const parsePropostaJsonArquivo = (
     conteudo: string,
   ): { snapshot: OrcamentoSnapshotData } | { error: string } => {
@@ -14779,22 +14776,106 @@ export default function App() {
     return { snapshot: snapshotImportado }
   }
 
-  const handlePropostaImportarArquivo = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const arquivo = event.target.files?.[0]
-      event.target.value = ''
+  const isPdfFile = (arquivo: File) =>
+    arquivo.name.toLowerCase().endsWith('.pdf') || arquivo.type === 'application/pdf'
 
-      if (!arquivo || typeof window === 'undefined') {
+  const isJsonFile = (arquivo: File) =>
+    arquivo.name.toLowerCase().endsWith('.json') || arquivo.type === 'application/json'
+
+  const importarArquivoProposta = useCallback(
+    async (arquivo: File): Promise<void> => {
+      if (isPdfFile(arquivo)) {
+        setIsImportandoProposta(true)
+        try {
+          adicionarNotificacao('Extraindo dados da proposta PDF…', 'info')
+          const result = await uploadBudgetFile(arquivo, { dpi: DEFAULT_OCR_DPI })
+          const text = result.plainText ?? ''
+
+          // Extract client data from leasing PDF text
+          const extractLine = (re: RegExp): string | null => {
+            const m = text.match(re)
+            return m?.[1]?.replace(/\s+/g, ' ').trim() || null
+          }
+          const extractNome = extractLine(/Nome\/Razão social\s*[:\-–]?\s*([^\n]+)/im)
+          const extractDocumento = extractLine(/CPF\/CNPJ\s*[:\-–]?\s*([^\n]+)/im)
+          const extractEmail = extractLine(/E-mail\s*[:\-–]?\s*([^\n]+)/im)
+          const extractTelefone = extractLine(/Telefone\s*[:\-–]?\s*([^\n]+)/im)
+          const extractEndereco = extractLine(/Endereço\s*[:\-–]?\s*([^\n]+)/im)
+          const extractCep = extractLine(/CEP\s*[:\-–]?\s*([\d.\-]{5,})/im)
+          const extractDistribuidora = extractLine(/Distribuidora\s*[:\-–]?\s*([^\n]+)/im)
+
+          // Update cliente fields when extracted value is non-empty and current field is empty
+          const base = cloneClienteDados(clienteRef.current ?? CLIENTE_INICIAL)
+          let clienteAtualizado = false
+          const clienteNext = { ...base }
+          if (extractNome && !clienteNext.nome?.trim()) {
+            clienteNext.nome = extractNome
+            clienteAtualizado = true
+          }
+          if (extractDocumento && !clienteNext.documento?.trim()) {
+            clienteNext.documento = extractDocumento.replace(/\s/g, '')
+            clienteAtualizado = true
+          }
+          if (extractEmail && !clienteNext.email?.trim()) {
+            clienteNext.email = extractEmail
+            clienteAtualizado = true
+          }
+          if (extractTelefone && !clienteNext.telefone?.trim()) {
+            clienteNext.telefone = extractTelefone
+            clienteAtualizado = true
+          }
+          if (extractEndereco && !clienteNext.endereco?.trim()) {
+            clienteNext.endereco = extractEndereco
+            clienteAtualizado = true
+          }
+          if (extractCep && !clienteNext.cep?.trim()) {
+            clienteNext.cep = extractCep
+            clienteAtualizado = true
+          }
+          if (extractDistribuidora && !clienteNext.distribuidora?.trim()) {
+            clienteNext.distribuidora = extractDistribuidora
+            clienteAtualizado = true
+          }
+          if (clienteAtualizado) {
+            setClienteSync(clienteNext)
+          }
+          if (extractDistribuidora && !distribuidoraTarifa?.trim()) {
+            setDistribuidoraTarifa(extractDistribuidora)
+          }
+
+          // Extract energy contracted from leasing format
+          const energiaContratadaMatch = text.match(
+            /Energia contratada.*?([\d.,]+)\s*kWh/im,
+          )
+          if (energiaContratadaMatch) {
+            const kc = toNumberFlexible(energiaContratadaMatch[1])
+            if (kc != null && kc > 0) {
+              setKcKwhMes(kc)
+            }
+          }
+
+          // Populate technical form fields (power, modules, generation, tariff, etc.)
+          autoFillVendaFromBudget(result.structured, null, text)
+
+          setActivePage('app')
+          adicionarNotificacao(
+            'Dados extraídos do PDF e preenchidos no formulário. Revise os campos e salve para preservar as alterações.',
+            'success',
+          )
+        } catch (error) {
+          console.error('Erro ao extrair dados do PDF.', error)
+          window.alert('Não foi possível extrair dados do arquivo PDF. Verifique o arquivo e tente novamente.')
+        } finally {
+          setIsImportandoProposta(false)
+        }
         return
       }
 
-      if (arquivo.name.toLowerCase().endsWith('.pdf') || arquivo.type === 'application/pdf') {
-        window.alert(MSG_PDF_NAO_SUPORTADO)
+      if (!isJsonFile(arquivo)) {
         return
       }
 
       setIsImportandoProposta(true)
-
       try {
         const conteudo = await arquivo.text()
         const resultado = parsePropostaJsonArquivo(conteudo)
@@ -14802,7 +14883,6 @@ export default function App() {
           window.alert(resultado.error)
           return
         }
-
         isHydratingRef.current = true
         setIsHydrating(true)
         try {
@@ -14821,7 +14901,29 @@ export default function App() {
         setIsImportandoProposta(false)
       }
     },
-    [adicionarNotificacao, aplicarSnapshot, setActivePage, setIsHydrating],
+    [
+      adicionarNotificacao,
+      aplicarSnapshot,
+      autoFillVendaFromBudget,
+      distribuidoraTarifa,
+      setActivePage,
+      setDistribuidoraTarifa,
+      setIsHydrating,
+      setKcKwhMes,
+      setClienteSync,
+    ],
+  )
+
+  const handlePropostaImportarArquivo = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const arquivo = event.target.files?.[0]
+      event.target.value = ''
+      if (!arquivo || typeof window === 'undefined') {
+        return
+      }
+      await importarArquivoProposta(arquivo)
+    },
+    [importarArquivoProposta],
   )
 
   const handlePropostaDragOver = useCallback((e: React.DragEvent<HTMLElement>) => {
@@ -14844,43 +14946,15 @@ export default function App() {
       if (!arquivo) {
         return
       }
-      if (arquivo.name.toLowerCase().endsWith('.pdf') || arquivo.type === 'application/pdf') {
-        adicionarNotificacao(MSG_PDF_NAO_SUPORTADO, 'error')
-        return
-      }
-      if (!arquivo.name.toLowerCase().endsWith('.json') && arquivo.type !== 'application/json') {
+      if (!isPdfFile(arquivo) && !isJsonFile(arquivo)) {
         return
       }
       if (isImportandoProposta) {
         return
       }
-      setIsImportandoProposta(true)
-      try {
-        const conteudo = await arquivo.text()
-        const resultado = parsePropostaJsonArquivo(conteudo)
-        if ('error' in resultado) {
-          window.alert(resultado.error)
-          return
-        }
-        isHydratingRef.current = true
-        setIsHydrating(true)
-        try {
-          aplicarSnapshot(resultado.snapshot, { allowEmpty: false })
-          await tick()
-        } finally {
-          isHydratingRef.current = false
-          setIsHydrating(false)
-        }
-        setActivePage('app')
-        adicionarNotificacao('Proposta importada com sucesso. Revise os dados e salve para preservar as alterações.', 'success')
-      } catch (error) {
-        console.error('Erro ao importar proposta arrastada.', error)
-        window.alert('Não foi possível importar a proposta. Verifique o arquivo e tente novamente.')
-      } finally {
-        setIsImportandoProposta(false)
-      }
+      await importarArquivoProposta(arquivo)
     },
-    [adicionarNotificacao, aplicarSnapshot, isImportandoProposta, setActivePage, setIsHydrating],
+    [importarArquivoProposta, isImportandoProposta],
   )
 
   const handleEditarCliente = useCallback(
@@ -25939,7 +26013,7 @@ export default function App() {
       <input
         ref={propostaImportInputRef}
         type="file"
-        accept="application/json,.json"
+        accept="application/json,.json,application/pdf,.pdf"
         style={{ display: 'none' }}
         onChange={handlePropostaImportarArquivo}
       />
