@@ -9,7 +9,6 @@ import {
 
 const PDF_MIME = 'application/pdf'
 const IMAGE_MIME_REGEX = /^image\/(png|jpe?g)$/i
-const PDFJS_CDN_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/'
 const MAX_FILE_SIZE_BYTES = 40 * 1024 * 1024
 const DEFAULT_OCR_DPI = 300
 const MIN_TEXT_DENSITY = 0.00012
@@ -106,13 +105,15 @@ async function loadPdfJs(): Promise<PdfJsModule> {
     return customPdfJsLoader()
   }
   if (!pdfJsLoader) {
-    pdfJsLoader = import(
-      /* @vite-ignore */ `${PDFJS_CDN_BASE}build/pdf.mjs`,
-    ).then((module: PdfJsModule) => {
-      if (module?.GlobalWorkerOptions) {
-        module.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}build/pdf.worker.mjs`
+    pdfJsLoader = import('pdfjs-dist').then((module) => {
+      const m = module as unknown as PdfJsModule
+      if (m?.GlobalWorkerOptions) {
+        m.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url,
+        ).href
       }
-      return module
+      return m
     })
   }
   return pdfJsLoader
@@ -190,7 +191,7 @@ async function pdfToText(
 ): Promise<PdfToTextResult> {
   const pdfjs = await loadPdfJs()
   const pdfBytes = await toUint8(file)
-  const loadingTask = pdfjs.getDocument({ data: pdfBytes })
+  const loadingTask = pdfjs.getDocument({ data: pdfBytes, useSystemFonts: true })
   const pdf = await loadingTask.promise
   const totalPages = pdf.numPages
 

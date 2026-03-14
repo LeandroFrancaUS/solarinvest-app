@@ -7602,3 +7602,192 @@ i:hover {
   grid-column: 1 / -1;
   width: 100%;
 }
+
+/* ── PDF Import Dialog ───────────────────────────────────────────────────── */
+
+.pdf-import-modal__content {
+  max-width: 680px;
+  max-height: 90vh;
+  margin: auto;
+  position: relative;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pdf-import-modal__description {
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 120ms ease;
+}
+.modal-close-btn:hover {
+  background: var(--surface-hover, rgba(0,0,0,0.06));
+}
+
+.pdf-import-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 48px 32px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+  position: relative;
+  text-align: center;
+}
+.pdf-import-dropzone:hover,
+.pdf-import-dropzone--over {
+  border-color: var(--accent);
+  background-color: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.pdf-import-dropzone__icon {
+  font-size: 40px;
+}
+.pdf-import-dropzone__text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-strong);
+}
+.pdf-import-dropzone__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.pdf-import-file-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
+
+.pdf-import-modal__processing {
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+}
+
+.pdf-import-modal__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+.pdf-import-modal__progress-text {
+  font-size: 14px;
+  color: var(--text-base);
+  text-align: center;
+}
+.pdf-import-modal__progress-pages {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.pdf-import-progress-bar {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+.pdf-import-progress-bar__fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 200ms ease;
+}
+
+.pdf-import-modal__diff-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.pdf-import-modal__diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.pdf-import-modal__diff-table th,
+.pdf-import-modal__diff-table td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.pdf-import-modal__diff-table th {
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.pdf-import-modal__diff-table td:first-child {
+  font-weight: 500;
+}
+
+.pdf-import-modal__summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin-top: 8px;
+}
+.pdf-import-modal__summary-table th,
+.pdf-import-modal__summary-table td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.pdf-import-modal__summary-table th {
+  width: 45%;
+  background: var(--surface);
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.pdf-import-modal__error {
+  color: var(--error, #ef4444);
+  line-height: 1.6;
+}
+
+/* ── Drag-over overlay on main panel ────────────────────────────────────── */
+
+.page.pdf-drop-target {
+  outline: 3px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.pdf-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: color-mix(in srgb, var(--accent) 12%, rgba(255,255,255,0.85));
+  pointer-events: none;
+}
+.pdf-drop-overlay__icon {
+  font-size: 56px;
+}
+.pdf-drop-overlay__text {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--accent);
+}

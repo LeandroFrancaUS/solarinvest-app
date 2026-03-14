@@ -258,6 +258,10 @@ import {
   tarifaCurrency,
 } from './utils/formatters'
 import { Switch } from './components/ui/switch'
+import { PdfImportDialog } from './components/PdfImportDialog'
+import type { FieldDiff } from './components/PdfImportDialog'
+import { buildImportPayloadFromProps, extractProposalImportData } from './lib/pdf/importProposal'
+import type { PropostaImportData } from './types/proposalImport'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -3972,6 +3976,7 @@ declare global {
     __solarinvestOnPreviewAction?: (
       request: PreviewActionRequest,
     ) => PreviewActionResponse | void | Promise<PreviewActionResponse | void>
+    __solarinvestDownloadProposalJson?: () => void
   }
 }
 
@@ -5734,6 +5739,9 @@ export default function App() {
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
+  const [showPdfImportDialog, setShowPdfImportDialog] = useState(false)
+  const [dropOverMain, setDropOverMain] = useState(false)
+  const pendingDropFileRef = useRef<File | null>(null)
   const fecharClientesPainel = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -10470,6 +10478,7 @@ export default function App() {
               <div class="preview-toolbar-actions">
                 <button type="button" data-action="print">Imprimir</button>
                 <button type="button" data-action="download">Baixar PDF</button>
+                <button type="button" data-action="download-json" class="secondary">Baixar dados (.json)</button>
                 <button
                   type="button"
                   data-action="toggle-buyout"
@@ -10502,6 +10511,7 @@ export default function App() {
                 setPrintMode(defaultMode);
                 var printBtn = document.querySelector('[data-action=\"print\"]');
                 var downloadBtn = document.querySelector('[data-action=\"download\"]');
+                var downloadJsonBtn = document.querySelector('[data-action=\"download-json\"]');
                 var closeBtn = document.querySelector('[data-action=\"close\"]');
                 var variantToggleBtn = document.querySelector('[data-action=\"toggle-variant\"]');
                 var buyoutToggleBtn = document.querySelector('[data-action=\"toggle-buyout\"]');
@@ -10607,6 +10617,17 @@ export default function App() {
                 }
                 if(downloadBtn){
                   downloadBtn.addEventListener('click', function(){ performAction('download'); });
+                }
+                if(downloadJsonBtn){
+                  downloadJsonBtn.addEventListener('click', function(){
+                    try {
+                      if(window.opener && typeof window.opener.__solarinvestDownloadProposalJson === 'function'){
+                        window.opener.__solarinvestDownloadProposalJson();
+                      }
+                    } catch(e){
+                      console.warn('Não foi possível baixar os dados da proposta.', e);
+                    }
+                  });
                 }
                 if(closeBtn){
                   closeBtn.addEventListener('click', function(){ window.close(); });
@@ -14720,6 +14741,232 @@ export default function App() {
     ],
   )
 
+  // ---------------------------------------------------------------------------
+  // PDF Import helpers
+  // ---------------------------------------------------------------------------
+
+  const normalizeStr = useCallback(
+    (v: string | null | undefined) =>
+      (v ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase(),
+    [],
+  )
+
+  const findExistingClienteForImport = useCallback(
+    (data: PropostaImportData): ClienteDados | null => {
+      const nomeBusca = normalizeStr(data.cliente?.nome)
+      const docBusca = (data.cliente?.documento ?? '').replace(/\D/g, '')
+      if (!nomeBusca && !docBusca) return null
+      const match = clientesSalvos.find((r) => {
+        const nomeMatch = nomeBusca && normalizeStr(r.dados.nome) === nomeBusca
+        const docMatch = docBusca && (r.dados.documento ?? '').replace(/\D/g, '') === docBusca
+        return nomeMatch || docMatch
+      })
+      return match?.dados ?? null
+    },
+    [clientesSalvos, normalizeStr],
+  )
+
+  const isCurrentDataForImport = useCallback(
+    (data: PropostaImportData): boolean => {
+      const nomeImport = normalizeStr(data.cliente?.nome)
+      const nomeAtual = normalizeStr(cliente.nome)
+      if (!nomeImport || !nomeAtual) return false
+      if (nomeImport !== nomeAtual) return false
+      const docImport = (data.cliente?.documento ?? '').replace(/\D/g, '')
+      const docAtual = (cliente.documento ?? '').replace(/\D/g, '')
+      if (docImport && docAtual && docImport !== docAtual) return false
+      return (
+        Math.abs((data.consumo_kwh_mes ?? 0) - kcKwhMes) < 1 &&
+        Math.abs((data.tarifa_r_kwh ?? 0) - tarifaCheia) < 0.0001
+      )
+    },
+    [cliente, kcKwhMes, normalizeStr, tarifaCheia],
+  )
+
+  const computeImportDiffs = useCallback(
+    (imported: ClienteDados, existing: ClienteDados): FieldDiff[] => {
+      const fields: Array<{ label: string; key: keyof ClienteDados }> = [
+        { label: 'Nome', key: 'nome' },
+        { label: 'Documento', key: 'documento' },
+        { label: 'E-mail', key: 'email' },
+        { label: 'Telefone', key: 'telefone' },
+        { label: 'Endereço', key: 'endereco' },
+        { label: 'Cidade', key: 'cidade' },
+        { label: 'UF', key: 'uf' },
+        { label: 'CEP', key: 'cep' },
+        { label: 'Distribuidora', key: 'distribuidora' },
+        { label: 'UC', key: 'uc' },
+      ]
+      return fields
+        .map((f) => ({
+          label: f.label,
+          imported: String(imported[f.key] ?? ''),
+          existing: String(existing[f.key] ?? ''),
+        }))
+        .filter((d) => d.imported !== d.existing)
+    },
+    [],
+  )
+
+  const extractTextFromPdfFile = useCallback(
+    async (
+      file: File,
+      onProgress: (p: BudgetUploadProgress) => void,
+    ): Promise<string> => {
+      const result = await uploadBudgetFile(file, { onProgress })
+      return result.plainText
+    },
+    [],
+  )
+
+  const applyImportData = useCallback(
+    (data: PropostaImportData) => {
+      const snap = getCurrentSnapshot()
+      const novoBudgetId = snap.currentBudgetId || ensureProposalId('')
+      const cliente = {
+        ...cloneClienteDados(CLIENTE_INICIAL),
+        ...data.cliente,
+        herdeiros:
+          Array.isArray(data.cliente?.herdeiros) && data.cliente.herdeiros.length > 0
+            ? data.cliente.herdeiros
+            : [''],
+      } as ClienteDados
+
+      const kitItems: KitBudgetItemState[] = (data.orcamento_itens ?? []).map((item, idx) => ({
+        id: `import-${idx}`,
+        productName: item.produto ?? '',
+        description: item.descricao ?? '',
+        quantity: item.quantidade ?? null,
+        quantityInput: item.quantidade != null ? String(item.quantidade) : '',
+        unitPrice: item.precoUnit ?? null,
+        unitPriceInput:
+          item.precoUnit != null
+            ? item.precoUnit.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })
+            : '',
+        wasQuantityInferred: false,
+      }))
+
+      const kitTotal =
+        data.valor_total != null
+          ? data.valor_total
+          : kitItems.reduce((acc, i) => acc + (i.unitPrice ?? 0) * (i.quantity ?? 0), 0)
+
+      const novoSnapshot: OrcamentoSnapshotData = {
+        ...snap,
+        currentBudgetId: novoBudgetId,
+        clienteEmEdicaoId: null,
+        cliente,
+        ufTarifa: data.uf || snap.ufTarifa,
+        distribuidoraTarifa: data.distribuidora || snap.distribuidoraTarifa,
+        kcKwhMes: data.consumo_kwh_mes ?? snap.kcKwhMes,
+        consumoManual: true,
+        tarifaCheia: data.tarifa_r_kwh ?? snap.tarifaCheia,
+        inflacaoAa: data.inflacao_energia_aa ?? snap.inflacaoAa,
+        irradiacao: data.irradiacao_kwhm2_dia ?? snap.irradiacao,
+        potenciaModulo: data.potencia_modulo_wp ?? snap.potenciaModulo,
+        tipoInstalacao: normalizeTipoInstalacao(
+          data.tipo_instalacao ?? snap.tipoInstalacao,
+        ) as typeof snap.tipoInstalacao,
+        tipoSistema: (data.tipo_sistema as typeof snap.tipoSistema) ?? snap.tipoSistema,
+        desconto: data.desconto_pct ?? snap.desconto,
+        leasingPrazo:
+          data.leasing_prazo_meses != null
+            ? (Math.round(data.leasing_prazo_meses / 12) as typeof snap.leasingPrazo)
+            : snap.leasingPrazo,
+        kitBudget: {
+          ...snap.kitBudget,
+          items: kitItems,
+          total: kitTotal,
+          totalSource: 'calculated' as const,
+          totalInput: kitTotal.toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
+        },
+        vendaSnapshot: {
+          ...snap.vendaSnapshot,
+          cliente: {
+            ...snap.vendaSnapshot.cliente,
+            nome: cliente.nome,
+            documento: cliente.documento,
+            email: cliente.email,
+            telefone: cliente.telefone,
+            cidade: cliente.cidade,
+            uf: cliente.uf,
+            endereco: cliente.endereco,
+            uc: cliente.uc,
+            distribuidora: data.distribuidora || snap.vendaSnapshot.cliente.distribuidora,
+          },
+          parametros: {
+            ...snap.vendaSnapshot.parametros,
+            consumo_kwh_mes: data.consumo_kwh_mes ?? snap.vendaSnapshot.parametros.consumo_kwh_mes,
+            tarifa_r_kwh: data.tarifa_r_kwh ?? snap.vendaSnapshot.parametros.tarifa_r_kwh,
+            inflacao_energia_aa:
+              data.inflacao_energia_aa ?? snap.vendaSnapshot.parametros.inflacao_energia_aa,
+            uf: data.uf || snap.vendaSnapshot.parametros.uf,
+            distribuidora: data.distribuidora || snap.vendaSnapshot.parametros.distribuidora,
+            irradiacao_kwhm2_dia:
+              data.irradiacao_kwhm2_dia ?? snap.vendaSnapshot.parametros.irradiacao_kwhm2_dia,
+          },
+          configuracao: {
+            ...snap.vendaSnapshot.configuracao,
+            potencia_modulo_wp:
+              data.potencia_modulo_wp ?? snap.vendaSnapshot.configuracao.potencia_modulo_wp,
+            n_modulos: data.n_modulos ?? snap.vendaSnapshot.configuracao.n_modulos,
+            geracao_estimada_kwh_mes:
+              data.geracao_estimada_kwh_mes ??
+              snap.vendaSnapshot.configuracao.geracao_estimada_kwh_mes,
+            tipo_instalacao:
+              data.tipo_instalacao ?? snap.vendaSnapshot.configuracao.tipo_instalacao,
+            tipo_sistema:
+              (data.tipo_sistema as typeof snap.vendaSnapshot.configuracao.tipo_sistema) ??
+              snap.vendaSnapshot.configuracao.tipo_sistema,
+            modelo_modulo: data.modelo_modulo ?? snap.vendaSnapshot.configuracao.modelo_modulo,
+            modelo_inversor:
+              data.modelo_inversor ?? snap.vendaSnapshot.configuracao.modelo_inversor,
+          },
+          orcamento: {
+            ...snap.vendaSnapshot.orcamento,
+            itens: (data.orcamento_itens ?? []).map((i) => ({
+              produto: i.produto ?? '',
+              descricao: i.descricao,
+              quantidade: i.quantidade ?? null,
+              unidade: i.unidade ?? null,
+              precoUnit: i.precoUnit ?? null,
+              precoTotal: i.precoTotal ?? null,
+            })),
+            valor_total_orcamento: kitTotal,
+          },
+        },
+        activeTab: (data.tipo === 'LEASING' ? 'leasing' : data.tipo === 'VENDA_DIRETA' ? 'vendas' : snap.activeTab) as typeof snap.activeTab,
+      }
+
+      aplicarSnapshot(novoSnapshot, {
+        budgetIdOverride: novoBudgetId,
+        allowEmpty: false,
+      })
+
+      setActivePage('app')
+      adicionarNotificacao(
+        `Proposta importada com sucesso${data.cliente?.nome ? ` para ${data.cliente.nome}` : ''}.`,
+        'success',
+      )
+    },
+    [
+      adicionarNotificacao,
+      aplicarSnapshot,
+      getCurrentSnapshot,
+      setActivePage,
+    ],
+  )
+
   const carregarOrcamentoParaEdicao = useCallback(
     async (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
       // Try to load complete snapshot from proposalStore first
@@ -15415,6 +15662,40 @@ export default function App() {
       }
     }
   }, [handlePreviewActionRequest])
+
+  const handleDownloadProposalJson = useCallback(() => {
+    const previewData = pendingPreviewDataRef.current
+    if (!previewData) {
+      return
+    }
+    try {
+      const payload = buildImportPayloadFromProps(previewData.dados)
+      const json = JSON.stringify(payload, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const budgetId = normalizeProposalId(previewData.dados.budgetId ?? '')
+      const nomeCliente = previewData.dados.cliente.nome?.trim().replace(/\s+/g, '-') || 'proposta'
+      a.href = url
+      a.download = budgetId ? `proposta-${budgetId}.json` : `proposta-${nomeCliente}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Erro ao gerar arquivo JSON da proposta.', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.__solarinvestDownloadProposalJson = handleDownloadProposalJson
+    return () => {
+      if (window.__solarinvestDownloadProposalJson === handleDownloadProposalJson) {
+        delete window.__solarinvestDownloadProposalJson
+      }
+    }
+  }, [handleDownloadProposalJson])
 
   const prepararDadosContratoCliente = useCallback((): ClienteContratoPayload | null => {
     const nomeCompleto = cliente.nome?.trim() ?? ''
@@ -23645,6 +23926,14 @@ export default function App() {
             void handlePrint()
           },
         },
+        {
+          id: 'relatorios-importar-pdf',
+          label: 'Importar proposta',
+          icon: '📥',
+          onSelect: () => {
+            setShowPdfImportDialog(true)
+          },
+        },
       ],
     },
     {
@@ -24964,7 +25253,36 @@ export default function App() {
         ) : activePage === 'settings' ? (
           renderSettingsPage()
         ) : (
-          <div className="page">
+          <div
+            className={`page${dropOverMain ? ' pdf-drop-target' : ''}`}
+            onDragOver={(e) => {
+              const hasFiles = Array.from(e.dataTransfer.types).includes('Files')
+              if (hasFiles) {
+                e.preventDefault()
+                setDropOverMain(true)
+              }
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                setDropOverMain(false)
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDropOverMain(false)
+              const file = e.dataTransfer.files[0]
+              if (file) {
+                pendingDropFileRef.current = file
+                setShowPdfImportDialog(true)
+              }
+            }}
+          >
+            {dropOverMain ? (
+              <div className="pdf-drop-overlay" aria-live="polite">
+                <span className="pdf-drop-overlay__icon" aria-hidden="true">📥</span>
+                <span className="pdf-drop-overlay__text">Solte para importar a proposta (.json)</span>
+              </div>
+            ) : null}
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
               {orcamentoAtivoInfo ? (
@@ -25687,6 +26005,21 @@ export default function App() {
           onClose={fecharEnvioPropostaModal}
         />
       ) : null}
+      <PdfImportDialog
+        isOpen={showPdfImportDialog}
+        onClose={() => {
+          setShowPdfImportDialog(false)
+          pendingDropFileRef.current = null
+        }}
+        hasUnsavedChanges={hasUnsavedChanges()}
+        findExistingCliente={findExistingClienteForImport}
+        isCurrentData={isCurrentDataForImport}
+        onConfirmImport={applyImportData}
+        extractTextFromFile={extractTextFromPdfFile}
+        extractImportData={extractProposalImportData}
+        computeDiffs={computeImportDiffs}
+        initialFile={pendingDropFileRef.current}
+      />
       {isCorresponsavelModalOpen ? (
         <CorresponsavelModal
           draft={corresponsavelDraft}
