@@ -345,6 +345,11 @@
   display: none !important;
 }
 
+.buyout-best-month td {
+  background-color: #f0fdf4;
+  font-weight: 600;
+}
+
 @media print {
   html,
   body {

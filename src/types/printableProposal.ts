@@ -158,6 +158,8 @@ export type BuyoutResumo = {
   opex: number
   seguro: number
   duracao: number
+  /** Geração mensal do sistema (kWh/mês), usada na análise de ROI do buyout. */
+  geracaoMensalKwh?: number
 }
 
 export type PrintableProposalTipo = 'LEASING' | 'VENDA_DIRETA'
