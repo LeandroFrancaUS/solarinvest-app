@@ -3964,6 +3964,67 @@ type PreviewActionResponse = {
   updatedHtml?: string | undefined
 }
 
+type ProposalPdfImportPayload = {
+  version: 1
+  generatedAt: string
+  snapshot: OrcamentoSnapshotData
+  dados: PrintableProposalProps
+}
+
+const PROPOSAL_IMPORT_MARKER_START = 'SOLARINVEST_IMPORT_V1_START'
+const PROPOSAL_IMPORT_MARKER_END = 'SOLARINVEST_IMPORT_V1_END'
+const PDFJS_CDN_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/'
+
+const encodeProposalImportPayload = (payload: ProposalPdfImportPayload): string => {
+  const json = JSON.stringify(payload)
+  const utf8 = new TextEncoder().encode(json)
+  let binary = ''
+  utf8.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
+  return btoa(binary)
+}
+
+const decodeProposalImportPayload = (encoded: string): ProposalPdfImportPayload | null => {
+  try {
+    const compacted = encoded.replace(/\s+/g, '')
+    const binary = atob(compacted)
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+    const json = new TextDecoder().decode(bytes)
+    const parsed = JSON.parse(json) as Partial<ProposalPdfImportPayload>
+    if (!parsed || parsed.version !== 1 || !parsed.snapshot || !parsed.dados) {
+      return null
+    }
+    return {
+      version: 1,
+      generatedAt: typeof parsed.generatedAt === 'string' ? parsed.generatedAt : new Date().toISOString(),
+      snapshot: parsed.snapshot,
+      dados: parsed.dados,
+    }
+  } catch (error) {
+    console.warn('Falha ao decodificar payload de importação da proposta.', error)
+    return null
+  }
+}
+
+const extractProposalImportPayloadFromText = (text: string): ProposalPdfImportPayload | null => {
+  const start = text.indexOf(PROPOSAL_IMPORT_MARKER_START)
+  if (start < 0) {
+    return null
+  }
+  const end = text.indexOf(PROPOSAL_IMPORT_MARKER_END, start)
+  if (end < 0) {
+    return null
+  }
+  const encoded = text.slice(start + PROPOSAL_IMPORT_MARKER_START.length, end)
+  return decodeProposalImportPayload(encoded)
+}
+
+const buildProposalImportMarker = (payload: ProposalPdfImportPayload): string => {
+  const encoded = encodeProposalImportPayload(payload)
+  return `${PROPOSAL_IMPORT_MARKER_START}${encoded}${PROPOSAL_IMPORT_MARKER_END}`
+}
+
 type PrecheckDecisionAction = 'adjust_current' | 'adjust_upgrade' | 'proceed' | 'cancel'
 type PrecheckDecision = { action: PrecheckDecisionAction; clienteCiente: boolean }
 
@@ -4461,6 +4522,7 @@ export default function App() {
     }, 0)
   }, [])
   const [saveDecisionPrompt, setSaveDecisionPrompt] = useState<SaveDecisionPromptState | null>(null)
+  const [isProposalImportDragging, setIsProposalImportDragging] = useState(false)
 
   const requestSaveDecision = useCallback(
     (options: SaveDecisionPromptRequest): Promise<SaveDecisionChoice> => {
@@ -5734,6 +5796,7 @@ export default function App() {
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
+  const propostaImportInputRef = useRef<HTMLInputElement | null>(null)
   const fecharClientesPainel = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -13247,6 +13310,7 @@ export default function App() {
       setIsImportandoClientes,
     ])
 
+
   const isSnapshotEmpty = (snapshot: OrcamentoSnapshotData): boolean =>
     !snapshot?.cliente?.nome &&
     !snapshot?.cliente?.endereco &&
@@ -16672,6 +16736,18 @@ export default function App() {
         console.warn('Não foi possível atualizar o HTML com o código do orçamento.', error)
       }
 
+      const snapshotImportacao = registroSalvo.snapshot ?? getCurrentSnapshot()
+      if (snapshotImportacao) {
+        const payloadMarker = buildProposalImportMarker({
+          version: 1,
+          generatedAt: new Date().toISOString(),
+          snapshot: cloneSnapshotData(snapshotImportacao),
+          dados: clonePrintableData(dados),
+        })
+        htmlComCodigo = `${htmlComCodigo}
+<!-- ${payloadMarker} -->`
+      }
+
       const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
 
       const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
@@ -16728,6 +16804,7 @@ export default function App() {
     activeTab,
     adicionarNotificacao,
     ensureNormativePrecheck,
+    getCurrentSnapshot,
     handleSalvarCliente,
     isProposalPdfIntegrationAvailable,
     isVendaDiretaTab,
@@ -16774,6 +16851,197 @@ export default function App() {
     },
     [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision, scheduleMarkStateAsSaved],
   )
+
+
+  const loadPdfJsForImport = useCallback(async () => {
+    const module = (await import(/* @vite-ignore */ `${PDFJS_CDN_BASE}build/pdf.mjs`)) as {
+      getDocument: (src: unknown) => { promise: Promise<{ numPages: number; getPage: (index: number) => Promise<{ getTextContent: () => Promise<{ items: Array<{ str?: string }> }> }> }> }
+      GlobalWorkerOptions?: { workerSrc?: string }
+    }
+    if (module.GlobalWorkerOptions) {
+      module.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}build/pdf.worker.mjs`
+    }
+    return module
+  }, [])
+
+  const extractImportPayloadFromPdfFile = useCallback(
+    async (file: File): Promise<ProposalPdfImportPayload | null> => {
+      const pdfjs = await loadPdfJsForImport()
+      const bytes = await file.arrayBuffer()
+      const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) })
+      const pdf = await loadingTask.promise
+      const maxPages = Math.min(pdf.numPages, 12)
+      let text = ''
+
+      for (let index = 1; index <= maxPages; index += 1) {
+        const page = await pdf.getPage(index)
+        const content = await page.getTextContent()
+        const pageText = content.items
+          .map((item) => (typeof item?.str === 'string' ? item.str : ''))
+          .join(' ')
+        text += `
+${pageText}`
+        const extracted = extractProposalImportPayloadFromText(text)
+        if (extracted) {
+          return extracted
+        }
+      }
+
+      return extractProposalImportPayloadFromText(text)
+    },
+    [loadPdfJsForImport],
+  )
+
+  const findClienteByImportPayload = useCallback(
+    (payload: ProposalPdfImportPayload): ClienteRegistro | null => {
+      const importComparison = createClienteComparisonData(payload.snapshot.cliente)
+      for (const registro of clientesSalvos) {
+        const existingComparison = createClienteComparisonData(registro.dados)
+        const documentoIgual =
+          importComparison.documento && importComparison.documento === existingComparison.documento
+        const rgIgual = importComparison.rg && importComparison.rg === existingComparison.rg
+        const nomeIgual =
+          importComparison.nome && existingComparison.nome && importComparison.nome === existingComparison.nome
+        if (documentoIgual || rgIgual || nomeIgual) {
+          return registro
+        }
+      }
+      return null
+    },
+    [clientesSalvos],
+  )
+
+  const aplicarImportacaoProposta = useCallback(
+    async (payload: ProposalPdfImportPayload, existingCliente: ClienteRegistro | null) => {
+      const incomingSnapshot = mergeSnapshotWithDefaults(
+        payload.snapshot,
+        normalizeProposalId(payload.snapshot.currentBudgetId ?? payload.dados.budgetId ?? createDraftBudgetId()),
+      )
+      const existingComparison = existingCliente ? createClienteComparisonData(existingCliente.dados) : null
+      const incomingComparison = createClienteComparisonData(incomingSnapshot.cliente)
+
+      if (existingCliente && existingComparison?.signature === incomingComparison.signature) {
+        const confirmed = window.confirm(
+          'Essa proposta já existe no sistema para este cliente. Deseja recarregar os dados do PDF mesmo assim?'
+        )
+        if (!confirmed) {
+          return
+        }
+      } else if (existingCliente && existingComparison && existingComparison.signature !== incomingComparison.signature) {
+        const campos: string[] = []
+        const currentData = existingCliente.dados
+        const incomingData = incomingSnapshot.cliente
+        ;([
+          ['Nome', currentData.nome, incomingData.nome],
+          ['Documento', currentData.documento, incomingData.documento],
+          ['RG', currentData.rg, incomingData.rg],
+          ['Email', currentData.email, incomingData.email],
+          ['Telefone', currentData.telefone, incomingData.telefone],
+          ['Endereço', currentData.endereco, incomingData.endereco],
+          ['Cidade', currentData.cidade, incomingData.cidade],
+          ['UF', currentData.uf, incomingData.uf],
+          ['UC', currentData.uc, incomingData.uc],
+          ['Distribuidora', currentData.distribuidora, incomingData.distribuidora],
+        ] as const).forEach(([label, atual, novo]) => {
+          if ((atual ?? '') !== (novo ?? '')) {
+            campos.push(`• ${label}: "${atual ?? ''}" → "${novo ?? ''}"`)
+          }
+        })
+
+        const confirmed = window.confirm(
+          `Cliente já cadastrado com dados diferentes. Alterações propostas:
+
+${campos.join('\n') || '• Sem diferenças detalhadas'}
+
+Deseja importar e sobrescrever para os dados do PDF?`
+        )
+        if (!confirmed) {
+          return
+        }
+      }
+
+      const shouldProceed = await runWithUnsavedChangesGuard(async () => {
+        const targetBudgetId = createDraftBudgetId()
+        const snapshotToApply: OrcamentoSnapshotData = {
+          ...incomingSnapshot,
+          currentBudgetId: targetBudgetId,
+          clienteEmEdicaoId: existingCliente?.id ?? null,
+          cliente: cloneClienteDados(incomingSnapshot.cliente),
+        }
+
+        isHydratingRef.current = true
+        setIsHydrating(true)
+        try {
+          switchBudgetId(targetBudgetId)
+          await tick()
+          aplicarSnapshot(snapshotToApply, { budgetIdOverride: targetBudgetId, allowEmpty: false })
+          await tick()
+        } finally {
+          isHydratingRef.current = false
+          setIsHydrating(false)
+        }
+        setActivePage('app')
+        scheduleMarkStateAsSaved()
+      }, {
+        title: 'Importar proposta em PDF?',
+        description:
+          'Existem dados não salvos no formulário. Se continuar, os dados atuais serão descartados e substituídos pela proposta importada.',
+        confirmLabel: 'Prosseguir',
+        discardLabel: 'Cancelar',
+      })
+
+      if (!shouldProceed) {
+        return
+      }
+
+      adicionarNotificacao(
+        existingCliente
+          ? 'Proposta importada com sucesso para cliente existente.'
+          : 'Proposta importada com sucesso como novo cliente.',
+        'success',
+      )
+    },
+    [
+      adicionarNotificacao,
+      aplicarSnapshot,
+      createDraftBudgetId,
+      mergeSnapshotWithDefaults,
+      runWithUnsavedChangesGuard,
+      scheduleMarkStateAsSaved,
+      setActivePage,
+      switchBudgetId,
+    ],
+  )
+
+  const handleImportProposalPdfFile = useCallback(
+    async (file: File) => {
+      try {
+        const payload = await extractImportPayloadFromPdfFile(file)
+        if (!payload) {
+          window.alert('Não foi possível encontrar dados de importação neste PDF. Gere o arquivo novamente pelo SolarInvest e tente importar.')
+          return
+        }
+        const existingCliente = findClienteByImportPayload(payload)
+        await aplicarImportacaoProposta(payload, existingCliente)
+      } catch (error) {
+        console.error('Erro ao importar proposta PDF.', error)
+        window.alert('Não foi possível importar a proposta em PDF. Verifique o arquivo e tente novamente.')
+      }
+    },
+    [aplicarImportacaoProposta, extractImportPayloadFromPdfFile, findClienteByImportPayload],
+  )
+
+  const handleImportProposalInputChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (file) {
+        await handleImportProposalPdfFile(file)
+      }
+      event.target.value = ''
+    },
+    [handleImportProposalPdfFile],
+  )
+
 
   const handleGerarContratosComConfirmacao = useCallback(async () => {
     setActivePage('app')
@@ -23645,6 +23913,15 @@ export default function App() {
             void handlePrint()
           },
         },
+        {
+          id: 'relatorios-importar-pdf',
+          label: 'Importar proposta',
+          icon: '📥',
+          onSelect: () => {
+            setActivePage('app')
+            propostaImportInputRef.current?.click()
+          },
+        },
       ],
     },
     {
@@ -24994,7 +25271,43 @@ export default function App() {
                 </section>
               ) : null}
               <div className="page-editable">
-                <div ref={editableContentRef} className="page-editable-body">
+                <div
+                  ref={editableContentRef}
+                  className={`page-editable-body${isProposalImportDragging ? ' proposal-import-dropzone-active' : ''}`}
+                  onDragEnter={(event) => {
+                    if (!event.dataTransfer?.types?.includes('Files')) {
+                      return
+                    }
+                    setIsProposalImportDragging(true)
+                  }}
+                  onDragOver={(event) => {
+                    if (!event.dataTransfer?.types?.includes('Files')) {
+                      return
+                    }
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = 'copy'
+                  }}
+                  onDragLeave={(event) => {
+                    const currentTarget = event.currentTarget
+                    if (currentTarget.contains(event.relatedTarget as Node | null)) {
+                      return
+                    }
+                    setIsProposalImportDragging(false)
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    setIsProposalImportDragging(false)
+                    const file = event.dataTransfer?.files?.[0]
+                    if (!file) {
+                      return
+                    }
+                    if (!(file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf'))) {
+                      window.alert('Arraste apenas arquivos PDF de proposta.')
+                      return
+                    }
+                    void handleImportProposalPdfFile(file)
+                  }}
+                >
                   {isVendaDiretaTab || orcamentoAtivoInfo ? (
                     <div className="page-actions">
                       {isVendaDiretaTab ? (
@@ -25012,6 +25325,9 @@ export default function App() {
                         </button>
                       ) : null}
                     </div>
+                    ) : null}
+                    {isProposalImportDragging ? (
+                      <div className="proposal-import-dropzone-hint">Solte o PDF da proposta aqui para importar</div>
                     ) : null}
                     {renderClienteDadosSection()}
                     {activeTab === 'vendas' ? (
@@ -25710,6 +26026,14 @@ export default function App() {
         accept="application/json,text/csv,.csv"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
+      />
+
+      <input
+        ref={propostaImportInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        style={{ display: 'none' }}
+        onChange={handleImportProposalInputChange}
       />
 
       {isLeasingContractsModalOpen ? (
