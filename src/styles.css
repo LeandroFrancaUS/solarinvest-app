@@ -7602,3 +7602,70 @@ i:hover {
   grid-column: 1 / -1;
   width: 100%;
 }
+
+/* ===== Buyout analysis: best month & ROI checkpoints ===== */
+.buyout-melhor-mes {
+  margin: 12px 0 16px;
+  padding: 12px 16px;
+  border-left: 4px solid var(--color-primary, #f59e0b);
+  background: var(--color-surface-alt, #fef9ec);
+  border-radius: 6px;
+}
+
+.buyout-melhor-mes__title {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.buyout-melhor-mes__highlight {
+  color: var(--color-primary, #d97706);
+  font-weight: 700;
+}
+
+.buyout-melhor-mes__detail,
+.buyout-melhor-mes__nota {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+}
+
+.buyout-roi-checkpoints {
+  margin-bottom: 16px;
+}
+
+.buyout-roi-checkpoints__title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 8px 0 4px;
+}
+
+.buyout-roi-checkpoints__subtitle {
+  font-size: 0.8rem;
+  margin: 0 0 8px;
+}
+
+.buyout-roi-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.buyout-roi-table th,
+.buyout-roi-table td {
+  padding: 6px 10px;
+  text-align: right;
+  font-size: 0.83rem;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.buyout-roi-table th:first-child,
+.buyout-roi-table td:first-child {
+  text-align: left;
+}
+
+.buyout-roi-table__row--highlight {
+  background: var(--color-surface-alt, #fef9ec);
+  font-weight: 600;
+}
+
+.buyout-roi-table__row--highlight td {
+  color: var(--color-primary, #d97706);
+}
