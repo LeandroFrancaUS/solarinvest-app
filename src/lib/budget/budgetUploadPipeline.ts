@@ -6,10 +6,10 @@ import {
   type StructuredBudget,
   type StructuredItem,
 } from '../../utils/structuredBudgetParser'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 
 const PDF_MIME = 'application/pdf'
 const IMAGE_MIME_REGEX = /^image\/(png|jpe?g)$/i
-const PDFJS_CDN_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/'
 const MAX_FILE_SIZE_BYTES = 40 * 1024 * 1024
 const DEFAULT_OCR_DPI = 300
 const MIN_TEXT_DENSITY = 0.00012
@@ -106,13 +106,12 @@ async function loadPdfJs(): Promise<PdfJsModule> {
     return customPdfJsLoader()
   }
   if (!pdfJsLoader) {
-    pdfJsLoader = import(
-      /* @vite-ignore */ `${PDFJS_CDN_BASE}build/pdf.mjs`,
-    ).then((module: PdfJsModule) => {
-      if (module?.GlobalWorkerOptions) {
-        module.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}build/pdf.worker.mjs`
+    pdfJsLoader = import('pdfjs-dist').then((module) => {
+      const pdfjs = module as unknown as PdfJsModule
+      if (pdfjs.GlobalWorkerOptions) {
+        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
       }
-      return module
+      return pdfjs
     })
   }
   return pdfJsLoader
