@@ -258,6 +258,8 @@ import {
   tarifaCurrency,
 } from './utils/formatters'
 import { Switch } from './components/ui/switch'
+import { ImportProposalModal, type ImportModalState, type FieldDiff } from './components/ImportProposalModal'
+import { extractProposalFromPdf, type ParsedProposalPdfData } from './lib/pdf/extractProposalPdf'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -5734,6 +5736,10 @@ export default function App() {
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
+  const [importPropostaModalState, setImportPropostaModalState] = useState<ImportModalState | null>(null)
+  const importPropostaPdfInputRef = useRef<HTMLInputElement | null>(null)
+  const [isContentDragActive, setIsContentDragActive] = useState(false)
+  const dragCounterRef = useRef(0)
   const fecharClientesPainel = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -15073,6 +15079,306 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges])
 
+
+    // ─── Import Proposal PDF ──────────────────────────────────────────────────
+
+  /**
+   * Build a partial OrcamentoSnapshotData from parsed proposal PDF data.
+   * Only the fields we can reliably extract are populated; all others keep defaults.
+   */
+  const buildSnapshotFromParsedProposal = useCallback(
+    (parsed: ParsedProposalPdfData): OrcamentoSnapshotData => {
+      const novoBudgetId = createDraftBudgetId()
+      const tabKey: TabKey =
+        parsed.tipoProposta === 'VENDA_DIRETA' ? 'vendas' : 'leasing'
+      const base = createEmptySnapshot(novoBudgetId, tabKey)
+
+      const clienteImportado: ClienteDados = {
+        ...cloneClienteDados(CLIENTE_INICIAL),
+        nome: parsed.cliente.nome ?? '',
+        documento: parsed.cliente.documento ?? '',
+        email: parsed.cliente.email ?? '',
+        telefone: parsed.cliente.telefone ?? '',
+        endereco: parsed.cliente.endereco ?? '',
+        cidade: parsed.cliente.cidade ?? CLIENTE_INICIAL.cidade,
+        uf: parsed.cliente.uf ?? CLIENTE_INICIAL.uf,
+        cep: parsed.cliente.cep ?? '',
+        distribuidora: parsed.cliente.distribuidora ?? '',
+      }
+
+      const tarifaImportada = parsed.financeiro.tarifaCheia
+      const descontoImportado = parsed.financeiro.descontoContratualPct
+      const potModulo = parsed.tecnico.potenciaModuloWp
+      const numModulos = parsed.tecnico.numeroModulos
+      const energiaContratada = parsed.tecnico.energiaContratadaKwhMes
+
+      // Derive uf/distribuidora for tariff lookup
+      const ufParaTarifa =
+        clienteImportado.uf && clienteImportado.uf.trim()
+          ? clienteImportado.uf.trim()
+          : base.ufTarifa
+
+      const distribuidoraParaTarifa =
+        clienteImportado.distribuidora && clienteImportado.distribuidora.trim()
+          ? clienteImportado.distribuidora.trim()
+          : base.distribuidoraTarifa
+
+      const vendaFormImportado = {
+        ...base.vendaForm,
+        modelo_modulo: parsed.tecnico.modeloModulo ?? base.vendaForm.modelo_modulo,
+        modelo_inversor: parsed.tecnico.modeloInversor ?? base.vendaForm.modelo_inversor,
+      }
+
+      return {
+        ...base,
+        cliente: clienteImportado,
+        ufTarifa: ufParaTarifa,
+        distribuidoraTarifa: distribuidoraParaTarifa,
+        tarifaCheia:
+          tarifaImportada != null && tarifaImportada > 0 ? tarifaImportada : base.tarifaCheia,
+        desconto:
+          descontoImportado != null ? descontoImportado : base.desconto,
+        kcKwhMes:
+          energiaContratada != null && energiaContratada > 0
+            ? energiaContratada
+            : base.kcKwhMes,
+        consumoManual: energiaContratada != null && energiaContratada > 0,
+        potenciaModulo:
+          potModulo != null && potModulo > 0 ? potModulo : base.potenciaModulo,
+        numeroModulosManual:
+          numModulos != null && numModulos > 0 ? numModulos : base.numeroModulosManual,
+        vendaForm: vendaFormImportado,
+        // If we have a capex (venda proposals), store it as manual override base
+        ...(parsed.financeiro.capex != null && parsed.financeiro.capex > 0
+          ? { capexManualOverride: true }
+          : {}),
+      }
+    },
+    [createEmptySnapshot],
+  )
+
+  /**
+   * Compare two ClienteDados objects and return a list of human-readable diffs.
+   */
+  const buildClienteDiff = useCallback(
+    (existing: ClienteDados, imported: ParsedProposalPdfData): FieldDiff[] => {
+      const diffs: FieldDiff[] = []
+
+      const add = (
+        field: keyof ClienteDados,
+        label: string,
+        imp: string | null | undefined,
+      ) => {
+        const cur = String(existing[field] ?? '').trim()
+        const impStr = (imp ?? '').trim()
+        if (impStr && cur !== impStr) {
+          diffs.push({ field, label, current: cur || '—', imported: impStr })
+        }
+      }
+
+      add('nome', 'Nome/Razão social', imported.cliente.nome)
+      add('documento', 'CPF/CNPJ', imported.cliente.documento)
+      add('email', 'E-mail', imported.cliente.email)
+      add('telefone', 'Telefone', imported.cliente.telefone)
+      add('endereco', 'Endereço', imported.cliente.endereco)
+      add('cidade', 'Cidade', imported.cliente.cidade)
+      add('uf', 'UF', imported.cliente.uf)
+      add('cep', 'CEP', imported.cliente.cep)
+      add('distribuidora', 'Distribuidora', imported.cliente.distribuidora)
+
+      return diffs
+    },
+    [],
+  )
+
+  /**
+   * Core handler that processes a PDF file for proposal import.
+   * Manages the entire conflict-resolution flow.
+   */
+  const processImportPropostaPdf = useCallback(
+    async (file: File) => {
+      // Show loading state
+      setImportPropostaModalState({ kind: 'loading' })
+
+      let parsed: ParsedProposalPdfData
+      try {
+        parsed = await extractProposalFromPdf(file)
+      } catch (error) {
+        console.error('[ImportProposta] PDF extraction error', error)
+        setImportPropostaModalState({
+          kind: 'error',
+          message:
+            'Não foi possível ler o arquivo PDF. Verifique se o arquivo está corrompido e tente novamente.',
+        })
+        return
+      }
+
+      if (!parsed.isPropostaSolarInvest || !parsed.tipoProposta) {
+        setImportPropostaModalState({ kind: 'not-solarinvest' })
+        return
+      }
+
+      // Check for unsaved changes in the current form
+      if (hasUnsavedChanges()) {
+        setImportPropostaModalState({ kind: 'unsaved-changes', parsed })
+        return
+      }
+
+      // Check if client already exists by document or name
+      let existingCliente: ClienteDados | null = null
+      try {
+        const todos = await getAllClienteRegistros()
+        const docNorm = (parsed.cliente.documento ?? '').replace(/\D/g, '')
+        const nomeNorm = (parsed.cliente.nome ?? '').toLowerCase().trim()
+
+        const match = todos.find((r) => {
+          const regDoc = String(r.dados?.documento ?? '').replace(/\D/g, '')
+          const regNome = String(r.dados?.nome ?? '').toLowerCase().trim()
+          if (docNorm && regDoc && docNorm === regDoc) {
+            return true
+          }
+          if (nomeNorm && regNome && nomeNorm === regNome) {
+            return true
+          }
+          return false
+        })
+
+        if (match) {
+          existingCliente = match.dados as ClienteDados
+        }
+      } catch (error) {
+        console.warn('[ImportProposta] Could not load saved clients for comparison', error)
+      }
+
+      if (existingCliente) {
+        const diffs = buildClienteDiff(existingCliente, parsed)
+        if (diffs.length === 0) {
+          // Exact match
+          setImportPropostaModalState({
+            kind: 'exact-match',
+            parsed,
+            clienteNome: existingCliente.nome || parsed.cliente.nome || 'Cliente',
+          })
+        } else {
+          // Same client, different data
+          setImportPropostaModalState({
+            kind: 'diff',
+            parsed,
+            existing: existingCliente,
+            diffs,
+          })
+        }
+        return
+      }
+
+      // New client — show preview and confirm
+      setImportPropostaModalState({ kind: 'new-client', parsed })
+    },
+    [buildClienteDiff, getAllClienteRegistros, hasUnsavedChanges, setImportPropostaModalState],
+  )
+
+  /**
+   * Apply the confirmed import: reset form and load data from parsed proposal.
+   */
+  const confirmarImportPropostaPdf = useCallback(
+    (parsed: ParsedProposalPdfData) => {
+      setImportPropostaModalState(null)
+
+      try {
+        const snapshot = buildSnapshotFromParsedProposal(parsed)
+        // Force allow-empty because cliente might be minimal
+        aplicarSnapshot(snapshot, { allowEmpty: true })
+        const tipo =
+          parsed.tipoProposta === 'VENDA_DIRETA' ? 'Venda Direta' : 'Leasing'
+        adicionarNotificacao(
+          `Proposta ${tipo} importada com sucesso${parsed.cliente.nome ? ` — ${parsed.cliente.nome}` : ''}.`,
+          'success',
+        )
+      } catch (error) {
+        console.error('[ImportProposta] Failed to apply snapshot', error)
+        adicionarNotificacao('Ocorreu um erro ao importar a proposta. Tente novamente.', 'error')
+      }
+    },
+    [adicionarNotificacao, aplicarSnapshot, buildSnapshotFromParsedProposal],
+  )
+
+  const handleImportarPropostaPdfClick = useCallback(() => {
+    importPropostaPdfInputRef.current?.click()
+  }, [])
+
+  const handleImportarPropostaPdfFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      event.target.value = ''
+      if (file) {
+        void processImportPropostaPdf(file)
+      }
+    },
+    [processImportPropostaPdf],
+  )
+
+  // Drag-and-drop handlers for the content area (leasing/vendas pages only)
+  const handleContentDragEnter = useCallback(
+    (e: React.DragEvent<HTMLElement>) => {
+      if (activePage !== 'app') {
+        return
+      }
+      e.preventDefault()
+      dragCounterRef.current += 1
+      if (dragCounterRef.current === 1) {
+        setIsContentDragActive(true)
+      }
+    },
+    [activePage],
+  )
+
+  const handleContentDragLeave = useCallback((e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault()
+    dragCounterRef.current -= 1
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0
+      setIsContentDragActive(false)
+    }
+  }, [])
+
+  const handleContentDragOver = useCallback(
+    (e: React.DragEvent<HTMLElement>) => {
+      if (activePage !== 'app') {
+        return
+      }
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    },
+    [activePage],
+  )
+
+  const handleContentDrop = useCallback(
+    (e: React.DragEvent<HTMLElement>) => {
+      e.preventDefault()
+      dragCounterRef.current = 0
+      setIsContentDragActive(false)
+
+      if (activePage !== 'app') {
+        return
+      }
+
+      const file = Array.from(e.dataTransfer.files).find(
+        (f) =>
+          f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'),
+      )
+
+      if (!file) {
+        adicionarNotificacao(
+          'Arquivo não reconhecido. Arraste um PDF de proposta SolarInvest.',
+          'error',
+        )
+        return
+      }
+
+      void processImportPropostaPdf(file)
+    },
+    [activePage, adicionarNotificacao, processImportPropostaPdf],
+  )
   const removerOrcamentoSalvo = useCallback(
     (id: string) => {
       if (typeof window === 'undefined') {
@@ -23645,6 +23951,14 @@ export default function App() {
             void handlePrint()
           },
         },
+        {
+          id: 'relatorios-importar-pdf',
+          label: 'Importar proposta PDF',
+          icon: '📥',
+          onSelect: () => {
+            handleImportarPropostaPdfClick()
+          },
+        },
       ],
     },
     {
@@ -24933,6 +25247,11 @@ export default function App() {
             subtitle: contentSubtitle,
             actions: contentActions ?? undefined,
             pageIndicator: currentPageIndicator,
+            onDrop: handleContentDrop,
+            onDragOver: handleContentDragOver,
+            onDragEnter: handleContentDragEnter,
+            onDragLeave: handleContentDragLeave,
+            isDragActive: isContentDragActive,
           }}
           mobileMenuButton={
             isMobileViewport
@@ -25711,6 +26030,22 @@ export default function App() {
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
       />
+
+      <input
+        ref={importPropostaPdfInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        style={{ display: 'none' }}
+        onChange={handleImportarPropostaPdfFileChange}
+      />
+
+      {importPropostaModalState ? (
+        <ImportProposalModal
+          state={importPropostaModalState}
+          onConfirm={confirmarImportPropostaPdf}
+          onCancel={() => setImportPropostaModalState(null)}
+        />
+      ) : null}
 
       {isLeasingContractsModalOpen ? (
         <LeasingContractsModal

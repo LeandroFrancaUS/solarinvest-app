@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback } from 'react'
+import { type DragEvent, type ReactNode, useCallback } from 'react'
 
 export interface ContentProps {
   title?: string
@@ -8,6 +8,11 @@ export interface ContentProps {
   children: ReactNode
   onInteractOutsideSidebar?: () => void
   pageIndicator?: string
+  onDrop?: (e: DragEvent<HTMLElement>) => void
+  onDragOver?: (e: DragEvent<HTMLElement>) => void
+  onDragEnter?: (e: DragEvent<HTMLElement>) => void
+  onDragLeave?: (e: DragEvent<HTMLElement>) => void
+  isDragActive?: boolean
 }
 
 export function Content({
@@ -18,6 +23,11 @@ export function Content({
   pageIndicator,
   children,
   onInteractOutsideSidebar,
+  onDrop,
+  onDragOver,
+  onDragEnter,
+  onDragLeave,
+  isDragActive,
 }: ContentProps) {
   const handlePointerDownCapture = useCallback(() => {
     onInteractOutsideSidebar?.()
@@ -25,8 +35,12 @@ export function Content({
 
   return (
     <main
-      className="content-wrap"
+      className={`content-wrap${isDragActive ? ' content-drop-active' : ''}`}
       onPointerDownCapture={onInteractOutsideSidebar ? handlePointerDownCapture : undefined}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
     >
       {pageIndicator ? (
         <div className="page-indicator" role="status" aria-live="polite">
@@ -44,6 +58,14 @@ export function Content({
         </header>
       ) : null}
       <div className="content-body">{children}</div>
+      {isDragActive ? (
+        <div className="content-drop-overlay" aria-hidden="true">
+          <div className="content-drop-overlay__inner">
+            <span className="content-drop-overlay__icon">📥</span>
+            <span>Solte o arquivo PDF da proposta aqui para importar</span>
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }
