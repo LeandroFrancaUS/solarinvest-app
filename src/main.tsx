@@ -7,6 +7,7 @@ import ReactDOM from "react-dom/client"
 import App from "./App"
 import { Boundary } from "./app/Boundary"
 import { Providers } from "./app/Providers"
+import { AppRoutes } from "./app/Routes"
 import { ensureServerStorageSync } from "./app/services/serverStorage"
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode } from "./constants/ui"
 import "./styles.css"
@@ -42,13 +43,6 @@ const disableAnimationsInBrave = async () => {
 }
 
 async function bootstrap() {
-  // (opcional) debug temporário — remova depois de confirmar
-    console.log("VITE_STACK_PROJECT_ID:", import.meta.env.VITE_STACK_PROJECT_ID)
-    console.log(
-    "VITE_STACK_PUBLISHABLE_CLIENT_KEY:",
-    import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY ? "OK" : "MISSING",
-   )
-
   await ensureServerStorageSync()
   await disableAnimationsInBrave()
 
@@ -66,7 +60,9 @@ async function bootstrap() {
     <React.StrictMode>
       <Boundary>
         <Providers>
-          <App />
+          <AppRoutes>
+            <App />
+          </AppRoutes>
         </Providers>
       </Boundary>
     </React.StrictMode>,
@@ -76,3 +72,4 @@ async function bootstrap() {
 bootstrap().catch((error) => {
   console.error("Failed to bootstrap application", error)
 })
+

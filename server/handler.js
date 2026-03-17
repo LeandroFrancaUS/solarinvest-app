@@ -32,6 +32,8 @@ import {
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
+import { handleAuthMe } from './routes/auth.me.js'
+import { handleAdminUsers } from './routes/admin.users.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -295,6 +297,17 @@ export default async function handler(req, res) {
           ? nowValue.toISOString()
           : nowValue
       sendJson(res, 200, { now: serialized })
+      return
+    }
+
+    // Auth & Admin API routes
+    if (pathname === '/auth/me') {
+      await handleAuthMe(req, res, sendJson)
+      return
+    }
+
+    if (pathname === '/admin/users' || pathname.startsWith('/admin/users/')) {
+      await handleAdminUsers(req, res, sendJson, readJsonBody)
       return
     }
 
