@@ -16,6 +16,30 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Wallet-extension compatibility shim.
+      // Yoroi (and similar Cardano wallets) inject window.cardano as a plain data
+      // property, then run their own SES lockdown which freezes window — making
+      // subsequent writes to window.cardano throw "Cannot assign to read only
+      // property". By pre-defining window.cardano as a getter/setter accessor
+      // backed by a mutable closure variable, the setter remains callable even
+      // after freeze, so both the initial injection and any later updates succeed.
+      ;(function () {
+        if (typeof window === 'undefined') return
+        try {
+          var _cardano = window.cardano
+          Object.defineProperty(window, 'cardano', {
+            get: function () { return _cardano },
+            set: function (v) { _cardano = v },
+            configurable: true,
+            enumerable: true,
+          })
+        } catch (_) {
+          // Property already non-configurable (another extension won the race);
+          // nothing we can do — let it fall through.
+        }
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
