@@ -101,7 +101,7 @@ export const DEFAULT_VENDAS_CONFIG: VendasConfig = {
   incluirImpostosNoCAPEX_default: false,
 
   comissao_default_tipo: 'percentual',
-  comissao_default_percent: 3,
+  comissao_default_percent: 5,
   comissao_percent_base: 'venda_total',
   bonus_indicacao_percent: 0,
   teto_comissao_percent: 8,

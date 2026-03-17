@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { calcPotenciaSistemaKwp, calcPricingPorKwp, getRedeByPotencia } from './pricingPorKwp'
+import {
+  calcPotenciaSistemaKwp,
+  calcPricingPorKwp,
+  calcProjectedCostsByConsumption,
+  getRedeByPotencia,
+} from './pricingPorKwp'
 
 describe('pricingPorKwp', () => {
   it('usa piso mínimo para valores baixos', () => {
@@ -9,7 +14,7 @@ describe('pricingPorKwp', () => {
 
   it('interpolates mono anchors', () => {
     const pricing = calcPricingPorKwp(6)
-    expect(pricing).toEqual({ rede: 'mono', custoFinal: 13734.515, kitValor: 8069.032142857142 })
+    expect(pricing).toEqual({ rede: 'mono', custoFinal: 13115.827777777778, kitValor: 7290.544444444445 })
   })
 
   it('switches to trifasico above 23.22', () => {
@@ -19,7 +24,7 @@ describe('pricingPorKwp', () => {
 
   it('extrapolates on trifasico range', () => {
     const pricing = calcPricingPorKwp(50)
-    expect(pricing).toEqual({ rede: 'trifasico', custoFinal: 92012.02999999999, kitValor: 58469.28444444445 })
+    expect(pricing).toEqual({ rede: 'trifasico', custoFinal: 92706.65406130267, kitValor: 59987.9254661558 })
   })
 
   it('returns null for invalid or above limit', () => {
@@ -78,5 +83,29 @@ describe('pricingPorKwp', () => {
         potenciaModuloWp: 550,
       }),
     ).toBeNull()
+  })
+
+  it('calcula custos projetados atualizados para leasing e venda por consumo', () => {
+    const projected = calcProjectedCostsByConsumption({
+      consumoKwhMes: 1000,
+      uf: 'GO',
+      tarifaCheia: 1.14,
+      descontoPercentual: 20,
+      irradiacao: 5.55,
+      performanceRatio: 0.8,
+      diasMes: 30,
+      potenciaModuloWp: 545,
+      margemLucroPct: 0.3,
+      comissaoVendaPct: 0.05,
+    })
+
+    expect(projected).not.toBeNull()
+    if (!projected) return
+
+    expect(projected.custoBaseProjeto).toBeGreaterThan(13000)
+    expect(projected.custoBaseProjeto).toBeLessThan(14100)
+    expect(projected.custoFinalLeasing).toBeGreaterThan(17000)
+    expect(projected.custoFinalLeasing).toBeLessThan(18200)
+    expect(projected.custoFinalVenda).toBeGreaterThan(projected.custoFinalLeasing)
   })
 })

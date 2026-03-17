@@ -17,6 +17,37 @@ export interface PotenciaSistemaResultado {
   quantidadeModulos: number | null
 }
 
+export interface ProjectedCostsParams {
+  consumoKwhMes: number | null | undefined
+  uf?: string | null | undefined
+  tarifaCheia?: number | null | undefined
+  descontoPercentual?: number | null | undefined
+  irradiacao?: number | null | undefined
+  performanceRatio?: number | null | undefined
+  diasMes?: number | null | undefined
+  potenciaModuloWp?: number | null | undefined
+  margemLucroPct?: number | null | undefined
+  comissaoVendaPct?: number | null | undefined
+}
+
+export interface ProjectedCostsResult {
+  potenciaKwp: number
+  quantidadeModulos: number
+  kitBase: number
+  kitAtualizado: number
+  projeto: number
+  materialCA: number
+  instalacao: number
+  art: number
+  placa: number
+  custoBaseProjeto: number
+  custoFinalLeasing: number
+  custoFinalVenda: number
+  comissaoLeasing: number
+  primeiraMensalidade: number
+  comissaoVenda: number
+}
+
 type Anchor = { kwp: number; custoFinal: number; kitValor: number; rede: Rede }
 
 const monoAnchors: Anchor[] = [
@@ -33,6 +64,20 @@ const triAnchors: Anchor[] = [
 ]
 
 const MAX_KWP = 90
+
+const KIT_REAJUSTE_MULTIPLIER = 1.185
+const MATERIAL_CA_MULTIPLIER = 1.2
+const INSTALACAO_GO_POR_MODULO = 70
+const INSTALACAO_DF_POR_MODULO = 73
+const ART_GO = 104
+const ART_DF = 109
+const PROJETO_TABLE: Array<{ min: number; max: number; valor: number }> = [
+  { min: 0, max: 6, valor: 400 },
+  { min: 7, max: 10, valor: 500 },
+  { min: 10, max: 20, valor: 700 },
+  { min: 20, max: 30, valor: 1000 },
+  { min: 30, max: 50, valor: 1200 },
+]
 
 const clampPositive = (value: number): number => (value <= 0 ? 1 : value)
 
@@ -136,4 +181,98 @@ export function calcPricingPorKwp(
 export function formatBRL(value: number): string {
   const safeValue = Number.isFinite(value) ? value : 0
   return safeValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
+}
+
+const resolveProjetoValor = (kwp: number): number => {
+  const safeKwp = Number.isFinite(kwp) ? Math.max(0, kwp) : 0
+  for (const faixa of PROJETO_TABLE) {
+    if (safeKwp >= faixa.min && safeKwp <= faixa.max) {
+      return faixa.valor
+    }
+  }
+  return 1200
+}
+
+const resolveUf = (value?: string | null): 'GO' | 'DF' | 'OUTROS' => {
+  const normalized = (value ?? '').trim().toUpperCase()
+  if (normalized === 'GO') return 'GO'
+  if (normalized === 'DF') return 'DF'
+  return 'OUTROS'
+}
+
+export function calcProjectedCostsByConsumption({
+  consumoKwhMes,
+  uf,
+  tarifaCheia,
+  descontoPercentual,
+  irradiacao,
+  performanceRatio,
+  diasMes,
+  potenciaModuloWp,
+  margemLucroPct,
+  comissaoVendaPct,
+}: ProjectedCostsParams): ProjectedCostsResult | null {
+  const potencia = calcPotenciaSistemaKwp({
+    consumoKwhMes,
+    irradiacao,
+    performanceRatio,
+    diasMes,
+    potenciaModuloWp,
+  })
+
+  if (!potencia) return null
+
+  const pricing = calcPricingPorKwp(potencia.potenciaKwp)
+  if (!pricing) return null
+
+  const consumo = Number.isFinite(consumoKwhMes) ? Math.max(0, Number(consumoKwhMes)) : 0
+  const quantidadeModulos =
+    Number.isFinite(potencia.quantidadeModulos) && (potencia.quantidadeModulos ?? 0) > 0
+      ? Math.max(1, Math.round(potencia.quantidadeModulos ?? 0))
+      : Math.max(1, Math.round((potencia.potenciaKwp * 1000) / 545))
+
+  const ufNormalizada = resolveUf(uf)
+  const projeto = resolveProjetoValor(potencia.potenciaKwp)
+  const art = ufNormalizada === 'DF' ? ART_DF : ART_GO
+  const instalacao = quantidadeModulos * (ufNormalizada === 'DF' ? INSTALACAO_DF_POR_MODULO : INSTALACAO_GO_POR_MODULO)
+  const materialCA = consumo * MATERIAL_CA_MULTIPLIER
+  const placa = quantidadeModulos * 20
+  const kitBase = pricing.kitValor
+  const kitAtualizado = kitBase * KIT_REAJUSTE_MULTIPLIER
+
+  const custoBaseProjeto = kitAtualizado + projeto + materialCA + instalacao + art + placa
+  const margem = Number.isFinite(margemLucroPct) ? Math.max(0, Number(margemLucroPct)) : 0.3
+  const custoFinalLeasing = custoBaseProjeto * (1 + margem)
+
+  const comissaoVenda = Number.isFinite(comissaoVendaPct)
+    ? Math.max(0, Number(comissaoVendaPct))
+    : 0.05
+  const tarifa = Number.isFinite(tarifaCheia) ? Math.max(0, Number(tarifaCheia)) : 0
+  const descontoFrac = Number.isFinite(descontoPercentual)
+    ? Math.max(0, Math.min(1, Number(descontoPercentual) / 100))
+    : 0
+  const comissaoLeasing = consumo * tarifa * descontoFrac
+  const primeiraMensalidade = comissaoLeasing
+
+  const custoFinalLeasingComMensalidade = custoFinalLeasing + primeiraMensalidade
+  const comissaoVendaValor = custoFinalLeasingComMensalidade * comissaoVenda
+  const custoFinalVenda = custoFinalLeasingComMensalidade + comissaoVendaValor
+
+  return {
+    potenciaKwp: potencia.potenciaKwp,
+    quantidadeModulos,
+    kitBase,
+    kitAtualizado,
+    projeto,
+    materialCA,
+    instalacao,
+    art,
+    placa,
+    custoBaseProjeto,
+    custoFinalLeasing: custoFinalLeasingComMensalidade,
+    custoFinalVenda,
+    comissaoLeasing,
+    primeiraMensalidade,
+    comissaoVenda: comissaoVendaValor,
+  }
 }
