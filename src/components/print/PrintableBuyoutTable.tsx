@@ -144,7 +144,7 @@ function PrintableBuyoutTableInner(
 
   return (
     <div ref={ref} className="print-root">
-      <div className="print-layout leasing-print-layout buyout-print-layout" data-print-section="buyout-table">
+      <div className="print-layout leasing-print-layout buyout-print-layout" data-print-section="buyout">
         <div className="print-page">
           <section className="print-section print-section--hero avoid-break">
             <div className="print-hero">

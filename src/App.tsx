@@ -4178,13 +4178,40 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
       const wrapperRef = useRef<HTMLDivElement>(null)
 
       useEffect(() => {
-        const timeoutId = window.setTimeout(() => {
-          const html = wrapperRef.current ? wrapperRef.current.outerHTML : null
-          finalize(html)
-        }, 220)
+        const timeouts: number[] = []
+        let attempts = 0
+        const maxAttempts = 12
+
+        const hasBuyoutContent = (containerEl: HTMLDivElement | null) => {
+          if (!containerEl) {
+            return false
+          }
+
+          return Boolean(containerEl.querySelector('[data-print-section="buyout"] .print-page'))
+        }
+
+        const attemptCapture = () => {
+          const containerEl = wrapperRef.current
+          if (hasBuyoutContent(containerEl)) {
+            finalize(containerEl?.outerHTML ?? null)
+            return
+          }
+
+          attempts += 1
+          if (attempts >= maxAttempts) {
+            finalize(containerEl?.outerHTML ?? null)
+            return
+          }
+
+          const timeoutId = window.setTimeout(attemptCapture, 120)
+          timeouts.push(timeoutId)
+        }
+
+        const initialTimeout = window.setTimeout(attemptCapture, 200)
+        timeouts.push(initialTimeout)
 
         return () => {
-          window.clearTimeout(timeoutId)
+          timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
           const html = wrapperRef.current ? wrapperRef.current.outerHTML : null
           finalize(html)
         }
@@ -15292,12 +15319,8 @@ export default function App() {
     }
 
     const codigoOrcamento = printableData.budgetId?.trim()
-    if (!codigoOrcamento) {
-      window.alert(
-        'Associe um número de orçamento ao cliente antes de imprimir a tabela de valor de transferência.',
-      )
-      return
-    }
+    const codigoOrcamentoImpressao =
+      codigoOrcamento || normalizeProposalId(getActiveBudgetId()) || 'RASCUNHO'
 
     const possuiValoresTransferencia = tabelaBuyout.some(
       (row) => row.valorResidual != null && Number.isFinite(row.valorResidual) && row.mes >= 7,
@@ -15314,7 +15337,7 @@ export default function App() {
     try {
       const html = await renderPrintableBuyoutTableToHtml({
         cliente: cloneClienteDados(cliente),
-        budgetId: codigoOrcamento,
+        budgetId: codigoOrcamentoImpressao,
         tabelaBuyout,
         buyoutResumo,
         prazoContratualMeses: duracaoMeses,
@@ -15329,13 +15352,13 @@ export default function App() {
       }
 
       const nomeCliente = cliente.nome?.trim() || 'SolarInvest'
-      const budgetIdNormalizado = normalizeProposalId(codigoOrcamento)
+      const budgetIdNormalizado = normalizeProposalId(codigoOrcamentoImpressao)
 
       pendingPreviewDataRef.current = null
 
       openBudgetPreviewWindow(sanitizedHtml, {
         nomeCliente,
-        budgetId: budgetIdNormalizado || codigoOrcamento,
+        budgetId: budgetIdNormalizado || codigoOrcamentoImpressao,
         actionMessage:
           'Revise a tabela e utilize as ações da barra superior para imprimir ou baixar o PDF.',
         initialMode: 'preview',
