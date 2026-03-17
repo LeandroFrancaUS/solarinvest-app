@@ -1,6 +1,6 @@
 // src/app/Providers.tsx
 import type { ReactNode } from "react"
-import { StackProvider } from "@stackframe/react"
+import { StackProvider, StackTheme } from "@stackframe/react"
 import { stackClientApp } from "../stack/client"
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -11,7 +11,9 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <StackProvider app={stackClientApp}>
-      {children}
+      <StackTheme>
+        {children}
+      </StackTheme>
     </StackProvider>
   )
 }
