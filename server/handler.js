@@ -32,6 +32,14 @@ import {
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
+import { handleAuthMeRequest } from './routes/authMe.js'
+import {
+  handleAdminUsersListRequest,
+  handleAdminUserApprove,
+  handleAdminUserBlock,
+  handleAdminUserRevoke,
+  handleAdminUserRole,
+} from './routes/adminUsers.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -350,6 +358,37 @@ export default async function handler(req, res) {
       }
 
       sendJson(res, 405, { error: 'Método não suportado.' })
+      return
+    }
+
+    // Auth & Admin routes
+    if (pathname === '/api/auth/me') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handleAuthMeRequest(req, res, { sendJson, requestUrl })
+      return
+    }
+
+    if (pathname === '/api/admin/users') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handleAdminUsersListRequest(req, res, { sendJson, requestUrl })
+      return
+    }
+
+    // /api/admin/users/:id/approve|block|revoke|role
+    const adminUserActionMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/(approve|block|revoke|role)$/)
+    if (adminUserActionMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      const userId = adminUserActionMatch[1]
+      const action = adminUserActionMatch[2]
+      const body = await readJsonBody(req)
+      const ctx = { sendJson, userId, body }
+      if (action === 'approve') await handleAdminUserApprove(req, res, ctx)
+      else if (action === 'block') await handleAdminUserBlock(req, res, ctx)
+      else if (action === 'revoke') await handleAdminUserRevoke(req, res, ctx)
+      else if (action === 'role') await handleAdminUserRole(req, res, ctx)
       return
     }
 

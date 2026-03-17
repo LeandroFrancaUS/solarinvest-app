@@ -1,6 +1,17 @@
 // src/app/Providers.tsx
 import type { ReactNode } from "react"
+import { StackProvider } from "@stackframe/react"
+import { stackClientApp } from "../stack/client"
 
 export function Providers({ children }: { children: ReactNode }) {
-  return <>{children}</>
+  if (!stackClientApp) {
+    // Stack Auth not configured (missing env vars) — passthrough for dev/bypass mode
+    return <>{children}</>
+  }
+
+  return (
+    <StackProvider app={stackClientApp}>
+      {children}
+    </StackProvider>
+  )
 }
