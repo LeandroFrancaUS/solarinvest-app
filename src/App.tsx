@@ -9372,6 +9372,25 @@ export default function App() {
 
   const capex = useMemo(() => potenciaInstaladaKwp * precoPorKwp, [potenciaInstaladaKwp, precoPorKwp])
 
+  const custoFinalProjetadoCanonico = useMemo(() => {
+    const auto = Number(autoCustoFinal)
+    if (modoOrcamento === 'auto' && Number.isFinite(auto) && auto > 0) {
+      return auto
+    }
+
+    const venda = Number(valorVendaAtual)
+    if (Number.isFinite(venda) && venda > 0) {
+      return venda
+    }
+
+    return Math.max(0, capex)
+  }, [autoCustoFinal, capex, modoOrcamento, valorVendaAtual])
+
+  const capexSolarInvest = useMemo(
+    () => Math.max(0, custoFinalProjetadoCanonico * 0.7),
+    [custoFinalProjetadoCanonico],
+  )
+
   const leasingValorDeMercadoEstimado = useLeasingValorDeMercadoEstimado()
 
   useEffect(() => {
@@ -9408,10 +9427,10 @@ export default function App() {
   ])
 
   const simulationState = useMemo<SimulationState>(() => {
-    // Mantemos o valor de mercado (vm0) amarrado ao CAPEX calculado neste mesmo memo para
-    // evitar dependências de ordem que poderiam reaparecer em merges futuros. Assim garantimos
+    // Mantemos o valor de mercado (vm0) amarrado ao custo final projetado canônico neste mesmo memo
+    // para evitar dependências de ordem que poderiam reaparecer em merges futuros. Assim garantimos
     // uma única fonte de verdade entre a projeção principal e o fluxo de buyout.
-    const valorMercadoBase = Math.max(0, capex)
+    const valorMercadoBase = Math.max(0, custoFinalProjetadoCanonico)
     const descontoDecimal = Math.max(0, Math.min(descontoConsiderado / 100, 1))
     const inflacaoAnual = Math.max(-0.99, inflacaoAa / 100)
     const prazoContratualMeses = Math.max(0, Math.floor(prazoMesesConsiderado))
@@ -9470,6 +9489,7 @@ export default function App() {
   }, [
     bandeiraEncargo,
     capex,
+    custoFinalProjetadoCanonico,
     cashbackPct,
     custosFixosM,
     descontoConsiderado,
@@ -9522,7 +9542,7 @@ export default function App() {
       simulationState.mesReferencia,
     )
   const leasingBeneficios = useMemo(() => {
-    const valorInvestimento = Math.max(0, vm0)
+    const valorInvestimento = Math.max(0, capexSolarInvest)
     const prazoLeasingValido = leasingPrazoConsiderado > 0 ? leasingPrazoConsiderado : null
     const economiaOpexAnual = prazoLeasingValido ? valorInvestimento * 0.015 : 0
     const investimentoDiluirAnual = prazoLeasingValido ? valorInvestimento / prazoLeasingValido : 0
@@ -9605,7 +9625,7 @@ export default function App() {
     simulationState.mesReferencia,
     simulationState.tarifaCheia,
     taxaMinima,
-    vm0,
+    capexSolarInvest,
   ])
 
   const leasingROI = useMemo(() => {
@@ -10341,6 +10361,7 @@ export default function App() {
       anosArray,
       buyoutResumo,
       capex,
+      custoFinalProjetadoCanonico,
       cliente,
       descontoConsiderado,
       financiamentoFluxo,
@@ -23992,7 +24013,7 @@ export default function App() {
             </header>
             <SimulacoesTab
               consumoKwhMes={kcKwhMes}
-              valorInvestimento={capex}
+              valorInvestimento={capexSolarInvest}
               tipoSistema={tipoSistema}
               prazoLeasingAnos={leasingPrazo}
             />
@@ -25202,14 +25223,19 @@ export default function App() {
 
                     <div className="info-inline">
                       <span className="pill">
-                        <InfoTooltip text="Calculado como Potência do sistema (kWp) × Preço por kWp (R$)." />
-                        Valor do Investimento
-                        <strong>{currency(capex)}</strong>
+                        <InfoTooltip text="Valor canônico compartilhado entre vendas e leasing. Usa o custo final projetado quando disponível no modo automático." />
+                        Custo final projetado
+                        <strong>{currency(custoFinalProjetadoCanonico)}</strong>
                       </span>
                       <span className="pill">
                         <InfoTooltip text="Tarifa com desconto = Tarifa cheia ajustada pelos reajustes anuais × (1 - desconto contratual)." />
                         Tarifa c/ desconto
                         <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
+                      </span>
+                      <span className="pill">
+                        <InfoTooltip text="CAPEX (SolarInvest) = Custo final projetado × 70%. Representa o capital investido pela SolarInvest para executar o projeto." />
+                        CAPEX (SolarInvest)
+                        <strong>{currency(capexSolarInvest)}</strong>
                       </span>
                       {modoEntradaNormalizado === 'REDUZ' ? (
                         <span className="pill">
