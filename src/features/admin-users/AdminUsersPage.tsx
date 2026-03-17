@@ -16,12 +16,6 @@ const STATUS_LABELS: Record<string, string> = {
   revoked: "Revogado",
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  manager: "Gerente",
-  user: "Usuário",
-}
-
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
   approved: "bg-green-100 text-green-800",
@@ -165,7 +159,6 @@ export default function AdminUsersPage() {
                       <option value="manager">Gerente</option>
                       <option value="admin">Admin</option>
                     </select>
-                    <span className="ml-1 hidden">{ROLE_LABELS[user.role]}</span>
                   </td>
                   <td className="px-4 py-3">
                     <span
