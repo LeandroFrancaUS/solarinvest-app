@@ -23,7 +23,23 @@ export async function handleAuthMeRequest(req, res, { sendJson }) {
     return
   }
 
-  const appUser = await getCurrentAppUser(req)
+  let appUser
+  try {
+    appUser = await getCurrentAppUser(req)
+  } catch (dbErr) {
+    // Database is unreachable or not configured.
+    // Return HTTP 200 with authorized:false so the client shows an "Access Pending"
+    // screen instead of a 500 error that could be misinterpreted as anonymous access.
+    console.error('[auth/me] Database error in getCurrentAppUser:', dbErr?.message)
+    sendJson(res, 200, {
+      authenticated: true,
+      authorized: false,
+      role: null,
+      accessStatus: null,
+      email: sanitizeString(stackUser?.email ?? ''),
+    })
+    return
+  }
 
   if (!appUser) {
     sendJson(res, 200, {

@@ -15,14 +15,21 @@ interface UseAuthSessionResult {
 }
 
 const POLL_INTERVAL_MS = 15 * 60 * 1000 // re-check every 15 minutes
+/** Retry delay after a transient server/network error (before the next poll fires). */
+const ERROR_RETRY_MS = 8 * 1000
 
 export function useAuthSession(): UseAuthSessionResult {
   const [me, setMe] = useState<MeResponse | null>(null)
   const [authState, setAuthState] = useState<AuthState>('loading')
   const [loading, setLoading] = useState(true)
   const abortRef = useRef<AbortController | null>(null)
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
+    if (retryRef.current) {
+      clearTimeout(retryRef.current)
+      retryRef.current = null
+    }
     if (abortRef.current) abortRef.current.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -33,10 +40,15 @@ export function useAuthSession(): UseAuthSessionResult {
       if (controller.signal.aborted) return
       setMe(data)
       setAuthState(data.authenticated ? 'authenticated' : 'anonymous')
-    } catch {
+    } catch (err) {
       if (controller.signal.aborted) return
-      setMe(null)
-      setAuthState('anonymous')
+      // Network error or unexpected server error (5xx):
+      // Do NOT set authState to 'anonymous' — that would bypass the authorization
+      // check and allow unauthenticated users to reach the app.
+      // Instead, keep the current authState (stays 'loading' on first attempt) and
+      // schedule a retry so the loading screen persists until the server recovers.
+      console.warn('[auth] fetchMe failed, retrying in', ERROR_RETRY_MS / 1000, 's —', err instanceof Error ? err.message : err)
+      retryRef.current = setTimeout(() => { void load() }, ERROR_RETRY_MS)
     } finally {
       if (!controller.signal.aborted) setLoading(false)
     }
@@ -47,6 +59,7 @@ export function useAuthSession(): UseAuthSessionResult {
     const timer = setInterval(() => { void load() }, POLL_INTERVAL_MS)
     return () => {
       clearInterval(timer)
+      if (retryRef.current) clearTimeout(retryRef.current)
       abortRef.current?.abort()
     }
   }, [load])
