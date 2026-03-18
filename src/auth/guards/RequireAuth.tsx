@@ -12,12 +12,34 @@ interface Props {
   fallback?: ReactNode
 }
 
+/** How long to wait for the Stack Auth SDK to resolve useUser() before giving up. */
+const STACK_INIT_TIMEOUT_MS = 15_000
+
 function LoadingScreen() {
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="text-center">
         <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
         <p className="text-sm text-slate-500">Carregando...</p>
+      </div>
+    </div>
+  )
+}
+
+function StackInitErrorScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="max-w-sm text-center">
+        <p className="mb-2 text-lg font-semibold text-slate-700">Falha ao iniciar autenticação</p>
+        <p className="mb-6 text-sm text-slate-500">
+          O serviço de login demorou para responder. Verifique sua conexão e recarregue a página.
+        </p>
+        <button
+          onClick={() => { window.location.reload() }}
+          className="rounded-lg bg-amber-500 px-6 py-2 text-sm font-medium text-white hover:bg-amber-600"
+        >
+          Recarregar
+        </button>
       </div>
     </div>
   )
@@ -37,7 +59,8 @@ function isOAuthCallbackPath(): boolean {
   // callbackPath may be absolute (https://...) — extract just the pathname
   try {
     return pathname === new URL(callbackPath, window.location.origin).pathname.replace(/\/$/, '')
-  } catch {
+  } catch (e) {
+    console.warn('[auth] isOAuthCallbackPath: failed to parse callbackPath', callbackPath, e)
     return pathname === callbackPath
   }
 }
@@ -97,6 +120,20 @@ function OAuthCallbackHandler() {
 
 function RequireAuthWithStack({ children, fallback }: Props) {
   const user = useUser()
+  const [stackTimedOut, setStackTimedOut] = useState(false)
+
+  // If the Stack Auth SDK hasn't resolved useUser() within STACK_INIT_TIMEOUT_MS
+  // (e.g., its initialization network request is hung due to a browser extension
+  // lockdown like Yoroi/SES, or a slow network), show an error screen so the user
+  // is never stuck on an infinite spinner.
+  useEffect(() => {
+    if (user !== undefined) return
+    const timer = setTimeout(() => {
+      console.warn('[auth] Stack Auth SDK init timed out after', STACK_INIT_TIMEOUT_MS / 1000, 's')
+      setStackTimedOut(true)
+    }, STACK_INIT_TIMEOUT_MS)
+    return () => { clearTimeout(timer) }
+  }, [user])
 
   // While on the OAuth callback path we must process the authorization code
   // BEFORE rendering SignIn, otherwise the tokens are never extracted and the
@@ -106,6 +143,9 @@ function RequireAuthWithStack({ children, fallback }: Props) {
   }
 
   if (user === undefined) {
+    if (stackTimedOut) {
+      return <StackInitErrorScreen />
+    }
     return <LoadingScreen />
   }
 
