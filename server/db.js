@@ -1,26 +1,32 @@
 // server/db.js
-import { Pool } from 'pg'
+// Uses @neondatabase/serverless (already in dependencies) instead of pg.
+// This avoids a startup crash when the optional `pg` package is not installed.
+import { neon } from '@neondatabase/serverless'
 
 const connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL
 
 if (!connectionString) {
-  throw new Error('Missing DATABASE_URL (or NEON_DATABASE_URL)')
+  // Warn at startup instead of throwing — lets the module load cleanly so that
+  // bypass-mode (STACK_AUTH_BYPASS=true) works even when DATABASE_URL is absent.
+  // Any actual query() call will still fail fast with an actionable error.
+  console.warn('[db] Missing DATABASE_URL (or NEON_DATABASE_URL). Database queries will fail.')
 }
 
-// Em Vercel/Serverless: use pool com limites baixos
-export const pool = new Pool({
-  connectionString,
-  max: Number(process.env.NEON_MAX_CONNECTIONS || 10),
-  ssl: { rejectUnauthorized: false },
-})
+// fullResults: true makes the response shape match the pg Pool interface:
+// { rows: [...], fields: [...], rowCount: n, ... }
+const sql = connectionString ? neon(connectionString, { fullResults: true }) : null
 
-// helper simples
+// Exported for backward-compatibility; no longer backed by a pg Pool.
+export const pool = null
+
+// Helper: execute a parameterized SQL query.
+// Returns { rows: [...], rowCount: n } compatible with the pg Pool.query() interface.
 export async function query(text, params) {
-  const client = await pool.connect()
-  try {
-    const res = await client.query(text, params)
-    return res
-  } finally {
-    client.release()
+  if (!sql) {
+    throw new Error(
+      'Database not configured: set DATABASE_URL or NEON_DATABASE_URL. ' +
+      'In bypass mode (STACK_AUTH_BYPASS=true), this code path should never be reached.'
+    )
   }
+  return await sql(text, params ?? [])
 }

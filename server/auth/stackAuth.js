@@ -64,7 +64,7 @@ const expectedIssuer = projectId
 
 const authCookieName = sanitizeString(process.env.AUTH_COOKIE_NAME) || 'solarinvest_session'
 const authCookieSecret = sanitizeString(process.env.AUTH_COOKIE_SECRET ?? process.env.JWT_SECRET ?? '')
-const stackAuthBypass = true
+const stackAuthBypass = process.env.STACK_AUTH_BYPASS === 'true'
 
 let lastJwksFetch = 0
 let jwksCache = null

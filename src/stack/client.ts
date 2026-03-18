@@ -13,20 +13,17 @@ if (!projectId || !publishableClientKey) {
 }
 
 /**
- * Get the base URL for the application
- * In production (Vercel), use the deployment URL
- * In development, use localhost
- */
-const getBaseUrl = () => {
-  if (typeof window === "undefined") return ""
-  
-  // Use the current origin (works for both dev and prod)
-  return window.location.origin
-}
-
-/**
  * Vite SPA: só cria o client no browser.
  * (evita edge cases de SSR e testes)
+ *
+ * Key configuration notes:
+ * - redirectMethod: "window"  — ensures Stack Auth redirects actually happen via
+ *   window.location (the default "none" silently swallows all SDK-triggered redirects,
+ *   causing the auth loop where the OAuth callback is processed but the user is never
+ *   sent on to the app).
+ * - urls: only home/afterSignIn/afterSignOut are set so the SDK's /handler/* defaults
+ *   remain intact (especially oauthCallback → /handler/oauth-callback), preventing
+ *   the sign-in URL from incorrectly pointing at the app root.
  */
 export const stackClientApp =
   typeof window === "undefined" || !projectId || !publishableClientKey
@@ -34,13 +31,12 @@ export const stackClientApp =
     : new StackClientApp({
         projectId,
         publishableClientKey,
-        tokenStore: "cookie", // Use cookie-based token storage for browser
+        tokenStore: "cookie",
+        redirectMethod: "window",
         urls: {
-          home: getBaseUrl(),
-          signIn: getBaseUrl(),
-          signUp: getBaseUrl(),
-          afterSignIn: getBaseUrl(),
-          afterSignUp: getBaseUrl(),
-          afterSignOut: getBaseUrl(),
+          home: "/",
+          afterSignIn: "/",
+          afterSignUp: "/",
+          afterSignOut: "/",
         },
       })
