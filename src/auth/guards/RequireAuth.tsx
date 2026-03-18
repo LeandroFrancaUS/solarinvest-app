@@ -3,7 +3,7 @@
 // Shows the sign-in form if not authenticated.
 // Falls back gracefully if Stack Auth is not configured.
 
-import React, { type ReactNode, useEffect, useRef, useState } from 'react'
+import React, { type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { useUser, SignIn } from '@stackframe/react'
 import { stackClientApp } from '../stack-client'
 
@@ -43,6 +43,31 @@ function StackInitErrorScreen() {
       </div>
     </div>
   )
+}
+
+/**
+ * Suspense fallback that owns the STACK_INIT_TIMEOUT_MS watchdog.
+ *
+ * The Stack Auth SDK's useUser() hook may suspend (via React's use()) while it
+ * validates the user's session over the network.  Without a <Suspense> boundary
+ * the suspension propagates to the nearest error boundary, which shows
+ * "Falhou ao renderizar".  This component is used as the fallback so the spinner
+ * is shown during suspension, and a timed-out state shows the error screen if the
+ * SDK never resolves within STACK_INIT_TIMEOUT_MS.
+ */
+function SuspendedLoadingFallback() {
+  const [timedOut, setTimedOut] = useState(false)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      console.warn('[auth] Stack Auth SDK init timed out after', STACK_INIT_TIMEOUT_MS / 1000, 's')
+      setTimedOut(true)
+    }, STACK_INIT_TIMEOUT_MS)
+    return () => { clearTimeout(timer) }
+  }, [])
+
+  if (timedOut) return <StackInitErrorScreen />
+  return <LoadingScreen />
 }
 
 /**
@@ -118,35 +143,25 @@ function OAuthCallbackHandler() {
   return <LoadingScreen />
 }
 
+/**
+ * Inner component that calls useUser().
+ *
+ * useUser() from @stackframe/react either:
+ *   - Returns null  → user is not signed in
+ *   - Returns User  → user is signed in
+ *   - Suspends      → session validation is in progress (React use() throws a Promise)
+ *
+ * It NEVER returns undefined.  The parent wraps this component in <Suspense> so
+ * suspension is handled gracefully instead of falling through to an error boundary.
+ */
 function RequireAuthWithStack({ children, fallback }: Props) {
   const user = useUser()
-  const [stackTimedOut, setStackTimedOut] = useState(false)
-
-  // If the Stack Auth SDK hasn't resolved useUser() within STACK_INIT_TIMEOUT_MS
-  // (e.g., its initialization network request is hung due to a browser extension
-  // lockdown like Yoroi/SES, or a slow network), show an error screen so the user
-  // is never stuck on an infinite spinner.
-  useEffect(() => {
-    if (user !== undefined) return
-    const timer = setTimeout(() => {
-      console.warn('[auth] Stack Auth SDK init timed out after', STACK_INIT_TIMEOUT_MS / 1000, 's')
-      setStackTimedOut(true)
-    }, STACK_INIT_TIMEOUT_MS)
-    return () => { clearTimeout(timer) }
-  }, [user])
 
   // While on the OAuth callback path we must process the authorization code
   // BEFORE rendering SignIn, otherwise the tokens are never extracted and the
   // user gets stuck in the sign-in loop.
   if (isOAuthCallbackPath()) {
     return <OAuthCallbackHandler />
-  }
-
-  if (user === undefined) {
-    if (stackTimedOut) {
-      return <StackInitErrorScreen />
-    }
-    return <LoadingScreen />
   }
 
   if (!user) {
@@ -177,8 +192,13 @@ export function RequireAuth({ children, fallback }: Props) {
   }
 
   return (
-    <RequireAuthWithStack fallback={fallback}>
-      {children}
-    </RequireAuthWithStack>
+    // SuspendedLoadingFallback owns the 15 s watchdog timer.
+    // If useUser() suspends (session validation in flight), the spinner is shown
+    // here instead of propagating to an error boundary.
+    <Suspense fallback={<SuspendedLoadingFallback />}>
+      <RequireAuthWithStack fallback={fallback}>
+        {children}
+      </RequireAuthWithStack>
+    </Suspense>
   )
 }

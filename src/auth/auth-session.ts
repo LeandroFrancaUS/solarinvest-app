@@ -16,9 +16,9 @@ interface UseAuthSessionResult {
 
 const POLL_INTERVAL_MS = 15 * 60 * 1000 // re-check every 15 minutes
 /** Retry delay after a transient server/network error (before the next poll fires). */
-const ERROR_RETRY_MS = 8 * 1000
+const ERROR_RETRY_MS = 3 * 1000
 /** After this many consecutive failures we stop retrying and show an error screen. */
-const MAX_RETRIES = 3
+const MAX_RETRIES = 2
 
 export function useAuthSession(): UseAuthSessionResult {
   const [me, setMe] = useState<MeResponse | null>(null)
