@@ -17,7 +17,10 @@ function getSql() {
     throw new Error('[database] Connection string is not configured')
   }
 
-  sqlSingleton = neon(resolvedConnection)
+  // fullResults: true makes the response shape match the pg Pool interface:
+  // { rows: [...], fields: [...], rowCount: n, ... }
+  // Note: each query creates a new HTTP request to Neon (no persistent connection).
+  sqlSingleton = neon(resolvedConnection, { fullResults: true })
   return sqlSingleton
 }
 
@@ -31,7 +34,7 @@ export function getPgPool() {
     async connect() {
       return {
         async query(text, params) {
-          return await sql.query(text, params)
+          return await sql(text, params ?? [])
         },
         release() {
           // No-op: Neon serverless manages its own connections per-request.
@@ -39,7 +42,7 @@ export function getPgPool() {
       }
     },
     async query(text, params) {
-      return await sql.query(text, params)
+      return await sql(text, params ?? [])
     },
   }
 

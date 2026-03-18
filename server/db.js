@@ -12,9 +12,9 @@ if (!connectionString) {
   console.warn('[db] Missing DATABASE_URL (or NEON_DATABASE_URL). Database queries will fail.')
 }
 
-// The neon() function is a serverless-compatible SQL client.
-// Kept as null when no connection string is configured so bypass mode works.
-const sql = connectionString ? neon(connectionString) : null
+// fullResults: true makes the response shape match the pg Pool interface:
+// { rows: [...], fields: [...], rowCount: n, ... }
+const sql = connectionString ? neon(connectionString, { fullResults: true }) : null
 
 // Exported for backward-compatibility; no longer backed by a pg Pool.
 export const pool = null
@@ -28,5 +28,5 @@ export async function query(text, params) {
       'In bypass mode (STACK_AUTH_BYPASS=true), this code path should never be reached.'
     )
   }
-  return await sql.query(text, params)
+  return await sql(text, params ?? [])
 }
