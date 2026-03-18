@@ -5,7 +5,11 @@ import type { AccessState, MeResponse } from './access-types'
 
 export function deriveAccessState(me: MeResponse | null, loading: boolean): AccessState {
   if (loading || me === null) return 'loading'
-  if (!me.authenticated) return 'loading'
+  // When the server confirms the user is not authenticated, we return 'pending'
+  // (a resolved, non-loading state) rather than 'loading'. The caller
+  // (RequireAuthorizedUser) handles authState === 'anonymous' before ever reading
+  // accessState, so this value is never rendered to the user in that case.
+  if (!me.authenticated) return 'pending'
   if (me.accessStatus === 'approved' && me.authorized) return 'approved'
   if (me.accessStatus === 'blocked') return 'blocked'
   if (me.accessStatus === 'revoked') return 'revoked'

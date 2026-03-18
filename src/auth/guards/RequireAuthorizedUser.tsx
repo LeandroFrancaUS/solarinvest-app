@@ -36,13 +36,21 @@ interface Props {
 export function RequireAuthorizedUser({ children }: Props) {
   const { authState, accessState, me, refresh } = useAuthSession()
 
-  if (authState === 'loading' || accessState === 'loading') {
+  // Two-phase loading check:
+  //   1. authState === 'loading': /api/auth/me hasn't responded yet
+  //   2. authState === 'anonymous': server confirmed unauthenticated — let RequireAuth show sign-in
+  //   3. accessState === 'loading': authenticated but DB authorization record is still being fetched
+  if (authState === 'loading') {
     return <LoadingScreen />
   }
 
   if (authState === 'anonymous') {
-    // Not authenticated — let RequireAuth handle the redirect
+    // Not authenticated — let RequireAuth handle the sign-in form.
     return <>{children}</>
+  }
+
+  if (accessState === 'loading') {
+    return <LoadingScreen />
   }
 
   if (accessState !== 'approved') {
