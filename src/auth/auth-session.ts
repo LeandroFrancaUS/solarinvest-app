@@ -17,6 +17,8 @@ interface UseAuthSessionResult {
 const POLL_INTERVAL_MS = 15 * 60 * 1000 // re-check every 15 minutes
 /** Retry delay after a transient server/network error (before the next poll fires). */
 const ERROR_RETRY_MS = 8 * 1000
+/** After this many consecutive failures we stop retrying and show an error screen. */
+const MAX_RETRIES = 3
 
 export function useAuthSession(): UseAuthSessionResult {
   const [me, setMe] = useState<MeResponse | null>(null)
@@ -24,6 +26,7 @@ export function useAuthSession(): UseAuthSessionResult {
   const [loading, setLoading] = useState(true)
   const abortRef = useRef<AbortController | null>(null)
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const failCountRef = useRef(0)
 
   const load = useCallback(async () => {
     if (retryRef.current) {
@@ -38,6 +41,7 @@ export function useAuthSession(): UseAuthSessionResult {
     try {
       const data = await fetchMe(controller.signal)
       if (controller.signal.aborted) return
+      failCountRef.current = 0
       setMe(data)
       setAuthState(data.authenticated ? 'authenticated' : 'anonymous')
     } catch (err) {
@@ -45,10 +49,15 @@ export function useAuthSession(): UseAuthSessionResult {
       // Network error or unexpected server error (5xx):
       // Do NOT set authState to 'anonymous' — that would bypass the authorization
       // check and allow unauthenticated users to reach the app.
-      // Instead, keep the current authState (stays 'loading' on first attempt) and
-      // schedule a retry so the loading screen persists until the server recovers.
-      console.warn('[auth] fetchMe failed, retrying in', ERROR_RETRY_MS / 1000, 's —', err instanceof Error ? err.message : err)
-      retryRef.current = setTimeout(() => { void load() }, ERROR_RETRY_MS)
+      // Retry up to MAX_RETRIES times; after that expose an 'error' state so the
+      // user sees an actionable error screen instead of an infinite spinner.
+      failCountRef.current += 1
+      console.warn('[auth] fetchMe failed (attempt', failCountRef.current, ') —', err instanceof Error ? err.message : err)
+      if (failCountRef.current < MAX_RETRIES) {
+        retryRef.current = setTimeout(() => { void load() }, ERROR_RETRY_MS)
+      } else {
+        setAuthState('error')
+      }
     } finally {
       if (!controller.signal.aborted) setLoading(false)
     }
@@ -65,7 +74,10 @@ export function useAuthSession(): UseAuthSessionResult {
   }, [load])
 
   const accessState = deriveAccessState(me, loading)
-  const refresh = useCallback(() => { void load() }, [load])
+  const refresh = useCallback(() => {
+    failCountRef.current = 0
+    void load()
+  }, [load])
 
   return { authState, accessState, me, refresh }
 }

@@ -5,7 +5,7 @@ export type AccessRole = 'admin' | 'manager' | 'user'
 
 export type AccessStatus = 'pending' | 'approved' | 'revoked' | 'blocked'
 
-export type AuthState = 'loading' | 'anonymous' | 'authenticated'
+export type AuthState = 'loading' | 'anonymous' | 'authenticated' | 'error'
 
 export type AccessState = 'loading' | 'approved' | 'pending' | 'blocked' | 'revoked'
 

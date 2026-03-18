@@ -29,6 +29,25 @@ function LoadingScreen() {
   )
 }
 
+function ServerErrorScreen({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="max-w-sm text-center">
+        <p className="mb-2 text-lg font-semibold text-slate-700">Serviço temporariamente indisponível</p>
+        <p className="mb-6 text-sm text-slate-500">
+          Não foi possível verificar seu acesso. Verifique sua conexão e tente novamente.
+        </p>
+        <button
+          onClick={onRetry}
+          className="rounded-lg bg-amber-500 px-6 py-2 text-sm font-medium text-white hover:bg-amber-600"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    </div>
+  )
+}
+
 interface Props {
   children: ReactNode
 }
@@ -38,10 +57,15 @@ export function RequireAuthorizedUser({ children }: Props) {
 
   // Two-phase loading check:
   //   1. authState === 'loading': /api/auth/me hasn't responded yet
-  //   2. authState === 'anonymous': server confirmed unauthenticated — let RequireAuth show sign-in
-  //   3. accessState === 'loading': authenticated but DB authorization record is still being fetched
+  //   2. authState === 'error': repeated failures — show error screen with retry
+  //   3. authState === 'anonymous': server confirmed unauthenticated — let RequireAuth show sign-in
+  //   4. accessState === 'loading': authenticated but DB authorization record is still being fetched
   if (authState === 'loading') {
     return <LoadingScreen />
+  }
+
+  if (authState === 'error') {
+    return <ServerErrorScreen onRetry={refresh} />
   }
 
   if (authState === 'anonymous') {
