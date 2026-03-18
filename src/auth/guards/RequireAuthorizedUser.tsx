@@ -2,8 +2,10 @@
 // Renders children only if the user is authenticated AND authorized in the internal DB.
 // Shows appropriate screens for loading, pending, blocked, and revoked states.
 
-import React, { type ReactNode, createContext, useContext } from 'react'
+import React, { type ReactNode, createContext, useContext, useCallback } from 'react'
+import { useUser } from '@stackframe/react'
 import { useAuthSession } from '../auth-session'
+import { stackClientApp } from '../stack-client'
 import type { MeResponse } from '../../lib/auth/access-types'
 import { AccessPendingScreen } from '../../pages/AccessPendingPage'
 
@@ -52,8 +54,17 @@ interface Props {
   children: ReactNode
 }
 
-export function RequireAuthorizedUser({ children }: Props) {
-  const { authState, accessState, me, refresh } = useAuthSession()
+/**
+ * Shared rendering logic for both the Stack-Auth and the bypass-mode paths.
+ * Receives an optional token getter that, when provided, is forwarded to
+ * `useAuthSession` so that every `/api/auth/me` request carries a fresh
+ * `Authorization: Bearer <token>` header.
+ */
+function RequireAuthorizedUserCore({
+  children,
+  getAccessToken,
+}: Props & { getAccessToken?: (() => Promise<string | null>) | null }) {
+  const { authState, accessState, me, refresh } = useAuthSession(getAccessToken)
 
   // Two-phase loading check:
   //   1. authState === 'loading': /api/auth/me hasn't responded yet
@@ -92,4 +103,50 @@ export function RequireAuthorizedUser({ children }: Props) {
       {children}
     </AuthContext.Provider>
   )
+}
+
+/**
+ * Inner component used when Stack Auth IS configured.
+ *
+ * Called only when we're already inside the <Suspense> + RequireAuthWithStack
+ * boundary established by <RequireAuth>, which guarantees:
+ *   1. A <StackProvider> is present in the React tree.
+ *   2. useUser() has already resolved (does not suspend again here).
+ *   3. The user is authenticated — useUser() returns a non-null User object.
+ *
+ * We call `user.getAccessToken()` to obtain a fresh Stack Auth JWT and forward
+ * it to useAuthSession so that every /api/auth/me request includes an
+ * `Authorization: Bearer <token>` header.  This prevents the 401 that occurred
+ * when the server received no recognisable credential from the client.
+ */
+function RequireAuthorizedUserWithStack({ children }: Props) {
+  const user = useUser()
+
+  // Stable callback — recreated only when the user identity changes.
+  // `user.getAccessToken()` automatically refreshes the short-lived JWT when
+  // it is about to expire, so we always forward a valid token.
+  const getAccessToken = useCallback(
+    () => (user ? user.getAccessToken() : Promise.resolve(null)),
+    [user],
+  )
+
+  return (
+    <RequireAuthorizedUserCore getAccessToken={getAccessToken}>
+      {children}
+    </RequireAuthorizedUserCore>
+  )
+}
+
+export function RequireAuthorizedUser({ children }: Props) {
+  if (stackClientApp) {
+    // Stack Auth IS configured: RequireAuth guarantees that this component is
+    // rendered inside a <StackProvider> and only after the user is authenticated.
+    // RequireAuthorizedUserWithStack safely calls useUser() in that context.
+    return <RequireAuthorizedUserWithStack>{children}</RequireAuthorizedUserWithStack>
+  }
+
+  // Stack Auth NOT configured (dev/bypass mode): proceed without a token getter.
+  // The server is expected to allow requests without a Bearer token in this mode
+  // (e.g., via STACK_AUTH_BYPASS=true or when stackAuthEnabled is false).
+  return <RequireAuthorizedUserCore>{children}</RequireAuthorizedUserCore>
 }

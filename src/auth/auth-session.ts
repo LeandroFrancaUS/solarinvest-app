@@ -20,13 +20,29 @@ const ERROR_RETRY_MS = 3 * 1000
 /** After this many consecutive failures we stop retrying and show an error screen. */
 const MAX_RETRIES = 2
 
-export function useAuthSession(): UseAuthSessionResult {
+/**
+ * Optional function that returns the current Stack Auth access token (a JWT).
+ * When provided, the token is sent as `Authorization: Bearer <token>` so the
+ * server can verify the caller's identity via its JWKS endpoint.
+ *
+ * Keeping this as a callback (rather than accepting the token value directly)
+ * lets the hook always use the most up-to-date token on every fetch, including
+ * after background token refreshes performed by the Stack Auth SDK.
+ */
+type GetAccessToken = () => Promise<string | null>
+
+export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthSessionResult {
   const [me, setMe] = useState<MeResponse | null>(null)
   const [authState, setAuthState] = useState<AuthState>('loading')
   const [loading, setLoading] = useState(true)
   const abortRef = useRef<AbortController | null>(null)
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const failCountRef = useRef(0)
+
+  // Keep the latest getAccessToken in a ref so the stable `load` callback always
+  // calls the most recent version without appearing in its own dependency array.
+  const getAccessTokenRef = useRef<GetAccessToken | null | undefined>(getAccessToken)
+  getAccessTokenRef.current = getAccessToken
 
   const load = useCallback(async () => {
     if (retryRef.current) {
@@ -39,7 +55,23 @@ export function useAuthSession(): UseAuthSessionResult {
 
     setLoading(true)
     try {
-      const data = await fetchMe(controller.signal)
+      // Build auth headers: if a token getter was supplied, resolve the current
+      // access token and forward it as a Bearer header so the server can verify
+      // the caller's identity using the Stack Auth JWKS endpoint.
+      // Any error from the token getter propagates to the outer catch so the
+      // retry / error-state logic applies (avoids a silent fallback to 401).
+      let authHeaders: Record<string, string> | undefined
+      const getter = getAccessTokenRef.current
+      if (getter) {
+        const token = await getter()
+        if (token) {
+          authHeaders = { Authorization: `Bearer ${token}` }
+        }
+      }
+
+      if (controller.signal.aborted) return
+
+      const data = await fetchMe(controller.signal, authHeaders)
       if (controller.signal.aborted) return
       failCountRef.current = 0
       setMe(data)
