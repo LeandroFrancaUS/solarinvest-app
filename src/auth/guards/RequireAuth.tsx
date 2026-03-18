@@ -3,7 +3,7 @@
 // Shows the sign-in form if not authenticated.
 // Falls back gracefully if Stack Auth is not configured.
 
-import React, { type ReactNode } from 'react'
+import React, { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useUser, SignIn } from '@stackframe/react'
 import { stackClientApp } from '../stack-client'
 
@@ -23,8 +23,87 @@ function LoadingScreen() {
   )
 }
 
+/**
+ * Returns true when the current URL is on the Stack Auth OAuth callback path.
+ * The SDK defaults the callback path to /handler/oauth-callback.
+ * We match the exact pathname (with or without a trailing slash) to avoid
+ * false positives from paths that merely end with "oauth-callback".
+ */
+function isOAuthCallbackPath(): boolean {
+  if (typeof window === 'undefined') return false
+  const pathname = window.location.pathname.replace(/\/$/, '')
+  // Use the configured oauthCallback path from the SDK; default is /handler/oauth-callback
+  const callbackPath = (stackClientApp?.urls.oauthCallback ?? '/handler/oauth-callback').replace(/\/$/, '')
+  // callbackPath may be absolute (https://...) — extract just the pathname
+  try {
+    return pathname === new URL(callbackPath, window.location.origin).pathname.replace(/\/$/, '')
+  } catch {
+    return pathname === callbackPath
+  }
+}
+
+/**
+ * Handles the OAuth callback after a redirect from the OAuth provider.
+ *
+ * Without this component, the OAuth tokens are never extracted because the
+ * main app renders <SignIn> when user === null — it never calls
+ * app.callOAuthCallback() and the user stays stuck on the sign-in page.
+ */
+function OAuthCallbackHandler() {
+  const called = useRef(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (called.current || !stackClientApp) return
+    called.current = true
+    const app = stackClientApp
+
+    app.callOAuthCallback().then((redirected) => {
+      if (!redirected) {
+        // No OAuth params in the URL (or cookie missing) — go back to sign-in.
+        app.redirectToSignIn({ noRedirectBack: true }).catch(() => {
+          // Fallback: hard navigate to root if SDK redirect fails.
+          window.location.replace('/')
+        })
+      }
+      // If redirected === true, the SDK already navigated the user to afterSignIn.
+    }).catch((err: unknown) => {
+      console.error('[OAuthCallbackHandler] callOAuthCallback error', err)
+      setError(err instanceof Error ? err.message : String(err))
+    })
+  }, [])
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-10">
+        <div className="w-full max-w-md space-y-4 rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-100 text-center">
+          <h1 className="text-xl font-semibold text-slate-900">Erro ao entrar</h1>
+          <p className="text-sm text-slate-500">
+            Não foi possível completar o login. Por favor, tente novamente.
+          </p>
+          <button
+            className="mt-4 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+            onClick={() => { window.location.replace('/') }}
+          >
+            Voltar ao login
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return <LoadingScreen />
+}
+
 function RequireAuthWithStack({ children, fallback }: Props) {
   const user = useUser()
+
+  // While on the OAuth callback path we must process the authorization code
+  // BEFORE rendering SignIn, otherwise the tokens are never extracted and the
+  // user gets stuck in the sign-in loop.
+  if (isOAuthCallbackPath()) {
+    return <OAuthCallbackHandler />
+  }
 
   if (user === undefined) {
     return <LoadingScreen />
