@@ -121,8 +121,8 @@ export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthS
       failCountRef.current = 0
       setMe(data)
       const nextState = data.authenticated ? 'authenticated' : 'anonymous'
-      // Safe production log: confirms whether auth completed (no PII)
-      console.info('[auth] /me authenticated=%s', data.authenticated ? 'yes' : 'no')
+      // Safe production log: confirms auth completion + source (no PII / secrets)
+      console.info('[auth] /me authenticated=%s source=%s', data.authenticated ? 'yes' : 'no', data.authSource ?? 'none')
       if (import.meta.env.DEV) {
         // Consolidated DEV diagnostic — auth source, role, state transition
         console.debug(

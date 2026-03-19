@@ -150,9 +150,11 @@ function RequireAuthorizedUserWithStack({ children }: Props) {
         })
         if (res.ok) {
           const body = await res.json().catch(() => ({})) as { ok?: boolean; sessionCookie?: boolean }
+          // Safe production log: confirms login completed (no PII / secrets)
+          console.info('[auth] login status=%d', res.status)
           if (import.meta.env.DEV) {
             // Verbose diagnostic in development — includes session cookie status
-            console.info('[auth] login status=%d session=%s', res.status, body?.sessionCookie ? 'yes' : 'no')
+            console.debug('[auth] login session=%s', body?.sessionCookie ? 'yes' : 'no')
           }
           if (!body?.sessionCookie) {
             // Expected when AUTH_COOKIE_SECRET is not set.  Bearer-token auth still works.
