@@ -4235,19 +4235,39 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useUser()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = useCallback(async () => {
+    if (isLoggingOut) return
+    setIsLoggingOut(true)
+    if (import.meta.env.DEV) console.debug('[logout] started')
     try {
       await clearAllClientData()
+      if (import.meta.env.DEV) console.debug('[logout] local session cleared')
     } catch {
       // non-fatal: proceed with sign out even if client data clear fails
     }
     try {
-      await user?.signOut()
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error)
+      // Clear HttpOnly session cookie on the server if AUTH_COOKIE_SECRET is configured
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {
+        // non-fatal: continue with signOut even if the server endpoint is unavailable
+      })
+    } catch {
+      // non-fatal
     }
-  }, [user])
+    try {
+      if (import.meta.env.DEV) console.debug('[logout] redirecting to sign-out')
+      if (user) {
+        await user.signOut()
+      } else {
+        // No Stack Auth user — just reload to trigger the sign-in screen
+        window.location.replace('/')
+      }
+    } catch (error) {
+      console.error('[logout] signOut error:', error)
+      setIsLoggingOut(false)
+    }
+  }, [isLoggingOut, user])
 
   // Check if we're in print mode (for Bento Grid PDF generation)
   const isPrintMode = useMemo(() => {
@@ -23772,8 +23792,9 @@ export default function App() {
         },
         {
           id: 'config-sair',
-          label: 'Sair',
+          label: isLoggingOut ? 'Saindo…' : 'Sair',
           icon: '🚪',
+          disabled: isLoggingOut,
           onSelect: () => {
             void handleLogout()
           },

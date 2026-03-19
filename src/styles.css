@@ -7324,8 +7324,8 @@ i:hover {
     transition: transform 0.25s ease;
     z-index: 1200;
     box-shadow: 24px 0 48px rgba(15, 23, 42, 0.4);
-    overflow-y: auto;
-    padding: 0 20px 36px;
+    overflow: hidden;
+    padding: 0 20px 0;
   }
 
   .sidebar.open {
@@ -7414,6 +7414,10 @@ i:hover {
   .sidebar-section-scroll {
     margin: 0;
     padding: 0 0 18px;
+  }
+
+  .sidebar-section-bottom {
+    padding-bottom: 20px;
   }
 
   .dashboard-panels {
