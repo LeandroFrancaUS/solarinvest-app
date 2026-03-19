@@ -1,149 +1,150 @@
-import jwt from 'jsonwebtoken'
-import jwksRsa from 'jwks-rsa'
+// api/auth/login.js
+// POST /api/auth/login
+//
+// Exchanges a valid Stack Auth Bearer token for a backend HMAC session cookie.
+// This gives /api/auth/me a second authentication path (session cookie) in addition
+// to the per-request Bearer-token JWKS verification already implemented in
+// server/auth/stackAuth.js.
+//
+// Design constraints
+// ------------------
+// • NO external JWT library (jsonwebtoken, jwks-rsa, etc.) — those are not
+//   installed in package.json and would cause ERR_MODULE_NOT_FOUND crashes.
+// • Uses only node:crypto built-ins + the project's own server/auth/stackAuth.js
+//   (which already implements JWKS verification via the same built-ins).
+// • The signed session cookie is verifiable by verifyHmacJwt in stackAuth.js —
+//   both use base64url-encoded HS256 JWTs with sub/email/exp/nbf/iat claims.
 
-const JWKS_URL = process.env.STACK_JWKS_URL || process.env.JWKS_URL
-const AUDIENCE = process.env.STACK_PROJECT_ID || process.env.NEXT_PUBLIC_STACK_PROJECT_ID
-const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'brsolarinvest@gmail.com').trim()
+import { createHmac } from 'node:crypto'
+import { getStackUser } from '../../server/auth/stackAuth.js'
 
-function sanitizeString(value) {
-  return typeof value === 'string' ? value.trim() : ''
+// ── Session cookie configuration ─────────────────────────────────────────────
+const SESSION_EXPIRY_SECONDS = 7 * 24 * 60 * 60   // 7 days
+const COOKIE_NAME = (process.env.AUTH_COOKIE_NAME ?? '').trim() || 'solarinvest_session'
+const COOKIE_SECRET = (process.env.AUTH_COOKIE_SECRET ?? process.env.JWT_SECRET ?? '').trim()
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Sign a minimal session JWT with HMAC-SHA256.
+ *
+ * Produces a standard base64url HS256 JWT that is verifiable by verifyHmacJwt()
+ * in server/auth/stackAuth.js without any external library.
+ *
+ * @param {string} userId  Stack Auth user ID (stored as `sub`)
+ * @param {string} email   User email address
+ * @returns {string|null}  Signed token string, or null on error
+ */
+function signSessionJwt(userId, email) {
+  if (!COOKIE_SECRET || !userId) return null
+
+  const now = Math.floor(Date.now() / 1000)
+
+  // base64url encode using Node.js built-in (requires Node 16+, project uses 24.x)
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+  const payload = Buffer.from(JSON.stringify({
+    sub: userId,
+    email: email || '',
+    iat: now,
+    exp: now + SESSION_EXPIRY_SECONDS,
+    nbf: now - 5,   // 5 seconds clock-skew grace period
+  })).toString('base64url')
+
+  const signingInput = `${header}.${payload}`
+  const signature = createHmac('sha256', COOKIE_SECRET)
+    .update(signingInput)
+    .digest()
+    .toString('base64url')
+
+  return `${signingInput}.${signature}`
 }
 
-function buildTrustedOriginsSet() {
-  const raw = [
-    process.env.TRUSTED_WEB_ORIGINS,
-    process.env.STACK_TRUSTED_DOMAIN,
-    process.env.TRUSTED_DOMAIN,
-    process.env.CORS_ALLOWED_ORIGINS,
-    process.env.ALLOWED_ORIGINS,
-  ]
-    .map((v) => sanitizeString(v))
-    .filter(Boolean)
-    .join(',')
-
-  const set = new Set(
-    raw
-      .split(',')
-      .map((v) => sanitizeString(v))
-      .filter(Boolean),
+/**
+ * Whether the current runtime environment is production.
+ * Covers Node's standard NODE_ENV and Vercel's VERCEL_ENV.
+ */
+function isProductionEnv() {
+  return (
+    process.env.NODE_ENV === 'production' ||
+    (typeof process.env.VERCEL_ENV === 'string' &&
+      process.env.VERCEL_ENV !== 'development')
   )
-
-  // Defaults
-  set.add('https://app.solarinvest.app')
-  set.add('http://localhost:5173')
-  set.add('http://127.0.0.1:5173')
-
-  return set
 }
 
-const TRUSTED_ORIGINS = buildTrustedOriginsSet()
-
-function getRequestOrigin(req) {
-  const origin = req.headers?.origin
-  if (typeof origin === 'string' && origin.trim()) return origin.trim()
-
-  const referer = req.headers?.referer
-  if (typeof referer === 'string' && referer.trim()) {
-    try {
-      return new URL(referer).origin
-    } catch {
-      return ''
-    }
-  }
-
-  return ''
-}
-
-let jwksClient
-if (JWKS_URL) {
-  jwksClient = jwksRsa({ jwksUri: JWKS_URL, cache: true, cacheMaxEntries: 5, cacheMaxAge: 600000 })
-}
-
-function getKey(header, callback) {
-  if (!jwksClient) {
-    callback(new Error('JWKS not configured'))
-    return
-  }
-  jwksClient.getSigningKey(header.kid, (err, key) => {
-    if (err) {
-      callback(err)
-      return
-    }
-    const pub = key.getPublicKey()
-    callback(null, pub)
-  })
-}
+// ── Request handler ───────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+
+  // Pre-flight (CORS)
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Allow', 'POST,OPTIONS')
+    res.statusCode = 204
+    res.end()
+    return
+  }
+
+  // Only POST is accepted.  Return 405 (not 500) so Vercel health checks,
+  // browser prefetches, and stale GET callers get a meaningful response
+  // instead of a crash.
   if (req.method !== 'POST') {
+    console.info('[auth/login] rejected', req.method, 'request — only POST is supported')
     res.setHeader('Allow', 'POST')
-    res.status(405).end('Method Not Allowed')
+    res.statusCode = 405
+    res.end(JSON.stringify({ error: 'Method Not Allowed' }))
+    return
+  }
+
+  const authHeaderPresent = Boolean(req.headers?.authorization)
+  console.info('[auth/login] POST — Authorization header present:', authHeaderPresent)
+
+  if (!authHeaderPresent) {
+    res.statusCode = 401
+    res.end(JSON.stringify({ error: 'Missing Authorization header' }))
     return
   }
 
   try {
-    // 0) Enforce trusted origins (browser requests)
-    const requestOrigin = getRequestOrigin(req)
-    if (requestOrigin && !TRUSTED_ORIGINS.has(requestOrigin)) {
-      res.status(403).json({ error: 'Forbidden origin' })
+    // Verify the Stack Auth Bearer token using the existing JWKS implementation.
+    // getStackUser() reads the Authorization header, verifies via JWKS, and
+    // returns { id, email, payload } or null.
+    const stackUser = await getStackUser(req)
+    console.info('[auth/login] stack user resolved:', stackUser ? `id=${stackUser.id}` : 'null')
+
+    if (!stackUser?.id) {
+      res.statusCode = 401
+      res.end(JSON.stringify({ error: 'Unauthorized' }))
       return
     }
 
-    const { token } = req.body || {}
+    if (!COOKIE_SECRET) {
+      // AUTH_COOKIE_SECRET not configured: skip cookie creation.
+      // Bearer-token JWKS verification (in /api/auth/me) remains the active auth path.
+      console.warn('[auth/login] AUTH_COOKIE_SECRET not set — session cookie skipped; Bearer-token auth remains active')
+      res.statusCode = 200
+      res.end(JSON.stringify({ ok: true, sessionCookie: false }))
+      return
+    }
+
+    const token = signSessionJwt(stackUser.id, stackUser.email)
     if (!token) {
-      res.status(400).json({ error: 'Missing token' })
+      console.error('[auth/login] failed to sign session JWT')
+      res.statusCode = 500
+      res.end(JSON.stringify({ error: 'Failed to create session' }))
       return
     }
 
-    let payload = null
-    if (jwksClient && AUDIENCE) {
-      try {
-        payload = await new Promise((resolve, reject) => {
-          jwt.verify(token, getKey, { audience: AUDIENCE, algorithms: ['RS256'] }, (err, decoded) => {
-            if (err) {
-              reject(err)
-              return
-            }
-            resolve(decoded)
-          })
-        })
-      } catch (error) {
-        console.warn('[login] JWKS verify failed, falling back to decode', error)
-      }
-    }
-
-    if (!payload) {
-      payload = jwt.decode(token) || {}
-    }
-
-    const secret = process.env.AUTH_COOKIE_SECRET
-    if (!secret) {
-      res.status(500).json({ error: 'Server not configured for cookie auth' })
-      return
-    }
-
-    const id = payload.sub || payload.sub_id || payload.user_id || payload.email || null
-    if (!id) {
-      res.status(400).json({ error: 'Token missing subject/email' })
-      return
-    }
-
-    // (Optional) You can use this later for bootstrap
-    // Example: if ((payload.email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase()) { ... }
-    void ADMIN_EMAIL
-
-    const sessionToken = jwt.sign(payload, secret, { expiresIn: '7d' })
-
-    const isSecure = process.env.NODE_ENV === 'production'
+    const secure = isProductionEnv() ? '; Secure' : ''
     res.setHeader(
       'Set-Cookie',
-      `solarinvest_session=${sessionToken}; HttpOnly; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax${
-        isSecure ? '; Secure' : ''
-      }`,
+      `${COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=${SESSION_EXPIRY_SECONDS}; SameSite=Lax${secure}`,
     )
-    res.status(200).json({ ok: true })
+    console.info('[auth/login] session cookie set — userId:', stackUser.id)
+    res.statusCode = 200
+    res.end(JSON.stringify({ ok: true, sessionCookie: true }))
   } catch (error) {
-    console.error('/api/auth/login', error)
-    res.status(500).json({ error: 'Internal error' })
+    console.error('[auth/login] error:', error?.message ?? String(error))
+    res.statusCode = 500
+    res.end(JSON.stringify({ error: 'Internal error' }))
   }
 }

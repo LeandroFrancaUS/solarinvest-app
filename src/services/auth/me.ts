@@ -8,7 +8,10 @@ const ME_ENDPOINT = resolveApiUrl('/api/auth/me')
 /** Abort the request if the server doesn't respond within this many ms. */
 const REQUEST_TIMEOUT_MS = 5_000
 
-export async function fetchMe(signal?: AbortSignal): Promise<MeResponse> {
+export async function fetchMe(
+  signal?: AbortSignal,
+  authHeaders?: Record<string, string>,
+): Promise<MeResponse> {
   // Combine the caller's abort signal with a hard timeout so a hung connection
   // is never treated as perpetual loading — it will throw and be counted as a
   // failure by the MAX_RETRIES logic in useAuthSession.
@@ -26,6 +29,7 @@ export async function fetchMe(signal?: AbortSignal): Promise<MeResponse> {
     const response = await fetch(ME_ENDPOINT, {
       method: 'GET',
       credentials: 'include',
+      ...(authHeaders ? { headers: authHeaders } : {}),
       signal: timeoutController.signal,
     })
 

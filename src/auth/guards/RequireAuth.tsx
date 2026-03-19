@@ -72,30 +72,45 @@ function SuspendedLoadingFallback() {
 
 /**
  * Returns true when the current URL is on the Stack Auth OAuth callback path.
- * The SDK defaults the callback path to /handler/oauth-callback.
- * We match the exact pathname (with or without a trailing slash) to avoid
- * false positives from paths that merely end with "oauth-callback".
+ *
+ * This app uses the Stack Auth PKCE flow (Model B):
+ *   1. signInWithOAuth() → user → Google → api.stack-auth.com/oauth/callback/google
+ *      (Stack Auth's hosted endpoint processes the Google code — Model A)
+ *   2. Stack Auth redirects to /handler/oauth-callback?code=<stack-code>&state=<state>
+ *      (our local SPA route — Model B)
+ *   3. OAuthCallbackHandler calls callOAuthCallback() to exchange the Stack code
+ *      for access+refresh tokens (PKCE code verifier stored in cookie)
+ *   4. Tokens stored in cookies; user redirected to afterSignIn ("/")
+ *
+ * Both steps are necessary and not in conflict.  The "hosted" endpoint on
+ * api.stack-auth.com handles Google↔StackAuth exchange; our local handler
+ * handles the StackAuth↔app PKCE exchange.
+ *
+ * ⚠ If Stack Auth returns HTTP 400 at its own /oauth/callback/google, the
+ *   redirect_uri (https://<domain>/handler/oauth-callback) is not registered in
+ *   the Stack Auth project settings.  Register it there — no code change is needed
+ *   for that specific fix.
  */
 function isOAuthCallbackPath(): boolean {
   if (typeof window === 'undefined') return false
   const pathname = window.location.pathname.replace(/\/$/, '')
-  // Use the configured oauthCallback path from the SDK; default is /handler/oauth-callback
   const callbackPath = (stackClientApp?.urls.oauthCallback ?? '/handler/oauth-callback').replace(/\/$/, '')
-  // callbackPath may be absolute (https://...) — extract just the pathname
   try {
     return pathname === new URL(callbackPath, window.location.origin).pathname.replace(/\/$/, '')
-  } catch (e) {
-    console.warn('[auth] isOAuthCallbackPath: failed to parse callbackPath', callbackPath, e)
+  } catch {
     return pathname === callbackPath
   }
 }
 
 /**
- * Handles the OAuth callback after a redirect from the OAuth provider.
+ * Handles the local half of the Stack Auth PKCE OAuth callback.
  *
- * Without this component, the OAuth tokens are never extracted because the
- * main app renders <SignIn> when user === null — it never calls
- * app.callOAuthCallback() and the user stays stuck on the sign-in page.
+ * After api.stack-auth.com processes the Google response it redirects to
+ * /handler/oauth-callback?code=<stack-code>&state=<state>.  This component
+ * exchanges that code for tokens via callOAuthCallback().
+ *
+ * Without this handler the authorization code would expire unused and the
+ * user would remain unauthenticated.
  */
 function OAuthCallbackHandler() {
   const called = useRef(false)
@@ -106,15 +121,20 @@ function OAuthCallbackHandler() {
     called.current = true
     const app = stackClientApp
 
+    console.debug('[OAuthCallbackHandler] processing PKCE callback at', window.location.pathname)
+
     app.callOAuthCallback().then((redirected) => {
       if (!redirected) {
-        // No OAuth params in the URL (or cookie missing) — go back to sign-in.
+        // No valid OAuth params in the URL (cookie expired, reloaded page, etc.).
+        // Navigate back to the sign-in page; noRedirectBack avoids adding
+        // after_auth_return_to which would contaminate the next OAuth redirect_uri.
+        console.warn('[OAuthCallbackHandler] no OAuth params found — redirecting to sign-in')
         app.redirectToSignIn({ noRedirectBack: true }).catch(() => {
-          // Fallback: hard navigate to root if SDK redirect fails.
           window.location.replace('/')
         })
+      } else {
+        console.debug('[OAuthCallbackHandler] callOAuthCallback succeeded — redirected to afterSignIn')
       }
-      // If redirected === true, the SDK already navigated the user to afterSignIn.
     }).catch((err: unknown) => {
       console.error('[OAuthCallbackHandler] callOAuthCallback error', err)
       setError(err instanceof Error ? err.message : String(err))
