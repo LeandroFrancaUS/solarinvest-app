@@ -25,6 +25,10 @@ export function renderBentoLeasingToHtml(dados: PrintableProposalProps): Promise
 
     let resolved = false
 
+    // Mutable ref to the React root so the inline PrintableHost component can
+    // call cleanup() without triggering the no-use-before-define lint rule.
+    let rootRef: ReturnType<typeof createRoot> | null = null
+
     const cleanup = (root: ReturnType<typeof createRoot> | null) => {
       if (root) {
         root.unmount()
@@ -47,7 +51,7 @@ export function renderBentoLeasingToHtml(dados: PrintableProposalProps): Promise
           if (containerEl) {
             resolved = true
             resolve(containerEl.outerHTML)
-            cleanup(rootInstance)
+            cleanup(rootRef)
           }
         }, 500)
 
@@ -64,6 +68,7 @@ export function renderBentoLeasingToHtml(dados: PrintableProposalProps): Promise
     }
 
     const rootInstance = createRoot(container)
+    rootRef = rootInstance
     rootInstance.render(<PrintableHost />)
 
     // Fallback timeout

@@ -47,7 +47,7 @@ function resolveDocumentBaseUrl(): string | null {
     }
 
     return ensureTrailingSlash(pathname)
-  } catch (error) {
+  } catch {
     return null
   }
 }

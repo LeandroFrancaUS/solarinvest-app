@@ -5,6 +5,25 @@
  * Used by Playwright tests and debug tools
  */
 
+/** Extended window properties used for Paged.js + Playwright integration. */
+interface BentoWindow extends Window {
+  pagedRenderingComplete?: boolean
+  __bentoValidation?: {
+    validateBentoRoot: typeof validateBentoRoot
+    validateTailwindCSS: typeof validateTailwindCSS
+    validatePagedJsComplete: typeof validatePagedJsComplete
+    validateNoTables: typeof validateNoTables
+    validateBrandAssets: typeof validateBrandAssets
+    validateAll: typeof validateAll
+    playwrightValidate: typeof playwrightValidate
+  }
+}
+
+/** Extended CSSStyleDeclaration that includes the vendor-prefixed property. */
+interface CSSStyleDeclarationWithWebkit extends CSSStyleDeclaration {
+  webkitPrintColorAdjust?: string
+}
+
 export interface ValidationResult {
   isValid: boolean
   errors: string[]
@@ -56,16 +75,17 @@ export function validateTailwindCSS(document: Document): ValidationResult {
       errors.push(`Tailwind CSS not applied correctly. Expected bg-solar-bg (#F8FAFC), got: ${bgColor}`)
     }
     
-    // Check for print-color-adjust
-    const printColorAdjust = window.getComputedStyle(body).printColorAdjust || 
-                             (window.getComputedStyle(body) as any).webkitPrintColorAdjust
+    // Check for print-color-adjust (including vendor-prefixed webkit variant)
+    const computedStyle = window.getComputedStyle(body) as CSSStyleDeclarationWithWebkit
+    const printColorAdjust = computedStyle.printColorAdjust ||
+                             computedStyle.webkitPrintColorAdjust
     
     if (printColorAdjust !== 'exact') {
       warnings.push(`print-color-adjust is not "exact": ${printColorAdjust}`)
     }
     
   } catch (error) {
-    errors.push(`Failed to validate Tailwind CSS: ${error}`)
+    errors.push(`Failed to validate Tailwind CSS: ${error instanceof Error ? error.message : String(error)}`)
   }
   
   return {
@@ -87,7 +107,7 @@ export function validatePagedJsComplete(): ValidationResult {
     return { isValid: false, errors, warnings }
   }
   
-  const isComplete = (window as any).pagedRenderingComplete === true
+  const isComplete = (window as BentoWindow).pagedRenderingComplete === true
   
   if (!isComplete) {
     errors.push('Paged.js rendering not complete (window.pagedRenderingComplete !== true)')
@@ -215,13 +235,13 @@ export function attachBentoValidationToWindow(): void {
   }
 
   // Check if already attached (idempotent)
-  if ((window as any).__bentoValidation) {
+  if ((window as BentoWindow).__bentoValidation) {
     console.log('✓ Bento validation already attached to window')
     return
   }
 
   // Attach all validation functions
-  (window as any).__bentoValidation = {
+  ;(window as BentoWindow).__bentoValidation = {
     validateBentoRoot,
     validateTailwindCSS,
     validatePagedJsComplete,
