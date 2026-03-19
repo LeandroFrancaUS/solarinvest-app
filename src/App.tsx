@@ -7640,6 +7640,47 @@ export default function App() {
     }
   }, [useBentoGridPdf])
 
+  const [mobileSimpleView, setMobileSimpleView] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+    const stored = window.localStorage.getItem('mobileSimpleView')
+    return stored !== null ? stored === 'true' : true
+  })
+  const [desktopSimpleView, setDesktopSimpleView] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+    const stored = window.localStorage.getItem('desktopSimpleView')
+    return stored !== null ? stored === 'true' : true
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    try {
+      window.localStorage.setItem('mobileSimpleView', mobileSimpleView.toString())
+    } catch (error) {
+      console.warn('Não foi possível persistir a preferência Mobile view simples.', error)
+    }
+  }, [mobileSimpleView])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    try {
+      window.localStorage.setItem('desktopSimpleView', desktopSimpleView.toString())
+    } catch (error) {
+      console.warn('Não foi possível persistir a preferência Desktop view simples.', error)
+    }
+  }, [desktopSimpleView])
+
+  const isMobileSimpleEnabled = isMobileViewport && mobileSimpleView
+  const isDesktopSimpleEnabled = !isMobileViewport && desktopSimpleView
+  const shouldHideSimpleViewItems = isMobileSimpleEnabled || isDesktopSimpleEnabled
+
   const [prazoMeses, setPrazoMeses] = useState(INITIAL_VALUES.prazoMeses)
   const [bandeiraEncargo, setBandeiraEncargo] = useState(INITIAL_VALUES.bandeiraEncargo)
   const [cipEncargo, setCipEncargo] = useState(INITIAL_VALUES.cipEncargo)
@@ -20092,8 +20133,8 @@ export default function App() {
             />
           </Field>
         </div>
-        {renderTusdParametersSection()}
-        <div className="multi-uc-section" id="multi-uc">
+        {shouldHideSimpleViewItems ? null : renderTusdParametersSection()}
+        <div className="multi-uc-section" id="multi-uc" hidden={shouldHideSimpleViewItems}>
           <div className="multi-uc-header">
             <div className="multi-uc-title-row">
               <h3>Cenário de múltiplas unidades consumidoras (Multi-UC)</h3>
@@ -23832,6 +23873,24 @@ export default function App() {
 
   const mobileAllowedIds = ['propostas-leasing', 'propostas-vendas', 'propostas-nova', 'relatorios-exportar-pdf', 'config-sair']
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
+
+  const gerarPropostaSidebarItem = sidebarGroups
+    .find((g) => g.id === 'relatorios')
+    ?.items.find((item) => item.id === 'relatorios-exportar-pdf') ?? null
+
+  const desktopSimpleSidebarGroups: SidebarGroup[] = (() => {
+    const filtered = sidebarGroups.filter((g) => g.id !== 'simulacoes' && g.id !== 'crm')
+    return filtered.map((g) => {
+      if (g.id !== 'propostas') return g
+      const salvarIdx = g.items.findIndex((item) => item.id === 'propostas-salvar')
+      const newItems = [...g.items]
+      if (gerarPropostaSidebarItem && salvarIdx !== -1) {
+        newItems.splice(salvarIdx + 1, 0, gerarPropostaSidebarItem)
+      }
+      return { ...g, items: newItems }
+    })
+  })()
+
   const mobileSidebarGroups: SidebarGroup[] = isMobileViewport
     ? [
         {
@@ -23843,6 +23902,8 @@ export default function App() {
           }),
         },
       ]
+    : isDesktopSimpleEnabled
+    ? desktopSimpleSidebarGroups
     : sidebarGroups
 
   const renderBudgetSearchPage = () => (
@@ -24983,6 +25044,39 @@ export default function App() {
                 </Field>
               </div>
             </div>
+            <div className="settings-subsection">
+              <p className="settings-subheading">Visualização simplificada</p>
+              <div className="grid g2">
+                <Field
+                  label={labelWithTooltip(
+                    'Mobile view simples',
+                    'Oculta blocos avançados no formulário de Leasing em dispositivos móveis para simplificar a interface.',
+                  )}
+                >
+                  <select
+                    value={mobileSimpleView ? '1' : '0'}
+                    onChange={(e) => setMobileSimpleView(e.target.value === '1')}
+                  >
+                    <option value="1">Ativado</option>
+                    <option value="0">Desativado</option>
+                  </select>
+                </Field>
+                <Field
+                  label={labelWithTooltip(
+                    'Desktop view simples',
+                    'Oculta blocos avançados no formulário de Leasing e simplifica o menu lateral em desktop.',
+                  )}
+                >
+                  <select
+                    value={desktopSimpleView ? '1' : '0'}
+                    onChange={(e) => setDesktopSimpleView(e.target.value === '1')}
+                  >
+                    <option value="1">Ativado</option>
+                    <option value="0">Desativado</option>
+                  </select>
+                </Field>
+              </div>
+            </div>
           </section>
         </div>
       </div>
@@ -25249,7 +25343,7 @@ export default function App() {
                 <>
                   {renderParametrosPrincipaisSection()}
                   {renderConfiguracaoUsinaSection()}
-                  {renderLeasingContratoSection()}
+                  {shouldHideSimpleViewItems ? null : renderLeasingContratoSection()}
                   <section className="card">
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
@@ -25334,11 +25428,13 @@ export default function App() {
                         Tarifa c/ desconto
                         <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
                       </span>
-                      <span className="pill">
-                        <InfoTooltip text="CAPEX (SolarInvest) = Custo final projetado × 70%. Representa o capital investido pela SolarInvest para executar o projeto." />
-                        CAPEX (SolarInvest)
-                        <strong>{currency(capexSolarInvest)}</strong>
-                      </span>
+                      {shouldHideSimpleViewItems ? null : (
+                        <span className="pill">
+                          <InfoTooltip text="CAPEX (SolarInvest) = Custo final projetado × 70%. Representa o capital investido pela SolarInvest para executar o projeto." />
+                          CAPEX (SolarInvest)
+                          <strong>{currency(capexSolarInvest)}</strong>
+                        </span>
+                      )}
                       {modoEntradaNormalizado === 'REDUZ' ? (
                         <span className="pill">
                           Piso contratado ajustado
@@ -25361,6 +25457,7 @@ export default function App() {
                       ) : null}
                     </div>
 
+                    {!shouldHideSimpleViewItems ? (
                     <div className="grid g3">
                       <Field label=" ">
                         <label className="inline-checkbox inline-checkbox--small flex items-center gap-2">
@@ -25375,6 +25472,7 @@ export default function App() {
                         </label>
                       </Field>
                     </div>
+                    ) : null}
 
                     <div className="table-controls">
                       <button
@@ -25445,7 +25543,7 @@ export default function App() {
                 </div>
               </section>
 
-              <section className="card">
+              <section className="card" hidden={shouldHideSimpleViewItems}>
                 <div className="card-header">
                   <h2>Financiamento — Mensalidades</h2>
                   <span className="toggle-label">Coluna ativa: {mostrarFinanciamento ? 'Sim' : 'Não'}</span>
@@ -25787,7 +25885,7 @@ export default function App() {
                 {activeTab === 'leasing' ? (
                   <>
                     {leasingBuyoutSection}
-                    {leasingChartSection}
+                    {shouldHideSimpleViewItems ? null : leasingChartSection}
                   </>
                 ) : null}
               </div>
