@@ -313,7 +313,7 @@ function validateClaims(payload) {
     // claim is absent we treat it as a pass rather than failing — a missing
     // claim is not evidence of forgery; the RS256 signature already proved
     // the token came from Stack Auth's private key.
-    if (audience !== undefined && audience !== null) {
+    if (audience != null) {
       if (typeof audience === 'string') {
         if (audience !== projectId) {
           return false

@@ -2,7 +2,7 @@
 // Renders children only if the user is authenticated AND authorized in the internal DB.
 // Shows appropriate screens for loading, pending, blocked, and revoked states.
 
-import React, { type ReactNode, createContext, useContext, useCallback } from 'react'
+import React, { type ReactNode, createContext, useContext, useCallback, useEffect, useRef } from 'react'
 import { useUser } from '@stackframe/react'
 import { useAuthSession } from '../auth-session'
 import { stackClientApp } from '../stack-client'
@@ -121,6 +121,50 @@ function RequireAuthorizedUserCore({
  */
 function RequireAuthorizedUserWithStack({ children }: Props) {
   const user = useUser()
+  const sessionInitRef = useRef(false)
+
+  // After Stack Auth resolves a valid user, call POST /api/auth/login to
+  // exchange the Bearer token for a backend HMAC session cookie.  This gives
+  // /api/auth/me a second authentication path (session cookie) in addition to
+  // per-request Bearer-token JWKS verification — useful when JWKS is not yet
+  // loaded or when AUTH_COOKIE_SECRET is configured.
+  //
+  // This is a best-effort, one-shot call per component mount.  If it fails,
+  // Bearer-token verification remains the active auth path and nothing breaks.
+  useEffect(() => {
+    if (!user || sessionInitRef.current) return
+    sessionInitRef.current = true
+
+    const initBackendSession = async () => {
+      try {
+        const token = await user.getAccessToken()
+        if (!token) {
+          console.debug('[auth] /api/auth/login skipped — no access token yet')
+          return
+        }
+        console.debug('[auth] POST /api/auth/login — creating backend session cookie')
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          const body = await res.json().catch(() => ({})) as { ok?: boolean; sessionCookie?: boolean }
+          console.debug('[auth] /api/auth/login ok — sessionCookie:', body?.sessionCookie ?? 'unknown')
+        } else {
+          console.debug('[auth] /api/auth/login returned', res.status, '— Bearer-token auth remains active')
+        }
+      } catch (err) {
+        console.debug(
+          '[auth] /api/auth/login call failed:',
+          err instanceof Error ? err.message : String(err),
+          '— Bearer-token auth remains active',
+        )
+      }
+    }
+
+    void initBackendSession()
+  }, [user])
 
   // Stable callback — recreated only when the user identity changes.
   // `user.getAccessToken()` automatically refreshes the short-lived JWT when
