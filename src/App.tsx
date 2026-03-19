@@ -23803,6 +23803,21 @@ export default function App() {
     },
   ]
 
+  const mobileAllowedIds = ['propostas-leasing', 'propostas-vendas', 'propostas-nova', 'relatorios-exportar-pdf', 'config-sair']
+  const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
+  const mobileSidebarGroups: SidebarGroup[] = isMobileViewport
+    ? [
+        {
+          id: 'mobile',
+          label: 'Menu',
+          items: mobileAllowedIds.flatMap((id) => {
+            const item = allSidebarItems.get(id)
+            return item ? [item] : []
+          }),
+        },
+      ]
+    : sidebarGroups
+
   const renderBudgetSearchPage = () => (
     <div className="budget-search-page">
       <div className="budget-search-page-header">
@@ -24997,7 +25012,7 @@ export default function App() {
           sidebar={{
             collapsed: isSidebarCollapsed,
             mobileOpen: isSidebarMobileOpen,
-            groups: sidebarGroups,
+            groups: mobileSidebarGroups,
             activeItemId: activeSidebarItem,
             onNavigate: handleSidebarNavigate,
             onCloseMobile: handleSidebarClose,
