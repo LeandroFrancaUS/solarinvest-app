@@ -258,6 +258,8 @@ import {
   tarifaCurrency,
 } from './utils/formatters'
 import { Switch } from './components/ui/switch'
+import { useUser } from '@stackframe/react'
+import { clearAllClientData } from './lib/persist/clearOnLogout'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4232,6 +4234,41 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 }
 
 export default function App() {
+  const user = useUser()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = useCallback(async () => {
+    if (isLoggingOut) return
+    setIsLoggingOut(true)
+    if (import.meta.env.DEV) console.debug('[logout] started')
+    try {
+      await clearAllClientData()
+      if (import.meta.env.DEV) console.debug('[logout] local session cleared')
+    } catch {
+      // non-fatal: proceed with sign out even if client data clear fails
+    }
+    try {
+      // Clear HttpOnly session cookie on the server if AUTH_COOKIE_SECRET is configured
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {
+        // non-fatal: continue with signOut even if the server endpoint is unavailable
+      })
+    } catch {
+      // non-fatal
+    }
+    try {
+      if (import.meta.env.DEV) console.debug('[logout] redirecting to sign-out')
+      if (user) {
+        await user.signOut()
+      } else {
+        // No Stack Auth user — just reload to trigger the sign-in screen
+        window.location.replace('/')
+      }
+    } catch (error) {
+      console.error('[logout] signOut error:', error)
+      setIsLoggingOut(false)
+    }
+  }, [isLoggingOut, user])
+
   // Check if we're in print mode (for Bento Grid PDF generation)
   const isPrintMode = useMemo(() => {
     if (typeof window === 'undefined') return false
@@ -23751,6 +23788,15 @@ export default function App() {
           icon: '⚙️',
           onSelect: () => {
             void abrirConfiguracoes()
+          },
+        },
+        {
+          id: 'config-sair',
+          label: isLoggingOut ? 'Saindo…' : 'Sair',
+          icon: '🚪',
+          disabled: isLoggingOut,
+          onSelect: () => {
+            void handleLogout()
           },
         },
       ],
