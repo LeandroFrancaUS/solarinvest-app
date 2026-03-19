@@ -71,6 +71,34 @@ function isProductionEnv() {
   )
 }
 
+// ── Simple in-memory rate limiter (best-effort for serverless) ────────────────
+const LOGIN_RATE_LIMIT_WINDOW_MS = 60 * 1000   // 1-minute window
+const LOGIN_RATE_LIMIT_MAX = 10                 // max 10 login attempts per IP per minute
+const loginRateBuckets = new Map()              // IP → { count, resetAt }
+
+function isLoginRateLimited(req) {
+  const forwarded = typeof req.headers?.['x-forwarded-for'] === 'string'
+    ? req.headers['x-forwarded-for'].split(',')[0].trim()
+    : ''
+  const ip = forwarded || req.socket?.remoteAddress || ''
+  if (!ip) return false
+
+  const now = Date.now()
+  // Lazy cleanup when map grows large
+  if (loginRateBuckets.size > 5_000) {
+    for (const [key, bucket] of loginRateBuckets) {
+      if (bucket.resetAt <= now) loginRateBuckets.delete(key)
+    }
+  }
+  let bucket = loginRateBuckets.get(ip)
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + LOGIN_RATE_LIMIT_WINDOW_MS }
+    loginRateBuckets.set(ip, bucket)
+  }
+  bucket.count += 1
+  return bucket.count > LOGIN_RATE_LIMIT_MAX
+}
+
 // ── Request handler ───────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -88,10 +116,16 @@ export default async function handler(req, res) {
   // browser prefetches, and stale GET callers get a meaningful response
   // instead of a crash.
   if (req.method !== 'POST') {
-    console.info('[auth/login] rejected', req.method, 'request — only POST is supported')
     res.setHeader('Allow', 'POST')
     res.statusCode = 405
     res.end(JSON.stringify({ error: 'Method Not Allowed' }))
+    return
+  }
+
+  // Rate limiting: prevent brute-force login attempts
+  if (isLoginRateLimited(req)) {
+    res.statusCode = 429
+    res.end(JSON.stringify({ error: 'Too many requests. Try again later.' }))
     return
   }
 

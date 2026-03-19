@@ -128,12 +128,12 @@ function OAuthCallbackHandler() {
         // No valid OAuth params in the URL (cookie expired, reloaded page, etc.).
         // Navigate back to the sign-in page; noRedirectBack avoids adding
         // after_auth_return_to which would contaminate the next OAuth redirect_uri.
-        console.warn('[OAuthCallbackHandler] no OAuth params found — redirecting to sign-in')
+        console.warn('[OAuthCallbackHandler] no OAuth params — redirecting to sign-in')
         app.redirectToSignIn({ noRedirectBack: true }).catch(() => {
           window.location.replace('/')
         })
-      } else {
-        console.debug('[OAuthCallbackHandler] callOAuthCallback succeeded — redirected to afterSignIn')
+      } else if (import.meta.env.DEV) {
+        console.debug('[OAuthCallbackHandler] callOAuthCallback succeeded — redirected')
       }
     }).catch((err: unknown) => {
       console.error('[OAuthCallbackHandler] callOAuthCallback error', err)
