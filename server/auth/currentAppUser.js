@@ -4,9 +4,38 @@ import { getStackUser, isStackAuthBypassed, getBootstrapAdminEmail, getProjectId
 
 const ADMIN_BOOTSTRAP_EMAIL = getBootstrapAdminEmail()
 
+/**
+ * Sentinel suffix used for placeholder email addresses created when a user
+ * authenticates but the JWT carries no email claim and the Stack Auth server
+ * API is unavailable (no STACK_SECRET_SERVER_KEY).  Rows with this suffix are
+ * treated specially so we can detect and update them once a real email arrives.
+ */
+const PLACEHOLDER_EMAIL_SUFFIX = '@stack-auth.placeholder'
+
+/**
+ * Returns true if a placeholder email was assigned by the first-user bootstrap.
+ */
+function isPlaceholderEmail(email) {
+  return typeof email === 'string' && email.endsWith(PLACEHOLDER_EMAIL_SUFFIX)
+}
+
 // ─── One-time startup initialization ─────────────────────────────────────────
 // Module-level flag: reset per cold start (serverless), stable per warm instance.
 let _initAttempted = false
+
+/**
+ * Returns true when at least one approved admin row exists in the DB.
+ * Used to decide whether to apply the "first-user bootstrap admin" fallback.
+ * Throws on DB error so callers can handle it appropriately.
+ */
+async function hasApprovedAdmin() {
+  const { rows } = await query(
+    `SELECT 1 FROM public.app_user_access
+     WHERE access_status = 'approved' AND role = 'admin'
+     LIMIT 1`
+  )
+  return rows.length > 0
+}
 
 /**
  * Idempotent startup check:
@@ -64,6 +93,29 @@ async function ensureSchemaAndBootstrapData() {
         [ADMIN_BOOTSTRAP_EMAIL]
       )
     }
+
+    // First-user bootstrap self-heal: if no approved admin exists at all, promote
+    // the oldest row (the first user who ever logged in) to admin.  This covers
+    // the case where the JWT had no email claim so the email-based self-heal above
+    // could not match any row, leaving the system with only pending rows.
+    await query(
+      `UPDATE public.app_user_access
+       SET role          = 'admin',
+           access_status = 'approved',
+           is_active     = true,
+           can_access_app = true,
+           approved_at   = COALESCE(approved_at, now()),
+           updated_at    = now()
+       WHERE id = (
+         SELECT id FROM public.app_user_access
+         ORDER BY created_at ASC
+         LIMIT 1
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM public.app_user_access
+         WHERE access_status = 'approved' AND role = 'admin'
+       )`
+    )
     console.info('[auth/init] schema + bootstrap self-heal OK')
   } catch (err) {
     _initAttempted = false   // allow retry on next request
@@ -274,9 +326,30 @@ export async function getCurrentAppUser(req) {
   //     a fresh email from the Stack Auth server API (requires STACK_SECRET_SERVER_KEY).
   //     This also handles the case where the bootstrap admin's email was not in the JWT.
   if (!email && record?.email) {
-    // Use email from the DB record (already verified via userId match)
-    email = record.email.toLowerCase().trim()
-    console.info('[auth/user] email resolved from DB record:', email)
+    // Use email from the DB record (already verified via userId match).
+    // Skip placeholder emails created by the first-user bootstrap so we can
+    // continue looking for a real one via the Stack Auth API below.
+    const recordEmail = record.email.toLowerCase().trim()
+    if (!recordEmail.endsWith(PLACEHOLDER_EMAIL_SUFFIX)) {
+      email = recordEmail
+      console.info('[auth/user] email resolved from DB record:', email)
+    } else {
+      // Row has a placeholder — try Stack Auth API for a real email
+      const fetched = await fetchEmailFromStackAuth(authProviderUserId)
+      if (fetched) {
+        email = fetched
+        console.info('[auth/user] email resolved from Stack Auth API (replacing placeholder):', email)
+        // Persist the real email so future logins skip this path
+        query(
+          `UPDATE public.app_user_access SET email = $1, updated_at = now()
+           WHERE id = $2 AND email != $1`,
+          [email, record.id]
+        ).catch((err) => {
+          console.warn('[auth/user] failed to update placeholder email in DB:', err?.message)
+        })
+        record = { ...record, email }
+      }
+    }
   } else if (!email) {
     // No email from JWT and no DB record — try Stack Auth server API
     const fetched = await fetchEmailFromStackAuth(authProviderUserId)
@@ -397,7 +470,49 @@ export async function getCurrentAppUser(req) {
       record = await createPendingUserRow(authProviderUserId, email, fullName)
       console.info('[auth/user] new pending row created — pendingRowCreated:true')
     } else {
-      console.warn('[auth/user] cannot provision: email absent from JWT and Stack Auth API — userId:', authProviderUserId)
+      // No email available from JWT or Stack Auth API.
+      // As a last resort, check whether the system has ANY approved admin yet.
+      // If not, this is the very first authenticated user — grant admin access so
+      // the app can self-bootstrap without requiring STACK_SECRET_SERVER_KEY or
+      // a manual DB seed.  Once an admin exists, subsequent no-email users get a
+      // pending row (which an admin can approve via the admin panel).
+      try {
+        if (!(await hasApprovedAdmin())) {
+          // No approved admins — treat this user as the bootstrap admin.
+          const placeholderEmail = `${authProviderUserId}${PLACEHOLDER_EMAIL_SUFFIX}`
+          record = await createBootstrapAdminRow(authProviderUserId, placeholderEmail, fullName)
+          console.info(
+            '[auth/user] first-user bootstrap: no admins found — admin row created for userId:', authProviderUserId,
+          )
+        } else {
+          console.warn(
+            '[auth/user] cannot provision: email absent from JWT and Stack Auth API — userId:', authProviderUserId,
+          )
+        }
+      } catch (err) {
+        console.warn('[auth/user] first-user bootstrap check error:', err?.message)
+      }
+    }
+  }
+
+  // 5b) First-user bootstrap for EXISTING pending rows with a placeholder email.
+  //     If a pending row was previously created with a placeholder email (from
+  //     the first-user logic above) but there are still no approved admins,
+  //     promote the row now rather than keeping the user stuck in pending.
+  if (
+    record &&
+    record.access_status !== 'approved' &&
+    !resolvedIsBootstrapAdmin &&
+    isPlaceholderEmail(record.email)
+  ) {
+    try {
+      if (!(await hasApprovedAdmin())) {
+        await promoteToBootstrapAdmin(record.id, authProviderUserId)
+        record = { ...record, role: 'admin', access_status: 'approved', is_active: true, can_access_app: true }
+        console.info('[auth/user] first-user bootstrap: promoted existing placeholder-email row to admin for userId:', authProviderUserId)
+      }
+    } catch (err) {
+      console.warn('[auth/user] first-user promotion check error:', err?.message)
     }
   }
 
