@@ -5,6 +5,25 @@ const REQUEST_USER_SYMBOL = Symbol('stackAuthUser')
 const JWKS_CACHE_TTL_MS = 5 * 60 * 1000
 const JWKS_MIN_REFRESH_INTERVAL_MS = 30 * 1000
 
+/**
+ * Explicit allowlist of asymmetric JWT algorithms accepted from the Stack Auth JWKS.
+ *
+ * alg=none and any algorithm not in this map are categorically rejected.
+ *
+ * nodeName  – argument to Node.js createVerify()
+ * sigFormat – 'der'    for RSA (createVerify expects DER natively)
+ *           – 'p1363'  for ECDSA (JWT uses raw r‖s; must convert to DER first)
+ * coordLen  – bytes per EC coordinate (P-256: 32, P-384: 48, P-521: 66)
+ */
+const ASYMMETRIC_ALG_MAP = new Map([
+  ['RS256', { nodeName: 'RSA-SHA256', sigFormat: 'der' }],
+  ['RS384', { nodeName: 'RSA-SHA384', sigFormat: 'der' }],
+  ['RS512', { nodeName: 'RSA-SHA512', sigFormat: 'der' }],
+  ['ES256', { nodeName: 'SHA256',     sigFormat: 'p1363', coordLen: 32 }],
+  ['ES384', { nodeName: 'SHA384',     sigFormat: 'p1363', coordLen: 48 }],
+  ['ES512', { nodeName: 'SHA512',     sigFormat: 'p1363', coordLen: 66 }],
+])
+
 function sanitizeString(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
@@ -174,6 +193,55 @@ function logStackError(message, error) {
   }
   lastLoggedError = now
   console.warn(message, error)
+}
+
+/**
+ * Convert an ECDSA signature from IEEE P1363 format (raw r ‖ s) to
+ * DER/ASN.1 SEQUENCE { INTEGER r, INTEGER s } format.
+ *
+ * JWT ES256/ES384/ES512 signatures are P1363 (raw big-endian r then s,
+ * each exactly `coordLen` bytes).  Node.js createVerify expects DER for
+ * EC keys, so we must convert before calling verifier.verify().
+ *
+ * @param {Buffer} rawSig   P1363 signature (must be 2 × coordLen bytes)
+ * @param {number} coordLen Bytes per coordinate (32 for P-256, 48 for P-384, 66 for P-521)
+ * @returns {Buffer} DER-encoded ECDSA signature
+ */
+function p1363ToDer(rawSig, coordLen) {
+  if (!Buffer.isBuffer(rawSig) || rawSig.length !== 2 * coordLen) {
+    throw new Error(`p1363ToDer: invalid signature length ${rawSig.length} for coordLen ${coordLen}`)
+  }
+
+  function encodeAsn1Int(buf) {
+    // Strip leading 0x00 bytes, but keep at least one byte.
+    let start = 0
+    while (start < buf.length - 1 && buf[start] === 0x00) start++
+    const trimmed = buf.subarray(start)
+    // An all-zero coordinate is cryptographically invalid for ECDSA.
+    if (trimmed.every((b) => b === 0x00)) {
+      throw new Error('p1363ToDer: invalid EC signature — zero coordinate')
+    }
+    // Prepend 0x00 when the high bit is set so DER treats it as positive.
+    const body = (trimmed[0] & 0x80) !== 0
+      ? Buffer.concat([Buffer.from([0x00]), Buffer.from(trimmed)])
+      : Buffer.from(trimmed)
+    return Buffer.concat([Buffer.from([0x02, body.length]), body])
+  }
+
+  const rDer = encodeAsn1Int(rawSig.subarray(0, coordLen))
+  const sDer = encodeAsn1Int(rawSig.subarray(coordLen, 2 * coordLen))
+  const seqContent = Buffer.concat([rDer, sDer])
+
+  // DER length encoding — supports single-byte and two-byte lengths.
+  let lenBytes
+  if (seqContent.length < 0x80) {
+    lenBytes = Buffer.from([seqContent.length])
+  } else if (seqContent.length < 0x100) {
+    lenBytes = Buffer.from([0x81, seqContent.length])
+  } else {
+    lenBytes = Buffer.from([0x82, seqContent.length >> 8, seqContent.length & 0xff])
+  }
+  return Buffer.concat([Buffer.from([0x30]), lenBytes, seqContent])
 }
 
 function verifyHmacJwt(token, secret) {
@@ -358,8 +426,13 @@ async function verifyJwt(token) {
     return null
   }
 
-  if (sanitizeString(header.alg) !== 'RS256') {
-    console.warn('[stack-auth] verifyJwt: unexpected alg', sanitizeString(header.alg), '— only RS256 is supported')
+  const alg = sanitizeString(header.alg)
+  const algConfig = ASYMMETRIC_ALG_MAP.get(alg)
+  if (!algConfig) {
+    console.warn(
+      '[stack-auth] verifyJwt: unsupported alg', alg,
+      '— accepted:', [...ASYMMETRIC_ALG_MAP.keys()].join(', '),
+    )
     return null
   }
 
@@ -387,13 +460,21 @@ async function verifyJwt(token) {
   }
 
   try {
-    const verifier = createVerify('RSA-SHA256')
+    const rawSignature = base64UrlToBuffer(encodedSignature)
+
+    // JWT ES256/ES384/ES512 signatures use IEEE P1363 format (raw r ‖ s).
+    // Node.js createVerify expects DER/ASN.1 for EC keys — convert first.
+    // RSA signatures are already DER, so no conversion is needed there.
+    const signatureBuffer = algConfig.sigFormat === 'p1363'
+      ? p1363ToDer(rawSignature, algConfig.coordLen)
+      : rawSignature
+
+    const verifier = createVerify(algConfig.nodeName)
     verifier.update(`${encodedHeader}.${encodedPayload}`)
     verifier.end()
-    const signatureBuffer = base64UrlToBuffer(encodedSignature)
 
     if (!verifier.verify(jwk.publicKey, signatureBuffer)) {
-      console.warn('[stack-auth] verifyJwt: signature verification failed')
+      console.warn('[stack-auth] verifyJwt: signature verification failed (alg:', alg, ')')
       return null
     }
   } catch (error) {
