@@ -111,33 +111,51 @@ function isOAuthCallbackPath(): boolean {
  *
  * Without this handler the authorization code would expire unused and the
  * user would remain unauthenticated.
+ *
+ * IMPORTANT: This component is rendered by RequireAuth BEFORE RequireAuthWithStack
+ * (which calls useUser()) is mounted.  This isolation prevents React error #426
+ * that occurred when callOAuthCallback() updated Stack Auth context state while
+ * useUser() was already subscribed and mid-render.
  */
 function OAuthCallbackHandler() {
   const called = useRef(false)
+  const mountedRef = useRef(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Track mount state so we never setState after unmount (prevents React warning
+  // "Can't perform a React state update on an unmounted component").
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (called.current || !stackClientApp) return
     called.current = true
     const app = stackClientApp
 
-    if (import.meta.env.DEV) console.debug('[OAuthCallbackHandler] processing PKCE callback at', window.location.pathname)
+    console.info('[oauth-callback] processing PKCE callback at', window.location.pathname)
 
     app.callOAuthCallback().then((redirected) => {
+      if (!mountedRef.current) return
       if (!redirected) {
         // No valid OAuth params in the URL (cookie expired, reloaded page, etc.).
         // Navigate back to the sign-in page; noRedirectBack avoids adding
         // after_auth_return_to which would contaminate the next OAuth redirect_uri.
-        console.warn('[OAuthCallbackHandler] no OAuth params — redirecting to sign-in')
+        console.warn('[oauth-callback] no OAuth params — redirecting to sign-in')
         app.redirectToSignIn({ noRedirectBack: true }).catch(() => {
           window.location.replace('/')
         })
-      } else if (import.meta.env.DEV) {
-        console.debug('[OAuthCallbackHandler] callOAuthCallback succeeded — redirected')
+      } else {
+        console.info('[oauth-callback] callOAuthCallback succeeded — SDK redirecting')
       }
     }).catch((err: unknown) => {
-      console.error('[OAuthCallbackHandler] callOAuthCallback error', err)
-      setError(err instanceof Error ? err.message : String(err))
+      console.error('[oauth-callback] callOAuthCallback error', err)
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : String(err))
+      }
     })
   }, [])
 
@@ -173,16 +191,15 @@ function OAuthCallbackHandler() {
  *
  * It NEVER returns undefined.  The parent wraps this component in <Suspense> so
  * suspension is handled gracefully instead of falling through to an error boundary.
+ *
+ * NOTE: This component is only rendered when NOT on the OAuth callback path.
+ * RequireAuth checks isOAuthCallbackPath() first and renders OAuthCallbackHandler
+ * directly, so useUser() is never active during the PKCE token exchange.  This
+ * prevents React error #426 that could occur when callOAuthCallback() updated
+ * Stack Auth context while useUser() was subscribed to it.
  */
 function RequireAuthWithStack({ children, fallback }: Props) {
   const user = useUser()
-
-  // While on the OAuth callback path we must process the authorization code
-  // BEFORE rendering SignIn, otherwise the tokens are never extracted and the
-  // user gets stuck in the sign-in loop.
-  if (isOAuthCallbackPath()) {
-    return <OAuthCallbackHandler />
-  }
 
   if (!user) {
     if (fallback) return <>{fallback}</>
@@ -209,6 +226,28 @@ export function RequireAuth({ children, fallback }: Props) {
   if (!stackClientApp) {
     // Stack Auth not configured: allow pass-through (dev/bypass mode)
     return <>{children}</>
+  }
+
+  // CRITICAL: Check for the OAuth callback path BEFORE rendering RequireAuthWithStack.
+  //
+  // RequireAuthWithStack calls useUser() which subscribes to the Stack Auth context.
+  // When callOAuthCallback() finishes (inside OAuthCallbackHandler), the SDK updates
+  // its internal context state.  If RequireAuthWithStack is mounted at the same time,
+  // useUser() re-renders while the SDK is mid-update — this causes React error #426
+  // ("Cannot update a component while rendering a different component").
+  //
+  // By rendering OAuthCallbackHandler directly here (before RequireAuthWithStack is
+  // ever mounted), useUser() is completely absent from the tree during PKCE exchange.
+  // The handler completes, the SDK redirects to '/', and only then does the full
+  // RequireAuthWithStack tree mount with a freshly-authenticated user.
+  if (isOAuthCallbackPath()) {
+    return (
+      // SuspendedLoadingFallback owns the 15 s watchdog timer in case the callback
+      // itself suspends (unlikely but defensive).
+      <Suspense fallback={<SuspendedLoadingFallback />}>
+        <OAuthCallbackHandler />
+      </Suspense>
+    )
   }
 
   return (

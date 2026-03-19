@@ -4237,15 +4237,23 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useUser()
+  const isLoggingOutRef = useRef(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
+  // Keep a stable ref to the user so handleLogout doesn't need user in its dep array.
+  // This prevents handleLogout from being recreated every time the user object changes,
+  // which could cause race conditions or stale closure issues during logout.
+  const userRef = useRef(user)
+  userRef.current = user
+
   const handleLogout = useCallback(async () => {
-    if (isLoggingOut) return
+    if (isLoggingOutRef.current) return
+    isLoggingOutRef.current = true
     setIsLoggingOut(true)
-    if (import.meta.env.DEV) console.debug('[logout] started')
+    console.info('[logout] started')
     try {
       await clearAllClientData()
-      if (import.meta.env.DEV) console.debug('[logout] local session cleared')
+      if (import.meta.env.DEV) console.debug('[logout] local data cleared')
     } catch {
       // non-fatal: proceed with sign out even if client data clear fails
     }
@@ -4254,22 +4262,24 @@ export default function App() {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {
         // non-fatal: continue with signOut even if the server endpoint is unavailable
       })
+      console.info('[logout] server session cleared')
     } catch {
       // non-fatal
     }
     try {
-      if (import.meta.env.DEV) console.debug('[logout] redirecting to sign-out')
-      if (user) {
-        await user.signOut()
+      console.info('[logout] signing out via Stack Auth')
+      if (userRef.current) {
+        await userRef.current.signOut()
       } else {
         // No Stack Auth user — just reload to trigger the sign-in screen
         window.location.replace('/')
       }
     } catch (error) {
       console.error('[logout] signOut error:', error)
+      isLoggingOutRef.current = false
       setIsLoggingOut(false)
     }
-  }, [isLoggingOut, user])
+  }, [])
 
   // Check if we're in print mode (for Bento Grid PDF generation)
   const isPrintMode = useMemo(() => {
@@ -25122,6 +25132,23 @@ export default function App() {
       <React.Suspense fallback={<div style={{ padding: '20px' }}>Carregando proposta...</div>}>
         <PrintPageLeasing data={printableData} />
       </React.Suspense>
+    )
+  }
+
+  // When logout is in progress, render a minimal screen instead of the full
+  // authenticated UI.  This prevents the authenticated component tree from
+  // being mounted while the Stack Auth SDK is clearing tokens and updating its
+  // internal context — the state transition from authenticated→null was
+  // causing React error #426 because child components tried to update while
+  // a different component (useUser subscriber) was mid-render.
+  if (isLoggingOut) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
+          <p className="text-sm text-slate-500">Saindo...</p>
+        </div>
+      </div>
     )
   }
 
