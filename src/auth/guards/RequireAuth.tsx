@@ -121,7 +121,7 @@ function OAuthCallbackHandler() {
     called.current = true
     const app = stackClientApp
 
-    console.debug('[OAuthCallbackHandler] processing PKCE callback at', window.location.pathname)
+    if (import.meta.env.DEV) console.debug('[OAuthCallbackHandler] processing PKCE callback at', window.location.pathname)
 
     app.callOAuthCallback().then((redirected) => {
       if (!redirected) {

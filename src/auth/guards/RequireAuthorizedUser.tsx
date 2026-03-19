@@ -150,8 +150,14 @@ function RequireAuthorizedUserWithStack({ children }: Props) {
         })
         if (res.ok) {
           const body = await res.json().catch(() => ({})) as { ok?: boolean; sessionCookie?: boolean }
-          // Safe production log: confirms session establishment without exposing tokens
-          console.info('[auth] login status=%d session=%s', res.status, body?.sessionCookie ? 'yes' : 'no')
+          if (import.meta.env.DEV) {
+            // Verbose diagnostic in development — includes session cookie status
+            console.info('[auth] login status=%d session=%s', res.status, body?.sessionCookie ? 'yes' : 'no')
+          }
+          if (!body?.sessionCookie) {
+            // Expected when AUTH_COOKIE_SECRET is not set.  Bearer-token auth still works.
+            if (import.meta.env.DEV) console.debug('[auth] session cookie not created (AUTH_COOKIE_SECRET not configured?) — Bearer-token auth remains active')
+          }
         } else {
           console.warn('[auth] login failed status=%d — Bearer-token auth remains active', res.status)
         }

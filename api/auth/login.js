@@ -6,6 +6,22 @@
 // to the per-request Bearer-token JWKS verification already implemented in
 // server/auth/stackAuth.js.
 //
+// Auth architecture
+// ─────────────────
+// Production model:
+//   1. Bearer token (Stack Auth JWT via JWKS)  — PRIMARY, always available
+//   2. Session cookie (HMAC-SHA256 JWT)         — OPTIONAL ENHANCEMENT
+//
+// The session cookie is only created when AUTH_COOKIE_SECRET (or JWT_SECRET) is
+// configured in the environment.  If it is not set, the login endpoint returns
+// `{ ok: true, sessionCookie: false }` and Bearer-token verification in
+// /api/auth/me remains the sole auth path.  This is a valid production state.
+//
+// When AUTH_COOKIE_SECRET IS configured, the cookie provides:
+//   • Persistence across page reloads (no need to re-acquire Stack Auth token)
+//   • Faster auth on /me (HMAC verification vs JWKS key fetch)
+//   • Reduced dependency on Stack Auth's token refresh infrastructure
+//
 // Design constraints
 // ------------------
 // • NO external JWT library (jsonwebtoken, jwks-rsa, etc.) — those are not

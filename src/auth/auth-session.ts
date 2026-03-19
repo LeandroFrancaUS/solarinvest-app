@@ -123,7 +123,17 @@ export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthS
       const nextState = data.authenticated ? 'authenticated' : 'anonymous'
       // Safe production log: confirms whether auth completed (no PII)
       console.info('[auth] /me authenticated=%s', data.authenticated ? 'yes' : 'no')
-      if (import.meta.env.DEV) console.debug('[auth] /me → authState:', nextState)
+      if (import.meta.env.DEV) {
+        // Consolidated DEV diagnostic — auth source, role, state transition
+        console.debug(
+          '[auth] /me diagnostic: authenticated=%s authSource=%s authorized=%s role=%s → authState=%s',
+          data.authenticated ? 'yes' : 'no',
+          data.authSource ?? 'unknown',
+          data.authorized ? 'yes' : 'no',
+          data.role ?? 'none',
+          nextState,
+        )
+      }
       setAuthState(nextState)
     } catch (err) {
       if (controller.signal.aborted) return

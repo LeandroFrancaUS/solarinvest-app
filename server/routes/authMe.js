@@ -1,6 +1,21 @@
 // server/routes/authMe.js
 // GET /api/auth/me
 // Returns authenticated user info + internal authorization status.
+//
+// Auth architecture (documented):
+// ────────────────────────────────
+// Production auth model:
+//   1. Bearer token (Stack Auth JWT via JWKS) — PRIMARY
+//      Sent by the frontend on every /me request.
+//   2. Session cookie (HMAC-SHA256 JWT) — OPTIONAL ENHANCEMENT
+//      Created by POST /api/auth/login when AUTH_COOKIE_SECRET is configured.
+//      Provides persistence across page reloads without requiring a fresh
+//      Stack Auth token.
+//   3. x-user-id header — DEV/TESTING ONLY
+//      Only accepted when STACK_AUTH_BYPASS=true.
+//
+// The `authSource` field in the response tells the frontend which method
+// authenticated the current request, aiding diagnostics.
 
 import { getCurrentAppUser } from '../auth/currentAppUser.js'
 import { getStackUser, isStackAuthBypassed } from '../auth/stackAuth.js'
@@ -13,7 +28,8 @@ function sanitizeString(value) {
 
 export async function handleAuthMeRequest(req, res, { sendJson }) {
   const stackUser = await getStackUser(req)
-  if (isDev) console.info('[auth/me] stack user resolved:', stackUser ? `id=${stackUser.id}` : 'null')
+  const authSource = stackUser?._authSource ?? null
+  if (isDev) console.info('[auth/me] resolved: %s via %s', stackUser ? `id=${stackUser.id}` : 'null', authSource ?? 'none')
 
   const authenticated = isStackAuthBypassed() || Boolean(stackUser?.id)
   if (!authenticated) {
@@ -22,6 +38,7 @@ export async function handleAuthMeRequest(req, res, { sendJson }) {
       authorized: false,
       role: null,
       accessStatus: null,
+      authSource: null,
     })
     return
   }
@@ -41,6 +58,7 @@ export async function handleAuthMeRequest(req, res, { sendJson }) {
       role: null,
       accessStatus: null,
       email: sanitizeString(stackUser?.email ?? ''),
+      authSource,
     })
     return
   }
@@ -52,6 +70,7 @@ export async function handleAuthMeRequest(req, res, { sendJson }) {
       role: null,
       accessStatus: 'pending',
       email: sanitizeString(stackUser?.email ?? ''),
+      authSource,
     })
     return
   }
@@ -70,5 +89,6 @@ export async function handleAuthMeRequest(req, res, { sendJson }) {
     email: appUser.email,
     fullName: appUser.full_name,
     id: appUser.id,
+    authSource,
   })
 }
