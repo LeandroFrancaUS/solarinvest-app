@@ -19,9 +19,9 @@ const ASYMMETRIC_ALG_MAP = new Map([
   ['RS256', { nodeName: 'RSA-SHA256', sigFormat: 'der' }],
   ['RS384', { nodeName: 'RSA-SHA384', sigFormat: 'der' }],
   ['RS512', { nodeName: 'RSA-SHA512', sigFormat: 'der' }],
-  ['ES256', { nodeName: 'SHA256',     sigFormat: 'p1363', coordLen: 32 }],
-  ['ES384', { nodeName: 'SHA384',     sigFormat: 'p1363', coordLen: 48 }],
-  ['ES512', { nodeName: 'SHA512',     sigFormat: 'p1363', coordLen: 66 }],
+  ['ES256', { nodeName: 'SHA256',     sigFormat: 'p1363', coordLen: 32 }],  // P-256
+  ['ES384', { nodeName: 'SHA384',     sigFormat: 'p1363', coordLen: 48 }],  // P-384
+  ['ES512', { nodeName: 'SHA512',     sigFormat: 'p1363', coordLen: 66 }],  // P-521 (coordLen 66)
 ])
 
 function sanitizeString(value) {
@@ -218,7 +218,9 @@ function p1363ToDer(rawSig, coordLen) {
     while (start < buf.length - 1 && buf[start] === 0x00) start++
     const trimmed = buf.subarray(start)
     // An all-zero coordinate is cryptographically invalid for ECDSA.
-    if (trimmed.every((b) => b === 0x00)) {
+    // After stripping leading zeros the loop guarantees trimmed has ≥1 byte;
+    // if that single byte is 0x00 the entire coordinate was zero.
+    if (trimmed[0] === 0x00) {
       throw new Error('p1363ToDer: invalid EC signature — zero coordinate')
     }
     // Prepend 0x00 when the high bit is set so DER treats it as positive.
