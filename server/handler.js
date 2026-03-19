@@ -79,22 +79,23 @@ const createRequestId = () => crypto.randomUUID()
 const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 1000   // 1-minute sliding window
 const AUTH_RATE_LIMIT_MAX = 30                 // max 30 requests per window per IP
 const rateLimitBuckets = new Map()             // IP → { count, resetAt }
-const RATE_LIMIT_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
-
-// Periodic cleanup to avoid unbounded memory growth
-setInterval(() => {
-  const now = Date.now()
-  for (const [ip, bucket] of rateLimitBuckets) {
-    if (bucket.resetAt <= now) rateLimitBuckets.delete(ip)
-  }
-}, RATE_LIMIT_CLEANUP_INTERVAL_MS).unref()
 
 function isAuthRateLimited(req) {
-  const ip =
-    (typeof req.headers['x-forwarded-for'] === 'string'
-      ? req.headers['x-forwarded-for'].split(',')[0].trim()
-      : '') || req.socket?.remoteAddress || 'unknown'
+  const forwarded = typeof req.headers['x-forwarded-for'] === 'string'
+    ? req.headers['x-forwarded-for'].split(',')[0].trim()
+    : ''
+  const ip = forwarded || req.socket?.remoteAddress || ''
+  if (!ip) return false // cannot identify client — skip rate limiting
+
   const now = Date.now()
+
+  // Lazy cleanup: remove expired entries when the map grows large
+  if (rateLimitBuckets.size > 10_000) {
+    for (const [key, bucket] of rateLimitBuckets) {
+      if (bucket.resetAt <= now) rateLimitBuckets.delete(key)
+    }
+  }
+
   let bucket = rateLimitBuckets.get(ip)
   if (!bucket || bucket.resetAt <= now) {
     bucket = { count: 0, resetAt: now + AUTH_RATE_LIMIT_WINDOW_MS }

@@ -8,8 +8,13 @@ import { clearAllDrafts } from './localDraft'
 import { clearAllProposals } from './proposalStore'
 
 export async function clearAllClientData(): Promise<void> {
-  await Promise.allSettled([
+  const results = await Promise.allSettled([
     clearAllDrafts(),
     clearAllProposals(),
   ])
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.warn('[clearOnLogout] partial failure:', result.reason)
+    }
+  }
 }
