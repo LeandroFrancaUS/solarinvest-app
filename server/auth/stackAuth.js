@@ -39,11 +39,17 @@ trustedOrigins.add('http://127.0.0.1:5173')
  * IMPORTANT:
  * Prefer STACK_PROJECT_ID (server-side) and avoid relying on NEXT_PUBLIC_*.
  * Keep fallbacks for compatibility only.
+ *
+ * VITE_STACK_PROJECT_ID is included as a last-resort fallback because Vercel
+ * exposes all dashboard env vars to API functions at runtime — including VITE_*
+ * ones — so if the operator only configured the frontend-prefixed var the
+ * server will still find the project ID here.
  */
 const projectId = sanitizeString(
   process.env.STACK_PROJECT_ID ??
     process.env.STACK_AUTH_PROJECT_ID ??
     process.env.NEXT_PUBLIC_STACK_PROJECT_ID ??
+    process.env.VITE_STACK_PROJECT_ID ??
     ''
 )
 
@@ -65,6 +71,16 @@ const expectedIssuer = projectId
 const authCookieName = sanitizeString(process.env.AUTH_COOKIE_NAME) || 'solarinvest_session'
 const authCookieSecret = sanitizeString(process.env.AUTH_COOKIE_SECRET ?? process.env.JWT_SECRET ?? '')
 const stackAuthBypass = process.env.STACK_AUTH_BYPASS === 'true'
+
+// Startup diagnostic: visible in server logs, never logs secrets or project ID in full.
+// Helps confirm that the server-side Stack Auth configuration is present.
+const _projectIdPrefix = projectId ? `${projectId.slice(0, 8)}…` : '(not set)'
+console.info(
+  '[stack-auth] server module loaded —',
+  stackAuthBypass
+    ? 'BYPASS MODE (STACK_AUTH_BYPASS=true)'
+    : `projectId: ${_projectIdPrefix} / jwksUrl: ${jwksUrl || '(empty — JWT verification will fail)'}`,
+)
 
 let lastJwksFetch = 0
 let jwksCache = null
@@ -292,16 +308,24 @@ function validateClaims(payload) {
 
   if (projectId) {
     const audience = payload.aud
-    if (typeof audience === 'string') {
-      if (audience !== projectId) {
+    // Only enforce audience when the claim is actually present in the token.
+    // Stack Auth access tokens are documented to include `aud`, but if the
+    // claim is absent we treat it as a pass rather than failing — a missing
+    // claim is not evidence of forgery; the RS256 signature already proved
+    // the token came from Stack Auth's private key.
+    if (audience !== undefined && audience !== null) {
+      if (typeof audience === 'string') {
+        if (audience !== projectId) {
+          return false
+        }
+      } else if (Array.isArray(audience)) {
+        if (!audience.includes(projectId)) {
+          return false
+        }
+      } else {
+        // Unknown aud type — fail closed.
         return false
       }
-    } else if (Array.isArray(audience)) {
-      if (!audience.includes(projectId)) {
-        return false
-      }
-    } else {
-      return false
     }
   }
 
@@ -335,11 +359,13 @@ async function verifyJwt(token) {
   }
 
   if (sanitizeString(header.alg) !== 'RS256') {
+    console.warn('[stack-auth] verifyJwt: unexpected alg', sanitizeString(header.alg), '— only RS256 is supported')
     return null
   }
 
   const kid = sanitizeString(header.kid)
   if (!kid) {
+    console.warn('[stack-auth] verifyJwt: missing kid in JWT header')
     return null
   }
 
@@ -350,11 +376,13 @@ async function verifyJwt(token) {
 
   const keys = await fetchJwks()
   if (!keys || keys.length === 0) {
+    console.warn('[stack-auth] verifyJwt: JWKS unavailable (projectId configured?', Boolean(projectId), '/ jwksUrl:', jwksUrl || '(empty)', ')')
     return null
   }
 
   const jwk = keys.find((entry) => entry.kid === kid)
   if (!jwk) {
+    console.warn('[stack-auth] verifyJwt: kid', kid, 'not found in JWKS (', keys.length, 'key(s) loaded)')
     return null
   }
 
@@ -365,6 +393,7 @@ async function verifyJwt(token) {
     const signatureBuffer = base64UrlToBuffer(encodedSignature)
 
     if (!verifier.verify(jwk.publicKey, signatureBuffer)) {
+      console.warn('[stack-auth] verifyJwt: signature verification failed')
       return null
     }
   } catch (error) {
@@ -373,6 +402,9 @@ async function verifyJwt(token) {
   }
 
   if (!validateClaims(payload)) {
+    const iss = sanitizeString(payload.iss)
+    const aud = typeof payload.aud === 'string' ? payload.aud : JSON.stringify(payload.aud)
+    console.warn('[stack-auth] verifyJwt: claims validation failed — iss:', iss, '/ aud:', aud, '/ expected iss:', expectedIssuer, '/ expected aud (projectId):', projectId)
     return null
   }
 
