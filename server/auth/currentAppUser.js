@@ -5,25 +5,37 @@ import { getStackUser, isStackAuthBypassed, getBootstrapAdminEmail } from './sta
 const ADMIN_BOOTSTRAP_EMAIL = getBootstrapAdminEmail()
 
 /**
- * Ensure the bootstrap admin (brsolarinvest@gmail.com) has admin access.
- * Idempotent. Handles three scenarios:
- *
- *  a) No row yet (first login): INSERT a new admin row.
- *  b) Row exists with the same auth_provider_user_id: UPDATE to admin via ON CONFLICT.
- *  c) Row exists with a DIFFERENT auth_provider_user_id (orphaned pending row from a
- *     previous broken session): promote it to admin WITHOUT changing its user ID so
- *     the primary SELECT (which uses auth_provider_user_id) will not find it — but the
- *     email-based fallback SELECT will link it on the next step.
+ * Ensure an existing (already-found) row is promoted to bootstrap admin status.
+ * Called when we have already resolved the row via primary lookup OR email fallback.
+ * Idempotent — only runs UPDATE if fields are not already correct.
  */
-async function ensureBootstrapAdmin(authProviderUserId, email, fullName) {
-  if (!ADMIN_BOOTSTRAP_EMAIL || email.toLowerCase() !== ADMIN_BOOTSTRAP_EMAIL.toLowerCase()) {
-    return
-  }
-
+async function promoteToBootstrapAdmin(rowId, authProviderUserId) {
   try {
-    // Primary: upsert by auth_provider_user_id — creates or promotes the current
-    // session's row.
     await query(
+      `UPDATE public.app_user_access
+       SET role = 'admin',
+           access_status = 'approved',
+           is_active = true,
+           can_access_app = true,
+           approved_at = COALESCE(approved_at, now()),
+           updated_at = now()
+       WHERE id = $1
+         AND (role != 'admin' OR access_status != 'approved' OR is_active = false OR can_access_app = false)`,
+      [rowId]
+    )
+    console.info('[auth/user] promoteToBootstrapAdmin applied for rowId:', rowId)
+  } catch (err) {
+    console.warn('[auth] promoteToBootstrapAdmin error:', err?.message)
+  }
+}
+
+/**
+ * Create a brand-new bootstrap admin row for a first-time login.
+ * Only called when no existing row was found by userId OR email.
+ */
+async function createBootstrapAdminRow(authProviderUserId, email, fullName) {
+  try {
+    const { rows } = await query(
       `INSERT INTO public.app_user_access
          (auth_provider_user_id, email, full_name, role, access_status, is_active, can_access_app, approved_at)
        VALUES ($1, $2, $3, 'admin', 'approved', true, true, now())
@@ -34,41 +46,28 @@ async function ensureBootstrapAdmin(authProviderUserId, email, fullName) {
              can_access_app = true,
              email = EXCLUDED.email,
              full_name = COALESCE(EXCLUDED.full_name, app_user_access.full_name),
-             updated_at = now()`,
+             approved_at = COALESCE(app_user_access.approved_at, now()),
+             updated_at = now()
+       RETURNING id, auth_provider_user_id, email, full_name, role,
+                 access_status, is_active, can_access_app, last_login_at`,
       [authProviderUserId, email, fullName || null]
     )
-
-    // Secondary: also promote any OTHER row that has the bootstrap email but is not
-    // yet admin/approved (e.g., a pending row created with a different user ID during
-    // an earlier broken session). This does NOT change auth_provider_user_id — the
-    // email-based fallback SELECT in getCurrentAppUser will re-link it.
-    await query(
-      `UPDATE public.app_user_access
-       SET role = 'admin',
-           access_status = 'approved',
-           is_active = true,
-           can_access_app = true,
-           approved_at = COALESCE(approved_at, now()),
-           updated_at = now()
-       WHERE lower(email) = lower($1)
-         AND auth_provider_user_id != $2
-         AND (role != 'admin' OR access_status != 'approved' OR is_active = false OR can_access_app = false)`,
-      [email, authProviderUserId]
-    )
+    return rows[0] || null
   } catch (err) {
-    console.warn('[auth] ensureBootstrapAdmin error:', err?.message)
+    console.warn('[auth] createBootstrapAdminRow error:', err?.message)
+    return null
   }
 }
 
 /**
  * Provision a new user as "pending" on first login.
- * Does nothing if the user already exists (by auth_provider_user_id).
- * Skipped when email is absent — we never create rows without an email.
+ * Only called when no existing row was found by userId OR email.
+ * Never creates rows without an email.
  */
-async function provisionNewUser(authProviderUserId, email, fullName) {
-  if (!email) return
+async function createPendingUserRow(authProviderUserId, email, fullName) {
+  if (!email) return null
   try {
-    await query(
+    const { rows } = await query(
       `INSERT INTO public.app_user_access
          (auth_provider_user_id, email, full_name, role, access_status, is_active, can_access_app)
        VALUES ($1, $2, $3, 'user', 'pending', true, false)
@@ -76,11 +75,15 @@ async function provisionNewUser(authProviderUserId, email, fullName) {
          SET email = EXCLUDED.email,
              full_name = COALESCE(EXCLUDED.full_name, app_user_access.full_name),
              last_login_at = now(),
-             updated_at = now()`,
+             updated_at = now()
+       RETURNING id, auth_provider_user_id, email, full_name, role,
+                 access_status, is_active, can_access_app, last_login_at`,
       [authProviderUserId, email, fullName || null]
     )
+    return rows[0] || null
   } catch (err) {
-    console.warn('[auth] provisionNewUser error:', err?.message)
+    console.warn('[auth] createPendingUserRow error:', err?.message)
+    return null
   }
 }
 
@@ -106,28 +109,20 @@ export async function getCurrentAppUser(req) {
   const authProviderUserId = stackUser.id
   const email = (stackUser.email || '').toLowerCase().trim()
   const fullName = stackUser.payload?.display_name || stackUser.payload?.name || null
+  const isBootstrapAdmin =
+    Boolean(ADMIN_BOOTSTRAP_EMAIL) &&
+    Boolean(email) &&
+    email === ADMIN_BOOTSTRAP_EMAIL.toLowerCase()
 
   // Diagnostic: safe to log (no secrets or token values)
   console.info(
     '[auth/user] resolving — userId:', authProviderUserId,
     '| email:', email || '(not in token)',
+    '| isBootstrapAdmin:', isBootstrapAdmin,
   )
 
-  // NOTE: We no longer return null when email is absent from the JWT payload.
-  // The primary DB lookup is always by auth_provider_user_id (which is always
-  // present as `sub` in verified JWTs). Bootstrap admin promotion and user
-  // provisioning are email-dependent operations and are skipped when email is
-  // absent, but the lookup itself always runs.
-
-  if (email) {
-    // 2) Bootstrap admin promotion (idempotent, also fixes orphaned pending rows)
-    await ensureBootstrapAdmin(authProviderUserId, email, fullName)
-
-    // 3) Provision on first login (no-op if already exists; skipped when email absent)
-    await provisionNewUser(authProviderUserId, email, fullName)
-  }
-
-  // 4) Primary lookup: fetch authorization record by auth_provider_user_id
+  // 2) Primary lookup: fetch authorization record by auth_provider_user_id.
+  //    This is the fast path for all returning users.
   let record = null
   {
     const { rows } = await query(
@@ -140,25 +135,28 @@ export async function getCurrentAppUser(req) {
     )
     record = rows[0] || null
     console.info(
-      '[auth/user] primary lookup by userId:',
+      '[auth/user] primary lookup (by userId):',
       record
         ? `found — id=${record.id} status=${record.access_status} role=${record.role}`
         : 'not found',
     )
   }
 
-  // 5) Email-based fallback: if no row was found by auth_provider_user_id but we
-  //    have an email, look for an existing row by email.  This handles:
-  //    • A row created with a different/old auth_provider_user_id (e.g., from a
-  //      previous session before the JWT was correctly linked).
-  //    • The bootstrap admin secondary-update from step 2, which promoted a row
-  //      without re-linking its user ID.
+  // 3) Email-based fallback: if no row was found by auth_provider_user_id but we
+  //    have an email, look for an existing row by email.
+  //
+  //    This is the CORRECT ORDER — we must check email BEFORE creating any new row.
+  //    Without this check, a new pending row would be created even when an approved
+  //    row already exists for the same email with a different auth_provider_user_id.
+  //
+  //    This handles:
+  //    • A row created before the auth_provider_user_id was correctly linked.
+  //    • The bootstrap admin account on first login with a fresh token.
   //    When found, we update the row's auth_provider_user_id so future logins
   //    resolve via the faster primary path.
   if (!record && email) {
     try {
-      // Prefer the approved/admin row if multiple exist for the same email
-      // (e.g., one pending and one admin from the bootstrap secondary-update).
+      // Prefer the approved/admin row if multiple exist for the same email.
       const { rows: emailRows } = await query(
         `SELECT id, auth_provider_user_id, email, full_name, role,
                 access_status, is_active, can_access_app, last_login_at
@@ -177,13 +175,12 @@ export async function getCurrentAppUser(req) {
         console.info(
           '[auth/user] email fallback matched row id:', emailRow.id,
           '| old userId:', emailRow.auth_provider_user_id,
-          '| status:', emailRow.access_status,
-          '| role:', emailRow.role,
+          '| status:', emailRow.access_status, '| role:', emailRow.role,
           '— linking to current userId',
         )
 
-        // Link the found row to the new auth_provider_user_id. The UPDATE is
-        // conditional: skip if another row already claims this user ID (prevents
+        // Link the found row to the current auth_provider_user_id.
+        // Conditional: skip if another row already claims this user ID (prevents
         // a UNIQUE constraint violation in the unlikely race where two logins
         // overlap and both reach this branch).
         const { rows: updated } = await query(
@@ -201,7 +198,7 @@ export async function getCurrentAppUser(req) {
         if (updated.length > 0) {
           record = { ...emailRow, auth_provider_user_id: authProviderUserId }
         } else {
-          // Another row already claimed auth_provider_user_id; re-fetch it.
+          // Another row already claimed auth_provider_user_id — re-fetch it.
           console.info('[auth/user] email-link skipped (userId already claimed) — re-fetching primary')
           const { rows: refetch } = await query(
             `SELECT id, auth_provider_user_id, email, full_name, role,
@@ -219,6 +216,33 @@ export async function getCurrentAppUser(req) {
     }
   }
 
+  // 4) Bootstrap admin promotion: if the resolved row (by either path) exists but
+  //    is not yet admin/approved, promote it.  This ensures the bootstrap account
+  //    is always authorised regardless of how the row was created.
+  if (record && isBootstrapAdmin) {
+    await promoteToBootstrapAdmin(record.id, authProviderUserId)
+    // Reflect the promotion in the in-memory record so the response is correct
+    // without needing an extra SELECT.
+    record = {
+      ...record,
+      role: 'admin',
+      access_status: 'approved',
+      is_active: true,
+      can_access_app: true,
+    }
+  }
+
+  // 5) Provision (create row) only when no existing row was found at all.
+  if (!record) {
+    console.info('[auth/user] no row found — provisioning new row. isBootstrapAdmin:', isBootstrapAdmin)
+    if (isBootstrapAdmin) {
+      record = await createBootstrapAdminRow(authProviderUserId, email, fullName)
+    } else if (email) {
+      record = await createPendingUserRow(authProviderUserId, email, fullName)
+      console.info('[auth/user] new pending row created — pendingRowCreated:true')
+    }
+  }
+
   console.info(
     '[auth/user] final record:',
     record
@@ -230,7 +254,7 @@ export async function getCurrentAppUser(req) {
     return null
   }
 
-  // 6) Update last_login_at (best-effort, non-blocking — failure here does not affect auth)
+  // 6) Update last_login_at (best-effort, non-blocking)
   query(
     `UPDATE public.app_user_access SET last_login_at = now(), updated_at = now()
      WHERE auth_provider_user_id = $1`,
