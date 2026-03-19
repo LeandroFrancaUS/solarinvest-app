@@ -3985,6 +3985,8 @@ type BudgetPreviewOptions = {
   closeAfterPrint?: boolean | undefined
   initialMode?: PrintMode | undefined
   initialVariant?: PrintVariant | undefined
+  /** Pre-opened Window reference. When provided, skips window.open() so Safari popup policy is respected. */
+  preOpenedWindow?: Window | null | undefined
 }
 
 function renderPrintableProposalToHtml(
@@ -10569,14 +10571,20 @@ export default function App() {
         closeAfterPrint,
         initialMode,
         initialVariant = 'standard',
+        preOpenedWindow,
       }: BudgetPreviewOptions,
     ) => {
       if (!layoutHtml) {
+        preOpenedWindow?.close()
         window.alert('Não foi possível preparar a visualização do orçamento selecionado.')
         return
       }
 
-      const printWindow = window.open('', '_blank', 'width=1024,height=768')
+      // Use the pre-opened window when available (required for Safari, which blocks window.open()
+      // called after async operations). Fall back to window.open() for synchronous callers.
+      const printWindow = (preOpenedWindow && !preOpenedWindow.closed)
+        ? preOpenedWindow
+        : window.open('', '_blank', 'width=1024,height=768')
       if (!printWindow) {
         window.alert('Não foi possível abrir a visualização. Verifique se o bloqueador de pop-ups está ativo.')
         return
@@ -15238,11 +15246,18 @@ export default function App() {
       return
     }
 
-    if (!(await ensureNormativePrecheck())) {
+    if (!confirmarAlertasGerarProposta()) {
       return
     }
 
-    if (!confirmarAlertasGerarProposta()) {
+    // Open the preview window synchronously here — before any await — so that Safari's
+    // popup policy (which only allows window.open() within a synchronous user-gesture
+    // handler) is satisfied.  All subsequent async work writes into this already-opened
+    // window via the preOpenedWindow option of openBudgetPreviewWindow.
+    const preOpenedWindow = window.open('', '_blank', 'width=1024,height=768')
+
+    if (!(await ensureNormativePrecheck())) {
+      preOpenedWindow?.close()
       return
     }
 
@@ -15253,6 +15268,7 @@ export default function App() {
     })
 
     if (!resultado) {
+      preOpenedWindow?.close()
       window.alert('Não foi possível gerar a visualização para impressão. Tente novamente.')
       return
     }
@@ -15269,6 +15285,7 @@ export default function App() {
       budgetId,
       actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
       initialMode: 'preview',
+      preOpenedWindow,
     })
   }
 
@@ -15290,6 +15307,9 @@ export default function App() {
       )
       return
     }
+
+    // Open the preview window synchronously before any await (required for Safari popup policy).
+    const preOpenedWindow = window.open('', '_blank', 'width=1024,height=768')
 
     setGerandoTabelaTransferencia(true)
 
@@ -15322,8 +15342,10 @@ export default function App() {
           'Revise a tabela e utilize as ações da barra superior para imprimir ou baixar o PDF.',
         initialMode: 'preview',
         initialVariant: 'buyout',
+        preOpenedWindow,
       })
     } catch (error) {
+      preOpenedWindow?.close()
       console.error('Erro ao preparar a tabela de valor de transferência para impressão.', error)
       const mensagem =
         error instanceof Error && error.message
@@ -18215,6 +18237,8 @@ export default function App() {
 
   const abrirOrcamentoSalvo = useCallback(
     async (registro: OrcamentoSalvo, modo: 'preview' | 'print' | 'download') => {
+      // Open the preview window synchronously before any await (required for Safari popup policy).
+      const preOpenedWindow = window.open('', '_blank', 'width=1024,height=768')
       try {
         const dadosParaImpressao: PrintableProposalProps = {
           ...registro.dados,
@@ -18226,6 +18250,7 @@ export default function App() {
         const sanitizedLayoutHtml = sanitizePrintableHtml(layoutHtml)
 
         if (!sanitizedLayoutHtml) {
+          preOpenedWindow?.close()
           window.alert('Não foi possível preparar o orçamento selecionado. Tente novamente.')
           return
         }
@@ -18246,8 +18271,10 @@ export default function App() {
           autoPrint: modo !== 'preview',
           closeAfterPrint: modo === 'download',
           initialMode: modo === 'download' ? 'download' : modo === 'print' ? 'print' : 'preview',
+          preOpenedWindow,
         })
       } catch (error) {
+        preOpenedWindow?.close()
         console.error('Erro ao abrir orçamento salvo.', error)
         window.alert('Não foi possível abrir o orçamento selecionado. Tente novamente.')
       }
@@ -23803,6 +23830,21 @@ export default function App() {
     },
   ]
 
+  const mobileAllowedIds = ['propostas-leasing', 'propostas-vendas', 'propostas-nova', 'relatorios-exportar-pdf', 'config-sair']
+  const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
+  const mobileSidebarGroups: SidebarGroup[] = isMobileViewport
+    ? [
+        {
+          id: 'mobile',
+          label: 'Menu',
+          items: mobileAllowedIds.flatMap((id) => {
+            const item = allSidebarItems.get(id)
+            return item ? [item] : []
+          }),
+        },
+      ]
+    : sidebarGroups
+
   const renderBudgetSearchPage = () => (
     <div className="budget-search-page">
       <div className="budget-search-page-header">
@@ -24997,7 +25039,7 @@ export default function App() {
           sidebar={{
             collapsed: isSidebarCollapsed,
             mobileOpen: isSidebarMobileOpen,
-            groups: sidebarGroups,
+            groups: mobileSidebarGroups,
             activeItemId: activeSidebarItem,
             onNavigate: handleSidebarNavigate,
             onCloseMobile: handleSidebarClose,
