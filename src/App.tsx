@@ -20134,7 +20134,8 @@ export default function App() {
           </Field>
         </div>
         {shouldHideSimpleViewItems ? null : renderTusdParametersSection()}
-        <div className="multi-uc-section" id="multi-uc" hidden={shouldHideSimpleViewItems}>
+        {!shouldHideSimpleViewItems ? (
+        <div className="multi-uc-section" id="multi-uc">
           <div className="multi-uc-header">
             <div className="multi-uc-title-row">
               <h3>Cenário de múltiplas unidades consumidoras (Multi-UC)</h3>
@@ -20565,6 +20566,7 @@ export default function App() {
             </p>
           )}
         </div>
+        ) : null}
       </section>
     )
   }
@@ -25521,6 +25523,7 @@ export default function App() {
                     ) : null}
                   </section>
 
+            {shouldHideSimpleViewItems ? null : (
             <div className="grid g2">
               <section className="card">
                 <h2>Leasing — Mensalidades</h2>
@@ -25543,7 +25546,7 @@ export default function App() {
                 </div>
               </section>
 
-              <section className="card" hidden={shouldHideSimpleViewItems}>
+              <section className="card">
                 <div className="card-header">
                   <h2>Financiamento — Mensalidades</h2>
                   <span className="toggle-label">Coluna ativa: {mostrarFinanciamento ? 'Sim' : 'Não'}</span>
@@ -25562,6 +25565,7 @@ export default function App() {
                 )}
               </section>
             </div>
+            )}
 
           </>
         ) : (
