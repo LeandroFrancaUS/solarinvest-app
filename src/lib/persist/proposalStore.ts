@@ -8,6 +8,8 @@
 import localforage from 'localforage'
 import type { OrcamentoSnapshotData } from '../../types'
 
+const __DEV__ = import.meta.env.DEV
+
 const proposalStore = localforage.createInstance({
   name: 'solarinvest-app',
   storeName: 'proposals',
@@ -49,13 +51,7 @@ export async function saveProposalSnapshotById(
   
   // Guard: Block empty snapshots from being saved
   if (!isMeaningfulSnapshot(snapshot)) {
-    console.warn('[proposalStore] BLOCKED save of empty snapshot', {
-      budgetId,
-      clienteNome: snapshot?.cliente?.nome ?? '',
-      clienteEndereco: snapshot?.cliente?.endereco ?? '',
-      clienteDocumento: snapshot?.cliente?.documento ?? '',
-      kcKwhMes: snapshot?.kcKwhMes ?? 0,
-    })
+    if (__DEV__) console.debug('[proposalStore] BLOCKED save of empty snapshot for budget:', budgetId)
     return
   }
   
@@ -70,29 +66,11 @@ export async function saveProposalSnapshotById(
   
   // READ-AFTER-WRITE VERIFICATION
   const verify = await proposalStore.getItem<ProposalPayload>(key)
-  const snap = verify?.snapshot
   
-  // Check if verified data is meaningful
-  const hasCliente = Boolean(
-    (snap?.cliente?.nome ?? '').trim() ||
-    (snap?.cliente?.endereco ?? '').trim() ||
-    (snap?.cliente?.documento ?? '').trim()
-  )
-  const hasConsumption = Number(snap?.kcKwhMes ?? 0) > 0
-  
-  console.log('[proposalStore] SAVED+VERIFIED', budgetId, {
-    hasPayload: !!verify,
-    hasSnapshot: !!snap,
-    hasCliente,
-    hasConsumption,
-    clienteNome: snap?.cliente?.nome ?? '',
-    clienteEndereco: snap?.cliente?.endereco ?? '',
-    kcKwhMes: snap?.kcKwhMes ?? 0,
-    totalFields: snap ? Object.keys(snap).length : 0,
-  })
-  
-  if (!verify || !snap) {
+  if (!verify || !verify.snapshot) {
     console.error('[proposalStore] SAVE VERIFICATION FAILED - data not persisted correctly!')
+  } else if (__DEV__) {
+    console.debug('[proposalStore] SAVED+VERIFIED', budgetId)
   }
 }
 
@@ -106,22 +84,17 @@ export async function loadProposalSnapshotById(
   const payload = await proposalStore.getItem<ProposalPayload>(key)
   
   if (!payload) {
-    console.warn('[proposalStore] No snapshot found for budget:', budgetId)
+    if (__DEV__) console.debug('[proposalStore] No snapshot found for budget:', budgetId)
     return null
   }
   
-  const snap = payload.snapshot
+  if (__DEV__) {
+    console.debug('[proposalStore] Loaded snapshot for budget:', budgetId, {
+      totalFields: payload.snapshot ? Object.keys(payload.snapshot).length : 0,
+    })
+  }
   
-  console.log('[proposalStore] Loaded complete snapshot for budget:', budgetId, {
-    hasSnapshot: !!snap,
-    clienteNome: snap?.cliente?.nome ?? '',
-    clienteEndereco: snap?.cliente?.endereco ?? '',
-    kcKwhMes: snap?.kcKwhMes ?? 0,
-    totalFields: snap ? Object.keys(snap).length : 0,
-    savedAt: payload.savedAt,
-  })
-  
-  return snap
+  return payload.snapshot
 }
 
 /**
@@ -140,7 +113,7 @@ export async function listProposalIds(): Promise<string[]> {
 export async function deleteProposalById(budgetId: string): Promise<void> {
   const key = `proposal:${budgetId}`
   await proposalStore.removeItem(key)
-  console.log(`[proposalStore] Deleted snapshot for budget: ${budgetId}`)
+  if (__DEV__) console.debug(`[proposalStore] Deleted snapshot for budget: ${budgetId}`)
 }
 
 /**
@@ -148,5 +121,5 @@ export async function deleteProposalById(budgetId: string): Promise<void> {
  */
 export async function clearAllProposals(): Promise<void> {
   await proposalStore.clear()
-  console.log('[proposalStore] Cleared all proposal snapshots')
+  if (__DEV__) console.debug('[proposalStore] Cleared all proposal snapshots')
 }

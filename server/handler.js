@@ -75,6 +75,35 @@ const stackAuthEnabled = isStackAuthEnabled()
 
 const createRequestId = () => crypto.randomUUID()
 
+// ── Simple in-memory rate limiter for auth endpoints ─────────────────────────
+const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 1000   // 1-minute sliding window
+const AUTH_RATE_LIMIT_MAX = 30                 // max 30 requests per window per IP
+const rateLimitBuckets = new Map()             // IP → { count, resetAt }
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
+
+// Periodic cleanup to avoid unbounded memory growth
+setInterval(() => {
+  const now = Date.now()
+  for (const [ip, bucket] of rateLimitBuckets) {
+    if (bucket.resetAt <= now) rateLimitBuckets.delete(ip)
+  }
+}, RATE_LIMIT_CLEANUP_INTERVAL_MS).unref()
+
+function isAuthRateLimited(req) {
+  const ip =
+    (typeof req.headers['x-forwarded-for'] === 'string'
+      ? req.headers['x-forwarded-for'].split(',')[0].trim()
+      : '') || req.socket?.remoteAddress || 'unknown'
+  const now = Date.now()
+  let bucket = rateLimitBuckets.get(ip)
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + AUTH_RATE_LIMIT_WINDOW_MS }
+    rateLimitBuckets.set(ip, bucket)
+  }
+  bucket.count += 1
+  return bucket.count > AUTH_RATE_LIMIT_MAX
+}
+
 const sendJson = (res, statusCode, payload) => {
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -229,7 +258,7 @@ export default async function handler(req, res) {
         sendServerError(res, 500, {
           ok: false,
           db: 'error',
-          error: error.message || 'Falha ao conectar ao banco de dados',
+          error: 'Falha ao conectar ao banco de dados',
           latencyMs
         }, requestId, vercelId)
       }
@@ -361,10 +390,11 @@ export default async function handler(req, res) {
       return
     }
 
-    // Auth & Admin routes
+    // Auth & Admin routes — apply rate limiting
     if (pathname === '/api/auth/me') {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAuthRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
       await handleAuthMeRequest(req, res, { sendJson, requestUrl })
       return
     }

@@ -10,6 +10,8 @@ const FORM_DRAFT_KEY = 'solarinvest-form-draft'
  */
 const DRAFT_VERSION = 1
 
+const __DEV__ = import.meta.env.DEV
+
 /**
  * Salva o snapshot completo do formulário (cliente + proposta) usando IndexedDB
  * 
@@ -20,7 +22,7 @@ export async function saveFormDraft<T>(snapshotData: T): Promise<DraftEnvelope<T
   try {
     // Check if snapshot is empty/null - treat as clear semantics
     if (!snapshotData || (typeof snapshotData === 'object' && Object.keys(snapshotData as object).length === 0)) {
-      console.log('[formDraft] Empty snapshot detected, clearing draft instead of saving')
+      if (__DEV__) console.debug('[formDraft] Empty snapshot detected, clearing draft instead of saving')
       await clearFormDraft()
       // Return a dummy envelope to maintain API compatibility
       return {
@@ -30,16 +32,16 @@ export async function saveFormDraft<T>(snapshotData: T): Promise<DraftEnvelope<T
       } as DraftEnvelope<T>
     }
     
-    console.log('[formDraft] Saving complete form snapshot to IndexedDB')
     const envelope = await saveDraft(FORM_DRAFT_KEY, snapshotData, DRAFT_VERSION)
     const hasData = !!envelope.data && Object.keys(envelope.data as object).length > 0
     
-    console.log('[formDraft] Form snapshot saved successfully:', {
-      version: envelope.version,
-      updatedAt: new Date(envelope.updatedAt).toISOString(),
-      hasData,
-      dataKeys: envelope.data ? Object.keys(envelope.data as object).length : 0,
-    })
+    if (__DEV__) {
+      console.debug('[formDraft] Form snapshot saved:', {
+        version: envelope.version,
+        hasData,
+        dataKeys: envelope.data ? Object.keys(envelope.data as object).length : 0,
+      })
+    }
     
     // READ-AFTER-WRITE VERIFICATION: Only verify if we saved meaningful data
     if (hasData) {
@@ -49,23 +51,10 @@ export async function saveFormDraft<T>(snapshotData: T): Promise<DraftEnvelope<T
           console.error('[formDraft] READ-AFTER-WRITE FAILED: Data not found after save!')
           return envelope
         }
-        
-        const verifyData = verification.data as unknown as Record<string, unknown>
-        const clienteData = verifyData.cliente as Record<string, unknown> | undefined
-        console.log('[formDraft] READ-AFTER-WRITE VERIFICATION SUCCESS:', {
-          hasCliente: !!clienteData,
-          clienteNome: clienteData?.nome,
-          clienteEndereco: clienteData?.endereco,
-          clienteCidade: clienteData?.cidade,
-          kcKwhMes: verifyData.kcKwhMes,
-          tarifaCheia: verifyData.tarifaCheia,
-          totalFields: Object.keys(verifyData).length,
-        })
+        if (__DEV__) console.debug('[formDraft] READ-AFTER-WRITE VERIFICATION SUCCESS')
       } catch (verifyError) {
         console.error('[formDraft] READ-AFTER-WRITE verification failed:', verifyError)
       }
-    } else {
-      console.log('[formDraft] Skipping read-after-write: payload is empty (clear semantics)')
     }
     
     return envelope
@@ -82,38 +71,18 @@ export async function saveFormDraft<T>(snapshotData: T): Promise<DraftEnvelope<T
  */
 export async function loadFormDraft<T>(): Promise<DraftEnvelope<T> | null> {
   try {
-    console.log('[formDraft] Loading form snapshot from IndexedDB')
     const envelope = await loadDraft<T>(FORM_DRAFT_KEY)
     
     if (!envelope) {
-      console.log('[formDraft] No saved form snapshot found')
+      if (__DEV__) console.debug('[formDraft] No saved form snapshot found')
       return null
     }
     
-    const FIELD_NAME_LIMIT = 20
-    const loadedData = envelope.data as unknown as Record<string, unknown>
-    console.log('[formDraft] Form snapshot loaded successfully:', {
-      version: envelope.version,
-      updatedAt: new Date(envelope.updatedAt).toISOString(),
-      hasData: !!envelope.data,
-      dataKeys: envelope.data ? Object.keys(envelope.data as object).length : 0,
-    })
-    
-    // Detailed verification of critical fields
-    if (loadedData) {
-      const clienteData = loadedData.cliente as Record<string, unknown> | undefined
-      console.log('[formDraft] LOADED DATA DETAILS:', {
-        hasCliente: !!clienteData,
-        clienteNome: clienteData?.nome || '(empty)',
-        clienteEndereco: clienteData?.endereco || '(empty)',
-        clienteCidade: clienteData?.cidade || '(empty)',
-        clienteDocumento: clienteData?.documento || '(empty)',
-        kcKwhMes: loadedData.kcKwhMes,
-        tarifaCheia: loadedData.tarifaCheia,
-        potenciaModulo: loadedData.potenciaModulo,
-        numeroModulosManual: loadedData.numeroModulosManual,
-        totalFields: Object.keys(loadedData).length,
-        allFieldNames: Object.keys(loadedData).slice(0, FIELD_NAME_LIMIT).join(', ') + '...',
+    if (__DEV__) {
+      console.debug('[formDraft] Form snapshot loaded:', {
+        version: envelope.version,
+        hasData: !!envelope.data,
+        dataKeys: envelope.data ? Object.keys(envelope.data as object).length : 0,
       })
     }
     
@@ -129,9 +98,8 @@ export async function loadFormDraft<T>(): Promise<DraftEnvelope<T> | null> {
  */
 export async function removeFormDraft(): Promise<void> {
   try {
-    console.log('[formDraft] Removing form snapshot from IndexedDB')
     await removeDraft(FORM_DRAFT_KEY)
-    console.log('[formDraft] Form snapshot removed successfully')
+    if (__DEV__) console.debug('[formDraft] Form snapshot removed')
   } catch (error) {
     console.error('[formDraft] Failed to remove form snapshot:', error)
     throw error
@@ -144,7 +112,6 @@ export async function removeFormDraft(): Promise<void> {
 export async function clearFormDraft(): Promise<void> {
   try {
     await removeDraft(FORM_DRAFT_KEY)
-    console.log('[formDraft] Draft cleared (removeItem)')
   } catch (e) {
     console.warn('[formDraft] Failed to clear draft:', e)
   }

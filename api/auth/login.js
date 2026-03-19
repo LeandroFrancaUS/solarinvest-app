@@ -96,7 +96,6 @@ export default async function handler(req, res) {
   }
 
   const authHeaderPresent = Boolean(req.headers?.authorization)
-  console.info('[auth/login] POST — Authorization header present:', authHeaderPresent)
 
   if (!authHeaderPresent) {
     res.statusCode = 401
@@ -109,7 +108,6 @@ export default async function handler(req, res) {
     // getStackUser() reads the Authorization header, verifies via JWKS, and
     // returns { id, email, payload } or null.
     const stackUser = await getStackUser(req)
-    console.info('[auth/login] stack user resolved:', stackUser ? `id=${stackUser.id}` : 'null')
 
     if (!stackUser?.id) {
       res.statusCode = 401
@@ -139,7 +137,6 @@ export default async function handler(req, res) {
       'Set-Cookie',
       `${COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=${SESSION_EXPIRY_SECONDS}; SameSite=Lax${secure}`,
     )
-    console.info('[auth/login] session cookie set — userId:', stackUser.id)
     res.statusCode = 200
     res.end(JSON.stringify({ ok: true, sessionCookie: true }))
   } catch (error) {

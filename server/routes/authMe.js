@@ -5,14 +5,15 @@
 import { getCurrentAppUser } from '../auth/currentAppUser.js'
 import { getStackUser, isStackAuthBypassed } from '../auth/stackAuth.js'
 
+const isDev = process.env.NODE_ENV !== 'production' && process.env.VERCEL_ENV !== 'production'
+
 function sanitizeString(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
 export async function handleAuthMeRequest(req, res, { sendJson }) {
-  console.info('[auth/me] handler reached')
   const stackUser = await getStackUser(req)
-  console.info('[auth/me] stack user resolved:', stackUser ? `id=${stackUser.id}` : 'null')
+  if (isDev) console.info('[auth/me] stack user resolved:', stackUser ? `id=${stackUser.id}` : 'null')
 
   const authenticated = isStackAuthBypassed() || Boolean(stackUser?.id)
   if (!authenticated) {
@@ -27,14 +28,13 @@ export async function handleAuthMeRequest(req, res, { sendJson }) {
 
   let appUser
   try {
-    console.info('[auth/me] db query starting')
     appUser = await getCurrentAppUser(req)
-    console.info('[auth/me] db query complete, appUser:', appUser ? `id=${appUser.id}` : 'null')
+    if (isDev) console.info('[auth/me] appUser:', appUser ? `id=${appUser.id}` : 'null')
   } catch (dbErr) {
     // Database is unreachable or not configured.
     // Return HTTP 200 with authorized:false so the client shows an "Access Pending"
     // screen instead of a 500 error that could be misinterpreted as anonymous access.
-    console.error('[auth/me] db query failed:', dbErr?.message)
+    console.error('[auth/me] db query failed')
     sendJson(res, 200, {
       authenticated: true,
       authorized: false,
