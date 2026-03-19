@@ -126,7 +126,14 @@ function RequireAuthorizedUserWithStack({ children }: Props) {
   // `user.getAccessToken()` automatically refreshes the short-lived JWT when
   // it is about to expire, so we always forward a valid token.
   const getAccessToken = useCallback(
-    () => (user ? user.getAccessToken() : Promise.resolve(null)),
+    () => {
+      if (!user) {
+        console.debug('[auth] getAccessToken called but user is null — returning null')
+        return Promise.resolve(null)
+      }
+      console.debug('[auth] getAccessToken — calling user.getAccessToken() for userId:', user.id)
+      return user.getAccessToken()
+    },
     [user],
   )
 
