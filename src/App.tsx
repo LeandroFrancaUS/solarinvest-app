@@ -258,6 +258,8 @@ import {
   tarifaCurrency,
 } from './utils/formatters'
 import { Switch } from './components/ui/switch'
+import { useUser } from '@stackframe/react'
+import { clearAllClientData } from './lib/persist/clearOnLogout'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4232,6 +4234,21 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 }
 
 export default function App() {
+  const user = useUser()
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await clearAllClientData()
+    } catch {
+      // non-fatal: proceed with sign out even if client data clear fails
+    }
+    try {
+      await user?.signOut()
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error)
+    }
+  }, [user])
+
   // Check if we're in print mode (for Bento Grid PDF generation)
   const isPrintMode = useMemo(() => {
     if (typeof window === 'undefined') return false
@@ -23751,6 +23768,14 @@ export default function App() {
           icon: '⚙️',
           onSelect: () => {
             void abrirConfiguracoes()
+          },
+        },
+        {
+          id: 'config-sair',
+          label: 'Sair',
+          icon: '🚪',
+          onSelect: () => {
+            void handleLogout()
           },
         },
       ],
