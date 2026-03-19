@@ -525,6 +525,7 @@ export async function getStackUser(req) {
 
   let resolvedUser = null
 
+  // Priority 1: Bearer token via JWKS verification (primary production path)
   const token = extractBearerToken(req)
   if (token) {
     const payload = await verifyJwt(token)
@@ -535,22 +536,25 @@ export async function getStackUser(req) {
           id: userId,
           email: sanitizeString(payload.email ?? ''),
           payload,
+          _authSource: 'bearer',
         }
       }
     }
   }
 
+  // Priority 2: Backend session cookie (HMAC-SHA256 JWT)
   if (!resolvedUser) {
     const cookieUser = resolveSessionCookieUser(req)
     if (cookieUser) {
-      resolvedUser = cookieUser
+      resolvedUser = { ...cookieUser, _authSource: 'session-cookie' }
     }
   }
 
+  // Priority 3: x-user-id header fallback (dev/testing only)
   if (!resolvedUser) {
     const fallbackId = resolveFallbackUserId(req)
     if (fallbackId) {
-      resolvedUser = { id: fallbackId }
+      resolvedUser = { id: fallbackId, _authSource: 'header-fallback' }
     }
   }
 

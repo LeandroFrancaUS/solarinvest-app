@@ -19,6 +19,8 @@ export interface AppUserAccess {
   canAccessApp: boolean
 }
 
+export type AuthSource = 'bearer' | 'session-cookie' | 'header-fallback'
+
 export interface MeResponse {
   authenticated: boolean
   authorized: boolean
@@ -29,6 +31,8 @@ export interface MeResponse {
   email?: string
   fullName?: string | null
   id?: string
+  /** Which server-side method authenticated this request. */
+  authSource?: AuthSource | null
 }
 
 export interface AdminUser {

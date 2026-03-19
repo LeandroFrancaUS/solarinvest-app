@@ -139,10 +139,10 @@ function RequireAuthorizedUserWithStack({ children }: Props) {
       try {
         const token = await user.getAccessToken()
         if (!token) {
-          console.debug('[auth] /api/auth/login skipped — no access token yet')
+          if (import.meta.env.DEV) console.debug('[auth] /api/auth/login skipped — no access token yet')
           return
         }
-        console.debug('[auth] POST /api/auth/login — creating backend session cookie')
+        if (import.meta.env.DEV) console.debug('[auth] POST /api/auth/login — creating backend session cookie')
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           credentials: 'include',
@@ -150,13 +150,22 @@ function RequireAuthorizedUserWithStack({ children }: Props) {
         })
         if (res.ok) {
           const body = await res.json().catch(() => ({})) as { ok?: boolean; sessionCookie?: boolean }
-          console.debug('[auth] /api/auth/login ok — sessionCookie:', body?.sessionCookie ?? 'unknown')
+          // Safe production log: confirms login completed (no PII / secrets)
+          console.info('[auth] login status=%d', res.status)
+          if (import.meta.env.DEV) {
+            // Verbose diagnostic in development — includes session cookie status
+            console.debug('[auth] login session=%s', body?.sessionCookie ? 'yes' : 'no')
+          }
+          if (!body?.sessionCookie) {
+            // Expected when AUTH_COOKIE_SECRET is not set.  Bearer-token auth still works.
+            if (import.meta.env.DEV) console.debug('[auth] session cookie not created (AUTH_COOKIE_SECRET not configured?) — Bearer-token auth remains active')
+          }
         } else {
-          console.debug('[auth] /api/auth/login returned', res.status, '— Bearer-token auth remains active')
+          console.warn('[auth] login failed status=%d — Bearer-token auth remains active', res.status)
         }
       } catch (err) {
-        console.debug(
-          '[auth] /api/auth/login call failed:',
+        console.warn(
+          '[auth] login call failed:',
           err instanceof Error ? err.message : String(err),
           '— Bearer-token auth remains active',
         )
@@ -172,10 +181,9 @@ function RequireAuthorizedUserWithStack({ children }: Props) {
   const getAccessToken = useCallback(
     () => {
       if (!user) {
-        console.debug('[auth] getAccessToken called but user is null — returning null')
+        if (import.meta.env.DEV) console.debug('[auth] getAccessToken called but user is null')
         return Promise.resolve(null)
       }
-      console.debug('[auth] getAccessToken — calling user.getAccessToken() for userId:', user.id)
       return user.getAccessToken()
     },
     [user],

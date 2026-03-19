@@ -6,6 +6,22 @@
 // to the per-request Bearer-token JWKS verification already implemented in
 // server/auth/stackAuth.js.
 //
+// Auth architecture
+// ─────────────────
+// Production model:
+//   1. Bearer token (Stack Auth JWT via JWKS)  — PRIMARY, always available
+//   2. Session cookie (HMAC-SHA256 JWT)         — OPTIONAL ENHANCEMENT
+//
+// The session cookie is only created when AUTH_COOKIE_SECRET (or JWT_SECRET) is
+// configured in the environment.  If it is not set, the login endpoint returns
+// `{ ok: true, sessionCookie: false }` and Bearer-token verification in
+// /api/auth/me remains the sole auth path.  This is a valid production state.
+//
+// When AUTH_COOKIE_SECRET IS configured, the cookie provides:
+//   • Persistence across page reloads (no need to re-acquire Stack Auth token)
+//   • Faster auth on /me (HMAC verification vs JWKS key fetch)
+//   • Reduced dependency on Stack Auth's token refresh infrastructure
+//
 // Design constraints
 // ------------------
 // • NO external JWT library (jsonwebtoken, jwks-rsa, etc.) — those are not
@@ -71,6 +87,34 @@ function isProductionEnv() {
   )
 }
 
+// ── Simple in-memory rate limiter (best-effort for serverless) ────────────────
+const LOGIN_RATE_LIMIT_WINDOW_MS = 60 * 1000   // 1-minute window
+const LOGIN_RATE_LIMIT_MAX = 10                 // max 10 login attempts per IP per minute
+const loginRateBuckets = new Map()              // IP → { count, resetAt }
+
+function isLoginRateLimited(req) {
+  const forwarded = typeof req.headers?.['x-forwarded-for'] === 'string'
+    ? req.headers['x-forwarded-for'].split(',')[0].trim()
+    : ''
+  const ip = forwarded || req.socket?.remoteAddress || ''
+  if (!ip) return false
+
+  const now = Date.now()
+  // Lazy cleanup when map grows large
+  if (loginRateBuckets.size > 5_000) {
+    for (const [key, bucket] of loginRateBuckets) {
+      if (bucket.resetAt <= now) loginRateBuckets.delete(key)
+    }
+  }
+  let bucket = loginRateBuckets.get(ip)
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + LOGIN_RATE_LIMIT_WINDOW_MS }
+    loginRateBuckets.set(ip, bucket)
+  }
+  bucket.count += 1
+  return bucket.count > LOGIN_RATE_LIMIT_MAX
+}
+
 // ── Request handler ───────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -88,15 +132,20 @@ export default async function handler(req, res) {
   // browser prefetches, and stale GET callers get a meaningful response
   // instead of a crash.
   if (req.method !== 'POST') {
-    console.info('[auth/login] rejected', req.method, 'request — only POST is supported')
     res.setHeader('Allow', 'POST')
     res.statusCode = 405
     res.end(JSON.stringify({ error: 'Method Not Allowed' }))
     return
   }
 
+  // Rate limiting: prevent brute-force login attempts
+  if (isLoginRateLimited(req)) {
+    res.statusCode = 429
+    res.end(JSON.stringify({ error: 'Too many requests. Try again later.' }))
+    return
+  }
+
   const authHeaderPresent = Boolean(req.headers?.authorization)
-  console.info('[auth/login] POST — Authorization header present:', authHeaderPresent)
 
   if (!authHeaderPresent) {
     res.statusCode = 401
@@ -109,7 +158,6 @@ export default async function handler(req, res) {
     // getStackUser() reads the Authorization header, verifies via JWKS, and
     // returns { id, email, payload } or null.
     const stackUser = await getStackUser(req)
-    console.info('[auth/login] stack user resolved:', stackUser ? `id=${stackUser.id}` : 'null')
 
     if (!stackUser?.id) {
       res.statusCode = 401
@@ -139,7 +187,6 @@ export default async function handler(req, res) {
       'Set-Cookie',
       `${COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=${SESSION_EXPIRY_SECONDS}; SameSite=Lax${secure}`,
     )
-    console.info('[auth/login] session cookie set — userId:', stackUser.id)
     res.statusCode = 200
     res.end(JSON.stringify({ ok: true, sessionCookie: true }))
   } catch (error) {

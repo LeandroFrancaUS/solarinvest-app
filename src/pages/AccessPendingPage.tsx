@@ -4,6 +4,7 @@
 import React from 'react'
 import { useStackApp } from '@stackframe/react'
 import { stackClientApp } from '../auth/stack-client'
+import { clearAllClientData } from '../lib/persist/clearOnLogout'
 import type { AccessStatus } from '../lib/auth/access-types'
 import { accessStatusLabel } from '../lib/auth/access-mappers'
 
@@ -33,7 +34,7 @@ function SignOutButton() {
   return (
     <button
       type="button"
-      onClick={() => { void app.signOut() }}
+      onClick={() => { void clearAllClientData().finally(() => app.signOut()) }}
       className="rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
     >
       Sair

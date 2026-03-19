@@ -82,7 +82,7 @@ export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthS
         if (token) {
           tokenRetryRef.current = 0  // reset deferral counter on success
           authHeaders = { Authorization: `Bearer ${token}` }
-          console.debug('[auth] /me — access token ready, sending request')
+          if (import.meta.env.DEV) console.debug('[auth] /me — access token ready, sending request')
         } else {
           // Stack Auth is configured but the access token is not yet available.
           // This happens when:
@@ -92,11 +92,13 @@ export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthS
           // In all three cases we MUST NOT call /me without auth — that would produce a
           // noisy HTTP 401 in DevTools even for fully authenticated users.
           tokenRetryRef.current += 1
-          console.debug(
-            '[auth] /me deferred — access token unavailable (attempt',
-            tokenRetryRef.current, '/',
-            MAX_TOKEN_RETRIES, ')',
-          )
+          if (import.meta.env.DEV) {
+            console.debug(
+              '[auth] /me deferred — access token unavailable (attempt',
+              tokenRetryRef.current, '/',
+              MAX_TOKEN_RETRIES, ')',
+            )
+          }
           if (tokenRetryRef.current <= MAX_TOKEN_RETRIES) {
             retryRef.current = setTimeout(() => { void load() }, TOKEN_UNAVAILABLE_RETRY_MS)
           } else {
@@ -109,7 +111,7 @@ export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthS
           return
         }
       } else {
-        console.debug('[auth] /me — no token getter (bypass mode), calling without auth')
+        if (import.meta.env.DEV) console.debug('[auth] /me — no token getter (bypass mode), calling without auth')
       }
 
       if (controller.signal.aborted) return
@@ -119,7 +121,19 @@ export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthS
       failCountRef.current = 0
       setMe(data)
       const nextState = data.authenticated ? 'authenticated' : 'anonymous'
-      console.debug('[auth] /me response — authenticated:', data.authenticated, '→ authState:', nextState)
+      // Safe production log: confirms auth completion + source (no PII / secrets)
+      console.info('[auth] /me authenticated=%s source=%s', data.authenticated ? 'yes' : 'no', data.authSource ?? 'none')
+      if (import.meta.env.DEV) {
+        // Consolidated DEV diagnostic — auth source, role, state transition
+        console.debug(
+          '[auth] /me diagnostic: authenticated=%s authSource=%s authorized=%s role=%s → authState=%s',
+          data.authenticated ? 'yes' : 'no',
+          data.authSource ?? 'unknown',
+          data.authorized ? 'yes' : 'no',
+          data.role ?? 'none',
+          nextState,
+        )
+      }
       setAuthState(nextState)
     } catch (err) {
       if (controller.signal.aborted) return

@@ -7812,7 +7812,7 @@ export default function App() {
       })
       .catch((error) => {
         if (cancelado) return
-        console.warn('[Tarifa] Não foi possível atualizar tarifa cheia automaticamente:', error)
+        if (import.meta.env.DEV) console.warn('[Tarifa] Não foi possível atualizar tarifa cheia automaticamente:', error)
       })
 
     return () => {
@@ -10922,7 +10922,7 @@ export default function App() {
       }
     } catch (error) {
       if (error instanceof OneDriveIntegrationMissingError) {
-        console.info('Leitura via OneDrive ignorada: integração não configurada.')
+        if (import.meta.env.DEV) console.debug('Leitura via OneDrive ignorada: integração não configurada.')
       } else {
         console.warn('Não foi possível carregar clientes via OneDrive.', error)
       }
@@ -13586,21 +13586,14 @@ export default function App() {
       })
     }
 
-    console.log('[getCurrentSnapshot] sources', {
-      activeTab: tab,
-      activeTabState: activeTab,
-      budgetIdRef: budgetId,
-      budgetIdState: currentBudgetId,
-      clienteState: { 
-        nome: clienteFonte.nome, 
-        endereco: clienteFonte.endereco, 
-        documento: clienteFonte.documento 
-      },
-      vendaStoreCliente: vendaSnapshotAtual?.cliente?.endereco ?? 'n/a',
-      leasingStoreCliente: leasingSnapshotAtual?.cliente?.endereco ?? 'n/a',
-      kcKwhMesState: kcKwhMesRef.current,
-      pageSharedStateKc: pageSharedStateRef.current?.kcKwhMes,
-    })
+    if (import.meta.env.DEV) {
+      console.debug('[getCurrentSnapshot] sources', {
+        activeTab: tab,
+        budgetIdRef: budgetId,
+        budgetIdState: currentBudgetId,
+        kcKwhMesState: kcKwhMesRef.current,
+      })
+    }
 
     // 🔒 CRITICAL: Use refs to get current state, not closure variables
     const kcAtual = Number(kcKwhMesRef.current ?? 0)
@@ -13761,23 +13754,20 @@ export default function App() {
     const snapshotKwh = Number(snapshotData.kcKwhMes ?? 0)
     
     // Final log showing what we're returning
-    console.log('[getCurrentSnapshot] FINAL snapshot', {
-      clienteNome: snapshotNome,
-      clienteEndereco: snapshotEndereco,
-      clienteDocumento: snapshotData.cliente?.documento ?? '',
-      kcKwhMes: snapshotKwh,
-      totalFields: Object.keys(snapshotData).length,
-    })
+    if (import.meta.env.DEV) {
+      console.debug('[getCurrentSnapshot] FINAL snapshot', {
+        kcKwhMes: snapshotKwh,
+        totalFields: Object.keys(snapshotData).length,
+      })
+    }
 
     if (isSnapshotEmpty(snapshotData)) {
       return snapshotData
     }
     
-    console.log('[getCurrentSnapshot] clienteFonte', {
-      nome: clienteFonte?.nome ?? '',
-      endereco: clienteFonte?.endereco ?? '',
-      documento: clienteFonte?.documento ?? '',
-    })
+    if (import.meta.env.DEV) {
+      console.debug('[getCurrentSnapshot] clienteFonte resolved')
+    }
 
     return snapshotData
   }
@@ -13816,16 +13806,10 @@ export default function App() {
     try {
       const latestRegistro = await getClienteRegistroById(registro.id)
       if (latestRegistro) {
-        console.log('[hydrateClienteRegistro] Loaded latest from clientStore:', {
-          id: registro.id,
-          nome: latestRegistro.dados?.nome,
-          endereco: latestRegistro.dados?.endereco,
-          updatedAt: latestRegistro.atualizadoEm,
-        })
         return latestRegistro
       }
     } catch (e) {
-      console.warn('[hydrateClienteRegistro] Failed to load latest for', registro.id, e)
+      if (import.meta.env.DEV) console.warn('[hydrateClienteRegistro] Failed to load latest for', registro.id, e)
     }
     return registro
   }
@@ -13846,8 +13830,9 @@ export default function App() {
     )
     
     // Debug: Log cliente endereco before saving
-    console.log('[ClienteSave] Cliente endereco BEFORE clone:', cliente.endereco)
-    console.log('[ClienteSave] DadosClonados endereco AFTER clone:', dadosClonados.endereco)
+    if (import.meta.env.DEV) {
+      console.debug('[ClienteSave] preparing clone')
+    }
     
     const snapshotAtual = getCurrentSnapshot()
     if (!snapshotAtual || isHydratingRef.current) {
@@ -13860,21 +13845,18 @@ export default function App() {
       Object.keys(snapshotClonado).length,
       'fields',
     )
-    console.log('[ClienteSave] Sample fields:', {
-      kcKwhMes: snapshotClonado.kcKwhMes,
-      tarifaCheia: snapshotClonado.tarifaCheia,
-      entradaRs: snapshotClonado.entradaRs,
-      numeroModulosManual: snapshotClonado.numeroModulosManual,
-      potenciaModulo: snapshotClonado.potenciaModulo,
-      temCorresponsavelFinanceiro: snapshotClonado.temCorresponsavelFinanceiro,
-      corresponsavelNome: snapshotClonado.corresponsavel?.nome ?? '',
-    })
-    console.log('[ClienteSave] Snapshot cliente endereco:', snapshotClonado.cliente?.endereco)
+    if (import.meta.env.DEV) {
+      console.debug('[ClienteSave] Sample fields:', {
+        kcKwhMes: snapshotClonado.kcKwhMes,
+        tarifaCheia: snapshotClonado.tarifaCheia,
+        totalFields: Object.keys(snapshotClonado).length,
+      })
+    }
     
     // Salvar snapshot completo no IndexedDB para persistência cross-browser robusta
     try {
       await saveFormDraft(snapshotClonado)
-      console.log('[ClienteSave] Form draft saved to IndexedDB successfully')
+      if (import.meta.env.DEV) console.debug('[ClienteSave] Form draft saved to IndexedDB')
     } catch (error) {
       console.warn('[ClienteSave] Failed to save form draft to IndexedDB:', error)
       // Continuar mesmo se falhar - o localStorage ainda funciona como fallback
@@ -14000,8 +13982,8 @@ export default function App() {
 
     if (!integracaoOneDriveAtiva) {
       erroSincronizacao = new OneDriveIntegrationMissingError()
-      if (typeof console !== 'undefined') {
-        console.info('Sincronização com o OneDrive ignorada: integração não configurada.')
+      if (import.meta.env.DEV && typeof console !== 'undefined') {
+        console.debug('Sincronização com o OneDrive ignorada: integração não configurada.')
       }
     } else {
       try {
@@ -14011,8 +13993,8 @@ export default function App() {
         erroSincronizacao = error
         if (error instanceof OneDriveIntegrationMissingError) {
           setOneDriveIntegrationAvailable(false)
-          if (typeof console !== 'undefined') {
-            console.warn('Integração com o OneDrive indisponível.', error)
+          if (import.meta.env.DEV && typeof console !== 'undefined') {
+            console.debug('Integração com o OneDrive indisponível.', error)
           }
         } else {
           console.error('Erro ao sincronizar cliente com o OneDrive.', error)
@@ -14023,16 +14005,10 @@ export default function App() {
     clienteEmEdicaoIdRef.current = registroConfirmado.id
     setClienteEmEdicaoId(registroConfirmado.id)
     lastSavedClienteRef.current = cloneClienteDados(dadosClonados)
-    console.log('[ClienteSave] lastSavedClienteRef updated with endereco:', lastSavedClienteRef.current?.endereco)
     
     // Save to clientStore (IndexedDB) for guaranteed latest data
     try {
       await upsertClienteRegistro(registroConfirmado)
-      console.log('[ClienteSave] Cliente saved to clientStore (IndexedDB):', {
-        id: registroConfirmado.id,
-        nome: registroConfirmado.dados?.nome,
-        endereco: registroConfirmado.dados?.endereco,
-      })
     } catch (error) {
       console.warn('[ClienteSave] Failed to save cliente to clientStore:', error)
       // Continue - localStorage is the source of truth
@@ -14438,7 +14414,7 @@ export default function App() {
       }
     } catch (error) {
       if (error instanceof OneDriveIntegrationMissingError) {
-        console.info('Leitura via OneDrive ignorada: integração não configurada.')
+        if (import.meta.env.DEV) console.debug('Leitura via OneDrive ignorada: integração não configurada.')
       } else {
         console.warn('Não foi possível carregar propostas via OneDrive.', error)
       }
@@ -14471,31 +14447,20 @@ export default function App() {
     let cancelado = false
     const carregarDraft = async () => {
       try {
-        console.log('[App] Loading form draft from IndexedDB on mount')
+        if (import.meta.env.DEV) console.debug('[App] Loading form draft from IndexedDB on mount')
         const envelope = await loadFormDraft<OrcamentoSnapshotData>()
         
         if (cancelado) {
-          console.log('[App] Load cancelled (component unmounted)')
           return
         }
         
         if (envelope && envelope.data) {
-          console.log('[App] Form draft found, applying snapshot')
-          console.log('[App] BEFORE APPLY - Current cliente:', {
-            nome: cliente.nome,
-            endereco: cliente.endereco,
-            cidade: cliente.cidade,
-          })
-          console.log('[App] SNAPSHOT TO APPLY - Cliente:', {
-            nome: envelope.data.cliente?.nome,
-            endereco: envelope.data.cliente?.endereco,
-            cidade: envelope.data.cliente?.cidade,
-          })
+          if (import.meta.env.DEV) console.debug('[App] Form draft found, applying snapshot')
           
           // Enable hydration mode to prevent state reset and auto-save during apply
           isHydratingRef.current = true
           setIsHydrating(true)
-          console.log('[App] Hydration mode enabled')
+          if (import.meta.env.DEV) console.debug('[App] Hydration mode enabled')
           
           try {
             aplicarSnapshot(envelope.data)
@@ -14503,16 +14468,15 @@ export default function App() {
             // Wait for React to apply all setState calls
             await tick()
             
-            console.log('[App] Hydration done')
+            if (import.meta.env.DEV) console.debug('[App] Hydration done')
           } finally {
             isHydratingRef.current = false
             setIsHydrating(false)
-            console.log('[App] Hydration mode disabled')
           }
 
-          console.log('[App] Form draft applied successfully')
+          if (import.meta.env.DEV) console.debug('[App] Form draft applied successfully')
         } else {
-          console.log('[App] No form draft found in IndexedDB')
+          if (import.meta.env.DEV) console.debug('[App] No form draft found in IndexedDB')
         }
       } catch (error) {
         console.error('[App] Failed to load form draft:', error)
@@ -14529,7 +14493,6 @@ export default function App() {
   useEffect(() => {
     // Skip auto-save during hydration to prevent overwriting draft with empty/partial state
     if (isHydratingRef.current) {
-      console.log('[App] Auto-save skipped: hydrating')
       return
     }
     
@@ -14544,11 +14507,7 @@ export default function App() {
         // Double-check hydration status before saving
         const activeBudgetId = getActiveBudgetId()
         if (isHydratingRef.current || !activeBudgetId) {
-          console.log('[App] Auto-save skipped: hydrating or missing budgetId', {
-            hydrating: isHydratingRef.current,
-            budgetIdRef: budgetIdRef.current,
-            budgetIdState: currentBudgetId,
-          })
+          if (import.meta.env.DEV) console.debug('[App] Auto-save skipped: hydrating or missing budgetId')
           return
         }
         
@@ -14571,7 +14530,7 @@ export default function App() {
           }
           
           await saveFormDraft(snapshot)
-          console.log('[App] Auto-saved form draft to IndexedDB')
+          if (import.meta.env.DEV) console.debug('[App] Auto-saved form draft to IndexedDB')
         } catch (error) {
           console.warn('[App] Auto-save failed:', error)
         }
@@ -14601,13 +14560,7 @@ export default function App() {
     snapshotEntrada: OrcamentoSnapshotData,
     options?: { budgetIdOverride?: string; allowEmpty?: boolean },
   ) => {
-    console.log('[aplicarSnapshot] Starting to apply snapshot')
-    console.log('[aplicarSnapshot] Snapshot cliente data:', {
-      nome: snapshotEntrada.cliente?.nome,
-      endereco: snapshotEntrada.cliente?.endereco,
-      cidade: snapshotEntrada.cliente?.cidade,
-      documento: snapshotEntrada.cliente?.documento,
-    })
+    if (import.meta.env.DEV) console.debug('[aplicarSnapshot] Starting to apply snapshot')
     
     // Guard: Block empty snapshot applications that would wipe form data
     const nome = (snapshotEntrada?.cliente?.nome ?? '').trim()
@@ -14618,13 +14571,7 @@ export default function App() {
     
     // Allow empty only if explicitly requested (intentional reset)
     if (isEmptyApply && !options?.allowEmpty) {
-      console.warn('[aplicarSnapshot] BLOCKED empty snapshot apply (would wipe form)', {
-        cliente: snapshotEntrada?.cliente,
-        kcKwhMes: snapshotEntrada?.kcKwhMes,
-        currentBudgetId: snapshotEntrada?.currentBudgetId,
-        activeTab: snapshotEntrada?.activeTab,
-      })
-      console.trace('[aplicarSnapshot] caller stacktrace (who called apply with empty snapshot)')
+      console.warn('[aplicarSnapshot] BLOCKED empty snapshot apply (would wipe form)')
       return
     }
     
@@ -14644,13 +14591,7 @@ export default function App() {
     setActiveTab(snapshot.activeTab)
     setSettingsTab(snapshot.settingsTab)
     const clienteClonado = cloneClienteDados(snapshot.cliente)
-    console.log('[aplicarSnapshot] Setting cliente to:', {
-      nome: clienteClonado.nome,
-      endereco: clienteClonado.endereco,
-      cidade: clienteClonado.cidade,
-    })
     setClienteSync(clienteClonado)
-    console.log('[aplicarSnapshot] clienteRef after setCliente:', clienteRef.current?.endereco)
     setClienteEmEdicaoId(snapshot.clienteEmEdicaoId)
     lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
@@ -14846,7 +14787,7 @@ export default function App() {
       if (registro.id) {
         // Use normalized ID for consistent lookup
         const budgetIdKey = normalizeProposalId(registro.id) || registro.id
-        console.log(`[carregarOrcamentoParaEdicao] Loading complete snapshot for budget: ${budgetIdKey} (original: ${registro.id})`)
+        if (import.meta.env.DEV) console.debug(`[carregarOrcamentoParaEdicao] Loading snapshot for budget: ${budgetIdKey}`)
         const completeSnapshot = await loadProposalSnapshotById(budgetIdKey)
         
         if (completeSnapshot) {
@@ -14858,18 +14799,17 @@ export default function App() {
           const isMeaningful = Boolean(nome || endereco || documento) || kc > 0
           
           if (isMeaningful) {
-            console.log('[carregarOrcamentoParaEdicao] Using complete snapshot from proposalStore', {
-              clienteNome: completeSnapshot.cliente?.nome,
-              clienteEndereco: completeSnapshot.cliente?.endereco,
-              kcKwhMes: completeSnapshot.kcKwhMes,
-              totalFields: Object.keys(completeSnapshot).length,
-            })
+            if (import.meta.env.DEV) {
+              console.debug('[carregarOrcamentoParaEdicao] Using proposalStore snapshot', {
+                totalFields: Object.keys(completeSnapshot).length,
+              })
+            }
             snapshotToApply = completeSnapshot
           } else {
-            console.warn('[carregarOrcamentoParaEdicao] proposalStore snapshot is empty, falling back to registro.snapshot')
+            if (import.meta.env.DEV) console.debug('[carregarOrcamentoParaEdicao] proposalStore snapshot empty, using fallback')
           }
         } else {
-          console.warn('[carregarOrcamentoParaEdicao] Complete snapshot not found, falling back to registro.snapshot')
+          if (import.meta.env.DEV) console.debug('[carregarOrcamentoParaEdicao] snapshot not found, using fallback')
         }
       }
       
@@ -14943,13 +14883,12 @@ export default function App() {
         const snapshotClonado = cloneSnapshotData(snapshotAtual)
         
         // Log snapshot quality before saving
-        console.log('[salvarOrcamentoLocalmente] Snapshot from getCurrentSnapshot():', {
-          clienteNome: snapshotClonado.cliente?.nome ?? '',
-          clienteEndereco: snapshotClonado.cliente?.endereco ?? '',
-          clienteDocumento: snapshotClonado.cliente?.documento ?? '',
-          kcKwhMes: snapshotClonado.kcKwhMes ?? 0,
-          totalFields: Object.keys(snapshotClonado).length,
-        })
+        if (import.meta.env.DEV) {
+          console.debug('[salvarOrcamentoLocalmente] Snapshot from getCurrentSnapshot():', {
+            kcKwhMes: snapshotClonado.kcKwhMes ?? 0,
+            totalFields: Object.keys(snapshotClonado).length,
+          })
+        }
         
         // Check if snapshot is meaningful
         const nome = (snapshotClonado.cliente?.nome ?? '').trim()
@@ -15016,19 +14955,12 @@ export default function App() {
             if (error instanceof OneDriveIntegrationMissingError) {
               return
             }
-            console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
+            if (import.meta.env.DEV) console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
           })
           
           // Save complete snapshot to proposalStore for full restoration
           const budgetIdKey = normalizeProposalId(effectiveBudgetId) || effectiveBudgetId
-          console.log('[salvarOrcamentoLocalmente] Saving to proposalStore (update):', {
-            budgetId: budgetIdKey,
-            clienteNome: snapshotAtualizado.cliente?.nome ?? '',
-            clienteEndereco: snapshotAtualizado.cliente?.endereco ?? '',
-            clienteDocumento: snapshotAtualizado.cliente?.documento ?? '',
-            kcKwhMes: snapshotAtualizado.kcKwhMes ?? 0,
-            totalFields: Object.keys(snapshotAtualizado).length,
-          })
+          if (import.meta.env.DEV) console.debug('[salvarOrcamentoLocalmente] Saving to proposalStore (update):', budgetIdKey)
           void saveProposalSnapshotById(budgetIdKey, snapshotAtualizado).catch((error) => {
             console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
           })
@@ -15076,19 +15008,12 @@ export default function App() {
           if (error instanceof OneDriveIntegrationMissingError) {
             return
           }
-          console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
+          if (import.meta.env.DEV) console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
         })
         
         // Save complete snapshot to proposalStore for full restoration
         const budgetIdKey = normalizeProposalId(registro.id) || registro.id
-        console.log('[salvarOrcamentoLocalmente] Saving to proposalStore (new):', {
-          budgetId: budgetIdKey,
-          clienteNome: snapshotParaArmazenar.cliente?.nome ?? '',
-          clienteEndereco: snapshotParaArmazenar.cliente?.endereco ?? '',
-          clienteDocumento: snapshotParaArmazenar.cliente?.documento ?? '',
-          kcKwhMes: snapshotParaArmazenar.kcKwhMes ?? 0,
-          totalFields: Object.keys(snapshotParaArmazenar).length,
-        })
+        if (import.meta.env.DEV) console.debug('[salvarOrcamentoLocalmente] Saving to proposalStore (new):', budgetIdKey)
         void saveProposalSnapshotById(budgetIdKey, snapshotParaArmazenar).catch((error) => {
           console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
         })
@@ -15153,12 +15078,9 @@ export default function App() {
     if (isHydrating) {
       return
     }
-    console.log('[Hydration] DONE - cliente state:', {
-      nome: cliente?.nome ?? '',
-      endereco: cliente?.endereco ?? '',
-      cidade: cliente?.cidade ?? '',
-      documento: cliente?.documento ?? '',
-    })
+    if (import.meta.env.DEV) {
+      console.debug('[Hydration] DONE - cliente state updated')
+    }
   }, [cliente?.cidade, cliente?.documento, cliente?.endereco, cliente?.nome, isHydrating])
 
   const hasUnsavedChanges = useCallback(() => {
@@ -16909,11 +16831,11 @@ export default function App() {
       const registros = carregarClientesSalvos()
       
       // Hydrate with latest data from clientStore
-      console.log('[abrirClientesPainel] Hydrating', registros.length, 'clientes from clientStore')
+      if (import.meta.env.DEV) console.debug('[abrirClientesPainel] Hydrating', registros.length, 'clientes from clientStore')
       const hidratados = await Promise.all(
         registros.map((r) => hydrateClienteRegistroFromStore(r))
       )
-      console.log('[abrirClientesPainel] Hydration complete, displaying fresh data')
+      if (import.meta.env.DEV) console.debug('[abrirClientesPainel] Hydration complete')
       
       setClientesSalvos(hidratados)
       setActivePage('clientes')
@@ -16974,7 +16896,7 @@ export default function App() {
     novaPropostaEmAndamentoRef.current = true
 
     // Protect against auto-save during reset
-    console.log('[Nova Proposta] Starting - protecting against auto-save')
+    if (import.meta.env.DEV) console.debug('[Nova Proposta] Starting')
     isHydratingRef.current = true
     setIsHydrating(true)
     
@@ -16982,7 +16904,7 @@ export default function App() {
       // Clear form draft to prevent stale data
       try {
         await clearFormDraft() // Use clearFormDraft instead of saveFormDraft(null)
-        console.log('[Nova Proposta] Form draft cleared')
+        if (import.meta.env.DEV) console.debug('[Nova Proposta] Form draft cleared')
       } catch (error) {
         console.warn('[Nova Proposta] Failed to clear form draft:', error)
       }
@@ -17131,7 +17053,7 @@ export default function App() {
       setActivePage('app')
       setNotificacoes([])
       const novoBudgetId = createDraftBudgetId()
-      console.log('[Nova Proposta] New budget ID created', novoBudgetId)
+      if (import.meta.env.DEV) console.debug('[Nova Proposta] New budget ID created', novoBudgetId)
 
       budgetIdTransitionRef.current = true
       budgetIdRef.current = novoBudgetId
@@ -17144,10 +17066,7 @@ export default function App() {
       aplicarSnapshot(snapshotVazio, { budgetIdOverride: novoBudgetId, allowEmpty: true })
       scheduleMarkStateAsSaved()
       
-      console.log('[Nova Proposta] Reset complete, re-enabling auto-save', {
-        budgetIdRef: budgetIdRef.current,
-        budgetIdState: novoBudgetId,
-      })
+      if (import.meta.env.DEV) console.debug('[Nova Proposta] Reset complete')
     } catch (error) {
       console.error('[Nova Proposta] Failed', error)
     } finally {
@@ -17911,12 +17830,14 @@ export default function App() {
     }
 
     const cepNumeros = normalizeNumbers(clienteRef.current?.cep ?? cliente.cep)
-    console.log('[CEP effect] run', {
-      cep: cepNumeros,
-      hydrating: isHydratingRef.current,
-      editingEndereco: isEditingEnderecoRef.current,
-      last: lastCepAppliedRef.current,
-    })
+    if (import.meta.env.DEV) {
+      console.debug('[CEP effect] run', {
+        cep: cepNumeros,
+        hydrating: isHydratingRef.current,
+        editingEndereco: isEditingEnderecoRef.current,
+        last: lastCepAppliedRef.current,
+      })
+    }
 
     if (isHydratingRef.current || isApplyingCepRef.current || isEditingEnderecoRef.current) {
       return
