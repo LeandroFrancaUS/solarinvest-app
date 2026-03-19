@@ -572,3 +572,7 @@ export function sanitizeStackUserId(user) {
 export function getBootstrapAdminEmail() {
   return ADMIN_EMAIL
 }
+
+export function getProjectId() {
+  return projectId
+}

@@ -1,8 +1,116 @@
 // server/auth/currentAppUser.js
 import { query } from '../db.js'
-import { getStackUser, isStackAuthBypassed, getBootstrapAdminEmail } from './stackAuth.js'
+import { getStackUser, isStackAuthBypassed, getBootstrapAdminEmail, getProjectId } from './stackAuth.js'
 
 const ADMIN_BOOTSTRAP_EMAIL = getBootstrapAdminEmail()
+
+// ─── One-time startup initialization ─────────────────────────────────────────
+// Module-level flag: reset per cold start (serverless), stable per warm instance.
+let _initAttempted = false
+
+/**
+ * Idempotent startup check:
+ * 1. Create `app_user_access` table if it does not exist (safe when migration ran).
+ * 2. Run bootstrap admin self-heal: promote any pending row for the bootstrap email.
+ *
+ * Best-effort — never throws to callers. A failure here is logged and retried on
+ * the next invocation (flag reset). The primary auth queries will fail independently
+ * if the DB is truly unavailable, giving the caller their own error path.
+ */
+async function ensureSchemaAndBootstrapData() {
+  if (_initAttempted) return
+  _initAttempted = true
+  try {
+    // Create the table if not present (idempotent; no-op when migration already ran)
+    await query(`
+      CREATE TABLE IF NOT EXISTS public.app_user_access (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        auth_provider_user_id TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL,
+        full_name TEXT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        access_status TEXT NOT NULL DEFAULT 'pending',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        can_access_app BOOLEAN NOT NULL DEFAULT false,
+        invited_by TEXT NULL,
+        approved_by TEXT NULL,
+        approved_at TIMESTAMPTZ NULL,
+        revoked_by TEXT NULL,
+        revoked_at TIMESTAMPTZ NULL,
+        last_login_at TIMESTAMPTZ NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT app_user_access_role_chk
+          CHECK (role IN ('admin','manager','user')),
+        CONSTRAINT app_user_access_status_chk
+          CHECK (access_status IN ('pending','approved','revoked','blocked'))
+      )
+    `)
+
+    // Self-heal: if a row for the bootstrap admin exists but is pending/inactive,
+    // promote it now so the first auth request resolves correctly.
+    if (ADMIN_BOOTSTRAP_EMAIL) {
+      await query(
+        `UPDATE public.app_user_access
+         SET role = 'admin',
+             access_status = 'approved',
+             is_active = true,
+             can_access_app = true,
+             approved_at = COALESCE(approved_at, now()),
+             updated_at = now()
+         WHERE lower(email) = lower($1)
+           AND (role != 'admin' OR access_status != 'approved'
+                OR is_active = false OR can_access_app = false)`,
+        [ADMIN_BOOTSTRAP_EMAIL]
+      )
+    }
+    console.info('[auth/init] schema + bootstrap self-heal OK')
+  } catch (err) {
+    _initAttempted = false   // allow retry on next request
+    console.warn('[auth/init] initialization warning (non-fatal):', err?.message)
+  }
+}
+
+// ─── Optional: fetch email from Stack Auth server API ─────────────────────────
+/**
+ * When the JWT access token does not include an email claim (Stack Auth v2+
+ * omits it in some configurations), fall back to the server-side user-info
+ * endpoint to retrieve the primary email.
+ *
+ * Requires STACK_SECRET_SERVER_KEY to be configured; silently returns '' when
+ * absent so callers degrade gracefully rather than crashing.
+ */
+async function fetchEmailFromStackAuth(userId) {
+  const secretKey = (process.env.STACK_SECRET_SERVER_KEY ?? '').trim()
+  const projectId = getProjectId()
+  if (!secretKey || !projectId || !userId) return ''
+  try {
+    const url = `https://api.stack-auth.com/api/v1/users/${encodeURIComponent(userId)}`
+    const res = await fetch(url, {
+      headers: {
+        'x-stack-access-type': 'server',
+        'x-stack-project-id': projectId,
+        'x-stack-secret-server-key': secretKey,
+      },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) {
+      console.warn('[auth/user] fetchEmailFromStackAuth: HTTP', res.status, 'for userId:', userId)
+      return ''
+    }
+    const data = await res.json()
+    const email = (
+      data?.primary_email ??
+      data?.email ??
+      data?.primaryEmail ??
+      ''
+    )
+    return typeof email === 'string' ? email.toLowerCase().trim() : ''
+  } catch (err) {
+    console.warn('[auth/user] fetchEmailFromStackAuth error:', err?.message)
+    return ''
+  }
+}
 
 /**
  * Ensure an existing (already-found) row is promoted to bootstrap admin status.
@@ -100,6 +208,10 @@ export async function getCurrentAppUser(req) {
     }
   }
 
+  // 0) One-time startup check: ensure table exists + run bootstrap self-heal.
+  //    Best-effort; never throws — the primary auth queries handle their own errors.
+  await ensureSchemaAndBootstrapData()
+
   // 1) Get authenticated user from Stack Auth
   const stackUser = await getStackUser(req)
   if (!stackUser?.id) {
@@ -107,12 +219,28 @@ export async function getCurrentAppUser(req) {
   }
 
   const authProviderUserId = stackUser.id
-  const email = (stackUser.email || '').toLowerCase().trim()
-  const fullName = stackUser.payload?.display_name || stackUser.payload?.name || null
-  const isBootstrapAdmin =
+  // Stack Auth v2 access tokens may omit `email` from the JWT payload.
+  // Try multiple field names to maximise compatibility.
+  let email = (
+    stackUser.email ||
+    stackUser.payload?.email ||
+    stackUser.payload?.primary_email ||
+    stackUser.payload?.primaryEmail ||
+    ''
+  ).toLowerCase().trim()
+
+  const fullName =
+    stackUser.payload?.display_name ||
+    stackUser.payload?.displayName ||
+    stackUser.payload?.name ||
+    null
+
+  const isBootstrapAdminByEmail = (addr) =>
     Boolean(ADMIN_BOOTSTRAP_EMAIL) &&
-    Boolean(email) &&
-    email === ADMIN_BOOTSTRAP_EMAIL.toLowerCase()
+    Boolean(addr) &&
+    addr.toLowerCase() === ADMIN_BOOTSTRAP_EMAIL.toLowerCase()
+
+  const isBootstrapAdmin = isBootstrapAdminByEmail(email)
 
   // Diagnostic: safe to log (no secrets or token values)
   console.info(
@@ -140,6 +268,22 @@ export async function getCurrentAppUser(req) {
         ? `found — id=${record.id} status=${record.access_status} role=${record.role}`
         : 'not found',
     )
+  }
+
+  // 2b) If the JWT had no email but we have the DB record's email, try to fetch
+  //     a fresh email from the Stack Auth server API (requires STACK_SECRET_SERVER_KEY).
+  //     This also handles the case where the bootstrap admin's email was not in the JWT.
+  if (!email && record?.email) {
+    // Use email from the DB record (already verified via userId match)
+    email = record.email.toLowerCase().trim()
+    console.info('[auth/user] email resolved from DB record:', email)
+  } else if (!email) {
+    // No email from JWT and no DB record — try Stack Auth server API
+    const fetched = await fetchEmailFromStackAuth(authProviderUserId)
+    if (fetched) {
+      email = fetched
+      console.info('[auth/user] email resolved from Stack Auth API:', email)
+    }
   }
 
   // 3) Email-based fallback: if no row was found by auth_provider_user_id but we
@@ -217,9 +361,19 @@ export async function getCurrentAppUser(req) {
   }
 
   // 4) Bootstrap admin promotion: if the resolved row (by either path) exists but
-  //    is not yet admin/approved, promote it.  This ensures the bootstrap account
-  //    is always authorised regardless of how the row was created.
-  if (record && isBootstrapAdmin) {
+  //    is not yet admin/approved, promote it.
+  //
+  //    IMPORTANT: we check BOTH the JWT/API email AND the DB record's own email.
+  //    Stack Auth v2 access tokens often omit `email` from the JWT payload, so
+  //    the record's stored email is the reliable source of truth once the row has
+  //    been located via the verified auth_provider_user_id.  Using only the JWT
+  //    email would silently skip promotion whenever the email claim is absent,
+  //    leaving a pending row that the user can never self-resolve.
+  const recordEmail = record ? (record.email || '').toLowerCase() : ''
+  const resolvedIsBootstrapAdmin =
+    isBootstrapAdmin || isBootstrapAdminByEmail(recordEmail)
+
+  if (record && resolvedIsBootstrapAdmin) {
     await promoteToBootstrapAdmin(record.id, authProviderUserId)
     // Reflect the promotion in the in-memory record so the response is correct
     // without needing an extra SELECT.
@@ -233,13 +387,17 @@ export async function getCurrentAppUser(req) {
   }
 
   // 5) Provision (create row) only when no existing row was found at all.
+  //    Re-evaluate isBootstrapAdmin using any newly resolved email.
   if (!record) {
-    console.info('[auth/user] no row found — provisioning new row. isBootstrapAdmin:', isBootstrapAdmin)
-    if (isBootstrapAdmin) {
+    const finalIsBootstrapAdmin = isBootstrapAdminByEmail(email)
+    console.info('[auth/user] no row found — provisioning new row. isBootstrapAdmin:', finalIsBootstrapAdmin)
+    if (finalIsBootstrapAdmin) {
       record = await createBootstrapAdminRow(authProviderUserId, email, fullName)
     } else if (email) {
       record = await createPendingUserRow(authProviderUserId, email, fullName)
       console.info('[auth/user] new pending row created — pendingRowCreated:true')
+    } else {
+      console.warn('[auth/user] cannot provision: email absent from JWT and Stack Auth API — userId:', authProviderUserId)
     }
   }
 
