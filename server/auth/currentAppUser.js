@@ -116,6 +116,20 @@ async function ensureSchemaAndBootstrapData() {
          WHERE access_status = 'approved' AND role = 'admin'
        )`
     )
+
+    // Auto-approve all remaining pending rows.
+    // Stack Auth is the identity gate — any user who has authenticated via Stack
+    // Auth and has a row here should be able to access the app.  The 'pending'
+    // state was an extra manual approval step that is not needed when using Stack
+    // Auth's built-in sign-up rules / email verification.
+    await query(
+      `UPDATE public.app_user_access
+       SET access_status = 'approved',
+           can_access_app = true,
+           approved_at   = COALESCE(approved_at, now()),
+           updated_at    = now()
+       WHERE access_status = 'pending'`
+    )
     console.info('[auth/init] schema + bootstrap self-heal OK')
   } catch (err) {
     _initAttempted = false   // allow retry on next request
@@ -220,20 +234,40 @@ async function createBootstrapAdminRow(authProviderUserId, email, fullName) {
 }
 
 /**
- * Provision a new user as "pending" on first login.
+ * Provision a new Stack Auth-authenticated user as "approved" on first login.
+ *
+ * Stack Auth is the identity source-of-truth: if the user has a valid JWT they
+ * have already been verified by the identity provider.  Creating them as
+ * 'pending' and requiring manual approval just blocks legitimate users.
+ * We auto-approve with role='user' so they can access the app immediately,
+ * while still keeping the RBAC row so admins can later promote or revoke.
+ *
  * Only called when no existing row was found by userId OR email.
  * Never creates rows without an email.
  */
-async function createPendingUserRow(authProviderUserId, email, fullName) {
+async function createApprovedUserRow(authProviderUserId, email, fullName) {
   if (!email) return null
   try {
     const { rows } = await query(
       `INSERT INTO public.app_user_access
-         (auth_provider_user_id, email, full_name, role, access_status, is_active, can_access_app)
-       VALUES ($1, $2, $3, 'user', 'pending', true, false)
+         (auth_provider_user_id, email, full_name, role, access_status, is_active, can_access_app, approved_at)
+       VALUES ($1, $2, $3, 'user', 'approved', true, true, now())
        ON CONFLICT (auth_provider_user_id) DO UPDATE
          SET email = EXCLUDED.email,
              full_name = COALESCE(EXCLUDED.full_name, app_user_access.full_name),
+             -- If the row was previously pending, upgrade it now.
+             access_status = CASE
+               WHEN app_user_access.access_status = 'pending' THEN 'approved'
+               ELSE app_user_access.access_status
+             END,
+             can_access_app = CASE
+               WHEN app_user_access.access_status = 'pending' THEN true
+               ELSE app_user_access.can_access_app
+             END,
+             approved_at = CASE
+               WHEN app_user_access.access_status = 'pending' THEN now()
+               ELSE app_user_access.approved_at
+             END,
              last_login_at = now(),
              updated_at = now()
        RETURNING id, auth_provider_user_id, email, full_name, role,
@@ -242,7 +276,7 @@ async function createPendingUserRow(authProviderUserId, email, fullName) {
     )
     return rows[0] || null
   } catch (err) {
-    console.warn('[auth] createPendingUserRow error:', err?.message)
+    console.warn('[auth] createApprovedUserRow error:', err?.message)
     return null
   }
 }
@@ -339,15 +373,20 @@ export async function getCurrentAppUser(req) {
       if (fetched) {
         email = fetched
         console.info('[auth/user] email resolved from Stack Auth API (replacing placeholder):', email)
-        // Persist the real email so future logins skip this path
-        query(
-          `UPDATE public.app_user_access SET email = $1, updated_at = now()
-           WHERE id = $2 AND email != $1`,
-          [email, record.id]
-        ).catch((err) => {
-          console.warn('[auth/user] failed to update placeholder email in DB:', err?.message)
-        })
-        record = { ...record, email }
+        // Persist the real email so future logins skip this path.
+        // Await to ensure the DB is updated before we propagate the email
+        // in the in-memory record (prevents a stale record on failure).
+        try {
+          await query(
+            `UPDATE public.app_user_access SET email = $1, updated_at = now()
+             WHERE id = $2 AND email != $1`,
+            [email, record.id]
+          )
+          record = { ...record, email }
+        } catch (updateErr) {
+          console.warn('[auth/user] failed to update placeholder email in DB:', updateErr?.message)
+          // Don't update in-memory record if DB write failed — next login will retry.
+        }
       }
     }
   } else if (!email) {
@@ -459,6 +498,29 @@ export async function getCurrentAppUser(req) {
     }
   }
 
+  // 4b) Auto-approve any pending row for a Stack Auth-authenticated user.
+  //     Stack Auth is the identity gate — if the user has a valid JWT, they are
+  //     verified.  A 'pending' row means their first-login INSERT defaulted to
+  //     pending (old behaviour before this fix), so we upgrade it in place.
+  if (record && record.access_status === 'pending') {
+    try {
+      await query(
+        `UPDATE public.app_user_access
+         SET access_status = 'approved',
+             can_access_app = true,
+             approved_at    = COALESCE(approved_at, now()),
+             updated_at     = now()
+         WHERE id = $1
+           AND access_status = 'pending'`,
+        [record.id]
+      )
+      record = { ...record, access_status: 'approved', can_access_app: true }
+      console.info('[auth/user] auto-approved pending row for Stack Auth user — userId:', authProviderUserId)
+    } catch (err) {
+      console.warn('[auth/user] auto-approve pending row error:', err?.message)
+    }
+  }
+
   // 5) Provision (create row) only when no existing row was found at all.
   //    Re-evaluate isBootstrapAdmin using any newly resolved email.
   if (!record) {
@@ -467,8 +529,8 @@ export async function getCurrentAppUser(req) {
     if (finalIsBootstrapAdmin) {
       record = await createBootstrapAdminRow(authProviderUserId, email, fullName)
     } else if (email) {
-      record = await createPendingUserRow(authProviderUserId, email, fullName)
-      console.info('[auth/user] new pending row created — pendingRowCreated:true')
+      record = await createApprovedUserRow(authProviderUserId, email, fullName)
+      console.info('[auth/user] new approved row created for Stack Auth user — userId:', authProviderUserId)
     } else {
       // No email available from JWT or Stack Auth API.
       // As a last resort, check whether the system has ANY approved admin yet.
