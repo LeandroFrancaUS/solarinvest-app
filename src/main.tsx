@@ -67,7 +67,17 @@ async function bootstrap() {
     <React.StrictMode>
       <Boundary>
         <Providers>
-          <App />
+          {/*
+           * Suspense boundary for App: the Stack Auth useUser() hook inside App
+           * may suspend while it validates the user's session after authentication.
+           * Without this boundary the suspension propagates to the Boundary error
+           * component, which shows "Falhou ao renderizar".  The fallback is null
+           * (blank screen) because RequireAuth already owns the visible loading
+           * spinner once the user state resolves.
+           */}
+          <React.Suspense fallback={null}>
+            <App />
+          </React.Suspense>
         </Providers>
       </Boundary>
     </React.StrictMode>,

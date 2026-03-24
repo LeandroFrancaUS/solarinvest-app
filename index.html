@@ -31,7 +31,7 @@
           Object.defineProperty(window, 'cardano', {
             get: function () { return _cardano },
             set: function (v) { _cardano = v },
-            configurable: true,
+            configurable: false,
             enumerable: true,
           })
         } catch (_) {
