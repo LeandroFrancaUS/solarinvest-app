@@ -25139,7 +25139,7 @@ export default function App() {
             activeItemId: activeSidebarItem,
             onNavigate: handleSidebarNavigate,
             onCloseMobile: handleSidebarClose,
-            onToggleCollapse: handleSidebarMenuToggle,
+            onToggleCollapse: isMobileViewport ? undefined : handleSidebarMenuToggle,
             menuButtonLabel: isMobileViewport
               ? isSidebarMobileOpen
                 ? 'Fechar menu Painel SolarInvest'

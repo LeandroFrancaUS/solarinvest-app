@@ -7396,6 +7396,11 @@ i:hover {
     align-self: center;
     justify-content: center;
     width: fit-content;
+    position: sticky;
+    top: var(--header-h);
+    z-index: 99;
+    margin-inline: auto;
+    padding-block: 4px;
   }
 
   .page-indicator span {
