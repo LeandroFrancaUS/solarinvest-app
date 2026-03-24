@@ -78,7 +78,7 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
     <div className="app-shell">
       <Topbar {...topbar} />
       <div className={bodyClasses.join(' ')}>
-        {mobileMenuButton && !sidebar.mobileOpen ? (
+        {mobileMenuButton ? (
           <button
             type="button"
             className="sidebar-floating-toggle"
