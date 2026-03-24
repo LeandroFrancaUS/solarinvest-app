@@ -70,8 +70,10 @@ export const stackClientApp =
         },
       })
 
-// Startup diagnostics — visible in browser DevTools, never logs secrets or tokens.
-if (typeof window !== "undefined" && stackClientApp) {
+// Startup diagnostics — DEV-only so internal OAuth config is not exposed in
+// production DevTools.  Helps developers copy-paste the redirectUri into the
+// Stack Auth dashboard without leaking implementation details to end users.
+if (import.meta.env.DEV && typeof window !== "undefined" && stackClientApp) {
   const urls = stackClientApp.urls
   // Compute the actual redirect_uri that will be sent to Stack Auth's authorize
   // endpoint so developers can copy-paste it straight into the Stack Auth dashboard.
