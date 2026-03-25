@@ -24016,6 +24016,14 @@ export default function App() {
           },
         },
         {
+          id: 'simulacoes-analise',
+          label: 'Análise Financeira',
+          icon: '✅',
+          onSelect: () => {
+            void abrirSimulacoes('analise')
+          },
+        },
+        {
           id: 'propostas-nova',
           label: 'Nova proposta',
           icon: '✨',
@@ -24120,14 +24128,6 @@ export default function App() {
           icon: '🧠',
           onSelect: () => {
             void abrirSimulacoes('packs-inteligentes')
-          },
-        },
-        {
-          id: 'simulacoes-analise',
-          label: 'Análise Financeira',
-          icon: '✅',
-          onSelect: () => {
-            void abrirSimulacoes('analise')
           },
         },
       ],
@@ -24256,16 +24256,12 @@ export default function App() {
 
   const desktopSimpleSidebarGroups: SidebarGroup[] = (() => {
     const filtered = sidebarGroups.filter((g) => g.id !== 'simulacoes' && g.id !== 'crm')
-    const analiseItem = allSidebarItems.get('simulacoes-analise')
     return filtered.map((g) => {
       if (g.id !== 'propostas') return g
       const salvarIdx = g.items.findIndex((item) => item.id === 'propostas-salvar')
       const newItems = [...g.items]
       if (gerarPropostaSidebarItem && salvarIdx !== -1) {
         newItems.splice(salvarIdx + 1, 0, gerarPropostaSidebarItem)
-      }
-      if (analiseItem) {
-        newItems.push(analiseItem)
       }
       return { ...g, items: newItems }
     })
