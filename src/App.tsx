@@ -9675,8 +9675,8 @@ export default function App() {
   const custoFinalProjetadoCanonico = useMemo(() => {
     // Prioritize preco_minimo_saudavel from financial analysis when available
     const precoMin = analiseFinanceiraResult?.preco_minimo_saudavel_rs
-    if (Number.isFinite(precoMin) && (precoMin ?? 0) > 0) {
-      return precoMin as number
+    if (Number.isFinite(precoMin) && precoMin != null && precoMin > 0) {
+      return precoMin
     }
 
     const auto = Number(autoCustoFinal)
