@@ -7303,8 +7303,8 @@ i:hover {
 
 @media (max-width: 920px) {
   :root {
-    /* Vertical start of the mobile sidebar: aligned with the top of the floating toggle button */
-    --mobile-sidebar-top: calc(var(--header-h) + 16px);
+    /* Vertical start of the mobile sidebar: flush with the bottom edge of the fixed header */
+    --mobile-sidebar-top: var(--header-h);
   }
 
   .app-body {
@@ -7326,6 +7326,8 @@ i:hover {
     left: 0;
     right: 0;
     width: 100%;
+    /* Raise above the mobile sidebar (1200) so the header's bottom border draws on top */
+    z-index: 1210;
   }
 
   .topbar-mobile-subtitle {
@@ -7367,8 +7369,12 @@ i:hover {
     border-radius: 0 16px 16px 0;
     box-shadow: 24px 0 48px rgba(15, 23, 42, 0.5);
     overflow: hidden;
-    /* padding-top clears the floating toggle button (--control-h) plus a visual gap */
-    padding: calc(var(--control-h) + 12px) 20px 0;
+    /*
+     * padding-top must clear the floating toggle button.
+     * The button sits 16px below the sidebar top (sidebar top = header-h, button top = header-h + 16px),
+     * so total clearance = 16px offset + button height (--control-h) + 12px breathing room.
+     */
+    padding: calc(16px + var(--control-h) + 12px) 20px 0;
   }
 
   .sidebar.open {
