@@ -199,6 +199,7 @@ body.sidebar-mobile-open .app-body > .content-wrap {
 }
 
 body.sidebar-mobile-open .app-body > .sidebar-floating-toggle {
+  /* Keep toggle button interactive (hamburger→X animation) while sidebar is open */
   pointer-events: auto;
 }
 
@@ -7406,7 +7407,7 @@ i:hover {
   .sidebar-backdrop {
     position: fixed;
     top: var(--header-h);
-    left: 0;
+    left: 280px;
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.45);
