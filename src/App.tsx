@@ -4443,6 +4443,8 @@ export default function App() {
   const [afMesesProjecao, setAfMesesProjecao] = useState(60)
   const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
   const [afMensalidadeBaseAuto, setAfMensalidadeBaseAuto] = useState(0)
+  // Full projected mensalidades series from selectMensalidades() — same motor as Proposta de Leasing
+  const [afMensalidadesProjetadas, setAfMensalidadesProjetadas] = useState<number[]>([])
   const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
   const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
@@ -9655,8 +9657,25 @@ export default function App() {
       afHotelPousada
 
     const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
-    const mensalidadeResolvida = afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto
-    const mensalidades = Array(afMesesProjecao).fill(mensalidadeResolvida) as number[]
+    // Build the projected mensalidades series for leasing mode.
+    // When no manual override is set, use the official inflation-adjusted series from
+    // selectMensalidades(simulationState) — the same motor as the Proposta de Leasing.
+    // This ensures ROI / Payback / TIR / VPL are calculated with the same annual tariff
+    // reajuste as the printed proposal (Referência: 1º ano, 2º ano, etc.).
+    // When a manual override is set, fall back to a flat array for predictability.
+    let mensalidadesFinal: number[]
+    if (afModo === 'leasing' && afMensalidadeBase <= 0 && afMensalidadesProjetadas.length > 0) {
+      const raw = afMensalidadesProjetadas
+      if (raw.length >= afMesesProjecao) {
+        mensalidadesFinal = raw.slice(0, afMesesProjecao)
+      } else {
+        const last = raw[raw.length - 1] ?? afMensalidadeBaseAuto
+        mensalidadesFinal = [...raw, ...Array(afMesesProjecao - raw.length).fill(last)]
+      }
+    } else {
+      const base = afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto
+      mensalidadesFinal = Array(afMesesProjecao).fill(base) as number[]
+    }
     const margemAlvo = afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing
 
     try {
@@ -9685,8 +9704,8 @@ export default function App() {
         margem_liquida_minima_percent: afMargemLiquidaMinima,
         inadimplencia_percent: afInadimplencia,
         custo_operacional_percent: afCustoOperacional,
-        meses_projecao: afMesesProjecao,
-        mensalidades_previstas_rs: mensalidades,
+        meses_projecao: mensalidadesFinal.length,
+        mensalidades_previstas_rs: mensalidadesFinal,
         investimento_inicial_rs: preCustoVariavel,
       }
       return calcularAnaliseFinanceira(input)
@@ -9709,6 +9728,7 @@ export default function App() {
     afInadimplencia,
     afMensalidadeBase,
     afMesesProjecao,
+    afMensalidadesProjetadas,
     afModo,
     afValorContrato,
     afImpostos,
@@ -9894,7 +9914,10 @@ export default function App() {
   const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
   useEffect(() => {
     setAfMensalidadeBaseAuto(mensalidadesPorAno[0] ?? 0)
-  }, [mensalidadesPorAno])
+    // Keep the full projected series in sync with the leasing selector so the AF
+    // uses the same inflation-adjusted monthly projections as the Proposta de Leasing.
+    setAfMensalidadesProjetadas(mensalidades)
+  }, [mensalidadesPorAno, mensalidades])
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
