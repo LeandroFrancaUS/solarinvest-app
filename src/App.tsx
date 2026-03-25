@@ -4443,8 +4443,6 @@ export default function App() {
   const [afMesesProjecao, setAfMesesProjecao] = useState(60)
   const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
   const [afMensalidadeBaseAuto, setAfMensalidadeBaseAuto] = useState(0)
-  // Full projected mensalidades series from selectMensalidades() — same motor as Proposta de Leasing
-  const [afMensalidadesProjetadas, setAfMensalidadesProjetadas] = useState<number[]>([])
   const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
   const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
@@ -9657,20 +9655,37 @@ export default function App() {
       afHotelPousada
 
     const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
-    // Build the projected mensalidades series for leasing mode.
-    // When no manual override is set, use the official inflation-adjusted series from
-    // selectMensalidades(simulationState) — the same motor as the Proposta de Leasing.
-    // This ensures ROI / Payback / TIR / VPL are calculated with the same annual tariff
-    // reajuste as the printed proposal (Referência: 1º ano, 2º ano, etc.).
-    // When a manual override is set, fall back to a flat array for predictability.
+    // Build the projected mensalidades series for leasing mode using an AF-isolated
+    // SimulationState. This prevents the Proposta de Leasing's simulationState (which
+    // uses the proposal's own consumo/geração/prazo) from contaminating the AF calculation.
+    // Each screen uses the same motor but with its own input context.
     let mensalidadesFinal: number[]
-    if (afModo === 'leasing' && afMensalidadeBase <= 0 && afMensalidadesProjetadas.length > 0) {
-      const raw = afMensalidadesProjetadas
-      if (raw.length >= afMesesProjecao) {
-        mensalidadesFinal = raw.slice(0, afMesesProjecao)
+    if (afModo === 'leasing' && afMensalidadeBase <= 0) {
+      // Compute AF's monthly generation from its own irr/PR/dias/kWp inputs
+      const afGeracaoKwh = baseSistema.potencia_sistema_kwp * irr * pr * dias
+      // Build AF-specific SimulationState: override the fields that differ between
+      // the AF screen and the Proposta de Leasing screen.
+      // - kcKwhMes / consumoMensalKwh: use AF's resolved consumo (not proposal's)
+      // - geracaoMensalKwh: use AF's computed generation (for TUSD encargos)
+      // - prazoMeses: use AF's projection horizon
+      // - modoEntrada: 'NONE' (AF does not use entry-reduction logic)
+      const afSimState: SimulationState = {
+        ...simulationState,
+        kcKwhMes: consumo,
+        consumoMensalKwh: consumo,
+        geracaoMensalKwh: afGeracaoKwh,
+        prazoMeses: afMesesProjecao,
+        entradaRs: 0,
+        modoEntrada: 'NONE',
+      }
+      const rawSeries = selectMensalidades(afSimState)
+      if (rawSeries.length >= afMesesProjecao) {
+        mensalidadesFinal = rawSeries.slice(0, afMesesProjecao)
+      } else if (rawSeries.length > 0) {
+        const last = rawSeries[rawSeries.length - 1]
+        mensalidadesFinal = [...rawSeries, ...Array(afMesesProjecao - rawSeries.length).fill(last)]
       } else {
-        const last = raw[raw.length - 1] ?? afMensalidadeBaseAuto
-        mensalidadesFinal = [...raw, ...Array(afMesesProjecao - raw.length).fill(last)]
+        mensalidadesFinal = Array(afMesesProjecao).fill(afMensalidadeBaseAuto) as number[]
       }
     } else {
       const base = afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto
@@ -9728,7 +9743,7 @@ export default function App() {
     afInadimplencia,
     afMensalidadeBase,
     afMesesProjecao,
-    afMensalidadesProjetadas,
+    simulationState,
     afModo,
     afValorContrato,
     afImpostos,
@@ -9914,10 +9929,7 @@ export default function App() {
   const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
   useEffect(() => {
     setAfMensalidadeBaseAuto(mensalidadesPorAno[0] ?? 0)
-    // Keep the full projected series in sync with the leasing selector so the AF
-    // uses the same inflation-adjusted monthly projections as the Proposta de Leasing.
-    setAfMensalidadesProjetadas(mensalidades)
-  }, [mensalidadesPorAno, mensalidades])
+  }, [mensalidadesPorAno])
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
