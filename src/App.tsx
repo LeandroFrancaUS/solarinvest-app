@@ -24836,35 +24836,35 @@ export default function App() {
                   {/* Venda results — hidden for leasing */}
                   {afModo === 'venda' && analiseFinanceiraResult.custo_variavel_total_rs != null ? (
                     <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                      <h4>Resultado — Venda</h4>
+                      <h4>Resultados</h4>
                       <div className="info-inline">
-                        <span className="pill">Custo variável total <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
-                        <span className="pill">Margem bruta <strong>{currency(analiseFinanceiraResult.margem_rs ?? 0)}</strong></span>
-                        <span className="pill">Impostos <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
-                        <span className="pill">Custo fixo rateado <strong>{currency(analiseFinanceiraResult.custo_fixo_rateado_rs ?? 0)}</strong></span>
-                        <span className="pill">Lucro s/ comissão <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
-                        <span className="pill">Margem s/ comissão <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
-                        <span className="pill">Comissão <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
-                        <span className="pill">Custo total real <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
-                        <span className="pill">Lucro líquido final <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
-                        <span className="pill">Margem líquida final <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
-                        <span className="pill">Desconto máximo <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
+                        <span className="pill">Custo variável total <InfoTooltip text="Soma de todos os custos diretos do projeto: kit, frete, descarregamento, hospedagem, material CA e mão de obra estimada." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
+                        <span className="pill">Margem bruta <InfoTooltip text="Diferença entre o valor do contrato e o custo variável total. Representa o valor disponível para cobrir impostos, custos fixos e gerar lucro." /> <strong>{currency(analiseFinanceiraResult.margem_rs ?? 0)}</strong></span>
+                        <span className="pill">Impostos <InfoTooltip text="Valor estimado de impostos sobre o faturamento, calculado com base na alíquota configurada." /> <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
+                        <span className="pill">Custo fixo rateado <InfoTooltip text="Parcela dos custos operacionais fixos da empresa atribuída a este projeto (ex.: aluguel, folha administrativa), calculada sobre o valor do contrato." /> <strong>{currency(analiseFinanceiraResult.custo_fixo_rateado_rs ?? 0)}</strong></span>
+                        <span className="pill">Lucro s/ comissão <InfoTooltip text="Lucro líquido antes de descontar a comissão do vendedor. Resultado da margem bruta menos impostos e custos fixos." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
+                        <span className="pill">Margem s/ comissão <InfoTooltip text="Percentual de margem líquida sobre o valor do contrato, antes de considerar a comissão do vendedor." /> <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
+                        <span className="pill">Comissão <InfoTooltip text="Comissão do vendedor calculada sobre o valor do contrato, conforme percentual configurado nas configurações de vendas." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
+                        <span className="pill">Custo total real <InfoTooltip text="Custo total efetivo do projeto incluindo custos variáveis, impostos, custos fixos rateados e comissão do vendedor." /> <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
+                        <span className="pill">Lucro líquido final <InfoTooltip text="Lucro efetivo após deduzir todos os custos (variáveis, impostos, fixos e comissão) do valor do contrato." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
+                        <span className="pill">Margem líquida final <InfoTooltip text="Percentual de lucro líquido sobre o valor do contrato, após todos os custos incluindo comissão. Indica a rentabilidade real do projeto." /> <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
+                        <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto que pode ser concedido sobre o valor do contrato sem que a margem líquida caia abaixo do mínimo configurado." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
                       </div>
                       {(analiseFinanceiraResult.preco_minimo_aceitavel_rs != null || analiseFinanceiraResult.preco_minimo_saudavel_rs != null) ? (
                         <div className="info-inline" style={{ marginTop: '0.75rem' }}>
                           {analiseFinanceiraResult.preco_minimo_aceitavel_rs != null ? (
                             <span className="pill" style={{ background: 'var(--color-warning-bg, #fff3cd)', color: 'var(--color-warning-dark, #856404)', fontWeight: 600 }}>
-                              Preço Mín. Aceitável ({afMargemLiquidaMinima}% margem, sem comissão) <strong>{currency(analiseFinanceiraResult.preco_minimo_aceitavel_rs)}</strong>
+                              Preço Mín. Aceitável <InfoTooltip text={`Menor preço de venda que garante a margem líquida mínima de ${afMargemLiquidaMinima}%, sem incluir comissão do vendedor. Abaixo deste valor a venda é bloqueada.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_aceitavel_rs)}</strong>
                             </span>
                           ) : null}
                           {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
                             <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', fontWeight: 600 }}>
-                              Preço Mín. Saudável ({afMargemLiquidaMinima}% margem + {vendasConfig.af_comissao_minima_percent}% comissão) <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
+                              Preço Mín. Saudável <InfoTooltip text={`Preço mínimo que garante a margem líquida mínima de ${afMargemLiquidaMinima}% e ainda cobre a comissão mínima do vendedor (${vendasConfig.af_comissao_minima_percent}%). Abaixo deste valor não há comissão.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
                             </span>
                           ) : null}
                           {analiseFinanceiraResult.preco_ideal_rs != null ? (
                             <span className="pill" style={{ background: 'var(--color-info-bg, #cce5ff)', fontWeight: 600 }}>
-                              Preço Ideal ({afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}% margem) <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
+                              Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}%, com comissão integral do vendedor incluída.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
                             </span>
                           ) : null}
                           {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
