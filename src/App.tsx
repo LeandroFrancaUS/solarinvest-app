@@ -9600,6 +9600,96 @@ export default function App() {
     comissaoPadraoFracao,
   ])
 
+  // AF-specific simulation state used ONLY to derive afMensalidadeBaseAuto.
+  // Built from AF's own raw inputs — never spread from simulationState (leasing proposal) —
+  // so that the auto mensalidade shown in Análise Financeira always reflects AF's local
+  // consumo and generation, not the Proposta de Leasing values ("local first" policy).
+  const afSimEstadoMensalidade = useMemo<SimulationState | null>(() => {
+    const resolveOverride = (override: number, fallback: number, def: number) => {
+      const v = override > 0 ? override : fallback
+      return v > 0 ? v : def
+    }
+    const consumo = resolveOverride(afConsumoOverride, kcKwhMes, 0)
+    if (consumo <= 0) return null
+
+    const irr = resolveOverride(afIrradiacaoOverride, baseIrradiacao, 5.0)
+    const pr = resolveOverride(afPROverride, eficienciaNormalizada, 0.8)
+    const dias = resolveOverride(afDiasOverride, diasMesNormalizado, 30)
+    const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
+
+    let potenciaKwp = 0
+    if (afNumModulosOverride != null && afNumModulosOverride > 0) {
+      potenciaKwp = (afNumModulosOverride * modulo) / 1000
+    } else {
+      const computed = calcPotenciaSistemaKwp({
+        consumoKwhMes: consumo,
+        irradiacao: irr,
+        performanceRatio: pr,
+        diasMes: dias,
+        potenciaModuloWp: modulo,
+      })
+      potenciaKwp = computed?.potenciaKwp ?? 0
+    }
+    const afGeracaoKwh = potenciaKwp * irr * pr * dias
+
+    const tusdPercentual = Math.max(0, tusdPercent)
+    const tusdSubtipoNorm = tusdSubtipo.trim()
+    return {
+      kcKwhMes: consumo,
+      consumoMensalKwh: consumo,
+      geracaoMensalKwh: Math.max(0, afGeracaoKwh),
+      prazoMeses: afMesesProjecao,
+      entradaRs: 0,
+      modoEntrada: 'NONE',
+      // Tariff/TUSD fields — same normalization used in simulationState and afSimState
+      tarifaCheia: Math.max(0, tarifaCheia),
+      desconto: Math.max(0, Math.min(descontoConsiderado / 100, 1)),
+      inflacaoAa: Math.max(-0.99, inflacaoAa / 100),
+      taxaMinima: taxaMinimaInputEmpty
+        ? calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
+        : Number.isFinite(taxaMinima) ? Math.max(0, taxaMinima) : 0,
+      aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
+      tipoRede,
+      tusdPercent: tusdPercentual,
+      tusdPercentualFioB: tusdPercentual,
+      tusdTipoCliente,
+      tusdSubtipo: tusdSubtipoNorm.length > 0 ? tusdSubtipoNorm : null,
+      tusdSimultaneidade: tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null,
+      tusdTarifaRkwh: tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null,
+      tusdAnoReferencia: Number.isFinite(tusdAnoReferencia)
+        ? Math.max(1, Math.trunc(tusdAnoReferencia))
+        : DEFAULT_TUSD_ANO_REFERENCIA,
+      mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
+      mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
+      encargosFixos,
+      cidKwhBase,
+      // Fields not consulted by selectMensalidades — safe zero defaults
+      vm0: 0,
+      depreciacaoAa: 0,
+      ipcaAa: 0,
+      inadimplenciaAa: 0,
+      tributosAa: 0,
+      custosFixosM: 0,
+      opexM: 0,
+      seguroM: 0,
+      cashbackPct: 0,
+      pagosAcumManual: 0,
+      duracaoMeses: 0,
+    }
+  }, [
+    afConsumoOverride, kcKwhMes,
+    afIrradiacaoOverride, baseIrradiacao,
+    afPROverride, eficienciaNormalizada,
+    afDiasOverride, diasMesNormalizado,
+    afModuloWpOverride, potenciaModulo,
+    afNumModulosOverride,
+    afMesesProjecao,
+    tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
+    tipoRede, tusdPercent, tusdTipoCliente, tusdSubtipo, tusdSimultaneidade,
+    tusdTarifaRkwh, tusdAnoReferencia, mesReajuste, mesReferencia,
+    vendaForm.aplica_taxa_minima, encargosFixos, cidKwhBase,
+  ])
+
   const analiseFinanceiraResult = useMemo(() => {
     const resolveOverride = (override: number, fallback: number, defaultVal: number) => {
       const v = override > 0 ? override : fallback
@@ -9982,9 +10072,15 @@ export default function App() {
   const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
   const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
   const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
+  // AF-specific mensalidades — derived from afSimEstadoMensalidade (AF's own inputs, not leasing's).
+  // This is what drives afMensalidadeBaseAuto so the AF section is isolated from the leasing proposal.
+  const mensalidadesAfPorAno = useMemo(
+    () => (afSimEstadoMensalidade != null ? selectMensalidadesPorAno(afSimEstadoMensalidade) : []),
+    [afSimEstadoMensalidade],
+  )
   useEffect(() => {
-    setAfMensalidadeBaseAuto(mensalidadesPorAno[0] ?? 0)
-  }, [mensalidadesPorAno])
+    setAfMensalidadeBaseAuto(mensalidadesAfPorAno[0] ?? 0)
+  }, [mensalidadesAfPorAno])
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
