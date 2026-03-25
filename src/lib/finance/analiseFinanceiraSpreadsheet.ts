@@ -404,7 +404,13 @@ export function calcularAnaliseFinanceira(
 ): AnaliseFinanceiraOutput {
   validateInput(input)
 
-  const { potencia_sistema_kwp, quantidade_modulos } = calcularBaseSistema(input)
+  const { potencia_sistema_kwp, quantidade_modulos } =
+    input.quantidade_modulos_override != null && input.quantidade_modulos_override > 0
+      ? {
+          quantidade_modulos: input.quantidade_modulos_override,
+          potencia_sistema_kwp: (input.quantidade_modulos_override * input.potencia_modulo_wp) / 1000,
+        }
+      : calcularBaseSistema(input)
 
   const custosTecnicos = calcularCustosTecnicos(input, potencia_sistema_kwp, quantidade_modulos)
 

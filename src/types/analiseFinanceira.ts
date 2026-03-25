@@ -30,6 +30,8 @@ export interface AnaliseFinanceiraInput {
   performance_ratio: number
   dias_mes: number
   potencia_modulo_wp: number
+  /** When provided, skips auto-calculation from consumption and uses this value directly. */
+  quantidade_modulos_override?: number
 
   // Custos diretos informados
   custo_kit_rs: number

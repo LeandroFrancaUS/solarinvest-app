@@ -450,6 +450,41 @@ describe('instalação auto-calculation', () => {
   })
 })
 
+// ─── quantidade_modulos_override ──────────────────────────────────────────────
+
+describe('quantidade_modulos_override', () => {
+  it('bypasses auto-calculation and uses provided module count', () => {
+    const override = 20
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      quantidade_modulos_override: override,
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.quantidade_modulos).toBe(override)
+    expect(result.potencia_sistema_kwp).toBeCloseTo((override * baseInput.potencia_modulo_wp) / 1000, 4)
+  })
+
+  it('placa_rs uses overridden module count', () => {
+    const override = 10
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      quantidade_modulos_override: override,
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.placa_rs).toBe(override * PRECO_PLACA_RS)
+  })
+
+  it('auto-calculates when override is not provided', () => {
+    const auto = calcularAnaliseFinanceira(baseInput)
+    const withOverride = calcularAnaliseFinanceira({
+      ...baseInput,
+      quantidade_modulos_override: auto.quantidade_modulos,
+    })
+    expect(withOverride.quantidade_modulos).toBe(auto.quantidade_modulos)
+    expect(withOverride.potencia_sistema_kwp).toBeCloseTo(auto.potencia_sistema_kwp, 3)
+  })
+})
+
 // ─── Venda full calculation integration ──────────────────────────────────────
 
 describe('calcularAnaliseFinanceira venda integration', () => {

@@ -4445,11 +4445,34 @@ export default function App() {
   const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
   const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
+  // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
+  const [afConsumoOverride, setAfConsumoOverride] = useState(0)
+  const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
+  const [afPROverride, setAfPROverride] = useState(0)
+  const [afDiasOverride, setAfDiasOverride] = useState(0)
+  const [afModuloWpOverride, setAfModuloWpOverride] = useState(0)
+  const [afUfOverride, setAfUfOverride] = useState<'' | 'GO' | 'DF'>('')
+  // N modules / kWp mutual-calc (null = use engine value)
+  const [afNumModulosOverride, setAfNumModulosOverride] = useState<number | null>(null)
+  const afBaseInitializedRef = useRef(false)
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
+  // Initialize AF base system overrides from proposal values on first visit to analise section
+  useEffect(() => {
+    if (simulacoesSection === 'analise' && !afBaseInitializedRef.current) {
+      afBaseInitializedRef.current = true
+      setAfConsumoOverride(kcKwhMes > 0 ? kcKwhMes : 0)
+      setAfIrradiacaoOverride(baseIrradiacao > 0 ? baseIrradiacao : 5.0)
+      setAfPROverride(eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
+      setAfDiasOverride(diasMesNormalizado > 0 ? diasMesNormalizado : 30)
+      setAfModuloWpOverride(potenciaModulo > 0 ? potenciaModulo : 550)
+      setAfUfOverride(ufTarifa === 'DF' ? 'DF' : 'GO')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simulacoesSection])
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
     if (
@@ -9575,24 +9598,33 @@ export default function App() {
   ])
 
   const analiseFinanceiraResult = useMemo(() => {
-    const irr = baseIrradiacao > 0 ? baseIrradiacao : 5.0
-    const pr = eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8
-    const dias = diasMesNormalizado > 0 ? diasMesNormalizado : 30
-    const consumo = kcKwhMes > 0 ? kcKwhMes : 0
-    const modulo = potenciaModulo > 0 ? potenciaModulo : 550
-    const uf = ufTarifa === 'DF' ? 'DF' as const : 'GO' as const
+    const resolveOverride = (override: number, fallback: number, defaultVal: number) => {
+      const v = override > 0 ? override : fallback
+      return v > 0 ? v : defaultVal
+    }
+    const irr = resolveOverride(afIrradiacaoOverride, baseIrradiacao, 5.0)
+    const pr = resolveOverride(afPROverride, eficienciaNormalizada, 0.8)
+    const dias = resolveOverride(afDiasOverride, diasMesNormalizado, 30)
+    const consumo = resolveOverride(afConsumoOverride, kcKwhMes, 0)
+    const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
+    const uf = (afUfOverride || ufTarifa) === 'DF' ? 'DF' as const : 'GO' as const
 
     if (consumo <= 0 || afCustoKit <= 0) return null
     if (afModo === 'venda' && afValorContrato <= 0) return null
 
     // Pre-compute base system to derive instalacao and investimento
-    const baseSistema = calcularBaseSistema({
-      consumo_kwh_mes: consumo,
-      irradiacao_kwh_m2_dia: irr,
-      performance_ratio: pr,
-      dias_mes: dias,
-      potencia_modulo_wp: modulo,
-    })
+    const nModulosOverride = afNumModulosOverride != null && afNumModulosOverride > 0
+      ? afNumModulosOverride
+      : undefined
+    const baseSistema = nModulosOverride != null
+      ? { quantidade_modulos: nModulosOverride, potencia_sistema_kwp: (nModulosOverride * modulo) / 1000 }
+      : calcularBaseSistema({
+          consumo_kwh_mes: consumo,
+          irradiacao_kwh_m2_dia: irr,
+          performance_ratio: pr,
+          dias_mes: dias,
+          potencia_modulo_wp: modulo,
+        })
     const instalacaoCalculada = baseSistema.quantidade_modulos * 70
 
     // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
@@ -9626,6 +9658,7 @@ export default function App() {
         performance_ratio: pr,
         dias_mes: dias,
         potencia_modulo_wp: modulo,
+        ...(nModulosOverride != null ? { quantidade_modulos_override: nModulosOverride } : {}),
         custo_kit_rs: afCustoKit,
         frete_rs: afFrete,
         descarregamento_rs: afDescarregamento,
@@ -9648,6 +9681,13 @@ export default function App() {
       return null
     }
   }, [
+    afConsumoOverride,
+    afIrradiacaoOverride,
+    afPROverride,
+    afDiasOverride,
+    afModuloWpOverride,
+    afUfOverride,
+    afNumModulosOverride,
     afCustoKit,
     afCustoOperacional,
     afDescarregamento,
@@ -17086,12 +17126,11 @@ export default function App() {
 
   const abrirSimulacoes = useCallback(
     async (section?: SimulacoesSection) => {
-      return runWithUnsavedChangesGuard(() => {
-        setSimulacoesSection(section ?? 'nova')
-        setActivePage('simulacoes')
-      })
+      setSimulacoesSection(section ?? 'nova')
+      setActivePage('simulacoes')
+      return true
     },
-    [runWithUnsavedChangesGuard, setActivePage],
+    [setActivePage],
   )
 
   const abrirConfiguracoes = useCallback(
@@ -24466,33 +24505,107 @@ export default function App() {
                 </button>
               </div>
 
-              {/* System base info (read-only from proposal) */}
+              {/* System base info (editable overrides) */}
               <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                <h4>Base do sistema (da proposta)</h4>
+                <h4>Base do sistema</h4>
                 <div className="grid g3">
                   <Field label="Consumo (kWh/mês)">
-                    <input type="number" value={kcKwhMes} readOnly disabled />
+                    <input
+                      type="number"
+                      value={afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes}
+                      min={0}
+                      onChange={(e) => setAfConsumoOverride(Number(e.target.value) || 0)}
+                    />
                   </Field>
                   <Field label="Irradiação (kWh/m²/dia)">
-                    <input type="number" value={baseIrradiacao.toFixed(2)} readOnly disabled />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao}
+                      min={0}
+                      onChange={(e) => setAfIrradiacaoOverride(Number(e.target.value) || 0)}
+                    />
                   </Field>
                   <Field label="Performance ratio">
-                    <input type="number" value={eficienciaNormalizada.toFixed(3)} readOnly disabled />
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={afPROverride > 0 ? afPROverride : eficienciaNormalizada}
+                      min={0}
+                      max={1}
+                      onChange={(e) => setAfPROverride(Number(e.target.value) || 0)}
+                    />
                   </Field>
                   <Field label="Dias/mês">
-                    <input type="number" value={diasMesNormalizado > 0 ? diasMesNormalizado : 30} readOnly disabled />
+                    <input
+                      type="number"
+                      value={afDiasOverride > 0 ? afDiasOverride : (diasMesNormalizado > 0 ? diasMesNormalizado : 30)}
+                      min={1}
+                      max={31}
+                      onChange={(e) => setAfDiasOverride(Number(e.target.value) || 0)}
+                    />
                   </Field>
                   <Field label="Módulo (Wp)">
-                    <input type="number" value={potenciaModulo} readOnly disabled />
+                    <input
+                      type="number"
+                      value={afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo}
+                      min={1}
+                      onChange={(e) => {
+                        const wp = Number(e.target.value) || 0
+                        setAfModuloWpOverride(wp)
+                    }}
+                    />
                   </Field>
                   <Field label="UF">
-                    <input type="text" value={ufTarifa} readOnly disabled />
+                    <select
+                      value={afUfOverride || ufTarifa}
+                      onChange={(e) => setAfUfOverride(e.target.value as 'GO' | 'DF')}
+                    >
+                      <option value="GO">GO</option>
+                      <option value="DF">DF</option>
+                    </select>
+                  </Field>
+                  <Field label="Nº de módulos (estimado)">
+                    <input
+                      type="number"
+                      min={1}
+                      value={
+                        afNumModulosOverride != null
+                          ? afNumModulosOverride
+                          : (analiseFinanceiraResult?.quantidade_modulos ?? '')
+                      }
+                      placeholder={String(analiseFinanceiraResult?.quantidade_modulos ?? '—')}
+                      onChange={(e) => {
+                        const n = Math.max(1, Math.round(Number(e.target.value) || 0))
+                        setAfNumModulosOverride(n > 0 ? n : null)
+                      }}
+                    />
+                  </Field>
+                  <Field label="Potência do sistema (kWp)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={
+                        afNumModulosOverride != null
+                          ? ((afNumModulosOverride * (afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo)) / 1000).toFixed(2)
+                          : (analiseFinanceiraResult != null ? analiseFinanceiraResult.potencia_sistema_kwp.toFixed(2) : '')
+                      }
+                      placeholder={analiseFinanceiraResult != null ? analiseFinanceiraResult.potencia_sistema_kwp.toFixed(2) : '—'}
+                      onChange={(e) => {
+                        const kwp = Number(e.target.value) || 0
+                        const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
+                        if (kwp > 0 && modWp > 0) {
+                          setAfNumModulosOverride(Math.max(1, Math.ceil((kwp * 1000) / modWp)))
+                        } else {
+                          setAfNumModulosOverride(null)
+                        }
+                      }}
+                    />
                   </Field>
                 </div>
                 {analiseFinanceiraResult ? (
                   <div className="info-inline" style={{ marginTop: '0.5rem' }}>
-                    <span className="pill">Potência <strong>{analiseFinanceiraResult.potencia_sistema_kwp.toFixed(2)} kWp</strong></span>
-                    <span className="pill">Módulos <strong>{analiseFinanceiraResult.quantidade_modulos}</strong></span>
                     <span className="pill">Projeto <strong>{currency(analiseFinanceiraResult.custo_projeto_rs)}</strong></span>
                     <span className="pill">Material CA <strong>{currency(analiseFinanceiraResult.material_ca_rs)}</strong></span>
                     <span className="pill">CREA <strong>{currency(analiseFinanceiraResult.crea_rs)}</strong></span>
@@ -24511,9 +24624,21 @@ export default function App() {
                       type="number"
                       value={afCustoKit}
                       min={0}
+                      style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
                       onChange={(e) => setAfCustoKit(Number(e.target.value) || 0)}
                     />
                   </Field>
+                  {afModo === 'venda' ? (
+                    <Field label="Valor do Contrato (R$)">
+                      <input
+                        type="number"
+                        value={afValorContrato}
+                        min={0}
+                        style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
+                        onChange={(e) => setAfValorContrato(Number(e.target.value) || 0)}
+                      />
+                    </Field>
+                  ) : null}
                   <Field label="Frete (R$)">
                     <input
                       type="number"
@@ -24550,16 +24675,6 @@ export default function App() {
                       onChange={(e) => setAfHotelPousada(Number(e.target.value) || 0)}
                     />
                   </Field>
-                  {afModo === 'venda' ? (
-                    <Field label="Valor do Contrato (R$)">
-                      <input
-                        type="number"
-                        value={afValorContrato}
-                        min={0}
-                        onChange={(e) => setAfValorContrato(Number(e.target.value) || 0)}
-                      />
-                    </Field>
-                  ) : null}
                   <Field label="Impostos (%)">
                     <input
                       type="number"
