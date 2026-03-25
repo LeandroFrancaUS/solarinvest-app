@@ -2,6 +2,26 @@ export type UF = 'GO' | 'DF'
 export type ModoAnalise = 'venda' | 'leasing'
 export type StatusVenda = 'BLOQUEAR_VENDA' | 'SEM_COMISSAO' | 'VENDA_SAUDAVEL'
 
+/**
+ * Configurable parameters for the financial analysis engine.
+ * When provided via AnaliseFinanceiraInput.engine_config, these values
+ * override the hardcoded defaults in analiseFinanceiraSpreadsheet.ts.
+ * All fields are optional; unset fields fall back to the built-in defaults.
+ */
+export interface AnaliseFinanceiraEngineConfig {
+  combustivel_go_rs?: number
+  combustivel_df_rs?: number
+  preco_placa_rs?: number
+  material_ca_percent_kit?: number
+  crea_go_rs?: number
+  crea_df_rs?: number
+  projeto_faixas?: import('../lib/finance/analiseFinanceiraSpreadsheet').ProjetoFaixa[]
+  seguro_limiar_rs?: number
+  seguro_faixa_baixa_percent?: number
+  seguro_faixa_alta_percent?: number
+  seguro_piso_rs?: number
+}
+
 export type AnaliseFinanceiraErrorCode =
   | 'INPUT_INVALID_CONSUMO'
   | 'INPUT_INVALID_IRRADIACAO'
@@ -43,6 +63,9 @@ export interface AnaliseFinanceiraInput {
   placa_rs_override?: number
   /** When provided, overrides the auto-calculated material CA cost (default: custo_kit_rs × MATERIAL_CA_PERCENT_DO_KIT / 100). */
   material_ca_rs_override?: number
+
+  /** Optional engine configuration. When provided, these values override the built-in hardcoded defaults. */
+  engine_config?: AnaliseFinanceiraEngineConfig
 
   // Comercial/tributário (Venda e/ou Leasing)
   valor_contrato_rs: number
@@ -93,6 +116,8 @@ export interface AnaliseFinanceiraOutput {
   preco_minimo_aceitavel_rs?: number
   preco_minimo_saudavel_rs?: number
   preco_ideal_rs?: number
+  /** Reference sale price targeting 30% net margin and 5% fixed commission. */
+  preco_venda_referencia_rs?: number
   desconto_maximo_percent?: number
 
   // Leasing

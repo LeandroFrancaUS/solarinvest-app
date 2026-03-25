@@ -93,10 +93,6 @@ import type { TipoClienteTUSD } from './lib/finance/tusd'
 import {
   calcularAnaliseFinanceira,
   resolveCustoProjetoPorFaixa,
-  resolveCrea,
-  resolveCombustivel,
-  MATERIAL_CA_PERCENT_DO_KIT,
-  PRECO_PLACA_RS,
 } from './lib/finance/analiseFinanceiraSpreadsheet'
 import type { AnaliseFinanceiraInput } from './types/analiseFinanceira'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
@@ -123,8 +119,10 @@ import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNum
 import {
   calcPotenciaSistemaKwp,
   calcProjectedCostsByConsumption,
+  calcPricingPorKwp,
   formatBRL,
   getRedeByPotencia,
+  KIT_REAJUSTE_MULTIPLIER,
   type Rede,
 } from './lib/pricing/pricingPorKwp'
 import { calcularPrecheckNormativo } from './domain/normas/precheckNormativo'
@@ -9702,7 +9700,7 @@ export default function App() {
     const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
     const uf = (afUfOverride || ufTarifa) === 'DF' ? 'DF' as const : 'GO' as const
 
-    if (consumo <= 0 || afCustoKit <= 0) return null
+    if (consumo <= 0) return null
     if (afModo === 'venda' && afValorContrato <= 0) return null
 
     // Pre-compute base system using the same engine as the leasing proposals page
@@ -9726,14 +9724,24 @@ export default function App() {
     }
     const instalacaoCalculada = baseSistema.quantidade_modulos * 70
 
-    // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
-    const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp)
-    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * (MATERIAL_CA_PERCENT_DO_KIT / 100)
-    const preCrea = resolveCrea(uf)
-    const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * PRECO_PLACA_RS
-    const preCombustivel = resolveCombustivel(uf)
+    // Phase 2: Auto-estimate kit cost when not manually provided
+    let custoKitEfetivo = afCustoKit
+    if (custoKitEfetivo <= 0) {
+      const pricing = calcPricingPorKwp(baseSistema.potencia_sistema_kwp)
+      custoKitEfetivo = pricing ? pricing.kitValor * KIT_REAJUSTE_MULTIPLIER : 0
+    }
+    if (custoKitEfetivo <= 0) return null
+
+    // Phase 1: Use vendasConfig.af_* for pre-computation instead of hardcoded constants
+    const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp, vendasConfig.af_projeto_faixas)
+    const materialCaPct = vendasConfig.af_material_ca_percent_kit
+    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : custoKitEfetivo * (materialCaPct / 100)
+    const preCrea = uf === 'DF' ? vendasConfig.af_crea_df_rs : vendasConfig.af_crea_go_rs
+    const precoPlaca = vendasConfig.af_preco_placa_rs
+    const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * precoPlaca
+    const preCombustivel = uf === 'DF' ? vendasConfig.af_combustivel_df_rs : vendasConfig.af_combustivel_go_rs
     const preCustoVariavel =
-      afCustoKit +
+      custoKitEfetivo +
       afFrete +
       afDescarregamento +
       preProjetoCusto +
@@ -9828,7 +9836,7 @@ export default function App() {
         dias_mes: dias,
         potencia_modulo_wp: modulo,
         ...(nModulosOverride != null ? { quantidade_modulos_override: nModulosOverride } : {}),
-        custo_kit_rs: afCustoKit,
+        custo_kit_rs: kitCustoEfetivo,
         frete_rs: afFrete,
         descarregamento_rs: afDescarregamento,
         instalacao_rs: instalacaoCalculada,
@@ -9847,6 +9855,20 @@ export default function App() {
         meses_projecao: mensalidadesFinal.length,
         mensalidades_previstas_rs: mensalidadesFinal,
         investimento_inicial_rs: preCustoVariavel,
+        // Phase 1: pass vendasConfig-based engine config so the engine uses dynamic values
+        engine_config: {
+          combustivel_go_rs: vendasConfig.af_combustivel_go_rs,
+          combustivel_df_rs: vendasConfig.af_combustivel_df_rs,
+          preco_placa_rs: vendasConfig.af_preco_placa_rs,
+          material_ca_percent_kit: vendasConfig.af_material_ca_percent_kit,
+          crea_go_rs: vendasConfig.af_crea_go_rs,
+          crea_df_rs: vendasConfig.af_crea_df_rs,
+          projeto_faixas: vendasConfig.af_projeto_faixas,
+          seguro_limiar_rs: vendasConfig.af_seguro_limiar_rs,
+          seguro_faixa_baixa_percent: vendasConfig.af_seguro_faixa_baixa_percent,
+          seguro_faixa_alta_percent: vendasConfig.af_seguro_faixa_alta_percent,
+          seguro_piso_rs: vendasConfig.af_seguro_piso_rs,
+        },
       }
       return calcularAnaliseFinanceira(input)
     } catch {
@@ -9907,10 +9929,37 @@ export default function App() {
     vendasConfig.af_comissao_minima_percent,
     vendasConfig.af_custo_fixo_rateado_percent,
     vendasConfig.af_lucro_minimo_percent,
+    vendasConfig.af_combustivel_go_rs,
+    vendasConfig.af_combustivel_df_rs,
+    vendasConfig.af_preco_placa_rs,
+    vendasConfig.af_material_ca_percent_kit,
+    vendasConfig.af_crea_go_rs,
+    vendasConfig.af_crea_df_rs,
+    vendasConfig.af_projeto_faixas,
+    vendasConfig.af_seguro_limiar_rs,
+    vendasConfig.af_seguro_faixa_baixa_percent,
+    vendasConfig.af_seguro_faixa_alta_percent,
+    vendasConfig.af_seguro_piso_rs,
   ])
 
   const custoFinalProjetadoCanonico = useMemo(() => {
-    // Prioritize preco_minimo_saudavel from financial analysis when available
+    // Priority order (Phase 4):
+    // 1. preco_venda_referencia_rs  — new: 30% net margin + 5% fixed commission
+    // 2. preco_ideal_rs             — existing: dynamic commission at target margin
+    // 3. preco_minimo_saudavel_rs   — guardrail: minimum healthy price
+    // 4. autoCustoFinal             — legacy manual override
+    // 5. valorVendaAtual            — current contract value
+    // 6. capex                      — last resort
+    const precoRef = analiseFinanceiraResult?.preco_venda_referencia_rs
+    if (Number.isFinite(precoRef) && precoRef != null && precoRef > 0) {
+      return precoRef
+    }
+
+    const precoIdeal = analiseFinanceiraResult?.preco_ideal_rs
+    if (Number.isFinite(precoIdeal) && precoIdeal != null && precoIdeal > 0) {
+      return precoIdeal
+    }
+
     const precoMin = analiseFinanceiraResult?.preco_minimo_saudavel_rs
     if (Number.isFinite(precoMin) && precoMin != null && precoMin > 0) {
       return precoMin
@@ -24903,8 +24952,8 @@ export default function App() {
                       type="number"
                       step="0.01"
                       min={0}
-                      value={afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100}
-                      placeholder={(afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100).toFixed(2)}
+                      value={afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * vendasConfig.af_material_ca_percent_kit / 100}
+                      placeholder={(afCustoKit * vendasConfig.af_material_ca_percent_kit / 100).toFixed(2)}
                       onChange={(e) => {
                         const v = Number(e.target.value)
                         setAfMaterialCAOverride(v >= 0 ? v : null)
@@ -25057,6 +25106,11 @@ export default function App() {
                           {analiseFinanceiraResult.preco_ideal_rs != null ? (
                             <span className="pill" style={{ background: 'var(--color-info-bg, #cce5ff)', fontWeight: 600 }}>
                               Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}%, com comissão integral do vendedor incluída.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
+                            </span>
+                          ) : null}
+                          {analiseFinanceiraResult.preco_venda_referencia_rs != null ? (
+                            <span className="pill" style={{ background: 'var(--color-primary-bg, #e8f4fd)', color: 'var(--color-primary-dark, #0056b3)', fontWeight: 700 }}>
+                              Preço de Venda (Ref. AF) <InfoTooltip text="Preço de venda de referência: margem líquida alvo de 30% + comissão fixa de 5%, calculado sobre o custo variável. Utilizado como base da proposta automática." /> <strong>{currency(analiseFinanceiraResult.preco_venda_referencia_rs)}</strong>
                             </span>
                           ) : null}
                           {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
@@ -26221,10 +26275,14 @@ export default function App() {
 
                     <div className="info-inline">
                       <span className="pill">
-                        <InfoTooltip text="Preço Mín. Saudável (Análise Financeira v1). Quando disponível, usa o preço mínimo saudável calculado pelo motor de análise. Caso contrário, usa o custo final projetado automático." />
-                        {analiseFinanceiraResult?.preco_minimo_saudavel_rs != null
-                          ? 'Preço Mín. Saudável'
-                          : 'Custo final projetado'}
+                        <InfoTooltip text="Preço de Venda (Referência AF): margem líquida 30% + comissão 5%, calculado sobre o custo variável estimado. Fallback: Preço Ideal → Preço Mín. Saudável → custo projetado automático." />
+                        {analiseFinanceiraResult?.preco_venda_referencia_rs != null
+                          ? 'Preço de Venda (Ref. AF)'
+                          : analiseFinanceiraResult?.preco_ideal_rs != null
+                            ? 'Preço Ideal (AF)'
+                            : analiseFinanceiraResult?.preco_minimo_saudavel_rs != null
+                              ? 'Preço Mín. Saudável (AF)'
+                              : 'Custo final projetado'}
                         <strong>{currency(custoFinalProjetadoCanonico)}</strong>
                       </span>
                       <span className="pill">

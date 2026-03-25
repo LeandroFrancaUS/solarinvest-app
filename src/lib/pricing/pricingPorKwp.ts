@@ -65,7 +65,7 @@ const triAnchors: Anchor[] = [
 
 const MAX_KWP = 90
 
-const KIT_REAJUSTE_MULTIPLIER = 1.185
+export const KIT_REAJUSTE_MULTIPLIER = 1.185
 const MATERIAL_CA_MULTIPLIER = 1.2
 const INSTALACAO_GO_POR_MODULO = 70
 const INSTALACAO_DF_POR_MODULO = 73

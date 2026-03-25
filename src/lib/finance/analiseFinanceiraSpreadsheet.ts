@@ -1,5 +1,6 @@
 import {
   AnaliseFinanceiraError,
+  type AnaliseFinanceiraEngineConfig,
   type AnaliseFinanceiraInput,
   type AnaliseFinanceiraOutput,
   type StatusVenda,
@@ -54,19 +55,27 @@ export function resolveCustoProjetoPorFaixa(
   return faixas[faixas.length - 1]?.valor_rs ?? 2500
 }
 
-export function resolveCrea(uf: UF): number {
-  return uf === 'DF' ? CREA_DF_RS : CREA_GO_RS
+export function resolveCrea(uf: UF, config?: Pick<AnaliseFinanceiraEngineConfig, 'crea_go_rs' | 'crea_df_rs'>): number {
+  const goRs = config?.crea_go_rs ?? CREA_GO_RS
+  const dfRs = config?.crea_df_rs ?? CREA_DF_RS
+  return uf === 'DF' ? dfRs : goRs
 }
 
-export function resolveCombustivel(uf: UF): number {
-  return uf === 'DF' ? COMBUSTIVEL_DF_RS : COMBUSTIVEL_GO_RS
+export function resolveCombustivel(uf: UF, config?: Pick<AnaliseFinanceiraEngineConfig, 'combustivel_go_rs' | 'combustivel_df_rs'>): number {
+  const goRs = config?.combustivel_go_rs ?? COMBUSTIVEL_GO_RS
+  const dfRs = config?.combustivel_df_rs ?? COMBUSTIVEL_DF_RS
+  return uf === 'DF' ? dfRs : goRs
 }
 
-export function calcSeguroLeasing(valorContrato: number): number {
-  if (valorContrato < SEGURO_LIMIAR_RS) {
-    return valorContrato * (SEGURO_FAIXA_BAIXA_PERCENT / 100)
+export function calcSeguroLeasing(valorContrato: number, config?: Pick<AnaliseFinanceiraEngineConfig, 'seguro_limiar_rs' | 'seguro_faixa_baixa_percent' | 'seguro_faixa_alta_percent' | 'seguro_piso_rs'>): number {
+  const limiar = config?.seguro_limiar_rs ?? SEGURO_LIMIAR_RS
+  const baixa = config?.seguro_faixa_baixa_percent ?? SEGURO_FAIXA_BAIXA_PERCENT
+  const alta = config?.seguro_faixa_alta_percent ?? SEGURO_FAIXA_ALTA_PERCENT
+  const piso = config?.seguro_piso_rs ?? SEGURO_PISO_RS
+  if (valorContrato < limiar) {
+    return valorContrato * (baixa / 100)
   }
-  return Math.max(SEGURO_PISO_RS, valorContrato * (SEGURO_FAIXA_ALTA_PERCENT / 100))
+  return Math.max(piso, valorContrato * (alta / 100))
 }
 
 export function calcComissaoDinamica(margemSemComissao: number): number {
@@ -129,6 +138,32 @@ export function calcPrecoIdeal(
   const denCap = a - m - 0.1
   if (denCap <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
   return custo_variavel_total / denCap
+}
+
+/**
+ * Calculates the commercial reference sale price targeting a fixed net margin
+ * and a fixed commission rate. Unlike calcPrecoIdeal (which uses dynamic commission),
+ * this uses a fixed comissao_fixa_percent (default 5%) and margem_alvo_percent (default 30%).
+ *
+ * Formula: P = CV / (1 − impostos% − custoFixo% − margem_alvo% − comissao_fixa%)
+ *
+ * This is the canonical price for automatic proposals (Fase 3 of the pricing overhaul).
+ */
+export function calcPrecoVendaReferencia(
+  custo_variavel_total: number,
+  impostos_percent: number,
+  custo_fixo_rateado_percent: number,
+  margem_alvo_percent = 30,
+  comissao_fixa_percent = 5,
+): number {
+  const den =
+    1 -
+    impostos_percent / 100 -
+    custo_fixo_rateado_percent / 100 -
+    margem_alvo_percent / 100 -
+    comissao_fixa_percent / 100
+  if (den <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
+  return custo_variavel_total / den
 }
 
 // ─── IRR calculation ─────────────────────────────────────────────────────────
@@ -220,11 +255,19 @@ function calcularCustosTecnicos(
   placa_rs: number
   combustivel_rs: number
 } {
-  const custo_projeto_rs = resolveCustoProjetoPorFaixa(potencia_sistema_kwp)
-  const material_ca_rs = input.material_ca_rs_override != null ? input.material_ca_rs_override : input.custo_kit_rs * (MATERIAL_CA_PERCENT_DO_KIT / 100)
-  const crea_rs = resolveCrea(input.uf)
-  const placa_rs = input.placa_rs_override != null ? input.placa_rs_override : quantidade_modulos * PRECO_PLACA_RS
-  const combustivel_rs = resolveCombustivel(input.uf)
+  const engineConfig = input.engine_config
+  const faixas = engineConfig?.projeto_faixas ?? PROJETO_FAIXAS
+  const custo_projeto_rs = resolveCustoProjetoPorFaixa(potencia_sistema_kwp, faixas)
+  const materialCaPct = engineConfig?.material_ca_percent_kit ?? MATERIAL_CA_PERCENT_DO_KIT
+  const material_ca_rs = input.material_ca_rs_override != null
+    ? input.material_ca_rs_override
+    : input.custo_kit_rs * (materialCaPct / 100)
+  const crea_rs = resolveCrea(input.uf, engineConfig)
+  const precoPlaca = engineConfig?.preco_placa_rs ?? PRECO_PLACA_RS
+  const placa_rs = input.placa_rs_override != null
+    ? input.placa_rs_override
+    : quantidade_modulos * precoPlaca
+  const combustivel_rs = resolveCombustivel(input.uf, engineConfig)
   return { custo_projeto_rs, material_ca_rs, crea_rs, placa_rs, combustivel_rs }
 }
 
@@ -338,6 +381,18 @@ function calcularAnaliseVenda(
     }
   }
 
+  // Preço de Venda Referência: 30% margem líquida alvo + 5% comissão fixa
+  let preco_venda_referencia_rs: number | undefined
+  try {
+    preco_venda_referencia_rs = calcPrecoVendaReferencia(
+      custo_variavel_total_rs,
+      input.impostos_percent,
+      input.custo_fixo_rateado_percent,
+    )
+  } catch {
+    preco_venda_referencia_rs = undefined
+  }
+
   return {
     custo_variavel_total_rs,
     margem_rs,
@@ -355,6 +410,7 @@ function calcularAnaliseVenda(
     preco_minimo_aceitavel_rs,
     preco_minimo_saudavel_rs,
     preco_ideal_rs,
+    preco_venda_referencia_rs,
     desconto_maximo_percent,
   }
 }
@@ -364,7 +420,7 @@ function calcularAnaliseLeasing(
   custo_variavel_total_rs: number,
   comissao_rs: number,
 ): Partial<AnaliseFinanceiraOutput> {
-  const seguro_rs = calcSeguroLeasing(input.valor_contrato_rs)
+  const seguro_rs = calcSeguroLeasing(input.valor_contrato_rs, input.engine_config)
 
   const custo_total_rs = custo_variavel_total_rs + comissao_rs + seguro_rs
 
@@ -478,6 +534,8 @@ export function calcularAnaliseFinanceira(
     comissao_rs: vendaResult.comissao_rs,
     preco_minimo_aceitavel_rs: vendaResult.preco_minimo_aceitavel_rs,
     preco_minimo_saudavel_rs: vendaResult.preco_minimo_saudavel_rs,
+    preco_ideal_rs: vendaResult.preco_ideal_rs,
+    preco_venda_referencia_rs: vendaResult.preco_venda_referencia_rs,
     ...leasingResult,
     ...kpis,
   }

@@ -9,6 +9,7 @@ import {
   SEGURO_PISO_RS,
   calcComissaoDinamica,
   calcPrecoIdeal,
+  calcPrecoVendaReferencia,
   calcSeguroLeasing,
   calcularAnaliseFinanceira,
   calcularBaseSistema,
@@ -510,5 +511,190 @@ describe('calcularAnaliseFinanceira venda integration', () => {
     const result = calcularAnaliseFinanceira(input)
     expect(result.combustivel_rs).toBe(250)
     expect(result.crea_rs).toBe(CREA_DF_RS)
+  })
+})
+
+// ─── calcPrecoVendaReferencia ─────────────────────────────────────────────────
+
+describe('calcPrecoVendaReferencia', () => {
+  // Standard params: impostos=8%, custoFixo=5%, margem=30%, comissao=5%
+  // den = 1 - 0.08 - 0.05 - 0.30 - 0.05 = 0.52
+  const CV = 20000
+  const IMP = 8
+  const CFR = 5
+
+  it('calculates reference price with default 30% margin and 5% commission', () => {
+    const p = calcPrecoVendaReferencia(CV, IMP, CFR)
+    // den = 1 - 0.08 - 0.05 - 0.30 - 0.05 = 0.52
+    expect(p).toBeCloseTo(CV / 0.52, 4)
+    expect(p).toBeCloseTo(38461.54, 2)
+  })
+
+  it('returns price greater than preco_minimo_saudavel for same inputs', () => {
+    // preco_minimo_saudavel = CV / (1 - imp - cfr - lucroMin - comMin)
+    // = 20000 / (1 - 0.08 - 0.05 - 0.10 - 0.03) = 20000 / 0.74 ≈ 27027
+    const precoMin = CV / (1 - 0.08 - 0.05 - 0.10 - 0.03)
+    const precoRef = calcPrecoVendaReferencia(CV, IMP, CFR)
+    expect(precoRef).toBeGreaterThan(precoMin)
+  })
+
+  it('accepts custom margem_alvo and comissao_fixa', () => {
+    const p = calcPrecoVendaReferencia(CV, IMP, CFR, 20, 3)
+    // den = 1 - 0.08 - 0.05 - 0.20 - 0.03 = 0.64
+    expect(p).toBeCloseTo(CV / 0.64, 4)
+  })
+
+  it('throws DENOMINADOR_PRECO_MINIMO_INVALIDO when denominator <= 0', () => {
+    // 40% + 40% + 30% + 5% > 100%
+    expect(() => calcPrecoVendaReferencia(CV, 40, 40, 30, 5)).toThrow(AnaliseFinanceiraError)
+    try {
+      calcPrecoVendaReferencia(CV, 40, 40, 30, 5)
+    } catch (e) {
+      expect((e as AnaliseFinanceiraError).code).toBe('DENOMINADOR_PRECO_MINIMO_INVALIDO')
+    }
+  })
+
+  it('appears in calcularAnaliseFinanceira output', () => {
+    const result = calcularAnaliseFinanceira(baseInput)
+    expect(result.preco_venda_referencia_rs).toBeDefined()
+    expect(result.preco_venda_referencia_rs!).toBeGreaterThan(0)
+  })
+
+  it('preco_venda_referencia_rs is consistent with manual formula', () => {
+    const result = calcularAnaliseFinanceira(baseInput)
+    const cv = result.custo_variavel_total_rs!
+    const expected = calcPrecoVendaReferencia(cv, baseInput.impostos_percent, baseInput.custo_fixo_rateado_percent)
+    expect(result.preco_venda_referencia_rs).toBeCloseTo(expected, 4)
+  })
+
+  it('preco_venda_referencia_rs > preco_minimo_saudavel_rs', () => {
+    const result = calcularAnaliseFinanceira(baseInput)
+    expect(result.preco_venda_referencia_rs!).toBeGreaterThan(result.preco_minimo_saudavel_rs!)
+  })
+})
+
+// ─── engine_config parameterization ──────────────────────────────────────────
+
+describe('engine_config parameterization', () => {
+  it('uses custom crea values from engine_config', () => {
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      engine_config: { crea_go_rs: 200, crea_df_rs: 250 },
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.crea_rs).toBe(200) // GO UF
+  })
+
+  it('uses custom crea_df_rs from engine_config for DF', () => {
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      uf: 'DF',
+      engine_config: { crea_go_rs: 200, crea_df_rs: 999 },
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.crea_rs).toBe(999)
+  })
+
+  it('uses custom combustivel from engine_config for DF', () => {
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      uf: 'DF',
+      engine_config: { combustivel_df_rs: 500 },
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.combustivel_rs).toBe(500)
+  })
+
+  it('falls back to hardcoded defaults when engine_config is not provided', () => {
+    const result = calcularAnaliseFinanceira(baseInput)
+    expect(result.crea_rs).toBe(CREA_GO_RS)
+    expect(result.combustivel_rs).toBe(0) // GO default
+  })
+
+  it('uses custom projeto_faixas from engine_config', () => {
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      engine_config: {
+        projeto_faixas: [
+          { max_kwp: 100, valor_rs: 9999 },
+        ],
+      },
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.custo_projeto_rs).toBe(9999)
+  })
+
+  it('uses custom seguro params from engine_config in leasing mode', () => {
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      modo: 'leasing',
+      mensalidades_previstas_rs: Array(3).fill(1500),
+      meses_projecao: 3,
+      engine_config: {
+        seguro_limiar_rs: 5000,
+        seguro_faixa_baixa_percent: 10,
+        seguro_faixa_alta_percent: 1,
+        seguro_piso_rs: 50,
+      },
+    }
+    const result = calcularAnaliseFinanceira(input)
+    // valor_contrato_rs = 40000 > 5000, so uses faixa_alta with piso
+    const expectedSeguro = Math.max(50, 40000 * 0.01)
+    expect(result.seguro_rs).toBeCloseTo(expectedSeguro, 4)
+  })
+})
+
+// ─── resolveCrea / resolveCombustivel with config ─────────────────────────────
+
+describe('resolveCrea with config', () => {
+  it('uses config crea_go_rs when provided', () => {
+    expect(resolveCrea('GO', { crea_go_rs: 500 })).toBe(500)
+  })
+  it('uses config crea_df_rs when provided', () => {
+    expect(resolveCrea('DF', { crea_df_rs: 600 })).toBe(600)
+  })
+  it('falls back to CREA_GO_RS default when config not provided', () => {
+    expect(resolveCrea('GO')).toBe(CREA_GO_RS)
+  })
+  it('falls back to CREA_DF_RS default when config not provided', () => {
+    expect(resolveCrea('DF')).toBe(CREA_DF_RS)
+  })
+})
+
+describe('resolveCombustivel with config', () => {
+  it('uses config combustivel_go_rs when provided', () => {
+    expect(resolveCombustivel('GO', { combustivel_go_rs: 100 })).toBe(100)
+  })
+  it('uses config combustivel_df_rs when provided', () => {
+    expect(resolveCombustivel('DF', { combustivel_df_rs: 400 })).toBe(400)
+  })
+  it('falls back to 0 for GO when config not provided', () => {
+    expect(resolveCombustivel('GO')).toBe(0)
+  })
+  it('falls back to 250 for DF when config not provided', () => {
+    expect(resolveCombustivel('DF')).toBe(250)
+  })
+})
+
+// ─── calcSeguroLeasing with config ───────────────────────────────────────────
+
+describe('calcSeguroLeasing with config', () => {
+  it('uses custom config params', () => {
+    const config = {
+      seguro_limiar_rs: 10000,
+      seguro_faixa_baixa_percent: 5,
+      seguro_faixa_alta_percent: 1,
+      seguro_piso_rs: 100,
+    }
+    // 8000 < 10000 → baixa rate
+    expect(calcSeguroLeasing(8000, config)).toBeCloseTo(8000 * 0.05, 4)
+    // 20000 > 10000 → alta rate or piso
+    const alta = Math.max(100, 20000 * 0.01)
+    expect(calcSeguroLeasing(20000, config)).toBeCloseTo(alta, 4)
+  })
+
+  it('falls back to hardcoded defaults when config is undefined', () => {
+    const val = 10000
+    expect(calcSeguroLeasing(val)).toBeCloseTo(val * 0.0305, 6)
   })
 })
