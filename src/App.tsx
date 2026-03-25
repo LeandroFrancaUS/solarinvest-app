@@ -24507,6 +24507,26 @@ export default function App() {
                 <h3>Análise Financeira</h3>
                 <p>Motor Spreadsheet v1 — cálculo completo de Venda e Leasing com preço mínimo saudável.</p>
               </header>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setAfConsumoOverride(0)
+                    setAfNumModulosOverride(null)
+                    setAfCustoKit(0)
+                    setAfValorContrato(0)
+                    setAfFrete(0)
+                    setAfDescarregamento(0)
+                    setAfHotelPousada(0)
+                    setAfMaterialCAOverride(null)
+                    setAfMensalidadeBase(0)
+                    afBaseInitializedRef.current = false
+                  }}
+                >
+                  Nova Análise
+                </button>
+              </div>
 
               {/* Mode tabs */}
               <div className="cfg-tabs" role="tablist" aria-label="Modo de análise" style={{ marginBottom: '1rem' }}>
