@@ -9663,20 +9663,55 @@ export default function App() {
     if (afModo === 'leasing' && afMensalidadeBase <= 0) {
       // Compute AF's monthly generation from its own irr/PR/dias/kWp inputs
       const afGeracaoKwh = baseSistema.potencia_sistema_kwp * irr * pr * dias
-      // Build AF-specific SimulationState: override the fields that differ between
-      // the AF screen and the Proposta de Leasing screen.
-      // - kcKwhMes / consumoMensalKwh: use AF's resolved consumo (not proposal's)
-      // - geracaoMensalKwh: use AF's computed generation (for TUSD encargos)
-      // - prazoMeses: use AF's projection horizon
-      // - modoEntrada: 'NONE' (AF does not use entry-reduction logic)
+      // Build AF-specific SimulationState from raw component variables.
+      // IMPORTANT: do NOT spread `simulationState` here — it is declared later in this
+      // component and referencing it before its const-declaration would cause a
+      // Temporal Dead Zone (TDZ) crash ("Cannot access '...' before initialization").
+      // All fields are built from the same raw state/derived variables that
+      // `simulationState` uses, so the values are equivalent for the fields that
+      // selectMensalidades actually reads.
       const afSimState: SimulationState = {
-        ...simulationState,
+        // AF-specific overrides
         kcKwhMes: consumo,
         consumoMensalKwh: consumo,
         geracaoMensalKwh: afGeracaoKwh,
         prazoMeses: afMesesProjecao,
         entradaRs: 0,
         modoEntrada: 'NONE',
+        // Shared tariff/TUSD fields — same normalization as simulationState
+        tarifaCheia: Math.max(0, tarifaCheia),
+        desconto: Math.max(0, Math.min(descontoConsiderado / 100, 1)),
+        inflacaoAa: Math.max(-0.99, inflacaoAa / 100),
+        taxaMinima: taxaMinimaInputEmpty
+          ? calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
+          : Number.isFinite(taxaMinima) ? Math.max(0, taxaMinima) : 0,
+        aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
+        tipoRede,
+        tusdPercent: Math.max(0, tusdPercent),
+        tusdPercentualFioB: Math.max(0, tusdPercent),
+        tusdTipoCliente,
+        tusdSubtipo: tusdSubtipo.trim().length > 0 ? tusdSubtipo.trim() : null,
+        tusdSimultaneidade: tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null,
+        tusdTarifaRkwh: tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null,
+        tusdAnoReferencia: Number.isFinite(tusdAnoReferencia)
+          ? Math.max(1, Math.trunc(tusdAnoReferencia))
+          : DEFAULT_TUSD_ANO_REFERENCIA,
+        mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
+        mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
+        encargosFixos,
+        cidKwhBase,
+        // Fields not consulted by selectMensalidades — safe zero defaults
+        vm0: 0,
+        depreciacaoAa: 0,
+        ipcaAa: 0,
+        inadimplenciaAa: 0,
+        tributosAa: 0,
+        custosFixosM: 0,
+        opexM: 0,
+        seguroM: 0,
+        cashbackPct: 0,
+        pagosAcumManual: 0,
+        duracaoMeses: 0,
       }
       const rawSeries = selectMensalidades(afSimState)
       if (rawSeries.length >= afMesesProjecao) {
@@ -9743,7 +9778,27 @@ export default function App() {
     afInadimplencia,
     afMensalidadeBase,
     afMesesProjecao,
-    simulationState,
+    // NOTE: the raw deps below replace the former `simulationState` entry.
+    // `simulationState` is declared AFTER this useMemo in the component body,
+    // so referencing it caused a TDZ crash.  Instead, list the raw variables
+    // that afSimState actually reads (same set simulationState is built from).
+    tarifaCheia,
+    descontoConsiderado,
+    inflacaoAa,
+    taxaMinima,
+    taxaMinimaInputEmpty,
+    tipoRede,
+    tusdPercent,
+    tusdTipoCliente,
+    tusdSubtipo,
+    tusdSimultaneidade,
+    tusdTarifaRkwh,
+    tusdAnoReferencia,
+    mesReajuste,
+    mesReferencia,
+    vendaForm.aplica_taxa_minima,
+    encargosFixos,
+    cidKwhBase,
     afModo,
     afValorContrato,
     afImpostos,
