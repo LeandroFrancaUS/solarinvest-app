@@ -23897,7 +23897,7 @@ export default function App() {
     ? [
         {
           id: 'mobile',
-          label: 'Menu',
+          label: '',
           items: mobileAllowedIds.flatMap((id) => {
             const item = allSidebarItems.get(id)
             return item ? [item] : []

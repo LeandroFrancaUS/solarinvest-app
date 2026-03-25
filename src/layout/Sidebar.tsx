@@ -209,7 +209,7 @@ export function Sidebar({
 
   const renderGroup = (group: SidebarGroup) => (
     <div key={group.id} className="sidebar-group">
-      <div className="group">{group.label}</div>
+      {group.label ? <div className="group">{group.label}</div> : null}
       <div className="sidebar-group-items">{group.items.map((item) => renderItem(item, 0))}</div>
     </div>
   )

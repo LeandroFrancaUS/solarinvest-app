@@ -7303,8 +7303,8 @@ i:hover {
 
 @media (max-width: 920px) {
   :root {
-    /* Vertical start of the mobile sidebar: below the floating toggle button */
-    --mobile-sidebar-top: calc(var(--header-h) + 16px + var(--control-h) + 10px);
+    /* Vertical start of the mobile sidebar: flush with the bottom edge of the fixed header */
+    --mobile-sidebar-top: var(--header-h);
   }
 
   .app-body {
@@ -7312,6 +7312,7 @@ i:hover {
     min-height: auto;
     height: auto;
     overflow: visible;
+    margin-top: var(--header-h);
   }
 
   .app-body.sidebar-collapsed {
@@ -7320,7 +7321,13 @@ i:hover {
 
   .app-topbar {
     backdrop-filter: blur(12px);
-    position: relative;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    /* Raise above the mobile sidebar (1200) so the header's bottom border draws on top */
+    z-index: 1210;
   }
 
   .topbar-mobile-subtitle {
@@ -7358,10 +7365,16 @@ i:hover {
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-right: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 0 0 16px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0 16px 16px 0;
     box-shadow: 24px 0 48px rgba(15, 23, 42, 0.5);
     overflow: hidden;
-    padding: 0 20px 0;
+    /*
+     * padding-top must clear the floating toggle button.
+     * The button sits 8px below the sidebar top (sidebar top = header-h, button top = header-h + 8px),
+     * so total clearance = 8px offset + button height (--control-h) + 12px breathing room.
+     */
+    padding: calc(8px + var(--control-h) + 12px) 20px 0;
   }
 
   .sidebar.open {
@@ -7461,8 +7474,8 @@ i:hover {
 
 .sidebar-floating-toggle {
   position: fixed;
-  top: calc(var(--header-h) + 16px);
-  left: clamp(16px, calc(6vw + var(--safe-area-left)), 28px);
+  top: calc(var(--header-h) + 8px);
+  left: max(8px, calc(var(--safe-area-left) + 8px));
   width: 46px;
   height: 46px;
   border-radius: 14px;
