@@ -90,7 +90,15 @@ import {
 } from './lib/finance/roi'
 import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
-import { calcularAnaliseFinanceira } from './lib/finance/analiseFinanceiraSpreadsheet'
+import {
+  calcularAnaliseFinanceira,
+  calcularBaseSistema,
+  resolveCustoProjetoPorFaixa,
+  resolveCrea,
+  resolveCombustivel,
+  MATERIAL_CA_PERCENT_DO_KIT,
+  PRECO_PLACA_RS,
+} from './lib/finance/analiseFinanceiraSpreadsheet'
 import type { AnaliseFinanceiraInput } from './types/analiseFinanceira'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
@@ -4428,7 +4436,6 @@ export default function App() {
   const [afCustoKit, setAfCustoKit] = useState(0)
   const [afFrete, setAfFrete] = useState(0)
   const [afDescarregamento, setAfDescarregamento] = useState(0)
-  const [afInstalacao, setAfInstalacao] = useState(0)
   const [afHotelPousada, setAfHotelPousada] = useState(0)
   const [afValorContrato, setAfValorContrato] = useState(0)
   const [afImpostos, setAfImpostos] = useState(8)
@@ -4436,7 +4443,8 @@ export default function App() {
   const [afCustoOperacional, setAfCustoOperacional] = useState(3)
   const [afMesesProjecao, setAfMesesProjecao] = useState(60)
   const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
-  const [afInvestimentoInicial, setAfInvestimentoInicial] = useState(0)
+  const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
+  const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
@@ -9574,10 +9582,40 @@ export default function App() {
     const modulo = potenciaModulo > 0 ? potenciaModulo : 550
     const uf = ufTarifa === 'DF' ? 'DF' as const : 'GO' as const
 
-    if (consumo <= 0 || afValorContrato <= 0 || afCustoKit <= 0) return null
+    if (consumo <= 0 || afCustoKit <= 0) return null
+    if (afModo === 'venda' && afValorContrato <= 0) return null
 
+    // Pre-compute base system to derive instalacao and investimento
+    const baseSistema = calcularBaseSistema({
+      consumo_kwh_mes: consumo,
+      irradiacao_kwh_m2_dia: irr,
+      performance_ratio: pr,
+      dias_mes: dias,
+      potencia_modulo_wp: modulo,
+    })
+    const instalacaoCalculada = baseSistema.quantidade_modulos * 70
+
+    // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
+    const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp)
+    const preMaterialCA = afCustoKit * (MATERIAL_CA_PERCENT_DO_KIT / 100)
+    const preCrea = resolveCrea(uf)
+    const prePlaca = baseSistema.quantidade_modulos * PRECO_PLACA_RS
+    const preCombustivel = resolveCombustivel(uf)
+    const preCustoVariavel =
+      afCustoKit +
+      afFrete +
+      afDescarregamento +
+      preProjetoCusto +
+      instalacaoCalculada +
+      preMaterialCA +
+      preCrea +
+      prePlaca +
+      preCombustivel +
+      afHotelPousada
+
+    const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
     const mensalidades = Array(afMesesProjecao).fill(afMensalidadeBase) as number[]
-    const investimento = afInvestimentoInicial > 0 ? afInvestimentoInicial : afCustoKit
+    const margemAlvo = afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing
 
     try {
       const input: AnaliseFinanceiraInput = {
@@ -9591,18 +9629,19 @@ export default function App() {
         custo_kit_rs: afCustoKit,
         frete_rs: afFrete,
         descarregamento_rs: afDescarregamento,
-        instalacao_rs: afInstalacao,
+        instalacao_rs: instalacaoCalculada,
         hotel_pousada_rs: afHotelPousada,
-        valor_contrato_rs: afValorContrato,
+        valor_contrato_rs: valorContrato,
         impostos_percent: afImpostos,
         custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
         lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
         comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
+        margem_liquida_alvo_percent: margemAlvo,
         inadimplencia_percent: afInadimplencia,
         custo_operacional_percent: afCustoOperacional,
         meses_projecao: afMesesProjecao,
         mensalidades_previstas_rs: mensalidades,
-        investimento_inicial_rs: investimento,
+        investimento_inicial_rs: preCustoVariavel,
       }
       return calcularAnaliseFinanceira(input)
     } catch {
@@ -9615,13 +9654,13 @@ export default function App() {
     afFrete,
     afHotelPousada,
     afInadimplencia,
-    afInstalacao,
-    afInvestimentoInicial,
     afMensalidadeBase,
     afMesesProjecao,
     afModo,
     afValorContrato,
     afImpostos,
+    afMargemLiquidaVenda,
+    afMargemLiquidaLeasing,
     baseIrradiacao,
     diasMesNormalizado,
     eficienciaNormalizada,
@@ -24491,12 +24530,16 @@ export default function App() {
                       onChange={(e) => setAfDescarregamento(Number(e.target.value) || 0)}
                     />
                   </Field>
-                  <Field label="Instalação (R$)">
+                  <Field label="Instalação (R$) — automático (N módulos × R$70)">
                     <input
                       type="number"
-                      value={afInstalacao}
-                      min={0}
-                      onChange={(e) => setAfInstalacao(Number(e.target.value) || 0)}
+                      value={
+                        analiseFinanceiraResult
+                          ? analiseFinanceiraResult.quantidade_modulos * 70
+                          : 0
+                      }
+                      readOnly
+                      disabled
                     />
                   </Field>
                   <Field label="Hotel/Pousada (R$)">
@@ -24507,14 +24550,16 @@ export default function App() {
                       onChange={(e) => setAfHotelPousada(Number(e.target.value) || 0)}
                     />
                   </Field>
-                  <Field label="Valor do Contrato (R$)">
-                    <input
-                      type="number"
-                      value={afValorContrato}
-                      min={0}
-                      onChange={(e) => setAfValorContrato(Number(e.target.value) || 0)}
-                    />
-                  </Field>
+                  {afModo === 'venda' ? (
+                    <Field label="Valor do Contrato (R$)">
+                      <input
+                        type="number"
+                        value={afValorContrato}
+                        min={0}
+                        onChange={(e) => setAfValorContrato(Number(e.target.value) || 0)}
+                      />
+                    </Field>
+                  ) : null}
                   <Field label="Impostos (%)">
                     <input
                       type="number"
@@ -24524,12 +24569,17 @@ export default function App() {
                       onChange={(e) => setAfImpostos(Number(e.target.value) || 0)}
                     />
                   </Field>
-                  <Field label="Investimento inicial (R$)">
+                  <Field label="Margem líquida alvo (%)">
                     <input
                       type="number"
-                      value={afInvestimentoInicial}
+                      value={afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}
                       min={0}
-                      onChange={(e) => setAfInvestimentoInicial(Number(e.target.value) || 0)}
+                      max={99}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0
+                        if (afModo === 'venda') setAfMargemLiquidaVenda(val)
+                        else setAfMargemLiquidaLeasing(val)
+                      }}
                     />
                   </Field>
                   {afModo === 'leasing' ? (
@@ -24579,8 +24629,8 @@ export default function App() {
               {/* Results */}
               {analiseFinanceiraResult ? (
                 <>
-                  {/* Venda results */}
-                  {analiseFinanceiraResult.custo_variavel_total_rs != null ? (
+                  {/* Venda results — hidden for leasing */}
+                  {afModo === 'venda' && analiseFinanceiraResult.custo_variavel_total_rs != null ? (
                     <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
                       <h4>Resultado — Venda</h4>
                       <div className="info-inline">
@@ -24601,6 +24651,11 @@ export default function App() {
                           <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', fontWeight: 600 }}>
                             Preço Mín. Saudável <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
                           </span>
+                          {analiseFinanceiraResult.preco_ideal_rs != null ? (
+                            <span className="pill" style={{ background: 'var(--color-info-bg, #cce5ff)', fontWeight: 600 }}>
+                              Preço Ideal ({afMargemLiquidaVenda}% margem) <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
+                            </span>
+                          ) : null}
                           {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
                             <span className="pill" style={{ background: 'var(--color-error-bg, #f8d7da)', color: 'var(--color-error, #721c24)' }}>
                               🚫 BLOQUEAR VENDA
@@ -24647,7 +24702,9 @@ export default function App() {
               ) : (
                 <div className="simulacoes-module-tile">
                   <p className="simulacoes-description">
-                    Preencha o Custo do Kit, Valor do Contrato e Investimento inicial para calcular a análise financeira.
+                    {afModo === 'venda'
+                      ? 'Preencha o Custo do Kit e o Valor do Contrato para calcular a análise financeira.'
+                      : 'Preencha o Custo do Kit para calcular a análise financeira de leasing.'}
                   </p>
                 </div>
               )}

@@ -79,6 +79,58 @@ export function calcComissaoDinamica(margemSemComissao: number): number {
   return Math.min(0.1, 0.05 + (margemSemComissao - 0.3) * 0.3)
 }
 
+/**
+ * Calcula o preço de venda que atinge exatamente a margem líquida alvo (após comissão dinâmica).
+ *
+ * Derivação analítica por faixa de comissão:
+ *   - m < 0.17  → Zona 1 (sem comissão): P = CV / (a − m)
+ *   - 0.17 ≤ m ≤ 0.25 → Zona 2 (comissão 3–5%): P = 0.8·CV / (0.8a + 0.01 − m)
+ *   - m > 0.25 sem cap → Zona 3: P = 0.70·CV / (0.70a + 0.04 − m)
+ *   - m > ~0.37 com cap 10% → P = CV / (a − m − 0.10)
+ * onde a = 1 − impostos% − custoFixo%
+ */
+export function calcPrecoIdeal(
+  custo_variavel_total: number,
+  impostos_percent: number,
+  custo_fixo_rateado_percent: number,
+  margem_alvo_percent: number,
+): number {
+  const a = 1 - impostos_percent / 100 - custo_fixo_rateado_percent / 100
+  const m = margem_alvo_percent / 100
+
+  // Zone 1: target margin < 17% → no commission applies
+  if (m < 0.17) {
+    const den = a - m
+    if (den <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
+    return custo_variavel_total / den
+  }
+
+  // Zone 2: target margin 17–25% → commission 3–5% (MSC lands in [0.20, 0.30])
+  if (m <= 0.25) {
+    const den = 0.8 * a + 0.01 - m
+    if (den <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
+    return (0.8 * custo_variavel_total) / den
+  }
+
+  // Zone 3 (uncapped): target margin > 25% — check if commission stays ≤ 10%
+  const den3 = 0.7 * a + 0.04 - m
+  if (den3 > 0) {
+    const p3 = (0.7 * custo_variavel_total) / den3
+    if (p3 > 0) {
+      const msc3 = a - custo_variavel_total / p3
+      const commUncapped = 0.05 + (msc3 - 0.3) * 0.3
+      if (commUncapped <= 0.1) {
+        return p3
+      }
+    }
+  }
+
+  // Zone 3 capped at 10% commission
+  const denCap = a - m - 0.1
+  if (denCap <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
+  return custo_variavel_total / denCap
+}
+
 // ─── IRR calculation ─────────────────────────────────────────────────────────
 
 function calcIrr(fluxos: number[], maxIterations = 1000, tolerance = 1e-7): number | null {
@@ -250,6 +302,24 @@ function calcularAnaliseVenda(
   const lucro_minimo_rs = valor_contrato_rs * toDecimalPercent(input.lucro_minimo_percent)
   const margem_rs = valor_contrato_rs - custo_variavel_total_rs
 
+  let preco_ideal_rs: number | undefined
+  if (
+    input.margem_liquida_alvo_percent != null &&
+    Number.isFinite(input.margem_liquida_alvo_percent) &&
+    input.margem_liquida_alvo_percent > 0
+  ) {
+    try {
+      preco_ideal_rs = calcPrecoIdeal(
+        custo_variavel_total_rs,
+        input.impostos_percent,
+        input.custo_fixo_rateado_percent,
+        input.margem_liquida_alvo_percent,
+      )
+    } catch {
+      preco_ideal_rs = undefined
+    }
+  }
+
   return {
     custo_variavel_total_rs,
     margem_rs,
@@ -265,6 +335,7 @@ function calcularAnaliseVenda(
     lucro_liquido_final_rs,
     margem_liquida_final_percent: margem_liquida_final * 100,
     preco_minimo_saudavel_rs,
+    preco_ideal_rs,
     desconto_maximo_percent,
   }
 }

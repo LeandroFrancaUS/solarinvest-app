@@ -44,6 +44,7 @@ export interface AnaliseFinanceiraInput {
   custo_fixo_rateado_percent: number
   lucro_minimo_percent: number
   comissao_minima_percent: number
+  margem_liquida_alvo_percent?: number
 
   // Leasing
   inadimplencia_percent: number
@@ -82,6 +83,7 @@ export interface AnaliseFinanceiraOutput {
   lucro_liquido_final_rs?: number
   margem_liquida_final_percent?: number
   preco_minimo_saudavel_rs?: number
+  preco_ideal_rs?: number
   desconto_maximo_percent?: number
 
   // Leasing

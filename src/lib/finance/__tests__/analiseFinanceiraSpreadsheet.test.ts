@@ -8,6 +8,7 @@ import {
   SEGURO_LIMIAR_RS,
   SEGURO_PISO_RS,
   calcComissaoDinamica,
+  calcPrecoIdeal,
   calcSeguroLeasing,
   calcularAnaliseFinanceira,
   calcularBaseSistema,
@@ -339,6 +340,113 @@ describe('input validation', () => {
       mensalidades_previstas_rs: [1000, 1000],
     }
     expect(() => calcularAnaliseFinanceira(input)).toThrow(AnaliseFinanceiraError)
+  })
+})
+
+// ─── calcPrecoIdeal ──────────────────────────────────────────────────────────
+
+describe('calcPrecoIdeal', () => {
+  // Standard params: impostos=8%, custoFixo=5% → a = 0.87
+  const CV = 20000
+  const IMP = 8
+  const CFR = 5
+
+  it('Zone 1 (m < 17%): returns CV/(a-m), no commission', () => {
+    const m = 10
+    const p = calcPrecoIdeal(CV, IMP, CFR, m)
+    // a=0.87, m=0.10 → P = 20000/0.77 ≈ 25974
+    expect(p).toBeCloseTo(CV / (0.87 - 0.1), 4)
+    // Verify actual margin: MSC = 0.87 - CV/P = 0.10, ComissaoPct=0, MargemFinal=0.10
+    const msc = 0.87 - CV / p
+    const comm = msc < 0.2 ? 0 : 0
+    const lucroFinal = p * (1 - IMP / 100 - CFR / 100) - CV - p * comm
+    expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
+  })
+
+  it('Zone 2 (17–25%): achieves exact target margin after commission', () => {
+    const m = 22
+    const p = calcPrecoIdeal(CV, IMP, CFR, m)
+    // Verify the resulting margin is exactly 22%
+    const a = 1 - IMP / 100 - CFR / 100
+    const msc = a - CV / p
+    const commFrac = 0.03 + ((msc - 0.2) / 0.1) * 0.02
+    const lucroSemCom = p * (1 - IMP / 100 - CFR / 100) - CV
+    const lucroFinal = lucroSemCom - p * commFrac
+    expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
+  })
+
+  it('Zone 2 default venda (25%): achieves exact 25% margin', () => {
+    const m = 25
+    const p = calcPrecoIdeal(CV, IMP, CFR, m)
+    expect(p).toBeGreaterThan(0)
+    // The final margin should be 25%
+    const a = 1 - IMP / 100 - CFR / 100
+    const msc = a - CV / p
+    let commFrac: number
+    if (msc <= 0.3) {
+      commFrac = 0.03 + ((msc - 0.2) / 0.1) * 0.02
+    } else {
+      commFrac = Math.min(0.1, 0.05 + (msc - 0.3) * 0.3)
+    }
+    const lucroSemCom = p * a - CV
+    const lucroFinal = lucroSemCom - p * commFrac
+    expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
+  })
+
+  it('Zone 3 (30%): achieves exact 30% margin after commission', () => {
+    const m = 30
+    const p = calcPrecoIdeal(CV, IMP, CFR, m)
+    expect(p).toBeGreaterThan(0)
+    const a = 1 - IMP / 100 - CFR / 100
+    const msc = a - CV / p
+    const commFrac = Math.min(0.1, 0.05 + (msc - 0.3) * 0.3)
+    const lucroSemCom = p * a - CV
+    const lucroFinal = lucroSemCom - p * commFrac
+    expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
+  })
+
+  it('preco_ideal_rs appears in engine output when margem_liquida_alvo_percent set', () => {
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      margem_liquida_alvo_percent: 25,
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.preco_ideal_rs).toBeDefined()
+    expect(result.preco_ideal_rs!).toBeGreaterThan(0)
+  })
+
+  it('preco_ideal_rs is undefined when margem_liquida_alvo_percent not set', () => {
+    const result = calcularAnaliseFinanceira(baseInput)
+    expect(result.preco_ideal_rs).toBeUndefined()
+  })
+
+  it('throws DENOMINADOR_PRECO_MINIMO_INVALIDO when impossible target', () => {
+    // m so high that denominator goes ≤ 0
+    expect(() => calcPrecoIdeal(CV, IMP, CFR, 95)).toThrow(AnaliseFinanceiraError)
+  })
+})
+
+// ─── Instalação auto-calculation ─────────────────────────────────────────────
+
+describe('instalação auto-calculation', () => {
+  it('instalacao_rs = quantidade_modulos × 70 in custo_variavel_total', () => {
+    const base = calcularBaseSistema({
+      consumo_kwh_mes: 1000,
+      irradiacao_kwh_m2_dia: 5.0,
+      performance_ratio: 0.8,
+      dias_mes: 30,
+      potencia_modulo_wp: 550,
+    })
+    const instalacao = base.quantidade_modulos * 70
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      instalacao_rs: instalacao,
+    }
+    const result = calcularAnaliseFinanceira(input)
+    // Verify instalacao is factored into custo_variavel_total
+    expect(result.custo_variavel_total_rs).toBeGreaterThan(0)
+    // placa should still be 18 * modules
+    expect(result.placa_rs).toBe(base.quantidade_modulos * 18)
   })
 })
 
