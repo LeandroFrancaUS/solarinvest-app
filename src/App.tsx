@@ -9566,31 +9566,6 @@ export default function App() {
     comissaoPadraoFracao,
   ])
 
-  const custoFinalProjetadoCanonico = useMemo(() => {
-    // Prioritize preco_minimo_saudavel from financial analysis when available
-    const precoMin = analiseFinanceiraResult?.preco_minimo_saudavel_rs
-    if (Number.isFinite(precoMin) && (precoMin ?? 0) > 0) {
-      return precoMin as number
-    }
-
-    const auto = Number(autoCustoFinal)
-    if (modoOrcamento === 'auto' && Number.isFinite(auto) && auto > 0) {
-      return auto
-    }
-
-    const venda = Number(valorVendaAtual)
-    if (Number.isFinite(venda) && venda > 0) {
-      return venda
-    }
-
-    return Math.max(0, capex)
-  }, [analiseFinanceiraResult, autoCustoFinal, capex, modoOrcamento, valorVendaAtual])
-
-  const capexSolarInvest = useMemo(
-    () => Math.max(0, custoFinalProjetadoCanonico * 0.7),
-    [custoFinalProjetadoCanonico],
-  )
-
   const analiseFinanceiraResult = useMemo(() => {
     const irr = baseIrradiacao > 0 ? baseIrradiacao : 5.0
     const pr = eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8
@@ -9657,6 +9632,31 @@ export default function App() {
     vendasConfig.af_custo_fixo_rateado_percent,
     vendasConfig.af_lucro_minimo_percent,
   ])
+
+  const custoFinalProjetadoCanonico = useMemo(() => {
+    // Prioritize preco_minimo_saudavel from financial analysis when available
+    const precoMin = analiseFinanceiraResult?.preco_minimo_saudavel_rs
+    if (Number.isFinite(precoMin) && (precoMin ?? 0) > 0) {
+      return precoMin as number
+    }
+
+    const auto = Number(autoCustoFinal)
+    if (modoOrcamento === 'auto' && Number.isFinite(auto) && auto > 0) {
+      return auto
+    }
+
+    const venda = Number(valorVendaAtual)
+    if (Number.isFinite(venda) && venda > 0) {
+      return venda
+    }
+
+    return Math.max(0, capex)
+  }, [analiseFinanceiraResult, autoCustoFinal, capex, modoOrcamento, valorVendaAtual])
+
+  const capexSolarInvest = useMemo(
+    () => Math.max(0, custoFinalProjetadoCanonico * 0.7),
+    [custoFinalProjetadoCanonico],
+  )
 
   const leasingValorDeMercadoEstimado = useLeasingValorDeMercadoEstimado()
 
