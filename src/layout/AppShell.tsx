@@ -29,18 +29,6 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
 
     const className = 'sidebar-mobile-open'
     const { body, documentElement } = document
-    const shouldLockScroll = Boolean(sidebar.mobileOpen)
-    let scrollPosition = 0
-    const previousPosition = body.style.position
-    const previousTop = body.style.top
-    const previousWidth = body.style.width
-
-    if (shouldLockScroll) {
-      scrollPosition = typeof window !== 'undefined' ? window.scrollY : 0
-      body.style.position = 'fixed'
-      body.style.top = `-${scrollPosition}px`
-      body.style.width = '100%'
-    }
 
     if (sidebar.mobileOpen) {
       body.classList.add(className)
@@ -53,15 +41,6 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
     return () => {
       body.classList.remove(className)
       documentElement.classList.remove(className)
-
-      if (shouldLockScroll) {
-        body.style.position = previousPosition
-        body.style.top = previousTop
-        body.style.width = previousWidth
-        if (typeof window !== 'undefined') {
-          window.scrollTo(0, scrollPosition)
-        }
-      }
     }
   }, [sidebar.mobileOpen])
 
@@ -78,6 +57,8 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
     <div className="app-shell">
       <Topbar {...topbar} />
       <div className={bodyClasses.join(' ')}>
+        {/* Always rendered (not just when sidebar is closed) so the hamburger→X CSS animation plays.
+            Visibility when sidebar is open is guaranteed by z-index: 1300, above sidebar and backdrop. */}
         {mobileMenuButton ? (
           <button
             type="button"

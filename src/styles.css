@@ -6661,6 +6661,10 @@ i:hover {
   margin-left: auto;
 }
 
+.topbar-mobile-subtitle {
+  display: none;
+}
+
 .menu-toggle {
   display: inline-flex;
   align-items: center;
@@ -7297,6 +7301,11 @@ i:hover {
 }
 
 @media (max-width: 920px) {
+  :root {
+    /* Vertical start of the mobile sidebar: below the floating toggle button */
+    --mobile-sidebar-top: calc(var(--header-h) + 16px + var(--control-h) + 10px);
+  }
+
   .app-body {
     grid-template-columns: 1fr;
     min-height: auto;
@@ -7310,11 +7319,33 @@ i:hover {
 
   .app-topbar {
     backdrop-filter: blur(12px);
+    position: relative;
+  }
+
+  .topbar-mobile-subtitle {
+    display: inline-flex;
+    align-items: center;
+    position: absolute;
+    right: clamp(16px, calc(4vw + var(--safe-area-right)), 36px);
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(255, 140, 0, 0.14);
+    border: 1px solid rgba(255, 140, 0, 0.32);
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
   }
 
   .sidebar {
     position: fixed;
-    top: var(--header-h);
+    top: var(--mobile-sidebar-top);
     bottom: 0;
     left: 0;
     right: auto;
@@ -7374,7 +7405,7 @@ i:hover {
 
   .sidebar-backdrop {
     position: fixed;
-    top: 0;
+    top: var(--header-h);
     left: 0;
     right: 0;
     bottom: 0;
@@ -7395,19 +7426,7 @@ i:hover {
   }
 
   .page-indicator {
-    display: inline-flex;
-    align-self: center;
-    justify-content: center;
-    width: fit-content;
-    position: sticky;
-    top: var(--header-h);
-    z-index: 99;
-    margin-inline: auto;
-    padding-block: 4px;
-  }
-
-  .page-indicator span {
-    text-align: center;
+    display: none;
   }
 
   .budget-viewer-content {
@@ -7502,13 +7521,13 @@ i:hover {
   .sidebar-floating-toggle span {
     transition: none;
   }
+}
 
-  @media (max-width: 920px) {
-    .sidebar {
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-      background: linear-gradient(180deg, #0b0d12 0%, #111827 100%);
-    }
+@media (max-width: 920px) and (prefers-reduced-motion: reduce) {
+  .sidebar {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: linear-gradient(180deg, #0b0d12 0%, #111827 100%);
   }
 }
 
