@@ -1,6 +1,15 @@
 // src/main.tsx
 import process from "process"
-;(globalThis as any).process = process
+// SES lockdown (e.g. Yoroi wallet extension) may freeze globalThis properties and
+// cause a strict-mode TypeError here.  Swallow the error: the `process` module is
+// already available via the import above, so only code that reads `globalThis.process`
+// (rather than the direct import) would be affected.
+try {
+  ;(globalThis as any).process = process
+} catch (_sesErr) {
+  // Ignored: SES lockdown prevented assignment; process shim is still available
+  // via the module import and via Vite's built-in process shim.
+}
 
 import React from "react"
 import ReactDOM from "react-dom/client"

@@ -4468,7 +4468,6 @@ export default function App() {
   useEffect(() => {
     if (simulacoesSection === 'analise' && !afBaseInitializedRef.current) {
       afBaseInitializedRef.current = true
-      setAfConsumoOverride(kcKwhMes > 0 ? kcKwhMes : 0)
       setAfIrradiacaoOverride(baseIrradiacao > 0 ? baseIrradiacao : 5.0)
       setAfPROverride(eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
       setAfDiasOverride(diasMesNormalizado > 0 ? diasMesNormalizado : 30)
@@ -9601,6 +9600,96 @@ export default function App() {
     comissaoPadraoFracao,
   ])
 
+  // AF-specific simulation state used ONLY to derive afMensalidadeBaseAuto.
+  // Built from AF's own raw inputs — never spread from simulationState (leasing proposal) —
+  // so that the auto mensalidade shown in Análise Financeira always reflects AF's local
+  // consumo and generation, not the Proposta de Leasing values ("local first" policy).
+  const afSimEstadoMensalidade = useMemo<SimulationState | null>(() => {
+    const resolveOverride = (override: number, fallback: number, def: number) => {
+      const v = override > 0 ? override : fallback
+      return v > 0 ? v : def
+    }
+    const consumo = resolveOverride(afConsumoOverride, kcKwhMes, 0)
+    if (consumo <= 0) return null
+
+    const irr = resolveOverride(afIrradiacaoOverride, baseIrradiacao, 5.0)
+    const pr = resolveOverride(afPROverride, eficienciaNormalizada, 0.8)
+    const dias = resolveOverride(afDiasOverride, diasMesNormalizado, 30)
+    const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
+
+    let potenciaKwp = 0
+    if (afNumModulosOverride != null && afNumModulosOverride > 0) {
+      potenciaKwp = (afNumModulosOverride * modulo) / 1000
+    } else {
+      const computed = calcPotenciaSistemaKwp({
+        consumoKwhMes: consumo,
+        irradiacao: irr,
+        performanceRatio: pr,
+        diasMes: dias,
+        potenciaModuloWp: modulo,
+      })
+      potenciaKwp = computed?.potenciaKwp ?? 0
+    }
+    const afGeracaoKwh = potenciaKwp * irr * pr * dias
+
+    const tusdPercentual = Math.max(0, tusdPercent)
+    const tusdSubtipoNorm = tusdSubtipo.trim()
+    return {
+      kcKwhMes: consumo,
+      consumoMensalKwh: consumo,
+      geracaoMensalKwh: Math.max(0, afGeracaoKwh),
+      prazoMeses: afMesesProjecao,
+      entradaRs: 0,
+      modoEntrada: 'NONE',
+      // Tariff/TUSD fields — same normalization used in simulationState and afSimState
+      tarifaCheia: Math.max(0, tarifaCheia),
+      desconto: Math.max(0, Math.min(descontoConsiderado / 100, 1)),
+      inflacaoAa: Math.max(-0.99, inflacaoAa / 100),
+      taxaMinima: taxaMinimaInputEmpty
+        ? calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
+        : Number.isFinite(taxaMinima) ? Math.max(0, taxaMinima) : 0,
+      aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
+      tipoRede,
+      tusdPercent: tusdPercentual,
+      tusdPercentualFioB: tusdPercentual,
+      tusdTipoCliente,
+      tusdSubtipo: tusdSubtipoNorm.length > 0 ? tusdSubtipoNorm : null,
+      tusdSimultaneidade: tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null,
+      tusdTarifaRkwh: tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null,
+      tusdAnoReferencia: Number.isFinite(tusdAnoReferencia)
+        ? Math.max(1, Math.trunc(tusdAnoReferencia))
+        : DEFAULT_TUSD_ANO_REFERENCIA,
+      mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
+      mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
+      encargosFixos,
+      cidKwhBase,
+      // Fields not consulted by selectMensalidades — safe zero defaults
+      vm0: 0,
+      depreciacaoAa: 0,
+      ipcaAa: 0,
+      inadimplenciaAa: 0,
+      tributosAa: 0,
+      custosFixosM: 0,
+      opexM: 0,
+      seguroM: 0,
+      cashbackPct: 0,
+      pagosAcumManual: 0,
+      duracaoMeses: 0,
+    }
+  }, [
+    afConsumoOverride, kcKwhMes,
+    afIrradiacaoOverride, baseIrradiacao,
+    afPROverride, eficienciaNormalizada,
+    afDiasOverride, diasMesNormalizado,
+    afModuloWpOverride, potenciaModulo,
+    afNumModulosOverride,
+    afMesesProjecao,
+    tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
+    tipoRede, tusdPercent, tusdTipoCliente, tusdSubtipo, tusdSimultaneidade,
+    tusdTarifaRkwh, tusdAnoReferencia, mesReajuste, mesReferencia,
+    vendaForm.aplica_taxa_minima, encargosFixos, cidKwhBase,
+  ])
+
   const analiseFinanceiraResult = useMemo(() => {
     const resolveOverride = (override: number, fallback: number, defaultVal: number) => {
       const v = override > 0 ? override : fallback
@@ -9656,8 +9745,77 @@ export default function App() {
       afHotelPousada
 
     const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
-    const mensalidadeResolvida = afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto
-    const mensalidades = Array(afMesesProjecao).fill(mensalidadeResolvida) as number[]
+    // Build the projected mensalidades series for leasing mode using an AF-isolated
+    // SimulationState. This prevents the Proposta de Leasing's simulationState (which
+    // uses the proposal's own consumo/geração/prazo) from contaminating the AF calculation.
+    // Each screen uses the same motor but with its own input context.
+    let mensalidadesFinal: number[]
+    if (afModo === 'leasing' && afMensalidadeBase <= 0) {
+      // Compute AF's monthly generation from its own irr/PR/dias/kWp inputs
+      const afGeracaoKwh = baseSistema.potencia_sistema_kwp * irr * pr * dias
+      // Build AF-specific SimulationState from raw component variables.
+      // IMPORTANT: do NOT spread `simulationState` here — it is declared later in this
+      // component and referencing it before its const-declaration would cause a
+      // Temporal Dead Zone (TDZ) crash ("Cannot access '...' before initialization").
+      // All fields are built from the same raw state/derived variables that
+      // `simulationState` uses, so the values are equivalent for the fields that
+      // selectMensalidades actually reads.
+      const afSimState: SimulationState = {
+        // AF-specific overrides
+        kcKwhMes: consumo,
+        consumoMensalKwh: consumo,
+        geracaoMensalKwh: afGeracaoKwh,
+        prazoMeses: afMesesProjecao,
+        entradaRs: 0,
+        modoEntrada: 'NONE',
+        // Shared tariff/TUSD fields — same normalization as simulationState
+        tarifaCheia: Math.max(0, tarifaCheia),
+        desconto: Math.max(0, Math.min(descontoConsiderado / 100, 1)),
+        inflacaoAa: Math.max(-0.99, inflacaoAa / 100),
+        taxaMinima: taxaMinimaInputEmpty
+          ? calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
+          : Number.isFinite(taxaMinima) ? Math.max(0, taxaMinima) : 0,
+        aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
+        tipoRede,
+        tusdPercent: Math.max(0, tusdPercent),
+        tusdPercentualFioB: Math.max(0, tusdPercent),
+        tusdTipoCliente,
+        tusdSubtipo: tusdSubtipo.trim().length > 0 ? tusdSubtipo.trim() : null,
+        tusdSimultaneidade: tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null,
+        tusdTarifaRkwh: tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null,
+        tusdAnoReferencia: Number.isFinite(tusdAnoReferencia)
+          ? Math.max(1, Math.trunc(tusdAnoReferencia))
+          : DEFAULT_TUSD_ANO_REFERENCIA,
+        mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
+        mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
+        encargosFixos,
+        cidKwhBase,
+        // Fields not consulted by selectMensalidades — safe zero defaults
+        vm0: 0,
+        depreciacaoAa: 0,
+        ipcaAa: 0,
+        inadimplenciaAa: 0,
+        tributosAa: 0,
+        custosFixosM: 0,
+        opexM: 0,
+        seguroM: 0,
+        cashbackPct: 0,
+        pagosAcumManual: 0,
+        duracaoMeses: 0,
+      }
+      const rawSeries = selectMensalidades(afSimState)
+      if (rawSeries.length >= afMesesProjecao) {
+        mensalidadesFinal = rawSeries.slice(0, afMesesProjecao)
+      } else if (rawSeries.length > 0) {
+        const last = rawSeries[rawSeries.length - 1]
+        mensalidadesFinal = [...rawSeries, ...Array(afMesesProjecao - rawSeries.length).fill(last)]
+      } else {
+        mensalidadesFinal = Array(afMesesProjecao).fill(afMensalidadeBaseAuto) as number[]
+      }
+    } else {
+      const base = afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto
+      mensalidadesFinal = Array(afMesesProjecao).fill(base) as number[]
+    }
     const margemAlvo = afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing
 
     try {
@@ -9686,8 +9844,8 @@ export default function App() {
         margem_liquida_minima_percent: afMargemLiquidaMinima,
         inadimplencia_percent: afInadimplencia,
         custo_operacional_percent: afCustoOperacional,
-        meses_projecao: afMesesProjecao,
-        mensalidades_previstas_rs: mensalidades,
+        meses_projecao: mensalidadesFinal.length,
+        mensalidades_previstas_rs: mensalidadesFinal,
         investimento_inicial_rs: preCustoVariavel,
       }
       return calcularAnaliseFinanceira(input)
@@ -9710,6 +9868,27 @@ export default function App() {
     afInadimplencia,
     afMensalidadeBase,
     afMesesProjecao,
+    // NOTE: the raw deps below replace the former `simulationState` entry.
+    // `simulationState` is declared AFTER this useMemo in the component body,
+    // so referencing it caused a TDZ crash.  Instead, list the raw variables
+    // that afSimState actually reads (same set simulationState is built from).
+    tarifaCheia,
+    descontoConsiderado,
+    inflacaoAa,
+    taxaMinima,
+    taxaMinimaInputEmpty,
+    tipoRede,
+    tusdPercent,
+    tusdTipoCliente,
+    tusdSubtipo,
+    tusdSimultaneidade,
+    tusdTarifaRkwh,
+    tusdAnoReferencia,
+    mesReajuste,
+    mesReferencia,
+    vendaForm.aplica_taxa_minima,
+    encargosFixos,
+    cidKwhBase,
     afModo,
     afValorContrato,
     afImpostos,
@@ -9893,9 +10072,15 @@ export default function App() {
   const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
   const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
   const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
+  // AF-specific mensalidades — derived from afSimEstadoMensalidade (AF's own inputs, not leasing's).
+  // This is what drives afMensalidadeBaseAuto so the AF section is isolated from the leasing proposal.
+  const mensalidadesAfPorAno = useMemo(
+    () => (afSimEstadoMensalidade != null ? selectMensalidadesPorAno(afSimEstadoMensalidade) : []),
+    [afSimEstadoMensalidade],
+  )
   useEffect(() => {
-    setAfMensalidadeBaseAuto(mensalidadesPorAno[0] ?? 0)
-  }, [mensalidadesPorAno])
+    setAfMensalidadeBaseAuto(mensalidadesAfPorAno[0] ?? 0)
+  }, [mensalidadesAfPorAno])
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
@@ -24554,18 +24739,39 @@ export default function App() {
               <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
                 <h4>Base do sistema</h4>
                 <div className="grid g3">
+                  <Field label="Consumo (kWh/mês)">
+                    <input
+                      type="number"
+                      value={afConsumoOverride}
+                      min={0}
+                      onChange={(e) => {
+                        const consumo = Number(e.target.value) || 0
+                        setAfConsumoOverride(consumo)
+                        if (consumo > 0) {
+                          const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
+                          const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao
+                          const pr = afPROverride > 0 ? afPROverride : eficienciaNormalizada
+                          const dias = afDiasOverride > 0 ? afDiasOverride : diasMesNormalizado
+                          const fator = irr * pr * dias
+                          if (fator > 0 && modWp > 0) {
+                            const n = Math.max(1, Math.ceil((consumo / fator * 1000) / modWp))
+                            setAfNumModulosOverride(n)
+                          } else {
+                            setAfNumModulosOverride(null)
+                          }
+                        } else {
+                          setAfNumModulosOverride(null)
+                        }
+                      }}
+                    />
+                  </Field>
                   <Field label="Nº de módulos (estimado)">
                     <input
                       type="number"
-                      min={1}
-                      value={
-                        afNumModulosOverride != null
-                          ? afNumModulosOverride
-                          : (analiseFinanceiraResult?.quantidade_modulos ?? '')
-                      }
-                      placeholder={String(analiseFinanceiraResult?.quantidade_modulos ?? '—')}
+                      min={0}
+                      value={afNumModulosOverride ?? 0}
                       onChange={(e) => {
-                        const n = Math.max(1, Math.round(Number(e.target.value) || 0))
+                        const n = Math.round(Number(e.target.value) || 0)
                         if (n > 0) {
                           setAfNumModulosOverride(n)
                           const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
@@ -24575,10 +24781,11 @@ export default function App() {
                           const fator = irr * pr * dias
                           if (fator > 0 && modWp > 0) {
                             const kwp = (n * modWp) / 1000
-                            setAfConsumoOverride(kwp * fator)
+                            setAfConsumoOverride(Math.round(kwp * fator * 100) / 100)
                           }
                         } else {
                           setAfNumModulosOverride(null)
+                          setAfConsumoOverride(0)
                         }
                       }}
                     />
@@ -24589,11 +24796,10 @@ export default function App() {
                       step="0.01"
                       min={0}
                       value={
-                        afNumModulosOverride != null
+                        afNumModulosOverride != null && afNumModulosOverride > 0
                           ? ((afNumModulosOverride * (afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo)) / 1000).toFixed(2)
-                          : (analiseFinanceiraResult != null ? analiseFinanceiraResult.potencia_sistema_kwp.toFixed(2) : '')
+                          : '0'
                       }
-                      placeholder={analiseFinanceiraResult != null ? analiseFinanceiraResult.potencia_sistema_kwp.toFixed(2) : '—'}
                       onChange={(e) => {
                         const kwp = Number(e.target.value) || 0
                         const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
@@ -24605,22 +24811,12 @@ export default function App() {
                           const dias = afDiasOverride > 0 ? afDiasOverride : diasMesNormalizado
                           const fator = irr * pr * dias
                           if (fator > 0) {
-                            setAfConsumoOverride(kwp * fator)
+                            setAfConsumoOverride(Math.round(kwp * fator * 100) / 100)
                           }
                         } else {
                           setAfNumModulosOverride(null)
+                          setAfConsumoOverride(0)
                         }
-                      }}
-                    />
-                  </Field>
-                  <Field label="Consumo (kWh/mês)">
-                    <input
-                      type="number"
-                      value={afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes}
-                      min={0}
-                      onChange={(e) => {
-                        setAfConsumoOverride(Number(e.target.value) || 0)
-                        setAfNumModulosOverride(null)
                       }}
                     />
                   </Field>
@@ -24668,7 +24864,7 @@ export default function App() {
 
               {/* Editable inputs */}
               <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                <h4>Custos diretos (editável)</h4>
+                <h4>Custos diretos</h4>
                 <div className="grid g3">
                   <Field label="Custo do Kit (R$)">
                     <input
@@ -24706,7 +24902,7 @@ export default function App() {
                       onChange={(e) => setAfDescarregamento(Number(e.target.value) || 0)}
                     />
                   </Field>
-                  <Field label={`Material CA (R$) — auto: ${(afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100).toFixed(2)}`}>
+                  <Field label="Material CA (R$)">
                     <input
                       type="number"
                       step="0.01"
@@ -24727,7 +24923,7 @@ export default function App() {
                       onChange={(e) => setAfPlaca(Number(e.target.value) || 0)}
                     />
                   </Field>
-                  <Field label="Instalação (R$) — automático (N módulos × R$70)">
+                  <Field label="Instalação (R$)">
                     <input
                       type="number"
                       value={
