@@ -39,6 +39,8 @@ export interface AnaliseFinanceiraInput {
   descarregamento_rs: number
   instalacao_rs: number
   hotel_pousada_rs: number
+  /** When provided, overrides the auto-calculated placa cost (default: quantidade_modulos × PRECO_PLACA_RS). */
+  placa_rs_override?: number
 
   // Comercial/tributário (Venda e/ou Leasing)
   valor_contrato_rs: number

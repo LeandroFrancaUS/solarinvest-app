@@ -4454,6 +4454,7 @@ export default function App() {
   const [afUfOverride, setAfUfOverride] = useState<'' | 'GO' | 'DF'>('')
   // N modules / kWp mutual-calc (null = use engine value)
   const [afNumModulosOverride, setAfNumModulosOverride] = useState<number | null>(null)
+  const [afPlaca, setAfPlaca] = useState(18)
   const afBaseInitializedRef = useRef(false)
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
@@ -9637,7 +9638,7 @@ export default function App() {
     const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp)
     const preMaterialCA = afCustoKit * (MATERIAL_CA_PERCENT_DO_KIT / 100)
     const preCrea = resolveCrea(uf)
-    const prePlaca = baseSistema.quantidade_modulos * PRECO_PLACA_RS
+    const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * PRECO_PLACA_RS
     const preCombustivel = resolveCombustivel(uf)
     const preCustoVariavel =
       afCustoKit +
@@ -9671,6 +9672,7 @@ export default function App() {
         descarregamento_rs: afDescarregamento,
         instalacao_rs: instalacaoCalculada,
         hotel_pousada_rs: afHotelPousada,
+        placa_rs_override: prePlaca,
         valor_contrato_rs: valorContrato,
         impostos_percent: afImpostos,
         custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
@@ -9708,6 +9710,7 @@ export default function App() {
     afImpostos,
     afMargemLiquidaVenda,
     afMargemLiquidaLeasing,
+    afPlaca,
     baseIrradiacao,
     diasMesNormalizado,
     eficienciaNormalizada,
@@ -24567,7 +24570,10 @@ export default function App() {
                       type="number"
                       value={afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes}
                       min={0}
-                      onChange={(e) => setAfConsumoOverride(Number(e.target.value) || 0)}
+                      onChange={(e) => {
+                        setAfConsumoOverride(Number(e.target.value) || 0)
+                        setAfNumModulosOverride(null)
+                      }}
                     />
                   </Field>
                   <Field label="Irradiação (kWh/m²/dia)">
@@ -24615,7 +24621,6 @@ export default function App() {
                     <span className="pill">Projeto <strong>{currency(analiseFinanceiraResult.custo_projeto_rs)}</strong></span>
                     <span className="pill">Material CA <strong>{currency(analiseFinanceiraResult.material_ca_rs)}</strong></span>
                     <span className="pill">CREA <strong>{currency(analiseFinanceiraResult.crea_rs)}</strong></span>
-                    <span className="pill">Placa <strong>{currency(analiseFinanceiraResult.placa_rs)}</strong></span>
                     <span className="pill">Combustível <strong>{currency(analiseFinanceiraResult.combustivel_rs)}</strong></span>
                   </div>
                 ) : null}
@@ -24659,6 +24664,14 @@ export default function App() {
                       value={afDescarregamento}
                       min={0}
                       onChange={(e) => setAfDescarregamento(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Placa (R$)">
+                    <input
+                      type="number"
+                      value={afPlaca}
+                      min={0}
+                      onChange={(e) => setAfPlaca(Number(e.target.value) || 0)}
                     />
                   </Field>
                   <Field label="Instalação (R$) — automático (N módulos × R$70)">
