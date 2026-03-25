@@ -90,6 +90,8 @@ import {
 } from './lib/finance/roi'
 import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
+import { calcularAnaliseFinanceira } from './lib/finance/analiseFinanceiraSpreadsheet'
+import type { AnaliseFinanceiraInput } from './types/analiseFinanceira'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
 import { buildRequiredFieldsLeasing } from './lib/validation/buildRequiredFieldsLeasing'
@@ -4420,6 +4422,21 @@ export default function App() {
     vpl: false,
   })
   const [ultimaDecisaoTimestamp, setUltimaDecisaoTimestamp] = useState<number | null>(null)
+
+  // Financial Analysis (Spreadsheet v1) state
+  const [afModo, setAfModo] = useState<'venda' | 'leasing'>('venda')
+  const [afCustoKit, setAfCustoKit] = useState(0)
+  const [afFrete, setAfFrete] = useState(0)
+  const [afDescarregamento, setAfDescarregamento] = useState(0)
+  const [afInstalacao, setAfInstalacao] = useState(0)
+  const [afHotelPousada, setAfHotelPousada] = useState(0)
+  const [afValorContrato, setAfValorContrato] = useState(0)
+  const [afImpostos, setAfImpostos] = useState(8)
+  const [afInadimplencia, setAfInadimplencia] = useState(2)
+  const [afCustoOperacional, setAfCustoOperacional] = useState(3)
+  const [afMesesProjecao, setAfMesesProjecao] = useState(60)
+  const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
+  const [afInvestimentoInicial, setAfInvestimentoInicial] = useState(0)
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
@@ -9550,6 +9567,12 @@ export default function App() {
   ])
 
   const custoFinalProjetadoCanonico = useMemo(() => {
+    // Prioritize preco_minimo_saudavel from financial analysis when available
+    const precoMin = analiseFinanceiraResult?.preco_minimo_saudavel_rs
+    if (Number.isFinite(precoMin) && (precoMin ?? 0) > 0) {
+      return precoMin as number
+    }
+
     const auto = Number(autoCustoFinal)
     if (modoOrcamento === 'auto' && Number.isFinite(auto) && auto > 0) {
       return auto
@@ -9561,12 +9584,79 @@ export default function App() {
     }
 
     return Math.max(0, capex)
-  }, [autoCustoFinal, capex, modoOrcamento, valorVendaAtual])
+  }, [analiseFinanceiraResult, autoCustoFinal, capex, modoOrcamento, valorVendaAtual])
 
   const capexSolarInvest = useMemo(
     () => Math.max(0, custoFinalProjetadoCanonico * 0.7),
     [custoFinalProjetadoCanonico],
   )
+
+  const analiseFinanceiraResult = useMemo(() => {
+    const irr = baseIrradiacao > 0 ? baseIrradiacao : 5.0
+    const pr = eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8
+    const dias = diasMesNormalizado > 0 ? diasMesNormalizado : 30
+    const consumo = kcKwhMes > 0 ? kcKwhMes : 0
+    const modulo = potenciaModulo > 0 ? potenciaModulo : 550
+    const uf = ufTarifa === 'DF' ? 'DF' as const : 'GO' as const
+
+    if (consumo <= 0 || afValorContrato <= 0 || afCustoKit <= 0) return null
+
+    const mensalidades = Array(afMesesProjecao).fill(afMensalidadeBase) as number[]
+    const investimento = afInvestimentoInicial > 0 ? afInvestimentoInicial : afCustoKit
+
+    try {
+      const input: AnaliseFinanceiraInput = {
+        modo: afModo,
+        uf,
+        consumo_kwh_mes: consumo,
+        irradiacao_kwh_m2_dia: irr,
+        performance_ratio: pr,
+        dias_mes: dias,
+        potencia_modulo_wp: modulo,
+        custo_kit_rs: afCustoKit,
+        frete_rs: afFrete,
+        descarregamento_rs: afDescarregamento,
+        instalacao_rs: afInstalacao,
+        hotel_pousada_rs: afHotelPousada,
+        valor_contrato_rs: afValorContrato,
+        impostos_percent: afImpostos,
+        custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
+        lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
+        comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
+        inadimplencia_percent: afInadimplencia,
+        custo_operacional_percent: afCustoOperacional,
+        meses_projecao: afMesesProjecao,
+        mensalidades_previstas_rs: mensalidades,
+        investimento_inicial_rs: investimento,
+      }
+      return calcularAnaliseFinanceira(input)
+    } catch {
+      return null
+    }
+  }, [
+    afCustoKit,
+    afCustoOperacional,
+    afDescarregamento,
+    afFrete,
+    afHotelPousada,
+    afInadimplencia,
+    afInstalacao,
+    afInvestimentoInicial,
+    afMensalidadeBase,
+    afMesesProjecao,
+    afModo,
+    afValorContrato,
+    afImpostos,
+    baseIrradiacao,
+    diasMesNormalizado,
+    eficienciaNormalizada,
+    kcKwhMes,
+    potenciaModulo,
+    ufTarifa,
+    vendasConfig.af_comissao_minima_percent,
+    vendasConfig.af_custo_fixo_rateado_percent,
+    vendasConfig.af_lucro_minimo_percent,
+  ])
 
   const leasingValorDeMercadoEstimado = useLeasingValorDeMercadoEstimado()
 
@@ -24312,11 +24402,260 @@ export default function App() {
             <section className="simulacoes-module-card">
               <header>
                 <h3>Análise Financeira &amp; Aprovação</h3>
-                <p>Checklist interno SolarInvest com selo de aprovação e registro de decisão.</p>
+                <p>Motor Spreadsheet v1 — cálculo completo de Venda e Leasing com preço mínimo saudável.</p>
               </header>
-              <div className="simulacoes-approval-grid">
+
+              {/* Mode tabs */}
+              <div className="cfg-tabs" role="tablist" aria-label="Modo de análise" style={{ marginBottom: '1rem' }}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={afModo === 'venda'}
+                  className={`cfg-tab${afModo === 'venda' ? ' is-active' : ''}`}
+                  onClick={() => setAfModo('venda')}
+                >
+                  Venda
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={afModo === 'leasing'}
+                  className={`cfg-tab${afModo === 'leasing' ? ' is-active' : ''}`}
+                  onClick={() => setAfModo('leasing')}
+                >
+                  Leasing
+                </button>
+              </div>
+
+              {/* System base info (read-only from proposal) */}
+              <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                <h4>Base do sistema (da proposta)</h4>
+                <div className="grid g3">
+                  <Field label="Consumo (kWh/mês)">
+                    <input type="number" value={kcKwhMes} readOnly disabled />
+                  </Field>
+                  <Field label="Irradiação (kWh/m²/dia)">
+                    <input type="number" value={baseIrradiacao.toFixed(2)} readOnly disabled />
+                  </Field>
+                  <Field label="Performance ratio">
+                    <input type="number" value={eficienciaNormalizada.toFixed(3)} readOnly disabled />
+                  </Field>
+                  <Field label="Dias/mês">
+                    <input type="number" value={diasMesNormalizado > 0 ? diasMesNormalizado : 30} readOnly disabled />
+                  </Field>
+                  <Field label="Módulo (Wp)">
+                    <input type="number" value={potenciaModulo} readOnly disabled />
+                  </Field>
+                  <Field label="UF">
+                    <input type="text" value={ufTarifa} readOnly disabled />
+                  </Field>
+                </div>
+                {analiseFinanceiraResult ? (
+                  <div className="info-inline" style={{ marginTop: '0.5rem' }}>
+                    <span className="pill">Potência <strong>{analiseFinanceiraResult.potencia_sistema_kwp.toFixed(2)} kWp</strong></span>
+                    <span className="pill">Módulos <strong>{analiseFinanceiraResult.quantidade_modulos}</strong></span>
+                    <span className="pill">Projeto <strong>{currency(analiseFinanceiraResult.custo_projeto_rs)}</strong></span>
+                    <span className="pill">Material CA <strong>{currency(analiseFinanceiraResult.material_ca_rs)}</strong></span>
+                    <span className="pill">CREA <strong>{currency(analiseFinanceiraResult.crea_rs)}</strong></span>
+                    <span className="pill">Placa <strong>{currency(analiseFinanceiraResult.placa_rs)}</strong></span>
+                    <span className="pill">Combustível <strong>{currency(analiseFinanceiraResult.combustivel_rs)}</strong></span>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Editable inputs */}
+              <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                <h4>Custos diretos (editável)</h4>
+                <div className="grid g3">
+                  <Field label="Custo do Kit (R$)">
+                    <input
+                      type="number"
+                      value={afCustoKit}
+                      min={0}
+                      onChange={(e) => setAfCustoKit(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Frete (R$)">
+                    <input
+                      type="number"
+                      value={afFrete}
+                      min={0}
+                      onChange={(e) => setAfFrete(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Descarregamento (R$)">
+                    <input
+                      type="number"
+                      value={afDescarregamento}
+                      min={0}
+                      onChange={(e) => setAfDescarregamento(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Instalação (R$)">
+                    <input
+                      type="number"
+                      value={afInstalacao}
+                      min={0}
+                      onChange={(e) => setAfInstalacao(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Hotel/Pousada (R$)">
+                    <input
+                      type="number"
+                      value={afHotelPousada}
+                      min={0}
+                      onChange={(e) => setAfHotelPousada(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Valor do Contrato (R$)">
+                    <input
+                      type="number"
+                      value={afValorContrato}
+                      min={0}
+                      onChange={(e) => setAfValorContrato(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Impostos (%)">
+                    <input
+                      type="number"
+                      value={afImpostos}
+                      min={0}
+                      max={100}
+                      onChange={(e) => setAfImpostos(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Investimento inicial (R$)">
+                    <input
+                      type="number"
+                      value={afInvestimentoInicial}
+                      min={0}
+                      onChange={(e) => setAfInvestimentoInicial(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  {afModo === 'leasing' ? (
+                    <>
+                      <Field label="Inadimplência (%)">
+                        <input
+                          type="number"
+                          value={afInadimplencia}
+                          min={0}
+                          max={100}
+                          onChange={(e) => setAfInadimplencia(Number(e.target.value) || 0)}
+                        />
+                      </Field>
+                      <Field label="Custo operacional (%)">
+                        <input
+                          type="number"
+                          value={afCustoOperacional}
+                          min={0}
+                          max={100}
+                          onChange={(e) => setAfCustoOperacional(Number(e.target.value) || 0)}
+                        />
+                      </Field>
+                      <Field label="Meses de projeção">
+                        <input
+                          type="number"
+                          value={afMesesProjecao}
+                          min={1}
+                          onChange={(e) => setAfMesesProjecao(Math.max(1, Number(e.target.value) || 1))}
+                        />
+                      </Field>
+                      <Field label="Mensalidade base (R$)">
+                        <input
+                          type="number"
+                          value={afMensalidadeBase}
+                          min={0}
+                          onChange={(e) => setAfMensalidadeBase(Number(e.target.value) || 0)}
+                        />
+                      </Field>
+                    </>
+                  ) : null}
+                </div>
+                <p className="simulacoes-description" style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
+                  Parâmetros fixos (custo fixo rateado {vendasConfig.af_custo_fixo_rateado_percent}%, lucro mínimo {vendasConfig.af_lucro_minimo_percent}%, comissão mínima {vendasConfig.af_comissao_minima_percent}%) configurados em Preferências → Parâmetros de Vendas.
+                </p>
+              </div>
+
+              {/* Results */}
+              {analiseFinanceiraResult ? (
+                <>
+                  {/* Venda results */}
+                  {analiseFinanceiraResult.custo_variavel_total_rs != null ? (
+                    <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                      <h4>Resultado — Venda</h4>
+                      <div className="info-inline">
+                        <span className="pill">Custo variável total <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
+                        <span className="pill">Margem bruta <strong>{currency(analiseFinanceiraResult.margem_rs ?? 0)}</strong></span>
+                        <span className="pill">Impostos <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
+                        <span className="pill">Custo fixo rateado <strong>{currency(analiseFinanceiraResult.custo_fixo_rateado_rs ?? 0)}</strong></span>
+                        <span className="pill">Lucro s/ comissão <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
+                        <span className="pill">Margem s/ comissão <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
+                        <span className="pill">Comissão <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
+                        <span className="pill">Custo total real <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
+                        <span className="pill">Lucro líquido final <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
+                        <span className="pill">Margem líquida final <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
+                        <span className="pill">Desconto máximo <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
+                      </div>
+                      {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
+                        <div className="info-inline" style={{ marginTop: '0.75rem' }}>
+                          <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', fontWeight: 600 }}>
+                            Preço Mín. Saudável <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
+                          </span>
+                          {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
+                            <span className="pill" style={{ background: 'var(--color-error-bg, #f8d7da)', color: 'var(--color-error, #721c24)' }}>
+                              🚫 BLOQUEAR VENDA
+                            </span>
+                          ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
+                            <span className="pill" style={{ background: 'var(--color-warning-bg, #fff3cd)', color: 'var(--color-warning-dark, #856404)' }}>
+                              ⚠️ SEM COMISSÃO
+                            </span>
+                          ) : (
+                            <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', color: 'var(--color-success-dark, #155724)' }}>
+                              ✅ VENDA SAUDÁVEL
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {/* Leasing results */}
+                  {afModo === 'leasing' && analiseFinanceiraResult.custo_total_rs != null ? (
+                    <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                      <h4>Resultado — Leasing</h4>
+                      <div className="info-inline">
+                        <span className="pill">Seguro <strong>{currency(analiseFinanceiraResult.seguro_rs ?? 0)}</strong></span>
+                        <span className="pill">Custo total <strong>{currency(analiseFinanceiraResult.custo_total_rs)}</strong></span>
+                        <span className="pill">Fator líquido <strong>{((analiseFinanceiraResult.fator_liquido ?? 0) * 100).toFixed(2)}%</strong></span>
+                        <span className="pill">Receita líquida <strong>{currency(analiseFinanceiraResult.receita_liquida_rs ?? 0)}</strong></span>
+                        <span className="pill">Lucro <strong>{currency(analiseFinanceiraResult.lucro_rs ?? 0)}</strong></span>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* KPIs */}
+                  <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                    <h4>KPIs</h4>
+                    <div className="info-inline">
+                      <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toFixed(2)}%</strong></span>
+                      <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : 'N/D'}</strong></span>
+                      <span className="pill">TIR mensal <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toFixed(2)}%` : 'N/D'}</strong></span>
+                      <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toFixed(2)}%` : 'N/D'}</strong></span>
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div className="simulacoes-module-tile">
-                  <h4>Checklist</h4>
+                  <p className="simulacoes-description">
+                    Preencha o Custo do Kit, Valor do Contrato e Investimento inicial para calcular a análise financeira.
+                  </p>
+                </div>
+              )}
+
+              {/* Approval checklist */}
+              <div className="simulacoes-approval-grid" style={{ marginTop: '1.5rem' }}>
+                <div className="simulacoes-module-tile">
+                  <h4>Checklist de aprovação</h4>
                   <ul className="simulacoes-checklist">
                     {(['roi', 'tir', 'spread', 'vpl'] as AprovacaoChecklistKey[]).map((item) => (
                       <li key={item}>
@@ -25422,8 +25761,10 @@ export default function App() {
 
                     <div className="info-inline">
                       <span className="pill">
-                        <InfoTooltip text="Valor canônico compartilhado entre vendas e leasing. Usa o custo final projetado quando disponível no modo automático." />
-                        Custo final projetado
+                        <InfoTooltip text="Preço Mín. Saudável (Análise Financeira v1). Quando disponível, usa o preço mínimo saudável calculado pelo motor de análise. Caso contrário, usa o custo final projetado automático." />
+                        {analiseFinanceiraResult?.preco_minimo_saudavel_rs != null
+                          ? 'Preço Mín. Saudável'
+                          : 'Custo final projetado'}
                         <strong>{currency(custoFinalProjetadoCanonico)}</strong>
                       </span>
                       <span className="pill">
