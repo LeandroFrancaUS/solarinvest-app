@@ -4,9 +4,10 @@ export interface TopbarProps {
   title?: string
   subtitle?: string
   actions?: ReactNode
+  mobileSubtitle?: string
 }
 
-export function Topbar({ title, subtitle, actions }: TopbarProps) {
+export function Topbar({ title, subtitle, actions, mobileSubtitle }: TopbarProps) {
   const hasHeading = Boolean(title || subtitle)
   const hasActions = actions != null
 
@@ -27,6 +28,11 @@ export function Topbar({ title, subtitle, actions }: TopbarProps) {
           </div>
         ) : null}
         {hasActions ? <div className="top-actions">{actions}</div> : null}
+        {mobileSubtitle ? (
+          <div className="topbar-mobile-subtitle" aria-live="polite">
+            {mobileSubtitle}
+          </div>
+        ) : null}
       </div>
     </header>
   )

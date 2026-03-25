@@ -25131,6 +25131,7 @@ export default function App() {
         <AppShell
           topbar={{
             subtitle: topbarSubtitle,
+            mobileSubtitle: currentPageIndicator,
           }}
           sidebar={{
             collapsed: isSidebarCollapsed,

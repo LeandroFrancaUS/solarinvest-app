@@ -216,8 +216,8 @@ export function Sidebar({
 
   return (
     <aside className={classes.join(' ')} aria-label="Navegação principal">
-      <div className="sidebar-header">
-        {onToggleCollapse ? (
+      {onToggleCollapse ? (
+        <div className="sidebar-header">
           <button
             type="button"
             className="sidebar-menu-toggle"
@@ -235,8 +235,8 @@ export function Sidebar({
               <span className="sidebar-menu-text">{menuButtonText}</span>
             ) : null}
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <nav>
         {firstGroup ? <div className="sidebar-section sidebar-section-top">{renderGroup(firstGroup)}</div> : null}
         {middleGroups.length > 0 ? (
