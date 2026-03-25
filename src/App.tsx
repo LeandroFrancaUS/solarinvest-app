@@ -4442,6 +4442,7 @@ export default function App() {
   const [afCustoOperacional, setAfCustoOperacional] = useState(3)
   const [afMesesProjecao, setAfMesesProjecao] = useState(60)
   const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
+  const [afMensalidadeBaseAuto, setAfMensalidadeBaseAuto] = useState(0)
   const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
@@ -9651,7 +9652,7 @@ export default function App() {
       afHotelPousada
 
     const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
-    const mensalidadeResolvida = afMensalidadeBase > 0 ? afMensalidadeBase : (mensalidadesPorAno[0] ?? 0)
+    const mensalidadeResolvida = afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto
     const mensalidades = Array(afMesesProjecao).fill(mensalidadeResolvida) as number[]
     const margemAlvo = afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing
 
@@ -9711,7 +9712,7 @@ export default function App() {
     diasMesNormalizado,
     eficienciaNormalizada,
     kcKwhMes,
-    mensalidadesPorAno,
+    afMensalidadeBaseAuto,
     potenciaModulo,
     ufTarifa,
     vendasConfig.af_comissao_minima_percent,
@@ -9882,6 +9883,9 @@ export default function App() {
   const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
   const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
   const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
+  useEffect(() => {
+    setAfMensalidadeBaseAuto(mensalidadesPorAno[0] ?? 0)
+  }, [mensalidadesPorAno])
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
@@ -24730,9 +24734,9 @@ export default function App() {
                       <Field label="Mensalidade base (R$)">
                         <input
                           type="number"
-                          value={afMensalidadeBase > 0 ? afMensalidadeBase : (mensalidadesPorAno[0] ?? 0)}
+                          value={afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto}
                           min={0}
-                          placeholder={String(mensalidadesPorAno[0] != null ? mensalidadesPorAno[0].toFixed(2) : '—')}
+                          placeholder={String(afMensalidadeBaseAuto > 0 ? afMensalidadeBaseAuto.toFixed(2) : '—')}
                           onChange={(e) => setAfMensalidadeBase(Number(e.target.value) || 0)}
                         />
                       </Field>
