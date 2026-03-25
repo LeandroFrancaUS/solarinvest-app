@@ -92,7 +92,6 @@ import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/financ
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 import {
   calcularAnaliseFinanceira,
-  calcularBaseSistema,
   resolveCustoProjetoPorFaixa,
   resolveCrea,
   resolveCombustivel,
@@ -372,7 +371,7 @@ const SIMULACOES_MENU: { id: SimulacoesSection; label: string; description: stri
   },
   {
     id: 'analise',
-    label: 'Análise Financeira & Aprovação',
+    label: 'Análise Financeira',
     description: 'Checklist interno para aprovar, reprovar ou salvar decisões.',
   },
 ]
@@ -9612,19 +9611,25 @@ export default function App() {
     if (consumo <= 0 || afCustoKit <= 0) return null
     if (afModo === 'venda' && afValorContrato <= 0) return null
 
-    // Pre-compute base system to derive instalacao and investimento
+    // Pre-compute base system using the same engine as the leasing proposals page
     const nModulosOverride = afNumModulosOverride != null && afNumModulosOverride > 0
       ? afNumModulosOverride
       : undefined
-    const baseSistema = nModulosOverride != null
-      ? { quantidade_modulos: nModulosOverride, potencia_sistema_kwp: (nModulosOverride * modulo) / 1000 }
-      : calcularBaseSistema({
-          consumo_kwh_mes: consumo,
-          irradiacao_kwh_m2_dia: irr,
-          performance_ratio: pr,
-          dias_mes: dias,
-          potencia_modulo_wp: modulo,
-        })
+    let baseSistema: { quantidade_modulos: number; potencia_sistema_kwp: number }
+    if (nModulosOverride != null) {
+      baseSistema = { quantidade_modulos: nModulosOverride, potencia_sistema_kwp: (nModulosOverride * modulo) / 1000 }
+    } else {
+      const computed = calcPotenciaSistemaKwp({
+        consumoKwhMes: consumo,
+        irradiacao: irr,
+        performanceRatio: pr,
+        diasMes: dias,
+        potenciaModuloWp: modulo,
+      })
+      if (!computed) return null
+      const qtd = computed.quantidadeModulos ?? Math.ceil((computed.potenciaKwp * 1000) / modulo)
+      baseSistema = { quantidade_modulos: qtd, potencia_sistema_kwp: computed.potenciaKwp }
+    }
     const instalacaoCalculada = baseSistema.quantidade_modulos * 70
 
     // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
@@ -9646,7 +9651,8 @@ export default function App() {
       afHotelPousada
 
     const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
-    const mensalidades = Array(afMesesProjecao).fill(afMensalidadeBase) as number[]
+    const mensalidadeResolvida = afMensalidadeBase > 0 ? afMensalidadeBase : (mensalidadesPorAno[0] ?? 0)
+    const mensalidades = Array(afMesesProjecao).fill(mensalidadeResolvida) as number[]
     const margemAlvo = afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing
 
     try {
@@ -9705,6 +9711,7 @@ export default function App() {
     diasMesNormalizado,
     eficienciaNormalizada,
     kcKwhMes,
+    mensalidadesPorAno,
     potenciaModulo,
     ufTarifa,
     vendasConfig.af_comissao_minima_percent,
@@ -23918,7 +23925,7 @@ export default function App() {
         },
         {
           id: 'simulacoes-analise',
-          label: 'Análise Financeira & Aprovação',
+          label: 'Análise Financeira',
           icon: '✅',
           onSelect: () => {
             void abrirSimulacoes('analise')
@@ -24050,12 +24057,16 @@ export default function App() {
 
   const desktopSimpleSidebarGroups: SidebarGroup[] = (() => {
     const filtered = sidebarGroups.filter((g) => g.id !== 'simulacoes' && g.id !== 'crm')
+    const analiseItem = allSidebarItems.get('simulacoes-analise')
     return filtered.map((g) => {
       if (g.id !== 'propostas') return g
       const salvarIdx = g.items.findIndex((item) => item.id === 'propostas-salvar')
       const newItems = [...g.items]
       if (gerarPropostaSidebarItem && salvarIdx !== -1) {
         newItems.splice(salvarIdx + 1, 0, gerarPropostaSidebarItem)
+      }
+      if (analiseItem) {
+        newItems.push(analiseItem)
       }
       return { ...g, items: newItems }
     })
@@ -24479,7 +24490,7 @@ export default function App() {
           {simulacoesSection === 'analise' ? (
             <section className="simulacoes-module-card">
               <header>
-                <h3>Análise Financeira &amp; Aprovação</h3>
+                <h3>Análise Financeira</h3>
                 <p>Motor Spreadsheet v1 — cálculo completo de Venda e Leasing com preço mínimo saudável.</p>
               </header>
 
@@ -24509,62 +24520,6 @@ export default function App() {
               <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
                 <h4>Base do sistema</h4>
                 <div className="grid g3">
-                  <Field label="Consumo (kWh/mês)">
-                    <input
-                      type="number"
-                      value={afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes}
-                      min={0}
-                      onChange={(e) => setAfConsumoOverride(Number(e.target.value) || 0)}
-                    />
-                  </Field>
-                  <Field label="Irradiação (kWh/m²/dia)">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao}
-                      min={0}
-                      onChange={(e) => setAfIrradiacaoOverride(Number(e.target.value) || 0)}
-                    />
-                  </Field>
-                  <Field label="Performance ratio">
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={afPROverride > 0 ? afPROverride : eficienciaNormalizada}
-                      min={0}
-                      max={1}
-                      onChange={(e) => setAfPROverride(Number(e.target.value) || 0)}
-                    />
-                  </Field>
-                  <Field label="Dias/mês">
-                    <input
-                      type="number"
-                      value={afDiasOverride > 0 ? afDiasOverride : (diasMesNormalizado > 0 ? diasMesNormalizado : 30)}
-                      min={1}
-                      max={31}
-                      onChange={(e) => setAfDiasOverride(Number(e.target.value) || 0)}
-                    />
-                  </Field>
-                  <Field label="Módulo (Wp)">
-                    <input
-                      type="number"
-                      value={afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo}
-                      min={1}
-                      onChange={(e) => {
-                        const wp = Number(e.target.value) || 0
-                        setAfModuloWpOverride(wp)
-                    }}
-                    />
-                  </Field>
-                  <Field label="UF">
-                    <select
-                      value={afUfOverride || ufTarifa}
-                      onChange={(e) => setAfUfOverride(e.target.value as 'GO' | 'DF')}
-                    >
-                      <option value="GO">GO</option>
-                      <option value="DF">DF</option>
-                    </select>
-                  </Field>
                   <Field label="Nº de módulos (estimado)">
                     <input
                       type="number"
@@ -24602,6 +24557,53 @@ export default function App() {
                         }
                       }}
                     />
+                  </Field>
+                  <Field label="Consumo (kWh/mês)">
+                    <input
+                      type="number"
+                      value={afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes}
+                      min={0}
+                      onChange={(e) => setAfConsumoOverride(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Irradiação (kWh/m²/dia)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao}
+                      min={0}
+                      onChange={(e) => setAfIrradiacaoOverride(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Performance ratio">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={afPROverride > 0 ? afPROverride : eficienciaNormalizada}
+                      min={0}
+                      max={1}
+                      onChange={(e) => setAfPROverride(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Módulo (Wp)">
+                    <input
+                      type="number"
+                      value={afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo}
+                      min={1}
+                      onChange={(e) => {
+                        const wp = Number(e.target.value) || 0
+                        setAfModuloWpOverride(wp)
+                    }}
+                    />
+                  </Field>
+                  <Field label="UF">
+                    <select
+                      value={afUfOverride || ufTarifa}
+                      onChange={(e) => setAfUfOverride(e.target.value as 'GO' | 'DF')}
+                    >
+                      <option value="GO">GO</option>
+                      <option value="DF">DF</option>
+                    </select>
                   </Field>
                 </div>
                 {analiseFinanceiraResult ? (
@@ -24728,8 +24730,9 @@ export default function App() {
                       <Field label="Mensalidade base (R$)">
                         <input
                           type="number"
-                          value={afMensalidadeBase}
+                          value={afMensalidadeBase > 0 ? afMensalidadeBase : (mensalidadesPorAno[0] ?? 0)}
                           min={0}
+                          placeholder={String(mensalidadesPorAno[0] != null ? mensalidadesPorAno[0].toFixed(2) : '—')}
                           onChange={(e) => setAfMensalidadeBase(Number(e.target.value) || 0)}
                         />
                       </Field>
