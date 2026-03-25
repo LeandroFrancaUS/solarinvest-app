@@ -4455,6 +4455,8 @@ export default function App() {
   // N modules / kWp mutual-calc (null = use engine value)
   const [afNumModulosOverride, setAfNumModulosOverride] = useState<number | null>(null)
   const [afPlaca, setAfPlaca] = useState(18)
+  // null = auto (12% of kit), user can override
+  const [afMaterialCAOverride, setAfMaterialCAOverride] = useState<number | null>(null)
   const afBaseInitializedRef = useRef(false)
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
@@ -9636,7 +9638,7 @@ export default function App() {
 
     // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
     const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp)
-    const preMaterialCA = afCustoKit * (MATERIAL_CA_PERCENT_DO_KIT / 100)
+    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * (MATERIAL_CA_PERCENT_DO_KIT / 100)
     const preCrea = resolveCrea(uf)
     const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * PRECO_PLACA_RS
     const preCombustivel = resolveCombustivel(uf)
@@ -9673,6 +9675,7 @@ export default function App() {
         instalacao_rs: instalacaoCalculada,
         hotel_pousada_rs: afHotelPousada,
         placa_rs_override: prePlaca,
+        material_ca_rs_override: preMaterialCA,
         valor_contrato_rs: valorContrato,
         impostos_percent: afImpostos,
         custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
@@ -9711,6 +9714,7 @@ export default function App() {
     afMargemLiquidaVenda,
     afMargemLiquidaLeasing,
     afPlaca,
+    afMaterialCAOverride,
     baseIrradiacao,
     diasMesNormalizado,
     eficienciaNormalizada,
@@ -24539,7 +24543,20 @@ export default function App() {
                       placeholder={String(analiseFinanceiraResult?.quantidade_modulos ?? '—')}
                       onChange={(e) => {
                         const n = Math.max(1, Math.round(Number(e.target.value) || 0))
-                        setAfNumModulosOverride(n > 0 ? n : null)
+                        if (n > 0) {
+                          setAfNumModulosOverride(n)
+                          const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
+                          const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao
+                          const pr = afPROverride > 0 ? afPROverride : eficienciaNormalizada
+                          const dias = afDiasOverride > 0 ? afDiasOverride : diasMesNormalizado
+                          const fator = irr * pr * dias
+                          if (fator > 0 && modWp > 0) {
+                            const kwp = (n * modWp) / 1000
+                            setAfConsumoOverride(kwp * fator)
+                          }
+                        } else {
+                          setAfNumModulosOverride(null)
+                        }
                       }}
                     />
                   </Field>
@@ -24558,7 +24575,15 @@ export default function App() {
                         const kwp = Number(e.target.value) || 0
                         const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
                         if (kwp > 0 && modWp > 0) {
-                          setAfNumModulosOverride(Math.max(1, Math.ceil((kwp * 1000) / modWp)))
+                          const n = Math.max(1, Math.ceil((kwp * 1000) / modWp))
+                          setAfNumModulosOverride(n)
+                          const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao
+                          const pr = afPROverride > 0 ? afPROverride : eficienciaNormalizada
+                          const dias = afDiasOverride > 0 ? afDiasOverride : diasMesNormalizado
+                          const fator = irr * pr * dias
+                          if (fator > 0) {
+                            setAfConsumoOverride(kwp * fator)
+                          }
                         } else {
                           setAfNumModulosOverride(null)
                         }
@@ -24619,7 +24644,6 @@ export default function App() {
                 {analiseFinanceiraResult ? (
                   <div className="info-inline" style={{ marginTop: '0.5rem' }}>
                     <span className="pill">Projeto <strong>{currency(analiseFinanceiraResult.custo_projeto_rs)}</strong></span>
-                    <span className="pill">Material CA <strong>{currency(analiseFinanceiraResult.material_ca_rs)}</strong></span>
                     <span className="pill">CREA <strong>{currency(analiseFinanceiraResult.crea_rs)}</strong></span>
                     <span className="pill">Combustível <strong>{currency(analiseFinanceiraResult.combustivel_rs)}</strong></span>
                   </div>
@@ -24664,6 +24688,19 @@ export default function App() {
                       value={afDescarregamento}
                       min={0}
                       onChange={(e) => setAfDescarregamento(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label={`Material CA (R$) — auto: ${(afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100).toFixed(2)}`}>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100}
+                      placeholder={(afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100).toFixed(2)}
+                      onChange={(e) => {
+                        const v = Number(e.target.value)
+                        setAfMaterialCAOverride(v >= 0 ? v : null)
+                      }}
                     />
                   </Field>
                   <Field label="Placa (R$)">

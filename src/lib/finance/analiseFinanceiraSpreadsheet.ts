@@ -221,7 +221,7 @@ function calcularCustosTecnicos(
   combustivel_rs: number
 } {
   const custo_projeto_rs = resolveCustoProjetoPorFaixa(potencia_sistema_kwp)
-  const material_ca_rs = input.custo_kit_rs * (MATERIAL_CA_PERCENT_DO_KIT / 100)
+  const material_ca_rs = input.material_ca_rs_override != null ? input.material_ca_rs_override : input.custo_kit_rs * (MATERIAL_CA_PERCENT_DO_KIT / 100)
   const crea_rs = resolveCrea(input.uf)
   const placa_rs = input.placa_rs_override != null ? input.placa_rs_override : quantidade_modulos * PRECO_PLACA_RS
   const combustivel_rs = resolveCombustivel(input.uf)
