@@ -1,4 +1,5 @@
 import type { ImpostosRegimeConfig, RegimeTributario } from '../lib/venda/calcComposicaoUFV'
+import type { ProjetoFaixa } from '../lib/finance/analiseFinanceiraSpreadsheet'
 
 export type ArredondarVendaPara = '1' | '10' | '50' | '100'
 export type ComissaoDefaultTipo = 'valor' | 'percentual'
@@ -31,6 +32,22 @@ export interface VendasConfig {
   exibir_comissao: boolean
   exibir_impostos: boolean
   observacao_padrao_proposta: string
+
+  // Spreadsheet v1 — financial analysis parameters
+  af_custo_fixo_rateado_percent: number
+  af_lucro_minimo_percent: number
+  af_comissao_minima_percent: number
+  af_combustivel_go_rs: number
+  af_combustivel_df_rs: number
+  af_preco_placa_rs: number
+  af_material_ca_percent_kit: number
+  af_crea_go_rs: number
+  af_crea_df_rs: number
+  af_projeto_faixas: ProjetoFaixa[]
+  af_seguro_limiar_rs: number
+  af_seguro_faixa_baixa_percent: number
+  af_seguro_faixa_alta_percent: number
+  af_seguro_piso_rs: number
 }
 
 const clamp = (value: number, min: number, max: number): number => {
@@ -120,11 +137,56 @@ export const DEFAULT_VENDAS_CONFIG: VendasConfig = {
   exibir_comissao: false,
   exibir_impostos: false,
   observacao_padrao_proposta: '',
+
+  af_custo_fixo_rateado_percent: 5,
+  af_lucro_minimo_percent: 10,
+  af_comissao_minima_percent: 3,
+  af_combustivel_go_rs: 0,
+  af_combustivel_df_rs: 250,
+  af_preco_placa_rs: 18,
+  af_material_ca_percent_kit: 12,
+  af_crea_go_rs: 104,
+  af_crea_df_rs: 109,
+  af_projeto_faixas: [
+    { max_kwp: 6, valor_rs: 400 },
+    { max_kwp: 10, valor_rs: 500 },
+    { max_kwp: 20, valor_rs: 700 },
+    { max_kwp: 30, valor_rs: 1000 },
+    { max_kwp: 50, valor_rs: 1200 },
+    { max_kwp: Infinity, valor_rs: 2500 },
+  ],
+  af_seguro_limiar_rs: 18911.56,
+  af_seguro_faixa_baixa_percent: 3.05,
+  af_seguro_faixa_alta_percent: 0.735,
+  af_seguro_piso_rs: 139,
 }
 
 export const normalizeVendasConfig = (
   partial?: Partial<VendasConfig>,
 ): VendasConfig => {
+  const sanitizeProjetoFaixas = (faixas: unknown): ProjetoFaixa[] => {
+    if (!Array.isArray(faixas) || faixas.length === 0) {
+      return DEFAULT_VENDAS_CONFIG.af_projeto_faixas
+    }
+    const result = faixas
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null
+        const max_kwp = Number((item as Record<string, unknown>).max_kwp)
+        const valor_rs = Number((item as Record<string, unknown>).valor_rs)
+        if (
+          !Number.isFinite(max_kwp) ||
+          max_kwp <= 0 ||
+          !Number.isFinite(valor_rs) ||
+          valor_rs < 0
+        ) {
+          return null
+        }
+        return { max_kwp, valor_rs }
+      })
+      .filter((item): item is ProjetoFaixa => Boolean(item))
+    return result.length > 0 ? result : DEFAULT_VENDAS_CONFIG.af_projeto_faixas
+  }
+
   const base = partial ?? {}
   const arredondar =
     typeof base.arredondar_venda_para === 'string' &&
@@ -196,5 +258,44 @@ export const normalizeVendasConfig = (
       base.observacao_padrao_proposta.trim().length > 0
         ? base.observacao_padrao_proposta.trim()
         : DEFAULT_VENDAS_CONFIG.observacao_padrao_proposta,
+
+    af_custo_fixo_rateado_percent: clamp(
+      Number(base.af_custo_fixo_rateado_percent ?? DEFAULT_VENDAS_CONFIG.af_custo_fixo_rateado_percent),
+      0,
+      100,
+    ),
+    af_lucro_minimo_percent: clamp(
+      Number(base.af_lucro_minimo_percent ?? DEFAULT_VENDAS_CONFIG.af_lucro_minimo_percent),
+      0,
+      100,
+    ),
+    af_comissao_minima_percent: clamp(
+      Number(base.af_comissao_minima_percent ?? DEFAULT_VENDAS_CONFIG.af_comissao_minima_percent),
+      0,
+      100,
+    ),
+    af_combustivel_go_rs: Math.max(0, Number(base.af_combustivel_go_rs ?? DEFAULT_VENDAS_CONFIG.af_combustivel_go_rs) || 0),
+    af_combustivel_df_rs: Math.max(0, Number(base.af_combustivel_df_rs ?? DEFAULT_VENDAS_CONFIG.af_combustivel_df_rs) || 0),
+    af_preco_placa_rs: Math.max(0, Number(base.af_preco_placa_rs ?? DEFAULT_VENDAS_CONFIG.af_preco_placa_rs) || 0),
+    af_material_ca_percent_kit: clamp(
+      Number(base.af_material_ca_percent_kit ?? DEFAULT_VENDAS_CONFIG.af_material_ca_percent_kit),
+      0,
+      100,
+    ),
+    af_crea_go_rs: Math.max(0, Number(base.af_crea_go_rs ?? DEFAULT_VENDAS_CONFIG.af_crea_go_rs) || 0),
+    af_crea_df_rs: Math.max(0, Number(base.af_crea_df_rs ?? DEFAULT_VENDAS_CONFIG.af_crea_df_rs) || 0),
+    af_projeto_faixas: sanitizeProjetoFaixas(base.af_projeto_faixas),
+    af_seguro_limiar_rs: Math.max(0, Number(base.af_seguro_limiar_rs ?? DEFAULT_VENDAS_CONFIG.af_seguro_limiar_rs) || 0),
+    af_seguro_faixa_baixa_percent: clamp(
+      Number(base.af_seguro_faixa_baixa_percent ?? DEFAULT_VENDAS_CONFIG.af_seguro_faixa_baixa_percent),
+      0,
+      100,
+    ),
+    af_seguro_faixa_alta_percent: clamp(
+      Number(base.af_seguro_faixa_alta_percent ?? DEFAULT_VENDAS_CONFIG.af_seguro_faixa_alta_percent),
+      0,
+      100,
+    ),
+    af_seguro_piso_rs: Math.max(0, Number(base.af_seguro_piso_rs ?? DEFAULT_VENDAS_CONFIG.af_seguro_piso_rs) || 0),
   }
 }

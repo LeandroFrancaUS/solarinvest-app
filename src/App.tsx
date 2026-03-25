@@ -90,6 +90,15 @@ import {
 } from './lib/finance/roi'
 import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
+import {
+  calcularAnaliseFinanceira,
+  resolveCustoProjetoPorFaixa,
+  resolveCrea,
+  resolveCombustivel,
+  MATERIAL_CA_PERCENT_DO_KIT,
+  PRECO_PLACA_RS,
+} from './lib/finance/analiseFinanceiraSpreadsheet'
+import type { AnaliseFinanceiraInput } from './types/analiseFinanceira'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
 import { buildRequiredFieldsLeasing } from './lib/validation/buildRequiredFieldsLeasing'
@@ -362,7 +371,7 @@ const SIMULACOES_MENU: { id: SimulacoesSection; label: string; description: stri
   },
   {
     id: 'analise',
-    label: 'Análise Financeira & Aprovação',
+    label: 'Análise Financeira',
     description: 'Checklist interno para aprovar, reprovar ou salvar decisões.',
   },
 ]
@@ -4420,11 +4429,54 @@ export default function App() {
     vpl: false,
   })
   const [ultimaDecisaoTimestamp, setUltimaDecisaoTimestamp] = useState<number | null>(null)
+
+  // Financial Analysis (Spreadsheet v1) state
+  const [afModo, setAfModo] = useState<'venda' | 'leasing'>('venda')
+  const [afCustoKit, setAfCustoKit] = useState(0)
+  const [afFrete, setAfFrete] = useState(0)
+  const [afDescarregamento, setAfDescarregamento] = useState(0)
+  const [afHotelPousada, setAfHotelPousada] = useState(0)
+  const [afValorContrato, setAfValorContrato] = useState(0)
+  const [afImpostos, setAfImpostos] = useState(8)
+  const [afInadimplencia, setAfInadimplencia] = useState(2)
+  const [afCustoOperacional, setAfCustoOperacional] = useState(3)
+  const [afMesesProjecao, setAfMesesProjecao] = useState(60)
+  const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
+  const [afMensalidadeBaseAuto, setAfMensalidadeBaseAuto] = useState(0)
+  const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
+  const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
+  const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
+  // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
+  const [afConsumoOverride, setAfConsumoOverride] = useState(0)
+  const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
+  const [afPROverride, setAfPROverride] = useState(0)
+  const [afDiasOverride, setAfDiasOverride] = useState(0)
+  const [afModuloWpOverride, setAfModuloWpOverride] = useState(0)
+  const [afUfOverride, setAfUfOverride] = useState<'' | 'GO' | 'DF'>('')
+  // N modules / kWp mutual-calc (null = use engine value)
+  const [afNumModulosOverride, setAfNumModulosOverride] = useState<number | null>(null)
+  const [afPlaca, setAfPlaca] = useState(18)
+  // null = auto (12% of kit), user can override
+  const [afMaterialCAOverride, setAfMaterialCAOverride] = useState<number | null>(null)
+  const afBaseInitializedRef = useRef(false)
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
+  // Initialize AF base system overrides from proposal values on first visit to analise section
+  useEffect(() => {
+    if (simulacoesSection === 'analise' && !afBaseInitializedRef.current) {
+      afBaseInitializedRef.current = true
+      setAfConsumoOverride(kcKwhMes > 0 ? kcKwhMes : 0)
+      setAfIrradiacaoOverride(baseIrradiacao > 0 ? baseIrradiacao : 5.0)
+      setAfPROverride(eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
+      setAfDiasOverride(diasMesNormalizado > 0 ? diasMesNormalizado : 30)
+      setAfModuloWpOverride(potenciaModulo > 0 ? potenciaModulo : 550)
+      setAfUfOverride(ufTarifa === 'DF' ? 'DF' : 'GO')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simulacoesSection])
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
     if (
@@ -9549,7 +9601,142 @@ export default function App() {
     comissaoPadraoFracao,
   ])
 
+  const analiseFinanceiraResult = useMemo(() => {
+    const resolveOverride = (override: number, fallback: number, defaultVal: number) => {
+      const v = override > 0 ? override : fallback
+      return v > 0 ? v : defaultVal
+    }
+    const irr = resolveOverride(afIrradiacaoOverride, baseIrradiacao, 5.0)
+    const pr = resolveOverride(afPROverride, eficienciaNormalizada, 0.8)
+    const dias = resolveOverride(afDiasOverride, diasMesNormalizado, 30)
+    const consumo = resolveOverride(afConsumoOverride, kcKwhMes, 0)
+    const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
+    const uf = (afUfOverride || ufTarifa) === 'DF' ? 'DF' as const : 'GO' as const
+
+    if (consumo <= 0 || afCustoKit <= 0) return null
+    if (afModo === 'venda' && afValorContrato <= 0) return null
+
+    // Pre-compute base system using the same engine as the leasing proposals page
+    const nModulosOverride = afNumModulosOverride != null && afNumModulosOverride > 0
+      ? afNumModulosOverride
+      : undefined
+    let baseSistema: { quantidade_modulos: number; potencia_sistema_kwp: number }
+    if (nModulosOverride != null) {
+      baseSistema = { quantidade_modulos: nModulosOverride, potencia_sistema_kwp: (nModulosOverride * modulo) / 1000 }
+    } else {
+      const computed = calcPotenciaSistemaKwp({
+        consumoKwhMes: consumo,
+        irradiacao: irr,
+        performanceRatio: pr,
+        diasMes: dias,
+        potenciaModuloWp: modulo,
+      })
+      if (!computed) return null
+      const qtd = computed.quantidadeModulos ?? Math.ceil((computed.potenciaKwp * 1000) / modulo)
+      baseSistema = { quantidade_modulos: qtd, potencia_sistema_kwp: computed.potenciaKwp }
+    }
+    const instalacaoCalculada = baseSistema.quantidade_modulos * 70
+
+    // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
+    const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp)
+    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * (MATERIAL_CA_PERCENT_DO_KIT / 100)
+    const preCrea = resolveCrea(uf)
+    const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * PRECO_PLACA_RS
+    const preCombustivel = resolveCombustivel(uf)
+    const preCustoVariavel =
+      afCustoKit +
+      afFrete +
+      afDescarregamento +
+      preProjetoCusto +
+      instalacaoCalculada +
+      preMaterialCA +
+      preCrea +
+      prePlaca +
+      preCombustivel +
+      afHotelPousada
+
+    const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
+    const mensalidadeResolvida = afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto
+    const mensalidades = Array(afMesesProjecao).fill(mensalidadeResolvida) as number[]
+    const margemAlvo = afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing
+
+    try {
+      const input: AnaliseFinanceiraInput = {
+        modo: afModo,
+        uf,
+        consumo_kwh_mes: consumo,
+        irradiacao_kwh_m2_dia: irr,
+        performance_ratio: pr,
+        dias_mes: dias,
+        potencia_modulo_wp: modulo,
+        ...(nModulosOverride != null ? { quantidade_modulos_override: nModulosOverride } : {}),
+        custo_kit_rs: afCustoKit,
+        frete_rs: afFrete,
+        descarregamento_rs: afDescarregamento,
+        instalacao_rs: instalacaoCalculada,
+        hotel_pousada_rs: afHotelPousada,
+        placa_rs_override: prePlaca,
+        material_ca_rs_override: preMaterialCA,
+        valor_contrato_rs: valorContrato,
+        impostos_percent: afImpostos,
+        custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
+        lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
+        comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
+        margem_liquida_alvo_percent: margemAlvo,
+        margem_liquida_minima_percent: afMargemLiquidaMinima,
+        inadimplencia_percent: afInadimplencia,
+        custo_operacional_percent: afCustoOperacional,
+        meses_projecao: afMesesProjecao,
+        mensalidades_previstas_rs: mensalidades,
+        investimento_inicial_rs: preCustoVariavel,
+      }
+      return calcularAnaliseFinanceira(input)
+    } catch {
+      return null
+    }
+  }, [
+    afConsumoOverride,
+    afIrradiacaoOverride,
+    afPROverride,
+    afDiasOverride,
+    afModuloWpOverride,
+    afUfOverride,
+    afNumModulosOverride,
+    afCustoKit,
+    afCustoOperacional,
+    afDescarregamento,
+    afFrete,
+    afHotelPousada,
+    afInadimplencia,
+    afMensalidadeBase,
+    afMesesProjecao,
+    afModo,
+    afValorContrato,
+    afImpostos,
+    afMargemLiquidaVenda,
+    afMargemLiquidaLeasing,
+    afMargemLiquidaMinima,
+    afPlaca,
+    afMaterialCAOverride,
+    baseIrradiacao,
+    diasMesNormalizado,
+    eficienciaNormalizada,
+    kcKwhMes,
+    afMensalidadeBaseAuto,
+    potenciaModulo,
+    ufTarifa,
+    vendasConfig.af_comissao_minima_percent,
+    vendasConfig.af_custo_fixo_rateado_percent,
+    vendasConfig.af_lucro_minimo_percent,
+  ])
+
   const custoFinalProjetadoCanonico = useMemo(() => {
+    // Prioritize preco_minimo_saudavel from financial analysis when available
+    const precoMin = analiseFinanceiraResult?.preco_minimo_saudavel_rs
+    if (Number.isFinite(precoMin) && precoMin != null && precoMin > 0) {
+      return precoMin
+    }
+
     const auto = Number(autoCustoFinal)
     if (modoOrcamento === 'auto' && Number.isFinite(auto) && auto > 0) {
       return auto
@@ -9561,7 +9748,7 @@ export default function App() {
     }
 
     return Math.max(0, capex)
-  }, [autoCustoFinal, capex, modoOrcamento, valorVendaAtual])
+  }, [analiseFinanceiraResult, autoCustoFinal, capex, modoOrcamento, valorVendaAtual])
 
   const capexSolarInvest = useMemo(
     () => Math.max(0, custoFinalProjetadoCanonico * 0.7),
@@ -9706,6 +9893,9 @@ export default function App() {
   const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
   const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
   const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
+  useEffect(() => {
+    setAfMensalidadeBaseAuto(mensalidadesPorAno[0] ?? 0)
+  }, [mensalidadesPorAno])
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
@@ -16957,12 +17147,11 @@ export default function App() {
 
   const abrirSimulacoes = useCallback(
     async (section?: SimulacoesSection) => {
-      return runWithUnsavedChangesGuard(() => {
-        setSimulacoesSection(section ?? 'nova')
-        setActivePage('simulacoes')
-      })
+      setSimulacoesSection(section ?? 'nova')
+      setActivePage('simulacoes')
+      return true
     },
-    [runWithUnsavedChangesGuard, setActivePage],
+    [setActivePage],
   )
 
   const abrirConfiguracoes = useCallback(
@@ -23750,7 +23939,7 @@ export default function App() {
         },
         {
           id: 'simulacoes-analise',
-          label: 'Análise Financeira & Aprovação',
+          label: 'Análise Financeira',
           icon: '✅',
           onSelect: () => {
             void abrirSimulacoes('analise')
@@ -23882,12 +24071,16 @@ export default function App() {
 
   const desktopSimpleSidebarGroups: SidebarGroup[] = (() => {
     const filtered = sidebarGroups.filter((g) => g.id !== 'simulacoes' && g.id !== 'crm')
+    const analiseItem = allSidebarItems.get('simulacoes-analise')
     return filtered.map((g) => {
       if (g.id !== 'propostas') return g
       const salvarIdx = g.items.findIndex((item) => item.id === 'propostas-salvar')
       const newItems = [...g.items]
       if (gerarPropostaSidebarItem && salvarIdx !== -1) {
         newItems.splice(salvarIdx + 1, 0, gerarPropostaSidebarItem)
+      }
+      if (analiseItem) {
+        newItems.push(analiseItem)
       }
       return { ...g, items: newItems }
     })
@@ -24311,12 +24504,426 @@ export default function App() {
           {simulacoesSection === 'analise' ? (
             <section className="simulacoes-module-card">
               <header>
-                <h3>Análise Financeira &amp; Aprovação</h3>
-                <p>Checklist interno SolarInvest com selo de aprovação e registro de decisão.</p>
+                <h3>Análise Financeira</h3>
+                <p>Motor Spreadsheet v1 — cálculo completo de Venda e Leasing com preço mínimo saudável.</p>
               </header>
-              <div className="simulacoes-approval-grid">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setAfConsumoOverride(0)
+                    setAfNumModulosOverride(null)
+                    setAfCustoKit(0)
+                    setAfValorContrato(0)
+                    setAfFrete(0)
+                    setAfDescarregamento(0)
+                    setAfHotelPousada(0)
+                    setAfMaterialCAOverride(null)
+                    setAfMensalidadeBase(0)
+                    afBaseInitializedRef.current = false
+                  }}
+                >
+                  Nova Análise
+                </button>
+              </div>
+
+              {/* Mode tabs */}
+              <div className="cfg-tabs" role="tablist" aria-label="Modo de análise" style={{ marginBottom: '1rem' }}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={afModo === 'venda'}
+                  className={`cfg-tab${afModo === 'venda' ? ' is-active' : ''}`}
+                  onClick={() => setAfModo('venda')}
+                >
+                  Venda
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={afModo === 'leasing'}
+                  className={`cfg-tab${afModo === 'leasing' ? ' is-active' : ''}`}
+                  onClick={() => setAfModo('leasing')}
+                >
+                  Leasing
+                </button>
+              </div>
+
+              {/* System base info (editable overrides) */}
+              <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                <h4>Base do sistema</h4>
+                <div className="grid g3">
+                  <Field label="Nº de módulos (estimado)">
+                    <input
+                      type="number"
+                      min={1}
+                      value={
+                        afNumModulosOverride != null
+                          ? afNumModulosOverride
+                          : (analiseFinanceiraResult?.quantidade_modulos ?? '')
+                      }
+                      placeholder={String(analiseFinanceiraResult?.quantidade_modulos ?? '—')}
+                      onChange={(e) => {
+                        const n = Math.max(1, Math.round(Number(e.target.value) || 0))
+                        if (n > 0) {
+                          setAfNumModulosOverride(n)
+                          const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
+                          const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao
+                          const pr = afPROverride > 0 ? afPROverride : eficienciaNormalizada
+                          const dias = afDiasOverride > 0 ? afDiasOverride : diasMesNormalizado
+                          const fator = irr * pr * dias
+                          if (fator > 0 && modWp > 0) {
+                            const kwp = (n * modWp) / 1000
+                            setAfConsumoOverride(kwp * fator)
+                          }
+                        } else {
+                          setAfNumModulosOverride(null)
+                        }
+                      }}
+                    />
+                  </Field>
+                  <Field label="Potência do sistema (kWp)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={
+                        afNumModulosOverride != null
+                          ? ((afNumModulosOverride * (afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo)) / 1000).toFixed(2)
+                          : (analiseFinanceiraResult != null ? analiseFinanceiraResult.potencia_sistema_kwp.toFixed(2) : '')
+                      }
+                      placeholder={analiseFinanceiraResult != null ? analiseFinanceiraResult.potencia_sistema_kwp.toFixed(2) : '—'}
+                      onChange={(e) => {
+                        const kwp = Number(e.target.value) || 0
+                        const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
+                        if (kwp > 0 && modWp > 0) {
+                          const n = Math.max(1, Math.ceil((kwp * 1000) / modWp))
+                          setAfNumModulosOverride(n)
+                          const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao
+                          const pr = afPROverride > 0 ? afPROverride : eficienciaNormalizada
+                          const dias = afDiasOverride > 0 ? afDiasOverride : diasMesNormalizado
+                          const fator = irr * pr * dias
+                          if (fator > 0) {
+                            setAfConsumoOverride(kwp * fator)
+                          }
+                        } else {
+                          setAfNumModulosOverride(null)
+                        }
+                      }}
+                    />
+                  </Field>
+                  <Field label="Consumo (kWh/mês)">
+                    <input
+                      type="number"
+                      value={afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes}
+                      min={0}
+                      onChange={(e) => {
+                        setAfConsumoOverride(Number(e.target.value) || 0)
+                        setAfNumModulosOverride(null)
+                      }}
+                    />
+                  </Field>
+                  <Field label="Irradiação (kWh/m²/dia)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao}
+                      min={0}
+                      onChange={(e) => setAfIrradiacaoOverride(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Performance ratio">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={afPROverride > 0 ? afPROverride : eficienciaNormalizada}
+                      min={0}
+                      max={1}
+                      onChange={(e) => setAfPROverride(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Módulo (Wp)">
+                    <input
+                      type="number"
+                      value={afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo}
+                      min={1}
+                      onChange={(e) => {
+                        const wp = Number(e.target.value) || 0
+                        setAfModuloWpOverride(wp)
+                    }}
+                    />
+                  </Field>
+                  <Field label="UF">
+                    <select
+                      value={afUfOverride || ufTarifa}
+                      onChange={(e) => setAfUfOverride(e.target.value as 'GO' | 'DF')}
+                    >
+                      <option value="GO">GO</option>
+                      <option value="DF">DF</option>
+                    </select>
+                  </Field>
+                </div>
+              </div>
+
+              {/* Editable inputs */}
+              <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                <h4>Custos diretos (editável)</h4>
+                <div className="grid g3">
+                  <Field label="Custo do Kit (R$)">
+                    <input
+                      type="number"
+                      value={afCustoKit}
+                      min={0}
+                      style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
+                      onChange={(e) => setAfCustoKit(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  {afModo === 'venda' ? (
+                    <Field label="Valor do Contrato (R$)">
+                      <input
+                        type="number"
+                        value={afValorContrato}
+                        min={0}
+                        style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
+                        onChange={(e) => setAfValorContrato(Number(e.target.value) || 0)}
+                      />
+                    </Field>
+                  ) : null}
+                  <Field label="Frete (R$)">
+                    <input
+                      type="number"
+                      value={afFrete}
+                      min={0}
+                      onChange={(e) => setAfFrete(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Descarregamento (R$)">
+                    <input
+                      type="number"
+                      value={afDescarregamento}
+                      min={0}
+                      onChange={(e) => setAfDescarregamento(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label={`Material CA (R$) — auto: ${(afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100).toFixed(2)}`}>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100}
+                      placeholder={(afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100).toFixed(2)}
+                      onChange={(e) => {
+                        const v = Number(e.target.value)
+                        setAfMaterialCAOverride(v >= 0 ? v : null)
+                      }}
+                    />
+                  </Field>
+                  <Field label="Placa (R$)">
+                    <input
+                      type="number"
+                      value={afPlaca}
+                      min={0}
+                      onChange={(e) => setAfPlaca(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Instalação (R$) — automático (N módulos × R$70)">
+                    <input
+                      type="number"
+                      value={
+                        analiseFinanceiraResult
+                          ? analiseFinanceiraResult.quantidade_modulos * 70
+                          : 0
+                      }
+                      readOnly
+                      disabled
+                    />
+                  </Field>
+                  <Field label="Hotel/Pousada (R$)">
+                    <input
+                      type="number"
+                      value={afHotelPousada}
+                      min={0}
+                      onChange={(e) => setAfHotelPousada(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Impostos (%)">
+                    <input
+                      type="number"
+                      value={afImpostos}
+                      min={0}
+                      max={100}
+                      onChange={(e) => setAfImpostos(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  <Field label="Margem líquida alvo (%)">
+                    <input
+                      type="number"
+                      value={afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}
+                      min={0}
+                      max={99}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0
+                        if (afModo === 'venda') setAfMargemLiquidaVenda(val)
+                        else setAfMargemLiquidaLeasing(val)
+                      }}
+                    />
+                  </Field>
+                  <Field label="Margem líquida mínima (%)">
+                    <input
+                      type="number"
+                      value={afMargemLiquidaMinima}
+                      min={0}
+                      max={99}
+                      onChange={(e) => setAfMargemLiquidaMinima(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                  {afModo === 'leasing' ? (
+                    <>
+                      <Field label="Inadimplência (%)">
+                        <input
+                          type="number"
+                          value={afInadimplencia}
+                          min={0}
+                          max={100}
+                          onChange={(e) => setAfInadimplencia(Number(e.target.value) || 0)}
+                        />
+                      </Field>
+                      <Field label="Custo operacional (%)">
+                        <input
+                          type="number"
+                          value={afCustoOperacional}
+                          min={0}
+                          max={100}
+                          onChange={(e) => setAfCustoOperacional(Number(e.target.value) || 0)}
+                        />
+                      </Field>
+                      <Field label="Meses de projeção">
+                        <input
+                          type="number"
+                          value={afMesesProjecao}
+                          min={1}
+                          onChange={(e) => setAfMesesProjecao(Math.max(1, Number(e.target.value) || 1))}
+                        />
+                      </Field>
+                      <Field label="Mensalidade base (R$)">
+                        <input
+                          type="number"
+                          value={afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto}
+                          min={0}
+                          placeholder={String(afMensalidadeBaseAuto > 0 ? afMensalidadeBaseAuto.toFixed(2) : '—')}
+                          onChange={(e) => setAfMensalidadeBase(Number(e.target.value) || 0)}
+                        />
+                      </Field>
+                    </>
+                  ) : null}
+                </div>
+                {analiseFinanceiraResult ? (
+                  <div className="info-inline" style={{ marginTop: '0.5rem' }}>
+                    <span className="pill">Projeto <strong>{currency(analiseFinanceiraResult.custo_projeto_rs)}</strong></span>
+                    <span className="pill">CREA <strong>{currency(analiseFinanceiraResult.crea_rs)}</strong></span>
+                    <span className="pill">Combustível <strong>{currency(analiseFinanceiraResult.combustivel_rs)}</strong></span>
+                  </div>
+                ) : null}
+                <p className="simulacoes-description" style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
+                  Parâmetros fixos (custo fixo rateado {vendasConfig.af_custo_fixo_rateado_percent}%, lucro mínimo {vendasConfig.af_lucro_minimo_percent}%, comissão mínima {vendasConfig.af_comissao_minima_percent}%) configurados em Preferências → Parâmetros de Vendas.
+                </p>
+              </div>
+
+              {/* Results */}
+              {analiseFinanceiraResult ? (
+                <>
+                  {/* Venda results — hidden for leasing */}
+                  {afModo === 'venda' && analiseFinanceiraResult.custo_variavel_total_rs != null ? (
+                    <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                      <h4>Resultados</h4>
+                      <div className="info-inline">
+                        <span className="pill">Custo variável total <InfoTooltip text="Soma de todos os custos diretos do projeto: kit, frete, descarregamento, hospedagem, material CA e mão de obra estimada." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
+                        <span className="pill">Margem bruta <InfoTooltip text="Diferença entre o valor do contrato e o custo variável total. Representa o valor disponível para cobrir impostos, custos fixos e gerar lucro." /> <strong>{currency(analiseFinanceiraResult.margem_rs ?? 0)}</strong></span>
+                        <span className="pill">Impostos <InfoTooltip text="Valor estimado de impostos sobre o faturamento, calculado com base na alíquota configurada." /> <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
+                        <span className="pill">Custo fixo rateado <InfoTooltip text="Parcela dos custos operacionais fixos da empresa atribuída a este projeto (ex.: aluguel, folha administrativa), calculada sobre o valor do contrato." /> <strong>{currency(analiseFinanceiraResult.custo_fixo_rateado_rs ?? 0)}</strong></span>
+                        <span className="pill">Lucro s/ comissão <InfoTooltip text="Lucro líquido antes de descontar a comissão do vendedor. Resultado da margem bruta menos impostos e custos fixos." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
+                        <span className="pill">Margem s/ comissão <InfoTooltip text="Percentual de margem líquida sobre o valor do contrato, antes de considerar a comissão do vendedor." /> <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
+                        <span className="pill">Comissão <InfoTooltip text="Comissão do vendedor calculada sobre o valor do contrato, conforme percentual configurado nas configurações de vendas." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
+                        <span className="pill">Custo total real <InfoTooltip text="Custo total efetivo do projeto incluindo custos variáveis, impostos, custos fixos rateados e comissão do vendedor." /> <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
+                        <span className="pill">Lucro líquido final <InfoTooltip text="Lucro efetivo após deduzir todos os custos (variáveis, impostos, fixos e comissão) do valor do contrato." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
+                        <span className="pill">Margem líquida final <InfoTooltip text="Percentual de lucro líquido sobre o valor do contrato, após todos os custos incluindo comissão. Indica a rentabilidade real do projeto." /> <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
+                        <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto que pode ser concedido sobre o valor do contrato sem que a margem líquida caia abaixo do mínimo configurado." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
+                      </div>
+                      {(analiseFinanceiraResult.preco_minimo_aceitavel_rs != null || analiseFinanceiraResult.preco_minimo_saudavel_rs != null) ? (
+                        <div className="info-inline" style={{ marginTop: '0.75rem' }}>
+                          {analiseFinanceiraResult.preco_minimo_aceitavel_rs != null ? (
+                            <span className="pill" style={{ background: 'var(--color-warning-bg, #fff3cd)', color: 'var(--color-warning-dark, #856404)', fontWeight: 600 }}>
+                              Preço Mín. Aceitável <InfoTooltip text={`Menor preço de venda que garante a margem líquida mínima de ${afMargemLiquidaMinima}%, sem incluir comissão do vendedor. Abaixo deste valor a venda é bloqueada.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_aceitavel_rs)}</strong>
+                            </span>
+                          ) : null}
+                          {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
+                            <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', fontWeight: 600 }}>
+                              Preço Mín. Saudável <InfoTooltip text={`Preço mínimo que garante a margem líquida mínima de ${afMargemLiquidaMinima}% e ainda cobre a comissão mínima do vendedor (${vendasConfig.af_comissao_minima_percent}%). Abaixo deste valor não há comissão.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
+                            </span>
+                          ) : null}
+                          {analiseFinanceiraResult.preco_ideal_rs != null ? (
+                            <span className="pill" style={{ background: 'var(--color-info-bg, #cce5ff)', fontWeight: 600 }}>
+                              Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}%, com comissão integral do vendedor incluída.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
+                            </span>
+                          ) : null}
+                          {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
+                            <span className="pill" style={{ background: 'var(--color-error-bg, #f8d7da)', color: 'var(--color-error, #721c24)' }}>
+                              🚫 BLOQUEAR VENDA
+                            </span>
+                          ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
+                            <span className="pill" style={{ background: 'var(--color-warning-bg, #fff3cd)', color: 'var(--color-warning-dark, #856404)' }}>
+                              ⚠️ SEM COMISSÃO
+                            </span>
+                          ) : (
+                            <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', color: 'var(--color-success-dark, #155724)' }}>
+                              ✅ VENDA SAUDÁVEL
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {/* Leasing results */}
+                  {afModo === 'leasing' && analiseFinanceiraResult.custo_total_rs != null ? (
+                    <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                      <h4>Resultado — Leasing</h4>
+                      <div className="info-inline">
+                        <span className="pill">Seguro <strong>{currency(analiseFinanceiraResult.seguro_rs ?? 0)}</strong></span>
+                        <span className="pill">Custo total <strong>{currency(analiseFinanceiraResult.custo_total_rs)}</strong></span>
+                        <span className="pill">Fator líquido <strong>{((analiseFinanceiraResult.fator_liquido ?? 0) * 100).toFixed(2)}%</strong></span>
+                        <span className="pill">Receita líquida <strong>{currency(analiseFinanceiraResult.receita_liquida_rs ?? 0)}</strong></span>
+                        <span className="pill">Lucro <strong>{currency(analiseFinanceiraResult.lucro_rs ?? 0)}</strong></span>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* KPIs */}
+                  <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                    <h4>KPIs</h4>
+                    <div className="info-inline">
+                      <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toFixed(2)}%</strong></span>
+                      <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : 'N/D'}</strong></span>
+                      <span className="pill">TIR mensal <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toFixed(2)}%` : 'N/D'}</strong></span>
+                      <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toFixed(2)}%` : 'N/D'}</strong></span>
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div className="simulacoes-module-tile">
-                  <h4>Checklist</h4>
+                  <p className="simulacoes-description">
+                    {afModo === 'venda'
+                      ? 'Preencha o Custo do Kit e o Valor do Contrato para calcular a análise financeira.'
+                      : 'Preencha o Custo do Kit para calcular a análise financeira de leasing.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Approval checklist */}
+              <div className="simulacoes-approval-grid" style={{ marginTop: '1.5rem' }}>
+                <div className="simulacoes-module-tile">
+                  <h4>Checklist de aprovação</h4>
                   <ul className="simulacoes-checklist">
                     {(['roi', 'tir', 'spread', 'vpl'] as AprovacaoChecklistKey[]).map((item) => (
                       <li key={item}>
@@ -25422,8 +26029,10 @@ export default function App() {
 
                     <div className="info-inline">
                       <span className="pill">
-                        <InfoTooltip text="Valor canônico compartilhado entre vendas e leasing. Usa o custo final projetado quando disponível no modo automático." />
-                        Custo final projetado
+                        <InfoTooltip text="Preço Mín. Saudável (Análise Financeira v1). Quando disponível, usa o preço mínimo saudável calculado pelo motor de análise. Caso contrário, usa o custo final projetado automático." />
+                        {analiseFinanceiraResult?.preco_minimo_saudavel_rs != null
+                          ? 'Preço Mín. Saudável'
+                          : 'Custo final projetado'}
                         <strong>{currency(custoFinalProjetadoCanonico)}</strong>
                       </span>
                       <span className="pill">
