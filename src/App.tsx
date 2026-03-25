@@ -4445,6 +4445,7 @@ export default function App() {
   const [afMensalidadeBaseAuto, setAfMensalidadeBaseAuto] = useState(0)
   const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
+  const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
   const [afConsumoOverride, setAfConsumoOverride] = useState(0)
   const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
@@ -9682,6 +9683,7 @@ export default function App() {
         lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
         comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
         margem_liquida_alvo_percent: margemAlvo,
+        margem_liquida_minima_percent: afMargemLiquidaMinima,
         inadimplencia_percent: afInadimplencia,
         custo_operacional_percent: afCustoOperacional,
         meses_projecao: afMesesProjecao,
@@ -9713,6 +9715,7 @@ export default function App() {
     afImpostos,
     afMargemLiquidaVenda,
     afMargemLiquidaLeasing,
+    afMargemLiquidaMinima,
     afPlaca,
     afMaterialCAOverride,
     baseIrradiacao,
@@ -24641,13 +24644,6 @@ export default function App() {
                     </select>
                   </Field>
                 </div>
-                {analiseFinanceiraResult ? (
-                  <div className="info-inline" style={{ marginTop: '0.5rem' }}>
-                    <span className="pill">Projeto <strong>{currency(analiseFinanceiraResult.custo_projeto_rs)}</strong></span>
-                    <span className="pill">CREA <strong>{currency(analiseFinanceiraResult.crea_rs)}</strong></span>
-                    <span className="pill">Combustível <strong>{currency(analiseFinanceiraResult.combustivel_rs)}</strong></span>
-                  </div>
-                ) : null}
               </div>
 
               {/* Editable inputs */}
@@ -24753,6 +24749,15 @@ export default function App() {
                       }}
                     />
                   </Field>
+                  <Field label="Margem líquida mínima (%)">
+                    <input
+                      type="number"
+                      value={afMargemLiquidaMinima}
+                      min={0}
+                      max={99}
+                      onChange={(e) => setAfMargemLiquidaMinima(Number(e.target.value) || 0)}
+                    />
+                  </Field>
                   {afModo === 'leasing' ? (
                     <>
                       <Field label="Inadimplência (%)">
@@ -24793,6 +24798,13 @@ export default function App() {
                     </>
                   ) : null}
                 </div>
+                {analiseFinanceiraResult ? (
+                  <div className="info-inline" style={{ marginTop: '0.5rem' }}>
+                    <span className="pill">Projeto <strong>{currency(analiseFinanceiraResult.custo_projeto_rs)}</strong></span>
+                    <span className="pill">CREA <strong>{currency(analiseFinanceiraResult.crea_rs)}</strong></span>
+                    <span className="pill">Combustível <strong>{currency(analiseFinanceiraResult.combustivel_rs)}</strong></span>
+                  </div>
+                ) : null}
                 <p className="simulacoes-description" style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
                   Parâmetros fixos (custo fixo rateado {vendasConfig.af_custo_fixo_rateado_percent}%, lucro mínimo {vendasConfig.af_lucro_minimo_percent}%, comissão mínima {vendasConfig.af_comissao_minima_percent}%) configurados em Preferências → Parâmetros de Vendas.
                 </p>
@@ -24818,14 +24830,21 @@ export default function App() {
                         <span className="pill">Margem líquida final <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
                         <span className="pill">Desconto máximo <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
                       </div>
-                      {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
+                      {(analiseFinanceiraResult.preco_minimo_aceitavel_rs != null || analiseFinanceiraResult.preco_minimo_saudavel_rs != null) ? (
                         <div className="info-inline" style={{ marginTop: '0.75rem' }}>
-                          <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', fontWeight: 600 }}>
-                            Preço Mín. Saudável <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
-                          </span>
+                          {analiseFinanceiraResult.preco_minimo_aceitavel_rs != null ? (
+                            <span className="pill" style={{ background: 'var(--color-warning-bg, #fff3cd)', color: 'var(--color-warning-dark, #856404)', fontWeight: 600 }}>
+                              Preço Mín. Aceitável ({afMargemLiquidaMinima}% margem, sem comissão) <strong>{currency(analiseFinanceiraResult.preco_minimo_aceitavel_rs)}</strong>
+                            </span>
+                          ) : null}
+                          {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
+                            <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', fontWeight: 600 }}>
+                              Preço Mín. Saudável ({afMargemLiquidaMinima}% margem + {vendasConfig.af_comissao_minima_percent}% comissão) <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
+                            </span>
+                          ) : null}
                           {analiseFinanceiraResult.preco_ideal_rs != null ? (
                             <span className="pill" style={{ background: 'var(--color-info-bg, #cce5ff)', fontWeight: 600 }}>
-                              Preço Ideal ({afMargemLiquidaVenda}% margem) <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
+                              Preço Ideal ({afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}% margem) <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
                             </span>
                           ) : null}
                           {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (

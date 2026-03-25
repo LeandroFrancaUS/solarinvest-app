@@ -282,11 +282,29 @@ function calcularAnaliseVenda(
     status_venda = 'VENDA_SAUDAVEL'
   }
 
+  // Use margem_liquida_minima_percent (UI-configurable) when provided; fall back to lucro_minimo_percent
+  const margemMinima = input.margem_liquida_minima_percent != null && Number.isFinite(input.margem_liquida_minima_percent)
+    ? input.margem_liquida_minima_percent
+    : input.lucro_minimo_percent
+
+  // Preço Mín. Aceitável: covers margin but leaves NO room for commission
+  const denAceitavel =
+    1 -
+    toDecimalPercent(input.impostos_percent) -
+    toDecimalPercent(input.custo_fixo_rateado_percent) -
+    toDecimalPercent(margemMinima)
+
+  let preco_minimo_aceitavel_rs: number | undefined
+  if (denAceitavel > 0) {
+    preco_minimo_aceitavel_rs = custo_variavel_total_rs / denAceitavel
+  }
+
+  // Preço Mín. Saudável: margin + minimum commission (3%)
   const den =
     1 -
     toDecimalPercent(input.impostos_percent) -
     toDecimalPercent(input.custo_fixo_rateado_percent) -
-    toDecimalPercent(input.lucro_minimo_percent) -
+    toDecimalPercent(margemMinima) -
     toDecimalPercent(input.comissao_minima_percent)
 
   if (den <= 0) {
@@ -334,6 +352,7 @@ function calcularAnaliseVenda(
     margem_liquida_sem_comissao_percent: margem_liquida_sem_comissao * 100,
     lucro_liquido_final_rs,
     margem_liquida_final_percent: margem_liquida_final * 100,
+    preco_minimo_aceitavel_rs,
     preco_minimo_saudavel_rs,
     preco_ideal_rs,
     desconto_maximo_percent,
@@ -457,6 +476,7 @@ export function calcularAnaliseFinanceira(
     custo_variavel_total_rs,
     comissao_percent: vendaResult.comissao_percent,
     comissao_rs: vendaResult.comissao_rs,
+    preco_minimo_aceitavel_rs: vendaResult.preco_minimo_aceitavel_rs,
     preco_minimo_saudavel_rs: vendaResult.preco_minimo_saudavel_rs,
     ...leasingResult,
     ...kpis,

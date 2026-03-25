@@ -51,6 +51,8 @@ export interface AnaliseFinanceiraInput {
   lucro_minimo_percent: number
   comissao_minima_percent: number
   margem_liquida_alvo_percent?: number
+  /** Minimum net margin required (default 15%). Used to compute preco_minimo_saudavel and preco_minimo_aceitavel. */
+  margem_liquida_minima_percent?: number
 
   // Leasing
   inadimplencia_percent: number
@@ -88,6 +90,7 @@ export interface AnaliseFinanceiraOutput {
   margem_liquida_sem_comissao_percent?: number
   lucro_liquido_final_rs?: number
   margem_liquida_final_percent?: number
+  preco_minimo_aceitavel_rs?: number
   preco_minimo_saudavel_rs?: number
   preco_ideal_rs?: number
   desconto_maximo_percent?: number
