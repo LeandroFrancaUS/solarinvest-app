@@ -24691,7 +24691,7 @@ export default function App() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="secondary"
                   onClick={() => {
                     setAfConsumoOverride(0)
                     setAfNumModulosOverride(null)
