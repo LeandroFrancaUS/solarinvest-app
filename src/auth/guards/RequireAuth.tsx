@@ -6,6 +6,7 @@
 import React, { type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { useUser, SignIn } from '@stackframe/react'
 import { stackClientApp } from '../stack-client'
+import { clearLogoutMarker, isLogoutMarkerActive } from '../../lib/auth/logoutMarker'
 
 interface Props {
   children: ReactNode
@@ -91,6 +92,18 @@ function SuspendedLoadingFallback() {
  *   the Stack Auth project settings.  Register it there — no code change is needed
  *   for that specific fix.
  */
+
+function LogoutRecoveryScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
+        <p className="text-sm text-slate-500">Finalizando logout...</p>
+      </div>
+    </div>
+  )
+}
+
 function isOAuthCallbackPath(): boolean {
   if (typeof window === 'undefined') return false
   const pathname = window.location.pathname.replace(/\/$/, '')
@@ -176,6 +189,46 @@ function OAuthCallbackHandler() {
  */
 function RequireAuthWithStack({ children, fallback }: Props) {
   const user = useUser()
+  const [logoutRecoveryInFlight, setLogoutRecoveryInFlight] = useState(false)
+  const logoutMarkerActive = isLogoutMarkerActive()
+
+  useEffect(() => {
+    if (!user || !logoutMarkerActive || logoutRecoveryInFlight) {
+      if (!user && logoutMarkerActive) {
+        clearLogoutMarker()
+      }
+      return
+    }
+
+    let cancelled = false
+    setLogoutRecoveryInFlight(true)
+
+    const recoverLogout = async () => {
+      try {
+        await Promise.race([
+          user.signOut({ redirectUrl: '/' }),
+          new Promise<void>((resolve) => setTimeout(resolve, 2200)),
+        ])
+      } catch {
+        // non-fatal; we still clear marker and reload to break loops
+      } finally {
+        clearLogoutMarker()
+        if (!cancelled) {
+          window.location.replace('/')
+        }
+      }
+    }
+
+    void recoverLogout()
+
+    return () => {
+      cancelled = true
+    }
+  }, [logoutMarkerActive, logoutRecoveryInFlight, user])
+
+  if (logoutRecoveryInFlight || (user && logoutMarkerActive)) {
+    return <LogoutRecoveryScreen />
+  }
 
   // While on the OAuth callback path we must process the authorization code
   // BEFORE rendering SignIn, otherwise the tokens are never extracted and the
