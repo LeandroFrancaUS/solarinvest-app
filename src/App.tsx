@@ -24129,7 +24129,7 @@ export default function App() {
         },
         {
           id: 'relatorios-exportacoes',
-          label: 'Exportações',
+          label: 'Exportar',
           icon: '📤',
           onSelect: () => {
             setActivePage('app')
