@@ -25043,35 +25043,40 @@ export default function App() {
                         <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto que pode ser concedido sobre o valor do contrato sem que a margem líquida caia abaixo do mínimo configurado." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
                       </div>
                       {(analiseFinanceiraResult.preco_minimo_aceitavel_rs != null || analiseFinanceiraResult.preco_minimo_saudavel_rs != null) ? (
-                        <div className="info-inline" style={{ marginTop: '0.75rem' }}>
-                          {analiseFinanceiraResult.preco_minimo_aceitavel_rs != null ? (
-                            <span className="pill" style={{ background: 'var(--color-warning-bg, #fff3cd)', color: 'var(--color-warning-dark, #856404)', fontWeight: 600 }}>
-                              Preço Mín. Aceitável <InfoTooltip text={`Menor preço de venda que garante a margem líquida mínima de ${afMargemLiquidaMinima}%, sem incluir comissão do vendedor. Abaixo deste valor a venda é bloqueada.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_aceitavel_rs)}</strong>
-                            </span>
-                          ) : null}
-                          {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
-                            <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', fontWeight: 600 }}>
-                              Preço Mín. Saudável <InfoTooltip text={`Preço mínimo que garante a margem líquida mínima de ${afMargemLiquidaMinima}% e ainda cobre a comissão mínima do vendedor (${vendasConfig.af_comissao_minima_percent}%). Abaixo deste valor não há comissão.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
-                            </span>
-                          ) : null}
-                          {analiseFinanceiraResult.preco_ideal_rs != null ? (
-                            <span className="pill" style={{ background: 'var(--color-info-bg, #cce5ff)', fontWeight: 600 }}>
-                              Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}%, com comissão integral do vendedor incluída.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
-                            </span>
-                          ) : null}
-                          {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
-                            <span className="pill" style={{ background: 'var(--color-error-bg, #f8d7da)', color: 'var(--color-error, #721c24)' }}>
-                              🚫 BLOQUEAR VENDA
-                            </span>
-                          ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
-                            <span className="pill" style={{ background: 'var(--color-warning-bg, #fff3cd)', color: 'var(--color-warning-dark, #856404)' }}>
-                              ⚠️ SEM COMISSÃO
-                            </span>
-                          ) : (
-                            <span className="pill" style={{ background: 'var(--color-success-bg, #d4edda)', color: 'var(--color-success-dark, #155724)' }}>
-                              ✅ VENDA SAUDÁVEL
-                            </span>
-                          )}
+                        <div className="price-band">
+                          <p className="price-band-title">Recomendações de Preço</p>
+                          <div className="price-band-row">
+                            {analiseFinanceiraResult.preco_minimo_aceitavel_rs != null ? (
+                              <span className="pill pill--warning pill--price">
+                                Preço Mín. Aceitável <InfoTooltip text={`Menor preço de venda que garante a margem líquida mínima de ${afMargemLiquidaMinima}%, sem incluir comissão do vendedor. Abaixo deste valor a venda é bloqueada.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_aceitavel_rs)}</strong>
+                              </span>
+                            ) : null}
+                            {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
+                              <span className="pill pill--success pill--price">
+                                Preço Mín. Saudável <InfoTooltip text={`Preço mínimo que garante a margem líquida mínima de ${afMargemLiquidaMinima}% e ainda cobre a comissão mínima do vendedor (${vendasConfig.af_comissao_minima_percent}%). Abaixo deste valor não há comissão.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
+                              </span>
+                            ) : null}
+                            {analiseFinanceiraResult.preco_ideal_rs != null ? (
+                              <span className="pill pill--info pill--price">
+                                Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}%, com comissão integral do vendedor incluída.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="price-band-row">
+                            {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
+                              <span className="pill pill--error">
+                                🚫 BLOQUEAR VENDA
+                              </span>
+                            ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
+                              <span className="pill pill--warning">
+                                ⚠️ SEM COMISSÃO
+                              </span>
+                            ) : (
+                              <span className="pill pill--success">
+                                ✅ VENDA SAUDÁVEL
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ) : null}
                     </div>
