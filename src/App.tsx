@@ -53,7 +53,6 @@ import {
   ProposalPdfIntegrationMissingError,
 } from './utils/proposalPdf'
 import { shouldUseBentoGrid } from './utils/pdfVariant'
-import { renderBentoLeasingToHtml, buildBentoLeasingPdfDocument } from './utils/renderBentoLeasing'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
   analyzeEssentialInfo,
@@ -267,6 +266,7 @@ import {
 import { Switch } from './components/ui/switch'
 import { useUser } from '@stackframe/react'
 import { performLogout } from './lib/auth/logout'
+import { perfLog, perfMeasure, perfNow } from './utils/perf'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4008,7 +4008,7 @@ function renderPrintableProposalToHtml(
 
   // Use Bento Grid for leasing proposals when user preference is enabled
   if (shouldUseBentoGrid(dados, userBentoPreference)) {
-    return renderBentoLeasingToHtml(dados)
+    return import('./utils/renderBentoLeasing').then((module) => module.renderBentoLeasingToHtml(dados))
   }
 
   // Legacy rendering for other proposal types
@@ -4121,14 +4121,19 @@ function sanitizePrintableHtml(html: string | null): string | null {
   return html.replace(/html\s*coding/gi, '').trim()
 }
 
-const buildProposalPdfDocument = (layoutHtml: string, nomeCliente: string, variant: PrintVariant = 'standard') => {
+const buildProposalPdfDocument = async (
+  layoutHtml: string,
+  nomeCliente: string,
+  variant: PrintVariant = 'standard',
+) => {
   const safeCliente = nomeCliente?.trim() || 'SolarInvest'
   const safeHtml = layoutHtml || ''
 
   // Check if this is Bento Grid HTML (contains the marker)
   if (safeHtml.includes('data-testid="proposal-bento-root"')) {
     // Use Bento Grid document wrapper
-    return buildBentoLeasingPdfDocument(safeHtml, safeCliente)
+    const module = await import('./utils/renderBentoLeasing')
+    return module.buildBentoLeasingPdfDocument(safeHtml, safeCliente)
   }
 
   // Legacy PDF document structure
@@ -4476,6 +4481,7 @@ export default function App() {
     return window.innerWidth < 1000
   })
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false)
+  const navStartRef = useRef(perfNow())
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -5181,6 +5187,7 @@ export default function App() {
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastAutoSaveSignatureRef = useRef<string | null>(null)
   const isHydratingRef = useRef(false)
   const [isHydrating, setIsHydrating] = useState(false)
   const isApplyingCepRef = useRef(false)
@@ -7934,16 +7941,23 @@ export default function App() {
 
   useEffect(() => {
     let cancelado = false
-
-    void loadDistribuidorasAneel()
-      .then((dados) => {
-        if (cancelado) return
-        setUfsDisponiveis(dados.ufs)
-        setDistribuidorasPorUf(dados.distribuidorasPorUf)
-      })
-      .catch((error) => {
-        console.warn('[ANEEL] não foi possível atualizar lista de distribuidoras:', error)
-      })
+    const runLoad = () => {
+      void loadDistribuidorasAneel()
+        .then((dados) => {
+          if (cancelado) return
+          setUfsDisponiveis(dados.ufs)
+          setDistribuidorasPorUf(dados.distribuidorasPorUf)
+        })
+        .catch((error) => {
+          console.warn('[ANEEL] não foi possível atualizar lista de distribuidoras:', error)
+        })
+    }
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      ;(window as Window & { requestIdleCallback: (cb: () => void, options?: { timeout: number }) => number })
+        .requestIdleCallback(runLoad, { timeout: 1200 })
+    } else {
+      globalThis.setTimeout(runLoad, 200)
+    }
 
     return () => {
       cancelado = true
@@ -13632,6 +13646,8 @@ export default function App() {
   }, [])
 
   const handleExportarClientesJson = useCallback(() => {
+    const exportStart = perfNow()
+    perfLog('FILE', 'EXPORT_START', { format: 'json' })
     if (typeof window === 'undefined') {
       return
     }
@@ -13660,6 +13676,7 @@ export default function App() {
 
       const fileName = buildClientesFileName('json')
       downloadClientesArquivo(blob, fileName)
+      perfMeasure('FILE', 'EXPORT_DONE', exportStart, { format: 'json', totalClientes: registros.length })
 
       adicionarNotificacao('Arquivo de clientes exportado com sucesso.', 'success')
     } catch (error) {
@@ -13675,6 +13692,8 @@ export default function App() {
   ])
 
   const handleExportarClientesCsv = useCallback(() => {
+    const exportStart = perfNow()
+    perfLog('FILE', 'EXPORT_START', { format: 'csv' })
     if (typeof window === 'undefined') {
       return
     }
@@ -13694,6 +13713,7 @@ export default function App() {
       })
       const fileName = buildClientesFileName('csv')
       downloadClientesArquivo(blob, fileName)
+      perfMeasure('FILE', 'EXPORT_DONE', exportStart, { format: 'csv', totalClientes: registros.length })
 
       adicionarNotificacao('Arquivo CSV exportado com sucesso.', 'success')
     } catch (error) {
@@ -13721,6 +13741,8 @@ export default function App() {
 
   const handleClientesImportarArquivo = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const importStart = perfNow()
+      perfLog('FILE', 'IMPORT_START')
       const arquivo = event.target.files?.[0]
       event.target.value = ''
 
@@ -13789,6 +13811,7 @@ export default function App() {
         }
 
         setClientesSalvos(combinados)
+        perfMeasure('FILE', 'IMPORT_DONE', importStart, { totalImportados: importados.length })
         adicionarNotificacao('Clientes importados com sucesso.', 'success')
       } catch (error) {
         if ((error as Error).message === 'invalid-json') {
@@ -14258,6 +14281,7 @@ export default function App() {
 
   const handleSalvarCliente = useCallback(
     async (options?: { skipGuard?: boolean; silent?: boolean }) => {
+    const snapshotStart = perfNow()
     if (typeof window === 'undefined') {
       return false
     }
@@ -14282,11 +14306,9 @@ export default function App() {
       return false
     }
     const snapshotClonado = cloneSnapshotData(snapshotAtual)
-    console.log(
-      '[ClienteSave] Capturing FULL proposal snapshot with',
-      Object.keys(snapshotClonado).length,
-      'fields',
-    )
+    perfLog('PROPOSAL', 'SNAPSHOT_START', {
+      totalFields: Object.keys(snapshotClonado).length,
+    })
     if (import.meta.env.DEV) {
       console.debug('[ClienteSave] Sample fields:', {
         kcKwhMes: snapshotClonado.kcKwhMes,
@@ -14298,6 +14320,9 @@ export default function App() {
     // Salvar snapshot completo no IndexedDB para persistência cross-browser robusta
     try {
       await saveFormDraft(snapshotClonado)
+      perfMeasure('PROPOSAL', 'SNAPSHOT_DONE', snapshotStart, {
+        totalFields: Object.keys(snapshotClonado).length,
+      })
       if (import.meta.env.DEV) console.debug('[ClienteSave] Form draft saved to IndexedDB')
     } catch (error) {
       console.warn('[ClienteSave] Failed to save form draft to IndexedDB:', error)
@@ -14970,9 +14995,39 @@ export default function App() {
           if (isEmptySnapshot) {
             return
           }
-          
-          await saveFormDraft(snapshot)
-          if (import.meta.env.DEV) console.debug('[App] Auto-saved form draft to IndexedDB')
+
+          const snapshotSignature = stableStringify({
+            budgetId: snapshot.currentBudgetId,
+            activeTab: snapshot.activeTab,
+            clienteNome: snapshot.cliente?.nome ?? '',
+            clienteDocumento: snapshot.cliente?.documento ?? '',
+            kcKwhMes: snapshot.kcKwhMes ?? 0,
+            tarifaCheia: snapshot.tarifaCheia ?? 0,
+            distribuidoraTarifa: snapshot.distribuidoraTarifa ?? '',
+          })
+
+          if (snapshotSignature === lastAutoSaveSignatureRef.current) {
+            return
+          }
+
+          lastAutoSaveSignatureRef.current = snapshotSignature
+          const startedAt = perfNow()
+          perfLog('PROPOSAL', 'SNAPSHOT_START', { source: 'autosave' })
+
+          const persistTask = async () => {
+            await saveFormDraft(snapshot)
+            perfMeasure('PROPOSAL', 'SNAPSHOT_DONE', startedAt, { source: 'autosave' })
+            if (import.meta.env.DEV) console.debug('[App] Auto-saved form draft to IndexedDB')
+          }
+
+          if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            ;(window as Window & { requestIdleCallback: (cb: () => void, options?: { timeout: number }) => number })
+              .requestIdleCallback(() => {
+                void persistTask()
+              }, { timeout: 1200 })
+          } else {
+            await persistTask()
+          }
         } catch (error) {
           console.warn('[App] Auto-save failed:', error)
         }
@@ -16510,6 +16565,8 @@ export default function App() {
   }, [abrirSelecaoContratos, guardClientFieldsOrReturn, handleSalvarCliente])
 
   const handleConfirmarGeracaoContratosVendas = useCallback(async () => {
+    const contractStart = perfNow()
+    perfLog('CONTRACT', 'GEN_START', { tipo: 'vendas' })
     const payload = contratoClientePayloadRef.current
     if (!payload) {
       adicionarNotificacao(
@@ -16824,6 +16881,10 @@ export default function App() {
           : 'Não foi possível gerar o contrato. Tente novamente.'
       adicionarNotificacao(mensagem, 'error')
     } finally {
+      perfMeasure('CONTRACT', 'GEN_DONE', contractStart, {
+        tipo: 'vendas',
+        totalSelecionados: selectedContractTemplates.length,
+      })
       setGerandoContratos(false)
       contratoClientePayloadRef.current = null
     }
@@ -16835,6 +16896,8 @@ export default function App() {
   ])
 
   const handleConfirmarGeracaoLeasing = useCallback(async () => {
+    const contractStart = perfNow()
+    perfLog('CONTRACT', 'GEN_START', { tipo: 'leasing' })
     const payload = prepararPayloadContratosLeasing()
     if (!payload) {
       return
@@ -16897,7 +16960,7 @@ export default function App() {
             'warning',
           )
         } else {
-          propostaHtml = buildProposalPdfDocument(
+          propostaHtml = await buildProposalPdfDocument(
             layoutHtml,
             payload.dadosLeasing.nomeCompleto || payload.dadosLeasing.cpfCnpj || 'SolarInvest',
           )
@@ -16986,6 +17049,7 @@ export default function App() {
           : 'Não foi possível gerar os contratos de leasing. Tente novamente.'
       adicionarNotificacao(mensagem, 'error')
     } finally {
+      perfMeasure('CONTRACT', 'GEN_DONE', contractStart, { tipo: 'leasing' })
       setGerandoContratos(false)
     }
   }, [
@@ -17022,6 +17086,8 @@ export default function App() {
   }, [coletarAlertasProposta, requestSaveDecision])
 
   const handleSalvarPropostaLeasing = useCallback(async (): Promise<boolean> => {
+    const proposalStart = perfNow()
+    perfLog('PROPOSAL', 'GEN_START', { tipo: 'leasing' })
     if (salvandoPropostaLeasing) {
       return false
     }
@@ -17084,6 +17150,7 @@ export default function App() {
       )
       return false
     } finally {
+      perfMeasure('PROPOSAL', 'GEN_DONE', proposalStart, { tipo: 'leasing' })
       setSalvandoPropostaLeasing(false)
     }
   }, [
@@ -17103,6 +17170,8 @@ export default function App() {
   ])
 
   const handleSalvarPropostaPdf = useCallback(async (): Promise<boolean> => {
+    const proposalStart = perfNow()
+    perfLog('PROPOSAL', 'GEN_START', { tipo: 'pdf' })
     if (salvandoPropostaPdf) {
       return false
     }
@@ -17209,6 +17278,7 @@ export default function App() {
         sucesso = salvouLocalmente
       }
     } finally {
+      perfMeasure('PROPOSAL', 'GEN_DONE', proposalStart, { tipo: 'pdf' })
       setSalvandoPropostaPdf(false)
     }
 
@@ -23712,10 +23782,16 @@ export default function App() {
   }, [isMobileViewport])
 
   const handleSidebarNavigate = useCallback(() => {
+    navStartRef.current = perfNow()
+    perfLog('NAV', 'ROUTE_START', { activePage, activeTab })
     if (isMobileViewport) {
       setIsSidebarMobileOpen(false)
     }
-  }, [isMobileViewport])
+  }, [activePage, activeTab, isMobileViewport])
+
+  useEffect(() => {
+    perfMeasure('NAV', 'ROUTE_READY', navStartRef.current, { activePage, activeTab })
+  }, [activePage, activeTab])
 
   const handleSidebarClose = useCallback(() => {
     setIsSidebarMobileOpen(false)

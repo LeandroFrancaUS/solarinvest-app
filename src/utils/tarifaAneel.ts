@@ -133,6 +133,11 @@ const findTarifaColumn = (fields: string[]): string | null => {
 }
 
 const schemaCache = new Map<string, string[]>()
+const TARIFA_CACHE_KEY = 'aneel:tarifa-cheia:v2'
+const TARIFA_CACHE_TTL_MS = 1000 * 60 * 60 * 12
+let schemaWarned = false
+let csvWarned = false
+let finalFallbackWarned = new Set<string>()
 
 const getSchema = async (resourceId: string): Promise<string[]> => {
   if (schemaCache.has(resourceId)) {
@@ -148,7 +153,10 @@ const getSchema = async (resourceId: string): Promise<string[]> => {
     schemaCache.set(resourceId, fields)
     return fields
   } catch (error) {
-    console.warn('[Tarifa] Falha ao carregar schema CKAN:', error)
+    if (!schemaWarned) {
+      schemaWarned = true
+      console.warn('[Tarifa] Falha ao carregar schema CKAN:', error)
+    }
   }
 
   schemaCache.set(resourceId, [])
@@ -257,7 +265,9 @@ const fetchTarifaFromCkan = async (uf: string, distribuidora: string): Promise<n
 
     return melhorValor
   } catch (error) {
-    console.warn('[Tarifa] Falha na consulta CKAN:', error)
+    if (import.meta.env.DEV) {
+      console.warn('[Tarifa] Falha na consulta CKAN:', error)
+    }
     return null
   }
 }
@@ -294,17 +304,23 @@ const fetchTarifaFromCsv = async (uf: string): Promise<number | null> => {
       }
       const valor = Math.round(Number(tarifaNumero) * 1000) / 1000
       if (Number.isFinite(valor) && valor > 0) {
-        console.warn(
-          `[Tarifa] Usando valor médio local de ${formatNumberBRWithOptions(valor, {
-            minimumFractionDigits: 3,
-            maximumFractionDigits: 3,
-          })} R$/kWh para ${uf}.`,
-        )
+        if (!csvWarned) {
+          csvWarned = true
+          console.warn(
+            `[Tarifa] Usando valor médio local de ${formatNumberBRWithOptions(valor, {
+              minimumFractionDigits: 3,
+              maximumFractionDigits: 3,
+            })} R$/kWh para ${uf}.`,
+          )
+        }
         return valor
       }
     }
   } catch (error) {
-    console.warn('[Tarifa] Falha ao ler CSV de fallback:', error)
+    if (!csvWarned) {
+      csvWarned = true
+      console.warn('[Tarifa] Falha ao ler CSV de fallback:', error)
+    }
   }
 
   return null
@@ -317,17 +333,50 @@ const UF_PADRAO_TARIFA: Record<string, number> = {
 
 const finalFallback = (uf: string): number => {
   const valorPadrao = UF_PADRAO_TARIFA[uf] ?? 0.9
-  console.warn(
-    `[Tarifa] Nenhum dado encontrado para ${uf}. Usando padrão ${formatNumberBRWithOptions(valorPadrao, {
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3,
-    })} R$/kWh.`,
-  )
+  if (!finalFallbackWarned.has(uf)) {
+    finalFallbackWarned.add(uf)
+    console.warn(
+      `[Tarifa] Nenhum dado encontrado para ${uf}. Usando padrão ${formatNumberBRWithOptions(valorPadrao, {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3,
+      })} R$/kWh.`,
+    )
+  }
   return valorPadrao
 }
 
 const resolvedCache = new Map<string, number>()
 const pendingCache = new Map<string, Promise<number>>()
+
+const loadTarifaCache = (): Record<string, number> => {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(TARIFA_CACHE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as { expiresAt?: number; values?: Record<string, number> }
+    if (!parsed?.values || typeof parsed.expiresAt !== 'number') return {}
+    if (Date.now() > parsed.expiresAt) return {}
+    return parsed.values
+  } catch {
+    return {}
+  }
+}
+
+const persistTarifaCache = (): void => {
+  if (typeof window === 'undefined') return
+  try {
+    const values = Object.fromEntries(resolvedCache.entries())
+    window.localStorage.setItem(
+      TARIFA_CACHE_KEY,
+      JSON.stringify({
+        expiresAt: Date.now() + TARIFA_CACHE_TTL_MS,
+        values,
+      }),
+    )
+  } catch {
+    // noop
+  }
+}
 
 export interface TarifaParams {
   uf: string
@@ -342,6 +391,14 @@ export async function getTarifaCheia({ uf, distribuidora }: TarifaParams): Promi
   }
 
   const cacheKey = `${UF}|${DIST}`
+  if (resolvedCache.size === 0) {
+    const persisted = loadTarifaCache()
+    for (const [key, value] of Object.entries(persisted)) {
+      if (Number.isFinite(value) && value > 0) {
+        resolvedCache.set(key, value)
+      }
+    }
+  }
   if (resolvedCache.has(cacheKey)) {
     return resolvedCache.get(cacheKey)!
   }
@@ -356,6 +413,7 @@ export async function getTarifaCheia({ uf, distribuidora }: TarifaParams): Promi
       if (valorCkan && Number.isFinite(valorCkan) && valorCkan > 0) {
         const normalizado = Number(Number(valorCkan).toFixed(3))
         resolvedCache.set(cacheKey, normalizado)
+        persistTarifaCache()
         return normalizado
       }
     }
@@ -364,12 +422,14 @@ export async function getTarifaCheia({ uf, distribuidora }: TarifaParams): Promi
     if (valorCsv && Number.isFinite(valorCsv) && valorCsv > 0) {
       const normalizado = Number(valorCsv.toFixed(3))
       resolvedCache.set(cacheKey, normalizado)
+      persistTarifaCache()
       return normalizado
     }
 
     const fallback = finalFallback(UF)
     const normalizado = Number(fallback.toFixed(3))
     resolvedCache.set(cacheKey, normalizado)
+    persistTarifaCache()
     return normalizado
   })()
     .catch((error) => {
@@ -377,6 +437,7 @@ export async function getTarifaCheia({ uf, distribuidora }: TarifaParams): Promi
       const fallback = finalFallback(UF)
       const normalizado = Number(fallback.toFixed(3))
       resolvedCache.set(cacheKey, normalizado)
+      persistTarifaCache()
       return normalizado
     })
     .finally(() => {
@@ -386,4 +447,3 @@ export async function getTarifaCheia({ uf, distribuidora }: TarifaParams): Promi
   pendingCache.set(cacheKey, promessa)
   return promessa
 }
-
