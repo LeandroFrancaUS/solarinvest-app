@@ -26227,9 +26227,7 @@ export default function App() {
                     <div className="info-inline">
                       <span className="pill">
                         <InfoTooltip text="Preço Mín. Saudável (Análise Financeira v1). Quando disponível, usa o preço mínimo saudável calculado pelo motor de análise. Caso contrário, usa o custo final projetado automático." />
-                        {analiseFinanceiraResult?.preco_minimo_saudavel_rs != null
-                          ? 'Valor atual de venda'
-                          : 'Custo final projetado'}
+                        Valor atual de venda
                         <strong>{currency(custoFinalProjetadoCanonico)}</strong>
                       </span>
                       <span className="pill">
@@ -26239,7 +26237,7 @@ export default function App() {
                       </span>
                       {shouldHideSimpleViewItems ? null : (
                         <span className="pill">
-                          <InfoTooltip text="CAPEX (SolarInvest) = Custo final projetado × 70%. Representa o capital investido pela SolarInvest para executar o projeto." />
+                          <InfoTooltip text="CAPEX (SolarInvest) = Valor atual de venda × 70%. Representa o capital investido pela SolarInvest para executar o projeto." />
                           CAPEX (SolarInvest)
                           <strong>{currency(capexSolarInvest)}</strong>
                         </span>
@@ -26448,7 +26446,7 @@ export default function App() {
                       value={autoKitValor != null ? formatBRL(autoKitValor) : ''}
                     />
                   </Field>
-                  <Field label="Custo final projetado (R$)">
+                  <Field label="Valor atual de venda (R$)">
                     <input
                       readOnly
                       placeholder="—"
