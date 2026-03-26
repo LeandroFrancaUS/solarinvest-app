@@ -3157,7 +3157,7 @@ tbody tr:hover {
   left: 50%;
   transform: translateX(-50%);
   min-width: 220px;
-  max-width: 280px;
+  max-width: min(280px, calc(100vw - 2rem));
   padding: 12px 14px;
   border-radius: 12px;
   background: var(--surface);
@@ -3168,6 +3168,9 @@ tbody tr:hover {
   line-height: 1.5;
   z-index: 20;
   text-align: left;
+  overflow-wrap: break-word;
+  white-space: normal;
+  word-break: normal;
 }
 
 .info-bubble::before {

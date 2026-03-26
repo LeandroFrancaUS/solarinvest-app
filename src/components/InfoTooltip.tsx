@@ -32,6 +32,7 @@ export function InfoTooltip({ text }: { text: string }) {
   const tooltipId = React.useId()
   const containerRef = React.useRef<HTMLSpanElement | null>(null)
   const buttonRef = React.useRef<HTMLButtonElement | null>(null)
+  const bubbleRef = React.useRef<HTMLSpanElement | null>(null)
 
   React.useEffect(() => {
     if (!open) {
@@ -60,6 +61,34 @@ export function InfoTooltip({ text }: { text: string }) {
     }
   }, [open])
 
+  // Adjust bubble horizontal position to stay within viewport
+  React.useEffect(() => {
+    if (!open || !bubbleRef.current) {
+      return
+    }
+    const bubble = bubbleRef.current
+    // Reset inline styles before measuring
+    bubble.style.removeProperty('left')
+    bubble.style.removeProperty('right')
+    bubble.style.removeProperty('transform')
+
+    const rect = bubble.getBoundingClientRect()
+    const vw = window.innerWidth
+    const margin = 8
+
+    if (rect.right > vw - margin) {
+      // Overflows right edge — anchor to right side of container
+      bubble.style.left = 'auto'
+      bubble.style.right = '0'
+      bubble.style.transform = 'none'
+    } else if (rect.left < margin) {
+      // Overflows left edge — anchor to left side of container
+      bubble.style.left = '0'
+      bubble.style.right = 'auto'
+      bubble.style.transform = 'none'
+    }
+  }, [open])
+
   return (
     <span className="info-tooltip" ref={containerRef}>
       <TooltipIcon
@@ -78,7 +107,7 @@ export function InfoTooltip({ text }: { text: string }) {
         }}
       />
       {open ? (
-        <span role="tooltip" id={tooltipId} className="info-bubble">
+        <span role="tooltip" id={tooltipId} className="info-bubble" ref={bubbleRef}>
           {text}
         </span>
       ) : null}

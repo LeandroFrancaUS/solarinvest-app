@@ -185,8 +185,6 @@ import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { CHART_THEME } from './helpers/ChartTheme'
-import { LeasingBeneficioChart } from './components/leasing/LeasingBeneficioChart'
-import { SimulacoesTab } from './components/simulacoes/SimulacoesTab'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -310,6 +308,8 @@ const getCustosFixosContaEnergiaPadrao = (cidade?: string | null): number | null
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
+const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/LeasingBeneficioChart').then(m => ({ default: m.LeasingBeneficioChart })))
+const SimulacoesTab = React.lazy(() => import('./components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
 
@@ -23698,19 +23698,21 @@ export default function App() {
   )
 
   const leasingChartSection = mostrarGrafico ? (
-    <LeasingBeneficioChart
-      leasingROI={leasingROI}
-      financiamentoROI={financiamentoROI}
-      mostrarFinanciamento={mostrarFinanciamento}
-      exibirLeasingLinha={exibirLeasingLinha}
-      onToggleLeasing={setExibirLeasingLinha}
-      exibirFinLinha={exibirFinLinha}
-      onToggleFinanciamento={setExibirFinLinha}
-      chartTheme={chartTheme}
-      theme={theme}
-      currency={currency}
-      formatAxis={formatAxis}
-    />
+    <React.Suspense fallback={null}>
+      <LeasingBeneficioChart
+        leasingROI={leasingROI}
+        financiamentoROI={financiamentoROI}
+        mostrarFinanciamento={mostrarFinanciamento}
+        exibirLeasingLinha={exibirLeasingLinha}
+        onToggleLeasing={setExibirLeasingLinha}
+        exibirFinLinha={exibirFinLinha}
+        onToggleFinanciamento={setExibirFinLinha}
+        chartTheme={chartTheme}
+        theme={theme}
+        currency={currency}
+        formatAxis={formatAxis}
+      />
+    </React.Suspense>
   ) : null
 
   const handleSidebarMenuToggle = useCallback(() => {
@@ -24550,12 +24552,14 @@ export default function App() {
                 </p>
               </div>
             </header>
-            <SimulacoesTab
-              consumoKwhMes={kcKwhMes}
-              valorInvestimento={capexSolarInvest}
-              tipoSistema={tipoSistema}
-              prazoLeasingAnos={leasingPrazo}
-            />
+            <React.Suspense fallback={null}>
+              <SimulacoesTab
+                consumoKwhMes={kcKwhMes}
+                valorInvestimento={capexSolarInvest}
+                tipoSistema={tipoSistema}
+                prazoLeasingAnos={leasingPrazo}
+              />
+            </React.Suspense>
           </section>
 
           {simulacoesSection === 'ia' ? (

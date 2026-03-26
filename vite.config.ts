@@ -4,6 +4,7 @@ import { fileURLToPath, URL } from "node:url"
 import react from "@vitejs/plugin-react"
 import type { Plugin, ViteDevServer } from "vite"
 import { defineConfig, loadEnv } from "vite"
+import { visualizer } from "rollup-plugin-visualizer"
 
 import { createAneelProxyMiddleware, DEFAULT_PROXY_BASE } from "./server/aneelProxy.js"
 import { createContractRenderMiddleware } from "./server/contracts.js"
@@ -76,7 +77,16 @@ export default defineConfig(({ mode }) => {
   const proxyBase = hasProxyEnv ? sanitizeProxyBase(env.VITE_ANEEL_PROXY_BASE) : DEFAULT_PROXY_BASE
   const enableProxy = Boolean(proxyBase)
 
-  const plugins: Plugin[] = [react(), contractRenderPlugin()]
+  const plugins: Plugin[] = [
+    react(),
+    contractRenderPlugin(),
+    visualizer({
+      filename: "dist/stats.html",
+      open: false,
+      gzipSize: true,
+      brotliSize: true,
+    }) as unknown as Plugin,
+  ]
   if (enableProxy) plugins.push(aneelProxyPlugin(proxyBase))
 
   const backendOrigin = resolveBackendOrigin(env.VITE_BACKEND_ORIGIN).origin
@@ -112,7 +122,9 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            vendor: ["react", "react-dom", "recharts"],
+            "vendor-react": ["react", "react-dom"],
+            "vendor-charts": ["recharts"],
+            "vendor-zustand": ["zustand"],
           },
         },
       },
