@@ -26228,7 +26228,7 @@ export default function App() {
                       <span className="pill">
                         <InfoTooltip text="Preço Mín. Saudável (Análise Financeira v1). Quando disponível, usa o preço mínimo saudável calculado pelo motor de análise. Caso contrário, usa o custo final projetado automático." />
                         {analiseFinanceiraResult?.preco_minimo_saudavel_rs != null
-                          ? 'Preço Mín. Saudável'
+                          ? 'Valor atual de venda'
                           : 'Custo final projetado'}
                         <strong>{currency(custoFinalProjetadoCanonico)}</strong>
                       </span>
