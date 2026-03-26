@@ -14,25 +14,63 @@ import { clearAllClientData } from '../persist/clearOnLogout'
 type SignOutFn = () => Promise<unknown>
 
 /**
- * Clears any Stack Auth token cookies that may still be present in the browser.
+ * Clears all Stack Auth token cookies that may still be present in the browser.
  *
- * Stack Auth stores its access/refresh tokens in cookies prefixed with "stack-"
- * when tokenStore: "cookie" is configured. This helper is a safety net for cases
- * where user.signOut() cannot complete its own cleanup (e.g., CORS errors when
- * calling api.stack-auth.com, or when a navigation interrupt stops the SDK
- * mid-operation). By clearing these cookies explicitly we ensure the user is
- * fully signed out on the next page load even if the SDK did not finish.
+ * Stack Auth (tokenStore: "cookie") stores tokens under these naming patterns:
+ *
+ *   • `stack-access`
+ *       Access token — always uses the plain "stack-" prefix.
+ *
+ *   • `stack-refresh-{projectId}--default`   (HTTP / dev)
+ *   • `__Host-stack-refresh-{projectId}--default`  (HTTPS / production)
+ *       Refresh token — the SDK prepends `__Host-` in secure contexts so it
+ *       qualifies as a "Cookie Prefix" cookie (enforces Secure + Path=/).
+ *
+ *   • Legacy names: `stack-refresh`, `stack-refresh-{projectId}`
+ *
+ * Our previous implementation only matched `stack-*` cookies, so it silently
+ * skipped `__Host-stack-*` cookies.  On every reload, the SDK found the intact
+ * refresh token, issued a new access token, and the user appeared still signed
+ * in — the root cause of the "logout not working" bug.
+ *
+ * Deletion nuances:
+ *   1. `__Host-` cookies: Must include `Secure` and `Path=/`; must NOT include
+ *      `Domain`.
+ *   2. Partitioned cookies (Safari CHIPS): The SDK uses `SameSite=None;
+ *      Partitioned` in contexts where regular cookies can't be set (certain
+ *      Safari embedded or cross-site scenarios).  We try both partitioned and
+ *      non-partitioned deletion to cover all cases.
+ *   3. Non-HTTPS dev: `stack-*` cookies are set without `Secure`; plain deletion
+ *      is sufficient.
  */
 function clearStackAuthCookies(): void {
   if (typeof document === 'undefined') return
   try {
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
     const cookies = document.cookie.split(';')
-    for (const cookie of cookies) {
-      const eqIdx = cookie.indexOf('=')
-      const name = (eqIdx >= 0 ? cookie.slice(0, eqIdx) : cookie).trim()
-      if (!name.startsWith('stack-')) continue
-      // Clear on the root path (covers all sub-paths).
-      document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax`
+    for (const rawCookie of cookies) {
+      const eqIdx = rawCookie.indexOf('=')
+      const name = (eqIdx >= 0 ? rawCookie.slice(0, eqIdx) : rawCookie).trim()
+      if (!name) continue
+      // Match both the plain `stack-*` prefix (access token, legacy refresh) and
+      // the `__Host-stack-*` prefix (HTTPS refresh token with cookie-prefix).
+      if (!name.startsWith('stack-') && !name.startsWith('__Host-stack-')) continue
+
+      // `__Host-` cookies require Secure + Path=/ with no Domain attribute.
+      // For plain `stack-*` on HTTPS we also add Secure to match how they were set.
+      const secureAttr = (isHttps || name.startsWith('__Host-')) ? '; Secure' : ''
+
+      // 1. Standard deletion (SameSite=Lax — covers most browsers/Chrome).
+      document.cookie = `${name}=; Max-Age=0; Path=/${secureAttr}; SameSite=Lax`
+
+      // 2. SameSite=None without Partitioned (covers some HTTPS Safari scenarios).
+      if (secureAttr) {
+        document.cookie = `${name}=; Max-Age=0; Path=/; Secure; SameSite=None`
+        // 3. SameSite=None with Partitioned (Safari CHIPS — Cookies Having
+        //    Independent Partitioned State).  The SDK uses this variant when it
+        //    detects that regular cookies cannot be set in a given context.
+        document.cookie = `${name}=; Max-Age=0; Path=/; Secure; SameSite=None; Partitioned`
+      }
     }
   } catch {
     // Non-fatal: cookie clearing is a best-effort safety net.
