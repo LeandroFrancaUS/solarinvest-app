@@ -20,8 +20,9 @@ type SignOutFn = () => Promise<unknown>
  *    localStorage app data keys.
  * 2. Calls POST /api/auth/logout to invalidate the server-side session cookie
  *    (required when AUTH_COOKIE_SECRET is configured).
- * 3. Calls the auth provider sign-out (Stack Auth) as a fire-and-forget so
- *    the SDK can clean up its own token state.
+ * 3. Awaits the auth provider sign-out (Stack Auth) with a 3 s timeout so the
+ *    SDK clears its own tokens before the redirect.  The timeout is the
+ *    Safari-safe guard against Promises that never settle mid-navigation.
  * 4. Performs a hard redirect to '/' via window.location.assign().
  *
  * The hard redirect in step 4 is the Safari-safe guarantee: it forces a full
@@ -51,18 +52,26 @@ export async function performLogout(signOut?: SignOutFn): Promise<void> {
     // Non-fatal
   }
 
-  // Step 3: Sign out from the auth provider (fire-and-forget).
-  // We do NOT await this because we rely on our own hard redirect (step 4) to
-  // navigate away. Awaiting signOut() can cause hangs if the SDK's internal
-  // redirect fires mid-call and the Promise never settles — a known issue in
-  // Safari when page navigation interrupts async continuations.
+  // Step 3: Sign out from the auth provider.
+  // We await signOut() with a bounded timeout so the SDK can clear its own
+  // tokens (localStorage/cookies) before we redirect.  Without this, the new
+  // page load finds live Stack Auth tokens and re-authenticates the user
+  // silently — making logout appear to do nothing.
+  //
+  // The race against SIGN_OUT_TIMEOUT_MS is the Safari-safe guard: if the SDK's
+  // internal redirect fires mid-call and the Promise never settles (a known
+  // Safari issue), we fall through after the timeout and let the hard redirect
+  // in step 4 clean up the remaining in-memory state.
+  const SIGN_OUT_TIMEOUT_MS = 3000
   if (signOut) {
     try {
-      signOut().catch((err) => {
-        if (import.meta.env.DEV) console.debug('[auth][logout] signOut error (non-fatal):', err)
-      })
-    } catch {
-      // Non-fatal
+      await Promise.race([
+        signOut(),
+        new Promise<void>((resolve) => { setTimeout(resolve, SIGN_OUT_TIMEOUT_MS) }),
+      ])
+    } catch (err) {
+      if (import.meta.env.DEV) console.debug('[auth][logout] signOut error (non-fatal):', err)
+      // Non-fatal: proceed to hard redirect regardless
     }
   }
 
