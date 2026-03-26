@@ -13,6 +13,35 @@ import { clearAllClientData } from '../persist/clearOnLogout'
  */
 type SignOutFn = () => Promise<unknown>
 
+const STORAGE_CLEAR_TIMEOUT_MS = 1200
+const SERVER_LOGOUT_TIMEOUT_MS = 1800
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => {
+      if (import.meta.env.DEV) {
+        console.debug(`[auth][logout] ${label} timed out after ${timeoutMs}ms; continuing`)
+      }
+      resolve(null)
+    }, timeoutMs)
+  })
+
+  return Promise.race([
+    promise
+      .then((value) => value)
+      .catch((err) => {
+        if (import.meta.env.DEV) {
+          console.debug(`[auth][logout] ${label} failed (non-fatal):`, err)
+        }
+        return null
+      }),
+    timeoutPromise,
+  ]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId)
+  })
+}
+
 /**
  * Orchestrates a complete, browser-safe logout:
  *
@@ -28,28 +57,38 @@ type SignOutFn = () => Promise<unknown>
  * page reload that clears ALL in-memory React and SDK state, regardless of
  * whether the auth provider's own redirect fired correctly.
  *
+ * Additional Safari hardening:
+ * - Each pre-redirect step has a short timeout so logout never hangs for many seconds.
+ * - Server logout uses `keepalive` + AbortController to avoid blocking on flaky networks.
+ *
  * @param signOut Optional Stack Auth signOut callback (user.signOut or app.signOut).
  */
 export async function performLogout(signOut?: SignOutFn): Promise<void> {
   if (import.meta.env.DEV) console.debug('[auth][logout] started')
 
-  // Step 1: Clear all client-side persisted data (sync keys first, then async IndexedDB).
-  try {
-    await clearAllClientData()
-    if (import.meta.env.DEV) console.debug('[auth][logout] client data cleared')
-  } catch {
-    // Non-fatal: proceed even if storage clear partially fails
-  }
+  const clearDataTask = withTimeout(clearAllClientData(), STORAGE_CLEAR_TIMEOUT_MS, 'clearAllClientData')
 
-  // Step 2: Invalidate the server-side session cookie.
-  try {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch((err) => {
-      // Non-fatal: if the server is unreachable the cookie will expire naturally
-      if (import.meta.env.DEV) console.debug('[auth][logout] server logout failed (non-fatal):', err)
-    })
-  } catch {
-    // Non-fatal
-  }
+  const serverLogoutTask = withTimeout(
+    (async () => {
+      const controller = new AbortController()
+      const abortId = setTimeout(() => controller.abort(), SERVER_LOGOUT_TIMEOUT_MS)
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'include',
+          keepalive: true,
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(abortId)
+      }
+    })(),
+    SERVER_LOGOUT_TIMEOUT_MS,
+    'POST /api/auth/logout',
+  )
+
+  // Wait only for bounded tasks. This keeps logout deterministic on Safari.
+  await Promise.allSettled([clearDataTask, serverLogoutTask])
 
   // Step 3: Sign out from the auth provider (fire-and-forget).
   // We do NOT await this because we rely on our own hard redirect (step 4) to
