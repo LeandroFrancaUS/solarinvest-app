@@ -14,17 +14,49 @@ import { clearAllClientData } from '../persist/clearOnLogout'
 type SignOutFn = () => Promise<unknown>
 
 /**
+ * Clears any Stack Auth token cookies that may still be present in the browser.
+ *
+ * Stack Auth stores its access/refresh tokens in cookies prefixed with "stack-"
+ * when tokenStore: "cookie" is configured. This helper is a safety net for cases
+ * where user.signOut() cannot complete its own cleanup (e.g., CORS errors when
+ * calling api.stack-auth.com, or when a navigation interrupt stops the SDK
+ * mid-operation). By clearing these cookies explicitly we ensure the user is
+ * fully signed out on the next page load even if the SDK did not finish.
+ */
+function clearStackAuthCookies(): void {
+  if (typeof document === 'undefined') return
+  try {
+    const cookies = document.cookie.split(';')
+    for (const cookie of cookies) {
+      const eqIdx = cookie.indexOf('=')
+      const name = (eqIdx >= 0 ? cookie.slice(0, eqIdx) : cookie).trim()
+      if (!name.startsWith('stack-')) continue
+      // Clear on the root path (covers all sub-paths).
+      document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax`
+    }
+  } catch {
+    // Non-fatal: cookie clearing is a best-effort safety net.
+  }
+}
+
+/**
  * Orchestrates a complete, browser-safe logout:
  *
  * 1. Clears all local client data: IndexedDB, sessionStorage form keys,
  *    localStorage app data keys.
  * 2. Calls POST /api/auth/logout to invalidate the server-side session cookie
  *    (required when AUTH_COOKIE_SECRET is configured).
- * 3. Calls the auth provider sign-out (Stack Auth) as a fire-and-forget so
- *    the SDK can clean up its own token state.
- * 4. Performs a hard redirect to '/' via window.location.assign().
+ * 3. Awaits the auth provider sign-out (Stack Auth) with a 1500 ms timeout so
+ *    the SDK has time to clear its own token cookies before navigation. The
+ *    timeout guards against indefinite hangs when the SDK's internal redirect
+ *    (redirectMethod: "window") fires mid-call and the Promise never settles —
+ *    a known issue in Safari.
+ * 4. Clears any remaining Stack Auth cookies as a belt-and-suspenders fallback,
+ *    in case the SDK could not finish its own cleanup (e.g., CORS errors on
+ *    api.stack-auth.com).
+ * 5. Performs a hard redirect to '/' via window.location.assign().
  *
- * The hard redirect in step 4 is the Safari-safe guarantee: it forces a full
+ * The hard redirect in step 5 is the Safari-safe guarantee: it forces a full
  * page reload that clears ALL in-memory React and SDK state, regardless of
  * whether the auth provider's own redirect fired correctly.
  *
@@ -51,22 +83,38 @@ export async function performLogout(signOut?: SignOutFn): Promise<void> {
     // Non-fatal
   }
 
-  // Step 3: Sign out from the auth provider (fire-and-forget).
-  // We do NOT await this because we rely on our own hard redirect (step 4) to
-  // navigate away. Awaiting signOut() can cause hangs if the SDK's internal
-  // redirect fires mid-call and the Promise never settles — a known issue in
-  // Safari when page navigation interrupts async continuations.
+  // Step 3: Sign out from the auth provider, awaited with a timeout.
+  //
+  // Why await (instead of fire-and-forget): the Stack Auth SDK stores tokens in
+  // browser cookies. If we navigate away immediately the SDK never gets to run
+  // its async cookie-clearing logic, leaving the user re-authenticated on reload.
+  // Awaiting gives the SDK time to clear its local state.
+  //
+  // Why the 1500 ms timeout: when redirectMethod: "window" is set, the SDK may
+  // fire window.location.assign() internally, which prevents the Promise from
+  // ever settling. The timeout ensures we always move on — if the SDK already
+  // navigated the page away, our subsequent window.location.assign('/') below is
+  // a no-op anyway.
   if (signOut) {
     try {
-      signOut().catch((err) => {
-        if (import.meta.env.DEV) console.debug('[auth][logout] signOut error (non-fatal):', err)
-      })
+      await Promise.race([
+        signOut().catch((err) => {
+          if (import.meta.env.DEV) console.debug('[auth][logout] signOut error (non-fatal):', err)
+        }),
+        new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+      ])
     } catch {
       // Non-fatal
     }
   }
 
-  // Step 4: Hard redirect — clears all in-memory React and SDK state.
+  // Step 4: Belt-and-suspenders cookie clear.
+  // If the SDK could not finish its own cleanup (e.g., CORS error blocked the
+  // api.stack-auth.com session-deletion call), wipe any remaining Stack Auth
+  // token cookies directly so they do not survive the hard redirect below.
+  clearStackAuthCookies()
+
+  // Step 5: Hard redirect — clears all in-memory React and SDK state.
   // This is the Safari-safe path: window.location.assign() triggers a full
   // browser navigation that cannot be intercepted by in-memory state, unlike
   // SPA-only navigate() calls which may leave stale subscriptions running.
