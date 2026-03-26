@@ -116,6 +116,25 @@ const sendNoContent = (res) => {
   res.end()
 }
 
+const getAuthCookieName = () => {
+  const value = typeof process.env.AUTH_COOKIE_NAME === 'string' ? process.env.AUTH_COOKIE_NAME.trim() : ''
+  return value || 'solarinvest_session'
+}
+
+const isHttpsRequest = (req) => {
+  const forwardedProto = typeof req.headers['x-forwarded-proto'] === 'string'
+    ? req.headers['x-forwarded-proto'].split(',')[0].trim()
+    : ''
+  if (forwardedProto) return forwardedProto === 'https'
+  return Boolean(req.socket?.encrypted)
+}
+
+const expireAuthCookie = (req, res) => {
+  const cookieName = getAuthCookieName()
+  const secure = isHttpsRequest(req) ? '; Secure' : ''
+  res.setHeader('Set-Cookie', `${cookieName}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${secure}`)
+}
+
 const sendServerError = (res, statusCode, payload, requestId, vercelId) => {
   if (res.headersSent) return
   if (requestId) res.setHeader('X-Request-Id', requestId)
@@ -397,6 +416,14 @@ export default async function handler(req, res) {
       if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
       if (isAuthRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
       await handleAuthMeRequest(req, res, { sendJson, requestUrl })
+      return
+    }
+
+    if (pathname === '/api/auth/logout') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      expireAuthCookie(req, res)
+      sendNoContent(res)
       return
     }
 
