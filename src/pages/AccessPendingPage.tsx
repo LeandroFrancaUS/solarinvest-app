@@ -4,7 +4,7 @@
 import React from 'react'
 import { useStackApp } from '@stackframe/react'
 import { stackClientApp } from '../auth/stack-client'
-import { clearAllClientData } from '../lib/persist/clearOnLogout'
+import { performLogout } from '../lib/auth/logout'
 import type { AccessStatus } from '../lib/auth/access-types'
 import { accessStatusLabel } from '../lib/auth/access-mappers'
 
@@ -31,13 +31,22 @@ function messageFor(status: AccessStatus | null): string {
 
 function SignOutButton() {
   const app = useStackApp()
+  const [signing, setSigning] = React.useState(false)
+
+  const handleSignOut = React.useCallback(() => {
+    if (signing) return
+    setSigning(true)
+    void performLogout(() => app.signOut())
+  }, [app, signing])
+
   return (
     <button
       type="button"
-      onClick={() => { void clearAllClientData().finally(() => app.signOut()) }}
-      className="rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+      onClick={handleSignOut}
+      disabled={signing}
+      className="rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-60"
     >
-      Sair
+      {signing ? 'Saindo…' : 'Sair'}
     </button>
   )
 }
