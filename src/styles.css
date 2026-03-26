@@ -44,6 +44,20 @@
   --shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
   --layer-opaque: rgba(255, 255, 255, 0.9);
   --elev-4: 0 18px 32px rgba(15, 23, 42, 0.08);
+
+  --color-warning-bg: #fff3cd;
+  --color-warning-fg: #7a5500;
+  --color-warning-border: rgba(204, 153, 0, 0.35);
+  --color-success-bg: #d1f5dc;
+  --color-success-fg: #155724;
+  --color-success-border: rgba(21, 128, 61, 0.3);
+  --color-info-bg: #dbeafe;
+  --color-info-fg: #1e40af;
+  --color-info-border: rgba(37, 99, 235, 0.3);
+  --color-error-bg: #fee2e2;
+  --color-error-fg: #991b1b;
+  --color-error-border: rgba(185, 28, 28, 0.3);
+
   --header-h: 72px;
   --tabs-h: 48px;
   --space-1: 8px;
@@ -103,6 +117,19 @@ body {
   --layer-opaque: rgba(96, 101, 110, 0.7);
   --elev-4: 0 18px 32px rgba(46, 54, 70, 0.34);
   --backdrop: rgba(52, 60, 76, 0.5);
+
+  --color-warning-bg: rgba(250, 188, 28, 0.22);
+  --color-warning-fg: #fcd34d;
+  --color-warning-border: rgba(250, 204, 21, 0.38);
+  --color-success-bg: rgba(34, 197, 94, 0.18);
+  --color-success-fg: #4ade80;
+  --color-success-border: rgba(34, 197, 94, 0.35);
+  --color-info-bg: rgba(96, 165, 250, 0.18);
+  --color-info-fg: #93c5fd;
+  --color-info-border: rgba(96, 165, 250, 0.35);
+  --color-error-bg: rgba(239, 68, 68, 0.18);
+  --color-error-fg: #fca5a5;
+  --color-error-border: rgba(239, 68, 68, 0.35);
 }
 
 html[data-density='comfortable'] {
@@ -517,6 +544,24 @@ button.secondary.small {
   min-height: calc(var(--control-h) - 6px);
   padding: var(--space-1) var(--space-2);
   font-size: 13px;
+}
+
+:root[data-theme='dark'] button.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fcd34d;
+  border-color: rgba(217, 119, 6, 0.55);
+}
+
+:root[data-theme='dark'] button.secondary:hover,
+:root[data-theme='dark'] button.secondary:focus-visible {
+  background: rgba(255, 140, 0, 0.14);
+  border-color: rgba(217, 119, 6, 0.85);
+  box-shadow: 0 10px 24px rgba(217, 119, 6, 0.22);
+}
+
+:root[data-theme='dark'] button.secondary:active {
+  background: rgba(255, 140, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.28);
 }
 
 .tabs {
@@ -3115,8 +3160,8 @@ tbody tr:hover {
   max-width: 280px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: #ffffff;
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.18);
   color: var(--ink);
   font-size: 12px;
@@ -3133,9 +3178,9 @@ tbody tr:hover {
   transform: translateX(-50%) rotate(45deg);
   width: 12px;
   height: 12px;
-  background: #ffffff;
-  border-left: 1px solid var(--border);
-  border-top: 1px solid var(--border);
+  background: var(--surface);
+  border-left: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-strong);
 }
 
 .pill {
@@ -3155,6 +3200,88 @@ tbody tr:hover {
 .pill strong {
   font-weight: 700;
   color: var(--title);
+}
+
+/* Semantic color pill variants — text and strong color adapt to light/dark */
+.pill--warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning-border);
+}
+.pill--warning strong {
+  color: var(--color-warning-fg);
+  font-weight: 700;
+}
+
+.pill--success {
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
+  border-color: var(--color-success-border);
+}
+.pill--success strong {
+  color: var(--color-success-fg);
+  font-weight: 700;
+}
+
+.pill--info {
+  background: var(--color-info-bg);
+  color: var(--color-info-fg);
+  border-color: var(--color-info-border);
+}
+.pill--info strong {
+  color: var(--color-info-fg);
+  font-weight: 700;
+}
+
+.pill--error {
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
+  border-color: var(--color-error-border);
+}
+.pill--error strong {
+  color: var(--color-error-fg);
+  font-weight: 700;
+}
+
+/* Larger pill for price recommendations */
+.pill--price {
+  padding: calc(var(--space-1) + 2px) calc(var(--space-3));
+  font-size: var(--font-m);
+  font-weight: 600;
+  min-height: calc(var(--control-h) + 6px);
+  gap: calc(var(--space-1) + 2px);
+}
+.pill--price strong {
+  font-size: calc(var(--font-m) + 1px);
+  letter-spacing: 0.01em;
+}
+
+/* Price recommendation band */
+.price-band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2);
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  margin-top: var(--space-2);
+}
+
+.price-band-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.price-band-title {
+  font-size: var(--font-s);
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--space-1) 0;
 }
 
 .list-col {
