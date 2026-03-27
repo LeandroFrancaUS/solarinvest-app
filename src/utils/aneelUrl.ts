@@ -73,7 +73,14 @@ export const resolveAneelUrl = (pathOrUrl: string): string => {
   if (proxyBase) {
     const upstreamPath = `${parsed.pathname}${parsed.search}${parsed.hash}`
     const encodedPath = encodeURIComponent(upstreamPath)
-    const targetBase = resolveApiUrl(proxyBase)
+    // IMPORTANT: ANEEL proxy must stay same-origin in the browser.
+    // If resolveApiUrl() injects a cross-origin VITE_API_URL (e.g. preview domain),
+    // browsers can block the request with CORS/access-control checks.
+    // Keep relative proxy URL in browser runtime; only resolve absolute base outside browser.
+    const targetBase =
+      typeof window !== 'undefined'
+        ? proxyBase
+        : resolveApiUrl(proxyBase)
     const separator = targetBase.includes('?') ? '&' : '?'
     return `${targetBase}${separator}path=${encodedPath}`
   }

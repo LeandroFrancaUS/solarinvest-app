@@ -6,6 +6,7 @@
 import React, { type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { useUser, SignIn } from '@stackframe/react'
 import { stackClientApp } from '../stack-client'
+import { perfLog, perfMeasure, perfNow } from '../../utils/perf'
 
 interface Props {
   children: ReactNode
@@ -115,10 +116,13 @@ function isOAuthCallbackPath(): boolean {
 function OAuthCallbackHandler() {
   const called = useRef(false)
   const [error, setError] = useState<string | null>(null)
+  const callbackStartRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (called.current || !stackClientApp) return
     called.current = true
+    callbackStartRef.current = perfNow()
+    perfLog('LOGIN', 'AUTH_CALLBACK_START')
     const app = stackClientApp
 
     if (import.meta.env.DEV) console.debug('[OAuthCallbackHandler] processing PKCE callback at', window.location.pathname)
@@ -133,6 +137,9 @@ function OAuthCallbackHandler() {
           window.location.replace('/')
         })
       } else if (import.meta.env.DEV) {
+        if (callbackStartRef.current != null) {
+          perfMeasure('LOGIN', 'AUTH_CALLBACK_DONE', callbackStartRef.current)
+        }
         console.debug('[OAuthCallbackHandler] callOAuthCallback succeeded — redirected')
       }
     }).catch((err: unknown) => {
@@ -176,6 +183,8 @@ function OAuthCallbackHandler() {
  */
 function RequireAuthWithStack({ children, fallback }: Props) {
   const user = useUser()
+  const userResolutionStartRef = useRef<number>(perfNow())
+  const hasLoggedResolutionRef = useRef(false)
 
   // While on the OAuth callback path we must process the authorization code
   // BEFORE rendering SignIn, otherwise the tokens are never extracted and the
@@ -200,6 +209,10 @@ function RequireAuthWithStack({ children, fallback }: Props) {
         </div>
       </div>
     )
+  }
+  if (!hasLoggedResolutionRef.current) {
+    hasLoggedResolutionRef.current = true
+    perfMeasure('LOGIN', 'ME_DONE', userResolutionStartRef.current)
   }
 
   return <>{children}</>
