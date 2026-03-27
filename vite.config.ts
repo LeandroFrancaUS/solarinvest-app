@@ -111,7 +111,7 @@ export default defineConfig(({ mode }) => {
       minify: "terser",
       terserOptions: {
         compress: {
-          drop_console: mode === "production",
+          pure_funcs: mode === "production" ? ["console.debug", "console.log"] : [],
           drop_debugger: false,
         },
         format: {
@@ -125,6 +125,10 @@ export default defineConfig(({ mode }) => {
             "vendor-react": ["react", "react-dom"],
             "vendor-charts": ["recharts"],
             "vendor-zustand": ["zustand"],
+            "vendor-icons": ["lucide-react"],
+            "vendor-stackframe": ["@stackframe/react", "@stackframe/stack-shared", "@stackframe/stack-ui"],
+            "vendor-storage": ["localforage", "jszip"],
+            "vendor-date": ["date-fns"],
           },
         },
       },
@@ -145,9 +149,7 @@ export default defineConfig(({ mode }) => {
       },
     },
 
-    optimizeDeps: {
-      force: true,
-    },
+    optimizeDeps: {},
 
     ssr: {
       noExternal: ["esbuild"],

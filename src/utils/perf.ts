@@ -10,7 +10,8 @@ type PerfDomain =
 
 type PerfLevel = 'debug' | 'warn' | 'error'
 
-const isPerfEnabled = () => import.meta.env.DEV
+// debug-level logs are DEV-only; warn/error survive production (not dropped by terser pure_funcs)
+const isPerfEnabled = (level: PerfLevel) => level !== 'debug' || import.meta.env.DEV
 
 const now = () => {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -24,7 +25,7 @@ export function perfNow(): number {
 }
 
 export function perfLog(domain: PerfDomain, tag: string, payload?: Record<string, unknown>, level: PerfLevel = 'debug') {
-  if (!isPerfEnabled()) return
+  if (!isPerfEnabled(level)) return
   const prefix = `[PERF][${domain}][${tag}]`
   if (level === 'warn') {
     console.warn(prefix, payload ?? '')

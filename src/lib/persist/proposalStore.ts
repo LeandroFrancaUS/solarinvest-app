@@ -64,13 +64,8 @@ export async function saveProposalSnapshotById(
   
   await proposalStore.setItem(key, payload)
   
-  // READ-AFTER-WRITE VERIFICATION
-  const verify = await proposalStore.getItem<ProposalPayload>(key)
-  
-  if (!verify || !verify.snapshot) {
-    console.error('[proposalStore] SAVE VERIFICATION FAILED - data not persisted correctly!')
-  } else if (__DEV__) {
-    console.debug('[proposalStore] SAVED+VERIFIED', budgetId)
+  if (__DEV__) {
+    console.debug('[proposalStore] Saved snapshot for budget:', budgetId)
   }
 }
 

@@ -11,12 +11,49 @@ const UF_CANDIDATES = ['UF', 'SIGLA_UF']
 const DISTRIBUIDORA_CANDIDATES = ['DISTRIBUIDORA', 'AGENTE', 'CONCESSIONARIA']
 const DATA_CANDIDATES = ['DATA_VIGENCIA', 'DATA DE VIGENCIA', 'DATA VIGENCIA', 'DATA_VIGÊNCIA', 'DT_VIGENCIA']
 
+const REAJUSTE_CACHE_KEY = 'aneel:reajuste:v1'
+const REAJUSTE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 // 24 hours
+
 const sessionCache = new Map<string, number>()
 const pendingCache = new Map<string, Promise<number>>()
 const schemaCache = new Map<string, string[]>()
 
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase()
 const normCompact = (s: string) => norm(s).replace(/[^A-Z0-9]+/g, '')
+
+const loadReajusteCache = (): void => {
+  if (typeof window === 'undefined') return
+  try {
+    const raw = window.localStorage.getItem(REAJUSTE_CACHE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as { expiresAt?: number; values?: Record<string, number> }
+    if (!parsed?.values || typeof parsed.expiresAt !== 'number') return
+    if (Date.now() > parsed.expiresAt) return
+    for (const [key, value] of Object.entries(parsed.values)) {
+      if (typeof value === 'number' && value >= 1 && value <= 12) {
+        sessionCache.set(key, value)
+      }
+    }
+  } catch {
+    // noop
+  }
+}
+
+const persistReajusteCache = (): void => {
+  if (typeof window === 'undefined') return
+  try {
+    const values = Object.fromEntries(sessionCache.entries())
+    window.localStorage.setItem(
+      REAJUSTE_CACHE_KEY,
+      JSON.stringify({ expiresAt: Date.now() + REAJUSTE_CACHE_TTL_MS, values }),
+    )
+  } catch {
+    // noop
+  }
+}
+
+// Populate session cache from localStorage on module load
+loadReajusteCache()
 
 interface CkanField {
   id: string
@@ -153,7 +190,7 @@ const fetchFromCkan = async (uf: string, distribuidora: string): Promise<number 
 
 const fetchFromCsv = async (uf: string, distribuidora: string): Promise<number | null> => {
   try {
-    const res = await fetch(resolveAneelUrl(CSV_PATH), { cache: 'no-store' })
+    const res = await fetch(resolveAneelUrl(CSV_PATH), { cache: 'default' })
     const text = await res.text()
     const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0)
     if (!lines.length) return null
@@ -221,12 +258,14 @@ export async function getMesReajusteFromANEEL(uf: string, distribuidora: string)
     const ckanMes = await fetchFromCkan(UF, DIST)
     if (typeof ckanMes === 'number' && ckanMes >= 1 && ckanMes <= 12) {
       sessionCache.set(cacheKey, ckanMes)
+      persistReajusteCache()
       return ckanMes
     }
 
     const csvMes = await fetchFromCsv(UF, DIST)
     if (typeof csvMes === 'number' && csvMes >= 1 && csvMes <= 12) {
       sessionCache.set(cacheKey, csvMes)
+      persistReajusteCache()
       return csvMes
     }
 
