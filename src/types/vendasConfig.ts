@@ -1,5 +1,8 @@
 import type { ImpostosRegimeConfig, RegimeTributario } from '../lib/venda/calcComposicaoUFV'
 import type { ProjetoFaixa } from '../lib/finance/analiseFinanceiraSpreadsheet'
+import type { ExemptRegion } from '../lib/finance/travelCost'
+
+export type { ExemptRegion }
 
 export type ArredondarVendaPara = '1' | '10' | '50' | '100'
 export type ComissaoDefaultTipo = 'valor' | 'percentual'
@@ -48,6 +51,14 @@ export interface VendasConfig {
   af_seguro_faixa_baixa_percent: number
   af_seguro_faixa_alta_percent: number
   af_seguro_piso_rs: number
+
+  // Installer travel/displacement cost auto-calculation
+  af_deslocamento_regioes_isentas: ExemptRegion[]
+  af_deslocamento_faixa1_km: number
+  af_deslocamento_faixa1_rs: number
+  af_deslocamento_faixa2_km: number
+  af_deslocamento_faixa2_rs: number
+  af_deslocamento_km_excedente_rs: number
 }
 
 const clamp = (value: number, min: number, max: number): number => {
@@ -159,6 +170,18 @@ export const DEFAULT_VENDAS_CONFIG: VendasConfig = {
   af_seguro_faixa_baixa_percent: 3.05,
   af_seguro_faixa_alta_percent: 0.735,
   af_seguro_piso_rs: 139,
+
+  af_deslocamento_regioes_isentas: [
+    { cidade: 'Anápolis', uf: 'GO' },
+    { cidade: 'Abadiânia', uf: 'GO' },
+    { cidade: 'Terezópolis de Goiás', uf: 'GO' },
+    { cidade: 'Goiânia', uf: 'GO' },
+  ],
+  af_deslocamento_faixa1_km: 200,
+  af_deslocamento_faixa1_rs: 150,
+  af_deslocamento_faixa2_km: 320,
+  af_deslocamento_faixa2_rs: 250,
+  af_deslocamento_km_excedente_rs: 0.8,
 }
 
 export const normalizeVendasConfig = (
@@ -185,6 +208,25 @@ export const normalizeVendasConfig = (
       })
       .filter((item): item is ProjetoFaixa => Boolean(item))
     return result.length > 0 ? result : DEFAULT_VENDAS_CONFIG.af_projeto_faixas
+  }
+
+  const sanitizeRegioesIsentas = (regioes: unknown): ExemptRegion[] => {
+    if (!Array.isArray(regioes)) {
+      return DEFAULT_VENDAS_CONFIG.af_deslocamento_regioes_isentas
+    }
+    const result = regioes
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null
+        const cidade = (item as Record<string, unknown>).cidade
+        const uf = (item as Record<string, unknown>).uf
+        if (typeof cidade !== 'string' || typeof uf !== 'string') return null
+        const cidadeTrim = cidade.trim()
+        const ufTrim = uf.trim().toUpperCase()
+        if (!cidadeTrim || ufTrim.length !== 2) return null
+        return { cidade: cidadeTrim, uf: ufTrim }
+      })
+      .filter((item): item is ExemptRegion => Boolean(item))
+    return result
   }
 
   const base = partial ?? {}
@@ -297,5 +339,12 @@ export const normalizeVendasConfig = (
       100,
     ),
     af_seguro_piso_rs: Math.max(0, Number(base.af_seguro_piso_rs ?? DEFAULT_VENDAS_CONFIG.af_seguro_piso_rs) || 0),
+
+    af_deslocamento_regioes_isentas: sanitizeRegioesIsentas(base.af_deslocamento_regioes_isentas),
+    af_deslocamento_faixa1_km: Math.max(0, Number(base.af_deslocamento_faixa1_km ?? DEFAULT_VENDAS_CONFIG.af_deslocamento_faixa1_km) || 0),
+    af_deslocamento_faixa1_rs: Math.max(0, Number(base.af_deslocamento_faixa1_rs ?? DEFAULT_VENDAS_CONFIG.af_deslocamento_faixa1_rs) || 0),
+    af_deslocamento_faixa2_km: Math.max(0, Number(base.af_deslocamento_faixa2_km ?? DEFAULT_VENDAS_CONFIG.af_deslocamento_faixa2_km) || 0),
+    af_deslocamento_faixa2_rs: Math.max(0, Number(base.af_deslocamento_faixa2_rs ?? DEFAULT_VENDAS_CONFIG.af_deslocamento_faixa2_rs) || 0),
+    af_deslocamento_km_excedente_rs: Math.max(0, Number(base.af_deslocamento_km_excedente_rs ?? DEFAULT_VENDAS_CONFIG.af_deslocamento_km_excedente_rs) || 0),
   }
 }

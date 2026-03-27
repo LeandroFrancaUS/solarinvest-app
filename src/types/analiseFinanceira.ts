@@ -39,6 +39,10 @@ export interface AnaliseFinanceiraInput {
   descarregamento_rs: number
   instalacao_rs: number
   hotel_pousada_rs: number
+  transporte_combustivel_rs: number
+  outros_rs: number
+  /** Pre-computed installer displacement cost (0 = exempt region or not set). */
+  deslocamento_instaladores_rs: number
   /** When provided, overrides the auto-calculated placa cost (default: quantidade_modulos × PRECO_PLACA_RS). */
   placa_rs_override?: number
   /** When provided, overrides the auto-calculated material CA cost (default: custo_kit_rs × MATERIAL_CA_PERCENT_DO_KIT / 100). */
@@ -75,6 +79,7 @@ export interface AnaliseFinanceiraOutput {
   crea_rs: number
   placa_rs: number
   combustivel_rs: number
+  deslocamento_instaladores_rs: number
 
   // Venda
   custo_variavel_total_rs?: number

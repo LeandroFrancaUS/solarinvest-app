@@ -249,7 +249,10 @@ function calcularCustoVariavelTotal(
     custosTecnicos.crea_rs +
     custosTecnicos.placa_rs +
     custosTecnicos.combustivel_rs +
-    input.hotel_pousada_rs
+    input.hotel_pousada_rs +
+    input.transporte_combustivel_rs +
+    input.outros_rs +
+    input.deslocamento_instaladores_rs
   )
 }
 
@@ -470,6 +473,7 @@ export function calcularAnaliseFinanceira(
       potencia_sistema_kwp,
       quantidade_modulos,
       ...custosTecnicos,
+      deslocamento_instaladores_rs: input.deslocamento_instaladores_rs,
       ...vendaResult,
       ...kpis,
     }
@@ -493,6 +497,7 @@ export function calcularAnaliseFinanceira(
     potencia_sistema_kwp,
     quantidade_modulos,
     ...custosTecnicos,
+    deslocamento_instaladores_rs: input.deslocamento_instaladores_rs,
     // Include venda fields too (useful for display)
     custo_variavel_total_rs,
     comissao_percent: vendaResult.comissao_percent,

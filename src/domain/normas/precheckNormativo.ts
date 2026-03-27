@@ -1,8 +1,8 @@
-import { TipoRede } from '../../shared/rede'
+import type { TipoRede } from '../../shared/rede'
 import {
   evaluateNormCompliance,
   normalizeTipoLigacaoNorma,
-  NormComplianceResult,
+  type NormComplianceResult,
 } from './padraoEntradaRules'
 
 export type PrecheckNormativoStatus = 'OK' | 'AJUSTE_NECESSARIO' | 'IMPEDIMENTO' | 'INDETERMINADO'
