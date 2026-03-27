@@ -33,28 +33,14 @@ export async function saveFormDraft<T>(snapshotData: T): Promise<DraftEnvelope<T
     }
     
     const envelope = await saveDraft(FORM_DRAFT_KEY, snapshotData, DRAFT_VERSION)
-    const hasData = !!envelope.data && Object.keys(envelope.data as object).length > 0
     
     if (__DEV__) {
+      const dataKeys = envelope.data ? Object.keys(envelope.data as object).length : 0
       console.debug('[formDraft] Form snapshot saved:', {
         version: envelope.version,
-        hasData,
-        dataKeys: envelope.data ? Object.keys(envelope.data as object).length : 0,
+        hasData: dataKeys > 0,
+        dataKeys,
       })
-    }
-    
-    // READ-AFTER-WRITE VERIFICATION: Only verify if we saved meaningful data
-    if (hasData) {
-      try {
-        const verification = await loadDraft<T>(FORM_DRAFT_KEY)
-        if (!verification || !verification.data) {
-          console.error('[formDraft] READ-AFTER-WRITE FAILED: Data not found after save!')
-          return envelope
-        }
-        if (__DEV__) console.debug('[formDraft] READ-AFTER-WRITE VERIFICATION SUCCESS')
-      } catch (verifyError) {
-        console.error('[formDraft] READ-AFTER-WRITE verification failed:', verifyError)
-      }
     }
     
     return envelope

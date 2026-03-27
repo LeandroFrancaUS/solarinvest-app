@@ -33,26 +33,25 @@ const sanitizeProxyBase = (base: string): string => {
   return trimmed.replace(/\/+$/, '') || '/'
 }
 
-const getProxyBase = (): string => {
+// Cache env-derived values at module initialization to avoid repeated env lookups
+const _proxyBase = (() => {
   if (typeof import.meta === 'undefined' || typeof import.meta.env === 'undefined') {
     return DEFAULT_PROXY_BASE
   }
-
-  const env = import.meta.env as Record<string, string | undefined>
+  const env = import.meta.env as unknown as Record<string, string | undefined>
   if (Object.prototype.hasOwnProperty.call(env, 'VITE_ANEEL_PROXY_BASE')) {
     return sanitizeProxyBase(trimValue(env.VITE_ANEEL_PROXY_BASE))
   }
-
   return DEFAULT_PROXY_BASE
-}
+})()
 
-const getDirectOrigin = (): string => {
+const _directOrigin = (() => {
   if (typeof import.meta === 'undefined' || typeof import.meta.env === 'undefined') {
     return DEFAULT_ANEEL_ORIGIN
   }
   const customOrigin = sanitizeOrigin(trimValue(import.meta.env.VITE_ANEEL_DIRECT_ORIGIN) || DEFAULT_ANEEL_ORIGIN)
   return customOrigin || DEFAULT_ANEEL_ORIGIN
-}
+})()
 
 export const resolveAneelUrl = (pathOrUrl: string): string => {
   const input = typeof pathOrUrl === 'string' ? pathOrUrl.trim() : ''
@@ -60,7 +59,7 @@ export const resolveAneelUrl = (pathOrUrl: string): string => {
     return input
   }
 
-  const origin = getDirectOrigin()
+  const origin = _directOrigin
   let parsed: URL
   try {
     parsed = new URL(input, origin)
@@ -69,7 +68,7 @@ export const resolveAneelUrl = (pathOrUrl: string): string => {
     return input
   }
 
-  const proxyBase = getProxyBase()
+  const proxyBase = _proxyBase
   if (proxyBase) {
     const upstreamPath = `${parsed.pathname}${parsed.search}${parsed.hash}`
     const encodedPath = encodeURIComponent(upstreamPath)
@@ -89,9 +88,8 @@ export const resolveAneelUrl = (pathOrUrl: string): string => {
 }
 
 export const getAneelRequestOrigin = (): string => {
-  const proxyBase = getProxyBase()
-  if (proxyBase) {
-    return resolveApiUrl(proxyBase)
+  if (_proxyBase) {
+    return resolveApiUrl(_proxyBase)
   }
-  return getDirectOrigin()
+  return _directOrigin
 }

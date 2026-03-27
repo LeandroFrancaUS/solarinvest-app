@@ -14282,13 +14282,8 @@ export default function App() {
       return false
     }
     const snapshotClonado = cloneSnapshotData(snapshotAtual)
-    console.log(
-      '[ClienteSave] Capturing FULL proposal snapshot with',
-      Object.keys(snapshotClonado).length,
-      'fields',
-    )
     if (import.meta.env.DEV) {
-      console.debug('[ClienteSave] Sample fields:', {
+      console.debug('[ClienteSave] Capturing FULL proposal snapshot with', Object.keys(snapshotClonado).length, 'fields', {
         kcKwhMes: snapshotClonado.kcKwhMes,
         tarifaCheia: snapshotClonado.tarifaCheia,
         totalFields: Object.keys(snapshotClonado).length,

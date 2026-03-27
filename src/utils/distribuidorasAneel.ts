@@ -168,7 +168,7 @@ export async function loadDistribuidorasAneel(): Promise<DistribuidorasAneel> {
 
   cachePromise = (async () => {
     try {
-      const response = await fetch(resolveAneelUrl(CSV_PATH), { cache: 'no-store' })
+      const response = await fetch(resolveAneelUrl(CSV_PATH), { cache: 'default' })
       if (!response.ok) {
         throw new Error(`Falha ${response.status}`)
       }
