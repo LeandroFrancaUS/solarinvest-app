@@ -69,14 +69,21 @@ export function calcSeguroLeasing(valorContrato: number): number {
   return Math.max(SEGURO_PISO_RS, valorContrato * (SEGURO_FAIXA_ALTA_PERCENT / 100))
 }
 
-export function calcComissaoDinamica(margemSemComissao: number): number {
-  if (margemSemComissao < 0.2) {
+export function calcComissaoDinamica(
+  margemSemComissao: number,
+  limiarMinimo = 0.2,
+  limiarAlvo = 0.3,
+): number {
+  if (margemSemComissao < limiarMinimo) {
     return 0
   }
-  if (margemSemComissao <= 0.3) {
-    return 0.03 + ((margemSemComissao - 0.2) / 0.1) * (0.05 - 0.03)
+  if (margemSemComissao <= limiarAlvo) {
+    const range = limiarAlvo - limiarMinimo
+    return range > 0
+      ? 0.03 + ((margemSemComissao - limiarMinimo) / range) * (0.05 - 0.03)
+      : 0.03
   }
-  return Math.min(0.1, 0.05 + (margemSemComissao - 0.3) * 0.3)
+  return Math.min(0.1, 0.05 + (margemSemComissao - limiarAlvo) * 0.3)
 }
 
 /**
@@ -252,6 +259,23 @@ function calcularAnaliseVenda(
 ): Partial<AnaliseFinanceiraOutput> {
   const { valor_contrato_rs } = input
 
+  // Use margem_liquida_minima_percent (UI-configurable) when provided; fall back to lucro_minimo_percent
+  const margemMinima = input.margem_liquida_minima_percent != null && Number.isFinite(input.margem_liquida_minima_percent)
+    ? input.margem_liquida_minima_percent
+    : input.lucro_minimo_percent
+  const margemMinFrac = toDecimalPercent(margemMinima)
+  const margemAlvo = input.margem_liquida_alvo_percent != null && Number.isFinite(input.margem_liquida_alvo_percent) && input.margem_liquida_alvo_percent > 0
+    ? input.margem_liquida_alvo_percent
+    : margemMinima
+  const margemAlvoFrac = toDecimalPercent(margemAlvo)
+
+  // Commission thresholds derived from configurable margins:
+  //   limiarMinimo = margemMinima + comissao_minima  (e.g. 15% + 3% = 18%)
+  //   limiarAlvo   = margemAlvo   + 5% (target commission)  (e.g. 25% + 5% = 30%)
+  const COMISSAO_ALVO_FRAC = 0.05 // 5% commission targeted at the alvo margin point
+  const limiarMinimo = margemMinFrac + toDecimalPercent(input.comissao_minima_percent)
+  const limiarAlvo = margemAlvoFrac + COMISSAO_ALVO_FRAC
+
   const impostos_rs = valor_contrato_rs * toDecimalPercent(input.impostos_percent)
   const custo_fixo_rateado_rs =
     valor_contrato_rs * toDecimalPercent(input.custo_fixo_rateado_percent)
@@ -262,7 +286,7 @@ function calcularAnaliseVenda(
   const margem_liquida_sem_comissao =
     valor_contrato_rs > 0 ? lucro_liquido_sem_comissao_rs / valor_contrato_rs : 0
 
-  const comissao_fracao = calcComissaoDinamica(margem_liquida_sem_comissao)
+  const comissao_fracao = calcComissaoDinamica(margem_liquida_sem_comissao, limiarMinimo, limiarAlvo)
   const comissao_percent = comissao_fracao * 100
   const comissao_rs = valor_contrato_rs * comissao_fracao
 
@@ -274,18 +298,15 @@ function calcularAnaliseVenda(
     valor_contrato_rs > 0 ? lucro_liquido_final_rs / valor_contrato_rs : 0
 
   let status_venda: StatusVenda
-  if (margem_liquida_final < 0.15) {
+  if (margem_liquida_sem_comissao < margemMinFrac) {
     status_venda = 'BLOQUEAR_VENDA'
-  } else if (margem_liquida_final < 0.2) {
-    status_venda = 'SEM_COMISSAO'
-  } else {
+  } else if (margem_liquida_final >= margemAlvoFrac) {
     status_venda = 'VENDA_SAUDAVEL'
+  } else if (margem_liquida_final >= margemMinFrac && comissao_fracao > 0) {
+    status_venda = 'COMISSAO_MINIMA'
+  } else {
+    status_venda = 'SEM_COMISSAO'
   }
-
-  // Use margem_liquida_minima_percent (UI-configurable) when provided; fall back to lucro_minimo_percent
-  const margemMinima = input.margem_liquida_minima_percent != null && Number.isFinite(input.margem_liquida_minima_percent)
-    ? input.margem_liquida_minima_percent
-    : input.lucro_minimo_percent
 
   // Preço Mín. Aceitável: covers margin but leaves NO room for commission
   const denAceitavel =

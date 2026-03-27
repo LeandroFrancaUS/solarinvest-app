@@ -24728,6 +24728,7 @@ export default function App() {
                       type="number"
                       value={afConsumoOverride}
                       min={0}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => {
                         const consumo = Number(e.target.value) || 0
                         setAfConsumoOverride(consumo)
@@ -24754,6 +24755,7 @@ export default function App() {
                       type="number"
                       min={0}
                       value={afNumModulosOverride ?? 0}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => {
                         const n = Math.round(Number(e.target.value) || 0)
                         if (n > 0) {
@@ -24784,6 +24786,7 @@ export default function App() {
                           ? ((afNumModulosOverride * (afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo)) / 1000).toFixed(2)
                           : '0'
                       }
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => {
                         const kwp = Number(e.target.value) || 0
                         const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
@@ -24810,6 +24813,7 @@ export default function App() {
                       step="0.01"
                       value={afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao}
                       min={0}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => setAfIrradiacaoOverride(Number(e.target.value) || 0)}
                     />
                   </Field>
@@ -24820,6 +24824,7 @@ export default function App() {
                       value={afPROverride > 0 ? afPROverride : eficienciaNormalizada}
                       min={0}
                       max={1}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => setAfPROverride(Number(e.target.value) || 0)}
                     />
                   </Field>
@@ -24828,6 +24833,7 @@ export default function App() {
                       type="number"
                       value={afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo}
                       min={1}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => {
                         const wp = Number(e.target.value) || 0
                         setAfModuloWpOverride(wp)
@@ -25089,15 +25095,19 @@ export default function App() {
                             <div className="price-band-row">
                               {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
                                 <span className="pill pill--error">
-                                  🚫 BLOQUEAR VENDA
+                                  🚫 VENDA NÃO APROVADA
                                 </span>
                               ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
                                 <span className="pill pill--warning">
                                   ⚠️ SEM COMISSÃO
                                 </span>
+                              ) : analiseFinanceiraResult.status_venda === 'COMISSAO_MINIMA' ? (
+                                <span className="pill pill--info">
+                                  💼 COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%
+                                </span>
                               ) : (
                                 <span className="pill pill--success">
-                                  ✅ VENDA SAUDÁVEL
+                                  ✅ VENDA SAUDÁVEL — COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%
                                 </span>
                               )}
                             </div>
