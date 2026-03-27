@@ -28,7 +28,10 @@ const loadReajusteCache = (): void => {
     if (!raw) return
     const parsed = JSON.parse(raw) as { expiresAt?: number; values?: Record<string, number> }
     if (!parsed?.values || typeof parsed.expiresAt !== 'number') return
-    if (Date.now() > parsed.expiresAt) return
+    if (Date.now() > parsed.expiresAt) {
+      try { window.localStorage.removeItem(REAJUSTE_CACHE_KEY) } catch { /* noop */ }
+      return
+    }
     for (const [key, value] of Object.entries(parsed.values)) {
       if (typeof value === 'number' && value >= 1 && value <= 12) {
         sessionCache.set(key, value)
