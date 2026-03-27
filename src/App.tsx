@@ -4438,6 +4438,7 @@ export default function App() {
   const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
   const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
+  const [afComissaoMinimaPercent, setAfComissaoMinimaPercent] = useState(5)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
   const [afConsumoOverride, setAfConsumoOverride] = useState(0)
   const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
@@ -9908,7 +9909,7 @@ export default function App() {
         impostos_percent: afImpostos,
         custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
         lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
-        comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
+        comissao_minima_percent: afComissaoMinimaPercent,
         margem_liquida_alvo_percent: margemAlvo,
         margem_liquida_minima_percent: afMargemLiquidaMinima,
         inadimplencia_percent: afInadimplencia,
@@ -9964,6 +9965,7 @@ export default function App() {
     afModo,
     afValorContrato,
     afImpostos,
+    afComissaoMinimaPercent,
     afMargemLiquidaVenda,
     afMargemLiquidaLeasing,
     afMargemLiquidaMinima,
@@ -9976,7 +9978,6 @@ export default function App() {
     afMensalidadeBaseAuto,
     potenciaModulo,
     ufTarifa,
-    vendasConfig.af_comissao_minima_percent,
     vendasConfig.af_custo_fixo_rateado_percent,
     vendasConfig.af_lucro_minimo_percent,
   ])
@@ -25133,6 +25134,16 @@ export default function App() {
                       onFocus={selectNumberInputOnFocus}
                     />
                   </Field>
+                  <Field label="Comissão mínima (%)">
+                    <input
+                      type="number"
+                      value={afComissaoMinimaPercent}
+                      min={0}
+                      max={99}
+                      onChange={(e) => setAfComissaoMinimaPercent(Number(e.target.value) || 0)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
                   {afModo === 'leasing' ? (
                     <>
                       <Field label="Inadimplência (%)">
@@ -25190,7 +25201,7 @@ export default function App() {
                   </div>
                 ) : null}
                 <p className="simulacoes-description" style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
-                  Parâmetros fixos (custo fixo rateado {vendasConfig.af_custo_fixo_rateado_percent}%, lucro mínimo {vendasConfig.af_lucro_minimo_percent}%, comissão mínima {vendasConfig.af_comissao_minima_percent}%) configurados em Preferências → Parâmetros de Vendas.
+                  Parâmetros fixos (custo fixo rateado {vendasConfig.af_custo_fixo_rateado_percent}%, lucro mínimo {vendasConfig.af_lucro_minimo_percent}%). Comissão mínima ajustável nesta tela (padrão 5%).
                 </p>
               </div>
 
@@ -25209,11 +25220,11 @@ export default function App() {
                             <span className="pill">Impostos <InfoTooltip text="Valor estimado de impostos sobre o faturamento, calculado com base na alíquota configurada." /> <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
                             <span className="pill">Lucro s/ comissão <InfoTooltip text="Lucro líquido antes de descontar a comissão do vendedor. Resultado da margem bruta menos impostos e custos fixos." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
                             <span className="pill">Margem s/ comissão <InfoTooltip text="Percentual de margem líquida sobre o valor do contrato, antes de considerar a comissão do vendedor." /> <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
-                            <span className="pill">Comissão <InfoTooltip text="Comissão do vendedor calculada sobre o valor do contrato, conforme percentual configurado nas configurações de vendas." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
+                            <span className="pill">Comissão <InfoTooltip text={`Comissão mínima aplicada sobre o valor do contrato (${afComissaoMinimaPercent}%) quando a margem sem comissão atende o mínimo. Caso contrário, comissão zerada.`} /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
                             <span className="pill">Custo total real <InfoTooltip text="Custo total efetivo do projeto incluindo custos variáveis, impostos, custos fixos rateados e comissão do vendedor." /> <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
                             <span className="pill">Lucro líquido final <InfoTooltip text="Lucro efetivo após deduzir todos os custos (variáveis, impostos, fixos e comissão) do valor do contrato." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
                             <span className="pill">Margem líquida final <InfoTooltip text="Percentual de lucro líquido sobre o valor do contrato, após todos os custos incluindo comissão. Indica a rentabilidade real do projeto." /> <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
-                            <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto que pode ser concedido sobre o valor do contrato sem que a margem líquida caia abaixo do mínimo configurado." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
+                            <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto sem ficar abaixo do Preço Mín. Saudável (ou seja, preservando margem líquida mínima já com comissão mínima)." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
                           </>
                         ) : null}
                       </div>
@@ -25228,12 +25239,12 @@ export default function App() {
                             ) : null}
                             {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
                               <span className="pill pill--success pill--price">
-                                Preço Mín. Saudável <InfoTooltip text={`Preço mínimo que garante a margem líquida mínima de ${afMargemLiquidaMinima}% e ainda cobre a comissão mínima do vendedor (${vendasConfig.af_comissao_minima_percent}%). Abaixo deste valor não há comissão.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
+                                Preço Mín. Saudável <InfoTooltip text={`Preço mínimo que garante a margem líquida mínima de ${afMargemLiquidaMinima}% já com comissão mínima de ${afComissaoMinimaPercent}% aplicada.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
                               </span>
                             ) : null}
                             {analiseFinanceiraResult.preco_ideal_rs != null ? (
                               <span className="pill pill--info pill--price">
-                                Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}%, com comissão integral do vendedor incluída.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
+                                Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}% já após comissão mínima de ${afComissaoMinimaPercent}%.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
                               </span>
                             ) : null}
                           </div>

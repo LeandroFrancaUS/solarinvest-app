@@ -271,6 +271,26 @@ describe('status_venda', () => {
       expect(result.status_venda).toBe('SEM_COMISSAO')
     }
   })
+
+  it('applies exactly comissao_minima_percent when margem sem comissão atende mínimo', () => {
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      comissao_minima_percent: 5,
+      valor_contrato_rs: 40000,
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.comissao_percent).toBeCloseTo(5, 6)
+  })
+
+  it('sets commission to zero when margem sem comissão fica abaixo do mínimo', () => {
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      comissao_minima_percent: 5,
+      valor_contrato_rs: 20000,
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.comissao_percent).toBeCloseTo(0, 6)
+  })
 })
 
 // ─── ROI / Payback / TIR ─────────────────────────────────────────────────────
@@ -349,62 +369,40 @@ describe('input validation', () => {
 // ─── calcPrecoIdeal ──────────────────────────────────────────────────────────
 
 describe('calcPrecoIdeal', () => {
-  // Standard params: impostos=8%, custoFixo=5% → a = 0.87
+  // Standard params: impostos=8%, custoFixo=5%, comissão=5%
   const CV = 20000
   const IMP = 8
   const CFR = 5
+  const COM = 5
 
-  it('Zone 1 (m < 17%): returns CV/(a-m), no commission', () => {
+  it('returns CV/(1 - impostos - custoFixo - margemAlvo - comissão)', () => {
     const m = 10
-    const p = calcPrecoIdeal(CV, IMP, CFR, m)
-    // a=0.87, m=0.10 → P = 20000/0.77 ≈ 25974
-    expect(p).toBeCloseTo(CV / (0.87 - 0.1), 4)
-    // Verify actual margin: MSC = 0.87 - CV/P = 0.10, ComissaoPct=0, MargemFinal=0.10
-    const msc = 0.87 - CV / p
-    const comm = msc < 0.2 ? 0 : 0
-    const lucroFinal = p * (1 - IMP / 100 - CFR / 100) - CV - p * comm
+    const p = calcPrecoIdeal(CV, IMP, CFR, m, COM)
+    expect(p).toBeCloseTo(CV / (1 - 0.08 - 0.05 - 0.1 - 0.05), 4)
+    const lucroFinal = p * (1 - IMP / 100 - CFR / 100 - COM / 100) - CV
     expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
   })
 
-  it('Zone 2 (17–25%): achieves exact target margin after commission', () => {
+  it('achieves exact target margin after comissão mínima (22%)', () => {
     const m = 22
-    const p = calcPrecoIdeal(CV, IMP, CFR, m)
-    // Verify the resulting margin is exactly 22%
-    const a = 1 - IMP / 100 - CFR / 100
-    const msc = a - CV / p
-    const commFrac = 0.03 + ((msc - 0.2) / 0.1) * 0.02
-    const lucroSemCom = p * (1 - IMP / 100 - CFR / 100) - CV
-    const lucroFinal = lucroSemCom - p * commFrac
+    const p = calcPrecoIdeal(CV, IMP, CFR, m, COM)
+    const lucroFinal = p * (1 - IMP / 100 - CFR / 100 - COM / 100) - CV
     expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
   })
 
-  it('Zone 2 default venda (25%): achieves exact 25% margin', () => {
+  it('achieves exact 25% margin after comissão mínima', () => {
     const m = 25
-    const p = calcPrecoIdeal(CV, IMP, CFR, m)
+    const p = calcPrecoIdeal(CV, IMP, CFR, m, COM)
     expect(p).toBeGreaterThan(0)
-    // The final margin should be 25%
-    const a = 1 - IMP / 100 - CFR / 100
-    const msc = a - CV / p
-    let commFrac: number
-    if (msc <= 0.3) {
-      commFrac = 0.03 + ((msc - 0.2) / 0.1) * 0.02
-    } else {
-      commFrac = Math.min(0.1, 0.05 + (msc - 0.3) * 0.3)
-    }
-    const lucroSemCom = p * a - CV
-    const lucroFinal = lucroSemCom - p * commFrac
+    const lucroFinal = p * (1 - IMP / 100 - CFR / 100 - COM / 100) - CV
     expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
   })
 
-  it('Zone 3 (30%): achieves exact 30% margin after commission', () => {
+  it('achieves exact 30% margin after comissão mínima', () => {
     const m = 30
-    const p = calcPrecoIdeal(CV, IMP, CFR, m)
+    const p = calcPrecoIdeal(CV, IMP, CFR, m, COM)
     expect(p).toBeGreaterThan(0)
-    const a = 1 - IMP / 100 - CFR / 100
-    const msc = a - CV / p
-    const commFrac = Math.min(0.1, 0.05 + (msc - 0.3) * 0.3)
-    const lucroSemCom = p * a - CV
-    const lucroFinal = lucroSemCom - p * commFrac
+    const lucroFinal = p * (1 - IMP / 100 - CFR / 100 - COM / 100) - CV
     expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
   })
 
@@ -425,7 +423,7 @@ describe('calcPrecoIdeal', () => {
 
   it('throws DENOMINADOR_PRECO_MINIMO_INVALIDO when impossible target', () => {
     // m so high that denominator goes ≤ 0
-    expect(() => calcPrecoIdeal(CV, IMP, CFR, 95)).toThrow(AnaliseFinanceiraError)
+    expect(() => calcPrecoIdeal(CV, IMP, CFR, 95, COM)).toThrow(AnaliseFinanceiraError)
   })
 })
 
