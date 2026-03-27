@@ -11,6 +11,42 @@ try {
   // via the module import and via Vite's built-in process shim.
 }
 
+// Intercept uncaught TypeErrors from crypto-wallet browser-extension inject scripts
+// (e.g. Yoroi setting window.cardano after MetaMask's SES lockdown has frozen the
+// global object).  React 18's concurrent scheduler attaches its own window 'error'
+// listener; if an extension script throws an uncaught error while React is active,
+// React can incorrectly surface it through the error boundary ("Falhou ao renderizar").
+// We register this handler in the capture phase — before React attaches its own
+// listener inside ReactDOM.createRoot().render() — so we intercept first and call
+// stopImmediatePropagation() to keep the error confined to the extension context.
+try {
+  if (typeof window !== "undefined") {
+    window.addEventListener(
+      "error",
+      (event) => {
+        const src = event.filename ?? ""
+        const msg = event.message ?? ""
+        const fromExtension =
+          src.includes("inject") ||
+          src.includes("inpage") ||
+          src.includes("chrome-extension://") ||
+          src.includes("moz-extension://")
+        const isReadOnlyAssignment =
+          msg.includes("read only") || msg.includes("Cannot assign")
+        if (fromExtension && isReadOnlyAssignment) {
+          // Prevent this extension error from reaching React's global error listener.
+          // Do NOT call event.preventDefault() so the browser still logs it to the
+          // console (useful for debugging extension conflicts).
+          event.stopImmediatePropagation()
+        }
+      },
+      true, // capture phase — runs before React's bubble-phase listener
+    )
+  }
+} catch (_listenerErr) {
+  // Ignored: SES lockdown or restricted environment prevented listener registration.
+}
+
 import React from "react"
 import ReactDOM from "react-dom/client"
 import App from "./App"
