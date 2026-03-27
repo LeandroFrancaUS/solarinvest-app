@@ -71,6 +71,8 @@ const buildFallback = () => {
 }
 
 const fallbackResultado = buildFallback()
+const DISTRIBUIDORAS_CACHE_KEY = 'aneel:distribuidoras:v1'
+const DISTRIBUIDORAS_CACHE_TTL_MS = 1000 * 60 * 60 * 24
 
 export interface DistribuidorasAneel {
   ufs: string[]
@@ -79,6 +81,36 @@ export interface DistribuidorasAneel {
 
 let cachePromise: Promise<DistribuidorasAneel> | null = null
 let resolvedCache: DistribuidorasAneel | null = null
+let fallbackWarned = false
+
+const loadCachedDistribuidoras = (): DistribuidorasAneel | null => {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(DISTRIBUIDORAS_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { expiresAt?: number; data?: DistribuidorasAneel }
+    if (!parsed?.data || typeof parsed.expiresAt !== 'number') return null
+    if (Date.now() > parsed.expiresAt) return null
+    return parsed.data
+  } catch {
+    return null
+  }
+}
+
+const persistCachedDistribuidoras = (data: DistribuidorasAneel): void => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(
+      DISTRIBUIDORAS_CACHE_KEY,
+      JSON.stringify({
+        expiresAt: Date.now() + DISTRIBUIDORAS_CACHE_TTL_MS,
+        data,
+      }),
+    )
+  } catch {
+    // noop
+  }
+}
 
 export function getDistribuidorasFallback(): DistribuidorasAneel {
   return fallbackResultado
@@ -120,6 +152,12 @@ const mergeWithFallback = (map: Map<string, Map<string, string>>): Distribuidora
 }
 
 export async function loadDistribuidorasAneel(): Promise<DistribuidorasAneel> {
+  const cached = loadCachedDistribuidoras()
+  if (cached) {
+    resolvedCache = cached
+    return cached
+  }
+
   if (resolvedCache) {
     return resolvedCache
   }
@@ -141,8 +179,9 @@ export async function loadDistribuidorasAneel(): Promise<DistribuidorasAneel> {
         return fallbackResultado
       }
 
-      const delimiter = linhas[0].includes(';') ? ';' : ','
-      const cabecalho = parseCsvLine(linhas[0], delimiter)
+      const primeiraLinha = linhas[0] ?? ''
+      const delimiter = primeiraLinha.includes(';') ? ';' : ','
+      const cabecalho = parseCsvLine(primeiraLinha, delimiter)
 
       const idxUf = cabecalho.findIndex((cell) => ['UF', 'SIGLA_UF'].includes(norm(cell)))
       const idxDistribuidora = cabecalho.findIndex((cell) =>
@@ -156,7 +195,9 @@ export async function loadDistribuidorasAneel(): Promise<DistribuidorasAneel> {
       const mapa = new Map<string, Map<string, string>>()
 
       for (let i = 1; i < linhas.length; i += 1) {
-        const partes = parseCsvLine(linhas[i], delimiter)
+        const linhaAtual = linhas[i]
+        if (!linhaAtual) continue
+        const partes = parseCsvLine(linhaAtual, delimiter)
         if (partes.length <= Math.max(idxUf, idxDistribuidora)) continue
 
         const ufBruto = partes[idxUf]
@@ -181,9 +222,13 @@ export async function loadDistribuidorasAneel(): Promise<DistribuidorasAneel> {
 
       const resultado = mergeWithFallback(mapa)
       resolvedCache = resultado
+      persistCachedDistribuidoras(resultado)
       return resultado
     } catch (error) {
-      console.warn('[ANEEL] Falha ao carregar lista de distribuidoras, usando fallback local.', error)
+      if (!fallbackWarned) {
+        fallbackWarned = true
+        console.warn('[ANEEL] Falha ao carregar lista de distribuidoras, usando fallback local.', error)
+      }
       resolvedCache = fallbackResultado
       return fallbackResultado
     }

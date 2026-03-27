@@ -2,6 +2,7 @@
 // Centralized logout orchestrator — browser-safe, Safari-hardened.
 
 import { clearAllClientData } from '../persist/clearOnLogout'
+import { perfLog, perfMeasure, perfNow } from '../../utils/perf'
 
 type SignOutFn = () => Promise<unknown>
 
@@ -83,27 +84,38 @@ async function callServerLogout(): Promise<void> {
 }
 
 async function runLogout(signOut?: SignOutFn): Promise<void> {
-  logDev('[LOGOUT][CLICK]')
+  const logoutStart = perfNow()
+  perfLog('LOGOUT', 'START')
 
   try {
-    await callServerLogout()
+    logDev('[LOGOUT][LOCAL_CLEAR_START]')
+    const clearStart = perfNow()
+    const clearResult = await withTimeout(clearAllClientData(), LOCAL_CLEAR_TIMEOUT_MS)
+    logDev(clearResult === null ? '[LOGOUT][LOCAL_CLEAR_TIMEOUT]' : '[LOGOUT][LOCAL_CLEAR_DONE]')
+    perfMeasure('LOGOUT', 'LOCAL_CLEAR_DONE', clearStart, {
+      timedOut: clearResult === null,
+    })
+
+    const remoteTasks: Array<Promise<unknown>> = [callServerLogout()]
 
     if (signOut) {
       logDev('[LOGOUT][STACK_START]')
-      const signOutResult = await withTimeout(
+      const signOutTask = withTimeout(
         signOut().catch((error) => {
           logDev('[LOGOUT][STACK_FAIL]', error)
         }),
         STACK_SIGNOUT_TIMEOUT_MS,
-      )
-      logDev(signOutResult === null ? '[LOGOUT][STACK_FAIL]' : '[LOGOUT][STACK_OK]')
+      ).then((signOutResult) => {
+        logDev(signOutResult === null ? '[LOGOUT][STACK_FAIL]' : '[LOGOUT][STACK_OK]')
+        return signOutResult
+      })
+      remoteTasks.push(signOutTask)
     }
 
-    logDev('[LOGOUT][LOCAL_CLEAR_START]')
-    const clearResult = await withTimeout(clearAllClientData(), LOCAL_CLEAR_TIMEOUT_MS)
-    logDev(clearResult === null ? '[LOGOUT][LOCAL_CLEAR_TIMEOUT]' : '[LOGOUT][LOCAL_CLEAR_DONE]')
+    await Promise.allSettled(remoteTasks)
   } finally {
     clearStackAuthCookies()
+    perfMeasure('LOGOUT', 'DONE', logoutStart)
     logDev('[LOGOUT][REDIRECT] /')
     window.location.assign('/')
   }
