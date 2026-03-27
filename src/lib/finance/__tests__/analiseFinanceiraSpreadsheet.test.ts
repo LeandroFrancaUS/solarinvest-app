@@ -508,10 +508,10 @@ describe('calcularAnaliseFinanceira venda integration', () => {
     expect(result.status_venda).toBeDefined()
   })
 
-  it('DF uses correct combustivel and crea', () => {
+  it('DF uses correct crea (combustivel no longer added to costs)', () => {
     const input: AnaliseFinanceiraInput = { ...baseInput, uf: 'DF' }
     const result = calcularAnaliseFinanceira(input)
-    expect(result.combustivel_rs).toBe(250)
+    expect(result.combustivel_rs).toBe(0)
     expect(result.crea_rs).toBe(CREA_DF_RS)
   })
 })

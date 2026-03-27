@@ -136,7 +136,7 @@ import {
 import { lookupCep } from './shared/cepLookup'
 import { isExemptRegion, calculateInstallerTravelCost } from './lib/finance/travelCost'
 import { calcRoundTripKm, BASE_CITY_NAME } from './shared/geocoding'
-import { searchCidades, type CidadeDB } from './data/cidades'
+import { searchCidades, type CidadeDB, MIN_CITY_SEARCH_LENGTH } from './data/cidades'
 import {
   getAutoEligibility,
   normalizeInstallType,
@@ -4455,6 +4455,7 @@ export default function App() {
   const [afCidadeSuggestions, setAfCidadeSuggestions] = useState<CidadeDB[]>([])
   const [afCidadeShowSuggestions, setAfCidadeShowSuggestions] = useState(false)
   const afBaseInitializedRef = useRef(false)
+  const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
   const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => setAfCustoKit(v ?? 0) })
   const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
@@ -4466,8 +4467,8 @@ export default function App() {
   const afOutrosField = useBRNumberField({ mode: 'money', value: afOutros, onChange: (v) => setAfOutros(v ?? 0) })
   const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
   const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? (afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100), onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
-  const afProjetoField = useBRNumberField({ mode: 'money', value: afProjetoOverride ?? 0, onChange: (v) => setAfProjetoOverride(v != null && v >= 0 ? v : null) })
-  const afCreaField = useBRNumberField({ mode: 'money', value: afCreaOverride ?? 0, onChange: (v) => setAfCreaOverride(v != null && v >= 0 ? v : null) })
+  const afProjetoField = useBRNumberField({ mode: 'money', value: afProjetoOverride, onChange: (v) => setAfProjetoOverride(v != null && v >= 0 ? v : null) })
+  const afCreaField = useBRNumberField({ mode: 'money', value: afCreaOverride, onChange: (v) => setAfCreaOverride(v != null && v >= 0 ? v : null) })
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
@@ -4490,7 +4491,7 @@ export default function App() {
   // City autocomplete: update suggestions as user types
   useEffect(() => {
     const trimmed = afCidadeDestino.trim()
-    if (trimmed.length < 2) {
+    if (trimmed.length < MIN_CITY_SEARCH_LENGTH) {
       setAfCidadeSuggestions([])
       return
     }
@@ -4501,7 +4502,8 @@ export default function App() {
     setAfCidadeDestino(`${city.cidade} - ${city.uf}`)
     setAfCidadeSuggestions([])
     setAfCidadeShowSuggestions(false)
-    setAfUfOverride(city.uf as 'GO' | 'DF')
+    // Map to supported calculation UF: DF or GO (default for all other states)
+    setAfUfOverride(city.uf === 'DF' ? 'DF' : 'GO')
     const travelConfig = {
       exemptRegions: vendasConfig.af_deslocamento_regioes_isentas,
       faixa1MaxKm: vendasConfig.af_deslocamento_faixa1_km,
@@ -25080,8 +25082,13 @@ export default function App() {
                             setAfDeslocamentoErro('')
                           }
                         }}
-                        onFocus={() => setAfCidadeShowSuggestions(true)}
-                        onBlur={() => setTimeout(() => setAfCidadeShowSuggestions(false), 150)}
+                        onFocus={() => {
+                          if (afCidadeBlurTimerRef.current) clearTimeout(afCidadeBlurTimerRef.current)
+                          setAfCidadeShowSuggestions(true)
+                        }}
+                        onBlur={() => {
+                          afCidadeBlurTimerRef.current = setTimeout(() => setAfCidadeShowSuggestions(false), 150)
+                        }}
                         placeholder="Ex: Goiânia ou goiania ou Brasilia"
                         autoComplete="off"
                         spellCheck={false}
@@ -25103,9 +25110,9 @@ export default function App() {
                           maxHeight: '220px',
                           overflowY: 'auto',
                         }}>
-                          {afCidadeSuggestions.map((city, idx) => (
+                          {afCidadeSuggestions.map((city) => (
                             <li
-                              key={`${city.cidade}-${city.uf}-${idx}`}
+                              key={`${city.cidade}-${city.uf}`}
                               onMouseDown={() => handleSelectCidade(city)}
                               style={{
                                 padding: '0.4rem 0.75rem',
@@ -25237,24 +25244,24 @@ export default function App() {
                   {afModo === 'venda' && analiseFinanceiraResult.custo_variavel_total_rs != null ? (
                     <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
                       <h4>Resultados</h4>
+                      {afModo === 'venda' ? (
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <Field label="Valor do Contrato (R$)">
+                            <input
+                              ref={afValorContratoField.ref}
+                              type="text"
+                              inputMode="decimal"
+                              value={afValorContratoField.text}
+                              style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
+                              onChange={afValorContratoField.handleChange}
+                              onBlur={afValorContratoField.handleBlur}
+                              onFocus={afValorContratoField.handleFocus}
+                              placeholder={MONEY_INPUT_PLACEHOLDER}
+                            />
+                          </Field>
+                        </div>
+                      ) : null}
                       <div className="info-inline">
-                        {afModo === 'venda' ? (
-                          <div style={{ marginBottom: '0.75rem' }}>
-                            <Field label="Valor do Contrato (R$)">
-                              <input
-                                ref={afValorContratoField.ref}
-                                type="text"
-                                inputMode="decimal"
-                                value={afValorContratoField.text}
-                                style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
-                                onChange={afValorContratoField.handleChange}
-                                onBlur={afValorContratoField.handleBlur}
-                                onFocus={afValorContratoField.handleFocus}
-                                placeholder={MONEY_INPUT_PLACEHOLDER}
-                              />
-                            </Field>
-                          </div>
-                        ) : null}
                         <span className="pill">Custo variável total <InfoTooltip text="Soma de todos os custos diretos do projeto: kit, frete, descarregamento, hospedagem, material CA e mão de obra estimada." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
                         {afValorContrato > 0 ? (
                           <>

@@ -227,11 +227,12 @@ function calcularCustosTecnicos(
   placa_rs: number
   combustivel_rs: number
 } {
-  const custo_projeto_rs = resolveCustoProjetoPorFaixa(potencia_sistema_kwp)
+  const custo_projeto_rs = input.projeto_rs_override != null ? input.projeto_rs_override : resolveCustoProjetoPorFaixa(potencia_sistema_kwp)
   const material_ca_rs = input.material_ca_rs_override != null ? input.material_ca_rs_override : input.custo_kit_rs * (MATERIAL_CA_PERCENT_DO_KIT / 100)
-  const crea_rs = resolveCrea(input.uf)
+  const crea_rs = input.crea_rs_override != null ? input.crea_rs_override : resolveCrea(input.uf)
   const placa_rs = input.placa_rs_override != null ? input.placa_rs_override : quantidade_modulos * PRECO_PLACA_RS
-  const combustivel_rs = resolveCombustivel(input.uf)
+  // combustivel_rs is kept in the output for backward compatibility but no longer added to costs
+  const combustivel_rs = 0
   return { custo_projeto_rs, material_ca_rs, crea_rs, placa_rs, combustivel_rs }
 }
 
@@ -248,7 +249,6 @@ function calcularCustoVariavelTotal(
     custosTecnicos.material_ca_rs +
     custosTecnicos.crea_rs +
     custosTecnicos.placa_rs +
-    custosTecnicos.combustivel_rs +
     input.hotel_pousada_rs +
     input.transporte_combustivel_rs +
     input.outros_rs +
