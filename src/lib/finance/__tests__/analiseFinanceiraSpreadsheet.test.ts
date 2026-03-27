@@ -36,6 +36,7 @@ const baseInput: AnaliseFinanceiraInput = {
   hotel_pousada_rs: 0,
   transporte_combustivel_rs: 0,
   outros_rs: 0,
+  deslocamento_instaladores_rs: 0,
   valor_contrato_rs: 40000,
   impostos_percent: 8,
   custo_fixo_rateado_percent: 5,

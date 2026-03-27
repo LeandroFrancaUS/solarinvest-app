@@ -135,6 +135,8 @@ import {
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
+import { isExemptRegion, calculateInstallerTravelCost } from './lib/finance/travelCost'
+import { resolveDestinationInput, calcRoundTripKm, BASE_CITY_NAME } from './shared/geocoding'
 import {
   getAutoEligibility,
   normalizeInstallType,
@@ -4419,6 +4421,13 @@ export default function App() {
   const [afHotelPousada, setAfHotelPousada] = useState(0)
   const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
   const [afOutros, setAfOutros] = useState(0)
+  // Travel cost auto-calculation state
+  const [afCidadeDestino, setAfCidadeDestino] = useState('')
+  const [afDeslocamentoKm, setAfDeslocamentoKm] = useState(0)
+  const [afDeslocamentoRs, setAfDeslocamentoRs] = useState(0)
+  const [afDeslocamentoStatus, setAfDeslocamentoStatus] = useState<'idle' | 'loading' | 'isenta' | 'ok' | 'error'>('idle')
+  const [afDeslocamentoCidadeLabel, setAfDeslocamentoCidadeLabel] = useState('')
+  const [afDeslocamentoErro, setAfDeslocamentoErro] = useState('')
   const [afValorContrato, setAfValorContrato] = useState(0)
   const [afImpostos, setAfImpostos] = useState(8)
   const [afInadimplencia, setAfInadimplencia] = useState(2)
@@ -4470,6 +4479,67 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulacoesSection])
+  // Geocoding effect: resolve city/UF or CEP to km and travel cost
+  useEffect(() => {
+    const trimmed = afCidadeDestino.trim()
+    if (!trimmed) {
+      setAfDeslocamentoStatus('idle')
+      setAfDeslocamentoKm(0)
+      setAfDeslocamentoRs(0)
+      setAfDeslocamentoCidadeLabel('')
+      setAfDeslocamentoErro('')
+      return
+    }
+    const travelConfig = {
+      exemptRegions: vendasConfig.af_deslocamento_regioes_isentas,
+      faixa1MaxKm: vendasConfig.af_deslocamento_faixa1_km,
+      faixa1Rs: vendasConfig.af_deslocamento_faixa1_rs,
+      faixa2MaxKm: vendasConfig.af_deslocamento_faixa2_km,
+      faixa2Rs: vendasConfig.af_deslocamento_faixa2_rs,
+      kmExcedenteRs: vendasConfig.af_deslocamento_km_excedente_rs,
+    }
+    const controller = new AbortController()
+    let cancelled = false
+    const runGeocode = async () => {
+      if (cancelled) return
+      setAfDeslocamentoStatus('loading')
+      setAfDeslocamentoErro('')
+      try {
+        const result = await resolveDestinationInput(trimmed, controller.signal)
+        if (cancelled) return
+        const label = `${result.cidade}/${result.uf}`
+        if (isExemptRegion(result.cidade, result.uf, travelConfig.exemptRegions)) {
+          setAfDeslocamentoStatus('isenta')
+          setAfDeslocamentoKm(0)
+          setAfDeslocamentoRs(0)
+          setAfDeslocamentoCidadeLabel(label)
+          setAfDeslocamentoErro('')
+        } else {
+          const km = calcRoundTripKm(result.lat, result.lng)
+          const custo = calculateInstallerTravelCost(km, travelConfig)
+          setAfDeslocamentoStatus('ok')
+          setAfDeslocamentoKm(km)
+          setAfDeslocamentoRs(custo)
+          setAfDeslocamentoCidadeLabel(label)
+          setAfDeslocamentoErro('')
+        }
+      } catch (err) {
+        if (cancelled) return
+        setAfDeslocamentoStatus('error')
+        setAfDeslocamentoKm(0)
+        setAfDeslocamentoRs(0)
+        setAfDeslocamentoCidadeLabel('')
+        setAfDeslocamentoErro(err instanceof Error ? err.message : 'Erro ao resolver localização.')
+      }
+    }
+    const timer = setTimeout(() => { void runGeocode() }, 600)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+      controller.abort()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [afCidadeDestino, vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
     if (
@@ -9737,7 +9807,8 @@ export default function App() {
       preCombustivel +
       afHotelPousada +
       afTransporteCombustivel +
-      afOutros
+      afOutros +
+      afDeslocamentoRs
 
     const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
     // Build the projected mensalidades series for leasing mode using an AF-isolated
@@ -9830,6 +9901,7 @@ export default function App() {
         hotel_pousada_rs: afHotelPousada,
         transporte_combustivel_rs: afTransporteCombustivel,
         outros_rs: afOutros,
+        deslocamento_instaladores_rs: afDeslocamentoRs,
         placa_rs_override: prePlaca,
         material_ca_rs_override: preMaterialCA,
         valor_contrato_rs: valorContrato,
@@ -9864,6 +9936,7 @@ export default function App() {
     afHotelPousada,
     afTransporteCombustivel,
     afOutros,
+    afDeslocamentoRs,
     afInadimplencia,
     afMensalidadeBase,
     afMesesProjecao,
@@ -24700,6 +24773,12 @@ export default function App() {
                     setAfHotelPousada(0)
                     setAfTransporteCombustivel(0)
                     setAfOutros(0)
+                    setAfCidadeDestino('')
+                    setAfDeslocamentoKm(0)
+                    setAfDeslocamentoRs(0)
+                    setAfDeslocamentoStatus('idle')
+                    setAfDeslocamentoCidadeLabel('')
+                    setAfDeslocamentoErro('')
                     setAfMaterialCAOverride(null)
                     setAfMensalidadeBase(0)
                     afBaseInitializedRef.current = false
@@ -24992,6 +25071,34 @@ export default function App() {
                       placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
+                  <Field label={labelWithTooltip('Deslocamento instaladores', `Informe a cidade/UF ou CEP do local de instalação. O sistema calcula automaticamente o custo de deslocamento da equipe com base na distância de ${BASE_CITY_NAME}.`)}>
+                    <input
+                      type="text"
+                      value={afCidadeDestino}
+                      onChange={(e) => setAfCidadeDestino(e.target.value)}
+                      placeholder="Ex: Brasília/DF ou 70040-010"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    {afDeslocamentoStatus === 'loading' && (
+                      <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>Consultando…</span>
+                    )}
+                    {afDeslocamentoStatus === 'isenta' && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-success-fg, green)' }}>
+                        ✓ {afDeslocamentoCidadeLabel} — Região isenta (R$0)
+                      </span>
+                    )}
+                    {afDeslocamentoStatus === 'ok' && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-info-fg, #2563eb)' }}>
+                        ✓ {afDeslocamentoCidadeLabel} — {afDeslocamentoKm} km ida+volta → {formatMoneyBR(afDeslocamentoRs)}
+                      </span>
+                    )}
+                    {afDeslocamentoStatus === 'error' && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-error-fg, red)' }}>
+                        ⚠ {afDeslocamentoErro}
+                      </span>
+                    )}
+                  </Field>
                   <Field label="Impostos (%)">
                     <input
                       type="number"
@@ -25077,6 +25184,9 @@ export default function App() {
                     <span className="pill">Projeto <strong>{currency(analiseFinanceiraResult.custo_projeto_rs)}</strong></span>
                     <span className="pill">CREA <strong>{currency(analiseFinanceiraResult.crea_rs)}</strong></span>
                     <span className="pill">Combustível <strong>{currency(analiseFinanceiraResult.combustivel_rs)}</strong></span>
+                    {analiseFinanceiraResult.deslocamento_instaladores_rs > 0 ? (
+                      <span className="pill">Deslocamento instaladores <InfoTooltip text={`Custo estimado de deslocamento da equipe até o local de instalação a partir de ${BASE_CITY_NAME} (${afDeslocamentoKm} km ida+volta).`} /> <strong>{currency(analiseFinanceiraResult.deslocamento_instaladores_rs)}</strong></span>
+                    ) : null}
                   </div>
                 ) : null}
                 <p className="simulacoes-description" style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
