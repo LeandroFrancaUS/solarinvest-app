@@ -4438,6 +4438,7 @@ export default function App() {
   const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
   const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
+  const [afComissaoMinimaPercent, setAfComissaoMinimaPercent] = useState(5)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
   const [afConsumoOverride, setAfConsumoOverride] = useState(0)
   const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
@@ -4529,6 +4530,11 @@ export default function App() {
       setAfDeslocamentoErro('')
     }
   }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
+
+  useEffect(() => {
+    setAfTransporteCombustivel(afDeslocamentoRs)
+  }, [afDeslocamentoRs])
+
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
     if (
@@ -9897,7 +9903,7 @@ export default function App() {
         impostos_percent: afImpostos,
         custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
         lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
-        comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
+        comissao_minima_percent: afComissaoMinimaPercent,
         margem_liquida_alvo_percent: margemAlvo,
         margem_liquida_minima_percent: afMargemLiquidaMinima,
         inadimplencia_percent: afInadimplencia,
@@ -9967,7 +9973,7 @@ export default function App() {
     afMensalidadeBaseAuto,
     potenciaModulo,
     ufTarifa,
-    vendasConfig.af_comissao_minima_percent,
+    afComissaoMinimaPercent,
     vendasConfig.af_custo_fixo_rateado_percent,
     vendasConfig.af_lucro_minimo_percent,
   ])
@@ -25048,84 +25054,9 @@ export default function App() {
                       type="text"
                       inputMode="decimal"
                       value={afTransporteCombustivelField.text}
-                      onChange={afTransporteCombustivelField.handleChange}
-                      onBlur={afTransporteCombustivelField.handleBlur}
-                      onFocus={afTransporteCombustivelField.handleFocus}
+                      readOnly
                       placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
-                  </Field>
-                  <Field label="Outros (R$)">
-                    <input
-                      ref={afOutrosField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afOutrosField.text}
-                      onChange={afOutrosField.handleChange}
-                      onBlur={afOutrosField.handleBlur}
-                      onFocus={afOutrosField.handleFocus}
-                      placeholder={MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label={labelWithTooltip('UF / Cidade', `Digite a cidade para definir a UF e calcular automaticamente o custo de deslocamento da equipe a partir de ${BASE_CITY_NAME}.`)}>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="text"
-                        value={afCidadeDestino}
-                        onChange={(e) => {
-                          setAfCidadeDestino(e.target.value)
-                          setAfCidadeShowSuggestions(true)
-                          if (!e.target.value.trim()) {
-                            setAfDeslocamentoStatus('idle')
-                            setAfDeslocamentoKm(0)
-                            setAfDeslocamentoRs(0)
-                            setAfDeslocamentoCidadeLabel('')
-                            setAfDeslocamentoErro('')
-                          }
-                        }}
-                        onFocus={() => {
-                          if (afCidadeBlurTimerRef.current) clearTimeout(afCidadeBlurTimerRef.current)
-                          setAfCidadeShowSuggestions(true)
-                        }}
-                        onBlur={() => {
-                          afCidadeBlurTimerRef.current = setTimeout(() => setAfCidadeShowSuggestions(false), 150)
-                        }}
-                        placeholder="Ex: Goiânia ou goiania ou Brasilia"
-                        autoComplete="off"
-                        spellCheck={false}
-                      />
-                      {afCidadeShowSuggestions && afCidadeSuggestions.length > 0 && (
-                        <ul style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          zIndex: 50,
-                          background: 'var(--color-surface, #fff)',
-                          border: '1px solid var(--color-border, #e2e8f0)',
-                          borderRadius: '4px',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                          listStyle: 'none',
-                          margin: 0,
-                          padding: '0.25rem 0',
-                          maxHeight: '220px',
-                          overflowY: 'auto',
-                        }}>
-                          {afCidadeSuggestions.map((city) => (
-                            <li
-                              key={`${city.cidade}-${city.uf}`}
-                              onMouseDown={() => handleSelectCidade(city)}
-                              style={{
-                                padding: '0.4rem 0.75rem',
-                                cursor: 'pointer',
-                                fontSize: '0.875rem',
-                              }}
-                            >
-                              {city.cidade} — {city.uf}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
                     {afDeslocamentoStatus === 'isenta' && (
                       <span style={{ fontSize: '0.75rem', color: 'var(--color-success-fg, green)' }}>
                         ✓ {afDeslocamentoCidadeLabel} — Região isenta (R$0)
@@ -25141,11 +25072,18 @@ export default function App() {
                         ⚠ {afDeslocamentoErro}
                       </span>
                     )}
-                    {afUfOverride && (
-                      <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                        UF: <strong>{afUfOverride}</strong>
-                      </span>
-                    )}
+                  </Field>
+                  <Field label="Outros (R$)">
+                    <input
+                      ref={afOutrosField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afOutrosField.text}
+                      onChange={afOutrosField.handleChange}
+                      onBlur={afOutrosField.handleBlur}
+                      onFocus={afOutrosField.handleFocus}
+                      placeholder={MONEY_INPUT_PLACEHOLDER}
+                    />
                   </Field>
                   <Field label="Impostos (%)">
                     <input
@@ -25227,13 +25165,82 @@ export default function App() {
                     </>
                   ) : null}
                 </div>
+                <div style={{ marginTop: '0.75rem' }}>
+                  <Field label={labelWithTooltip('UF / Cidade', `Digite a cidade para definir a UF e calcular automaticamente o custo de deslocamento da equipe a partir de ${BASE_CITY_NAME}.`)}>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        value={afCidadeDestino}
+                        onChange={(e) => {
+                          setAfCidadeDestino(e.target.value)
+                          setAfCidadeShowSuggestions(true)
+                          if (!e.target.value.trim()) {
+                            setAfDeslocamentoStatus('idle')
+                            setAfDeslocamentoKm(0)
+                            setAfDeslocamentoRs(0)
+                            setAfDeslocamentoCidadeLabel('')
+                            setAfDeslocamentoErro('')
+                            setAfTransporteCombustivel(0)
+                          }
+                        }}
+                        onFocus={() => {
+                          if (afCidadeBlurTimerRef.current) clearTimeout(afCidadeBlurTimerRef.current)
+                          setAfCidadeShowSuggestions(true)
+                        }}
+                        onBlur={() => {
+                          afCidadeBlurTimerRef.current = setTimeout(() => setAfCidadeShowSuggestions(false), 150)
+                        }}
+                        placeholder="Ex: Goiânia ou goiania ou Brasilia"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      {afCidadeShowSuggestions && afCidadeSuggestions.length > 0 && (
+                        <ul style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          zIndex: 50,
+                          background: 'var(--color-surface, #fff)',
+                          border: '1px solid var(--color-border, #e2e8f0)',
+                          borderRadius: '4px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                          listStyle: 'none',
+                          margin: 0,
+                          padding: '0.25rem 0',
+                          maxHeight: '220px',
+                          overflowY: 'auto',
+                        }}>
+                          {afCidadeSuggestions.map((city) => (
+                            <li
+                              key={`${city.cidade}-${city.uf}`}
+                              onMouseDown={() => handleSelectCidade(city)}
+                              style={{
+                                padding: '0.4rem 0.75rem',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem',
+                              }}
+                            >
+                              {city.cidade} — {city.uf}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    {afUfOverride && (
+                      <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                        UF: <strong>{afUfOverride}</strong>
+                      </span>
+                    )}
+                  </Field>
+                </div>
                 {analiseFinanceiraResult && analiseFinanceiraResult.deslocamento_instaladores_rs > 0 ? (
                   <div className="info-inline" style={{ marginTop: '0.5rem' }}>
                     <span className="pill">Deslocamento instaladores <InfoTooltip text={`Custo estimado de deslocamento da equipe até o local de instalação a partir de ${BASE_CITY_NAME} (${afDeslocamentoKm} km ida+volta).`} /> <strong>{currency(analiseFinanceiraResult.deslocamento_instaladores_rs)}</strong></span>
                   </div>
                 ) : null}
                 <p className="simulacoes-description" style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
-                  Parâmetros fixos (custo fixo rateado {vendasConfig.af_custo_fixo_rateado_percent}%, lucro mínimo {vendasConfig.af_lucro_minimo_percent}%, comissão mínima {vendasConfig.af_comissao_minima_percent}%) configurados em Preferências → Parâmetros de Vendas.
+                  Parâmetros fixos (custo fixo rateado {vendasConfig.af_custo_fixo_rateado_percent}%, lucro mínimo {vendasConfig.af_lucro_minimo_percent}%) configurados em Preferências → Parâmetros de Vendas.
                 </p>
               </div>
 
@@ -25259,6 +25266,16 @@ export default function App() {
                               placeholder={MONEY_INPUT_PLACEHOLDER}
                             />
                           </Field>
+                          <Field label="Comissão mínima (%)">
+                            <input
+                              type="number"
+                              value={afComissaoMinimaPercent}
+                              min={0}
+                              max={100}
+                              onChange={(e) => setAfComissaoMinimaPercent(Number(e.target.value) || 0)}
+                              onFocus={selectNumberInputOnFocus}
+                            />
+                          </Field>
                         </div>
                       ) : null}
                       <div className="info-inline">
@@ -25269,11 +25286,11 @@ export default function App() {
                             <span className="pill">Impostos <InfoTooltip text="Valor estimado de impostos sobre o faturamento, calculado com base na alíquota configurada." /> <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
                             <span className="pill">Lucro s/ comissão <InfoTooltip text="Lucro líquido antes de descontar a comissão do vendedor. Resultado da margem bruta menos impostos e custos fixos." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
                             <span className="pill">Margem s/ comissão <InfoTooltip text="Percentual de margem líquida sobre o valor do contrato, antes de considerar a comissão do vendedor." /> <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
-                            <span className="pill">Comissão <InfoTooltip text="Comissão do vendedor calculada sobre o valor do contrato, conforme percentual configurado nas configurações de vendas." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
+                            <span className="pill">Comissão <InfoTooltip text="Comissão mínima aplicada sobre o valor do contrato somente quando a margem líquida sem comissão já atinge a margem mínima." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
                             <span className="pill">Custo total real <InfoTooltip text="Custo total efetivo do projeto incluindo custos variáveis, impostos, custos fixos rateados e comissão do vendedor." /> <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
                             <span className="pill">Lucro líquido final <InfoTooltip text="Lucro efetivo após deduzir todos os custos (variáveis, impostos, fixos e comissão) do valor do contrato." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
                             <span className="pill">Margem líquida final <InfoTooltip text="Percentual de lucro líquido sobre o valor do contrato, após todos os custos incluindo comissão. Indica a rentabilidade real do projeto." /> <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
-                            <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto que pode ser concedido sobre o valor do contrato sem que a margem líquida caia abaixo do mínimo configurado." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
+                            <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto sobre o valor do contrato para manter a margem líquida mínima já considerando a comissão mínima." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
                           </>
                         ) : null}
                       </div>
@@ -25288,12 +25305,12 @@ export default function App() {
                             ) : null}
                             {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
                               <span className="pill pill--success pill--price">
-                                Preço Mín. Saudável <InfoTooltip text={`Preço mínimo que garante a margem líquida mínima de ${afMargemLiquidaMinima}% e ainda cobre a comissão mínima do vendedor (${vendasConfig.af_comissao_minima_percent}%). Abaixo deste valor não há comissão.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
+                                Preço Mín. Saudável <InfoTooltip text={`Preço mínimo que garante a margem líquida mínima de ${afMargemLiquidaMinima}% e ainda cobre a comissão mínima do vendedor (${afComissaoMinimaPercent}%). Abaixo deste valor não há comissão.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
                               </span>
                             ) : null}
                             {analiseFinanceiraResult.preco_ideal_rs != null ? (
                               <span className="pill pill--info pill--price">
-                                Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}%, com comissão integral do vendedor incluída.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
+                                Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afModo === 'venda' ? afMargemLiquidaVenda : afMargemLiquidaLeasing}% após a comissão mínima do vendedor.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
                               </span>
                             ) : null}
                           </div>

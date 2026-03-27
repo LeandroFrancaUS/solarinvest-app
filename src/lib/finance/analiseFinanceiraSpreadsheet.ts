@@ -71,71 +71,35 @@ export function calcSeguroLeasing(valorContrato: number): number {
 
 export function calcComissaoDinamica(
   margemSemComissao: number,
-  limiarMinimo = 0.2,
-  limiarAlvo = 0.3,
+  margemMinima: number,
+  comissaoMinimaFrac: number,
 ): number {
-  if (margemSemComissao < limiarMinimo) {
-    return 0
-  }
-  if (margemSemComissao <= limiarAlvo) {
-    const range = limiarAlvo - limiarMinimo
-    return range > 0
-      ? 0.03 + ((margemSemComissao - limiarMinimo) / range) * (0.05 - 0.03)
-      : 0.03
-  }
-  return Math.min(0.1, 0.05 + (margemSemComissao - limiarAlvo) * 0.3)
+  return margemSemComissao >= margemMinima ? comissaoMinimaFrac : 0
 }
 
 /**
- * Calcula o preço de venda que atinge exatamente a margem líquida alvo (após comissão dinâmica).
+ * Calcula o preço de venda que atinge exatamente a margem líquida alvo final
+ * (após aplicar a comissão mínima).
  *
- * Derivação analítica por faixa de comissão:
- *   - m < 0.17  → Zona 1 (sem comissão): P = CV / (a − m)
- *   - 0.17 ≤ m ≤ 0.25 → Zona 2 (comissão 3–5%): P = 0.8·CV / (0.8a + 0.01 − m)
- *   - m > 0.25 sem cap → Zona 3: P = 0.70·CV / (0.70a + 0.04 − m)
- *   - m > ~0.37 com cap 10% → P = CV / (a − m − 0.10)
- * onde a = 1 − impostos% − custoFixo%
+ * Fórmula:
+ *   P = CV / (1 - impostos - custo_fixo - margem_alvo - comissao_minima)
  */
 export function calcPrecoIdeal(
   custo_variavel_total: number,
   impostos_percent: number,
   custo_fixo_rateado_percent: number,
   margem_alvo_percent: number,
+  comissao_minima_percent: number,
 ): number {
-  const a = 1 - impostos_percent / 100 - custo_fixo_rateado_percent / 100
-  const m = margem_alvo_percent / 100
+  const den =
+    1 -
+    impostos_percent / 100 -
+    custo_fixo_rateado_percent / 100 -
+    margem_alvo_percent / 100 -
+    comissao_minima_percent / 100
 
-  // Zone 1: target margin < 17% → no commission applies
-  if (m < 0.17) {
-    const den = a - m
-    if (den <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
-    return custo_variavel_total / den
-  }
-
-  // Zone 2: target margin 17–25% → commission 3–5% (MSC lands in [0.20, 0.30])
-  if (m <= 0.25) {
-    const den = 0.8 * a + 0.01 - m
-    if (den <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
-    return (0.8 * custo_variavel_total) / den
-  }
-
-  // Zone 3 (uncapped): target margin > 25% — check if commission stays ≤ 10%
-  const den3 = 0.7 * a + 0.04 - m
-  if (den3 > 0) {
-    const p3 = (0.7 * custo_variavel_total) / den3
-    if (p3 > 0) {
-      const msc3 = a - custo_variavel_total / p3
-      const commUncapped = 0.05 + (msc3 - 0.3) * 0.3
-      if (commUncapped <= 0.1) {
-        return p3
-      }
-    }
-  }
-
-  // Zone 3 capped at 10% commission
-  const denCap = a - m - 0.1
-  if (denCap <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
-  return custo_variavel_total / denCap
+  if (den <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
+  return custo_variavel_total / den
 }
 
 // ─── IRR calculation ─────────────────────────────────────────────────────────
@@ -272,12 +236,6 @@ function calcularAnaliseVenda(
     : margemMinima
   const margemAlvoFrac = toDecimalPercent(margemAlvo)
 
-  // Commission thresholds derived from configurable margins:
-  //   limiarMinimo = margemMinima + comissao_minima  (e.g. 15% + 3% = 18%)
-  //   limiarAlvo   = margemAlvo   + 5% (target commission)  (e.g. 25% + 5% = 30%)
-  const COMISSAO_ALVO_FRAC = 0.05 // 5% commission targeted at the alvo margin point
-  const limiarMinimo = margemMinFrac + toDecimalPercent(input.comissao_minima_percent)
-  const limiarAlvo = margemAlvoFrac + COMISSAO_ALVO_FRAC
 
   const impostos_rs = valor_contrato_rs * toDecimalPercent(input.impostos_percent)
   const custo_fixo_rateado_rs =
@@ -289,7 +247,11 @@ function calcularAnaliseVenda(
   const margem_liquida_sem_comissao =
     valor_contrato_rs > 0 ? lucro_liquido_sem_comissao_rs / valor_contrato_rs : 0
 
-  const comissao_fracao = calcComissaoDinamica(margem_liquida_sem_comissao, limiarMinimo, limiarAlvo)
+  const comissao_fracao = calcComissaoDinamica(
+    margem_liquida_sem_comissao,
+    margemMinFrac,
+    toDecimalPercent(input.comissao_minima_percent),
+  )
   const comissao_percent = comissao_fracao * 100
   const comissao_rs = valor_contrato_rs * comissao_fracao
 
@@ -356,6 +318,7 @@ function calcularAnaliseVenda(
         input.impostos_percent,
         input.custo_fixo_rateado_percent,
         input.margem_liquida_alvo_percent,
+        input.comissao_minima_percent,
       )
     } catch {
       preco_ideal_rs = undefined

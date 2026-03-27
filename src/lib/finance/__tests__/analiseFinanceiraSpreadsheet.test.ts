@@ -150,29 +150,14 @@ describe('placa cost', () => {
 // ─── calcComissaoDinamica ─────────────────────────────────────────────────────
 
 describe('calcComissaoDinamica', () => {
-  it('returns 0 when margin < 0.20', () => {
-    expect(calcComissaoDinamica(0.19)).toBe(0)
-    expect(calcComissaoDinamica(0.0)).toBe(0)
+  it('returns comissão mínima when margin without commission reaches minimum', () => {
+    expect(calcComissaoDinamica(0.2, 0.2, 0.05)).toBeCloseTo(0.05, 6)
+    expect(calcComissaoDinamica(0.35, 0.2, 0.05)).toBeCloseTo(0.05, 6)
   })
 
-  it('interpolates between 3% and 5% in range [0.20, 0.30]', () => {
-    // At 0.20: commission = 0.03
-    expect(calcComissaoDinamica(0.2)).toBeCloseTo(0.03, 6)
-    // At 0.30: commission = 0.05
-    expect(calcComissaoDinamica(0.3)).toBeCloseTo(0.05, 6)
-    // At 0.25: commission = 0.03 + (0.05/0.10)*0.02 = 0.04
-    expect(calcComissaoDinamica(0.25)).toBeCloseTo(0.04, 6)
-  })
-
-  it('applies 5% + slope after 0.30, capped at 10%', () => {
-    // At 0.30: 5%
-    expect(calcComissaoDinamica(0.3)).toBeCloseTo(0.05, 6)
-    // At 0.40: 5% + (0.10 * 0.30) = 8%
-    expect(calcComissaoDinamica(0.4)).toBeCloseTo(0.08, 6)
-    // At 0.50: 5% + (0.20 * 0.30) = 11% → capped at 10%
-    expect(calcComissaoDinamica(0.5)).toBeCloseTo(0.1, 6)
-    // Very high margin still capped at 10%
-    expect(calcComissaoDinamica(0.99)).toBeCloseTo(0.1, 6)
+  it('returns 0 when margin without commission is below minimum', () => {
+    expect(calcComissaoDinamica(0.19, 0.2, 0.05)).toBe(0)
+    expect(calcComissaoDinamica(0.0, 0.2, 0.05)).toBe(0)
   })
 })
 
@@ -273,6 +258,25 @@ describe('status_venda', () => {
   })
 })
 
+describe('regra de comissão mínima', () => {
+  it('aplica comissão mínima quando margem sem comissão atende a mínima', () => {
+    const result = calcularAnaliseFinanceira(baseInput)
+    expect(result.margem_liquida_sem_comissao_percent).toBeGreaterThanOrEqual(15)
+    expect(result.comissao_percent).toBeCloseTo(baseInput.comissao_minima_percent, 6)
+  })
+
+  it('zera comissão quando margem sem comissão não atende a mínima', () => {
+    const input: AnaliseFinanceiraInput = {
+      ...baseInput,
+      valor_contrato_rs: 25000,
+    }
+    const result = calcularAnaliseFinanceira(input)
+    expect(result.margem_liquida_sem_comissao_percent).toBeLessThan(15)
+    expect(result.comissao_percent).toBe(0)
+    expect(result.comissao_rs).toBe(0)
+  })
+})
+
 // ─── ROI / Payback / TIR ─────────────────────────────────────────────────────
 
 describe('KPIs', () => {
@@ -349,63 +353,23 @@ describe('input validation', () => {
 // ─── calcPrecoIdeal ──────────────────────────────────────────────────────────
 
 describe('calcPrecoIdeal', () => {
-  // Standard params: impostos=8%, custoFixo=5% → a = 0.87
   const CV = 20000
   const IMP = 8
   const CFR = 5
+  const CM = 5
 
-  it('Zone 1 (m < 17%): returns CV/(a-m), no commission', () => {
-    const m = 10
-    const p = calcPrecoIdeal(CV, IMP, CFR, m)
-    // a=0.87, m=0.10 → P = 20000/0.77 ≈ 25974
-    expect(p).toBeCloseTo(CV / (0.87 - 0.1), 4)
-    // Verify actual margin: MSC = 0.87 - CV/P = 0.10, ComissaoPct=0, MargemFinal=0.10
-    const msc = 0.87 - CV / p
-    const comm = msc < 0.2 ? 0 : 0
-    const lucroFinal = p * (1 - IMP / 100 - CFR / 100) - CV - p * comm
-    expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
-  })
-
-  it('Zone 2 (17–25%): achieves exact target margin after commission', () => {
-    const m = 22
-    const p = calcPrecoIdeal(CV, IMP, CFR, m)
-    // Verify the resulting margin is exactly 22%
-    const a = 1 - IMP / 100 - CFR / 100
-    const msc = a - CV / p
-    const commFrac = 0.03 + ((msc - 0.2) / 0.1) * 0.02
-    const lucroSemCom = p * (1 - IMP / 100 - CFR / 100) - CV
-    const lucroFinal = lucroSemCom - p * commFrac
-    expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
-  })
-
-  it('Zone 2 default venda (25%): achieves exact 25% margin', () => {
+  it('returns CV/(1-impostos-custo_fixo-margem_alvo-comissao_minima)', () => {
     const m = 25
-    const p = calcPrecoIdeal(CV, IMP, CFR, m)
-    expect(p).toBeGreaterThan(0)
-    // The final margin should be 25%
-    const a = 1 - IMP / 100 - CFR / 100
-    const msc = a - CV / p
-    let commFrac: number
-    if (msc <= 0.3) {
-      commFrac = 0.03 + ((msc - 0.2) / 0.1) * 0.02
-    } else {
-      commFrac = Math.min(0.1, 0.05 + (msc - 0.3) * 0.3)
-    }
-    const lucroSemCom = p * a - CV
-    const lucroFinal = lucroSemCom - p * commFrac
-    expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
+    const p = calcPrecoIdeal(CV, IMP, CFR, m, CM)
+    expect(p).toBeCloseTo(CV / (1 - 0.08 - 0.05 - 0.25 - 0.05), 4)
   })
 
-  it('Zone 3 (30%): achieves exact 30% margin after commission', () => {
-    const m = 30
-    const p = calcPrecoIdeal(CV, IMP, CFR, m)
-    expect(p).toBeGreaterThan(0)
+  it('achieves exact target final margin after minimum commission', () => {
+    const m = 22
+    const p = calcPrecoIdeal(CV, IMP, CFR, m, CM)
     const a = 1 - IMP / 100 - CFR / 100
-    const msc = a - CV / p
-    const commFrac = Math.min(0.1, 0.05 + (msc - 0.3) * 0.3)
-    const lucroSemCom = p * a - CV
-    const lucroFinal = lucroSemCom - p * commFrac
-    expect(lucroFinal / p).toBeCloseTo(m / 100, 4)
+    const lucroFinal = p * a - CV - p * (CM / 100)
+    expect(lucroFinal / p).toBeCloseTo(0.22, 4)
   })
 
   it('preco_ideal_rs appears in engine output when margem_liquida_alvo_percent set', () => {
@@ -424,8 +388,7 @@ describe('calcPrecoIdeal', () => {
   })
 
   it('throws DENOMINADOR_PRECO_MINIMO_INVALIDO when impossible target', () => {
-    // m so high that denominator goes ≤ 0
-    expect(() => calcPrecoIdeal(CV, IMP, CFR, 95)).toThrow(AnaliseFinanceiraError)
+    expect(() => calcPrecoIdeal(CV, IMP, CFR, 95, CM)).toThrow(AnaliseFinanceiraError)
   })
 })
 
