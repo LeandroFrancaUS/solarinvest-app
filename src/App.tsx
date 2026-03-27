@@ -4479,6 +4479,8 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulacoesSection])
+  const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
+  const updateVendasConfig = useVendasConfigStore((state) => state.update)
   // Geocoding effect: resolve city/UF or CEP to km and travel cost
   useEffect(() => {
     const trimmed = afCidadeDestino.trim()
@@ -4849,8 +4851,6 @@ export default function App() {
   const [composicaoSolo, setComposicaoSolo] = useState<UfvComposicaoSoloValores>(() =>
     createInitialComposicaoSolo(),
   )
-  const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
-  const updateVendasConfig = useVendasConfigStore((state) => state.update)
   const [aprovadoresText, setAprovadoresText] = useState(() => vendasConfig.aprovadores.join('\n'))
   const [impostosOverridesDraft, setImpostosOverridesDraft] = useState<
     Partial<ImpostosRegimeConfig>
