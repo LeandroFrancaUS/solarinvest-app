@@ -3707,6 +3707,18 @@ table tbody tr:hover {
   gap: 14px;
 }
 
+/* Remove native number input spinners in the financial analysis section */
+.af-section input[type='number']::-webkit-inner-spin-button,
+.af-section input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+.af-section input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .simulacoes-main-card header,
 .simulacoes-module-card header {
   display: flex;

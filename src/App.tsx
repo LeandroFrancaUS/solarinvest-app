@@ -4440,6 +4440,15 @@ export default function App() {
   // null = auto (12% of kit), user can override
   const [afMaterialCAOverride, setAfMaterialCAOverride] = useState<number | null>(null)
   const afBaseInitializedRef = useRef(false)
+  // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
+  const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => setAfCustoKit(v ?? 0) })
+  const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
+  const afFreteField = useBRNumberField({ mode: 'money', value: afFrete, onChange: (v) => setAfFrete(v ?? 0) })
+  const afDescarregamentoField = useBRNumberField({ mode: 'money', value: afDescarregamento, onChange: (v) => setAfDescarregamento(v ?? 0) })
+  const afPlacaField = useBRNumberField({ mode: 'money', value: afPlaca, onChange: (v) => setAfPlaca(v ?? 18) })
+  const afHotelPousadaField = useBRNumberField({ mode: 'money', value: afHotelPousada, onChange: (v) => setAfHotelPousada(v ?? 0) })
+  const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
+  const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? (afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100), onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
@@ -9684,7 +9693,6 @@ export default function App() {
     const uf = (afUfOverride || ufTarifa) === 'DF' ? 'DF' as const : 'GO' as const
 
     if (consumo <= 0 || afCustoKit <= 0) return null
-    if (afModo === 'venda' && afValorContrato <= 0) return null
 
     // Pre-compute base system using the same engine as the leasing proposals page
     const nModulosOverride = afNumModulosOverride != null && afNumModulosOverride > 0
@@ -24663,7 +24671,7 @@ export default function App() {
           ) : null}
 
           {simulacoesSection === 'analise' ? (
-            <section className="simulacoes-module-card">
+            <section className="simulacoes-module-card af-section">
               <header>
                 <h3>Análise Financeira</h3>
                 <p>Motor Spreadsheet v1 — cálculo completo de Venda e Leasing com preço mínimo saudável.</p>
@@ -24720,6 +24728,7 @@ export default function App() {
                       type="number"
                       value={afConsumoOverride}
                       min={0}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => {
                         const consumo = Number(e.target.value) || 0
                         setAfConsumoOverride(consumo)
@@ -24746,6 +24755,7 @@ export default function App() {
                       type="number"
                       min={0}
                       value={afNumModulosOverride ?? 0}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => {
                         const n = Math.round(Number(e.target.value) || 0)
                         if (n > 0) {
@@ -24776,6 +24786,7 @@ export default function App() {
                           ? ((afNumModulosOverride * (afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo)) / 1000).toFixed(2)
                           : '0'
                       }
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => {
                         const kwp = Number(e.target.value) || 0
                         const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
@@ -24802,6 +24813,7 @@ export default function App() {
                       step="0.01"
                       value={afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao}
                       min={0}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => setAfIrradiacaoOverride(Number(e.target.value) || 0)}
                     />
                   </Field>
@@ -24812,6 +24824,7 @@ export default function App() {
                       value={afPROverride > 0 ? afPROverride : eficienciaNormalizada}
                       min={0}
                       max={1}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => setAfPROverride(Number(e.target.value) || 0)}
                     />
                   </Field>
@@ -24820,6 +24833,7 @@ export default function App() {
                       type="number"
                       value={afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo}
                       min={1}
+                      onFocus={selectNumberInputOnFocus}
                       onChange={(e) => {
                         const wp = Number(e.target.value) || 0
                         setAfModuloWpOverride(wp)
@@ -24844,59 +24858,78 @@ export default function App() {
                 <div className="grid g3">
                   <Field label="Custo do Kit (R$)">
                     <input
-                      type="number"
-                      value={afCustoKit}
-                      min={0}
+                      ref={afCustoKitField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afCustoKitField.text}
                       style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
-                      onChange={(e) => setAfCustoKit(Number(e.target.value) || 0)}
+                      onChange={afCustoKitField.handleChange}
+                      onBlur={afCustoKitField.handleBlur}
+                      onFocus={afCustoKitField.handleFocus}
+                      placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
                   {afModo === 'venda' ? (
                     <Field label="Valor do Contrato (R$)">
                       <input
-                        type="number"
-                        value={afValorContrato}
-                        min={0}
+                        ref={afValorContratoField.ref}
+                        type="text"
+                        inputMode="decimal"
+                        value={afValorContratoField.text}
                         style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
-                        onChange={(e) => setAfValorContrato(Number(e.target.value) || 0)}
+                        onChange={afValorContratoField.handleChange}
+                        onBlur={afValorContratoField.handleBlur}
+                        onFocus={afValorContratoField.handleFocus}
+                        placeholder={MONEY_INPUT_PLACEHOLDER}
                       />
                     </Field>
                   ) : null}
                   <Field label="Frete (R$)">
                     <input
-                      type="number"
-                      value={afFrete}
-                      min={0}
-                      onChange={(e) => setAfFrete(Number(e.target.value) || 0)}
+                      ref={afFreteField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afFreteField.text}
+                      onChange={afFreteField.handleChange}
+                      onBlur={afFreteField.handleBlur}
+                      onFocus={afFreteField.handleFocus}
+                      placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
                   <Field label="Descarregamento (R$)">
                     <input
-                      type="number"
-                      value={afDescarregamento}
-                      min={0}
-                      onChange={(e) => setAfDescarregamento(Number(e.target.value) || 0)}
+                      ref={afDescarregamentoField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afDescarregamentoField.text}
+                      onChange={afDescarregamentoField.handleChange}
+                      onBlur={afDescarregamentoField.handleBlur}
+                      onFocus={afDescarregamentoField.handleFocus}
+                      placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
                   <Field label="Material CA (R$)">
                     <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100}
-                      placeholder={(afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100).toFixed(2)}
-                      onChange={(e) => {
-                        const v = Number(e.target.value)
-                        setAfMaterialCAOverride(v >= 0 ? v : null)
-                      }}
+                      ref={afMaterialCAField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afMaterialCAField.text}
+                      onChange={afMaterialCAField.handleChange}
+                      onBlur={afMaterialCAField.handleBlur}
+                      onFocus={afMaterialCAField.handleFocus}
+                      placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
                   <Field label="Placa (R$)">
                     <input
-                      type="number"
-                      value={afPlaca}
-                      min={0}
-                      onChange={(e) => setAfPlaca(Number(e.target.value) || 0)}
+                      ref={afPlacaField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afPlacaField.text}
+                      onChange={afPlacaField.handleChange}
+                      onBlur={afPlacaField.handleBlur}
+                      onFocus={afPlacaField.handleFocus}
+                      placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
                   <Field label="Instalação (R$)">
@@ -24913,10 +24946,14 @@ export default function App() {
                   </Field>
                   <Field label="Hotel/Pousada (R$)">
                     <input
-                      type="number"
-                      value={afHotelPousada}
-                      min={0}
-                      onChange={(e) => setAfHotelPousada(Number(e.target.value) || 0)}
+                      ref={afHotelPousadaField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afHotelPousadaField.text}
+                      onChange={afHotelPousadaField.handleChange}
+                      onBlur={afHotelPousadaField.handleBlur}
+                      onFocus={afHotelPousadaField.handleFocus}
+                      placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
                   <Field label="Impostos (%)">
@@ -24926,6 +24963,7 @@ export default function App() {
                       min={0}
                       max={100}
                       onChange={(e) => setAfImpostos(Number(e.target.value) || 0)}
+                      onFocus={selectNumberInputOnFocus}
                     />
                   </Field>
                   <Field label="Margem líquida alvo (%)">
@@ -24939,6 +24977,7 @@ export default function App() {
                         if (afModo === 'venda') setAfMargemLiquidaVenda(val)
                         else setAfMargemLiquidaLeasing(val)
                       }}
+                      onFocus={selectNumberInputOnFocus}
                     />
                   </Field>
                   <Field label="Margem líquida mínima (%)">
@@ -24948,6 +24987,7 @@ export default function App() {
                       min={0}
                       max={99}
                       onChange={(e) => setAfMargemLiquidaMinima(Number(e.target.value) || 0)}
+                      onFocus={selectNumberInputOnFocus}
                     />
                   </Field>
                   {afModo === 'leasing' ? (
@@ -24959,6 +24999,7 @@ export default function App() {
                           min={0}
                           max={100}
                           onChange={(e) => setAfInadimplencia(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
                       <Field label="Custo operacional (%)">
@@ -24968,6 +25009,7 @@ export default function App() {
                           min={0}
                           max={100}
                           onChange={(e) => setAfCustoOperacional(Number(e.target.value) || 0)}
+                          onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
                       <Field label="Meses de projeção">
@@ -24976,15 +25018,19 @@ export default function App() {
                           value={afMesesProjecao}
                           min={1}
                           onChange={(e) => setAfMesesProjecao(Math.max(1, Number(e.target.value) || 1))}
+                          onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
                       <Field label="Mensalidade base (R$)">
                         <input
-                          type="number"
-                          value={afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto}
-                          min={0}
-                          placeholder={String(afMensalidadeBaseAuto > 0 ? afMensalidadeBaseAuto.toFixed(2) : '—')}
-                          onChange={(e) => setAfMensalidadeBase(Number(e.target.value) || 0)}
+                          ref={afMensalidadeBaseField.ref}
+                          type="text"
+                          inputMode="decimal"
+                          value={afMensalidadeBaseField.text}
+                          onChange={afMensalidadeBaseField.handleChange}
+                          onBlur={afMensalidadeBaseField.handleBlur}
+                          onFocus={afMensalidadeBaseField.handleFocus}
+                          placeholder={afMensalidadeBaseAuto > 0 ? formatMoneyBR(afMensalidadeBaseAuto) : '—'}
                         />
                       </Field>
                     </>
@@ -25011,16 +25057,19 @@ export default function App() {
                       <h4>Resultados</h4>
                       <div className="info-inline">
                         <span className="pill">Custo variável total <InfoTooltip text="Soma de todos os custos diretos do projeto: kit, frete, descarregamento, hospedagem, material CA e mão de obra estimada." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
-                        <span className="pill">Margem bruta <InfoTooltip text="Diferença entre o valor do contrato e o custo variável total. Representa o valor disponível para cobrir impostos, custos fixos e gerar lucro." /> <strong>{currency(analiseFinanceiraResult.margem_rs ?? 0)}</strong></span>
-                        <span className="pill">Impostos <InfoTooltip text="Valor estimado de impostos sobre o faturamento, calculado com base na alíquota configurada." /> <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
-                        <span className="pill">Custo fixo rateado <InfoTooltip text="Parcela dos custos operacionais fixos da empresa atribuída a este projeto (ex.: aluguel, folha administrativa), calculada sobre o valor do contrato." /> <strong>{currency(analiseFinanceiraResult.custo_fixo_rateado_rs ?? 0)}</strong></span>
-                        <span className="pill">Lucro s/ comissão <InfoTooltip text="Lucro líquido antes de descontar a comissão do vendedor. Resultado da margem bruta menos impostos e custos fixos." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
-                        <span className="pill">Margem s/ comissão <InfoTooltip text="Percentual de margem líquida sobre o valor do contrato, antes de considerar a comissão do vendedor." /> <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
-                        <span className="pill">Comissão <InfoTooltip text="Comissão do vendedor calculada sobre o valor do contrato, conforme percentual configurado nas configurações de vendas." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
-                        <span className="pill">Custo total real <InfoTooltip text="Custo total efetivo do projeto incluindo custos variáveis, impostos, custos fixos rateados e comissão do vendedor." /> <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
-                        <span className="pill">Lucro líquido final <InfoTooltip text="Lucro efetivo após deduzir todos os custos (variáveis, impostos, fixos e comissão) do valor do contrato." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
-                        <span className="pill">Margem líquida final <InfoTooltip text="Percentual de lucro líquido sobre o valor do contrato, após todos os custos incluindo comissão. Indica a rentabilidade real do projeto." /> <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
-                        <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto que pode ser concedido sobre o valor do contrato sem que a margem líquida caia abaixo do mínimo configurado." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
+                        {afValorContrato > 0 ? (
+                          <>
+                            <span className="pill">Margem bruta <InfoTooltip text="Diferença entre o valor do contrato e o custo variável total. Representa o valor disponível para cobrir impostos, custos fixos e gerar lucro." /> <strong>{currency(analiseFinanceiraResult.margem_rs ?? 0)}</strong></span>
+                            <span className="pill">Impostos <InfoTooltip text="Valor estimado de impostos sobre o faturamento, calculado com base na alíquota configurada." /> <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
+                            <span className="pill">Lucro s/ comissão <InfoTooltip text="Lucro líquido antes de descontar a comissão do vendedor. Resultado da margem bruta menos impostos e custos fixos." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
+                            <span className="pill">Margem s/ comissão <InfoTooltip text="Percentual de margem líquida sobre o valor do contrato, antes de considerar a comissão do vendedor." /> <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
+                            <span className="pill">Comissão <InfoTooltip text="Comissão do vendedor calculada sobre o valor do contrato, conforme percentual configurado nas configurações de vendas." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
+                            <span className="pill">Custo total real <InfoTooltip text="Custo total efetivo do projeto incluindo custos variáveis, impostos, custos fixos rateados e comissão do vendedor." /> <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
+                            <span className="pill">Lucro líquido final <InfoTooltip text="Lucro efetivo após deduzir todos os custos (variáveis, impostos, fixos e comissão) do valor do contrato." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
+                            <span className="pill">Margem líquida final <InfoTooltip text="Percentual de lucro líquido sobre o valor do contrato, após todos os custos incluindo comissão. Indica a rentabilidade real do projeto." /> <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
+                            <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto que pode ser concedido sobre o valor do contrato sem que a margem líquida caia abaixo do mínimo configurado." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
+                          </>
+                        ) : null}
                       </div>
                       {(analiseFinanceiraResult.preco_minimo_aceitavel_rs != null || analiseFinanceiraResult.preco_minimo_saudavel_rs != null) ? (
                         <div className="price-band">
@@ -25042,21 +25091,27 @@ export default function App() {
                               </span>
                             ) : null}
                           </div>
-                          <div className="price-band-row">
-                            {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
-                              <span className="pill pill--error">
-                                🚫 BLOQUEAR VENDA
-                              </span>
-                            ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
-                              <span className="pill pill--warning">
-                                ⚠️ SEM COMISSÃO
-                              </span>
-                            ) : (
-                              <span className="pill pill--success">
-                                ✅ VENDA SAUDÁVEL
-                              </span>
-                            )}
-                          </div>
+                          {afValorContrato > 0 ? (
+                            <div className="price-band-row">
+                              {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
+                                <span className="pill pill--error">
+                                  🚫 VENDA NÃO APROVADA
+                                </span>
+                              ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
+                                <span className="pill pill--warning">
+                                  ⚠️ SEM COMISSÃO
+                                </span>
+                              ) : analiseFinanceiraResult.status_venda === 'COMISSAO_MINIMA' ? (
+                                <span className="pill pill--info">
+                                  💼 COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%
+                                </span>
+                              ) : (
+                                <span className="pill pill--success">
+                                  ✅ VENDA SAUDÁVEL — COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%
+                                </span>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

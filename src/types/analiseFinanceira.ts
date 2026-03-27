@@ -1,6 +1,6 @@
 export type UF = 'GO' | 'DF'
 export type ModoAnalise = 'venda' | 'leasing'
-export type StatusVenda = 'BLOQUEAR_VENDA' | 'SEM_COMISSAO' | 'VENDA_SAUDAVEL'
+export type StatusVenda = 'BLOQUEAR_VENDA' | 'SEM_COMISSAO' | 'COMISSAO_MINIMA' | 'VENDA_SAUDAVEL'
 
 export type AnaliseFinanceiraErrorCode =
   | 'INPUT_INVALID_CONSUMO'
