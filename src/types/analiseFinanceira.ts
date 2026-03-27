@@ -47,6 +47,10 @@ export interface AnaliseFinanceiraInput {
   placa_rs_override?: number
   /** When provided, overrides the auto-calculated material CA cost (default: custo_kit_rs × MATERIAL_CA_PERCENT_DO_KIT / 100). */
   material_ca_rs_override?: number
+  /** When provided, overrides the auto-calculated projeto cost (default: faixa by kWp). */
+  projeto_rs_override?: number
+  /** When provided, overrides the auto-calculated CREA cost (default: based on UF). */
+  crea_rs_override?: number
 
   // Comercial/tributário (Venda e/ou Leasing)
   valor_contrato_rs: number

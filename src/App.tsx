@@ -94,7 +94,6 @@ import {
   calcularAnaliseFinanceira,
   resolveCustoProjetoPorFaixa,
   resolveCrea,
-  resolveCombustivel,
   MATERIAL_CA_PERCENT_DO_KIT,
   PRECO_PLACA_RS,
 } from './lib/finance/analiseFinanceiraSpreadsheet'
@@ -136,7 +135,8 @@ import {
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
 import { isExemptRegion, calculateInstallerTravelCost } from './lib/finance/travelCost'
-import { resolveDestinationInput, calcRoundTripKm, BASE_CITY_NAME } from './shared/geocoding'
+import { calcRoundTripKm, BASE_CITY_NAME } from './shared/geocoding'
+import { searchCidades, type CidadeDB, MIN_CITY_SEARCH_LENGTH } from './data/cidades'
 import {
   getAutoEligibility,
   normalizeInstallType,
@@ -4450,7 +4450,12 @@ export default function App() {
   const [afPlaca, setAfPlaca] = useState(18)
   // null = auto (12% of kit), user can override
   const [afMaterialCAOverride, setAfMaterialCAOverride] = useState<number | null>(null)
+  const [afProjetoOverride, setAfProjetoOverride] = useState<number | null>(null)
+  const [afCreaOverride, setAfCreaOverride] = useState<number | null>(null)
+  const [afCidadeSuggestions, setAfCidadeSuggestions] = useState<CidadeDB[]>([])
+  const [afCidadeShowSuggestions, setAfCidadeShowSuggestions] = useState(false)
   const afBaseInitializedRef = useRef(false)
+  const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
   const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => setAfCustoKit(v ?? 0) })
   const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
@@ -4462,6 +4467,8 @@ export default function App() {
   const afOutrosField = useBRNumberField({ mode: 'money', value: afOutros, onChange: (v) => setAfOutros(v ?? 0) })
   const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
   const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? (afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100), onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
+  const afProjetoField = useBRNumberField({ mode: 'money', value: afProjetoOverride, onChange: (v) => setAfProjetoOverride(v != null && v >= 0 ? v : null) })
+  const afCreaField = useBRNumberField({ mode: 'money', value: afCreaOverride, onChange: (v) => setAfCreaOverride(v != null && v >= 0 ? v : null) })
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
@@ -4481,17 +4488,22 @@ export default function App() {
   }, [simulacoesSection])
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
-  // Geocoding effect: resolve city/UF or CEP to km and travel cost
+  // City autocomplete: update suggestions as user types
   useEffect(() => {
     const trimmed = afCidadeDestino.trim()
-    if (!trimmed) {
-      setAfDeslocamentoStatus('idle')
-      setAfDeslocamentoKm(0)
-      setAfDeslocamentoRs(0)
-      setAfDeslocamentoCidadeLabel('')
-      setAfDeslocamentoErro('')
+    if (trimmed.length < MIN_CITY_SEARCH_LENGTH) {
+      setAfCidadeSuggestions([])
       return
     }
+    setAfCidadeSuggestions(searchCidades(trimmed))
+  }, [afCidadeDestino])
+
+  const handleSelectCidade = useCallback((city: CidadeDB) => {
+    setAfCidadeDestino(`${city.cidade} - ${city.uf}`)
+    setAfCidadeSuggestions([])
+    setAfCidadeShowSuggestions(false)
+    // Map to supported calculation UF: DF or GO (default for all other states)
+    setAfUfOverride(city.uf === 'DF' ? 'DF' : 'GO')
     const travelConfig = {
       exemptRegions: vendasConfig.af_deslocamento_regioes_isentas,
       faixa1MaxKm: vendasConfig.af_deslocamento_faixa1_km,
@@ -4500,48 +4512,23 @@ export default function App() {
       faixa2Rs: vendasConfig.af_deslocamento_faixa2_rs,
       kmExcedenteRs: vendasConfig.af_deslocamento_km_excedente_rs,
     }
-    const controller = new AbortController()
-    let cancelled = false
-    const runGeocode = async () => {
-      if (cancelled) return
-      setAfDeslocamentoStatus('loading')
+    const label = `${city.cidade}/${city.uf}`
+    if (isExemptRegion(city.cidade, city.uf, travelConfig.exemptRegions)) {
+      setAfDeslocamentoStatus('isenta')
+      setAfDeslocamentoKm(0)
+      setAfDeslocamentoRs(0)
+      setAfDeslocamentoCidadeLabel(label)
       setAfDeslocamentoErro('')
-      try {
-        const result = await resolveDestinationInput(trimmed, controller.signal)
-        if (cancelled) return
-        const label = `${result.cidade}/${result.uf}`
-        if (isExemptRegion(result.cidade, result.uf, travelConfig.exemptRegions)) {
-          setAfDeslocamentoStatus('isenta')
-          setAfDeslocamentoKm(0)
-          setAfDeslocamentoRs(0)
-          setAfDeslocamentoCidadeLabel(label)
-          setAfDeslocamentoErro('')
-        } else {
-          const km = calcRoundTripKm(result.lat, result.lng)
-          const custo = calculateInstallerTravelCost(km, travelConfig)
-          setAfDeslocamentoStatus('ok')
-          setAfDeslocamentoKm(km)
-          setAfDeslocamentoRs(custo)
-          setAfDeslocamentoCidadeLabel(label)
-          setAfDeslocamentoErro('')
-        }
-      } catch (err) {
-        if (cancelled) return
-        setAfDeslocamentoStatus('error')
-        setAfDeslocamentoKm(0)
-        setAfDeslocamentoRs(0)
-        setAfDeslocamentoCidadeLabel('')
-        setAfDeslocamentoErro(err instanceof Error ? err.message : 'Erro ao resolver localização.')
-      }
+    } else {
+      const km = calcRoundTripKm(city.lat, city.lng)
+      const custo = calculateInstallerTravelCost(km, travelConfig)
+      setAfDeslocamentoStatus('ok')
+      setAfDeslocamentoKm(km)
+      setAfDeslocamentoRs(custo)
+      setAfDeslocamentoCidadeLabel(label)
+      setAfDeslocamentoErro('')
     }
-    const timer = setTimeout(() => { void runGeocode() }, 600)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-      controller.abort()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [afCidadeDestino, vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
+  }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
     if (
@@ -9794,17 +9781,17 @@ export default function App() {
     const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * (MATERIAL_CA_PERCENT_DO_KIT / 100)
     const preCrea = resolveCrea(uf)
     const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * PRECO_PLACA_RS
-    const preCombustivel = resolveCombustivel(uf)
+    const preProjetoFinal = afProjetoOverride != null ? afProjetoOverride : preProjetoCusto
+    const preCreaFinal = afCreaOverride != null ? afCreaOverride : preCrea
     const preCustoVariavel =
       afCustoKit +
       afFrete +
       afDescarregamento +
-      preProjetoCusto +
+      preProjetoFinal +
       instalacaoCalculada +
       preMaterialCA +
-      preCrea +
+      preCreaFinal +
       prePlaca +
-      preCombustivel +
       afHotelPousada +
       afTransporteCombustivel +
       afOutros +
@@ -9904,6 +9891,8 @@ export default function App() {
         deslocamento_instaladores_rs: afDeslocamentoRs,
         placa_rs_override: prePlaca,
         material_ca_rs_override: preMaterialCA,
+        projeto_rs_override: preProjetoFinal,
+        crea_rs_override: preCreaFinal,
         valor_contrato_rs: valorContrato,
         impostos_percent: afImpostos,
         custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
@@ -9969,6 +9958,8 @@ export default function App() {
     afMargemLiquidaMinima,
     afPlaca,
     afMaterialCAOverride,
+    afProjetoOverride,
+    afCreaOverride,
     baseIrradiacao,
     diasMesNormalizado,
     eficienciaNormalizada,
@@ -24780,6 +24771,10 @@ export default function App() {
                     setAfDeslocamentoCidadeLabel('')
                     setAfDeslocamentoErro('')
                     setAfMaterialCAOverride(null)
+                    setAfProjetoOverride(null)
+                    setAfCreaOverride(null)
+                    setAfCidadeSuggestions([])
+                    setAfCidadeShowSuggestions(false)
                     setAfMensalidadeBase(0)
                     afBaseInitializedRef.current = false
                   }}
@@ -24931,15 +24926,6 @@ export default function App() {
                     }}
                     />
                   </Field>
-                  <Field label="UF">
-                    <select
-                      value={afUfOverride || ufTarifa}
-                      onChange={(e) => setAfUfOverride(e.target.value as 'GO' | 'DF')}
-                    >
-                      <option value="GO">GO</option>
-                      <option value="DF">DF</option>
-                    </select>
-                  </Field>
                 </div>
               </div>
 
@@ -24960,21 +24946,6 @@ export default function App() {
                       placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
-                  {afModo === 'venda' ? (
-                    <Field label="Valor do Contrato (R$)">
-                      <input
-                        ref={afValorContratoField.ref}
-                        type="text"
-                        inputMode="decimal"
-                        value={afValorContratoField.text}
-                        style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
-                        onChange={afValorContratoField.handleChange}
-                        onBlur={afValorContratoField.handleBlur}
-                        onFocus={afValorContratoField.handleFocus}
-                        placeholder={MONEY_INPUT_PLACEHOLDER}
-                      />
-                    </Field>
-                  ) : null}
                   <Field label="Frete (R$)">
                     <input
                       ref={afFreteField.ref}
@@ -25021,6 +24992,30 @@ export default function App() {
                       onBlur={afPlacaField.handleBlur}
                       onFocus={afPlacaField.handleFocus}
                       placeholder={MONEY_INPUT_PLACEHOLDER}
+                    />
+                  </Field>
+                  <Field label={labelWithTooltip('Projeto (R$)', 'Custo do projeto elétrico. Calculado automaticamente pela potência do sistema, mas pode ser editado manualmente.')}>
+                    <input
+                      ref={afProjetoField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afProjetoField.text}
+                      onChange={afProjetoField.handleChange}
+                      onBlur={afProjetoField.handleBlur}
+                      onFocus={afProjetoField.handleFocus}
+                      placeholder={analiseFinanceiraResult ? formatMoneyBR(analiseFinanceiraResult.custo_projeto_rs) : MONEY_INPUT_PLACEHOLDER}
+                    />
+                  </Field>
+                  <Field label={labelWithTooltip('CREA (R$)', 'Taxa do Conselho Regional de Engenharia. Calculada automaticamente pela UF, mas pode ser editada manualmente.')}>
+                    <input
+                      ref={afCreaField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afCreaField.text}
+                      onChange={afCreaField.handleChange}
+                      onBlur={afCreaField.handleBlur}
+                      onFocus={afCreaField.handleFocus}
+                      placeholder={analiseFinanceiraResult ? formatMoneyBR(analiseFinanceiraResult.crea_rs) : MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
                   <Field label="Instalação (R$)">
@@ -25071,18 +25066,66 @@ export default function App() {
                       placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
-                  <Field label={labelWithTooltip('Deslocamento instaladores', `Informe a cidade/UF ou CEP do local de instalação. O sistema calcula automaticamente o custo de deslocamento da equipe com base na distância de ${BASE_CITY_NAME}.`)}>
-                    <input
-                      type="text"
-                      value={afCidadeDestino}
-                      onChange={(e) => setAfCidadeDestino(e.target.value)}
-                      placeholder="Ex: Brasília/DF ou 70040-010"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                    {afDeslocamentoStatus === 'loading' && (
-                      <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>Consultando…</span>
-                    )}
+                  <Field label={labelWithTooltip('UF / Cidade', `Digite a cidade para definir a UF e calcular automaticamente o custo de deslocamento da equipe a partir de ${BASE_CITY_NAME}.`)}>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        value={afCidadeDestino}
+                        onChange={(e) => {
+                          setAfCidadeDestino(e.target.value)
+                          setAfCidadeShowSuggestions(true)
+                          if (!e.target.value.trim()) {
+                            setAfDeslocamentoStatus('idle')
+                            setAfDeslocamentoKm(0)
+                            setAfDeslocamentoRs(0)
+                            setAfDeslocamentoCidadeLabel('')
+                            setAfDeslocamentoErro('')
+                          }
+                        }}
+                        onFocus={() => {
+                          if (afCidadeBlurTimerRef.current) clearTimeout(afCidadeBlurTimerRef.current)
+                          setAfCidadeShowSuggestions(true)
+                        }}
+                        onBlur={() => {
+                          afCidadeBlurTimerRef.current = setTimeout(() => setAfCidadeShowSuggestions(false), 150)
+                        }}
+                        placeholder="Ex: Goiânia ou goiania ou Brasilia"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      {afCidadeShowSuggestions && afCidadeSuggestions.length > 0 && (
+                        <ul style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          zIndex: 50,
+                          background: 'var(--color-surface, #fff)',
+                          border: '1px solid var(--color-border, #e2e8f0)',
+                          borderRadius: '4px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                          listStyle: 'none',
+                          margin: 0,
+                          padding: '0.25rem 0',
+                          maxHeight: '220px',
+                          overflowY: 'auto',
+                        }}>
+                          {afCidadeSuggestions.map((city) => (
+                            <li
+                              key={`${city.cidade}-${city.uf}`}
+                              onMouseDown={() => handleSelectCidade(city)}
+                              style={{
+                                padding: '0.4rem 0.75rem',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem',
+                              }}
+                            >
+                              {city.cidade} — {city.uf}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                     {afDeslocamentoStatus === 'isenta' && (
                       <span style={{ fontSize: '0.75rem', color: 'var(--color-success-fg, green)' }}>
                         ✓ {afDeslocamentoCidadeLabel} — Região isenta (R$0)
@@ -25096,6 +25139,11 @@ export default function App() {
                     {afDeslocamentoStatus === 'error' && (
                       <span style={{ fontSize: '0.75rem', color: 'var(--color-error-fg, red)' }}>
                         ⚠ {afDeslocamentoErro}
+                      </span>
+                    )}
+                    {afUfOverride && (
+                      <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                        UF: <strong>{afUfOverride}</strong>
                       </span>
                     )}
                   </Field>
@@ -25179,14 +25227,9 @@ export default function App() {
                     </>
                   ) : null}
                 </div>
-                {analiseFinanceiraResult ? (
+                {analiseFinanceiraResult && analiseFinanceiraResult.deslocamento_instaladores_rs > 0 ? (
                   <div className="info-inline" style={{ marginTop: '0.5rem' }}>
-                    <span className="pill">Projeto <strong>{currency(analiseFinanceiraResult.custo_projeto_rs)}</strong></span>
-                    <span className="pill">CREA <strong>{currency(analiseFinanceiraResult.crea_rs)}</strong></span>
-                    <span className="pill">Combustível <strong>{currency(analiseFinanceiraResult.combustivel_rs)}</strong></span>
-                    {analiseFinanceiraResult.deslocamento_instaladores_rs > 0 ? (
-                      <span className="pill">Deslocamento instaladores <InfoTooltip text={`Custo estimado de deslocamento da equipe até o local de instalação a partir de ${BASE_CITY_NAME} (${afDeslocamentoKm} km ida+volta).`} /> <strong>{currency(analiseFinanceiraResult.deslocamento_instaladores_rs)}</strong></span>
-                    ) : null}
+                    <span className="pill">Deslocamento instaladores <InfoTooltip text={`Custo estimado de deslocamento da equipe até o local de instalação a partir de ${BASE_CITY_NAME} (${afDeslocamentoKm} km ida+volta).`} /> <strong>{currency(analiseFinanceiraResult.deslocamento_instaladores_rs)}</strong></span>
                   </div>
                 ) : null}
                 <p className="simulacoes-description" style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
@@ -25201,6 +25244,23 @@ export default function App() {
                   {afModo === 'venda' && analiseFinanceiraResult.custo_variavel_total_rs != null ? (
                     <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
                       <h4>Resultados</h4>
+                      {afModo === 'venda' ? (
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <Field label="Valor do Contrato (R$)">
+                            <input
+                              ref={afValorContratoField.ref}
+                              type="text"
+                              inputMode="decimal"
+                              value={afValorContratoField.text}
+                              style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
+                              onChange={afValorContratoField.handleChange}
+                              onBlur={afValorContratoField.handleBlur}
+                              onFocus={afValorContratoField.handleFocus}
+                              placeholder={MONEY_INPUT_PLACEHOLDER}
+                            />
+                          </Field>
+                        </div>
+                      ) : null}
                       <div className="info-inline">
                         <span className="pill">Custo variável total <InfoTooltip text="Soma de todos os custos diretos do projeto: kit, frete, descarregamento, hospedagem, material CA e mão de obra estimada." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
                         {afValorContrato > 0 ? (
