@@ -39,6 +39,8 @@ export interface AnaliseFinanceiraInput {
   descarregamento_rs: number
   instalacao_rs: number
   hotel_pousada_rs: number
+  transporte_combustivel_rs: number
+  outros_rs: number
   /** When provided, overrides the auto-calculated placa cost (default: quantidade_modulos × PRECO_PLACA_RS). */
   placa_rs_override?: number
   /** When provided, overrides the auto-calculated material CA cost (default: custo_kit_rs × MATERIAL_CA_PERCENT_DO_KIT / 100). */

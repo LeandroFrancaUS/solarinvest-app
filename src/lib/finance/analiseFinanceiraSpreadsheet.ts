@@ -249,7 +249,9 @@ function calcularCustoVariavelTotal(
     custosTecnicos.crea_rs +
     custosTecnicos.placa_rs +
     custosTecnicos.combustivel_rs +
-    input.hotel_pousada_rs
+    input.hotel_pousada_rs +
+    input.transporte_combustivel_rs +
+    input.outros_rs
   )
 }
 

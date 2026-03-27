@@ -4417,6 +4417,8 @@ export default function App() {
   const [afFrete, setAfFrete] = useState(0)
   const [afDescarregamento, setAfDescarregamento] = useState(0)
   const [afHotelPousada, setAfHotelPousada] = useState(0)
+  const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
+  const [afOutros, setAfOutros] = useState(0)
   const [afValorContrato, setAfValorContrato] = useState(0)
   const [afImpostos, setAfImpostos] = useState(8)
   const [afInadimplencia, setAfInadimplencia] = useState(2)
@@ -4447,6 +4449,8 @@ export default function App() {
   const afDescarregamentoField = useBRNumberField({ mode: 'money', value: afDescarregamento, onChange: (v) => setAfDescarregamento(v ?? 0) })
   const afPlacaField = useBRNumberField({ mode: 'money', value: afPlaca, onChange: (v) => setAfPlaca(v ?? 18) })
   const afHotelPousadaField = useBRNumberField({ mode: 'money', value: afHotelPousada, onChange: (v) => setAfHotelPousada(v ?? 0) })
+  const afTransporteCombustivelField = useBRNumberField({ mode: 'money', value: afTransporteCombustivel, onChange: (v) => setAfTransporteCombustivel(v ?? 0) })
+  const afOutrosField = useBRNumberField({ mode: 'money', value: afOutros, onChange: (v) => setAfOutros(v ?? 0) })
   const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
   const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? (afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100), onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
   const isVendaDiretaTab = activeTab === 'vendas'
@@ -9731,7 +9735,9 @@ export default function App() {
       preCrea +
       prePlaca +
       preCombustivel +
-      afHotelPousada
+      afHotelPousada +
+      afTransporteCombustivel +
+      afOutros
 
     const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
     // Build the projected mensalidades series for leasing mode using an AF-isolated
@@ -9822,6 +9828,8 @@ export default function App() {
         descarregamento_rs: afDescarregamento,
         instalacao_rs: instalacaoCalculada,
         hotel_pousada_rs: afHotelPousada,
+        transporte_combustivel_rs: afTransporteCombustivel,
+        outros_rs: afOutros,
         placa_rs_override: prePlaca,
         material_ca_rs_override: preMaterialCA,
         valor_contrato_rs: valorContrato,
@@ -9854,6 +9862,8 @@ export default function App() {
     afDescarregamento,
     afFrete,
     afHotelPousada,
+    afTransporteCombustivel,
+    afOutros,
     afInadimplencia,
     afMensalidadeBase,
     afMesesProjecao,
@@ -24688,6 +24698,8 @@ export default function App() {
                     setAfFrete(0)
                     setAfDescarregamento(0)
                     setAfHotelPousada(0)
+                    setAfTransporteCombustivel(0)
+                    setAfOutros(0)
                     setAfMaterialCAOverride(null)
                     setAfMensalidadeBase(0)
                     afBaseInitializedRef.current = false
@@ -24953,6 +24965,30 @@ export default function App() {
                       onChange={afHotelPousadaField.handleChange}
                       onBlur={afHotelPousadaField.handleBlur}
                       onFocus={afHotelPousadaField.handleFocus}
+                      placeholder={MONEY_INPUT_PLACEHOLDER}
+                    />
+                  </Field>
+                  <Field label="Transporte/Combustível (R$)">
+                    <input
+                      ref={afTransporteCombustivelField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afTransporteCombustivelField.text}
+                      onChange={afTransporteCombustivelField.handleChange}
+                      onBlur={afTransporteCombustivelField.handleBlur}
+                      onFocus={afTransporteCombustivelField.handleFocus}
+                      placeholder={MONEY_INPUT_PLACEHOLDER}
+                    />
+                  </Field>
+                  <Field label="Outros (R$)">
+                    <input
+                      ref={afOutrosField.ref}
+                      type="text"
+                      inputMode="decimal"
+                      value={afOutrosField.text}
+                      onChange={afOutrosField.handleChange}
+                      onBlur={afOutrosField.handleBlur}
+                      onFocus={afOutrosField.handleFocus}
                       placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
