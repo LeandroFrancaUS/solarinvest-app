@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { ActionBar } from './components/layout/ActionBar'
 import { CheckboxSmall } from './components/CheckboxSmall'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
 import { createRoot } from 'react-dom/client'
@@ -24136,28 +24137,6 @@ export default function App() {
             ]
           : []),
         {
-          id: 'propostas-nova',
-          label: 'Nova proposta',
-          icon: '✨',
-          onSelect: () => {
-            setActivePage('app')
-            handleNovaProposta()
-          },
-        },
-        {
-          id: 'propostas-salvar',
-          label: salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta',
-          icon: '💾',
-          onSelect: () => {
-            setActivePage('app')
-            handleSalvarPropostaPdf()
-          },
-          disabled: !podeSalvarProposta || salvandoPropostaPdf,
-          title: !proposalPdfIntegrationAvailable
-            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
-            : undefined,
-        },
-        {
           id: 'propostas-contratos',
           label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
           icon: '🖋️',
@@ -24165,15 +24144,6 @@ export default function App() {
             void handleGerarContratosComConfirmacao()
           },
           disabled: gerandoContratos,
-        },
-        {
-          id: 'propostas-imagens',
-          label: 'Incluir imagens',
-          icon: '🖼️',
-          onSelect: () => {
-            setActivePage('app')
-            handleAbrirUploadImagens()
-          },
         },
         {
           id: 'propostas-enviar',
@@ -24262,15 +24232,6 @@ export default function App() {
           icon: '📤',
           onSelect: () => {
             setActivePage('app')
-          },
-        },
-        {
-          id: 'relatorios-exportar-pdf',
-          label: 'Gerar proposta',
-          icon: '🖨️',
-          onSelect: () => {
-            setActivePage('app')
-            void handlePrint()
           },
         },
       ],
@@ -24366,28 +24327,14 @@ export default function App() {
   const mobileAllowedIds = [
     'propostas-leasing',
     'propostas-vendas',
-    'propostas-nova',
-    'relatorios-exportar-pdf',
     ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
     'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
 
-  const gerarPropostaSidebarItem = sidebarGroups
-    .find((g) => g.id === 'relatorios')
-    ?.items.find((item) => item.id === 'relatorios-exportar-pdf') ?? null
-
   const desktopSimpleSidebarGroups: SidebarGroup[] = (() => {
     const filtered = sidebarGroups.filter((g) => g.id !== 'simulacoes' && g.id !== 'crm')
-    return filtered.map((g) => {
-      if (g.id !== 'propostas') return g
-      const salvarIdx = g.items.findIndex((item) => item.id === 'propostas-salvar')
-      const newItems = [...g.items]
-      if (gerarPropostaSidebarItem && salvarIdx !== -1) {
-        newItems.splice(salvarIdx + 1, 0, gerarPropostaSidebarItem)
-      }
-      return { ...g, items: newItems }
-    })
+    return filtered
   })()
 
   const mobileSidebarGroups: SidebarGroup[] = isMobileViewport
@@ -26302,6 +26249,15 @@ export default function App() {
           <div className="page">
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
+              {(activeTab === 'leasing' || activeTab === 'vendas') ? (
+                <ActionBar
+                  onGenerateProposal={() => { void handlePrint() }}
+                  onSaveProposal={activeTab === 'leasing' ? handleSalvarPropostaLeasing : handleSalvarPropostaPdf}
+                  onNewProposal={() => { void handleNovaProposta() }}
+                  onIncludeImages={handleAbrirUploadImagens}
+                  isSaving={activeTab === 'leasing' ? salvandoPropostaLeasing : salvandoPropostaPdf}
+                />
+              ) : null}
               {orcamentoAtivoInfo ? (
                 <section className="card loaded-budget-viewer">
                   <div className="card-header loaded-budget-header">
@@ -26466,14 +26422,6 @@ export default function App() {
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
                       <div className="card-actions">
-                        <button
-                          type="button"
-                          className="primary"
-                          onClick={handleSalvarPropostaLeasing}
-                          disabled={!podeSalvarProposta || salvandoPropostaLeasing}
-                        >
-                          {salvandoPropostaLeasing ? 'Salvando…' : 'Salvar proposta'}
-                        </button>
                         <button
                           type="button"
                           className="ghost"

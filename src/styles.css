@@ -7945,3 +7945,135 @@ i:hover {
   grid-column: 1 / -1;
   width: 100%;
 }
+
+/* ============================================================
+   Proposal Action Bar — sticky, premium, zero-overlap
+   ============================================================ */
+.proposal-action-bar {
+  position: sticky;
+  top: var(--header-h, 72px);
+  z-index: 60;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  /* Ensure it sits above the form and below the topbar */
+}
+
+.proposal-action-bar__inner {
+  max-width: var(--content-max-width, 1200px);
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Main content below the action bar gets a z-index below it */
+.proposal-main-content {
+  position: relative;
+  z-index: 1;
+  padding-top: 16px;
+}
+
+/* Prevent form sections from hiding behind the sticky bar on jump-to */
+.section,
+.form-section,
+.card {
+  scroll-margin-top: calc(var(--header-h, 72px) + 88px);
+}
+
+/* ---- Buttons ---- */
+.proposal-action-btn {
+  appearance: none;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  min-height: 48px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+  cursor: pointer;
+}
+
+.proposal-action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.proposal-action-btn:active {
+  transform: translateY(0);
+}
+
+.proposal-action-btn:focus-visible {
+  outline: 2px solid rgba(249, 115, 22, 0.35);
+  outline-offset: 2px;
+}
+
+.proposal-action-btn--primary {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #ffffff;
+  border-color: rgba(234, 88, 12, 0.35);
+  box-shadow: 0 10px 24px rgba(234, 88, 12, 0.22);
+}
+
+.proposal-action-btn--primary:hover {
+  box-shadow: 0 14px 28px rgba(234, 88, 12, 0.28);
+}
+
+.proposal-action-btn--secondary {
+  background: rgba(255, 255, 255, 0.88);
+  color: #0f172a;
+}
+
+.proposal-action-btn--secondary:hover {
+  border-color: rgba(15, 23, 42, 0.16);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.proposal-action-btn:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---- Mobile: icon-only, no wrap ---- */
+@media (max-width: 768px) {
+  .proposal-action-bar__inner {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    padding: 10px 12px;
+  }
+
+  .proposal-action-bar__inner::-webkit-scrollbar {
+    display: none;
+  }
+
+  .proposal-action-btn {
+    flex: 0 0 auto;
+    min-width: 44px;
+    height: 44px;
+    padding: 0 12px;
+    justify-content: center;
+  }
+
+  .proposal-action-btn__label {
+    display: none;
+  }
+}
