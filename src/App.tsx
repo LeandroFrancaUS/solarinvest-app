@@ -24136,28 +24136,6 @@ export default function App() {
             ]
           : []),
         {
-          id: 'propostas-nova',
-          label: 'Nova proposta',
-          icon: '✨',
-          onSelect: () => {
-            setActivePage('app')
-            handleNovaProposta()
-          },
-        },
-        {
-          id: 'propostas-salvar',
-          label: salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta',
-          icon: '💾',
-          onSelect: () => {
-            setActivePage('app')
-            handleSalvarPropostaPdf()
-          },
-          disabled: !podeSalvarProposta || salvandoPropostaPdf,
-          title: !proposalPdfIntegrationAvailable
-            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
-            : undefined,
-        },
-        {
           id: 'propostas-contratos',
           label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
           icon: '🖋️',
@@ -24165,15 +24143,6 @@ export default function App() {
             void handleGerarContratosComConfirmacao()
           },
           disabled: gerandoContratos,
-        },
-        {
-          id: 'propostas-imagens',
-          label: 'Incluir imagens',
-          icon: '🖼️',
-          onSelect: () => {
-            setActivePage('app')
-            handleAbrirUploadImagens()
-          },
         },
         {
           id: 'propostas-enviar',
@@ -24262,15 +24231,6 @@ export default function App() {
           icon: '📤',
           onSelect: () => {
             setActivePage('app')
-          },
-        },
-        {
-          id: 'relatorios-exportar-pdf',
-          label: 'Gerar proposta',
-          icon: '🖨️',
-          onSelect: () => {
-            setActivePage('app')
-            void handlePrint()
           },
         },
       ],
@@ -24366,28 +24326,13 @@ export default function App() {
   const mobileAllowedIds = [
     'propostas-leasing',
     'propostas-vendas',
-    'propostas-nova',
-    'relatorios-exportar-pdf',
     ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
     'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
 
-  const gerarPropostaSidebarItem = sidebarGroups
-    .find((g) => g.id === 'relatorios')
-    ?.items.find((item) => item.id === 'relatorios-exportar-pdf') ?? null
-
   const desktopSimpleSidebarGroups: SidebarGroup[] = (() => {
-    const filtered = sidebarGroups.filter((g) => g.id !== 'simulacoes' && g.id !== 'crm')
-    return filtered.map((g) => {
-      if (g.id !== 'propostas') return g
-      const salvarIdx = g.items.findIndex((item) => item.id === 'propostas-salvar')
-      const newItems = [...g.items]
-      if (gerarPropostaSidebarItem && salvarIdx !== -1) {
-        newItems.splice(salvarIdx + 1, 0, gerarPropostaSidebarItem)
-      }
-      return { ...g, items: newItems }
-    })
+    return sidebarGroups.filter((g) => g.id !== 'simulacoes' && g.id !== 'crm')
   })()
 
   const mobileSidebarGroups: SidebarGroup[] = isMobileViewport
@@ -26330,8 +26275,7 @@ export default function App() {
               ) : null}
               <div className="page-editable">
                 <div ref={editableContentRef} className="page-editable-body">
-                  {isVendaDiretaTab || orcamentoAtivoInfo ? (
-                    <div className="page-actions">
+                  <div className="page-actions">
                       {isVendaDiretaTab ? (
                         <button type="button" className="ghost" onClick={handleRecalcularVendas}>
                           Recalcular
@@ -26346,8 +26290,44 @@ export default function App() {
                           Duplicar
                         </button>
                       ) : null}
+                      <button
+                        type="button"
+                        className="ghost"
+                        title="Nova proposta"
+                        onClick={() => { void handleNovaProposta() }}
+                      >
+                        ✨ Nova proposta
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        title={
+                          !proposalPdfIntegrationAvailable
+                            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
+                            : 'Salvar proposta'
+                        }
+                        onClick={() => { void handleSalvarPropostaPdf() }}
+                        disabled={!podeSalvarProposta || salvandoPropostaPdf}
+                      >
+                        💾 {salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta'}
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        title="Incluir imagens"
+                        onClick={handleAbrirUploadImagens}
+                      >
+                        🖼️ Incluir imagens
+                      </button>
+                      <button
+                        type="button"
+                        className="primary solid"
+                        title="Gerar proposta"
+                        onClick={() => { void handlePrint() }}
+                      >
+                        🖨️ Gerar proposta
+                      </button>
                     </div>
-                    ) : null}
                     {renderClienteDadosSection()}
                     {activeTab === 'vendas' ? (
                       <>
