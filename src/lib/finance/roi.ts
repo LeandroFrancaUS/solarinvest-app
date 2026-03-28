@@ -187,7 +187,8 @@ export function computeROI(form: VendaForm): RetornoProjetado {
         ? percentToFraction(form.taxa_mdr_debito_pct)
         : percentToFraction(form.taxa_mdr_credito_vista_pct)
     investimentoInicial = capex * (1 + taxaMdr)
-    totalPagamentos = capex
+    // Para consistência financeira, custo efetivo deve incluir MDR.
+    totalPagamentos = investimentoInicial
   } else if (condicao === 'PARCELADO') {
     const parcelas = Math.max(0, Math.floor(sanitizeNumber(form.n_parcelas, 12)))
     const jurosMensal = Number.isFinite(form.juros_cartao_am_pct)

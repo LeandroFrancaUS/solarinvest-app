@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   calcCapexFromValorMercado,
   calcEconomiaContrato,
+  calcSimulacaoDetalhesMensais,
   calcKPIs,
   calcTarifaComDesconto,
   calcTusdEncargo,
@@ -64,6 +65,16 @@ describe('simulation finance helpers', () => {
   it('gera economia acumulada positiva quando há desconto e consumo', () => {
     const sim = createSimulacao({ desconto_pct: 18, kc_kwh_mes: 800, inflacao_energetica_pct: 8 })
     expect(calcEconomiaContrato(sim)).toBeGreaterThan(0)
+  })
+
+  it('não soma OPEX/seguro na economia acumulada do contrato', () => {
+    const sim = createSimulacao({ seguro_pct: 2.5, desconto_pct: 20, kc_kwh_mes: 700 })
+    const mensal = calcSimulacaoDetalhesMensais(sim)
+    const economiaLiquida = mensal.reduce((acc, item) => acc + item.economiaLiquida, 0)
+    const valorMercado = calcValorMercado(sim.capex_solarinvest)
+    const esperado = economiaLiquida + valorMercado
+
+    expect(calcEconomiaContrato(sim)).toBeCloseTo(esperado, 6)
   })
 
   it('calcula TUSD não compensável conforme regra de transição', () => {

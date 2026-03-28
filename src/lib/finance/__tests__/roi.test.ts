@@ -38,6 +38,25 @@ describe('computeROI', () => {
     expect(resultadoComMdr.investimentoInicial).toBeGreaterThan(resultadoSemMdr.investimentoInicial)
   })
 
+  it('considera MDR no total pago e no ROI à vista', () => {
+    const form = createBaseForm({
+      condicao: 'AVISTA',
+      modo_pagamento: 'PIX',
+      taxa_mdr_pix_pct: 2,
+      consumo_kwh_mes: 0,
+      geracao_estimada_kwh_mes: 0,
+      taxa_minima_mensal: 0,
+      taxa_minima_r_mes: 0,
+      tusd_percentual: 0,
+    })
+    const resultado = computeROI(form)
+    const investimentoEsperado = (form.capex_total ?? 0) * 1.02
+
+    expect(resultado.investimentoInicial).toBeCloseTo(investimentoEsperado, 2)
+    expect(resultado.totalPagamentos).toBeCloseTo(investimentoEsperado, 2)
+    expect(resultado.roi).toBeCloseTo(-1, 6)
+  })
+
   it('calcula parcelas e ROI corretamente em cenário parcelado com juros mensais', () => {
     const capex = 24000
     const jurosMensal = 2
@@ -57,6 +76,7 @@ describe('computeROI', () => {
       tarifa_r_kwh: 1,
       taxa_minima_mensal: 50,
       taxa_minima_r_mes: 50,
+      tusd_percentual: 0,
     })
 
     const resultado = computeROI(formParcelado)
@@ -214,12 +234,13 @@ describe('computeROI', () => {
     const resultado = computeROI(
       createBaseForm({
         consumo_kwh_mes: 500,
-        geracao_estimada_kwh_mes: 0,
+        geracao_estimada_kwh_mes: 500,
         tarifa_r_kwh: 1,
         inflacao_energia_aa_pct: 8,
         taxa_minima_mensal: 0,
         taxa_minima_r_mes: 0,
         tusd_percentual: 0,
+        aplica_taxa_minima: false,
       }),
     )
 
@@ -234,12 +255,13 @@ describe('computeROI', () => {
     const resultado = computeROI(
       createBaseForm({
         consumo_kwh_mes: 400,
-        geracao_estimada_kwh_mes: 0,
+        geracao_estimada_kwh_mes: 400,
         tarifa_r_kwh: 1,
         inflacao_energia_aa_pct: 5,
         taxa_minima_mensal: 0,
         taxa_minima_r_mes: 0,
         tusd_percentual: 0,
+        aplica_taxa_minima: false,
       }),
     )
 

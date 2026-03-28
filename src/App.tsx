@@ -25227,11 +25227,6 @@ export default function App() {
                         </ul>
                       )}
                     </div>
-                    {afUfOverride && (
-                      <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                        UF: <strong>{afUfOverride}</strong>
-                      </span>
-                    )}
                   </Field>
                 </div>
                 <p className="simulacoes-description" style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
