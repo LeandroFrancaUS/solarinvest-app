@@ -317,19 +317,21 @@ body.sidebar-mobile-open .app-body > .sidebar-mobile-header {
 
 .page-actions {
   position: sticky;
-  top: calc(var(--header-h) + var(--tabs-h) + 4px);
+  /* Mobile default: viewport is the scroll container with a fixed topbar */
+  top: var(--header-h);
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-2);
-  margin: 0 0 var(--space-2) auto;
-  background: color-mix(in srgb, var(--bg) 90%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  margin: 0 0 var(--space-3) auto;
+  /* Fully opaque page-background colour (var(--bg)) so scrolling content stays
+     hidden behind the bar instead of bleeding through */
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) + 4px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.14);
+  /* Bottom shadow creates the "content folds under" cylinder-roll depth cue */
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
   z-index: 6;
   align-self: flex-end;
 }
@@ -338,8 +340,13 @@ body.sidebar-mobile-open .app-body > .sidebar-mobile-header {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* Equal share of the row width; never forced to wrap */
+  flex: 1 1 0;
+  min-width: 0;
   min-height: var(--control-h);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (max-width: 768px) {
@@ -348,13 +355,14 @@ body.sidebar-mobile-open .app-body > .sidebar-mobile-header {
     top: var(--header-h);
     width: 100%;
     align-self: stretch;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: clamp(6px, 1.8vw, 12px);
     border-radius: 0;
     border-left: 0;
     border-right: 0;
     border-top: 0;
-    margin: 0 0 var(--space-2);
+    margin: 0 0 var(--space-3);
     padding: var(--space-1) clamp(12px, 5vw, 20px);
   }
 }
@@ -3077,8 +3085,9 @@ tbody tr:hover {
 
   .page-actions {
     width: 100%;
+    flex-wrap: nowrap;
     margin: 0 0 var(--space-3);
-    justify-content: flex-end;
+    justify-content: center;
   }
 
   .crm-lead-actions {
@@ -3151,15 +3160,15 @@ tbody tr:hover {
   }
 
   .page-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--space-1);
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: clamp(4px, 1.5vw, 8px);
   }
 
   .page-actions button {
-    font-size: 13px;
+    font-size: clamp(10px, 3vw, 13px);
     min-height: 36px;
-    padding: 6px 12px;
+    padding: clamp(4px, 1.5vw, 8px) clamp(6px, 2vw, 10px);
   }
 
   .crm-lead-actions {
@@ -7749,8 +7758,9 @@ i:hover {
 
   .page-actions {
     width: 100%;
-    justify-content: flex-end;
-    margin: 0 0 var(--space-2);
+    flex-wrap: nowrap;
+    justify-content: center;
+    margin: 0 0 var(--space-3);
   }
 }
 
@@ -7833,6 +7843,17 @@ i:hover {
     height: calc(100vh - var(--header-h));
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* On desktop, .content-wrap is the scroll container and already starts below
+     the fixed topbar, so sticky top:0 sticks at the visible top edge of content-wrap */
+  .page-actions {
+    top: 0;
+    align-self: flex-end;
+    width: auto;
+    border-radius: calc(var(--radius) + 4px);
+    border: 1px solid var(--border);
+    margin: 0 0 var(--space-3) auto;
   }
 
   .sidebar-section-scroll {
