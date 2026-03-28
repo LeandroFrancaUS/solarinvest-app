@@ -1230,7 +1230,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
                 <span>
                   {labelWithTooltip(
                     'Economia acumulada no contrato',
-                    'Somatório da economia líquida dos meses do contrato + Valor de mercado + Custos variáveis recuperados.',
+                    'Somatório da economia líquida dos meses do contrato + Valor de mercado estimado da usina.',
                   )}
                 </span>
                 <strong>{formatMoneyBR(economiaContrato)}</strong>

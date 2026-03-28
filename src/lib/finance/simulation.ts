@@ -293,14 +293,17 @@ const computeSimulationContext = (sim: Simulacao): SimulationContext => {
 
 export const calcEconomiaContrato = (sim: Simulacao): number => {
   const contexto = computeSimulationContext(sim)
-  return contexto.somaEconomiaLiquida + contexto.valorMercado + contexto.somaOpex
+  // Economia contratual representa benefício líquido do cliente no período:
+  // economia acumulada no contrato + valor residual estimado da usina.
+  // Não inclui OPEX/seguro da SolarInvest para evitar inflar a métrica exibida como "economia".
+  return contexto.somaEconomiaLiquida + contexto.valorMercado
 }
 
 export const calcEconomiaHorizonte = (sim: Simulacao, anos: number): number => {
   const contexto = computeSimulationContext(sim)
   const mesesTotal = monthsFromYears(anos)
   const economiaContratoBase =
-    contexto.somaEconomiaLiquida + contexto.valorMercado + contexto.somaOpex
+    contexto.somaEconomiaLiquida + contexto.valorMercado
   if (mesesTotal <= contexto.mesesContrato) {
     return economiaContratoBase
   }
