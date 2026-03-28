@@ -1,10 +1,10 @@
 /**
  * scripts/grant-admin.ts
  *
- * One-time utility to grant the `role:admin` Stack Auth permission to a user.
+ * One-time utility to grant the `role_admin` Stack Auth permission to a user.
  *
  * Prerequisites:
- *   - The permission `role:admin` must already be created in the Stack Auth dashboard.
+ *   - The permission `role_admin` must already be created in the Stack Auth dashboard.
  *   - The following environment variables must be set:
  *       STACK_PROJECT_ID (or VITE_STACK_PROJECT_ID)
  *       VITE_STACK_PUBLISHABLE_CLIENT_KEY
@@ -50,7 +50,7 @@ const serverApp = new StackServerApp({
 
 const userId = process.argv[2] ?? 'ae1f8d08-a591-454f-915b-ba003b120f75'
 
-console.info(`[grant-admin] Granting role:admin to user ${userId} …`)
+console.info(`[grant-admin] Granting role_admin to user ${userId} …`)
 
 const user = await serverApp.getUser(userId)
 
@@ -59,6 +59,6 @@ if (!user) {
   process.exit(1)
 }
 
-await user.grantPermission('role:admin')
+await user.grantPermission('role_admin')
 
-console.info(`[grant-admin] ✓ role:admin granted to ${user.displayName ?? user.primaryEmail ?? userId}`)
+console.info(`[grant-admin] ✓ role_admin granted to ${user.displayName ?? user.primaryEmail ?? userId}`)

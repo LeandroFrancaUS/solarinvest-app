@@ -3,7 +3,7 @@
 // Permissions are defined in the Stack Auth dashboard and checked via the client SDK.
 //
 // Server-side validation is provided by the existing /api/auth/me endpoint which
-// reads the role stored in the internal DB (approved = role:admin in Stack Auth →
+// reads the role stored in the internal DB (approved = role_admin in Stack Auth →
 // role 'admin' in DB). The two are kept in sync by the admin grant process.
 
 import { useUser } from '@stackframe/react'
