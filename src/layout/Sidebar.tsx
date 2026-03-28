@@ -242,12 +242,17 @@ export function Sidebar({
               <span className="sidebar-menu-text">{menuButtonText}</span>
             ) : null}
           </button>
-          {userInfo && !collapsed ? (
-            <div className="sidebar-user-info" aria-label={`Usuário: ${userInfo.name}, ${userInfo.role}`}>
-              <span className="sidebar-user-name">{userInfo.name}</span>
-              <span className="sidebar-user-role">{userInfo.role}</span>
-            </div>
-          ) : null}
+        </div>
+      ) : null}
+      {userInfo && !collapsed ? (
+        <div className="sidebar-user-banner" aria-label={`Usuário: ${userInfo.name}, ${userInfo.role}`}>
+          <span className="sidebar-user-avatar" aria-hidden="true">
+            {userInfo.name.charAt(0).toUpperCase()}
+          </span>
+          <div className="sidebar-user-details">
+            <span className="sidebar-user-name">{userInfo.name}</span>
+            <span className="sidebar-user-role">{userInfo.role}</span>
+          </div>
         </div>
       ) : null}
       <nav>

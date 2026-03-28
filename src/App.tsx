@@ -26274,6 +26274,9 @@ export default function App() {
                     ? 'Fechar menu Painel SolarInvest'
                     : 'Abrir menu Painel SolarInvest',
                   expanded: isSidebarMobileOpen,
+                  userInfo: user?.displayName
+                    ? { name: user.displayName, role: userRole }
+                    : undefined,
                 }
               : undefined
           }
