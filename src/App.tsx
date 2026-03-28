@@ -26253,7 +26253,7 @@ export default function App() {
                 <ActionBar
                   onGenerateProposal={() => { void handlePrint() }}
                   onSaveProposal={activeTab === 'leasing' ? handleSalvarPropostaLeasing : handleSalvarPropostaPdf}
-                  onNewProposal={() => { void handleNovaProposta() }}
+                  onNewProposal={handleNovaProposta}
                   onIncludeImages={handleAbrirUploadImagens}
                   isSaving={activeTab === 'leasing' ? salvandoPropostaLeasing : salvandoPropostaPdf}
                 />
