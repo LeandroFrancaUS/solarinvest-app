@@ -73,12 +73,6 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
               <span aria-hidden="true" />
               <span aria-hidden="true" />
             </button>
-            {mobileMenuButton.userInfo ? (
-              <div className="sidebar-mobile-user" aria-label={`Usuário: ${mobileMenuButton.userInfo.name}`}>
-                <span className="sidebar-mobile-user-name">{mobileMenuButton.userInfo.name}</span>
-                <span className="sidebar-mobile-user-role">{mobileMenuButton.userInfo.role}</span>
-              </div>
-            ) : null}
           </div>
         ) : null}
         {showBackdrop ? (
