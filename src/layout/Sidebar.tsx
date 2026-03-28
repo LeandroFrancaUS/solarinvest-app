@@ -16,6 +16,11 @@ export interface SidebarGroup {
   items: SidebarItem[]
 }
 
+export interface SidebarUserInfo {
+  name: string
+  role: string
+}
+
 export interface SidebarProps {
   collapsed?: boolean
   mobileOpen?: boolean
@@ -27,6 +32,7 @@ export interface SidebarProps {
   menuButtonLabel?: string
   menuButtonExpanded?: boolean
   menuButtonText?: string
+  userInfo?: SidebarUserInfo
 }
 
 export function Sidebar({
@@ -40,6 +46,7 @@ export function Sidebar({
   menuButtonLabel,
   menuButtonExpanded,
   menuButtonText,
+  userInfo,
 }: SidebarProps) {
   const parentIds = React.useMemo(() => {
     const activeParents = new Set<string>()
@@ -235,6 +242,12 @@ export function Sidebar({
               <span className="sidebar-menu-text">{menuButtonText}</span>
             ) : null}
           </button>
+          {userInfo && !collapsed ? (
+            <div className="sidebar-user-info" aria-label={`Usuário: ${userInfo.name}, ${userInfo.role}`}>
+              <span className="sidebar-user-name">{userInfo.name}</span>
+              <span className="sidebar-user-role">{userInfo.role}</span>
+            </div>
+          ) : null}
         </div>
       ) : null}
       <nav>

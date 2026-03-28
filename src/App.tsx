@@ -26241,9 +26241,6 @@ export default function App() {
           topbar={{
             subtitle: topbarSubtitle,
             mobileSubtitle: currentPageIndicator,
-            userInfo: user?.displayName
-              ? { name: user.displayName, role: userRole }
-              : undefined,
           }}
           sidebar={{
             collapsed: isSidebarCollapsed,
@@ -26260,6 +26257,9 @@ export default function App() {
               : 'Painel SolarInvest',
             menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
             menuButtonText: 'Painel SolarInvest',
+            userInfo: user?.displayName
+              ? { name: user.displayName, role: userRole }
+              : undefined,
           }}
           content={{
             subtitle: contentSubtitle,
