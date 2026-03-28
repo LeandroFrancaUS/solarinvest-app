@@ -270,6 +270,7 @@ import { Switch } from './components/ui/switch'
 import { useUser } from '@stackframe/react'
 import { performLogout } from './lib/auth/logout'
 import { useStackRbac } from './lib/auth/rbac'
+import { useAuthSession } from './auth/auth-session'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4249,7 +4250,28 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useUser()
-  const { isAdmin, role: userRole, isLoading: isRbacLoading } = useStackRbac()
+  const { isAdmin: isAdminFromStack, role: userRole, isLoading: isStackPermLoading } = useStackRbac()
+
+  // Derive a memoized token getter so useAuthSession sends the Bearer header.
+  // Falls back to null while user hasn't resolved yet (no auth header sent).
+  const getAccessToken = useCallback(
+    async (): Promise<string | null> => user?.getAccessToken() ?? null,
+    [user],
+  )
+  // Read the internal DB role from /api/auth/me. This is the ground-truth for
+  // admin status: the bootstrap admin always has role='admin' in the DB, even
+  // before the Stack Auth native permission 'role_admin' is granted.
+  const { me, authState: meAuthState } = useAuthSession(user ? getAccessToken : null)
+
+  // isAdmin: Stack Auth native permission OR internal DB role (whichever resolves first).
+  // This ensures the admin can see protected pages even before 'role_admin' is
+  // granted in the Stack Auth dashboard (which requires STACK_SECRET_SERVER_KEY).
+  const isAdmin = isAdminFromStack || (me?.role === 'admin' && me?.authorized === true)
+
+  // Keep the redirect guard from firing until BOTH sources have resolved so we
+  // don't prematurely redirect the admin away from protected pages.
+  const isRbacLoading = isStackPermLoading || meAuthState === 'loading'
+
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = useCallback(async () => {
