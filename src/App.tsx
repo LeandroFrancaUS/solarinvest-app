@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { CheckboxSmall } from './components/CheckboxSmall'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
+import { ActionBar } from './components/layout/ActionBar'
 import { createRoot } from 'react-dom/client'
 import {
   LineChart,
@@ -26275,7 +26276,7 @@ export default function App() {
               ) : null}
               <div className="page-editable">
                 <div ref={editableContentRef} className="page-editable-body">
-                  <div className="page-actions">
+                  <ActionBar>
                       {isVendaDiretaTab ? (
                         <button type="button" className="ghost" onClick={handleRecalcularVendas}>
                           Recalcular
@@ -26327,7 +26328,7 @@ export default function App() {
                       >
                         🖨️ Gerar proposta
                       </button>
-                    </div>
+                    </ActionBar>
                     {renderClienteDadosSection()}
                     {activeTab === 'vendas' ? (
                       <>

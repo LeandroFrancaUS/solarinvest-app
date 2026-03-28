@@ -367,6 +367,77 @@ body.sidebar-mobile-open .app-body > .sidebar-mobile-header {
   }
 }
 
+/* ── Action bar: in-page sticky toolbar (proposal form buttons) ── */
+.action-bar {
+  position: sticky;
+  /* Mobile default: viewport scroll + fixed topbar */
+  top: var(--header-h);
+  z-index: 6;
+  /* Near-opaque dark surface — matches topbar/sidebar rgba(11,13,18,…) pattern */
+  background: rgba(11, 13, 18, 0.97);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  /* Shadow below bar reinforces the visual fold/depth cue */
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.32);
+  margin-bottom: var(--space-3);
+}
+
+.action-bar-inner {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 12px 20px;
+  /* Horizontal scroll so buttons never wrap — they keep their natural readable size */
+  overflow-x: auto;
+  /* Hide the scrollbar visually while keeping scroll functionality */
+  scrollbar-width: none;
+}
+
+.action-bar-inner::-webkit-scrollbar {
+  display: none;
+}
+
+.action-bar-inner button {
+  /* Fixed size — never shrink/grow; bar scrolls instead */
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 9px 18px;
+  white-space: nowrap;
+  font-size: var(--font-m);
+}
+
+@media (max-width: 768px) {
+  .action-bar {
+    /* Full-width, flush to edges on mobile */
+    width: 100%;
+    margin-bottom: var(--space-3);
+  }
+
+  .action-bar-inner {
+    gap: 8px;
+    padding: 10px clamp(12px, 5vw, 20px);
+  }
+
+  .action-bar-inner button {
+    font-size: 13px;
+    padding: 8px 14px;
+    min-height: 38px;
+  }
+}
+
+@media (min-width: 921px) {
+  /* On desktop, content-wrap is the scroll container and starts below the topbar */
+  .action-bar {
+    top: 0;
+    margin-left: auto;
+    width: fit-content;
+    border-radius: calc(var(--radius) + 4px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    margin-bottom: var(--space-3);
+  }
+}
+
 button {
   font-family: inherit;
   border: none;

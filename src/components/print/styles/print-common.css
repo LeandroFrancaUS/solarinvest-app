@@ -318,6 +318,14 @@
     html[data-print-mode='download'],
     body[data-print-mode='download'],
     [data-print-mode='download']
+  ) .action-bar,
+:where(
+    html[data-print-mode='print'],
+    body[data-print-mode='print'],
+    [data-print-mode='print'],
+    html[data-print-mode='download'],
+    body[data-print-mode='download'],
+    [data-print-mode='download']
   ) .top-actions,
 :where(
     html[data-print-mode='print'],
@@ -473,6 +481,7 @@
   input,
   select,
   .page-actions,
+  .action-bar,
   .top-actions,
   .legend-toggle,
   .collapse-toggle,

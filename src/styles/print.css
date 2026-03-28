@@ -489,6 +489,7 @@
   .tabs,
   .tabs-bar,
   .page-actions,
+  .action-bar,
   .chart-explainer {
     position: static !important;
     top: auto !important;
@@ -500,6 +501,7 @@
   .topbar,
   .tabs,
   .page-actions,
+  .action-bar,
   .legend-toggle,
   .collapse-toggle,
   .crm-button,
