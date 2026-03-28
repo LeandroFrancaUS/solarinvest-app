@@ -7,7 +7,9 @@ interface ActionBarProps {
 export function ActionBar({ children }: ActionBarProps) {
   return (
     <div className="action-bar">
-      <div className="action-bar-inner">{children}</div>
+      <div className="action-bar-shell">
+        <div className="action-bar-inner">{children}</div>
+      </div>
     </div>
   )
 }
