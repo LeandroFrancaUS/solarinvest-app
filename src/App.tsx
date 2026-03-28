@@ -24313,7 +24313,17 @@ export default function App() {
     },
   ]
 
-  const mobileAllowedIds = ['propostas-leasing', 'propostas-vendas', 'propostas-nova', 'relatorios-exportar-pdf', 'config-sair']
+  const MOBILE_FULL_ACCESS_USER_IDS = ['ae1f8d08-a591-454f-915b-ba003b120f75']
+  const mobileAllowedIds = [
+    'propostas-leasing',
+    'propostas-vendas',
+    'propostas-nova',
+    'relatorios-exportar-pdf',
+    ...(user?.id && MOBILE_FULL_ACCESS_USER_IDS.includes(user.id)
+      ? ['simulacoes-analise', 'config-preferencias']
+      : []),
+    'config-sair',
+  ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
 
   const gerarPropostaSidebarItem = sidebarGroups
