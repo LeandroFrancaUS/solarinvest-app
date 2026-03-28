@@ -29,6 +29,7 @@ import {
   isStackAuthEnabled,
   sanitizeStackUserId,
 } from './auth/stackAuth.js'
+import { requireStackPermission } from './auth/stackPermissions.js'
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
@@ -325,16 +326,19 @@ export default async function handler(req, res) {
     }
 
     if (pathname === LEASING_CONTRACTS_PATH) {
+      if (stackAuthEnabled) await requireStackPermission(req, 'page:financial_analysis')
       await handleLeasingContractsRequest(req, res)
       return
     }
 
     if (pathname === CONTRACT_RENDER_PATH) {
+      if (stackAuthEnabled) await requireStackPermission(req, 'page:financial_analysis')
       await handleContractRenderRequest(req, res)
       return
     }
 
     if (pathname === CONTRACT_TEMPLATES_PATH) {
+      if (stackAuthEnabled) await requireStackPermission(req, 'page:financial_analysis')
       await handleContractTemplatesRequest(req, res)
       return
     }

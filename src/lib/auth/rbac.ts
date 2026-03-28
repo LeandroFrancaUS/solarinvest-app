@@ -2,9 +2,8 @@
 // Client-side RBAC using Stack Auth's native permissions system.
 // Permissions are defined in the Stack Auth dashboard and checked via the client SDK.
 //
-// Server-side validation is provided by the existing /api/auth/me endpoint which
-// reads the role stored in the internal DB (approved = role_admin in Stack Auth →
-// role 'admin' in DB). The two are kept in sync by the admin grant process.
+// Server-side validation is provided by server/auth/stackPermissions.js which
+// checks Stack Auth native permissions (JWT claim + admin API) on protected routes.
 
 import { useUser } from '@stackframe/react'
 import { useEffect, useState } from 'react'
@@ -17,17 +16,22 @@ export interface StackRbacState {
   role: string
   /** True while the Stack Auth permission check is in flight. */
   isLoading: boolean
+  /** True when user has page:financial_analysis permission. */
+  canSeeFinancialAnalysis: boolean
+  /** True when user has page:preferences permission. */
+  canSeePreferences: boolean
 }
 
 /**
- * Returns the current user's admin status and role label derived from Stack Auth
- * native permissions (not metadata and not hardcoded user IDs).
+ * Returns the current user's admin status, role label, and page-level permissions
+ * derived from Stack Auth native permissions (not metadata and not hardcoded user IDs).
  *
- * Falls back to `{ isAdmin: false, role: 'Usuário' }` when Stack Auth is not
- * configured (e.g. dev / bypass mode) or while permissions are loading.
+ * Falls back to all-false/loading when Stack Auth is not configured or while
+ * permissions are loading.  The server-side security layer in
+ * server/auth/stackPermissions.js enforces these permissions on backend routes.
  *
  * Usage:
- *   const { isAdmin, role, isLoading } = useStackRbac()
+ *   const { isAdmin, role, canSeeFinancialAnalysis, canSeePreferences, isLoading } = useStackRbac()
  */
 export function useStackRbac(): StackRbacState {
   const user = useUser()
@@ -38,11 +42,13 @@ export function useStackRbac(): StackRbacState {
     // Start loading only when Stack Auth is configured — otherwise we already know
     // there are no permissions to fetch and we can resolve immediately.
     isLoading: !!stackClientApp,
+    canSeeFinancialAnalysis: false,
+    canSeePreferences: false,
   })
 
   useEffect(() => {
     if (!user) {
-      setState({ isAdmin: false, role: 'Usuário', isLoading: false })
+      setState({ isAdmin: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
       return
     }
 
@@ -52,8 +58,10 @@ export function useStackRbac(): StackRbacState {
       user.hasPermission(PERMISSIONS.ROLE_ADMIN),
       user.hasPermission(PERMISSIONS.ROLE_COMERCIAL),
       user.hasPermission(PERMISSIONS.ROLE_FINANCEIRO),
+      user.hasPermission(PERMISSIONS.PAGE_FINANCIAL),
+      user.hasPermission(PERMISSIONS.PAGE_PREF),
     ])
-      .then(([isAdminPerm, isComercialPerm, isFinanceiroPerm]) => {
+      .then(([isAdminPerm, isComercialPerm, isFinanceiroPerm, canFinancial, canPref]) => {
         if (cancelled) return
         const role = isAdminPerm
           ? 'Administrador'
@@ -62,7 +70,15 @@ export function useStackRbac(): StackRbacState {
             : isFinanceiroPerm
               ? 'Financeiro'
               : 'Usuário'
-        setState({ isAdmin: isAdminPerm, role, isLoading: false })
+        setState({
+          isAdmin: isAdminPerm,
+          role,
+          isLoading: false,
+          // role_admin includes page:financial_analysis and page:preferences,
+          // so admins automatically get both page-level permissions.
+          canSeeFinancialAnalysis: canFinancial || isAdminPerm,
+          canSeePreferences: canPref || isAdminPerm,
+        })
       })
       .catch((err) => {
         if (cancelled) return
@@ -70,7 +86,7 @@ export function useStackRbac(): StackRbacState {
           '[rbac] Failed to fetch Stack Auth permissions:',
           err instanceof Error ? err.message : String(err),
         )
-        setState({ isAdmin: false, role: 'Usuário', isLoading: false })
+        setState({ isAdmin: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
       })
 
     return () => {

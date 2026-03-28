@@ -1,6 +1,7 @@
 // server/auth/currentAppUser.js
 import { query } from '../db.js'
 import { getStackUser, isStackAuthBypassed, getBootstrapAdminEmail, getProjectId } from './stackAuth.js'
+import { ensureAdminPermissionForUser } from './stackPermissions.js'
 
 const ADMIN_BOOTSTRAP_EMAIL = getBootstrapAdminEmail()
 
@@ -496,6 +497,13 @@ export async function getCurrentAppUser(req) {
       is_active: true,
       can_access_app: true,
     }
+
+    // Also ensure the Stack Auth native permission `role_admin` is granted.
+    // Fire-and-forget: we do NOT await this so it never blocks the auth response.
+    // Idempotent — safe to call on every login; skips if already granted.
+    ensureAdminPermissionForUser(authProviderUserId, email).catch((err) => {
+      console.warn('[auth/user] ensureAdminPermission failed (non-fatal):', err?.message)
+    })
   }
 
   // 4b) Auto-approve any pending row for a Stack Auth-authenticated user.
@@ -528,6 +536,10 @@ export async function getCurrentAppUser(req) {
     console.info('[auth/user] no row found — provisioning new row. isBootstrapAdmin:', finalIsBootstrapAdmin)
     if (finalIsBootstrapAdmin) {
       record = await createBootstrapAdminRow(authProviderUserId, email, fullName)
+      // Also ensure Stack Auth native permission is granted (fire-and-forget).
+      ensureAdminPermissionForUser(authProviderUserId, email).catch((err) => {
+        console.warn('[auth/user] ensureAdminPermission failed (non-fatal):', err?.message)
+      })
     } else if (email) {
       record = await createApprovedUserRow(authProviderUserId, email, fullName)
       console.info('[auth/user] new approved row created for Stack Auth user — userId:', authProviderUserId)
