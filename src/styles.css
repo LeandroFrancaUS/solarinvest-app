@@ -320,12 +320,16 @@ body.sidebar-mobile-open .app-body > .sidebar-mobile-header {
   top: calc(var(--header-h) + var(--tabs-h) + 4px);
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 0;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
   margin: 0 0 var(--space-2) auto;
-  background: none;
-  border: 0;
-  box-shadow: none;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.14);
   z-index: 6;
   align-self: flex-end;
 }
@@ -335,14 +339,23 @@ body.sidebar-mobile-open .app-body > .sidebar-mobile-header {
   align-items: center;
   justify-content: center;
   min-height: var(--control-h);
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {
   .page-actions {
-    top: calc(var(--header-h) + 8px);
+    position: sticky;
+    top: var(--header-h);
     width: 100%;
-    margin: 0 0 var(--space-2);
+    align-self: stretch;
+    flex-wrap: wrap;
     justify-content: flex-end;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+    margin: 0 0 var(--space-2);
+    padding: var(--space-1) clamp(12px, 5vw, 20px);
   }
 }
 
@@ -3064,8 +3077,8 @@ tbody tr:hover {
 
   .page-actions {
     width: 100%;
-    margin: 0 auto var(--space-3);
-    justify-content: center;
+    margin: 0 0 var(--space-3);
+    justify-content: flex-end;
   }
 
   .crm-lead-actions {
@@ -3138,8 +3151,15 @@ tbody tr:hover {
   }
 
   .page-actions {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-1);
+  }
+
+  .page-actions button {
+    font-size: 13px;
+    min-height: 36px;
+    padding: 6px 12px;
   }
 
   .crm-lead-actions {
