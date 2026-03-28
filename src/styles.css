@@ -6804,6 +6804,35 @@ i:hover {
   margin-left: auto;
 }
 
+.topbar-user-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+}
+
+.topbar-user-name {
+  font-weight: 600;
+  color: #fff6e5;
+}
+
+.topbar-user-sep {
+  color: rgba(255, 140, 0, 0.7);
+}
+
+.topbar-user-role {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 140, 0, 0.14);
+  border: 1px solid rgba(255, 140, 0, 0.3);
+}
+
 .topbar-mobile-subtitle {
   display: none;
 }

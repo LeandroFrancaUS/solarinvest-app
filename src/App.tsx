@@ -269,6 +269,7 @@ import {
 import { Switch } from './components/ui/switch'
 import { useUser } from '@stackframe/react'
 import { performLogout } from './lib/auth/logout'
+import { useStackRbac } from './lib/auth/rbac'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4248,6 +4249,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useUser()
+  const { isAdmin, role: userRole, isLoading: isRbacLoading } = useStackRbac()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = useCallback(async () => {
@@ -4546,6 +4548,18 @@ export default function App() {
       lastPrimaryPageRef.current = activePage
     }
   }, [activePage])
+
+  // Guard protected pages: redirect non-admins away from 'settings' and
+  // 'simulacoes/analise' once RBAC permissions have been resolved.
+  // The isRbacLoading check prevents premature redirects during permission fetch.
+  useEffect(() => {
+    if (isRbacLoading) return
+    if (activePage === 'settings' && !isAdmin) {
+      setActivePage('app')
+    } else if (activePage === 'simulacoes' && simulacoesSection === 'analise' && !isAdmin) {
+      setActivePage('app')
+    }
+  }, [activePage, simulacoesSection, isAdmin, isRbacLoading, setActivePage])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -17396,21 +17410,27 @@ export default function App() {
 
   const abrirSimulacoes = useCallback(
     async (section?: SimulacoesSection) => {
+      if (section === 'analise' && !isAdmin) {
+        return false
+      }
       setSimulacoesSection(section ?? 'nova')
       setActivePage('simulacoes')
       return true
     },
-    [setActivePage],
+    [setActivePage, isAdmin],
   )
 
   const abrirConfiguracoes = useCallback(
     async (tab?: SettingsTabKey) => {
+      if (!isAdmin) {
+        return false
+      }
       return runWithUnsavedChangesGuard(() => {
         setSettingsTab(tab ?? 'mercado')
         setActivePage('settings')
       })
     },
-    [runWithUnsavedChangesGuard, setActivePage, setSettingsTab],
+    [runWithUnsavedChangesGuard, setActivePage, setSettingsTab, isAdmin],
   )
 
   const abrirDashboard = useCallback(async () => {
@@ -24081,14 +24101,18 @@ export default function App() {
             setActiveTab('vendas')
           },
         },
-        {
-          id: 'simulacoes-analise',
-          label: 'Análise Financeira',
-          icon: '✅',
-          onSelect: () => {
-            void abrirSimulacoes('analise')
-          },
-        },
+        ...(isAdmin
+          ? [
+              {
+                id: 'simulacoes-analise',
+                label: 'Análise Financeira',
+                icon: '✅',
+                onSelect: () => {
+                  void abrirSimulacoes('analise')
+                },
+              },
+            ]
+          : []),
         {
           id: 'propostas-nova',
           label: 'Nova proposta',
@@ -24292,14 +24316,18 @@ export default function App() {
       id: 'configuracoes',
       label: 'Configurações',
       items: [
-        {
-          id: 'config-preferencias',
-          label: 'Preferências',
-          icon: '⚙️',
-          onSelect: () => {
-            void abrirConfiguracoes()
-          },
-        },
+        ...(isAdmin
+          ? [
+              {
+                id: 'config-preferencias',
+                label: 'Preferências',
+                icon: '⚙️',
+                onSelect: () => {
+                  void abrirConfiguracoes()
+                },
+              },
+            ]
+          : []),
         {
           id: 'config-sair',
           label: isLoggingOut ? 'Saindo…' : 'Sair',
@@ -24313,15 +24341,12 @@ export default function App() {
     },
   ]
 
-  const MOBILE_FULL_ACCESS_USER_IDS = ['ae1f8d08-a591-454f-915b-ba003b120f75']
   const mobileAllowedIds = [
     'propostas-leasing',
     'propostas-vendas',
     'propostas-nova',
     'relatorios-exportar-pdf',
-    ...(user?.id && MOBILE_FULL_ACCESS_USER_IDS.includes(user.id)
-      ? ['simulacoes-analise', 'config-preferencias']
-      : []),
+    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
     'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
@@ -26194,6 +26219,9 @@ export default function App() {
           topbar={{
             subtitle: topbarSubtitle,
             mobileSubtitle: currentPageIndicator,
+            userInfo: user?.displayName
+              ? { name: user.displayName, role: userRole }
+              : undefined,
           }}
           sidebar={{
             collapsed: isSidebarCollapsed,
