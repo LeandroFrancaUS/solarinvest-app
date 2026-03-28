@@ -1,13 +1,19 @@
 import type { ReactNode } from 'react'
 
+export interface TopbarUserInfo {
+  name: string
+  role: string
+}
+
 export interface TopbarProps {
   title?: string
   subtitle?: string
   actions?: ReactNode
   mobileSubtitle?: string
+  userInfo?: TopbarUserInfo
 }
 
-export function Topbar({ title, subtitle, actions, mobileSubtitle }: TopbarProps) {
+export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo }: TopbarProps) {
   const hasHeading = Boolean(title || subtitle)
   const hasActions = actions != null
 
@@ -25,6 +31,13 @@ export function Topbar({ title, subtitle, actions, mobileSubtitle }: TopbarProps
           <div className="topbar-heading">
             {title ? <h1>{title}</h1> : null}
             {subtitle ? <p>{subtitle}</p> : null}
+          </div>
+        ) : null}
+        {userInfo ? (
+          <div className="topbar-user-info" aria-label={`Usuário: ${userInfo.name}, ${userInfo.role}`}>
+            <span className="topbar-user-name">{userInfo.name}</span>
+            <span className="topbar-user-sep" aria-hidden="true">—</span>
+            <span className="topbar-user-role">{userInfo.role}</span>
           </div>
         ) : null}
         {hasActions ? <div className="top-actions">{actions}</div> : null}

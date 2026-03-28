@@ -12,6 +12,7 @@ export interface AppShellProps {
     onToggle: () => void
     label?: string
     expanded?: boolean
+    userInfo?: { name: string; role: string }
   }
 }
 
@@ -60,17 +61,19 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
         {/* Always rendered (not just when sidebar is closed) so the hamburger→X CSS animation plays.
             Visibility when sidebar is open is guaranteed by z-index: 1300, above sidebar and backdrop. */}
         {mobileMenuButton ? (
-          <button
-            type="button"
-            className="sidebar-floating-toggle"
-            onClick={mobileMenuButton.onToggle}
-            aria-label={mobileMenuButton.label ?? 'Abrir menu de navegação'}
-            aria-expanded={mobileMenuButton.expanded}
-          >
-            <span aria-hidden="true" />
-            <span aria-hidden="true" />
-            <span aria-hidden="true" />
-          </button>
+          <div className="sidebar-mobile-header">
+            <button
+              type="button"
+              className="sidebar-floating-toggle"
+              onClick={mobileMenuButton.onToggle}
+              aria-label={mobileMenuButton.label ?? 'Abrir menu de navegação'}
+              aria-expanded={mobileMenuButton.expanded}
+            >
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+            </button>
+          </div>
         ) : null}
         {showBackdrop ? (
           <button

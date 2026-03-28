@@ -580,3 +580,7 @@ export function getBootstrapAdminEmail() {
 export function getProjectId() {
   return projectId
 }
+
+export function getBootstrapAdminUserId() {
+  return sanitizeString(process.env.ADMIN_USER_ID) || 'ae1f8d08-a591-454f-915b-ba003b120f75'
+}
