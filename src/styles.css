@@ -343,6 +343,7 @@ body.sidebar-mobile-open .app-body > .sidebar-mobile-header {
     width: 100%;
     margin: 0 0 var(--space-2);
     justify-content: flex-end;
+    padding-left: calc(46px + 16px);
   }
 }
 
