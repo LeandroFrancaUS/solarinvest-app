@@ -3081,16 +3081,17 @@ tbody tr:hover {
 }
 
 @media (max-width: 600px) {
-  :root {
-    /* At ≤600px the .topbar element gains ~15px vertical padding (clamp(12px,4vw,16px)).
-       --header-h must reflect the true rendered height so that the fixed action bar,
-       sidebar, and app-body margin-top all start below the header instead of behind it. */
-    --header-h: calc(72px + 2 * clamp(12px, 4vw, 16px));
-  }
-
-  .topbar {
-    padding: clamp(12px, 4vw, 16px) clamp(12px, 6vw, 18px);
-  }
+  /* Note: do NOT add vertical padding to .topbar here.
+     .topbar-inner already uses min-height: var(--header-h).
+     Adding extra padding to the outer .topbar while .topbar-inner
+     has min-height: --header-h causes double-counting:
+       actual height = topbar-padding-top + topbar-inner-min-height + topbar-padding-bottom
+                     = clamp + 72px + clamp  (if --header-h kept at 72px)
+                     = 72px + 2*clamp  >  --header-h (72px)!
+     That shift pushes the fixed proposal-action-bar and the floating hamburger
+     button (both anchored at top: var(--header-h)) inside the topbar visually.
+     Keep --header-h at the root value (72px) and let .topbar-inner alone
+     control the rendered height through its min-height. */
 
   .topbar > .container {
     align-items: flex-start;
