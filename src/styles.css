@@ -7916,6 +7916,21 @@ i:hover {
     -webkit-overflow-scrolling: touch;
   }
 
+  /* On desktop, content-wrap is the scroll container and starts right below the
+     header. The sticky bar must stick at top: 0 (= flush with header bottom) so
+     it aligns with the top of the sidebar. The default top: var(--header-h) was
+     designed for mobile (body-scroll + fixed header) and double-offsets on desktop. */
+  .proposal-action-bar {
+    top: 0;
+  }
+
+  /* The calculator .page wrapper lives inside content-wrap which has
+     padding-block-start: 24px. Cancel that padding so the ActionBar starts
+     flush with the top of the scroll container (= sidebar top). */
+  .content-wrap > .page {
+    margin-block-start: -24px;
+  }
+
   .sidebar-section-scroll {
     padding-bottom: 18px;
   }
