@@ -8062,14 +8062,54 @@ i:hover {
   border-bottom: 1px solid var(--border, rgba(148, 163, 184, 0.25));
 }
 
+/* Shell — flex row that houses the overflow viewport.
+   align-items: center here is the single source of vertical truth:
+   menu button (when on mobile) and the button viewport share this axis. */
 .proposal-action-bar__inner {
   max-width: var(--content-max-width, 1200px);
   margin: 0 auto;
   padding: var(--action-bar-pad-y) 20px;
-  display: grid;
-  grid-template-columns: 1.35fr 1fr 1fr 1fr;
-  gap: 12px;
+  display: flex;
   align-items: center;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Viewport — contains the button track and catches horizontal overflow so
+   the track can never escape the right edge of the bar. */
+.proposal-action-bar__viewport {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+}
+
+.proposal-action-bar__viewport::-webkit-scrollbar {
+  height: 3px;
+}
+
+.proposal-action-bar__viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.proposal-action-bar__viewport::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+}
+
+/* Track — the actual flex row of action buttons.
+   width: max-content keeps each button at its natural size and prevents
+   buttons from being squished by the viewport. */
+.proposal-action-bar__track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  box-sizing: border-box;
+  padding-right: 4px; /* breathing room so last button never touches the edge */
 }
 
 /* Main content below the action bar gets a z-index below it */
@@ -8092,6 +8132,7 @@ i:hover {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
   height: var(--action-btn-size);
+  min-height: var(--action-btn-size);
   padding: 0 16px;
   display: inline-flex;
   align-items: center;
@@ -8102,8 +8143,9 @@ i:hover {
   line-height: 1;
   white-space: nowrap;
   box-sizing: border-box;
+  flex: 0 0 auto; /* never stretch or squish */
+  /* Only animate non-layout properties so height/position never shifts */
   transition:
-    transform 160ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease,
     background-color 160ms ease,
@@ -8125,12 +8167,14 @@ i:hover {
   display: inline-block;
 }
 
+/* Hover: use box-shadow lift only — no translateY which causes visual
+   misalignment between adjacent buttons. */
 .proposal-action-btn:hover {
-  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14);
 }
 
 .proposal-action-btn:active {
-  transform: translateY(0);
+  box-shadow: none;
 }
 
 .proposal-action-btn:focus-visible {
@@ -8164,8 +8208,19 @@ i:hover {
 .proposal-action-btn:disabled {
   opacity: 0.56;
   cursor: not-allowed;
-  transform: none;
   box-shadow: none;
+}
+
+/* Compact state — icon-only square button.
+   Only width and padding change; height and vertical axis are unchanged. */
+.proposal-action-btn--compact {
+  width: var(--action-btn-size);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.proposal-action-btn--compact .proposal-action-btn__label {
+  display: none;
 }
 
 /* ---- Mobile: fixed at top below header, icon-only, no wrap ---- */
@@ -8197,16 +8252,21 @@ i:hover {
   }
 
   .proposal-action-bar__inner {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    scrollbar-width: none;
     /* Reserve space for the fixed hamburger toggle (--action-btn-size wide + 8px inset + 10px gap) */
     padding: var(--action-bar-pad-y) 12px var(--action-bar-pad-y) calc(var(--action-btn-size) + 8px + 10px);
   }
 
-  .proposal-action-bar__inner::-webkit-scrollbar {
+  /* Hide scrollbar on the viewport for a cleaner mobile look */
+  .proposal-action-bar__viewport {
+    scrollbar-width: none;
+  }
+
+  .proposal-action-bar__viewport::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Always icon-only on mobile regardless of JS compact state */
+  .proposal-action-btn__label {
     display: none;
   }
 
@@ -8214,13 +8274,8 @@ i:hover {
     flex: 0 0 var(--action-btn-size);
     width: var(--action-btn-size);
     height: var(--action-btn-size);
-    min-width: 0;
     padding: 0;
     justify-content: center;
-  }
-
-  .proposal-action-btn__label {
-    display: none;
   }
 }
 
