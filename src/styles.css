@@ -6756,6 +6756,7 @@ i:hover {
   padding-inline-start: clamp(20px, calc(4vw + var(--safe-area-left)), 36px);
   padding-inline-end: clamp(20px, calc(4vw + var(--safe-area-right)), 36px);
   min-height: var(--header-h);
+  height: var(--header-h);
   /* Never allow row-wrapping: if children wrap to a second line the topbar grows
      taller than --header-h and covers the proposal-action-bar below it. */
   flex-wrap: nowrap;
@@ -8071,7 +8072,6 @@ i:hover {
   z-index: 60;
   width: 100%;
   background: transparent;
-  border-bottom: 1px solid var(--border, rgba(148, 163, 184, 0.25));
 }
 
 /* Shell — flex row that houses the overflow viewport.
