@@ -65,6 +65,10 @@
   --space-3: 24px;
   --space-4: 32px;
   --control-h: 46px;
+  /* Single source of truth for the hamburger + all proposal action buttons.
+     Must equal the hamburger (sidebar-floating-toggle) size so both feel
+     like one visual system. Update responsive overrides below if this changes. */
+  --action-btn-size: 46px;
   --radius: 18px;
   --font-s: 13px;
   --font-m: 15px;
@@ -138,6 +142,7 @@ html[data-density='comfortable'] {
   --space-3: 28px;
   --space-4: 36px;
   --control-h: 52px;
+  --action-btn-size: 52px;
   --radius: 20px;
   --font-s: 14px;
   --font-m: 16px;
@@ -149,6 +154,7 @@ html[data-density='compact'] {
   --space-3: 18px;
   --space-4: 24px;
   --control-h: 40px;
+  --action-btn-size: 40px;
   --radius: 14px;
   --font-s: 12px;
   --font-m: 13px;
@@ -3126,6 +3132,11 @@ tbody tr:hover {
 }
 
 @media (max-width: 480px) {
+  :root {
+    /* On small phones, reduce action buttons slightly so the row fits comfortably. */
+    --action-btn-size: 44px;
+  }
+
   .container {
     padding: 0 clamp(12px, 7vw, 16px);
   }
@@ -7817,8 +7828,8 @@ i:hover {
 }
 
 .sidebar-floating-toggle {
-  width: 46px;
-  height: 46px;
+  width: var(--action-btn-size);
+  height: var(--action-btn-size);
   border-radius: 14px;
   border: 1px solid rgba(255, 140, 0, 0.38);
   background: linear-gradient(135deg, #0f172a, #1f2937);
@@ -8072,7 +8083,7 @@ i:hover {
   appearance: none;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
-  min-height: 48px;
+  height: var(--action-btn-size);
   padding: 0 16px;
   display: inline-flex;
   align-items: center;
@@ -8149,9 +8160,9 @@ i:hover {
   }
 
   /* Push the page-content down so the fixed bar doesn't cover the top of
-     the form. Bar height = 44px (button) + 10px top + 10px bottom = 64px. */
+     the form. Bar height = --action-btn-size + 10px top padding + 10px bottom padding. */
   .content.page-content {
-    padding-top: calc(64px + var(--space-2, 16px));
+    padding-top: calc(var(--action-btn-size) + 20px + var(--space-2, 16px));
   }
 
   .proposal-action-bar__inner {
@@ -8160,8 +8171,8 @@ i:hover {
     overflow-x: auto;
     flex-wrap: nowrap;
     scrollbar-width: none;
-    /* Reserve space for the fixed hamburger toggle (46px wide + 8px inset + 10px gap) */
-    padding: 10px 12px 10px calc(46px + 8px + 10px);
+    /* Reserve space for the fixed hamburger toggle (--action-btn-size wide + 8px inset + 10px gap) */
+    padding: 10px 12px 10px calc(var(--action-btn-size) + 8px + 10px);
   }
 
   .proposal-action-bar__inner::-webkit-scrollbar {
@@ -8169,10 +8180,11 @@ i:hover {
   }
 
   .proposal-action-btn {
-    flex: 0 0 auto;
-    min-width: 44px;
-    height: 44px;
-    padding: 0 12px;
+    flex: 0 0 var(--action-btn-size);
+    width: var(--action-btn-size);
+    height: var(--action-btn-size);
+    min-width: 0;
+    padding: 0;
     justify-content: center;
   }
 
@@ -8192,7 +8204,7 @@ i:hover {
   }
 
   .proposal-action-bar__inner {
-    padding-left: calc(46px + 8px + 10px);
+    padding-left: calc(var(--action-btn-size) + 8px + 10px);
   }
 
   /* The base action buttons are 48px tall with 12px padding-top.
