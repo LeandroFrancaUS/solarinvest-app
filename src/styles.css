@@ -7600,6 +7600,7 @@ i:hover {
      --header-h, causing the action bar to be partially hidden behind the header. */
   .topbar-inner {
     flex-wrap: nowrap;
+    overflow: hidden;
   }
 
   .topbar-heading {
@@ -7609,6 +7610,22 @@ i:hover {
 
   .topbar-heading h1,
   .topbar-heading p {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Prevent the brand subtitle ("Proposta financeira interativa") from wrapping
+     onto a second line on narrow screens. Text wrapping inside the brand would
+     push the topbar taller than --header-h, mis-positioning the fixed action
+     bar and floating hamburger so they appear cut off or overlapping. */
+  .topbar-brand-text {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .topbar-brand-title,
+  .topbar-brand-subtitle {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
