@@ -3080,7 +3080,10 @@ tbody tr:hover {
 
 @media (max-width: 600px) {
   :root {
-    --header-h: 72px;
+    /* At ≤600px the .topbar element gains ~15px vertical padding (clamp(12px,4vw,16px)).
+       --header-h must reflect the true rendered height so that the fixed action bar,
+       sidebar, and app-body margin-top all start below the header instead of behind it. */
+    --header-h: calc(72px + 2 * clamp(12px, 4vw, 16px));
   }
 
   .topbar {
@@ -7590,6 +7593,25 @@ i:hover {
     width: 100%;
     /* Raise above the mobile sidebar (1200) so the header's bottom border draws on top */
     z-index: 1210;
+  }
+
+  /* Prevent the topbar-inner from wrapping onto a second row on mobile.
+     Without this, a long subtitle heading would push the header taller than
+     --header-h, causing the action bar to be partially hidden behind the header. */
+  .topbar-inner {
+    flex-wrap: nowrap;
+  }
+
+  .topbar-heading {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .topbar-heading h1,
+  .topbar-heading p {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .topbar-mobile-subtitle {
