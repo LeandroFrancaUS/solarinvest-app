@@ -6740,7 +6740,9 @@ i:hover {
   padding-inline-start: clamp(20px, calc(4vw + var(--safe-area-left)), 36px);
   padding-inline-end: clamp(20px, calc(4vw + var(--safe-area-right)), 36px);
   min-height: var(--header-h);
-  flex-wrap: wrap;
+  /* Never allow row-wrapping: if children wrap to a second line the topbar grows
+     taller than --header-h and covers the proposal-action-bar below it. */
+  flex-wrap: nowrap;
   width: 100%;
   box-sizing: border-box;
 }
@@ -6787,6 +6789,10 @@ i:hover {
   min-height: var(--header-h);
   padding: 12px 0;
   flex: 1 1 160px;
+  /* Clip text that overflows the heading column so the row height stays
+     at min-height (--header-h) even when a long client name is shown. */
+  overflow: hidden;
+  min-width: 0;
 }
 
 .topbar-heading h1 {
@@ -6794,12 +6800,22 @@ i:hover {
   font-size: 18px;
   font-weight: 600;
   color: var(--title);
+  /* Single-line at all widths: prevents the heading block from growing
+     taller than --header-h and covering the action bar below. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .topbar-heading p {
   margin: 0;
   font-size: 14px;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .app-topbar .top-actions {
