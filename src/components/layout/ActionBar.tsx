@@ -1,5 +1,5 @@
 import React, { useRef, useState, useLayoutEffect } from 'react'
-import { FileText, Save, PlusCircle, ImagePlus } from 'lucide-react'
+import { FileText, Save, RotateCcw, ImagePlus } from 'lucide-react'
 
 type ActionBarProps = {
   onGenerateProposal: () => void
@@ -102,7 +102,7 @@ export function ActionBar({
               aria-label="Nova proposta"
               title="Nova proposta"
             >
-              <PlusCircle size={18} aria-hidden="true" />
+              <RotateCcw size={18} aria-hidden="true" />
               <span className="proposal-action-btn__label">Nova proposta</span>
             </button>
 

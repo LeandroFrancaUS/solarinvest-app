@@ -8055,10 +8055,7 @@ i:hover {
   top: var(--header-h, 72px);
   z-index: 60;
   width: 100%;
-  /* Blend with the page background (#f8fafc / --bg) so the bar area
-     doesn't float as a separate white band. The buttons carry all the
-     visual weight and serve as the interactive affordance. */
-  background: var(--bg, #f8fafc);
+  background: transparent;
   border-bottom: 1px solid var(--border, rgba(148, 163, 184, 0.25));
 }
 
