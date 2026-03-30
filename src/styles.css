@@ -6994,7 +6994,7 @@ i:hover {
 
 .sidebar-mobile-header {
   position: fixed;
-  top: calc(var(--header-h) + 8px);
+  top: calc(var(--header-h) + 10px);
   left: max(8px, calc(var(--safe-area-left) + 8px));
   display: flex;
   align-items: center;
@@ -8081,6 +8081,11 @@ i:hover {
     left: 0;
     right: 0;
     z-index: 60;
+    /* Match the header's dark gradient so the button strip blends seamlessly
+       with the page background (the "azulada"/dark-blue look). */
+    background: linear-gradient(130deg, rgba(11, 13, 18, 0.97) 0%, rgba(17, 24, 39, 0.96) 65%, rgba(255, 140, 0, 0.10) 100%);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 140, 0, 0.18);
   }
 
   /* Push the page-content down so the fixed bar doesn't cover the top of
