@@ -8122,9 +8122,22 @@ i:hover {
 }
 
 /* On screens 769px–920px the hamburger is still visible but the bar is sticky
-   (not fixed). Keep the left padding so the first button doesn't sit under the toggle. */
+   (not fixed). Match the dark page background and align the hamburger with the
+   taller (48px) base action buttons that sit behind 12px padding-top. */
 @media (min-width: 769px) and (max-width: 920px) {
+  .proposal-action-bar {
+    background: linear-gradient(130deg, rgba(11, 13, 18, 0.97) 0%, rgba(17, 24, 39, 0.96) 65%, rgba(255, 140, 0, 0.10) 100%);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 140, 0, 0.18);
+  }
+
   .proposal-action-bar__inner {
     padding-left: calc(46px + 8px + 10px);
+  }
+
+  /* The base action buttons are 48px tall with 12px padding-top.
+     Shift the hamburger down by 2px (12px - 10px) to keep centers aligned. */
+  .sidebar-mobile-header {
+    top: calc(var(--header-h) + 12px);
   }
 }
