@@ -171,7 +171,9 @@ body,
 }
 
 html {
-  overflow-x: hidden;
+  /* clip prevents horizontal overflow without creating a scroll container;
+     unlike overflow:hidden it does not affect position:fixed elements. */
+  overflow-x: clip;
 }
 
 body {
@@ -182,7 +184,7 @@ body {
   font-size: var(--font-m);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
   overscroll-behavior-x: none;
 }
 
@@ -6696,7 +6698,7 @@ i:hover {
   min-height: 100vh;
   background: linear-gradient(140deg, #0b0d12 0%, #101827 16%, rgba(248, 250, 252, 0.96) 44%, #ffffff 100%);
   color: var(--ink);
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .app-body {
@@ -7591,6 +7593,9 @@ i:hover {
     left: 0;
     right: 0;
     width: 100%;
+    /* Hard-clip any stray content that could widen the topbar beyond the viewport.
+       Using clip (not hidden) so it does not create a scroll container. */
+    overflow-x: clip;
     /* Raise above the mobile sidebar (1200) so the header's bottom border draws on top */
     z-index: 1210;
   }
@@ -7600,7 +7605,15 @@ i:hover {
      --header-h, causing the action bar to be partially hidden behind the header. */
   .topbar-inner {
     flex-wrap: nowrap;
-    overflow: hidden;
+    /* Hard-clip any accidental overflow without creating a scroll container
+       (clip does not affect sibling fixed/absolute elements or scrollability). */
+    overflow-x: clip;
+  }
+
+  /* Brand: allow it to shrink and yield space to the badge on the right. */
+  .topbar-brand {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .topbar-heading {
@@ -7631,13 +7644,26 @@ i:hover {
     text-overflow: ellipsis;
   }
 
+  /* LEASING badge: take it OUT of position:absolute and put it back in the
+     flex flow as a shrink-proof child at the far right.
+     Previously it was absolutely positioned, which (a) removed it from the
+     flex layout so the brand could expand into its space, (b) meant it was
+     clipped by the overflow:hidden we had on topbar-inner in some browsers,
+     and (c) relied on the fixed ancestor for positioning — fragile on mobile
+     browsers that mis-handle overflow-x:hidden + position:fixed stacks.
+     Now it is a normal flex child: flex-shrink:0 keeps it full-size, and
+     margin-inline-start:auto pushes it to the right end of the row. */
   .topbar-mobile-subtitle {
     display: inline-flex;
     align-items: center;
-    position: absolute;
-    right: clamp(16px, calc(4vw + var(--safe-area-right)), 36px);
-    top: 50%;
-    transform: translateY(-50%);
+    position: static;
+    flex-shrink: 0;
+    margin-inline-start: auto;
+    /* Remove absolute-positioning offsets; parent align-items:center handles
+       vertical centering. */
+    top: unset;
+    right: unset;
+    transform: none;
     font-size: 12px;
     font-weight: 700;
     color: var(--accent);
