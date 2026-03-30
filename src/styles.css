@@ -8073,7 +8073,8 @@ i:hover {
     overflow-x: auto;
     flex-wrap: nowrap;
     scrollbar-width: none;
-    padding: 10px 12px;
+    /* Reserve space for the fixed hamburger toggle (46px wide + 8px inset + 10px gap) */
+    padding: 10px 12px 10px calc(46px + 8px + 10px);
   }
 
   .proposal-action-bar__inner::-webkit-scrollbar {
@@ -8090,5 +8091,13 @@ i:hover {
 
   .proposal-action-btn__label {
     display: none;
+  }
+}
+
+/* On screens 769px–920px the hamburger is still visible but the bar is sticky
+   (not fixed). Keep the left padding so the first button doesn't sit under the toggle. */
+@media (min-width: 769px) and (max-width: 920px) {
+  .proposal-action-bar__inner {
+    padding-left: calc(46px + 8px + 10px);
   }
 }
