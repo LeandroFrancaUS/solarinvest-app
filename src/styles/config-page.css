@@ -434,6 +434,27 @@
   .cfg-panel-header {
     align-items: flex-start;
   }
+
+  .af-section .cfg-tabs {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 4px;
+    border-radius: 20px;
+  }
+
+  .af-section .cfg-tab {
+    flex: 1 1 0;
+    width: auto;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .af-section .cfg-tab::after {
+    left: 12px;
+    right: 12px;
+    bottom: 4px;
+  }
 }
 
 /* === SAFARI: hard override para texto não “lavar” nas abas === */
