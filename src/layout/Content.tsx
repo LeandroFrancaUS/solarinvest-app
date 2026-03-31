@@ -8,6 +8,7 @@ export interface ContentProps {
   children: ReactNode
   onInteractOutsideSidebar?: () => void
   pageIndicator?: string
+  className?: string
 }
 
 export function Content({
@@ -18,6 +19,7 @@ export function Content({
   pageIndicator,
   children,
   onInteractOutsideSidebar,
+  className,
 }: ContentProps) {
   const handlePointerDownCapture = useCallback(() => {
     onInteractOutsideSidebar?.()
@@ -25,7 +27,7 @@ export function Content({
 
   return (
     <main
-      className="content-wrap"
+      className={`content-wrap${className ? ` ${className}` : ""}`}
       onPointerDownCapture={onInteractOutsideSidebar ? handlePointerDownCapture : undefined}
     >
       {pageIndicator ? (
