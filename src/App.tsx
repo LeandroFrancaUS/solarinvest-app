@@ -24573,31 +24573,42 @@ export default function App() {
     }
 
     const sectionCopy = SIMULACOES_SECTION_COPY[simulacoesSection]
+    const isAnaliseMobileSimpleView = isMobileSimpleEnabled && simulacoesSection === 'analise'
+    const hiddenAnaliseMobileMenuIds = new Set<SimulacoesSection>([
+      'nova',
+      'salvas',
+      'ia',
+      'risco',
+      'packs',
+      'packs-inteligentes',
+    ])
 
     return (
       <div className="simulacoes-page">
-        <div className="simulacoes-hero-card">
-          <div>
-            <p className="simulacoes-tag">Módulo dedicado</p>
-            <h2>Simulações &amp; análise financeira</h2>
-            <p>{sectionCopy}</p>
-          </div>
-          <div className="simulacoes-hero-actions">
-            <span className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</span>
-            <small>Última decisão: {formatAprovacaoData(ultimaDecisaoTimestamp)}</small>
-            <div className="simulacoes-hero-buttons">
-              <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
-                Aprovar
-              </button>
-              <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
-                Reprovar
-              </button>
+        {isAnaliseMobileSimpleView ? null : (
+          <div className="simulacoes-hero-card">
+            <div>
+              <p className="simulacoes-tag">Módulo dedicado</p>
+              <h2>Simulações &amp; análise financeira</h2>
+              <p>{sectionCopy}</p>
+            </div>
+            <div className="simulacoes-hero-actions">
+              <span className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</span>
+              <small>Última decisão: {formatAprovacaoData(ultimaDecisaoTimestamp)}</small>
+              <div className="simulacoes-hero-buttons">
+                <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
+                  Aprovar
+                </button>
+                <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
+                  Reprovar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <nav className="simulacoes-nav" aria-label="Navegação do módulo de simulações">
-          {SIMULACOES_MENU.map((item) => (
+          {SIMULACOES_MENU.filter((item) => !(isAnaliseMobileSimpleView && hiddenAnaliseMobileMenuIds.has(item.id))).map((item) => (
             <button
               key={item.id}
               type="button"
@@ -25404,28 +25415,30 @@ export default function App() {
                     ))}
                   </ul>
                 </div>
-                <div className="simulacoes-module-tile">
-                  <h4>Selo e decisão</h4>
-                  <p className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</p>
-                  <p className="simulacoes-description">
-                    Última decisão registrada: {formatAprovacaoData(ultimaDecisaoTimestamp)}
-                  </p>
-                  <div className="simulacoes-hero-buttons">
-                    <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
-                      Aprovar
-                    </button>
-                    <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
-                      Reprovar
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => registrarDecisaoInterna(aprovacaoStatus)}
-                    >
-                      Salvar decisão
-                    </button>
+                {isAnaliseMobileSimpleView ? null : (
+                  <div className="simulacoes-module-tile">
+                    <h4>Selo e decisão</h4>
+                    <p className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</p>
+                    <p className="simulacoes-description">
+                      Última decisão registrada: {formatAprovacaoData(ultimaDecisaoTimestamp)}
+                    </p>
+                    <div className="simulacoes-hero-buttons">
+                      <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
+                        Aprovar
+                      </button>
+                      <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
+                        Reprovar
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => registrarDecisaoInterna(aprovacaoStatus)}
+                      >
+                        Salvar decisão
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </section>
           ) : null}
