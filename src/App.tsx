@@ -24813,12 +24813,17 @@ export default function App() {
               </div>
 
               {/* Mode tabs */}
-              <div className="cfg-tabs" role="tablist" aria-label="Modo de análise" style={{ marginBottom: '1rem' }}>
+              <div
+                className="cfg-tabs af-mode-tabs"
+                role="tablist"
+                aria-label="Modo de análise"
+                style={{ marginBottom: '1rem' }}
+              >
                 <button
                   type="button"
                   role="tab"
                   aria-selected={afModo === 'venda'}
-                  className={`cfg-tab${afModo === 'venda' ? ' is-active' : ''}`}
+                  className={`cfg-tab af-mode-tab${afModo === 'venda' ? ' is-active' : ''}`}
                   onClick={() => setAfModo('venda')}
                 >
                   Venda
@@ -24827,7 +24832,7 @@ export default function App() {
                   type="button"
                   role="tab"
                   aria-selected={afModo === 'leasing'}
-                  className={`cfg-tab${afModo === 'leasing' ? ' is-active' : ''}`}
+                  className={`cfg-tab af-mode-tab${afModo === 'leasing' ? ' is-active' : ''}`}
                   onClick={() => setAfModo('leasing')}
                 >
                   Leasing
