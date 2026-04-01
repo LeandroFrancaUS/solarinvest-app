@@ -24086,6 +24086,11 @@ export default function App() {
                   ? 'Vendas'
                   : 'Leasing'
   const topbarSubtitle = contentSubtitle
+  const isSimulacoesMobile = isMobileViewport && activePage === 'simulacoes'
+  const mobileTopbarSubtitle = isSimulacoesMobile ? undefined : currentPageIndicator
+  const shellTopbarSubtitle = isSimulacoesMobile ? undefined : topbarSubtitle
+  const shellContentSubtitle = isSimulacoesMobile ? undefined : contentSubtitle
+  const shellPageIndicator = isSimulacoesMobile ? undefined : currentPageIndicator
 
   const sidebarGroups: SidebarGroup[] = [
     {
@@ -24584,7 +24589,13 @@ export default function App() {
     ])
 
     return (
-      <div className="simulacoes-page">
+      <div
+        className={`simulacoes-page${
+          isMobileViewport && simulacoesSection === 'analise'
+            ? ' simulacoes-page--analise-mobile'
+            : ''
+        }`}
+      >
         {isAnaliseMobileSimpleView ? null : (
           <div className="simulacoes-hero-card">
             <div>
@@ -24813,12 +24824,17 @@ export default function App() {
               </div>
 
               {/* Mode tabs */}
-              <div className="cfg-tabs" role="tablist" aria-label="Modo de análise" style={{ marginBottom: '1rem' }}>
+              <div
+                className="cfg-tabs af-mode-tabs"
+                role="tablist"
+                aria-label="Modo de análise"
+                style={{ marginBottom: '1rem' }}
+              >
                 <button
                   type="button"
                   role="tab"
                   aria-selected={afModo === 'venda'}
-                  className={`cfg-tab${afModo === 'venda' ? ' is-active' : ''}`}
+                  className={`cfg-tab af-mode-tab${afModo === 'venda' ? ' is-active' : ''}`}
                   onClick={() => setAfModo('venda')}
                 >
                   Venda
@@ -24827,7 +24843,7 @@ export default function App() {
                   type="button"
                   role="tab"
                   aria-selected={afModo === 'leasing'}
-                  className={`cfg-tab${afModo === 'leasing' ? ' is-active' : ''}`}
+                  className={`cfg-tab af-mode-tab${afModo === 'leasing' ? ' is-active' : ''}`}
                   onClick={() => setAfModo('leasing')}
                 >
                   Leasing
@@ -26207,8 +26223,8 @@ export default function App() {
       <AppRoutes>
         <AppShell
           topbar={{
-            subtitle: topbarSubtitle,
-            mobileSubtitle: currentPageIndicator,
+            subtitle: shellTopbarSubtitle,
+            mobileSubtitle: mobileTopbarSubtitle,
           }}
           sidebar={{
             collapsed: isSidebarCollapsed,
@@ -26230,9 +26246,9 @@ export default function App() {
               : undefined,
           }}
           content={{
-            subtitle: contentSubtitle,
+            subtitle: shellContentSubtitle,
             actions: contentActions ?? undefined,
-            pageIndicator: currentPageIndicator,
+            pageIndicator: shellPageIndicator,
             className: activePage === 'app' ? 'content-wrap--proposal' : undefined,
           }}
           mobileMenuButton={

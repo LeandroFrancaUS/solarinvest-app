@@ -3723,6 +3723,37 @@ table tbody tr:hover {
   appearance: textfield;
 }
 
+.af-section .af-mode-tabs {
+  width: fit-content;
+  min-width: 0;
+  gap: 6px;
+  padding: 4px;
+}
+
+.af-section .af-mode-tab {
+  flex: 0 0 auto;
+  min-width: 96px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 560px) {
+  .af-section .af-mode-tabs {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: stretch;
+    overflow-x: hidden;
+  }
+
+  .af-section .af-mode-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+}
+
 .simulacoes-main-card header,
 .simulacoes-module-card header {
   display: flex;
@@ -7669,6 +7700,10 @@ i:hover {
     line-height: 1.15;
   }
 
+  .topbar-heading {
+    display: none;
+  }
+
   .topbar-mobile-subtitle {
     display: inline-flex;
     align-items: center;
@@ -7837,8 +7872,7 @@ i:hover {
   }
 
   .topbar-brand-subtitle {
-    font-size: 11px;
-    line-height: 1.1;
+    display: none;
   }
 
   .topbar-mobile-subtitle {
@@ -7847,6 +7881,12 @@ i:hover {
     font-size: 10px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 920px) {
+  .simulacoes-page--analise-mobile {
+    margin-top: 18px;
   }
 }
 
