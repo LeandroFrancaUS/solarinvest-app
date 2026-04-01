@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { CheckboxSmall } from './components/CheckboxSmall'
+import { ActionBar } from './components/layout/ActionBar'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
 import { createRoot } from 'react-dom/client'
 import {
@@ -7742,10 +7743,10 @@ export default function App() {
   const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_VALUES.mostrarGrafico)
   const [useBentoGridPdf, setUseBentoGridPdf] = useState(() => {
     if (typeof window === 'undefined') {
-      return false
+      return INITIAL_VALUES.useBentoGridPdf
     }
     const stored = window.localStorage.getItem('useBentoGridPdf')
-    return stored !== null ? stored === 'true' : false
+    return stored !== null ? stored === 'true' : INITIAL_VALUES.useBentoGridPdf
   })
   const [density, setDensity] = useState<DensityMode>(() => {
     if (typeof window === 'undefined') {
@@ -24136,28 +24137,6 @@ export default function App() {
             ]
           : []),
         {
-          id: 'propostas-nova',
-          label: 'Nova proposta',
-          icon: '✨',
-          onSelect: () => {
-            setActivePage('app')
-            handleNovaProposta()
-          },
-        },
-        {
-          id: 'propostas-salvar',
-          label: salvandoPropostaPdf ? 'Salvando…' : 'Salvar proposta',
-          icon: '💾',
-          onSelect: () => {
-            setActivePage('app')
-            handleSalvarPropostaPdf()
-          },
-          disabled: !podeSalvarProposta || salvandoPropostaPdf,
-          title: !proposalPdfIntegrationAvailable
-            ? 'Configure a integração de PDF para salvar o arquivo automaticamente.'
-            : undefined,
-        },
-        {
           id: 'propostas-contratos',
           label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
           icon: '🖋️',
@@ -24165,15 +24144,6 @@ export default function App() {
             void handleGerarContratosComConfirmacao()
           },
           disabled: gerandoContratos,
-        },
-        {
-          id: 'propostas-imagens',
-          label: 'Incluir imagens',
-          icon: '🖼️',
-          onSelect: () => {
-            setActivePage('app')
-            handleAbrirUploadImagens()
-          },
         },
         {
           id: 'propostas-enviar',
@@ -24366,29 +24336,14 @@ export default function App() {
   const mobileAllowedIds = [
     'propostas-leasing',
     'propostas-vendas',
-    'propostas-nova',
-    'relatorios-exportar-pdf',
     ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
     'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
 
-  const gerarPropostaSidebarItem = sidebarGroups
-    .find((g) => g.id === 'relatorios')
-    ?.items.find((item) => item.id === 'relatorios-exportar-pdf') ?? null
-
-  const desktopSimpleSidebarGroups: SidebarGroup[] = (() => {
-    const filtered = sidebarGroups.filter((g) => g.id !== 'simulacoes' && g.id !== 'crm')
-    return filtered.map((g) => {
-      if (g.id !== 'propostas') return g
-      const salvarIdx = g.items.findIndex((item) => item.id === 'propostas-salvar')
-      const newItems = [...g.items]
-      if (gerarPropostaSidebarItem && salvarIdx !== -1) {
-        newItems.splice(salvarIdx + 1, 0, gerarPropostaSidebarItem)
-      }
-      return { ...g, items: newItems }
-    })
-  })()
+  const desktopSimpleSidebarGroups: SidebarGroup[] = sidebarGroups.filter(
+    (group) => group.id !== 'simulacoes' && group.id !== 'crm',
+  )
 
   const mobileSidebarGroups: SidebarGroup[] = isMobileViewport
     ? [
@@ -24618,31 +24573,42 @@ export default function App() {
     }
 
     const sectionCopy = SIMULACOES_SECTION_COPY[simulacoesSection]
+    const isAnaliseMobileSimpleView = isMobileSimpleEnabled && simulacoesSection === 'analise'
+    const hiddenAnaliseMobileMenuIds = new Set<SimulacoesSection>([
+      'nova',
+      'salvas',
+      'ia',
+      'risco',
+      'packs',
+      'packs-inteligentes',
+    ])
 
     return (
       <div className="simulacoes-page">
-        <div className="simulacoes-hero-card">
-          <div>
-            <p className="simulacoes-tag">Módulo dedicado</p>
-            <h2>Simulações &amp; análise financeira</h2>
-            <p>{sectionCopy}</p>
-          </div>
-          <div className="simulacoes-hero-actions">
-            <span className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</span>
-            <small>Última decisão: {formatAprovacaoData(ultimaDecisaoTimestamp)}</small>
-            <div className="simulacoes-hero-buttons">
-              <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
-                Aprovar
-              </button>
-              <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
-                Reprovar
-              </button>
+        {isAnaliseMobileSimpleView ? null : (
+          <div className="simulacoes-hero-card">
+            <div>
+              <p className="simulacoes-tag">Módulo dedicado</p>
+              <h2>Simulações &amp; análise financeira</h2>
+              <p>{sectionCopy}</p>
+            </div>
+            <div className="simulacoes-hero-actions">
+              <span className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</span>
+              <small>Última decisão: {formatAprovacaoData(ultimaDecisaoTimestamp)}</small>
+              <div className="simulacoes-hero-buttons">
+                <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
+                  Aprovar
+                </button>
+                <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
+                  Reprovar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <nav className="simulacoes-nav" aria-label="Navegação do módulo de simulações">
-          {SIMULACOES_MENU.map((item) => (
+          {SIMULACOES_MENU.filter((item) => !(isAnaliseMobileSimpleView && hiddenAnaliseMobileMenuIds.has(item.id))).map((item) => (
             <button
               key={item.id}
               type="button"
@@ -25449,28 +25415,30 @@ export default function App() {
                     ))}
                   </ul>
                 </div>
-                <div className="simulacoes-module-tile">
-                  <h4>Selo e decisão</h4>
-                  <p className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</p>
-                  <p className="simulacoes-description">
-                    Última decisão registrada: {formatAprovacaoData(ultimaDecisaoTimestamp)}
-                  </p>
-                  <div className="simulacoes-hero-buttons">
-                    <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
-                      Aprovar
-                    </button>
-                    <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
-                      Reprovar
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => registrarDecisaoInterna(aprovacaoStatus)}
-                    >
-                      Salvar decisão
-                    </button>
+                {isAnaliseMobileSimpleView ? null : (
+                  <div className="simulacoes-module-tile">
+                    <h4>Selo e decisão</h4>
+                    <p className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</p>
+                    <p className="simulacoes-description">
+                      Última decisão registrada: {formatAprovacaoData(ultimaDecisaoTimestamp)}
+                    </p>
+                    <div className="simulacoes-hero-buttons">
+                      <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
+                        Aprovar
+                      </button>
+                      <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
+                        Reprovar
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => registrarDecisaoInterna(aprovacaoStatus)}
+                      >
+                        Salvar decisão
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </section>
           ) : null}
@@ -26265,6 +26233,7 @@ export default function App() {
             subtitle: contentSubtitle,
             actions: contentActions ?? undefined,
             pageIndicator: currentPageIndicator,
+            className: activePage === 'app' ? 'content-wrap--proposal' : undefined,
           }}
           mobileMenuButton={
             isMobileViewport
@@ -26302,6 +26271,23 @@ export default function App() {
           <div className="page">
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
+                <div className="proposal-page-top-chrome">
+                  <ActionBar
+                    onGenerateProposal={() => {
+                      void handlePrint()
+                    }}
+                    onSaveProposal={() => {
+                      void handleSalvarPropostaPdf()
+                    }}
+                    onNewProposal={() => {
+                      void handleNovaProposta()
+                    }}
+                    onIncludeImages={handleAbrirUploadImagens}
+                    isSaving={salvandoPropostaPdf}
+                    isDisabled={!podeSalvarProposta}
+                  />
+                </div>
+                <div className="proposal-main-content proposal-form-wrapper">
               {orcamentoAtivoInfo ? (
                 <section className="card loaded-budget-viewer">
                   <div className="card-header loaded-budget-header">
@@ -27010,6 +26996,7 @@ export default function App() {
                 ) : null}
               </div>
 
+                </div>
               </main>
             </div>
           </div>
