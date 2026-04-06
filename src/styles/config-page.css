@@ -421,14 +421,23 @@
 
 @media (max-width: 560px) {
   .cfg-tabs {
-    flex-direction: column;
-    align-items: stretch;
-    overflow-x: visible;
-    gap: 8px;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: stretch;
+    overflow-x: hidden;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 4px;
+    border-radius: 12px;
   }
 
   .cfg-tab {
-    width: 100%;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 10px;
+    font-size: 12px;
+    text-align: center;
   }
 
   .cfg-panel-header {
