@@ -7808,11 +7808,16 @@ i:hover {
     padding-inline-start: clamp(16px, calc(5vw + var(--safe-area-left)), 28px);
     padding-inline-end: clamp(16px, calc(5vw + var(--safe-area-right)), 28px);
     height: auto;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: visible;
     max-width: 100%;
     width: 100%;
     width: min(100%, calc(100vw - var(--safe-area-inline)));
     margin-inline: auto;
+  }
+
+  .content-header {
+    min-width: 0;
   }
 
   .page-indicator {
