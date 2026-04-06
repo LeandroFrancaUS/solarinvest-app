@@ -392,22 +392,43 @@ const ANEXO_TEMPLATE_EXTENSIONS = ['.docx', '.dotx']
 const isAnexoTemplateFile = (fileName) =>
   ANEXO_TEMPLATE_EXTENSIONS.some((ext) => fileName.toLowerCase().endsWith(ext))
 
-const pickPreferredAnexoXFile = (entries) => {
-  const matching = entries
-    .filter((entry) => ANEXO_X_REGEX.test(entry))
-    .filter((entry) => isAnexoTemplateFile(entry))
-    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+const isObsoleteAnexoFile = (fileName) => /obsoleto|obsolete/i.test(fileName)
 
-  if (matching.length === 0) {
+const compareAnexoCandidates = (a, b) => {
+  if (a.mtimeMs !== b.mtimeMs) {
+    return b.mtimeMs - a.mtimeMs
+  }
+
+  const aIsDocx = a.name.toLowerCase().endsWith('.docx')
+  const bIsDocx = b.name.toLowerCase().endsWith('.docx')
+  if (aIsDocx !== bIsDocx) {
+    return aIsDocx ? -1 : 1
+  }
+
+  return a.name.localeCompare(b.name, 'pt-BR')
+}
+
+const pickLatestAnexoFile = async (dirPath, matcher) => {
+  const entries = await fs.readdir(dirPath, { withFileTypes: true })
+  const matchingEntries = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((entryName) => matcher(entryName))
+    .filter((entryName) => !isObsoleteAnexoFile(entryName))
+
+  if (matchingEntries.length === 0) {
     return null
   }
 
-  const docxMatch = matching.find((entry) => entry.toLowerCase().endsWith('.docx'))
-  if (docxMatch) {
-    return docxMatch
-  }
-  const dotxMatch = matching.find((entry) => entry.toLowerCase().endsWith('.dotx'))
-  return dotxMatch ?? matching[0]
+  const candidates = await Promise.all(
+    matchingEntries.map(async (name) => {
+      const stats = await fs.stat(path.join(dirPath, name))
+      return { name, mtimeMs: stats.mtimeMs || 0 }
+    }),
+  )
+
+  candidates.sort(compareAnexoCandidates)
+  return candidates[0]?.name ?? null
 }
 
 /**
@@ -422,9 +443,11 @@ const findAnexoFile = async (anexoNum, uf) => {
     if (uf && isValidUf(uf)) {
       const ufAnexosDir = path.join(LEASING_ANEXOS_DIR, uf.toUpperCase())
       try {
-        const ufEntries = await fs.readdir(ufAnexosDir)
         if (anexoNum === 10) {
-          const match = pickPreferredAnexoXFile(ufEntries)
+          const match = await pickLatestAnexoFile(
+            ufAnexosDir,
+            (entry) => ANEXO_X_REGEX.test(entry) && isAnexoTemplateFile(entry),
+          )
           if (match) {
             const resolved = path.join('anexos', uf.toUpperCase(), match)
             console.log('[ANEXO_X] resolved template:', {
@@ -434,9 +457,9 @@ const findAnexoFile = async (anexoNum, uf) => {
             return resolved
           }
         }
-        const match = ufEntries.find((entry) => 
-          matchesAnexoPrefix(entry, anexoNum) && 
-          isAnexoTemplateFile(entry)
+        const match = await pickLatestAnexoFile(
+          ufAnexosDir,
+          (entry) => matchesAnexoPrefix(entry, anexoNum) && isAnexoTemplateFile(entry),
         )
         if (match) {
           return path.join('anexos', uf.toUpperCase(), match)
@@ -447,9 +470,11 @@ const findAnexoFile = async (anexoNum, uf) => {
     }
 
     // Search in default anexos directory
-    const entries = await fs.readdir(LEASING_ANEXOS_DIR)
     if (anexoNum === 10) {
-      const match = pickPreferredAnexoXFile(entries)
+      const match = await pickLatestAnexoFile(
+        LEASING_ANEXOS_DIR,
+        (entry) => ANEXO_X_REGEX.test(entry) && isAnexoTemplateFile(entry),
+      )
       if (match) {
         const resolved = path.join('anexos', match)
         console.log('[ANEXO_X] resolved template:', {
@@ -459,9 +484,9 @@ const findAnexoFile = async (anexoNum, uf) => {
         return resolved
       }
     }
-    const match = entries.find((entry) => 
-      matchesAnexoPrefix(entry, anexoNum) && 
-      isAnexoTemplateFile(entry)
+    const match = await pickLatestAnexoFile(
+      LEASING_ANEXOS_DIR,
+      (entry) => matchesAnexoPrefix(entry, anexoNum) && isAnexoTemplateFile(entry),
     )
     
     if (match) {
