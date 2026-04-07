@@ -127,8 +127,9 @@ export function calcLeasingBeneficios(params: LeasingBeneficiosParams): LeasingB
       const aplicaTaxaMinimaNoMes = aplicaTaxaMinima || mes > contratoMeses
       const encargosFixosAplicados = aplicaTaxaMinimaNoMes ? encargosFixos : 0
       const taxaMinimaMes = calcularTaxaMinima(tarifaCheiaMes)
+      const taxaMinimaPositiva = Math.max(0, taxaMinima)
       const taxaMinimaAplicada = aplicaTaxaMinimaNoMes
-        ? Math.max(0, taxaMinima) > 0 ? Math.max(0, taxaMinima) : taxaMinimaMes
+        ? taxaMinimaPositiva > 0 ? taxaMinimaPositiva : taxaMinimaMes
         : 0
       const cidAplicado = aplicaTaxaMinimaNoMes ? cidKwhBase * tarifaCheiaMes : 0
       const custoSemSistemaMes = kcKwhMes * tarifaCheiaMes + encargosFixosAplicados + taxaMinimaAplicada + cidAplicado

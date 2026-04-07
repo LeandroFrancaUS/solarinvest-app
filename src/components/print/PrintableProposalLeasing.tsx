@@ -20,7 +20,7 @@ import { sanitizePrintableText } from '../../utils/textSanitizer'
 import { calcularTaxaMinima } from '../../utils/calcs'
 import {
   calcMensalidadesPorAno,
-  obterBeneficioPorAno as calcObterBeneficio,
+  obterBeneficioPorAno,
   calcEconomiaTotalAteAno,
 } from '../../lib/finance/leasingProposal'
 

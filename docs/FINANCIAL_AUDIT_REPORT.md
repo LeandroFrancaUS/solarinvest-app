@@ -954,7 +954,7 @@ export const defaultTUSD = (perfil: PerfilConsumo): number =>
 | ID | Achado | Status Fase 1 | Validação Fase 2 |
 |----|--------|--------------|-----------------|
 | F01 | `material_ca` dimensionalmente errado em `pricingPorKwp.ts` | ✅ Corrigido | ✅ Confirmado: `kitAtualizado × 12%` em uso |
-| F02 | Três modelos de projeção de tarifa | 📝 Documentado | ✅ Reavaliado: divergência legítima — proposta usa Modelo A (anual discreto), motor usa Modelo C (aniversário). Diferença < 1% em 5 anos (teste inter-engine). |
+| F02 | Três modelos de projeção de tarifa | 📝 Documentado | ✅ Reavaliado: divergência aceitável para proposta — proposta usa Modelo A (anual discreto), motor usa Modelo C (aniversário). Diferença < 1% em cenários de inflação típica (6%); pode chegar a 2–4% com inflação de 10% em 5 anos. Proposta exibe dados de apresentação — motor mensal é usado para contratos. |
 | F03 | Placa: R$18 vs R$20 | ✅ Corrigido | ✅ Confirmado: constante `PRECO_PLACA_RS_ESTIMATIVA = 18` em uso |
 | F04 | `PROJETO_TABLE` com gap 6–7 kWp e sem >50 kWp | ✅ Corrigido | ✅ Confirmado: tabela usa `max_kwp` com entrada `Infinity → R$2500` |
 | F05 | PMT duplicado em App.tsx | ⚠️ Não corrigido | ⚠️ Mantido: convenção de sinal diferente de roi.ts. Documentado como dívida técnica. |

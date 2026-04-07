@@ -6,7 +6,9 @@
  * A tabela de mensalidades usa Modelo A (reajuste por índice anual: fator = (1+inf)^(ano-1)).
  * Isso é intencional — a proposta apresenta dados anuais discretos.
  * O motor de simulação mensal (calcs.ts::tarifaProjetadaCheia) usa Modelo C (aniversário).
- * A diferença é cosmética para apresentação anual e é documentada aqui como legítima.
+ * A diferença pode chegar a 2–4% em 5 anos com inflação de 10%, mas é aceitável
+ * para exibição anual na proposta (dados de apresentação, não de contrato).
+ * Para cálculos financeiros precisos use o motor mensal.
  *
  * @see PrintableProposalLeasing.tsx
  * @see src/lib/finance/calculations.ts (calcularTarifaProjetada — equivalente ao Modelo A)
@@ -85,8 +87,7 @@ export function calcMensalidadesPorAno(params: MensalidadesPorAnoParams): Mensal
 
   let tusdPosContrato = 0
   for (let i = anosTusdOrdenados.length - 1; i >= 0; i -= 1) {
-    const ano = anosTusdOrdenados[i]
-    if (ano === undefined) continue
+    const ano = anosTusdOrdenados[i] as number
     if (ano <= prazoContratualTotalAnos) {
       const valorTusd = tusdMedioPorAno[ano]
       if (Number.isFinite(valorTusd)) {
