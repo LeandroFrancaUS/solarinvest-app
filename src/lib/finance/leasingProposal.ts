@@ -56,6 +56,8 @@ export function calcMensalidadesPorAno(params: MensalidadesPorAnoParams): Mensal
     tusdMedioPorAno,
   } = params
 
+  // Limita deflação extrema: (1 + inflacao) deve ser >= 0.01 para evitar fatores de composto
+  // próximos de zero ou negativos, que resultariam em tarifas absurdas ou divisão por zero.
   const safeInflacao = Math.max(-0.99, inflacaoEnergiaFracao)
   const anosConsiderados = Array.from({ length: prazoContratualTotalAnos }, (_, i) => i + 1)
 

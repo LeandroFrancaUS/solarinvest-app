@@ -1,6 +1,14 @@
 import { DIAS_MES_PADRAO } from '../../app/config'
 import { IRRADIACAO_FALLBACK } from '../../utils/irradiacao'
 import { DEFAULT_PERFORMANCE_RATIO, normalizePerformanceRatio } from '../energy/generation'
+import {
+  PRECO_PLACA_RS,
+  MATERIAL_CA_PERCENT_DO_KIT,
+  CREA_GO_RS,
+  CREA_DF_RS,
+  INSTALACAO_GO_POR_MODULO_RS,
+  INSTALACAO_DF_POR_MODULO_RS,
+} from '../finance/constants'
 
 export type Rede = 'mono' | 'trifasico'
 
@@ -69,14 +77,13 @@ const triAnchors: Anchor[] = [
 const MAX_KWP = 90
 
 const KIT_REAJUSTE_MULTIPLIER = 1.185
-/** Material CA como percentual do kitAtualizado. Deve coincidir com MATERIAL_CA_PERCENT_DO_KIT em analiseFinanceiraSpreadsheet.ts */
-const MATERIAL_CA_PERCENT_KIT = 0.12
-const INSTALACAO_GO_POR_MODULO = 70
-const INSTALACAO_DF_POR_MODULO = 73
-const ART_GO = 104
-const ART_DF = 109
-/** Custo unitário de placa por módulo (R$). Deve coincidir com PRECO_PLACA_RS em analiseFinanceiraSpreadsheet.ts */
-const PRECO_PLACA_RS_ESTIMATIVA = 18
+// Constantes importadas de src/lib/finance/constants.ts para garantir consistência entre engines
+const MATERIAL_CA_PERCENT_KIT = MATERIAL_CA_PERCENT_DO_KIT
+const INSTALACAO_GO_POR_MODULO = INSTALACAO_GO_POR_MODULO_RS
+const INSTALACAO_DF_POR_MODULO = INSTALACAO_DF_POR_MODULO_RS
+const ART_GO = CREA_GO_RS
+const ART_DF = CREA_DF_RS
+const PRECO_PLACA_RS_ESTIMATIVA = PRECO_PLACA_RS
 const PROJETO_TABLE: Array<{ max_kwp: number; valor: number }> = [
   { max_kwp: 6, valor: 400 },
   { max_kwp: 10, valor: 500 },

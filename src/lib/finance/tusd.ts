@@ -120,6 +120,8 @@ const resolverSimultaneidade = (
     if (typeof padrao === 'number') {
       return Math.min(Math.max(padrao, 0), 1)
     }
+    // Nenhum 'padrao' encontrado e subTipo inexistente: não usar o primeiro valor do grupo
+    // para evitar retorno arbitrário. Deixar cair para SIMULTANEIDADE_FALLBACK abaixo.
   }
 
   return SIMULTANEIDADE_FALLBACK

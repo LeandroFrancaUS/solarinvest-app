@@ -25,7 +25,14 @@
 import { calcTusdEncargoMensal } from './tusd'
 import type { TipoClienteTUSD } from './tusd'
 
-export const LEASING_OPEX_ANUAL_FRAC = 0.015  // 1,5% do CAPEX por ano
+/**
+ * Taxa de OPEX anual absorvida pela SolarInvest como % do CAPEX investido.
+ * Representa custos operacionais estimados (manutenção, monitoramento, suporte)
+ * que a SolarInvest assume ao longo do contrato de leasing.
+ * Valor de referência: premissa operacional interna da SolarInvest (1,5% a.a.).
+ * Ajustar se a política de OPEX for alterada.
+ */
+export const LEASING_OPEX_ANUAL_FRAC = 0.015
 
 export interface LeasingBeneficiosParams {
   /** CAPEX da SolarInvest (investimento inicial) */
@@ -128,9 +135,10 @@ export function calcLeasingBeneficios(params: LeasingBeneficiosParams): LeasingB
       const encargosFixosAplicados = aplicaTaxaMinimaNoMes ? encargosFixos : 0
       const taxaMinimaMes = calcularTaxaMinima(tarifaCheiaMes)
       const taxaMinimaPositiva = Math.max(0, taxaMinima)
-      const taxaMinimaAplicada = aplicaTaxaMinimaNoMes
-        ? taxaMinimaPositiva > 0 ? taxaMinimaPositiva : taxaMinimaMes
-        : 0
+      let taxaMinimaAplicada = 0
+      if (aplicaTaxaMinimaNoMes) {
+        taxaMinimaAplicada = taxaMinimaPositiva > 0 ? taxaMinimaPositiva : taxaMinimaMes
+      }
       const cidAplicado = aplicaTaxaMinimaNoMes ? cidKwhBase * tarifaCheiaMes : 0
       const custoSemSistemaMes = kcKwhMes * tarifaCheiaMes + encargosFixosAplicados + taxaMinimaAplicada + cidAplicado
       const dentroPrazoMes = contratoMeses > 0 ? mes <= contratoMeses : false
