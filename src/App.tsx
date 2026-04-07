@@ -17737,8 +17737,10 @@ export default function App() {
   const handleNavigateToProposalTab = useCallback(
     async (targetTab: 'leasing' | 'vendas') => {
       await runWithUnsavedChangesGuard(async () => {
-        // Atualiza a ref antes de iniciarNovaProposta para que o snapshot vazio
-        // seja gerado para a aba correta.
+        // Atualiza a ref ANTES de iniciarNovaProposta para que buildEmptySnapshotForNewProposal
+        // (linha 17646 aprox.) use a aba correta ao construir o snapshot vazio inicial.
+        // Se não atualizarmos aqui, o snapshot seria gerado para a aba anterior e
+        // snapshot.activeTab ficaria inconsistente com a aba que o usuário selecionou.
         activeTabRef.current = targetTab
         await iniciarNovaProposta()
         setActiveTab(targetTab)

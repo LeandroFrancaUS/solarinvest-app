@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react'
+import { isCrashRecovery } from './crashRecovery'
 
 export type LeasingDadosTecnicos = {
   potenciaInstaladaKwp: number
@@ -287,23 +288,6 @@ const persistState = (next: LeasingState) => {
     window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   } catch (error) {
     console.warn('[useLeasingStore] failed to persist state', error)
-  }
-}
-
-/**
- * Detecta se a sessão anterior encerrou abruptamente (crash / kill do processo).
- * A chave 'session_active' é definida em App.tsx durante o mount e removida no
- * beforeunload. Se ainda estiver 'true' ao iniciar, indica que não houve saída limpa.
- */
-function isCrashRecovery(): boolean {
-  try {
-    return (
-      typeof window !== 'undefined' &&
-      typeof window.sessionStorage !== 'undefined' &&
-      window.sessionStorage.getItem('session_active') === 'true'
-    )
-  } catch {
-    return false
   }
 }
 

@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { isCrashRecovery } from './crashRecovery'
 import type { TipoSistema } from '../lib/finance/roi'
 import type { Outputs as ComposicaoCalculo } from '../lib/venda/calcComposicaoUFV'
 import { useSafeStore } from '../lib/react/safeStore'
@@ -278,23 +279,6 @@ const persistState = (next: VendaState) => {
     window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   } catch (error) {
     console.warn('[useVendaStore] failed to persist state', error)
-  }
-}
-
-/**
- * Detecta se a sessão anterior encerrou abruptamente (crash / kill do processo).
- * A chave 'session_active' é definida em App.tsx durante o mount e removida no
- * beforeunload. Se ainda estiver 'true' ao iniciar, indica que não houve saída limpa.
- */
-function isCrashRecovery(): boolean {
-  try {
-    return (
-      typeof window !== 'undefined' &&
-      typeof window.sessionStorage !== 'undefined' &&
-      window.sessionStorage.getItem('session_active') === 'true'
-    )
-  } catch {
-    return false
   }
 }
 
