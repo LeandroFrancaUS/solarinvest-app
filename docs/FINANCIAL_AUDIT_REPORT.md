@@ -1,11 +1,11 @@
 # Auditoria Técnica — Cálculos Financeiros SolarInvest (v2 — Exaustiva)
 
-**Data:** Janeiro 2026 (atualizado)  
+**Data:** v1 — março/2026; v2 — atualizado  
 **Escopo:** todos os motores de cálculo financeiro e energético — leasing/simulação, venda, análise financeira, propostas impressas, pricing por kWp e parsing numérico pt-BR.
 
 ---
 
-> **Nota:** este documento substitui o relatório v1 (28/03/2026). Mantém e aprofunda os achados anteriores, acrescenta a análise de consistência inter-motores e o plano de correção priorizado.
+> **Nota:** este documento é a versão v2 (exaustiva). A v1 identificou e corrigiu os achados FA e FB. Esta versão acrescenta a análise de consistência inter-motores (18 achados adicionais) e o plano de correção priorizado.
 
 ## 1) Resumo executivo
 
