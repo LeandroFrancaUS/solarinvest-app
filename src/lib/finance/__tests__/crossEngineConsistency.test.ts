@@ -142,11 +142,19 @@ describe('crossEngineConsistency', () => {
       expect(roiResult).toHaveProperty('payback')
     })
 
-    it('analiseFinanceira venda — TIR deve ser null (transação única não tem IRR)', () => {
+    it('analiseFinanceira venda — TIR é computada para fluxo single-period', () => {
       const afResult = calcularAnaliseFinanceira(ANALISE_INPUT_VENDA)
-      // After F06 fix: TIR should be null for venda mode (single-period has no IRR)
-      expect(afResult.tir_mensal_percent).toBeNull()
-      expect(afResult.tir_anual_percent).toBeNull()
+      // Venda flow: [-inv, inv+lucro]. IRR exists when (inv+lucro) > 0 (sign change present).
+      // A negative TIR means the contract does not cover the investment — still a valid IRR.
+      const lucro = afResult.lucro_liquido_final_rs ?? 0
+      const inv = ANALISE_INPUT_VENDA.investimento_inicial_rs
+      if (inv + lucro > 0) {
+        expect(afResult.tir_mensal_percent).not.toBeNull()
+        expect(afResult.tir_anual_percent).not.toBeNull()
+      } else {
+        // No sign change → IRR undefined
+        expect(afResult.tir_mensal_percent).toBeNull()
+      }
     })
   })
 

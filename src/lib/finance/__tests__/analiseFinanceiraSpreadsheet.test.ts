@@ -286,13 +286,14 @@ describe('KPIs', () => {
     expect(Number.isFinite(result.roi_percent)).toBe(true)
   })
 
-  it('payback_meses is null when lucro does not cover investimento', () => {
+  it('payback_meses reflects single-period venda cash flow', () => {
     const result = calcularAnaliseFinanceira(baseInput)
-    // For venda with a single-period cash flow, payback is null if
-    // lucro_final < investimento_inicial_rs (30000 in baseInput)
+    // Venda is now modelled as a two-entry cash flow: [-inv, inv+lucro].
+    // Payback = 2 when lucro >= 0 (cumulative turns non-negative at t1),
+    // null when lucro < 0 (never recovers within the single period).
     const lucro = result.lucro_liquido_final_rs ?? 0
-    if (lucro >= baseInput.investimento_inicial_rs) {
-      expect(result.payback_meses).toBe(1)
+    if (lucro >= 0) {
+      expect(result.payback_meses).toBe(2)
     } else {
       expect(result.payback_meses).toBeNull()
     }

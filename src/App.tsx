@@ -4464,6 +4464,7 @@ export default function App() {
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
   const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
   const [afComissaoMinimaPercent, setAfComissaoMinimaPercent] = useState(5)
+  const [afTaxaDesconto, setAfTaxaDesconto] = useState(0)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
   const [afConsumoOverride, setAfConsumoOverride] = useState(0)
   const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
@@ -9994,6 +9995,7 @@ export default function App() {
         meses_projecao: mensalidadesFinal.length,
         mensalidades_previstas_rs: mensalidadesFinal,
         investimento_inicial_rs: preCustoVariavel,
+        taxa_desconto_aa_pct: afTaxaDesconto > 0 ? afTaxaDesconto : null,
       }
       return calcularAnaliseFinanceira(input)
     } catch {
@@ -10057,6 +10059,7 @@ export default function App() {
     potenciaModulo,
     ufTarifa,
     afComissaoMinimaPercent,
+    afTaxaDesconto,
     vendasConfig.af_custo_fixo_rateado_percent,
     vendasConfig.af_lucro_minimo_percent,
   ])
@@ -25237,6 +25240,17 @@ export default function App() {
                       onFocus={selectNumberInputOnFocus}
                     />
                   </Field>
+                  <Field label={labelWithTooltip('Taxa de desconto VPL (% a.a.)', 'Taxa anual usada para calcular o VPL (Valor Presente Líquido). Deixe 0 para não calcular o VPL.')}>
+                    <input
+                      type="number"
+                      value={afTaxaDesconto}
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      onChange={(e) => setAfTaxaDesconto(Number(e.target.value) || 0)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
                   {afModo === 'leasing' ? (
                     <>
                       <Field label="Inadimplência (%)">
@@ -25464,12 +25478,16 @@ export default function App() {
 
                   {/* KPIs */}
                   <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                    <h4>KPIs</h4>
+                    <h4>Indicadores Financeiros{afModo === 'venda' ? ' — Venda' : ' — Leasing'}</h4>
                     <div className="info-inline">
-                      <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toFixed(2)}%</strong></span>
-                      <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : 'N/D'}</strong></span>
-                      <span className="pill">TIR mensal <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toFixed(2)}%` : 'N/D'}</strong></span>
-                      <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toFixed(2)}%` : 'N/D'}</strong></span>
+                      <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong></span>
+                      <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : '—'}</strong></span>
+                      <span className="pill">TIR mensal <InfoTooltip text="Taxa Interna de Retorno por período (mês). N/D quando o fluxo não tem mudança de sinal." /> <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
+                      <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
+                      <span className="pill">VPL <InfoTooltip text={afTaxaDesconto > 0 ? `Valor Presente Líquido com taxa de desconto de ${afTaxaDesconto}% a.a.` : 'Informe a taxa de desconto (% a.a.) acima para calcular o VPL.'} /> <strong>{analiseFinanceiraResult.vpl != null ? currency(analiseFinanceiraResult.vpl) : '—'}</strong></span>
+                      {analiseFinanceiraResult.payback_descontado_meses != null ? (
+                        <span className="pill">Payback descontado <strong>{analiseFinanceiraResult.payback_descontado_meses} meses</strong></span>
+                      ) : null}
                     </div>
                   </div>
                 </>

@@ -70,6 +70,11 @@ export interface AnaliseFinanceiraInput {
 
   // KPI
   investimento_inicial_rs: number
+  /**
+   * Annual discount rate (% a.a.) used for VPL (NPV) calculation.
+   * When not provided or ≤ 0, VPL will be null in the output.
+   */
+  taxa_desconto_aa_pct?: number | null
 }
 
 export interface AnaliseFinanceiraOutput {
@@ -117,4 +122,8 @@ export interface AnaliseFinanceiraOutput {
   payback_meses: number | null
   tir_mensal_percent: number | null
   tir_anual_percent: number | null
+  /** Net Present Value (VPL) in R$. null when no discount rate was provided. */
+  vpl: number | null
+  /** Discounted payback in months. null when no discount rate was provided or never recovered. */
+  payback_descontado_meses: number | null
 }

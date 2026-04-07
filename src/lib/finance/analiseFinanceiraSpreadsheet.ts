@@ -5,6 +5,13 @@ import {
   type StatusVenda,
   type UF,
 } from '../../types/analiseFinanceira'
+import {
+  computeIRR,
+  computeNPV,
+  computePayback,
+  computeDiscountedPayback,
+  toMonthlyRate,
+} from './investmentMetrics'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -100,30 +107,6 @@ export function calcPrecoIdeal(
 
   if (den <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
   return custo_variavel_total / den
-}
-
-// ─── IRR calculation ─────────────────────────────────────────────────────────
-
-function calcIrr(fluxos: number[], maxIterations = 1000, tolerance = 1e-7): number | null {
-  if (fluxos.length < 2) return null
-
-  let rate = 0.1
-  for (let i = 0; i < maxIterations; i++) {
-    let npv = 0
-    let dnpv = 0
-    for (let t = 0; t < fluxos.length; t++) {
-      const factor = Math.pow(1 + rate, t)
-      npv += fluxos[t] / factor
-      dnpv -= (t * fluxos[t]) / (factor * (1 + rate))
-    }
-    if (dnpv === 0) return null
-    const next = rate - npv / dnpv
-    if (Math.abs(next - rate) < tolerance) {
-      return Number.isFinite(next) ? next : null
-    }
-    rate = next
-  }
-  return null
 }
 
 // ─── Core calculation phases ──────────────────────────────────────────────────
@@ -381,28 +364,43 @@ function calcularKpis(
   fluxos: number[],
   investimento_inicial_rs: number,
   lucro_base: number,
-): Pick<AnaliseFinanceiraOutput, 'roi_percent' | 'payback_meses' | 'tir_mensal_percent' | 'tir_anual_percent'> {
+  taxa_desconto_aa_pct?: number | null,
+): Pick<AnaliseFinanceiraOutput, 'roi_percent' | 'payback_meses' | 'tir_mensal_percent' | 'tir_anual_percent' | 'vpl' | 'payback_descontado_meses'> {
   const roi_percent = (lucro_base / investimento_inicial_rs) * 100
 
-  let payback_meses: number | null = null
-  // Nota: para modo venda (fluxos = []), payback_meses = null e TIR = null são corretos.
-  // O ROI single-period é o indicador adequado para transações à vista.
-  let acumulado = -investimento_inicial_rs
-  for (let i = 0; i < fluxos.length; i++) {
-    acumulado += fluxos[i]
-    if (acumulado >= 0) {
-      payback_meses = i + 1
-      break
-    }
-  }
-
+  // Build full cash-flow series with the investment at t0
   const fluxosComInvestimento = [-investimento_inicial_rs, ...fluxos]
-  const tirMensal = calcIrr(fluxosComInvestimento)
+
+  const payback_meses = computePayback(fluxosComInvestimento)
+
+  const tirMensal = computeIRR(fluxosComInvestimento)
   const tir_mensal_percent = tirMensal !== null ? tirMensal * 100 : null
   const tir_anual_percent =
     tirMensal !== null ? (Math.pow(1 + tirMensal, 12) - 1) * 100 : null
 
-  return { roi_percent, payback_meses, tir_mensal_percent, tir_anual_percent }
+  // VPL and discounted payback (only when a discount rate is provided)
+  const hasDiscount =
+    taxa_desconto_aa_pct != null &&
+    Number.isFinite(taxa_desconto_aa_pct) &&
+    taxa_desconto_aa_pct > 0
+  const taxaMensal = hasDiscount ? toMonthlyRate(taxa_desconto_aa_pct as number) : 0
+
+  const vpl = hasDiscount
+    ? computeNPV(fluxosComInvestimento, taxaMensal)
+    : null
+
+  const payback_descontado_meses = hasDiscount
+    ? computeDiscountedPayback(fluxosComInvestimento, taxaMensal)
+    : null
+
+  return {
+    roi_percent,
+    payback_meses,
+    tir_mensal_percent,
+    tir_anual_percent,
+    vpl,
+    payback_descontado_meses,
+  }
 }
 
 // ─── Main orchestrator ────────────────────────────────────────────────────────
@@ -427,11 +425,21 @@ export function calcularAnaliseFinanceira(
   if (input.modo === 'venda') {
     const vendaResult = calcularAnaliseVenda(input, custo_variavel_total_rs)
 
-    const fluxosVenda: number[] = []  // Venda é transação única — TIR e payback não aplicam; usar ROI
+    // Venda is modelled as a single-period transaction:
+    //   t0: −investimento_inicial_rs  (cost to execute the project)
+    //   t1: +(investimento_inicial_rs + lucro_liquido_final_rs)
+    //       (capital returned + net profit after all fees)
+    //
+    // Consequence: TIR = lucro/investimento per period = simple ROI per period.
+    // This is mathematically correct and explicitly documented (see FINANCIAL_AUDIT_REPORT).
+    const lucro = vendaResult.lucro_liquido_final_rs ?? 0
+    const fluxosVenda: number[] = [input.investimento_inicial_rs + lucro]
+
     const kpis = calcularKpis(
       fluxosVenda,
       input.investimento_inicial_rs,
-      vendaResult.lucro_liquido_final_rs ?? 0,
+      lucro,
+      input.taxa_desconto_aa_pct,
     )
 
     return {
@@ -456,6 +464,7 @@ export function calcularAnaliseFinanceira(
     leasingResult.projecao_mensalidades_rs ?? [],
     input.investimento_inicial_rs,
     leasingResult.lucro_rs ?? 0,
+    input.taxa_desconto_aa_pct,
   )
 
   return {
