@@ -9067,6 +9067,52 @@ export default function App() {
     recalcularTick,
   ])
 
+  // Sincroniza Consumo (kWh/mês) com a geração estimada sempre que o sistema
+  // tiver potência suficiente para calcular geracaoMensalKwh e o consumo ainda
+  // não foi editado manualmente pelo usuário (consumoManual === false).
+  // Resolve o impasse em que o segundo efeito (abaixo) exige vendaAutoPotenciaKwp
+  // que, por sua vez, precisa de kcKwhMes > 0 — ovo-e-galinha.
+  useEffect(() => {
+    if (consumoManual) {
+      return
+    }
+
+    if (geracaoMensalKwh <= 0) {
+      return
+    }
+
+    const geracaoArredondada = Math.round(geracaoMensalKwh * 10) / 10
+
+    if (numbersAreClose(kcKwhMes, geracaoArredondada, 0.05)) {
+      return
+    }
+
+    setKcKwhMes(geracaoArredondada, 'auto')
+
+    setVendaForm((prev) => {
+      if (numbersAreClose(prev.consumo_kwh_mes ?? 0, geracaoArredondada, 0.05)) {
+        return prev
+      }
+      return { ...prev, consumo_kwh_mes: geracaoArredondada }
+    })
+
+    setVendaFormErrors((prev) => {
+      if (!prev.consumo_kwh_mes) {
+        return prev
+      }
+      const { consumo_kwh_mes: _omit, ...rest } = prev
+      return rest
+    })
+  }, [
+    consumoManual,
+    geracaoMensalKwh,
+    kcKwhMes,
+    setKcKwhMes,
+    setVendaForm,
+    setVendaFormErrors,
+    recalcularTick,
+  ])
+
   useEffect(() => {
     const { hsp, pr } = vendaGeracaoParametros
     if (hsp <= 0 || pr <= 0) {
