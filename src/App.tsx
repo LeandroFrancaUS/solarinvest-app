@@ -15663,6 +15663,11 @@ export default function App() {
     }
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // Marca saída limpa da sessão — na próxima visita os stores iniciam com estado padrão.
+      // Se o browser crashar/tab for morta sem disparar beforeunload, 'session_active' permanece
+      // 'true' e os stores farão recuperação automática a partir do sessionStorage.
+      window.sessionStorage.removeItem('session_active')
+
       if (!hasUnsavedChanges()) {
         return
       }
@@ -15674,6 +15679,14 @@ export default function App() {
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges])
+
+  // Marca a sessão como ativa logo após o mount. Combinado com a remoção no beforeunload,
+  // permite que os stores detectem crashes (session_active === 'true' no próximo boot).
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('session_active', 'true')
+    }
+  }, [])
 
   const removerOrcamentoSalvo = useCallback(
     (id: string) => {
@@ -17713,6 +17726,26 @@ export default function App() {
     iniciarNovaProposta,
     requestSaveDecision,
   ])
+
+  /**
+   * Navega para uma aba de proposta (Leasing ou Vendas) com reset completo do estado.
+   *
+   * Implementa A.1 do padrão de controle de estado:
+   * - Sempre inicia a página com valores default.
+   * - Exibe guarda de alterações não salvas antes de resetar.
+   */
+  const handleNavigateToProposalTab = useCallback(
+    async (targetTab: 'leasing' | 'vendas') => {
+      await runWithUnsavedChangesGuard(async () => {
+        // Atualiza a ref antes de iniciarNovaProposta para que o snapshot vazio
+        // seja gerado para a aba correta.
+        activeTabRef.current = targetTab
+        await iniciarNovaProposta()
+        setActiveTab(targetTab)
+      })
+    },
+    [runWithUnsavedChangesGuard, iniciarNovaProposta, setActiveTab],
+  )
 
   const duplicarOrcamentoAtual = () => {
     const registroParaDuplicar = orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar
@@ -24116,8 +24149,7 @@ export default function App() {
           label: 'Leasing',
           icon: '📝',
           onSelect: () => {
-            setActivePage('app')
-            setActiveTab('leasing')
+            void handleNavigateToProposalTab('leasing')
           },
         },
         {
@@ -24125,8 +24157,7 @@ export default function App() {
           label: 'Vendas',
           icon: '🧾',
           onSelect: () => {
-            setActivePage('app')
-            setActiveTab('vendas')
+            void handleNavigateToProposalTab('vendas')
           },
         },
         ...(isAdmin

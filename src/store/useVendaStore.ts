@@ -281,7 +281,24 @@ const persistState = (next: VendaState) => {
   }
 }
 
-let state: VendaState = loadStoredState()
+/**
+ * Detecta se a sessão anterior encerrou abruptamente (crash / kill do processo).
+ * A chave 'session_active' é definida em App.tsx durante o mount e removida no
+ * beforeunload. Se ainda estiver 'true' ao iniciar, indica que não houve saída limpa.
+ */
+function isCrashRecovery(): boolean {
+  try {
+    return (
+      typeof window !== 'undefined' &&
+      typeof window.sessionStorage !== 'undefined' &&
+      window.sessionStorage.getItem('session_active') === 'true'
+    )
+  } catch {
+    return false
+  }
+}
+
+let state: VendaState = isCrashRecovery() ? loadStoredState() : createInitialState()
 const INITIAL_STATE_SIGNATURE = JSON.stringify(createInitialState())
 
 const cloneState = (input: VendaState): VendaState => ({

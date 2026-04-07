@@ -56,6 +56,37 @@ export function normalizePerformanceRatio(value?: number): number {
   return resolved
 }
 
+/**
+ * Reverse of estimateMonthlyGenerationKWh: given a monthly energy target (kWh/mês),
+ * compute the required system capacity (kWp).
+ * Returns null if inputs are invalid or the fator de geração is zero.
+ */
+export function reverseGenerationToKwp(
+  geracaoKwhMes: number,
+  params: {
+    hsp?: number
+    pr?: number
+    dias_mes?: number
+  } = {},
+): number | null {
+  if (!Number.isFinite(geracaoKwhMes) || geracaoKwhMes <= 0) {
+    return null
+  }
+  const hsp = Number.isFinite(params.hsp) ? Math.max(0, params.hsp ?? 0) : IRRADIACAO_FALLBACK
+  const pr = Number.isFinite(params.pr) ? Math.max(0, params.pr ?? 0) : DEFAULT_PERFORMANCE_RATIO
+  const dias = Number.isFinite(params.dias_mes)
+    ? Math.max(0, params.dias_mes ?? DEFAULT_DIAS_MES)
+    : DEFAULT_DIAS_MES
+
+  const fator = hsp * pr * dias
+  if (fator <= 0) {
+    return null
+  }
+
+  const kwp = geracaoKwhMes / fator
+  return Number.isFinite(kwp) && kwp > 0 ? kwp : null
+}
+
 export function estimateMonthlyGenerationKWh({
   potencia_instalada_kwp,
   irradiacao_kwh_m2_dia = IRRADIACAO_FALLBACK,
