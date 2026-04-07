@@ -111,6 +111,10 @@ export interface AnaliseFinanceiraOutput {
 
   // Leasing
   seguro_rs?: number
+  /** Leasing commission = value of the first monthly installment (paid at contract signing). */
+  comissao_leasing_rs?: number
+  /** Taxes applied on gross mensalidades revenue (impostos_percent × total bruto). */
+  impostos_rs_leasing?: number
   custo_total_rs?: number
   projecao_mensalidades_rs?: number[]
   fator_liquido?: number

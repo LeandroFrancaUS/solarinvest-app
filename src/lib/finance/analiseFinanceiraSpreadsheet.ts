@@ -332,14 +332,22 @@ function calcularAnaliseVenda(
 function calcularAnaliseLeasing(
   input: AnaliseFinanceiraInput,
   custo_variavel_total_rs: number,
-  comissao_rs: number,
 ): Partial<AnaliseFinanceiraOutput> {
   const seguro_rs = calcSeguroLeasing(input.valor_contrato_rs)
 
-  const custo_total_rs = custo_variavel_total_rs + comissao_rs + seguro_rs
+  // Commission for leasing = full value of the first monthly installment
+  const comissao_leasing_rs = input.mensalidades_previstas_rs[0] ?? 0
 
+  const custo_total_rs = custo_variavel_total_rs + comissao_leasing_rs + seguro_rs
+
+  // Taxes (impostos_percent) are applied on gross mensalidades revenue
+  const impostosDecimal = toDecimalPercent(input.impostos_percent)
+
+  // fator_liquido combines all per-period deductions:
+  // taxes on revenue + default-risk losses + operational costs
   const fator_liquido =
     1 -
+    impostosDecimal -
     toDecimalPercent(input.inadimplencia_percent) -
     toDecimalPercent(input.custo_operacional_percent)
 
@@ -347,11 +355,16 @@ function calcularAnaliseLeasing(
     (v) => v * fator_liquido,
   )
 
+  const receita_bruta_rs = input.mensalidades_previstas_rs.reduce((sum, v) => sum + v, 0)
+  const impostos_rs_leasing = receita_bruta_rs * impostosDecimal
+
   const receita_liquida_rs = projecao_mensalidades_rs.reduce((sum, v) => sum + v, 0)
   const lucro_rs = receita_liquida_rs - custo_total_rs
 
   return {
     seguro_rs,
+    comissao_leasing_rs,
+    impostos_rs_leasing,
     custo_total_rs,
     projecao_mensalidades_rs,
     fator_liquido,
@@ -454,12 +467,11 @@ export function calcularAnaliseFinanceira(
     }
   }
 
-  // Leasing: need comissao from venda calc first
+  // Leasing: need comissao from venda calc first (for preco_minimo display)
   const vendaResult = calcularAnaliseVenda(input, custo_variavel_total_rs)
   const leasingResult = calcularAnaliseLeasing(
     input,
     custo_variavel_total_rs,
-    vendaResult.comissao_rs ?? 0,
   )
 
   const kpis = calcularKpis(

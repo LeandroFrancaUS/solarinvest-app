@@ -309,6 +309,13 @@ describe('KPIs', () => {
     const result = calcularAnaliseFinanceira(input)
     expect(result.roi_percent).toBeDefined()
     expect(result.tir_mensal_percent).toBeDefined()
+    // Commission = first mensalidade value
+    expect(result.comissao_leasing_rs).toBe(1500)
+    // Taxes are applied on gross mensalidades (8% on 60×1500 = 90000)
+    expect(result.impostos_rs_leasing).toBeCloseTo(90000 * 0.08, 2)
+    // fator_liquido includes taxes + inadimplencia + custo_operacional
+    // baseInput: impostos=8, inadimplencia=2, custo_operacional=3 → 1 - 0.08 - 0.02 - 0.03 = 0.87
+    expect(result.fator_liquido).toBeCloseTo(0.87, 4)
   })
 })
 

@@ -4454,7 +4454,8 @@ export default function App() {
   const [afDeslocamentoCidadeLabel, setAfDeslocamentoCidadeLabel] = useState('')
   const [afDeslocamentoErro, setAfDeslocamentoErro] = useState('')
   const [afValorContrato, setAfValorContrato] = useState(0)
-  const [afImpostos, setAfImpostos] = useState(8)
+  const [afImpostosVenda, setAfImpostosVenda] = useState(8)
+  const [afImpostosLeasing, setAfImpostosLeasing] = useState(13)
   const [afInadimplencia, setAfInadimplencia] = useState(2)
   const [afCustoOperacional, setAfCustoOperacional] = useState(3)
   const [afMesesProjecao, setAfMesesProjecao] = useState(60)
@@ -9984,7 +9985,7 @@ export default function App() {
         projeto_rs_override: preProjetoFinal,
         crea_rs_override: preCreaFinal,
         valor_contrato_rs: valorContrato,
-        impostos_percent: afImpostos,
+        impostos_percent: afModo === 'venda' ? afImpostosVenda : afImpostosLeasing,
         custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
         lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
         comissao_minima_percent: afComissaoMinimaPercent,
@@ -10043,7 +10044,8 @@ export default function App() {
     cidKwhBase,
     afModo,
     afValorContrato,
-    afImpostos,
+    afImpostosVenda,
+    afImpostosLeasing,
     afMargemLiquidaVenda,
     afMargemLiquidaLeasing,
     afMargemLiquidaMinima,
@@ -25206,13 +25208,17 @@ export default function App() {
                       placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
-                  <Field label="Impostos (%)">
+                  <Field label={`Impostos (%) — ${afModo === 'venda' ? 'Venda' : 'Leasing'}`}>
                     <input
                       type="number"
-                      value={afImpostos}
+                      value={afModo === 'venda' ? afImpostosVenda : afImpostosLeasing}
                       min={0}
                       max={100}
-                      onChange={(e) => setAfImpostos(Number(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0
+                        if (afModo === 'venda') setAfImpostosVenda(val)
+                        else setAfImpostosLeasing(val)
+                      }}
                       onFocus={selectNumberInputOnFocus}
                     />
                   </Field>
@@ -25468,8 +25474,10 @@ export default function App() {
                       <h4>Resultado — Leasing</h4>
                       <div className="info-inline">
                         <span className="pill">Seguro <strong>{currency(analiseFinanceiraResult.seguro_rs ?? 0)}</strong></span>
+                        <span className="pill">Comissão (1ª mensalidade) <InfoTooltip text="Valor integral da primeira mensalidade, cobrado como comissão no fechamento do contrato." /> <strong>{currency(analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
+                        <span className="pill">Impostos ({afImpostosLeasing}%) <InfoTooltip text={`Impostos calculados sobre o valor bruto total das mensalidades (${afImpostosLeasing}%).`} /> <strong>{currency(analiseFinanceiraResult.impostos_rs_leasing ?? 0)}</strong></span>
                         <span className="pill">Custo total <strong>{currency(analiseFinanceiraResult.custo_total_rs)}</strong></span>
-                        <span className="pill">Fator líquido <strong>{((analiseFinanceiraResult.fator_liquido ?? 0) * 100).toFixed(2)}%</strong></span>
+                        <span className="pill">Fator líquido <InfoTooltip text={`Fração líquida de cada mensalidade após impostos (${afImpostosLeasing}%), inadimplência e custos operacionais.`} /> <strong>{((analiseFinanceiraResult.fator_liquido ?? 0) * 100).toFixed(2)}%</strong></span>
                         <span className="pill">Receita líquida <strong>{currency(analiseFinanceiraResult.receita_liquida_rs ?? 0)}</strong></span>
                         <span className="pill">Lucro <strong>{currency(analiseFinanceiraResult.lucro_rs ?? 0)}</strong></span>
                       </div>
