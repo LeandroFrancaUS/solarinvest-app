@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react'
+import { isCrashRecovery } from './crashRecovery'
 
 export type LeasingDadosTecnicos = {
   potenciaInstaladaKwp: number
@@ -290,7 +291,7 @@ const persistState = (next: LeasingState) => {
   }
 }
 
-let state: LeasingState = loadStoredState()
+let state: LeasingState = isCrashRecovery() ? loadStoredState() : createInitialState()
 const INITIAL_STATE_SIGNATURE = JSON.stringify(createInitialState())
 
 const cloneState = (input: LeasingState): LeasingState => ({

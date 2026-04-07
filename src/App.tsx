@@ -9067,6 +9067,52 @@ export default function App() {
     recalcularTick,
   ])
 
+  // Sincroniza Consumo (kWh/mês) com a geração estimada sempre que o sistema
+  // tiver potência suficiente para calcular geracaoMensalKwh e o consumo ainda
+  // não foi editado manualmente pelo usuário (consumoManual === false).
+  // Resolve o impasse em que o segundo efeito (abaixo) exige vendaAutoPotenciaKwp
+  // que, por sua vez, precisa de kcKwhMes > 0 — ovo-e-galinha.
+  useEffect(() => {
+    if (consumoManual) {
+      return
+    }
+
+    if (geracaoMensalKwh <= 0) {
+      return
+    }
+
+    const geracaoArredondada = Math.round(geracaoMensalKwh * 10) / 10
+
+    if (numbersAreClose(kcKwhMes, geracaoArredondada, 0.05)) {
+      return
+    }
+
+    setKcKwhMes(geracaoArredondada, 'auto')
+
+    setVendaForm((prev) => {
+      if (numbersAreClose(prev.consumo_kwh_mes ?? 0, geracaoArredondada, 0.05)) {
+        return prev
+      }
+      return { ...prev, consumo_kwh_mes: geracaoArredondada }
+    })
+
+    setVendaFormErrors((prev) => {
+      if (!prev.consumo_kwh_mes) {
+        return prev
+      }
+      const { consumo_kwh_mes: _omit, ...rest } = prev
+      return rest
+    })
+  }, [
+    consumoManual,
+    geracaoMensalKwh,
+    kcKwhMes,
+    setKcKwhMes,
+    setVendaForm,
+    setVendaFormErrors,
+    recalcularTick,
+  ])
+
   useEffect(() => {
     const { hsp, pr } = vendaGeracaoParametros
     if (hsp <= 0 || pr <= 0) {
@@ -15663,6 +15709,11 @@ export default function App() {
     }
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // Marca saída limpa da sessão — na próxima visita os stores iniciam com estado padrão.
+      // Se o browser crashar/tab for morta sem disparar beforeunload, 'session_active' permanece
+      // 'true' e os stores farão recuperação automática a partir do sessionStorage.
+      window.sessionStorage.removeItem('session_active')
+
       if (!hasUnsavedChanges()) {
         return
       }
@@ -15674,6 +15725,14 @@ export default function App() {
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges])
+
+  // Marca a sessão como ativa logo após o mount. Combinado com a remoção no beforeunload,
+  // permite que os stores detectem crashes (session_active === 'true' no próximo boot).
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('session_active', 'true')
+    }
+  }, [])
 
   const removerOrcamentoSalvo = useCallback(
     (id: string) => {
@@ -17713,6 +17772,28 @@ export default function App() {
     iniciarNovaProposta,
     requestSaveDecision,
   ])
+
+  /**
+   * Navega para uma aba de proposta (Leasing ou Vendas) com reset completo do estado.
+   *
+   * Implementa A.1 do padrão de controle de estado:
+   * - Sempre inicia a página com valores default.
+   * - Exibe guarda de alterações não salvas antes de resetar.
+   */
+  const handleNavigateToProposalTab = useCallback(
+    async (targetTab: 'leasing' | 'vendas') => {
+      await runWithUnsavedChangesGuard(async () => {
+        // Atualiza a ref ANTES de iniciarNovaProposta para que buildEmptySnapshotForNewProposal
+        // (linha 17646 aprox.) use a aba correta ao construir o snapshot vazio inicial.
+        // Se não atualizarmos aqui, o snapshot seria gerado para a aba anterior e
+        // snapshot.activeTab ficaria inconsistente com a aba que o usuário selecionou.
+        activeTabRef.current = targetTab
+        await iniciarNovaProposta()
+        setActiveTab(targetTab)
+      })
+    },
+    [runWithUnsavedChangesGuard, iniciarNovaProposta, setActiveTab],
+  )
 
   const duplicarOrcamentoAtual = () => {
     const registroParaDuplicar = orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar
@@ -24116,8 +24197,7 @@ export default function App() {
           label: 'Leasing',
           icon: '📝',
           onSelect: () => {
-            setActivePage('app')
-            setActiveTab('leasing')
+            void handleNavigateToProposalTab('leasing')
           },
         },
         {
@@ -24125,8 +24205,7 @@ export default function App() {
           label: 'Vendas',
           icon: '🧾',
           onSelect: () => {
-            setActivePage('app')
-            setActiveTab('vendas')
+            void handleNavigateToProposalTab('vendas')
           },
         },
         ...(isAdmin

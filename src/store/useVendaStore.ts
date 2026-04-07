@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { isCrashRecovery } from './crashRecovery'
 import type { TipoSistema } from '../lib/finance/roi'
 import type { Outputs as ComposicaoCalculo } from '../lib/venda/calcComposicaoUFV'
 import { useSafeStore } from '../lib/react/safeStore'
@@ -281,7 +282,7 @@ const persistState = (next: VendaState) => {
   }
 }
 
-let state: VendaState = loadStoredState()
+let state: VendaState = isCrashRecovery() ? loadStoredState() : createInitialState()
 const INITIAL_STATE_SIGNATURE = JSON.stringify(createInitialState())
 
 const cloneState = (input: VendaState): VendaState => ({
