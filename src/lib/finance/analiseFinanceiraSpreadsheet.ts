@@ -335,10 +335,13 @@ function calcularAnaliseLeasing(
 ): Partial<AnaliseFinanceiraOutput> {
   const seguro_rs = calcSeguroLeasing(input.valor_contrato_rs)
 
-  // Commission for leasing = full value of the first monthly installment
+  // Commission for leasing (CAC) = full value of the first monthly installment
   const comissao_leasing_rs = input.mensalidades_previstas_rs[0] ?? 0
 
-  const custo_total_rs = custo_variavel_total_rs + comissao_leasing_rs + seguro_rs
+  // Investment base: CAPEX (variable costs) + CAC (commission)
+  const investimento_total_leasing_rs = custo_variavel_total_rs + comissao_leasing_rs
+
+  const custo_total_rs = investimento_total_leasing_rs + seguro_rs
 
   // Taxes (impostos_percent) are applied on gross mensalidades revenue
   const impostosDecimal = toDecimalPercent(input.impostos_percent)
@@ -361,15 +364,46 @@ function calcularAnaliseLeasing(
   const receita_liquida_rs = projecao_mensalidades_rs.reduce((sum, v) => sum + v, 0)
   const lucro_rs = receita_liquida_rs - custo_total_rs
 
+  // Average net monthly income — basis for analytical paybacks
+  const n = projecao_mensalidades_rs.length
+  const lucro_mensal_medio_rs = n > 0 ? receita_liquida_rs / n : 0
+
+  // Analytical paybacks (floating months, not simulation-based)
+  const payback_capex_meses: number | null =
+    lucro_mensal_medio_rs > 0 ? custo_variavel_total_rs / lucro_mensal_medio_rs : null
+
+  const payback_cac_meses: number | null =
+    lucro_mensal_medio_rs > 0 && comissao_leasing_rs > 0
+      ? comissao_leasing_rs / lucro_mensal_medio_rs
+      : null
+
+  const payback_total_meses: number | null =
+    lucro_mensal_medio_rs > 0 ? investimento_total_leasing_rs / lucro_mensal_medio_rs : null
+
+  // Maximum affordable commission for a given payback target
+  const comissao_maxima_rs: number | null =
+    input.payback_alvo_meses != null &&
+    Number.isFinite(input.payback_alvo_meses) &&
+    input.payback_alvo_meses > 0 &&
+    lucro_mensal_medio_rs > 0
+      ? input.payback_alvo_meses * lucro_mensal_medio_rs - custo_variavel_total_rs
+      : null
+
   return {
     seguro_rs,
     comissao_leasing_rs,
     impostos_rs_leasing,
+    investimento_total_leasing_rs,
     custo_total_rs,
     projecao_mensalidades_rs,
     fator_liquido,
     receita_liquida_rs,
     lucro_rs,
+    lucro_mensal_medio_rs,
+    payback_capex_meses,
+    payback_cac_meses,
+    payback_total_meses,
+    comissao_maxima_rs,
   }
 }
 
@@ -474,9 +508,13 @@ export function calcularAnaliseFinanceira(
     custo_variavel_total_rs,
   )
 
+  // Use CAPEX + CAC as the investment base so TIR, VPL and payback_meses
+  // correctly account for the commission paid at contract signing.
+  const investimentoKpi = leasingResult.investimento_total_leasing_rs ?? custo_variavel_total_rs
+
   const kpis = calcularKpis(
     leasingResult.projecao_mensalidades_rs ?? [],
-    input.investimento_inicial_rs,
+    investimentoKpi,
     leasingResult.lucro_rs ?? 0,
     input.taxa_desconto_aa_pct,
   )

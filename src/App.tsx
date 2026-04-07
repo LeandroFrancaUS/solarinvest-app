@@ -4466,6 +4466,7 @@ export default function App() {
   const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
   const [afComissaoMinimaPercent, setAfComissaoMinimaPercent] = useState(5)
   const [afTaxaDesconto, setAfTaxaDesconto] = useState(0)
+  const [afPaybackAlvo, setAfPaybackAlvo] = useState(60)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
   const [afConsumoOverride, setAfConsumoOverride] = useState(0)
   const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
@@ -9997,6 +9998,7 @@ export default function App() {
         mensalidades_previstas_rs: mensalidadesFinal,
         investimento_inicial_rs: preCustoVariavel,
         taxa_desconto_aa_pct: afTaxaDesconto > 0 ? afTaxaDesconto : null,
+        payback_alvo_meses: afModo === 'leasing' && afPaybackAlvo > 0 ? afPaybackAlvo : undefined,
       }
       return calcularAnaliseFinanceira(input)
     } catch {
@@ -10062,6 +10064,7 @@ export default function App() {
     ufTarifa,
     afComissaoMinimaPercent,
     afTaxaDesconto,
+    afPaybackAlvo,
     vendasConfig.af_custo_fixo_rateado_percent,
     vendasConfig.af_lucro_minimo_percent,
   ])
@@ -25300,6 +25303,15 @@ export default function App() {
                           placeholder={afMensalidadeBaseAuto > 0 ? formatMoneyBR(afMensalidadeBaseAuto) : '—'}
                         />
                       </Field>
+                      <Field label={labelWithTooltip('Payback alvo (meses)', 'Prazo máximo de payback desejado. Usado para calcular a comissão máxima que o projeto suporta.')}>
+                        <input
+                          type="number"
+                          value={afPaybackAlvo}
+                          min={1}
+                          onChange={(e) => setAfPaybackAlvo(Math.max(1, Number(e.target.value) || 1))}
+                          onFocus={selectNumberInputOnFocus}
+                        />
+                      </Field>
                     </>
                   ) : null}
                 </div>
@@ -25470,18 +25482,50 @@ export default function App() {
 
                   {/* Leasing results */}
                   {afModo === 'leasing' && analiseFinanceiraResult.custo_total_rs != null ? (
-                    <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                      <h4>Resultado — Leasing</h4>
-                      <div className="info-inline">
-                        <span className="pill">Seguro <strong>{currency(analiseFinanceiraResult.seguro_rs ?? 0)}</strong></span>
-                        <span className="pill">Comissão (1ª mensalidade) <InfoTooltip text="Valor integral da primeira mensalidade, cobrado como comissão no fechamento do contrato." /> <strong>{currency(analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
-                        <span className="pill">Impostos ({afImpostosLeasing}%) <InfoTooltip text={`Impostos calculados sobre o valor bruto total das mensalidades (${afImpostosLeasing}%).`} /> <strong>{currency(analiseFinanceiraResult.impostos_rs_leasing ?? 0)}</strong></span>
-                        <span className="pill">Custo total <strong>{currency(analiseFinanceiraResult.custo_total_rs)}</strong></span>
-                        <span className="pill">Fator líquido <InfoTooltip text={`Fração líquida de cada mensalidade após impostos (${afImpostosLeasing}%), inadimplência e custos operacionais.`} /> <strong>{((analiseFinanceiraResult.fator_liquido ?? 0) * 100).toFixed(2)}%</strong></span>
-                        <span className="pill">Receita líquida <strong>{currency(analiseFinanceiraResult.receita_liquida_rs ?? 0)}</strong></span>
-                        <span className="pill">Lucro <strong>{currency(analiseFinanceiraResult.lucro_rs ?? 0)}</strong></span>
+                    <>
+                      {/* Composição mensal */}
+                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                        <h4>Composição Mensal — Leasing</h4>
+                        <div className="info-inline">
+                          <span className="pill">Mensalidade bruta <strong>{currency(analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
+                          <span className="pill">Impostos ({afImpostosLeasing}%) <InfoTooltip text={`Impostos calculados sobre o valor bruto de cada mensalidade (${afImpostosLeasing}%).`} /> <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afImpostosLeasing / 100)}</strong></span>
+                          <span className="pill">Inadimplência ({afInadimplencia}%) <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afInadimplencia / 100)}</strong></span>
+                          <span className="pill">Custo operacional ({afCustoOperacional}%) <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afCustoOperacional / 100)}</strong></span>
+                          <span className="pill pill--success">Lucro mensal médio <InfoTooltip text="Receita líquida média por mês, após impostos, inadimplência e custo operacional." /> <strong>{currency(analiseFinanceiraResult.lucro_mensal_medio_rs ?? 0)}</strong></span>
+                          <span className="pill">Fator líquido <InfoTooltip text={`Fração líquida de cada mensalidade após descontar impostos (${afImpostosLeasing}%), inadimplência (${afInadimplencia}%) e custo operacional (${afCustoOperacional}%).`} /> <strong>{((analiseFinanceiraResult.fator_liquido ?? 0) * 100).toFixed(2)}%</strong></span>
+                        </div>
                       </div>
-                    </div>
+
+                      {/* Investimento */}
+                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                        <h4>Investimento — Leasing</h4>
+                        <div className="info-inline">
+                          <span className="pill">CAPEX <InfoTooltip text="Custo variável total do projeto (equipamentos, instalação e serviços técnicos)." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs ?? 0)}</strong></span>
+                          <span className="pill">Comissão / CAC <InfoTooltip text="Customer Acquisition Cost: valor integral da primeira mensalidade, pago no fechamento do contrato." /> <strong>{currency(analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
+                          <span className="pill pill--info">Investimento total <InfoTooltip text="CAPEX + CAC (comissão). Base de cálculo para TIR, VPL e Payback Total." /> <strong>{currency(analiseFinanceiraResult.investimento_total_leasing_rs ?? 0)}</strong></span>
+                          <span className="pill">Seguro <strong>{currency(analiseFinanceiraResult.seguro_rs ?? 0)}</strong></span>
+                          <span className="pill">Receita líquida total <strong>{currency(analiseFinanceiraResult.receita_liquida_rs ?? 0)}</strong></span>
+                          <span className="pill">Lucro total <strong>{currency(analiseFinanceiraResult.lucro_rs ?? 0)}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Paybacks */}
+                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                        <h4>Paybacks — Leasing</h4>
+                        <div className="info-inline">
+                          <span className="pill">Payback CAPEX <InfoTooltip text="Meses para recuperar somente o custo do projeto (CAPEX): CAPEX ÷ lucro mensal médio." /> <strong>{analiseFinanceiraResult.payback_capex_meses != null ? `${analiseFinanceiraResult.payback_capex_meses.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} meses` : '—'}</strong></span>
+                          <span className="pill">Payback CAC <InfoTooltip text="Meses para recuperar a comissão (CAC = 1ª mensalidade): comissão ÷ lucro mensal médio." /> <strong>{analiseFinanceiraResult.payback_cac_meses != null ? `${analiseFinanceiraResult.payback_cac_meses.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} meses` : '—'}</strong></span>
+                          <span className="pill pill--success">⭐ Payback Total <InfoTooltip text="Payback do investimento completo (CAPEX + CAC): investimento total ÷ lucro mensal médio. Principal indicador de retorno." /> <strong>{analiseFinanceiraResult.payback_total_meses != null ? `${analiseFinanceiraResult.payback_total_meses.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} meses` : '—'}</strong></span>
+                          {analiseFinanceiraResult.comissao_maxima_rs != null ? (
+                            <span className={`pill ${analiseFinanceiraResult.comissao_maxima_rs < (analiseFinanceiraResult.comissao_leasing_rs ?? 0) ? 'pill--error' : 'pill--info'}`}>
+                              Comissão máxima <InfoTooltip text={`Maior comissão que o projeto suporta mantendo o payback em até ${afPaybackAlvo} meses: payback_alvo × lucro_mensal − CAPEX.`} />
+                              {analiseFinanceiraResult.comissao_maxima_rs < (analiseFinanceiraResult.comissao_leasing_rs ?? 0) ? ' ⚠' : null}
+                              <strong> {currency(analiseFinanceiraResult.comissao_maxima_rs)}</strong>
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </>
                   ) : null}
 
                   {/* KPIs */}
@@ -25489,7 +25533,9 @@ export default function App() {
                     <h4>Indicadores Financeiros{afModo === 'venda' ? ' — Venda' : ' — Leasing'}</h4>
                     <div className="info-inline">
                       <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong></span>
-                      <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : '—'}</strong></span>
+                      {afModo === 'venda' ? (
+                        <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : '—'}</strong></span>
+                      ) : null}
                       <span className="pill">TIR mensal <InfoTooltip text="Taxa Interna de Retorno por período (mês). Não disponível quando o fluxo não tem mudança de sinal." /> <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
                       <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
                       <span className="pill"><span>VPL <InfoTooltip text={afTaxaDesconto > 0 ? `Valor Presente Líquido com taxa de desconto de ${afTaxaDesconto}% a.a.` : 'Informe a taxa de desconto (% a.a.) acima para calcular o VPL.'} /></span> <strong>{analiseFinanceiraResult.vpl != null ? currency(analiseFinanceiraResult.vpl) : '—'}</strong></span>
