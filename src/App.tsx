@@ -268,7 +268,7 @@ import {
   tarifaCurrency,
 } from './utils/formatters'
 import { Switch } from './components/ui/switch'
-import { useUser } from '@stackframe/react'
+import { useStackUser } from './app/Providers'
 import { performLogout } from './lib/auth/logout'
 import { useStackRbac } from './lib/auth/rbac'
 import { useAuthSession } from './auth/auth-session'
@@ -4250,7 +4250,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 }
 
 export default function App() {
-  const user = useUser()
+  const user = useStackUser()
   const { isAdmin: isAdminFromStack, role: userRole, isLoading: isStackPermLoading } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.

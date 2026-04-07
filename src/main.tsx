@@ -119,12 +119,12 @@ async function bootstrap() {
       <Boundary>
         <Providers>
           {/*
-           * Suspense boundary for App: the Stack Auth useUser() hook inside App
-           * may suspend while it validates the user's session after authentication.
-           * Without this boundary the suspension propagates to the Boundary error
-           * component, which shows "Falhou ao renderizar".  The fallback is null
-           * (blank screen) because RequireAuth already owns the visible loading
-           * spinner once the user state resolves.
+           * Suspense boundary for App: catches any component-level suspensions
+           * within the app tree (e.g. lazy-loaded routes).  Stack Auth's
+           * useUser() session validation is now handled inside Providers.tsx
+           * (StackUserPublisher with its own Suspense) and no longer suspends
+           * here.  The fallback is null (blank screen) because any visible
+           * loading state is owned by the components themselves.
            */}
           <React.Suspense fallback={null}>
             <App />

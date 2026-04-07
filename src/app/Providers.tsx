@@ -1,7 +1,52 @@
 // src/app/Providers.tsx
-import React, { type ReactNode } from "react"
-import { StackProvider, StackTheme } from "@stackframe/react"
+import React, { createContext, useContext, type ReactNode } from "react"
+import { StackProvider, StackTheme, useUser } from "@stackframe/react"
 import { stackClientApp } from "../stack/client"
+
+// ─── Stack SDK availability contexts ────────────────────────────────────────
+
+/**
+ * True when StackProviderBoundary caught an error from <StackProvider> /
+ * <StackTheme> and the app is running without Stack Auth context.
+ * Components that call Stack hooks MUST check this before doing so.
+ */
+const StackSdkCrashedContext = createContext(false)
+
+export function useStackSdkCrashed(): boolean {
+  return useContext(StackSdkCrashedContext)
+}
+
+/**
+ * The current Stack Auth user published from inside <StackProvider>.
+ * Returns null when the SDK is unavailable (not configured or crashed) or
+ * when the user is not signed in.  Reading this context never throws — it is
+ * always safe to call, even outside a StackProvider.
+ */
+type StackUser = ReturnType<typeof useUser>
+const StackUserContext = createContext<StackUser>(null)
+
+export function useStackUser(): StackUser {
+  return useContext(StackUserContext)
+}
+
+// ─── Internal helpers ────────────────────────────────────────────────────────
+
+/**
+ * Must be rendered INSIDE <StackProvider>.  Calls useUser() (which may
+ * suspend while the SDK validates the session) and publishes the resolved
+ * value to StackUserContext so that components higher (or elsewhere) in the
+ * tree can read it without needing their own StackProvider context.
+ */
+function StackUserPublisher({ children }: { children: ReactNode }) {
+  const user = useUser()
+  return (
+    <StackUserContext.Provider value={user}>
+      {children}
+    </StackUserContext.Provider>
+  )
+}
+
+// ─── Error boundary ──────────────────────────────────────────────────────────
 
 type BoundaryState = { crashed: boolean }
 
@@ -17,11 +62,14 @@ type BoundaryState = { crashed: boolean }
  * fall back to passthrough mode (children rendered without Stack Auth
  * wrapping) so the app remains usable.
  *
- * IMPORTANT: `children` is the Stack-wrapped tree (<StackProvider>…</StackProvider>).
- * The `fallback` prop receives the raw app content so the crashed path renders
- * ONLY the app — not the Stack wrappers that caused the crash.  Rendering
- * `this.props.children` in the crashed state would re-trigger the same error,
- * causing React to loop and ultimately hand off to the outer top-level Boundary.
+ * When crashed, the boundary:
+ *  1. Provides StackSdkCrashedContext=true so that guards in RequireAuth,
+ *     RequireAuthorizedUser, AccessPendingPage etc. skip Stack hook calls.
+ *  2. Provides StackUserContext=null so that useStackUser() returns null
+ *     safely everywhere (treating the session as unauthenticated).
+ *  3. Renders the raw `fallback` prop (the app children) rather than
+ *     re-rendering `this.props.children` (the StackProvider tree) which
+ *     would immediately re-crash and escalate to the outer Boundary.
  */
 class StackProviderBoundary extends React.Component<
   { children: ReactNode; fallback: ReactNode },
@@ -43,17 +91,24 @@ class StackProviderBoundary extends React.Component<
 
   render(): ReactNode {
     if (this.state.crashed) {
-      // Render the raw app content without any Stack Auth wrapping so the
-      // app stays functional even when the Stack SDK cannot initialise.
-      return <>{this.props.fallback}</>
+      return (
+        <StackSdkCrashedContext.Provider value={true}>
+          <StackUserContext.Provider value={null}>
+            {this.props.fallback}
+          </StackUserContext.Provider>
+        </StackSdkCrashedContext.Provider>
+      )
     }
     return this.props.children
   }
 }
 
+// ─── Public provider ─────────────────────────────────────────────────────────
+
 export function Providers({ children }: { children: ReactNode }) {
   if (!stackClientApp) {
-    // Stack Auth not configured (missing env vars) — passthrough for dev/bypass mode
+    // Stack Auth not configured (missing env vars) — passthrough for dev/bypass mode.
+    // StackUserContext default (null) and StackSdkCrashedContext default (false) apply.
     return <>{children}</>
   }
 
@@ -61,7 +116,19 @@ export function Providers({ children }: { children: ReactNode }) {
     <StackProviderBoundary fallback={children}>
       <StackProvider app={stackClientApp}>
         <StackTheme>
-          {children}
+          {/*
+           * StackUserPublisher calls useUser() which may suspend while the SDK
+           * validates the session.  The Suspense boundary here prevents the
+           * suspension from propagating above StackProvider where there is no
+           * other Suspense ancestor.  The null fallback (blank screen) is
+           * intentional — RequireAuth shows its own loading spinner once the
+           * tree below this point renders.
+           */}
+          <React.Suspense fallback={null}>
+            <StackUserPublisher>
+              {children}
+            </StackUserPublisher>
+          </React.Suspense>
         </StackTheme>
       </StackProvider>
     </StackProviderBoundary>

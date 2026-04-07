@@ -4,6 +4,7 @@
 import React from 'react'
 import { useStackApp } from '@stackframe/react'
 import { stackClientApp } from '../auth/stack-client'
+import { useStackSdkCrashed } from '../app/Providers'
 import { performLogout } from '../lib/auth/logout'
 import type { AccessStatus } from '../lib/auth/access-types'
 import { accessStatusLabel } from '../lib/auth/access-mappers'
@@ -52,6 +53,7 @@ function SignOutButton() {
 }
 
 export function AccessPendingScreen({ email, accessStatus }: Props) {
+  const stackSdkCrashed = useStackSdkCrashed()
   const title = titleFor(accessStatus)
   const message = messageFor(accessStatus)
 
@@ -78,7 +80,7 @@ export function AccessPendingScreen({ email, accessStatus }: Props) {
         <p className="text-center text-sm text-slate-600">{message}</p>
 
         <div className="flex justify-center">
-          {stackClientApp ? (
+          {stackClientApp && !stackSdkCrashed ? (
             <SignOutButton />
           ) : (
             <p className="text-xs text-slate-400">Auth não configurado</p>
