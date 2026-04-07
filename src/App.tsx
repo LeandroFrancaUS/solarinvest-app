@@ -4517,6 +4517,12 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulacoesSection])
+  // NOTE: kcKwhMes must be declared here — before the useEffect below uses it in its
+  // dependency array.  Declaring it any later (e.g. at the original line ~4818 position)
+  // places it after the useEffect call site, which causes a Temporal Dead Zone (TDZ)
+  // crash in production builds: Terser evaluates the deps array before the `const`
+  // initializer has run, producing "Cannot access '<minified>' before initialization".
+  const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
   // Reactively auto-populate Kit and Frete when consumo changes, unless manually edited
   useEffect(() => {
     if (simulacoesSection !== 'analise') return
@@ -4815,7 +4821,9 @@ export default function App() {
   )
   const [mesReajuste, setMesReajuste] = useState(INITIAL_VALUES.mesReajuste)
 
-  const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
+  // kcKwhMes is declared earlier (before the useEffect that uses it in its dep array)
+  // to avoid a Temporal Dead Zone (TDZ) crash in production builds.  See the comment
+  // above that declaration for the full explanation.
   const [consumoManual, setConsumoManualState] = useState(false)
   const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
