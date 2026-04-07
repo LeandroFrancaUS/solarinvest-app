@@ -121,7 +121,7 @@ describe('calcs utilitários', () => {
       tarifaCheia: 0.9,
       inflacaoEnergetica: 0,
       anosDecorridos: 0,
-      tipoLigacao: 'monofasica',
+      tipoLigacao: 'monofasico',
       cipValor: 0,
       tusd: null,
       energiaGeradaKwh: 0,
@@ -135,7 +135,7 @@ describe('calcs utilitários', () => {
       tarifaCheia: 1,
       inflacaoEnergetica: 0.05,
       anosDecorridos: 1,
-      tipoLigacao: 'bifasica',
+      tipoLigacao: 'bifasico',
       cipValor: 15,
       tusd: {
         percentualFioB: 0.25,

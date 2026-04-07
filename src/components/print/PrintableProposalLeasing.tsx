@@ -18,6 +18,11 @@ import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 import type { SegmentoCliente } from '../../lib/finance/roi'
 import { sanitizePrintableText } from '../../utils/textSanitizer'
 import { calcularTaxaMinima } from '../../utils/calcs'
+import {
+  calcMensalidadesPorAno,
+  obterBeneficioPorAno,
+  calcEconomiaTotalAteAno,
+} from '../../lib/finance/leasingProposal'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -769,6 +774,8 @@ function PrintableProposalLeasingInner(
     return 5
   }, [prazoContratual])
 
+  // TODO(F13): migrar para calcMensalidadesPorAno de src/lib/finance/leasingProposal.ts
+  // Ver: docs/FINANCIAL_AUDIT_REPORT.md F13
   const mensalidadesPorAno = useMemo(() => {
     const anosConsiderados = Array.from({ length: prazoContratualTotalAnos }, (_, index) => index + 1)
 
@@ -856,6 +863,8 @@ function PrintableProposalLeasingInner(
     return filtrados.length > 0 ? filtrados : alvos
   }, [anos, prazoEconomiaMeses])
 
+  // TODO(F13): migrar para calcObterBeneficio de src/lib/finance/leasingProposal.ts
+  // Ver: docs/FINANCIAL_AUDIT_REPORT.md F13
   const obterBeneficioPorAno = useCallback(
     (ano: number): number => {
       if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
@@ -874,6 +883,8 @@ function PrintableProposalLeasingInner(
     [leasingROI],
   )
 
+  // TODO(F13): migrar para calcEconomiaTotalAteAno de src/lib/finance/leasingProposal.ts
+  // Ver: docs/FINANCIAL_AUDIT_REPORT.md F13
   const calcularEconomiaTotalAteAno = useCallback(
     (ano: number): number => {
       if (!Number.isFinite(ano) || ano <= 0) {

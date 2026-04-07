@@ -120,11 +120,8 @@ const resolverSimultaneidade = (
     if (typeof padrao === 'number') {
       return Math.min(Math.max(padrao, 0), 1)
     }
-
-    const primeiro = Object.values(grupo)[0]
-    if (typeof primeiro === 'number') {
-      return Math.min(Math.max(primeiro, 0), 1)
-    }
+    // Nenhum 'padrao' encontrado e subTipo inexistente: não usar o primeiro valor do grupo
+    // para evitar retorno arbitrário. Deixar cair para SIMULTANEIDADE_FALLBACK abaixo.
   }
 
   return SIMULTANEIDADE_FALLBACK
@@ -154,6 +151,8 @@ export const fatorAnoTUSD = (ano: number): number => {
   return 1
 }
 
+const roundTo6 = (n: number): number => Math.round(n * 1e6) / 1e6
+
 export const calcTusdNaoCompensavel = (
   input: TUSDInput,
   configuracao: SimultaneidadeConfig = SIMULTANEIDADE_PADRAO,
@@ -175,10 +174,10 @@ export const calcTusdNaoCompensavel = (
   return {
     fatorAno,
     simultaneidadeUsada: simultaneidade,
-    kWhInstantaneo,
-    kWhCompensado,
-    tusdNaoComp_R_kWh,
-    custoTUSD_Mes_R,
+    kWhInstantaneo: roundTo6(kWhInstantaneo),
+    kWhCompensado: roundTo6(kWhCompensado),
+    tusdNaoComp_R_kWh: roundTo6(tusdNaoComp_R_kWh),
+    custoTUSD_Mes_R: roundTo6(custoTUSD_Mes_R),
   }
 }
 
