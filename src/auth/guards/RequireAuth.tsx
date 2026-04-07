@@ -6,7 +6,7 @@
 import React, { type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { useUser, SignIn } from '@stackframe/react'
 import { stackClientApp } from '../stack-client'
-import { useStackSdkCrashed } from '../../app/Providers'
+import { useStackSdkCrashed } from '../../app/stack-context'
 import { perfLog, perfMeasure, perfNow } from '../../utils/perf'
 
 interface Props {

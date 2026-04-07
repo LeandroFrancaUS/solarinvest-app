@@ -1,33 +1,8 @@
 // src/app/Providers.tsx
-import React, { createContext, useContext, type ReactNode } from "react"
+import React, { type ReactNode } from "react"
 import { StackProvider, StackTheme, useUser } from "@stackframe/react"
 import { stackClientApp } from "../stack/client"
-
-// ─── Stack SDK availability contexts ────────────────────────────────────────
-
-/**
- * True when StackProviderBoundary caught an error from <StackProvider> /
- * <StackTheme> and the app is running without Stack Auth context.
- * Components that call Stack hooks MUST check this before doing so.
- */
-const StackSdkCrashedContext = createContext(false)
-
-export function useStackSdkCrashed(): boolean {
-  return useContext(StackSdkCrashedContext)
-}
-
-/**
- * The current Stack Auth user published from inside <StackProvider>.
- * Returns null when the SDK is unavailable (not configured or crashed) or
- * when the user is not signed in.  Reading this context never throws — it is
- * always safe to call, even outside a StackProvider.
- */
-type StackUser = ReturnType<typeof useUser>
-const StackUserContext = createContext<StackUser>(null)
-
-export function useStackUser(): StackUser {
-  return useContext(StackUserContext)
-}
+import { StackUserContext, StackSdkCrashedContext } from "./stack-context"
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 

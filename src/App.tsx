@@ -268,7 +268,7 @@ import {
   tarifaCurrency,
 } from './utils/formatters'
 import { Switch } from './components/ui/switch'
-import { useStackUser } from './app/Providers'
+import { useStackUser } from './app/stack-context'
 import { performLogout } from './lib/auth/logout'
 import { useStackRbac } from './lib/auth/rbac'
 import { useAuthSession } from './auth/auth-session'

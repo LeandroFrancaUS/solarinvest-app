@@ -4,7 +4,7 @@
 import React from 'react'
 import { useStackApp } from '@stackframe/react'
 import { stackClientApp } from '../auth/stack-client'
-import { useStackSdkCrashed } from '../app/Providers'
+import { useStackSdkCrashed } from '../app/stack-context'
 import { performLogout } from '../lib/auth/logout'
 import type { AccessStatus } from '../lib/auth/access-types'
 import { accessStatusLabel } from '../lib/auth/access-mappers'

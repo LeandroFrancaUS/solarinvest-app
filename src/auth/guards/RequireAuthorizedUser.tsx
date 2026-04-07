@@ -6,7 +6,7 @@ import React, { type ReactNode, createContext, useContext, useCallback, useEffec
 import { useUser } from '@stackframe/react'
 import { useAuthSession } from '../auth-session'
 import { stackClientApp } from '../stack-client'
-import { useStackSdkCrashed } from '../../app/Providers'
+import { useStackSdkCrashed } from '../../app/stack-context'
 import type { MeResponse } from '../../lib/auth/access-types'
 import { AccessPendingScreen } from '../../pages/AccessPendingPage'
 
