@@ -5,7 +5,7 @@
 // Server-side validation is provided by server/auth/stackPermissions.js which
 // checks Stack Auth native permissions (JWT claim + admin API) on protected routes.
 
-import { useUser } from '@stackframe/react'
+import { useStackUser } from '../../app/stack-context'
 import { useEffect, useState } from 'react'
 import { stackClientApp } from '../../stack/client'
 import { PERMISSIONS } from './permissions'
@@ -34,7 +34,7 @@ export interface StackRbacState {
  *   const { isAdmin, role, canSeeFinancialAnalysis, canSeePreferences, isLoading } = useStackRbac()
  */
 export function useStackRbac(): StackRbacState {
-  const user = useUser()
+  const user = useStackUser()
 
   const [state, setState] = useState<StackRbacState>({
     isAdmin: false,

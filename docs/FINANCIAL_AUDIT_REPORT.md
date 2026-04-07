@@ -1,11 +1,97 @@
-# Auditoria Técnica — Cálculos Financeiros SolarInvest (v2 — Exaustiva)
+# Auditoria Técnica — Cálculos Financeiros SolarInvest (v3 — VPL/TIR/Payback)
 
-**Data:** v1 — março/2026; v2 — atualizado  
+**Data:** v1 — março/2026; v2 — atualizado; v3 — abril/2026 (VPL/TIR/Payback centralizados)  
 **Escopo:** todos os motores de cálculo financeiro e energético — leasing/simulação, venda, análise financeira, propostas impressas, pricing por kWp e parsing numérico pt-BR.
 
 ---
 
-> **Nota:** este documento é a versão v2 (exaustiva). A v1 identificou e corrigiu os achados FA e FB. Esta versão acrescenta a análise de consistência inter-motores (18 achados adicionais) e o plano de correção priorizado.
+> **Nota:** esta versão v3 documenta a centralização dos indicadores VPL, TIR e Payback no módulo `src/lib/finance/investmentMetrics.ts`, e descreve as convenções adotadas para os fluxos de caixa de VENDA e LEASING na Análise Financeira.
+
+## Módulo centralizado — investmentMetrics.ts
+
+**Arquivo:** `src/lib/finance/investmentMetrics.ts`
+
+### Funções exportadas
+
+| Função | Descrição |
+|---|---|
+| `toPeriodRate(annualRate, periodsPerYear)` | Converte taxa anual (fração) para taxa periódica: `(1+r)^(1/n) - 1` |
+| `toMonthlyRate(annualRatePct)` | Converte taxa anual em % para taxa mensal: `(1 + pct/100)^(1/12) - 1` |
+| `computeNPV(cashflows, periodicRate)` | VPL = Σ CF_t / (1+r)^t |
+| `computeIRR(cashflows, guess?)` | TIR via Newton-Raphson com múltiplos pontos de partida; retorna `null` sem mudança de sinal |
+| `computePayback(cashflows)` | Payback simples: primeiro período t ≥ 1 onde acumulado ≥ 0 |
+| `computeDiscountedPayback(cashflows, periodicRate)` | Payback descontado: mesmo critério sobre fluxo trazido a VP |
+| `computeInvestmentMetrics(input)` | Orquestrador: calcula todos os indicadores a partir do fluxo e da taxa anual |
+
+### Convenções de periodicidade
+
+- **Fluxo mensal** (leasing, 12 períodos/ano): taxa anual convertida para mensal via `(1+r)^(1/12) - 1`.
+- **Fluxo anual** (se usado com `periodsPerYear=1`): taxa anual usada diretamente.
+- A periodicidade do fluxo e da taxa devem sempre bater — jamais usar taxa mensal em fluxo anual ou vice-versa.
+
+---
+
+## Fluxo de caixa adotado — VENDA
+
+A venda na Análise Financeira é modelada como uma transação de **um período**:
+
+```
+t0: −investimento_inicial_rs       (custo para executar o projeto)
+t1: +(investimento_inicial_rs + lucro_liquido_final_rs)   (recebimento líquido após todos os custos)
+```
+
+### Consequências financeiras
+
+- **Payback simples**: período 2 se `lucro_final ≥ 0`; `null` se `lucro_final < 0`.
+- **TIR**: existe (e é não-nula) sempre que `investimento + lucro > 0`, pois há mudança de sinal. Para a venda single-period, a TIR mensal ≈ `lucro / investimento` por período (matematicamente equivalente ao ROI do período).
+  > **Nota:** Para venda single-period, TIR = ROI do período. Isso é matematicamente correto e explícito — não é uma simplificação enganosa.
+- **VPL**: calculado somente quando a taxa de desconto for informada pelo usuário.
+
+---
+
+## Fluxo de caixa adotado — LEASING
+
+O leasing usa um fluxo **mensal** de vários períodos:
+
+```
+t0:  −investimento_inicial_rs       (CAPEX instalado)
+t1:  +mensalidade_1                 (1ª mensalidade recebida)
+...
+tn:  +mensalidade_n                 (n-ésima mensalidade)
+```
+
+As mensalidades podem variar ao longo do tempo conforme a lógica de reajuste já presente no motor de leasing (`selectMensalidades`).
+
+### Consequências financeiras
+
+- **Payback simples**: primeiro mês em que o acumulado cobre o investimento.
+- **TIR mensal**: Newton-Raphson com múltiplos pontos de partida; depois convertida para anual via `(1+tirMensal)^12 - 1`.
+- **VPL**: calculado com taxa mensal = `(1 + taxaAnual/100)^(1/12) - 1`.
+
+---
+
+## Tratamento de TIR inválida
+
+- Se o fluxo não tiver mudança de sinal (todo positivo ou todo negativo), `computeIRR` retorna `null`.
+- Se o algoritmo Newton-Raphson não convergir após múltiplos pontos de partida, retorna `null`.
+- A UI exibe `—` quando TIR é `null`.
+
+---
+
+## Tratamento de VPL
+
+- VPL é `null` quando `taxa_desconto_aa_pct` não for informada ou for ≤ 0.
+- A UI exibe `—` quando VPL é `null` e uma dica para informar a taxa.
+
+---
+
+## Não duplicação de fórmulas
+
+- O `calcularKpis` em `analiseFinanceiraSpreadsheet.ts` importa `computeIRR`, `computeNPV`, `computePayback` e `computeDiscountedPayback` de `investmentMetrics.ts`.
+- Não há cálculo de TIR, NPV ou payback fora de `investmentMetrics.ts` na engine de Análise Financeira.
+- O módulo `roi.ts` (retorno projetado do cliente) continua com sua própria lógica de projeção de economia mensal (diferente da análise financeira da SolarInvest).
+
+---
 
 ## 1) Resumo executivo
 
@@ -46,7 +132,7 @@
 | Receita/custos/ROI simulação | `src/lib/finance/simulation.ts` | receita contrato, opex, ROI, payback | KPIs SolarInvest | PARCIALMENTE CORRETO | MÉDIO |
 | Economia contrato/horizonte | `src/lib/finance/simulation.ts` | economia líquida + valor mercado (+antes incluía OPEX) | Economia acumulada cliente | INCORRETO → **corrigido** | CRÍTICO |
 | CAPEX, margem, impostos, preço mínimo | `src/lib/venda/calcComposicaoUFV.ts` | composição por percentuais sobre venda | Precificação e margem de venda | CORRETO MAT., MAS SENSÍVEL A PREMISSAS | ALTO |
-| Análise venda/leasing (comissão dinâmica, IRR) | `src/lib/finance/analiseFinanceiraSpreadsheet.ts` | custo variável + impostos + comissão + projeção | Viabilidade comercial | PARCIALMENTE CORRETO (depende da qualidade dos inputs) | ALTO |
+| Análise venda/leasing (comissão dinâmica, IRR) | `src/lib/finance/analiseFinanceiraSpreadsheet.ts` | custo variável + impostos + comissão + projeção | Viabilidade comercial | CORRETO — VPL/TIR/Payback centralizados em `investmentMetrics.ts` | ALTO |
 | Geração estimada | `src/lib/energy/generation.ts` | `kWp * HSP * dias * PR` | Base técnica para financeiro | CORRETO | MÉDIO |
 | Parsing pt-BR | `src/lib/locale/br-number.ts` | normalização `,`/`.` + limpeza | Evitar erro 4,88→488 | CORRETO | ALTO |
 | Prioridade de fonte de dados (print venda) | `src/components/print/PrintableProposalVenda/PrintableInner.tsx` | fallback encadeado local→snapshot→extraído | Coerência de valores exibidos | PARCIALMENTE CORRETO (complexidade alta) | MÉDIO |

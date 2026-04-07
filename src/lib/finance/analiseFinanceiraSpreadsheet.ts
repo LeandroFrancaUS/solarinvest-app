@@ -5,6 +5,13 @@ import {
   type StatusVenda,
   type UF,
 } from '../../types/analiseFinanceira'
+import {
+  computeIRR,
+  computeNPV,
+  computePayback,
+  computeDiscountedPayback,
+  toMonthlyRate,
+} from './investmentMetrics'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -100,30 +107,6 @@ export function calcPrecoIdeal(
 
   if (den <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
   return custo_variavel_total / den
-}
-
-// ─── IRR calculation ─────────────────────────────────────────────────────────
-
-function calcIrr(fluxos: number[], maxIterations = 1000, tolerance = 1e-7): number | null {
-  if (fluxos.length < 2) return null
-
-  let rate = 0.1
-  for (let i = 0; i < maxIterations; i++) {
-    let npv = 0
-    let dnpv = 0
-    for (let t = 0; t < fluxos.length; t++) {
-      const factor = Math.pow(1 + rate, t)
-      npv += fluxos[t] / factor
-      dnpv -= (t * fluxos[t]) / (factor * (1 + rate))
-    }
-    if (dnpv === 0) return null
-    const next = rate - npv / dnpv
-    if (Math.abs(next - rate) < tolerance) {
-      return Number.isFinite(next) ? next : null
-    }
-    rate = next
-  }
-  return null
 }
 
 // ─── Core calculation phases ──────────────────────────────────────────────────
@@ -349,14 +332,24 @@ function calcularAnaliseVenda(
 function calcularAnaliseLeasing(
   input: AnaliseFinanceiraInput,
   custo_variavel_total_rs: number,
-  comissao_rs: number,
 ): Partial<AnaliseFinanceiraOutput> {
   const seguro_rs = calcSeguroLeasing(input.valor_contrato_rs)
 
-  const custo_total_rs = custo_variavel_total_rs + comissao_rs + seguro_rs
+  // Commission for leasing (CAC) = full value of the first monthly installment
+  const comissao_leasing_rs = input.mensalidades_previstas_rs[0] ?? 0
 
+  // Investment base: CAPEX (variable costs) + CAC (commission)
+  const investimento_total_leasing_rs = custo_variavel_total_rs + comissao_leasing_rs
+
+  const custo_total_rs = investimento_total_leasing_rs + seguro_rs
+
+  const impostosDecimal = toDecimalPercent(input.impostos_percent)
+
+  // fator_liquido combines all per-period deductions:
+  // taxes on revenue + default-risk losses + operational costs
   const fator_liquido =
     1 -
+    impostosDecimal -
     toDecimalPercent(input.inadimplencia_percent) -
     toDecimalPercent(input.custo_operacional_percent)
 
@@ -364,16 +357,53 @@ function calcularAnaliseLeasing(
     (v) => v * fator_liquido,
   )
 
+  const receita_bruta_rs = input.mensalidades_previstas_rs.reduce((sum, v) => sum + v, 0)
+  // Taxes applied on gross mensalidades revenue (impostos_percent × total bruto)
+  const impostos_rs_leasing = receita_bruta_rs * impostosDecimal
+
   const receita_liquida_rs = projecao_mensalidades_rs.reduce((sum, v) => sum + v, 0)
   const lucro_rs = receita_liquida_rs - custo_total_rs
 
+  // Average net monthly income — basis for analytical paybacks
+  const n = projecao_mensalidades_rs.length
+  const lucro_mensal_medio_rs = n > 0 ? receita_liquida_rs / n : 0
+
+  // Analytical paybacks (floating months, not simulation-based)
+  const payback_capex_meses: number | null =
+    lucro_mensal_medio_rs > 0 ? custo_variavel_total_rs / lucro_mensal_medio_rs : null
+
+  const payback_cac_meses: number | null =
+    lucro_mensal_medio_rs > 0 && comissao_leasing_rs > 0
+      ? comissao_leasing_rs / lucro_mensal_medio_rs
+      : null
+
+  const payback_total_meses: number | null =
+    lucro_mensal_medio_rs > 0 ? investimento_total_leasing_rs / lucro_mensal_medio_rs : null
+
+  // Maximum affordable commission for a given payback target
+  const comissao_maxima_rs: number | null =
+    input.payback_alvo_meses != null &&
+    Number.isFinite(input.payback_alvo_meses) &&
+    input.payback_alvo_meses > 0 &&
+    lucro_mensal_medio_rs > 0
+      ? input.payback_alvo_meses * lucro_mensal_medio_rs - custo_variavel_total_rs
+      : null
+
   return {
     seguro_rs,
+    comissao_leasing_rs,
+    impostos_rs_leasing,
+    investimento_total_leasing_rs,
     custo_total_rs,
     projecao_mensalidades_rs,
     fator_liquido,
     receita_liquida_rs,
     lucro_rs,
+    lucro_mensal_medio_rs,
+    payback_capex_meses,
+    payback_cac_meses,
+    payback_total_meses,
+    comissao_maxima_rs,
   }
 }
 
@@ -381,28 +411,43 @@ function calcularKpis(
   fluxos: number[],
   investimento_inicial_rs: number,
   lucro_base: number,
-): Pick<AnaliseFinanceiraOutput, 'roi_percent' | 'payback_meses' | 'tir_mensal_percent' | 'tir_anual_percent'> {
+  taxa_desconto_aa_pct?: number | null,
+): Pick<AnaliseFinanceiraOutput, 'roi_percent' | 'payback_meses' | 'tir_mensal_percent' | 'tir_anual_percent' | 'vpl' | 'payback_descontado_meses'> {
   const roi_percent = (lucro_base / investimento_inicial_rs) * 100
 
-  let payback_meses: number | null = null
-  // Nota: para modo venda (fluxos = []), payback_meses = null e TIR = null são corretos.
-  // O ROI single-period é o indicador adequado para transações à vista.
-  let acumulado = -investimento_inicial_rs
-  for (let i = 0; i < fluxos.length; i++) {
-    acumulado += fluxos[i]
-    if (acumulado >= 0) {
-      payback_meses = i + 1
-      break
-    }
-  }
-
+  // Build full cash-flow series with the investment at t0
   const fluxosComInvestimento = [-investimento_inicial_rs, ...fluxos]
-  const tirMensal = calcIrr(fluxosComInvestimento)
+
+  const payback_meses = computePayback(fluxosComInvestimento)
+
+  const tirMensal = computeIRR(fluxosComInvestimento)
   const tir_mensal_percent = tirMensal !== null ? tirMensal * 100 : null
   const tir_anual_percent =
     tirMensal !== null ? (Math.pow(1 + tirMensal, 12) - 1) * 100 : null
 
-  return { roi_percent, payback_meses, tir_mensal_percent, tir_anual_percent }
+  // VPL and discounted payback (only when a discount rate is provided)
+  const hasDiscount =
+    taxa_desconto_aa_pct != null &&
+    Number.isFinite(taxa_desconto_aa_pct) &&
+    taxa_desconto_aa_pct > 0
+  const taxaMensal = hasDiscount ? toMonthlyRate(taxa_desconto_aa_pct as number) : 0
+
+  const vpl = hasDiscount
+    ? computeNPV(fluxosComInvestimento, taxaMensal)
+    : null
+
+  const payback_descontado_meses = hasDiscount
+    ? computeDiscountedPayback(fluxosComInvestimento, taxaMensal)
+    : null
+
+  return {
+    roi_percent,
+    payback_meses,
+    tir_mensal_percent,
+    tir_anual_percent,
+    vpl,
+    payback_descontado_meses,
+  }
 }
 
 // ─── Main orchestrator ────────────────────────────────────────────────────────
@@ -427,11 +472,23 @@ export function calcularAnaliseFinanceira(
   if (input.modo === 'venda') {
     const vendaResult = calcularAnaliseVenda(input, custo_variavel_total_rs)
 
-    const fluxosVenda: number[] = []  // Venda é transação única — TIR e payback não aplicam; usar ROI
+    // Venda is modelled as a single-period transaction:
+    //   t0: −investimento_inicial_rs  (cost to execute the project)
+    //   t1: +(investimento_inicial_rs + lucro_liquido_final_rs)
+    //       (capital returned + net profit after all fees)
+    //
+    // Consequence: TIR = lucro/investimento per period = simple ROI per period.
+    // This is mathematically correct and explicitly documented (see FINANCIAL_AUDIT_REPORT).
+    const lucro = vendaResult.lucro_liquido_final_rs ?? 0
+    // fluxosVenda contains only the t1 inflow: the t0 outflow (−investimento)
+    // is prepended inside calcularKpis to form the complete [-inv, inv+lucro] series.
+    const fluxosVenda: number[] = [input.investimento_inicial_rs + lucro]
+
     const kpis = calcularKpis(
       fluxosVenda,
       input.investimento_inicial_rs,
-      vendaResult.lucro_liquido_final_rs ?? 0,
+      lucro,
+      input.taxa_desconto_aa_pct,
     )
 
     return {
@@ -444,18 +501,22 @@ export function calcularAnaliseFinanceira(
     }
   }
 
-  // Leasing: need comissao from venda calc first
+  // Leasing: need comissao from venda calc first (for preco_minimo display)
   const vendaResult = calcularAnaliseVenda(input, custo_variavel_total_rs)
   const leasingResult = calcularAnaliseLeasing(
     input,
     custo_variavel_total_rs,
-    vendaResult.comissao_rs ?? 0,
   )
+
+  // Use CAPEX + CAC as the investment base so TIR, VPL and payback_meses
+  // correctly account for the commission paid at contract signing.
+  const investimentoKpi = leasingResult.investimento_total_leasing_rs ?? custo_variavel_total_rs
 
   const kpis = calcularKpis(
     leasingResult.projecao_mensalidades_rs ?? [],
-    input.investimento_inicial_rs,
+    investimentoKpi,
     leasingResult.lucro_rs ?? 0,
+    input.taxa_desconto_aa_pct,
   )
 
   return {

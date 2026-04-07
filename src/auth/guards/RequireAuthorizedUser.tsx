@@ -6,6 +6,7 @@ import React, { type ReactNode, createContext, useContext, useCallback, useEffec
 import { useUser } from '@stackframe/react'
 import { useAuthSession } from '../auth-session'
 import { stackClientApp } from '../stack-client'
+import { useStackSdkCrashed } from '../../app/stack-context'
 import type { MeResponse } from '../../lib/auth/access-types'
 import { AccessPendingScreen } from '../../pages/AccessPendingPage'
 
@@ -197,15 +198,15 @@ function RequireAuthorizedUserWithStack({ children }: Props) {
 }
 
 export function RequireAuthorizedUser({ children }: Props) {
-  if (stackClientApp) {
-    // Stack Auth IS configured: RequireAuth guarantees that this component is
+  const sdkCrashed = useStackSdkCrashed()
+  if (stackClientApp && !sdkCrashed) {
+    // Stack Auth IS configured and running: RequireAuth guarantees that this component is
     // rendered inside a <StackProvider> and only after the user is authenticated.
     // RequireAuthorizedUserWithStack safely calls useUser() in that context.
     return <RequireAuthorizedUserWithStack>{children}</RequireAuthorizedUserWithStack>
   }
 
-  // Stack Auth NOT configured (dev/bypass mode): proceed without a token getter.
-  // The server is expected to allow requests without a Bearer token in this mode
-  // (e.g., via STACK_AUTH_BYPASS=true or when stackAuthEnabled is false).
+  // Stack Auth NOT configured or SDK crashed (dev/bypass/extension-conflict mode):
+  // proceed without a token getter.
   return <RequireAuthorizedUserCore>{children}</RequireAuthorizedUserCore>
 }

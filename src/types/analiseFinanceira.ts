@@ -67,9 +67,19 @@ export interface AnaliseFinanceiraInput {
   custo_operacional_percent: number
   meses_projecao: number
   mensalidades_previstas_rs: number[]
+  /**
+   * Target payback period (months) used to compute comissao_maxima_rs.
+   * When not provided, comissao_maxima_rs will be null.
+   */
+  payback_alvo_meses?: number
 
   // KPI
   investimento_inicial_rs: number
+  /**
+   * Annual discount rate (% a.a.) used for VPL (NPV) calculation.
+   * When not provided or ≤ 0, VPL will be null in the output.
+   */
+  taxa_desconto_aa_pct?: number | null
 }
 
 export interface AnaliseFinanceiraOutput {
@@ -106,15 +116,39 @@ export interface AnaliseFinanceiraOutput {
 
   // Leasing
   seguro_rs?: number
+  /** Leasing commission (CAC) = value of the first monthly installment (paid at contract signing). */
+  comissao_leasing_rs?: number
+  /** Taxes applied on gross mensalidades revenue (impostos_percent × total bruto). */
+  impostos_rs_leasing?: number
   custo_total_rs?: number
   projecao_mensalidades_rs?: number[]
   fator_liquido?: number
   receita_liquida_rs?: number
   lucro_rs?: number
+  /** Average net monthly income (receita_liquida_rs / meses_projecao). Used for analytical paybacks. */
+  lucro_mensal_medio_rs?: number
+  /** CAPEX + comissao_leasing_rs. Investment base for TIR, VPL and payback_total. */
+  investimento_total_leasing_rs?: number
+  /** Analytical payback for CAPEX alone: CAPEX / lucro_mensal_medio (floating months). */
+  payback_capex_meses?: number | null
+  /** Analytical payback for CAC alone: comissao / lucro_mensal_medio (floating months). */
+  payback_cac_meses?: number | null
+  /** ⭐ Main leasing payback: (CAPEX + CAC) / lucro_mensal_medio (floating months). */
+  payback_total_meses?: number | null
+  /**
+   * Maximum affordable commission for the given payback_alvo_meses target.
+   * comissaoMaxima = payback_alvo × lucro_mensal_medio − CAPEX
+   * null when payback_alvo_meses is not provided or lucro_mensal_medio ≤ 0.
+   */
+  comissao_maxima_rs?: number | null
 
   // KPIs
   roi_percent: number
   payback_meses: number | null
   tir_mensal_percent: number | null
   tir_anual_percent: number | null
+  /** Net Present Value (VPL) in R$. null when no discount rate was provided. */
+  vpl: number | null
+  /** Discounted payback in months. null when no discount rate was provided or never recovered. */
+  payback_descontado_meses: number | null
 }

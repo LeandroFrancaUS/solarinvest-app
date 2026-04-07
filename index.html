@@ -17,15 +17,25 @@
   <body>
     <div id="root"></div>
     <script>
-      // Wallet-extension compatibility shim.
-      // Yoroi (and similar Cardano wallets) inject window.cardano as a plain data
-      // property, then run their own SES lockdown which freezes window — making
-      // subsequent writes to window.cardano throw "Cannot assign to read only
-      // property". By pre-defining window.cardano as a getter/setter accessor
-      // backed by a mutable closure variable, the setter remains callable even
-      // after freeze, so both the initial injection and any later updates succeed.
+      // Wallet-extension compatibility shims.
+      //
+      // MetaMask / Yoroi / Nami inject their SES (Secure ECMAScript) lockdown
+      // which freezes globalThis / window, making any new property assignment
+      // throw "Cannot assign to read only property".  This breaks two things:
+      //
+      //   1. window.cardano  — Cardano wallets inject this after SES freeze.
+      //   2. window.__STACK_AUTH__  — Stack Auth SDK writes this during React
+      //      render inside StackProviderClient, crashing the error boundary.
+      //   3. window[Symbol.for('__stack-globals')]  — Stack Auth's globals.js
+      //      initialises this symbol-keyed namespace on startup.
+      //
+      // By pre-defining each property as a getter/setter accessor backed by a
+      // mutable closure variable, the setter remains callable even after the
+      // global object is frozen, so writes succeed silently instead of throwing.
       ;(function () {
         if (typeof window === 'undefined') return
+
+        // --- window.cardano ---
         try {
           var _cardano = window.cardano
           Object.defineProperty(window, 'cardano', {
@@ -35,8 +45,37 @@
             enumerable: true,
           })
         } catch (_) {
-          // Property already non-configurable (another extension won the race);
-          // nothing we can do — let it fall through.
+          // Property already non-configurable (another extension won the race).
+        }
+
+        // --- window.__STACK_AUTH__ ---
+        try {
+          var _stackAuth = window.__STACK_AUTH__
+          Object.defineProperty(window, '__STACK_AUTH__', {
+            get: function () { return _stackAuth },
+            set: function (v) { _stackAuth = v },
+            configurable: false,
+            enumerable: false,
+          })
+        } catch (_) {
+          // Already defined or SES prevented it — Stack Auth will use whatever
+          // value is already present.
+        }
+
+        // --- window[Symbol.for('__stack-globals')] ---
+        // Stack Auth's globals.js does: globalVar[stackGlobalsSymbol] ??= {}
+        // Pre-seeding the symbol key prevents the ??= assignment from throwing
+        // on a frozen global object.
+        try {
+          var _stackGlobals = window[Symbol.for('__stack-globals')] || {}
+          Object.defineProperty(window, Symbol.for('__stack-globals'), {
+            get: function () { return _stackGlobals },
+            set: function (v) { _stackGlobals = v },
+            configurable: false,
+            enumerable: false,
+          })
+        } catch (_) {
+          // Already defined or SES prevented it.
         }
       })()
     </script>

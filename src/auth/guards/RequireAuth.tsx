@@ -6,6 +6,7 @@
 import React, { type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { useUser, SignIn } from '@stackframe/react'
 import { stackClientApp } from '../stack-client'
+import { useStackSdkCrashed } from '../../app/stack-context'
 import { perfLog, perfMeasure, perfNow } from '../../utils/perf'
 
 interface Props {
@@ -219,8 +220,10 @@ function RequireAuthWithStack({ children, fallback }: Props) {
 }
 
 export function RequireAuth({ children, fallback }: Props) {
-  if (!stackClientApp) {
-    // Stack Auth not configured: allow pass-through (dev/bypass mode)
+  const sdkCrashed = useStackSdkCrashed()
+  if (!stackClientApp || sdkCrashed) {
+    // Stack Auth not configured or SDK crashed (e.g. wallet extension SES conflict):
+    // allow pass-through without authentication checks.
     return <>{children}</>
   }
 

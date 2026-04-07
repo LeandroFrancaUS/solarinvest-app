@@ -95,7 +95,6 @@ import {
   calcularAnaliseFinanceira,
   resolveCustoProjetoPorFaixa,
   resolveCrea,
-  MATERIAL_CA_PERCENT_DO_KIT,
   PRECO_PLACA_RS,
 } from './lib/finance/analiseFinanceiraSpreadsheet'
 import type { AnaliseFinanceiraInput } from './types/analiseFinanceira'
@@ -268,7 +267,7 @@ import {
   tarifaCurrency,
 } from './utils/formatters'
 import { Switch } from './components/ui/switch'
-import { useUser } from '@stackframe/react'
+import { useStackUser } from './app/stack-context'
 import { performLogout } from './lib/auth/logout'
 import { useStackRbac } from './lib/auth/rbac'
 import { useAuthSession } from './auth/auth-session'
@@ -4250,7 +4249,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 }
 
 export default function App() {
-  const user = useUser()
+  const user = useStackUser()
   const { isAdmin: isAdminFromStack, role: userRole, isLoading: isStackPermLoading } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
@@ -4441,7 +4440,9 @@ export default function App() {
   // Financial Analysis (Spreadsheet v1) state
   const [afModo, setAfModo] = useState<'venda' | 'leasing'>('venda')
   const [afCustoKit, setAfCustoKit] = useState(0)
+  const [afCustoKitManual, setAfCustoKitManual] = useState(false)
   const [afFrete, setAfFrete] = useState(0)
+  const [afFreteManual, setAfFreteManual] = useState(false)
   const [afDescarregamento, setAfDescarregamento] = useState(0)
   const [afHotelPousada, setAfHotelPousada] = useState(0)
   const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
@@ -4454,7 +4455,8 @@ export default function App() {
   const [afDeslocamentoCidadeLabel, setAfDeslocamentoCidadeLabel] = useState('')
   const [afDeslocamentoErro, setAfDeslocamentoErro] = useState('')
   const [afValorContrato, setAfValorContrato] = useState(0)
-  const [afImpostos, setAfImpostos] = useState(8)
+  const [afImpostosVenda, setAfImpostosVenda] = useState(8)
+  const [afImpostosLeasing, setAfImpostosLeasing] = useState(13)
   const [afInadimplencia, setAfInadimplencia] = useState(2)
   const [afCustoOperacional, setAfCustoOperacional] = useState(3)
   const [afMesesProjecao, setAfMesesProjecao] = useState(60)
@@ -4464,6 +4466,8 @@ export default function App() {
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
   const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
   const [afComissaoMinimaPercent, setAfComissaoMinimaPercent] = useState(5)
+  const [afTaxaDesconto, setAfTaxaDesconto] = useState(20)
+  const [afPaybackAlvo, setAfPaybackAlvo] = useState(60)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
   const [afConsumoOverride, setAfConsumoOverride] = useState(0)
   const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
@@ -4475,6 +4479,9 @@ export default function App() {
   const [afNumModulosOverride, setAfNumModulosOverride] = useState<number | null>(null)
   const [afPlaca, setAfPlaca] = useState(18)
   // null = auto (12% of kit), user can override
+  // Auto-computed Material CA: max(1000, round(850 + 0.40 × consumo)).
+  // Declared before afMaterialCAField (which reads it) to avoid TDZ in production builds.
+  const [afAutoMaterialCA, setAfAutoMaterialCA] = useState(0)
   const [afMaterialCAOverride, setAfMaterialCAOverride] = useState<number | null>(null)
   const [afProjetoOverride, setAfProjetoOverride] = useState<number | null>(null)
   const [afCreaOverride, setAfCreaOverride] = useState<number | null>(null)
@@ -4483,16 +4490,16 @@ export default function App() {
   const afBaseInitializedRef = useRef(false)
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
-  const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => setAfCustoKit(v ?? 0) })
+  const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => { setAfCustoKit(v ?? 0); setAfCustoKitManual(true) } })
   const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
-  const afFreteField = useBRNumberField({ mode: 'money', value: afFrete, onChange: (v) => setAfFrete(v ?? 0) })
+  const afFreteField = useBRNumberField({ mode: 'money', value: afFrete, onChange: (v) => { setAfFrete(v ?? 0); setAfFreteManual(true) } })
   const afDescarregamentoField = useBRNumberField({ mode: 'money', value: afDescarregamento, onChange: (v) => setAfDescarregamento(v ?? 0) })
   const afPlacaField = useBRNumberField({ mode: 'money', value: afPlaca, onChange: (v) => setAfPlaca(v ?? 18) })
   const afHotelPousadaField = useBRNumberField({ mode: 'money', value: afHotelPousada, onChange: (v) => setAfHotelPousada(v ?? 0) })
   const afTransporteCombustivelField = useBRNumberField({ mode: 'money', value: afTransporteCombustivel, onChange: (v) => setAfTransporteCombustivel(v ?? 0) })
   const afOutrosField = useBRNumberField({ mode: 'money', value: afOutros, onChange: (v) => setAfOutros(v ?? 0) })
   const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
-  const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? (afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100), onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
+  const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? afAutoMaterialCA, onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
   const afProjetoField = useBRNumberField({ mode: 'money', value: afProjetoOverride, onChange: (v) => setAfProjetoOverride(v != null && v >= 0 ? v : null) })
   const afCreaField = useBRNumberField({ mode: 'money', value: afCreaOverride, onChange: (v) => setAfCreaOverride(v != null && v >= 0 ? v : null) })
   const isVendaDiretaTab = activeTab === 'vendas'
@@ -4512,6 +4519,32 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulacoesSection])
+  // NOTE: kcKwhMes must be declared here — before the useEffect below uses it in its
+  // dependency array.  Declaring it any later (e.g. at the original line ~4818 position)
+  // places it after the useEffect call site, which causes a Temporal Dead Zone (TDZ)
+  // crash in production builds: Terser evaluates the deps array before the `const`
+  // initializer has run, producing "Cannot access '<minified>' before initialization".
+  const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
+  // Reactively auto-populate Kit, Frete and Material CA when consumo changes, unless manually edited.
+  // Kit  : R$ = round(1500 + 9.5  × kWh/mês)  — fitted on real quotes, always positive margin
+  // Frete: R$ = round(300  + 0.52 × kWh/mês)  — same approach; consumo-based (no module count needed)
+  // Mat.CA: R$ = max(1000, round(850 + 0.40 × kWh/mês)) — per requirement
+  useEffect(() => {
+    if (simulacoesSection !== 'analise') return
+    const consumo = afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes
+    if (consumo <= 0) return
+    if (!afCustoKitManual) {
+      setAfCustoKit(Math.round(1500 + 9.5 * consumo))
+    }
+    if (!afFreteManual) {
+      setAfFrete(Math.round(300 + 0.52 * consumo))
+    }
+    // Material CA: always auto-update unless the user typed a manual override
+    if (afMaterialCAOverride == null) {
+      setAfAutoMaterialCA(Math.max(1000, Math.round(850 + 0.4 * consumo)))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simulacoesSection, kcKwhMes, afConsumoOverride, afCustoKitManual, afFreteManual, afMaterialCAOverride])
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
   // City autocomplete: update suggestions as user types
@@ -4776,7 +4809,9 @@ export default function App() {
   )
   const [mesReajuste, setMesReajuste] = useState(INITIAL_VALUES.mesReajuste)
 
-  const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
+  // kcKwhMes is declared earlier (before the useEffect that uses it in its dep array)
+  // to avoid a Temporal Dead Zone (TDZ) crash in production builds.  See the comment
+  // above that declaration for the full explanation.
   const [consumoManual, setConsumoManualState] = useState(false)
   const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
@@ -9867,7 +9902,7 @@ export default function App() {
 
     // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
     const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp)
-    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * (MATERIAL_CA_PERCENT_DO_KIT / 100)
+    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afAutoMaterialCA
     const preCrea = resolveCrea(uf)
     const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * PRECO_PLACA_RS
     const preProjetoFinal = afProjetoOverride != null ? afProjetoOverride : preProjetoCusto
@@ -9983,7 +10018,7 @@ export default function App() {
         projeto_rs_override: preProjetoFinal,
         crea_rs_override: preCreaFinal,
         valor_contrato_rs: valorContrato,
-        impostos_percent: afImpostos,
+        impostos_percent: afModo === 'venda' ? afImpostosVenda : afImpostosLeasing,
         custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
         lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
         comissao_minima_percent: afComissaoMinimaPercent,
@@ -9994,6 +10029,8 @@ export default function App() {
         meses_projecao: mensalidadesFinal.length,
         mensalidades_previstas_rs: mensalidadesFinal,
         investimento_inicial_rs: preCustoVariavel,
+        taxa_desconto_aa_pct: afTaxaDesconto > 0 ? afTaxaDesconto : null,
+        payback_alvo_meses: afModo === 'leasing' && afPaybackAlvo > 0 ? afPaybackAlvo : undefined,
       }
       return calcularAnaliseFinanceira(input)
     } catch {
@@ -10041,12 +10078,14 @@ export default function App() {
     cidKwhBase,
     afModo,
     afValorContrato,
-    afImpostos,
+    afImpostosVenda,
+    afImpostosLeasing,
     afMargemLiquidaVenda,
     afMargemLiquidaLeasing,
     afMargemLiquidaMinima,
     afPlaca,
     afMaterialCAOverride,
+    afAutoMaterialCA,
     afProjetoOverride,
     afCreaOverride,
     baseIrradiacao,
@@ -10057,6 +10096,8 @@ export default function App() {
     potenciaModulo,
     ufTarifa,
     afComissaoMinimaPercent,
+    afTaxaDesconto,
+    afPaybackAlvo,
     vendasConfig.af_custo_fixo_rateado_percent,
     vendasConfig.af_lucro_minimo_percent,
   ])
@@ -24876,9 +24917,14 @@ export default function App() {
                   onClick={() => {
                     setAfConsumoOverride(0)
                     setAfNumModulosOverride(null)
-                    setAfCustoKit(0)
+                    // Clear manual-edit flags so future consumo changes auto-update Kit, Frete and Material CA
+                    setAfCustoKitManual(false)
+                    setAfFreteManual(false)
+                    // Directly apply the updated formulas using current proposal consumo
+                    setAfCustoKit(kcKwhMes > 0 ? Math.round(1500 + 9.5 * kcKwhMes) : 0)
+                    setAfFrete(kcKwhMes > 0 ? Math.round(300 + 0.52 * kcKwhMes) : 0)
+                    setAfAutoMaterialCA(kcKwhMes > 0 ? Math.max(1000, Math.round(850 + 0.4 * kcKwhMes)) : 0)
                     setAfValorContrato(0)
-                    setAfFrete(0)
                     setAfDescarregamento(0)
                     setAfHotelPousada(0)
                     setAfTransporteCombustivel(0)
@@ -25203,13 +25249,17 @@ export default function App() {
                       placeholder={MONEY_INPUT_PLACEHOLDER}
                     />
                   </Field>
-                  <Field label="Impostos (%)">
+                  <Field label={`Impostos (%) — ${afModo === 'venda' ? 'Venda' : 'Leasing'}`}>
                     <input
                       type="number"
-                      value={afImpostos}
+                      value={afModo === 'venda' ? afImpostosVenda : afImpostosLeasing}
                       min={0}
                       max={100}
-                      onChange={(e) => setAfImpostos(Number(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0
+                        if (afModo === 'venda') setAfImpostosVenda(val)
+                        else setAfImpostosLeasing(val)
+                      }}
                       onFocus={selectNumberInputOnFocus}
                     />
                   </Field>
@@ -25234,6 +25284,17 @@ export default function App() {
                       min={0}
                       max={99}
                       onChange={(e) => setAfMargemLiquidaMinima(Number(e.target.value) || 0)}
+                      onFocus={selectNumberInputOnFocus}
+                    />
+                  </Field>
+                  <Field label={labelWithTooltip('Taxa de desconto VPL (% a.a.)', 'Taxa anual usada para calcular o VPL (Valor Presente Líquido). Deixe em 0 para não calcular o VPL.')}>
+                    <input
+                      type="number"
+                      value={afTaxaDesconto}
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      onChange={(e) => setAfTaxaDesconto(Number(e.target.value) || 0)}
                       onFocus={selectNumberInputOnFocus}
                     />
                   </Field>
@@ -25278,6 +25339,15 @@ export default function App() {
                           onBlur={afMensalidadeBaseField.handleBlur}
                           onFocus={afMensalidadeBaseField.handleFocus}
                           placeholder={afMensalidadeBaseAuto > 0 ? formatMoneyBR(afMensalidadeBaseAuto) : '—'}
+                        />
+                      </Field>
+                      <Field label={labelWithTooltip('Payback alvo (meses)', 'Prazo máximo de payback desejado. Usado para calcular a comissão máxima que o projeto suporta.')}>
+                        <input
+                          type="number"
+                          value={afPaybackAlvo}
+                          min={1}
+                          onChange={(e) => setAfPaybackAlvo(Math.max(1, Number(e.target.value) || 1))}
+                          onFocus={selectNumberInputOnFocus}
                         />
                       </Field>
                     </>
@@ -25450,26 +25520,66 @@ export default function App() {
 
                   {/* Leasing results */}
                   {afModo === 'leasing' && analiseFinanceiraResult.custo_total_rs != null ? (
-                    <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                      <h4>Resultado — Leasing</h4>
-                      <div className="info-inline">
-                        <span className="pill">Seguro <strong>{currency(analiseFinanceiraResult.seguro_rs ?? 0)}</strong></span>
-                        <span className="pill">Custo total <strong>{currency(analiseFinanceiraResult.custo_total_rs)}</strong></span>
-                        <span className="pill">Fator líquido <strong>{((analiseFinanceiraResult.fator_liquido ?? 0) * 100).toFixed(2)}%</strong></span>
-                        <span className="pill">Receita líquida <strong>{currency(analiseFinanceiraResult.receita_liquida_rs ?? 0)}</strong></span>
-                        <span className="pill">Lucro <strong>{currency(analiseFinanceiraResult.lucro_rs ?? 0)}</strong></span>
+                    <>
+                      {/* Composição mensal */}
+                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                        <h4>Composição Mensal — Leasing</h4>
+                        <div className="info-inline">
+                          <span className="pill">Mensalidade bruta <strong>{currency(analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
+                          <span className="pill">Impostos ({afImpostosLeasing}%) <InfoTooltip text={`Imposto de ${afImpostosLeasing}% sobre cada mensalidade bruta. Total no período: ${currency(analiseFinanceiraResult.impostos_rs_leasing ?? 0)}.`} /> <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afImpostosLeasing / 100)}/mês</strong></span>
+                          <span className="pill">Inadimplência ({afInadimplencia}%) <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afInadimplencia / 100)}</strong></span>
+                          <span className="pill">Custo operacional ({afCustoOperacional}%) <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afCustoOperacional / 100)}</strong></span>
+                          <span className="pill pill--success">Lucro mensal médio <InfoTooltip text="Receita líquida média por mês, após impostos, inadimplência e custo operacional." /> <strong>{currency(analiseFinanceiraResult.lucro_mensal_medio_rs ?? 0)}</strong></span>
+                          <span className="pill">Fator líquido <InfoTooltip text={`Fração líquida de cada mensalidade após descontar impostos (${afImpostosLeasing}%), inadimplência (${afInadimplencia}%) e custo operacional (${afCustoOperacional}%).`} /> <strong>{((analiseFinanceiraResult.fator_liquido ?? 0) * 100).toFixed(2)}%</strong></span>
+                        </div>
                       </div>
-                    </div>
+
+                      {/* Investimento */}
+                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                        <h4>Investimento — Leasing</h4>
+                        <div className="info-inline">
+                          <span className="pill">CAPEX <InfoTooltip text="Custo variável total do projeto (equipamentos, instalação e serviços técnicos)." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs ?? 0)}</strong></span>
+                          <span className="pill">Comissão / CAC <InfoTooltip text="Customer Acquisition Cost: valor integral da primeira mensalidade, pago no fechamento do contrato." /> <strong>{currency(analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
+                          <span className="pill pill--info">Investimento total <InfoTooltip text="CAPEX + CAC (comissão). Base de cálculo para TIR, VPL e Payback Total." /> <strong>{currency(analiseFinanceiraResult.investimento_total_leasing_rs ?? 0)}</strong></span>
+                          <span className="pill">Seguro <strong>{currency(analiseFinanceiraResult.seguro_rs ?? 0)}</strong></span>
+                          <span className="pill">Receita líquida total <strong>{currency(analiseFinanceiraResult.receita_liquida_rs ?? 0)}</strong></span>
+                          <span className="pill">Lucro total <strong>{currency(analiseFinanceiraResult.lucro_rs ?? 0)}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Paybacks */}
+                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+                        <h4>Paybacks — Leasing</h4>
+                        <div className="info-inline">
+                          <span className="pill">Payback CAPEX <InfoTooltip text="Meses para recuperar somente o custo do projeto (CAPEX): CAPEX ÷ lucro mensal médio." /> <strong>{analiseFinanceiraResult.payback_capex_meses != null ? `${analiseFinanceiraResult.payback_capex_meses.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} meses` : '—'}</strong></span>
+                          <span className="pill">Payback CAC <InfoTooltip text="Meses para recuperar a comissão (CAC = 1ª mensalidade): comissão ÷ lucro mensal médio." /> <strong>{analiseFinanceiraResult.payback_cac_meses != null ? `${analiseFinanceiraResult.payback_cac_meses.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} meses` : '—'}</strong></span>
+                          <span className="pill pill--success">⭐ Payback Total <InfoTooltip text="Payback do investimento completo (CAPEX + CAC): investimento total ÷ lucro mensal médio. Principal indicador de retorno." /> <strong>{analiseFinanceiraResult.payback_total_meses != null ? `${analiseFinanceiraResult.payback_total_meses.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} meses` : '—'}</strong></span>
+                          {analiseFinanceiraResult.comissao_maxima_rs != null ? (
+                            <span className={`pill ${analiseFinanceiraResult.comissao_maxima_rs < (analiseFinanceiraResult.comissao_leasing_rs ?? 0) ? 'pill--error' : 'pill--info'}`}>
+                              Comissão máxima <InfoTooltip text={`Maior comissão que o projeto suporta mantendo o payback em até ${afPaybackAlvo} meses: payback_alvo × lucro_mensal − CAPEX.`} />
+                              {analiseFinanceiraResult.comissao_maxima_rs < (analiseFinanceiraResult.comissao_leasing_rs ?? 0) ? ' ⚠' : null}
+                              <strong> {currency(analiseFinanceiraResult.comissao_maxima_rs)}</strong>
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </>
                   ) : null}
 
                   {/* KPIs */}
                   <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                    <h4>KPIs</h4>
+                    <h4>Indicadores Financeiros{afModo === 'venda' ? ' — Venda' : ' — Leasing'}</h4>
                     <div className="info-inline">
-                      <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toFixed(2)}%</strong></span>
-                      <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : 'N/D'}</strong></span>
-                      <span className="pill">TIR mensal <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toFixed(2)}%` : 'N/D'}</strong></span>
-                      <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toFixed(2)}%` : 'N/D'}</strong></span>
+                      <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong></span>
+                      {afModo === 'venda' ? (
+                        <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : '—'}</strong></span>
+                      ) : null}
+                      <span className="pill">TIR mensal <InfoTooltip text="Taxa Interna de Retorno por período (mês). Não disponível quando o fluxo não tem mudança de sinal." /> <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
+                      <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
+                      <span className="pill">VPL <InfoTooltip text={afTaxaDesconto > 0 ? `Valor Presente Líquido com taxa de desconto de ${afTaxaDesconto}% a.a.` : 'Informe a taxa de desconto (% a.a.) acima para calcular o VPL.'} /> <strong>{analiseFinanceiraResult.vpl != null ? currency(analiseFinanceiraResult.vpl) : '—'}</strong></span>
+                      {analiseFinanceiraResult.payback_descontado_meses != null ? (
+                        <span className="pill">Payback descontado <strong>{analiseFinanceiraResult.payback_descontado_meses} meses</strong></span>
+                      ) : null}
                     </div>
                   </div>
                 </>
