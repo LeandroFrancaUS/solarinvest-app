@@ -433,6 +433,8 @@ export function calcularAnaliseFinanceira(
     // Consequence: TIR = lucro/investimento per period = simple ROI per period.
     // This is mathematically correct and explicitly documented (see FINANCIAL_AUDIT_REPORT).
     const lucro = vendaResult.lucro_liquido_final_rs ?? 0
+    // fluxosVenda contains only the t1 inflow: the t0 outflow (−investimento)
+    // is prepended inside calcularKpis to form the complete [-inv, inv+lucro] series.
     const fluxosVenda: number[] = [input.investimento_inicial_rs + lucro]
 
     const kpis = calcularKpis(

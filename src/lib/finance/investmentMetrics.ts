@@ -21,7 +21,10 @@
  *    cash flows are monthly (periodsPerYear = 12).
  */
 
-// ─── Rate conversion ──────────────────────────────────────────────────────────
+/** Tolerance for NPV root verification in computeIRR: absolute threshold in currency units. */
+const IRR_NPV_ABSOLUTE_TOLERANCE = 1
+/** Tolerance for NPV root verification in computeIRR: relative threshold (fraction of initial cash flow). */
+const IRR_NPV_RELATIVE_TOLERANCE = 1e-4
 
 /**
  * Converts an annual rate (expressed as a fraction, e.g. 0.12 for 12%) to the
@@ -129,7 +132,10 @@ export function computeIRR(
       // Verify the result is actually a root (NPV ≈ 0)
       const check = computeNPV(cashflows, result)
       const cf0 = cashflows[0] ?? 0
-      if (Math.abs(check) < 1 || (cf0 !== 0 && Math.abs(check) / Math.abs(cf0) < 1e-4)) {
+      if (
+        Math.abs(check) < IRR_NPV_ABSOLUTE_TOLERANCE ||
+        (cf0 !== 0 && Math.abs(check) / Math.abs(cf0) < IRR_NPV_RELATIVE_TOLERANCE)
+      ) {
         return result
       }
     }
