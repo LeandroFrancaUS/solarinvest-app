@@ -11,7 +11,12 @@
 // rather than from Providers.tsx.
 
 import { createContext, useContext } from "react"
-import { useUser } from "@stackframe/react"
+// MUST be `import type` — esbuild keeps plain `import { useUser }` as a runtime
+// import even though useUser is only used in a TypeScript type annotation.
+// A runtime import would add @stackframe/react as a dependency of this module,
+// potentially causing circular initialisation issues in production builds where
+// @stackframe/react is not tree-shaken (i.e. when Stack Auth is configured).
+import type { useUser } from "@stackframe/react"
 
 // ─── StackUser context ───────────────────────────────────────────────────────
 
