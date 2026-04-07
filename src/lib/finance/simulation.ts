@@ -71,7 +71,8 @@ const monthsFromYears = (anos: number): number => {
   return Math.max(0, Math.round(anos * MONTHS_IN_YEAR))
 }
 
-export const defaultTUSD = (perfil: PerfilConsumo): number => (perfil === 'comercial' ? 27 : 27)
+// TODO: diferenciar por perfil quando os valores de TUSD padrão forem definidos
+export const defaultTUSD = (_perfil: PerfilConsumo): number => 27
 
 export const makeSimId = (): string => `SIM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
 

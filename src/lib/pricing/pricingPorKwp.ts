@@ -41,6 +41,9 @@ export interface ProjectedCostsResult {
   art: number
   placa: number
   custoBaseProjeto: number
+  /** CAPEX base do leasing (sem incluir a primeira mensalidade) */
+  custoCapexLeasing: number
+  /** Custo final leasing = custoCapexLeasing + primeiraMensalidade */
   custoFinalLeasing: number
   custoFinalVenda: number
   comissaoLeasing: number
@@ -66,17 +69,21 @@ const triAnchors: Anchor[] = [
 const MAX_KWP = 90
 
 const KIT_REAJUSTE_MULTIPLIER = 1.185
-const MATERIAL_CA_MULTIPLIER = 1.2
+/** Material CA como percentual do kitAtualizado. Deve coincidir com MATERIAL_CA_PERCENT_DO_KIT em analiseFinanceiraSpreadsheet.ts */
+const MATERIAL_CA_PERCENT_KIT = 0.12
 const INSTALACAO_GO_POR_MODULO = 70
 const INSTALACAO_DF_POR_MODULO = 73
 const ART_GO = 104
 const ART_DF = 109
-const PROJETO_TABLE: Array<{ min: number; max: number; valor: number }> = [
-  { min: 0, max: 6, valor: 400 },
-  { min: 7, max: 10, valor: 500 },
-  { min: 10, max: 20, valor: 700 },
-  { min: 20, max: 30, valor: 1000 },
-  { min: 30, max: 50, valor: 1200 },
+/** Custo unitário de placa por módulo (R$). Deve coincidir com PRECO_PLACA_RS em analiseFinanceiraSpreadsheet.ts */
+const PRECO_PLACA_RS_ESTIMATIVA = 18
+const PROJETO_TABLE: Array<{ max_kwp: number; valor: number }> = [
+  { max_kwp: 6, valor: 400 },
+  { max_kwp: 10, valor: 500 },
+  { max_kwp: 20, valor: 700 },
+  { max_kwp: 30, valor: 1000 },
+  { max_kwp: 50, valor: 1200 },
+  { max_kwp: Infinity, valor: 2500 },
 ]
 
 const clampPositive = (value: number): number => (value <= 0 ? 1 : value)
@@ -186,11 +193,11 @@ export function formatBRL(value: number): string {
 const resolveProjetoValor = (kwp: number): number => {
   const safeKwp = Number.isFinite(kwp) ? Math.max(0, kwp) : 0
   for (const faixa of PROJETO_TABLE) {
-    if (safeKwp >= faixa.min && safeKwp <= faixa.max) {
+    if (safeKwp <= faixa.max_kwp) {
       return faixa.valor
     }
   }
-  return 1200
+  return 2500
 }
 
 const resolveUf = (value?: string | null): 'GO' | 'DF' | 'OUTROS' => {
@@ -235,10 +242,10 @@ export function calcProjectedCostsByConsumption({
   const projeto = resolveProjetoValor(potencia.potenciaKwp)
   const art = ufNormalizada === 'DF' ? ART_DF : ART_GO
   const instalacao = quantidadeModulos * (ufNormalizada === 'DF' ? INSTALACAO_DF_POR_MODULO : INSTALACAO_GO_POR_MODULO)
-  const materialCA = consumo * MATERIAL_CA_MULTIPLIER
-  const placa = quantidadeModulos * 20
   const kitBase = pricing.kitValor
   const kitAtualizado = kitBase * KIT_REAJUSTE_MULTIPLIER
+  const materialCA = kitAtualizado * MATERIAL_CA_PERCENT_KIT
+  const placa = quantidadeModulos * PRECO_PLACA_RS_ESTIMATIVA
 
   const custoBaseProjeto = kitAtualizado + projeto + materialCA + instalacao + art + placa
   const margem = Number.isFinite(margemLucroPct) ? Math.max(0, Number(margemLucroPct)) : 0.3
@@ -270,6 +277,7 @@ export function calcProjectedCostsByConsumption({
     art,
     placa,
     custoBaseProjeto,
+    custoCapexLeasing: custoFinalLeasing,
     custoFinalLeasing: custoFinalLeasingComMensalidade,
     custoFinalVenda,
     comissaoLeasing,

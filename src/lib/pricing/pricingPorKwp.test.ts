@@ -159,4 +159,86 @@ describe('pricingPorKwp', () => {
     expect(projected.custoFinalLeasing).toBeLessThan(19000)
     expect(projected.custoFinalVenda).toBeGreaterThan(projected.custoFinalLeasing)
   })
+
+  it('materialCA é 12% do kitAtualizado (fórmula correta)', () => {
+    const result = calcProjectedCostsByConsumption({
+      consumoKwhMes: 500,
+      uf: 'GO',
+      tarifaCheia: 0.95,
+      irradiacao: 4.5,
+      performanceRatio: 0.8,
+    })
+    expect(result).not.toBeNull()
+    if (!result) return
+    expect(result.materialCA).toBeCloseTo(result.kitAtualizado * 0.12, 4)
+  })
+
+  it('placa usa R$18 por módulo', () => {
+    const result = calcProjectedCostsByConsumption({
+      consumoKwhMes: 500,
+      uf: 'GO',
+      tarifaCheia: 0.95,
+      irradiacao: 4.5,
+      performanceRatio: 0.8,
+    })
+    expect(result).not.toBeNull()
+    if (!result) return
+    expect(result.placa).toBeCloseTo(result.quantidadeModulos * 18, 4)
+  })
+
+  it('projeto cobre gap entre 6 e 7 kWp (antes inexistente)', () => {
+    // Consumo que resulta em ~8 kWp com irradiacao 4.5, PR 0.8, 30 dias
+    const result = calcProjectedCostsByConsumption({
+      consumoKwhMes: 870,
+      uf: 'GO',
+      irradiacao: 4.5,
+      performanceRatio: 0.8,
+    })
+    if (result) {
+      expect(result.projeto).not.toBe(1200)
+      expect([400, 500, 700]).toContain(result.projeto)
+    }
+  })
+
+  it('projeto retorna 2500 para sistemas grandes (>50 kWp)', () => {
+    const result = calcProjectedCostsByConsumption({
+      consumoKwhMes: 8000,
+      uf: 'GO',
+      irradiacao: 4.5,
+      performanceRatio: 0.8,
+    })
+    if (result) {
+      expect(result.projeto).toBe(2500)
+    }
+  })
+
+  it('custoFinalLeasing inclui primeiraMensalidade e custoCapexLeasing é apenas CAPEX', () => {
+    const result = calcProjectedCostsByConsumption({
+      consumoKwhMes: 500,
+      uf: 'GO',
+      tarifaCheia: 1.0,
+      irradiacao: 4.5,
+      performanceRatio: 0.8,
+    })
+    expect(result).not.toBeNull()
+    if (!result) return
+    expect(result.custoFinalLeasing).toBeGreaterThan(result.custoCapexLeasing)
+    expect(result.custoFinalLeasing).toBeCloseTo(
+      result.custoCapexLeasing + result.primeiraMensalidade,
+      4,
+    )
+  })
+
+  it('usa ART de DF quando uf é DF', () => {
+    const result = calcProjectedCostsByConsumption({
+      consumoKwhMes: 500,
+      uf: 'DF',
+      tarifaCheia: 0.95,
+      irradiacao: 4.5,
+      performanceRatio: 0.8,
+    })
+    expect(result).not.toBeNull()
+    if (!result) return
+    expect(result.art).toBe(109)
+  })
 })

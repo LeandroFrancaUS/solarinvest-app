@@ -16,6 +16,9 @@ export function kwpFromWpQty(wp?: number | null, qty?: number | null): number | 
   return Number.isFinite(potencia) && potencia > 0 ? potencia : null
 }
 
+/**
+ * @deprecated Use {@link estimateMonthlyGenerationKWh} instead.
+ */
 export function estimateMonthlyKWh(
   potencia_kWp: number,
   params: { hsp: number; pr: number },
