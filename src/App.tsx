@@ -95,7 +95,6 @@ import {
   calcularAnaliseFinanceira,
   resolveCustoProjetoPorFaixa,
   resolveCrea,
-  MATERIAL_CA_PERCENT_DO_KIT,
   PRECO_PLACA_RS,
 } from './lib/finance/analiseFinanceiraSpreadsheet'
 import type { AnaliseFinanceiraInput } from './types/analiseFinanceira'
@@ -4480,6 +4479,9 @@ export default function App() {
   const [afNumModulosOverride, setAfNumModulosOverride] = useState<number | null>(null)
   const [afPlaca, setAfPlaca] = useState(18)
   // null = auto (12% of kit), user can override
+  // Auto-computed Material CA: max(1000, round(850 + 0.40 × consumo)).
+  // Declared before afMaterialCAField (which reads it) to avoid TDZ in production builds.
+  const [afAutoMaterialCA, setAfAutoMaterialCA] = useState(0)
   const [afMaterialCAOverride, setAfMaterialCAOverride] = useState<number | null>(null)
   const [afProjetoOverride, setAfProjetoOverride] = useState<number | null>(null)
   const [afCreaOverride, setAfCreaOverride] = useState<number | null>(null)
@@ -4497,7 +4499,7 @@ export default function App() {
   const afTransporteCombustivelField = useBRNumberField({ mode: 'money', value: afTransporteCombustivel, onChange: (v) => setAfTransporteCombustivel(v ?? 0) })
   const afOutrosField = useBRNumberField({ mode: 'money', value: afOutros, onChange: (v) => setAfOutros(v ?? 0) })
   const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
-  const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? (afCustoKit * MATERIAL_CA_PERCENT_DO_KIT / 100), onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
+  const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? afAutoMaterialCA, onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
   const afProjetoField = useBRNumberField({ mode: 'money', value: afProjetoOverride, onChange: (v) => setAfProjetoOverride(v != null && v >= 0 ? v : null) })
   const afCreaField = useBRNumberField({ mode: 'money', value: afCreaOverride, onChange: (v) => setAfCreaOverride(v != null && v >= 0 ? v : null) })
   const isVendaDiretaTab = activeTab === 'vendas'
@@ -4523,40 +4525,26 @@ export default function App() {
   // crash in production builds: Terser evaluates the deps array before the `const`
   // initializer has run, producing "Cannot access '<minified>' before initialization".
   const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
-  // Reactively auto-populate Kit and Frete when consumo changes, unless manually edited
+  // Reactively auto-populate Kit, Frete and Material CA when consumo changes, unless manually edited.
+  // Kit  : R$ = round(1500 + 9.5  × kWh/mês)  — fitted on real quotes, always positive margin
+  // Frete: R$ = round(300  + 0.52 × kWh/mês)  — same approach; consumo-based (no module count needed)
+  // Mat.CA: R$ = max(1000, round(850 + 0.40 × kWh/mês)) — per requirement
   useEffect(() => {
     if (simulacoesSection !== 'analise') return
     const consumo = afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes
     if (consumo <= 0) return
     if (!afCustoKitManual) {
-      setAfCustoKit(Math.round(consumo * 9))
+      setAfCustoKit(Math.round(1500 + 9.5 * consumo))
     }
     if (!afFreteManual) {
-      const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : (baseIrradiacao > 0 ? baseIrradiacao : 5.0)
-      const pr = afPROverride > 0 ? afPROverride : (eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
-      const dias = afDiasOverride > 0 ? afDiasOverride : (diasMesNormalizado > 0 ? diasMesNormalizado : 30)
-      const modulo = afModuloWpOverride > 0 ? afModuloWpOverride : (potenciaModulo > 0 ? potenciaModulo : 550)
-      let nModulos = 0
-      if (afNumModulosOverride != null && afNumModulosOverride > 0) {
-        nModulos = afNumModulosOverride
-      } else {
-        const computed = calcPotenciaSistemaKwp({
-          consumoKwhMes: consumo,
-          irradiacao: irr,
-          performanceRatio: pr,
-          diasMes: dias,
-          potenciaModuloWp: modulo,
-        })
-        if (computed) {
-          nModulos = computed.quantidadeModulos ?? Math.ceil((computed.potenciaKwp * 1000) / modulo)
-        }
-      }
-      if (nModulos > 0) {
-        setAfFrete(nModulos * 70)
-      }
+      setAfFrete(Math.round(300 + 0.52 * consumo))
+    }
+    // Material CA: always auto-update unless the user typed a manual override
+    if (afMaterialCAOverride == null) {
+      setAfAutoMaterialCA(Math.max(1000, Math.round(850 + 0.4 * consumo)))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [simulacoesSection, kcKwhMes, afConsumoOverride, afNumModulosOverride, afCustoKitManual, afFreteManual])
+  }, [simulacoesSection, kcKwhMes, afConsumoOverride, afCustoKitManual, afFreteManual, afMaterialCAOverride])
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
   // City autocomplete: update suggestions as user types
@@ -9914,7 +9902,7 @@ export default function App() {
 
     // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
     const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp)
-    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afCustoKit * (MATERIAL_CA_PERCENT_DO_KIT / 100)
+    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afAutoMaterialCA
     const preCrea = resolveCrea(uf)
     const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * PRECO_PLACA_RS
     const preProjetoFinal = afProjetoOverride != null ? afProjetoOverride : preProjetoCusto
@@ -10097,6 +10085,7 @@ export default function App() {
     afMargemLiquidaMinima,
     afPlaca,
     afMaterialCAOverride,
+    afAutoMaterialCA,
     afProjetoOverride,
     afCreaOverride,
     baseIrradiacao,
@@ -24928,26 +24917,13 @@ export default function App() {
                   onClick={() => {
                     setAfConsumoOverride(0)
                     setAfNumModulosOverride(null)
-                    // Clear manual-edit flags so future consumo changes auto-update Kit and Frete
+                    // Clear manual-edit flags so future consumo changes auto-update Kit, Frete and Material CA
                     setAfCustoKitManual(false)
                     setAfFreteManual(false)
-                    // Directly compute Kit and Frete defaults using current proposal values
-                    const _irr = baseIrradiacao > 0 ? baseIrradiacao : 5.0
-                    const _pr = eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8
-                    const _dias = diasMesNormalizado > 0 ? diasMesNormalizado : 30
-                    const _mod = potenciaModulo > 0 ? potenciaModulo : 550
-                    setAfCustoKit(kcKwhMes > 0 ? Math.round(kcKwhMes * 9) : 0)
-                    const _computed = calcPotenciaSistemaKwp({
-                      consumoKwhMes: kcKwhMes > 0 ? kcKwhMes : 0,
-                      irradiacao: _irr,
-                      performanceRatio: _pr,
-                      diasMes: _dias,
-                      potenciaModuloWp: _mod,
-                    })
-                    const _nMod = _computed
-                      ? (_computed.quantidadeModulos ?? Math.ceil((_computed.potenciaKwp * 1000) / _mod))
-                      : 0
-                    setAfFrete(_nMod > 0 ? _nMod * 70 : 0)
+                    // Directly apply the updated formulas using current proposal consumo
+                    setAfCustoKit(kcKwhMes > 0 ? Math.round(1500 + 9.5 * kcKwhMes) : 0)
+                    setAfFrete(kcKwhMes > 0 ? Math.round(300 + 0.52 * kcKwhMes) : 0)
+                    setAfAutoMaterialCA(kcKwhMes > 0 ? Math.max(1000, Math.round(850 + 0.4 * kcKwhMes)) : 0)
                     setAfValorContrato(0)
                     setAfDescarregamento(0)
                     setAfHotelPousada(0)
