@@ -385,6 +385,8 @@ function calcularKpis(
   const roi_percent = (lucro_base / investimento_inicial_rs) * 100
 
   let payback_meses: number | null = null
+  // Nota: para modo venda (fluxos = []), payback_meses = null e TIR = null são corretos.
+  // O ROI single-period é o indicador adequado para transações à vista.
   let acumulado = -investimento_inicial_rs
   for (let i = 0; i < fluxos.length; i++) {
     acumulado += fluxos[i]
@@ -425,7 +427,7 @@ export function calcularAnaliseFinanceira(
   if (input.modo === 'venda') {
     const vendaResult = calcularAnaliseVenda(input, custo_variavel_total_rs)
 
-    const fluxosVenda = [vendaResult.lucro_liquido_final_rs ?? 0]
+    const fluxosVenda: number[] = []  // Venda é transação única — TIR e payback não aplicam; usar ROI
     const kpis = calcularKpis(
       fluxosVenda,
       input.investimento_inicial_rs,

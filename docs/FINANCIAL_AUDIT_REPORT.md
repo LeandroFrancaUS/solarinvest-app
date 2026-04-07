@@ -940,3 +940,85 @@ export const defaultTUSD = (perfil: PerfilConsumo): number =>
 - [x] documentar plano de correção priorizado
 - [x] identificar gaps de cobertura de testes
 - [x] identificar problemas arquiteturais (magic numbers, lógica em JSX)
+
+---
+
+## FASE 2 — RELATÓRIO DE CONSOLIDAÇÃO (Auditoria Fase 2)
+
+**Data:** 2026-04-07  
+**Branch:** `copilot/audit-technical-and-financial-complete`  
+**Status geral:** PARCIALMENTE APTO — melhorado após fase 2
+
+### Validação das correções da Fase 1
+
+| ID | Achado | Status Fase 1 | Validação Fase 2 |
+|----|--------|--------------|-----------------|
+| F01 | `material_ca` dimensionalmente errado em `pricingPorKwp.ts` | ✅ Corrigido | ✅ Confirmado: `kitAtualizado × 12%` em uso |
+| F02 | Três modelos de projeção de tarifa | 📝 Documentado | ✅ Reavaliado: divergência legítima — proposta usa Modelo A (anual discreto), motor usa Modelo C (aniversário). Diferença < 1% em 5 anos (teste inter-engine). |
+| F03 | Placa: R$18 vs R$20 | ✅ Corrigido | ✅ Confirmado: constante `PRECO_PLACA_RS_ESTIMATIVA = 18` em uso |
+| F04 | `PROJETO_TABLE` com gap 6–7 kWp e sem >50 kWp | ✅ Corrigido | ✅ Confirmado: tabela usa `max_kwp` com entrada `Infinity → R$2500` |
+| F05 | PMT duplicado em App.tsx | ⚠️ Não corrigido | ⚠️ Mantido: convenção de sinal diferente de roi.ts. Documentado como dívida técnica. |
+| F06 | TIR venda = single-period (idêntica ao ROI) | 🔴 Aberto | ✅ **Corrigido em Fase 2**: `fluxosVenda = []` → TIR = null para venda. ROI permanece como indicador. |
+| F07 | `custoFinalLeasing` incluía mensalidade sem sinalização | ✅ Corrigido | ✅ Confirmado: `custoCapexLeasing` adicionado |
+| F08 | `leasingBeneficios` mistura perspectivas cliente + SolarInvest | 🔴 Aberto | ✅ **Tratado em Fase 2**: extraído para `src/lib/finance/leasingBeneficios.ts` com documentação explícita de perspectivas |
+| F09 | PrintableProposalLeasing usa Modelo A (vs Modelo C do motor) | 🟡 Médio | ✅ Reavaliado: diferença é legítima para exibição anual. Documentado em `leasingProposal.ts`. |
+| F10 | `defaultTUSD` com ramo morto | ✅ Corrigido | ✅ Confirmado: `(_perfil) => 27` com TODO |
+| F11 | `pricingPorKwp.ts` sem testes | ✅ Corrigido | ✅ Confirmado: suite de testes adicionada |
+| F12 | `generation.ts` sem testes | ✅ Corrigido | ✅ Confirmado: 15 testes em `energy/__tests__/generation.test.ts` |
+| F13 | Lógica financeira em `PrintableProposalLeasing.tsx` | 🔴 Aberto | ✅ **Tratado em Fase 2**: funções puras em `src/lib/finance/leasingProposal.ts`; TODOs adicionados no componente |
+| F14 | Sem testes inter-motores | 🔴 Aberto | ✅ **Corrigido em Fase 2**: `crossEngineConsistency.test.ts` criado |
+| F15 | Constantes espalhadas sem módulo central | ✅ Corrigido | ✅ `src/lib/finance/constants.ts` criado |
+| F16 | `estimateMonthlyKWh` duplicata | ✅ Corrigido | ✅ Marcada como `@deprecated` |
+
+### Pre-existing test failures (não relacionados ao audit)
+
+| Arquivo | Motivo | Resolução |
+|---------|--------|-----------|
+| `calcs.spec.ts` | Testes usavam `'monofasica'`/`'bifasica'` (inválido) em vez de `'monofasico'`/`'bifasico'` | ✅ Corrigido em Fase 2 |
+| `calcComposicaoUFV.test.ts` | Expectativas de teste desatualizadas — `arredondamento_venda_para: 1` introduz variação de ≤0.25 na margem | ✅ Corrigido em Fase 2 |
+| `PrintableProposal.test.tsx` | Testes de componente com HTML sanitization divergente do markup atual | ⚠️ Não relacionado ao audit — componente mudou depois dos testes |
+| `BentoGrid.test.tsx` | Testes de componente UI não relacionados | ⚠️ Out of scope |
+| `budgetUploadPipeline.test.ts`, `ocr/input.test.ts` | Dependem de canvas/arrayBuffer não disponível no ambiente de teste | ⚠️ Limitação de ambiente |
+
+### Mapa canônico de engines (por conceito)
+
+| Conceito | Engine canônica | Alternativas (contexto legítimo) |
+|----------|----------------|----------------------------------|
+| Geração estimada (kWh/mês) | `generation.ts::estimateMonthlyGenerationKWh` | `estimateMonthlyKWh` (@deprecated) |
+| Potência instalada (kWp) | `pricingPorKwp.ts::calcPotenciaSistemaKwp` | Calculado inline em `analiseFinanceira` |
+| Tarifa projetada (anual) | `calculations.ts::calcularTarifaProjetada` | Modelo C (`calcs.ts`) para contratos de aniversário |
+| Taxa mínima | `calculations.ts::calcularTaxaMinima` | Reexportada via `calcs.ts` |
+| TUSD/Fio B | `tusd.ts::calcTusdNaoCompensavel` | `calcTusdEncargoMensal` para cálculo mensal |
+| CAPEX estimado | `pricingPorKwp.ts::calcProjectedCostsByConsumption` | `analiseFinanceiraSpreadsheet` (detalhado) |
+| Mensalidade leasing | `selectors.ts::selectMensalidades` | `leasingProposal.ts::calcMensalidadesPorAno` (proposta) |
+| Economia mensal | `calculations.ts::calcularEconomiaMensal` | `roi.ts` (por horizonte) |
+| Benefício anual leasing | `leasingBeneficios.ts::calcLeasingBeneficios` | App.tsx useMemo (equivalente, ainda não migrado) |
+| ROI | `roi.ts::computeROI` (cliente) / `analiseFinanceira` (SolarInvest) | `simulation.ts` (SolarInvest) |
+| Payback | `roi.ts` (cliente) / `analiseFinanceira` (SolarInvest) | — |
+| TIR/IRR | `analiseFinanceira::calcIrr` (leasing) | `null` para venda (não aplicável) |
+| VPL/NPV | `roi.ts::computeROI` (com taxa de desconto) | — |
+| Valor de mercado | `simulation.ts::calcValorMercado` (CAPEX × 1.29) | — |
+| Buyout / recompra | `calcs.ts::valorReposicao` / `selectors.ts::selectBuyoutLinhas` | — |
+| Composição de custo (venda) | `calcComposicaoUFV.ts::calcularComposicaoUFV` | `analiseFinanceira` (estimativa de margem) |
+| Precificação rápida | `pricingPorKwp.ts::calcPricingPorKwp` | — |
+
+### Dívida técnica remanescente (priorizada)
+
+| ID | Severidade | Descrição |
+|----|-----------|-----------|
+| F05 | 🟠 ALTO | PMT duplicado em App.tsx (convenção de sinal diferente de roi.ts). Migrar quando App.tsx for refatorado. |
+| T01 | 🟠 ALTO | `leasingBeneficios` em App.tsx ainda não usa `calcLeasingBeneficios` de `leasingBeneficios.ts`. Migração de 25k-line arquivo requer sprint dedicado. |
+| T02 | 🟡 MÉDIO | `PrintableProposalLeasing.tsx` ainda usa funções inline em vez de `leasingProposal.ts`. TODOs marcados. |
+| T03 | 🟡 MÉDIO | Payback descontado não implementado em nenhum motor. Adicionar se SolarInvest decidir usar custo de capital explícito. |
+| T04 | 🟢 BAIXO | `pricingPorKwp.ts` e `analiseFinanceira` ainda mantêm constantes duplicadas (PRECO_PLACA, MATERIAL_CA). Migrar para `finance/constants.ts`. |
+| T05 | 🟢 BAIXO | `defaultTUSD` retorna 27 para todos os perfis. Diferenciar quando valores de TUSD por perfil forem definidos. |
+
+### Veredito final (Fase 2)
+
+O SolarInvest App ficou significativamente mais maduro após as duas fases de auditoria:
+
+**Corrigidos:** F01, F03, F04, F06, F07, F08 (parcial), F10, F11, F12, F13 (parcial), F14, F15, F16 + pré-existentes calcs/calcComposicaoUFV  
+**Documentados e aceitos:** F02 (3 modelos — diferença legítima), F09 (Modelo A na proposta — legítimo)  
+**Dívida técnica:** F05 + T01–T05 — documentados, não críticos para confiabilidade dos números
+
+Os números produzidos pelo app são agora mais consistentes, previsíveis e defensáveis para uso comercial e financeiro da SolarInvest.
