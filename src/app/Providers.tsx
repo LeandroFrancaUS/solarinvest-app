@@ -16,9 +16,15 @@ type BoundaryState = { crashed: boolean }
  * top-level Boundary and show "Falhou ao renderizar", we catch them here and
  * fall back to passthrough mode (children rendered without Stack Auth
  * wrapping) so the app remains usable.
+ *
+ * IMPORTANT: `children` is the Stack-wrapped tree (<StackProvider>…</StackProvider>).
+ * The `fallback` prop receives the raw app content so the crashed path renders
+ * ONLY the app — not the Stack wrappers that caused the crash.  Rendering
+ * `this.props.children` in the crashed state would re-trigger the same error,
+ * causing React to loop and ultimately hand off to the outer top-level Boundary.
  */
 class StackProviderBoundary extends React.Component<
-  { children: ReactNode },
+  { children: ReactNode; fallback: ReactNode },
   BoundaryState
 > {
   state: BoundaryState = { crashed: false }
@@ -37,9 +43,9 @@ class StackProviderBoundary extends React.Component<
 
   render(): ReactNode {
     if (this.state.crashed) {
-      // Render children without Stack Auth wrapping.  The app will operate in
-      // bypass/unauthenticated mode rather than showing the error screen.
-      return <>{this.props.children}</>
+      // Render the raw app content without any Stack Auth wrapping so the
+      // app stays functional even when the Stack SDK cannot initialise.
+      return <>{this.props.fallback}</>
     }
     return this.props.children
   }
@@ -52,7 +58,7 @@ export function Providers({ children }: { children: ReactNode }) {
   }
 
   return (
-    <StackProviderBoundary>
+    <StackProviderBoundary fallback={children}>
       <StackProvider app={stackClientApp}>
         <StackTheme>
           {children}
