@@ -4507,11 +4507,33 @@ export default function App() {
   useEffect(() => {
     if (simulacoesSection === 'analise' && !afBaseInitializedRef.current) {
       afBaseInitializedRef.current = true
-      setAfIrradiacaoOverride(baseIrradiacao > 0 ? baseIrradiacao : 5.0)
-      setAfPROverride(eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
-      setAfDiasOverride(diasMesNormalizado > 0 ? diasMesNormalizado : 30)
-      setAfModuloWpOverride(potenciaModulo > 0 ? potenciaModulo : 550)
+      const irr = baseIrradiacao > 0 ? baseIrradiacao : 5.0
+      const pr = eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8
+      const dias = diasMesNormalizado > 0 ? diasMesNormalizado : 30
+      const modulo = potenciaModulo > 0 ? potenciaModulo : 550
+      setAfIrradiacaoOverride(irr)
+      setAfPROverride(pr)
+      setAfDiasOverride(dias)
+      setAfModuloWpOverride(modulo)
       setAfUfOverride(ufTarifa === 'DF' ? 'DF' : 'GO')
+      // Kit default: Consumo (kWh/mês) × 9
+      if (kcKwhMes > 0) {
+        setAfCustoKit(Math.round(kcKwhMes * 9))
+      }
+      // Frete default: nº de módulos × 70
+      const computed = calcPotenciaSistemaKwp({
+        consumoKwhMes: kcKwhMes > 0 ? kcKwhMes : 0,
+        irradiacao: irr,
+        performanceRatio: pr,
+        diasMes: dias,
+        potenciaModuloWp: modulo,
+      })
+      if (computed) {
+        const nModulos = computed.quantidadeModulos ?? Math.ceil((computed.potenciaKwp * 1000) / modulo)
+        if (nModulos > 0) {
+          setAfFrete(nModulos * 70)
+        }
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulacoesSection])
@@ -24884,9 +24906,24 @@ export default function App() {
                   onClick={() => {
                     setAfConsumoOverride(0)
                     setAfNumModulosOverride(null)
-                    setAfCustoKit(0)
+                    // Kit default: Consumo × 9; Frete default: nModulos × 70
+                    const _irr = baseIrradiacao > 0 ? baseIrradiacao : 5.0
+                    const _pr = eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8
+                    const _dias = diasMesNormalizado > 0 ? diasMesNormalizado : 30
+                    const _mod = potenciaModulo > 0 ? potenciaModulo : 550
+                    setAfCustoKit(kcKwhMes > 0 ? Math.round(kcKwhMes * 9) : 0)
+                    const _computed = calcPotenciaSistemaKwp({
+                      consumoKwhMes: kcKwhMes > 0 ? kcKwhMes : 0,
+                      irradiacao: _irr,
+                      performanceRatio: _pr,
+                      diasMes: _dias,
+                      potenciaModuloWp: _mod,
+                    })
+                    const _nMod = _computed
+                      ? (_computed.quantidadeModulos ?? Math.ceil((_computed.potenciaKwp * 1000) / _mod))
+                      : 0
+                    setAfFrete(_nMod > 0 ? _nMod * 70 : 0)
                     setAfValorContrato(0)
-                    setAfFrete(0)
                     setAfDescarregamento(0)
                     setAfHotelPousada(0)
                     setAfTransporteCombustivel(0)
