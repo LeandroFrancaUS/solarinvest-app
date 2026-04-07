@@ -4465,7 +4465,7 @@ export default function App() {
   const [afMargemLiquidaLeasing, setAfMargemLiquidaLeasing] = useState(30)
   const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
   const [afComissaoMinimaPercent, setAfComissaoMinimaPercent] = useState(5)
-  const [afTaxaDesconto, setAfTaxaDesconto] = useState(0)
+  const [afTaxaDesconto, setAfTaxaDesconto] = useState(20)
   const [afPaybackAlvo, setAfPaybackAlvo] = useState(60)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
   const [afConsumoOverride, setAfConsumoOverride] = useState(0)
