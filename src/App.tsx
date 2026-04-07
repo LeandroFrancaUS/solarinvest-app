@@ -25249,7 +25249,7 @@ export default function App() {
                       onFocus={selectNumberInputOnFocus}
                     />
                   </Field>
-                  <Field label={labelWithTooltip('Taxa de desconto VPL (% a.a.)', 'Taxa anual usada para calcular o VPL (Valor Presente Líquido). Deixe 0 para não calcular o VPL.')}>
+                  <Field label={labelWithTooltip('Taxa de desconto VPL (% a.a.)', 'Taxa anual usada para calcular o VPL (Valor Presente Líquido). Deixe em 0 para não calcular o VPL.')}>
                     <input
                       type="number"
                       value={afTaxaDesconto}
@@ -25488,7 +25488,7 @@ export default function App() {
                         <h4>Composição Mensal — Leasing</h4>
                         <div className="info-inline">
                           <span className="pill">Mensalidade bruta <strong>{currency(analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
-                          <span className="pill">Impostos ({afImpostosLeasing}%) <InfoTooltip text={`Impostos calculados sobre o valor bruto de cada mensalidade (${afImpostosLeasing}%).`} /> <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afImpostosLeasing / 100)}</strong></span>
+                          <span className="pill">Impostos ({afImpostosLeasing}%) <InfoTooltip text={`Imposto de ${afImpostosLeasing}% sobre cada mensalidade bruta. Total no período: ${currency(analiseFinanceiraResult.impostos_rs_leasing ?? 0)}.`} /> <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afImpostosLeasing / 100)}/mês</strong></span>
                           <span className="pill">Inadimplência ({afInadimplencia}%) <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afInadimplencia / 100)}</strong></span>
                           <span className="pill">Custo operacional ({afCustoOperacional}%) <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afCustoOperacional / 100)}</strong></span>
                           <span className="pill pill--success">Lucro mensal médio <InfoTooltip text="Receita líquida média por mês, após impostos, inadimplência e custo operacional." /> <strong>{currency(analiseFinanceiraResult.lucro_mensal_medio_rs ?? 0)}</strong></span>
@@ -25538,7 +25538,7 @@ export default function App() {
                       ) : null}
                       <span className="pill">TIR mensal <InfoTooltip text="Taxa Interna de Retorno por período (mês). Não disponível quando o fluxo não tem mudança de sinal." /> <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
                       <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
-                      <span className="pill"><span>VPL <InfoTooltip text={afTaxaDesconto > 0 ? `Valor Presente Líquido com taxa de desconto de ${afTaxaDesconto}% a.a.` : 'Informe a taxa de desconto (% a.a.) acima para calcular o VPL.'} /></span> <strong>{analiseFinanceiraResult.vpl != null ? currency(analiseFinanceiraResult.vpl) : '—'}</strong></span>
+                      <span className="pill">VPL <InfoTooltip text={afTaxaDesconto > 0 ? `Valor Presente Líquido com taxa de desconto de ${afTaxaDesconto}% a.a.` : 'Informe a taxa de desconto (% a.a.) acima para calcular o VPL.'} /> <strong>{analiseFinanceiraResult.vpl != null ? currency(analiseFinanceiraResult.vpl) : '—'}</strong></span>
                       {analiseFinanceiraResult.payback_descontado_meses != null ? (
                         <span className="pill">Payback descontado <strong>{analiseFinanceiraResult.payback_descontado_meses} meses</strong></span>
                       ) : null}

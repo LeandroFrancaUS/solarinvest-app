@@ -343,7 +343,6 @@ function calcularAnaliseLeasing(
 
   const custo_total_rs = investimento_total_leasing_rs + seguro_rs
 
-  // Taxes (impostos_percent) are applied on gross mensalidades revenue
   const impostosDecimal = toDecimalPercent(input.impostos_percent)
 
   // fator_liquido combines all per-period deductions:
@@ -359,6 +358,7 @@ function calcularAnaliseLeasing(
   )
 
   const receita_bruta_rs = input.mensalidades_previstas_rs.reduce((sum, v) => sum + v, 0)
+  // Taxes applied on gross mensalidades revenue (impostos_percent × total bruto)
   const impostos_rs_leasing = receita_bruta_rs * impostosDecimal
 
   const receita_liquida_rs = projecao_mensalidades_rs.reduce((sum, v) => sum + v, 0)
