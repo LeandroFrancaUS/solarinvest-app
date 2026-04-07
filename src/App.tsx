@@ -4441,7 +4441,9 @@ export default function App() {
   // Financial Analysis (Spreadsheet v1) state
   const [afModo, setAfModo] = useState<'venda' | 'leasing'>('venda')
   const [afCustoKit, setAfCustoKit] = useState(0)
+  const [afCustoKitManual, setAfCustoKitManual] = useState(false)
   const [afFrete, setAfFrete] = useState(0)
+  const [afFreteManual, setAfFreteManual] = useState(false)
   const [afDescarregamento, setAfDescarregamento] = useState(0)
   const [afHotelPousada, setAfHotelPousada] = useState(0)
   const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
@@ -4486,9 +4488,9 @@ export default function App() {
   const afBaseInitializedRef = useRef(false)
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
-  const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => setAfCustoKit(v ?? 0) })
+  const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => { setAfCustoKit(v ?? 0); setAfCustoKitManual(true) } })
   const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
-  const afFreteField = useBRNumberField({ mode: 'money', value: afFrete, onChange: (v) => setAfFrete(v ?? 0) })
+  const afFreteField = useBRNumberField({ mode: 'money', value: afFrete, onChange: (v) => { setAfFrete(v ?? 0); setAfFreteManual(true) } })
   const afDescarregamentoField = useBRNumberField({ mode: 'money', value: afDescarregamento, onChange: (v) => setAfDescarregamento(v ?? 0) })
   const afPlacaField = useBRNumberField({ mode: 'money', value: afPlaca, onChange: (v) => setAfPlaca(v ?? 18) })
   const afHotelPousadaField = useBRNumberField({ mode: 'money', value: afHotelPousada, onChange: (v) => setAfHotelPousada(v ?? 0) })
@@ -4507,36 +4509,48 @@ export default function App() {
   useEffect(() => {
     if (simulacoesSection === 'analise' && !afBaseInitializedRef.current) {
       afBaseInitializedRef.current = true
-      const irr = baseIrradiacao > 0 ? baseIrradiacao : 5.0
-      const pr = eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8
-      const dias = diasMesNormalizado > 0 ? diasMesNormalizado : 30
-      const modulo = potenciaModulo > 0 ? potenciaModulo : 550
-      setAfIrradiacaoOverride(irr)
-      setAfPROverride(pr)
-      setAfDiasOverride(dias)
-      setAfModuloWpOverride(modulo)
+      setAfIrradiacaoOverride(baseIrradiacao > 0 ? baseIrradiacao : 5.0)
+      setAfPROverride(eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
+      setAfDiasOverride(diasMesNormalizado > 0 ? diasMesNormalizado : 30)
+      setAfModuloWpOverride(potenciaModulo > 0 ? potenciaModulo : 550)
       setAfUfOverride(ufTarifa === 'DF' ? 'DF' : 'GO')
-      // Kit default: Consumo (kWh/mês) × 9
-      if (kcKwhMes > 0) {
-        setAfCustoKit(Math.round(kcKwhMes * 9))
-      }
-      // Frete default: nº de módulos × 70
-      const computed = calcPotenciaSistemaKwp({
-        consumoKwhMes: kcKwhMes > 0 ? kcKwhMes : 0,
-        irradiacao: irr,
-        performanceRatio: pr,
-        diasMes: dias,
-        potenciaModuloWp: modulo,
-      })
-      if (computed) {
-        const nModulos = computed.quantidadeModulos ?? Math.ceil((computed.potenciaKwp * 1000) / modulo)
-        if (nModulos > 0) {
-          setAfFrete(nModulos * 70)
-        }
-      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulacoesSection])
+  // Reactively auto-populate Kit and Frete when consumo changes, unless manually edited
+  useEffect(() => {
+    if (simulacoesSection !== 'analise') return
+    const consumo = afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes
+    if (consumo <= 0) return
+    if (!afCustoKitManual) {
+      setAfCustoKit(Math.round(consumo * 9))
+    }
+    if (!afFreteManual) {
+      const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : (baseIrradiacao > 0 ? baseIrradiacao : 5.0)
+      const pr = afPROverride > 0 ? afPROverride : (eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
+      const dias = afDiasOverride > 0 ? afDiasOverride : (diasMesNormalizado > 0 ? diasMesNormalizado : 30)
+      const modulo = afModuloWpOverride > 0 ? afModuloWpOverride : (potenciaModulo > 0 ? potenciaModulo : 550)
+      let nModulos = 0
+      if (afNumModulosOverride != null && afNumModulosOverride > 0) {
+        nModulos = afNumModulosOverride
+      } else {
+        const computed = calcPotenciaSistemaKwp({
+          consumoKwhMes: consumo,
+          irradiacao: irr,
+          performanceRatio: pr,
+          diasMes: dias,
+          potenciaModuloWp: modulo,
+        })
+        if (computed) {
+          nModulos = computed.quantidadeModulos ?? Math.ceil((computed.potenciaKwp * 1000) / modulo)
+        }
+      }
+      if (nModulos > 0) {
+        setAfFrete(nModulos * 70)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simulacoesSection, kcKwhMes, afConsumoOverride, afNumModulosOverride, afCustoKitManual, afFreteManual])
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
   // City autocomplete: update suggestions as user types
@@ -24906,7 +24920,10 @@ export default function App() {
                   onClick={() => {
                     setAfConsumoOverride(0)
                     setAfNumModulosOverride(null)
-                    // Kit default: Consumo × 9; Frete default: nModulos × 70
+                    // Clear manual-edit flags so future consumo changes auto-update Kit and Frete
+                    setAfCustoKitManual(false)
+                    setAfFreteManual(false)
+                    // Directly compute Kit and Frete defaults using current proposal values
                     const _irr = baseIrradiacao > 0 ? baseIrradiacao : 5.0
                     const _pr = eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8
                     const _dias = diasMesNormalizado > 0 ? diasMesNormalizado : 30
