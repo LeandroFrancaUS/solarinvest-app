@@ -70,138 +70,43 @@ export async function getProposalById(sql, id) {
 /**
  * List proposals with optional filters and pagination.
  * filter: { ownerUserId?, page, limit, proposal_type?, status? }
+ *
+ * Uses the neon callable form sql(queryText, params) to support dynamic
+ * WHERE clauses without duplicating query branches.
  */
 export async function listProposals(sql, filter = {}) {
   const page = Math.max(1, parseInt(filter.page ?? 1, 10))
   const limit = Math.min(MAX_PAGE_LIMIT, Math.max(1, parseInt(filter.limit ?? DEFAULT_PAGE_LIMIT, 10)))
   const offset = (page - 1) * limit
 
-  // Build dynamic WHERE clauses via conditional fragments.
-  // We use a helper approach compatible with the neon tagged-template sql.
-  const ownerUserId = filter.ownerUserId ?? null
-  const proposalType = filter.proposal_type ?? null
-  const status = filter.status ?? null
+  const conditions = ['deleted_at IS NULL']
+  const params = []
 
-  // The neon template tag does not support truly dynamic queries with spread,
-  // so we branch on the filter combinations we need.
-  let rows
-  let countRows
-
-  if (ownerUserId && proposalType && status) {
-    countRows = await sql`
-      SELECT COUNT(*) AS total FROM proposals
-      WHERE deleted_at IS NULL
-        AND owner_user_id = ${ownerUserId}
-        AND proposal_type = ${proposalType}
-        AND status = ${status}
-    `
-    rows = await sql`
-      SELECT * FROM proposals
-      WHERE deleted_at IS NULL
-        AND owner_user_id = ${ownerUserId}
-        AND proposal_type = ${proposalType}
-        AND status = ${status}
-      ORDER BY updated_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
-  } else if (ownerUserId && proposalType) {
-    countRows = await sql`
-      SELECT COUNT(*) AS total FROM proposals
-      WHERE deleted_at IS NULL
-        AND owner_user_id = ${ownerUserId}
-        AND proposal_type = ${proposalType}
-    `
-    rows = await sql`
-      SELECT * FROM proposals
-      WHERE deleted_at IS NULL
-        AND owner_user_id = ${ownerUserId}
-        AND proposal_type = ${proposalType}
-      ORDER BY updated_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
-  } else if (ownerUserId && status) {
-    countRows = await sql`
-      SELECT COUNT(*) AS total FROM proposals
-      WHERE deleted_at IS NULL
-        AND owner_user_id = ${ownerUserId}
-        AND status = ${status}
-    `
-    rows = await sql`
-      SELECT * FROM proposals
-      WHERE deleted_at IS NULL
-        AND owner_user_id = ${ownerUserId}
-        AND status = ${status}
-      ORDER BY updated_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
-  } else if (ownerUserId) {
-    countRows = await sql`
-      SELECT COUNT(*) AS total FROM proposals
-      WHERE deleted_at IS NULL
-        AND owner_user_id = ${ownerUserId}
-    `
-    rows = await sql`
-      SELECT * FROM proposals
-      WHERE deleted_at IS NULL
-        AND owner_user_id = ${ownerUserId}
-      ORDER BY updated_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
-  } else if (proposalType && status) {
-    countRows = await sql`
-      SELECT COUNT(*) AS total FROM proposals
-      WHERE deleted_at IS NULL
-        AND proposal_type = ${proposalType}
-        AND status = ${status}
-    `
-    rows = await sql`
-      SELECT * FROM proposals
-      WHERE deleted_at IS NULL
-        AND proposal_type = ${proposalType}
-        AND status = ${status}
-      ORDER BY updated_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
-  } else if (proposalType) {
-    countRows = await sql`
-      SELECT COUNT(*) AS total FROM proposals
-      WHERE deleted_at IS NULL
-        AND proposal_type = ${proposalType}
-      ORDER BY updated_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
-    rows = await sql`
-      SELECT * FROM proposals
-      WHERE deleted_at IS NULL
-        AND proposal_type = ${proposalType}
-      ORDER BY updated_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
-  } else if (status) {
-    countRows = await sql`
-      SELECT COUNT(*) AS total FROM proposals
-      WHERE deleted_at IS NULL
-        AND status = ${status}
-    `
-    rows = await sql`
-      SELECT * FROM proposals
-      WHERE deleted_at IS NULL
-        AND status = ${status}
-      ORDER BY updated_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
-  } else {
-    countRows = await sql`
-      SELECT COUNT(*) AS total FROM proposals
-      WHERE deleted_at IS NULL
-    `
-    rows = await sql`
-      SELECT * FROM proposals
-      WHERE deleted_at IS NULL
-      ORDER BY updated_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
+  if (filter.ownerUserId) {
+    params.push(filter.ownerUserId)
+    conditions.push(`owner_user_id = $${params.length}`)
   }
+  if (filter.proposal_type) {
+    params.push(filter.proposal_type)
+    conditions.push(`proposal_type = $${params.length}`)
+  }
+  if (filter.status) {
+    params.push(filter.status)
+    conditions.push(`status = $${params.length}`)
+  }
+
+  const whereClause = conditions.join(' AND ')
+
+  const countRows = await sql(
+    `SELECT COUNT(*) AS total FROM proposals WHERE ${whereClause}`,
+    params
+  )
+
+  const listParams = [...params, limit, offset]
+  const rows = await sql(
+    `SELECT * FROM proposals WHERE ${whereClause} ORDER BY updated_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+    listParams
+  )
 
   const total = parseInt(countRows[0]?.total ?? 0, 10)
 
@@ -282,10 +187,9 @@ export async function updateProposal(sql, id, data) {
     RETURNING *
   `
 
-  // The neon sql tag supports tagged templates only; use the underlying
-  // parameterized query via sql.query if available, otherwise use a
-  // workaround with the tagged template for the known dynamic fields.
-  // Since we need dynamic SET clauses, we use the neon unsafe query:
+  // Use the neon callable form sql(queryText, params) for the dynamic
+  // SET clause — the same function supports both tagged-template and
+  // regular function call signatures.
   const rows = await sql(queryText, values)
   return rows[0] ?? null
 }
