@@ -654,10 +654,10 @@ button.secondary.small {
 .content {
   flex: 1;
   width: 100%;
-  max-width: 1240px;
+  max-width: 1440px;
   margin: 0 auto;
   margin-top: var(--space-2);
-  padding: var(--space-4) 32px calc(var(--space-4) * 2);
+  padding: var(--space-4) clamp(24px, 3vw, 48px) calc(var(--space-4) * 2);
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-3) + 8px);
@@ -8036,8 +8036,9 @@ i:hover {
     right: 0;
     bottom: 0;
     width: auto;
+    max-width: none;
     height: auto;
-    margin-left: 0;
+    margin: 0;
     overflow-y: auto;
     overflow-x: hidden;
   }
