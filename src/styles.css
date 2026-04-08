@@ -4823,7 +4823,12 @@ table tbody tr:hover {
 .modal {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  /* Must be above all fixed navigation layers:
+     .sidebar-mobile-header (1300), .app-topbar mobile (1220),
+     .sidebar mobile (1200), header mobile (1210).
+     Was 1100 — dialogs were rendered behind the mobile header, making the
+     SaveChangesDialog unreachable and causing "Ver clientes" to appear broken. */
+  z-index: 1400;
   display: block;
 }
 
@@ -4839,7 +4844,7 @@ table tbody tr:hover {
 
 .modal-content {
   position: relative;
-  z-index: 1110;
+  z-index: 1410;
   width: 100%;
   height: 100%;
   max-width: none;

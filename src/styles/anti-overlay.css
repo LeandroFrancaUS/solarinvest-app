@@ -7,6 +7,9 @@ body,
   backdrop-filter: none !important;
 }
 
+/* Suppress extension-injected overlay/backdrop layers.
+   NOTE: .modal-backdrop is intentionally excluded — it belongs to the app's
+   own dialog system and must remain visible and interactive. */
 .overlay,
 .backdrop,
 .frosted,
@@ -15,7 +18,6 @@ body,
 .glass-overlay,
 .page-dim,
 .dim-layer,
-.modal-backdrop,
 .snow-overlay {
   display: none !important;
   visibility: hidden !important;

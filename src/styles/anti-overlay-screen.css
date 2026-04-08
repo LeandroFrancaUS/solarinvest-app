@@ -9,10 +9,14 @@
     -webkit-mask-image: none !important;
   }
 
-  /* derruba camadas típicas de overlay/frosted em screen */
-  .overlay, .backdrop, .frost, .frosted, .frosted-overlay, .glass, .glass-overlay,
-  .page-dim, .dim-layer, .modal-backdrop, .snow-overlay,
-  [class*="overlay"], [class*="backdrop"], [class*="frost"], [class*="glass"], [class*="dim"] {
+  /* Suppress extension-injected overlay/backdrop layers.
+     NOTE: .modal-backdrop and [class*="backdrop"] are intentionally excluded —
+     they belong to the app's own dialog system (SaveChangesDialog, etc.) and
+     must remain visible and interactive.  Hiding them caused modals to lose
+     their dimming layer and click-to-dismiss functionality. */
+  .overlay, .frost, .frosted, .frosted-overlay, .glass, .glass-overlay,
+  .page-dim, .dim-layer, .snow-overlay,
+  [class*="overlay"], [class*="frost"], [class*="glass"], [class*="dim"] {
     display: none !important;
     visibility: hidden !important;
     pointer-events: none !important;
