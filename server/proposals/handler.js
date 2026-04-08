@@ -73,7 +73,7 @@ export async function handleProposalsRequest(req, res, ctx) {
     const proposal_type = requestUrl.searchParams.get('proposal_type') || null
     const status = requestUrl.searchParams.get('status') || null
 
-    // Non-admin/non-financeiro users only see their own proposals
+    // Comercial users only see their own proposals; admins and financeiro see all
     const ownerUserId = (actor.isAdmin || actor.isFinanceiro) ? null : actor.userId
 
     try {

@@ -6,6 +6,11 @@
 //   1. Create permissions: role_admin, role_comercial, role_financeiro,
 //      page:financial_analysis, page:preferences
 //   2. Configure role_admin to include page:financial_analysis and page:preferences
+//
+// Role descriptions:
+//   role_admin      → Administrador com acesso total ao sistema
+//   role_comercial  → Usuário comum (acesso a clientes e propostas)
+//   role_financeiro → Acesso a informações financeiras (read-only de clientes e propostas)
 
 export const PERMISSIONS = {
   ROLE_ADMIN: "role_admin",
