@@ -4250,7 +4250,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useStackUser()
-  const { isAdmin: isAdminFromStack, role: userRole, isLoading: isStackPermLoading } = useStackRbac()
+  const { isAdmin: isAdminFromStack, role: userRole, isFinanceiro, isLoading: isStackPermLoading } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
   // Falls back to null while user hasn't resolved yet (no auth header sent).
@@ -15013,6 +15013,8 @@ export default function App() {
     [carregarClientesSalvos],
   )
 
+  // Loads the local draft cache from localStorage. NOT the official source of truth.
+  // The backend (/api/proposals) is the source of truth per docs/PROPOSALS_SOURCE_OF_TRUTH.md.
   const carregarOrcamentosSalvos = useCallback(
     (): OrcamentoSalvo[] => {
       if (typeof window === 'undefined') {
@@ -15501,6 +15503,10 @@ export default function App() {
     }
   }, [])
 
+  // Saves proposal data to local storage (localStorage + IndexedDB) as a local draft cache.
+  // ⚠️  This is NOT the backend persistence. It is a local draft cache only.
+  // The official source of truth is Neon via POST/PATCH /api/proposals.
+  // See docs/PROPOSALS_SOURCE_OF_TRUTH.md.
   const salvarOrcamentoLocalmente = useCallback(
     (dados: PrintableProposalProps): OrcamentoSalvo | null => {
       if (typeof window === 'undefined') {
@@ -17291,7 +17297,7 @@ export default function App() {
       scheduleMarkStateAsSaved()
 
       adicionarNotificacao(
-        'Proposta de leasing salva com sucesso no banco de dados. Você pode recarregar os dados a qualquer momento.',
+        'Proposta de leasing salva localmente. Para persistência oficial, certifique-se de salvar via servidor.',
         'success',
       )
 
@@ -17873,7 +17879,10 @@ export default function App() {
     )
   }
 
-  const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
+  // role_financeiro is read-only: no save, no delete actions allowed in the UI.
+  // The backend enforces this regardless, but hiding the buttons improves UX.
+  const isProposalReadOnly = isFinanceiro && !isAdmin
+  const podeSalvarProposta = (activeTab === 'leasing' || activeTab === 'vendas') && !isProposalReadOnly
 
   const handleAdicionarUcBeneficiaria = useCallback(() => {
     setUcsBeneficiarias((prev) => recalcularRateioAutomatico([...prev, createEmptyUcBeneficiaria()]))
@@ -24630,6 +24639,7 @@ export default function App() {
                               >
                                 ⤓
                               </button>
+                              {!isProposalReadOnly && (
                               <button
                                 type="button"
                                 className="budget-search-action danger"
@@ -24639,6 +24649,7 @@ export default function App() {
                               >
                                 🗑
                               </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -26477,6 +26488,11 @@ export default function App() {
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
                 <div className="proposal-page-top-chrome">
+                  {isProposalReadOnly && (
+                    <div className="proposal-readonly-notice" role="status">
+                      🔒 Modo somente leitura — seu perfil (<strong>{userRole}</strong>) não permite salvar ou excluir propostas.
+                    </div>
+                  )}
                   <ActionBar
                     onGenerateProposal={() => {
                       void handlePrint()

@@ -1,8 +1,20 @@
 /**
- * Proposal Store - IndexedDB storage for complete proposal snapshots
- * 
- * Stores complete proposal snapshots by budget ID to enable full restoration
- * when loading from the proposal list. This ensures all 80+ fields are preserved.
+ * Local Draft Cache — IndexedDB storage for complete proposal snapshots.
+ *
+ * ⚠️  THIS IS NOT THE SOURCE OF TRUTH FOR PROPOSALS.
+ *
+ * The official source of truth is the Neon database, accessed via:
+ *   GET/POST/PATCH/DELETE /api/proposals
+ * See docs/PROPOSALS_SOURCE_OF_TRUTH.md for the full architectural decision.
+ *
+ * This store exists solely as a local draft cache to:
+ *   1. Restore all 80+ form fields after a page reload during active editing.
+ *   2. Provide offline/fallback access when the backend is temporarily unavailable.
+ *
+ * Rules:
+ *   - If `persistedProposalId` is set (from the backend), the backend copy is authoritative.
+ *   - This cache should be cleared after a successful backend sync or on logout.
+ *   - Never use this store as the primary source for listing or displaying proposals.
  */
 
 import localforage from 'localforage'
