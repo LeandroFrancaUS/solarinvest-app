@@ -174,7 +174,7 @@ export async function handleClientsRequest(req, res, ctx) {
 
   if (method === 'GET') {
     const q = requestUrl.searchParams
-    const ownerUserId = (actor.isAdmin || actor.isFinanceiro) ? (q.get('owner_user_id') ?? null) : actor.userId
+    const ownerUserId = (actor.isAdmin || actor.isOffice || actor.isFinanceiro) ? (q.get('owner_user_id') ?? null) : actor.userId
     try {
       const result = await listClients(db.sql, {
         ownerUserId,

@@ -23,11 +23,11 @@ export interface ProposalsRbacState {
  *   if (!canWrite) { hide create/edit buttons }
  */
 export function useProposalsRbac(): ProposalsRbacState {
-  const { isAdmin, isComercial, isFinanceiro, isLoading } = useStackRbac()
+  const { isAdmin, isComercial, isOffice, isFinanceiro, isLoading } = useStackRbac()
 
-  const canRead = isAdmin || isComercial || isFinanceiro
-  const canWrite = isAdmin || isComercial
-  const isReadOnly = isFinanceiro && !isAdmin && !isComercial
+  const canRead = isAdmin || isComercial || isOffice || isFinanceiro
+  const canWrite = isAdmin || isComercial || isOffice
+  const isReadOnly = isFinanceiro && !isAdmin && !isComercial && !isOffice
 
   return { isLoading, canRead, canWrite, isReadOnly }
 }

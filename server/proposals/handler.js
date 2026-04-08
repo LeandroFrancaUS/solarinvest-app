@@ -73,8 +73,8 @@ export async function handleProposalsRequest(req, res, ctx) {
     const proposal_type = requestUrl.searchParams.get('proposal_type') || null
     const status = requestUrl.searchParams.get('status') || null
 
-    // Comercial users only see their own proposals; admins and financeiro see all
-    const ownerUserId = (actor.isAdmin || actor.isFinanceiro) ? null : actor.userId
+    // Comercial users only see their own proposals; admins, office and financeiro see all
+    const ownerUserId = (actor.isAdmin || actor.isOffice || actor.isFinanceiro) ? null : actor.userId
 
     try {
       const result = await listProposals(db.sql, {
