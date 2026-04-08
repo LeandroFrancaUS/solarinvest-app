@@ -12,6 +12,10 @@ import { PERMISSIONS } from './permissions'
 
 export interface StackRbacState {
   isAdmin: boolean
+  /** True when user has role_comercial (and not role_admin). */
+  isComercial: boolean
+  /** True when user has role_financeiro (and not role_admin or role_comercial). */
+  isFinanceiro: boolean
   /** Human-readable role label in Portuguese. */
   role: string
   /** True while the Stack Auth permission check is in flight. */
@@ -38,6 +42,8 @@ export function useStackRbac(): StackRbacState {
 
   const [state, setState] = useState<StackRbacState>({
     isAdmin: false,
+    isComercial: false,
+    isFinanceiro: false,
     role: 'Usuário',
     // Start loading only when Stack Auth is configured — otherwise we already know
     // there are no permissions to fetch and we can resolve immediately.
@@ -48,7 +54,7 @@ export function useStackRbac(): StackRbacState {
 
   useEffect(() => {
     if (!user) {
-      setState({ isAdmin: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
+      setState({ isAdmin: false, isComercial: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
       return
     }
 
@@ -63,15 +69,20 @@ export function useStackRbac(): StackRbacState {
     ])
       .then(([isAdminPerm, isComercialPerm, isFinanceiroPerm, canFinancial, canPref]) => {
         if (cancelled) return
-        const role = isAdminPerm
+        const resolvedAdmin = isAdminPerm
+        const resolvedComercial = !isAdminPerm && isComercialPerm
+        const resolvedFinanceiro = !isAdminPerm && !isComercialPerm && isFinanceiroPerm
+        const role = resolvedAdmin
           ? 'Administrador'
-          : isComercialPerm
+          : resolvedComercial
             ? 'Comercial'
-            : isFinanceiroPerm
+            : resolvedFinanceiro
               ? 'Financeiro'
               : 'Usuário'
         setState({
-          isAdmin: isAdminPerm,
+          isAdmin: resolvedAdmin,
+          isComercial: resolvedComercial,
+          isFinanceiro: resolvedFinanceiro,
           role,
           isLoading: false,
           // role_admin includes page:financial_analysis and page:preferences,
@@ -86,7 +97,7 @@ export function useStackRbac(): StackRbacState {
           '[rbac] Failed to fetch Stack Auth permissions:',
           err instanceof Error ? err.message : String(err),
         )
-        setState({ isAdmin: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
+        setState({ isAdmin: false, isComercial: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
       })
 
     return () => {

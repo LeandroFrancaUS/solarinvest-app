@@ -41,6 +41,10 @@ import {
   handleAdminUserRevoke,
   handleAdminUserRole,
 } from './routes/adminUsers.js'
+import {
+  handleProposalsRequest,
+  handleProposalByIdRequest,
+} from './proposals/handler.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -451,6 +455,28 @@ export default async function handler(req, res) {
       else if (action === 'block') await handleAdminUserBlock(req, res, ctx)
       else if (action === 'revoke') await handleAdminUserRevoke(req, res, ctx)
       else if (action === 'role') await handleAdminUserRole(req, res, ctx)
+      return
+    }
+
+    // ── Proposals API ─────────────────────────────────────────────────────────
+    // GET /api/proposals        — list proposals
+    // POST /api/proposals       — create proposal
+    if (pathname === '/api/proposals') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const proposalsCtx = { method, readJsonBody, sendJson, sendNoContent, requestUrl }
+      await handleProposalsRequest(req, res, proposalsCtx)
+      return
+    }
+
+    // GET /api/proposals/:id    — get one proposal
+    // PATCH /api/proposals/:id  — update proposal
+    // DELETE /api/proposals/:id — soft delete
+    const proposalByIdMatch = pathname.match(/^\/api\/proposals\/([^/]+)$/)
+    if (proposalByIdMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PATCH,DELETE,OPTIONS'); sendNoContent(res); return }
+      const proposalId = proposalByIdMatch[1]
+      const proposalByIdCtx = { method, proposalId, readJsonBody, sendJson, sendNoContent, requestUrl }
+      await handleProposalByIdRequest(req, res, proposalByIdCtx)
       return
     }
 

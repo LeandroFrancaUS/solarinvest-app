@@ -67,6 +67,7 @@ import {
   ensureServerStorageSync,
   fetchRemoteStorageEntry,
   persistRemoteStorageEntry,
+  setStorageTokenProvider,
 } from './app/services/serverStorage'
 import { saveFormDraft, loadFormDraft, clearFormDraft } from './lib/persist/formDraft'
 import {
@@ -271,6 +272,7 @@ import { useStackUser } from './app/stack-context'
 import { performLogout } from './lib/auth/logout'
 import { useStackRbac } from './lib/auth/rbac'
 import { useAuthSession } from './auth/auth-session'
+import { setProposalsTokenProvider } from './lib/api/proposalsApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4250,7 +4252,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useStackUser()
-  const { isAdmin: isAdminFromStack, role: userRole, isLoading: isStackPermLoading } = useStackRbac()
+  const { isAdmin: isAdminFromStack, role: userRole, isFinanceiro, isLoading: isStackPermLoading } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
   // Falls back to null while user hasn't resolved yet (no auth header sent).
@@ -4313,6 +4315,18 @@ export default function App() {
   useEffect(() => {
     ensureServerStorageSync({ timeoutMs: 4000 })
   }, [])
+  // Wire up Stack Auth Bearer token for cross-device data persistence.
+  // When the user resolves, register the token provider so serverStorage
+  // and proposalsApi can include Authorization: Bearer <token> in requests.
+  // If the initial ensureServerStorageSync ran unauthenticated (syncEnabled=false),
+  // setStorageTokenProvider resets the singleton so the next call re-runs with auth.
+  useEffect(() => {
+    if (!user) return
+    setStorageTokenProvider(getAccessToken)
+    setProposalsTokenProvider(getAccessToken)
+    // Re-run server storage sync now that auth is available.
+    void ensureServerStorageSync({ timeoutMs: 6000 })
+  }, [user, getAccessToken])
   useEffect(() => {
     removeFogOverlays()
     const disconnect = watchFogReinjection()
@@ -15013,6 +15027,8 @@ export default function App() {
     [carregarClientesSalvos],
   )
 
+  // Loads the local draft cache from localStorage. NOT the official source of truth.
+  // The backend (/api/proposals) is the source of truth per docs/PROPOSALS_SOURCE_OF_TRUTH.md.
   const carregarOrcamentosSalvos = useCallback(
     (): OrcamentoSalvo[] => {
       if (typeof window === 'undefined') {
@@ -15501,6 +15517,10 @@ export default function App() {
     }
   }, [])
 
+  // Saves proposal data to local storage (localStorage + IndexedDB) as a local draft cache.
+  // ⚠️  This is NOT the backend persistence. It is a local draft cache only.
+  // The official source of truth is Neon via POST/PATCH /api/proposals.
+  // See docs/PROPOSALS_SOURCE_OF_TRUTH.md.
   const salvarOrcamentoLocalmente = useCallback(
     (dados: PrintableProposalProps): OrcamentoSalvo | null => {
       if (typeof window === 'undefined') {
@@ -17291,7 +17311,7 @@ export default function App() {
       scheduleMarkStateAsSaved()
 
       adicionarNotificacao(
-        'Proposta de leasing salva com sucesso no banco de dados. Você pode recarregar os dados a qualquer momento.',
+        'Proposta de leasing salva localmente. Para persistência oficial, certifique-se de salvar via servidor.',
         'success',
       )
 
@@ -17873,7 +17893,10 @@ export default function App() {
     )
   }
 
-  const podeSalvarProposta = activeTab === 'leasing' || activeTab === 'vendas'
+  // role_financeiro is read-only: no save, no delete actions allowed in the UI.
+  // The backend enforces this regardless, but hiding the buttons improves UX.
+  const isProposalReadOnly = isFinanceiro && !isAdmin
+  const podeSalvarProposta = (activeTab === 'leasing' || activeTab === 'vendas') && !isProposalReadOnly
 
   const handleAdicionarUcBeneficiaria = useCallback(() => {
     setUcsBeneficiarias((prev) => recalcularRateioAutomatico([...prev, createEmptyUcBeneficiaria()]))
@@ -24630,6 +24653,7 @@ export default function App() {
                               >
                                 ⤓
                               </button>
+                              {!isProposalReadOnly && (
                               <button
                                 type="button"
                                 className="budget-search-action danger"
@@ -24639,6 +24663,7 @@ export default function App() {
                               >
                                 🗑
                               </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -26477,6 +26502,11 @@ export default function App() {
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
                 <div className="proposal-page-top-chrome">
+                  {isProposalReadOnly && (
+                    <div className="proposal-readonly-notice" role="status">
+                      🔒 Modo somente leitura — seu perfil (<strong>{userRole}</strong>) não permite salvar ou excluir propostas.
+                    </div>
+                  )}
                   <ActionBar
                     onGenerateProposal={() => {
                       void handlePrint()

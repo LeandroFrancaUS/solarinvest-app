@@ -14,6 +14,8 @@ type StorageResponse = {
   entries?: RemoteStorageEntry[]
 }
 
+type GetAccessToken = () => Promise<string | null>
+
 class ServerStorageUnauthorizedError extends Error {
   status: number
 
@@ -31,14 +33,52 @@ const pendingUploads = new Map<string, AbortController>()
 let syncEnabled = true
 let initializationWaitPromise: Promise<void> | null = null
 
-const hasAuthCookie = () => {
+/**
+ * Optional Bearer-token provider for Stack Auth.
+ * When set, all requests to /api/storage include an Authorization: Bearer header.
+ * This is the primary auth mechanism when AUTH_COOKIE_SECRET is not configured.
+ */
+let storageTokenProvider: GetAccessToken | null = null
+
+/**
+ * Register the Stack Auth token provider for server storage.
+ * Must be called once the authenticated user is available (e.g. in App.tsx).
+ * If the previous initialization ran without auth (syncEnabled === false), it
+ * resets the singleton so the next ensureServerStorageSync() call re-runs with auth.
+ */
+export function setStorageTokenProvider(fn: GetAccessToken): void {
+  storageTokenProvider = fn
+  // If the previous init ran unauthenticated, reset so we can retry with auth.
+  if (!syncEnabled) {
+    initializationPromise = null
+    initializationWaitPromise = null
+  }
+}
+
+const hasAuth = () => {
+  if (storageTokenProvider !== null) {
+    return true
+  }
   if (typeof document === 'undefined') {
     return false
   }
   return document.cookie.split(';').some((entry) => entry.trim().startsWith(`${AUTH_COOKIE_NAME}=`))
 }
 
-const createHeaders = () => new Headers({ 'Content-Type': 'application/json' })
+const buildHeaders = async (): Promise<Headers> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (storageTokenProvider) {
+    try {
+      const token = await storageTokenProvider()
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+    } catch {
+      // ignore – fall back to cookie-only auth
+    }
+  }
+  return new Headers(headers)
+}
 
 const normalizeRemoteValue = (value: unknown): string | null => {
   if (value === null || value === undefined) {
@@ -67,13 +107,15 @@ const persistPut = (key: string, value: string) => {
   }
   pendingUploads.set(key, controller)
 
-  fetch(STORAGE_ENDPOINT, {
-    method: 'PUT',
-    headers: createHeaders(),
-    body: JSON.stringify({ key, value }),
-    credentials: 'include',
-    signal: controller.signal,
-  })
+  void buildHeaders().then((headers) =>
+    fetch(STORAGE_ENDPOINT, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ key, value }),
+      credentials: 'include',
+      signal: controller.signal,
+    }),
+  )
     .catch((error) => {
       if (error?.name === 'AbortError') {
         return
@@ -102,13 +144,15 @@ const persistDelete = (key: string | null) => {
     pendingUploads.set(key, controller)
   }
 
-  fetch(STORAGE_ENDPOINT, {
-    method: 'DELETE',
-    headers: createHeaders(),
-    body: JSON.stringify(key ? { key } : {}),
-    credentials: 'include',
-    signal: controller.signal,
-  })
+  void buildHeaders().then((headers) =>
+    fetch(STORAGE_ENDPOINT, {
+      method: 'DELETE',
+      headers,
+      body: JSON.stringify(key ? { key } : {}),
+      credentials: 'include',
+      signal: controller.signal,
+    }),
+  )
     .catch((error) => {
       if (error?.name === 'AbortError') {
         return
@@ -127,20 +171,22 @@ export const persistRemoteStorageEntry = async (
   key: string,
   value: string,
 ): Promise<void> => {
-  if (!hasAuthCookie()) {
+  if (!hasAuth()) {
     return
   }
 
+  const headers = await buildHeaders()
   await fetch(STORAGE_ENDPOINT, {
     method: 'PUT',
-    headers: createHeaders(),
+    headers,
     body: JSON.stringify({ key, value }),
     credentials: 'include',
   })
 }
 
 const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEntry[]> => {
-  const response = await fetch(STORAGE_ENDPOINT, { credentials: 'include', signal })
+  const headers = await buildHeaders()
+  const response = await fetch(STORAGE_ENDPOINT, { headers, credentials: 'include', signal })
   if (response.status === 401 || response.status === 403) {
     throw new ServerStorageUnauthorizedError(response.status)
   }
@@ -155,7 +201,7 @@ export const fetchRemoteStorageEntry = async (
   key: string,
   options?: { timeoutMs?: number },
 ): Promise<string | null | undefined> => {
-  if (!hasAuthCookie()) {
+  if (!hasAuth()) {
     return undefined
   }
   const timeoutMs = Math.max(options?.timeoutMs ?? DEFAULT_INITIALIZATION_TIMEOUT_MS, 0)
@@ -212,7 +258,7 @@ const initializeSync = async (signal?: AbortSignal) => {
   }
 
   let remoteEntries: RemoteStorageEntry[] = []
-  if (!hasAuthCookie()) {
+  if (!hasAuth()) {
     syncEnabled = false
     return
   }
