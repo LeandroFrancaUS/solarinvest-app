@@ -103,8 +103,10 @@ export async function listProposals(sql, filter = {}) {
   )
 
   const listParams = [...params, limit, offset]
+  const limitPlaceholder = `$${params.length + 1}`
+  const offsetPlaceholder = `$${params.length + 2}`
   const rows = await sql(
-    `SELECT * FROM proposals WHERE ${whereClause} ORDER BY updated_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+    `SELECT * FROM proposals WHERE ${whereClause} ORDER BY updated_at DESC LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
     listParams
   )
 
@@ -174,7 +176,10 @@ export async function updateProposal(sql, id, data) {
   if ('capex_total' in data) addField('capex_total', capex_total)
   if ('contract_value' in data) addField('contract_value', contract_value)
   if ('term_months' in data) addField('term_months', term_months)
-  if ('payload_json' in data) addField('payload_json', JSON.stringify(payload_json))
+  if ('payload_json' in data) {
+    setClauses.push(`payload_json = $${paramIndex++}::jsonb`)
+    values.push(JSON.stringify(payload_json))
+  }
 
   values.push(id)
   const idParam = `$${paramIndex}`
