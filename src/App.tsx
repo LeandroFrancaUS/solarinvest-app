@@ -279,6 +279,13 @@ import {
   type UpdateProposalInput,
   updateProposal,
 } from './lib/api/proposalsApi'
+import {
+  setClientsTokenProvider,
+  upsertClientByDocument,
+  updateClientById,
+  type UpsertClientInput,
+  type UpdateClientInput,
+} from './lib/api/clientsApi'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -1095,6 +1102,7 @@ type CorresponsavelErrors = {
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
 const PROPOSAL_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-proposal-server-id-map'
+const CLIENT_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-client-server-id-map'
 const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
   VENDA_DIRETA: 'SLRINVST-VND-',
   LEASING: 'SLRINVST-LSE-',
@@ -4466,6 +4474,7 @@ export default function App() {
     if (!user) return
     setStorageTokenProvider(getAccessToken)
     setProposalsTokenProvider(getAccessToken)
+    setClientsTokenProvider(getAccessToken)
     // Re-run server storage sync now that auth is available.
     void ensureServerStorageSync({ timeoutMs: 6000 })
   }, [user, getAccessToken])
@@ -4551,6 +4560,7 @@ export default function App() {
     mediaQuery.addEventListener('change', handleChange)
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
+
   const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
   const [activePage, setActivePage] = useState<ActivePage>(() => {
     if (typeof window === 'undefined') {
@@ -5511,8 +5521,11 @@ export default function App() {
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clientAutoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const proposalServerIdMapRef = useRef<Record<string, string>>({})
+  const clientServerIdMapRef = useRef<Record<string, string>>({})
   const proposalServerAutoSaveInFlightRef = useRef(false)
+  const clientServerAutoSaveInFlightRef = useRef(false)
   const isHydratingRef = useRef(false)
   const [isHydrating, setIsHydrating] = useState(false)
   const isApplyingCepRef = useRef(false)
@@ -5554,6 +5567,30 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    try {
+      const raw = window.localStorage.getItem(CLIENT_SERVER_ID_MAP_STORAGE_KEY)
+      if (!raw) {
+        clientServerIdMapRef.current = {}
+        return
+      }
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      if (!parsed || typeof parsed !== 'object') {
+        clientServerIdMapRef.current = {}
+        return
+      }
+      clientServerIdMapRef.current = Object.fromEntries(
+        Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+      )
+    } catch (error) {
+      console.warn('[ClienteAutoSave] Failed to hydrate client server-id map:', error)
+      clientServerIdMapRef.current = {}
+    }
+  }, [])
+
   const updateProposalServerIdMap = useCallback((budgetId: string, serverId: string) => {
     if (typeof window === 'undefined' || !budgetId || !serverId) {
       return
@@ -5569,6 +5606,24 @@ export default function App() {
       )
     } catch (error) {
       console.warn('[AutoSave] Failed to persist proposal server-id map:', error)
+    }
+  }, [])
+
+  const updateClientServerIdMap = useCallback((localClientId: string, serverId: string) => {
+    if (typeof window === 'undefined' || !localClientId || !serverId) {
+      return
+    }
+    clientServerIdMapRef.current = {
+      ...clientServerIdMapRef.current,
+      [localClientId]: serverId,
+    }
+    try {
+      window.localStorage.setItem(
+        CLIENT_SERVER_ID_MAP_STORAGE_KEY,
+        JSON.stringify(clientServerIdMapRef.current),
+      )
+    } catch (error) {
+      console.warn('[ClienteAutoSave] Failed to persist client server-id map:', error)
     }
   }, [])
 
@@ -14734,14 +14789,7 @@ export default function App() {
       })
     }
     
-    // Salvar snapshot completo no IndexedDB para persistência cross-browser robusta
-    try {
-      await saveFormDraft(snapshotClonado)
-      if (import.meta.env.DEV) console.debug('[ClienteSave] Form draft saved to IndexedDB')
-    } catch (error) {
-      console.warn('[ClienteSave] Failed to save form draft to IndexedDB:', error)
-      // Continuar mesmo se falhar - o localStorage ainda funciona como fallback
-    }
+    const online = isConnectivityOnline()
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
     let registroSalvo: ClienteRegistro | null = null
@@ -14844,6 +14892,62 @@ export default function App() {
     }
 
     const registroConfirmado: ClienteRegistro = salvo
+    const documentDigits = normalizeNumbers(registroConfirmado.dados?.documento ?? '')
+    const upsertPayload: UpsertClientInput = {
+      name: (registroConfirmado.dados?.nome ?? '').trim(),
+      ...(registroConfirmado.dados?.email?.trim() ? { email: registroConfirmado.dados.email.trim() } : {}),
+      ...(registroConfirmado.dados?.telefone?.trim() ? { phone: registroConfirmado.dados.telefone.trim() } : {}),
+      ...(registroConfirmado.dados?.cidade?.trim() ? { city: registroConfirmado.dados.cidade.trim() } : {}),
+      ...(registroConfirmado.dados?.uf?.trim() ? { state: registroConfirmado.dados.uf.trim() } : {}),
+      ...(registroConfirmado.dados?.endereco?.trim() ? { address: registroConfirmado.dados.endereco.trim() } : {}),
+      ...(registroConfirmado.dados?.uc?.trim() ? { uc: registroConfirmado.dados.uc.trim() } : {}),
+      ...(registroConfirmado.dados?.distribuidora?.trim()
+        ? { distribuidora: registroConfirmado.dados.distribuidora.trim() }
+        : {}),
+      metadata: { source: 'manual_save' },
+    }
+    if (documentDigits.length === 11) {
+      upsertPayload.cpf_raw = documentDigits
+      upsertPayload.document = documentDigits
+    } else if (documentDigits.length === 14) {
+      upsertPayload.cnpj_raw = documentDigits
+      upsertPayload.document = documentDigits
+    } else if (documentDigits.length > 0) {
+      upsertPayload.document = documentDigits
+    }
+
+    let syncedToBackend = false
+    try {
+      if (online) {
+        const knownServerId = clientServerIdMapRef.current[registroConfirmado.id]
+        const serverRow = knownServerId
+          ? await updateClientById(knownServerId, upsertPayload as UpdateClientInput)
+          : await upsertClientByDocument(upsertPayload)
+        updateClientServerIdMap(registroConfirmado.id, serverRow.id)
+        syncedToBackend = true
+      }
+    } catch (error) {
+      console.warn('[ClienteSave] Failed to sync cliente to Neon backend:', error)
+    }
+
+    if (!online || !syncedToBackend) {
+      // Fallback only: persist local draft when offline or backend save fails.
+      try {
+        await saveFormDraft(snapshotClonado)
+        if (import.meta.env.DEV) {
+          console.debug('[ClienteSave] Fallback draft saved to IndexedDB (offline/backend failure)')
+        }
+      } catch (error) {
+        console.warn('[ClienteSave] Failed to persist fallback draft:', error)
+      }
+    } else {
+      try {
+        await clearFormDraft()
+      } catch {
+        // noop
+      }
+    }
+
     let sincronizadoComSucesso = false
     let erroSincronizacao: unknown = null
 
@@ -14933,8 +15037,100 @@ export default function App() {
     scheduleMarkStateAsSaved,
     setOneDriveIntegrationAvailable,
     setClienteEmEdicaoId,
+    updateClientServerIdMap,
     validateClienteParaSalvar,
   ])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const AUTO_SAVE_CLIENT_INTERVAL_MS = 5000
+
+    const scheduleClientAutoSave = () => {
+      if (clientAutoSaveTimeoutRef.current) {
+        clearTimeout(clientAutoSaveTimeoutRef.current)
+      }
+
+      clientAutoSaveTimeoutRef.current = setTimeout(async () => {
+        if (isHydratingRef.current || !clienteEmEdicaoId) {
+          return
+        }
+        if (!isConnectivityOnline()) {
+          try {
+            const snapshotFallback = getCurrentSnapshot()
+            if (snapshotFallback && !isHydratingRef.current) {
+              await saveFormDraft(snapshotFallback)
+            }
+          } catch (fallbackError) {
+            console.warn('[ClienteAutoSave] Failed to save offline fallback draft:', fallbackError)
+          }
+          return
+        }
+        if (clientServerAutoSaveInFlightRef.current) {
+          return
+        }
+
+        const nome = (cliente.nome ?? '').trim()
+        if (!nome) {
+          return
+        }
+
+        const documentDigits = normalizeNumbers(cliente.documento ?? '')
+        const payload: UpsertClientInput = {
+          name: nome,
+          ...(cliente.email?.trim() ? { email: cliente.email.trim() } : {}),
+          ...(cliente.telefone?.trim() ? { phone: cliente.telefone.trim() } : {}),
+          ...(cliente.cidade?.trim() ? { city: cliente.cidade.trim() } : {}),
+          ...(cliente.uf?.trim() ? { state: cliente.uf.trim() } : {}),
+          ...(cliente.endereco?.trim() ? { address: cliente.endereco.trim() } : {}),
+          ...(cliente.uc?.trim() ? { uc: cliente.uc.trim() } : {}),
+          ...(cliente.distribuidora?.trim() ? { distribuidora: cliente.distribuidora.trim() } : {}),
+          metadata: { source: 'client_autosave' },
+        }
+        if (documentDigits.length === 11) {
+          payload.cpf_raw = documentDigits
+          payload.document = documentDigits
+        } else if (documentDigits.length === 14) {
+          payload.cnpj_raw = documentDigits
+          payload.document = documentDigits
+        } else if (documentDigits.length > 0) {
+          payload.document = documentDigits
+        }
+
+        clientServerAutoSaveInFlightRef.current = true
+        try {
+          const knownServerId = clientServerIdMapRef.current[clienteEmEdicaoId]
+          const serverRow = knownServerId
+            ? await updateClientById(knownServerId, payload as UpdateClientInput)
+            : await upsertClientByDocument(payload)
+          updateClientServerIdMap(clienteEmEdicaoId, serverRow.id)
+          await clearFormDraft()
+        } catch (error) {
+          console.warn('[ClienteAutoSave] Failed to auto-save cliente to backend:', error)
+          try {
+            const snapshotFallback = getCurrentSnapshot()
+            if (snapshotFallback && !isHydratingRef.current) {
+              await saveFormDraft(snapshotFallback)
+            }
+          } catch (fallbackError) {
+            console.warn('[ClienteAutoSave] Failed to save fallback draft after backend failure:', fallbackError)
+          }
+        } finally {
+          clientServerAutoSaveInFlightRef.current = false
+        }
+      }, AUTO_SAVE_CLIENT_INTERVAL_MS)
+    }
+
+    scheduleClientAutoSave()
+
+    return () => {
+      if (clientAutoSaveTimeoutRef.current) {
+        clearTimeout(clientAutoSaveTimeoutRef.current)
+      }
+    }
+  }, [cliente, clienteEmEdicaoId, getCurrentSnapshot, updateClientServerIdMap])
 
 
   const clienteRegistroEmEdicao = useMemo(
