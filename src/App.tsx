@@ -3092,6 +3092,7 @@ function ClientesPanel({
 }: ClientesPanelProps) {
   const panelTitleId = useId()
   const [clienteSearchTerm, setClienteSearchTerm] = useState('')
+  const [infoClienteId, setInfoClienteId] = useState<string | null>(null)
   const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
   const registrosFiltrados = useMemo(() => {
     if (!normalizedSearchTerm) {
@@ -3122,18 +3123,7 @@ function ClientesPanel({
           Voltar
         </button>
       </div>
-      <div className="budget-search-panels">
-        <section className="budget-search-panel clients-overview-panel" aria-label="Informações sobre clientes salvos">
-          <div className="budget-search-header">
-            <h4>Central de clientes</h4>
-            <p>Sincronize contatos, mantenha a base atualizada e compartilhe dados com o time.</p>
-          </div>
-          <ul className="clients-overview-list">
-            <li>Carregue clientes salvos para editar ou enviar novas propostas.</li>
-            <li>Exporte um arquivo de backup para outras unidades ou dispositivos.</li>
-            <li>Importe registros recebidos por e-mail ou compartilhados pelo time comercial.</li>
-          </ul>
-        </section>
+      <div className="budget-search-panels budget-search-panels--single">
         <section className="budget-search-panel clients-panel" aria-label="Registros de clientes salvos">
           <div className="budget-search-header">
             <h4>Registros salvos</h4>
@@ -3210,10 +3200,13 @@ function ClientesPanel({
                     <tr>
                       <th>ID</th>
                       <th>Cliente</th>
-                      <th>Documento</th>
-                      <th>Cidade/UF</th>
-                      <th>Criado em</th>
-                      <th>Atualizado em</th>
+                      <th className="col-nowrap">CPF/CNPJ</th>
+                      <th className="col-nowrap">Cidade/UF</th>
+                      <th className="col-nowrap">Consumo</th>
+                      <th className="col-sm col-nowrap">UC</th>
+                      <th className="col-md col-nowrap">Telefone</th>
+                      <th className="col-lg col-nowrap">E-mail</th>
+                      <th className="col-xl col-nowrap">Endereço</th>
                       <th>Ações</th>
                     </tr>
                   </thead>
@@ -3221,58 +3214,135 @@ function ClientesPanel({
                     {registrosFiltrados.map((registro) => {
                       const { dados } = registro
                       const nomeCliente = dados.nome?.trim()
-                      const emailCliente = dados.email?.trim()
                       const documentoCliente = dados.documento?.trim()
                       const cidade = dados.cidade?.trim()
                       const uf = dados.uf?.trim()
                       const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
-                      const primaryLine = nomeCliente || emailCliente || registro.id
-                      const secondaryLine =
-                        emailCliente && emailCliente !== primaryLine ? emailCliente : null
+                      const primaryLine = nomeCliente || registro.id
+                      const consumoKwh = registro.propostaSnapshot?.kcKwhMes
+                      const consumoLabel = consumoKwh
+                        ? `${formatNumberBR(consumoKwh)} kWh/mês`
+                        : null
+                      const isInfoOpen = infoClienteId === registro.id
+                      const enderecoCompleto = [dados.endereco, dados.cidade, dados.uf, dados.cep]
+                        .filter(Boolean)
+                        .join(', ')
                       return (
-                        <tr key={registro.id}>
-                          <td className="clients-table-id" data-label="ID">
-                            <code>{registro.id}</code>
-                          </td>
-                          <td data-label="Cliente">
-                            <button
-                              type="button"
-                              className="clients-table-client clients-table-load"
-                              onClick={() => onEditar(registro)}
-                              title="Carregar dados do cliente"
-                              aria-label="Carregar dados do cliente"
-                            >
-                              <strong>{primaryLine}</strong>
-                              {secondaryLine ? <span>{secondaryLine}</span> : null}
-                            </button>
-                          </td>
-                          <td data-label="Documento">{documentoCliente ? <span>{documentoCliente}</span> : null}</td>
-                          <td data-label="Cidade/UF">{cidadeUf ? <span>{cidadeUf}</span> : null}</td>
-                          <td data-label="Criado em">{formatBudgetDate(registro.criadoEm)}</td>
-                          <td data-label="Atualizado em">{formatBudgetDate(registro.atualizadoEm)}</td>
-                          <td data-label="Ações">
-                            <div className="clients-table-actions">
+                        <React.Fragment key={registro.id}>
+                          <tr className="clients-data-row">
+                            <td className="clients-table-id" data-label="ID">
+                              <code>{registro.id}</code>
+                            </td>
+                            <td data-label="Cliente">
                               <button
                                 type="button"
-                                className="clients-table-action"
+                                className="clients-table-client clients-table-load"
                                 onClick={() => onEditar(registro)}
-                                aria-label="Carregar dados do cliente"
                                 title="Carregar dados do cliente"
+                                aria-label="Carregar dados do cliente"
                               >
-                                <span aria-hidden="true">📁</span>
+                                <strong>{primaryLine}</strong>
                               </button>
-                              <button
-                                type="button"
-                                className="clients-table-action danger"
-                                onClick={() => onExcluir(registro)}
-                                aria-label="Excluir cliente salvo"
-                                title="Excluir cliente salvo"
-                              >
-                                <span aria-hidden="true">🗑</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
+                            <td data-label="CPF/CNPJ">{documentoCliente ? <span>{documentoCliente}</span> : null}</td>
+                            <td data-label="Cidade/UF">{cidadeUf ? <span>{cidadeUf}</span> : null}</td>
+                            <td data-label="Consumo">{consumoLabel ? <span>{consumoLabel}</span> : null}</td>
+                            <td className="col-sm" data-label="UC">{dados.uc ? <span>{dados.uc}</span> : null}</td>
+                            <td className="col-md" data-label="Telefone">{dados.telefone ? <span>{dados.telefone}</span> : null}</td>
+                            <td className="col-lg" data-label="E-mail">{dados.email ? <span>{dados.email}</span> : null}</td>
+                            <td className="col-xl" data-label="Endereço">{dados.endereco ? <span>{dados.endereco}</span> : null}</td>
+                            <td data-label="Ações">
+                              <div className="clients-table-actions">
+                                <button
+                                  type="button"
+                                  className={`clients-table-action${isInfoOpen ? ' active' : ''}`}
+                                  onClick={() => setInfoClienteId(isInfoOpen ? null : registro.id)}
+                                  aria-label="Ver informações do cliente"
+                                  title="Ver informações do cliente"
+                                  aria-expanded={isInfoOpen}
+                                >
+                                  <span aria-hidden="true">ℹ️</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="clients-table-action"
+                                  onClick={() => onEditar(registro)}
+                                  aria-label="Carregar dados do cliente"
+                                  title="Carregar dados do cliente"
+                                >
+                                  <span aria-hidden="true">📁</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="clients-table-action danger"
+                                  onClick={() => onExcluir(registro)}
+                                  aria-label="Excluir cliente salvo"
+                                  title="Excluir cliente salvo"
+                                >
+                                  <span aria-hidden="true">🗑</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {isInfoOpen && (
+                            <tr className="clients-info-row">
+                              <td className="clients-info-cell" colSpan={10} data-label="">
+                                <div className="clients-info-content">
+                                  <dl className="clients-info-grid">
+                                    {cidadeUf ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>Cidade/UF</dt>
+                                        <dd>{cidadeUf}</dd>
+                                      </div>
+                                    ) : null}
+                                    {consumoLabel ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>Consumo</dt>
+                                        <dd>{consumoLabel}</dd>
+                                      </div>
+                                    ) : null}
+                                    {dados.uc ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>UC</dt>
+                                        <dd>{dados.uc}</dd>
+                                      </div>
+                                    ) : null}
+                                    {dados.telefone ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>Telefone</dt>
+                                        <dd>{dados.telefone}</dd>
+                                      </div>
+                                    ) : null}
+                                    {dados.email ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>E-mail</dt>
+                                        <dd>{dados.email}</dd>
+                                      </div>
+                                    ) : null}
+                                    {enderecoCompleto ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>Endereço</dt>
+                                        <dd>{enderecoCompleto}</dd>
+                                      </div>
+                                    ) : null}
+                                    {registro.criadoEm ? (
+                                      <div className="clients-info-field">
+                                        <dt>Criado em</dt>
+                                        <dd>{formatBudgetDate(registro.criadoEm)}</dd>
+                                      </div>
+                                    ) : null}
+                                    {registro.atualizadoEm ? (
+                                      <div className="clients-info-field">
+                                        <dt>Atualizado em</dt>
+                                        <dd>{formatBudgetDate(registro.atualizadoEm)}</dd>
+                                      </div>
+                                    ) : null}
+                                  </dl>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       )
                     })}
                   </tbody>

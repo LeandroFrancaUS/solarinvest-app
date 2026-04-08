@@ -3475,26 +3475,33 @@ tbody tr:hover {
     display: none;
   }
 
+  /* Mobile: compact action buttons (JSON/CSV/Import align to icon size) */
   .clients-panel-actions {
     width: 100%;
+    gap: 8px;
   }
 
   .clients-panel-actions .ghost {
-    flex: 1 1 140px;
+    flex: 0 0 auto;
+    padding: 0 12px;
+    height: 36px;
+    font-size: 13px;
   }
 
   .budget-search-actions,
   .clients-table-actions {
     justify-content: flex-start;
-    gap: 10px;
+    gap: 8px;
   }
 
   .budget-search-action,
   .clients-table-action {
     flex: none;
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
   }
+
+  /* ── Mobile table: horizontal compact rows ───────────────────────── */
 
   .clients-table .table-wrapper {
     overflow-x: visible;
@@ -3512,77 +3519,104 @@ tbody tr:hover {
   .clients-table tbody {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0;
   }
 
-  .clients-table tr {
+  /* Main data rows: horizontal pill */
+  .clients-table tr.clients-data-row {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 14px 16px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.94);
-    border: 1px solid rgba(15, 23, 42, 0.14);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    padding: 10px 12px;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    box-shadow: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  :root[data-theme='dark'] .clients-table tr {
-    background: rgba(96, 101, 110, 0.88);
-    border-color: rgba(229, 231, 235, 0.2);
+  :root[data-theme='dark'] .clients-table tr.clients-data-row {
+    border-bottom-color: rgba(148, 163, 184, 0.14);
   }
 
+  /* First row gets top border + rounded top */
+  .clients-table tr.clients-data-row:first-of-type {
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 12px 12px 0 0;
+  }
+
+  /* Last data row (before any info row) */
+  .clients-table tr.clients-data-row:last-of-type {
+    border-radius: 0 0 12px 12px;
+  }
+
+  /* Hide all cells except Cliente, CPF/CNPJ and Ações on mobile */
   .clients-table td {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
+    display: none;
     padding: 0;
     border: none;
-    font-size: 13px;
-    color: var(--text-base);
   }
 
-  .clients-table td::before {
-    content: attr(data-label);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--muted);
-    min-width: 88px;
-    flex-shrink: 0;
-  }
-
-  .clients-table td.clients-table-id {
-    order: 99;
-    opacity: 0.7;
-    font-size: 12px;
-    padding-top: 8px;
-    margin-top: 4px;
-    border-top: 1px solid rgba(148, 163, 184, 0.22);
-  }
-
+  .clients-table td[data-label='Cliente'],
+  .clients-table td[data-label='CPF/CNPJ'],
   .clients-table td[data-label='Ações'] {
-    order: 98;
-    padding-top: 8px;
-    margin-top: 2px;
-    border-top: 1px solid rgba(148, 163, 184, 0.22);
+    display: flex;
     align-items: center;
   }
 
-  .clients-table td[data-label='Ações']::before {
-    display: none;
-  }
-
-  .clients-table td[data-label='Cliente']::before {
-    display: none;
-  }
-
   .clients-table td[data-label='Cliente'] {
-    order: -1;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .clients-table td[data-label='CPF/CNPJ'] {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: var(--muted);
+    margin-right: 8px;
+    white-space: nowrap;
+  }
+
+  .clients-table td[data-label='Ações'] {
+    flex: 0 0 auto;
+  }
+
+  /* Suppress pseudo-element labels on visible mobile cells */
+  .clients-table td::before {
+    display: none;
   }
 
   .clients-table-load strong {
-    font-size: 15px;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    max-width: 100%;
+  }
+
+  /* Info expansion row: no card, just a panel */
+  .clients-table tr.clients-info-row {
+    display: block;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 4px;
+  }
+
+  .clients-info-content {
+    border-radius: 0 0 12px 12px;
+    border-top: none;
+    padding: 12px 16px 14px;
+  }
+
+  /* On mobile, show fields that are hidden in the compact row */
+  .clients-info-mobile-only {
+    display: flex;
   }
 
   .crm-main {
@@ -5528,6 +5562,10 @@ i:hover {
   }
 }
 
+.budget-search-panels--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .clients-panel p {
   margin: 0;
   color: var(--text-base);
@@ -5796,6 +5834,66 @@ i:hover {
 .clients-table-action.danger:focus-visible {
   background: rgba(248, 113, 113, 0.35);
   border-color: rgba(248, 113, 113, 0.65);
+}
+
+/* ── Info panel (desktop + mobile shared) ─────────────────────────── */
+
+.clients-info-row > td {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.clients-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 20px 18px;
+  background: rgba(241, 245, 249, 0.98);
+  border-top: 1px solid rgba(37, 99, 235, 0.1);
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+:root[data-theme='dark'] .clients-info-content {
+  background: rgba(22, 28, 42, 0.96);
+  border-top-color: rgba(99, 142, 255, 0.18);
+}
+
+.clients-info-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clients-info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+}
+
+.clients-info-field dt {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+
+.clients-info-field dd {
+  font-size: 13px;
+  color: var(--text-base);
+  margin: 0;
+  word-break: break-word;
+}
+
+/* On desktop, fields already shown in table columns are hidden in the info panel */
+.clients-info-mobile-only {
+  display: none;
 }
 
 .budget-search-table .table-wrapper {
