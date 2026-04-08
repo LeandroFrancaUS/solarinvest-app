@@ -14467,14 +14467,20 @@ export default function App() {
     return snapshot
   }
 
-  // Helper: Hydrate cliente registro with latest data from clientStore
+  // Helper: Hydrate cliente registro with latest data from clientStore.
+  // Uses a 3-second timeout so that a hanging IndexedDB call (common on
+  // Mobile Safari with ITP / private-browsing restrictions) never blocks
+  // navigation.
   const hydrateClienteRegistroFromStore = async (
     registro: ClienteRegistro,
   ): Promise<ClienteRegistro> => {
     try {
-      const latestRegistro = await getClienteRegistroById(registro.id)
-      if (latestRegistro) {
-        return latestRegistro
+      const result = await Promise.race([
+        getClienteRegistroById(registro.id),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+      ])
+      if (result) {
+        return result
       }
     } catch (e) {
       if (import.meta.env.DEV) console.warn('[hydrateClienteRegistro] Failed to load latest for', registro.id, e)
@@ -17524,17 +17530,23 @@ export default function App() {
 
   const abrirClientesPainel = useCallback(async () => {
     const canProceed = await runWithUnsavedChangesGuard(async () => {
+      // Show localStorage data and navigate immediately — do NOT await IndexedDB
+      // hydration here.  On Mobile Safari (and occasionally Brave) IndexedDB can
+      // stall indefinitely, which previously caused setActivePage('clientes') to
+      // never be called, making the button appear broken.
       const registros = carregarClientesSalvos()
-      
-      // Hydrate with latest data from clientStore
-      if (import.meta.env.DEV) console.debug('[abrirClientesPainel] Hydrating', registros.length, 'clientes from clientStore')
-      const hidratados = await Promise.all(
-        registros.map((r) => hydrateClienteRegistroFromStore(r))
-      )
-      if (import.meta.env.DEV) console.debug('[abrirClientesPainel] Hydration complete')
-      
-      setClientesSalvos(hidratados)
+      setClientesSalvos(registros)
       setActivePage('clientes')
+
+      // Hydrate from IndexedDB in the background; each call already has a 3-second
+      // timeout, so this can never block the UI.
+      if (import.meta.env.DEV) console.debug('[abrirClientesPainel] Background hydration started for', registros.length, 'clientes')
+      void Promise.all(registros.map((r) => hydrateClienteRegistroFromStore(r))).then(
+        (hidratados) => {
+          setClientesSalvos(hidratados)
+          if (import.meta.env.DEV) console.debug('[abrirClientesPainel] Background hydration complete')
+        },
+      )
     })
 
     return canProceed
