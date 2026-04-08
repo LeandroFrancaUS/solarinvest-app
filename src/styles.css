@@ -3581,6 +3581,7 @@ tbody tr:hover {
 
   .clients-table td[data-label='Ações'] {
     flex: 0 0 auto;
+    margin-left: auto;
   }
 
   /* Suppress pseudo-element labels on visible mobile cells */
@@ -3606,6 +3607,11 @@ tbody tr:hover {
     box-shadow: none;
     padding: 0;
     margin-bottom: 4px;
+  }
+
+  .clients-table tr.clients-info-row > td {
+    display: block;
+    width: 100%;
   }
 
   .clients-info-content {
@@ -5740,10 +5746,37 @@ i:hover {
   max-height: 520px;
 }
 
+.clients-table table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.clients-table th,
+.clients-table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clients-table th:last-child,
+.clients-table td[data-label='Ações'] {
+  width: 150px;
+}
+
+.clients-table td,
+.clients-table td *:not(button) {
+  user-select: text;
+}
+
 .clients-table-client {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+}
+
+.clients-table-client-text {
+  cursor: text;
 }
 
 .clients-table-id {
@@ -5798,11 +5831,13 @@ i:hover {
 .clients-table-actions {
   display: flex;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .clients-table-action {
+  flex: 0 0 auto;
   width: 38px;
   height: 38px;
   border-radius: 10px;
@@ -5894,6 +5929,30 @@ i:hover {
 /* On desktop, fields already shown in table columns are hidden in the info panel */
 .clients-info-mobile-only {
   display: none;
+}
+
+@media (max-width: 1360px) {
+  .clients-table .col-xl {
+    display: none;
+  }
+}
+
+@media (max-width: 1240px) {
+  .clients-table .col-lg {
+    display: none;
+  }
+}
+
+@media (max-width: 1120px) {
+  .clients-table .col-md {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .clients-table .col-sm {
+    display: none;
+  }
 }
 
 .budget-search-table .table-wrapper {
