@@ -148,6 +148,7 @@ function RowActions({ user, onRefresh }: RowActionsProps) {
   }
 
   const hasPermission = (perm: StackPermission) => user.stack_permissions.includes(perm)
+  const isAdmin = hasPermission('role_admin')
 
   return (
     <>
@@ -214,6 +215,21 @@ function RowActions({ user, onRefresh }: RowActionsProps) {
           {ALL_STACK_PERMISSIONS.map((perm) => {
             const active = hasPermission(perm)
             const label = stackPermissionLabel(perm)
+            // Non-admin permissions are implicit/inherited when the user has role_admin
+            const isImplicit = isAdmin && perm !== 'role_admin' && !active
+
+            if (isImplicit) {
+              return (
+                <span
+                  key={perm}
+                  className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-400"
+                  title="Permissão implícita pelo papel Administrador"
+                >
+                  {label}
+                </span>
+              )
+            }
+
             return active ? (
               <button
                 key={perm}

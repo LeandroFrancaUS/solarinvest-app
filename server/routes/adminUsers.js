@@ -239,6 +239,11 @@ export async function handleAdminUserGrantPermission(req, res, { sendJson, userI
     return
   }
 
+  if (!process.env.STACK_SECRET_SERVER_KEY) {
+    sendJson(res, 503, { error: 'Stack Auth API key não configurada no servidor (STACK_SECRET_SERVER_KEY ausente)' })
+    return
+  }
+
   const stackId = sanitizeString(target.auth_provider_user_id)
   if (!stackId) {
     sendJson(res, 422, { error: 'User has no linked Stack Auth account' })
@@ -272,6 +277,11 @@ export async function handleAdminUserRevokePermission(req, res, { sendJson, user
   const target = rows[0]
   if (!target) {
     sendJson(res, 404, { error: 'User not found' })
+    return
+  }
+
+  if (!process.env.STACK_SECRET_SERVER_KEY) {
+    sendJson(res, 503, { error: 'Stack Auth API key não configurada no servidor (STACK_SECRET_SERVER_KEY ausente)' })
     return
   }
 
