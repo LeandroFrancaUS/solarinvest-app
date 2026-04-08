@@ -3198,7 +3198,6 @@ function ClientesPanel({
                 <table>
                   <thead>
                     <tr>
-                      <th>ID</th>
                       <th>Cliente</th>
                       <th className="col-nowrap">CPF/CNPJ</th>
                       <th className="col-nowrap">Cidade/UF</th>
@@ -3230,19 +3229,10 @@ function ClientesPanel({
                       return (
                         <React.Fragment key={registro.id}>
                           <tr className="clients-data-row">
-                            <td className="clients-table-id" data-label="ID">
-                              <code>{registro.id}</code>
-                            </td>
                             <td data-label="Cliente">
-                              <button
-                                type="button"
-                                className="clients-table-client clients-table-load"
-                                onClick={() => onEditar(registro)}
-                                title="Carregar dados do cliente"
-                                aria-label="Carregar dados do cliente"
-                              >
+                              <div className="clients-table-client clients-table-client-text">
                                 <strong>{primaryLine}</strong>
-                              </button>
+                              </div>
                             </td>
                             <td data-label="CPF/CNPJ">{documentoCliente ? <span>{documentoCliente}</span> : null}</td>
                             <td data-label="Cidade/UF">{cidadeUf ? <span>{cidadeUf}</span> : null}</td>
@@ -3260,6 +3250,7 @@ function ClientesPanel({
                                   aria-label="Ver informações do cliente"
                                   title="Ver informações do cliente"
                                   aria-expanded={isInfoOpen}
+                                  aria-controls={`cliente-info-${registro.id}`}
                                 >
                                   <span aria-hidden="true">ℹ️</span>
                                 </button>
@@ -3286,7 +3277,12 @@ function ClientesPanel({
                           </tr>
                           {isInfoOpen && (
                             <tr className="clients-info-row">
-                              <td className="clients-info-cell" colSpan={10} data-label="">
+                              <td
+                                className="clients-info-cell"
+                                colSpan={9}
+                                data-label=""
+                                id={`cliente-info-${registro.id}`}
+                              >
                                 <div className="clients-info-content">
                                   <dl className="clients-info-grid">
                                     {cidadeUf ? (
