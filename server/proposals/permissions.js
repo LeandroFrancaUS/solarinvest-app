@@ -12,12 +12,15 @@
 
 import { getCurrentAppUser } from '../auth/currentAppUser.js'
 import { hasStackPermission } from '../auth/stackPermissions.js'
-import { isStackAuthBypassed } from '../auth/stackAuth.js'
+import { isStackAuthBypassed, getBootstrapAdminEmail, getBootstrapAdminUserId } from '../auth/stackAuth.js'
 
 const PERM_ADMIN      = 'role_admin'
 const PERM_COMERCIAL  = 'role_comercial'
 const PERM_OFFICE     = 'role_office'
 const PERM_FINANCEIRO = 'role_financeiro'
+
+const BOOTSTRAP_ADMIN_EMAIL = getBootstrapAdminEmail().toLowerCase().trim()
+const BOOTSTRAP_ADMIN_USER_ID = getBootstrapAdminUserId()
 
 /**
  * Resolves the full actor context from the incoming request.
@@ -57,11 +60,20 @@ export async function resolveActor(req) {
     hasStackPermission(req, PERM_FINANCEIRO),
   ])
 
+  // Fallbacks for bootstrap admin/global admin rows:
+  // - If Stack permission lookup fails/stales, bootstrap identifiers or DB role
+  //   can still elevate this actor to admin.
+  const email = (appUser.email ?? '').toLowerCase().trim()
+  const appUserId = appUser.auth_provider_user_id ?? appUser.id
+  const isBootstrapByEmail = Boolean(BOOTSTRAP_ADMIN_EMAIL) && email === BOOTSTRAP_ADMIN_EMAIL
+  const isBootstrapByUserId = Boolean(BOOTSTRAP_ADMIN_USER_ID) && appUserId === BOOTSTRAP_ADMIN_USER_ID
+  const isApprovedDbAdmin = appUser.role === 'admin' && appUser.access_status === 'approved' && appUser.can_access_app && appUser.is_active
+
   // Higher-privilege roles take precedence when multiple permissions are assigned
-  const resolvedAdmin     = isAdmin
-  const resolvedComercial = !isAdmin && isComercial
-  const resolvedOffice    = !isAdmin && !isComercial && isOffice
-  const resolvedFinanceiro = !isAdmin && !isComercial && !isOffice && isFinanceiro
+  const resolvedAdmin = isAdmin || isBootstrapByEmail || isBootstrapByUserId || isApprovedDbAdmin
+  const resolvedComercial = !resolvedAdmin && isComercial
+  const resolvedOffice = !resolvedAdmin && !resolvedComercial && isOffice
+  const resolvedFinanceiro = !resolvedAdmin && !resolvedComercial && !resolvedOffice && isFinanceiro
 
   return {
     userId: appUser.auth_provider_user_id ?? appUser.id,
