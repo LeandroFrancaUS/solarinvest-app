@@ -1,7 +1,7 @@
 // server/auth/currentAppUser.js
 import { query } from '../db.js'
 import { getStackUser, isStackAuthBypassed, getBootstrapAdminEmail, getProjectId } from './stackAuth.js'
-import { ensureAdminPermissionForUser, ensureComercialPermissionForUsers } from './stackPermissions.js'
+import { ensureAdminPermissionForUser, ensureComercialPermissionForUsers, ensureOfficePermissionForUsers } from './stackPermissions.js'
 
 const ADMIN_BOOTSTRAP_EMAIL = getBootstrapAdminEmail()
 
@@ -602,9 +602,13 @@ export async function getCurrentAppUser(req) {
   }
 
   // 6) Update last_login_at (best-effort, non-blocking)
-  // Also ensure commercial permission is granted for configured emails (fire-and-forget, idempotent).
-  ensureComercialPermissionForUsers(authProviderUserId, email || record.email).catch((err) => {
+  // Also ensure role-based permissions are granted for configured emails (fire-and-forget, idempotent).
+  const resolvedEmail = email || record.email
+  ensureComercialPermissionForUsers(authProviderUserId, resolvedEmail).catch((err) => {
     console.warn('[auth/user] ensureComercialPermissionForUsers failed (non-fatal):', err?.message)
+  })
+  ensureOfficePermissionForUsers(authProviderUserId, resolvedEmail).catch((err) => {
+    console.warn('[auth/user] ensureOfficePermissionForUsers failed (non-fatal):', err?.message)
   })
 
   query(

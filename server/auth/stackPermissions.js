@@ -343,6 +343,19 @@ const COMERCIAL_EMAILS = (
   .filter(Boolean)
 
 /**
+ * Comma-separated list of emails that should be auto-granted `role_office`.
+ * Override with the BOOTSTRAP_OFFICE_EMAILS environment variable.
+ * The default includes the office team member; add more via the env var.
+ */
+const OFFICE_EMAILS = (
+  process.env.BOOTSTRAP_OFFICE_EMAILS ||
+  'laienygomes1@gmail.com'
+)
+  .split(',')
+  .map((e) => e.toLowerCase().trim())
+  .filter(Boolean)
+
+/**
  * Idempotent: ensures users whose email is in COMERCIAL_EMAILS (or
  * BOOTSTRAP_COMERCIAL_EMAILS env var) have the `role_comercial` Stack Auth
  * permission.  Silently skips if:
@@ -373,5 +386,39 @@ export async function ensureComercialPermissionForUsers(userId, email) {
     console.info('[RBAC] granted role_comercial to', userId)
   } else {
     console.warn('[RBAC] ensureComercialPermission: grant failed —', result.error)
+  }
+}
+
+/**
+ * Idempotent: ensures users whose email is in OFFICE_EMAILS (or
+ * BOOTSTRAP_OFFICE_EMAILS env var) have the `role_office` Stack Auth
+ * permission.  Silently skips if:
+ *   - The user's email is not in the configured list.
+ *   - STACK_SECRET_SERVER_KEY / STACK_PROJECT_ID is not configured.
+ *   - The permission already exists.
+ *
+ * Should only be called from server-side auth resolution (currentAppUser.js).
+ */
+export async function ensureOfficePermissionForUsers(userId, email) {
+  const normalizedEmail = typeof email === 'string' ? email.toLowerCase().trim() : ''
+  if (!OFFICE_EMAILS.includes(normalizedEmail)) return
+
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey || !projectId) return
+
+  console.info('[RBAC] ensuring office permission for', userId, normalizedEmail)
+
+  const existing = await getUserPermissionsViaApi(userId)
+  if (existing !== null && existing.includes('role_office')) {
+    // Already granted — nothing to do.
+    return
+  }
+
+  const result = await grantPermissionViaApi(userId, 'role_office')
+  if (result.ok) {
+    console.info('[RBAC] granted role_office to', userId)
+  } else {
+    console.warn('[RBAC] ensureOfficePermission: grant failed —', result.error)
   }
 }
