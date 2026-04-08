@@ -3757,6 +3757,75 @@ function SaveChangesDialog({
   )
 }
 
+type ConfirmDialogState = {
+  title: string
+  description: string
+  confirmLabel?: string
+  cancelLabel?: string
+  resolve: (confirmed: boolean) => void
+}
+
+type ConfirmDialogProps = {
+  title: string
+  description: string
+  confirmLabel: string
+  cancelLabel: string
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function ConfirmDialog({
+  title,
+  description,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) {
+  const titleId = useId()
+  const descriptionId = useId()
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCancel()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel])
+
+  return (
+    <div
+      className="modal save-changes-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+    >
+      <div className="modal-backdrop modal-backdrop--opaque" onClick={onCancel} />
+      <div className="modal-content save-changes-modal__content">
+        <div className="modal-header">
+          <h3 id={titleId}>{title}</h3>
+        </div>
+        <div className="modal-body" id={descriptionId}>
+          <p>{description}</p>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="ghost" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button type="button" className="danger" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type EnviarPropostaModalProps = {
   contatos: PropostaEnvioContato[]
   selectedContatoId: string | null
@@ -4747,6 +4816,32 @@ export default function App() {
       return null
     })
   }, [])
+
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
+
+  const requestConfirmDialog = useCallback(
+    (options: Omit<ConfirmDialogState, 'resolve'>): Promise<boolean> => {
+      if (typeof window === 'undefined') {
+        return Promise.resolve(false)
+      }
+
+      return new Promise<boolean>((resolve) => {
+        setConfirmDialog({ ...options, resolve })
+      })
+    },
+    [],
+  )
+
+  const resolveConfirmDialog = useCallback((confirmed: boolean) => {
+    setConfirmDialog((current) => {
+      if (current) {
+        current.resolve(confirmed)
+      }
+
+      return null
+    })
+  }, [])
+
   const atualizarOrcamentoAtivo = useCallback(
     (registro: OrcamentoSalvo) => {
       const dadosClonados = clonePrintableData(registro.dados)
@@ -14725,44 +14820,41 @@ export default function App() {
   ])
 
 
-  const clienteRegistroEmEdicao = clienteEmEdicaoId
-    ? clientesSalvos.find((registro) => registro.id === clienteEmEdicaoId) ?? null
-    : null
-  const clienteFormularioAlterado = (() => {
+  const clienteRegistroEmEdicao = useMemo(
+    () =>
+      clienteEmEdicaoId
+        ? clientesSalvos.find((registro) => registro.id === clienteEmEdicaoId) ?? null
+        : null,
+    [clienteEmEdicaoId, clientesSalvos],
+  )
+  const clienteFormularioAlterado = useMemo(() => {
     if (!clienteRegistroEmEdicao) {
       return false
     }
-    const snapshotAtualRaw = getCurrentSnapshot()
-    if (!snapshotAtualRaw) {
-      return false
-    }
-    const snapshotAtual = cloneSnapshotData(snapshotAtualRaw)
-    const snapshotSalvo = clienteRegistroEmEdicao.propostaSnapshot
-      ? cloneSnapshotData(clienteRegistroEmEdicao.propostaSnapshot)
-      : null
-    const assinaturaAtual = stableStringify({
-      dados: cloneClienteDados(cliente),
-      snapshot: snapshotAtual,
-    })
-    const assinaturaSalva = stableStringify({
-      dados: cloneClienteDados(clienteRegistroEmEdicao.dados),
-      snapshot: snapshotSalvo,
-    })
-    return assinaturaAtual !== assinaturaSalva
-  })()
+    // Compare only the client data fields — the full proposal snapshot comparison was too
+    // expensive (cloneSnapshotData + stableStringify on the entire app state on every render).
+    // The save handler always persists the latest proposal snapshot regardless.
+    return (
+      stableStringify(cloneClienteDados(cliente)) !==
+      stableStringify(cloneClienteDados(clienteRegistroEmEdicao.dados))
+    )
+  }, [clienteRegistroEmEdicao, cliente])
   const clienteSaveLabel =
     clienteEmEdicaoId && clienteFormularioAlterado ? 'Atualizar cliente' : 'Salvar cliente'
 
   const handleExcluirCliente = useCallback(
-    (registro: ClienteRegistro) => {
+    async (registro: ClienteRegistro) => {
       if (typeof window === 'undefined') {
         return
       }
 
       const nomeCliente = registro.dados.nome?.trim() || 'este cliente'
-      const confirmado = window.confirm(
-        `Deseja realmente excluir ${nomeCliente}? Essa ação não poderá ser desfeita.`,
-      )
+      const confirmado = await requestConfirmDialog({
+        title: 'Excluir cliente',
+        description: `Deseja realmente excluir ${nomeCliente}? Essa ação não poderá ser desfeita.`,
+        confirmLabel: 'Excluir',
+        cancelLabel: 'Cancelar',
+      })
       if (!confirmado) {
         return
       }
@@ -14808,7 +14900,7 @@ export default function App() {
         setClienteEmEdicaoId(null)
       }
     },
-    [clienteEmEdicaoId, setClienteEmEdicaoId, setClienteMensagens, setClienteSync],
+    [clienteEmEdicaoId, requestConfirmDialog, setClienteEmEdicaoId, setClienteMensagens, setClienteSync],
   )
 
   const parseOrcamentosSalvos = useCallback(
@@ -18962,15 +19054,18 @@ export default function App() {
   )
 
   const confirmarRemocaoOrcamento = useCallback(
-    (registro: OrcamentoSalvo) => {
+    async (registro: OrcamentoSalvo) => {
       if (typeof window === 'undefined') {
         return
       }
 
       const nomeCliente = registro.clienteNome || registro.dados.cliente.nome || 'este cliente'
-      const confirmado = window.confirm(
-        `Deseja realmente excluir o orçamento ${registro.id} de ${nomeCliente}? Essa ação não poderá ser desfeita.`,
-      )
+      const confirmado = await requestConfirmDialog({
+        title: 'Excluir orçamento',
+        description: `Deseja realmente excluir o orçamento ${registro.id} de ${nomeCliente}? Essa ação não poderá ser desfeita.`,
+        confirmLabel: 'Excluir',
+        cancelLabel: 'Cancelar',
+      })
 
       if (!confirmado) {
         return
@@ -18978,7 +19073,7 @@ export default function App() {
 
       removerOrcamentoSalvo(registro.id)
     },
-    [removerOrcamentoSalvo],
+    [removerOrcamentoSalvo, requestConfirmDialog],
   )
 
   const orcamentosFiltrados = useMemo(() => {
@@ -24669,7 +24764,7 @@ export default function App() {
                               <button
                                 type="button"
                                 className="budget-search-action danger"
-                                onClick={() => confirmarRemocaoOrcamento(registro)}
+                                onClick={() => void confirmarRemocaoOrcamento(registro)}
                                 aria-label="Excluir orçamento salvo"
                                 title="Excluir orçamento salvo"
                               >
@@ -27350,6 +27445,16 @@ export default function App() {
           discardLabel={saveDecisionPrompt.discardLabel ?? 'Não'}
           onConfirm={() => resolveSaveDecisionPrompt('save')}
           onDiscard={() => resolveSaveDecisionPrompt('discard')}
+        />
+      ) : null}
+      {confirmDialog ? (
+        <ConfirmDialog
+          title={confirmDialog.title}
+          description={confirmDialog.description}
+          confirmLabel={confirmDialog.confirmLabel ?? 'Confirmar'}
+          cancelLabel={confirmDialog.cancelLabel ?? 'Cancelar'}
+          onConfirm={() => resolveConfirmDialog(true)}
+          onCancel={() => resolveConfirmDialog(false)}
         />
       ) : null}
     </>
