@@ -288,6 +288,7 @@ import {
 } from './lib/api/clientsApi'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
+import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4476,6 +4477,7 @@ export default function App() {
     setStorageTokenProvider(getAccessToken)
     setProposalsTokenProvider(getAccessToken)
     setClientsTokenProvider(getAccessToken)
+    setAdminUsersTokenProvider(getAccessToken)
     // Re-run server storage sync now that auth is available.
     void ensureServerStorageSync({ timeoutMs: 6000 })
   }, [user, getAccessToken])
