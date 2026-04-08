@@ -2,13 +2,13 @@
 // API calls for admin user management endpoints.
 
 import { resolveApiUrl } from '../../utils/apiUrl'
-import type { AdminUsersResponse, AccessRole } from '../../lib/auth/access-types'
+import type { AdminUsersResponse, AccessRole, StackPermission } from '../../lib/auth/access-types'
 
 const BASE = resolveApiUrl('/api/admin/users')
 
-async function post(url: string, body?: unknown): Promise<void> {
+async function request(url: string, method: string, body?: unknown): Promise<void> {
   const init: RequestInit = {
-    method: 'POST',
+    method,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
   }
@@ -18,6 +18,14 @@ async function post(url: string, body?: unknown): Promise<void> {
     const data: unknown = await response.json().catch(() => ({}))
     throw new Error((data as { error?: string }).error ?? `Request failed: ${response.status}`)
   }
+}
+
+function post(url: string, body?: unknown): Promise<void> {
+  return request(url, 'POST', body)
+}
+
+function del(url: string): Promise<void> {
+  return request(url, 'DELETE')
 }
 
 export async function fetchAdminUsers(
@@ -52,4 +60,16 @@ export function revokeUser(id: string): Promise<void> {
 
 export function setUserRole(id: string, role: AccessRole): Promise<void> {
   return post(`${BASE}/${id}/role`, { role })
+}
+
+export function grantPermission(id: string, perm: StackPermission): Promise<void> {
+  return post(`${BASE}/${id}/permissions/${encodeURIComponent(perm)}`)
+}
+
+export function revokePermission(id: string, perm: StackPermission): Promise<void> {
+  return del(`${BASE}/${id}/permissions/${encodeURIComponent(perm)}`)
+}
+
+export function deleteUser(id: string): Promise<void> {
+  return del(`${BASE}/${id}`)
 }

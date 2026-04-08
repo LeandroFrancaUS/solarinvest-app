@@ -1,7 +1,7 @@
 // src/lib/auth/access-mappers.ts
 // Helpers to derive UI state from MeResponse.
 
-import type { AccessState, MeResponse } from './access-types'
+import type { AccessState, MeResponse, StackPermission } from './access-types'
 
 export function deriveAccessState(me: MeResponse | null, loading: boolean): AccessState {
   if (loading || me === null) return 'loading'
@@ -37,4 +37,22 @@ export function roleLabel(role: string | null | undefined): string {
     case 'user': return 'Usuário'
     default: return 'Desconhecido'
   }
+}
+
+export const STACK_PERMISSION_LABELS: Record<StackPermission, string> = {
+  role_admin: 'Administrador',
+  role_comercial: 'Comercial',
+  role_office: 'Office',
+  role_financeiro: 'Financeiro',
+}
+
+export const ALL_STACK_PERMISSIONS: StackPermission[] = [
+  'role_admin',
+  'role_comercial',
+  'role_office',
+  'role_financeiro',
+]
+
+export function stackPermissionLabel(perm: string): string {
+  return STACK_PERMISSION_LABELS[perm as StackPermission] ?? perm
 }

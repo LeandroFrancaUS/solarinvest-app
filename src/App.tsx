@@ -287,6 +287,7 @@ import {
   type UpdateClientInput,
 } from './lib/api/clientsApi'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
+import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -346,7 +347,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes'
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users'
 type SimulacoesSection =
   | 'nova'
   | 'salvas'
@@ -4578,7 +4579,8 @@ export default function App() {
       storedPage === 'consultar' ||
       storedPage === 'clientes' ||
       storedPage === 'settings' ||
-      storedPage === 'simulacoes'
+      storedPage === 'simulacoes' ||
+      storedPage === 'admin-users'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -4779,6 +4781,8 @@ export default function App() {
     if (activePage === 'settings' && !isAdmin) {
       setActivePage('app')
     } else if (activePage === 'simulacoes' && simulacoesSection === 'analise' && !isAdmin) {
+      setActivePage('app')
+    } else if (activePage === 'admin-users' && !isAdmin) {
       setActivePage('app')
     }
   }, [activePage, simulacoesSection, isAdmin, isRbacLoading, setActivePage])
@@ -18079,6 +18083,13 @@ export default function App() {
     [runWithUnsavedChangesGuard, setActivePage, setSettingsTab, isAdmin],
   )
 
+  const abrirAdminUsuarios = useCallback(async () => {
+    if (!isAdmin) return false
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('admin-users')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, isAdmin])
+
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
       setActivePage('dashboard')
@@ -24972,6 +24983,14 @@ export default function App() {
                   void abrirConfiguracoes()
                 },
               },
+              {
+                id: 'config-admin-users',
+                label: 'Gestão de Usuários',
+                icon: '👤',
+                onSelect: () => {
+                  void abrirAdminUsuarios()
+                },
+              },
             ]
           : []),
         {
@@ -24990,7 +25009,7 @@ export default function App() {
   const mobileAllowedIds = [
     'propostas-leasing',
     'propostas-vendas',
-    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
+    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias', 'config-admin-users'] : []),
     'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
@@ -26922,11 +26941,13 @@ export default function App() {
             ? 'orcamentos-importar'
             : activePage === 'settings'
               ? 'config-preferencias'
-              : activePage === 'simulacoes'
-                ? `simulacoes-${simulacoesSection}`
-                : activeTab === 'vendas'
-                  ? 'propostas-vendas'
-                  : 'propostas-leasing'
+              : activePage === 'admin-users'
+                ? 'config-admin-users'
+                : activePage === 'simulacoes'
+                  ? `simulacoes-${simulacoesSection}`
+                  : activeTab === 'vendas'
+                    ? 'propostas-vendas'
+                    : 'propostas-leasing'
 
 
   // If in print mode, render the Bento Grid print page
@@ -27003,6 +27024,8 @@ export default function App() {
           renderSimulacoesPage()
         ) : activePage === 'settings' ? (
           renderSettingsPage()
+        ) : activePage === 'admin-users' ? (
+          <AdminUsersPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
         ) : (
           <div className="page">
             <div className="app-main">

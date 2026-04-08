@@ -61,6 +61,73 @@ async function getUserPermissionsViaApi(userId) {
 }
 
 /**
+ * Revokes a global project permission from a user via the Stack Auth admin API.
+ * Returns true on success, false otherwise.
+ */
+/**
+ * Revokes a global project permission from a user via the Stack Auth admin API.
+ * Returns true on success (or if the permission did not exist), false on error.
+ */
+async function revokePermissionViaApi(userId, permissionId) {
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey || !projectId || !userId || !permissionId) return false
+
+  try {
+    const url =
+      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}?type=global`
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'x-stack-access-type': 'server',
+        'x-stack-project-id': projectId,
+        'x-stack-secret-server-key': secretKey,
+      },
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    })
+    if (!res.ok && res.status !== 404) {
+      console.warn('[RBAC] revokePermissionViaApi HTTP', res.status, 'userId:', userId, 'permission:', permissionId)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.warn('[RBAC] revokePermissionViaApi error:', err?.message)
+    return false
+  }
+}
+
+/**
+ * Deletes a user from Stack Auth via the admin API.
+ * Returns true on success, false otherwise.
+ */
+async function deleteStackUserViaApi(userId) {
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey || !projectId || !userId) return false
+
+  try {
+    const url = `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}`
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'x-stack-access-type': 'server',
+        'x-stack-project-id': projectId,
+        'x-stack-secret-server-key': secretKey,
+      },
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    })
+    if (!res.ok && res.status !== 404) {
+      console.warn('[RBAC] deleteStackUserViaApi HTTP', res.status, 'userId:', userId)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.warn('[RBAC] deleteStackUserViaApi error:', err?.message)
+    return false
+  }
+}
+
+/**
  * Grants a global project permission to a user via the Stack Auth admin API.
  * Returns true on success, false otherwise.
  */
@@ -219,4 +286,36 @@ export async function requireStackPermission(req, permissionId) {
     err.statusCode = 403
     throw err
   }
+}
+
+/**
+ * Grants a permission to a user by their Stack Auth user ID.
+ * Returns true on success, false otherwise.
+ */
+export async function grantUserPermission(userId, permissionId) {
+  return grantPermissionViaApi(userId, permissionId)
+}
+
+/**
+ * Revokes a permission from a user by their Stack Auth user ID.
+ * Returns true on success, false otherwise.
+ */
+export async function revokeUserPermission(userId, permissionId) {
+  return revokePermissionViaApi(userId, permissionId)
+}
+
+/**
+ * Retrieves all global permissions for a user by their Stack Auth user ID.
+ * Returns an array of permission ID strings, or null on failure.
+ */
+export async function getUserPermissions(userId) {
+  return getUserPermissionsViaApi(userId)
+}
+
+/**
+ * Deletes a user from Stack Auth by their Stack Auth user ID.
+ * Returns true on success, false otherwise.
+ */
+export async function deleteStackUser(userId) {
+  return deleteStackUserViaApi(userId)
 }
