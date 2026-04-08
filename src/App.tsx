@@ -272,7 +272,14 @@ import { useStackUser } from './app/stack-context'
 import { performLogout } from './lib/auth/logout'
 import { useStackRbac } from './lib/auth/rbac'
 import { useAuthSession } from './auth/auth-session'
-import { setProposalsTokenProvider } from './lib/api/proposalsApi'
+import {
+  createProposal,
+  type CreateProposalInput,
+  setProposalsTokenProvider,
+  type UpdateProposalInput,
+  updateProposal,
+} from './lib/api/proposalsApi'
+import { isOnline as isConnectivityOnline } from './lib/connectivity'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -1087,6 +1094,7 @@ type CorresponsavelErrors = {
 
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
+const PROPOSAL_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-proposal-server-id-map'
 const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
   VENDA_DIRETA: 'SLRINVST-VND-',
   LEASING: 'SLRINVST-LSE-',
@@ -5503,6 +5511,8 @@ export default function App() {
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const proposalServerIdMapRef = useRef<Record<string, string>>({})
+  const proposalServerAutoSaveInFlightRef = useRef(false)
   const isHydratingRef = useRef(false)
   const [isHydrating, setIsHydrating] = useState(false)
   const isApplyingCepRef = useRef(false)
@@ -5519,6 +5529,48 @@ export default function App() {
   const clienteRef = useRef(cliente)
   const kcKwhMesRef = useRef(kcKwhMes)
   const pageSharedStateRef = useRef(pageSharedState)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    try {
+      const raw = window.localStorage.getItem(PROPOSAL_SERVER_ID_MAP_STORAGE_KEY)
+      if (!raw) {
+        proposalServerIdMapRef.current = {}
+        return
+      }
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      if (!parsed || typeof parsed !== 'object') {
+        proposalServerIdMapRef.current = {}
+        return
+      }
+      proposalServerIdMapRef.current = Object.fromEntries(
+        Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+      )
+    } catch (error) {
+      console.warn('[AutoSave] Failed to hydrate proposal server-id map:', error)
+      proposalServerIdMapRef.current = {}
+    }
+  }, [])
+
+  const updateProposalServerIdMap = useCallback((budgetId: string, serverId: string) => {
+    if (typeof window === 'undefined' || !budgetId || !serverId) {
+      return
+    }
+    proposalServerIdMapRef.current = {
+      ...proposalServerIdMapRef.current,
+      [budgetId]: serverId,
+    }
+    try {
+      window.localStorage.setItem(
+        PROPOSAL_SERVER_ID_MAP_STORAGE_KEY,
+        JSON.stringify(proposalServerIdMapRef.current),
+      )
+    } catch (error) {
+      console.warn('[AutoSave] Failed to persist proposal server-id map:', error)
+    }
+  }, [])
 
   const setClienteSync = useCallback(
     (next: ClienteDados) => {
@@ -15317,7 +15369,8 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-save debounced: salva o snapshot a cada 5 segundos quando houver mudanças
+  // Auto-save debounced: prioriza persistência oficial no backend (/api/proposals).
+  // O rascunho local (IndexedDB) é usado somente quando estiver offline.
   useEffect(() => {
     // Skip auto-save during hydration to prevent overwriting draft with empty/partial state
     if (isHydratingRef.current) {
@@ -15357,10 +15410,94 @@ export default function App() {
             return
           }
           
-          await saveFormDraft(snapshot)
-          if (import.meta.env.DEV) console.debug('[App] Auto-saved form draft to IndexedDB')
+          const online = isConnectivityOnline()
+
+          if (!online) {
+            await saveFormDraft(snapshot)
+            if (import.meta.env.DEV) {
+              console.debug('[App] Auto-saved form draft to IndexedDB (offline fallback)')
+            }
+            return
+          }
+
+          if (proposalServerAutoSaveInFlightRef.current) {
+            if (import.meta.env.DEV) console.debug('[App] Auto-save skipped: server request already in flight')
+            return
+          }
+
+          proposalServerAutoSaveInFlightRef.current = true
+          try {
+            const proposalType = activeTabRef.current === 'vendas' ? 'venda' : 'leasing'
+            const budgetId = activeBudgetId
+            const knownServerId = proposalServerIdMapRef.current[budgetId]
+            const clienteSnapshot = snapshot.cliente ?? {}
+
+            const proposalPayload: UpdateProposalInput = {
+              payload_json: snapshot as unknown as Record<string, unknown>,
+            }
+            if (typeof clienteSnapshot.nome === 'string' && clienteSnapshot.nome.trim()) {
+              proposalPayload.client_name = clienteSnapshot.nome.trim()
+            }
+            if (typeof clienteSnapshot.documento === 'string' && clienteSnapshot.documento.trim()) {
+              proposalPayload.client_document = clienteSnapshot.documento.trim()
+            }
+            if (typeof clienteSnapshot.cidade === 'string' && clienteSnapshot.cidade.trim()) {
+              proposalPayload.client_city = clienteSnapshot.cidade.trim()
+            }
+            if (typeof clienteSnapshot.uf === 'string' && clienteSnapshot.uf.trim()) {
+              proposalPayload.client_state = clienteSnapshot.uf.trim()
+            }
+            if (typeof clienteSnapshot.telefone === 'string' && clienteSnapshot.telefone.trim()) {
+              proposalPayload.client_phone = clienteSnapshot.telefone.trim()
+            }
+            if (typeof clienteSnapshot.email === 'string' && clienteSnapshot.email.trim()) {
+              proposalPayload.client_email = clienteSnapshot.email.trim()
+            }
+            if (typeof snapshot.kcKwhMes === 'number' && Number.isFinite(snapshot.kcKwhMes)) {
+              proposalPayload.consumption_kwh_month = snapshot.kcKwhMes
+            }
+
+            const row = knownServerId
+              ? await updateProposal(knownServerId, proposalPayload)
+              : await createProposal({
+                  proposal_type: proposalType,
+                  payload_json: proposalPayload.payload_json ?? {},
+                  ...(proposalPayload.client_name ? { client_name: proposalPayload.client_name } : {}),
+                  ...(proposalPayload.client_document ? { client_document: proposalPayload.client_document } : {}),
+                  ...(proposalPayload.client_city ? { client_city: proposalPayload.client_city } : {}),
+                  ...(proposalPayload.client_state ? { client_state: proposalPayload.client_state } : {}),
+                  ...(proposalPayload.client_phone ? { client_phone: proposalPayload.client_phone } : {}),
+                  ...(proposalPayload.client_email ? { client_email: proposalPayload.client_email } : {}),
+                  ...(typeof proposalPayload.consumption_kwh_month === 'number'
+                    ? { consumption_kwh_month: proposalPayload.consumption_kwh_month }
+                    : {}),
+                } satisfies CreateProposalInput)
+
+            updateProposalServerIdMap(budgetId, row.id)
+            await clearFormDraft()
+            if (import.meta.env.DEV) {
+              console.debug('[App] Auto-saved proposal to server', {
+                budgetId,
+                proposalId: row.id,
+                mode: knownServerId ? 'update' : 'create',
+              })
+            }
+          } finally {
+            proposalServerAutoSaveInFlightRef.current = false
+          }
         } catch (error) {
           console.warn('[App] Auto-save failed:', error)
+          try {
+            const snapshotFallback = getCurrentSnapshot()
+            if (snapshotFallback && !isHydratingRef.current) {
+              await saveFormDraft(snapshotFallback)
+              if (import.meta.env.DEV) {
+                console.debug('[App] Auto-save fallback: form draft saved to IndexedDB after server failure')
+              }
+            }
+          } catch (fallbackError) {
+            console.warn('[App] Auto-save fallback failed:', fallbackError)
+          }
         }
       }, AUTO_SAVE_INTERVAL_MS)
     }
@@ -15382,6 +15519,7 @@ export default function App() {
     activeTab,
     ucsBeneficiarias,
     budgetStructuredItems,
+    updateProposalServerIdMap,
   ])
 
   const aplicarSnapshot = (
