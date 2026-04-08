@@ -3176,7 +3176,6 @@ function ClientesPanel({
               'Pesquisar cliente',
               'Filtra os clientes salvos pelo nome ou CPF/CNPJ informado.',
             )}
-            hint="Digite o nome ou CPF/CNPJ do cliente para filtrar os registros salvos."
           >
             <input
               type="search"
@@ -3232,10 +3231,10 @@ function ClientesPanel({
                         emailCliente && emailCliente !== primaryLine ? emailCliente : null
                       return (
                         <tr key={registro.id}>
-                          <td className="clients-table-id">
+                          <td className="clients-table-id" data-label="ID">
                             <code>{registro.id}</code>
                           </td>
-                          <td>
+                          <td data-label="Cliente">
                             <button
                               type="button"
                               className="clients-table-client clients-table-load"
@@ -3247,11 +3246,11 @@ function ClientesPanel({
                               {secondaryLine ? <span>{secondaryLine}</span> : null}
                             </button>
                           </td>
-                          <td>{documentoCliente ? <span>{documentoCliente}</span> : null}</td>
-                          <td>{cidadeUf ? <span>{cidadeUf}</span> : null}</td>
-                          <td>{formatBudgetDate(registro.criadoEm)}</td>
-                          <td>{formatBudgetDate(registro.atualizadoEm)}</td>
-                          <td>
+                          <td data-label="Documento">{documentoCliente ? <span>{documentoCliente}</span> : null}</td>
+                          <td data-label="Cidade/UF">{cidadeUf ? <span>{cidadeUf}</span> : null}</td>
+                          <td data-label="Criado em">{formatBudgetDate(registro.criadoEm)}</td>
+                          <td data-label="Atualizado em">{formatBudgetDate(registro.atualizadoEm)}</td>
+                          <td data-label="Ações">
                             <div className="clients-table-actions">
                               <button
                                 type="button"
