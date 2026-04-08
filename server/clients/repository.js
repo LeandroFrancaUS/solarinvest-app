@@ -1,5 +1,5 @@
 // server/clients/repository.js
-// Database queries for clients with CPF deduplication.
+// Database queries for clients with CPF and CNPJ deduplication.
 
 /**
  * Normalize CPF: strip non-digits, validate 11 digits.
@@ -8,6 +8,27 @@ export function normalizeCpfServer(raw) {
   if (!raw) return null
   const digits = raw.replace(/\D/g, '')
   return digits.length === 11 ? digits : null
+}
+
+/**
+ * Normalize CNPJ: strip non-digits, validate 14 digits.
+ */
+export function normalizeCnpjServer(raw) {
+  if (!raw) return null
+  const digits = raw.replace(/\D/g, '')
+  return digits.length === 14 ? digits : null
+}
+
+/**
+ * Auto-detect and normalize document (CPF or CNPJ).
+ * Returns { type: 'cpf'|'cnpj'|'unknown', normalized: string|null }
+ */
+export function normalizeDocumentServer(raw) {
+  if (!raw) return { type: 'unknown', normalized: null }
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 11) return { type: 'cpf', normalized: digits }
+  if (digits.length === 14) return { type: 'cnpj', normalized: digits }
+  return { type: 'unknown', normalized: null }
 }
 
 /**
@@ -22,6 +43,30 @@ export async function findClientByCpf(sql, cpfNormalized) {
     LIMIT 1
   `
   return rows[0] ?? null
+}
+
+/**
+ * Find a client by normalized CNPJ.
+ */
+export async function findClientByCnpj(sql, cnpjNormalized) {
+  const rows = await sql`
+    SELECT * FROM clients
+    WHERE cnpj_normalized = ${cnpjNormalized}
+      AND deleted_at IS NULL
+      AND merged_into_client_id IS NULL
+    LIMIT 1
+  `
+  return rows[0] ?? null
+}
+
+/**
+ * Find a client by normalized document (CPF or CNPJ), auto-detected by length.
+ */
+export async function findClientByDocument(sql, normalizedDocument) {
+  if (!normalizedDocument) return null
+  if (normalizedDocument.length === 14) return findClientByCnpj(sql, normalizedDocument)
+  if (normalizedDocument.length === 11) return findClientByCpf(sql, normalizedDocument)
+  return null
 }
 
 /**
@@ -45,6 +90,9 @@ export async function createClient(sql, data) {
     name,
     cpf_normalized = null,
     cpf_raw = null,
+    cnpj_normalized = null,
+    cnpj_raw = null,
+    document_type = null,
     phone = null,
     email = null,
     city = null,
@@ -64,12 +112,14 @@ export async function createClient(sql, data) {
   const rows = await sql`
     INSERT INTO clients (
       name, document, cpf_normalized, cpf_raw,
+      cnpj_normalized, cnpj_raw, document_type,
       phone, email, city, state, address, uc, distribuidora,
       created_by_user_id, owner_user_id, user_id,
       identity_status, origin, offline_origin_id,
       metadata, created_at, updated_at
     ) VALUES (
-      ${name}, ${document ?? cpf_raw}, ${cpf_normalized}, ${cpf_raw},
+      ${name}, ${document ?? cpf_raw ?? cnpj_raw}, ${cpf_normalized}, ${cpf_raw},
+      ${cnpj_normalized}, ${cnpj_raw}, ${document_type},
       ${phone}, ${email}, ${city}, ${state}, ${address}, ${uc}, ${distribuidora},
       ${created_by_user_id}, ${owner_user_id ?? created_by_user_id}, ${owner_user_id ?? created_by_user_id},
       ${identity_status}, ${origin}, ${offline_origin_id},
@@ -93,23 +143,29 @@ export async function updateClient(sql, clientId, data) {
     address,
     cpf_normalized,
     cpf_raw,
+    cnpj_normalized,
+    cnpj_raw,
+    document_type,
     identity_status,
     metadata,
   } = data
 
   const rows = await sql`
     UPDATE clients SET
-      name          = COALESCE(${name ?? null}, name),
-      phone         = COALESCE(${phone ?? null}, phone),
-      email         = COALESCE(${email ?? null}, email),
-      city          = COALESCE(${city ?? null}, city),
-      state         = COALESCE(${state ?? null}, state),
-      address       = COALESCE(${address ?? null}, address),
-      cpf_normalized = COALESCE(${cpf_normalized ?? null}, cpf_normalized),
-      cpf_raw       = COALESCE(${cpf_raw ?? null}, cpf_raw),
-      identity_status = COALESCE(${identity_status ?? null}, identity_status),
-      metadata      = COALESCE(${metadata ? JSON.stringify(metadata) : null}::jsonb, metadata),
-      updated_at    = now()
+      name             = COALESCE(${name ?? null}, name),
+      phone            = COALESCE(${phone ?? null}, phone),
+      email            = COALESCE(${email ?? null}, email),
+      city             = COALESCE(${city ?? null}, city),
+      state            = COALESCE(${state ?? null}, state),
+      address          = COALESCE(${address ?? null}, address),
+      cpf_normalized   = COALESCE(${cpf_normalized ?? null}, cpf_normalized),
+      cpf_raw          = COALESCE(${cpf_raw ?? null}, cpf_raw),
+      cnpj_normalized  = COALESCE(${cnpj_normalized ?? null}, cnpj_normalized),
+      cnpj_raw         = COALESCE(${cnpj_raw ?? null}, cnpj_raw),
+      document_type    = COALESCE(${document_type ?? null}, document_type),
+      identity_status  = COALESCE(${identity_status ?? null}, identity_status),
+      metadata         = COALESCE(${metadata ? JSON.stringify(metadata) : null}::jsonb, metadata),
+      updated_at       = now()
     WHERE id = ${clientId}
       AND deleted_at IS NULL
     RETURNING *
@@ -171,11 +227,12 @@ export async function listClients(sql, filter = {}) {
   if (search) {
     params.push(`%${search}%`)
     const idx = params.length
-    conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx})`)
+    conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx})`)
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
+  // safeSort and safeSortDir are validated against allowlists above — safe to interpolate
   const countQuery = `SELECT COUNT(*) FROM clients c ${where}`
   const dataQuery = `
     SELECT c.*,

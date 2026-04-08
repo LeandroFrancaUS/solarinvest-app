@@ -102,6 +102,7 @@ async function syncClientOperation(op: SyncQueueItem): Promise<OpResult> {
 
   if (op.operation_type === 'create') {
     const result = await apiFetch('/api/clients/upsert-by-cpf', {
+      // Note: this endpoint handles both CPF and CNPJ deduplication (auto-detected by digit count)
       method: 'POST',
       body: JSON.stringify({
         ...payload,
@@ -254,7 +255,7 @@ export async function runSync(): Promise<SyncResult> {
         }
         synced++
       } else {
-        const isConflict = result.errorCode === 'CONFLICT' || result.errorCode === 'CPF_CONFLICT'
+        const isConflict = result.errorCode === 'CONFLICT' || (result.errorCode?.endsWith('_CONFLICT') ?? false)
         if (isConflict) {
           await markOperationConflict(op.operation_id, result.errorMessage ?? 'Conflict')
           if (op.entity_type === 'proposal') {

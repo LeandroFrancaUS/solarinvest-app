@@ -2,9 +2,11 @@
  * Types for the offline-first layer.
  */
 
-export type IdentityStatus = 'confirmed' | 'pending_cpf' | 'merged'
+export type IdentityStatus = 'confirmed' | 'pending_cpf' | 'pending_cnpj' | 'merged'
+// Mirrors DocumentType in src/lib/normalize/document.ts — keep in sync
+export type DocumentType = 'cpf' | 'cnpj' | 'unknown'
 export type OriginType = 'online' | 'offline_sync' | 'import'
-export type SyncOperationType = 'create' | 'update' | 'merge' | 'link_client' | 'attach_cpf'
+export type SyncOperationType = 'create' | 'update' | 'merge' | 'link_client' | 'attach_cpf' | 'attach_cnpj'
 export type SyncStatus = 'pending' | 'syncing' | 'failed' | 'done' | 'conflict'
 export type EntityType = 'client' | 'proposal'
 
@@ -13,6 +15,9 @@ export interface OfflineClient {
   server_id: string | null   // null until synced
   cpf_normalized: string | null
   cpf_raw: string | null
+  cnpj_normalized: string | null
+  cnpj_raw: string | null
+  document_type: DocumentType
   name: string
   phone: string | null
   email: string | null

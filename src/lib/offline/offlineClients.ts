@@ -4,8 +4,8 @@
 
 import { offlineClientsStore, syncMetadataStore } from './offlineDb'
 import type { OfflineClient, IdMapping } from './types'
-import { normalizeCpf, normalizeAndValidateCpf } from '../normalize/cpf'
-import { normalizePhone, normalizeEmail, normalizeName } from '../normalize/contact'
+import { normalizeDocument } from '../normalize/document'
+import { normalizePhone, normalizeEmail } from '../normalize/contact'
 import { normalizeCity, normalizeUf } from '../normalize/address'
 
 function generateLocalId(): string {
@@ -18,25 +18,43 @@ function now(): string {
 
 /**
  * Save a new offline client. Normalizes all fields before storing.
+ * Accepts either cpf_raw or cnpj_raw; auto-detects document type.
  */
 export async function saveOfflineClient(
   data: Omit<OfflineClient, 'local_id' | 'created_at' | 'updated_at' | 'is_pending_sync' | 'is_deleted' | 'server_id'>
 ): Promise<OfflineClient> {
-  // Only store validated CPFs in cpf_normalized — invalid digits don't get 'confirmed' status
-  const cpfValidated = normalizeAndValidateCpf(data.cpf_raw)
-  const cpfRawNormalized = normalizeCpf(data.cpf_raw)
+  // Accept whichever raw document field is provided
+  const rawDoc = data.cpf_raw ?? data.cnpj_raw ?? null
+  const doc = normalizeDocument(rawDoc)
+
+  const cpfNormalized = doc.type === 'cpf' ? doc.normalized : null
+  const cpfRaw = doc.type === 'cpf' ? doc.rawDigits : null
+  const cnpjNormalized = doc.type === 'cnpj' ? doc.normalized : null
+  const cnpjRaw = doc.type === 'cnpj' ? doc.rawDigits : null
+
+  let identityStatus: OfflineClient['identity_status']
+  if (doc.normalized) {
+    identityStatus = 'confirmed'
+  } else if (doc.type === 'cnpj') {
+    identityStatus = 'pending_cnpj'
+  } else {
+    identityStatus = 'pending_cpf'
+  }
+
   const client: OfflineClient = {
     ...data,
     local_id: generateLocalId(),
     server_id: null,
-    cpf_normalized: cpfValidated,
-    cpf_raw: cpfRawNormalized ?? data.cpf_raw ?? null,
-    name: normalizeName(data.name) ?? data.name,
+    cpf_normalized: cpfNormalized,
+    cpf_raw: cpfRaw,
+    cnpj_normalized: cnpjNormalized,
+    cnpj_raw: cnpjRaw,
+    document_type: doc.type,
     phone: normalizePhone(data.phone),
     email: normalizeEmail(data.email),
     city: normalizeCity(data.city),
     uf: normalizeUf(data.uf),
-    identity_status: cpfValidated ? 'confirmed' : 'pending_cpf',
+    identity_status: identityStatus,
     origin: 'offline_sync',
     created_at: now(),
     updated_at: now(),
@@ -49,6 +67,7 @@ export async function saveOfflineClient(
 
 /**
  * Update an existing offline client.
+ * Re-normalizes document fields when cpf_raw or cnpj_raw is patched.
  */
 export async function updateOfflineClient(
   localId: string,
@@ -63,11 +82,36 @@ export async function updateOfflineClient(
     updated_at: now(),
     is_pending_sync: true,
   }
-  if (patch.cpf_raw !== undefined) {
-    const cpfValidated = normalizeAndValidateCpf(patch.cpf_raw)
-    updated.cpf_normalized = cpfValidated
-    updated.cpf_raw = normalizeCpf(patch.cpf_raw) ?? patch.cpf_raw ?? null
-    updated.identity_status = cpfValidated ? 'confirmed' : 'pending_cpf'
+  // Re-normalize document fields when either raw field was explicitly provided in the patch
+  const hasCpfPatch = Object.prototype.hasOwnProperty.call(patch, 'cpf_raw')
+  const hasCnpjPatch = Object.prototype.hasOwnProperty.call(patch, 'cnpj_raw')
+  if (hasCpfPatch || hasCnpjPatch) {
+    // If both are patched, prefer the one that carries an actual value
+    const rawDoc = (hasCpfPatch && patch.cpf_raw != null)
+      ? patch.cpf_raw
+      : (hasCnpjPatch && patch.cnpj_raw != null)
+        ? patch.cnpj_raw
+        : null
+    const doc = normalizeDocument(rawDoc)
+    if (doc.type === 'cpf') {
+      updated.cpf_normalized = doc.normalized
+      updated.cpf_raw = doc.rawDigits
+      updated.cnpj_normalized = existing.cnpj_normalized
+      updated.cnpj_raw = existing.cnpj_raw
+    } else if (doc.type === 'cnpj') {
+      updated.cnpj_normalized = doc.normalized
+      updated.cnpj_raw = doc.rawDigits
+      updated.cpf_normalized = existing.cpf_normalized
+      updated.cpf_raw = existing.cpf_raw
+    }
+    updated.document_type = doc.type
+    if (doc.normalized) {
+      updated.identity_status = 'confirmed'
+    } else if (doc.type === 'cnpj') {
+      updated.identity_status = 'pending_cnpj'
+    } else {
+      updated.identity_status = 'pending_cpf'
+    }
   }
   await offlineClientsStore.setItem(localId, updated)
   return updated
@@ -105,6 +149,31 @@ export async function findOfflineClientByCpf(cpfNormalized: string): Promise<Off
     }
   })
   return found
+}
+
+/**
+ * Find offline client by normalized CNPJ.
+ */
+export async function findOfflineClientByCnpj(cnpjNormalized: string): Promise<OfflineClient | null> {
+  let found: OfflineClient | null = null
+  await offlineClientsStore.iterate((value: unknown) => {
+    const client = value as OfflineClient
+    if (!client.is_deleted && client.cnpj_normalized === cnpjNormalized) {
+      found = client
+      return undefined
+    }
+  })
+  return found
+}
+
+/**
+ * Find offline client by normalized CPF or CNPJ (auto-detects type).
+ */
+export async function findOfflineClientByDocument(normalizedDocument: string): Promise<OfflineClient | null> {
+  const isCnpj = normalizedDocument.length === 14
+  return isCnpj
+    ? findOfflineClientByCnpj(normalizedDocument)
+    : findOfflineClientByCpf(normalizedDocument)
 }
 
 /**

@@ -4,7 +4,10 @@
 import { getDatabaseClient } from '../database/neonClient.js'
 import {
   normalizeCpfServer,
+  normalizeCnpjServer,
+  normalizeDocumentServer,
   findClientByCpf,
+  findClientByCnpj,
   findClientByOfflineOriginId,
   createClient,
   updateClient,
@@ -29,8 +32,13 @@ function getDb(sendJson) {
 
 /**
  * POST /api/clients/upsert-by-cpf
- * Upsert a client by CPF (deduplication). Returns existing client if CPF matches.
+ * Upsert a client by CPF or CNPJ (deduplication). Returns existing client if document matches.
  * Also handles idempotency via offline_origin_id.
+ *
+ * Document auto-detection:
+ *   - 11 digits → CPF
+ *   - 14 digits → CNPJ
+ * Accepts: cpf_raw, cnpj_raw, document (any of these; auto-detected by digit count).
  */
 export async function handleUpsertClientByCpf(req, res, ctx) {
   const { readJsonBody, sendJson: rawSendJson } = ctx
@@ -59,7 +67,19 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
   }
 
   const offlineOriginId = body.offline_origin_id ?? null
-  const cpfNormalized = normalizeCpfServer(body.cpf_raw ?? body.cpf_normalized ?? body.document)
+
+  // Auto-detect document type from whichever field is provided
+  const rawDocument = body.cpf_raw ?? body.cnpj_raw ?? body.document ?? null
+  const { type: docType, normalized: docNormalized } = normalizeDocumentServer(rawDocument)
+
+  const cpfNormalized = docType === 'cpf' ? normalizeCpfServer(rawDocument) : null
+  const cnpjNormalized = docType === 'cnpj' ? normalizeCnpjServer(rawDocument) : null
+
+  // Determine identity status based on document type and presence
+  let identityStatus = 'pending_cpf'
+  if (docNormalized && docType === 'cpf') identityStatus = 'confirmed'
+  else if (docNormalized && docType === 'cnpj') identityStatus = 'confirmed'
+  else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
 
   try {
     // Idempotency: if we already created this offline entity, return it
@@ -70,17 +90,28 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
       }
     }
 
-    // CPF deduplication: if CPF exists, return existing client
+    // Document deduplication: CPF first, then CNPJ
     if (cpfNormalized) {
       const existing = await findClientByCpf(db.sql, cpfNormalized)
       if (existing) {
         await appendClientAuditLog(
           db.sql, existing.id, actor.userId, actor.email ?? null,
-          'proposal_linked',
-          null,
+          'proposal_linked', null,
           { offline_origin_id: offlineOriginId, linked_by: actor.userId },
-          'CPF deduplication — existing client reused',
-          null
+          'CPF deduplication — existing client reused', null
+        )
+        return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
+      }
+    }
+
+    if (cnpjNormalized) {
+      const existing = await findClientByCnpj(db.sql, cnpjNormalized)
+      if (existing) {
+        await appendClientAuditLog(
+          db.sql, existing.id, actor.userId, actor.email ?? null,
+          'proposal_linked', null,
+          { offline_origin_id: offlineOriginId, linked_by: actor.userId },
+          'CNPJ deduplication — existing client reused', null
         )
         return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
       }
@@ -90,18 +121,21 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     const newClient = await createClient(db.sql, {
       name: body.name.trim(),
       cpf_normalized: cpfNormalized,
-      cpf_raw: body.cpf_raw ?? body.document ?? null,
+      cpf_raw: docType === 'cpf' ? rawDocument : (body.cpf_raw ?? null),
+      cnpj_normalized: cnpjNormalized,
+      cnpj_raw: docType === 'cnpj' ? rawDocument : (body.cnpj_raw ?? null),
+      document_type: docType !== 'unknown' ? docType : null,
       phone: body.phone ?? null,
       email: body.email ?? null,
       city: body.city ?? null,
       state: body.state ?? body.uf ?? null,
       address: body.address ?? null,
-      document: body.document ?? null,
+      document: rawDocument ?? null,
       uc: body.uc ?? null,
       distribuidora: body.distribuidora ?? null,
       created_by_user_id: actor.userId,
       owner_user_id: actor.userId,
-      identity_status: cpfNormalized ? 'confirmed' : 'pending_cpf',
+      identity_status: identityStatus,
       origin: offlineOriginId ? 'offline_sync' : 'online',
       offline_origin_id: offlineOriginId,
       metadata: body.metadata ?? null,
@@ -109,11 +143,8 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
 
     await appendClientAuditLog(
       db.sql, newClient.id, actor.userId, actor.email ?? null,
-      'created',
-      null,
-      newClient,
-      offlineOriginId ? 'offline_sync' : null,
-      null
+      'created', null, newClient,
+      offlineOriginId ? 'offline_sync' : null, null
     )
 
     return sendJson(201, { data: newClient, deduplicated: false, idempotent: false })
@@ -173,13 +204,23 @@ export async function handleClientsRequest(req, res, ctx) {
     if (!body.name) return sendError(sendJson, 422, 'VALIDATION_ERROR', 'Field name is required')
 
     try {
-      const cpfNormalized = normalizeCpfServer(body.cpf_raw ?? body.document)
+      const rawDoc = body.cpf_raw ?? body.cnpj_raw ?? body.document ?? null
+      const { type: docType, normalized: docNormalized } = normalizeDocumentServer(rawDoc)
+      const cpfNormalized = docType === 'cpf' ? normalizeCpfServer(rawDoc) : null
+      const cnpjNormalized = docType === 'cnpj' ? normalizeCnpjServer(rawDoc) : null
+      let identityStatus = 'pending_cpf'
+      if (docNormalized && docType === 'cpf') identityStatus = 'confirmed'
+      else if (docNormalized && docType === 'cnpj') identityStatus = 'confirmed'
+      else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
       const client = await createClient(db.sql, {
         ...body,
         cpf_normalized: cpfNormalized,
+        cnpj_normalized: cnpjNormalized,
+        cnpj_raw: docType === 'cnpj' ? rawDoc : (body.cnpj_raw ?? null),
+        document_type: docType !== 'unknown' ? docType : null,
         created_by_user_id: actor.userId,
         owner_user_id: actor.userId,
-        identity_status: cpfNormalized ? 'confirmed' : 'pending_cpf',
+        identity_status: identityStatus,
         origin: 'online',
       })
       await appendClientAuditLog(db.sql, client.id, actor.userId, actor.email ?? null, 'created', null, client)
@@ -231,10 +272,15 @@ export async function handleClientByIdRequest(req, res, ctx) {
     try { body = await readJsonBody(req) } catch { return sendError(sendJson, 400, 'VALIDATION_ERROR', 'Invalid JSON') }
 
     try {
-      const cpfNormalized = body.cpf_raw ? normalizeCpfServer(body.cpf_raw) : undefined
+      const rawDoc = body.cpf_raw ?? body.cnpj_raw ?? null
+      const { type: docType, normalized: _docNormalized } = normalizeDocumentServer(rawDoc)
+      const cpfNormalized = (body.cpf_raw != null || docType === 'cpf') ? normalizeCpfServer(body.cpf_raw ?? rawDoc) : undefined
+      const cnpjNormalized = (body.cnpj_raw != null || docType === 'cnpj') ? normalizeCnpjServer(body.cnpj_raw ?? rawDoc) : undefined
       const updated = await updateClient(db.sql, clientId, {
         ...body,
         cpf_normalized: cpfNormalized,
+        cnpj_normalized: cnpjNormalized,
+        document_type: docType !== 'unknown' ? docType : undefined,
       })
       if (!updated) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
       await appendClientAuditLog(db.sql, updated.id, actor.userId, actor.email ?? null, 'updated', null, updated)
