@@ -22,19 +22,21 @@ function now(): string {
 export async function saveOfflineClient(
   data: Omit<OfflineClient, 'local_id' | 'created_at' | 'updated_at' | 'is_pending_sync' | 'is_deleted' | 'server_id'>
 ): Promise<OfflineClient> {
-  const cpfNormalized = normalizeAndValidateCpf(data.cpf_raw) ?? normalizeCpf(data.cpf_raw)
+  // Only store validated CPFs in cpf_normalized — invalid digits don't get 'confirmed' status
+  const cpfValidated = normalizeAndValidateCpf(data.cpf_raw)
+  const cpfRawNormalized = normalizeCpf(data.cpf_raw)
   const client: OfflineClient = {
     ...data,
     local_id: generateLocalId(),
     server_id: null,
-    cpf_normalized: cpfNormalized,
-    cpf_raw: data.cpf_raw ?? null,
+    cpf_normalized: cpfValidated,
+    cpf_raw: cpfRawNormalized ?? data.cpf_raw ?? null,
     name: normalizeName(data.name) ?? data.name,
     phone: normalizePhone(data.phone),
     email: normalizeEmail(data.email),
     city: normalizeCity(data.city),
     uf: normalizeUf(data.uf),
-    identity_status: cpfNormalized ? 'confirmed' : 'pending_cpf',
+    identity_status: cpfValidated ? 'confirmed' : 'pending_cpf',
     origin: 'offline_sync',
     created_at: now(),
     updated_at: now(),
@@ -62,8 +64,10 @@ export async function updateOfflineClient(
     is_pending_sync: true,
   }
   if (patch.cpf_raw !== undefined) {
-    updated.cpf_normalized = normalizeAndValidateCpf(patch.cpf_raw) ?? normalizeCpf(patch.cpf_raw)
-    updated.identity_status = updated.cpf_normalized ? 'confirmed' : 'pending_cpf'
+    const cpfValidated = normalizeAndValidateCpf(patch.cpf_raw)
+    updated.cpf_normalized = cpfValidated
+    updated.cpf_raw = normalizeCpf(patch.cpf_raw) ?? patch.cpf_raw ?? null
+    updated.identity_status = cpfValidated ? 'confirmed' : 'pending_cpf'
   }
   await offlineClientsStore.setItem(localId, updated)
   return updated

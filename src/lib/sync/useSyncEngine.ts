@@ -29,7 +29,7 @@ export function useSyncEngine({ getAccessToken }: UseSyncEngineOptions): SyncEng
     setSyncTokenProvider(getAccessToken)
   }, [getAccessToken])
 
-  // Listen for sync results
+  // Listen for sync completion — single source of truth for isSyncing/lastResult
   useEffect(() => {
     const unsub = onSyncComplete((result) => {
       setLastResult(result)
@@ -42,10 +42,7 @@ export function useSyncEngine({ getAccessToken }: UseSyncEngineOptions): SyncEng
   useEffect(() => {
     if (connectivity === 'online_verified') {
       setIsSyncing(true)
-      void runSync().then((result) => {
-        setLastResult(result)
-        setIsSyncing(false)
-      })
+      void runSync()
     }
   }, [connectivity])
 
@@ -57,10 +54,7 @@ export function useSyncEngine({ getAccessToken }: UseSyncEngineOptions): SyncEng
   const triggerSync = useCallback(() => {
     if (!isSyncing) {
       setIsSyncing(true)
-      void runSync().then((result) => {
-        setLastResult(result)
-        setIsSyncing(false)
-      })
+      void runSync()
     }
   }, [isSyncing])
 
