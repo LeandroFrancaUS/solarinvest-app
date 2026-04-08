@@ -5566,12 +5566,6 @@ i:hover {
   grid-template-columns: minmax(0, 1fr);
 }
 
-@media (min-width: 960px) {
-  .budget-search-panels--single {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .clients-panel p {
   margin: 0;
   color: var(--text-base);
