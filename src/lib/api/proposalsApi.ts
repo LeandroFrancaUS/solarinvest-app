@@ -6,6 +6,20 @@ import { resolveApiUrl } from '../../utils/apiUrl'
 
 const BASE_URL = resolveApiUrl('/api/proposals')
 
+// ─── Token provider ───────────────────────────────────────────────────────────
+
+type GetAccessToken = () => Promise<string | null>
+let proposalsTokenProvider: GetAccessToken | null = null
+
+/**
+ * Register the Stack Auth token provider for the proposals API.
+ * Must be called once the authenticated user is available (e.g. in App.tsx).
+ * This enables Authorization: Bearer <token> on every request to /api/proposals.
+ */
+export function setProposalsTokenProvider(fn: GetAccessToken): void {
+  proposalsTokenProvider = fn
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ProposalType = 'leasing' | 'venda'
@@ -106,11 +120,24 @@ async function parseErrorResponse(res: Response): Promise<ProposalApiError> {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  let authHeader: Record<string, string> = {}
+  if (proposalsTokenProvider) {
+    try {
+      const token = await proposalsTokenProvider()
+      if (token) {
+        authHeader = { Authorization: `Bearer ${token}` }
+      }
+    } catch {
+      // ignore – fall back to cookie-only auth
+    }
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...authHeader,
       ...(init?.headers ?? {}),
     },
   })
