@@ -14,7 +14,9 @@ export interface StackRbacState {
   isAdmin: boolean
   /** True when user has role_comercial (and not role_admin). */
   isComercial: boolean
-  /** True when user has role_financeiro (and not role_admin or role_comercial). */
+  /** True when user has role_office (and not role_admin or role_comercial). */
+  isOffice: boolean
+  /** True when user has role_financeiro (and not role_admin, role_comercial, or role_office). */
   isFinanceiro: boolean
   /** Human-readable role label in Portuguese. */
   role: string
@@ -43,6 +45,7 @@ export function useStackRbac(): StackRbacState {
   const [state, setState] = useState<StackRbacState>({
     isAdmin: false,
     isComercial: false,
+    isOffice: false,
     isFinanceiro: false,
     role: 'Usuário',
     // Start loading only when Stack Auth is configured — otherwise we already know
@@ -54,7 +57,7 @@ export function useStackRbac(): StackRbacState {
 
   useEffect(() => {
     if (!user) {
-      setState({ isAdmin: false, isComercial: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
+      setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
       return
     }
 
@@ -63,25 +66,30 @@ export function useStackRbac(): StackRbacState {
     Promise.all([
       user.hasPermission(PERMISSIONS.ROLE_ADMIN),
       user.hasPermission(PERMISSIONS.ROLE_COMERCIAL),
+      user.hasPermission(PERMISSIONS.ROLE_OFFICE),
       user.hasPermission(PERMISSIONS.ROLE_FINANCEIRO),
       user.hasPermission(PERMISSIONS.PAGE_FINANCIAL),
       user.hasPermission(PERMISSIONS.PAGE_PREF),
     ])
-      .then(([isAdminPerm, isComercialPerm, isFinanceiroPerm, canFinancial, canPref]) => {
+      .then(([isAdminPerm, isComercialPerm, isOfficePerm, isFinanceiroPerm, canFinancial, canPref]) => {
         if (cancelled) return
         const resolvedAdmin = isAdminPerm
         const resolvedComercial = !isAdminPerm && isComercialPerm
-        const resolvedFinanceiro = !isAdminPerm && !isComercialPerm && isFinanceiroPerm
+        const resolvedOffice = !isAdminPerm && !isComercialPerm && isOfficePerm
+        const resolvedFinanceiro = !isAdminPerm && !isComercialPerm && !isOfficePerm && isFinanceiroPerm
         const role = resolvedAdmin
           ? 'Administrador'
           : resolvedComercial
             ? 'Comercial'
-            : resolvedFinanceiro
-              ? 'Financeiro'
-              : 'Usuário'
+            : resolvedOffice
+              ? 'Office'
+              : resolvedFinanceiro
+                ? 'Financeiro'
+                : 'Usuário'
         setState({
           isAdmin: resolvedAdmin,
           isComercial: resolvedComercial,
+          isOffice: resolvedOffice,
           isFinanceiro: resolvedFinanceiro,
           role,
           isLoading: false,
@@ -97,7 +105,7 @@ export function useStackRbac(): StackRbacState {
           '[rbac] Failed to fetch Stack Auth permissions:',
           err instanceof Error ? err.message : String(err),
         )
-        setState({ isAdmin: false, isComercial: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
+        setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false })
       })
 
     return () => {
