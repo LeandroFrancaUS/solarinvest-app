@@ -45,6 +45,11 @@ import {
   handleProposalsRequest,
   handleProposalByIdRequest,
 } from './proposals/handler.js'
+import {
+  handleUpsertClientByCpf,
+  handleClientsRequest as handleClientsRequestV2,
+  handleClientByIdRequest,
+} from './clients/handler.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -455,6 +460,36 @@ export default async function handler(req, res) {
       else if (action === 'block') await handleAdminUserBlock(req, res, ctx)
       else if (action === 'revoke') await handleAdminUserRevoke(req, res, ctx)
       else if (action === 'role') await handleAdminUserRole(req, res, ctx)
+      return
+    }
+
+    // ── Clients API ───────────────────────────────────────────────────────────
+    // POST /api/clients/upsert-by-cpf — offline-first client upsert
+    if (pathname === '/api/clients/upsert-by-cpf' && method === 'POST') {
+      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent }
+      await handleUpsertClientByCpf(req, res, clientsCtx)
+      return
+    }
+
+    // GET /api/clients — list with filters
+    // POST /api/clients — create client
+    if (pathname === '/api/clients') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent, requestUrl }
+      await handleClientsRequestV2(req, res, clientsCtx)
+      return
+    }
+
+    // GET /api/clients/:id — get client
+    // GET /api/clients/:id/proposals — get client's proposals
+    // PUT /api/clients/:id — update client
+    const clientByIdMatch = pathname.match(/^\/api\/clients\/(\d+)(\/proposals)?$/)
+    if (clientByIdMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,OPTIONS'); sendNoContent(res); return }
+      const clientId = clientByIdMatch[1]
+      const subpath = clientByIdMatch[2]?.slice(1) ?? null  // 'proposals' or null
+      const clientsCtx = { method, clientId, subpath, readJsonBody, sendJson, sendNoContent }
+      await handleClientByIdRequest(req, res, clientsCtx)
       return
     }
 
