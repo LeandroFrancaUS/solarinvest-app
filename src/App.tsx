@@ -3229,7 +3229,7 @@ function ClientesPanel({
                         .join(', ')
                       return (
                         <React.Fragment key={registro.id}>
-                          <tr>
+                          <tr className="clients-data-row">
                             <td className="clients-table-id" data-label="ID">
                               <code>{registro.id}</code>
                             </td>
@@ -3289,47 +3289,53 @@ function ClientesPanel({
                               <td className="clients-info-cell" colSpan={10} data-label="">
                                 <div className="clients-info-content">
                                   <dl className="clients-info-grid">
-                                    {dados.uc ? (
-                                      <>
-                                        <dt>UC</dt>
-                                        <dd>{dados.uc}</dd>
-                                      </>
-                                    ) : null}
-                                    {dados.email ? (
-                                      <>
-                                        <dt>E-mail</dt>
-                                        <dd>{dados.email}</dd>
-                                      </>
-                                    ) : null}
-                                    {dados.telefone ? (
-                                      <>
-                                        <dt>Telefone</dt>
-                                        <dd>{dados.telefone}</dd>
-                                      </>
-                                    ) : null}
-                                    {enderecoCompleto ? (
-                                      <>
-                                        <dt>Endereço</dt>
-                                        <dd>{enderecoCompleto}</dd>
-                                      </>
+                                    {cidadeUf ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>Cidade/UF</dt>
+                                        <dd>{cidadeUf}</dd>
+                                      </div>
                                     ) : null}
                                     {consumoLabel ? (
-                                      <>
+                                      <div className="clients-info-field clients-info-mobile-only">
                                         <dt>Consumo</dt>
                                         <dd>{consumoLabel}</dd>
-                                      </>
+                                      </div>
+                                    ) : null}
+                                    {dados.uc ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>UC</dt>
+                                        <dd>{dados.uc}</dd>
+                                      </div>
+                                    ) : null}
+                                    {dados.telefone ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>Telefone</dt>
+                                        <dd>{dados.telefone}</dd>
+                                      </div>
+                                    ) : null}
+                                    {dados.email ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>E-mail</dt>
+                                        <dd>{dados.email}</dd>
+                                      </div>
+                                    ) : null}
+                                    {enderecoCompleto ? (
+                                      <div className="clients-info-field clients-info-mobile-only">
+                                        <dt>Endereço</dt>
+                                        <dd>{enderecoCompleto}</dd>
+                                      </div>
                                     ) : null}
                                     {registro.criadoEm ? (
-                                      <>
+                                      <div className="clients-info-field">
                                         <dt>Criado em</dt>
                                         <dd>{formatBudgetDate(registro.criadoEm)}</dd>
-                                      </>
+                                      </div>
                                     ) : null}
                                     {registro.atualizadoEm ? (
-                                      <>
+                                      <div className="clients-info-field">
                                         <dt>Atualizado em</dt>
                                         <dd>{formatBudgetDate(registro.atualizadoEm)}</dd>
-                                      </>
+                                      </div>
                                     ) : null}
                                   </dl>
                                 </div>
