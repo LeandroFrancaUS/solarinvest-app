@@ -250,9 +250,10 @@ export async function handleAdminUserGrantPermission(req, res, { sendJson, userI
     return
   }
 
-  const ok = await grantUserPermission(stackId, permId)
-  if (!ok) {
-    sendJson(res, 502, { error: 'Failed to grant permission via Stack Auth API' })
+  const result = await grantUserPermission(stackId, permId)
+  if (!result.ok) {
+    const isConfigError = result.error?.includes('não configurad') || result.error?.includes('not configured')
+    sendJson(res, isConfigError ? 503 : 502, { error: result.error ?? 'Failed to grant permission via Stack Auth API' })
     return
   }
 
@@ -291,9 +292,10 @@ export async function handleAdminUserRevokePermission(req, res, { sendJson, user
     return
   }
 
-  const ok = await revokeUserPermission(stackId, permId)
-  if (!ok) {
-    sendJson(res, 502, { error: 'Failed to revoke permission via Stack Auth API' })
+  const result = await revokeUserPermission(stackId, permId)
+  if (!result.ok) {
+    const isConfigError = result.error?.includes('não configurad') || result.error?.includes('not configured')
+    sendJson(res, isConfigError ? 503 : 502, { error: result.error ?? 'Failed to revoke permission via Stack Auth API' })
     return
   }
 
