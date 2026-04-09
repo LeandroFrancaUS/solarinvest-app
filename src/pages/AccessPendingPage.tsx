@@ -17,6 +17,7 @@ interface Props {
 function titleFor(status: AccessStatus | null): string {
   if (status === 'blocked') return 'Acesso bloqueado'
   if (status === 'revoked') return 'Acesso revogado'
+  if (status === 'no_permissions') return 'Perfil sem permissão'
   return 'Acesso pendente'
 }
 
@@ -26,6 +27,9 @@ function messageFor(status: AccessStatus | null): string {
   }
   if (status === 'revoked') {
     return 'Seu acesso ao SolarInvest foi revogado. Entre em contato com o administrador caso acredite que isso foi um engano.'
+  }
+  if (status === 'no_permissions') {
+    return 'Seu perfil ainda não possui uma permissão de acesso. Solicite ao administrador que atribua um papel (Comercial, Office, Financeiro ou Administrador) à sua conta.'
   }
   return 'Seu login foi identificado, mas seu acesso ao sistema ainda não foi liberado. Fale com o administrador da SolarInvest.'
 }

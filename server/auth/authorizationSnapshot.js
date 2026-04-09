@@ -15,17 +15,14 @@ import { getUserPermissions } from './stackPermissions.js'
 import { getCurrentAppUser } from './currentAppUser.js'
 import { syncUserProfile } from './userProfileSync.js'
 
-const ROLE_PERMISSIONS = ['role_admin', 'role_financeiro', 'role_office', 'role_comercial']
-
 /**
  * Derives the single primary role from the list of Stack permissions.
  *
  * Priority: admin > financeiro > office > comercial > unknown
  *
- * The order is chosen so that the most privileged role "wins" when a user
- * temporarily has multiple permissions during a transition (e.g. the admin is
- * revoking old roles just after granting the new one).  In steady state, the
- * grant handler auto-revokes other primary roles, so only one will be present.
+ * The highest-privilege role is returned for display / label purposes.
+ * Capability checks should use deriveCapabilities(permissions) directly so
+ * that union rules across all assigned roles are respected.
  *
  * @param {string[]} permissions
  * @returns {'role_admin'|'role_financeiro'|'role_office'|'role_comercial'|'unknown'}
@@ -40,15 +37,22 @@ export function derivePrimaryRole(permissions) {
 }
 
 /**
- * Returns the capability map for the given role.
+ * Returns the capability map for the given set of permissions.
  *
- * @param {'role_admin'|'role_financeiro'|'role_office'|'role_comercial'|'unknown'} role
+ * Capabilities are the *union* of all active roles: a user with both
+ * role_comercial and role_financeiro gets capabilities from both roles.
+ * The highest-priority role still takes precedence for label/display purposes,
+ * but no capability is lost because of a higher role being present.
+ *
+ * @param {string[]} permissions
  */
-function deriveCapabilities(role) {
-  const isAdmin       = role === 'role_admin'
-  const isFinanceiro  = role === 'role_financeiro'
-  const isOffice      = role === 'role_office'
-  const isComercial   = role === 'role_comercial'
+export function deriveCapabilities(permissions) {
+  if (!Array.isArray(permissions)) permissions = []
+
+  const isAdmin      = permissions.includes('role_admin')
+  const isFinanceiro = permissions.includes('role_financeiro')
+  const isOffice     = permissions.includes('role_office')
+  const isComercial  = permissions.includes('role_comercial')
 
   return {
     // User management
@@ -108,7 +112,7 @@ export async function getAuthorizationSnapshot(req) {
   }
 
   const role = derivePrimaryRole(permissions)
-  const capabilities = deriveCapabilities(role)
+  const capabilities = deriveCapabilities(permissions)
 
   // Sync profile asynchronously (fire-and-forget; non-blocking)
   const email = appUser?.email ?? stackUser.email ?? null

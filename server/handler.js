@@ -43,6 +43,7 @@ import {
   handleAdminUserGrantPermission,
   handleAdminUserRevokePermission,
   handleAdminUserDelete,
+  handleAdminUserCreate,
 } from './routes/adminUsers.js'
 import {
   handleProposalsRequest,
@@ -54,6 +55,10 @@ import {
   handleClientByIdRequest,
 } from './clients/handler.js'
 import { getAuthorizationSnapshot } from './auth/authorizationSnapshot.js'
+import {
+  handleAuthReconcileAll,
+  handleAuthReconcileUser,
+} from './routes/authReconcile.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -94,29 +99,44 @@ const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 1000   // 1-minute sliding window
 const AUTH_RATE_LIMIT_MAX = 30                 // max 30 requests per window per IP
 const rateLimitBuckets = new Map()             // IP → { count, resetAt }
 
-function isAuthRateLimited(req) {
+// Stricter rate limit for mutating admin endpoints (permission grant/revoke, user ops)
+const ADMIN_RATE_LIMIT_WINDOW_MS = 60 * 1000  // 1-minute sliding window
+const ADMIN_RATE_LIMIT_MAX = 20               // max 20 admin mutations per window per IP
+const adminRateLimitBuckets = new Map()       // IP → { count, resetAt }
+
+function getClientIp(req) {
   const forwarded = typeof req.headers['x-forwarded-for'] === 'string'
     ? req.headers['x-forwarded-for'].split(',')[0].trim()
     : ''
-  const ip = forwarded || req.socket?.remoteAddress || ''
-  if (!ip) return false // cannot identify client — skip rate limiting
+  return forwarded || req.socket?.remoteAddress || ''
+}
+
+function isRateLimited(buckets, ip, windowMs, max) {
+  if (!ip) return false
 
   const now = Date.now()
 
-  // Lazy cleanup: remove expired entries when the map grows large
-  if (rateLimitBuckets.size > 10_000) {
-    for (const [key, bucket] of rateLimitBuckets) {
-      if (bucket.resetAt <= now) rateLimitBuckets.delete(key)
+  if (buckets.size > 10_000) {
+    for (const [key, rateLimitEntry] of buckets) {
+      if (rateLimitEntry.resetAt <= now) buckets.delete(key)
     }
   }
 
-  let bucket = rateLimitBuckets.get(ip)
-  if (!bucket || bucket.resetAt <= now) {
-    bucket = { count: 0, resetAt: now + AUTH_RATE_LIMIT_WINDOW_MS }
-    rateLimitBuckets.set(ip, bucket)
+  let rateLimitWindow = buckets.get(ip)
+  if (!rateLimitWindow || rateLimitWindow.resetAt <= now) {
+    rateLimitWindow = { count: 0, resetAt: now + windowMs }
+    buckets.set(ip, rateLimitWindow)
   }
-  bucket.count += 1
-  return bucket.count > AUTH_RATE_LIMIT_MAX
+  rateLimitWindow.count += 1
+  return rateLimitWindow.count > max
+}
+
+function isAuthRateLimited(req) {
+  return isRateLimited(rateLimitBuckets, getClientIp(req), AUTH_RATE_LIMIT_WINDOW_MS, AUTH_RATE_LIMIT_MAX)
+}
+
+function isAdminRateLimited(req) {
+  return isRateLimited(adminRateLimitBuckets, getClientIp(req), ADMIN_RATE_LIMIT_WINDOW_MS, ADMIN_RATE_LIMIT_MAX)
 }
 
 const sendJson = (res, statusCode, payload) => {
@@ -478,9 +498,16 @@ export default async function handler(req, res) {
     }
 
     if (pathname === '/api/admin/users') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handleAdminUsersListRequest(req, res, { sendJson, requestUrl })
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      if (method === 'GET') {
+        await handleAdminUsersListRequest(req, res, { sendJson, requestUrl })
+      } else if (method === 'POST') {
+        if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+        const body = await readJsonBody(req)
+        await handleAdminUserCreate(req, res, { sendJson, body })
+      } else {
+        sendJson(res, 405, { error: 'Método não suportado.' })
+      }
       return
     }
 
@@ -489,6 +516,7 @@ export default async function handler(req, res) {
     if (adminUserActionMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
       if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
       const userId = adminUserActionMatch[1]
       const action = adminUserActionMatch[2]
       const body = await readJsonBody(req)
@@ -505,6 +533,7 @@ export default async function handler(req, res) {
     if (adminUserDeleteMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'DELETE,OPTIONS'); sendNoContent(res); return }
       if (method !== 'DELETE') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
       const userId = adminUserDeleteMatch[1]
       await handleAdminUserDelete(req, res, { sendJson, userId })
       return
@@ -514,6 +543,10 @@ export default async function handler(req, res) {
     const adminUserPermMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/permissions\/([^/]+)$/)
     if (adminUserPermMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,DELETE,OPTIONS'); sendNoContent(res); return }
+      if ((method === 'POST' || method === 'DELETE') && isAdminRateLimited(req)) {
+        sendJson(res, 429, { error: 'Too many requests. Try again later.' })
+        return
+      }
       const userId = adminUserPermMatch[1]
       const permId = decodeURIComponent(adminUserPermMatch[2])
       if (method === 'POST') {
@@ -523,6 +556,26 @@ export default async function handler(req, res) {
       } else {
         sendJson(res, 405, { error: 'Método não suportado.' })
       }
+      return
+    }
+
+    // ── Internal auth management ──────────────────────────────────────────────
+    // POST /api/internal/auth/reconcile         — reconcile all users
+    // POST /api/internal/auth/reconcile/:userId — reconcile a single user
+    if (pathname === '/api/internal/auth/reconcile') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      await handleAuthReconcileAll(req, res, { sendJson })
+      return
+    }
+
+    const reconcileUserMatch = pathname.match(/^\/api\/internal\/auth\/reconcile\/([^/]+)$/)
+    if (reconcileUserMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      await handleAuthReconcileUser(req, res, { sendJson, userId: reconcileUserMatch[1] })
       return
     }
 

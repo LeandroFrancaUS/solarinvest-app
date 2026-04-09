@@ -21,8 +21,56 @@ const ADMIN_PERMISSION = 'role_admin'
 const STACK_API_BASE = 'https://api.stack-auth.com'
 const API_TIMEOUT_MS = 4000
 
+// Maximum number of retry attempts for transient (5xx / network) errors.
+const API_MAX_RETRIES = 2
+// Base delay (ms) for exponential backoff: attempt 1 = 200ms, attempt 2 = 400ms.
+const API_RETRY_BASE_DELAY_MS = 200
+
 function getSecretKey() {
   return (process.env.STACK_SECRET_SERVER_KEY ?? '').trim()
+}
+
+// ─── Retry helper ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns true when the status code represents a transient server-side error
+ * that is safe to retry (5xx), or when status is 0 (network failure before
+ * receiving a response).  4xx errors are permanent and should NOT be retried.
+ */
+function isRetryableStatus(status) {
+  return status === 0 || (status >= 500 && status <= 599)
+}
+
+/**
+ * Executes `fn` up to (1 + maxRetries) times, retrying on transient errors
+ * with exponential back-off.  Returns the result of the first successful call.
+ *
+ * @template T
+ * @param {() => Promise<T>} fn
+ * @param {{ correlationId?: string, label?: string }} [opts]
+ * @returns {Promise<T>}
+ */
+async function withRetry(fn, opts = {}) {
+  const { correlationId = '', label = 'stackApi' } = opts
+  let lastError
+  for (let attempt = 0; attempt <= API_MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = API_RETRY_BASE_DELAY_MS * (2 ** (attempt - 1))
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      console.info(`[RBAC] ${label} retry attempt ${attempt}`, { correlationId })
+    }
+    try {
+      return await fn()
+    } catch (err) {
+      lastError = err
+      // Network/timeout errors are always retryable.
+      if (attempt < API_MAX_RETRIES) {
+        console.warn(`[RBAC] ${label} attempt ${attempt} failed (retrying):`, err?.message, { correlationId })
+        continue
+      }
+    }
+  }
+  throw lastError
 }
 
 // ─── Stack Auth REST API helpers ──────────────────────────────────────────────
@@ -30,32 +78,50 @@ function getSecretKey() {
 /**
  * Fetches the list of global project permissions for a user.
  * Returns an array of permission IDs (strings), or null on failure / missing key.
+ *
+ * @param {string} userId
+ * @param {{ correlationId?: string }} [opts]
  */
-async function getUserPermissionsViaApi(userId) {
+async function getUserPermissionsViaApi(userId, opts = {}) {
   const secretKey = getSecretKey()
   const projectId = getProjectId()
   if (!secretKey || !projectId || !userId) return null
 
+  const { correlationId = '' } = opts
+
   try {
-    const url =
-      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions?type=global`
-    const res = await fetch(url, {
-      headers: {
-        'x-stack-access-type': 'server',
-        'x-stack-project-id': projectId,
-        'x-stack-secret-server-key': secretKey,
-      },
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-    })
-    if (!res.ok) {
-      console.warn('[RBAC] getUserPermissionsViaApi HTTP', res.status, 'for userId:', userId)
-      return null
-    }
-    const data = await res.json()
-    const items = Array.isArray(data?.items) ? data.items : []
-    return items.map((item) => (typeof item?.id === 'string' ? item.id : String(item)))
+    return await withRetry(async () => {
+      // Stack Auth REST API: project-level (global) permissions for a user.
+      // Endpoint discovered from the official @stackframe/stack-shared SDK source:
+      //   listServerProjectPermissions → GET /api/v1/project-permissions?user_id=…&recursive=false
+      // Do NOT use /api/v1/users/{id}/permissions — that path does not exist.
+      const url =
+        `${STACK_API_BASE}/api/v1/project-permissions?user_id=${encodeURIComponent(userId)}&recursive=false`
+      const res = await fetch(url, {
+        headers: {
+          'x-stack-access-type': 'server',
+          'x-stack-project-id': projectId,
+          'x-stack-secret-server-key': secretKey,
+        },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        if (!isRetryableStatus(res.status)) {
+          // 4xx — non-retryable; log and return null immediately.
+          console.warn('[RBAC] getUserPermissionsViaApi HTTP', res.status, { userId, correlationId, body: body.slice(0, 200) })
+          return null
+        }
+        const err = new Error(`Stack Auth API ${res.status}`)
+        err.providerStatus = res.status
+        throw err
+      }
+      const data = await res.json()
+      const items = Array.isArray(data?.items) ? data.items : []
+      return items.map((item) => (typeof item?.id === 'string' ? item.id : String(item)))
+    }, { correlationId, label: 'getUserPermissions' })
   } catch (err) {
-    console.warn('[RBAC] getUserPermissionsViaApi error:', err?.message)
+    console.warn('[RBAC] getUserPermissionsViaApi error:', err?.message, { userId, correlationId })
     return null
   }
 }
@@ -63,69 +129,101 @@ async function getUserPermissionsViaApi(userId) {
 /**
  * Revokes a global project permission from a user via the Stack Auth admin API.
  * Returns { ok: true } on success (or if the permission did not exist).
- * Returns { ok: false, error: string } on configuration error or API failure.
+ * Returns { ok: false, error: string, providerStatus?: number } on failure.
+ *
+ * @param {string} userId
+ * @param {string} permissionId
+ * @param {{ correlationId?: string }} [opts]
  */
-async function revokePermissionViaApi(userId, permissionId) {
+async function revokePermissionViaApi(userId, permissionId, opts = {}) {
   const secretKey = getSecretKey()
   const projectId = getProjectId()
   if (!secretKey) return { ok: false, error: 'STACK_SECRET_SERVER_KEY não configurada' }
   if (!projectId) return { ok: false, error: 'STACK_PROJECT_ID não configurado' }
   if (!userId || !permissionId) return { ok: false, error: 'userId ou permissionId ausente' }
 
+  const { correlationId = '' } = opts
+
   try {
-    // Stack Auth REST API: type must be in the request body, not as a query param.
-    const url =
-      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}`
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'x-stack-access-type': 'server',
-        'x-stack-project-id': projectId,
-        'x-stack-secret-server-key': secretKey,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ type: 'global' }),
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-    })
-    if (!res.ok && res.status !== 404) {
-      const body = await res.text().catch(() => '')
-      console.warn('[RBAC] revokePermissionViaApi HTTP', res.status, 'userId:', userId, 'permission:', permissionId, '| response:', body)
-      return { ok: false, error: `Stack Auth API ${res.status}: ${body}`.trim() }
-    }
+    await withRetry(async () => {
+      // Stack Auth REST API: revoke a project-level permission.
+      // Endpoint discovered from @stackframe/stack-shared SDK:
+      //   revokeServerProjectPermission → DELETE /api/v1/project-permissions/{userId}/{permId}
+      // Body must be {} (empty JSON object); type is implicit in the path prefix.
+      const url =
+        `${STACK_API_BASE}/api/v1/project-permissions/${encodeURIComponent(userId)}/${encodeURIComponent(permissionId)}`
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'x-stack-access-type': 'server',
+          'x-stack-project-id': projectId,
+          'x-stack-secret-server-key': secretKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      })
+      if (!res.ok && res.status !== 404) {
+        const body = await res.text().catch(() => '')
+        console.warn('[RBAC] revokePermissionViaApi HTTP', res.status, { userId, permissionId, correlationId, body: body.slice(0, 200) })
+        if (!isRetryableStatus(res.status)) {
+          const err = new Error(`Stack Auth API ${res.status}: ${body}`.trim())
+          err.providerStatus = res.status
+          err.permanent = true
+          throw err
+        }
+        const err = new Error(`Stack Auth API ${res.status}`)
+        err.providerStatus = res.status
+        throw err
+      }
+    }, { correlationId, label: 'revokePermission' })
     return { ok: true }
   } catch (err) {
-    console.warn('[RBAC] revokePermissionViaApi error:', err?.message)
-    return { ok: false, error: err?.message ?? 'Erro de rede' }
+    const msg = err?.message ?? 'Erro de rede'
+    console.warn('[RBAC] revokePermissionViaApi error:', msg, { userId, permissionId, correlationId })
+    return { ok: false, error: msg, providerStatus: err?.providerStatus }
   }
 }
 
 /**
  * Deletes a user from Stack Auth via the admin API.
  * Returns true on success, false otherwise.
+ *
+ * @param {string} userId
+ * @param {{ correlationId?: string }} [opts]
  */
-async function deleteStackUserViaApi(userId) {
+async function deleteStackUserViaApi(userId, opts = {}) {
   const secretKey = getSecretKey()
   const projectId = getProjectId()
   if (!secretKey || !projectId || !userId) return false
 
+  const { correlationId = '' } = opts
+
   try {
-    const url = `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}`
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'x-stack-access-type': 'server',
-        'x-stack-project-id': projectId,
-        'x-stack-secret-server-key': secretKey,
-      },
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-    })
-    if (!res.ok && res.status !== 404) {
-      console.warn('[RBAC] deleteStackUserViaApi HTTP', res.status, 'userId:', userId)
-      return false
-    }
+    await withRetry(async () => {
+      const url = `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}`
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'x-stack-access-type': 'server',
+          'x-stack-project-id': projectId,
+          'x-stack-secret-server-key': secretKey,
+        },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      })
+      if (!res.ok && res.status !== 404) {
+        console.warn('[RBAC] deleteStackUserViaApi HTTP', res.status, { userId, correlationId })
+        if (!isRetryableStatus(res.status)) {
+          const err = new Error(`Stack Auth API ${res.status}`)
+          err.permanent = true
+          throw err
+        }
+        throw new Error(`Stack Auth API ${res.status}`)
+      }
+    }, { correlationId, label: 'deleteUser' })
     return true
   } catch (err) {
-    console.warn('[RBAC] deleteStackUserViaApi error:', err?.message)
+    console.warn('[RBAC] deleteStackUserViaApi error:', err?.message, { userId, correlationId })
     return false
   }
 }
@@ -133,41 +231,60 @@ async function deleteStackUserViaApi(userId) {
 /**
  * Grants a global project permission to a user via the Stack Auth admin API.
  * Returns { ok: true } on success.
- * Returns { ok: false, error: string } on configuration error or API failure.
+ * Returns { ok: false, error: string, providerStatus?: number } on failure.
+ *
+ * @param {string} userId
+ * @param {string} permissionId
+ * @param {{ correlationId?: string }} [opts]
  */
-async function grantPermissionViaApi(userId, permissionId) {
+async function grantPermissionViaApi(userId, permissionId, opts = {}) {
   const secretKey = getSecretKey()
   const projectId = getProjectId()
   if (!secretKey) return { ok: false, error: 'STACK_SECRET_SERVER_KEY não configurada' }
   if (!projectId) return { ok: false, error: 'STACK_PROJECT_ID não configurado' }
   if (!userId || !permissionId) return { ok: false, error: 'userId ou permissionId ausente' }
 
+  const { correlationId = '' } = opts
+
   try {
-    // Stack Auth REST API v2: grant a global project permission.
-    // The permission ID belongs in the request body ({"id": permId, "type": "global"}).
-    // Appending the permission ID to the URL path returns 404 on the Stack Auth API.
-    const url =
-      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions`
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'x-stack-access-type': 'server',
-        'x-stack-project-id': projectId,
-        'x-stack-secret-server-key': secretKey,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ id: permissionId, type: 'global' }),
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-    })
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      console.warn('[RBAC] grantPermissionViaApi HTTP', res.status, 'userId:', userId, 'permission:', permissionId, '| response:', body)
-      return { ok: false, error: `Stack Auth API ${res.status}: ${body}`.trim() }
-    }
+    await withRetry(async () => {
+      // Stack Auth REST API v2: grant a project-level permission.
+      // Endpoint discovered from @stackframe/stack-shared SDK:
+      //   grantServerProjectPermission → POST /api/v1/project-permissions/{userId}/{permId}
+      // Body must be {} (empty JSON object); the permission ID is in the URL path.
+      // Do NOT use POST /api/v1/users/{userId}/permissions — that path returns 404.
+      const url =
+        `${STACK_API_BASE}/api/v1/project-permissions/${encodeURIComponent(userId)}/${encodeURIComponent(permissionId)}`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'x-stack-access-type': 'server',
+          'x-stack-project-id': projectId,
+          'x-stack-secret-server-key': secretKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.warn('[RBAC] grantPermissionViaApi HTTP', res.status, { userId, permissionId, correlationId, body: body.slice(0, 200) })
+        if (!isRetryableStatus(res.status)) {
+          const err = new Error(`Stack Auth API ${res.status}: ${body}`.trim())
+          err.providerStatus = res.status
+          err.permanent = true
+          throw err
+        }
+        const err = new Error(`Stack Auth API ${res.status}`)
+        err.providerStatus = res.status
+        throw err
+      }
+    }, { correlationId, label: 'grantPermission' })
     return { ok: true }
   } catch (err) {
-    console.warn('[RBAC] grantPermissionViaApi error:', err?.message)
-    return { ok: false, error: err?.message ?? 'Erro de rede' }
+    const msg = err?.message ?? 'Erro de rede'
+    console.warn('[RBAC] grantPermissionViaApi error:', msg, { userId, permissionId, correlationId })
+    return { ok: false, error: msg, providerStatus: err?.providerStatus }
   }
 }
 
@@ -302,34 +419,111 @@ export async function requireStackPermission(req, permissionId) {
 
 /**
  * Grants a permission to a user by their Stack Auth user ID.
- * Returns { ok: true } on success, { ok: false, error: string } on failure.
+ * Returns { ok: true } on success, { ok: false, error: string, providerStatus?: number } on failure.
+ *
+ * @param {string} userId
+ * @param {string} permissionId
+ * @param {{ correlationId?: string }} [opts]
  */
-export async function grantUserPermission(userId, permissionId) {
-  return grantPermissionViaApi(userId, permissionId)
+export async function grantUserPermission(userId, permissionId, opts = {}) {
+  return grantPermissionViaApi(userId, permissionId, opts)
 }
 
 /**
  * Revokes a permission from a user by their Stack Auth user ID.
- * Returns { ok: true } on success, { ok: false, error: string } on failure.
+ * Returns { ok: true } on success, { ok: false, error: string, providerStatus?: number } on failure.
+ *
+ * @param {string} userId
+ * @param {string} permissionId
+ * @param {{ correlationId?: string }} [opts]
  */
-export async function revokeUserPermission(userId, permissionId) {
-  return revokePermissionViaApi(userId, permissionId)
+export async function revokeUserPermission(userId, permissionId, opts = {}) {
+  return revokePermissionViaApi(userId, permissionId, opts)
 }
 
 /**
  * Retrieves all global permissions for a user by their Stack Auth user ID.
  * Returns an array of permission ID strings, or null on failure.
+ *
+ * @param {string} userId
+ * @param {{ correlationId?: string }} [opts]
  */
-export async function getUserPermissions(userId) {
-  return getUserPermissionsViaApi(userId)
+export async function getUserPermissions(userId, opts = {}) {
+  return getUserPermissionsViaApi(userId, opts)
 }
 
 /**
  * Deletes a user from Stack Auth by their Stack Auth user ID.
  * Returns true on success, false otherwise.
+ *
+ * @param {string} userId
+ * @param {{ correlationId?: string }} [opts]
  */
-export async function deleteStackUser(userId) {
-  return deleteStackUserViaApi(userId)
+export async function deleteStackUser(userId, opts = {}) {
+  return deleteStackUserViaApi(userId, opts)
+}
+
+/**
+ * Creates a new user in Stack Auth via the admin API.
+ *
+ * Returns { ok: true, userId: string } on success.
+ * Returns { ok: false, error: string, providerStatus?: number } on failure.
+ *
+ * @param {string} email - Primary email address for the new user.
+ * @param {string|null} [displayName] - Optional display name.
+ * @param {{ correlationId?: string }} [opts]
+ */
+export async function createStackUser(email, displayName, opts = {}) {
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey) return { ok: false, error: 'STACK_SECRET_SERVER_KEY não configurada' }
+  if (!projectId) return { ok: false, error: 'STACK_PROJECT_ID não configurado' }
+  if (!email || typeof email !== 'string') return { ok: false, error: 'E-mail inválido' }
+
+  const { correlationId = '' } = opts
+
+  try {
+    const url = `${STACK_API_BASE}/api/v1/users`
+    const body = {
+      primary_email: email.toLowerCase().trim(),
+      primary_email_auth_enabled: true,
+    }
+    if (displayName && typeof displayName === 'string' && displayName.trim()) {
+      body.display_name = displayName.trim()
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-stack-access-type': 'server',
+        'x-stack-project-id': projectId,
+        'x-stack-secret-server-key': secretKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    })
+
+    if (!res.ok) {
+      const responseBody = await res.text().catch(() => '')
+      console.warn('[RBAC] createStackUser HTTP', res.status, { email, correlationId, body: responseBody.slice(0, 200) })
+      return { ok: false, error: `Stack Auth API ${res.status}: ${responseBody}`.trim(), providerStatus: res.status }
+    }
+
+    const data = await res.json()
+    const userId = data?.id ?? data?.user_id ?? data?.userId ?? null
+    if (!userId) {
+      console.warn('[RBAC] createStackUser: no userId in response', { email, correlationId })
+      return { ok: false, error: 'Resposta inesperada do Stack Auth (userId ausente)' }
+    }
+
+    console.info('[RBAC] createStackUser: created userId=%s email=%s', userId, email)
+    return { ok: true, userId }
+  } catch (err) {
+    const msg = err?.message ?? 'Erro de rede'
+    console.warn('[RBAC] createStackUser error:', msg, { email, correlationId })
+    return { ok: false, error: msg }
+  }
 }
 
 // ─── Auto-grant for configured commercial users ───────────────────────────────
