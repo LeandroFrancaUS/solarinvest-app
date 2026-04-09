@@ -1114,6 +1114,9 @@ const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
  * Maps a server-side ClientRow (from /api/clients) to the local ClienteRegistro format.
  * Used by privileged roles (admin, office, financeiro) to populate the clients list
  * from the RBAC-aware REST API instead of the user-scoped storage.
+ *
+ * Document field priority: `document` (canonical formatted field set by the server)
+ * → `cpf_raw` (raw CPF digits) → `cnpj_raw` (raw CNPJ digits) → empty string.
  */
 function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   return {
@@ -1122,6 +1125,8 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     atualizadoEm: row.updated_at,
     dados: {
       nome: row.name,
+      // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
+      // when the formatted field was not set (older records).
       documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
       rg: '',
       estadoCivil: '',
@@ -1149,14 +1154,26 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
 
 /**
  * Maps a server-side ProposalRow (from /api/proposals) to the local OrcamentoSalvo format.
- * The payload_json field stores the OrcamentoSnapshotData, which is used as both the
- * snapshot (for editing) and the dados stub (for listing metadata).
+ *
+ * The server stores the complete OrcamentoSnapshotData (raw form state) as payload_json.
+ * We use it as both:
+ *   - `snapshot`: used by carregarOrcamentoParaEdicao to reload the form for editing
+ *   - `dados`   : used by the listing page to read client metadata (nome, cidade, uc, etc.)
+ *                 and by carregarOrcamentoSalvo to determine proposal type
+ *
+ * The double cast (as unknown as …) is intentional: payload_json is typed as
+ * Record<string,unknown> at the API boundary but is guaranteed to be an
+ * OrcamentoSnapshotData object written by the auto-save path.  The fields
+ * required for listing (cliente.*) and editing (full snapshot) are all present.
  * Used by privileged roles (admin, office, financeiro).
  */
 function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
+  // payload_json is always an OrcamentoSnapshotData written by the auto-save path.
   const snapshot = row.payload_json as unknown as OrcamentoSnapshotData
   const tipoProposta: PrintableProposalTipo =
     row.proposal_type === 'venda' ? 'VENDA_DIRETA' : 'LEASING'
+  // Merge tipoProposta into the snapshot so that carregarOrcamentoSalvo can
+  // determine the tab type without needing the full PrintableProposalProps.
   const dados = {
     ...(snapshot ?? {}),
     tipoProposta,
@@ -11950,10 +11967,11 @@ export default function App() {
         const allRegistros: ClienteRegistro[] = []
         let page = 1
         const limit = 100
+        const MAX_PAGES = 50 // safety cap: up to 5,000 records
         for (;;) {
           const result = await listClientsFromApi({ page, limit })
           allRegistros.push(...result.data.map(serverClientToRegistro))
-          if (page >= result.meta.totalPages || result.data.length === 0) break
+          if (page >= result.meta.totalPages || result.data.length === 0 || page >= MAX_PAGES) break
           page++
         }
         return allRegistros
@@ -15619,10 +15637,11 @@ export default function App() {
         const allRegistros: OrcamentoSalvo[] = []
         let page = 1
         const limit = 100
+        const MAX_PAGES = 50 // safety cap: up to 5,000 records
         for (;;) {
           const result = await listProposalsFromApi({ page, limit })
           allRegistros.push(...result.data.map(serverProposalToOrcamento))
-          if (page >= result.pagination.pages || result.data.length === 0) break
+          if (page >= result.pagination.pages || result.data.length === 0 || page >= MAX_PAGES) break
           page++
         }
         return allRegistros
