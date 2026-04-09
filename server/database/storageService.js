@@ -113,6 +113,9 @@ export class StorageService {
 
   async loadLegacyEntries(userId, scopedSql) {
     const sql = scopedSql ?? this.sql
+    // The `to_regclass` check is a DDL / catalog query; it carries no user data
+    // and is intentionally run with the raw (non-scoped) sql to avoid RLS
+    // interfering with the metadata lookup.
     const [legacyTable] = await this.sql`
       SELECT to_regclass('public.app_storage') AS table_name
     `

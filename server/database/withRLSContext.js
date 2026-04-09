@@ -49,7 +49,16 @@ export function createUserScopedSql(sql, userId) {
    *
    * Both call signatures of the neon driver are supported:
    *   userSql`SELECT * FROM clients WHERE id = ${id}`
+   *     → strings = TemplateStringsArray, values = [id]
+   *     → forwarded as sql(TemplateStringsArray, id)  ✓ tagged-template form
+   *
    *   userSql('SELECT * FROM clients WHERE id = $1', [id])
+   *     → strings = 'SELECT ...', values = [[id]]
+   *     → forwarded as sql('SELECT ...', [id])         ✓ parameterised form
+   *
+   * The `...values` spread handles both cases correctly: for the parameterised
+   * form the outer array wrapper becomes the variadic spread, so the neon
+   * driver receives exactly (string, array) as expected.
    */
   return (strings, ...values) => {
     // Build the lazy (not yet executed) NeonQueryPromise for the caller's

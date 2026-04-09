@@ -236,7 +236,12 @@ export async function listClients(sql, filter = {}) {
     conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx})`)
   }
 
-  const joinClause = 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
+  // Only JOIN app_user_profiles when the office filter is active.
+  // For admin/financeiro/comercial queries the JOIN is unnecessary overhead.
+  const needsOwnerRoleJoin = Boolean(officeUserId)
+  const joinClause = needsOwnerRoleJoin
+    ? 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
+    : ''
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
   // safeSort and safeSortDir are validated against allowlists above — safe to interpolate

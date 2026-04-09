@@ -19,7 +19,13 @@ const ROLE_PERMISSIONS = ['role_admin', 'role_financeiro', 'role_office', 'role_
 
 /**
  * Derives the single primary role from the list of Stack permissions.
+ *
  * Priority: admin > financeiro > office > comercial > unknown
+ *
+ * The order is chosen so that the most privileged role "wins" when a user
+ * temporarily has multiple permissions during a transition (e.g. the admin is
+ * revoking old roles just after granting the new one).  In steady state, the
+ * grant handler auto-revokes other primary roles, so only one will be present.
  *
  * @param {string[]} permissions
  * @returns {'role_admin'|'role_financeiro'|'role_office'|'role_comercial'|'unknown'}

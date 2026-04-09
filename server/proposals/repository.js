@@ -111,7 +111,14 @@ export async function listProposals(sql, filter = {}) {
   }
 
   const whereClause = conditions.join(' AND ')
-  const joinClause = 'LEFT JOIN app_user_profiles up ON up.stack_user_id = p.owner_user_id'
+  // Only JOIN app_user_profiles when the office filter is active (for the
+  // "owner is a comercial user" predicate). For admin/financeiro/comercial
+  // queries the JOIN is unnecessary overhead.
+  const needsOwnerRoleJoin = Boolean(filter.officeUserId)
+  const joinClause = needsOwnerRoleJoin
+    ? 'LEFT JOIN app_user_profiles up ON up.stack_user_id = p.owner_user_id'
+    : ''
+  const selectOwnerRole = needsOwnerRoleJoin ? ', up.primary_role AS owner_role' : ''
 
   const countRows = await sql(
     `SELECT COUNT(*) AS total FROM proposals p ${joinClause} WHERE ${whereClause}`,
@@ -122,7 +129,7 @@ export async function listProposals(sql, filter = {}) {
   const limitPlaceholder = `$${params.length + 1}`
   const offsetPlaceholder = `$${params.length + 2}`
   const rows = await sql(
-    `SELECT p.*, up.primary_role AS owner_role
+    `SELECT p.*${selectOwnerRole}
      FROM proposals p ${joinClause}
      WHERE ${whereClause}
      ORDER BY p.updated_at DESC
