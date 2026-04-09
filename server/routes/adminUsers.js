@@ -14,21 +14,12 @@ import {
 } from '../auth/stackPermissions.js'
 import { syncUserProfile } from '../auth/userProfileSync.js'
 import { derivePrimaryRole } from '../auth/authorizationSnapshot.js'
+import { stackPermToDbRole } from '../auth/roleMapping.js'
 
 // The four mutually-exclusive primary role permissions.
 // When one is granted, the others are revoked automatically.
 const PRIMARY_ROLE_PERMISSIONS = ['role_admin', 'role_comercial', 'role_office', 'role_financeiro']
 const VALID_STACK_PERMISSIONS = PRIMARY_ROLE_PERMISSIONS
-
-/**
- * Maps a Stack Auth primary role permission to the corresponding DB role value.
- * `app_user_access.role` column only supports: 'admin', 'manager', 'user'.
- * Only `role_admin` elevates to DB admin; all other roles stay as 'user'.
- */
-function stackPermToDbRole(permId) {
-  if (permId === 'role_admin') return 'admin'
-  return 'user'
-}
 
 function sanitizeString(value) {
   return typeof value === 'string' ? value.trim() : ''

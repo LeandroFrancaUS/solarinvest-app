@@ -116,18 +116,18 @@ function isRateLimited(buckets, ip, windowMs, max) {
   const now = Date.now()
 
   if (buckets.size > 10_000) {
-    for (const [key, bucket] of buckets) {
-      if (bucket.resetAt <= now) buckets.delete(key)
+    for (const [key, rateLimitEntry] of buckets) {
+      if (rateLimitEntry.resetAt <= now) buckets.delete(key)
     }
   }
 
-  let bucket = buckets.get(ip)
-  if (!bucket || bucket.resetAt <= now) {
-    bucket = { count: 0, resetAt: now + windowMs }
-    buckets.set(ip, bucket)
+  let rateLimitWindow = buckets.get(ip)
+  if (!rateLimitWindow || rateLimitWindow.resetAt <= now) {
+    rateLimitWindow = { count: 0, resetAt: now + windowMs }
+    buckets.set(ip, rateLimitWindow)
   }
-  bucket.count += 1
-  return bucket.count > max
+  rateLimitWindow.count += 1
+  return rateLimitWindow.count > max
 }
 
 function isAuthRateLimited(req) {

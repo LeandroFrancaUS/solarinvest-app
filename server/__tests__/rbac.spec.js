@@ -2,12 +2,15 @@
 // Unit tests for server-side RBAC logic.
 // Run with: vitest run --config vitest.server.config.ts
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { stackPermToDbRole } from '../auth/roleMapping.js'
 
 // ─── derivePrimaryRole (pure function) ───────────────────────────────────────
 
-// Inline derivePrimaryRole to avoid Node.js module dependencies in test context.
-// The canonical implementation lives in server/auth/authorizationSnapshot.js.
+// Inline derivePrimaryRole to avoid importing the full authorizationSnapshot module
+// which has transitive dependencies on Node.js server modules not needed here.
+// The canonical implementation in server/auth/authorizationSnapshot.js must stay
+// consistent with this inline copy — any change there should be reflected here.
 function derivePrimaryRole(permissions) {
   if (!Array.isArray(permissions)) return 'unknown'
   if (permissions.includes('role_admin')) return 'role_admin'
@@ -15,13 +18,6 @@ function derivePrimaryRole(permissions) {
   if (permissions.includes('role_office')) return 'role_office'
   if (permissions.includes('role_comercial')) return 'role_comercial'
   return 'unknown'
-}
-
-// Inline stackPermToDbRole to test the mapping logic.
-// The canonical implementation lives in server/routes/adminUsers.js.
-function stackPermToDbRole(permId) {
-  if (permId === 'role_admin') return 'admin'
-  return 'user'
 }
 
 describe('derivePrimaryRole', () => {

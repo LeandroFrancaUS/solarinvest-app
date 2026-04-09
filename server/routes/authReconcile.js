@@ -14,18 +14,10 @@ import { requireAdmin } from '../auth/rbac.js'
 import { query } from '../db.js'
 import { getUserPermissions } from '../auth/stackPermissions.js'
 import { derivePrimaryRole } from '../auth/authorizationSnapshot.js'
+import { stackPermToDbRole } from '../auth/roleMapping.js'
 
 function sanitizeString(value) {
   return typeof value === 'string' ? value.trim() : ''
-}
-
-/**
- * Maps a Stack Auth primary role permission to the corresponding DB role value.
- * Mirror of adminUsers.js stackPermToDbRole — kept local to avoid coupling.
- */
-function stackPermToDbRole(permId) {
-  if (permId === 'role_admin') return 'admin'
-  return 'user'
 }
 
 /**
