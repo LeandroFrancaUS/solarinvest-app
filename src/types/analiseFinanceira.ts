@@ -127,7 +127,7 @@ export interface AnaliseFinanceiraOutput {
   lucro_rs?: number
   /** Average net monthly income (receita_liquida_rs / meses_projecao). Used for analytical paybacks. */
   lucro_mensal_medio_rs?: number
-  /** CAPEX + comissao_leasing_rs. Investment base for TIR, VPL and payback_total. */
+  /** Investimento total do leasing: CAPEX + CAC (comissão) + seguro obrigatório. */
   investimento_total_leasing_rs?: number
   /** Analytical payback for CAPEX alone: CAPEX / lucro_mensal_medio (floating months). */
   payback_capex_meses?: number | null
@@ -135,6 +135,16 @@ export interface AnaliseFinanceiraOutput {
   payback_cac_meses?: number | null
   /** ⭐ Main leasing payback: (CAPEX + CAC) / lucro_mensal_medio (floating months). */
   payback_total_meses?: number | null
+  /** Receita líquida mensal (média): equivalente ao lucro_mensal_medio_rs para leitura gerencial. */
+  receita_liquida_mensal_rs?: number
+  /** Receita bruta total recebida no contrato (soma das mensalidades). */
+  receita_total_contrato_rs?: number
+  /** Lucro líquido acumulado no contrato (receita líquida total - investimento total). */
+  lucro_total_contrato_rs?: number
+  /** Múltiplo do capital investido (receita bruta total / investimento total). */
+  multiplo_capital_investido?: number | null
+  /** Mês de equilíbrio financeiro do investimento (sinônimo gerencial do payback total). */
+  break_even_meses?: number | null
   /**
    * Maximum affordable commission for the given payback_alvo_meses target.
    * comissaoMaxima = payback_alvo × lucro_mensal_medio − CAPEX
