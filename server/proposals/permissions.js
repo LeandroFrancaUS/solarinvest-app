@@ -1,7 +1,7 @@
 // server/proposals/permissions.js
 // RBAC helpers for proposal access control.
 //
-// Role source-of-truth: Stack Auth native permissions
+// Role source-of-truth: Stack Auth native permissions (primary) + DB role (fallback).
 //   role_admin      → Administrador com acesso total ao sistema
 //   role_comercial  → Usuário comum (acesso a clientes e propostas próprias)
 //   role_office     → Acesso irrestrito a todos os clientes e propostas (leitura e escrita)
@@ -22,11 +22,16 @@ const PERM_FINANCEIRO = 'role_financeiro'
 /**
  * Resolves the full actor context from the incoming request.
  *
- * Roles are determined exclusively by Stack Auth permissions:
- *   isAdmin      → has role_admin
+ * Roles are determined by Stack Auth permissions (primary source) with a
+ * DB role fallback for the admin role:
+ *   isAdmin      → has role_admin (Stack Auth) OR role='admin' in app_user_access DB (fallback)
  *   isComercial  → has role_comercial (but not role_admin)
  *   isOffice     → has role_office (but not role_admin or role_comercial)
  *   isFinanceiro → has role_financeiro (but not role_admin, role_comercial, or role_office)
+ *
+ * The DB fallback for admin handles the case where the Stack Auth JWT is stale
+ * (permission was recently granted but the access token has not yet been refreshed)
+ * or when STACK_SECRET_SERVER_KEY is not set (API fallback disabled).
  *
  * Returns the actor object or null when the request is unauthenticated.
  */
@@ -45,7 +50,7 @@ export async function resolveActor(req) {
     }
   }
 
-  // Require a valid Stack Auth session (provides userId/email/displayName)
+  // Require a valid Stack Auth session (provides userId/email/displayName/DB role)
   const appUser = await getCurrentAppUser(req)
   if (!appUser) return null
 
@@ -57,11 +62,25 @@ export async function resolveActor(req) {
     hasStackPermission(req, PERM_FINANCEIRO),
   ])
 
+  // DB fallback: if Stack Auth returned no role at all, check the DB role.
+  // This handles stale JWTs (permission recently granted, token not refreshed)
+  // and setups where STACK_SECRET_SERVER_KEY is not configured.
+  // Only the admin role has a DB equivalent ('admin' in app_user_access.role).
+  const hasNoStackRole = !isAdmin && !isComercial && !isOffice && !isFinanceiro
+  const dbRoleIsAdmin = hasNoStackRole && appUser.role === 'admin' && appUser.access_status === 'approved'
+
   // Higher-privilege roles take precedence when multiple permissions are assigned
-  const resolvedAdmin     = isAdmin
-  const resolvedComercial = !isAdmin && isComercial
-  const resolvedOffice    = !isAdmin && !isComercial && isOffice
-  const resolvedFinanceiro = !isAdmin && !isComercial && !isOffice && isFinanceiro
+  const resolvedAdmin     = isAdmin || dbRoleIsAdmin
+  const resolvedComercial = !resolvedAdmin && isComercial
+  const resolvedOffice    = !resolvedAdmin && !resolvedComercial && isOffice
+  const resolvedFinanceiro = !resolvedAdmin && !resolvedComercial && !resolvedOffice && isFinanceiro
+
+  if (dbRoleIsAdmin) {
+    console.info('[RBAC] resolveActor: using DB role fallback for admin', {
+      userId: appUser.auth_provider_user_id ?? appUser.id,
+      dbRole: appUser.role,
+    })
+  }
 
   return {
     userId: appUser.auth_provider_user_id ?? appUser.id,

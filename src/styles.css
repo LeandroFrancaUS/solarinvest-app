@@ -5742,6 +5742,25 @@ i:hover {
   outline: none;
 }
 
+/* Owner / consultant badge shown in privileged views */
+.budget-search-owner,
+.clients-table-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .clients-table .table-wrapper {
   max-height: 520px;
 }

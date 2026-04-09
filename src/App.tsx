@@ -663,6 +663,10 @@ type ClienteRegistro = {
   atualizadoEm: string
   dados: ClienteDados
   propostaSnapshot?: OrcamentoSnapshotData
+  /** Display name of the user who owns this client record (server-loaded, privileged views only) */
+  ownerName?: string
+  /** Email of the user who owns this client record (server-loaded, privileged views only) */
+  ownerEmail?: string
 }
 
 
@@ -1080,6 +1084,8 @@ type OrcamentoSalvo = {
   clienteUc?: string | undefined
   dados: PrintableProposalProps
   snapshot?: OrcamentoSnapshotData | undefined
+  /** Display name of the consultant who owns this proposal (server-loaded, privileged views only) */
+  ownerName?: string
 }
 
 type UcBeneficiariaFormState = {
@@ -1119,10 +1125,14 @@ const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
  * → `cpf_raw` (raw CPF digits) → `cnpj_raw` (raw CNPJ digits) → empty string.
  */
 function serverClientToRegistro(row: ClientRow): ClienteRegistro {
+  const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
+  const ownerEmail = row.owner_email
   return {
     id: row.id,
     criadoEm: row.created_at,
     atualizadoEm: row.updated_at,
+    ...(ownerName != null ? { ownerName } : {}),
+    ...(ownerEmail != null ? { ownerEmail } : {}),
     dados: {
       nome: row.name,
       // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
@@ -1178,6 +1188,7 @@ function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
     ...(snapshot ?? {}),
     tipoProposta,
   } as unknown as PrintableProposalProps
+  const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
   return {
     id: row.proposal_code ?? row.id,
     criadoEm: row.created_at,
@@ -1187,6 +1198,7 @@ function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
     clienteUf: row.client_state ?? snapshot?.cliente?.uf ?? '',
     clienteDocumento: row.client_document ?? snapshot?.cliente?.documento ?? undefined,
     clienteUc: snapshot?.cliente?.uc ?? undefined,
+    ...(ownerName != null ? { ownerName } : {}),
     dados,
     snapshot: snapshot ?? undefined,
   }
@@ -3049,6 +3061,8 @@ type ClientesPanelProps = {
   onExportarJson: () => void
   onImportar: () => void
   isImportando: boolean
+  /** When true, shows the "Consultor" column and cross-user description */
+  isPrivilegedUser?: boolean
 }
 
 type ClienteContratoPayload = {
@@ -3195,6 +3209,7 @@ function ClientesPanel({
   onExportarJson,
   onImportar,
   isImportando,
+  isPrivilegedUser = false,
 }: ClientesPanelProps) {
   const panelTitleId = useId()
   const [clienteSearchTerm, setClienteSearchTerm] = useState('')
@@ -3212,18 +3227,32 @@ function ClientesPanel({
       const matchDocumento = documentoCliente
         ? documentoCliente.replace(/\D/g, '').includes(normalizedSearchTerm.replace(/\D/g, ''))
         : false
-      return matchNome || matchDocumento
+      // Allow searching by consultant name/email for privileged views
+      const matchOwner = isPrivilegedUser
+        ? (registro.ownerName?.toLowerCase().includes(normalizedSearchTerm) ||
+          registro.ownerEmail?.toLowerCase().includes(normalizedSearchTerm)) ?? false
+        : false
+      return matchNome || matchDocumento || matchOwner
     })
-  }, [normalizedSearchTerm, registros])
+  }, [isPrivilegedUser, normalizedSearchTerm, registros])
   const totalRegistros = registros.length
   const totalResultados = registrosFiltrados.length
+  // For privileged views, how many distinct consultants are represented
+  const totalConsultores = useMemo(() => {
+    if (!isPrivilegedUser) return 0
+    return new Set(registros.map((r) => r.ownerName ?? r.ownerEmail ?? 'desconhecido')).size
+  }, [isPrivilegedUser, registros])
 
   return (
     <div className="budget-search-page clients-page" aria-labelledby={panelTitleId}>
       <div className="budget-search-page-header">
         <div>
           <h2 id={panelTitleId}>Gestão de clientes</h2>
-          <p>Clientes armazenados localmente neste dispositivo.</p>
+          <p>
+            {isPrivilegedUser
+              ? `Todos os clientes cadastrados no sistema${totalConsultores > 0 ? ` — ${totalConsultores} consultor(es) representados` : ''}.`
+              : 'Clientes armazenados localmente neste dispositivo.'}
+          </p>
         </div>
         <button type="button" className="ghost" onClick={onClose}>
           Voltar
@@ -3270,14 +3299,16 @@ function ClientesPanel({
           <Field
             label={labelWithTooltip(
               'Pesquisar cliente',
-              'Filtra os clientes salvos pelo nome ou CPF/CNPJ informado.',
+              isPrivilegedUser
+                ? 'Filtra os clientes pelo nome, CPF/CNPJ ou nome do consultor responsável.'
+                : 'Filtra os clientes salvos pelo nome ou CPF/CNPJ informado.',
             )}
           >
             <input
               type="search"
               value={clienteSearchTerm}
               onChange={(event) => setClienteSearchTerm(event.target.value)}
-              placeholder="Ex.: Maria Silva ou 123.456.789-00"
+              placeholder={isPrivilegedUser ? 'Ex.: Maria Silva, 123.456.789-00 ou João Consultor' : 'Ex.: Maria Silva ou 123.456.789-00'}
             />
           </Field>
           <div className="budget-search-summary">
@@ -3312,6 +3343,7 @@ function ClientesPanel({
                       <th className="col-md col-nowrap">Telefone</th>
                       <th className="col-lg col-nowrap">E-mail</th>
                       <th className="col-xl col-nowrap">Endereço</th>
+                      {isPrivilegedUser ? <th className="col-nowrap">Consultor</th> : null}
                       <th>Ações</th>
                     </tr>
                   </thead>
@@ -3332,6 +3364,8 @@ function ClientesPanel({
                       const enderecoCompleto = [dados.endereco, dados.cidade, dados.uf, dados.cep]
                         .filter(Boolean)
                         .join(', ')
+                      // Total columns: 8 fixed + 1 if privileged (Consultor) + 1 Ações = 9 or 10
+                      const colSpanTotal = isPrivilegedUser ? 10 : 9
                       return (
                         <React.Fragment key={registro.id}>
                           <tr className="clients-data-row">
@@ -3347,6 +3381,18 @@ function ClientesPanel({
                             <td className="col-md" data-label="Telefone">{dados.telefone ? <span>{dados.telefone}</span> : null}</td>
                             <td className="col-lg" data-label="E-mail">{dados.email ? <span>{dados.email}</span> : null}</td>
                             <td className="col-xl" data-label="Endereço">{dados.endereco ? <span>{dados.endereco}</span> : null}</td>
+                            {isPrivilegedUser ? (
+                              <td data-label="Consultor">
+                                {registro.ownerName ? (
+                                  <span
+                                    className="clients-table-owner"
+                                    title={registro.ownerEmail ?? registro.ownerName}
+                                  >
+                                    {registro.ownerName}
+                                  </span>
+                                ) : null}
+                              </td>
+                            ) : null}
                             <td data-label="Ações">
                               <div className="clients-table-actions">
                                 <button
@@ -3385,7 +3431,7 @@ function ClientesPanel({
                             <tr className="clients-info-row">
                               <td
                                 className="clients-info-cell"
-                                colSpan={9}
+                                colSpan={colSpanTotal}
                                 data-label=""
                                 id={`cliente-info-${registro.id}`}
                               >
@@ -3425,6 +3471,12 @@ function ClientesPanel({
                                       <div className="clients-info-field clients-info-mobile-only">
                                         <dt>Endereço</dt>
                                         <dd>{enderecoCompleto}</dd>
+                                      </div>
+                                    ) : null}
+                                    {isPrivilegedUser && registro.ownerName ? (
+                                      <div className="clients-info-field">
+                                        <dt>Consultor</dt>
+                                        <dd title={registro.ownerEmail ?? undefined}>{registro.ownerName}</dd>
                                       </div>
                                     ) : null}
                                     {registro.criadoEm ? (
@@ -19708,13 +19760,15 @@ export default function App() {
       const ucRaw = registro.clienteUc || registro.dados.cliente.uc || ''
       const ucTexto = normalizeText(ucRaw)
       const ucDigits = normalizeNumbers(ucRaw)
+      const ownerTexto = normalizeText(registro.ownerName ?? '')
 
       if (
         codigo.includes(queryText) ||
         nome.includes(queryText) ||
         clienteIdTexto.includes(queryText) ||
         documentoTexto.includes(queryText) ||
-        ucTexto.includes(queryText)
+        ucTexto.includes(queryText) ||
+        (ownerTexto && ownerTexto.includes(queryText))
       ) {
         return true
       }
@@ -25305,6 +25359,7 @@ export default function App() {
                       <th>Documento</th>
                       <th>Unidade consumidora</th>
                       <th>Criado em</th>
+                      {(isAdmin || isOffice || isFinanceiro) ? <th className="col-nowrap">Consultor</th> : null}
                       <th>Ações</th>
                     </tr>
                   </thead>
@@ -25351,6 +25406,13 @@ export default function App() {
                           <td>{documento || null}</td>
                           <td>{unidadeConsumidora || null}</td>
                           <td>{formatBudgetDate(registro.criadoEm)}</td>
+                          {(isAdmin || isOffice || isFinanceiro) ? (
+                            <td data-label="Consultor">
+                              {registro.ownerName ? (
+                                <span className="budget-search-owner">{registro.ownerName}</span>
+                              ) : null}
+                            </td>
+                          ) : null}
                           <td>
                             <div className="budget-search-actions">
                               <button
@@ -27159,6 +27221,7 @@ export default function App() {
       onExportarJson={handleExportarClientesJson}
       onImportar={handleClientesImportarClick}
       isImportando={isImportandoClientes}
+      isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
     />
   )
 

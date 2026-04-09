@@ -28,6 +28,10 @@ export interface ClientRow {
   metadata: Record<string, unknown> | null
   owner_user_id: string | null
   created_by_user_id: string | null
+  /** Set from a LEFT JOIN to app_user_profiles when listing clients */
+  owner_display_name: string | null
+  /** Set from a LEFT JOIN to app_user_profiles when listing clients */
+  owner_email: string | null
   created_at: string
   updated_at: string
 }

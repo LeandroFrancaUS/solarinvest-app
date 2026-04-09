@@ -236,18 +236,17 @@ export async function listClients(sql, filter = {}) {
     conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx})`)
   }
 
-  // Only JOIN app_user_profiles when the office filter is active.
-  // For admin/financeiro/comercial queries the JOIN is unnecessary overhead.
-  const needsOwnerRoleJoin = Boolean(officeUserId)
-  const joinClause = needsOwnerRoleJoin
-    ? 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
-    : ''
+  // Always JOIN app_user_profiles to return owner display name and email.
+  // The office filter condition (up.primary_role = 'role_comercial') relies on this JOIN too.
+  const joinClause = 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
   // safeSort and safeSortDir are validated against allowlists above — safe to interpolate
   const countQuery = `SELECT COUNT(*) FROM clients c ${joinClause} ${where}`
   const dataQuery = `
     SELECT c.*,
+      up.display_name AS owner_display_name,
+      up.email AS owner_email,
       (SELECT COUNT(*) FROM proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL) AS proposal_count
     FROM clients c
     ${joinClause}
