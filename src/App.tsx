@@ -3229,8 +3229,8 @@ function ClientesPanel({
         : false
       // Allow searching by consultant name/email for privileged views
       const matchOwner = isPrivilegedUser
-        ? (registro.ownerName?.toLowerCase().includes(normalizedSearchTerm) ||
-          registro.ownerEmail?.toLowerCase().includes(normalizedSearchTerm)) ?? false
+        ? ((registro.ownerName?.toLowerCase().includes(normalizedSearchTerm) ?? false) ||
+          (registro.ownerEmail?.toLowerCase().includes(normalizedSearchTerm) ?? false))
         : false
       return matchNome || matchDocumento || matchOwner
     })
