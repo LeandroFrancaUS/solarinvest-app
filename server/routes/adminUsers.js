@@ -2,6 +2,7 @@
 // Admin endpoints for managing user access.
 // All routes require admin role with approved access.
 
+import crypto from 'node:crypto'
 import { getCurrentAppUser } from '../auth/currentAppUser.js'
 import { requireAdmin } from '../auth/rbac.js'
 import { query } from '../db.js'
@@ -19,11 +20,23 @@ import { derivePrimaryRole } from '../auth/authorizationSnapshot.js'
 const PRIMARY_ROLE_PERMISSIONS = ['role_admin', 'role_comercial', 'role_office', 'role_financeiro']
 const VALID_STACK_PERMISSIONS = PRIMARY_ROLE_PERMISSIONS
 
+/**
+ * Maps a Stack Auth primary role permission to the corresponding DB role value.
+ * `app_user_access.role` column only supports: 'admin', 'manager', 'user'.
+ * Only `role_admin` elevates to DB admin; all other roles stay as 'user'.
+ */
+function stackPermToDbRole(permId) {
+  if (permId === 'role_admin') return 'admin'
+  return 'user'
+}
+
 function sanitizeString(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-async function writeAudit(targetUserId, action, oldStatus, newStatus, oldRole, newRole, performedBy) {
+const newCorrelationId = () => crypto.randomUUID()
+
+async function writeAudit(targetUserId, action, oldStatus, newStatus, oldRole, newRole, performedBy, extra = {}) {
   try {
     await query(
       `INSERT INTO public.app_user_access_audit
@@ -42,7 +55,7 @@ async function writeAudit(targetUserId, action, oldStatus, newStatus, oldRole, n
       ]
     )
   } catch (err) {
-    console.warn('[auth] writeAudit error:', err?.message)
+    console.warn('[auth] writeAudit error:', err?.message, extra)
   }
 }
 
@@ -88,18 +101,26 @@ export async function handleAdminUsersListRequest(req, res, { sendJson, requestU
 
   const total = parseInt(countResult.rows[0]?.total || '0', 10)
 
-  // Enrich each user with their current Stack Auth permissions
+  // Enrich each user with their current Stack Auth permissions and sync status
   const users = await Promise.all(
     listResult.rows.map(async (user) => {
       const stackId = sanitizeString(user.auth_provider_user_id)
       let stack_permissions = []
+      let sync_status = 'no_stack_id'
       if (stackId) {
         const perms = await getUserPermissions(stackId)
         if (Array.isArray(perms)) {
           stack_permissions = perms.filter((p) => VALID_STACK_PERMISSIONS.includes(p))
+          // Derive what the DB role *should* be based on Stack permissions
+          const expectedDbRole = stackPermToDbRole(derivePrimaryRole(stack_permissions))
+          const actualDbRole = sanitizeString(user.role)
+          sync_status = expectedDbRole === actualDbRole ? 'in_sync' : 'drifted'
+        } else {
+          // Permissions fetch failed (API error)
+          sync_status = 'sync_failed'
         }
       }
-      return { ...user, stack_permissions }
+      return { ...user, stack_permissions, sync_status }
     })
   )
 
@@ -235,7 +256,7 @@ export async function handleAdminUserGrantPermission(req, res, { sendJson, userI
   }
 
   const { rows } = await query(
-    `SELECT id, auth_provider_user_id FROM public.app_user_access WHERE id = $1 LIMIT 1`,
+    `SELECT id, auth_provider_user_id, role FROM public.app_user_access WHERE id = $1 LIMIT 1`,
     [userId]
   )
   const target = rows[0]
@@ -255,19 +276,42 @@ export async function handleAdminUserGrantPermission(req, res, { sendJson, userI
     return
   }
 
-  // Grant the requested permission
-  const result = await grantUserPermission(stackId, permId)
-  if (!result.ok) {
-    const isConfigError = result.error?.includes('não configurad') || result.error?.includes('not configured')
-    sendJson(res, isConfigError ? 503 : 502, { error: result.error ?? 'Failed to grant permission via Stack Auth API' })
-    return
+  const correlationId = newCorrelationId()
+
+  // Idempotency check: skip grant if user already has this permission.
+  const existingPerms = await getUserPermissions(stackId, { correlationId })
+  if (Array.isArray(existingPerms) && existingPerms.includes(permId)) {
+    console.info('[admin] permission already present — skipping grant (idempotent)', { stackId, permId, correlationId })
+  } else {
+    // Grant the requested permission
+    const result = await grantUserPermission(stackId, permId, { correlationId })
+    if (!result.ok) {
+      const isConfigError = result.error?.includes('não configurad') || result.error?.includes('not configured')
+      sendJson(res, isConfigError ? 503 : 502, {
+        error: result.error ?? 'Failed to grant permission via Stack Auth API',
+        provider_status: result.providerStatus ?? null,
+        correlation_id: correlationId,
+      })
+      return
+    }
+
+    // Auto-revoke other primary roles to avoid ambiguous multi-role states
+    const otherRoles = PRIMARY_ROLE_PERMISSIONS.filter((r) => r !== permId)
+    await Promise.allSettled(
+      otherRoles.map((r) => revokeUserPermission(stackId, r, { correlationId }))
+    )
   }
 
-  // Auto-revoke other primary roles to avoid ambiguous multi-role states
-  const otherRoles = PRIMARY_ROLE_PERMISSIONS.filter((r) => r !== permId)
-  await Promise.allSettled(
-    otherRoles.map((r) => revokeUserPermission(stackId, r))
-  )
+  // Sync the DB role to match the newly granted Stack permission (source of truth sync).
+  // This ensures requireAdmin() gates see the updated role immediately.
+  const newDbRole = stackPermToDbRole(permId)
+  const oldDbRole = sanitizeString(target.role)
+  if (newDbRole !== oldDbRole) {
+    await query(
+      `UPDATE public.app_user_access SET role = $2, updated_at = now() WHERE id = $1`,
+      [userId, newDbRole]
+    )
+  }
 
   // Sync the updated primary role into app_user_profiles (best-effort)
   syncUserProfile(stackId, permId, null, null).catch((err) => {
@@ -279,9 +323,11 @@ export async function handleAdminUserGrantPermission(req, res, { sendJson, userI
     targetUserId: stackId,
     permissionId: permId,
     action: 'grant',
+    dbRoleChanged: newDbRole !== oldDbRole,
+    correlationId,
   })
 
-  await writeAudit(userId, 'permission_granted', null, null, null, permId, appUser)
+  await writeAudit(userId, 'permission_granted', null, null, oldDbRole, permId, appUser, { correlationId })
   sendJson(res, 200, { ok: true })
 }
 
@@ -296,7 +342,7 @@ export async function handleAdminUserRevokePermission(req, res, { sendJson, user
   }
 
   const { rows } = await query(
-    `SELECT id, auth_provider_user_id FROM public.app_user_access WHERE id = $1 LIMIT 1`,
+    `SELECT id, auth_provider_user_id, role FROM public.app_user_access WHERE id = $1 LIMIT 1`,
     [userId]
   )
   const target = rows[0]
@@ -316,18 +362,50 @@ export async function handleAdminUserRevokePermission(req, res, { sendJson, user
     return
   }
 
-  const result = await revokeUserPermission(stackId, permId)
+  // Last-admin protection: prevent revoking role_admin from the last active admin.
+  if (permId === 'role_admin') {
+    const { rows: adminRows } = await query(
+      `SELECT COUNT(*) AS total FROM public.app_user_access
+       WHERE role = 'admin' AND is_active = true AND access_status = 'approved'`
+    )
+    const adminCount = parseInt(adminRows[0]?.total || '0', 10)
+    if (adminCount <= 1) {
+      sendJson(res, 409, {
+        error: 'Não é possível revogar o último administrador ativo. Promova outro usuário a admin antes.',
+        code: 'LAST_ADMIN_PROTECTION',
+      })
+      return
+    }
+  }
+
+  const correlationId = newCorrelationId()
+  const result = await revokeUserPermission(stackId, permId, { correlationId })
   if (!result.ok) {
     const isConfigError = result.error?.includes('não configurad') || result.error?.includes('not configured')
-    sendJson(res, isConfigError ? 503 : 502, { error: result.error ?? 'Failed to revoke permission via Stack Auth API' })
+    sendJson(res, isConfigError ? 503 : 502, {
+      error: result.error ?? 'Failed to revoke permission via Stack Auth API',
+      provider_status: result.providerStatus ?? null,
+      correlation_id: correlationId,
+    })
     return
   }
 
-  // After revoke, determine what the new primary role is and sync profile
-  getUserPermissions(stackId)
-    .then((perms) => {
-      const newRole = derivePrimaryRole(Array.isArray(perms) ? perms : [])
-      return syncUserProfile(stackId, newRole, null, null)
+  // After revoke, determine what the new primary role is and sync profile + DB
+  const oldDbRole = sanitizeString(target.role)
+  getUserPermissions(stackId, { correlationId })
+    .then(async (perms) => {
+      const newStackRole = derivePrimaryRole(Array.isArray(perms) ? perms : [])
+      const newDbRole = stackPermToDbRole(newStackRole)
+      // Sync DB role (best-effort — revoking doesn't always change DB role, but keep in sync)
+      if (newDbRole !== oldDbRole) {
+        await query(
+          `UPDATE public.app_user_access SET role = $2, updated_at = now() WHERE id = $1`,
+          [userId, newDbRole]
+        ).catch((err) => {
+          console.warn('[admin] DB role sync after revoke failed (non-fatal):', err?.message)
+        })
+      }
+      return syncUserProfile(stackId, newStackRole, null, null)
     })
     .catch((err) => {
       console.warn('[admin] syncUserProfile after revoke failed (non-fatal):', err?.message)
@@ -338,9 +416,10 @@ export async function handleAdminUserRevokePermission(req, res, { sendJson, user
     targetUserId: stackId,
     permissionId: permId,
     action: 'revoke',
+    correlationId,
   })
 
-  await writeAudit(userId, 'permission_revoked', null, null, null, permId, appUser)
+  await writeAudit(userId, 'permission_revoked', null, null, oldDbRole, permId, appUser, { correlationId })
   sendJson(res, 200, { ok: true })
 }
 

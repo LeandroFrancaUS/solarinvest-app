@@ -12,6 +12,7 @@
     "pdf:open": "xdg-open http://localhost:4173 || open http://localhost:4173 || echo 'Open http://localhost:4173 in your browser'",
     "start": "node server/index.js",
     "test": "vitest run",
+    "test:server": "vitest run --config vitest.server.config.ts",
     "lint": "eslint --max-warnings=0 .",
     "lint:cycles": "madge --circular src --extensions ts,tsx",
     "check:prod": "npm run lint:cycles && vite build",
