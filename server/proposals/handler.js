@@ -2,6 +2,7 @@
 // HTTP route handlers for the proposals API.
 
 import { getDatabaseClient } from '../database/neonClient.js'
+import { createUserScopedSql } from '../database/withRLSContext.js'
 import { validateCreateProposal, validateUpdateProposal } from './validators.js'
 import {
   createProposal,
@@ -74,10 +75,12 @@ export async function handleProposalsRequest(req, res, ctx) {
     const status = requestUrl.searchParams.get('status') || null
 
     // Comercial users only see their own proposals; admins, office and financeiro see all
-    const ownerUserId = (actor.isAdmin || actor.isOffice || actor.isFinanceiro) ? null : actor.userId
+    const isPrivileged = actor.isAdmin || actor.isOffice || actor.isFinanceiro
+    const ownerUserId = isPrivileged ? null : actor.userId
+    const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
 
     try {
-      const result = await listProposals(db.sql, {
+      const result = await listProposals(userSql, {
         ownerUserId,
         page,
         limit,
@@ -114,7 +117,7 @@ export async function handleProposalsRequest(req, res, ctx) {
     }
 
     try {
-      const proposal = await createProposal(db.sql, actor.userId, {
+      const proposal = await createProposal(userSql, actor.userId, {
         ...validation.data,
         created_by_user_id: actor.userId,
         owner_email: actor.email,
@@ -161,10 +164,13 @@ export async function handleProposalByIdRequest(req, res, ctx) {
   const actor = await resolveAndAuth(req, sendJson)
   if (!actor) return
 
+  const isPrivileged = actor.isAdmin || actor.isOffice || actor.isFinanceiro
+  const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
+
   // Fetch the proposal first (needed for permission checks on all methods)
   let proposal
   try {
-    proposal = await getProposalById(db.sql, proposalId)
+    proposal = await getProposalById(userSql, proposalId)
   } catch (err) {
     console.error('[proposals] getProposalById error:', err)
     sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to fetch proposal')
@@ -208,7 +214,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
     }
 
     try {
-      const updated = await updateProposal(db.sql, proposalId, {
+      const updated = await updateProposal(userSql, proposalId, {
         ...validation.data,
         updated_by_user_id: actor.userId,
       })
@@ -244,7 +250,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
     }
 
     try {
-      const deleted = await softDeleteProposal(db.sql, proposalId, actor.userId)
+      const deleted = await softDeleteProposal(userSql, proposalId, actor.userId)
 
       if (!deleted) {
         sendError(sendJson, 404, 'NOT_FOUND', 'Proposal not found or already deleted')
