@@ -14,6 +14,7 @@ import {
 } from './repository.js'
 import {
   resolveActor,
+  actorRole,
   requireProposalAuth,
   canReadProposal,
   canWriteProposals,
@@ -67,6 +68,10 @@ export async function handleProposalsRequest(req, res, ctx) {
   const actor = await resolveAndAuth(req, sendJson)
   if (!actor) return
 
+  // RLS context: set both user ID and role so the DB enforces access control.
+  // Security is layered: application checks (canWriteProposals etc.) + RLS.
+  const userSql = createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+
   // ── GET /api/proposals ──────────────────────────────────────────────────────
   if (method === 'GET') {
     const page = parseInt(requestUrl.searchParams.get('page') || '1', 10)
@@ -74,17 +79,10 @@ export async function handleProposalsRequest(req, res, ctx) {
     const proposal_type = requestUrl.searchParams.get('proposal_type') || null
     const status = requestUrl.searchParams.get('status') || null
 
-    // Comercial users only see their own proposals; admins, financeiro see all;
-    // office sees own + comercial users' proposals
-    const isPrivileged = actor.isAdmin || actor.isFinanceiro
-    const ownerUserId = isPrivileged ? null : (actor.isOffice ? null : actor.userId)
-    const officeUserId = actor.isOffice ? actor.userId : null
-    const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
-
     try {
+      // RLS (via userSql) is the authoritative access gate.
+      // No ownerUserId/officeUserId filters needed here — the DB enforces them.
       const result = await listProposals(userSql, {
-        ownerUserId,
-        officeUserId,
         page,
         limit,
         proposal_type,
@@ -167,8 +165,8 @@ export async function handleProposalByIdRequest(req, res, ctx) {
   const actor = await resolveAndAuth(req, sendJson)
   if (!actor) return
 
-  const isPrivileged = actor.isAdmin || actor.isFinanceiro
-  const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
+  // RLS context: role-aware, so the DB enforces access per-row.
+  const userSql = createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
 
   // Fetch the proposal first (needed for permission checks on all methods)
   let proposal

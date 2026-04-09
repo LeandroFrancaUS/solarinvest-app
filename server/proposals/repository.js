@@ -71,11 +71,13 @@ export async function getProposalById(sql, id) {
 
 /**
  * List proposals with optional filters and pagination.
- * filter: { ownerUserId?, officeUserId?, page, limit, proposal_type?, status? }
+ * filter: { page, limit, proposal_type?, status? }
  *
- * When officeUserId is set (office role), the query returns:
- *   - proposals where owner_user_id = officeUserId (own)
- *   - proposals where the owner has primary_role = 'role_comercial'
+ * Access control is enforced by PostgreSQL RLS (migration 0018) via the
+ * app.can_access_owner() function.  The sql parameter should be a
+ * user-scoped sql handle (createUserScopedSql) so that app.current_user_id
+ * and app.current_user_role are set for each query.
+ * No application-level WHERE clauses for ownership are needed here.
  *
  * Uses the neon callable form sql(queryText, params) to support dynamic
  * WHERE clauses without duplicating query branches.
@@ -87,19 +89,8 @@ export async function listProposals(sql, filter = {}) {
 
   const params = []
 
-  // Build the access-control WHERE fragment
-  let accessFragment = ''
-  if (filter.officeUserId) {
-    // Office: own proposals OR proposals owned by comercial users
-    params.push(filter.officeUserId)
-    accessFragment = `(p.owner_user_id = $${params.length} OR up.primary_role = 'role_comercial')`
-  } else if (filter.ownerUserId) {
-    params.push(filter.ownerUserId)
-    accessFragment = `p.owner_user_id = $${params.length}`
-  }
-
+  // Only functional filters — RLS handles ownership/role access control.
   const conditions = ['p.deleted_at IS NULL']
-  if (accessFragment) conditions.push(accessFragment)
 
   if (filter.proposal_type) {
     params.push(filter.proposal_type)
@@ -111,14 +102,8 @@ export async function listProposals(sql, filter = {}) {
   }
 
   const whereClause = conditions.join(' AND ')
-  // Only JOIN app_user_profiles when the office filter is active (for the
-  // "owner is a comercial user" predicate). For admin/financeiro/comercial
-  // queries the JOIN is unnecessary overhead.
-  const needsOwnerRoleJoin = Boolean(filter.officeUserId)
-  const joinClause = needsOwnerRoleJoin
-    ? 'LEFT JOIN app_user_profiles up ON up.stack_user_id = p.owner_user_id'
-    : ''
-  const selectOwnerRole = needsOwnerRoleJoin ? ', up.primary_role AS owner_role' : ''
+  // Always JOIN app_user_profiles to return owner display name.
+  const joinClause = 'LEFT JOIN app_user_profiles up ON up.stack_user_id = p.owner_user_id'
 
   const countRows = await sql(
     `SELECT COUNT(*) AS total FROM proposals p ${joinClause} WHERE ${whereClause}`,
@@ -129,7 +114,7 @@ export async function listProposals(sql, filter = {}) {
   const limitPlaceholder = `$${params.length + 1}`
   const offsetPlaceholder = `$${params.length + 2}`
   const rows = await sql(
-    `SELECT p.*${selectOwnerRole}
+    `SELECT p.*, up.primary_role AS owner_role, up.display_name AS owner_display_name, up.email AS owner_email
      FROM proposals p ${joinClause}
      WHERE ${whereClause}
      ORDER BY p.updated_at DESC

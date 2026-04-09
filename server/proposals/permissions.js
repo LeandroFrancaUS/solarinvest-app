@@ -2,10 +2,11 @@
 // RBAC helpers for proposal access control.
 //
 // Role source-of-truth: Stack Auth native permissions (primary) + DB role (fallback).
+// Precedence (highest → lowest):
 //   role_admin      → Administrador com acesso total ao sistema
-//   role_comercial  → Usuário comum (acesso a clientes e propostas próprias)
-//   role_office     → Acesso irrestrito a todos os clientes e propostas (leitura e escrita)
 //   role_financeiro → Acesso financeiro (read-only de clientes e propostas)
+//   role_office     → Acesso irrestrito a todos os clientes e propostas (leitura e escrita)
+//   role_comercial  → Usuário comum (acesso a clientes e propostas próprias)
 //
 // A request with none of these permissions is rejected with 403.
 // When Stack Auth is bypassed (dev/test), the actor is treated as admin.
@@ -69,11 +70,12 @@ export async function resolveActor(req) {
   const hasNoStackRole = !isAdmin && !isComercial && !isOffice && !isFinanceiro
   const dbRoleIsAdmin = hasNoStackRole && appUser.role === 'admin' && appUser.access_status === 'approved'
 
-  // Higher-privilege roles take precedence when multiple permissions are assigned
-  const resolvedAdmin     = isAdmin || dbRoleIsAdmin
-  const resolvedComercial = !resolvedAdmin && isComercial
-  const resolvedOffice    = !resolvedAdmin && !resolvedComercial && isOffice
-  const resolvedFinanceiro = !resolvedAdmin && !resolvedComercial && !resolvedOffice && isFinanceiro
+  // Precedence: admin > financeiro > office > comercial
+  // When a user holds multiple permissions the highest-privilege one wins.
+  const resolvedAdmin      = isAdmin || dbRoleIsAdmin
+  const resolvedFinanceiro = !resolvedAdmin && isFinanceiro
+  const resolvedOffice     = !resolvedAdmin && !resolvedFinanceiro && isOffice
+  const resolvedComercial  = !resolvedAdmin && !resolvedFinanceiro && !resolvedOffice && isComercial
 
   if (dbRoleIsAdmin) {
     console.info('[RBAC] resolveActor: using DB role fallback for admin', {
@@ -87,11 +89,29 @@ export async function resolveActor(req) {
     email: appUser.email ?? null,
     displayName: appUser.full_name ?? null,
     isAdmin: resolvedAdmin,
-    isComercial: resolvedComercial,
-    isOffice: resolvedOffice,
     isFinanceiro: resolvedFinanceiro,
-    hasAnyRole: resolvedAdmin || resolvedComercial || resolvedOffice || resolvedFinanceiro,
+    isOffice: resolvedOffice,
+    isComercial: resolvedComercial,
+    hasAnyRole: resolvedAdmin || resolvedFinanceiro || resolvedOffice || resolvedComercial,
   }
+}
+
+/**
+ * Returns the canonical role string for an actor — used to set
+ * app.current_user_role in PostgreSQL session config via createUserScopedSql.
+ *
+ * Precedence: admin > financeiro > office > comercial
+ *
+ * @param {Object} actor - resolved actor from resolveActor()
+ * @returns {string|null} 'role_admin' | 'role_financeiro' | 'role_office' | 'role_comercial' | null
+ */
+export function actorRole(actor) {
+  if (!actor) return null
+  if (actor.isAdmin)      return 'role_admin'
+  if (actor.isFinanceiro) return 'role_financeiro'
+  if (actor.isOffice)     return 'role_office'
+  if (actor.isComercial)  return 'role_comercial'
+  return null
 }
 
 /**
