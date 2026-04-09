@@ -56,14 +56,12 @@ export function getDatabaseUrlUnpooled() {
  *
  * Tries (in order):
  *   STACK_PROJECT_ID            ← preferred server-side name
- *   STACK_AUTH_PROJECT_ID
  *   NEXT_PUBLIC_STACK_PROJECT_ID ← set on Vercel dashboard, available at runtime
  *   VITE_STACK_PROJECT_ID       ← last resort (Vercel exposes all vars to functions)
  */
 export function getStackProjectId() {
   return (
     process.env.STACK_PROJECT_ID ||
-    process.env.STACK_AUTH_PROJECT_ID ||
     process.env.NEXT_PUBLIC_STACK_PROJECT_ID ||
     process.env.VITE_STACK_PROJECT_ID ||
     ''
