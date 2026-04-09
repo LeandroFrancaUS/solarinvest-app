@@ -291,6 +291,7 @@ import {
   type UpdateClientInput,
 } from './lib/api/clientsApi'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
+import { runSync } from './lib/sync/syncEngine'
 import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
@@ -4581,6 +4582,14 @@ export default function App() {
     setIsLoggingOut(true)
     try {
       clearOfflineSnapshot()
+      // Quick fire-and-forget sync before logout (max 1.5 s) to flush any
+      // pending offline queue entries. Does not block logout if offline or slow.
+      if (isConnectivityOnline()) {
+        await Promise.race([
+          runSync(),
+          new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+        ])
+      }
       // performLogout handles all cleanup steps and ends with a hard redirect.
       // The hard redirect means setIsLoggingOut(false) below is rarely reached,
       // but it serves as a safety net if window.location.assign is somehow blocked.
@@ -12008,29 +12017,25 @@ export default function App() {
       return []
     }
 
-    // For privileged roles (admin, office, financeiro), load from the RBAC-aware
-    // REST API which returns data from all relevant users — not just the current
-    // user's own storage bucket. This enforces the correct access control:
-    //   admin/financeiro → all clients
-    //   office          → own + role_comercial users' clients
-    //   comercial       → own only (falls through to storage path below)
-    if (isAdmin || isOffice || isFinanceiro) {
-      try {
-        const allRegistros: ClienteRegistro[] = []
-        let page = 1
-        const limit = 100
-        const MAX_PAGES = 50 // safety cap: up to 5,000 records
-        for (;;) {
-          const result = await listClientsFromApi({ page, limit })
-          allRegistros.push(...result.data.map(serverClientToRegistro))
-          if (page >= result.meta.totalPages || result.data.length === 0 || page >= MAX_PAGES) break
-          page++
-        }
-        return allRegistros
-      } catch (error) {
-        console.warn('[clients] Falha ao carregar clientes via API com RBAC; fallback para armazenamento local.', error)
-        // Fall through to storage-based loading
+    // All authenticated users: try Neon DB first. PostgreSQL RLS enforces per-role
+    // access control (admin/financeiro → all; office → own + comercial; comercial → own).
+    try {
+      const allRegistros: ClienteRegistro[] = []
+      let page = 1
+      const limit = 100
+      const MAX_PAGES = 50 // safety cap: up to 5,000 records
+      for (;;) {
+        const result = await listClientsFromApi({ page, limit })
+        allRegistros.push(...result.data.map(serverClientToRegistro))
+        if (page >= result.meta.totalPages || result.data.length === 0 || page >= MAX_PAGES) break
+        page++
       }
+      // Cache fresh Neon data in localStorage for offline fallback
+      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
+      return allRegistros
+    } catch (error) {
+      console.warn('[clients] Falha ao carregar clientes via API; fallback para armazenamento local.', error)
+      // Fall through to storage-based loading
     }
 
     try {
@@ -12082,7 +12087,7 @@ export default function App() {
     }
 
     return carregarClientesSalvos()
-  }, [carregarClientesSalvos, getUltimaAtualizacao, isAdmin, isFinanceiro, isOffice, parseClientesSalvos])
+  }, [carregarClientesSalvos, getUltimaAtualizacao, parseClientesSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -15013,6 +15018,50 @@ export default function App() {
     const online = isConnectivityOnline()
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
+
+    // Build Neon payload from dadosClonados before state update.
+    // Neon DB is the primary store; localStorage is only a fallback/cache.
+    const documentDigits = normalizeNumbers(dadosClonados?.documento ?? '')
+    const upsertPayload: UpsertClientInput = {
+      name: (dadosClonados?.nome ?? '').trim(),
+      ...(dadosClonados?.email?.trim() ? { email: dadosClonados.email.trim() } : {}),
+      ...(dadosClonados?.telefone?.trim() ? { phone: dadosClonados.telefone.trim() } : {}),
+      ...(dadosClonados?.cidade?.trim() ? { city: dadosClonados.cidade.trim() } : {}),
+      ...(dadosClonados?.uf?.trim() ? { state: dadosClonados.uf.trim() } : {}),
+      ...(dadosClonados?.endereco?.trim() ? { address: dadosClonados.endereco.trim() } : {}),
+      ...(dadosClonados?.uc?.trim() ? { uc: dadosClonados.uc.trim() } : {}),
+      ...(dadosClonados?.distribuidora?.trim() ? { distribuidora: dadosClonados.distribuidora.trim() } : {}),
+      metadata: { source: 'manual_save' },
+    }
+    if (documentDigits.length === 11) {
+      upsertPayload.cpf_raw = documentDigits
+      upsertPayload.document = documentDigits
+    } else if (documentDigits.length === 14) {
+      upsertPayload.cnpj_raw = documentDigits
+      upsertPayload.document = documentDigits
+    } else if (documentDigits.length > 0) {
+      upsertPayload.document = documentDigits
+    }
+
+    // Neon DB save FIRST so data is durable before the local cache is updated.
+    let syncedToBackend = false
+    let neonServerId: string | null = null
+    try {
+      if (online) {
+        // For edits use the known server ID; for new clients let the backend deduplicate.
+        const knownServerId = clienteEmEdicaoId
+          ? (clientServerIdMapRef.current[clienteEmEdicaoId] ?? null)
+          : null
+        const serverRow = knownServerId
+          ? await updateClientById(knownServerId, upsertPayload as UpdateClientInput)
+          : await upsertClientByDocument(upsertPayload)
+        neonServerId = serverRow.id
+        syncedToBackend = true
+      }
+    } catch (error) {
+      console.warn('[ClienteSave] Neon save failed; saving locally as fallback:', error)
+    }
+
     let registroSalvo: ClienteRegistro | null = null
     let registrosPersistidos: ClienteRegistro[] | null = null
     let houveErro = false
@@ -15113,42 +15162,10 @@ export default function App() {
     }
 
     const registroConfirmado: ClienteRegistro = salvo
-    const documentDigits = normalizeNumbers(registroConfirmado.dados?.documento ?? '')
-    const upsertPayload: UpsertClientInput = {
-      name: (registroConfirmado.dados?.nome ?? '').trim(),
-      ...(registroConfirmado.dados?.email?.trim() ? { email: registroConfirmado.dados.email.trim() } : {}),
-      ...(registroConfirmado.dados?.telefone?.trim() ? { phone: registroConfirmado.dados.telefone.trim() } : {}),
-      ...(registroConfirmado.dados?.cidade?.trim() ? { city: registroConfirmado.dados.cidade.trim() } : {}),
-      ...(registroConfirmado.dados?.uf?.trim() ? { state: registroConfirmado.dados.uf.trim() } : {}),
-      ...(registroConfirmado.dados?.endereco?.trim() ? { address: registroConfirmado.dados.endereco.trim() } : {}),
-      ...(registroConfirmado.dados?.uc?.trim() ? { uc: registroConfirmado.dados.uc.trim() } : {}),
-      ...(registroConfirmado.dados?.distribuidora?.trim()
-        ? { distribuidora: registroConfirmado.dados.distribuidora.trim() }
-        : {}),
-      metadata: { source: 'manual_save' },
-    }
-    if (documentDigits.length === 11) {
-      upsertPayload.cpf_raw = documentDigits
-      upsertPayload.document = documentDigits
-    } else if (documentDigits.length === 14) {
-      upsertPayload.cnpj_raw = documentDigits
-      upsertPayload.document = documentDigits
-    } else if (documentDigits.length > 0) {
-      upsertPayload.document = documentDigits
-    }
 
-    let syncedToBackend = false
-    try {
-      if (online) {
-        const knownServerId = clientServerIdMapRef.current[registroConfirmado.id]
-        const serverRow = knownServerId
-          ? await updateClientById(knownServerId, upsertPayload as UpdateClientInput)
-          : await upsertClientByDocument(upsertPayload)
-        updateClientServerIdMap(registroConfirmado.id, serverRow.id)
-        syncedToBackend = true
-      }
-    } catch (error) {
-      console.warn('[ClienteSave] Failed to sync cliente to Neon backend:', error)
+    // Update server ID map now that we have the local ID (from state) and Neon ID.
+    if (syncedToBackend && neonServerId) {
+      updateClientServerIdMap(registroConfirmado.id, neonServerId)
     }
 
     if (!online || !syncedToBackend) {
@@ -15678,29 +15695,25 @@ export default function App() {
       return []
     }
 
-    // For privileged roles (admin, office, financeiro), load from the RBAC-aware
-    // REST API which returns proposals from all relevant users — not just the current
-    // user's own storage bucket. This enforces the correct access control:
-    //   admin/financeiro → all proposals
-    //   office          → own + role_comercial users' proposals
-    //   comercial       → own only (falls through to storage path below)
-    if (isAdmin || isOffice || isFinanceiro) {
-      try {
-        const allRegistros: OrcamentoSalvo[] = []
-        let page = 1
-        const limit = 100
-        const MAX_PAGES = 50 // safety cap: up to 5,000 records
-        for (;;) {
-          const result = await listProposalsFromApi({ page, limit })
-          allRegistros.push(...result.data.map(serverProposalToOrcamento))
-          if (page >= result.pagination.pages || result.data.length === 0 || page >= MAX_PAGES) break
-          page++
-        }
-        return allRegistros
-      } catch (error) {
-        console.warn('[proposals] Falha ao carregar propostas via API com RBAC; fallback para armazenamento local.', error)
-        // Fall through to storage-based loading
+    // All authenticated users: try Neon DB first. PostgreSQL RLS enforces per-role
+    // access control (admin/financeiro → all; office → own + comercial; comercial → own).
+    try {
+      const allRegistros: OrcamentoSalvo[] = []
+      let page = 1
+      const limit = 100
+      const MAX_PAGES = 50 // safety cap: up to 5,000 records
+      for (;;) {
+        const result = await listProposalsFromApi({ page, limit })
+        allRegistros.push(...result.data.map(serverProposalToOrcamento))
+        if (page >= result.pagination.pages || result.data.length === 0 || page >= MAX_PAGES) break
+        page++
       }
+      // Cache fresh Neon data in localStorage for offline fallback
+      try { window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
+      return allRegistros
+    } catch (error) {
+      console.warn('[proposals] Falha ao carregar propostas via API; fallback para armazenamento local.', error)
+      // Fall through to storage-based loading
     }
 
     let remoto = undefined as string | null | undefined
@@ -15744,7 +15757,7 @@ export default function App() {
 
     const fallbackRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
     return parseOrcamentosSalvos(fallbackRaw)
-  }, [carregarOrcamentosSalvos, isAdmin, isFinanceiro, isOffice, parseOrcamentosSalvos])
+  }, [carregarOrcamentosSalvos, parseOrcamentosSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -15966,6 +15979,27 @@ export default function App() {
     budgetStructuredItems,
     updateProposalServerIdMap,
   ])
+
+  // Idle sync: reload clients and proposals from Neon every 2 minutes while online.
+  // Keeps data fresh without requiring manual navigation and catches changes made
+  // from other devices or sessions.
+  useEffect(() => {
+    const IDLE_SYNC_INTERVAL_MS = 2 * 60 * 1000 // 2 minutes
+    const timer = setInterval(async () => {
+      if (!isConnectivityOnline()) return
+      try {
+        const [clientes, orcamentos] = await Promise.allSettled([
+          carregarClientesPrioritarios(),
+          carregarOrcamentosPrioritarios(),
+        ])
+        if (clientes.status === 'fulfilled') setClientesSalvos(clientes.value)
+        if (orcamentos.status === 'fulfilled') setOrcamentosSalvos(orcamentos.value)
+      } catch {
+        // Non-critical: ignore failures, next interval will retry
+      }
+    }, IDLE_SYNC_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [carregarClientesPrioritarios, carregarOrcamentosPrioritarios])
 
   const aplicarSnapshot = (
     snapshotEntrada: OrcamentoSnapshotData,
