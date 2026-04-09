@@ -275,11 +275,15 @@ import { useAuthSession } from './auth/auth-session'
 import {
   createProposal,
   type CreateProposalInput,
+  listProposals as listProposalsFromApi,
+  type ProposalRow,
   setProposalsTokenProvider,
   type UpdateProposalInput,
   updateProposal,
 } from './lib/api/proposalsApi'
 import {
+  listClients as listClientsFromApi,
+  type ClientRow,
   setClientsTokenProvider,
   upsertClientByDocument,
   updateClientById,
@@ -1105,6 +1109,71 @@ type CorresponsavelErrors = {
 
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
+
+/**
+ * Maps a server-side ClientRow (from /api/clients) to the local ClienteRegistro format.
+ * Used by privileged roles (admin, office, financeiro) to populate the clients list
+ * from the RBAC-aware REST API instead of the user-scoped storage.
+ */
+function serverClientToRegistro(row: ClientRow): ClienteRegistro {
+  return {
+    id: row.id,
+    criadoEm: row.created_at,
+    atualizadoEm: row.updated_at,
+    dados: {
+      nome: row.name,
+      documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
+      rg: '',
+      estadoCivil: '',
+      nacionalidade: '',
+      profissao: '',
+      representanteLegal: '',
+      email: row.email ?? '',
+      telefone: row.phone ?? '',
+      cep: '',
+      distribuidora: row.distribuidora ?? '',
+      uc: row.uc ?? '',
+      endereco: row.address ?? '',
+      cidade: row.city ?? '',
+      uf: row.state ?? '',
+      temIndicacao: false,
+      indicacaoNome: '',
+      herdeiros: [''],
+      nomeSindico: '',
+      cpfSindico: '',
+      contatoSindico: '',
+      diaVencimento: '10',
+    },
+  }
+}
+
+/**
+ * Maps a server-side ProposalRow (from /api/proposals) to the local OrcamentoSalvo format.
+ * The payload_json field stores the OrcamentoSnapshotData, which is used as both the
+ * snapshot (for editing) and the dados stub (for listing metadata).
+ * Used by privileged roles (admin, office, financeiro).
+ */
+function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
+  const snapshot = row.payload_json as unknown as OrcamentoSnapshotData
+  const tipoProposta: PrintableProposalTipo =
+    row.proposal_type === 'venda' ? 'VENDA_DIRETA' : 'LEASING'
+  const dados = {
+    ...(snapshot ?? {}),
+    tipoProposta,
+  } as unknown as PrintableProposalProps
+  return {
+    id: row.proposal_code ?? row.id,
+    criadoEm: row.created_at,
+    clienteId: undefined,
+    clienteNome: row.client_name ?? snapshot?.cliente?.nome ?? '',
+    clienteCidade: row.client_city ?? snapshot?.cliente?.cidade ?? '',
+    clienteUf: row.client_state ?? snapshot?.cliente?.uf ?? '',
+    clienteDocumento: row.client_document ?? snapshot?.cliente?.documento ?? undefined,
+    clienteUc: snapshot?.cliente?.uc ?? undefined,
+    dados,
+    snapshot: snapshot ?? undefined,
+  }
+}
 const PROPOSAL_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-proposal-server-id-map'
 const CLIENT_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-client-server-id-map'
 const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
@@ -4406,7 +4475,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useStackUser()
-  const { isAdmin: isAdminFromStack, role: userRole, isFinanceiro, isLoading: isStackPermLoading } = useStackRbac()
+  const { isAdmin: isAdminFromStack, role: userRole, isOffice, isFinanceiro, isLoading: isStackPermLoading } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
   // Falls back to null while user hasn't resolved yet (no auth header sent).
@@ -11870,6 +11939,30 @@ export default function App() {
       return []
     }
 
+    // For privileged roles (admin, office, financeiro), load from the RBAC-aware
+    // REST API which returns data from all relevant users — not just the current
+    // user's own storage bucket. This enforces the correct access control:
+    //   admin/financeiro → all clients
+    //   office          → own + role_comercial users' clients
+    //   comercial       → own only (falls through to storage path below)
+    if (isAdmin || isOffice || isFinanceiro) {
+      try {
+        const allRegistros: ClienteRegistro[] = []
+        let page = 1
+        const limit = 100
+        for (;;) {
+          const result = await listClientsFromApi({ page, limit })
+          allRegistros.push(...result.data.map(serverClientToRegistro))
+          if (page >= result.meta.totalPages || result.data.length === 0) break
+          page++
+        }
+        return allRegistros
+      } catch (error) {
+        console.warn('[clients] Falha ao carregar clientes via API com RBAC; fallback para armazenamento local.', error)
+        // Fall through to storage-based loading
+      }
+    }
+
     try {
       const remotoRaw = await fetchRemoteStorageEntry(CLIENTES_STORAGE_KEY, { timeoutMs: 4000 })
       const registrosLocais = carregarClientesSalvos()
@@ -11919,7 +12012,7 @@ export default function App() {
     }
 
     return carregarClientesSalvos()
-  }, [carregarClientesSalvos, getUltimaAtualizacao, parseClientesSalvos])
+  }, [carregarClientesSalvos, getUltimaAtualizacao, isAdmin, isFinanceiro, isOffice, parseClientesSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -15515,6 +15608,30 @@ export default function App() {
       return []
     }
 
+    // For privileged roles (admin, office, financeiro), load from the RBAC-aware
+    // REST API which returns proposals from all relevant users — not just the current
+    // user's own storage bucket. This enforces the correct access control:
+    //   admin/financeiro → all proposals
+    //   office          → own + role_comercial users' proposals
+    //   comercial       → own only (falls through to storage path below)
+    if (isAdmin || isOffice || isFinanceiro) {
+      try {
+        const allRegistros: OrcamentoSalvo[] = []
+        let page = 1
+        const limit = 100
+        for (;;) {
+          const result = await listProposalsFromApi({ page, limit })
+          allRegistros.push(...result.data.map(serverProposalToOrcamento))
+          if (page >= result.pagination.pages || result.data.length === 0) break
+          page++
+        }
+        return allRegistros
+      } catch (error) {
+        console.warn('[proposals] Falha ao carregar propostas via API com RBAC; fallback para armazenamento local.', error)
+        // Fall through to storage-based loading
+      }
+    }
+
     let remoto = undefined as string | null | undefined
     try {
       remoto = await fetchRemoteStorageEntry(BUDGETS_STORAGE_KEY, { timeoutMs: 4000 })
@@ -15556,7 +15673,7 @@ export default function App() {
 
     const fallbackRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
     return parseOrcamentosSalvos(fallbackRaw)
-  }, [carregarOrcamentosSalvos, parseOrcamentosSalvos])
+  }, [carregarOrcamentosSalvos, isAdmin, isFinanceiro, isOffice, parseOrcamentosSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -18082,6 +18199,15 @@ export default function App() {
 
   const abrirClientesPainel = useCallback(async () => {
     const canProceed = await runWithUnsavedChangesGuard(async () => {
+      // For privileged roles, fetch from the RBAC-aware REST API to show all
+      // relevant users' clients. For comercial, use localStorage for speed.
+      if (isAdmin || isOffice || isFinanceiro) {
+        setActivePage('clientes')
+        const registros = await carregarClientesPrioritarios()
+        setClientesSalvos(registros)
+        return
+      }
+
       // Show localStorage data and navigate immediately — do NOT await IndexedDB
       // hydration here.  On Mobile Safari (and occasionally Brave) IndexedDB can
       // stall indefinitely, which previously caused setActivePage('clientes') to
@@ -18102,7 +18228,7 @@ export default function App() {
     })
 
     return canProceed
-  }, [carregarClientesSalvos, runWithUnsavedChangesGuard, setActivePage])
+  }, [carregarClientesPrioritarios, carregarClientesSalvos, isAdmin, isFinanceiro, isOffice, runWithUnsavedChangesGuard, setActivePage])
 
   const abrirPesquisaOrcamentos = useCallback(async () => {
     const canProceed = await runWithUnsavedChangesGuard(async () => {
