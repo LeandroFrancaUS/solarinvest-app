@@ -338,10 +338,10 @@ function calcularAnaliseLeasing(
   // Commission for leasing (CAC) = full value of the first monthly installment
   const comissao_leasing_rs = input.mensalidades_previstas_rs[0] ?? 0
 
-  // Investment base: CAPEX (variable costs) + CAC (commission)
-  const investimento_total_leasing_rs = custo_variavel_total_rs + comissao_leasing_rs
+  // Investimento total do leasing: CAPEX + CAC + seguro obrigatório
+  const investimento_total_leasing_rs = custo_variavel_total_rs + comissao_leasing_rs + seguro_rs
 
-  const custo_total_rs = investimento_total_leasing_rs + seguro_rs
+  const custo_total_rs = investimento_total_leasing_rs
 
   const impostosDecimal = toDecimalPercent(input.impostos_percent)
 
@@ -364,9 +364,14 @@ function calcularAnaliseLeasing(
   const receita_liquida_rs = projecao_mensalidades_rs.reduce((sum, v) => sum + v, 0)
   const lucro_rs = receita_liquida_rs - custo_total_rs
 
+  // Leitura gerencial explícita
+  const receita_total_contrato_rs = receita_bruta_rs
+  const lucro_total_contrato_rs = lucro_rs
+
   // Average net monthly income — basis for analytical paybacks
   const n = projecao_mensalidades_rs.length
   const lucro_mensal_medio_rs = n > 0 ? receita_liquida_rs / n : 0
+  const receita_liquida_mensal_rs = lucro_mensal_medio_rs
 
   // Analytical paybacks (floating months, not simulation-based)
   const payback_capex_meses: number | null =
@@ -380,7 +385,12 @@ function calcularAnaliseLeasing(
   const payback_total_meses: number | null =
     lucro_mensal_medio_rs > 0 ? investimento_total_leasing_rs / lucro_mensal_medio_rs : null
 
-  // Maximum affordable commission for a given payback target
+  const multiplo_capital_investido: number | null =
+    investimento_total_leasing_rs > 0 ? receita_total_contrato_rs / investimento_total_leasing_rs : null
+
+  const break_even_meses = payback_total_meses
+
+  // Maximum affordable commission for a given payback target (legacy / venda-like)
   const comissao_maxima_rs: number | null =
     input.payback_alvo_meses != null &&
     Number.isFinite(input.payback_alvo_meses) &&
@@ -398,11 +408,16 @@ function calcularAnaliseLeasing(
     projecao_mensalidades_rs,
     fator_liquido,
     receita_liquida_rs,
+    receita_liquida_mensal_rs,
+    receita_total_contrato_rs,
+    lucro_total_contrato_rs,
     lucro_rs,
     lucro_mensal_medio_rs,
     payback_capex_meses,
     payback_cac_meses,
     payback_total_meses,
+    multiplo_capital_investido,
+    break_even_meses,
     comissao_maxima_rs,
   }
 }
