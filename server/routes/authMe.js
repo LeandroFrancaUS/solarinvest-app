@@ -19,6 +19,7 @@
 
 import { getCurrentAppUser } from '../auth/currentAppUser.js'
 import { getStackUser, isStackAuthBypassed } from '../auth/stackAuth.js'
+import { getUserPermissions } from '../auth/stackPermissions.js'
 
 const isDev = process.env.NODE_ENV !== 'production' && process.env.VERCEL_ENV !== 'production'
 
@@ -30,18 +31,53 @@ function sanitizeString(value) {
 }
 
 /**
- * Returns true when the JWT payload carries an explicit permissions array and
- * none of the primary role permissions are present in it.
+ * Resolves whether the user holds any primary role permission.
  *
- * We only block when the array is explicitly present (non-null, non-undefined)
- * so that older tokens without a `permissions` claim don't get falsely blocked
- * while the JWT is being refreshed.
+ * Strategy:
+ *   1. Fast-path — check the `permissions` claim in the already-decoded JWT.
+ *      Stack Auth includes this claim when the user has been granted at least
+ *      one permission and the token was issued/refreshed after that grant.
+ *   2. API fallback — when the claim is absent (e.g. first-ever token for a
+ *      user who has never been granted a permission, or a very old token), call
+ *      the Stack Auth admin API to get authoritative permissions.
+ *      Falls back to "allow" only when the API is unavailable (network error /
+ *      STACK_SECRET_SERVER_KEY not configured), to avoid locking out legitimate
+ *      users during transient Stack Auth outages.
+ *
+ * Returns { hasPrimaryRole: boolean, source: 'jwt'|'api'|'api_unavailable' }
+ *
+ * @param {object|null} jwtPayload - decoded JWT payload
+ * @param {string} stackUserId - Stack Auth user ID (for API fallback)
  */
-function hasNoPrimaryRolePermissions(jwtPayload) {
-  if (!jwtPayload || typeof jwtPayload !== 'object') return false
-  const perms = jwtPayload.permissions
-  if (!Array.isArray(perms)) return false   // claim absent — do not block
-  return !perms.some((p) => PRIMARY_ROLE_PERMISSIONS.includes(p))
+async function checkPrimaryRolePermissions(jwtPayload, stackUserId) {
+  const jwtPerms = jwtPayload?.permissions
+
+  // ── 1. JWT fast-path ──────────────────────────────────────────────────────
+  if (Array.isArray(jwtPerms)) {
+    const hasPrimaryRole = jwtPerms.some((p) => PRIMARY_ROLE_PERMISSIONS.includes(p))
+    return { hasPrimaryRole, source: 'jwt' }
+  }
+
+  // ── 2. API fallback ──────────────────────────────────────────────────────
+  // The JWT has no permissions claim.  This is normal for users who have never
+  // been granted any permission (their token was never seeded with the claim).
+  // We must call the Stack Auth API to get the real, authoritative state.
+  if (!stackUserId) {
+    return { hasPrimaryRole: false, source: 'api' }
+  }
+
+  try {
+    const apiPerms = await getUserPermissions(stackUserId)
+    if (Array.isArray(apiPerms)) {
+      const hasPrimaryRole = apiPerms.some((p) => PRIMARY_ROLE_PERMISSIONS.includes(p))
+      return { hasPrimaryRole, source: 'api' }
+    }
+    // null return = API unavailable or key not configured → fail-open
+    return { hasPrimaryRole: true, source: 'api_unavailable' }
+  } catch {
+    // Network error → fail-open to avoid locking out users during outages
+    return { hasPrimaryRole: true, source: 'api_unavailable' }
+  }
 }
 
 export async function handleAuthMeRequest(req, res, { sendJson }) {
@@ -98,22 +134,28 @@ export async function handleAuthMeRequest(req, res, { sendJson }) {
     Boolean(appUser.is_active)
 
   // Req 1: Even an "approved" DB row cannot access the app when the user has
-  // no primary role permission in Stack Auth.  We check the JWT claim first
-  // (fast-path, zero extra network calls).  The check is skipped when bypass
-  // mode is active or when the JWT does not carry a permissions array at all
-  // (older token format), to avoid false blocks during token refresh.
-  if (authorized && !isStackAuthBypassed() && hasNoPrimaryRolePermissions(stackUser?.payload)) {
-    sendJson(res, 200, {
-      authenticated: true,
-      authorized: false,
-      role: appUser.role,
-      accessStatus: 'no_permissions',
-      email: appUser.email,
-      fullName: appUser.full_name,
-      id: appUser.id,
-      authSource,
-    })
-    return
+  // no primary role permission in Stack Auth.
+  // Strategy: JWT fast-path → API fallback (see checkPrimaryRolePermissions).
+  // Skipped in bypass mode.
+  if (authorized && !isStackAuthBypassed()) {
+    const { hasPrimaryRole, source } = await checkPrimaryRolePermissions(
+      stackUser?.payload ?? null,
+      stackUser?.id ?? ''
+    )
+    if (isDev) console.info('[auth/me] permission check: hasPrimaryRole=%s source=%s', hasPrimaryRole, source)
+    if (!hasPrimaryRole) {
+      sendJson(res, 200, {
+        authenticated: true,
+        authorized: false,
+        role: appUser.role,
+        accessStatus: 'no_permissions',
+        email: appUser.email,
+        fullName: appUser.full_name,
+        id: appUser.id,
+        authSource,
+      })
+      return
+    }
   }
 
   sendJson(res, 200, {
