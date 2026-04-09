@@ -547,7 +547,10 @@ export async function lookupStackUserByEmail(email, opts = {}) {
   const normalizedEmail = email.toLowerCase().trim()
 
   try {
-    const url = `${STACK_API_BASE}/api/v1/users?primary_email=${encodeURIComponent(normalizedEmail)}`
+    // Stack Auth's /api/v1/users endpoint accepts a `query` search term (not
+    // `primary_email`).  We pass the email as the search term and then verify
+    // an exact match below to guard against partial hits.
+    const url = `${STACK_API_BASE}/api/v1/users?query=${encodeURIComponent(normalizedEmail)}`
     const res = await fetch(url, {
       headers: {
         'x-stack-access-type': 'server',
