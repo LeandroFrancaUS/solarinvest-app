@@ -109,19 +109,20 @@ export async function createClient(sql, data) {
     metadata = null,
   } = data
 
+  const resolvedOwner = owner_user_id ?? created_by_user_id
   const rows = await sql`
     INSERT INTO clients (
       name, document, cpf_normalized, cpf_raw,
       cnpj_normalized, cnpj_raw, document_type,
       phone, email, city, state, address, uc, distribuidora,
-      created_by_user_id, owner_user_id, user_id,
+      created_by_user_id, owner_user_id, user_id, owner_stack_user_id,
       identity_status, origin, offline_origin_id,
       metadata, created_at, updated_at
     ) VALUES (
       ${name}, ${document ?? cpf_raw ?? cnpj_raw}, ${cpf_normalized}, ${cpf_raw},
       ${cnpj_normalized}, ${cnpj_raw}, ${document_type},
       ${phone}, ${email}, ${city}, ${state}, ${address}, ${uc}, ${distribuidora},
-      ${created_by_user_id}, ${owner_user_id ?? created_by_user_id}, ${owner_user_id ?? created_by_user_id},
+      ${created_by_user_id}, ${resolvedOwner}, ${resolvedOwner}, ${resolvedOwner},
       ${identity_status}, ${origin}, ${offline_origin_id},
       ${metadata ? JSON.stringify(metadata) : null}::jsonb, now(), now()
     )
