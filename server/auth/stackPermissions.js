@@ -526,6 +526,65 @@ export async function createStackUser(email, displayName, opts = {}) {
   }
 }
 
+/**
+ * Looks up an existing Stack Auth user by primary email address.
+ *
+ * Returns { ok: true, userId: string } when a matching user is found.
+ * Returns { ok: false, error: string, providerStatus?: number } on failure or
+ * when no user with that email exists.
+ *
+ * @param {string} email
+ * @param {{ correlationId?: string }} [opts]
+ */
+export async function lookupStackUserByEmail(email, opts = {}) {
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey) return { ok: false, error: 'STACK_SECRET_SERVER_KEY não configurada' }
+  if (!projectId) return { ok: false, error: 'STACK_PROJECT_ID não configurado' }
+  if (!email || typeof email !== 'string') return { ok: false, error: 'E-mail inválido' }
+
+  const { correlationId = '' } = opts
+  const normalizedEmail = email.toLowerCase().trim()
+
+  try {
+    const url = `${STACK_API_BASE}/api/v1/users?primary_email=${encodeURIComponent(normalizedEmail)}`
+    const res = await fetch(url, {
+      headers: {
+        'x-stack-access-type': 'server',
+        'x-stack-project-id': projectId,
+        'x-stack-secret-server-key': secretKey,
+      },
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    })
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      console.warn('[RBAC] lookupStackUserByEmail HTTP', res.status, { email: normalizedEmail, correlationId, body: body.slice(0, 200) })
+      return { ok: false, error: `Stack Auth API ${res.status}: ${body}`.trim(), providerStatus: res.status }
+    }
+
+    const data = await res.json()
+    const items = Array.isArray(data?.items) ? data.items : []
+    const match = items.find(
+      (u) =>
+        typeof u?.primary_email === 'string' &&
+        u.primary_email.toLowerCase() === normalizedEmail
+    )
+
+    if (!match?.id) {
+      console.warn('[RBAC] lookupStackUserByEmail: no user found for email', { email: normalizedEmail, correlationId })
+      return { ok: false, error: 'Nenhum usuário Stack Auth encontrado com esse e-mail.', providerStatus: 404 }
+    }
+
+    console.info('[RBAC] lookupStackUserByEmail: found userId=%s email=%s', match.id, normalizedEmail)
+    return { ok: true, userId: match.id }
+  } catch (err) {
+    const msg = err?.message ?? 'Erro de rede'
+    console.warn('[RBAC] lookupStackUserByEmail error:', msg, { email: normalizedEmail, correlationId })
+    return { ok: false, error: msg }
+  }
+}
+
 // ─── Auto-grant for configured commercial users ───────────────────────────────
 
 /**
