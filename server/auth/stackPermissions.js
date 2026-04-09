@@ -91,8 +91,12 @@ async function getUserPermissionsViaApi(userId, opts = {}) {
 
   try {
     return await withRetry(async () => {
+      // Stack Auth REST API: project-level (global) permissions for a user.
+      // Endpoint discovered from the official @stackframe/stack-shared SDK source:
+      //   listServerProjectPermissions → GET /api/v1/project-permissions?user_id=…&recursive=false
+      // Do NOT use /api/v1/users/{id}/permissions — that path does not exist.
       const url =
-        `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions?type=global`
+        `${STACK_API_BASE}/api/v1/project-permissions?user_id=${encodeURIComponent(userId)}&recursive=false`
       const res = await fetch(url, {
         headers: {
           'x-stack-access-type': 'server',
@@ -142,9 +146,12 @@ async function revokePermissionViaApi(userId, permissionId, opts = {}) {
 
   try {
     await withRetry(async () => {
-      // Stack Auth REST API: type must be in the request body, not as a query param.
+      // Stack Auth REST API: revoke a project-level permission.
+      // Endpoint discovered from @stackframe/stack-shared SDK:
+      //   revokeServerProjectPermission → DELETE /api/v1/project-permissions/{userId}/{permId}
+      // Body must be {} (empty JSON object); type is implicit in the path prefix.
       const url =
-        `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}`
+        `${STACK_API_BASE}/api/v1/project-permissions/${encodeURIComponent(userId)}/${encodeURIComponent(permissionId)}`
       const res = await fetch(url, {
         method: 'DELETE',
         headers: {
@@ -153,7 +160,7 @@ async function revokePermissionViaApi(userId, permissionId, opts = {}) {
           'x-stack-secret-server-key': secretKey,
           'content-type': 'application/json',
         },
-        body: JSON.stringify({ type: 'global' }),
+        body: JSON.stringify({}),
         signal: AbortSignal.timeout(API_TIMEOUT_MS),
       })
       if (!res.ok && res.status !== 404) {
@@ -241,11 +248,13 @@ async function grantPermissionViaApi(userId, permissionId, opts = {}) {
 
   try {
     await withRetry(async () => {
-      // Stack Auth REST API v2: grant a global project permission.
-      // The permission ID belongs in the request body ({"id": permId, "type": "global"}).
-      // Appending the permission ID to the URL path returns 404 on the Stack Auth API.
+      // Stack Auth REST API v2: grant a project-level permission.
+      // Endpoint discovered from @stackframe/stack-shared SDK:
+      //   grantServerProjectPermission → POST /api/v1/project-permissions/{userId}/{permId}
+      // Body must be {} (empty JSON object); the permission ID is in the URL path.
+      // Do NOT use POST /api/v1/users/{userId}/permissions — that path returns 404.
       const url =
-        `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions`
+        `${STACK_API_BASE}/api/v1/project-permissions/${encodeURIComponent(userId)}/${encodeURIComponent(permissionId)}`
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -254,7 +263,7 @@ async function grantPermissionViaApi(userId, permissionId, opts = {}) {
           'x-stack-secret-server-key': secretKey,
           'content-type': 'application/json',
         },
-        body: JSON.stringify({ id: permissionId, type: 'global' }),
+        body: JSON.stringify({}),
         signal: AbortSignal.timeout(API_TIMEOUT_MS),
       })
       if (!res.ok) {

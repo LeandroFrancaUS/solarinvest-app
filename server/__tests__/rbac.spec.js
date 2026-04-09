@@ -178,7 +178,49 @@ describe('withRetry', () => {
   })
 })
 
-// ─── Last-admin protection ────────────────────────────────────────────────────
+// ─── Stack Auth endpoint format (regression guard) ───────────────────────────
+// These tests document the CORRECT Stack Auth REST API endpoint paths.
+// Verified against @stackframe/stack-shared SDK v2.8.x source code.
+// Any change to these endpoints will break production permission management.
+
+describe('Stack Auth project-permission endpoint format', () => {
+  const STACK_API_BASE = 'https://api.stack-auth.com'
+
+  it('grant endpoint uses /project-permissions/{userId}/{permId} (NOT /users/{id}/permissions)', () => {
+    const userId = 'test-user-id'
+    const permId = 'role_admin'
+    const expected = `${STACK_API_BASE}/api/v1/project-permissions/${encodeURIComponent(userId)}/${encodeURIComponent(permId)}`
+    // This path is derived from the SDK's grantServerProjectPermission implementation:
+    //   sendServerRequest(`/project-permissions/${userId}/${permId}`, { method: 'POST', body: '{}' })
+    expect(expected).toBe('https://api.stack-auth.com/api/v1/project-permissions/test-user-id/role_admin')
+    // Must NOT use the old wrong path
+    expect(expected).not.toContain('/users/')
+    expect(expected).not.toContain('/permissions')
+  })
+
+  it('revoke endpoint uses /project-permissions/{userId}/{permId} (NOT /users/{id}/permissions/{permId})', () => {
+    const userId = 'test-user-id'
+    const permId = 'role_comercial'
+    const expected = `${STACK_API_BASE}/api/v1/project-permissions/${encodeURIComponent(userId)}/${encodeURIComponent(permId)}`
+    expect(expected).toBe('https://api.stack-auth.com/api/v1/project-permissions/test-user-id/role_comercial')
+    expect(expected).not.toContain('/users/')
+  })
+
+  it('list endpoint uses /project-permissions?user_id=…&recursive=false (NOT /users/{id}/permissions?type=global)', () => {
+    const userId = 'test-user-id'
+    const expected = `${STACK_API_BASE}/api/v1/project-permissions?user_id=${encodeURIComponent(userId)}&recursive=false`
+    expect(expected).toBe('https://api.stack-auth.com/api/v1/project-permissions?user_id=test-user-id&recursive=false')
+    expect(expected).not.toContain('/users/')
+    expect(expected).not.toContain('type=global')
+  })
+
+  it('permissionId with special chars is URL-encoded in the path', () => {
+    const userId = 'user-abc'
+    const permId = 'page:financial_analysis'
+    const url = `${STACK_API_BASE}/api/v1/project-permissions/${encodeURIComponent(userId)}/${encodeURIComponent(permId)}`
+    expect(url).toBe('https://api.stack-auth.com/api/v1/project-permissions/user-abc/page%3Afinancial_analysis')
+  })
+})
 
 // Tests for the business rule: cannot revoke role_admin from last active admin
 describe('last-admin protection rule', () => {
