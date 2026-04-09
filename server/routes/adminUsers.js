@@ -18,7 +18,8 @@ import { derivePrimaryRole } from '../auth/authorizationSnapshot.js'
 import { stackPermToDbRole } from '../auth/roleMapping.js'
 
 // The four primary role permissions — a user may hold more than one simultaneously.
-// Capabilities from all held roles are unioned (see deriveCapabilities).
+// Capabilities from all held roles are unioned (see deriveCapabilities in
+// server/auth/authorizationSnapshot.js).
 const PRIMARY_ROLE_PERMISSIONS = ['role_admin', 'role_comercial', 'role_office', 'role_financeiro']
 const VALID_STACK_PERMISSIONS = PRIMARY_ROLE_PERMISSIONS
 
@@ -499,9 +500,7 @@ export async function handleAdminUserCreate(req, res, { sendJson, body }) {
   const stackUserId = createResult.userId
 
   // 2) Derive DB role from the highest-priority permission being granted
-  const derivedDbRole = stackPermToDbRole(
-    permissions.includes('role_admin') ? 'role_admin' : permissions[0]
-  )
+  const derivedDbRole = stackPermToDbRole(derivePrimaryRole(permissions))
 
   // 3) Insert the DB row (approved immediately — admin is provisioning this user)
   let newRow
