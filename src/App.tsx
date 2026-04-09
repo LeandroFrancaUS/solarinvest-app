@@ -287,6 +287,8 @@ import {
   type UpdateClientInput,
 } from './lib/api/clientsApi'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
+import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
+import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -346,7 +348,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes'
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users'
 type SimulacoesSection =
   | 'nova'
   | 'salvas'
@@ -4462,6 +4464,9 @@ export default function App() {
 
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
+  // Incremented when auth is established so that data-load effects re-run and
+  // fetch from Neon. Declared before the auth useEffects to satisfy React's TDZ rules.
+  const [authSyncKey, setAuthSyncKey] = useState(0)
   useEffect(() => {
     ensureServerStorageSync({ timeoutMs: 4000 })
   }, [])
@@ -4475,8 +4480,13 @@ export default function App() {
     setStorageTokenProvider(getAccessToken)
     setProposalsTokenProvider(getAccessToken)
     setClientsTokenProvider(getAccessToken)
+    setAdminUsersTokenProvider(getAccessToken)
     // Re-run server storage sync now that auth is available.
     void ensureServerStorageSync({ timeoutMs: 6000 })
+    // Signal data-load effects to re-run now that auth token is available.
+    // This fixes cross-device/cross-browser: the initial load runs before auth
+    // resolves; this increment triggers a reload once the token provider is set.
+    setAuthSyncKey((k) => k + 1)
   }, [user, getAccessToken])
   useEffect(() => {
     removeFogOverlays()
@@ -4578,7 +4588,8 @@ export default function App() {
       storedPage === 'consultar' ||
       storedPage === 'clientes' ||
       storedPage === 'settings' ||
-      storedPage === 'simulacoes'
+      storedPage === 'simulacoes' ||
+      storedPage === 'admin-users'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -4779,6 +4790,8 @@ export default function App() {
     if (activePage === 'settings' && !isAdmin) {
       setActivePage('app')
     } else if (activePage === 'simulacoes' && simulacoesSection === 'analise' && !isAdmin) {
+      setActivePage('app')
+    } else if (activePage === 'admin-users' && !isAdmin) {
       setActivePage('app')
     }
   }, [activePage, simulacoesSection, isAdmin, isRbacLoading, setActivePage])
@@ -11891,7 +11904,10 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [carregarClientesPrioritarios])
+  // authSyncKey increments when Stack Auth token becomes available, ensuring
+  // this effect re-runs on new devices where auth resolves after initial mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carregarClientesPrioritarios, authSyncKey])
 
   useEffect(() => {
     return () => {
@@ -15516,7 +15532,10 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [carregarOrcamentosPrioritarios])
+  // authSyncKey increments when Stack Auth token becomes available, ensuring
+  // this effect re-runs on new devices where auth resolves after initial mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carregarOrcamentosPrioritarios, authSyncKey])
 
   // Carregar draft do formulário do IndexedDB na inicialização
   useEffect(() => {
@@ -18078,6 +18097,13 @@ export default function App() {
     },
     [runWithUnsavedChangesGuard, setActivePage, setSettingsTab, isAdmin],
   )
+
+  const abrirAdminUsuarios = useCallback(async () => {
+    if (!isAdmin) return false
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('admin-users')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, isAdmin])
 
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -24972,6 +24998,14 @@ export default function App() {
                   void abrirConfiguracoes()
                 },
               },
+              {
+                id: 'config-admin-users',
+                label: 'Gestão de Usuários',
+                icon: '👤',
+                onSelect: () => {
+                  void abrirAdminUsuarios()
+                },
+              },
             ]
           : []),
         {
@@ -24990,7 +25024,7 @@ export default function App() {
   const mobileAllowedIds = [
     'propostas-leasing',
     'propostas-vendas',
-    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
+    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias', 'config-admin-users'] : []),
     'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
@@ -26922,11 +26956,13 @@ export default function App() {
             ? 'orcamentos-importar'
             : activePage === 'settings'
               ? 'config-preferencias'
-              : activePage === 'simulacoes'
-                ? `simulacoes-${simulacoesSection}`
-                : activeTab === 'vendas'
-                  ? 'propostas-vendas'
-                  : 'propostas-leasing'
+              : activePage === 'admin-users'
+                ? 'config-admin-users'
+                : activePage === 'simulacoes'
+                  ? `simulacoes-${simulacoesSection}`
+                  : activeTab === 'vendas'
+                    ? 'propostas-vendas'
+                    : 'propostas-leasing'
 
 
   // If in print mode, render the Bento Grid print page
@@ -27003,6 +27039,8 @@ export default function App() {
           renderSimulacoesPage()
         ) : activePage === 'settings' ? (
           renderSettingsPage()
+        ) : activePage === 'admin-users' ? (
+          <AdminUsersPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
         ) : (
           <div className="page">
             <div className="app-main">

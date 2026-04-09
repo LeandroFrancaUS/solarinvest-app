@@ -5,6 +5,14 @@
 import { getCurrentAppUser } from '../auth/currentAppUser.js'
 import { requireAdmin } from '../auth/rbac.js'
 import { query } from '../db.js'
+import {
+  getUserPermissions,
+  grantUserPermission,
+  revokeUserPermission,
+  deleteStackUser,
+} from '../auth/stackPermissions.js'
+
+const VALID_STACK_PERMISSIONS = ['role_admin', 'role_comercial', 'role_office', 'role_financeiro']
 
 function sanitizeString(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -75,8 +83,23 @@ export async function handleAdminUsersListRequest(req, res, { sendJson, requestU
 
   const total = parseInt(countResult.rows[0]?.total || '0', 10)
 
+  // Enrich each user with their current Stack Auth permissions
+  const users = await Promise.all(
+    listResult.rows.map(async (user) => {
+      const stackId = sanitizeString(user.auth_provider_user_id)
+      let stack_permissions = []
+      if (stackId) {
+        const perms = await getUserPermissions(stackId)
+        if (Array.isArray(perms)) {
+          stack_permissions = perms.filter((p) => VALID_STACK_PERMISSIONS.includes(p))
+        }
+      }
+      return { ...user, stack_permissions }
+    })
+  )
+
   sendJson(res, 200, {
-    users: listResult.rows,
+    users,
     total,
     page,
     limit,
@@ -193,5 +216,123 @@ export async function handleAdminUserRole(req, res, { sendJson, userId, body }) 
   )
 
   await writeAudit(userId, 'role_changed', null, null, target.role, newRole, appUser)
+  sendJson(res, 200, { ok: true })
+}
+
+// POST /api/admin/users/:id/permissions/:perm  — grant a Stack Auth permission
+export async function handleAdminUserGrantPermission(req, res, { sendJson, userId, permId }) {
+  const appUser = await getCurrentAppUser(req)
+  requireAdmin(appUser)
+
+  if (!VALID_STACK_PERMISSIONS.includes(permId)) {
+    sendJson(res, 400, { error: `Invalid permission. Must be one of: ${VALID_STACK_PERMISSIONS.join(', ')}` })
+    return
+  }
+
+  const { rows } = await query(
+    `SELECT id, auth_provider_user_id FROM public.app_user_access WHERE id = $1 LIMIT 1`,
+    [userId]
+  )
+  const target = rows[0]
+  if (!target) {
+    sendJson(res, 404, { error: 'User not found' })
+    return
+  }
+
+  if (!process.env.STACK_SECRET_SERVER_KEY) {
+    sendJson(res, 503, { error: 'Stack Auth API key não configurada no servidor (STACK_SECRET_SERVER_KEY ausente)' })
+    return
+  }
+
+  const stackId = sanitizeString(target.auth_provider_user_id)
+  if (!stackId) {
+    sendJson(res, 422, { error: 'User has no linked Stack Auth account' })
+    return
+  }
+
+  const result = await grantUserPermission(stackId, permId)
+  if (!result.ok) {
+    const isConfigError = result.error?.includes('não configurad') || result.error?.includes('not configured')
+    sendJson(res, isConfigError ? 503 : 502, { error: result.error ?? 'Failed to grant permission via Stack Auth API' })
+    return
+  }
+
+  await writeAudit(userId, 'permission_granted', null, null, null, permId, appUser)
+  sendJson(res, 200, { ok: true })
+}
+
+// DELETE /api/admin/users/:id/permissions/:perm  — revoke a Stack Auth permission
+export async function handleAdminUserRevokePermission(req, res, { sendJson, userId, permId }) {
+  const appUser = await getCurrentAppUser(req)
+  requireAdmin(appUser)
+
+  if (!VALID_STACK_PERMISSIONS.includes(permId)) {
+    sendJson(res, 400, { error: `Invalid permission. Must be one of: ${VALID_STACK_PERMISSIONS.join(', ')}` })
+    return
+  }
+
+  const { rows } = await query(
+    `SELECT id, auth_provider_user_id FROM public.app_user_access WHERE id = $1 LIMIT 1`,
+    [userId]
+  )
+  const target = rows[0]
+  if (!target) {
+    sendJson(res, 404, { error: 'User not found' })
+    return
+  }
+
+  if (!process.env.STACK_SECRET_SERVER_KEY) {
+    sendJson(res, 503, { error: 'Stack Auth API key não configurada no servidor (STACK_SECRET_SERVER_KEY ausente)' })
+    return
+  }
+
+  const stackId = sanitizeString(target.auth_provider_user_id)
+  if (!stackId) {
+    sendJson(res, 422, { error: 'User has no linked Stack Auth account' })
+    return
+  }
+
+  const result = await revokeUserPermission(stackId, permId)
+  if (!result.ok) {
+    const isConfigError = result.error?.includes('não configurad') || result.error?.includes('not configured')
+    sendJson(res, isConfigError ? 503 : 502, { error: result.error ?? 'Failed to revoke permission via Stack Auth API' })
+    return
+  }
+
+  await writeAudit(userId, 'permission_revoked', null, null, null, permId, appUser)
+  sendJson(res, 200, { ok: true })
+}
+
+// DELETE /api/admin/users/:id  — permanently delete a user from DB and Stack Auth
+export async function handleAdminUserDelete(req, res, { sendJson, userId }) {
+  const appUser = await getCurrentAppUser(req)
+  requireAdmin(appUser)
+
+  const { rows } = await query(
+    `SELECT id, auth_provider_user_id, email FROM public.app_user_access WHERE id = $1 LIMIT 1`,
+    [userId]
+  )
+  const target = rows[0]
+  if (!target) {
+    sendJson(res, 404, { error: 'User not found' })
+    return
+  }
+
+  const stackId = sanitizeString(target.auth_provider_user_id)
+
+  // Write audit BEFORE deleting so the record still exists for FK constraints
+  await writeAudit(userId, 'user_deleted', null, null, null, null, appUser)
+
+  // Delete from Stack Auth first (best-effort — proceed even on failure)
+  if (stackId) {
+    const stackDeleted = await deleteStackUser(stackId)
+    if (!stackDeleted) {
+      console.warn('[admin] Failed to delete user from Stack Auth:', stackId)
+    }
+  }
+
+  // Delete from DB
+  await query(`DELETE FROM public.app_user_access WHERE id = $1`, [userId])
+
   sendJson(res, 200, { ok: true })
 }

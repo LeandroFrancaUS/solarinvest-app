@@ -2,15 +2,42 @@
 // API calls for admin user management endpoints.
 
 import { resolveApiUrl } from '../../utils/apiUrl'
-import type { AdminUsersResponse, AccessRole } from '../../lib/auth/access-types'
+import type { AdminUsersResponse, AccessRole, StackPermission } from '../../lib/auth/access-types'
 
 const BASE = resolveApiUrl('/api/admin/users')
 
-async function post(url: string, body?: unknown): Promise<void> {
+// ─── Token provider ───────────────────────────────────────────────────────────
+
+type GetAccessToken = () => Promise<string | null>
+let adminUsersTokenProvider: GetAccessToken | null = null
+
+/**
+ * Register the Stack Auth token provider for the admin users API.
+ * Must be called once the authenticated user is available (e.g. in App.tsx).
+ */
+export function setAdminUsersTokenProvider(fn: GetAccessToken): void {
+  adminUsersTokenProvider = fn
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function getAuthHeader(): Promise<Record<string, string>> {
+  if (!adminUsersTokenProvider) return {}
+  try {
+    const token = await adminUsersTokenProvider()
+    if (token) return { Authorization: `Bearer ${token}` }
+  } catch {
+    // fall back to cookie-only auth
+  }
+  return {}
+}
+
+async function request(url: string, method: string, body?: unknown): Promise<void> {
+  const authHeader = await getAuthHeader()
   const init: RequestInit = {
-    method: 'POST',
+    method,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeader },
   }
   if (body !== undefined) init.body = JSON.stringify(body)
   const response = await fetch(url, init)
@@ -20,20 +47,34 @@ async function post(url: string, body?: unknown): Promise<void> {
   }
 }
 
+function post(url: string, body?: unknown): Promise<void> {
+  return request(url, 'POST', body)
+}
+
+function del(url: string): Promise<void> {
+  return request(url, 'DELETE')
+}
+
+// ─── API functions ────────────────────────────────────────────────────────────
+
 export async function fetchAdminUsers(
   params: { page?: number; limit?: number; search?: string } = {}
 ): Promise<AdminUsersResponse> {
-  const url = new URL(BASE)
-  if (params.page) url.searchParams.set('page', String(params.page))
-  if (params.limit) url.searchParams.set('limit', String(params.limit))
-  if (params.search) url.searchParams.set('search', params.search)
+  const qs = new URLSearchParams()
+  if (params.page) qs.set('page', String(params.page))
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.search) qs.set('search', params.search)
+  const suffix = qs.toString() ? `?${qs.toString()}` : ''
 
-  const response = await fetch(url.toString(), {
+  const authHeader = await getAuthHeader()
+  const response = await fetch(`${BASE}${suffix}`, {
     method: 'GET',
     credentials: 'include',
+    headers: { ...authHeader },
   })
   if (!response.ok) {
-    throw new Error(`/api/admin/users returned ${response.status}`)
+    const data: unknown = await response.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error ?? `/api/admin/users returned ${response.status}`)
   }
   return response.json() as Promise<AdminUsersResponse>
 }
@@ -52,4 +93,16 @@ export function revokeUser(id: string): Promise<void> {
 
 export function setUserRole(id: string, role: AccessRole): Promise<void> {
   return post(`${BASE}/${id}/role`, { role })
+}
+
+export function grantPermission(id: string, perm: StackPermission): Promise<void> {
+  return post(`${BASE}/${id}/permissions/${encodeURIComponent(perm)}`)
+}
+
+export function revokePermission(id: string, perm: StackPermission): Promise<void> {
+  return del(`${BASE}/${id}/permissions/${encodeURIComponent(perm)}`)
+}
+
+export function deleteUser(id: string): Promise<void> {
+  return del(`${BASE}/${id}`)
 }

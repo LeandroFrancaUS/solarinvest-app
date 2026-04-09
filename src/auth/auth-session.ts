@@ -59,6 +59,9 @@ export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthS
   const getAccessTokenRef = useRef<GetAccessToken | null | undefined>(getAccessToken)
   getAccessTokenRef.current = getAccessToken
 
+  // Track the previous getter value so we can detect the null→function transition.
+  const prevGetterRef = useRef<GetAccessToken | null | undefined>(getAccessToken)
+
   const load = useCallback(async () => {
     if (retryRef.current) {
       clearTimeout(retryRef.current)
@@ -164,6 +167,22 @@ export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthS
       tokenRetryRef.current = 0
     }
   }, [load])
+
+  // Re-trigger /me when getAccessToken transitions from null/undefined to a function.
+  // This handles the case where the hook is first rendered with no getter (user not yet
+  // resolved), sends an unauthenticated /me → 401, and then the user resolves and a
+  // valid getter becomes available.  Without this effect the next /me call would only
+  // happen at the 15-minute poll interval.
+  useEffect(() => {
+    const prev = prevGetterRef.current
+    prevGetterRef.current = getAccessToken
+    if (getAccessToken && !prev) {
+      // Getter just became available — reset counters and reload immediately.
+      failCountRef.current = 0
+      tokenRetryRef.current = 0
+      void load()
+    }
+  }, [getAccessToken, load])
 
   const accessState = deriveAccessState(me, loading)
   const refresh = useCallback(() => {

@@ -61,17 +61,91 @@ async function getUserPermissionsViaApi(userId) {
 }
 
 /**
- * Grants a global project permission to a user via the Stack Auth admin API.
+ * Revokes a global project permission from a user via the Stack Auth admin API.
+ * Returns { ok: true } on success (or if the permission did not exist).
+ * Returns { ok: false, error: string } on configuration error or API failure.
+ */
+async function revokePermissionViaApi(userId, permissionId) {
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey) return { ok: false, error: 'STACK_SECRET_SERVER_KEY não configurada' }
+  if (!projectId) return { ok: false, error: 'STACK_PROJECT_ID não configurado' }
+  if (!userId || !permissionId) return { ok: false, error: 'userId ou permissionId ausente' }
+
+  try {
+    // Stack Auth REST API: type must be in the request body, not as a query param.
+    const url =
+      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}`
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'x-stack-access-type': 'server',
+        'x-stack-project-id': projectId,
+        'x-stack-secret-server-key': secretKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ type: 'global' }),
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    })
+    if (!res.ok && res.status !== 404) {
+      const body = await res.text().catch(() => '')
+      console.warn('[RBAC] revokePermissionViaApi HTTP', res.status, 'userId:', userId, 'permission:', permissionId, '| response:', body)
+      return { ok: false, error: `Stack Auth API ${res.status}: ${body}`.trim() }
+    }
+    return { ok: true }
+  } catch (err) {
+    console.warn('[RBAC] revokePermissionViaApi error:', err?.message)
+    return { ok: false, error: err?.message ?? 'Erro de rede' }
+  }
+}
+
+/**
+ * Deletes a user from Stack Auth via the admin API.
  * Returns true on success, false otherwise.
+ */
+async function deleteStackUserViaApi(userId) {
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey || !projectId || !userId) return false
+
+  try {
+    const url = `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}`
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'x-stack-access-type': 'server',
+        'x-stack-project-id': projectId,
+        'x-stack-secret-server-key': secretKey,
+      },
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    })
+    if (!res.ok && res.status !== 404) {
+      console.warn('[RBAC] deleteStackUserViaApi HTTP', res.status, 'userId:', userId)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.warn('[RBAC] deleteStackUserViaApi error:', err?.message)
+    return false
+  }
+}
+
+/**
+ * Grants a global project permission to a user via the Stack Auth admin API.
+ * Returns { ok: true } on success.
+ * Returns { ok: false, error: string } on configuration error or API failure.
  */
 async function grantPermissionViaApi(userId, permissionId) {
   const secretKey = getSecretKey()
   const projectId = getProjectId()
-  if (!secretKey || !projectId || !userId || !permissionId) return false
+  if (!secretKey) return { ok: false, error: 'STACK_SECRET_SERVER_KEY não configurada' }
+  if (!projectId) return { ok: false, error: 'STACK_PROJECT_ID não configurado' }
+  if (!userId || !permissionId) return { ok: false, error: 'userId ou permissionId ausente' }
 
   try {
+    // Stack Auth REST API: type must be in the request body, not as a query param.
     const url =
-      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}?type=global`
+      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}`
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -80,17 +154,18 @@ async function grantPermissionViaApi(userId, permissionId) {
         'x-stack-secret-server-key': secretKey,
         'content-type': 'application/json',
       },
-      body: '{}',
+      body: JSON.stringify({ type: 'global' }),
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
     if (!res.ok) {
-      console.warn('[RBAC] grantPermissionViaApi HTTP', res.status, 'userId:', userId, 'permission:', permissionId)
-      return false
+      const body = await res.text().catch(() => '')
+      console.warn('[RBAC] grantPermissionViaApi HTTP', res.status, 'userId:', userId, 'permission:', permissionId, '| response:', body)
+      return { ok: false, error: `Stack Auth API ${res.status}: ${body}`.trim() }
     }
-    return true
+    return { ok: true }
   } catch (err) {
     console.warn('[RBAC] grantPermissionViaApi error:', err?.message)
-    return false
+    return { ok: false, error: err?.message ?? 'Erro de rede' }
   }
 }
 
@@ -151,9 +226,11 @@ export async function ensureAdminPermissionForUser(userId, email) {
   }
 
   // 2) Grant.
-  const granted = await grantPermissionViaApi(userId, ADMIN_PERMISSION)
-  if (granted) {
+  const result = await grantPermissionViaApi(userId, ADMIN_PERMISSION)
+  if (result.ok) {
     console.info('[RBAC] granted', ADMIN_PERMISSION, 'to', userId)
+  } else {
+    console.warn('[RBAC] ensureAdminPermission: grant failed —', result.error)
   }
 }
 
@@ -218,5 +295,134 @@ export async function requireStackPermission(req, permissionId) {
     const err = new Error('Forbidden')
     err.statusCode = 403
     throw err
+  }
+}
+
+/**
+ * Grants a permission to a user by their Stack Auth user ID.
+ * Returns { ok: true } on success, { ok: false, error: string } on failure.
+ */
+export async function grantUserPermission(userId, permissionId) {
+  return grantPermissionViaApi(userId, permissionId)
+}
+
+/**
+ * Revokes a permission from a user by their Stack Auth user ID.
+ * Returns { ok: true } on success, { ok: false, error: string } on failure.
+ */
+export async function revokeUserPermission(userId, permissionId) {
+  return revokePermissionViaApi(userId, permissionId)
+}
+
+/**
+ * Retrieves all global permissions for a user by their Stack Auth user ID.
+ * Returns an array of permission ID strings, or null on failure.
+ */
+export async function getUserPermissions(userId) {
+  return getUserPermissionsViaApi(userId)
+}
+
+/**
+ * Deletes a user from Stack Auth by their Stack Auth user ID.
+ * Returns true on success, false otherwise.
+ */
+export async function deleteStackUser(userId) {
+  return deleteStackUserViaApi(userId)
+}
+
+// ─── Auto-grant for configured commercial users ───────────────────────────────
+
+/**
+ * Comma-separated list of emails that should be auto-granted `role_comercial`.
+ * Override with the BOOTSTRAP_COMERCIAL_EMAILS environment variable.
+ * The two defaults are the initial commercial team members; add more via the
+ * env var rather than editing this file.
+ */
+const COMERCIAL_EMAILS = (
+  process.env.BOOTSTRAP_COMERCIAL_EMAILS ||
+  'laienygomes1@gmail.com,cmdosanjos123@gmail.com'
+)
+  .split(',')
+  .map((e) => e.toLowerCase().trim())
+  .filter(Boolean)
+
+/**
+ * Comma-separated list of emails that should be auto-granted `role_office`.
+ * Override with the BOOTSTRAP_OFFICE_EMAILS environment variable.
+ * The default includes the office team member; add more via the env var.
+ */
+const OFFICE_EMAILS = (
+  process.env.BOOTSTRAP_OFFICE_EMAILS ||
+  'laienygomes1@gmail.com'
+)
+  .split(',')
+  .map((e) => e.toLowerCase().trim())
+  .filter(Boolean)
+
+/**
+ * Idempotent: ensures users whose email is in COMERCIAL_EMAILS (or
+ * BOOTSTRAP_COMERCIAL_EMAILS env var) have the `role_comercial` Stack Auth
+ * permission.  Silently skips if:
+ *   - The user's email is not in the configured list.
+ *   - STACK_SECRET_SERVER_KEY / STACK_PROJECT_ID is not configured.
+ *   - The permission already exists.
+ *
+ * Should only be called from server-side auth resolution (currentAppUser.js).
+ */
+export async function ensureComercialPermissionForUsers(userId, email) {
+  const normalizedEmail = typeof email === 'string' ? email.toLowerCase().trim() : ''
+  if (!COMERCIAL_EMAILS.includes(normalizedEmail)) return
+
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey || !projectId) return
+
+  console.info('[RBAC] ensuring comercial permission for', userId, normalizedEmail)
+
+  const existing = await getUserPermissionsViaApi(userId)
+  if (existing !== null && existing.includes('role_comercial')) {
+    // Already granted — nothing to do.
+    return
+  }
+
+  const result = await grantPermissionViaApi(userId, 'role_comercial')
+  if (result.ok) {
+    console.info('[RBAC] granted role_comercial to', userId)
+  } else {
+    console.warn('[RBAC] ensureComercialPermission: grant failed —', result.error)
+  }
+}
+
+/**
+ * Idempotent: ensures users whose email is in OFFICE_EMAILS (or
+ * BOOTSTRAP_OFFICE_EMAILS env var) have the `role_office` Stack Auth
+ * permission.  Silently skips if:
+ *   - The user's email is not in the configured list.
+ *   - STACK_SECRET_SERVER_KEY / STACK_PROJECT_ID is not configured.
+ *   - The permission already exists.
+ *
+ * Should only be called from server-side auth resolution (currentAppUser.js).
+ */
+export async function ensureOfficePermissionForUsers(userId, email) {
+  const normalizedEmail = typeof email === 'string' ? email.toLowerCase().trim() : ''
+  if (!OFFICE_EMAILS.includes(normalizedEmail)) return
+
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey || !projectId) return
+
+  console.info('[RBAC] ensuring office permission for', userId, normalizedEmail)
+
+  const existing = await getUserPermissionsViaApi(userId)
+  if (existing !== null && existing.includes('role_office')) {
+    // Already granted — nothing to do.
+    return
+  }
+
+  const result = await grantPermissionViaApi(userId, 'role_office')
+  if (result.ok) {
+    console.info('[RBAC] granted role_office to', userId)
+  } else {
+    console.warn('[RBAC] ensureOfficePermission: grant failed —', result.error)
   }
 }

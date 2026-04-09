@@ -3,6 +3,12 @@
 
 export type AccessRole = 'admin' | 'manager' | 'user'
 
+export type StackPermission =
+  | 'role_admin'
+  | 'role_comercial'
+  | 'role_office'
+  | 'role_financeiro'
+
 export type AccessStatus = 'pending' | 'approved' | 'revoked' | 'blocked'
 
 export type AuthState = 'loading' | 'anonymous' | 'authenticated' | 'error'
@@ -47,6 +53,8 @@ export interface AdminUser {
   last_login_at: string | null
   created_at: string
   updated_at: string
+  /** Stack Auth permissions currently assigned to this user */
+  stack_permissions: StackPermission[]
 }
 
 export interface AdminUsersResponse {

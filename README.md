@@ -95,16 +95,29 @@ npm run test:neon
 
 Authentication uses **Stack Auth** (`@stackframe/react`).
 
-### Required frontend env vars
-- `VITE_STACK_PROJECT_ID`
-- `VITE_STACK_PUBLISHABLE_CLIENT_KEY`
+### Required frontend env vars (Vercel → Settings → Environment Variables)
+- `VITE_STACK_PROJECT_ID` — found in Stack Auth dashboard → Project → API Keys (the Project ID field)
+- `VITE_STACK_PUBLISHABLE_CLIENT_KEY` — found in Stack Auth dashboard → Project → API Keys (the Publishable Client Key field)
+
+### Required backend env vars
+- `STACK_PROJECT_ID` — same value as `VITE_STACK_PROJECT_ID` (the Server-side duplicate; `VITE_*` is used as fallback but the server-side name is preferred)
+- `STACK_SECRET_SERVER_KEY` — found in Stack Auth dashboard → Project → API Keys (the **Secret Server Key** field). **⚠️ This key must match the project ID exactly.** If you see `INVALID_SECRET_SERVER_KEY` in server logs, the key has been rotated or copied from the wrong project — regenerate it in the dashboard and update the Vercel env var.
 
 ### Optional backend vars
-- `STACK_SECRET_SERVER_KEY`
-- `STACK_JWKS_URL`
-- `TRUSTED_WEB_ORIGINS`
+- `STACK_JWKS_URL` — auto-derived from `STACK_PROJECT_ID` if omitted; only set manually if using a custom Stack Auth instance
+- `TRUSTED_WEB_ORIGINS` — comma-separated list of allowed origins for CORS (defaults include `https://app.solarinvest.app` and `http://localhost:5173`)
 
----
+### Bootstrap permission env vars (optional — have built-in defaults)
+These control which users automatically receive certain Stack Auth permissions on first login:
+- `BOOTSTRAP_COMERCIAL_EMAILS` — comma-separated list of emails to auto-grant `role_comercial`. Defaults to `laienygomes1@gmail.com,cmdosanjos123@gmail.com`.
+- `BOOTSTRAP_OFFICE_EMAILS` — comma-separated list of emails to auto-grant `role_office`. Defaults to `laienygomes1@gmail.com`.
+
+### Getting your Stack Auth credentials
+1. Log in at https://app.stack-auth.com
+2. Select your project (or create one)
+3. Navigate to **API Keys**
+4. Copy the **Project ID**, **Publishable Client Key**, and **Secret Server Key**
+5. Set them as Vercel environment variables and redeploy
 
 ## PDF conversion for leasing contracts
 

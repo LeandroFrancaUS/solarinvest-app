@@ -7,8 +7,13 @@ import { perfLog, perfMeasure, perfNow } from '../../utils/perf'
 type SignOutFn = () => Promise<unknown>
 
 const LOCAL_CLEAR_TIMEOUT_MS = 2_000
-const API_LOGOUT_TIMEOUT_MS = 3_000
-const STACK_SIGNOUT_TIMEOUT_MS = 2_000
+const API_LOGOUT_TIMEOUT_MS = 5_000
+// Stack Auth signOut makes a network round-trip to api.stack-auth.com.
+// 2 s was too short — on slow/cold connections the call timed out before the
+// Stack Auth server could revoke the session, leaving the session cookies valid
+// after the redirect and the user visually still "logged in".  10 s is enough
+// to cover high-latency connections while still providing a clear timeout UX.
+const STACK_SIGNOUT_TIMEOUT_MS = 10_000
 
 let logoutInFlight: Promise<void> | null = null
 
@@ -96,23 +101,27 @@ async function runLogout(signOut?: SignOutFn): Promise<void> {
       timedOut: clearResult === null,
     })
 
-    const remoteTasks: Array<Promise<unknown>> = [callServerLogout()]
-
+    // Step 1: Sign out from Stack Auth FIRST — this revokes the session on the
+    // Stack Auth server and clears the session cookies.  This MUST complete before
+    // we navigate away; otherwise the session cookies remain valid on the new page
+    // and the user appears still logged in.  The 10-second timeout prevents an
+    // infinite hang if the Stack Auth API is unreachable.
     if (signOut) {
       logDev('[LOGOUT][STACK_START]')
-      const signOutTask = withTimeout(
+      const signOutResult = await withTimeout(
         signOut().catch((error) => {
           logDev('[LOGOUT][STACK_FAIL]', error)
         }),
         STACK_SIGNOUT_TIMEOUT_MS,
-      ).then((signOutResult) => {
-        logDev(signOutResult === null ? '[LOGOUT][STACK_FAIL]' : '[LOGOUT][STACK_OK]')
-        return signOutResult
-      })
-      remoteTasks.push(signOutTask)
+      )
+      logDev(signOutResult === null ? '[LOGOUT][STACK_TIMEOUT]' : '[LOGOUT][STACK_OK]')
     }
 
-    await Promise.allSettled(remoteTasks)
+    // Step 2: Expire our own server-side session cookie in parallel with the
+    // cleanup that follows.  We don't need to await this — it is fire-and-forget
+    // because the browser includes the cookie in the request automatically, and
+    // the navigation below will reload the page regardless.
+    void callServerLogout()
   } finally {
     clearStackAuthCookies()
     perfMeasure('LOGOUT', 'DONE', logoutStart)

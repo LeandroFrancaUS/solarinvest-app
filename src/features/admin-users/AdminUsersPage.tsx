@@ -9,7 +9,11 @@ import type { AdminUser } from '../../lib/auth/access-types'
 
 const PAGE_SIZE = 20
 
-export function AdminUsersPage() {
+interface Props {
+  onBack?: () => void
+}
+
+export function AdminUsersPage({ onBack }: Props) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [pages, setPages] = useState(1)
@@ -60,11 +64,22 @@ export function AdminUsersPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">Gestão de Usuários</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Gerencie o acesso dos usuários ao SolarInvest. Total: <strong>{total}</strong> usuário(s).
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Gestão de Usuários</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Gerencie o acesso dos usuários ao SolarInvest. Total: <strong>{total}</strong> usuário(s).
+          </p>
+        </div>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Voltar
+          </button>
+        )}
       </div>
 
       <div className="mb-4 flex items-center gap-3">

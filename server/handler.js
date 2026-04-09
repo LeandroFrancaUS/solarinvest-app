@@ -40,6 +40,9 @@ import {
   handleAdminUserBlock,
   handleAdminUserRevoke,
   handleAdminUserRole,
+  handleAdminUserGrantPermission,
+  handleAdminUserRevokePermission,
+  handleAdminUserDelete,
 } from './routes/adminUsers.js'
 import {
   handleProposalsRequest,
@@ -391,8 +394,13 @@ export default async function handler(req, res) {
       }
 
       if (method === 'GET') {
-        const entries = await storageService.listEntries(userId)
-        sendJson(res, 200, { entries })
+        try {
+          const entries = await storageService.listEntries(userId)
+          sendJson(res, 200, { entries })
+        } catch (storageErr) {
+          console.error('[storage] listEntries error:', storageErr?.message)
+          sendJson(res, 503, { error: 'Falha ao acessar armazenamento. Tente novamente.' })
+        }
         return
       }
 
@@ -401,21 +409,30 @@ export default async function handler(req, res) {
         const key = typeof body.key === 'string' ? body.key.trim() : ''
         const value = body.value === undefined ? null : body.value
         if (!key) return sendJson(res, 400, { error: 'Chave de armazenamento inválida.' })
-        await storageService.setEntry(userId, key, value)
-        sendNoContent(res)
+        try {
+          await storageService.setEntry(userId, key, value)
+          sendNoContent(res)
+        } catch (storageErr) {
+          console.error('[storage] setEntry error:', storageErr?.message)
+          sendJson(res, 503, { error: 'Falha ao salvar no armazenamento. Tente novamente.' })
+        }
         return
       }
 
       if (method === 'DELETE') {
         const body = await readJsonBody(req)
         const key = typeof body.key === 'string' ? body.key.trim() : ''
-        if (!key) {
-          await storageService.clear(userId)
+        try {
+          if (!key) {
+            await storageService.clear(userId)
+          } else {
+            await storageService.removeEntry(userId, key)
+          }
           sendNoContent(res)
-          return
+        } catch (storageErr) {
+          console.error('[storage] removeEntry/clear error:', storageErr?.message)
+          sendJson(res, 503, { error: 'Falha ao remover do armazenamento. Tente novamente.' })
         }
-        await storageService.removeEntry(userId, key)
-        sendNoContent(res)
         return
       }
 
@@ -460,6 +477,32 @@ export default async function handler(req, res) {
       else if (action === 'block') await handleAdminUserBlock(req, res, ctx)
       else if (action === 'revoke') await handleAdminUserRevoke(req, res, ctx)
       else if (action === 'role') await handleAdminUserRole(req, res, ctx)
+      return
+    }
+
+    // DELETE /api/admin/users/:id  — permanent deletion
+    const adminUserDeleteMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/)
+    if (adminUserDeleteMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'DELETE,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'DELETE') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      const userId = adminUserDeleteMatch[1]
+      await handleAdminUserDelete(req, res, { sendJson, userId })
+      return
+    }
+
+    // /api/admin/users/:id/permissions/:perm  — grant (POST) / revoke (DELETE)
+    const adminUserPermMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/permissions\/([^/]+)$/)
+    if (adminUserPermMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,DELETE,OPTIONS'); sendNoContent(res); return }
+      const userId = adminUserPermMatch[1]
+      const permId = decodeURIComponent(adminUserPermMatch[2])
+      if (method === 'POST') {
+        await handleAdminUserGrantPermission(req, res, { sendJson, userId, permId })
+      } else if (method === 'DELETE') {
+        await handleAdminUserRevokePermission(req, res, { sendJson, userId, permId })
+      } else {
+        sendJson(res, 405, { error: 'Método não suportado.' })
+      }
       return
     }
 

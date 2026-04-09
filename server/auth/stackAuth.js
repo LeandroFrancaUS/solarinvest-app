@@ -359,11 +359,18 @@ function resolveSessionCookieUser(req) {
 }
 
 function extractBearerToken(req) {
-  const header = req.headers?.authorization
-  if (typeof header !== 'string') {
+  // Priority 1: x-stack-access-token (Stack Auth SDK native header)
+  const stackHeader = req.headers?.['x-stack-access-token']
+  if (typeof stackHeader === 'string' && stackHeader.trim()) {
+    return stackHeader.trim()
+  }
+
+  // Priority 2: Authorization: Bearer <token> (standard HTTP auth header)
+  const authHeader = req.headers?.authorization
+  if (typeof authHeader !== 'string') {
     return ''
   }
-  const match = header.match(/^Bearer\s+(.+)$/i)
+  const match = authHeader.match(/^Bearer\s+(.+)$/i)
   return match ? match[1].trim() : ''
 }
 
