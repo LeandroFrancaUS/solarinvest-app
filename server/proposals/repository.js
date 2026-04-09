@@ -89,7 +89,7 @@ export async function listProposals(sql, filter = {}) {
 
   const params = []
 
-  // Only functional filters — RLS handles ownership/role access control.
+  // Only functional filters - RLS handles ownership/role access control.
   const conditions = ['p.deleted_at IS NULL']
 
   if (filter.proposal_type) {

@@ -207,7 +207,7 @@ export async function listClients(sql, filter = {}) {
   const safeSort = allowedSortBy.includes(sortBy) ? sortBy : 'updated_at'
   const safeSortDir = allowedSortDir.includes(sortDir.toUpperCase()) ? sortDir.toUpperCase() : 'DESC'
 
-  // Only functional filters — RLS handles ownership/role access control.
+  // Only functional filters - RLS handles ownership/role access control.
   const conditions = ['c.deleted_at IS NULL', 'c.merged_into_client_id IS NULL']
   const params = []
 
