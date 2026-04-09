@@ -4464,6 +4464,9 @@ export default function App() {
 
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
+  // Incremented when auth is established so that data-load effects re-run and
+  // fetch from Neon. Declared before the auth useEffects to satisfy React's TDZ rules.
+  const [authSyncKey, setAuthSyncKey] = useState(0)
   useEffect(() => {
     ensureServerStorageSync({ timeoutMs: 4000 })
   }, [])
@@ -4480,6 +4483,10 @@ export default function App() {
     setAdminUsersTokenProvider(getAccessToken)
     // Re-run server storage sync now that auth is available.
     void ensureServerStorageSync({ timeoutMs: 6000 })
+    // Signal data-load effects to re-run now that auth token is available.
+    // This fixes cross-device/cross-browser: the initial load runs before auth
+    // resolves; this increment triggers a reload once the token provider is set.
+    setAuthSyncKey((k) => k + 1)
   }, [user, getAccessToken])
   useEffect(() => {
     removeFogOverlays()
@@ -11897,7 +11904,10 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [carregarClientesPrioritarios])
+  // authSyncKey increments when Stack Auth token becomes available, ensuring
+  // this effect re-runs on new devices where auth resolves after initial mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carregarClientesPrioritarios, authSyncKey])
 
   useEffect(() => {
     return () => {
@@ -15522,7 +15532,10 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [carregarOrcamentosPrioritarios])
+  // authSyncKey increments when Stack Auth token becomes available, ensuring
+  // this effect re-runs on new devices where auth resolves after initial mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carregarOrcamentosPrioritarios, authSyncKey])
 
   // Carregar draft do formulário do IndexedDB na inicialização
   useEffect(() => {
