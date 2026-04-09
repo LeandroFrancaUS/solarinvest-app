@@ -59,9 +59,11 @@ export async function createProposal(sql, ownerUserId, data) {
  */
 export async function getProposalById(sql, id) {
   const rows = await sql`
-    SELECT * FROM proposals
-    WHERE id = ${id}
-      AND deleted_at IS NULL
+    SELECT p.*, up.primary_role AS owner_role
+    FROM proposals p
+    LEFT JOIN app_user_profiles up ON up.stack_user_id = p.owner_user_id
+    WHERE p.id = ${id}
+      AND p.deleted_at IS NULL
     LIMIT 1
   `
   return rows[0] ?? null
@@ -69,7 +71,11 @@ export async function getProposalById(sql, id) {
 
 /**
  * List proposals with optional filters and pagination.
- * filter: { ownerUserId?, page, limit, proposal_type?, status? }
+ * filter: { ownerUserId?, officeUserId?, page, limit, proposal_type?, status? }
+ *
+ * When officeUserId is set (office role), the query returns:
+ *   - proposals where owner_user_id = officeUserId (own)
+ *   - proposals where the owner has primary_role = 'role_comercial'
  *
  * Uses the neon callable form sql(queryText, params) to support dynamic
  * WHERE clauses without duplicating query branches.
@@ -79,26 +85,43 @@ export async function listProposals(sql, filter = {}) {
   const limit = Math.min(MAX_PAGE_LIMIT, Math.max(1, parseInt(filter.limit ?? DEFAULT_PAGE_LIMIT, 10)))
   const offset = (page - 1) * limit
 
-  const conditions = ['deleted_at IS NULL']
   const params = []
 
-  if (filter.ownerUserId) {
+  // Build the access-control WHERE fragment
+  let accessFragment = ''
+  if (filter.officeUserId) {
+    // Office: own proposals OR proposals owned by comercial users
+    params.push(filter.officeUserId)
+    accessFragment = `(p.owner_user_id = $${params.length} OR up.primary_role = 'role_comercial')`
+  } else if (filter.ownerUserId) {
     params.push(filter.ownerUserId)
-    conditions.push(`owner_user_id = $${params.length}`)
+    accessFragment = `p.owner_user_id = $${params.length}`
   }
+
+  const conditions = ['p.deleted_at IS NULL']
+  if (accessFragment) conditions.push(accessFragment)
+
   if (filter.proposal_type) {
     params.push(filter.proposal_type)
-    conditions.push(`proposal_type = $${params.length}`)
+    conditions.push(`p.proposal_type = $${params.length}`)
   }
   if (filter.status) {
     params.push(filter.status)
-    conditions.push(`status = $${params.length}`)
+    conditions.push(`p.status = $${params.length}`)
   }
 
   const whereClause = conditions.join(' AND ')
+  // Only JOIN app_user_profiles when the office filter is active (for the
+  // "owner is a comercial user" predicate). For admin/financeiro/comercial
+  // queries the JOIN is unnecessary overhead.
+  const needsOwnerRoleJoin = Boolean(filter.officeUserId)
+  const joinClause = needsOwnerRoleJoin
+    ? 'LEFT JOIN app_user_profiles up ON up.stack_user_id = p.owner_user_id'
+    : ''
+  const selectOwnerRole = needsOwnerRoleJoin ? ', up.primary_role AS owner_role' : ''
 
   const countRows = await sql(
-    `SELECT COUNT(*) AS total FROM proposals WHERE ${whereClause}`,
+    `SELECT COUNT(*) AS total FROM proposals p ${joinClause} WHERE ${whereClause}`,
     params
   )
 
@@ -106,7 +129,11 @@ export async function listProposals(sql, filter = {}) {
   const limitPlaceholder = `$${params.length + 1}`
   const offsetPlaceholder = `$${params.length + 2}`
   const rows = await sql(
-    `SELECT * FROM proposals WHERE ${whereClause} ORDER BY updated_at DESC LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
+    `SELECT p.*${selectOwnerRole}
+     FROM proposals p ${joinClause}
+     WHERE ${whereClause}
+     ORDER BY p.updated_at DESC
+     LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
     listParams
   )
 

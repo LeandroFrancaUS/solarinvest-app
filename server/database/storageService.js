@@ -1,3 +1,5 @@
+import { createUserScopedSql } from './withRLSContext.js'
+
 const DEFAULT_USER_ID = 'default'
 
 function normalizeJsonValue(raw) {
@@ -91,8 +93,9 @@ export class StorageService {
   async listEntries(userId) {
     await this.ensureInitialized()
     const normalizedUserId = this.resolveUserId(userId)
+    const scopedSql = createUserScopedSql(this.sql, normalizedUserId)
 
-    const rows = await this.sql`
+    const rows = await scopedSql`
       SELECT "key" AS key, value
         FROM storage
        WHERE user_id = ${normalizedUserId}
@@ -103,12 +106,16 @@ export class StorageService {
       return rows.map((row) => ({ key: row.key, value: normalizeJsonValue(row.value) }))
     }
 
-    const legacyRows = await this.loadLegacyEntries(normalizedUserId)
+    const legacyRows = await this.loadLegacyEntries(normalizedUserId, scopedSql)
 
     return legacyRows.map((row) => ({ key: row.key, value: normalizeJsonValue(row.value) }))
   }
 
-  async loadLegacyEntries(userId) {
+  async loadLegacyEntries(userId, scopedSql) {
+    const sql = scopedSql ?? this.sql
+    // The `to_regclass` check is a DDL / catalog query; it carries no user data
+    // and is intentionally run with the raw (non-scoped) sql to avoid RLS
+    // interfering with the metadata lookup.
     const [legacyTable] = await this.sql`
       SELECT to_regclass('public.app_storage') AS table_name
     `
@@ -117,7 +124,7 @@ export class StorageService {
       return []
     }
 
-    const rows = await this.sql`
+    const rows = await sql`
       SELECT "key" AS key, value
         FROM app_storage
        WHERE user_id = ${userId}
@@ -133,12 +140,14 @@ export class StorageService {
     }
 
     await this.ensureInitialized()
+    const normalizedUserId = this.resolveUserId(userId)
     const normalizedValue = value === undefined ? null : value
     const serializedValue = normalizedValue === null ? null : JSON.stringify(normalizedValue)
+    const scopedSql = createUserScopedSql(this.sql, normalizedUserId)
 
-    await this.sql`
+    await scopedSql`
       INSERT INTO storage (user_id, "key", value, updated_at)
-      VALUES (${this.resolveUserId(userId)}, ${key}, ${serializedValue}::jsonb, now())
+      VALUES (${normalizedUserId}, ${key}, ${serializedValue}::jsonb, now())
       ON CONFLICT (user_id, "key")
       DO UPDATE SET value = EXCLUDED.value, updated_at = now()
     `
@@ -150,18 +159,24 @@ export class StorageService {
     }
 
     await this.ensureInitialized()
-    await this.sql`
+    const normalizedUserId = this.resolveUserId(userId)
+    const scopedSql = createUserScopedSql(this.sql, normalizedUserId)
+
+    await scopedSql`
       DELETE FROM storage
-      WHERE user_id = ${this.resolveUserId(userId)}
+      WHERE user_id = ${normalizedUserId}
         AND "key" = ${key}
     `
   }
 
   async clear(userId) {
     await this.ensureInitialized()
-    await this.sql`
+    const normalizedUserId = this.resolveUserId(userId)
+    const scopedSql = createUserScopedSql(this.sql, normalizedUserId)
+
+    await scopedSql`
       DELETE FROM storage
-      WHERE user_id = ${this.resolveUserId(userId)}
+      WHERE user_id = ${normalizedUserId}
     `
   }
 }

@@ -2,6 +2,7 @@
 // Handles /api/clients routes with CPF deduplication and RBAC.
 
 import { getDatabaseClient } from '../database/neonClient.js'
+import { createUserScopedSql } from '../database/withRLSContext.js'
 import {
   normalizeCpfServer,
   normalizeCnpjServer,
@@ -174,10 +175,14 @@ export async function handleClientsRequest(req, res, ctx) {
 
   if (method === 'GET') {
     const q = requestUrl.searchParams
-    const ownerUserId = (actor.isAdmin || actor.isOffice || actor.isFinanceiro) ? (q.get('owner_user_id') ?? null) : actor.userId
+    const isPrivileged = actor.isAdmin || actor.isFinanceiro
+    const ownerUserId = isPrivileged ? (q.get('owner_user_id') ?? null) : (actor.isOffice ? null : actor.userId)
+    const officeUserId = actor.isOffice ? actor.userId : null
+    const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
     try {
-      const result = await listClients(db.sql, {
+      const result = await listClients(userSql, {
         ownerUserId,
+        officeUserId,
         createdByUserId: q.get('created_by') ?? null,
         city: q.get('city') ?? null,
         state: q.get('uf') ?? null,
@@ -212,7 +217,8 @@ export async function handleClientsRequest(req, res, ctx) {
       if (docNormalized && docType === 'cpf') identityStatus = 'confirmed'
       else if (docNormalized && docType === 'cnpj') identityStatus = 'confirmed'
       else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
-      const client = await createClient(db.sql, {
+      const userSql = createUserScopedSql(db.sql, actor.userId)
+      const client = await createClient(userSql, {
         ...body,
         cpf_normalized: cpfNormalized,
         cnpj_normalized: cnpjNormalized,
@@ -255,8 +261,10 @@ export async function handleClientByIdRequest(req, res, ctx) {
 
   // GET /api/clients/:id/proposals
   if (method === 'GET' && subpath === 'proposals') {
+    const isPrivileged = actor.isAdmin || actor.isFinanceiro
+    const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
     try {
-      const proposals = await getClientProposals(db.sql, clientId)
+      const proposals = await getClientProposals(userSql, clientId)
       return sendJson(200, { data: proposals })
     } catch (err) {
       console.error('[clients] get proposals error:', err)
@@ -276,7 +284,9 @@ export async function handleClientByIdRequest(req, res, ctx) {
       const { type: docType, normalized: _docNormalized } = normalizeDocumentServer(rawDoc)
       const cpfNormalized = (body.cpf_raw != null || docType === 'cpf') ? normalizeCpfServer(body.cpf_raw ?? rawDoc) : undefined
       const cnpjNormalized = (body.cnpj_raw != null || docType === 'cnpj') ? normalizeCnpjServer(body.cnpj_raw ?? rawDoc) : undefined
-      const updated = await updateClient(db.sql, clientId, {
+      const isPrivileged = actor.isAdmin || actor.isFinanceiro
+      const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
+      const updated = await updateClient(userSql, clientId, {
         ...body,
         cpf_normalized: cpfNormalized,
         cnpj_normalized: cnpjNormalized,

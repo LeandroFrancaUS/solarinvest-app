@@ -182,6 +182,7 @@ export async function updateClient(sql, clientId, data) {
 export async function listClients(sql, filter = {}) {
   const {
     ownerUserId = null,
+    officeUserId = null,
     createdByUserId = null,
     city = null,
     state: uf = null,
@@ -205,7 +206,11 @@ export async function listClients(sql, filter = {}) {
   const conditions = ['c.deleted_at IS NULL', 'c.merged_into_client_id IS NULL']
   const params = []
 
-  if (ownerUserId) {
+  if (officeUserId) {
+    // Office: own clients OR clients owned by users with role_comercial
+    params.push(officeUserId)
+    conditions.push(`(c.owner_user_id = $${params.length} OR up.primary_role = 'role_comercial')`)
+  } else if (ownerUserId) {
     params.push(ownerUserId)
     conditions.push(`c.owner_user_id = $${params.length}`)
   }
@@ -231,14 +236,21 @@ export async function listClients(sql, filter = {}) {
     conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx})`)
   }
 
+  // Only JOIN app_user_profiles when the office filter is active.
+  // For admin/financeiro/comercial queries the JOIN is unnecessary overhead.
+  const needsOwnerRoleJoin = Boolean(officeUserId)
+  const joinClause = needsOwnerRoleJoin
+    ? 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
+    : ''
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
   // safeSort and safeSortDir are validated against allowlists above — safe to interpolate
-  const countQuery = `SELECT COUNT(*) FROM clients c ${where}`
+  const countQuery = `SELECT COUNT(*) FROM clients c ${joinClause} ${where}`
   const dataQuery = `
     SELECT c.*,
       (SELECT COUNT(*) FROM proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL) AS proposal_count
     FROM clients c
+    ${joinClause}
     ${where}
     ORDER BY c.${safeSort} ${safeSortDir}
     LIMIT $${params.length + 1} OFFSET $${params.length + 2}

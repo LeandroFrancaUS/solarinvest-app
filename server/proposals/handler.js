@@ -2,6 +2,7 @@
 // HTTP route handlers for the proposals API.
 
 import { getDatabaseClient } from '../database/neonClient.js'
+import { createUserScopedSql } from '../database/withRLSContext.js'
 import { validateCreateProposal, validateUpdateProposal } from './validators.js'
 import {
   createProposal,
@@ -73,12 +74,17 @@ export async function handleProposalsRequest(req, res, ctx) {
     const proposal_type = requestUrl.searchParams.get('proposal_type') || null
     const status = requestUrl.searchParams.get('status') || null
 
-    // Comercial users only see their own proposals; admins, office and financeiro see all
-    const ownerUserId = (actor.isAdmin || actor.isOffice || actor.isFinanceiro) ? null : actor.userId
+    // Comercial users only see their own proposals; admins, financeiro see all;
+    // office sees own + comercial users' proposals
+    const isPrivileged = actor.isAdmin || actor.isFinanceiro
+    const ownerUserId = isPrivileged ? null : (actor.isOffice ? null : actor.userId)
+    const officeUserId = actor.isOffice ? actor.userId : null
+    const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
 
     try {
-      const result = await listProposals(db.sql, {
+      const result = await listProposals(userSql, {
         ownerUserId,
+        officeUserId,
         page,
         limit,
         proposal_type,
@@ -114,7 +120,7 @@ export async function handleProposalsRequest(req, res, ctx) {
     }
 
     try {
-      const proposal = await createProposal(db.sql, actor.userId, {
+      const proposal = await createProposal(userSql, actor.userId, {
         ...validation.data,
         created_by_user_id: actor.userId,
         owner_email: actor.email,
@@ -161,10 +167,13 @@ export async function handleProposalByIdRequest(req, res, ctx) {
   const actor = await resolveAndAuth(req, sendJson)
   if (!actor) return
 
+  const isPrivileged = actor.isAdmin || actor.isFinanceiro
+  const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
+
   // Fetch the proposal first (needed for permission checks on all methods)
   let proposal
   try {
-    proposal = await getProposalById(db.sql, proposalId)
+    proposal = await getProposalById(userSql, proposalId)
   } catch (err) {
     console.error('[proposals] getProposalById error:', err)
     sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to fetch proposal')
@@ -208,7 +217,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
     }
 
     try {
-      const updated = await updateProposal(db.sql, proposalId, {
+      const updated = await updateProposal(userSql, proposalId, {
         ...validation.data,
         updated_by_user_id: actor.userId,
       })
@@ -244,7 +253,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
     }
 
     try {
-      const deleted = await softDeleteProposal(db.sql, proposalId, actor.userId)
+      const deleted = await softDeleteProposal(userSql, proposalId, actor.userId)
 
       if (!deleted) {
         sendError(sendJson, 404, 'NOT_FOUND', 'Proposal not found or already deleted')
