@@ -24,6 +24,12 @@ SET owner_stack_user_id = owner_user_id
 WHERE owner_stack_user_id IS NULL
   AND owner_user_id IS NOT NULL;
 
--- 3. Index for fast lookups by Stack user ID
+-- 3. Ensure all rows have a value (owner_user_id is NOT NULL, so this is safe)
+UPDATE proposals
+SET owner_stack_user_id = owner_user_id
+WHERE owner_stack_user_id IS NULL;
+
+-- 4. Index for fast lookups by Stack user ID
 CREATE INDEX IF NOT EXISTS idx_proposals_owner_stack_user_id
   ON proposals (owner_stack_user_id);
+
