@@ -4,6 +4,7 @@ node_modules/
 build/
 .vercel/
 .env*
+!.env.local.example
 # Ignorar contratos e documentos binários
 /assets/templates/contratos/*.dotx
 /assets/templates/contratos/*.docx
