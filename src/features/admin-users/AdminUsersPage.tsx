@@ -3,15 +3,152 @@
 // Only accessible to users with role=admin and approved access.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { fetchAdminUsers } from '../../services/auth/admin-users'
+import { fetchAdminUsers, createUser } from '../../services/auth/admin-users'
 import { AdminUsersTable } from './AdminUsersTable'
-import type { AdminUser } from '../../lib/auth/access-types'
+import type { AdminUser, StackPermission, CreateUserRequest } from '../../lib/auth/access-types'
+import { ALL_STACK_PERMISSIONS, stackPermissionLabel } from '../../lib/auth/access-mappers'
 
 const PAGE_SIZE = 20
 
 interface Props {
   onBack?: () => void
 }
+
+// ── Add User Modal ─────────────────────────────────────────────────────────────
+
+interface AddUserModalProps {
+  onClose: () => void
+  onCreated: () => void
+}
+
+function AddUserModal({ onClose, onCreated }: AddUserModalProps) {
+  const [email, setEmail] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [permissions, setPermissions] = useState<StackPermission[]>([])
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function togglePerm(perm: StackPermission) {
+    setPermissions((prev) =>
+      prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm]
+    )
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim()) { setError('E-mail é obrigatório.'); return }
+    if (permissions.length === 0) { setError('Selecione ao menos uma permissão.'); return }
+
+    setSubmitting(true)
+    setError(null)
+    try {
+      const req: CreateUserRequest = {
+        email: email.trim().toLowerCase(),
+        displayName: displayName.trim() || undefined,
+        permissions,
+      }
+      await createUser(req)
+      onCreated()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao criar usuário')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-user-modal-title"
+    >
+      <div className="mx-4 w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+        <h2 id="add-user-modal-title" className="text-base font-semibold text-slate-900 mb-4">
+          Adicionar Usuário
+        </h2>
+
+        <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
+          <div>
+            <label htmlFor="new-user-email" className="block text-sm font-medium text-slate-700 mb-1">
+              E-mail <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="new-user-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+              placeholder="usuario@exemplo.com"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="new-user-name" className="block text-sm font-medium text-slate-700 mb-1">
+              Nome (opcional)
+            </label>
+            <input
+              id="new-user-name"
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Nome do usuário"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+            />
+          </div>
+
+          <div>
+            <p className="block text-sm font-medium text-slate-700 mb-2">
+              Permissões <span className="text-red-500">*</span>
+            </p>
+            <div className="space-y-2">
+              {ALL_STACK_PERMISSIONS.map((perm) => (
+                <label key={perm} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={permissions.includes(perm)}
+                    onChange={() => togglePerm(perm)}
+                    className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                  />
+                  <span className="text-sm text-slate-700">{stackPermissionLabel(perm)}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">
+              {error}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+            >
+              {submitting ? 'Adicionando...' : 'Adicionar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export function AdminUsersPage({ onBack }: Props) {
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -22,6 +159,7 @@ export function AdminUsersPage({ onBack }: Props) {
   const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadUsers = useCallback(async (currentPage: number, currentSearch: string) => {
@@ -64,6 +202,13 @@ export function AdminUsersPage({ onBack }: Props) {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      {showAddModal && (
+        <AddUserModal
+          onClose={() => setShowAddModal(false)}
+          onCreated={handleRefresh}
+        />
+      )}
+
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Gestão de Usuários</h1>
@@ -71,15 +216,24 @@ export function AdminUsersPage({ onBack }: Props) {
             Gerencie o acesso dos usuários ao SolarInvest. Total: <strong>{total}</strong> usuário(s).
           </p>
         </div>
-        {onBack && (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onBack}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            onClick={() => setShowAddModal(true)}
+            className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
           >
-            Voltar
+            ＋ Adicionar Usuário
           </button>
-        )}
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Voltar
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mb-4 flex items-center gap-3">

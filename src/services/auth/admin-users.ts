@@ -2,7 +2,7 @@
 // API calls for admin user management endpoints.
 
 import { resolveApiUrl } from '../../utils/apiUrl'
-import type { AdminUsersResponse, AccessRole, StackPermission } from '../../lib/auth/access-types'
+import type { AdminUsersResponse, AccessRole, StackPermission, CreateUserRequest } from '../../lib/auth/access-types'
 
 const BASE = resolveApiUrl('/api/admin/users')
 
@@ -105,4 +105,12 @@ export function revokePermission(id: string, perm: StackPermission): Promise<voi
 
 export function deleteUser(id: string): Promise<void> {
   return del(`${BASE}/${id}`)
+}
+
+export function createUser(data: CreateUserRequest): Promise<void> {
+  return request(BASE, 'POST', {
+    email: data.email,
+    displayName: data.displayName,
+    permissions: data.permissions,
+  })
 }

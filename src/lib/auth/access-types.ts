@@ -9,7 +9,7 @@ export type StackPermission =
   | 'role_office'
   | 'role_financeiro'
 
-export type AccessStatus = 'pending' | 'approved' | 'revoked' | 'blocked'
+export type AccessStatus = 'pending' | 'approved' | 'revoked' | 'blocked' | 'no_permissions'
 
 export type AuthState = 'loading' | 'anonymous' | 'authenticated' | 'error'
 
@@ -63,4 +63,10 @@ export interface AdminUsersResponse {
   page: number
   limit: number
   pages: number
+}
+
+export interface CreateUserRequest {
+  email: string
+  displayName?: string
+  permissions: StackPermission[]
 }

@@ -22,8 +22,26 @@ import { getStackUser, isStackAuthBypassed } from '../auth/stackAuth.js'
 
 const isDev = process.env.NODE_ENV !== 'production' && process.env.VERCEL_ENV !== 'production'
 
+// Primary role permission IDs — every user must hold at least one of these.
+const PRIMARY_ROLE_PERMISSIONS = ['role_admin', 'role_comercial', 'role_office', 'role_financeiro']
+
 function sanitizeString(value) {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+/**
+ * Returns true when the JWT payload carries an explicit permissions array and
+ * none of the primary role permissions are present in it.
+ *
+ * We only block when the array is explicitly present (non-null, non-undefined)
+ * so that older tokens without a `permissions` claim don't get falsely blocked
+ * while the JWT is being refreshed.
+ */
+function hasNoPrimaryRolePermissions(jwtPayload) {
+  if (!jwtPayload || typeof jwtPayload !== 'object') return false
+  const perms = jwtPayload.permissions
+  if (!Array.isArray(perms)) return false   // claim absent — do not block
+  return !perms.some((p) => PRIMARY_ROLE_PERMISSIONS.includes(p))
 }
 
 export async function handleAuthMeRequest(req, res, { sendJson }) {
@@ -78,6 +96,25 @@ export async function handleAuthMeRequest(req, res, { sendJson }) {
   const authorized = Boolean(appUser.can_access_app) &&
     appUser.access_status === 'approved' &&
     Boolean(appUser.is_active)
+
+  // Req 1: Even an "approved" DB row cannot access the app when the user has
+  // no primary role permission in Stack Auth.  We check the JWT claim first
+  // (fast-path, zero extra network calls).  The check is skipped when bypass
+  // mode is active or when the JWT does not carry a permissions array at all
+  // (older token format), to avoid false blocks during token refresh.
+  if (authorized && !isStackAuthBypassed() && hasNoPrimaryRolePermissions(stackUser?.payload)) {
+    sendJson(res, 200, {
+      authenticated: true,
+      authorized: false,
+      role: appUser.role,
+      accessStatus: 'no_permissions',
+      email: appUser.email,
+      fullName: appUser.full_name,
+      id: appUser.id,
+      authSource,
+    })
+    return
+  }
 
   sendJson(res, 200, {
     authenticated: true,

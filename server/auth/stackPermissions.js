@@ -463,6 +463,69 @@ export async function deleteStackUser(userId, opts = {}) {
   return deleteStackUserViaApi(userId, opts)
 }
 
+/**
+ * Creates a new user in Stack Auth via the admin API.
+ *
+ * Returns { ok: true, userId: string } on success.
+ * Returns { ok: false, error: string, providerStatus?: number } on failure.
+ *
+ * @param {string} email - Primary email address for the new user.
+ * @param {string|null} [displayName] - Optional display name.
+ * @param {{ correlationId?: string }} [opts]
+ */
+export async function createStackUser(email, displayName, opts = {}) {
+  const secretKey = getSecretKey()
+  const projectId = getProjectId()
+  if (!secretKey) return { ok: false, error: 'STACK_SECRET_SERVER_KEY não configurada' }
+  if (!projectId) return { ok: false, error: 'STACK_PROJECT_ID não configurado' }
+  if (!email || typeof email !== 'string') return { ok: false, error: 'E-mail inválido' }
+
+  const { correlationId = '' } = opts
+
+  try {
+    const url = `${STACK_API_BASE}/api/v1/users`
+    const body = {
+      primary_email: email.toLowerCase().trim(),
+      primary_email_auth_enabled: true,
+    }
+    if (displayName && typeof displayName === 'string' && displayName.trim()) {
+      body.display_name = displayName.trim()
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-stack-access-type': 'server',
+        'x-stack-project-id': projectId,
+        'x-stack-secret-server-key': secretKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    })
+
+    if (!res.ok) {
+      const responseBody = await res.text().catch(() => '')
+      console.warn('[RBAC] createStackUser HTTP', res.status, { email, correlationId, body: responseBody.slice(0, 200) })
+      return { ok: false, error: `Stack Auth API ${res.status}: ${responseBody}`.trim(), providerStatus: res.status }
+    }
+
+    const data = await res.json()
+    const userId = data?.id ?? data?.user_id ?? data?.userId ?? null
+    if (!userId) {
+      console.warn('[RBAC] createStackUser: no userId in response', { email, correlationId })
+      return { ok: false, error: 'Resposta inesperada do Stack Auth (userId ausente)' }
+    }
+
+    console.info('[RBAC] createStackUser: created userId=%s email=%s', userId, email)
+    return { ok: true, userId }
+  } catch (err) {
+    const msg = err?.message ?? 'Erro de rede'
+    console.warn('[RBAC] createStackUser error:', msg, { email, correlationId })
+    return { ok: false, error: msg }
+  }
+}
+
 // ─── Auto-grant for configured commercial users ───────────────────────────────
 
 /**

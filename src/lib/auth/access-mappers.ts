@@ -13,6 +13,8 @@ export function deriveAccessState(me: MeResponse | null, loading: boolean): Acce
   if (me.accessStatus === 'approved' && me.authorized) return 'approved'
   if (me.accessStatus === 'blocked') return 'blocked'
   if (me.accessStatus === 'revoked') return 'revoked'
+  // 'no_permissions' and 'pending' both map to the 'pending' gate so
+  // RequireAuthorizedUser shows the AccessPendingScreen with the right message.
   return 'pending'
 }
 
@@ -26,6 +28,7 @@ export function accessStatusLabel(status: string | null | undefined): string {
     case 'pending': return 'Pendente'
     case 'blocked': return 'Bloqueado'
     case 'revoked': return 'Revogado'
+    case 'no_permissions': return 'Sem permissão'
     default: return 'Desconhecido'
   }
 }

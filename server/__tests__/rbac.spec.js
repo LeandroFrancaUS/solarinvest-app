@@ -20,6 +20,31 @@ function derivePrimaryRole(permissions) {
   return 'unknown'
 }
 
+// Inline deriveCapabilities — mirrors the canonical implementation in
+// server/auth/authorizationSnapshot.js.  Must be kept in sync.
+function deriveCapabilities(permissions) {
+  if (!Array.isArray(permissions)) permissions = []
+  const isAdmin      = permissions.includes('role_admin')
+  const isFinanceiro = permissions.includes('role_financeiro')
+  const isOffice     = permissions.includes('role_office')
+  const isComercial  = permissions.includes('role_comercial')
+  return {
+    canManageUsers: isAdmin,
+    canReadAllClients:         isAdmin || isFinanceiro,
+    canWriteAllClients:        isAdmin,
+    canReadOwnClients:         isComercial || isOffice,
+    canWriteOwnClients:        isComercial || isOffice,
+    canReadCommercialClients:  isOffice,
+    canWriteCommercialClients: isOffice,
+    canReadAllProposals:         isAdmin || isFinanceiro,
+    canWriteAllProposals:        isAdmin,
+    canReadOwnProposals:         isComercial || isOffice,
+    canWriteOwnProposals:        isComercial || isOffice,
+    canReadCommercialProposals:  isOffice,
+    canWriteCommercialProposals: isOffice,
+  }
+}
+
 describe('derivePrimaryRole', () => {
   it('returns role_admin when role_admin is present', () => {
     expect(derivePrimaryRole(['role_admin', 'role_comercial'])).toBe('role_admin')
@@ -52,6 +77,87 @@ describe('derivePrimaryRole', () => {
 
   it('financeiro wins over office and comercial', () => {
     expect(derivePrimaryRole(['role_financeiro', 'role_comercial', 'role_office'])).toBe('role_financeiro')
+  })
+})
+
+describe('deriveCapabilities — single role', () => {
+  it('role_admin gets all capabilities', () => {
+    const caps = deriveCapabilities(['role_admin'])
+    expect(caps.canManageUsers).toBe(true)
+    expect(caps.canReadAllClients).toBe(true)
+    expect(caps.canWriteAllClients).toBe(true)
+    expect(caps.canReadAllProposals).toBe(true)
+    expect(caps.canWriteAllProposals).toBe(true)
+  })
+
+  it('role_financeiro gets read-all but not write-all', () => {
+    const caps = deriveCapabilities(['role_financeiro'])
+    expect(caps.canManageUsers).toBe(false)
+    expect(caps.canReadAllClients).toBe(true)
+    expect(caps.canWriteAllClients).toBe(false)
+    expect(caps.canReadAllProposals).toBe(true)
+    expect(caps.canWriteAllProposals).toBe(false)
+    expect(caps.canReadOwnProposals).toBe(false)
+  })
+
+  it('role_comercial gets own-client/proposal access only', () => {
+    const caps = deriveCapabilities(['role_comercial'])
+    expect(caps.canReadOwnClients).toBe(true)
+    expect(caps.canWriteOwnClients).toBe(true)
+    expect(caps.canReadAllClients).toBe(false)
+    expect(caps.canReadCommercialClients).toBe(false)
+  })
+
+  it('role_office gets own + commercial client/proposal access', () => {
+    const caps = deriveCapabilities(['role_office'])
+    expect(caps.canReadOwnClients).toBe(true)
+    expect(caps.canReadCommercialClients).toBe(true)
+    expect(caps.canWriteCommercialClients).toBe(true)
+    expect(caps.canReadAllClients).toBe(false)
+  })
+
+  it('empty permissions → no capabilities', () => {
+    const caps = deriveCapabilities([])
+    Object.values(caps).forEach((v) => expect(v).toBe(false))
+  })
+})
+
+describe('deriveCapabilities — multi-role union', () => {
+  it('role_comercial + role_financeiro → union of own-access and read-all', () => {
+    const caps = deriveCapabilities(['role_comercial', 'role_financeiro'])
+    // From role_financeiro
+    expect(caps.canReadAllClients).toBe(true)
+    expect(caps.canReadAllProposals).toBe(true)
+    // From role_comercial
+    expect(caps.canReadOwnClients).toBe(true)
+    expect(caps.canWriteOwnClients).toBe(true)
+    // Neither has write-all
+    expect(caps.canWriteAllClients).toBe(false)
+    expect(caps.canWriteAllProposals).toBe(false)
+    // Neither has canManageUsers
+    expect(caps.canManageUsers).toBe(false)
+  })
+
+  it('role_office + role_financeiro → union: commercial + read-all', () => {
+    const caps = deriveCapabilities(['role_office', 'role_financeiro'])
+    expect(caps.canReadAllClients).toBe(true)
+    expect(caps.canReadCommercialClients).toBe(true)
+    expect(caps.canWriteCommercialClients).toBe(true)
+    expect(caps.canWriteAllClients).toBe(false)
+    expect(caps.canManageUsers).toBe(false)
+  })
+
+  it('role_admin + any other role → still full admin capabilities', () => {
+    const caps = deriveCapabilities(['role_admin', 'role_comercial', 'role_financeiro'])
+    expect(caps.canManageUsers).toBe(true)
+    expect(caps.canWriteAllClients).toBe(true)
+    expect(caps.canWriteAllProposals).toBe(true)
+  })
+
+  it('all four roles → full admin capabilities via union', () => {
+    const caps = deriveCapabilities(['role_admin', 'role_comercial', 'role_office', 'role_financeiro'])
+    expect(caps.canManageUsers).toBe(true)
+    expect(caps.canWriteAllClients).toBe(true)
   })
 })
 

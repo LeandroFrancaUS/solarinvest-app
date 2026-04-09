@@ -11,13 +11,14 @@ import {
   grantUserPermission,
   revokeUserPermission,
   deleteStackUser,
+  createStackUser,
 } from '../auth/stackPermissions.js'
 import { syncUserProfile } from '../auth/userProfileSync.js'
 import { derivePrimaryRole } from '../auth/authorizationSnapshot.js'
 import { stackPermToDbRole } from '../auth/roleMapping.js'
 
-// The four mutually-exclusive primary role permissions.
-// When one is granted, the others are revoked automatically.
+// The four primary role permissions — a user may hold more than one simultaneously.
+// Capabilities from all held roles are unioned (see deriveCapabilities).
 const PRIMARY_ROLE_PERMISSIONS = ['role_admin', 'role_comercial', 'role_office', 'role_financeiro']
 const VALID_STACK_PERMISSIONS = PRIMARY_ROLE_PERMISSIONS
 
@@ -285,12 +286,6 @@ export async function handleAdminUserGrantPermission(req, res, { sendJson, userI
       })
       return
     }
-
-    // Auto-revoke other primary roles to avoid ambiguous multi-role states
-    const otherRoles = PRIMARY_ROLE_PERMISSIONS.filter((r) => r !== permId)
-    await Promise.allSettled(
-      otherRoles.map((r) => revokeUserPermission(stackId, r, { correlationId }))
-    )
   }
 
   // Sync the DB role to match the newly granted Stack permission (source of truth sync).
@@ -446,4 +441,119 @@ export async function handleAdminUserDelete(req, res, { sendJson, userId }) {
   await query(`DELETE FROM public.app_user_access WHERE id = $1`, [userId])
 
   sendJson(res, 200, { ok: true })
+}
+
+// POST /api/admin/users  — provision a new user (DB row + Stack Auth account + permissions)
+export async function handleAdminUserCreate(req, res, { sendJson, body }) {
+  const appUser = await getCurrentAppUser(req)
+  requireAdmin(appUser)
+
+  if (!process.env.STACK_SECRET_SERVER_KEY) {
+    sendJson(res, 503, { error: 'Stack Auth API key não configurada no servidor (STACK_SECRET_SERVER_KEY ausente)' })
+    return
+  }
+
+  const email = sanitizeString(body?.email).toLowerCase()
+  if (!email || !email.includes('@')) {
+    sendJson(res, 400, { error: 'E-mail inválido ou ausente.' })
+    return
+  }
+
+  const displayName = sanitizeString(body?.displayName || body?.full_name || '')
+
+  const permissions = Array.isArray(body?.permissions)
+    ? body.permissions.filter((p) => VALID_STACK_PERMISSIONS.includes(p))
+    : []
+
+  if (permissions.length === 0) {
+    sendJson(res, 400, { error: 'Selecione ao menos uma permissão para o novo usuário.' })
+    return
+  }
+
+  // Check for duplicate email in the DB
+  const { rows: existing } = await query(
+    `SELECT id FROM public.app_user_access WHERE lower(email) = $1 LIMIT 1`,
+    [email]
+  )
+  if (existing.length > 0) {
+    sendJson(res, 409, { error: 'Já existe um usuário com esse e-mail.' })
+    return
+  }
+
+  const correlationId = newCorrelationId()
+
+  // 1) Create the user in Stack Auth
+  const createResult = await createStackUser(email, displayName || null, { correlationId })
+  if (!createResult.ok) {
+    const isConflict = createResult.providerStatus === 409
+    sendJson(res, isConflict ? 409 : 502, {
+      error: isConflict
+        ? 'Já existe uma conta Stack Auth com esse e-mail.'
+        : (createResult.error ?? 'Falha ao criar usuário no Stack Auth'),
+      provider_status: createResult.providerStatus ?? null,
+      correlation_id: correlationId,
+    })
+    return
+  }
+
+  const stackUserId = createResult.userId
+
+  // 2) Derive DB role from the highest-priority permission being granted
+  const derivedDbRole = stackPermToDbRole(
+    permissions.includes('role_admin') ? 'role_admin' : permissions[0]
+  )
+
+  // 3) Insert the DB row (approved immediately — admin is provisioning this user)
+  let newRow
+  try {
+    const { rows } = await query(
+      `INSERT INTO public.app_user_access
+         (auth_provider_user_id, email, full_name, role, access_status, is_active, can_access_app,
+          invited_by, approved_by, approved_at)
+       VALUES ($1, $2, $3, $4, 'approved', true, true, $5, $5, now())
+       RETURNING id, auth_provider_user_id, email, full_name, role, access_status, is_active, can_access_app`,
+      [stackUserId, email, displayName || null, derivedDbRole, appUser.email || appUser.id]
+    )
+    newRow = rows[0]
+  } catch (dbErr) {
+    console.error('[admin] handleAdminUserCreate: DB insert failed', dbErr?.message, { email, stackUserId, correlationId })
+    sendJson(res, 500, { error: 'Falha ao salvar usuário no banco de dados.' })
+    return
+  }
+
+  // 4) Grant all requested permissions in Stack Auth (best-effort — log failures)
+  const grantResults = await Promise.allSettled(
+    permissions.map((perm) => grantUserPermission(stackUserId, perm, { correlationId }))
+  )
+  const failedGrants = grantResults
+    .map((r, i) => ({ perm: permissions[i], result: r }))
+    .filter((g) => g.result.status === 'rejected' || !g.result.value?.ok)
+
+  if (failedGrants.length > 0) {
+    console.warn(
+      '[admin] handleAdminUserCreate: some permissions failed to grant',
+      failedGrants.map((g) => g.perm),
+      { correlationId }
+    )
+  }
+
+  await writeAudit(
+    newRow.id,
+    'user_created',
+    null,
+    'approved',
+    null,
+    permissions.join(','),
+    appUser,
+    { correlationId, stackUserId }
+  )
+
+  sendJson(res, 201, {
+    ok: true,
+    user: {
+      ...newRow,
+      stack_permissions: permissions.filter((_, i) => grantResults[i].status === 'fulfilled' && grantResults[i].value?.ok),
+    },
+    failedPermissions: failedGrants.length > 0 ? failedGrants.map((g) => g.perm) : undefined,
+  })
 }

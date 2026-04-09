@@ -2,6 +2,8 @@
 // Hook that fetches the user's authorization snapshot from /api/authz/me,
 // persists it for offline use, and revalidates automatically when the app
 // comes back online.
+// Also polls every ROLE_POLL_INTERVAL_MS to detect role changes made by an
+// admin and triggers a full page reload when the permission set changes.
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAuthorizationSnapshot } from '../services/auth/authz'
@@ -32,6 +34,21 @@ interface UseAuthorizationSnapshotResult {
   refresh: () => void
 }
 
+/**
+ * How often to poll /api/authz/me for role changes (2 minutes).
+ * Chosen to balance freshness with server load.
+ */
+const ROLE_POLL_INTERVAL_MS = 2 * 60 * 1000
+
+/**
+ * Returns a stable sorted key for a permissions array so we can detect
+ * changes regardless of the order returned by the server.
+ */
+function permissionsKey(permissions: string[] | undefined | null): string {
+  if (!Array.isArray(permissions) || permissions.length === 0) return ''
+  return [...permissions].sort().join(',')
+}
+
 export function useAuthorizationSnapshot({
   getAccessToken,
   enabled = true,
@@ -45,6 +62,11 @@ export function useAuthorizationSnapshot({
   const getAccessTokenRef = useRef(getAccessToken)
   getAccessTokenRef.current = getAccessToken
   const abortRef = useRef<AbortController | null>(null)
+  // Track previously seen permissions so we can detect changes.
+  const prevPermissionsKeyRef = useRef<string | null>(null)
+  // Whether the initial fetch has completed (we only auto-reload on *changes*,
+  // not on the very first load).
+  const initialFetchDoneRef = useRef(false)
 
   const fetch = useCallback(async () => {
     if (abortRef.current) abortRef.current.abort()
@@ -68,6 +90,26 @@ export function useAuthorizationSnapshot({
       if (controller.signal.aborted) return
 
       if (result) {
+        const newKey = permissionsKey(result.permissions)
+
+        // Detect permission changes after the initial load and trigger a full
+        // page reload so React state, guards, and menus all re-hydrate cleanly.
+        if (
+          initialFetchDoneRef.current &&
+          prevPermissionsKeyRef.current !== null &&
+          newKey !== prevPermissionsKeyRef.current
+        ) {
+          console.info('[authz] permissions changed — reloading page', {
+            prev: prevPermissionsKeyRef.current,
+            next: newKey,
+          })
+          window.location.reload()
+          return
+        }
+
+        prevPermissionsKeyRef.current = newKey
+        initialFetchDoneRef.current = true
+
         setSnapshot(result)
         setOffline(false)
         saveSnapshotOffline(result)
@@ -76,6 +118,8 @@ export function useAuthorizationSnapshot({
         clearOfflineSnapshot()
         setSnapshot(null)
         setOffline(false)
+        initialFetchDoneRef.current = false
+        prevPermissionsKeyRef.current = null
       }
     } catch {
       if (controller.signal.aborted) return
@@ -96,6 +140,8 @@ export function useAuthorizationSnapshot({
       clearOfflineSnapshot()
       setSnapshot(null)
       setOffline(false)
+      initialFetchDoneRef.current = false
+      prevPermissionsKeyRef.current = null
     }
   }, [cleared])
 
@@ -115,5 +161,15 @@ export function useAuthorizationSnapshot({
     return unsub
   }, [enabled, fetch])
 
-  return { snapshot, loading, offline, refresh: fetch }
+  // Periodic polling: re-check permissions every ROLE_POLL_INTERVAL_MS.
+  // The poll only runs while the user is authenticated (enabled === true).
+  useEffect(() => {
+    if (!enabled) return
+    const id = setInterval(() => {
+      void fetch()
+    }, ROLE_POLL_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [enabled, fetch])
+
+  return { snapshot, loading, offline, refresh: () => { void fetch() } }
 }

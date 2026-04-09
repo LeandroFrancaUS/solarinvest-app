@@ -43,6 +43,7 @@ import {
   handleAdminUserGrantPermission,
   handleAdminUserRevokePermission,
   handleAdminUserDelete,
+  handleAdminUserCreate,
 } from './routes/adminUsers.js'
 import {
   handleProposalsRequest,
@@ -497,9 +498,16 @@ export default async function handler(req, res) {
     }
 
     if (pathname === '/api/admin/users') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handleAdminUsersListRequest(req, res, { sendJson, requestUrl })
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      if (method === 'GET') {
+        await handleAdminUsersListRequest(req, res, { sendJson, requestUrl })
+      } else if (method === 'POST') {
+        if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+        const body = await readJsonBody(req)
+        await handleAdminUserCreate(req, res, { sendJson, body })
+      } else {
+        sendJson(res, 405, { error: 'Método não suportado.' })
+      }
       return
     }
 
