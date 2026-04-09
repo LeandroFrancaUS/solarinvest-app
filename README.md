@@ -96,8 +96,8 @@ npm run test:neon
 Authentication uses **Stack Auth** (`@stackframe/react`).
 
 ### Required frontend env vars
-- `VITE_STACK_PROJECT_ID`
-- `VITE_STACK_PUBLISHABLE_CLIENT_KEY`
+- `VITE_STACK_PROJECT_ID` **or** `NEXT_PUBLIC_STACK_PROJECT_ID`
+- `VITE_STACK_PUBLISHABLE_CLIENT_KEY` **or** `NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY`
 
 ### Optional backend vars
 - `STACK_SECRET_SERVER_KEY`

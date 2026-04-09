@@ -23,8 +23,8 @@ Mesmo estando autenticado no Stack Auth, um usuário só acessa o app se estiver
 
 | Variável | Descrição | Obrigatória |
 |---|---|---|
-| `VITE_STACK_PROJECT_ID` | Project ID do Stack Auth | ✅ |
-| `VITE_STACK_PUBLISHABLE_CLIENT_KEY` | Chave pública do Stack Auth | ✅ |
+| `VITE_STACK_PROJECT_ID` ou `NEXT_PUBLIC_STACK_PROJECT_ID` | Project ID do Stack Auth | ✅ |
+| `VITE_STACK_PUBLISHABLE_CLIENT_KEY` ou `NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY` | Chave pública do Stack Auth | ✅ |
 | `VITE_API_BASE_URL` | URL base da API (ex: `https://app.solarinvest.info`) | Opcional |
 
 ### Backend / Servidor
@@ -54,8 +54,8 @@ Mesmo estando autenticado no Stack Auth, um usuário só acessa o app se estiver
 1. Acesse [app.stack-auth.com](https://app.stack-auth.com/)
 2. Crie ou selecione o projeto `solarinvest-app`
 3. Vá em **Project Settings** e copie:
-   - **Project ID** → `VITE_STACK_PROJECT_ID` (frontend) e `STACK_PROJECT_ID` (backend)
-   - **Publishable Client Key** → `VITE_STACK_PUBLISHABLE_CLIENT_KEY`
+   - **Project ID** → `VITE_STACK_PROJECT_ID` **ou** `NEXT_PUBLIC_STACK_PROJECT_ID` (frontend) e `STACK_PROJECT_ID` (backend)
+   - **Publishable Client Key** → `VITE_STACK_PUBLISHABLE_CLIENT_KEY` **ou** `NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY`
    - **Secret Server Key** → `STACK_SECRET_SERVER_KEY` (backend apenas)
 
 ### 2.2 URLs autorizadas (Allowed Origins / Redirect URLs)
@@ -141,7 +141,11 @@ No Vercel → **Settings → Environment Variables**, adicione para o ambiente *
 
 ```
 VITE_STACK_PROJECT_ID=<seu-project-id>
+# alternativa equivalente:
+# NEXT_PUBLIC_STACK_PROJECT_ID=<seu-project-id>
 VITE_STACK_PUBLISHABLE_CLIENT_KEY=<sua-chave-publica>
+# alternativa equivalente:
+# NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=<sua-chave-publica>
 DATABASE_URL=<sua-connection-string-neon>
 STACK_PROJECT_ID=<seu-project-id>
 STACK_SECRET_SERVER_KEY=<sua-chave-secreta>

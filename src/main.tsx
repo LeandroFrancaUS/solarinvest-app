@@ -92,10 +92,16 @@ async function bootstrap() {
   perfLog('LOGIN', 'START')
 
   if (import.meta.env.DEV) {
-    console.debug("VITE_STACK_PROJECT_ID:", import.meta.env.VITE_STACK_PROJECT_ID)
     console.debug(
-      "VITE_STACK_PUBLISHABLE_CLIENT_KEY:",
-      import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY ? "OK" : "MISSING",
+      "STACK_PROJECT_ID (VITE_/NEXT_PUBLIC_):",
+      import.meta.env.VITE_STACK_PROJECT_ID ?? import.meta.env.NEXT_PUBLIC_STACK_PROJECT_ID ?? "MISSING",
+    )
+    console.debug(
+      "STACK_PUBLISHABLE_CLIENT_KEY (VITE_/NEXT_PUBLIC_):",
+      (import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY ??
+        import.meta.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY)
+        ? "OK"
+        : "MISSING",
     )
   }
 
