@@ -394,8 +394,13 @@ export default async function handler(req, res) {
       }
 
       if (method === 'GET') {
-        const entries = await storageService.listEntries(userId)
-        sendJson(res, 200, { entries })
+        try {
+          const entries = await storageService.listEntries(userId)
+          sendJson(res, 200, { entries })
+        } catch (storageErr) {
+          console.error('[storage] listEntries error:', storageErr?.message)
+          sendJson(res, 503, { error: 'Falha ao acessar armazenamento. Tente novamente.' })
+        }
         return
       }
 
@@ -404,21 +409,30 @@ export default async function handler(req, res) {
         const key = typeof body.key === 'string' ? body.key.trim() : ''
         const value = body.value === undefined ? null : body.value
         if (!key) return sendJson(res, 400, { error: 'Chave de armazenamento inválida.' })
-        await storageService.setEntry(userId, key, value)
-        sendNoContent(res)
+        try {
+          await storageService.setEntry(userId, key, value)
+          sendNoContent(res)
+        } catch (storageErr) {
+          console.error('[storage] setEntry error:', storageErr?.message)
+          sendJson(res, 503, { error: 'Falha ao salvar no armazenamento. Tente novamente.' })
+        }
         return
       }
 
       if (method === 'DELETE') {
         const body = await readJsonBody(req)
         const key = typeof body.key === 'string' ? body.key.trim() : ''
-        if (!key) {
-          await storageService.clear(userId)
+        try {
+          if (!key) {
+            await storageService.clear(userId)
+          } else {
+            await storageService.removeEntry(userId, key)
+          }
           sendNoContent(res)
-          return
+        } catch (storageErr) {
+          console.error('[storage] removeEntry/clear error:', storageErr?.message)
+          sendJson(res, 503, { error: 'Falha ao remover do armazenamento. Tente novamente.' })
         }
-        await storageService.removeEntry(userId, key)
-        sendNoContent(res)
         return
       }
 

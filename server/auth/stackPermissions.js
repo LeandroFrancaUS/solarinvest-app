@@ -73,15 +73,18 @@ async function revokePermissionViaApi(userId, permissionId) {
   if (!userId || !permissionId) return { ok: false, error: 'userId ou permissionId ausente' }
 
   try {
+    // Stack Auth REST API: type must be in the request body, not as a query param.
     const url =
-      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}?type=global`
+      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}`
     const res = await fetch(url, {
       method: 'DELETE',
       headers: {
         'x-stack-access-type': 'server',
         'x-stack-project-id': projectId,
         'x-stack-secret-server-key': secretKey,
+        'content-type': 'application/json',
       },
+      body: JSON.stringify({ type: 'global' }),
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
     if (!res.ok && res.status !== 404) {
@@ -140,8 +143,9 @@ async function grantPermissionViaApi(userId, permissionId) {
   if (!userId || !permissionId) return { ok: false, error: 'userId ou permissionId ausente' }
 
   try {
+    // Stack Auth REST API: type must be in the request body, not as a query param.
     const url =
-      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}?type=global`
+      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}`
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -150,7 +154,7 @@ async function grantPermissionViaApi(userId, permissionId) {
         'x-stack-secret-server-key': secretKey,
         'content-type': 'application/json',
       },
-      body: '{}',
+      body: JSON.stringify({ type: 'global' }),
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
     if (!res.ok) {
