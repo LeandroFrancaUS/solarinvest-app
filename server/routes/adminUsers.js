@@ -494,7 +494,7 @@ export async function handleAdminUserCreate(req, res, { sendJson, body }) {
       const lookupResult = await lookupStackUserByEmail(email, { correlationId })
       if (!lookupResult.ok) {
         sendJson(res, 409, {
-          error: 'Já existe uma conta Stack Auth com esse e-mail, mas não foi possível localizá-la para vinculação. Tente novamente.',
+          error: 'Já existe uma conta Stack Auth com esse e-mail, mas não foi possível localizá-la para vinculação. Verifique se o e-mail está correto ou contacte o suporte.',
           provider_status: lookupResult.providerStatus ?? null,
           correlation_id: correlationId,
         })

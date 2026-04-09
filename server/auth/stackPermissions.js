@@ -573,7 +573,7 @@ export async function lookupStackUserByEmail(email, opts = {}) {
 
     if (!match?.id) {
       console.warn('[RBAC] lookupStackUserByEmail: no user found for email', { email: normalizedEmail, correlationId })
-      return { ok: false, error: 'Nenhum usuário Stack Auth encontrado com esse e-mail.' }
+      return { ok: false, error: 'Nenhum usuário Stack Auth encontrado com esse e-mail.', providerStatus: 404 }
     }
 
     console.info('[RBAC] lookupStackUserByEmail: found userId=%s email=%s', match.id, normalizedEmail)
