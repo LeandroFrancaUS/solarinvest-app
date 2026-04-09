@@ -292,6 +292,10 @@ import {
 } from './lib/api/clientsApi'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 import { runSync } from './lib/sync/syncEngine'
+import {
+  migrateLocalStorageToServer,
+  setMigrationTokenProvider,
+} from './lib/migrateLocalStorageToServer'
 import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
@@ -4639,6 +4643,11 @@ export default function App() {
     setProposalsTokenProvider(getAccessToken)
     setClientsTokenProvider(getAccessToken)
     setAdminUsersTokenProvider(getAccessToken)
+    // Register token provider for the local→Neon migration tool.
+    setMigrationTokenProvider(getAccessToken)
+    // Silently migrate any locally-stored clients/proposals to Neon.
+    // Fire-and-forget: errors are caught internally; does not block auth flow.
+    void migrateLocalStorageToServer()
     // Re-run server storage sync now that auth is available.
     void ensureServerStorageSync({ timeoutMs: 6000 })
     // Signal data-load effects to re-run now that auth token is available.
