@@ -12,6 +12,7 @@ import {
   revokeUserPermission,
   deleteStackUser,
   createStackUser,
+  lookupStackUserByEmail,
 } from '../auth/stackPermissions.js'
 import { syncUserProfile } from '../auth/userProfileSync.js'
 import { derivePrimaryRole } from '../auth/authorizationSnapshot.js'
@@ -483,21 +484,35 @@ export async function handleAdminUserCreate(req, res, { sendJson, body }) {
 
   const correlationId = newCorrelationId()
 
-  // 1) Create the user in Stack Auth
+  // 1) Create the user in Stack Auth — or look up the existing one if it already exists.
   const createResult = await createStackUser(email, displayName || null, { correlationId })
+  let stackUserId
   if (!createResult.ok) {
-    const isConflict = createResult.providerStatus === 409
-    sendJson(res, isConflict ? 409 : 502, {
-      error: isConflict
-        ? 'Já existe uma conta Stack Auth com esse e-mail.'
-        : (createResult.error ?? 'Falha ao criar usuário no Stack Auth'),
-      provider_status: createResult.providerStatus ?? null,
-      correlation_id: correlationId,
-    })
-    return
+    if (createResult.providerStatus === 409) {
+      // User already exists in Stack Auth (e.g. signed in before, or created externally).
+      // Look up their userId so we can link them to the app DB and grant permissions.
+      const lookupResult = await lookupStackUserByEmail(email, { correlationId })
+      if (!lookupResult.ok) {
+        sendJson(res, 409, {
+          error: 'Já existe uma conta Stack Auth com esse e-mail, mas não foi possível localizá-la para vinculação. Tente novamente.',
+          provider_status: lookupResult.providerStatus ?? null,
+          correlation_id: correlationId,
+        })
+        return
+      }
+      stackUserId = lookupResult.userId
+      console.info('[admin] handleAdminUserCreate: linking existing Stack Auth user', { email, stackUserId, correlationId })
+    } else {
+      sendJson(res, 502, {
+        error: createResult.error ?? 'Falha ao criar usuário no Stack Auth',
+        provider_status: createResult.providerStatus ?? null,
+        correlation_id: correlationId,
+      })
+      return
+    }
+  } else {
+    stackUserId = createResult.userId
   }
-
-  const stackUserId = createResult.userId
 
   // 2) Derive DB role from the highest-priority permission being granted
   const derivedDbRole = stackPermToDbRole(derivePrimaryRole(permissions))
