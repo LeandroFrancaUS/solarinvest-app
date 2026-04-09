@@ -11,8 +11,13 @@ import {
   revokeUserPermission,
   deleteStackUser,
 } from '../auth/stackPermissions.js'
+import { syncUserProfile } from '../auth/userProfileSync.js'
+import { derivePrimaryRole } from '../auth/authorizationSnapshot.js'
 
-const VALID_STACK_PERMISSIONS = ['role_admin', 'role_comercial', 'role_office', 'role_financeiro']
+// The four mutually-exclusive primary role permissions.
+// When one is granted, the others are revoked automatically.
+const PRIMARY_ROLE_PERMISSIONS = ['role_admin', 'role_comercial', 'role_office', 'role_financeiro']
+const VALID_STACK_PERMISSIONS = PRIMARY_ROLE_PERMISSIONS
 
 function sanitizeString(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -250,12 +255,31 @@ export async function handleAdminUserGrantPermission(req, res, { sendJson, userI
     return
   }
 
+  // Grant the requested permission
   const result = await grantUserPermission(stackId, permId)
   if (!result.ok) {
     const isConfigError = result.error?.includes('não configurad') || result.error?.includes('not configured')
     sendJson(res, isConfigError ? 503 : 502, { error: result.error ?? 'Failed to grant permission via Stack Auth API' })
     return
   }
+
+  // Auto-revoke other primary roles to avoid ambiguous multi-role states
+  const otherRoles = PRIMARY_ROLE_PERMISSIONS.filter((r) => r !== permId)
+  await Promise.allSettled(
+    otherRoles.map((r) => revokeUserPermission(stackId, r))
+  )
+
+  // Sync the updated primary role into app_user_profiles (best-effort)
+  syncUserProfile(stackId, permId, null, null).catch((err) => {
+    console.warn('[admin] syncUserProfile after grant failed (non-fatal):', err?.message)
+  })
+
+  console.info('RBAC update', {
+    actorUserId: appUser.auth_provider_user_id ?? appUser.id,
+    targetUserId: stackId,
+    permissionId: permId,
+    action: 'grant',
+  })
 
   await writeAudit(userId, 'permission_granted', null, null, null, permId, appUser)
   sendJson(res, 200, { ok: true })
@@ -298,6 +322,23 @@ export async function handleAdminUserRevokePermission(req, res, { sendJson, user
     sendJson(res, isConfigError ? 503 : 502, { error: result.error ?? 'Failed to revoke permission via Stack Auth API' })
     return
   }
+
+  // After revoke, determine what the new primary role is and sync profile
+  getUserPermissions(stackId)
+    .then((perms) => {
+      const newRole = derivePrimaryRole(Array.isArray(perms) ? perms : [])
+      return syncUserProfile(stackId, newRole, null, null)
+    })
+    .catch((err) => {
+      console.warn('[admin] syncUserProfile after revoke failed (non-fatal):', err?.message)
+    })
+
+  console.info('RBAC update', {
+    actorUserId: appUser.auth_provider_user_id ?? appUser.id,
+    targetUserId: stackId,
+    permissionId: permId,
+    action: 'revoke',
+  })
 
   await writeAudit(userId, 'permission_revoked', null, null, null, permId, appUser)
   sendJson(res, 200, { ok: true })

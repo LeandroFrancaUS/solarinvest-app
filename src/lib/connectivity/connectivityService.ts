@@ -19,7 +19,7 @@ export type ConnectivityState =
 
 type Listener = (state: ConnectivityState) => void
 
-const HEALTHCHECK_URL = '/api/me'
+const HEALTHCHECK_URL = '/api/health'
 const HEALTHCHECK_TIMEOUT_MS = 5000
 const VERIFY_DEBOUNCE_MS = 1500
 
@@ -46,7 +46,7 @@ async function verifyConnectivity(): Promise<void> {
       signal: controller.signal,
     })
     clearTimeout(timeoutId)
-    if (response.ok || response.status === 401 || response.status === 403) {
+    if (response.ok) {
       setState('online_verified')
     } else {
       setState('online_unverified')

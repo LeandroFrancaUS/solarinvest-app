@@ -53,6 +53,7 @@ import {
   handleClientsRequest as handleClientsRequestV2,
   handleClientByIdRequest,
 } from './clients/handler.js'
+import { getAuthorizationSnapshot } from './auth/authorizationSnapshot.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -253,7 +254,7 @@ export default async function handler(req, res) {
     const pathname = requestUrl.pathname
     const method = req.method?.toUpperCase() ?? 'GET'
 
-    if (pathname === '/health') {
+    if (pathname === '/health' || pathname === '/api/health') {
       sendJson(res, 200, { status: 'ok' })
       return
     }
@@ -446,6 +447,25 @@ export default async function handler(req, res) {
       if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
       if (isAuthRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
       await handleAuthMeRequest(req, res, { sendJson, requestUrl })
+      return
+    }
+
+    // GET /api/authz/me — full authorization snapshot (role, capabilities, permissions)
+    if (pathname === '/api/authz/me') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAuthRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      try {
+        const snapshot = await getAuthorizationSnapshot(req)
+        if (!snapshot) {
+          sendJson(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
+          return
+        }
+        sendJson(res, 200, { ok: true, data: snapshot })
+      } catch (err) {
+        console.error('[authz/me] error:', err)
+        sendJson(res, 500, { ok: false, error: 'Falha ao carregar snapshot de autorização.' })
+      }
       return
     }
 

@@ -74,14 +74,17 @@ export async function handleProposalsRequest(req, res, ctx) {
     const proposal_type = requestUrl.searchParams.get('proposal_type') || null
     const status = requestUrl.searchParams.get('status') || null
 
-    // Comercial users only see their own proposals; admins, office and financeiro see all
-    const isPrivileged = actor.isAdmin || actor.isOffice || actor.isFinanceiro
-    const ownerUserId = isPrivileged ? null : actor.userId
+    // Comercial users only see their own proposals; admins, financeiro see all;
+    // office sees own + comercial users' proposals
+    const isPrivileged = actor.isAdmin || actor.isFinanceiro
+    const ownerUserId = isPrivileged ? null : (actor.isOffice ? null : actor.userId)
+    const officeUserId = actor.isOffice ? actor.userId : null
     const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
 
     try {
       const result = await listProposals(userSql, {
         ownerUserId,
+        officeUserId,
         page,
         limit,
         proposal_type,
@@ -164,7 +167,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
   const actor = await resolveAndAuth(req, sendJson)
   if (!actor) return
 
-  const isPrivileged = actor.isAdmin || actor.isOffice || actor.isFinanceiro
+  const isPrivileged = actor.isAdmin || actor.isFinanceiro
   const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
 
   // Fetch the proposal first (needed for permission checks on all methods)

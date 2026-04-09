@@ -1,7 +1,9 @@
 // server/auth/currentAppUser.js
 import { query } from '../db.js'
 import { getStackUser, isStackAuthBypassed, getBootstrapAdminEmail, getProjectId } from './stackAuth.js'
-import { ensureAdminPermissionForUser, ensureComercialPermissionForUsers, ensureOfficePermissionForUsers } from './stackPermissions.js'
+import { ensureAdminPermissionForUser, ensureComercialPermissionForUsers, ensureOfficePermissionForUsers, getUserPermissions } from './stackPermissions.js'
+import { syncUserProfile } from './userProfileSync.js'
+import { derivePrimaryRole } from './authorizationSnapshot.js'
 
 const ADMIN_BOOTSTRAP_EMAIL = getBootstrapAdminEmail()
 
@@ -601,7 +603,7 @@ export async function getCurrentAppUser(req) {
     return null
   }
 
-  // 6) Update last_login_at (best-effort, non-blocking)
+  // 6) Update last_login_at (best-effort, non-blocking).
   // Also ensure role-based permissions are granted for configured emails (fire-and-forget, idempotent).
   const resolvedEmail = email || record.email
   ensureComercialPermissionForUsers(authProviderUserId, resolvedEmail).catch((err) => {
@@ -610,6 +612,19 @@ export async function getCurrentAppUser(req) {
   ensureOfficePermissionForUsers(authProviderUserId, resolvedEmail).catch((err) => {
     console.warn('[auth/user] ensureOfficePermissionForUsers failed (non-fatal):', err?.message)
   })
+
+  // 7) Sync the user's primary role into app_user_profiles (fire-and-forget).
+  // The Stack Auth permissions are fetched asynchronously so this is approximate
+  // on first login (the role may arrive slightly after this call). The snapshot
+  // endpoint (/api/authz/me) always gets the authoritative value via the API.
+  getUserPermissions(authProviderUserId)
+    .then((perms) => {
+      const role = derivePrimaryRole(Array.isArray(perms) ? perms : [])
+      return syncUserProfile(authProviderUserId, role, resolvedEmail, record.full_name ?? null)
+    })
+    .catch((err) => {
+      console.warn('[auth/user] syncUserProfile failed (non-fatal):', err?.message)
+    })
 
   query(
     `UPDATE public.app_user_access SET last_login_at = now(), updated_at = now()

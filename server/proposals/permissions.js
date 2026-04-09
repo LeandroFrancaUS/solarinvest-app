@@ -95,13 +95,18 @@ export function requireProposalAuth(actor) {
 /**
  * Returns true if the actor can read the given proposal.
  *   - Admin     : any proposal
- *   - Office    : any proposal
- *   - Comercial : own proposals only
  *   - Financeiro: any proposal (read-only)
+ *   - Office    : own proposals OR proposals owned by role_comercial users
+ *   - Comercial : own proposals only
  */
 export function canReadProposal(actor, proposal) {
   if (!actor) return false
-  if (actor.isAdmin || actor.isOffice || actor.isFinanceiro) return true
+  if (actor.isAdmin || actor.isFinanceiro) return true
+  if (actor.isOffice) {
+    // Own proposal, OR proposal owned by a comercial user
+    return proposal.owner_user_id === actor.userId ||
+      proposal.owner_role === 'role_comercial'
+  }
   return proposal.owner_user_id === actor.userId
 }
 
@@ -120,27 +125,35 @@ export function canWriteProposals(actor) {
 /**
  * Returns true if the actor can update a specific proposal.
  *   - Admin     : any proposal
- *   - Office    : any proposal
+ *   - Office    : own proposals OR proposals owned by role_comercial users
  *   - Comercial : own proposals only
  *   - Financeiro: no
  */
 export function canModifyProposal(actor, proposal) {
   if (!actor) return false
   if (actor.isFinanceiro) return false
-  if (actor.isAdmin || actor.isOffice) return true
+  if (actor.isAdmin) return true
+  if (actor.isOffice) {
+    return proposal.owner_user_id === actor.userId ||
+      proposal.owner_role === 'role_comercial'
+  }
   return proposal.owner_user_id === actor.userId
 }
 
 /**
  * Returns true if the actor can delete a specific proposal.
  *   - Admin     : any proposal
- *   - Office    : any proposal
+ *   - Office    : own proposals OR proposals owned by role_comercial users
  *   - Comercial : own proposals only
  *   - Financeiro: no
  */
 export function canDeleteProposal(actor, proposal) {
   if (!actor) return false
   if (actor.isFinanceiro) return false
-  if (actor.isAdmin || actor.isOffice) return true
+  if (actor.isAdmin) return true
+  if (actor.isOffice) {
+    return proposal.owner_user_id === actor.userId ||
+      proposal.owner_role === 'role_comercial'
+  }
   return proposal.owner_user_id === actor.userId
 }

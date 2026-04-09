@@ -175,12 +175,14 @@ export async function handleClientsRequest(req, res, ctx) {
 
   if (method === 'GET') {
     const q = requestUrl.searchParams
-    const isPrivileged = actor.isAdmin || actor.isOffice || actor.isFinanceiro
-    const ownerUserId = isPrivileged ? (q.get('owner_user_id') ?? null) : actor.userId
+    const isPrivileged = actor.isAdmin || actor.isFinanceiro
+    const ownerUserId = isPrivileged ? (q.get('owner_user_id') ?? null) : (actor.isOffice ? null : actor.userId)
+    const officeUserId = actor.isOffice ? actor.userId : null
     const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
     try {
       const result = await listClients(userSql, {
         ownerUserId,
+        officeUserId,
         createdByUserId: q.get('created_by') ?? null,
         city: q.get('city') ?? null,
         state: q.get('uf') ?? null,
@@ -259,7 +261,7 @@ export async function handleClientByIdRequest(req, res, ctx) {
 
   // GET /api/clients/:id/proposals
   if (method === 'GET' && subpath === 'proposals') {
-    const isPrivileged = actor.isAdmin || actor.isOffice || actor.isFinanceiro
+    const isPrivileged = actor.isAdmin || actor.isFinanceiro
     const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
     try {
       const proposals = await getClientProposals(userSql, clientId)
@@ -282,7 +284,7 @@ export async function handleClientByIdRequest(req, res, ctx) {
       const { type: docType, normalized: _docNormalized } = normalizeDocumentServer(rawDoc)
       const cpfNormalized = (body.cpf_raw != null || docType === 'cpf') ? normalizeCpfServer(body.cpf_raw ?? rawDoc) : undefined
       const cnpjNormalized = (body.cnpj_raw != null || docType === 'cnpj') ? normalizeCnpjServer(body.cnpj_raw ?? rawDoc) : undefined
-      const isPrivileged = actor.isAdmin || actor.isOffice || actor.isFinanceiro
+      const isPrivileged = actor.isAdmin || actor.isFinanceiro
       const userSql = createUserScopedSql(db.sql, isPrivileged ? null : actor.userId)
       const updated = await updateClient(userSql, clientId, {
         ...body,

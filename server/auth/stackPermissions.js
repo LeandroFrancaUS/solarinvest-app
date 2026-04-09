@@ -143,9 +143,11 @@ async function grantPermissionViaApi(userId, permissionId) {
   if (!userId || !permissionId) return { ok: false, error: 'userId ou permissionId ausente' }
 
   try {
-    // Stack Auth REST API: type must be in the request body, not as a query param.
+    // Stack Auth REST API v2: grant a global project permission.
+    // The permission ID belongs in the request body ({"id": permId, "type": "global"}).
+    // Appending the permission ID to the URL path returns 404 on the Stack Auth API.
     const url =
-      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions/${encodeURIComponent(permissionId)}`
+      `${STACK_API_BASE}/api/v1/users/${encodeURIComponent(userId)}/permissions`
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -154,7 +156,7 @@ async function grantPermissionViaApi(userId, permissionId) {
         'x-stack-secret-server-key': secretKey,
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ type: 'global' }),
+      body: JSON.stringify({ id: permissionId, type: 'global' }),
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
     if (!res.ok) {
