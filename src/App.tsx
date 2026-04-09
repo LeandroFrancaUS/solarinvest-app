@@ -289,6 +289,8 @@ import {
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
+import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
+import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4417,6 +4419,14 @@ export default function App() {
   // before the Stack Auth native permission 'role_admin' is granted.
   const { me, authState: meAuthState } = useAuthSession(user ? getAccessToken : null)
 
+  // Fetch and cache the full authorization snapshot from /api/authz/me.
+  // The snapshot is reused for offline mode and provides capability-level RBAC.
+  const { snapshot: authzSnapshot } = useAuthorizationSnapshot({
+    getAccessToken: user ? getAccessToken : null,
+    enabled: Boolean(user),
+    cleared: !user,
+  })
+
   // isAdmin: Stack Auth native permission OR internal DB role (whichever resolves first).
   // This ensures the admin can see protected pages even before 'role_admin' is
   // granted in the Stack Auth dashboard (which requires STACK_SECRET_SERVER_KEY).
@@ -4432,6 +4442,7 @@ export default function App() {
     if (isLoggingOut) return
     setIsLoggingOut(true)
     try {
+      clearOfflineSnapshot()
       // performLogout handles all cleanup steps and ends with a hard redirect.
       // The hard redirect means setIsLoggingOut(false) below is rarely reached,
       // but it serves as a safety net if window.location.assign is somehow blocked.
