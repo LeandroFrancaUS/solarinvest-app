@@ -14927,7 +14927,7 @@ export default function App() {
 
       const fileName = arquivo.name
       const nameLower = fileName.toLowerCase()
-      const isXlsx = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls')
+      const isXlsx = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xlxs') || nameLower.endsWith('.xls')
 
       try {
         // ── Excel path ────────────────────────────────────────────────────────
@@ -28766,7 +28766,7 @@ export default function App() {
       <input
         ref={clientesImportInputRef}
         type="file"
-        accept="application/json,text/csv,.csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept="application/json,text/csv,.csv,.xlsx,.xlxs,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
       />
