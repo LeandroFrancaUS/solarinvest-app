@@ -13,12 +13,14 @@
 
 import { getCurrentAppUser } from '../auth/currentAppUser.js'
 import { hasStackPermission } from '../auth/stackPermissions.js'
-import { isStackAuthBypassed } from '../auth/stackAuth.js'
+import { isStackAuthBypassed, getBootstrapAdminEmail, getBootstrapAdminUserId } from '../auth/stackAuth.js'
 
 const PERM_ADMIN      = 'role_admin'
 const PERM_COMERCIAL  = 'role_comercial'
 const PERM_OFFICE     = 'role_office'
 const PERM_FINANCEIRO = 'role_financeiro'
+const BOOTSTRAP_ADMIN_EMAIL = getBootstrapAdminEmail().toLowerCase().trim()
+const BOOTSTRAP_ADMIN_USER_ID = getBootstrapAdminUserId()
 
 /**
  * Resolves the full actor context from the incoming request.
@@ -67,20 +69,26 @@ export async function resolveActor(req) {
   // This handles stale JWTs (permission recently granted, token not refreshed)
   // and setups where STACK_SECRET_SERVER_KEY is not configured.
   // Only the admin role has a DB equivalent ('admin' in app_user_access.role).
-  const hasNoStackRole = !isAdmin && !isComercial && !isOffice && !isFinanceiro
-  const dbRoleIsAdmin = hasNoStackRole && appUser.role === 'admin' && appUser.access_status === 'approved'
+  const normalizedEmail = (appUser.email ?? '').toLowerCase().trim()
+  const dbRoleIsAdmin = appUser.role === 'admin' && appUser.access_status === 'approved'
+  const bootstrapEmailIsAdmin = Boolean(BOOTSTRAP_ADMIN_EMAIL) && normalizedEmail === BOOTSTRAP_ADMIN_EMAIL
+  const bootstrapUserIdIsAdmin =
+    Boolean(BOOTSTRAP_ADMIN_USER_ID) &&
+    (appUser.auth_provider_user_id === BOOTSTRAP_ADMIN_USER_ID || appUser.id === BOOTSTRAP_ADMIN_USER_ID)
 
   // Precedence: admin > financeiro > office > comercial
   // When a user holds multiple permissions the highest-privilege one wins.
-  const resolvedAdmin      = isAdmin || dbRoleIsAdmin
+  const resolvedAdmin      = isAdmin || dbRoleIsAdmin || bootstrapEmailIsAdmin || bootstrapUserIdIsAdmin
   const resolvedFinanceiro = !resolvedAdmin && isFinanceiro
   const resolvedOffice     = !resolvedAdmin && !resolvedFinanceiro && isOffice
   const resolvedComercial  = !resolvedAdmin && !resolvedFinanceiro && !resolvedOffice && isComercial
 
-  if (dbRoleIsAdmin) {
-    console.info('[RBAC] resolveActor: using DB role fallback for admin', {
+  if (dbRoleIsAdmin || bootstrapEmailIsAdmin || bootstrapUserIdIsAdmin) {
+    console.info('[RBAC] resolveActor: using admin fallback', {
       userId: appUser.auth_provider_user_id ?? appUser.id,
       dbRole: appUser.role,
+      bootstrapEmailIsAdmin,
+      bootstrapUserIdIsAdmin,
     })
   }
 
@@ -135,16 +143,14 @@ export function requireProposalAuth(actor) {
  * Returns true if the actor can read the given proposal.
  *   - Admin     : any proposal
  *   - Financeiro: any proposal (read-only)
- *   - Office    : own proposals OR proposals owned by role_comercial users
+ *   - Office    : any proposal (read-only outside own ownership at mutation layer)
  *   - Comercial : own proposals only
  */
 export function canReadProposal(actor, proposal) {
   if (!actor) return false
   if (actor.isAdmin || actor.isFinanceiro) return true
   if (actor.isOffice) {
-    // Own proposal, OR proposal owned by a comercial user
-    return proposal.owner_user_id === actor.userId ||
-      proposal.owner_role === 'role_comercial'
+    return true
   }
   return proposal.owner_user_id === actor.userId
 }
@@ -164,7 +170,7 @@ export function canWriteProposals(actor) {
 /**
  * Returns true if the actor can update a specific proposal.
  *   - Admin     : any proposal
- *   - Office    : own proposals OR proposals owned by role_comercial users
+ *   - Office    : any proposal (read-only outside own ownership at mutation layer)
  *   - Comercial : own proposals only
  *   - Financeiro: no
  */
@@ -173,8 +179,7 @@ export function canModifyProposal(actor, proposal) {
   if (actor.isFinanceiro) return false
   if (actor.isAdmin) return true
   if (actor.isOffice) {
-    return proposal.owner_user_id === actor.userId ||
-      proposal.owner_role === 'role_comercial'
+    return proposal.owner_user_id === actor.userId
   }
   return proposal.owner_user_id === actor.userId
 }
@@ -182,7 +187,7 @@ export function canModifyProposal(actor, proposal) {
 /**
  * Returns true if the actor can delete a specific proposal.
  *   - Admin     : any proposal
- *   - Office    : own proposals OR proposals owned by role_comercial users
+ *   - Office    : any proposal (read-only outside own ownership at mutation layer)
  *   - Comercial : own proposals only
  *   - Financeiro: no
  */
@@ -191,8 +196,7 @@ export function canDeleteProposal(actor, proposal) {
   if (actor.isFinanceiro) return false
   if (actor.isAdmin) return true
   if (actor.isOffice) {
-    return proposal.owner_user_id === actor.userId ||
-      proposal.owner_role === 'role_comercial'
+    return proposal.owner_user_id === actor.userId
   }
   return proposal.owner_user_id === actor.userId
 }

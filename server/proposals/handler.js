@@ -35,6 +35,15 @@ function getDb(sendJson) {
   return db
 }
 
+function sqlForActor(db, actor) {
+  // Important production fallback:
+  // In environments still running legacy own-only RLS policies, setting a user
+  // context can inadvertently restrict admins. Admin requests use raw sql to
+  // guarantee full visibility.
+  if (actor?.isAdmin) return db.sql
+  return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+}
+
 async function resolveAndAuth(req, sendJson) {
   let actor
   try {
@@ -70,7 +79,7 @@ export async function handleProposalsRequest(req, res, ctx) {
 
   // RLS context: set both user ID and role so the DB enforces access control.
   // Security is layered: application checks (canWriteProposals etc.) + RLS.
-  const userSql = createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+  const userSql = sqlForActor(db, actor)
 
   // ── GET /api/proposals ──────────────────────────────────────────────────────
   if (method === 'GET') {
@@ -166,7 +175,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
   if (!actor) return
 
   // RLS context: role-aware, so the DB enforces access per-row.
-  const userSql = createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+  const userSql = sqlForActor(db, actor)
 
   // Fetch the proposal first (needed for permission checks on all methods)
   let proposal

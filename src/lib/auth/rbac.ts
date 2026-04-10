@@ -74,17 +74,17 @@ export function useStackRbac(): StackRbacState {
       .then(([isAdminPerm, isComercialPerm, isOfficePerm, isFinanceiroPerm, canFinancial, canPref]) => {
         if (cancelled) return
         const resolvedAdmin = isAdminPerm
-        const resolvedComercial = !isAdminPerm && isComercialPerm
-        const resolvedOffice = !isAdminPerm && !isComercialPerm && isOfficePerm
-        const resolvedFinanceiro = !isAdminPerm && !isComercialPerm && !isOfficePerm && isFinanceiroPerm
+        const resolvedFinanceiro = !isAdminPerm && isFinanceiroPerm
+        const resolvedOffice = !isAdminPerm && !resolvedFinanceiro && isOfficePerm
+        const resolvedComercial = !isAdminPerm && !resolvedFinanceiro && !resolvedOffice && isComercialPerm
         const role = resolvedAdmin
           ? 'Administrador'
-          : resolvedComercial
-            ? 'Comercial'
+          : resolvedFinanceiro
+            ? 'Financeiro'
             : resolvedOffice
               ? 'Office'
-              : resolvedFinanceiro
-                ? 'Financeiro'
+              : resolvedComercial
+                ? 'Comercial'
                 : 'Usuário'
         setState({
           isAdmin: resolvedAdmin,
