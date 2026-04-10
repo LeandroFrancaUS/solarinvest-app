@@ -16,6 +16,8 @@ export interface ClientRow {
   id: string
   name: string
   document: string | null
+  cpf_raw: string | null
+  cnpj_raw: string | null
   email: string | null
   phone: string | null
   city: string | null
@@ -24,8 +26,32 @@ export interface ClientRow {
   uc: string | null
   distribuidora: string | null
   metadata: Record<string, unknown> | null
+  owner_user_id: string | null
+  created_by_user_id: string | null
+  /** Set from a LEFT JOIN to app_user_profiles when listing clients */
+  owner_display_name: string | null
+  /** Set from a LEFT JOIN to app_user_profiles when listing clients */
+  owner_email: string | null
   created_at: string
   updated_at: string
+}
+
+export interface ClientListFilters {
+  page?: number
+  limit?: number
+  search?: string
+  city?: string
+  state?: string
+}
+
+export interface ClientListResult {
+  data: ClientRow[]
+  meta: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
 }
 
 export interface UpsertClientInput {
@@ -135,4 +161,21 @@ export async function updateClientById(id: string, input: UpdateClientInput): Pr
     body: JSON.stringify(input),
   })
   return result.data
+}
+
+/**
+ * List clients with optional filters. The server enforces RBAC:
+ *   admin/financeiro → all clients
+ *   office           → own + role_comercial users' clients
+ *   comercial        → own clients only
+ */
+export async function listClients(filters: ClientListFilters = {}): Promise<ClientListResult> {
+  const params = new URLSearchParams()
+  if (filters.page != null) params.set('page', String(filters.page))
+  if (filters.limit != null) params.set('limit', String(filters.limit))
+  if (filters.search) params.set('search', filters.search)
+  if (filters.city) params.set('city', filters.city)
+  if (filters.state) params.set('uf', filters.state)
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  return apiFetch<ClientListResult>(qs)
 }

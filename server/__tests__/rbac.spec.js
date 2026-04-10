@@ -349,3 +349,257 @@ describe('last-admin protection rule', () => {
     expect(shouldBlockRevoke('role_financeiro', 1)).toBe(false)
   })
 })
+
+// ─── actorRole() helper ───────────────────────────────────────────────────────
+// Inline actorRole to mirror server/proposals/permissions.js without importing
+// modules that have transitive server-only dependencies.
+// Precedence: admin > financeiro > office > comercial
+
+function actorRole(actor) {
+  if (!actor) return null
+  if (actor.isAdmin)      return 'role_admin'
+  if (actor.isFinanceiro) return 'role_financeiro'
+  if (actor.isOffice)     return 'role_office'
+  if (actor.isComercial)  return 'role_comercial'
+  return null
+}
+
+describe('actorRole — canonical role string derivation', () => {
+  it('returns role_admin for admin actor', () => {
+    expect(actorRole({ isAdmin: true, isFinanceiro: false, isOffice: false, isComercial: false })).toBe('role_admin')
+  })
+
+  it('returns role_financeiro for financeiro actor', () => {
+    expect(actorRole({ isAdmin: false, isFinanceiro: true, isOffice: false, isComercial: false })).toBe('role_financeiro')
+  })
+
+  it('returns role_office for office actor', () => {
+    expect(actorRole({ isAdmin: false, isFinanceiro: false, isOffice: true, isComercial: false })).toBe('role_office')
+  })
+
+  it('returns role_comercial for comercial actor', () => {
+    expect(actorRole({ isAdmin: false, isFinanceiro: false, isOffice: false, isComercial: true })).toBe('role_comercial')
+  })
+
+  it('returns null for actor with no role', () => {
+    expect(actorRole({ isAdmin: false, isFinanceiro: false, isOffice: false, isComercial: false })).toBe(null)
+  })
+
+  it('returns null for null actor', () => {
+    expect(actorRole(null)).toBe(null)
+  })
+})
+
+// ─── resolveActor role precedence ────────────────────────────────────────────
+// Inline the precedence logic from server/proposals/permissions.js resolveActor.
+// Precedence: admin > financeiro > office > comercial
+
+function resolveActorFlags(isAdmin, isFinanceiro, isOffice, isComercial) {
+  const resolvedAdmin      = isAdmin
+  const resolvedFinanceiro = !resolvedAdmin && isFinanceiro
+  const resolvedOffice     = !resolvedAdmin && !resolvedFinanceiro && isOffice
+  const resolvedComercial  = !resolvedAdmin && !resolvedFinanceiro && !resolvedOffice && isComercial
+  return {
+    isAdmin: resolvedAdmin,
+    isFinanceiro: resolvedFinanceiro,
+    isOffice: resolvedOffice,
+    isComercial: resolvedComercial,
+    hasAnyRole: resolvedAdmin || resolvedFinanceiro || resolvedOffice || resolvedComercial,
+  }
+}
+
+describe('resolveActor role precedence (admin > financeiro > office > comercial)', () => {
+  it('admin wins when all roles present', () => {
+    const r = resolveActorFlags(true, true, true, true)
+    expect(r.isAdmin).toBe(true)
+    expect(r.isFinanceiro).toBe(false)
+    expect(r.isOffice).toBe(false)
+    expect(r.isComercial).toBe(false)
+  })
+
+  it('financeiro wins over office and comercial', () => {
+    const r = resolveActorFlags(false, true, true, true)
+    expect(r.isAdmin).toBe(false)
+    expect(r.isFinanceiro).toBe(true)
+    expect(r.isOffice).toBe(false)
+    expect(r.isComercial).toBe(false)
+  })
+
+  it('office wins over comercial only', () => {
+    const r = resolveActorFlags(false, false, true, true)
+    expect(r.isAdmin).toBe(false)
+    expect(r.isFinanceiro).toBe(false)
+    expect(r.isOffice).toBe(true)
+    expect(r.isComercial).toBe(false)
+  })
+
+  it('single comercial role — comercial wins', () => {
+    const r = resolveActorFlags(false, false, false, true)
+    expect(r.isAdmin).toBe(false)
+    expect(r.isFinanceiro).toBe(false)
+    expect(r.isOffice).toBe(false)
+    expect(r.isComercial).toBe(true)
+  })
+
+  it('no roles → hasAnyRole false', () => {
+    const r = resolveActorFlags(false, false, false, false)
+    expect(r.hasAnyRole).toBe(false)
+  })
+})
+
+// ─── can_access_owner / can_write_owner logic ─────────────────────────────────
+// Inline the PL/pgSQL logic as a JS function to validate business rules.
+
+function canAccessOwner(role, uid, ownerUserId, ownerIsComercial = false) {
+  if (!role) return true                              // no context → bypass
+  if (role === 'role_admin') return true
+  if (role === 'role_financeiro') return true         // read-only; write blocked separately
+  if (role === 'role_office') return ownerUserId === uid || ownerIsComercial
+  if (role === 'role_comercial') return ownerUserId === uid
+  return false                                        // unknown role → fail closed
+}
+
+function canWriteOwner(role, uid, ownerUserId, ownerIsComercial = false) {
+  if (!role) return true                              // no context → bypass
+  if (role === 'role_admin') return true
+  if (role === 'role_financeiro') return false        // read-only role
+  if (role === 'role_office') return ownerUserId === uid || ownerIsComercial
+  if (role === 'role_comercial') return ownerUserId === uid
+  return false
+}
+
+describe('can_access_owner — PostgreSQL logic (JS inline)', () => {
+  const ADMIN_UID = 'admin-uid'
+  const FIN_UID   = 'fin-uid'
+  const OFFICE_UID = 'off-uid'
+  const COM_UID   = 'com-uid'
+  const OTHER_UID = 'other-uid'
+
+  it('no context (null role) → always bypass', () => {
+    expect(canAccessOwner(null, ADMIN_UID, OTHER_UID)).toBe(true)
+  })
+
+  it('role_admin sees any owner', () => {
+    expect(canAccessOwner('role_admin', ADMIN_UID, OTHER_UID)).toBe(true)
+    expect(canAccessOwner('role_admin', ADMIN_UID, 'leandro-orders-uid')).toBe(true)
+  })
+
+  it('role_financeiro reads any owner', () => {
+    expect(canAccessOwner('role_financeiro', FIN_UID, OTHER_UID)).toBe(true)
+    expect(canAccessOwner('role_financeiro', FIN_UID, COM_UID)).toBe(true)
+  })
+
+  it('role_office sees own uid', () => {
+    expect(canAccessOwner('role_office', OFFICE_UID, OFFICE_UID)).toBe(true)
+  })
+
+  it('role_office sees comercial user rows', () => {
+    expect(canAccessOwner('role_office', OFFICE_UID, COM_UID, true)).toBe(true)
+  })
+
+  it('role_office does not see non-comercial other users', () => {
+    expect(canAccessOwner('role_office', OFFICE_UID, OTHER_UID, false)).toBe(false)
+  })
+
+  it('role_comercial sees own rows', () => {
+    expect(canAccessOwner('role_comercial', COM_UID, COM_UID)).toBe(true)
+  })
+
+  it('role_comercial does not see other comercial', () => {
+    expect(canAccessOwner('role_comercial', COM_UID, 'other-com-uid')).toBe(false)
+  })
+
+  it('unknown role → fail closed', () => {
+    expect(canAccessOwner('role_unknown', 'x-uid', 'x-uid')).toBe(false)
+  })
+})
+
+describe('can_write_owner — PostgreSQL logic (JS inline)', () => {
+  const ADMIN_UID  = 'admin-uid'
+  const FIN_UID    = 'fin-uid'
+  const OFFICE_UID = 'off-uid'
+  const COM_UID    = 'com-uid'
+
+  it('no context → bypass', () => {
+    expect(canWriteOwner(null, ADMIN_UID, 'any-uid')).toBe(true)
+  })
+
+  it('role_admin writes any row', () => {
+    expect(canWriteOwner('role_admin', ADMIN_UID, 'other-uid')).toBe(true)
+  })
+
+  it('role_financeiro cannot write — read-only', () => {
+    expect(canWriteOwner('role_financeiro', FIN_UID, FIN_UID)).toBe(false)
+    expect(canWriteOwner('role_financeiro', FIN_UID, 'any-uid')).toBe(false)
+  })
+
+  it('role_office writes own rows', () => {
+    expect(canWriteOwner('role_office', OFFICE_UID, OFFICE_UID)).toBe(true)
+  })
+
+  it('role_office writes comercial rows', () => {
+    expect(canWriteOwner('role_office', OFFICE_UID, 'com-uid', true)).toBe(true)
+  })
+
+  it('role_office cannot write non-comercial rows', () => {
+    expect(canWriteOwner('role_office', OFFICE_UID, 'other-uid', false)).toBe(false)
+  })
+
+  it('role_comercial writes own rows', () => {
+    expect(canWriteOwner('role_comercial', COM_UID, COM_UID)).toBe(true)
+  })
+
+  it('role_comercial cannot write other rows', () => {
+    expect(canWriteOwner('role_comercial', COM_UID, 'other-uid')).toBe(false)
+  })
+})
+
+// ─── createUserScopedSql – fail-closed validation ────────────────────────────
+// Import the actual function to test the new fail-closed behavior.
+
+import { createUserScopedSql } from '../database/withRLSContext.js'
+
+describe('createUserScopedSql — fail-closed guard', () => {
+  // A minimal mock sql function (no .transaction) for synchronous tests.
+  const mockSql = Object.assign(() => Promise.resolve([]), { transaction: undefined })
+
+  it('throws 401 when userId is missing in object form', () => {
+    expect(() => createUserScopedSql(mockSql, { userId: '', role: 'role_admin' }))
+      .toThrow(/without userId/)
+  })
+
+  it('throws 403 when role is missing in object form', () => {
+    expect(() => createUserScopedSql(mockSql, { userId: 'u1', role: '' }))
+      .toThrow(/without role/)
+  })
+
+  it('throws 401 when userId is null in object form', () => {
+    expect(() => createUserScopedSql(mockSql, { userId: null, role: 'role_admin' }))
+      .toThrow(/without userId/)
+  })
+
+  it('returns raw sql for legacy null (service bypass)', () => {
+    const result = createUserScopedSql(mockSql, null)
+    expect(result).toBe(mockSql)
+  })
+
+  it('returns raw sql for legacy empty string (service bypass)', () => {
+    const result = createUserScopedSql(mockSql, '')
+    expect(result).toBe(mockSql)
+  })
+
+  it('returns wrapper function for legacy non-empty userId string', () => {
+    // No .transaction on mock → falls back to raw sql with a warning
+    const result = createUserScopedSql(mockSql, 'some-user-id')
+    // Should not throw; returns raw sql due to missing .transaction
+    expect(result).toBe(mockSql)
+  })
+
+  it('returns wrapper function for valid object form when .transaction available', () => {
+    const mockSqlWithTx = Object.assign((...args) => Promise.resolve([]), {
+      transaction: (queries) => Promise.resolve(queries.map(() => [])),
+    })
+    const wrapper = createUserScopedSql(mockSqlWithTx, { userId: 'u1', role: 'role_admin' })
+    expect(typeof wrapper).toBe('function')
+  })
+})

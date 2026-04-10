@@ -178,11 +178,15 @@ export async function updateClient(sql, clientId, data) {
  * List clients with filters.
  * Uses parameterized queries for all user-supplied values.
  * Sort column is validated against an allowlist to prevent SQL injection.
+ *
+ * Access control is enforced by PostgreSQL RLS (migration 0018) via the
+ * app.can_access_owner() function.  The sql parameter should be a
+ * user-scoped sql handle (createUserScopedSql) so that app.current_user_id
+ * and app.current_user_role are set for each query.
+ * No application-level WHERE clauses for ownership are needed here.
  */
 export async function listClients(sql, filter = {}) {
   const {
-    ownerUserId = null,
-    officeUserId = null,
     createdByUserId = null,
     city = null,
     state: uf = null,
@@ -203,17 +207,10 @@ export async function listClients(sql, filter = {}) {
   const safeSort = allowedSortBy.includes(sortBy) ? sortBy : 'updated_at'
   const safeSortDir = allowedSortDir.includes(sortDir.toUpperCase()) ? sortDir.toUpperCase() : 'DESC'
 
+  // Only functional filters - RLS handles ownership/role access control.
   const conditions = ['c.deleted_at IS NULL', 'c.merged_into_client_id IS NULL']
   const params = []
 
-  if (officeUserId) {
-    // Office: own clients OR clients owned by users with role_comercial
-    params.push(officeUserId)
-    conditions.push(`(c.owner_user_id = $${params.length} OR up.primary_role = 'role_comercial')`)
-  } else if (ownerUserId) {
-    params.push(ownerUserId)
-    conditions.push(`c.owner_user_id = $${params.length}`)
-  }
   if (createdByUserId) {
     params.push(createdByUserId)
     conditions.push(`c.created_by_user_id = $${params.length}`)
@@ -236,18 +233,16 @@ export async function listClients(sql, filter = {}) {
     conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx})`)
   }
 
-  // Only JOIN app_user_profiles when the office filter is active.
-  // For admin/financeiro/comercial queries the JOIN is unnecessary overhead.
-  const needsOwnerRoleJoin = Boolean(officeUserId)
-  const joinClause = needsOwnerRoleJoin
-    ? 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
-    : ''
+  // Always JOIN app_user_profiles to return owner display name and email.
+  const joinClause = 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
   // safeSort and safeSortDir are validated against allowlists above — safe to interpolate
   const countQuery = `SELECT COUNT(*) FROM clients c ${joinClause} ${where}`
   const dataQuery = `
     SELECT c.*,
+      up.display_name AS owner_display_name,
+      up.email AS owner_email,
       (SELECT COUNT(*) FROM proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL) AS proposal_count
     FROM clients c
     ${joinClause}

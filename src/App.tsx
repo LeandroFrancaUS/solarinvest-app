@@ -275,11 +275,15 @@ import { useAuthSession } from './auth/auth-session'
 import {
   createProposal,
   type CreateProposalInput,
+  listProposals as listProposalsFromApi,
+  type ProposalRow,
   setProposalsTokenProvider,
   type UpdateProposalInput,
   updateProposal,
 } from './lib/api/proposalsApi'
 import {
+  listClients as listClientsFromApi,
+  type ClientRow,
   setClientsTokenProvider,
   upsertClientByDocument,
   updateClientById,
@@ -287,6 +291,11 @@ import {
   type UpdateClientInput,
 } from './lib/api/clientsApi'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
+import { runSync } from './lib/sync/syncEngine'
+import {
+  migrateLocalStorageToServer,
+  setMigrationTokenProvider,
+} from './lib/migrateLocalStorageToServer'
 import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
@@ -659,6 +668,10 @@ type ClienteRegistro = {
   atualizadoEm: string
   dados: ClienteDados
   propostaSnapshot?: OrcamentoSnapshotData
+  /** Display name of the user who owns this client record (server-loaded, privileged views only) */
+  ownerName?: string
+  /** Email of the user who owns this client record (server-loaded, privileged views only) */
+  ownerEmail?: string
 }
 
 
@@ -1076,6 +1089,8 @@ type OrcamentoSalvo = {
   clienteUc?: string | undefined
   dados: PrintableProposalProps
   snapshot?: OrcamentoSnapshotData | undefined
+  /** Display name of the consultant who owns this proposal (server-loaded, privileged views only) */
+  ownerName?: string
 }
 
 type UcBeneficiariaFormState = {
@@ -1105,6 +1120,94 @@ type CorresponsavelErrors = {
 
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
+
+/**
+ * Maps a server-side ClientRow (from /api/clients) to the local ClienteRegistro format.
+ * Used by privileged roles (admin, office, financeiro) to populate the clients list
+ * from the RBAC-aware REST API instead of the user-scoped storage.
+ *
+ * Document field priority: `document` (canonical formatted field set by the server)
+ * → `cpf_raw` (raw CPF digits) → `cnpj_raw` (raw CNPJ digits) → empty string.
+ */
+function serverClientToRegistro(row: ClientRow): ClienteRegistro {
+  const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
+  const ownerEmail = row.owner_email
+  return {
+    id: row.id,
+    criadoEm: row.created_at,
+    atualizadoEm: row.updated_at,
+    ...(ownerName != null ? { ownerName } : {}),
+    ...(ownerEmail != null ? { ownerEmail } : {}),
+    dados: {
+      nome: row.name,
+      // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
+      // when the formatted field was not set (older records).
+      documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
+      rg: '',
+      estadoCivil: '',
+      nacionalidade: '',
+      profissao: '',
+      representanteLegal: '',
+      email: row.email ?? '',
+      telefone: row.phone ?? '',
+      cep: '',
+      distribuidora: row.distribuidora ?? '',
+      uc: row.uc ?? '',
+      endereco: row.address ?? '',
+      cidade: row.city ?? '',
+      uf: row.state ?? '',
+      temIndicacao: false,
+      indicacaoNome: '',
+      herdeiros: [''],
+      nomeSindico: '',
+      cpfSindico: '',
+      contatoSindico: '',
+      diaVencimento: '10',
+    },
+  }
+}
+
+/**
+ * Maps a server-side ProposalRow (from /api/proposals) to the local OrcamentoSalvo format.
+ *
+ * The server stores the complete OrcamentoSnapshotData (raw form state) as payload_json.
+ * We use it as both:
+ *   - `snapshot`: used by carregarOrcamentoParaEdicao to reload the form for editing
+ *   - `dados`   : used by the listing page to read client metadata (nome, cidade, uc, etc.)
+ *                 and by carregarOrcamentoSalvo to determine proposal type
+ *
+ * The double cast (as unknown as …) is intentional: payload_json is typed as
+ * Record<string,unknown> at the API boundary but is guaranteed to be an
+ * OrcamentoSnapshotData object written by the auto-save path.  The fields
+ * required for listing (cliente.*) and editing (full snapshot) are all present.
+ * Used by privileged roles (admin, office, financeiro).
+ */
+function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
+  // payload_json is always an OrcamentoSnapshotData written by the auto-save path.
+  const snapshot = row.payload_json as unknown as OrcamentoSnapshotData
+  const tipoProposta: PrintableProposalTipo =
+    row.proposal_type === 'venda' ? 'VENDA_DIRETA' : 'LEASING'
+  // Merge tipoProposta into the snapshot so that carregarOrcamentoSalvo can
+  // determine the tab type without needing the full PrintableProposalProps.
+  const dados = {
+    ...(snapshot ?? {}),
+    tipoProposta,
+  } as unknown as PrintableProposalProps
+  const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
+  return {
+    id: row.proposal_code ?? row.id,
+    criadoEm: row.created_at,
+    clienteId: undefined,
+    clienteNome: row.client_name ?? snapshot?.cliente?.nome ?? '',
+    clienteCidade: row.client_city ?? snapshot?.cliente?.cidade ?? '',
+    clienteUf: row.client_state ?? snapshot?.cliente?.uf ?? '',
+    clienteDocumento: row.client_document ?? snapshot?.cliente?.documento ?? undefined,
+    clienteUc: snapshot?.cliente?.uc ?? undefined,
+    ...(ownerName != null ? { ownerName } : {}),
+    dados,
+    snapshot: snapshot ?? undefined,
+  }
+}
 const PROPOSAL_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-proposal-server-id-map'
 const CLIENT_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-client-server-id-map'
 const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
@@ -2963,6 +3066,8 @@ type ClientesPanelProps = {
   onExportarJson: () => void
   onImportar: () => void
   isImportando: boolean
+  /** When true, shows the "Consultor" column and cross-user description */
+  isPrivilegedUser?: boolean
 }
 
 type ClienteContratoPayload = {
@@ -3109,6 +3214,7 @@ function ClientesPanel({
   onExportarJson,
   onImportar,
   isImportando,
+  isPrivilegedUser = false,
 }: ClientesPanelProps) {
   const panelTitleId = useId()
   const [clienteSearchTerm, setClienteSearchTerm] = useState('')
@@ -3126,18 +3232,32 @@ function ClientesPanel({
       const matchDocumento = documentoCliente
         ? documentoCliente.replace(/\D/g, '').includes(normalizedSearchTerm.replace(/\D/g, ''))
         : false
-      return matchNome || matchDocumento
+      // Allow searching by consultant name/email for privileged views
+      const matchOwner = isPrivilegedUser
+        ? ((registro.ownerName?.toLowerCase().includes(normalizedSearchTerm) ?? false) ||
+          (registro.ownerEmail?.toLowerCase().includes(normalizedSearchTerm) ?? false))
+        : false
+      return matchNome || matchDocumento || matchOwner
     })
-  }, [normalizedSearchTerm, registros])
+  }, [isPrivilegedUser, normalizedSearchTerm, registros])
   const totalRegistros = registros.length
   const totalResultados = registrosFiltrados.length
+  // For privileged views, how many distinct consultants are represented
+  const totalConsultores = useMemo(() => {
+    if (!isPrivilegedUser) return 0
+    return new Set(registros.map((r) => r.ownerName ?? r.ownerEmail ?? 'desconhecido')).size
+  }, [isPrivilegedUser, registros])
 
   return (
     <div className="budget-search-page clients-page" aria-labelledby={panelTitleId}>
       <div className="budget-search-page-header">
         <div>
           <h2 id={panelTitleId}>Gestão de clientes</h2>
-          <p>Clientes armazenados localmente neste dispositivo.</p>
+          <p>
+            {isPrivilegedUser
+              ? `Todos os clientes cadastrados no sistema${totalConsultores > 0 ? ` — ${totalConsultores} consultor(es) representados` : ''}.`
+              : 'Clientes armazenados localmente neste dispositivo.'}
+          </p>
         </div>
         <button type="button" className="ghost" onClick={onClose}>
           Voltar
@@ -3184,14 +3304,16 @@ function ClientesPanel({
           <Field
             label={labelWithTooltip(
               'Pesquisar cliente',
-              'Filtra os clientes salvos pelo nome ou CPF/CNPJ informado.',
+              isPrivilegedUser
+                ? 'Filtra os clientes pelo nome, CPF/CNPJ ou nome do consultor responsável.'
+                : 'Filtra os clientes salvos pelo nome ou CPF/CNPJ informado.',
             )}
           >
             <input
               type="search"
               value={clienteSearchTerm}
               onChange={(event) => setClienteSearchTerm(event.target.value)}
-              placeholder="Ex.: Maria Silva ou 123.456.789-00"
+              placeholder={isPrivilegedUser ? 'Ex.: Maria Silva, 123.456.789-00 ou João Consultor' : 'Ex.: Maria Silva ou 123.456.789-00'}
             />
           </Field>
           <div className="budget-search-summary">
@@ -3226,6 +3348,7 @@ function ClientesPanel({
                       <th className="col-md col-nowrap">Telefone</th>
                       <th className="col-lg col-nowrap">E-mail</th>
                       <th className="col-xl col-nowrap">Endereço</th>
+                      {isPrivilegedUser ? <th className="col-nowrap">Consultor</th> : null}
                       <th>Ações</th>
                     </tr>
                   </thead>
@@ -3246,6 +3369,8 @@ function ClientesPanel({
                       const enderecoCompleto = [dados.endereco, dados.cidade, dados.uf, dados.cep]
                         .filter(Boolean)
                         .join(', ')
+                      // Total columns: 8 fixed + 1 if privileged (Consultor) + 1 Ações = 9 or 10
+                      const colSpanTotal = isPrivilegedUser ? 10 : 9
                       return (
                         <React.Fragment key={registro.id}>
                           <tr className="clients-data-row">
@@ -3261,6 +3386,18 @@ function ClientesPanel({
                             <td className="col-md" data-label="Telefone">{dados.telefone ? <span>{dados.telefone}</span> : null}</td>
                             <td className="col-lg" data-label="E-mail">{dados.email ? <span>{dados.email}</span> : null}</td>
                             <td className="col-xl" data-label="Endereço">{dados.endereco ? <span>{dados.endereco}</span> : null}</td>
+                            {isPrivilegedUser ? (
+                              <td data-label="Consultor">
+                                {registro.ownerName ? (
+                                  <span
+                                    className="clients-table-owner"
+                                    title={registro.ownerEmail ?? registro.ownerName}
+                                  >
+                                    {registro.ownerName}
+                                  </span>
+                                ) : null}
+                              </td>
+                            ) : null}
                             <td data-label="Ações">
                               <div className="clients-table-actions">
                                 <button
@@ -3299,7 +3436,7 @@ function ClientesPanel({
                             <tr className="clients-info-row">
                               <td
                                 className="clients-info-cell"
-                                colSpan={9}
+                                colSpan={colSpanTotal}
                                 data-label=""
                                 id={`cliente-info-${registro.id}`}
                               >
@@ -3339,6 +3476,12 @@ function ClientesPanel({
                                       <div className="clients-info-field clients-info-mobile-only">
                                         <dt>Endereço</dt>
                                         <dd>{enderecoCompleto}</dd>
+                                      </div>
+                                    ) : null}
+                                    {isPrivilegedUser && registro.ownerName ? (
+                                      <div className="clients-info-field">
+                                        <dt>Consultor</dt>
+                                        <dd title={registro.ownerEmail ?? undefined}>{registro.ownerName}</dd>
                                       </div>
                                     ) : null}
                                     {registro.criadoEm ? (
@@ -4406,7 +4549,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useStackUser()
-  const { isAdmin: isAdminFromStack, role: userRole, isFinanceiro, isLoading: isStackPermLoading } = useStackRbac()
+  const { isAdmin: isAdminFromStack, role: userRole, isOffice, isFinanceiro, isLoading: isStackPermLoading } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
   // Falls back to null while user hasn't resolved yet (no auth header sent).
@@ -4443,6 +4586,14 @@ export default function App() {
     setIsLoggingOut(true)
     try {
       clearOfflineSnapshot()
+      // Quick fire-and-forget sync before logout (max 1.5 s) to flush any
+      // pending offline queue entries. Does not block logout if offline or slow.
+      if (isConnectivityOnline()) {
+        await Promise.race([
+          runSync(),
+          new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+        ])
+      }
       // performLogout handles all cleanup steps and ends with a hard redirect.
       // The hard redirect means setIsLoggingOut(false) below is rarely reached,
       // but it serves as a safety net if window.location.assign is somehow blocked.
@@ -4492,6 +4643,11 @@ export default function App() {
     setProposalsTokenProvider(getAccessToken)
     setClientsTokenProvider(getAccessToken)
     setAdminUsersTokenProvider(getAccessToken)
+    // Register token provider for the local→Neon migration tool.
+    setMigrationTokenProvider(getAccessToken)
+    // Silently migrate any locally-stored clients/proposals to Neon.
+    // Fire-and-forget: errors are caught internally; does not block auth flow.
+    void migrateLocalStorageToServer()
     // Re-run server storage sync now that auth is available.
     void ensureServerStorageSync({ timeoutMs: 6000 })
     // Signal data-load effects to re-run now that auth token is available.
@@ -11870,6 +12026,27 @@ export default function App() {
       return []
     }
 
+    // All authenticated users: try Neon DB first. PostgreSQL RLS enforces per-role
+    // access control (admin/financeiro → all; office → own + comercial; comercial → own).
+    try {
+      const allRegistros: ClienteRegistro[] = []
+      let page = 1
+      const limit = 100
+      const MAX_PAGES = 50 // safety cap: up to 5,000 records
+      for (;;) {
+        const result = await listClientsFromApi({ page, limit })
+        allRegistros.push(...result.data.map(serverClientToRegistro))
+        if (page >= result.meta.totalPages || result.data.length === 0 || page >= MAX_PAGES) break
+        page++
+      }
+      // Cache fresh Neon data in localStorage for offline fallback
+      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
+      return allRegistros
+    } catch (error) {
+      console.warn('[clients] Falha ao carregar clientes via API; fallback para armazenamento local.', error)
+      // Fall through to storage-based loading
+    }
+
     try {
       const remotoRaw = await fetchRemoteStorageEntry(CLIENTES_STORAGE_KEY, { timeoutMs: 4000 })
       const registrosLocais = carregarClientesSalvos()
@@ -14850,6 +15027,50 @@ export default function App() {
     const online = isConnectivityOnline()
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
+
+    // Build Neon payload from dadosClonados before state update.
+    // Neon DB is the primary store; localStorage is only a fallback/cache.
+    const documentDigits = normalizeNumbers(dadosClonados?.documento ?? '')
+    const upsertPayload: UpsertClientInput = {
+      name: (dadosClonados?.nome ?? '').trim(),
+      ...(dadosClonados?.email?.trim() ? { email: dadosClonados.email.trim() } : {}),
+      ...(dadosClonados?.telefone?.trim() ? { phone: dadosClonados.telefone.trim() } : {}),
+      ...(dadosClonados?.cidade?.trim() ? { city: dadosClonados.cidade.trim() } : {}),
+      ...(dadosClonados?.uf?.trim() ? { state: dadosClonados.uf.trim() } : {}),
+      ...(dadosClonados?.endereco?.trim() ? { address: dadosClonados.endereco.trim() } : {}),
+      ...(dadosClonados?.uc?.trim() ? { uc: dadosClonados.uc.trim() } : {}),
+      ...(dadosClonados?.distribuidora?.trim() ? { distribuidora: dadosClonados.distribuidora.trim() } : {}),
+      metadata: { source: 'manual_save' },
+    }
+    if (documentDigits.length === 11) {
+      upsertPayload.cpf_raw = documentDigits
+      upsertPayload.document = documentDigits
+    } else if (documentDigits.length === 14) {
+      upsertPayload.cnpj_raw = documentDigits
+      upsertPayload.document = documentDigits
+    } else if (documentDigits.length > 0) {
+      upsertPayload.document = documentDigits
+    }
+
+    // Neon DB save FIRST so data is durable before the local cache is updated.
+    let syncedToBackend = false
+    let neonServerId: string | null = null
+    try {
+      if (online) {
+        // For edits use the known server ID; for new clients let the backend deduplicate.
+        const knownServerId = clienteEmEdicaoId
+          ? (clientServerIdMapRef.current[clienteEmEdicaoId] ?? null)
+          : null
+        const serverRow = knownServerId
+          ? await updateClientById(knownServerId, upsertPayload as UpdateClientInput)
+          : await upsertClientByDocument(upsertPayload)
+        neonServerId = serverRow.id
+        syncedToBackend = true
+      }
+    } catch (error) {
+      console.warn('[ClienteSave] Neon save failed; saving locally as fallback:', error)
+    }
+
     let registroSalvo: ClienteRegistro | null = null
     let registrosPersistidos: ClienteRegistro[] | null = null
     let houveErro = false
@@ -14950,42 +15171,10 @@ export default function App() {
     }
 
     const registroConfirmado: ClienteRegistro = salvo
-    const documentDigits = normalizeNumbers(registroConfirmado.dados?.documento ?? '')
-    const upsertPayload: UpsertClientInput = {
-      name: (registroConfirmado.dados?.nome ?? '').trim(),
-      ...(registroConfirmado.dados?.email?.trim() ? { email: registroConfirmado.dados.email.trim() } : {}),
-      ...(registroConfirmado.dados?.telefone?.trim() ? { phone: registroConfirmado.dados.telefone.trim() } : {}),
-      ...(registroConfirmado.dados?.cidade?.trim() ? { city: registroConfirmado.dados.cidade.trim() } : {}),
-      ...(registroConfirmado.dados?.uf?.trim() ? { state: registroConfirmado.dados.uf.trim() } : {}),
-      ...(registroConfirmado.dados?.endereco?.trim() ? { address: registroConfirmado.dados.endereco.trim() } : {}),
-      ...(registroConfirmado.dados?.uc?.trim() ? { uc: registroConfirmado.dados.uc.trim() } : {}),
-      ...(registroConfirmado.dados?.distribuidora?.trim()
-        ? { distribuidora: registroConfirmado.dados.distribuidora.trim() }
-        : {}),
-      metadata: { source: 'manual_save' },
-    }
-    if (documentDigits.length === 11) {
-      upsertPayload.cpf_raw = documentDigits
-      upsertPayload.document = documentDigits
-    } else if (documentDigits.length === 14) {
-      upsertPayload.cnpj_raw = documentDigits
-      upsertPayload.document = documentDigits
-    } else if (documentDigits.length > 0) {
-      upsertPayload.document = documentDigits
-    }
 
-    let syncedToBackend = false
-    try {
-      if (online) {
-        const knownServerId = clientServerIdMapRef.current[registroConfirmado.id]
-        const serverRow = knownServerId
-          ? await updateClientById(knownServerId, upsertPayload as UpdateClientInput)
-          : await upsertClientByDocument(upsertPayload)
-        updateClientServerIdMap(registroConfirmado.id, serverRow.id)
-        syncedToBackend = true
-      }
-    } catch (error) {
-      console.warn('[ClienteSave] Failed to sync cliente to Neon backend:', error)
+    // Update server ID map now that we have the local ID (from state) and Neon ID.
+    if (syncedToBackend && neonServerId) {
+      updateClientServerIdMap(registroConfirmado.id, neonServerId)
     }
 
     if (!online || !syncedToBackend) {
@@ -15515,6 +15704,27 @@ export default function App() {
       return []
     }
 
+    // All authenticated users: try Neon DB first. PostgreSQL RLS enforces per-role
+    // access control (admin/financeiro → all; office → own + comercial; comercial → own).
+    try {
+      const allRegistros: OrcamentoSalvo[] = []
+      let page = 1
+      const limit = 100
+      const MAX_PAGES = 50 // safety cap: up to 5,000 records
+      for (;;) {
+        const result = await listProposalsFromApi({ page, limit })
+        allRegistros.push(...result.data.map(serverProposalToOrcamento))
+        if (page >= result.pagination.pages || result.data.length === 0 || page >= MAX_PAGES) break
+        page++
+      }
+      // Cache fresh Neon data in localStorage for offline fallback
+      try { window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
+      return allRegistros
+    } catch (error) {
+      console.warn('[proposals] Falha ao carregar propostas via API; fallback para armazenamento local.', error)
+      // Fall through to storage-based loading
+    }
+
     let remoto = undefined as string | null | undefined
     try {
       remoto = await fetchRemoteStorageEntry(BUDGETS_STORAGE_KEY, { timeoutMs: 4000 })
@@ -15778,6 +15988,27 @@ export default function App() {
     budgetStructuredItems,
     updateProposalServerIdMap,
   ])
+
+  // Idle sync: reload clients and proposals from Neon every 2 minutes while online.
+  // Keeps data fresh without requiring manual navigation and catches changes made
+  // from other devices or sessions.
+  useEffect(() => {
+    const IDLE_SYNC_INTERVAL_MS = 2 * 60 * 1000 // 2 minutes
+    const timer = setInterval(async () => {
+      if (!isConnectivityOnline()) return
+      try {
+        const [clientes, orcamentos] = await Promise.allSettled([
+          carregarClientesPrioritarios(),
+          carregarOrcamentosPrioritarios(),
+        ])
+        if (clientes.status === 'fulfilled') setClientesSalvos(clientes.value)
+        if (orcamentos.status === 'fulfilled') setOrcamentosSalvos(orcamentos.value)
+      } catch {
+        // Non-critical: ignore failures, next interval will retry
+      }
+    }, IDLE_SYNC_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [carregarClientesPrioritarios, carregarOrcamentosPrioritarios])
 
   const aplicarSnapshot = (
     snapshotEntrada: OrcamentoSnapshotData,
@@ -18082,6 +18313,15 @@ export default function App() {
 
   const abrirClientesPainel = useCallback(async () => {
     const canProceed = await runWithUnsavedChangesGuard(async () => {
+      // For privileged roles, fetch from the RBAC-aware REST API to show all
+      // relevant users' clients. For comercial, use localStorage for speed.
+      if (isAdmin || isOffice || isFinanceiro) {
+        setActivePage('clientes')
+        const registros = await carregarClientesPrioritarios()
+        setClientesSalvos(registros)
+        return
+      }
+
       // Show localStorage data and navigate immediately — do NOT await IndexedDB
       // hydration here.  On Mobile Safari (and occasionally Brave) IndexedDB can
       // stall indefinitely, which previously caused setActivePage('clientes') to
@@ -18102,7 +18342,7 @@ export default function App() {
     })
 
     return canProceed
-  }, [carregarClientesSalvos, runWithUnsavedChangesGuard, setActivePage])
+  }, [carregarClientesPrioritarios, carregarClientesSalvos, isAdmin, isFinanceiro, isOffice, runWithUnsavedChangesGuard, setActivePage])
 
   const abrirPesquisaOrcamentos = useCallback(async () => {
     const canProceed = await runWithUnsavedChangesGuard(async () => {
@@ -19563,13 +19803,15 @@ export default function App() {
       const ucRaw = registro.clienteUc || registro.dados.cliente.uc || ''
       const ucTexto = normalizeText(ucRaw)
       const ucDigits = normalizeNumbers(ucRaw)
+      const ownerTexto = normalizeText(registro.ownerName ?? '')
 
       if (
         codigo.includes(queryText) ||
         nome.includes(queryText) ||
         clienteIdTexto.includes(queryText) ||
         documentoTexto.includes(queryText) ||
-        ucTexto.includes(queryText)
+        ucTexto.includes(queryText) ||
+        (ownerTexto && ownerTexto.includes(queryText))
       ) {
         return true
       }
@@ -25160,6 +25402,7 @@ export default function App() {
                       <th>Documento</th>
                       <th>Unidade consumidora</th>
                       <th>Criado em</th>
+                      {(isAdmin || isOffice || isFinanceiro) ? <th className="col-nowrap">Consultor</th> : null}
                       <th>Ações</th>
                     </tr>
                   </thead>
@@ -25206,6 +25449,13 @@ export default function App() {
                           <td>{documento || null}</td>
                           <td>{unidadeConsumidora || null}</td>
                           <td>{formatBudgetDate(registro.criadoEm)}</td>
+                          {(isAdmin || isOffice || isFinanceiro) ? (
+                            <td data-label="Consultor">
+                              {registro.ownerName ? (
+                                <span className="budget-search-owner">{registro.ownerName}</span>
+                              ) : null}
+                            </td>
+                          ) : null}
                           <td>
                             <div className="budget-search-actions">
                               <button
@@ -27014,6 +27264,7 @@ export default function App() {
       onExportarJson={handleExportarClientesJson}
       onImportar={handleClientesImportarClick}
       isImportando={isImportandoClientes}
+      isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
     />
   )
 

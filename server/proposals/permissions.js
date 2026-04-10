@@ -1,11 +1,12 @@
 // server/proposals/permissions.js
 // RBAC helpers for proposal access control.
 //
-// Role source-of-truth: Stack Auth native permissions
+// Role source-of-truth: Stack Auth native permissions (primary) + DB role (fallback).
+// Precedence (highest → lowest):
 //   role_admin      → Administrador com acesso total ao sistema
-//   role_comercial  → Usuário comum (acesso a clientes e propostas próprias)
-//   role_office     → Acesso irrestrito a todos os clientes e propostas (leitura e escrita)
 //   role_financeiro → Acesso financeiro (read-only de clientes e propostas)
+//   role_office     → Acesso irrestrito a todos os clientes e propostas (leitura e escrita)
+//   role_comercial  → Usuário comum (acesso a clientes e propostas próprias)
 //
 // A request with none of these permissions is rejected with 403.
 // When Stack Auth is bypassed (dev/test), the actor is treated as admin.
@@ -22,11 +23,16 @@ const PERM_FINANCEIRO = 'role_financeiro'
 /**
  * Resolves the full actor context from the incoming request.
  *
- * Roles are determined exclusively by Stack Auth permissions:
- *   isAdmin      → has role_admin
+ * Roles are determined by Stack Auth permissions (primary source) with a
+ * DB role fallback for the admin role:
+ *   isAdmin      → has role_admin (Stack Auth) OR role='admin' in app_user_access DB (fallback)
  *   isComercial  → has role_comercial (but not role_admin)
  *   isOffice     → has role_office (but not role_admin or role_comercial)
  *   isFinanceiro → has role_financeiro (but not role_admin, role_comercial, or role_office)
+ *
+ * The DB fallback for admin handles the case where the Stack Auth JWT is stale
+ * (permission was recently granted but the access token has not yet been refreshed)
+ * or when STACK_SECRET_SERVER_KEY is not set (API fallback disabled).
  *
  * Returns the actor object or null when the request is unauthenticated.
  */
@@ -45,7 +51,7 @@ export async function resolveActor(req) {
     }
   }
 
-  // Require a valid Stack Auth session (provides userId/email/displayName)
+  // Require a valid Stack Auth session (provides userId/email/displayName/DB role)
   const appUser = await getCurrentAppUser(req)
   if (!appUser) return null
 
@@ -57,22 +63,55 @@ export async function resolveActor(req) {
     hasStackPermission(req, PERM_FINANCEIRO),
   ])
 
-  // Higher-privilege roles take precedence when multiple permissions are assigned
-  const resolvedAdmin     = isAdmin
-  const resolvedComercial = !isAdmin && isComercial
-  const resolvedOffice    = !isAdmin && !isComercial && isOffice
-  const resolvedFinanceiro = !isAdmin && !isComercial && !isOffice && isFinanceiro
+  // DB fallback: if Stack Auth returned no role at all, check the DB role.
+  // This handles stale JWTs (permission recently granted, token not refreshed)
+  // and setups where STACK_SECRET_SERVER_KEY is not configured.
+  // Only the admin role has a DB equivalent ('admin' in app_user_access.role).
+  const hasNoStackRole = !isAdmin && !isComercial && !isOffice && !isFinanceiro
+  const dbRoleIsAdmin = hasNoStackRole && appUser.role === 'admin' && appUser.access_status === 'approved'
+
+  // Precedence: admin > financeiro > office > comercial
+  // When a user holds multiple permissions the highest-privilege one wins.
+  const resolvedAdmin      = isAdmin || dbRoleIsAdmin
+  const resolvedFinanceiro = !resolvedAdmin && isFinanceiro
+  const resolvedOffice     = !resolvedAdmin && !resolvedFinanceiro && isOffice
+  const resolvedComercial  = !resolvedAdmin && !resolvedFinanceiro && !resolvedOffice && isComercial
+
+  if (dbRoleIsAdmin) {
+    console.info('[RBAC] resolveActor: using DB role fallback for admin', {
+      userId: appUser.auth_provider_user_id ?? appUser.id,
+      dbRole: appUser.role,
+    })
+  }
 
   return {
     userId: appUser.auth_provider_user_id ?? appUser.id,
     email: appUser.email ?? null,
     displayName: appUser.full_name ?? null,
     isAdmin: resolvedAdmin,
-    isComercial: resolvedComercial,
-    isOffice: resolvedOffice,
     isFinanceiro: resolvedFinanceiro,
-    hasAnyRole: resolvedAdmin || resolvedComercial || resolvedOffice || resolvedFinanceiro,
+    isOffice: resolvedOffice,
+    isComercial: resolvedComercial,
+    hasAnyRole: resolvedAdmin || resolvedFinanceiro || resolvedOffice || resolvedComercial,
   }
+}
+
+/**
+ * Returns the canonical role string for an actor — used to set
+ * app.current_user_role in PostgreSQL session config via createUserScopedSql.
+ *
+ * Precedence: admin > financeiro > office > comercial
+ *
+ * @param {Object} actor - resolved actor from resolveActor()
+ * @returns {string|null} 'role_admin' | 'role_financeiro' | 'role_office' | 'role_comercial' | null
+ */
+export function actorRole(actor) {
+  if (!actor) return null
+  if (actor.isAdmin)      return 'role_admin'
+  if (actor.isFinanceiro) return 'role_financeiro'
+  if (actor.isOffice)     return 'role_office'
+  if (actor.isComercial)  return 'role_comercial'
+  return null
 }
 
 /**
