@@ -301,6 +301,7 @@ import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
+import { parseXlsxFirstSheet, matrixToCsv } from './lib/import/xlsxParser'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4165,6 +4166,158 @@ function ConfirmDialog({
   )
 }
 
+// ─── ImportPreviewModal ───────────────────────────────────────────────────────
+
+/** Data held while the user is confirming an Excel/CSV import. */
+type ImportPreviewState = {
+  /** CSV string that will be fed to parseClientesCsv() on confirm */
+  csvContent: string
+  /** First few rows of the source data for the preview table */
+  previewRows: string[][]
+  /** Original file name */
+  fileName: string
+  /** Total number of data rows (excluding header) */
+  totalRows: number
+}
+
+type ImportPreviewModalProps = {
+  state: ImportPreviewState
+  onConfirm: (csvContent: string) => void
+  onClose: () => void
+}
+
+const PREVIEW_MAX_ROWS = 8
+const PREVIEW_MAX_COLS = 8
+
+function ImportPreviewModal({ state, onConfirm, onClose }: ImportPreviewModalProps) {
+  const titleId = useId()
+  const { csvContent, previewRows, fileName, totalRows } = state
+
+  // Trim preview to manageable dimensions
+  const displayRows = previewRows.slice(0, PREVIEW_MAX_ROWS + 1) // +1 for header row
+  const maxCols = Math.min(
+    Math.max(...displayRows.map((r) => r.length), 1),
+    PREVIEW_MAX_COLS,
+  )
+
+  const headerRow = displayRows[0] ?? []
+  const dataRows = displayRows.slice(1)
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  return (
+    <div
+      className="modal contract-templates-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
+      <div className="modal-backdrop" onClick={onClose} />
+      <div className="modal-content contract-templates-modal__content" style={{ maxWidth: '780px', width: '95vw' }}>
+        <div className="modal-header">
+          <h3 id={titleId}>Pré-visualização da importação</h3>
+          <button type="button" className="icon" onClick={onClose} aria-label="Fechar pré-visualização">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body">
+          <p>
+            <strong>Arquivo:</strong> {fileName}
+            {' — '}
+            <strong>{totalRows}</strong> linha(s) de dados encontrada(s).
+          </p>
+          <p className="muted" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+            Verifique se as colunas abaixo correspondem aos campos de cliente esperados antes de confirmar.
+            {totalRows > PREVIEW_MAX_ROWS
+              ? ` Exibindo ${PREVIEW_MAX_ROWS} de ${totalRows} linhas.`
+              : ''}
+          </p>
+
+          {displayRows.length > 0 ? (
+            <div style={{ overflowX: 'auto', maxHeight: '280px', overflowY: 'auto' }}>
+              <table style={{ borderCollapse: 'collapse', fontSize: '0.78rem', width: '100%' }}>
+                <thead>
+                  <tr>
+                    {headerRow.slice(0, maxCols).map((cell, idx) => (
+                      <th
+                        key={idx}
+                        style={{
+                          border: '1px solid #cbd5e1',
+                          padding: '4px 8px',
+                          background: '#f1f5f9',
+                          whiteSpace: 'nowrap',
+                          position: 'sticky',
+                          top: 0,
+                        }}
+                      >
+                        {cell || `Coluna ${idx + 1}`}
+                      </th>
+                    ))}
+                    {headerRow.length > maxCols ? (
+                      <th style={{ border: '1px solid #cbd5e1', padding: '4px 8px', background: '#f1f5f9' }}>…</th>
+                    ) : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {dataRows.map((row, rowIdx) => (
+                    <tr key={rowIdx}>
+                      {row.slice(0, maxCols).map((cell, colIdx) => (
+                        <td
+                          key={colIdx}
+                          style={{
+                            border: '1px solid #e2e8f0',
+                            padding: '4px 8px',
+                            maxWidth: '160px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={cell}
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                      {row.length > maxCols ? (
+                        <td style={{ border: '1px solid #e2e8f0', padding: '4px 8px', color: '#94a3b8' }}>…</td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="muted">Nenhuma linha encontrada no arquivo.</p>
+          )}
+
+          <div className="modal-actions" style={{ marginTop: '1rem' }}>
+            <button type="button" className="ghost" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => onConfirm(csvContent)}
+              disabled={totalRows === 0}
+            >
+              Confirmar importação ({totalRows} clientes)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
 type EnviarPropostaModalProps = {
   contatos: PropostaEnvioContato[]
   selectedContatoId: string | null
@@ -6583,6 +6736,7 @@ export default function App() {
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
   const [isGerandoBackupBanco, setIsGerandoBackupBanco] = useState(false)
+  const [importPreviewState, setImportPreviewState] = useState<ImportPreviewState | null>(null)
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
   const backupImportInputRef = useRef<HTMLInputElement | null>(null)
   const fecharClientesPainel = useCallback(() => {
@@ -14611,7 +14765,7 @@ export default function App() {
     if (input) {
       input.click()
     }
-  }, [clientesImportInputRef, isImportandoClientes])
+  }, [isImportandoClientes])
 
   const handleBackupUploadArquivo = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const arquivo = event.target.files?.[0]
@@ -14705,6 +14859,60 @@ export default function App() {
     backupImportInputRef.current?.click()
   }, [isGerandoBackupBanco])
 
+  /** Shared helper: applies a parsed CSV string to localStorage + state. */
+  const applyImportedCsv = useCallback(
+    (csvContent: string, fileName: string) => {
+      const lista = parseClientesCsv(csvContent)
+
+      if (!lista || lista.length === 0) {
+        window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
+        return
+      }
+
+      const existentes = carregarClientesSalvos()
+      const existingIds = new Set(existentes.map((registro) => registro.id))
+      const { registros: importados } = normalizeClienteRegistros(lista, { existingIds })
+
+      if (importados.length === 0) {
+        window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
+        return
+      }
+
+      const combinados = [...importados, ...existentes].sort((a, b) =>
+        a.atualizadoEm < b.atualizadoEm ? 1 : -1,
+      )
+
+      try {
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+      } catch (error) {
+        console.error('Erro ao persistir clientes importados.', error)
+        window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
+        return
+      }
+
+      setClientesSalvos(combinados)
+      adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
+    },
+    [adicionarNotificacao, carregarClientesSalvos, setClientesSalvos],
+  )
+
+  /** Called when user confirms the preview modal. */
+  const handleConfirmImportPreview = useCallback(
+    (csvContent: string) => {
+      setImportPreviewState(null)
+      const fileName = importPreviewState?.fileName ?? ''
+      applyImportedCsv(csvContent, fileName)
+      setIsImportandoClientes(false)
+    },
+    [applyImportedCsv, importPreviewState],
+  )
+
+  /** Called when user cancels the preview modal. */
+  const handleCancelImportPreview = useCallback(() => {
+    setImportPreviewState(null)
+    setIsImportandoClientes(false)
+  }, [])
+
   const handleClientesImportarArquivo = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const arquivo = event.target.files?.[0]
@@ -14716,82 +14924,156 @@ export default function App() {
 
       setIsImportandoClientes(true)
 
+      const fileName = arquivo.name
+      const nameLower = fileName.toLowerCase()
+      const isXlsx = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls')
+
       try {
+        // ── Excel path ────────────────────────────────────────────────────────
+        if (isXlsx) {
+          if (nameLower.endsWith('.xls') && !nameLower.endsWith('.xlsx')) {
+            window.alert(
+              'Arquivos .xls (formato legado do Excel 97-2003) não são suportados. ' +
+              'Abra o arquivo no Excel ou Google Planilhas e salve-o no formato .xlsx antes de importar.',
+            )
+            setIsImportandoClientes(false)
+            return
+          }
+
+          let sheet
+          try {
+            sheet = await parseXlsxFirstSheet(arquivo)
+          } catch {
+            window.alert('Não foi possível ler o arquivo Excel. Verifique se ele é um .xlsx válido e tente novamente.')
+            setIsImportandoClientes(false)
+            return
+          }
+
+          const { rows } = sheet
+          if (rows.length < 2) {
+            window.alert('O arquivo Excel não contém dados suficientes (mínimo: uma linha de cabeçalho + uma linha de dados).')
+            setIsImportandoClientes(false)
+            return
+          }
+
+          // Convert matrix → CSV (same delimiter as parseClientesCsv)
+          const csvContent = matrixToCsv(rows)
+          const totalRows = rows.length - 1 // exclude header
+
+          // Show preview modal — import is applied only on confirm
+          setImportPreviewState({
+            csvContent,
+            previewRows: rows,
+            fileName,
+            totalRows,
+          })
+          // Note: setIsImportandoClientes(false) is called in confirm/cancel handlers
+          return
+        }
+
+        // ── CSV / JSON path ───────────────────────────────────────────────────
         const conteudo = await arquivo.text()
-        let lista: unknown[] | null = null
         const isCsvFile =
-          arquivo.name.toLowerCase().endsWith('.csv') ||
+          nameLower.endsWith('.csv') ||
           arquivo.type.toLowerCase().includes('csv')
 
+        let csvContent: string | null = null
+
         if (isCsvFile) {
-          lista = parseClientesCsv(conteudo)
+          csvContent = conteudo
         } else {
           let parsed: unknown
           try {
             parsed = JSON.parse(conteudo)
-          } catch (error) {
-            const fallbackCsv = parseClientesCsv(conteudo)
-            if (fallbackCsv.length > 0) {
-              lista = fallbackCsv
-            } else {
-              throw new Error('invalid-json')
+          } catch {
+            // Try treating it as CSV as fallback
+            const fallback = parseClientesCsv(conteudo)
+            if (fallback.length > 0) {
+              // Already in list form — apply directly
+              const existentes = carregarClientesSalvos()
+              const existingIds = new Set(existentes.map((r) => r.id))
+              const { registros: importados } = normalizeClienteRegistros(fallback, { existingIds })
+              if (importados.length === 0) {
+                window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
+              } else {
+                const combinados = [...importados, ...existentes].sort((a, b) =>
+                  a.atualizadoEm < b.atualizadoEm ? 1 : -1,
+                )
+                try {
+                  window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+                } catch {
+                  window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
+                  setIsImportandoClientes(false)
+                  return
+                }
+                setClientesSalvos(combinados)
+                adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
+              }
+              setIsImportandoClientes(false)
+              return
             }
-            parsed = null
+            throw new Error('invalid-json')
           }
 
           if (parsed) {
-            lista = Array.isArray(parsed)
+            const rawList = Array.isArray(parsed)
               ? parsed
               : parsed && typeof parsed === 'object' && Array.isArray((parsed as { clientes?: unknown }).clientes)
               ? ((parsed as { clientes?: unknown }).clientes as unknown[])
               : null
+
+            if (!rawList || rawList.length === 0) {
+              window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
+              setIsImportandoClientes(false)
+              return
+            }
+
+            const existentes = carregarClientesSalvos()
+            const existingIds = new Set(existentes.map((r) => r.id))
+            const { registros: importados } = normalizeClienteRegistros(rawList, { existingIds })
+
+            if (importados.length === 0) {
+              window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
+            } else {
+              const combinados = [...importados, ...existentes].sort((a, b) =>
+                a.atualizadoEm < b.atualizadoEm ? 1 : -1,
+              )
+              try {
+                window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+              } catch {
+                window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
+                setIsImportandoClientes(false)
+                return
+              }
+              setClientesSalvos(combinados)
+              adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
+            }
+            setIsImportandoClientes(false)
+            return
           }
         }
 
-        if (!lista || lista.length === 0) {
-          window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
-          return
+        if (csvContent !== null) {
+          applyImportedCsv(csvContent, fileName)
         }
-
-        const existentes = carregarClientesSalvos()
-        const existingIds = new Set(existentes.map((registro) => registro.id))
-        const { registros: importados } = normalizeClienteRegistros(lista, { existingIds })
-
-        if (importados.length === 0) {
-          window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
-          return
-        }
-
-        const combinados = [...importados, ...existentes].sort((a, b) =>
-          a.atualizadoEm < b.atualizadoEm ? 1 : -1,
-        )
-
-        try {
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
-        } catch (error) {
-          console.error('Erro ao persistir clientes importados.', error)
-          window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
-          return
-        }
-
-        setClientesSalvos(combinados)
-        adicionarNotificacao('Clientes importados com sucesso.', 'success')
+        setIsImportandoClientes(false)
       } catch (error) {
         if ((error as Error).message === 'invalid-json') {
-          window.alert('O arquivo selecionado está em um formato inválido (JSON ou CSV).')
+          window.alert('O arquivo selecionado está em um formato inválido. Use JSON, CSV ou XLSX.')
         } else {
           console.error('Erro ao importar clientes salvos.', error)
           window.alert('Não foi possível importar os clientes. Verifique o arquivo e tente novamente.')
         }
-      } finally {
         setIsImportandoClientes(false)
       }
-    }, [
+    },
+    [
       adicionarNotificacao,
+      applyImportedCsv,
       carregarClientesSalvos,
       setClientesSalvos,
-      setIsImportandoClientes,
-    ])
+    ],
+  )
 
   const isSnapshotEmpty = (snapshot: OrcamentoSnapshotData): boolean =>
     !snapshot?.cliente?.nome &&
@@ -28483,7 +28765,7 @@ export default function App() {
       <input
         ref={clientesImportInputRef}
         type="file"
-        accept="application/json,text/csv,.csv"
+        accept="application/json,text/csv,.csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
       />
@@ -28494,6 +28776,14 @@ export default function App() {
         style={{ display: 'none' }}
         onChange={handleBackupUploadArquivo}
       />
+
+      {importPreviewState ? (
+        <ImportPreviewModal
+          state={importPreviewState}
+          onConfirm={handleConfirmImportPreview}
+          onClose={handleCancelImportPreview}
+        />
+      ) : null}
 
       {isLeasingContractsModalOpen ? (
         <LeasingContractsModal
