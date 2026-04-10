@@ -4,9 +4,8 @@
 //
 // Dashboard setup:
 //   1. Create permissions: role_admin, role_comercial, role_office, role_financeiro,
-//      page:financial_analysis, page:preferences, page:contracts, page:users, page:dashboard
-//   2. Configure role_admin to include page:financial_analysis, page:preferences, page:contracts,
-//      page:users, and page:dashboard
+//      page_clients, page_proposals, page_contracts (and optionally admin pages)
+//   2. For backwards compatibility, legacy ids with ":" are still supported by the app.
 //
 // Role descriptions:
 //   role_admin      → Administrador com acesso total ao sistema
@@ -19,9 +18,15 @@ export const PERMISSIONS = {
   ROLE_COMERCIAL: "role_comercial",
   ROLE_OFFICE: "role_office",
   ROLE_FINANCEIRO: "role_financeiro",
-  PAGE_FINANCIAL: "page:financial_analysis",
+  PAGE_CLIENTS: "page_clients",
+  PAGE_PROPOSALS: "page_proposals",
+  PAGE_CONTRACTS: "page_contracts",
+  PAGE_CLIENTS_LEGACY: "page:clients",
+  PAGE_PROPOSALS_LEGACY: "page:proposals",
+  PAGE_CONTRACTS_LEGACY: "page:contracts",
+  PAGE_FINANCIAL: "page_financial_analysis",
+  PAGE_FINANCIAL_LEGACY: "page:financial_analysis",
   PAGE_PREF: "page:preferences",
-  PAGE_CONTRACTS: "page:contracts",
   PAGE_USERS: "page:users",
   PAGE_DASHBOARD: "page:dashboard",
 } as const

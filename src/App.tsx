@@ -4644,7 +4644,19 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useStackUser()
-  const { isAdmin: isAdminFromStack, role: userRole, isOffice, isFinanceiro, isLoading: isStackPermLoading, canSeeContracts, canSeeUsers, canSeeDashboard } = useStackRbac()
+  const {
+    isAdmin: isAdminFromStack,
+    role: userRole,
+    isOffice,
+    isFinanceiro,
+    isLoading: isStackPermLoading,
+    canSeeFinancialAnalysis,
+    canSeeContracts,
+    canSeeClients,
+    canSeeProposals,
+    canSeeUsers,
+    canSeeDashboard,
+  } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
   // Falls back to null while user hasn't resolved yet (no auth header sent).
@@ -4669,6 +4681,21 @@ export default function App() {
   // This ensures the admin can see protected pages even before 'role_admin' is
   // granted in the Stack Auth dashboard (which requires STACK_SECRET_SERVER_KEY).
   const isAdmin = isAdminFromStack || (me?.role === 'admin' && me?.authorized === true)
+
+  const authzPermissions = new Set(authzSnapshot?.permissions ?? [])
+  const hasAuthzPermission = (...permissionIds: string[]) =>
+    permissionIds.some((permissionId) => authzPermissions.has(permissionId))
+  const canSeeFinancialAnalysisEffective =
+    isAdmin || canSeeFinancialAnalysis || hasAuthzPermission('page_financial_analysis', 'page:financial_analysis')
+  const canSeeContractsEffective =
+    isAdmin || canSeeContracts || hasAuthzPermission('page_contracts', 'page:contracts')
+  const canSeeClientsEffective =
+    isAdmin || canSeeClients || hasAuthzPermission('page_clients', 'page:clients')
+  const canSeeProposalsEffective =
+    isAdmin || canSeeProposals || hasAuthzPermission('page_proposals', 'page:proposals')
+  const canSeeUsersEffective = isAdmin || canSeeUsers || hasAuthzPermission('page_users', 'page:users')
+  const canSeeDashboardEffective =
+    isAdmin || canSeeDashboard || hasAuthzPermission('page_dashboard', 'page:dashboard')
 
   // Keep the redirect guard from firing until BOTH sources have resolved so we
   // don't prematurely redirect the admin away from protected pages.
@@ -5052,14 +5079,14 @@ export default function App() {
     if (isRbacLoading) return
     if (activePage === 'settings' && !isAdmin) {
       setActivePage('app')
-    } else if (activePage === 'simulacoes' && simulacoesSection === 'analise' && !isAdmin) {
+    } else if (activePage === 'simulacoes' && simulacoesSection === 'analise' && !canSeeFinancialAnalysisEffective) {
       setActivePage('app')
-    } else if (activePage === 'admin-users' && !canSeeUsers) {
+    } else if (activePage === 'admin-users' && !canSeeUsersEffective) {
       setActivePage('app')
-    } else if (activePage === 'dashboard' && !canSeeDashboard) {
+    } else if (activePage === 'dashboard' && !canSeeDashboardEffective) {
       setActivePage('app')
     }
-  }, [activePage, simulacoesSection, isAdmin, canSeeUsers, canSeeDashboard, isRbacLoading, setActivePage])
+  }, [activePage, simulacoesSection, canSeeFinancialAnalysisEffective, canSeeUsersEffective, canSeeDashboardEffective, isRbacLoading, setActivePage])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -18622,14 +18649,14 @@ export default function App() {
 
   const abrirSimulacoes = useCallback(
     async (section?: SimulacoesSection) => {
-      if (section === 'analise' && !isAdmin) {
+      if (section === 'analise' && !canSeeFinancialAnalysisEffective) {
         return false
       }
       setSimulacoesSection(section ?? 'nova')
       setActivePage('simulacoes')
       return true
     },
-    [setActivePage, isAdmin],
+    [setActivePage, canSeeFinancialAnalysisEffective],
   )
 
   const abrirConfiguracoes = useCallback(
@@ -18646,11 +18673,11 @@ export default function App() {
   )
 
   const abrirAdminUsuarios = useCallback(async () => {
-    if (!canSeeUsers) return false
+    if (!canSeeUsersEffective) return false
     return runWithUnsavedChangesGuard(() => {
       setActivePage('admin-users')
     })
-  }, [runWithUnsavedChangesGuard, setActivePage, canSeeUsers])
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeUsersEffective])
 
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -25327,8 +25354,58 @@ export default function App() {
   const shellContentSubtitle = isSimulacoesMobile ? undefined : contentSubtitle
   const shellPageIndicator = isSimulacoesMobile ? undefined : currentPageIndicator
 
+  const crmItems = [
+    ...(canSeeProposalsEffective
+      ? [
+          {
+            id: 'crm-central',
+            label: 'Central CRM',
+            icon: '📇',
+            onSelect: () => {
+              void abrirCrmCentral()
+            },
+          },
+          {
+            id: 'crm-operacoes',
+            label: 'Operações',
+            icon: '🗂️',
+            items: [
+              {
+                id: 'crm-captura',
+                label: 'Captura de leads',
+                icon: '🛰️',
+                onSelect: () => {
+                  void abrirCrmCentral()
+                },
+              },
+              {
+                id: 'crm-pos-venda',
+                label: 'Pós-venda',
+                icon: '🤝',
+                onSelect: () => {
+                  void abrirCrmCentral()
+                },
+              },
+            ],
+          },
+        ]
+      : []),
+    ...(canSeeClientsEffective
+      ? [
+          {
+            id: 'crm-clientes',
+            label: 'Clientes salvos',
+            icon: '👥',
+            onSelect: () => {
+              void abrirClientesPainel()
+            },
+          },
+        ]
+      : []),
+  ]
+
   const sidebarGroups: SidebarGroup[] = [
-    ...(canSeeDashboard
+    ...(canSeeDashboardEffective
       ? [
           {
             id: 'dashboard',
@@ -25346,70 +25423,84 @@ export default function App() {
           },
         ]
       : []),
-    {
-      id: 'propostas',
-      label: 'Propostas',
-      items: [
-        {
-          id: 'propostas-leasing',
-          label: 'Leasing',
-          icon: '📝',
-          onSelect: () => {
-            void handleNavigateToProposalTab('leasing')
+    ...((canSeeProposalsEffective || canSeeContractsEffective)
+      ? [
+          {
+            id: 'propostas',
+            label: 'Propostas',
+            items: [
+              ...(canSeeProposalsEffective
+                ? [
+                    {
+                      id: 'propostas-leasing',
+                      label: 'Leasing',
+                      icon: '📝',
+                      onSelect: () => {
+                        void handleNavigateToProposalTab('leasing')
+                      },
+                    },
+                    {
+                      id: 'propostas-vendas',
+                      label: 'Vendas',
+                      icon: '🧾',
+                      onSelect: () => {
+                        void handleNavigateToProposalTab('vendas')
+                      },
+                    },
+                    ...(canSeeFinancialAnalysisEffective
+                      ? [
+                          {
+                            id: 'simulacoes-analise',
+                            label: 'Análise Financeira',
+                            icon: '✅',
+                            onSelect: () => {
+                              void abrirSimulacoes('analise')
+                            },
+                          },
+                        ]
+                      : []),
+                  ]
+                : []),
+              ...(canSeeContractsEffective
+                ? [
+                    {
+                      id: 'propostas-contratos',
+                      label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
+                      icon: '🖋️',
+                      onSelect: () => {
+                        void handleGerarContratosComConfirmacao()
+                      },
+                      disabled: gerandoContratos,
+                    },
+                  ]
+                : []),
+              ...(canSeeProposalsEffective
+                ? [
+                    {
+                      id: 'propostas-enviar',
+                      label: 'Enviar proposta',
+                      icon: '📨',
+                      onSelect: () => {
+                        abrirEnvioPropostaModal()
+                      },
+                      disabled: contatosEnvio.length === 0,
+                      title:
+                        contatosEnvio.length === 0
+                          ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
+                          : undefined,
+                    },
+                  ]
+                : []),
+            ],
           },
-        },
-        {
-          id: 'propostas-vendas',
-          label: 'Vendas',
-          icon: '🧾',
-          onSelect: () => {
-            void handleNavigateToProposalTab('vendas')
-          },
-        },
-        ...(isAdmin
-          ? [
-              {
-                id: 'simulacoes-analise',
-                label: 'Análise Financeira',
-                icon: '✅',
-                onSelect: () => {
-                  void abrirSimulacoes('analise')
-                },
-              },
-            ]
-          : []),
-        ...(canSeeContracts
-          ? [
-              {
-                id: 'propostas-contratos',
-                label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
-                icon: '🖋️',
-                onSelect: () => {
-                  void handleGerarContratosComConfirmacao()
-                },
-                disabled: gerandoContratos,
-              },
-            ]
-          : []),
-        {
-          id: 'propostas-enviar',
-          label: 'Enviar proposta',
-          icon: '📨',
-          onSelect: () => {
-            abrirEnvioPropostaModal()
-          },
-          disabled: contatosEnvio.length === 0,
-          title:
-            contatosEnvio.length === 0
-              ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
-              : undefined,
-        },
-      ],
-    },
-    {
-      id: 'simulacoes',
-      label: 'Simulações',
-      items: [
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
+            id: 'simulacoes',
+            label: 'Simulações',
+            items: [
         {
           id: 'simulacoes-nova',
           label: 'Nova Simulação',
@@ -25458,89 +25549,63 @@ export default function App() {
             void abrirSimulacoes('packs-inteligentes')
           },
         },
-      ],
-    },
-    {
-      id: 'relatorios',
-      label: 'Relatórios',
-      items: [
-        {
-          id: 'relatorios-pdfs',
-          label: 'Ver propostas',
-          icon: '📂',
-          onSelect: () => {
-            void abrirPesquisaOrcamentos()
+            ],
           },
-        },
-        {
-          id: 'relatorios-exportacoes',
-          label: 'Exportar',
-          icon: '📤',
-          onSelect: () => {
-            setActivePage('app')
-          },
-        },
-      ],
-    },
-    {
-      id: 'orcamentos',
-      label: 'Orçamentos',
-      items: [
-        {
-          id: 'orcamentos-importar',
-          label: 'Consultar',
-          icon: '📄',
-          onSelect: () => {
-            void abrirPesquisaOrcamentos()
-          },
-        },
-      ],
-    },
-    {
-      id: 'crm',
-      label: 'CRM',
-      items: [
-        {
-          id: 'crm-central',
-          label: 'Central CRM',
-          icon: '📇',
-          onSelect: () => {
-            void abrirCrmCentral()
-          },
-        },
-        {
-          id: 'crm-clientes',
-          label: 'Clientes salvos',
-          icon: '👥',
-          onSelect: () => {
-            void abrirClientesPainel()
-          },
-        },
-        {
-          id: 'crm-operacoes',
-          label: 'Operações',
-          icon: '🗂️',
-          items: [
-            {
-              id: 'crm-captura',
-              label: 'Captura de leads',
-              icon: '🛰️',
-              onSelect: () => {
-                void abrirCrmCentral()
+        ]
+      : []),
+    ...(canSeeProposalsEffective
+      ? [
+          {
+            id: 'relatorios',
+            label: 'Relatórios',
+            items: [
+              {
+                id: 'relatorios-pdfs',
+                label: 'Ver propostas',
+                icon: '📂',
+                onSelect: () => {
+                  void abrirPesquisaOrcamentos()
+                },
               },
-            },
-            {
-              id: 'crm-pos-venda',
-              label: 'Pós-venda',
-              icon: '🤝',
-              onSelect: () => {
-                void abrirCrmCentral()
+              {
+                id: 'relatorios-exportacoes',
+                label: 'Exportar',
+                icon: '📤',
+                onSelect: () => {
+                  setActivePage('app')
+                },
               },
-            },
-          ],
-        },
-      ],
-    },
+            ],
+          },
+        ]
+      : []),
+    ...((canSeeClientsEffective || canSeeProposalsEffective)
+      ? [
+          {
+            id: 'orcamentos',
+            label: 'Orçamentos',
+            items: [
+              {
+                id: 'orcamentos-importar',
+                label: 'Consultar',
+                icon: '📄',
+                onSelect: () => {
+                  void abrirPesquisaOrcamentos()
+                },
+              },
+            ],
+          },
+        ]
+      : []),
+    ...(crmItems.length > 0
+      ? [
+          {
+            id: 'crm',
+            label: 'CRM',
+            items: crmItems,
+          },
+        ]
+      : []),
     {
       id: 'configuracoes',
       label: 'Configurações',
@@ -25557,7 +25622,7 @@ export default function App() {
               },
             ]
           : []),
-        ...(canSeeUsers
+        ...(canSeeUsersEffective
           ? [
               {
                 id: 'config-admin-users',
@@ -25583,10 +25648,13 @@ export default function App() {
   ]
 
   const mobileAllowedIds = [
-    'propostas-leasing',
-    'propostas-vendas',
-    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
-    ...(canSeeUsers ? ['config-admin-users'] : []),
+    ...(canSeeProposalsEffective ? ['propostas-leasing', 'propostas-vendas'] : []),
+    ...(canSeeContractsEffective ? ['propostas-contratos'] : []),
+    ...(canSeeClientsEffective || canSeeProposalsEffective ? ['orcamentos-importar'] : []),
+    ...(canSeeClientsEffective ? ['crm-clientes'] : []),
+    ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
+    ...(isAdmin ? ['config-preferencias'] : []),
+    ...(canSeeUsersEffective ? ['config-admin-users'] : []),
     'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
