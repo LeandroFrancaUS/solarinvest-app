@@ -1,0 +1,161 @@
+import JSZip from 'jszip'
+import { XMLParser } from 'fast-xml-parser'
+
+type BackupPayload = {
+  data: {
+    clients: Record<string, unknown>[]
+    proposals: Record<string, unknown>[]
+  }
+}
+
+export type BackupPreview = {
+  sourceFormat: 'json' | 'csv' | 'xlsx'
+  totalRows: number
+  clients: number
+  proposals: number
+  sample: Array<Record<string, unknown>>
+}
+
+const xmlParser = new XMLParser({ ignoreAttributes: false })
+
+function normalizeFormat(fileName: string): 'json' | 'csv' | 'xlsx' {
+  const lower = fileName.toLowerCase()
+  if (lower.endsWith('.json')) return 'json'
+  if (lower.endsWith('.csv')) return 'csv'
+  if (lower.endsWith('.xlsx') || lower.endsWith('.xlxs') || lower.endsWith('.xlx') || lower.endsWith('.xls')) return 'xlsx'
+  throw new Error('Formato não suportado. Use .xlsx, .xlxs, .xlx, .xls, .csv ou .json.')
+}
+
+function splitCsvLine(line: string): string[] {
+  const values: string[] = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+    if (char === ',' && !inQuotes) {
+      values.push(current.trim())
+      current = ''
+      continue
+    }
+    current += char
+  }
+  values.push(current.trim())
+  return values
+}
+
+function parseCsvRows(csv: string): Record<string, unknown>[] {
+  const lines = csv.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim().length > 0)
+  if (lines.length < 2) return []
+  const headers = splitCsvLine(lines[0]).map((h) => h.trim())
+  return lines.slice(1).map((line) => {
+    const cols = splitCsvLine(line)
+    return headers.reduce<Record<string, unknown>>((acc, header, index) => {
+      acc[header] = cols[index] ?? ''
+      return acc
+    }, {})
+  })
+}
+
+function excelColumnToIndex(ref: string): number {
+  const letters = ref.replace(/\d/g, '')
+  let index = 0
+  for (let i = 0; i < letters.length; i++) {
+    index = index * 26 + (letters.charCodeAt(i) - 64)
+  }
+  return index - 1
+}
+
+async function xlsxToCsvContent(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  const zip = await JSZip.loadAsync(buffer)
+  const sharedStringsXml = await zip.file('xl/sharedStrings.xml')?.async('string')
+  const sheetXml = await zip.file('xl/worksheets/sheet1.xml')?.async('string')
+  if (!sheetXml) throw new Error('Planilha inválida: sheet1.xml não encontrada.')
+
+  const sharedStrings: string[] = []
+  if (sharedStringsXml) {
+    const sharedDoc = xmlParser.parse(sharedStringsXml) as { sst?: { si?: Array<{ t?: string }> } }
+    const si = sharedDoc?.sst?.si ?? []
+    si.forEach((entry) => sharedStrings.push(entry?.t ?? ''))
+  }
+
+  const sheetDoc = xmlParser.parse(sheetXml) as {
+    worksheet?: { sheetData?: { row?: Array<{ c?: Array<{ '@_r'?: string, '@_t'?: string, v?: string }> }> } }
+  }
+  const rows = sheetDoc?.worksheet?.sheetData?.row ?? []
+  const grid: string[][] = []
+  rows.forEach((row) => {
+    const target: string[] = []
+    const cells = row.c ?? []
+    cells.forEach((cell) => {
+      const colIndex = excelColumnToIndex(cell['@_r'] ?? 'A1')
+      let value = cell.v ?? ''
+      if (cell['@_t'] === 's') {
+        value = sharedStrings[Number(value)] ?? ''
+      }
+      target[colIndex] = `${value}`
+    })
+    grid.push(target)
+  })
+
+  return grid.map((row) => row.map((value) => `"${(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+}
+
+function mapRowsToBackupPayload(rows: Record<string, unknown>[]): BackupPayload {
+  const clients: Record<string, unknown>[] = []
+  const proposals: Record<string, unknown>[] = []
+
+  rows.forEach((row) => {
+    const entityValue = typeof row.entity === 'string' ? row.entity : typeof row.tipo === 'string' ? row.tipo : ''
+    const entity = entityValue.toLowerCase()
+    const hasProposalSignals = Boolean(row.proposal_type || row.proposal_code || row.proposal_id)
+    const target = entity === 'proposal' || entity === 'proposta' || hasProposalSignals ? proposals : clients
+    target.push({ ...row })
+  })
+
+  return { data: { clients, proposals } }
+}
+
+export async function parseBackupFileToPayload(file: File): Promise<{ payload: BackupPayload, preview: BackupPreview }> {
+  const format = normalizeFormat(file.name)
+
+  if (format === 'json') {
+    const parsed = JSON.parse(await file.text()) as BackupPayload | Record<string, unknown>[]
+    const payload = Array.isArray(parsed) ? mapRowsToBackupPayload(parsed) : parsed
+    const clients = Array.isArray(payload?.data?.clients) ? payload.data.clients : []
+    const proposals = Array.isArray(payload?.data?.proposals) ? payload.data.proposals : []
+    return {
+      payload: { data: { clients, proposals } },
+      preview: {
+        sourceFormat: 'json',
+        totalRows: clients.length + proposals.length,
+        clients: clients.length,
+        proposals: proposals.length,
+        sample: [...clients.slice(0, 3), ...proposals.slice(0, 2)],
+      },
+    }
+  }
+
+  const csv = format === 'csv' ? await file.text() : await xlsxToCsvContent(file)
+  const rows = parseCsvRows(csv)
+  const payload = mapRowsToBackupPayload(rows)
+  return {
+    payload,
+    preview: {
+      sourceFormat: format === 'csv' ? 'csv' : 'xlsx',
+      totalRows: rows.length,
+      clients: payload.data.clients.length,
+      proposals: payload.data.proposals.length,
+      sample: rows.slice(0, 5),
+    },
+  }
+}

@@ -3,6 +3,7 @@
 
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
+import { ensureOperationalSchema } from '../database/ensureOperationalSchema.js'
 import {
   normalizeCpfServer,
   normalizeCnpjServer,
@@ -22,10 +23,17 @@ function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
 }
 
-function getDb(sendJson) {
+async function getDb(sendJson) {
   const db = getDatabaseClient()
   if (!db) {
     sendJson(503, { error: { code: 'SERVICE_UNAVAILABLE', message: 'Database not configured' } })
+    return null
+  }
+  try {
+    await ensureOperationalSchema(db.sql)
+  } catch (error) {
+    console.error('[clients] schema ensure failed:', error)
+    sendJson(500, { error: { code: 'INTERNAL_ERROR', message: 'Failed to initialize database schema' } })
     return null
   }
   return db
@@ -53,7 +61,7 @@ function sqlForActor(db, actor) {
 export async function handleUpsertClientByCpf(req, res, ctx) {
   const { readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -171,7 +179,7 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
 export async function handleClientsRequest(req, res, ctx) {
   const { method, readJsonBody, sendJson: rawSendJson, requestUrl } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
