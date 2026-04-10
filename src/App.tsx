@@ -3074,7 +3074,10 @@ type ClientesPanelProps = {
   onExportarCsv: () => void
   onExportarJson: () => void
   onImportar: () => void
+  onBackupCliente: () => void
   isImportando: boolean
+  isGerandoBackupBanco?: boolean
+  canBackupBanco?: boolean
   /** When true, shows the "Consultor" column and cross-user description */
   isPrivilegedUser?: boolean
   /** All registered consultant names for the filter dropdown (privileged users only) */
@@ -3224,7 +3227,10 @@ function ClientesPanel({
   onExportarCsv,
   onExportarJson,
   onImportar,
+  onBackupCliente,
   isImportando,
+  isGerandoBackupBanco = false,
+  canBackupBanco = false,
   isPrivilegedUser = false,
   allConsultores = [],
 }: ClientesPanelProps) {
@@ -3317,17 +3323,31 @@ function ClientesPanel({
                 <span aria-hidden="true">📄</span>
                 <span>Exportar CSV</span>
               </button>
-              <button
-                type="button"
-                className="ghost with-icon"
-                onClick={onImportar}
-                disabled={isImportando}
-                aria-busy={isImportando}
-                title="Importar clientes a partir de um arquivo JSON ou CSV"
-              >
-                <span aria-hidden="true">⬇️</span>
-                <span>{isImportando ? 'Importando…' : 'Importar'}</span>
-              </button>
+              {canBackupBanco ? (
+                <button
+                  type="button"
+                  className="ghost with-icon"
+                  onClick={onBackupCliente}
+                  disabled={isGerandoBackupBanco}
+                  aria-busy={isGerandoBackupBanco}
+                  title="Backup completo de clientes e propostas (baixar ou carregar)"
+                >
+                  <span aria-hidden="true">🗄️</span>
+                  <span>{isGerandoBackupBanco ? 'Processando backup…' : 'Backup de cliente'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ghost with-icon"
+                  onClick={onImportar}
+                  disabled={isImportando}
+                  aria-busy={isImportando}
+                  title="Importar clientes a partir de um arquivo JSON ou CSV"
+                >
+                  <span aria-hidden="true">⬇️</span>
+                  <span>{isImportando ? 'Importando…' : 'Importar'}</span>
+                </button>
+              )}
             </div>
           </div>
           <Field
@@ -6519,7 +6539,9 @@ export default function App() {
     useState<LeasingCorresponsavel>(createEmptyCorresponsavel)
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
+  const [isGerandoBackupBanco, setIsGerandoBackupBanco] = useState(false)
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
+  const backupImportInputRef = useRef<HTMLInputElement | null>(null)
   const fecharClientesPainel = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -14547,6 +14569,148 @@ export default function App() {
       input.click()
     }
   }, [clientesImportInputRef, isImportandoClientes])
+
+  const handleBackupUploadArquivo = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = event.target.files?.[0]
+    event.target.value = ''
+    if (!arquivo || typeof window === 'undefined') return
+
+    setIsGerandoBackupBanco(true)
+    try {
+      const texto = await arquivo.text()
+      const json = JSON.parse(texto) as unknown
+      const token = await getAccessToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+        headers['x-stack-access-token'] = token
+      }
+      const response = await fetch(resolveApiUrl('/api/admin/database-backup'), {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ action: 'import', payload: json }),
+      })
+      const payload = (await response.json().catch(() => null)) as
+        | { ok?: boolean; error?: string; importedClients?: number; importedProposals?: number }
+        | null
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error ?? 'Falha ao carregar backup.')
+      }
+      adicionarNotificacao(
+        `Backup carregado com sucesso (${payload.importedClients ?? 0} clientes e ${payload.importedProposals ?? 0} propostas).`,
+        'success',
+      )
+    } catch (error) {
+      console.error('Erro ao carregar backup.', error)
+      window.alert('Não foi possível carregar o backup selecionado. Verifique o arquivo e tente novamente.')
+    } finally {
+      setIsGerandoBackupBanco(false)
+    }
+  }, [adicionarNotificacao, getAccessToken])
+
+  const handleBackupBancoDados = useCallback(async () => {
+    if (typeof window === 'undefined' || isGerandoBackupBanco) {
+      return
+    }
+
+    const acao = window.prompt('Ação do backup: "baixar" ou "carregar"', 'baixar')
+    if (!acao) return
+    const acaoNormalizada = acao.trim().toLowerCase()
+
+    if (acaoNormalizada === 'carregar' || acaoNormalizada === 'load' || acaoNormalizada === 'upload') {
+      backupImportInputRef.current?.click()
+      return
+    }
+
+    if (!(acaoNormalizada === 'baixar' || acaoNormalizada === 'download')) {
+      window.alert('Ação inválida. Use "baixar" ou "carregar".')
+      return
+    }
+
+    const respostaDestino = window.prompt('Destino do backup para download: local, nuvem ou plataforma', 'local')
+    if (!respostaDestino) return
+    const destino = respostaDestino.trim().toLowerCase()
+    if (!['local', 'nuvem', 'platform', 'plataforma', 'cloud'].includes(destino)) {
+      window.alert('Destino inválido. Use: local, nuvem ou plataforma.')
+      return
+    }
+
+    const destinoApi =
+      destino === 'plataforma' || destino === 'platform'
+        ? 'platform'
+        : destino === 'nuvem' || destino === 'cloud'
+          ? 'cloud'
+          : 'local'
+
+    setIsGerandoBackupBanco(true)
+
+    try {
+      const token = await getAccessToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+        headers['x-stack-access-token'] = token
+      }
+      const response = await fetch(resolveApiUrl('/api/admin/database-backup'), {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ action: 'export', destination: destinoApi }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean
+            error?: string
+            fileName?: string
+            payload?: unknown
+            platformSaved?: boolean
+            checksumSha256?: string
+          }
+        | null
+
+      if (!response.ok || !payload?.ok || !payload.payload) {
+        throw new Error(payload?.error ?? 'Falha ao gerar backup.')
+      }
+
+      const json = JSON.stringify(payload.payload, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const fileName = payload.fileName ?? buildClientesFileName('json')
+
+      if (destinoApi === 'local' || destinoApi === 'cloud') {
+        downloadClientesArquivo(blob, fileName)
+      }
+
+      if (destinoApi === 'cloud') {
+        const file = new File([blob], fileName, { type: 'application/json' })
+        if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+          await navigator.share({
+            title: 'Backup SolarInvest',
+            text: 'Backup do banco de dados SolarInvest',
+            files: [file],
+          })
+        } else {
+          window.alert('Web Share indisponível neste dispositivo. O arquivo foi baixado localmente.')
+        }
+      }
+
+      const destinoLabel =
+        destinoApi === 'platform' ? 'plataforma' : destinoApi === 'cloud' ? 'nuvem' : 'dispositivo local'
+      const checksumTexto = payload.checksumSha256 ? ` (checksum: ${payload.checksumSha256.slice(0, 12)}...)` : ''
+      adicionarNotificacao(`Backup gerado com sucesso para ${destinoLabel}${checksumTexto}.`, 'success')
+
+      if (payload.platformSaved) {
+        adicionarNotificacao('Cópia adicional registrada na plataforma (Neon).', 'success')
+      }
+    } catch (error) {
+      console.error('Erro ao gerar backup do banco.', error)
+      window.alert('Não foi possível gerar o backup do banco. Tente novamente.')
+    } finally {
+      setIsGerandoBackupBanco(false)
+    }
+  }, [adicionarNotificacao, backupImportInputRef, buildClientesFileName, downloadClientesArquivo, getAccessToken, isGerandoBackupBanco])
 
   const handleClientesImportarArquivo = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -27401,7 +27565,10 @@ export default function App() {
       onExportarCsv={handleExportarClientesCsv}
       onExportarJson={handleExportarClientesJson}
       onImportar={handleClientesImportarClick}
+      onBackupCliente={handleBackupBancoDados}
       isImportando={isImportandoClientes}
+      isGerandoBackupBanco={isGerandoBackupBanco}
+      canBackupBanco={isAdmin || isOffice}
       isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
       allConsultores={allConsultores}
     />
@@ -28284,6 +28451,13 @@ export default function App() {
         accept="application/json,text/csv,.csv"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
+      />
+      <input
+        ref={backupImportInputRef}
+        type="file"
+        accept="application/json,.json"
+        style={{ display: 'none' }}
+        onChange={handleBackupUploadArquivo}
       />
 
       {isLeasingContractsModalOpen ? (
