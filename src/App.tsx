@@ -283,6 +283,7 @@ import {
 } from './lib/api/proposalsApi'
 import {
   listClients as listClientsFromApi,
+  listConsultants as listConsultantsFromApi,
   type ClientRow,
   setClientsTokenProvider,
   upsertClientByDocument,
@@ -3076,6 +3077,8 @@ type ClientesPanelProps = {
   isImportando: boolean
   /** When true, shows the "Consultor" column and cross-user description */
   isPrivilegedUser?: boolean
+  /** All registered consultant names for the filter dropdown (privileged users only) */
+  allConsultores?: string[]
 }
 
 type ClienteContratoPayload = {
@@ -3223,6 +3226,7 @@ function ClientesPanel({
   onImportar,
   isImportando,
   isPrivilegedUser = false,
+  allConsultores = [],
 }: ClientesPanelProps) {
   const panelTitleId = useId()
   const [clienteSearchTerm, setClienteSearchTerm] = useState('')
@@ -3231,9 +3235,15 @@ function ClientesPanel({
   const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
   const ownerOptions = useMemo(() => {
     if (!isPrivilegedUser) return []
+    // Prefer the full list of registered consultants (from API) so consultants
+    // without clients still appear. Fall back to names derived from loaded records.
+    const fromApi = allConsultores.filter(Boolean)
+    if (fromApi.length > 0) {
+      return [...new Set(fromApi)].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    }
     return Array.from(new Set(registros.map((r) => r.ownerName ?? r.ownerEmail ?? 'Desconhecido')))
       .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }, [isPrivilegedUser, registros])
+  }, [isPrivilegedUser, registros, allConsultores])
   const registrosFiltrados = useMemo(() => {
     if (!normalizedSearchTerm && selectedOwner === 'all') {
       return registros
@@ -4592,7 +4602,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useStackUser()
-  const { isAdmin: isAdminFromStack, role: userRole, isOffice, isFinanceiro, isLoading: isStackPermLoading } = useStackRbac()
+  const { isAdmin: isAdminFromStack, role: userRole, isOffice, isFinanceiro, isLoading: isStackPermLoading, canSeeContracts, canSeeUsers, canSeeDashboard } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
   // Falls back to null while user hasn't resolved yet (no auth header sent).
@@ -4993,19 +5003,21 @@ export default function App() {
     }
   }, [activePage])
 
-  // Guard protected pages: redirect non-admins away from 'settings' and
-  // 'simulacoes/analise' once RBAC permissions have been resolved.
-  // The isRbacLoading check prevents premature redirects during permission fetch.
+  // Guard protected pages: redirect unauthorized users away from 'settings',
+  // 'simulacoes/analise', 'admin-users', and 'dashboard' once RBAC permissions
+  // have been resolved. The isRbacLoading check prevents premature redirects.
   useEffect(() => {
     if (isRbacLoading) return
     if (activePage === 'settings' && !isAdmin) {
       setActivePage('app')
     } else if (activePage === 'simulacoes' && simulacoesSection === 'analise' && !isAdmin) {
       setActivePage('app')
-    } else if (activePage === 'admin-users' && !isAdmin) {
+    } else if (activePage === 'admin-users' && !canSeeUsers) {
+      setActivePage('app')
+    } else if (activePage === 'dashboard' && !canSeeDashboard) {
       setActivePage('app')
     }
-  }, [activePage, simulacoesSection, isAdmin, isRbacLoading, setActivePage])
+  }, [activePage, simulacoesSection, isAdmin, canSeeUsers, canSeeDashboard, isRbacLoading, setActivePage])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -5741,6 +5753,7 @@ export default function App() {
     cloneClienteDados(CLIENTE_INICIAL),
   )
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
+  const [allConsultores, setAllConsultores] = useState<string[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
@@ -12171,6 +12184,29 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carregarClientesPrioritarios, authSyncKey])
 
+  // Fetch all registered consultants for privileged users so the client
+  // management page can populate its consultant filter dropdown.
+  useEffect(() => {
+    if (!user || !(isAdmin || isOffice || isFinanceiro)) {
+      setAllConsultores([])
+      return
+    }
+    let cancelado = false
+    listConsultantsFromApi()
+      .then((entries) => {
+        if (!cancelado) {
+          setAllConsultores(entries.map((e) => e.name).filter(Boolean))
+        }
+      })
+      .catch(() => {
+        // Non-critical: fall back to names derived from loaded clients
+      })
+    return () => {
+      cancelado = true
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isAdmin, isOffice, isFinanceiro, authSyncKey])
+
   useEffect(() => {
     return () => {
       if (typeof window === 'undefined') {
@@ -18424,11 +18460,11 @@ export default function App() {
   )
 
   const abrirAdminUsuarios = useCallback(async () => {
-    if (!isAdmin) return false
+    if (!canSeeUsers) return false
     return runWithUnsavedChangesGuard(() => {
       setActivePage('admin-users')
     })
-  }, [runWithUnsavedChangesGuard, setActivePage, isAdmin])
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeUsers])
 
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -25106,20 +25142,24 @@ export default function App() {
   const shellPageIndicator = isSimulacoesMobile ? undefined : currentPageIndicator
 
   const sidebarGroups: SidebarGroup[] = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      items: [
-        {
-          id: 'dashboard-home',
-          label: 'Dashboard',
-          icon: '📊',
-          onSelect: () => {
-            void abrirDashboard()
+    ...(canSeeDashboard
+      ? [
+          {
+            id: 'dashboard',
+            label: 'Dashboard',
+            items: [
+              {
+                id: 'dashboard-home',
+                label: 'Dashboard',
+                icon: '📊',
+                onSelect: () => {
+                  void abrirDashboard()
+                },
+              },
+            ],
           },
-        },
-      ],
-    },
+        ]
+      : []),
     {
       id: 'propostas',
       label: 'Propostas',
@@ -25152,15 +25192,19 @@ export default function App() {
               },
             ]
           : []),
-        {
-          id: 'propostas-contratos',
-          label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
-          icon: '🖋️',
-          onSelect: () => {
-            void handleGerarContratosComConfirmacao()
-          },
-          disabled: gerandoContratos,
-        },
+        ...(canSeeContracts
+          ? [
+              {
+                id: 'propostas-contratos',
+                label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
+                icon: '🖋️',
+                onSelect: () => {
+                  void handleGerarContratosComConfirmacao()
+                },
+                disabled: gerandoContratos,
+              },
+            ]
+          : []),
         {
           id: 'propostas-enviar',
           label: 'Enviar proposta',
@@ -25250,15 +25294,6 @@ export default function App() {
             setActivePage('app')
           },
         },
-        {
-          id: 'relatorios-exportar-pdf',
-          label: 'Gerar proposta',
-          icon: '🖨️',
-          onSelect: () => {
-            setActivePage('app')
-            void handlePrint()
-          },
-        },
       ],
     },
     {
@@ -25334,6 +25369,10 @@ export default function App() {
                   void abrirConfiguracoes()
                 },
               },
+            ]
+          : []),
+        ...(canSeeUsers
+          ? [
               {
                 id: 'config-admin-users',
                 label: 'Gestão de Usuários',
@@ -25360,7 +25399,8 @@ export default function App() {
   const mobileAllowedIds = [
     'propostas-leasing',
     'propostas-vendas',
-    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias', 'config-admin-users'] : []),
+    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
+    ...(canSeeUsers ? ['config-admin-users'] : []),
     'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
@@ -27341,6 +27381,7 @@ export default function App() {
       onImportar={handleClientesImportarClick}
       isImportando={isImportandoClientes}
       isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
+      allConsultores={allConsultores}
     />
   )
 

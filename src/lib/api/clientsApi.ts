@@ -1,9 +1,10 @@
 // src/lib/api/clientsApi.ts
-// REST client for /api/clients endpoints used by client autosave.
+// REST client for /api/clients and /api/consultants endpoints.
 
 import { resolveApiUrl } from '../../utils/apiUrl'
 
 const BASE_URL = resolveApiUrl('/api/clients')
+const CONSULTANTS_URL = resolveApiUrl('/api/consultants')
 
 type GetAccessToken = () => Promise<string | null>
 let clientsTokenProvider: GetAccessToken | null = null
@@ -178,4 +179,36 @@ export async function listClients(filters: ClientListFilters = {}): Promise<Clie
   if (filters.state) params.set('uf', filters.state)
   const qs = params.toString() ? `?${params.toString()}` : ''
   return apiFetch<ClientListResult>(qs)
+}
+
+export interface ConsultantEntry {
+  id: string
+  name: string
+  email: string | null
+}
+
+/**
+ * List all registered consultant profiles.
+ * Only accessible to privileged users (admin, office, financeiro).
+ * Used to populate the consultant filter on the client management page.
+ */
+export async function listConsultants(): Promise<ConsultantEntry[]> {
+  let authHeader: Record<string, string> = {}
+  if (clientsTokenProvider) {
+    try {
+      const token = await clientsTokenProvider()
+      if (token) {
+        authHeader = { Authorization: `Bearer ${token}` }
+      }
+    } catch {
+      // ignore – fall back to cookie-only auth
+    }
+  }
+  const res = await fetch(CONSULTANTS_URL, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...authHeader },
+  })
+  if (!res.ok) return []
+  const body = (await res.json()) as { consultants: ConsultantEntry[] }
+  return Array.isArray(body.consultants) ? body.consultants : []
 }
