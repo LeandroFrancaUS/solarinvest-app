@@ -4,7 +4,8 @@
 // populate the consultant filter in the client management page.
 
 import { resolveActor } from '../proposals/permissions.js'
-import { query } from '../db.js'
+import { getDatabaseClient } from '../database/neonClient.js'
+import { ensureOperationalSchema } from '../database/ensureOperationalSchema.js'
 
 /**
  * GET /api/consultants
@@ -22,14 +23,23 @@ export async function handleConsultantsListRequest(req, res, { sendJson }) {
     return
   }
 
-  const result = await query(
-    `SELECT stack_user_id AS id,
-            COALESCE(display_name, email, stack_user_id) AS name,
-            email
-     FROM public.app_user_profiles
-     ORDER BY LOWER(COALESCE(display_name, email, stack_user_id)) ASC`,
-    [],
-  )
-
-  sendJson(res, 200, { consultants: result.rows })
+  const db = getDatabaseClient()
+  if (!db?.sql) {
+    sendJson(res, 503, { error: { code: 'SERVICE_UNAVAILABLE', message: 'Database not configured' } })
+    return
+  }
+  try {
+    await ensureOperationalSchema(db.sql)
+    const rows = await db.sql`
+      SELECT stack_user_id AS id,
+             COALESCE(display_name, email, stack_user_id) AS name,
+             email
+        FROM public.app_user_profiles
+       ORDER BY LOWER(COALESCE(display_name, email, stack_user_id)) ASC
+    `
+    sendJson(res, 200, { consultants: rows })
+  } catch (error) {
+    console.error('[consultants] list failed:', error)
+    sendJson(res, 500, { error: { code: 'INTERNAL_ERROR', message: 'Failed to list consultants' } })
+  }
 }
