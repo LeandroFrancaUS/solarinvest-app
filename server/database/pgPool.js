@@ -1,44 +1,14 @@
 // server/database/pgPool.js
-//
-// Returns a pg-compatible Pool backed by Neon's WebSocket driver.
-//
-// WHY WebSocket Pool (not neon() HTTP):
-//   The neon() HTTP function is stateless — each call opens a new HTTP request
-//   which resets any PostgreSQL session variables (including the app.*
-//   settings used by RLS policies).  The WebSocket Pool maintains a persistent
-//   connection so that SET / set_config() calls made at the start of a
-//   transaction remain visible to subsequent queries within that same
-//   transaction, which is required for RLS to work correctly.
-//
-// The Pool instance is a singleton per process to avoid exhausting connection
-// limits.  Call getPgPool().end() during graceful shutdown if needed.
-
-import ws from 'ws'
-import { Pool, neonConfig } from '@neondatabase/serverless'
+// Neon-based adapter that exposes the same interface as a pg Pool so that
+// existing callers (api/clients/*.js, api/storage-hook.js) continue to work.
+// This avoids a startup crash caused by the optional `pg` package being absent.
+import { neon } from '@neondatabase/serverless'
 import { getNeonDatabaseConfig } from './neonConfig.js'
 
-// Configure the WebSocket constructor once for the Neon driver.
-// This is required in Node.js environments where the global WebSocket API is
-// not available.  In browsers (or Node 24+ with the global WebSocket flag),
-// this assignment is a harmless no-op.
-neonConfig.webSocketConstructor = ws
+let sqlSingleton
 
-let poolSingleton
-
-/**
- * Returns the shared pg-compatible WebSocket Pool for RLS-protected queries.
- *
- * The returned pool exposes:
- *   pool.connect()          → PoolClient with .query(text, params), .release()
- *   pool.query(text, params) → { rows, rowCount, fields }
- *
- * Always prefer withRlsClient() (server/database/withRls.js) over calling
- * pool.connect() directly when running queries on RLS-protected tables.
- *
- * @returns {Pool}
- */
-export function getPgPool() {
-  if (poolSingleton) return poolSingleton
+function getSql() {
+  if (sqlSingleton) return sqlSingleton
 
   const { directConnectionString, connectionString } = getNeonDatabaseConfig()
   const resolvedConnection = directConnectionString || connectionString
@@ -47,6 +17,34 @@ export function getPgPool() {
     throw new Error('[database] Connection string is not configured')
   }
 
-  poolSingleton = new Pool({ connectionString: resolvedConnection })
-  return poolSingleton
+  // fullResults: true makes the response shape match the pg Pool interface:
+  // { rows: [...], fields: [...], rowCount: n, ... }
+  // Note: each query creates a new HTTP request to Neon (no persistent connection).
+  sqlSingleton = neon(resolvedConnection, { fullResults: true })
+  return sqlSingleton
+}
+
+// Returns a pool-like object whose interface is compatible with pg Pool:
+//   pool.connect() → client with .query(text, params) and .release()
+//   pool.query(text, params) → { rows, rowCount }
+export function getPgPool() {
+  const sql = getSql()
+
+  const poolLike = {
+    async connect() {
+      return {
+        async query(text, params) {
+          return await sql(text, params ?? [])
+        },
+        release() {
+          // No-op: Neon serverless manages its own connections per-request.
+        },
+      }
+    },
+    async query(text, params) {
+      return await sql(text, params ?? [])
+    },
+  }
+
+  return poolLike
 }

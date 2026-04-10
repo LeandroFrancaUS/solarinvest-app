@@ -36,11 +36,11 @@ function getDb(sendJson) {
 }
 
 function sqlForActor(db, actor) {
-  // Important production fallback:
-  // In environments still running legacy own-only RLS policies, setting a user
-  // context can inadvertently restrict admins. Admin requests use raw sql to
-  // guarantee full visibility.
-  if (actor?.isAdmin) return db.sql
+  // Always set RLS context (both user ID and role) for every authenticated request,
+  // including admins. The PostgreSQL RLS policies are fail-closed: when no session
+  // context is set, can_access_owner() returns false for everyone. Setting role_admin
+  // lets the DB grant admins full access through the policy logic rather than
+  // bypassing it entirely.
   return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
 }
 

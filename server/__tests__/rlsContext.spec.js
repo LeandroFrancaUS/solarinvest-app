@@ -4,7 +4,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mapBusinessRoleToDatabaseRole, applyRlsContext } from '../database/rlsContext.js'
-import { withRlsClient } from '../database/withRls.js'
 
 // ─── mapBusinessRoleToDatabaseRole ────────────────────────────────────────────
 
@@ -101,91 +100,45 @@ describe('applyRlsContext', () => {
   })
 })
 
-// ─── withRlsClient ────────────────────────────────────────────────────────────
+// ─── withRlsQuery ─────────────────────────────────────────────────────────────
 
-// Mock the pool module so withRlsClient can be tested without a real DB.
-vi.mock('../database/pgPool.js', () => {
-  const mockClient = {
-    query: vi.fn().mockResolvedValue({ rows: [] }),
-    release: vi.fn(),
+// Mock withRLSContext to avoid loading the full Neon client in tests.
+vi.mock('../database/withRLSContext.js', () => {
+  return {
+    createUserScopedSql: vi.fn((sql, { userId, role }) => {
+      // Return a tagged-template-compatible spy that records what was passed
+      const scopedSql = vi.fn().mockResolvedValue({ rows: [] })
+      scopedSql._userId = userId
+      scopedSql._role = role
+      scopedSql._baseSql = sql
+      return scopedSql
+    }),
   }
-  const mockPool = { connect: vi.fn().mockResolvedValue(mockClient) }
-  return { getPgPool: vi.fn().mockReturnValue(mockPool), __mockClient: mockClient, __mockPool: mockPool }
 })
 
-describe('withRlsClient', () => {
-  let mockClient
-  let mockPool
+describe('withRlsQuery', () => {
+  it('calls createUserScopedSql with the actor userId and role', async () => {
+    const { withRlsQuery } = await import('../database/withRls.js')
+    const { createUserScopedSql } = await import('../database/withRLSContext.js')
 
-  beforeEach(async () => {
-    vi.clearAllMocks()
-    const pgPoolModule = await import('../database/pgPool.js')
-    mockPool = pgPoolModule.getPgPool()
-    mockClient = await mockPool.connect()
-    // Reset the mock client's query/release to fresh spies
-    mockClient.query = vi.fn().mockResolvedValue({ rows: [] })
-    mockClient.release = vi.fn()
-    mockPool.connect = vi.fn().mockResolvedValue(mockClient)
-    pgPoolModule.getPgPool.mockReturnValue(mockPool)
-  })
-
-  it('calls BEGIN, applyRlsContext, fn, and COMMIT in the correct order', async () => {
-    const actor = { authProviderUserId: 'user-xyz', role: 'role_comercial' }
+    const mockSql = vi.fn()
+    const actor = { authProviderUserId: 'user-abc', role: 'role_admin' }
     const fn = vi.fn().mockResolvedValue({ rows: [{ id: 1 }] })
 
-    const result = await withRlsClient(actor, fn)
+    const result = await withRlsQuery(mockSql, actor, fn)
 
+    expect(createUserScopedSql).toHaveBeenCalledWith(mockSql, { userId: 'user-abc', role: 'role_admin' })
+    expect(fn).toHaveBeenCalled()
     expect(result).toEqual({ rows: [{ id: 1 }] })
-    expect(fn).toHaveBeenCalledWith(mockClient)
-    expect(mockClient.release).toHaveBeenCalledOnce()
-
-    const sqlCalls = mockClient.query.mock.calls.map(([sql]) => sql)
-    // First call must be BEGIN
-    expect(sqlCalls[0]).toBe('BEGIN')
-    // Second call must set both RLS session variables
-    expect(sqlCalls[1]).toContain('app.current_user_id')
-    expect(sqlCalls[1]).toContain('app.current_user_role')
-    // Last call must be COMMIT (no ROLLBACK)
-    expect(sqlCalls.at(-1)).toBe('COMMIT')
-    expect(sqlCalls).not.toContain('ROLLBACK')
   })
 
-  it('calls ROLLBACK (not COMMIT) when fn throws, and re-throws the error', async () => {
-    const actor = { authProviderUserId: 'user-fail', role: 'role_admin' }
-    const boom = new Error('DB constraint violated')
-    const fn = vi.fn().mockRejectedValue(boom)
+  it('propagates errors from fn', async () => {
+    const { withRlsQuery } = await import('../database/withRls.js')
+    const mockSql = vi.fn()
+    const actor = { authProviderUserId: 'user-fail', role: 'role_comercial' }
+    const fn = vi.fn().mockRejectedValue(new Error('query failed'))
 
-    await expect(withRlsClient(actor, fn)).rejects.toThrow('DB constraint violated')
-
-    expect(mockClient.release).toHaveBeenCalledOnce()
-    const sqlCalls = mockClient.query.mock.calls.map(([sql]) => sql)
-    expect(sqlCalls).toContain('ROLLBACK')
-    expect(sqlCalls).not.toContain('COMMIT')
-  })
-
-  it('releases the client even when COMMIT fails', async () => {
-    const actor = { authProviderUserId: 'user-cmt', role: 'role_office' }
-    const fn = vi.fn().mockResolvedValue({ rows: [] })
-
-    // Make COMMIT throw
-    let callCount = 0
-    mockClient.query = vi.fn().mockImplementation((sql) => {
-      callCount++
-      if (sql === 'COMMIT') return Promise.reject(new Error('Commit failed'))
-      return Promise.resolve({ rows: [] })
-    })
-
-    await expect(withRlsClient(actor, fn)).rejects.toThrow('Commit failed')
-    expect(mockClient.release).toHaveBeenCalledOnce()
-  })
-
-  it('passes the correct userId and role to set_config', async () => {
-    const actor = { authProviderUserId: 'stack-user-42', role: 'role_financeiro' }
-    await withRlsClient(actor, vi.fn().mockResolvedValue(null))
-
-    const rlsCall = mockClient.query.mock.calls.find(([sql]) => sql.includes('app.current_user_id'))
-    expect(rlsCall).toBeDefined()
-    expect(rlsCall[1]).toEqual(['stack-user-42', 'role_financeiro'])
+    await expect(withRlsQuery(mockSql, actor, fn)).rejects.toThrow('query failed')
   })
 })
 
