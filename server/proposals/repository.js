@@ -105,33 +105,47 @@ export async function listProposals(sql, filter = {}) {
   // Always JOIN app_user_profiles to return owner display name.
   const joinClause = 'LEFT JOIN app_user_profiles up ON up.stack_user_id = p.owner_user_id'
 
-  const countRows = await sql(
-    `SELECT COUNT(*) AS total FROM proposals p ${joinClause} WHERE ${whereClause}`,
-    params
-  )
+  try {
+    const countRows = await sql(
+      `SELECT COUNT(*) AS total FROM proposals p ${joinClause} WHERE ${whereClause}`,
+      params
+    )
 
-  const listParams = [...params, limit, offset]
-  const limitPlaceholder = `$${params.length + 1}`
-  const offsetPlaceholder = `$${params.length + 2}`
-  const rows = await sql(
-    `SELECT p.*, up.primary_role AS owner_role, up.display_name AS owner_display_name, up.email AS owner_email
-     FROM proposals p ${joinClause}
-     WHERE ${whereClause}
-     ORDER BY p.updated_at DESC
-     LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
-    listParams
-  )
+    const listParams = [...params, limit, offset]
+    const limitPlaceholder = `$${params.length + 1}`
+    const offsetPlaceholder = `$${params.length + 2}`
+    const rows = await sql(
+      `SELECT p.*, up.primary_role AS owner_role, up.display_name AS owner_display_name, up.email AS owner_email
+       FROM proposals p ${joinClause}
+       WHERE ${whereClause}
+       ORDER BY p.updated_at DESC
+       LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
+      listParams
+    )
 
-  const total = parseInt(countRows[0]?.total ?? 0, 10)
+    const total = parseInt(countRows[0]?.total ?? 0, 10)
 
-  return {
-    data: rows,
-    pagination: {
-      page,
-      limit,
-      total,
-      pages: Math.ceil(total / limit),
-    },
+    return {
+      data: rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    }
+  } catch (error) {
+    console.warn('[proposals] listProposals primary query failed, using fallback:', error?.message)
+    const fallbackRows = await sql(
+      `SELECT * FROM proposals WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    )
+    const countRows = await sql(`SELECT COUNT(*)::int AS total FROM proposals WHERE deleted_at IS NULL`, [])
+    const total = parseInt(countRows[0]?.total ?? 0, 10)
+    return {
+      data: fallbackRows,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    }
   }
 }
 
