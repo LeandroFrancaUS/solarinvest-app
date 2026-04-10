@@ -28766,7 +28766,7 @@ export default function App() {
       <input
         ref={clientesImportInputRef}
         type="file"
-        accept="application/json,text/csv,.csv,.xlsx,.xlxs,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept=".json,.csv,.xlsx"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
       />
