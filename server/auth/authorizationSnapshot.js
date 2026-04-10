@@ -59,20 +59,20 @@ export function deriveCapabilities(permissions) {
     canManageUsers: isAdmin,
 
     // Clients
-    canReadAllClients:         isAdmin || isFinanceiro,
+    canReadAllClients:         isAdmin || isFinanceiro || isOffice,
     canWriteAllClients:        isAdmin,
     canReadOwnClients:         isComercial || isOffice,
     canWriteOwnClients:        isComercial || isOffice,
     canReadCommercialClients:  isOffice,
-    canWriteCommercialClients: isOffice,
+    canWriteCommercialClients: false,
 
     // Proposals
-    canReadAllProposals:         isAdmin || isFinanceiro,
+    canReadAllProposals:         isAdmin || isFinanceiro || isOffice,
     canWriteAllProposals:        isAdmin,
     canReadOwnProposals:         isComercial || isOffice,
     canWriteOwnProposals:        isComercial || isOffice,
     canReadCommercialProposals:  isOffice,
-    canWriteCommercialProposals: isOffice,
+    canWriteCommercialProposals: false,
   }
 }
 

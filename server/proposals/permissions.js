@@ -67,8 +67,7 @@ export async function resolveActor(req) {
   // This handles stale JWTs (permission recently granted, token not refreshed)
   // and setups where STACK_SECRET_SERVER_KEY is not configured.
   // Only the admin role has a DB equivalent ('admin' in app_user_access.role).
-  const hasNoStackRole = !isAdmin && !isComercial && !isOffice && !isFinanceiro
-  const dbRoleIsAdmin = hasNoStackRole && appUser.role === 'admin' && appUser.access_status === 'approved'
+  const dbRoleIsAdmin = appUser.role === 'admin' && appUser.access_status === 'approved'
 
   // Precedence: admin > financeiro > office > comercial
   // When a user holds multiple permissions the highest-privilege one wins.
@@ -135,16 +134,14 @@ export function requireProposalAuth(actor) {
  * Returns true if the actor can read the given proposal.
  *   - Admin     : any proposal
  *   - Financeiro: any proposal (read-only)
- *   - Office    : own proposals OR proposals owned by role_comercial users
+ *   - Office    : any proposal (read-only outside own ownership at mutation layer)
  *   - Comercial : own proposals only
  */
 export function canReadProposal(actor, proposal) {
   if (!actor) return false
   if (actor.isAdmin || actor.isFinanceiro) return true
   if (actor.isOffice) {
-    // Own proposal, OR proposal owned by a comercial user
-    return proposal.owner_user_id === actor.userId ||
-      proposal.owner_role === 'role_comercial'
+    return true
   }
   return proposal.owner_user_id === actor.userId
 }
@@ -164,7 +161,7 @@ export function canWriteProposals(actor) {
 /**
  * Returns true if the actor can update a specific proposal.
  *   - Admin     : any proposal
- *   - Office    : own proposals OR proposals owned by role_comercial users
+ *   - Office    : any proposal (read-only outside own ownership at mutation layer)
  *   - Comercial : own proposals only
  *   - Financeiro: no
  */
@@ -173,8 +170,7 @@ export function canModifyProposal(actor, proposal) {
   if (actor.isFinanceiro) return false
   if (actor.isAdmin) return true
   if (actor.isOffice) {
-    return proposal.owner_user_id === actor.userId ||
-      proposal.owner_role === 'role_comercial'
+    return proposal.owner_user_id === actor.userId
   }
   return proposal.owner_user_id === actor.userId
 }
@@ -182,7 +178,7 @@ export function canModifyProposal(actor, proposal) {
 /**
  * Returns true if the actor can delete a specific proposal.
  *   - Admin     : any proposal
- *   - Office    : own proposals OR proposals owned by role_comercial users
+ *   - Office    : any proposal (read-only outside own ownership at mutation layer)
  *   - Comercial : own proposals only
  *   - Financeiro: no
  */
@@ -191,8 +187,7 @@ export function canDeleteProposal(actor, proposal) {
   if (actor.isFinanceiro) return false
   if (actor.isAdmin) return true
   if (actor.isOffice) {
-    return proposal.owner_user_id === actor.userId ||
-      proposal.owner_role === 'role_comercial'
+    return proposal.owner_user_id === actor.userId
   }
   return proposal.owner_user_id === actor.userId
 }
