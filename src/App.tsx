@@ -14799,13 +14799,16 @@ export default function App() {
         `Backup carregado com sucesso (${payload.importedClients ?? 0} clientes e ${payload.importedProposals ?? 0} propostas).`,
         'success',
       )
+      // Refresh the client list so the restored records appear immediately.
+      const registros = await carregarClientesPrioritarios()
+      setClientesSalvos(registros)
     } catch (error) {
       console.error('Erro ao carregar backup.', error)
       window.alert('Não foi possível carregar o backup selecionado. Verifique o arquivo e tente novamente.')
     } finally {
       setIsGerandoBackupBanco(false)
     }
-  }, [adicionarNotificacao, getAccessToken])
+  }, [adicionarNotificacao, carregarClientesPrioritarios, getAccessToken, setClientesSalvos])
 
   const handleBaixarBackupBanco = useCallback(async () => {
     if (typeof window === 'undefined' || isGerandoBackupBanco) return
@@ -14890,7 +14893,18 @@ export default function App() {
         return
       }
 
-      setClientesSalvos(combinados)
+      // Use a functional updater so server-loaded records visible to privileged
+      // users (admin/office/financeiro) are not discarded by a stale localStorage
+      // snapshot. importados is captured in the outer closure and is safe to use.
+      setClientesSalvos((prev) => {
+        const prevIds = new Set(prev.map((r) => r.id))
+        const novos = importados.filter((r) => !prevIds.has(r.id))
+        if (novos.length === 0) return prev
+        return [...novos, ...prev].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+      })
+      // Push imported records to the server in the background so they persist
+      // across page navigations for authenticated users.
+      void migrateLocalStorageToServer()
       adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
     },
     [adicionarNotificacao, carregarClientesSalvos, setClientesSalvos],
@@ -15007,7 +15021,13 @@ export default function App() {
                   setIsImportandoClientes(false)
                   return
                 }
-                setClientesSalvos(combinados)
+                setClientesSalvos((prev) => {
+                  const prevIds = new Set(prev.map((r) => r.id))
+                  const novos = importados.filter((r) => !prevIds.has(r.id))
+                  if (novos.length === 0) return prev
+                  return [...novos, ...prev].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+                })
+                void migrateLocalStorageToServer()
                 adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
               }
               setIsImportandoClientes(false)
@@ -15046,7 +15066,13 @@ export default function App() {
                 setIsImportandoClientes(false)
                 return
               }
-              setClientesSalvos(combinados)
+              setClientesSalvos((prev) => {
+                const prevIds = new Set(prev.map((r) => r.id))
+                const novos = importados.filter((r) => !prevIds.has(r.id))
+                if (novos.length === 0) return prev
+                return [...novos, ...prev].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+              })
+              void migrateLocalStorageToServer()
               adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
             }
             setIsImportandoClientes(false)
