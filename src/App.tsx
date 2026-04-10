@@ -1135,6 +1135,21 @@ const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
  * → `cpf_raw` (raw CPF digits) → `cnpj_raw` (raw CNPJ digits) → empty string.
  */
 function serverClientToRegistro(row: ClientRow): ClienteRegistro {
+  const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {}
+  const metadataString = (key: string): string =>
+    typeof (metadata as Record<string, unknown>)[key] === 'string'
+      ? ((metadata as Record<string, unknown>)[key] as string)
+      : ''
+  const metadataBoolean = (key: string): boolean =>
+    typeof (metadata as Record<string, unknown>)[key] === 'boolean'
+      ? Boolean((metadata as Record<string, unknown>)[key])
+      : false
+  const metadataArray = (key: string): string[] => {
+    const raw = (metadata as Record<string, unknown>)[key]
+    if (!Array.isArray(raw)) return ['']
+    const values = raw.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+    return values.length > 0 ? values : ['']
+  }
   const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
   const ownerEmail = row.owner_email
   const ownerUserId = row.owner_user_id
@@ -1150,26 +1165,26 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
       // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
       // when the formatted field was not set (older records).
       documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
-      rg: '',
-      estadoCivil: '',
-      nacionalidade: '',
-      profissao: '',
-      representanteLegal: '',
+      rg: metadataString('rg'),
+      estadoCivil: metadataString('estadoCivil'),
+      nacionalidade: metadataString('nacionalidade'),
+      profissao: metadataString('profissao'),
+      representanteLegal: metadataString('representanteLegal'),
       email: row.email ?? '',
       telefone: row.phone ?? '',
-      cep: '',
+      cep: metadataString('cep'),
       distribuidora: row.distribuidora ?? '',
       uc: row.uc ?? '',
       endereco: row.address ?? '',
       cidade: row.city ?? '',
       uf: row.state ?? '',
-      temIndicacao: false,
-      indicacaoNome: '',
-      herdeiros: [''],
-      nomeSindico: '',
-      cpfSindico: '',
-      contatoSindico: '',
-      diaVencimento: '10',
+      temIndicacao: metadataBoolean('temIndicacao'),
+      indicacaoNome: metadataString('indicacaoNome'),
+      herdeiros: metadataArray('herdeiros'),
+      nomeSindico: metadataString('nomeSindico'),
+      cpfSindico: metadataString('cpfSindico'),
+      contatoSindico: metadataString('contatoSindico'),
+      diaVencimento: metadataString('diaVencimento') || '10',
     },
   }
 }
@@ -2228,6 +2243,86 @@ const CLIENTES_CSV_HEADERS: { key: string; label: string }[] = [
   { key: 'propostaSnapshot', label: 'proposta_snapshot' },
 ]
 
+const CLIENTE_PREVIEW_FIELDS: { key: keyof ClienteDados; label: string }[] = [
+  { key: 'nome', label: 'Cliente' },
+  { key: 'documento', label: 'CPF/CNPJ' },
+  { key: 'email', label: 'E-mail' },
+  { key: 'telefone', label: 'Telefone' },
+  { key: 'cidade', label: 'Cidade' },
+  { key: 'distribuidora', label: 'Rede/Distribuidora' },
+  { key: 'uc', label: 'UC' },
+  { key: 'indicacaoNome', label: 'Indicação' },
+  { key: 'diaVencimento', label: 'Dia vencimento' },
+  { key: 'rg', label: 'RG' },
+  { key: 'estadoCivil', label: 'Estado civil' },
+  { key: 'nacionalidade', label: 'Nacionalidade' },
+  { key: 'profissao', label: 'Profissão' },
+  { key: 'representanteLegal', label: 'Representante legal' },
+  { key: 'cep', label: 'CEP' },
+  { key: 'endereco', label: 'Endereço' },
+  { key: 'uf', label: 'UF' },
+  { key: 'nomeSindico', label: 'Nome síndico' },
+  { key: 'cpfSindico', label: 'CPF síndico' },
+  { key: 'contatoSindico', label: 'Contato síndico' },
+]
+
+const buildDefaultPreviewFields = (): Record<keyof ClienteDados, boolean> =>
+  CLIENTE_PREVIEW_FIELDS.reduce(
+    (acc, field) => ({ ...acc, [field.key]: true }),
+    {
+      nome: true,
+      documento: true,
+      rg: true,
+      estadoCivil: true,
+      nacionalidade: true,
+      profissao: true,
+      representanteLegal: true,
+      email: true,
+      telefone: true,
+      cep: true,
+      distribuidora: true,
+      uc: true,
+      endereco: true,
+      cidade: true,
+      uf: true,
+      temIndicacao: true,
+      indicacaoNome: true,
+      herdeiros: true,
+      nomeSindico: true,
+      cpfSindico: true,
+      contatoSindico: true,
+      diaVencimento: true,
+    } as Record<keyof ClienteDados, boolean>,
+  )
+
+const applyPreviewFieldSelection = (
+  dados: ClienteDados,
+  selectedFields: Record<keyof ClienteDados, boolean>,
+): ClienteDados => ({
+  nome: selectedFields.nome ? dados.nome : '',
+  documento: selectedFields.documento ? dados.documento : '',
+  rg: selectedFields.rg ? dados.rg : '',
+  estadoCivil: selectedFields.estadoCivil ? dados.estadoCivil : '',
+  nacionalidade: selectedFields.nacionalidade ? dados.nacionalidade : '',
+  profissao: selectedFields.profissao ? dados.profissao : '',
+  representanteLegal: selectedFields.representanteLegal ? dados.representanteLegal : '',
+  email: selectedFields.email ? dados.email : '',
+  telefone: selectedFields.telefone ? dados.telefone : '',
+  cep: selectedFields.cep ? dados.cep : '',
+  distribuidora: selectedFields.distribuidora ? dados.distribuidora : '',
+  uc: selectedFields.uc ? dados.uc : '',
+  endereco: selectedFields.endereco ? dados.endereco : '',
+  cidade: selectedFields.cidade ? dados.cidade : '',
+  uf: selectedFields.uf ? dados.uf : '',
+  temIndicacao: selectedFields.temIndicacao ? dados.temIndicacao : false,
+  indicacaoNome: selectedFields.indicacaoNome ? dados.indicacaoNome : '',
+  herdeiros: selectedFields.herdeiros ? dados.herdeiros : [''],
+  nomeSindico: selectedFields.nomeSindico ? dados.nomeSindico : '',
+  cpfSindico: selectedFields.cpfSindico ? dados.cpfSindico : '',
+  contatoSindico: selectedFields.contatoSindico ? dados.contatoSindico : '',
+  diaVencimento: selectedFields.diaVencimento ? dados.diaVencimento : '',
+})
+
 const CSV_HEADER_KEY_MAP: Record<string, string> = {
   id: 'id',
   clienteid: 'id',
@@ -2334,7 +2429,7 @@ const countDelimiterOccurrences = (line: string, delimiter: string): number => {
 
 const detectCsvDelimiter = (line: string): string => {
   const candidates = [CLIENTES_CSV_DELIMITER, ',', '\t']
-  let best = candidates[0]
+  let best = candidates[0] ?? CLIENTES_CSV_DELIMITER
   let bestCount = -1
 
   for (const candidate of candidates) {
@@ -2365,6 +2460,108 @@ const parseHerdeirosCsvValue = (value: string): string[] => {
   return items.length > 0 ? items : ['']
 }
 
+const parseXlsxCellRef = (ref: string): { col: number; row: number } | null => {
+  const match = /^([A-Z]+)(\d+)$/i.exec(ref.trim())
+  if (!match) return null
+  const letters = (match[1] ?? '').toUpperCase()
+  const row = Number.parseInt(match[2] ?? '', 10)
+  if (!Number.isFinite(row) || row <= 0) return null
+  let col = 0
+  for (let i = 0; i < letters.length; i += 1) {
+    col = col * 26 + (letters.charCodeAt(i) - 64)
+  }
+  return col > 0 ? { col, row } : null
+}
+
+const parseClientesXlsx = async (content: ArrayBuffer): Promise<unknown[]> => {
+  if (typeof DOMParser === 'undefined') return []
+  const JSZipModule = await import('jszip')
+  const zip = await JSZipModule.default.loadAsync(content)
+  const workbookXml = await zip.file('xl/workbook.xml')?.async('string')
+  if (!workbookXml) return []
+  const parser = new DOMParser()
+  const workbookDoc = parser.parseFromString(workbookXml, 'application/xml')
+  const relationshipsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string')
+  if (!relationshipsXml) return []
+  const relDoc = parser.parseFromString(relationshipsXml, 'application/xml')
+  const relById = new Map<string, string>()
+  Array.from(relDoc.getElementsByTagName('Relationship')).forEach((rel) => {
+    const id = rel.getAttribute('Id')
+    const target = rel.getAttribute('Target')
+    if (id && target) relById.set(id, target)
+  })
+
+  const sheets = Array.from(workbookDoc.getElementsByTagName('sheet'))
+  const sheetNode =
+    sheets.find((node) => normalizeText(node.getAttribute('name') ?? '').includes('cliente')) ?? sheets[0]
+  if (!sheetNode) return []
+  const relationId = sheetNode.getAttribute('r:id') ?? sheetNode.getAttribute('id')
+  if (!relationId) return []
+  const target = relById.get(relationId)
+  if (!target) return []
+  const normalizedTarget = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.?\//, '')}`
+  const worksheetXml = await zip.file(normalizedTarget)?.async('string')
+  if (!worksheetXml) return []
+
+  const sharedStringsXml = await zip.file('xl/sharedStrings.xml')?.async('string')
+  const sharedStrings: string[] = []
+  if (sharedStringsXml) {
+    const sharedDoc = parser.parseFromString(sharedStringsXml, 'application/xml')
+    Array.from(sharedDoc.getElementsByTagName('si')).forEach((si) => {
+      const text = Array.from(si.getElementsByTagName('t')).map((node) => node.textContent ?? '').join('')
+      sharedStrings.push(text)
+    })
+  }
+
+  const worksheetDoc = parser.parseFromString(worksheetXml, 'application/xml')
+  const rows = Array.from(worksheetDoc.getElementsByTagName('row'))
+  const grid = new Map<number, Map<number, string>>()
+  rows.forEach((rowNode) => {
+    const rowRef = Number.parseInt(rowNode.getAttribute('r') ?? '', 10)
+    if (!Number.isFinite(rowRef) || rowRef <= 0) return
+    const rowMap = new Map<number, string>()
+    Array.from(rowNode.getElementsByTagName('c')).forEach((cell) => {
+      const ref = parseXlsxCellRef(cell.getAttribute('r') ?? '')
+      if (!ref) return
+      let value = ''
+      const type = cell.getAttribute('t')
+      const valueNode = cell.getElementsByTagName('v')[0]
+      if (type === 's') {
+        const idx = Number.parseInt(valueNode?.textContent ?? '', 10)
+        value = Number.isFinite(idx) ? (sharedStrings[idx] ?? '') : ''
+      } else {
+        value = valueNode?.textContent ?? ''
+      }
+      rowMap.set(ref.col, value.trim())
+    })
+    if (rowMap.size > 0) grid.set(rowRef, rowMap)
+  })
+  if (grid.size === 0) return []
+  const orderedRows = [...grid.keys()].sort((a, b) => a - b)
+  const headerRowIndex = orderedRows[0] ?? 1
+  const headerRow = grid.get(headerRowIndex)
+  if (!headerRow) return []
+  const columns = [...headerRow.keys()].sort((a, b) => a - b)
+  const normalizedHeaders = columns.map((col) => normalizeCsvHeader(headerRow.get(col) ?? ''))
+  if (normalizedHeaders.every((value) => !value)) return []
+
+  return orderedRows
+    .filter((rowIndex) => rowIndex > headerRowIndex)
+    .map((rowIndex) => {
+      const row = grid.get(rowIndex)
+      if (!row) return null
+      const obj: Record<string, string> = {}
+      columns.forEach((col, idx) => {
+        const key = normalizedHeaders[idx] ?? ''
+        if (!key) return
+        obj[key] = (row.get(col) ?? '').trim()
+      })
+      if (Object.values(obj).every((value) => !value)) return null
+      return obj
+    })
+    .filter((item): item is Record<string, string> => Boolean(item))
+}
+
 const parseClientesCsv = (content: string): unknown[] => {
   const lines = content
     .split(/\r\n|\n|\r/)
@@ -2375,8 +2572,10 @@ const parseClientesCsv = (content: string): unknown[] => {
     return []
   }
 
-  const delimiter = detectCsvDelimiter(lines[0])
-  const headerCells = parseCsvLine(lines[0], delimiter).map(normalizeCsvHeader)
+  const firstLine = lines[0]
+  if (!firstLine) return []
+  const delimiter = detectCsvDelimiter(firstLine)
+  const headerCells = parseCsvLine(firstLine, delimiter).map(normalizeCsvHeader)
   const headerKeys = headerCells.map((header) => CSV_HEADER_KEY_MAP[header] ?? null)
   if (headerKeys.every((key) => !key)) {
     return []
@@ -2390,11 +2589,17 @@ const parseClientesCsv = (content: string): unknown[] => {
         return null
       }
       const registro: Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> } = {
-        dados: {},
+        dados: {} as Partial<ClienteDados>,
       }
 
+      const importMeta: Record<string, string> = {}
       headerKeys.forEach((key, index) => {
+        const rawHeader = headerCells[index] ?? ''
         if (!key) {
+          if (rawHeader) {
+            const rawValue = values[index]?.trim() ?? ''
+            if (rawValue) importMeta[rawHeader] = rawValue
+          }
           return
         }
         const value = values[index]?.trim() ?? ''
@@ -2436,9 +2641,12 @@ const parseClientesCsv = (content: string): unknown[] => {
           break
         }
         default:
-          registro.dados![key as keyof ClienteDados] = value
+          ;(registro.dados as Record<string, string>)[key] = value
       }
       })
+      if (Object.keys(importMeta).length > 0) {
+        ;(registro as { __importMeta?: Record<string, string> }).__importMeta = importMeta
+      }
 
       return registro
     })
@@ -2522,7 +2730,26 @@ const normalizeClienteRegistros = (
 
   const normalizados = items.map((item) => {
     const registro = item as Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> }
-    const dados = registro.dados ?? (registro as unknown as { cliente?: Partial<ClienteDados> }).cliente ?? {}
+    const dadosBase = registro.dados ?? (registro as unknown as { cliente?: Partial<ClienteDados> }).cliente ?? {}
+    const dadosPlanos = { ...dadosBase } as Partial<ClienteDados>
+    if ((!registro.dados || Object.keys(registro.dados).length === 0) && item && typeof item === 'object') {
+      Object.entries(item as Record<string, unknown>).forEach(([key, value]) => {
+        const mapped = CSV_HEADER_KEY_MAP[normalizeCsvHeader(key)]
+        if (!mapped || mapped === 'id' || mapped === 'criadoEm' || mapped === 'atualizadoEm') return
+        if (mapped === 'temIndicacao') {
+          dadosPlanos.temIndicacao = typeof value === 'boolean' ? value : parseBooleanCsvValue(String(value ?? ''))
+          return
+        }
+        if (mapped === 'herdeiros') {
+          dadosPlanos.herdeiros = parseHerdeirosCsvValue(String(value ?? ''))
+          return
+        }
+        if (mapped in CLIENTE_INICIAL) {
+          ;(dadosPlanos as Record<string, unknown>)[mapped] = String(value ?? '').trim()
+        }
+      })
+    }
+    const dados = dadosPlanos
     const rawId = (registro.id ?? '').toString()
     const sanitizedCandidate = normalizeClienteIdCandidate(rawId)
     const idNormalizado = ensureClienteId(rawId, existingIds)
@@ -2558,23 +2785,34 @@ const normalizeClienteRegistros = (
       }
     }
 
+    const formatDocumentoImportado = (value: string): string => {
+      const digits = normalizeNumbers(value)
+      if (digits.length === 11 || digits.length === 14) return formatCpfCnpj(digits)
+      return value.trim()
+    }
+    const formatUcImportada = (value: string): string => {
+      const digits = normalizeNumbers(value)
+      if (!digits) return value.trim()
+      if (digits.length >= 15) return digits.slice(-15)
+      return digits.padStart(15, '0')
+    }
     const normalizado: ClienteRegistro = {
       id: idNormalizado,
       criadoEm: registro.criadoEm ?? agora,
       atualizadoEm: registro.atualizadoEm ?? registro.criadoEm ?? agora,
       dados: {
         nome: dados?.nome ?? '',
-        documento: dados?.documento ?? '',
+        documento: formatDocumentoImportado(dados?.documento ?? ''),
         rg: dados?.rg ?? '',
         estadoCivil: dados?.estadoCivil ?? '',
         nacionalidade: dados?.nacionalidade ?? '',
         profissao: dados?.profissao ?? '',
         representanteLegal: dados?.representanteLegal ?? '',
         email: dados?.email ?? '',
-        telefone: dados?.telefone ?? '',
+        telefone: formatTelefone(dados?.telefone ?? ''),
         cep: dados?.cep ?? '',
         distribuidora: dados?.distribuidora ?? '',
-        uc: dados?.uc ?? '',
+        uc: formatUcImportada(dados?.uc ?? ''),
         endereco: dados?.endereco ?? '',
         cidade: dados?.cidade ?? '',
         uf: dados?.uf ?? '',
@@ -2586,7 +2824,7 @@ const normalizeClienteRegistros = (
         diaVencimento: dados?.diaVencimento ?? '10',
         herdeiros: herdeirosNormalizados,
       },
-      propostaSnapshot,
+      ...(propostaSnapshot ? { propostaSnapshot } : {}),
     }
 
     return normalizado
@@ -3109,6 +3347,15 @@ type ContractTemplatesModalProps = {
   onClose: () => void
 }
 
+type ClientesPreviewState = {
+  sourceName: string
+  registros: ClienteRegistro[]
+  selectedIds: Record<string, boolean>
+  selectedFields: Record<keyof ClienteDados, boolean>
+  format: 'json' | 'csv'
+  mode: 'import' | 'export'
+}
+
 type LeasingContratoTipo = 'residencial' | 'condominio'
 
 type LeasingAnexoId =
@@ -3323,7 +3570,7 @@ function ClientesPanel({
                 onClick={onImportar}
                 disabled={isImportando}
                 aria-busy={isImportando}
-                title="Importar clientes a partir de um arquivo JSON ou CSV"
+                title="Importar clientes a partir de um arquivo JSON, CSV ou XLSX"
               >
                 <span aria-hidden="true">⬇️</span>
                 <span>{isImportando ? 'Importando…' : 'Importar'}</span>
@@ -6519,6 +6766,7 @@ export default function App() {
     useState<LeasingCorresponsavel>(createEmptyCorresponsavel)
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
+  const [clientesPreviewState, setClientesPreviewState] = useState<ClientesPreviewState | null>(null)
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
   const fecharClientesPainel = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
@@ -14460,7 +14708,7 @@ export default function App() {
     )}-${pad(agora.getHours())}${pad(agora.getMinutes())}${pad(agora.getSeconds())}.${extensao}`
   }, [])
 
-  const handleExportarClientesJson = useCallback(() => {
+  const abrirPreviewExportacaoClientes = useCallback((format: 'json' | 'csv') => {
     if (typeof window === 'undefined') {
       return
     }
@@ -14473,69 +14721,21 @@ export default function App() {
       return
     }
 
-    try {
-      const payload = {
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        clientes: registros.map((registro) => ({
-          ...registro,
-          dados: cloneClienteDados(registro.dados),
-        })),
-      }
-
-      const blob = new Blob([JSON.stringify(payload, null, 2)], {
-        type: 'application/json',
-      })
-
-      const fileName = buildClientesFileName('json')
-      downloadClientesArquivo(blob, fileName)
-
-      adicionarNotificacao('Arquivo de clientes exportado com sucesso.', 'success')
-    } catch (error) {
-      console.error('Erro ao exportar clientes salvos.', error)
-      window.alert('Não foi possível exportar os clientes. Tente novamente.')
-    }
+    setClientesPreviewState({
+      sourceName: `Clientes salvos (${format.toUpperCase()})`,
+      registros,
+      selectedIds: Object.fromEntries(registros.map((registro) => [registro.id, true])),
+      selectedFields: buildDefaultPreviewFields(),
+      format,
+      mode: 'export',
+    })
   }, [
-    adicionarNotificacao,
-    buildClientesFileName,
     carregarClientesSalvos,
-    downloadClientesArquivo,
     setClientesSalvos,
   ])
 
-  const handleExportarClientesCsv = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    const registros = carregarClientesSalvos()
-    setClientesSalvos(registros)
-
-    if (registros.length === 0) {
-      window.alert('Nenhum cliente salvo para exportar.')
-      return
-    }
-
-    try {
-      const csv = buildClientesCsv(registros)
-      const blob = new Blob([`\ufeff${csv}`], {
-        type: 'text/csv;charset=utf-8',
-      })
-      const fileName = buildClientesFileName('csv')
-      downloadClientesArquivo(blob, fileName)
-
-      adicionarNotificacao('Arquivo CSV exportado com sucesso.', 'success')
-    } catch (error) {
-      console.error('Erro ao exportar clientes salvos em CSV.', error)
-      window.alert('Não foi possível exportar os clientes em CSV. Tente novamente.')
-    }
-  }, [
-    adicionarNotificacao,
-    buildClientesFileName,
-    carregarClientesSalvos,
-    downloadClientesArquivo,
-    setClientesSalvos,
-  ])
+  const handleExportarClientesJson = useCallback(() => abrirPreviewExportacaoClientes('json'), [abrirPreviewExportacaoClientes])
+  const handleExportarClientesCsv = useCallback(() => abrirPreviewExportacaoClientes('csv'), [abrirPreviewExportacaoClientes])
 
   const handleClientesImportarClick = useCallback(() => {
     if (isImportandoClientes) {
@@ -14560,13 +14760,20 @@ export default function App() {
       setIsImportandoClientes(true)
 
       try {
-        const conteudo = await arquivo.text()
+        const isXlsxFile =
+          arquivo.name.toLowerCase().endsWith('.xlsx') ||
+          arquivo.name.toLowerCase().endsWith('.xlxs') ||
+          arquivo.type.toLowerCase().includes('spreadsheetml')
+        const conteudo = isXlsxFile ? '' : await arquivo.text()
         let lista: unknown[] | null = null
         const isCsvFile =
           arquivo.name.toLowerCase().endsWith('.csv') ||
           arquivo.type.toLowerCase().includes('csv')
 
-        if (isCsvFile) {
+        if (isXlsxFile) {
+          const arrayBuffer = await arquivo.arrayBuffer()
+          lista = await parseClientesXlsx(arrayBuffer)
+        } else if (isCsvFile) {
           lista = parseClientesCsv(conteudo)
         } else {
           let parsed: unknown
@@ -14605,20 +14812,14 @@ export default function App() {
           return
         }
 
-        const combinados = [...importados, ...existentes].sort((a, b) =>
-          a.atualizadoEm < b.atualizadoEm ? 1 : -1,
-        )
-
-        try {
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
-        } catch (error) {
-          console.error('Erro ao persistir clientes importados.', error)
-          window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
-          return
-        }
-
-        setClientesSalvos(combinados)
-        adicionarNotificacao('Clientes importados com sucesso.', 'success')
+        setClientesPreviewState({
+          sourceName: arquivo.name,
+          registros: importados,
+          selectedIds: Object.fromEntries(importados.map((registro) => [registro.id, true])),
+          selectedFields: buildDefaultPreviewFields(),
+          format: isCsvFile ? 'csv' : 'json',
+          mode: 'import',
+        })
       } catch (error) {
         if ((error as Error).message === 'invalid-json') {
           window.alert('O arquivo selecionado está em um formato inválido (JSON ou CSV).')
@@ -14632,9 +14833,124 @@ export default function App() {
     }, [
       adicionarNotificacao,
       carregarClientesSalvos,
+      setClientesPreviewState,
       setClientesSalvos,
       setIsImportandoClientes,
     ])
+
+  const handleFecharClientesPreview = useCallback(() => {
+    setClientesPreviewState(null)
+  }, [])
+
+  const handleConfirmarClientesPreview = useCallback(async () => {
+    if (!clientesPreviewState) return
+    const selecionados = clientesPreviewState.registros
+      .filter((registro) => clientesPreviewState.selectedIds[registro.id] !== false)
+      .map((registro) => ({
+        ...registro,
+        dados: applyPreviewFieldSelection(cloneClienteDados(registro.dados), clientesPreviewState.selectedFields),
+      }))
+
+    if (selecionados.length === 0) {
+      window.alert('Selecione ao menos um cliente para continuar.')
+      return
+    }
+
+    if (clientesPreviewState.mode === 'export') {
+      try {
+        if (clientesPreviewState.format === 'csv') {
+          const csv = buildClientesCsv(selecionados)
+          const blob = new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' })
+          downloadClientesArquivo(blob, buildClientesFileName('csv'))
+        } else {
+          const payload = {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            clientes: selecionados.map((registro) => ({
+              ...registro,
+              dados: cloneClienteDados(registro.dados),
+            })),
+          }
+          const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+          downloadClientesArquivo(blob, buildClientesFileName('json'))
+        }
+        adicionarNotificacao('Exportação concluída com sucesso.', 'success')
+      } catch (error) {
+        console.error('Erro ao exportar clientes.', error)
+        window.alert('Não foi possível exportar os clientes.')
+      } finally {
+        setClientesPreviewState(null)
+      }
+      return
+    }
+
+    if (!isConnectivityOnline()) {
+      window.alert('Importação de clientes requer conexão ativa para salvar no banco de dados.')
+      return
+    }
+    setIsImportandoClientes(true)
+    try {
+      const existentes = carregarClientesSalvos()
+      const registrosSalvos: ClienteRegistro[] = []
+      const errosImportacao: string[] = []
+      for (const registro of selecionados) {
+        const docDigits = normalizeNumbers(registro.dados.documento)
+        const payload: UpsertClientInput = {
+          name: registro.dados.nome.trim(),
+          ...(registro.dados.email?.trim() ? { email: registro.dados.email.trim() } : {}),
+          ...(registro.dados.telefone?.trim() ? { phone: registro.dados.telefone.trim() } : {}),
+          ...(registro.dados.cidade?.trim() ? { city: registro.dados.cidade.trim() } : {}),
+          ...(registro.dados.uf?.trim() ? { state: registro.dados.uf.trim() } : {}),
+          ...(registro.dados.endereco?.trim() ? { address: registro.dados.endereco.trim() } : {}),
+          ...(registro.dados.uc?.trim() ? { uc: registro.dados.uc.trim() } : {}),
+          ...(registro.dados.distribuidora?.trim() ? { distribuidora: registro.dados.distribuidora.trim() } : {}),
+          metadata: {
+            rg: registro.dados.rg,
+            estadoCivil: registro.dados.estadoCivil,
+            nacionalidade: registro.dados.nacionalidade,
+            profissao: registro.dados.profissao,
+            representanteLegal: registro.dados.representanteLegal,
+            cep: registro.dados.cep,
+            indicacaoNome: registro.dados.indicacaoNome,
+            temIndicacao: registro.dados.temIndicacao,
+            nomeSindico: registro.dados.nomeSindico,
+            cpfSindico: formatCpfCnpj(registro.dados.cpfSindico ?? ''),
+            contatoSindico: registro.dados.contatoSindico,
+            diaVencimento: registro.dados.diaVencimento,
+            herdeiros: registro.dados.herdeiros,
+            source: 'import_clientes_preview',
+          },
+        }
+        if (docDigits.length === 11) payload.cpf_raw = docDigits
+        else if (docDigits.length === 14) payload.cnpj_raw = docDigits
+        if (docDigits.length > 0) payload.document = docDigits
+        try {
+          const row = await upsertClientByDocument(payload)
+          registrosSalvos.push(serverClientToRegistro(row))
+        } catch (error) {
+          errosImportacao.push(
+            `${registro.dados.nome || registro.id}: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
+          )
+        }
+      }
+      const combinados = [...registrosSalvos, ...existentes].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+      window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+      setClientesSalvos(combinados)
+      if (errosImportacao.length > 0) {
+        window.alert(`Importação concluída com ${errosImportacao.length} erro(s).\n${errosImportacao.slice(0, 5).join('\n')}`)
+      }
+      adicionarNotificacao(`Importação concluída (${registrosSalvos.length} cliente(s)).`, errosImportacao.length ? 'info' : 'success')
+      setClientesPreviewState(null)
+    } finally {
+      setIsImportandoClientes(false)
+    }
+  }, [
+    adicionarNotificacao,
+    buildClientesFileName,
+    carregarClientesSalvos,
+    clientesPreviewState,
+    downloadClientesArquivo,
+  ])
 
   const isSnapshotEmpty = (snapshot: OrcamentoSnapshotData): boolean =>
     !snapshot?.cliente?.nome &&
@@ -28281,10 +28597,71 @@ export default function App() {
       <input
         ref={clientesImportInputRef}
         type="file"
-        accept="application/json,text/csv,.csv"
+        accept="application/json,text/csv,.csv,.xlsx,.xlxs,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
       />
+
+      {clientesPreviewState ? (
+        <div className="modal-overlay" role="presentation">
+          <div className="modal-content" role="dialog" aria-modal="true" aria-label="Pré-visualização da importação/exportação de clientes">
+            <h3>{clientesPreviewState.mode === 'import' ? 'Pré-visualização da importação' : 'Pré-visualização da exportação'}</h3>
+            <p>
+              Arquivo/origem: <strong>{clientesPreviewState.sourceName}</strong> • Registros: {clientesPreviewState.registros.length}
+            </p>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+              {CLIENTE_PREVIEW_FIELDS.map((field) => (
+                <label key={field.key} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={clientesPreviewState.selectedFields[field.key]}
+                    onChange={(event) => {
+                      const checked = event.target.checked
+                      setClientesPreviewState((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              selectedFields: { ...prev.selectedFields, [field.key]: checked },
+                            }
+                          : prev,
+                      )
+                    }}
+                  />
+                  {field.label}
+                </label>
+              ))}
+            </div>
+            <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+              {clientesPreviewState.registros.slice(0, 50).map((registro) => (
+                <label key={registro.id} style={{ display: 'block', padding: '8px 4px', borderBottom: '1px solid #f1f5f9' }}>
+                  <input
+                    type="checkbox"
+                    checked={clientesPreviewState.selectedIds[registro.id] !== false}
+                    onChange={(event) => {
+                      const checked = event.target.checked
+                      setClientesPreviewState((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              selectedIds: { ...prev.selectedIds, [registro.id]: checked },
+                            }
+                          : prev,
+                      )
+                    }}
+                  />{' '}
+                  <strong>{registro.dados.nome || 'Sem nome'}</strong> — {registro.dados.documento || 'Sem documento'} — {registro.dados.email || 'Sem e-mail'}
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions" style={{ marginTop: 12 }}>
+              <button type="button" className="ghost" onClick={handleFecharClientesPreview}>Cancelar</button>
+              <button type="button" className="primary" onClick={() => { void handleConfirmarClientesPreview() }}>
+                {clientesPreviewState.mode === 'import' ? 'Confirmar importação' : 'Confirmar exportação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isLeasingContractsModalOpen ? (
         <LeasingContractsModal
