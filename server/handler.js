@@ -60,6 +60,7 @@ import {
   handleAuthReconcileUser,
 } from './routes/authReconcile.js'
 import { handleRbacInspectRequest } from './routes/rbacInspect.js'
+import { handleConsultantsListRequest } from './routes/consultants.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -591,6 +592,12 @@ export default async function handler(req, res) {
     }
 
     // ── Clients API ───────────────────────────────────────────────────────────
+    // GET /api/consultants — list all consultant profiles (privileged users only)
+    if (pathname === '/api/consultants' && method === 'GET') {
+      await handleConsultantsListRequest(req, res, { sendJson })
+      return
+    }
+
     // POST /api/clients/upsert-by-cpf — offline-first client upsert
     if (pathname === '/api/clients/upsert-by-cpf' && method === 'POST') {
       const clientsCtx = { method, readJsonBody, sendJson, sendNoContent }
