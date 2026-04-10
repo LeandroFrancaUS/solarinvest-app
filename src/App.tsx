@@ -3074,7 +3074,10 @@ type ClientesPanelProps = {
   onExportarCsv: () => void
   onExportarJson: () => void
   onImportar: () => void
-  onBackupCliente: () => void
+  /** Trigger a full database backup download (admin/office only). */
+  onBaixarBackupBanco: () => void
+  /** Open the file picker to restore a backup file (admin/office only). */
+  onCarregarBackupBanco: () => void
   isImportando: boolean
   isGerandoBackupBanco?: boolean
   canBackupBanco?: boolean
@@ -3227,7 +3230,8 @@ function ClientesPanel({
   onExportarCsv,
   onExportarJson,
   onImportar,
-  onBackupCliente,
+  onBaixarBackupBanco,
+  onCarregarBackupBanco,
   isImportando,
   isGerandoBackupBanco = false,
   canBackupBanco = false,
@@ -3323,31 +3327,43 @@ function ClientesPanel({
                 <span aria-hidden="true">📄</span>
                 <span>Exportar CSV</span>
               </button>
+              <button
+                type="button"
+                className="ghost with-icon"
+                onClick={onImportar}
+                disabled={isImportando}
+                aria-busy={isImportando}
+                title="Importar clientes a partir de um arquivo JSON ou CSV"
+              >
+                <span aria-hidden="true">⬇️</span>
+                <span>{isImportando ? 'Importando…' : 'Importar'}</span>
+              </button>
               {canBackupBanco ? (
-                <button
-                  type="button"
-                  className="ghost with-icon"
-                  onClick={onBackupCliente}
-                  disabled={isGerandoBackupBanco}
-                  aria-busy={isGerandoBackupBanco}
-                  title="Backup completo de clientes e propostas (baixar ou carregar)"
-                >
-                  <span aria-hidden="true">🗄️</span>
-                  <span>{isGerandoBackupBanco ? 'Processando backup…' : 'Backup de cliente'}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="ghost with-icon"
-                  onClick={onImportar}
-                  disabled={isImportando}
-                  aria-busy={isImportando}
-                  title="Importar clientes a partir de um arquivo JSON ou CSV"
-                >
-                  <span aria-hidden="true">⬇️</span>
-                  <span>{isImportando ? 'Importando…' : 'Importar'}</span>
-                </button>
-              )}
+                <>
+                  <button
+                    type="button"
+                    className="ghost with-icon"
+                    onClick={onBaixarBackupBanco}
+                    disabled={isGerandoBackupBanco}
+                    aria-busy={isGerandoBackupBanco}
+                    title="Baixar backup completo do banco de dados (clientes e propostas de todos os usuários)"
+                  >
+                    <span aria-hidden="true">🗄️</span>
+                    <span>{isGerandoBackupBanco ? 'Gerando backup…' : 'Baixar Backup BD'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost with-icon"
+                    onClick={onCarregarBackupBanco}
+                    disabled={isGerandoBackupBanco}
+                    aria-busy={isGerandoBackupBanco}
+                    title="Carregar um arquivo de backup para restaurar clientes e propostas no banco de dados"
+                  >
+                    <span aria-hidden="true">📥</span>
+                    <span>{isGerandoBackupBanco ? 'Processando…' : 'Carregar Backup BD'}</span>
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
           <Field
@@ -14637,42 +14653,10 @@ export default function App() {
     }
   }, [adicionarNotificacao, getAccessToken])
 
-  const handleBackupBancoDados = useCallback(async () => {
-    if (typeof window === 'undefined' || isGerandoBackupBanco) {
-      return
-    }
-
-    const acao = window.prompt('Ação do backup: "baixar" ou "carregar"', 'baixar')
-    if (!acao) return
-    const acaoNormalizada = acao.trim().toLowerCase()
-
-    if (acaoNormalizada === 'carregar' || acaoNormalizada === 'load' || acaoNormalizada === 'upload') {
-      backupImportInputRef.current?.click()
-      return
-    }
-
-    if (!(acaoNormalizada === 'baixar' || acaoNormalizada === 'download')) {
-      window.alert('Ação inválida. Use "baixar" ou "carregar".')
-      return
-    }
-
-    const respostaDestino = window.prompt('Destino do backup para download: local, nuvem ou plataforma', 'local')
-    if (!respostaDestino) return
-    const destino = respostaDestino.trim().toLowerCase()
-    if (!['local', 'nuvem', 'platform', 'plataforma', 'cloud'].includes(destino)) {
-      window.alert('Destino inválido. Use: local, nuvem ou plataforma.')
-      return
-    }
-
-    const destinoApi =
-      destino === 'plataforma' || destino === 'platform'
-        ? 'platform'
-        : destino === 'nuvem' || destino === 'cloud'
-          ? 'cloud'
-          : 'local'
+  const handleBaixarBackupBanco = useCallback(async () => {
+    if (typeof window === 'undefined' || isGerandoBackupBanco) return
 
     setIsGerandoBackupBanco(true)
-
     try {
       const token = await getAccessToken()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -14684,7 +14668,7 @@ export default function App() {
         method: 'POST',
         headers,
         credentials: 'include',
-        body: JSON.stringify({ action: 'export', destination: destinoApi }),
+        body: JSON.stringify({ action: 'export', destination: 'local' }),
       })
 
       const payload = (await response.json().catch(() => null)) as
@@ -14693,7 +14677,6 @@ export default function App() {
             error?: string
             fileName?: string
             payload?: unknown
-            platformSaved?: boolean
             checksumSha256?: string
           }
         | null
@@ -14705,39 +14688,22 @@ export default function App() {
       const json = JSON.stringify(payload.payload, null, 2)
       const blob = new Blob([json], { type: 'application/json' })
       const fileName = payload.fileName ?? buildClientesFileName('json')
+      downloadClientesArquivo(blob, fileName)
 
-      if (destinoApi === 'local' || destinoApi === 'cloud') {
-        downloadClientesArquivo(blob, fileName)
-      }
-
-      if (destinoApi === 'cloud') {
-        const file = new File([blob], fileName, { type: 'application/json' })
-        if (navigator.canShare?.({ files: [file] }) && navigator.share) {
-          await navigator.share({
-            title: 'Backup SolarInvest',
-            text: 'Backup do banco de dados SolarInvest',
-            files: [file],
-          })
-        } else {
-          window.alert('Web Share indisponível neste dispositivo. O arquivo foi baixado localmente.')
-        }
-      }
-
-      const destinoLabel =
-        destinoApi === 'platform' ? 'plataforma' : destinoApi === 'cloud' ? 'nuvem' : 'dispositivo local'
       const checksumTexto = payload.checksumSha256 ? ` (checksum: ${payload.checksumSha256.slice(0, 12)}...)` : ''
-      adicionarNotificacao(`Backup gerado com sucesso para ${destinoLabel}${checksumTexto}.`, 'success')
-
-      if (payload.platformSaved) {
-        adicionarNotificacao('Cópia adicional registrada na plataforma (Neon).', 'success')
-      }
+      adicionarNotificacao(`Backup do banco baixado com sucesso${checksumTexto}.`, 'success')
     } catch (error) {
       console.error('Erro ao gerar backup do banco.', error)
       window.alert('Não foi possível gerar o backup do banco. Tente novamente.')
     } finally {
       setIsGerandoBackupBanco(false)
     }
-  }, [adicionarNotificacao, backupImportInputRef, buildClientesFileName, downloadClientesArquivo, getAccessToken, isGerandoBackupBanco])
+  }, [adicionarNotificacao, buildClientesFileName, downloadClientesArquivo, getAccessToken, isGerandoBackupBanco])
+
+  const handleCarregarBackupBanco = useCallback(() => {
+    if (isGerandoBackupBanco) return
+    backupImportInputRef.current?.click()
+  }, [isGerandoBackupBanco])
 
   const handleClientesImportarArquivo = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -27633,7 +27599,8 @@ export default function App() {
       onExportarCsv={handleExportarClientesCsv}
       onExportarJson={handleExportarClientesJson}
       onImportar={handleClientesImportarClick}
-      onBackupCliente={handleBackupBancoDados}
+      onBaixarBackupBanco={handleBaixarBackupBanco}
+      onCarregarBackupBanco={handleCarregarBackupBanco}
       isImportando={isImportandoClientes}
       isGerandoBackupBanco={isGerandoBackupBanco}
       canBackupBanco={isAdmin || isOffice}
