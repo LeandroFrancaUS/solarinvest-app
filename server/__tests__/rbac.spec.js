@@ -30,18 +30,18 @@ function deriveCapabilities(permissions) {
   const isComercial  = permissions.includes('role_comercial')
   return {
     canManageUsers: isAdmin,
-    canReadAllClients:         isAdmin || isFinanceiro,
+    canReadAllClients:         isAdmin || isFinanceiro || isOffice,
     canWriteAllClients:        isAdmin,
     canReadOwnClients:         isComercial || isOffice,
     canWriteOwnClients:        isComercial || isOffice,
     canReadCommercialClients:  isOffice,
-    canWriteCommercialClients: isOffice,
-    canReadAllProposals:         isAdmin || isFinanceiro,
+    canWriteCommercialClients: false,
+    canReadAllProposals:         isAdmin || isFinanceiro || isOffice,
     canWriteAllProposals:        isAdmin,
     canReadOwnProposals:         isComercial || isOffice,
     canWriteOwnProposals:        isComercial || isOffice,
     canReadCommercialProposals:  isOffice,
-    canWriteCommercialProposals: isOffice,
+    canWriteCommercialProposals: false,
   }
 }
 
@@ -108,12 +108,12 @@ describe('deriveCapabilities — single role', () => {
     expect(caps.canReadCommercialClients).toBe(false)
   })
 
-  it('role_office gets own + commercial client/proposal access', () => {
+  it('role_office gets read-all + own-write behavior', () => {
     const caps = deriveCapabilities(['role_office'])
     expect(caps.canReadOwnClients).toBe(true)
     expect(caps.canReadCommercialClients).toBe(true)
-    expect(caps.canWriteCommercialClients).toBe(true)
-    expect(caps.canReadAllClients).toBe(false)
+    expect(caps.canWriteCommercialClients).toBe(false)
+    expect(caps.canReadAllClients).toBe(true)
   })
 
   it('empty permissions → no capabilities', () => {
@@ -142,7 +142,7 @@ describe('deriveCapabilities — multi-role union', () => {
     const caps = deriveCapabilities(['role_office', 'role_financeiro'])
     expect(caps.canReadAllClients).toBe(true)
     expect(caps.canReadCommercialClients).toBe(true)
-    expect(caps.canWriteCommercialClients).toBe(true)
+    expect(caps.canWriteCommercialClients).toBe(false)
     expect(caps.canWriteAllClients).toBe(false)
     expect(caps.canManageUsers).toBe(false)
   })
@@ -454,7 +454,7 @@ function canAccessOwner(role, uid, ownerUserId, ownerIsComercial = false) {
   if (!role) return true                              // no context → bypass
   if (role === 'role_admin') return true
   if (role === 'role_financeiro') return true         // read-only; write blocked separately
-  if (role === 'role_office') return ownerUserId === uid || ownerIsComercial
+  if (role === 'role_office') return true
   if (role === 'role_comercial') return ownerUserId === uid
   return false                                        // unknown role → fail closed
 }
@@ -463,7 +463,7 @@ function canWriteOwner(role, uid, ownerUserId, ownerIsComercial = false) {
   if (!role) return true                              // no context → bypass
   if (role === 'role_admin') return true
   if (role === 'role_financeiro') return false        // read-only role
-  if (role === 'role_office') return ownerUserId === uid || ownerIsComercial
+  if (role === 'role_office') return ownerUserId === uid
   if (role === 'role_comercial') return ownerUserId === uid
   return false
 }
@@ -493,12 +493,13 @@ describe('can_access_owner — PostgreSQL logic (JS inline)', () => {
     expect(canAccessOwner('role_office', OFFICE_UID, OFFICE_UID)).toBe(true)
   })
 
-  it('role_office sees comercial user rows', () => {
+  it('role_office sees any other user rows', () => {
     expect(canAccessOwner('role_office', OFFICE_UID, COM_UID, true)).toBe(true)
+    expect(canAccessOwner('role_office', OFFICE_UID, OTHER_UID, false)).toBe(true)
   })
 
-  it('role_office does not see non-comercial other users', () => {
-    expect(canAccessOwner('role_office', OFFICE_UID, OTHER_UID, false)).toBe(false)
+  it('role_office read scope includes non-comercial users', () => {
+    expect(canAccessOwner('role_office', OFFICE_UID, OTHER_UID, false)).toBe(true)
   })
 
   it('role_comercial sees own rows', () => {
@@ -537,8 +538,8 @@ describe('can_write_owner — PostgreSQL logic (JS inline)', () => {
     expect(canWriteOwner('role_office', OFFICE_UID, OFFICE_UID)).toBe(true)
   })
 
-  it('role_office writes comercial rows', () => {
-    expect(canWriteOwner('role_office', OFFICE_UID, 'com-uid', true)).toBe(true)
+  it('role_office cannot write commercial rows unless owner is self', () => {
+    expect(canWriteOwner('role_office', OFFICE_UID, 'com-uid', true)).toBe(false)
   })
 
   it('role_office cannot write non-comercial rows', () => {

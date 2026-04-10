@@ -59,6 +59,7 @@ import {
   handleAuthReconcileAll,
   handleAuthReconcileUser,
 } from './routes/authReconcile.js'
+import { handleRbacInspectRequest } from './routes/rbacInspect.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -567,6 +568,16 @@ export default async function handler(req, res) {
       if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
       if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
       await handleAuthReconcileAll(req, res, { sendJson })
+      return
+    }
+
+    // ── Internal RBAC diagnostics ───────────────────────────────────────────
+    // GET /api/internal/rbac/inspect?emails=a@x.com,b@y.com
+    if (pathname === '/api/internal/rbac/inspect') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      await handleRbacInspectRequest(req, res, { sendJson, requestUrl })
       return
     }
 

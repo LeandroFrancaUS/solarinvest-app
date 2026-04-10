@@ -672,6 +672,8 @@ type ClienteRegistro = {
   ownerName?: string
   /** Email of the user who owns this client record (server-loaded, privileged views only) */
   ownerEmail?: string
+  /** Stack user id of the owner (server-loaded, privileged views only) */
+  ownerUserId?: string
 }
 
 
@@ -1091,6 +1093,8 @@ type OrcamentoSalvo = {
   snapshot?: OrcamentoSnapshotData | undefined
   /** Display name of the consultant who owns this proposal (server-loaded, privileged views only) */
   ownerName?: string
+  /** Stack user id of the owner (server-loaded, privileged views only) */
+  ownerUserId?: string
 }
 
 type UcBeneficiariaFormState = {
@@ -1132,12 +1136,14 @@ const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
 function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
   const ownerEmail = row.owner_email
+  const ownerUserId = row.owner_user_id
   return {
     id: row.id,
     criadoEm: row.created_at,
     atualizadoEm: row.updated_at,
     ...(ownerName != null ? { ownerName } : {}),
     ...(ownerEmail != null ? { ownerEmail } : {}),
+    ...(ownerUserId != null ? { ownerUserId } : {}),
     dados: {
       nome: row.name,
       // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
@@ -1194,6 +1200,7 @@ function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
     tipoProposta,
   } as unknown as PrintableProposalProps
   const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
+  const ownerUserId = row.owner_user_id
   return {
     id: row.proposal_code ?? row.id,
     criadoEm: row.created_at,
@@ -1204,6 +1211,7 @@ function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
     clienteDocumento: row.client_document ?? snapshot?.cliente?.documento ?? undefined,
     clienteUc: snapshot?.cliente?.uc ?? undefined,
     ...(ownerName != null ? { ownerName } : {}),
+    ...(ownerUserId != null ? { ownerUserId } : {}),
     dados,
     snapshot: snapshot ?? undefined,
   }
@@ -3218,10 +3226,16 @@ function ClientesPanel({
 }: ClientesPanelProps) {
   const panelTitleId = useId()
   const [clienteSearchTerm, setClienteSearchTerm] = useState('')
+  const [selectedOwner, setSelectedOwner] = useState('all')
   const [infoClienteId, setInfoClienteId] = useState<string | null>(null)
   const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
+  const ownerOptions = useMemo(() => {
+    if (!isPrivilegedUser) return []
+    return Array.from(new Set(registros.map((r) => r.ownerName ?? r.ownerEmail ?? 'Desconhecido')))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [isPrivilegedUser, registros])
   const registrosFiltrados = useMemo(() => {
-    if (!normalizedSearchTerm) {
+    if (!normalizedSearchTerm && selectedOwner === 'all') {
       return registros
     }
 
@@ -3237,9 +3251,14 @@ function ClientesPanel({
         ? ((registro.ownerName?.toLowerCase().includes(normalizedSearchTerm) ?? false) ||
           (registro.ownerEmail?.toLowerCase().includes(normalizedSearchTerm) ?? false))
         : false
-      return matchNome || matchDocumento || matchOwner
+      const ownerLabel = registro.ownerName ?? registro.ownerEmail ?? 'Desconhecido'
+      const matchSelectedOwner = selectedOwner === 'all' || ownerLabel === selectedOwner
+      if (!normalizedSearchTerm) {
+        return matchSelectedOwner
+      }
+      return (matchNome || matchDocumento || matchOwner) && matchSelectedOwner
     })
-  }, [isPrivilegedUser, normalizedSearchTerm, registros])
+  }, [isPrivilegedUser, normalizedSearchTerm, registros, selectedOwner])
   const totalRegistros = registros.length
   const totalResultados = registrosFiltrados.length
   // For privileged views, how many distinct consultants are represented
@@ -3316,15 +3335,39 @@ function ClientesPanel({
               placeholder={isPrivilegedUser ? 'Ex.: Maria Silva, 123.456.789-00 ou João Consultor' : 'Ex.: Maria Silva ou 123.456.789-00'}
             />
           </Field>
+          {isPrivilegedUser ? (
+            <div className="owner-filter-row">
+              <label htmlFor="clientes-owner-filter">Criador/consultor</label>
+              <select
+                id="clientes-owner-filter"
+                value={selectedOwner}
+                onChange={(event) => setSelectedOwner(event.target.value)}
+              >
+                <option value="all">Todos os consultores</option>
+                {ownerOptions.map((owner) => (
+                  <option key={owner} value={owner}>
+                    {owner}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <div className="budget-search-summary">
             <span>
               {totalRegistros === 0
                 ? 'Nenhum cliente salvo até o momento.'
                 : `${totalResultados} de ${totalRegistros} cliente(s) exibidos.`}
             </span>
-            {clienteSearchTerm ? (
-              <button type="button" className="link" onClick={() => setClienteSearchTerm('')}>
-                Limpar busca
+            {(clienteSearchTerm || selectedOwner !== 'all') ? (
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  setClienteSearchTerm('')
+                  setSelectedOwner('all')
+                }}
+              >
+                Limpar filtros
               </button>
             ) : null}
           </div>
@@ -19783,8 +19826,15 @@ export default function App() {
     [removerOrcamentoSalvo, requestConfirmDialog],
   )
 
+  const [selectedProposalOwner, setSelectedProposalOwner] = useState('all')
+  const proposalOwnerOptions = useMemo(() => {
+    if (!(isAdmin || isOffice || isFinanceiro)) return []
+    return Array.from(new Set(orcamentosSalvos.map((r) => r.ownerName ?? 'Desconhecido')))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [isAdmin, isFinanceiro, isOffice, orcamentosSalvos])
+
   const orcamentosFiltrados = useMemo(() => {
-    if (!orcamentoSearchTerm.trim()) {
+    if (!orcamentoSearchTerm.trim() && selectedProposalOwner === 'all') {
       return orcamentosSalvos
     }
 
@@ -19804,6 +19854,8 @@ export default function App() {
       const ucTexto = normalizeText(ucRaw)
       const ucDigits = normalizeNumbers(ucRaw)
       const ownerTexto = normalizeText(registro.ownerName ?? '')
+      const ownerLabel = registro.ownerName ?? 'Desconhecido'
+      const matchSelectedOwner = selectedProposalOwner === 'all' || ownerLabel === selectedProposalOwner
 
       if (
         codigo.includes(queryText) ||
@@ -19813,21 +19865,21 @@ export default function App() {
         ucTexto.includes(queryText) ||
         (ownerTexto && ownerTexto.includes(queryText))
       ) {
-        return true
+        return matchSelectedOwner
       }
 
       if (!queryDigits) {
         return false
       }
 
-      return (
+      return matchSelectedOwner && (
         codigoDigits.includes(queryDigits) ||
         clienteIdDigits.includes(queryDigits) ||
         documentoDigits.includes(queryDigits) ||
         ucDigits.includes(queryDigits)
       )
     })
-  }, [orcamentoSearchTerm, orcamentosSalvos])
+  }, [orcamentoSearchTerm, orcamentosSalvos, selectedProposalOwner])
 
   const totalOrcamentos = orcamentosSalvos.length
   const totalResultados = orcamentosFiltrados.length
@@ -25368,15 +25420,39 @@ export default function App() {
               autoFocus
             />
           </Field>
+          {(isAdmin || isOffice || isFinanceiro) ? (
+            <div className="owner-filter-row">
+              <label htmlFor="propostas-owner-filter">Criador/consultor</label>
+              <select
+                id="propostas-owner-filter"
+                value={selectedProposalOwner}
+                onChange={(event) => setSelectedProposalOwner(event.target.value)}
+              >
+                <option value="all">Todos os consultores</option>
+                {proposalOwnerOptions.map((owner) => (
+                  <option key={owner} value={owner}>
+                    {owner}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <div className="budget-search-summary">
             <span>
               {totalOrcamentos === 0
                 ? 'Nenhum orçamento salvo até o momento.'
                 : `${totalResultados} de ${totalOrcamentos} orçamento(s) exibidos.`}
             </span>
-            {orcamentoSearchTerm ? (
-              <button type="button" className="link" onClick={() => setOrcamentoSearchTerm('')}>
-                Limpar busca
+            {(orcamentoSearchTerm || selectedProposalOwner !== 'all') ? (
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  setOrcamentoSearchTerm('')
+                  setSelectedProposalOwner('all')
+                }}
+              >
+                Limpar filtros
               </button>
             ) : null}
           </div>
