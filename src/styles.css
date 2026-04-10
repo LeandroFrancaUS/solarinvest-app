@@ -5704,6 +5704,22 @@ i:hover {
   color: var(--accent);
 }
 
+.owner-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.owner-filter-row label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.owner-filter-row select {
+  min-width: 220px;
+}
+
 .budget-search-empty {
   margin: 0;
   padding: 32px 16px;

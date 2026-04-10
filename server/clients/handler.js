@@ -31,6 +31,15 @@ function getDb(sendJson) {
   return db
 }
 
+function sqlForActor(db, actor) {
+  // Important production fallback:
+  // If a database environment is still on legacy RLS policies (without role-aware
+  // helpers), setting user context can incorrectly force admin into own-only scope.
+  // Admin requests therefore use raw sql (service scope) to guarantee global access.
+  if (actor?.isAdmin) return db.sql
+  return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+}
+
 /**
  * POST /api/clients/upsert-by-cpf
  * Upsert a client by CPF or CNPJ (deduplication). Returns existing client if document matches.
@@ -176,7 +185,7 @@ export async function handleClientsRequest(req, res, ctx) {
   if (method === 'GET') {
     const q = requestUrl.searchParams
     // RLS (via userSql + role context) enforces access — no ownerUserId/officeUserId needed.
-    const userSql = createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+    const userSql = sqlForActor(db, actor)
     try {
       const result = await listClients(userSql, {
         createdByUserId: q.get('created_by') ?? null,
@@ -214,7 +223,7 @@ export async function handleClientsRequest(req, res, ctx) {
       else if (docNormalized && docType === 'cnpj') identityStatus = 'confirmed'
       else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
       // RLS enforces write permission; app layer also guards via isFinanceiro check above.
-      const userSql = createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+      const userSql = sqlForActor(db, actor)
       const client = await createClient(userSql, {
         ...body,
         cpf_normalized: cpfNormalized,
@@ -258,7 +267,7 @@ export async function handleClientByIdRequest(req, res, ctx) {
 
   // GET /api/clients/:id/proposals
   if (method === 'GET' && subpath === 'proposals') {
-    const userSql = createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+    const userSql = sqlForActor(db, actor)
     try {
       const proposals = await getClientProposals(userSql, clientId)
       return sendJson(200, { data: proposals })
@@ -281,7 +290,7 @@ export async function handleClientByIdRequest(req, res, ctx) {
       const cpfNormalized = (body.cpf_raw != null || docType === 'cpf') ? normalizeCpfServer(body.cpf_raw ?? rawDoc) : undefined
       const cnpjNormalized = (body.cnpj_raw != null || docType === 'cnpj') ? normalizeCnpjServer(body.cnpj_raw ?? rawDoc) : undefined
       // RLS enforces write permission; app layer also guards via isFinanceiro check above.
-      const userSql = createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+      const userSql = sqlForActor(db, actor)
       const updated = await updateClient(userSql, clientId, {
         ...body,
         cpf_normalized: cpfNormalized,
