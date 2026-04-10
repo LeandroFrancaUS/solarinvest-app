@@ -185,8 +185,8 @@ export async function handleClientsRequest(req, res, ctx) {
   if (method === 'GET') {
     const q = requestUrl.searchParams
     // RLS (via userSql + role context) enforces access — no ownerUserId/officeUserId needed.
-    const userSql = sqlForActor(db, actor)
     try {
+      const userSql = sqlForActor(db, actor)
       const result = await listClients(userSql, {
         createdByUserId: q.get('created_by') ?? null,
         city: q.get('city') ?? null,
@@ -200,6 +200,12 @@ export async function handleClientsRequest(req, res, ctx) {
       })
       return sendJson(200, result)
     } catch (err) {
+      if (err && err.statusCode === 403) {
+        return sendError(sendJson, 403, 'FORBIDDEN', 'Insufficient permissions')
+      }
+      if (err && err.statusCode === 401) {
+        return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
+      }
       console.error('[clients] list error:', err)
       return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to list clients')
     }

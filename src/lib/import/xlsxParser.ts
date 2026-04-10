@@ -81,8 +81,12 @@ export function matrixToCsv(rows: string[][], delimiter = ';'): string {
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
+  // 'r' is included so that rich-text runs inside <si> elements are ALWAYS
+  // returned as an array, even when a cell has only one <r> run (e.g. bold
+  // headers in Excel/Google Sheets).  Without it, a single <r> is parsed as
+  // a plain object and the text value is lost, silently breaking xlsx import.
   isArray: (tagName) =>
-    ['si', 'sheet', 'row', 'c', 'Override', 'Relationship'].includes(tagName),
+    ['si', 'r', 'sheet', 'row', 'c', 'Override', 'Relationship'].includes(tagName),
 })
 
 async function readZipText(zip: JSZip, path: string): Promise<string | null> {
@@ -97,16 +101,28 @@ async function loadSharedStrings(zip: JSZip): Promise<string[]> {
   const xml = await readZipText(zip, 'xl/sharedStrings.xml')
   if (!xml) return []
 
+  type RichTextRun = { t?: string | { '#text': string } | number }
   const doc = parser.parse(xml) as {
     sst?: {
-      si?: Array<{ t?: string | { '#text': string } | number; r?: Array<{ t?: string | { '#text': string } | number }> }>
+      si?: Array<{
+        t?: string | { '#text': string } | number
+        // With 'r' in isArray, this is always an Array when present.
+        // Defensive union kept for callers that bypass the module-level parser.
+        r?: RichTextRun[] | RichTextRun
+      }>
     }
   }
   const items = doc?.sst?.si ?? []
   return items.map((item) => {
-    // Rich-text: concatenate all runs
+    // Rich-text: concatenate all runs.
+    // 'r' is in the parser's isArray list so this is normally always an Array,
+    // but guard against the non-array case for defensive correctness.
     if (Array.isArray(item.r)) {
       return item.r.map((run) => extractText(run.t)).join('')
+    }
+    if (item.r && typeof item.r === 'object') {
+      // Single run not wrapped in array (parser misconfiguration safety net)
+      return extractText((item.r as RichTextRun).t)
     }
     return extractText(item.t)
   })
