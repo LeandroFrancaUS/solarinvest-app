@@ -297,6 +297,11 @@ function resolveCellValue(
 /**
  * Convert an Excel column reference like "A1", "BC42" → zero-based column index.
  * Strips the row number; handles multi-letter columns (A=0, Z=25, AA=26 …).
+ *
+ * Algorithm: treat letters as bijective base-26 (A=1 … Z=26), then subtract 1
+ * at the end for zero-based indexing.  `charCode - 64` maps 'A'→1 … 'Z'→26,
+ * which is correct for the bijective encoding (NOT `charCode - 65` which would
+ * map 'A'→0 and break the final -1 adjustment).
  */
 function colLetterToIndex(ref: string): number {
   const letters = ref.replace(/[^A-Za-z]/g, '').toUpperCase()

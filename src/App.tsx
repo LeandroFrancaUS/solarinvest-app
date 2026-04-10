@@ -14899,8 +14899,9 @@ export default function App() {
   /** Called when user confirms the preview modal. */
   const handleConfirmImportPreview = useCallback(
     (csvContent: string) => {
-      setImportPreviewState(null)
+      // Capture fileName before clearing state so it's available in applyImportedCsv
       const fileName = importPreviewState?.fileName ?? ''
+      setImportPreviewState(null)
       applyImportedCsv(csvContent, fileName)
       setIsImportandoClientes(false)
     },
