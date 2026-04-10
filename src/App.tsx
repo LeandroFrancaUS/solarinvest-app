@@ -4644,7 +4644,18 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useStackUser()
-  const { isAdmin: isAdminFromStack, role: userRole, isOffice, isFinanceiro, isLoading: isStackPermLoading, canSeeContracts, canSeeUsers, canSeeDashboard } = useStackRbac()
+  const {
+    isAdmin: isAdminFromStack,
+    role: userRole,
+    isOffice,
+    isFinanceiro,
+    isLoading: isStackPermLoading,
+    canSeeContracts,
+    canSeeClients,
+    canSeeProposals,
+    canSeeUsers,
+    canSeeDashboard,
+  } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
   // Falls back to null while user hasn't resolved yet (no auth header sent).
@@ -25327,6 +25338,56 @@ export default function App() {
   const shellContentSubtitle = isSimulacoesMobile ? undefined : contentSubtitle
   const shellPageIndicator = isSimulacoesMobile ? undefined : currentPageIndicator
 
+  const crmItems = [
+    ...(canSeeProposals
+      ? [
+          {
+            id: 'crm-central',
+            label: 'Central CRM',
+            icon: '📇',
+            onSelect: () => {
+              void abrirCrmCentral()
+            },
+          },
+          {
+            id: 'crm-operacoes',
+            label: 'Operações',
+            icon: '🗂️',
+            items: [
+              {
+                id: 'crm-captura',
+                label: 'Captura de leads',
+                icon: '🛰️',
+                onSelect: () => {
+                  void abrirCrmCentral()
+                },
+              },
+              {
+                id: 'crm-pos-venda',
+                label: 'Pós-venda',
+                icon: '🤝',
+                onSelect: () => {
+                  void abrirCrmCentral()
+                },
+              },
+            ],
+          },
+        ]
+      : []),
+    ...(canSeeClients
+      ? [
+          {
+            id: 'crm-clientes',
+            label: 'Clientes salvos',
+            icon: '👥',
+            onSelect: () => {
+              void abrirClientesPainel()
+            },
+          },
+        ]
+      : []),
+  ]
+
   const sidebarGroups: SidebarGroup[] = [
     ...(canSeeDashboard
       ? [
@@ -25346,70 +25407,84 @@ export default function App() {
           },
         ]
       : []),
-    {
-      id: 'propostas',
-      label: 'Propostas',
-      items: [
-        {
-          id: 'propostas-leasing',
-          label: 'Leasing',
-          icon: '📝',
-          onSelect: () => {
-            void handleNavigateToProposalTab('leasing')
+    ...((canSeeProposals || canSeeContracts)
+      ? [
+          {
+            id: 'propostas',
+            label: 'Propostas',
+            items: [
+              ...(canSeeProposals
+                ? [
+                    {
+                      id: 'propostas-leasing',
+                      label: 'Leasing',
+                      icon: '📝',
+                      onSelect: () => {
+                        void handleNavigateToProposalTab('leasing')
+                      },
+                    },
+                    {
+                      id: 'propostas-vendas',
+                      label: 'Vendas',
+                      icon: '🧾',
+                      onSelect: () => {
+                        void handleNavigateToProposalTab('vendas')
+                      },
+                    },
+                    ...(isAdmin
+                      ? [
+                          {
+                            id: 'simulacoes-analise',
+                            label: 'Análise Financeira',
+                            icon: '✅',
+                            onSelect: () => {
+                              void abrirSimulacoes('analise')
+                            },
+                          },
+                        ]
+                      : []),
+                  ]
+                : []),
+              ...(canSeeContracts
+                ? [
+                    {
+                      id: 'propostas-contratos',
+                      label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
+                      icon: '🖋️',
+                      onSelect: () => {
+                        void handleGerarContratosComConfirmacao()
+                      },
+                      disabled: gerandoContratos,
+                    },
+                  ]
+                : []),
+              ...(canSeeProposals
+                ? [
+                    {
+                      id: 'propostas-enviar',
+                      label: 'Enviar proposta',
+                      icon: '📨',
+                      onSelect: () => {
+                        abrirEnvioPropostaModal()
+                      },
+                      disabled: contatosEnvio.length === 0,
+                      title:
+                        contatosEnvio.length === 0
+                          ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
+                          : undefined,
+                    },
+                  ]
+                : []),
+            ],
           },
-        },
-        {
-          id: 'propostas-vendas',
-          label: 'Vendas',
-          icon: '🧾',
-          onSelect: () => {
-            void handleNavigateToProposalTab('vendas')
-          },
-        },
-        ...(isAdmin
-          ? [
-              {
-                id: 'simulacoes-analise',
-                label: 'Análise Financeira',
-                icon: '✅',
-                onSelect: () => {
-                  void abrirSimulacoes('analise')
-                },
-              },
-            ]
-          : []),
-        ...(canSeeContracts
-          ? [
-              {
-                id: 'propostas-contratos',
-                label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
-                icon: '🖋️',
-                onSelect: () => {
-                  void handleGerarContratosComConfirmacao()
-                },
-                disabled: gerandoContratos,
-              },
-            ]
-          : []),
-        {
-          id: 'propostas-enviar',
-          label: 'Enviar proposta',
-          icon: '📨',
-          onSelect: () => {
-            abrirEnvioPropostaModal()
-          },
-          disabled: contatosEnvio.length === 0,
-          title:
-            contatosEnvio.length === 0
-              ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
-              : undefined,
-        },
-      ],
-    },
-    {
-      id: 'simulacoes',
-      label: 'Simulações',
-      items: [
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
+            id: 'simulacoes',
+            label: 'Simulações',
+            items: [
         {
           id: 'simulacoes-nova',
           label: 'Nova Simulação',
@@ -25458,89 +25533,63 @@ export default function App() {
             void abrirSimulacoes('packs-inteligentes')
           },
         },
-      ],
-    },
-    {
-      id: 'relatorios',
-      label: 'Relatórios',
-      items: [
-        {
-          id: 'relatorios-pdfs',
-          label: 'Ver propostas',
-          icon: '📂',
-          onSelect: () => {
-            void abrirPesquisaOrcamentos()
+            ],
           },
-        },
-        {
-          id: 'relatorios-exportacoes',
-          label: 'Exportar',
-          icon: '📤',
-          onSelect: () => {
-            setActivePage('app')
-          },
-        },
-      ],
-    },
-    {
-      id: 'orcamentos',
-      label: 'Orçamentos',
-      items: [
-        {
-          id: 'orcamentos-importar',
-          label: 'Consultar',
-          icon: '📄',
-          onSelect: () => {
-            void abrirPesquisaOrcamentos()
-          },
-        },
-      ],
-    },
-    {
-      id: 'crm',
-      label: 'CRM',
-      items: [
-        {
-          id: 'crm-central',
-          label: 'Central CRM',
-          icon: '📇',
-          onSelect: () => {
-            void abrirCrmCentral()
-          },
-        },
-        {
-          id: 'crm-clientes',
-          label: 'Clientes salvos',
-          icon: '👥',
-          onSelect: () => {
-            void abrirClientesPainel()
-          },
-        },
-        {
-          id: 'crm-operacoes',
-          label: 'Operações',
-          icon: '🗂️',
-          items: [
-            {
-              id: 'crm-captura',
-              label: 'Captura de leads',
-              icon: '🛰️',
-              onSelect: () => {
-                void abrirCrmCentral()
+        ]
+      : []),
+    ...(canSeeProposals
+      ? [
+          {
+            id: 'relatorios',
+            label: 'Relatórios',
+            items: [
+              {
+                id: 'relatorios-pdfs',
+                label: 'Ver propostas',
+                icon: '📂',
+                onSelect: () => {
+                  void abrirPesquisaOrcamentos()
+                },
               },
-            },
-            {
-              id: 'crm-pos-venda',
-              label: 'Pós-venda',
-              icon: '🤝',
-              onSelect: () => {
-                void abrirCrmCentral()
+              {
+                id: 'relatorios-exportacoes',
+                label: 'Exportar',
+                icon: '📤',
+                onSelect: () => {
+                  setActivePage('app')
+                },
               },
-            },
-          ],
-        },
-      ],
-    },
+            ],
+          },
+        ]
+      : []),
+    ...((canSeeClients || canSeeProposals)
+      ? [
+          {
+            id: 'orcamentos',
+            label: 'Orçamentos',
+            items: [
+              {
+                id: 'orcamentos-importar',
+                label: 'Consultar',
+                icon: '📄',
+                onSelect: () => {
+                  void abrirPesquisaOrcamentos()
+                },
+              },
+            ],
+          },
+        ]
+      : []),
+    ...(crmItems.length > 0
+      ? [
+          {
+            id: 'crm',
+            label: 'CRM',
+            items: crmItems,
+          },
+        ]
+      : []),
     {
       id: 'configuracoes',
       label: 'Configurações',
@@ -25583,8 +25632,10 @@ export default function App() {
   ]
 
   const mobileAllowedIds = [
-    'propostas-leasing',
-    'propostas-vendas',
+    ...(canSeeProposals ? ['propostas-leasing', 'propostas-vendas'] : []),
+    ...(canSeeContracts ? ['propostas-contratos'] : []),
+    ...(canSeeClients || canSeeProposals ? ['orcamentos-importar'] : []),
+    ...(canSeeClients ? ['crm-clientes'] : []),
     ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
     ...(canSeeUsers ? ['config-admin-users'] : []),
     'config-sair',

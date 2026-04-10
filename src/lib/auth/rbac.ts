@@ -28,6 +28,10 @@ export interface StackRbacState {
   canSeePreferences: boolean
   /** True when user has page:contracts permission. */
   canSeeContracts: boolean
+  /** True when user has page_clients permission. */
+  canSeeClients: boolean
+  /** True when user has page_proposals permission. */
+  canSeeProposals: boolean
   /** True when user has page:users permission. */
   canSeeUsers: boolean
   /** True when user has page:dashboard permission. */
@@ -60,13 +64,15 @@ export function useStackRbac(): StackRbacState {
     canSeeFinancialAnalysis: false,
     canSeePreferences: false,
     canSeeContracts: false,
+    canSeeClients: false,
+    canSeeProposals: false,
     canSeeUsers: false,
     canSeeDashboard: false,
   })
 
   useEffect(() => {
     if (!user) {
-      setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeUsers: false, canSeeDashboard: false })
+      setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeClients: false, canSeeProposals: false, canSeeUsers: false, canSeeDashboard: false })
       return
     }
 
@@ -80,10 +86,30 @@ export function useStackRbac(): StackRbacState {
       user.hasPermission(PERMISSIONS.PAGE_FINANCIAL),
       user.hasPermission(PERMISSIONS.PAGE_PREF),
       user.hasPermission(PERMISSIONS.PAGE_CONTRACTS),
+      user.hasPermission(PERMISSIONS.PAGE_CONTRACTS_LEGACY),
+      user.hasPermission(PERMISSIONS.PAGE_CLIENTS),
+      user.hasPermission(PERMISSIONS.PAGE_CLIENTS_LEGACY),
+      user.hasPermission(PERMISSIONS.PAGE_PROPOSALS),
+      user.hasPermission(PERMISSIONS.PAGE_PROPOSALS_LEGACY),
       user.hasPermission(PERMISSIONS.PAGE_USERS),
       user.hasPermission(PERMISSIONS.PAGE_DASHBOARD),
     ])
-      .then(([isAdminPerm, isComercialPerm, isOfficePerm, isFinanceiroPerm, canFinancial, canPref, canContracts, canUsers, canDashboard]) => {
+      .then(([
+        isAdminPerm,
+        isComercialPerm,
+        isOfficePerm,
+        isFinanceiroPerm,
+        canFinancial,
+        canPref,
+        canContracts,
+        canContractsLegacy,
+        canClients,
+        canClientsLegacy,
+        canProposals,
+        canProposalsLegacy,
+        canUsers,
+        canDashboard,
+      ]) => {
         if (cancelled) return
         const resolvedAdmin = isAdminPerm
         const resolvedFinanceiro = !isAdminPerm && isFinanceiroPerm
@@ -108,7 +134,9 @@ export function useStackRbac(): StackRbacState {
           // role_admin includes all page-level permissions automatically.
           canSeeFinancialAnalysis: canFinancial || isAdminPerm,
           canSeePreferences: canPref || isAdminPerm,
-          canSeeContracts: canContracts || isAdminPerm,
+          canSeeContracts: canContracts || canContractsLegacy || isAdminPerm,
+          canSeeClients: canClients || canClientsLegacy || isAdminPerm,
+          canSeeProposals: canProposals || canProposalsLegacy || isAdminPerm,
           canSeeUsers: canUsers || isAdminPerm,
           canSeeDashboard: canDashboard || isAdminPerm,
         })
@@ -119,7 +147,7 @@ export function useStackRbac(): StackRbacState {
           '[rbac] Failed to fetch Stack Auth permissions:',
           err instanceof Error ? err.message : String(err),
         )
-        setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeUsers: false, canSeeDashboard: false })
+        setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeClients: false, canSeeProposals: false, canSeeUsers: false, canSeeDashboard: false })
       })
 
     return () => {
