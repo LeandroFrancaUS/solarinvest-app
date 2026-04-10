@@ -70,11 +70,16 @@ export async function resolveActor(req) {
   // and setups where STACK_SECRET_SERVER_KEY is not configured.
   // Only the admin role has a DB equivalent ('admin' in app_user_access.role).
   const normalizedEmail = (appUser.email ?? '').toLowerCase().trim()
-  const dbRoleIsAdmin = appUser.role === 'admin' && appUser.access_status === 'approved'
-  const bootstrapEmailIsAdmin = Boolean(BOOTSTRAP_ADMIN_EMAIL) && normalizedEmail === BOOTSTRAP_ADMIN_EMAIL
+  const isApproved = appUser.access_status === 'approved'
+  const dbRoleIsAdmin = appUser.role === 'admin' && isApproved
+  // Bootstrap email/userId checks: only activate when the user is approved in the DB.
+  // Requiring approved status means an admin can block bootstrap users by setting
+  // access_status to 'blocked', making the grant revocable through normal admin flows.
+  const bootstrapEmailIsAdmin = Boolean(BOOTSTRAP_ADMIN_EMAIL) && normalizedEmail === BOOTSTRAP_ADMIN_EMAIL && isApproved
   const bootstrapUserIdIsAdmin =
     Boolean(BOOTSTRAP_ADMIN_USER_ID) &&
-    (appUser.auth_provider_user_id === BOOTSTRAP_ADMIN_USER_ID || appUser.id === BOOTSTRAP_ADMIN_USER_ID)
+    (appUser.auth_provider_user_id === BOOTSTRAP_ADMIN_USER_ID || appUser.id === BOOTSTRAP_ADMIN_USER_ID) &&
+    isApproved
 
   // Precedence: admin > financeiro > office > comercial
   // When a user holds multiple permissions the highest-privilege one wins.

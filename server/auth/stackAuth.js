@@ -589,5 +589,9 @@ export function getProjectId() {
 }
 
 export function getBootstrapAdminUserId() {
-  return sanitizeString(process.env.ADMIN_USER_ID) || 'ae1f8d08-a591-454f-915b-ba003b120f75'
+  // Only use the explicit env var — never fall back to a hardcoded UUID.
+  // A hardcoded fallback would permanently grant admin to a specific user
+  // regardless of their Stack Auth permissions or DB access status, making
+  // it impossible to revoke their access through normal admin flows.
+  return sanitizeString(process.env.ADMIN_USER_ID)
 }
