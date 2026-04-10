@@ -28,6 +28,10 @@ export interface StackRbacState {
   canSeePreferences: boolean
   /** True when user has page:contracts permission. */
   canSeeContracts: boolean
+  /** True when user has page:users permission. */
+  canSeeUsers: boolean
+  /** True when user has page:dashboard permission. */
+  canSeeDashboard: boolean
 }
 
 /**
@@ -56,11 +60,13 @@ export function useStackRbac(): StackRbacState {
     canSeeFinancialAnalysis: false,
     canSeePreferences: false,
     canSeeContracts: false,
+    canSeeUsers: false,
+    canSeeDashboard: false,
   })
 
   useEffect(() => {
     if (!user) {
-      setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false })
+      setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeUsers: false, canSeeDashboard: false })
       return
     }
 
@@ -74,8 +80,10 @@ export function useStackRbac(): StackRbacState {
       user.hasPermission(PERMISSIONS.PAGE_FINANCIAL),
       user.hasPermission(PERMISSIONS.PAGE_PREF),
       user.hasPermission(PERMISSIONS.PAGE_CONTRACTS),
+      user.hasPermission(PERMISSIONS.PAGE_USERS),
+      user.hasPermission(PERMISSIONS.PAGE_DASHBOARD),
     ])
-      .then(([isAdminPerm, isComercialPerm, isOfficePerm, isFinanceiroPerm, canFinancial, canPref, canContracts]) => {
+      .then(([isAdminPerm, isComercialPerm, isOfficePerm, isFinanceiroPerm, canFinancial, canPref, canContracts, canUsers, canDashboard]) => {
         if (cancelled) return
         const resolvedAdmin = isAdminPerm
         const resolvedFinanceiro = !isAdminPerm && isFinanceiroPerm
@@ -97,11 +105,12 @@ export function useStackRbac(): StackRbacState {
           isFinanceiro: resolvedFinanceiro,
           role,
           isLoading: false,
-          // role_admin includes page:financial_analysis, page:preferences, and page:contracts,
-          // so admins automatically get all page-level permissions.
+          // role_admin includes all page-level permissions automatically.
           canSeeFinancialAnalysis: canFinancial || isAdminPerm,
           canSeePreferences: canPref || isAdminPerm,
           canSeeContracts: canContracts || isAdminPerm,
+          canSeeUsers: canUsers || isAdminPerm,
+          canSeeDashboard: canDashboard || isAdminPerm,
         })
       })
       .catch((err) => {
@@ -110,7 +119,7 @@ export function useStackRbac(): StackRbacState {
           '[rbac] Failed to fetch Stack Auth permissions:',
           err instanceof Error ? err.message : String(err),
         )
-        setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false })
+        setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeUsers: false, canSeeDashboard: false })
       })
 
     return () => {

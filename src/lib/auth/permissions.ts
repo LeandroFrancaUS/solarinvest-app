@@ -4,8 +4,9 @@
 //
 // Dashboard setup:
 //   1. Create permissions: role_admin, role_comercial, role_office, role_financeiro,
-//      page:financial_analysis, page:preferences, page:contracts
-//   2. Configure role_admin to include page:financial_analysis, page:preferences, and page:contracts
+//      page:financial_analysis, page:preferences, page:contracts, page:users, page:dashboard
+//   2. Configure role_admin to include page:financial_analysis, page:preferences, page:contracts,
+//      page:users, and page:dashboard
 //
 // Role descriptions:
 //   role_admin      → Administrador com acesso total ao sistema
@@ -21,4 +22,6 @@ export const PERMISSIONS = {
   PAGE_FINANCIAL: "page:financial_analysis",
   PAGE_PREF: "page:preferences",
   PAGE_CONTRACTS: "page:contracts",
+  PAGE_USERS: "page:users",
+  PAGE_DASHBOARD: "page:dashboard",
 } as const

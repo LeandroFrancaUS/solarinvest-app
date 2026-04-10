@@ -4602,7 +4602,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 
 export default function App() {
   const user = useStackUser()
-  const { isAdmin: isAdminFromStack, role: userRole, isOffice, isFinanceiro, isLoading: isStackPermLoading, canSeeContracts } = useStackRbac()
+  const { isAdmin: isAdminFromStack, role: userRole, isOffice, isFinanceiro, isLoading: isStackPermLoading, canSeeContracts, canSeeUsers, canSeeDashboard } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
   // Falls back to null while user hasn't resolved yet (no auth header sent).
@@ -5003,19 +5003,21 @@ export default function App() {
     }
   }, [activePage])
 
-  // Guard protected pages: redirect non-admins away from 'settings' and
-  // 'simulacoes/analise' once RBAC permissions have been resolved.
-  // The isRbacLoading check prevents premature redirects during permission fetch.
+  // Guard protected pages: redirect unauthorized users away from 'settings',
+  // 'simulacoes/analise', 'admin-users', and 'dashboard' once RBAC permissions
+  // have been resolved. The isRbacLoading check prevents premature redirects.
   useEffect(() => {
     if (isRbacLoading) return
     if (activePage === 'settings' && !isAdmin) {
       setActivePage('app')
     } else if (activePage === 'simulacoes' && simulacoesSection === 'analise' && !isAdmin) {
       setActivePage('app')
-    } else if (activePage === 'admin-users' && !isAdmin) {
+    } else if (activePage === 'admin-users' && !canSeeUsers) {
+      setActivePage('app')
+    } else if (activePage === 'dashboard' && !canSeeDashboard) {
       setActivePage('app')
     }
-  }, [activePage, simulacoesSection, isAdmin, isRbacLoading, setActivePage])
+  }, [activePage, simulacoesSection, isAdmin, canSeeUsers, canSeeDashboard, isRbacLoading, setActivePage])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -18458,11 +18460,11 @@ export default function App() {
   )
 
   const abrirAdminUsuarios = useCallback(async () => {
-    if (!isAdmin) return false
+    if (!canSeeUsers) return false
     return runWithUnsavedChangesGuard(() => {
       setActivePage('admin-users')
     })
-  }, [runWithUnsavedChangesGuard, setActivePage, isAdmin])
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeUsers])
 
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -25140,20 +25142,24 @@ export default function App() {
   const shellPageIndicator = isSimulacoesMobile ? undefined : currentPageIndicator
 
   const sidebarGroups: SidebarGroup[] = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      items: [
-        {
-          id: 'dashboard-home',
-          label: 'Dashboard',
-          icon: '📊',
-          onSelect: () => {
-            void abrirDashboard()
+    ...(canSeeDashboard
+      ? [
+          {
+            id: 'dashboard',
+            label: 'Dashboard',
+            items: [
+              {
+                id: 'dashboard-home',
+                label: 'Dashboard',
+                icon: '📊',
+                onSelect: () => {
+                  void abrirDashboard()
+                },
+              },
+            ],
           },
-        },
-      ],
-    },
+        ]
+      : []),
     {
       id: 'propostas',
       label: 'Propostas',
@@ -25363,6 +25369,10 @@ export default function App() {
                   void abrirConfiguracoes()
                 },
               },
+            ]
+          : []),
+        ...(canSeeUsers
+          ? [
               {
                 id: 'config-admin-users',
                 label: 'Gestão de Usuários',
@@ -25389,7 +25399,8 @@ export default function App() {
   const mobileAllowedIds = [
     'propostas-leasing',
     'propostas-vendas',
-    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias', 'config-admin-users'] : []),
+    ...(isAdmin ? ['simulacoes-analise', 'config-preferencias'] : []),
+    ...(canSeeUsers ? ['config-admin-users'] : []),
     'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
