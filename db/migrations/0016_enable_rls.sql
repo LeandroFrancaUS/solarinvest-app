@@ -1,85 +1,112 @@
 -- db/migrations/0016_enable_rls.sql
 --
--- Enable Row Level Security (RLS) on all user-owned data tables.
+-- Enable Row Level Security (RLS) on user-scoped tables that currently exist
+-- in this database.
+--
+-- Current known tables:
+--   - public.storage
+--   - public.storage_events
+--
+-- NOTE:
+--   This migration no longer applies RLS to clients/proposals by default,
+--   because those relations do not exist in the current validated database.
 --
 -- Design:
---   Policies use the session setting app.current_user_id to identify the
---   requesting user.  When that setting is absent or empty the policy
---   bypasses isolation, preserving full backwards compatibility for admin /
---   service queries that do not set a user context.  When a non-empty value
---   IS present, the policy restricts rows to those owned by that user.
+--   Policies rely on helper functions in schema app:
+--     - app.current_user_id()
+--     - app.current_user_role()
+--     - app.can_access_owner(text)
+--     - app.can_write_owner(text)
 --
---   The application layer sets this context via createUserScopedSql() (see
---   server/database/withRLSContext.js) before data queries that belong to a
---   specific user, providing defense-in-depth on top of the existing
---   WHERE-clause enforcement in repository functions.
+--   The application layer must set:
+--     - app.current_user_id
+--     - app.current_user_role
+--   in the same transaction / connection before protected queries.
 --
--- FORCE ROW LEVEL SECURITY ensures policies are evaluated even when the
--- connection role is the table owner.  PostgreSQL superusers (SUPERUSER
--- attribute) still bypass RLS regardless of this flag.
+--   RLS is FORCEd so table owners do not bypass policies.
 --
--- Safe to re-run: every statement uses DROP IF EXISTS / IF NOT EXISTS.
+-- Safe to re-run:
+--   - ALTER TABLE ... ENABLE/FORCE RLS is safe
+--   - DROP POLICY IF EXISTS
+--   - CREATE POLICY
+
+BEGIN;
 
 -- ── storage ───────────────────────────────────────────────────────────────────
+--
+-- Owner column:
+--   user_id
+--
+-- Validated behavior:
+--   role_admin      -> read/write all
+--   role_financeiro -> read all, write none
+--   role_office     -> read all, write own only
+--   role_comercial  -> read/write own only
 
-ALTER TABLE storage ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.storage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.storage FORCE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS storage_rls_policy ON storage;
-CREATE POLICY storage_rls_policy ON storage
-  USING (
-    nullif(current_setting('app.current_user_id', true), '') IS NULL
-    OR user_id = current_setting('app.current_user_id', true)
+DROP POLICY IF EXISTS storage_rls_policy ON public.storage;
+
+CREATE POLICY storage_rls_policy
+ON public.storage
+FOR ALL
+USING (
+  app.can_access_owner(user_id)
+)
+WITH CHECK (
+  app.can_write_owner(user_id)
+  AND (
+    app.current_user_role() = 'role_admin'
+    OR user_id = app.current_user_id()
   )
-  WITH CHECK (
-    nullif(current_setting('app.current_user_id', true), '') IS NULL
-    OR user_id = current_setting('app.current_user_id', true)
-  );
+);
 
 -- ── storage_events ────────────────────────────────────────────────────────────
+--
+-- Audit / append-only table
+--
+-- Rules:
+--   role_admin      -> read all, insert all
+--   role_financeiro -> read all, insert own only unless admin path
+--   others          -> read own, insert own
+--   no updates / deletes
+--
+-- Owner column:
+--   user_id
 
-ALTER TABLE storage_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage_events FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.storage_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.storage_events FORCE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS storage_events_rls_policy ON storage_events;
-CREATE POLICY storage_events_rls_policy ON storage_events
-  USING (
-    nullif(current_setting('app.current_user_id', true), '') IS NULL
-    OR user_id = current_setting('app.current_user_id', true)
-  )
-  WITH CHECK (
-    nullif(current_setting('app.current_user_id', true), '') IS NULL
-    OR user_id = current_setting('app.current_user_id', true)
-  );
+DROP POLICY IF EXISTS storage_events_select_policy ON public.storage_events;
+DROP POLICY IF EXISTS storage_events_insert_policy ON public.storage_events;
+DROP POLICY IF EXISTS storage_events_update_policy ON public.storage_events;
+DROP POLICY IF EXISTS storage_events_delete_policy ON public.storage_events;
 
--- ── clients ───────────────────────────────────────────────────────────────────
+CREATE POLICY storage_events_select_policy
+ON public.storage_events
+FOR SELECT
+USING (
+  app.current_user_role() IN ('role_admin', 'role_financeiro')
+  OR user_id = app.current_user_id()
+);
 
-ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE clients FORCE ROW LEVEL SECURITY;
+CREATE POLICY storage_events_insert_policy
+ON public.storage_events
+FOR INSERT
+WITH CHECK (
+  app.current_user_role() = 'role_admin'
+  OR user_id = app.current_user_id()
+);
 
-DROP POLICY IF EXISTS clients_rls_policy ON clients;
-CREATE POLICY clients_rls_policy ON clients
-  USING (
-    nullif(current_setting('app.current_user_id', true), '') IS NULL
-    OR owner_user_id = current_setting('app.current_user_id', true)
-  )
-  WITH CHECK (
-    nullif(current_setting('app.current_user_id', true), '') IS NULL
-    OR owner_user_id = current_setting('app.current_user_id', true)
-  );
+CREATE POLICY storage_events_update_policy
+ON public.storage_events
+FOR UPDATE
+USING (false);
 
--- ── proposals ─────────────────────────────────────────────────────────────────
+CREATE POLICY storage_events_delete_policy
+ON public.storage_events
+FOR DELETE
+USING (false);
 
-ALTER TABLE proposals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE proposals FORCE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS proposals_rls_policy ON proposals;
-CREATE POLICY proposals_rls_policy ON proposals
-  USING (
-    nullif(current_setting('app.current_user_id', true), '') IS NULL
-    OR owner_user_id = current_setting('app.current_user_id', true)
-  )
-  WITH CHECK (
-    nullif(current_setting('app.current_user_id', true), '') IS NULL
-    OR owner_user_id = current_setting('app.current_user_id', true)
-  );
+COMMIT;
