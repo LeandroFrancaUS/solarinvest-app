@@ -3397,9 +3397,7 @@ function ClientesPanel({
                       <th className="col-nowrap">CPF/CNPJ</th>
                       <th className="col-nowrap">Cidade/UF</th>
                       <th className="col-nowrap">Consumo</th>
-                      <th className="col-sm col-nowrap">UC</th>
                       <th className="col-md col-nowrap">Telefone</th>
-                      <th className="col-lg col-nowrap">E-mail</th>
                       <th className="col-xl col-nowrap">Endereço</th>
                       {isPrivilegedUser ? <th className="col-nowrap">Consultor</th> : null}
                       <th>Ações</th>
@@ -3418,26 +3416,42 @@ function ClientesPanel({
                       const consumoLabel = consumoKwh
                         ? `${formatNumberBR(consumoKwh)} kWh/mês`
                         : null
+                      const whatsappPhone = dados.telefone ? formatWhatsappPhoneNumber(dados.telefone) : null
+                      const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id
                       const enderecoCompleto = [dados.endereco, dados.cidade, dados.uf, dados.cep]
                         .filter(Boolean)
                         .join(', ')
-                      // Total columns: 8 fixed + 1 if privileged (Consultor) + 1 Ações = 9 or 10
-                      const colSpanTotal = isPrivilegedUser ? 10 : 9
+                      // Total columns: 6 fixed + 1 if privileged (Consultor) + 1 Ações = 7 or 8
+                      const colSpanTotal = isPrivilegedUser ? 8 : 7
                       return (
                         <React.Fragment key={registro.id}>
                           <tr className="clients-data-row">
                             <td data-label="Cliente">
-                              <div className="clients-table-client clients-table-client-text">
+                              <button type="button" className="clients-table-client clients-table-load" onClick={() => onEditar(registro)}>
                                 <strong>{primaryLine}</strong>
-                              </div>
+                              </button>
                             </td>
                             <td data-label="CPF/CNPJ">{documentoCliente ? <span>{documentoCliente}</span> : null}</td>
                             <td data-label="Cidade/UF">{cidadeUf ? <span>{cidadeUf}</span> : null}</td>
                             <td data-label="Consumo">{consumoLabel ? <span>{consumoLabel}</span> : null}</td>
-                            <td className="col-sm" data-label="UC">{dados.uc ? <span>{dados.uc}</span> : null}</td>
-                            <td className="col-md" data-label="Telefone">{dados.telefone ? <span>{dados.telefone}</span> : null}</td>
-                            <td className="col-lg" data-label="E-mail">{dados.email ? <span>{dados.email}</span> : null}</td>
+                            <td className="col-md" data-label="Telefone">
+                              {dados.telefone ? (
+                                whatsappHref ? (
+                                  <a
+                                    className="clients-phone-link"
+                                    href={whatsappHref}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    title="Abrir conversa no WhatsApp"
+                                  >
+                                    {dados.telefone}
+                                  </a>
+                                ) : (
+                                  <span>{dados.telefone}</span>
+                                )
+                              ) : null}
+                            </td>
                             <td className="col-xl" data-label="Endereço">{dados.endereco ? <span>{dados.endereco}</span> : null}</td>
                             {isPrivilegedUser ? (
                               <td data-label="Consultor">
@@ -3508,7 +3522,7 @@ function ClientesPanel({
                                       </div>
                                     ) : null}
                                     {dados.uc ? (
-                                      <div className="clients-info-field clients-info-mobile-only">
+                                      <div className="clients-info-field">
                                         <dt>UC</dt>
                                         <dd>{dados.uc}</dd>
                                       </div>
@@ -3516,11 +3530,19 @@ function ClientesPanel({
                                     {dados.telefone ? (
                                       <div className="clients-info-field clients-info-mobile-only">
                                         <dt>Telefone</dt>
-                                        <dd>{dados.telefone}</dd>
+                                        <dd>
+                                          {whatsappHref ? (
+                                            <a className="clients-phone-link" href={whatsappHref} target="_blank" rel="noreferrer noopener">
+                                              {dados.telefone}
+                                            </a>
+                                          ) : (
+                                            dados.telefone
+                                          )}
+                                        </dd>
                                       </div>
                                     ) : null}
                                     {dados.email ? (
-                                      <div className="clients-info-field clients-info-mobile-only">
+                                      <div className="clients-info-field">
                                         <dt>E-mail</dt>
                                         <dd>{dados.email}</dd>
                                       </div>
