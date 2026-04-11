@@ -206,7 +206,20 @@ export async function handleClientsRequest(req, res, ctx) {
       if (err && err.statusCode === 401) {
         return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
       }
-      console.error('[clients] list error:', err)
+      console.error('[clients][GET] list failed', {
+        userId: actor?.userId ?? null,
+        role: actorRole(actor) ?? null,
+        query: {
+          page: q.get('page'),
+          limit: q.get('limit'),
+          search: q.get('search') ? '[redacted]' : null,
+          sort_by: q.get('sort_by'),
+          sort_dir: q.get('sort_dir'),
+        },
+        errorCode: err?.code ?? null,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      })
       return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to list clients')
     }
   }

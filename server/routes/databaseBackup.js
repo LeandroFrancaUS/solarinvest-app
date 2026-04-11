@@ -361,8 +361,8 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
   const action = parseAction(body?.action)
   const destination = parseDestination(body?.destination)
 
-  try {
-    if (action === 'import') {
+  if (action === 'import') {
+    try {
       const importResult = await restoreBackupPayload(db.sql, body?.payload, actor)
       sendJson(res, 200, {
         ok: true,
@@ -370,9 +370,23 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
         importedClients: importResult.importedClients,
         importedProposals: importResult.importedProposals,
       })
-      return
+    } catch (error) {
+      console.error('[backup][import] failed to restore backup:', {
+        actorId: actor.userId,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      })
+      sendJson(res, 500, {
+        ok: false,
+        error: 'IMPORT_BACKUP_FAILED',
+        message: 'Falha ao importar o backup. Verifique se o arquivo é um backup válido do SolarInvest.',
+        details: error instanceof Error ? error.message : String(error),
+      })
     }
+    return
+  }
 
+  try {
     const payload = await buildBackupPayload(db.sql, actor)
     const serialized = JSON.stringify(payload)
     const checksum = crypto.createHash('sha256').update(serialized).digest('hex')
@@ -390,7 +404,17 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
       payload,
     })
   } catch (error) {
-    console.error('[backup] failed to generate backup:', error)
-    sendJson(res, 500, { ok: false, error: 'Falha ao gerar backup do banco.' })
+    console.error('[backup][export] failed to generate backup:', {
+      actorId: actor.userId,
+      destination,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    sendJson(res, 500, {
+      ok: false,
+      error: 'EXPORT_BACKUP_FAILED',
+      message: 'Falha ao gerar backup do banco.',
+      details: error instanceof Error ? error.message : String(error),
+    })
   }
 }

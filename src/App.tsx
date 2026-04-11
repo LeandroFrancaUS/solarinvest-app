@@ -14891,10 +14891,26 @@ export default function App() {
     event.target.value = ''
     if (!arquivo || typeof window === 'undefined') return
 
+    // Guard: only JSON database backups are accepted here.
+    // Excel/CSV files must be imported via the "Importar clientes" button instead.
+    const backupExt = arquivo.name.toLowerCase().split('.').pop()?.trim()
+    if (backupExt !== 'json') {
+      window.alert(
+        'O backup do banco de dados deve ser um arquivo .json.\n\n' +
+        'Para importar clientes a partir de planilha Excel ou CSV, use o botão "Importar clientes" na barra de ações acima.',
+      )
+      return
+    }
+
     setIsGerandoBackupBanco(true)
     try {
       const texto = await arquivo.text()
-      const json = JSON.parse(texto) as unknown
+      let json: unknown
+      try {
+        json = JSON.parse(texto)
+      } catch {
+        throw new Error('O arquivo selecionado não é um JSON de backup válido.')
+      }
       const token = await getAccessToken()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (token) {
