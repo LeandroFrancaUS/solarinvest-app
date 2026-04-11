@@ -38,6 +38,7 @@ import { getTarifaCheia } from './utils/tarifaAneel'
 import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { resolveApiUrl } from './utils/apiUrl'
+import { parseBackupFileToPayload, type BackupPreview } from './utils/backupImportEngine'
 import {
   persistClienteRegistroToOneDrive,
   persistContratoToOneDrive,
@@ -301,6 +302,7 @@ import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
+import { BACKUP_EXPORT_ENDPOINT, BACKUP_IMPORT_ENDPOINT } from './lib/backup/endpoints'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -3074,7 +3076,10 @@ type ClientesPanelProps = {
   onExportarCsv: () => void
   onExportarJson: () => void
   onImportar: () => void
+  onBackupCliente: () => void
   isImportando: boolean
+  isGerandoBackupBanco?: boolean
+  canBackupBanco?: boolean
   /** When true, shows the "Consultor" column and cross-user description */
   isPrivilegedUser?: boolean
   /** All registered consultant names for the filter dropdown (privileged users only) */
@@ -3224,7 +3229,10 @@ function ClientesPanel({
   onExportarCsv,
   onExportarJson,
   onImportar,
+  onBackupCliente,
   isImportando,
+  isGerandoBackupBanco = false,
+  canBackupBanco = false,
   isPrivilegedUser = false,
   allConsultores = [],
 }: ClientesPanelProps) {
@@ -3317,17 +3325,31 @@ function ClientesPanel({
                 <span aria-hidden="true">📄</span>
                 <span>Exportar CSV</span>
               </button>
-              <button
-                type="button"
-                className="ghost with-icon"
-                onClick={onImportar}
-                disabled={isImportando}
-                aria-busy={isImportando}
-                title="Importar clientes a partir de um arquivo JSON ou CSV"
-              >
-                <span aria-hidden="true">⬇️</span>
-                <span>{isImportando ? 'Importando…' : 'Importar'}</span>
-              </button>
+              {canBackupBanco ? (
+                <button
+                  type="button"
+                  className="ghost with-icon"
+                  onClick={onBackupCliente}
+                  disabled={isGerandoBackupBanco}
+                  aria-busy={isGerandoBackupBanco}
+                  title="Backup completo de clientes e propostas (baixar ou carregar)"
+                >
+                  <span aria-hidden="true">🗄️</span>
+                  <span>{isGerandoBackupBanco ? 'Processando backup…' : 'Backup de cliente'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ghost with-icon"
+                  onClick={onImportar}
+                  disabled={isImportando}
+                  aria-busy={isImportando}
+                  title="Importar clientes a partir de um arquivo JSON ou CSV"
+                >
+                  <span aria-hidden="true">⬇️</span>
+                  <span>{isImportando ? 'Importando…' : 'Importar'}</span>
+                </button>
+              )}
             </div>
           </div>
           <Field
@@ -6519,7 +6541,18 @@ export default function App() {
     useState<LeasingCorresponsavel>(createEmptyCorresponsavel)
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
+  const [isGerandoBackupBanco, setIsGerandoBackupBanco] = useState(false)
+  const [isBackupClienteModalOpen, setIsBackupClienteModalOpen] = useState(false)
+  const [backupDestinoSelecionado, setBackupDestinoSelecionado] = useState<'local' | 'cloud' | 'platform'>('local')
+  const [backupPreview, setBackupPreview] = useState<BackupPreview | null>(null)
+  const [backupPayloadPendente, setBackupPayloadPendente] = useState<unknown>(null)
+  const [backupImportTab, setBackupImportTab] = useState<'summary' | 'clients' | 'proposals'>('summary')
+  const [backupImportSelection, setBackupImportSelection] = useState<{ clients: boolean[]; proposals: boolean[] }>({
+    clients: [],
+    proposals: [],
+  })
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
+  const backupImportInputRef = useRef<HTMLInputElement | null>(null)
   const fecharClientesPainel = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -14548,6 +14581,194 @@ export default function App() {
     }
   }, [clientesImportInputRef, isImportandoClientes])
 
+  const handleBackupUploadArquivo = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = event.target.files?.[0]
+    event.target.value = ''
+    if (!arquivo || typeof window === 'undefined') return
+
+    try {
+      const parsed = await parseBackupFileToPayload(arquivo)
+      setBackupPayloadPendente(parsed.payload)
+      setBackupPreview(parsed.preview)
+      const clients = parsed.payload?.data?.clients ?? []
+      const proposals = parsed.payload?.data?.proposals ?? []
+      setBackupImportSelection({
+        clients: clients.map((item) => Boolean((item as { name?: string }).name)),
+        proposals: proposals.map((item) => Boolean((item as { proposal_type?: string }).proposal_type)),
+      })
+      setBackupImportTab('summary')
+    } catch (error) {
+      console.error('Erro ao preparar backup para importação.', error)
+      window.alert('Formato inválido. Use .xlsx, .xlxs, .xlx, .xls, .csv ou .json.')
+    }
+  }, [])
+
+  const handleConfirmarImportacaoBackup = useCallback(async () => {
+    if (!backupPayloadPendente) return
+    setIsGerandoBackupBanco(true)
+    try {
+      const token = await getAccessToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+        headers['x-stack-access-token'] = token
+      }
+      const clients = (
+        backupPayloadPendente as { data?: { clients?: Array<Record<string, unknown>> } } | null
+      )?.data?.clients ?? []
+      const proposals = (
+        backupPayloadPendente as { data?: { proposals?: Array<Record<string, unknown>> } } | null
+      )?.data?.proposals ?? []
+
+      const response = await fetch(resolveApiUrl(BACKUP_IMPORT_ENDPOINT), {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          meta: {
+            sourceType: backupPreview?.sourceFormat ?? 'json',
+          },
+          selection: {
+            clients: clients.map((item, index) => ({
+              sourceRowIndex: index + 1,
+              selected: Boolean(backupImportSelection.clients[index]),
+              data: item,
+            })),
+            proposals: proposals.map((item, index) => ({
+              sourceRowIndex: index + 1,
+              selected: Boolean(backupImportSelection.proposals[index]),
+              data: item,
+            })),
+          },
+        }),
+      })
+      const payload = (await response.json().catch(() => null)) as
+        | { ok?: boolean; error?: string; message?: string; importedClients?: number; importedProposals?: number }
+        | null
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message ?? payload?.error ?? 'Falha ao importar backup.')
+      }
+      adicionarNotificacao(
+        `Backup carregado com sucesso (${payload.importedClients ?? 0} clientes e ${payload.importedProposals ?? 0} propostas).`,
+        'success',
+      )
+      // Local UI immediate refresh fallback: if API list fails, still surface imported clients.
+      const importedClientsRaw = (
+        backupPayloadPendente as { data?: { clients?: Array<Record<string, unknown>> } } | null
+      )?.data?.clients ?? []
+      if (importedClientsRaw.length > 0) {
+        const existingIds = new Set(carregarClientesSalvos().map((registro) => registro.id))
+        const localRecordsSeed = importedClientsRaw.map((item) => ({
+          id: (typeof item.id === 'string' && item.id.trim()) ? item.id : undefined,
+          dados: {
+            nome: typeof item.name === 'string' ? item.name : '',
+            documento: typeof item.document === 'string' ? item.document : '',
+            email: typeof item.email === 'string' ? item.email : '',
+            telefone: typeof item.phone === 'string' ? item.phone : '',
+            cidade: typeof item.city === 'string' ? item.city : '',
+            uf: typeof item.state === 'string' ? item.state : '',
+            endereco: typeof item.address === 'string' ? item.address : '',
+            uc: typeof item.uc === 'string' ? item.uc : '',
+            distribuidora: typeof item.distribuidora === 'string' ? item.distribuidora : '',
+          },
+          atualizadoEm: new Date().toISOString(),
+          criadoEm: new Date().toISOString(),
+        }))
+        const { registros: importedLocal } = normalizeClienteRegistros(localRecordsSeed, { existingIds })
+        const mergedLocal = [...importedLocal, ...carregarClientesSalvos()].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+        setClientesSalvos(mergedLocal)
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(mergedLocal))
+        }
+      }
+      const atualizados = await carregarClientesPrioritarios()
+      setClientesSalvos(atualizados)
+      setBackupPreview(null)
+      setBackupPayloadPendente(null)
+    } catch (error) {
+      console.error('Erro ao importar backup.', error)
+      window.alert('Não foi possível importar o backup selecionado. Verifique o arquivo e tente novamente.')
+    } finally {
+      setIsGerandoBackupBanco(false)
+    }
+  }, [adicionarNotificacao, backupImportSelection.clients, backupImportSelection.proposals, backupPayloadPendente, backupPreview?.sourceFormat, carregarClientesPrioritarios, getAccessToken, setClientesSalvos])
+
+  const handleExecutarDownloadBackup = useCallback(async (destinoApi: 'local' | 'cloud' | 'platform') => {
+    if (typeof window === 'undefined' || isGerandoBackupBanco) return
+    setIsGerandoBackupBanco(true)
+
+    try {
+      const token = await getAccessToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+        headers['x-stack-access-token'] = token
+      }
+      const response = await fetch(resolveApiUrl(BACKUP_EXPORT_ENDPOINT), {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ action: 'export', destination: destinoApi }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean
+            error?: string
+            fileName?: string
+            payload?: unknown
+            platformSaved?: boolean
+            checksumSha256?: string
+          }
+        | null
+
+      if (!response.ok || !payload?.ok || !payload.payload) {
+        throw new Error(payload?.error ?? 'Falha ao gerar backup.')
+      }
+
+      const json = JSON.stringify(payload.payload, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const fileName = payload.fileName ?? buildClientesFileName('json')
+
+      if (destinoApi === 'local' || destinoApi === 'cloud') {
+        downloadClientesArquivo(blob, fileName)
+      }
+
+      if (destinoApi === 'cloud') {
+        const file = new File([blob], fileName, { type: 'application/json' })
+        if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+          await navigator.share({
+            title: 'Backup SolarInvest',
+            text: 'Backup do banco de dados SolarInvest',
+            files: [file],
+          })
+        } else {
+          window.alert('Web Share indisponível neste dispositivo. O arquivo foi baixado localmente.')
+        }
+      }
+
+      const destinoLabel =
+        destinoApi === 'platform' ? 'plataforma' : destinoApi === 'cloud' ? 'nuvem' : 'dispositivo local'
+      const checksumTexto = payload.checksumSha256 ? ` (checksum: ${payload.checksumSha256.slice(0, 12)}...)` : ''
+      adicionarNotificacao(`Backup gerado com sucesso para ${destinoLabel}${checksumTexto}.`, 'success')
+
+      if (payload.platformSaved) {
+        adicionarNotificacao('Cópia adicional registrada na plataforma (Neon).', 'success')
+      }
+    } catch (error) {
+      console.error('Erro ao gerar backup do banco.', error)
+      window.alert('Não foi possível gerar o backup do banco. Tente novamente.')
+    } finally {
+      setIsGerandoBackupBanco(false)
+    }
+  }, [adicionarNotificacao, buildClientesFileName, downloadClientesArquivo, getAccessToken, isGerandoBackupBanco])
+
+  const handleBackupBancoDados = useCallback(() => {
+    if (isGerandoBackupBanco) return
+    setIsBackupClienteModalOpen(true)
+  }, [isGerandoBackupBanco])
+
   const handleClientesImportarArquivo = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const arquivo = event.target.files?.[0]
@@ -14560,36 +14781,8 @@ export default function App() {
       setIsImportandoClientes(true)
 
       try {
-        const conteudo = await arquivo.text()
-        let lista: unknown[] | null = null
-        const isCsvFile =
-          arquivo.name.toLowerCase().endsWith('.csv') ||
-          arquivo.type.toLowerCase().includes('csv')
-
-        if (isCsvFile) {
-          lista = parseClientesCsv(conteudo)
-        } else {
-          let parsed: unknown
-          try {
-            parsed = JSON.parse(conteudo)
-          } catch (error) {
-            const fallbackCsv = parseClientesCsv(conteudo)
-            if (fallbackCsv.length > 0) {
-              lista = fallbackCsv
-            } else {
-              throw new Error('invalid-json')
-            }
-            parsed = null
-          }
-
-          if (parsed) {
-            lista = Array.isArray(parsed)
-              ? parsed
-              : parsed && typeof parsed === 'object' && Array.isArray((parsed as { clientes?: unknown }).clientes)
-              ? ((parsed as { clientes?: unknown }).clientes as unknown[])
-              : null
-          }
-        }
+        const parsed = await parseBackupFileToPayload(arquivo)
+        const lista = parsed.payload.data.clients as unknown[]
 
         if (!lista || lista.length === 0) {
           window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
@@ -14620,8 +14813,10 @@ export default function App() {
         setClientesSalvos(combinados)
         adicionarNotificacao('Clientes importados com sucesso.', 'success')
       } catch (error) {
-        if ((error as Error).message === 'invalid-json') {
-          window.alert('O arquivo selecionado está em um formato inválido (JSON ou CSV).')
+        if (error instanceof SyntaxError) {
+          window.alert('O arquivo selecionado está em um formato inválido (JSON, CSV, XLSX ou XLS).')
+        } else if (error instanceof Error && error.message) {
+          window.alert(error.message)
         } else {
           console.error('Erro ao importar clientes salvos.', error)
           window.alert('Não foi possível importar os clientes. Verifique o arquivo e tente novamente.')
@@ -27401,7 +27596,10 @@ export default function App() {
       onExportarCsv={handleExportarClientesCsv}
       onExportarJson={handleExportarClientesJson}
       onImportar={handleClientesImportarClick}
+      onBackupCliente={handleBackupBancoDados}
       isImportando={isImportandoClientes}
+      isGerandoBackupBanco={isGerandoBackupBanco}
+      canBackupBanco={isAdmin || isOffice}
       isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
       allConsultores={allConsultores}
     />
@@ -28277,13 +28475,195 @@ export default function App() {
           onClose={handleFecharCorresponsavelModal}
         />
       ) : null}
+      {isBackupClienteModalOpen ? (
+        <div className="modal" role="dialog" aria-modal="true" aria-label="Backup de cliente">
+          <div className="modal-backdrop modal-backdrop--opaque" onClick={() => setIsBackupClienteModalOpen(false)} />
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Backup de cliente</h3>
+              <button type="button" className="ghost" onClick={() => setIsBackupClienteModalOpen(false)}>
+                Fechar
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Escolha se deseja baixar um backup completo ou carregar um arquivo de backup.</p>
+              <Field label="Destino do download">
+                <select
+                  value={backupDestinoSelecionado}
+                  onChange={(event) => {
+                    const value = event.target.value as 'local' | 'cloud' | 'platform'
+                    setBackupDestinoSelecionado(value)
+                  }}
+                >
+                  <option value="local">Local (download)</option>
+                  <option value="cloud">Nuvem (share)</option>
+                  <option value="platform">Plataforma (Neon)</option>
+                </select>
+              </Field>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => {
+                    setIsBackupClienteModalOpen(false)
+                    void handleExecutarDownloadBackup(backupDestinoSelecionado)
+                  }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Exportar backup
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setIsBackupClienteModalOpen(false)
+                    backupImportInputRef.current?.click()
+                  }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Importar backup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {backupPreview ? (
+        <div className="modal" role="dialog" aria-modal="true" aria-label="Pré-visualização de importação">
+          <div className="modal-backdrop modal-backdrop--opaque" onClick={() => setBackupPreview(null)} />
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Pré-visualização de importação</h3>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <button type="button" className={backupImportTab === 'summary' ? 'primary' : 'ghost'} onClick={() => setBackupImportTab('summary')}>Resumo</button>
+                <button type="button" className={backupImportTab === 'clients' ? 'primary' : 'ghost'} onClick={() => setBackupImportTab('clients')}>Clientes</button>
+                <button type="button" className={backupImportTab === 'proposals' ? 'primary' : 'ghost'} onClick={() => setBackupImportTab('proposals')}>Propostas</button>
+              </div>
+              <p>
+                Formato: <strong>{backupPreview.sourceFormat.toUpperCase()}</strong> •
+                Linhas: <strong>{backupPreview.totalRows}</strong> •
+                Clientes: <strong>{backupPreview.clients}</strong> •
+                Propostas: <strong>{backupPreview.proposals}</strong>
+              </p>
+              {backupImportTab === 'summary' ? (
+                <div style={{ maxHeight: '220px', overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.5rem' }}>
+                  <pre style={{ margin: 0, fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}>
+                    {JSON.stringify(backupPreview.sample, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+              {backupImportTab === 'clients' ? (
+                <div style={{ maxHeight: '220px', overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.5rem' }}>
+                  {(((backupPayloadPendente as { data?: { clients?: Array<Record<string, unknown>> } } | null)?.data?.clients) ?? []).map((row, index) => {
+                    const nome = typeof row.name === 'string' ? row.name : ''
+                    const documento = typeof row.document === 'string' ? row.document : ''
+                    const valido = Boolean(nome)
+                    return (
+                      <label key={`backup-client-${index}`} style={{ display: 'grid', gridTemplateColumns: '24px 80px 1fr 1fr', gap: '0.5rem', alignItems: 'center', fontSize: '0.75rem', marginBottom: '0.25rem', opacity: valido ? 1 : 0.6 }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(backupImportSelection.clients[index])}
+                          disabled={!valido || isGerandoBackupBanco}
+                          onChange={(event) => {
+                            const checked = event.target.checked
+                            setBackupImportSelection((prev) => {
+                              const next = [...prev.clients]
+                              next[index] = checked
+                              return { ...prev, clients: next }
+                            })
+                          }}
+                        />
+                        <span>{valido ? 'válido' : 'inválido'}</span>
+                        <span>{nome || 'Sem nome'}</span>
+                        <span>{documento || '—'}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              ) : null}
+              {backupImportTab === 'proposals' ? (
+                <div style={{ maxHeight: '220px', overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.5rem' }}>
+                  {(((backupPayloadPendente as { data?: { proposals?: Array<Record<string, unknown>> } } | null)?.data?.proposals) ?? []).map((row, index) => {
+                    const tipo = typeof row.proposal_type === 'string' ? row.proposal_type : ''
+                    const codigo = typeof row.proposal_code === 'string' ? row.proposal_code : ''
+                    const valido = Boolean(tipo)
+                    return (
+                      <label key={`backup-proposal-${index}`} style={{ display: 'grid', gridTemplateColumns: '24px 80px 1fr 1fr', gap: '0.5rem', alignItems: 'center', fontSize: '0.75rem', marginBottom: '0.25rem', opacity: valido ? 1 : 0.6 }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(backupImportSelection.proposals[index])}
+                          disabled={!valido || isGerandoBackupBanco}
+                          onChange={(event) => {
+                            const checked = event.target.checked
+                            setBackupImportSelection((prev) => {
+                              const next = [...prev.proposals]
+                              next[index] = checked
+                              return { ...prev, proposals: next }
+                            })
+                          }}
+                        />
+                        <span>{valido ? 'válido' : 'inválido'}</span>
+                        <span>{tipo || 'Sem tipo'}</span>
+                        <span>{codigo || '—'}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              ) : null}
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => { void handleConfirmarImportacaoBackup() }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Importar selecionados
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setBackupImportSelection({
+                      clients: (((backupPayloadPendente as { data?: { clients?: unknown[] } } | null)?.data?.clients) ?? []).map(() => true),
+                      proposals: (((backupPayloadPendente as { data?: { proposals?: unknown[] } } | null)?.data?.proposals) ?? []).map(() => true),
+                    })
+                  }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Importar todos os válidos
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setBackupPreview(null)
+                    setBackupPayloadPendente(null)
+                  }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <input
         ref={clientesImportInputRef}
         type="file"
-        accept="application/json,text/csv,.csv"
+        accept=".json,.csv,.xlsx,.xls,application/json,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
+      />
+      <input
+        ref={backupImportInputRef}
+        type="file"
+        accept=".xlsx,.xlxs,.xlx,.xls,.csv,.json,application/json,text/csv"
+        style={{ display: 'none' }}
+        onChange={handleBackupUploadArquivo}
       />
 
       {isLeasingContractsModalOpen ? (
