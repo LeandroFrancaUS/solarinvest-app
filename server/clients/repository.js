@@ -268,6 +268,32 @@ export async function listClients(sql, filter = {}) {
   }
 }
 
+// Fallback query used when the full listClients query fails because of missing
+// columns or tables (e.g. partially-applied migrations in production).
+// Returns the same shape as listClients but without optional JOIN/columns.
+export async function listClientsFallback(sql, filter = {}) {
+  const {
+    page = 1,
+    limit = 20,
+  } = filter
+
+  const pageNum = Math.max(1, parseInt(String(page), 10))
+  const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10)))
+  const offset = (pageNum - 1) * limitNum
+
+  const countResult = await sql('SELECT COUNT(*) FROM clients', [])
+  const dataResult = await sql(
+    'SELECT * FROM clients ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST LIMIT $1 OFFSET $2',
+    [limitNum, offset],
+  )
+
+  const total = parseInt(countResult[0]?.count ?? '0', 10)
+  return {
+    data: dataResult,
+    meta: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+  }
+}
+
 /**
  * Get all proposals for a client.
  */

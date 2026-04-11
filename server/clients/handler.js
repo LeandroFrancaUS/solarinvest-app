@@ -13,6 +13,7 @@ import {
   createClient,
   updateClient,
   listClients,
+  listClientsFallback,
   getClientProposals,
   appendClientAuditLog,
 } from './repository.js'
@@ -206,6 +207,9 @@ export async function handleClientsRequest(req, res, ctx) {
       if (err && err.statusCode === 401) {
         return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
       }
+      // Schema errors (42P01 = undefined table, 42703 = undefined column).
+      // Try a simpler fallback query that does not rely on optional migrations.
+      const isSchemaError = err?.code === '42P01' || err?.code === '42703'
       console.error('[clients][GET] list failed', {
         userId: actor?.userId ?? null,
         role: actorRole(actor) ?? null,
@@ -218,8 +222,24 @@ export async function handleClientsRequest(req, res, ctx) {
         },
         errorCode: err?.code ?? null,
         errorMessage: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
+        usingFallback: isSchemaError,
+        stack: isSchemaError ? undefined : (err instanceof Error ? err.stack : undefined),
       })
+      if (isSchemaError) {
+        try {
+          // Direct (non-RLS) fallback — safe because we already validated auth above.
+          const result = await listClientsFallback(db.sql, {
+            page: q.get('page') ?? 1,
+            limit: q.get('limit') ?? 20,
+          })
+          return sendJson(200, result)
+        } catch (fallbackErr) {
+          console.error('[clients][GET] fallback also failed', {
+            errorCode: fallbackErr?.code ?? null,
+            errorMessage: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+          })
+        }
+      }
       return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to list clients')
     }
   }

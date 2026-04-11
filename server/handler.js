@@ -61,7 +61,7 @@ import {
 } from './routes/authReconcile.js'
 import { handleRbacInspectRequest } from './routes/rbacInspect.js'
 import { handleConsultantsListRequest } from './routes/consultants.js'
-import { handleDatabaseBackupRequest } from './routes/databaseBackup.js'
+import { handleDatabaseBackupRequest, handleDatabaseBackupImportV2Request } from './routes/databaseBackup.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -606,6 +606,16 @@ export default async function handler(req, res) {
       if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
       const body = await readJsonBody(req)
       await handleDatabaseBackupRequest(req, res, { sendJson, body })
+      return
+    }
+
+    // POST /api/admin/database-backup/import — preview-based client import
+    if (pathname === '/api/admin/database-backup/import') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      const body = await readJsonBody(req)
+      await handleDatabaseBackupImportV2Request(req, res, { sendJson, body })
       return
     }
 

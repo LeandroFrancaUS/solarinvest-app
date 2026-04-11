@@ -418,3 +418,167 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
     })
   }
 }
+
+// ─── Preview-based import endpoint ────────────────────────────────────────────
+// POST /api/admin/database-backup/import
+// Accepts the selection payload produced by the ImportBackupPreviewModal.
+// Each item in selection.clients / selection.proposals is a NormalizedImportRow
+// (fields: nome, documento, cidade, uf, telefone, email, consumoKwh, entityType, rowIndex, raw).
+//
+// Returns: { ok, report: { clientsInserted, clientsSkipped, failures: [] } }
+
+function mapNormalizedRowToClient(row) {
+  if (!row || typeof row !== 'object') return null
+  const name = String(row.nome ?? row.name ?? '').trim()
+  if (!name) return null
+
+  return {
+    name,
+    document: row.documento ?? row.document ?? null,
+    city: row.cidade ?? row.city ?? null,
+    state: row.uf ?? row.state ?? null,
+    phone: row.telefone ?? row.phone ?? null,
+    email: row.email ?? null,
+    metadata: row.consumoKwh != null ? { consumoKwh: row.consumoKwh } : null,
+  }
+}
+
+export async function handleDatabaseBackupImportV2Request(req, res, { sendJson, body }) {
+  console.info('[backup-import-v2] request received', {
+    method: req.method,
+    hasBody: !!body,
+    hasAuthorization: !!req.headers.authorization,
+    contentType: req.headers['content-type'],
+  })
+
+  // ── Authentication ─────────────────────────────────────────────────────────
+  let actor
+  try {
+    actor = await resolveActor(req)
+  } catch {
+    sendJson(res, 401, { ok: false, error: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
+    return
+  }
+
+  if (!actor?.userId) {
+    sendJson(res, 401, { ok: false, error: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
+    return
+  }
+
+  // ── Authorization ──────────────────────────────────────────────────────────
+  if (!actor.isAdmin && !actor.isOffice && !actor.isFinanceiro) {
+    sendJson(res, 403, {
+      ok: false,
+      error: 'FORBIDDEN',
+      message: 'Apenas perfis Admin, Office e Financeiro podem importar clientes.',
+    })
+    return
+  }
+
+  // ── Payload validation ─────────────────────────────────────────────────────
+  if (!body || typeof body !== 'object') {
+    sendJson(res, 400, { ok: false, error: 'IMPORT_BODY_INVALID', message: 'Payload de importação inválido.' })
+    return
+  }
+
+  const selection = body.selection
+  if (!selection || typeof selection !== 'object') {
+    sendJson(res, 400, { ok: false, error: 'IMPORT_SELECTION_MISSING', message: 'Campo "selection" ausente no payload.' })
+    return
+  }
+
+  if (!Array.isArray(selection.clients)) {
+    sendJson(res, 400, { ok: false, error: 'IMPORT_CLIENTS_ARRAY_MISSING', message: 'Campo "selection.clients" deve ser um array.' })
+    return
+  }
+
+  const selectedClients = selection.clients.filter((item) => item && (item.selected !== false))
+  const selectedProposals = Array.isArray(selection.proposals)
+    ? selection.proposals.filter((item) => item && (item.selected !== false))
+    : []
+
+  console.info('[backup-import-v2] payload summary', {
+    actorId: actor.userId,
+    totalClients: selectedClients.length,
+    totalProposals: selectedProposals.length,
+    sourceType: body.meta?.sourceType ?? null,
+    fileName: body.meta?.fileName ?? null,
+  })
+
+  // ── Database ───────────────────────────────────────────────────────────────
+  const db = getDatabaseClient()
+  if (!db?.sql) {
+    sendJson(res, 503, { ok: false, error: 'DB_UNAVAILABLE', message: 'Banco de dados não configurado.' })
+    return
+  }
+
+  const report = {
+    clientsInserted: 0,
+    clientsSkipped: 0,
+    proposalsInserted: 0,
+    proposalsSkipped: 0,
+    failures: [],
+  }
+
+  try {
+    for (const item of selectedClients) {
+      // item may be a plain NormalizedImportRow or an ImportPreviewRow whose .data holds the row
+      const rawRow = item.data ?? item
+      const client = mapNormalizedRowToClient(rawRow)
+
+      if (!client) {
+        report.clientsSkipped += 1
+        continue
+      }
+
+      try {
+        await upsertClient(db.sql, client)
+        report.clientsInserted += 1
+      } catch (itemError) {
+        const key = client.name ?? String(item.rowIndex ?? 'unknown')
+        console.warn('[backup-import-v2] client upsert failed', {
+          key,
+          error: itemError instanceof Error ? itemError.message : String(itemError),
+        })
+        report.failures.push({
+          entity: 'client',
+          key,
+          reason: itemError instanceof Error ? itemError.message : String(itemError),
+        })
+      }
+    }
+
+    // Proposals import is a future feature; skip gracefully for now.
+    report.proposalsSkipped = selectedProposals.length
+
+    // Reset client id sequence so future inserts don't collide.
+    if (report.clientsInserted > 0) {
+      try {
+        await db.sql(`
+          SELECT setval(
+            pg_get_serial_sequence('public.clients', 'id'),
+            COALESCE((SELECT MAX(id) FROM public.clients), 1),
+            true
+          )
+        `)
+      } catch {
+        // Non-fatal — sequence reset is a best-effort operation.
+      }
+    }
+
+    console.info('[backup-import-v2] completed', { actorId: actor.userId, report })
+
+    sendJson(res, 200, { ok: true, report })
+  } catch (error) {
+    console.error('[backup-import-v2] unexpected failure', {
+      actorId: actor.userId,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    sendJson(res, 500, {
+      ok: false,
+      error: 'BACKUP_IMPORT_V2_FAILED',
+      message: error instanceof Error ? error.message : 'Falha ao importar backup.',
+    })
+  }
+}

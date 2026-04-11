@@ -14938,8 +14938,9 @@ export default function App() {
       const registros = await carregarClientesPrioritarios()
       setClientesSalvos(registros)
     } catch (error) {
-      console.error('Erro ao carregar backup.', error)
-      window.alert('Não foi possível carregar o backup selecionado. Verifique o arquivo e tente novamente.')
+      const msg = error instanceof Error ? error.message : String(error)
+      console.error('[backup-upload] failed', { error: msg })
+      window.alert(`Não foi possível carregar o backup selecionado.\n\n${msg}`)
     } finally {
       setIsGerandoBackupBanco(false)
     }
@@ -15047,7 +15048,7 @@ export default function App() {
 
   /** Called when user confirms the preview modal. */
   const handleConfirmImportPreview = useCallback(
-    (selectedClients: NormalizedImportRow[], _selectedProposals: NormalizedImportRow[]) => {
+    async (selectedClients: NormalizedImportRow[], _selectedProposals: NormalizedImportRow[]) => {
       // _selectedProposals: proposal import is a future feature; ignored for now
       const fileName = importPreviewState?.model.fileName ?? ''
       setImportPreviewState(null)
@@ -15093,10 +15094,75 @@ export default function App() {
         if (novos.length === 0) return prev
         return [...novos, ...prev].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
       })
-      void migrateLocalStorageToServer()
-      adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
+
+      // Attempt to persist selected rows to the backend for admin/office/financeiro users.
+      // For comercial users (403) we silently fall back to localStorage-only.
+      try {
+        const token = await getAccessToken()
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (token) {
+          headers.Authorization = `Bearer ${token}`
+          headers['x-stack-access-token'] = token
+        }
+        const response = await fetch(resolveApiUrl('/api/admin/database-backup/import'), {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+          body: JSON.stringify({
+            selection: { clients: selectedClients, proposals: [] },
+            meta: { fileName, sourceType: importPreviewState?.model.sourceType ?? 'csv' },
+          }),
+        })
+
+        let responseBody: { ok?: boolean; report?: { clientsInserted?: number; failures?: unknown[] }; error?: string; message?: string } | null = null
+        try {
+          responseBody = await response.json()
+        } catch {
+          // Non-JSON response body — ignore
+        }
+
+        if (response.status === 403) {
+          // User doesn't have backend import permission; localStorage save is sufficient.
+          void migrateLocalStorageToServer()
+          adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}" (local).`, 'success')
+          return
+        }
+
+        if (!response.ok || !responseBody?.ok) {
+          const backendMsg = responseBody?.message ?? responseBody?.error ?? 'Falha ao importar backup.'
+          console.error('[import] backend import failed', { status: response.status, body: responseBody })
+          adicionarNotificacao(
+            `Importação local concluída, mas a sincronização com o backend falhou: ${backendMsg}`,
+            'warning',
+          )
+          void migrateLocalStorageToServer()
+          return
+        }
+
+        const inserted = responseBody?.report?.clientsInserted ?? importados.length
+        const failures = responseBody?.report?.failures ?? []
+
+        if (failures.length > 0) {
+          console.warn('[import] partial import failures', failures)
+          adicionarNotificacao(
+            `${inserted} cliente(s) importado(s) de "${fileName}" com ${failures.length} falha(s). Verifique o console.`,
+            'warning',
+          )
+        } else {
+          adicionarNotificacao(`${inserted} cliente(s) importado(s) de "${fileName}" com sucesso.`, 'success')
+        }
+
+        // Reload the client list from backend so the imported records appear immediately.
+        const registros = await carregarClientesPrioritarios()
+        setClientesSalvos(registros)
+      } catch (apiError) {
+        console.error('[import] API call failed', apiError)
+        // Fall back gracefully — localStorage save already completed above.
+        void migrateLocalStorageToServer()
+        adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}" (local).`, 'success')
+      }
     },
-    [adicionarNotificacao, carregarClientesSalvos, importPreviewState, setClientesSalvos],
+    [adicionarNotificacao, carregarClientesSalvos, carregarClientesPrioritarios, getAccessToken, importPreviewState, setClientesSalvos],
   )
 
   /** Called when user cancels the preview modal. */
