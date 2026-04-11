@@ -302,6 +302,10 @@ import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { parseXlsxFirstSheet, matrixToCsv } from './lib/import/xlsxParser'
+import { normalizeImportRows } from './lib/imports/normalizeImportRows'
+import { buildImportPreview } from './lib/imports/buildImportPreview'
+import type { ImportPreviewModel, ImportPreviewRow } from './lib/imports/buildImportPreview'
+import type { NormalizedImportRow } from './lib/imports/normalizeImportRows'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -4170,151 +4174,266 @@ function ConfirmDialog({
 
 /** Data held while the user is confirming an Excel/CSV import. */
 type ImportPreviewState = {
-  /** CSV string that will be fed to parseClientesCsv() on confirm */
-  csvContent: string
-  /** First few rows of the source data for the preview table */
-  previewRows: string[][]
-  /** Original file name */
-  fileName: string
-  /** Total number of data rows (excluding header) */
-  totalRows: number
+  model: ImportPreviewModel
+  /** Original parsed rows used when applying the import */
+  csvRows: Record<string, unknown>[]
 }
 
 type ImportPreviewModalProps = {
-  state: ImportPreviewState
-  onConfirm: (csvContent: string) => void
+  model: ImportPreviewModel
+  onConfirm: (selectedClients: NormalizedImportRow[], selectedProposals: NormalizedImportRow[]) => void
   onClose: () => void
 }
 
-const PREVIEW_MAX_ROWS = 8
-const PREVIEW_MAX_COLS = 8
-
-function ImportPreviewModal({ state, onConfirm, onClose }: ImportPreviewModalProps) {
+function ImportPreviewModal({ model, onConfirm, onClose }: ImportPreviewModalProps) {
   const titleId = useId()
-  const { csvContent, previewRows, fileName, totalRows } = state
+  const [activeTab, setActiveTab] = React.useState<'summary' | 'clients' | 'proposals'>('summary')
+  const [clientRows, setClientRows] = React.useState<ImportPreviewRow[]>(model.clients)
+  const [proposalRows, setProposalRows] = React.useState<ImportPreviewRow[]>(model.proposals)
 
-  // Trim preview to manageable dimensions
-  const displayRows = previewRows.slice(0, PREVIEW_MAX_ROWS + 1) // +1 for header row
-  const maxCols = Math.min(
-    Math.max(...displayRows.map((r) => r.length), 1),
-    PREVIEW_MAX_COLS,
-  )
+  const validClients = clientRows.filter((r) => r.selectable && r.selected)
+  const validProposals = proposalRows.filter((r) => r.selectable && r.selected)
+  const totalSelected = validClients.length + validProposals.length
 
-  const headerRow = displayRows[0] ?? []
-  const dataRows = displayRows.slice(1)
+  const clientStats = React.useMemo(() => ({
+    total: clientRows.length,
+    valid: clientRows.filter((r) => r.status === 'new').length,
+    duplicate: clientRows.filter((r) => r.status === 'duplicate').length,
+    invalid: clientRows.filter((r) => r.status === 'invalid').length,
+  }), [clientRows])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        onClose()
-      }
+      if (event.key === 'Escape') { event.preventDefault(); onClose() }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
+  const statusBadge = (status: ImportPreviewRow['status']) => {
+    const map: Record<string, { label: string; bg: string; color: string }> = {
+      new: { label: 'Novo', bg: '#dcfce7', color: '#166534' },
+      duplicate: { label: 'Duplicado', bg: '#ffedd5', color: '#9a3412' },
+      invalid: { label: 'Inválido', bg: '#fee2e2', color: '#991b1b' },
+      update: { label: 'Atualizar', bg: '#dbeafe', color: '#1e40af' },
+    }
+    const s = map[status] ?? map.new
+    return (
+      <span style={{ background: s.bg, color: s.color, padding: '1px 6px', borderRadius: 4, fontSize: '0.7rem', fontWeight: 600 }}>
+        {s.label}
+      </span>
+    )
+  }
+
   return (
-    <div
-      className="modal contract-templates-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-    >
+    <div className="modal contract-templates-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="modal-backdrop" onClick={onClose} />
-      <div className="modal-content contract-templates-modal__content" style={{ maxWidth: '780px', width: '95vw' }}>
+      <div className="modal-content contract-templates-modal__content" style={{ maxWidth: '900px', width: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div className="modal-header">
           <h3 id={titleId}>Pré-visualização da importação</h3>
-          <button type="button" className="icon" onClick={onClose} aria-label="Fechar pré-visualização">
-            ✕
-          </button>
+          <button type="button" className="icon" onClick={onClose} aria-label="Fechar pré-visualização">✕</button>
         </div>
-        <div className="modal-body">
-          <p>
-            <strong>Arquivo:</strong> {fileName}
-            {' — '}
-            <strong>{totalRows}</strong> linha(s) de dados encontrada(s).
-          </p>
-          <p className="muted" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
-            Verifique se as colunas abaixo correspondem aos campos de cliente esperados antes de confirmar.
-            {totalRows > PREVIEW_MAX_ROWS
-              ? ` Exibindo ${PREVIEW_MAX_ROWS} de ${totalRows} linhas.`
-              : ''}
-          </p>
 
-          {displayRows.length > 0 ? (
-            <div style={{ overflowX: 'auto', maxHeight: '280px', overflowY: 'auto' }}>
-              <table style={{ borderCollapse: 'collapse', fontSize: '0.78rem', width: '100%' }}>
-                <thead>
-                  <tr>
-                    {headerRow.slice(0, maxCols).map((cell, idx) => (
-                      <th
-                        key={idx}
-                        style={{
-                          border: '1px solid #cbd5e1',
-                          padding: '4px 8px',
-                          background: '#f1f5f9',
-                          whiteSpace: 'nowrap',
-                          position: 'sticky',
-                          top: 0,
-                        }}
-                      >
-                        {cell || `Coluna ${idx + 1}`}
-                      </th>
-                    ))}
-                    {headerRow.length > maxCols ? (
-                      <th style={{ border: '1px solid #cbd5e1', padding: '4px 8px', background: '#f1f5f9' }}>…</th>
-                    ) : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {dataRows.map((row, rowIdx) => (
-                    <tr key={rowIdx}>
-                      {row.slice(0, maxCols).map((cell, colIdx) => (
-                        <td
-                          key={colIdx}
-                          style={{
-                            border: '1px solid #e2e8f0',
-                            padding: '4px 8px',
-                            maxWidth: '160px',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                          title={cell}
-                        >
-                          {cell}
-                        </td>
-                      ))}
-                      {row.length > maxCols ? (
-                        <td style={{ border: '1px solid #e2e8f0', padding: '4px 8px', color: '#94a3b8' }}>…</td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+          {(['summary', 'clients', ...(model.proposals.length > 0 ? ['proposals'] : [])] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab as typeof activeTab)}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                borderBottom: activeTab === tab ? '2px solid #3b82f6' : '2px solid transparent',
+                fontWeight: activeTab === tab ? 600 : 400,
+                color: activeTab === tab ? '#1d4ed8' : '#64748b',
+                fontSize: '0.85rem',
+              }}
+            >
+              {tab === 'summary' && 'Resumo'}
+              {tab === 'clients' && `Clientes (${clientRows.length})`}
+              {tab === 'proposals' && `Propostas (${proposalRows.length})`}
+            </button>
+          ))}
+        </div>
+
+        <div className="modal-body" style={{ flex: 1, overflowY: 'auto' }}>
+          {activeTab === 'summary' && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>Arquivo</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem', wordBreak: 'break-all' }}>{model.fileName}</div>
+                  {model.sheetName && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Aba: {model.sheetName}</div>}
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 2 }}>{model.sourceType.toUpperCase()}</div>
+                </div>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>Clientes</div>
+                  <div style={{ fontWeight: 700, fontSize: '1.5rem' }}>{clientStats.total}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    <span style={{ color: '#166534' }}>{clientStats.valid} novos</span>
+                    {clientStats.duplicate > 0 && <span style={{ color: '#9a3412' }}> · {clientStats.duplicate} dup.</span>}
+                    {clientStats.invalid > 0 && <span style={{ color: '#991b1b' }}> · {clientStats.invalid} inválidos</span>}
+                  </div>
+                </div>
+                {model.proposals.length > 0 && (
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>Propostas</div>
+                    <div style={{ fontWeight: 700, fontSize: '1.5rem' }}>{model.proposals.length}</div>
+                  </div>
+                )}
+              </div>
+              {model.warnings.length > 0 && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.75rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.8rem', color: '#92400e', marginBottom: 4 }}>Avisos ({model.warnings.length})</div>
+                  <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.8rem', color: '#78350f' }}>
+                    {model.warnings.slice(0, 10).map((w, i) => <li key={i}>{w}</li>)}
+                    {model.warnings.length > 10 && <li>…e mais {model.warnings.length - 10}</li>}
+                  </ul>
+                </div>
+              )}
             </div>
-          ) : (
-            <p className="muted">Nenhuma linha encontrada no arquivo.</p>
           )}
 
-          <div className="modal-actions" style={{ marginTop: '1rem' }}>
-            <button type="button" className="ghost" onClick={onClose}>
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="primary"
-              onClick={() => onConfirm(csvContent)}
-              disabled={totalRows === 0}
-            >
-              Confirmar importação ({totalRows} clientes)
-            </button>
-          </div>
+          {activeTab === 'clients' && (
+            <div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem' }}>
+                <button type="button" className="ghost" style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                  onClick={() => setClientRows((rows) => rows.map((r) => r.selectable ? { ...r, selected: true } : r))}>
+                  Selecionar todos válidos
+                </button>
+                <button type="button" className="ghost" style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                  onClick={() => setClientRows((rows) => rows.map((r) => ({ ...r, selected: false })))}>
+                  Desmarcar todos
+                </button>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: '0.78rem', width: '100%' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th style={thStyle}></th>
+                      <th style={thStyle}>#</th>
+                      <th style={thStyle}>Nome</th>
+                      <th style={thStyle}>CPF/CNPJ</th>
+                      <th style={thStyle}>Cidade</th>
+                      <th style={thStyle}>Telefone</th>
+                      <th style={thStyle}>Status</th>
+                      <th style={thStyle}>Obs.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientRows.map((row) => (
+                      <tr key={row.key} style={{ opacity: row.status === 'invalid' ? 0.5 : 1 }}>
+                        <td style={tdStyle}>
+                          <input
+                            type="checkbox"
+                            checked={row.selected}
+                            disabled={!row.selectable}
+                            onChange={(e) => setClientRows((prev) =>
+                              prev.map((r) => r.key === row.key ? { ...r, selected: e.target.checked } : r)
+                            )}
+                          />
+                        </td>
+                        <td style={{ ...tdStyle, color: '#94a3b8' }}>{row.rowIndex + 2}</td>
+                        <td style={{ ...tdStyle, fontWeight: 500, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.data.nome}>{row.data.nome || '—'}</td>
+                        <td style={tdStyle}>{row.data.documento || '—'}</td>
+                        <td style={tdStyle}>{row.data.cidade ? `${row.data.cidade}${row.data.uf ? `/${row.data.uf}` : ''}` : '—'}</td>
+                        <td style={tdStyle}>{row.data.telefone || '—'}</td>
+                        <td style={tdStyle}>{statusBadge(row.status)}</td>
+                        <td style={{ ...tdStyle, color: '#ef4444', fontSize: '0.7rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {[...row.errors, ...row.warnings].join('; ') || ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'proposals' && (
+            <div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem' }}>
+                <button type="button" className="ghost" style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                  onClick={() => setProposalRows((rows) => rows.map((r) => r.selectable ? { ...r, selected: true } : r))}>
+                  Selecionar todos válidos
+                </button>
+                <button type="button" className="ghost" style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                  onClick={() => setProposalRows((rows) => rows.map((r) => ({ ...r, selected: false })))}>
+                  Desmarcar todos
+                </button>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: '0.78rem', width: '100%' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th style={thStyle}></th>
+                      <th style={thStyle}>#</th>
+                      <th style={thStyle}>Nome</th>
+                      <th style={thStyle}>Documento</th>
+                      <th style={thStyle}>Status</th>
+                      <th style={thStyle}>Obs.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {proposalRows.map((row) => (
+                      <tr key={row.key}>
+                        <td style={tdStyle}>
+                          <input
+                            type="checkbox"
+                            checked={row.selected}
+                            disabled={!row.selectable}
+                            onChange={(e) => setProposalRows((prev) =>
+                              prev.map((r) => r.key === row.key ? { ...r, selected: e.target.checked } : r)
+                            )}
+                          />
+                        </td>
+                        <td style={{ ...tdStyle, color: '#94a3b8' }}>{row.rowIndex + 2}</td>
+                        <td style={{ ...tdStyle, fontWeight: 500 }}>{row.data.nome || '—'}</td>
+                        <td style={tdStyle}>{row.data.documento || '—'}</td>
+                        <td style={tdStyle}>{statusBadge(row.status)}</td>
+                        <td style={{ ...tdStyle, color: '#ef4444', fontSize: '0.7rem' }}>
+                          {[...row.errors, ...row.warnings].join('; ') || ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-actions" style={{ borderTop: '1px solid #e2e8f0', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
+          <button type="button" className="ghost" onClick={onClose}>Cancelar</button>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => onConfirm(validClients.map((r) => r.data), validProposals.map((r) => r.data))}
+            disabled={totalSelected === 0}
+          >
+            Importar selecionados ({totalSelected})
+          </button>
         </div>
       </div>
     </div>
   )
+}
+
+const thStyle: React.CSSProperties = {
+  border: '1px solid #e2e8f0',
+  padding: '4px 8px',
+  textAlign: 'left',
+  whiteSpace: 'nowrap',
+  position: 'sticky',
+  top: 0,
+  background: '#f8fafc',
+}
+const tdStyle: React.CSSProperties = {
+  border: '1px solid #e2e8f0',
+  padding: '4px 8px',
 }
 
 
@@ -14912,14 +15031,55 @@ export default function App() {
 
   /** Called when user confirms the preview modal. */
   const handleConfirmImportPreview = useCallback(
-    (csvContent: string) => {
-      // Capture fileName before clearing state so it's available in applyImportedCsv
-      const fileName = importPreviewState?.fileName ?? ''
+    (selectedClients: NormalizedImportRow[], _selectedProposals: NormalizedImportRow[]) => {
+      const fileName = importPreviewState?.model.fileName ?? ''
       setImportPreviewState(null)
-      applyImportedCsv(csvContent, fileName)
       setIsImportandoClientes(false)
+
+      if (selectedClients.length === 0) return
+
+      const rawItems = selectedClients.map((row) => ({
+        dados: {
+          nome: row.nome,
+          documento: row.documento ?? '',
+          cidade: row.cidade ?? '',
+          uf: row.uf ?? '',
+          telefone: row.telefone ?? '',
+          email: row.email ?? '',
+        },
+      }))
+
+      const existentes = carregarClientesSalvos()
+      const existingIds = new Set(existentes.map((r) => r.id))
+      const { registros: importados } = normalizeClienteRegistros(rawItems, { existingIds })
+
+      if (importados.length === 0) {
+        window.alert('Nenhum cliente válido foi encontrado.')
+        return
+      }
+
+      const combinados = [...importados, ...existentes].sort((a, b) =>
+        a.atualizadoEm < b.atualizadoEm ? 1 : -1,
+      )
+
+      try {
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+      } catch (error) {
+        console.error('Erro ao persistir clientes importados.', error)
+        window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
+        return
+      }
+
+      setClientesSalvos((prev) => {
+        const prevIds = new Set(prev.map((r) => r.id))
+        const novos = importados.filter((r) => !prevIds.has(r.id))
+        if (novos.length === 0) return prev
+        return [...novos, ...prev].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+      })
+      void migrateLocalStorageToServer()
+      adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
     },
-    [applyImportedCsv, importPreviewState],
+    [adicionarNotificacao, carregarClientesSalvos, importPreviewState, setClientesSalvos],
   )
 
   /** Called when user cancels the preview modal. */
@@ -14941,20 +15101,47 @@ export default function App() {
 
       const fileName = arquivo.name
       const nameLower = fileName.toLowerCase()
-      const isXlsx = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xlxs') || nameLower.endsWith('.xls')
+      const isXlsxLike = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xlxs') || nameLower.endsWith('.xls')
+
+      const buildExistingNames = () => {
+        const existentes = carregarClientesSalvos()
+        return new Set(existentes.map((r) => r.dados.nome))
+      }
+
+      const matrixToRawRecords = (rows: string[][]): Record<string, unknown>[] => {
+        if (rows.length < 2) return []
+        const headers = rows[0]
+        return rows.slice(1)
+          .map((row) => {
+            const obj: Record<string, unknown> = {}
+            headers.forEach((h, i) => { obj[h] = row[i] ?? '' })
+            return obj
+          })
+          .filter((obj) => Object.values(obj).some((v) => v !== ''))
+      }
+
+      const csvToRawRecords = (content: string): Record<string, unknown>[] => {
+        const lines = content
+          .split(/\r\n|\n|\r/)
+          .map((l) => l.trimEnd())
+          .filter((l) => l.trim().length > 0)
+        if (lines.length < 2) return []
+        const delimiter = detectCsvDelimiter(lines[0])
+        const headers = parseCsvLine(lines[0], delimiter)
+        return lines
+          .slice(1)
+          .map((line) => {
+            const values = parseCsvLine(line, delimiter)
+            const obj: Record<string, unknown> = {}
+            headers.forEach((h, i) => { obj[h] = values[i]?.trim() ?? '' })
+            return obj
+          })
+          .filter((obj) => Object.values(obj).some((v) => v !== ''))
+      }
 
       try {
         // ── Excel path ────────────────────────────────────────────────────────
-        if (isXlsx) {
-          if (nameLower.endsWith('.xls') && !nameLower.endsWith('.xlsx')) {
-            window.alert(
-              'Arquivos .xls (formato legado do Excel 97-2003) não são suportados. ' +
-              'Abra o arquivo no Excel ou Google Planilhas e salve-o no formato .xlsx antes de importar.',
-            )
-            setIsImportandoClientes(false)
-            return
-          }
-
+        if (isXlsxLike) {
           let sheet
           try {
             sheet = await parseXlsxFirstSheet(arquivo)
@@ -14964,25 +15151,22 @@ export default function App() {
             return
           }
 
-          const { rows } = sheet
+          const { rows, name: sheetName } = sheet
           if (rows.length < 2) {
             window.alert('O arquivo Excel não contém dados suficientes (mínimo: uma linha de cabeçalho + uma linha de dados).')
             setIsImportandoClientes(false)
             return
           }
 
-          // Convert matrix → CSV (same delimiter as parseClientesCsv)
-          const csvContent = matrixToCsv(rows)
-          const totalRows = rows.length - 1 // exclude header
-
-          // Show preview modal — import is applied only on confirm
-          setImportPreviewState({
-            csvContent,
-            previewRows: rows,
-            fileName,
-            totalRows,
+          const rawRecords = matrixToRawRecords(rows)
+          const payload = normalizeImportRows(rawRecords, fileName)
+          const model = buildImportPreview(payload, {
+            existingClientNames: buildExistingNames(),
+            sourceType: nameLower.endsWith('.xls') && !nameLower.endsWith('.xlsx') ? 'xls' : 'xlsx',
+            sheetName,
           })
-          // Note: setIsImportandoClientes(false) is called in confirm/cancel handlers
+          setImportPreviewState({ model, csvRows: rawRecords })
+          // setIsImportandoClientes(false) is called in confirm/cancel handlers
           return
         }
 
@@ -14992,67 +15176,34 @@ export default function App() {
           nameLower.endsWith('.csv') ||
           arquivo.type.toLowerCase().includes('csv')
 
-        let csvContent: string | null = null
-
         if (isCsvFile) {
-          csvContent = conteudo
-        } else {
-          let parsed: unknown
-          try {
-            parsed = JSON.parse(conteudo)
-          } catch {
-            // Try treating it as CSV as fallback
-            const fallback = parseClientesCsv(conteudo)
-            if (fallback.length > 0) {
-              // Already in list form — apply directly
-              const existentes = carregarClientesSalvos()
-              const existingIds = new Set(existentes.map((r) => r.id))
-              const { registros: importados } = normalizeClienteRegistros(fallback, { existingIds })
-              if (importados.length === 0) {
-                window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
-              } else {
-                const combinados = [...importados, ...existentes].sort((a, b) =>
-                  a.atualizadoEm < b.atualizadoEm ? 1 : -1,
-                )
-                try {
-                  window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
-                } catch {
-                  window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
-                  setIsImportandoClientes(false)
-                  return
-                }
-                setClientesSalvos((prev) => {
-                  const prevIds = new Set(prev.map((r) => r.id))
-                  const novos = importados.filter((r) => !prevIds.has(r.id))
-                  if (novos.length === 0) return prev
-                  return [...novos, ...prev].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
-                })
-                void migrateLocalStorageToServer()
-                adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
-              }
-              setIsImportandoClientes(false)
-              return
-            }
-            throw new Error('invalid-json')
+          const rawRecords = csvToRawRecords(conteudo)
+          if (rawRecords.length === 0) {
+            window.alert('O arquivo CSV não contém dados suficientes.')
+            setIsImportandoClientes(false)
+            return
           }
+          const payload = normalizeImportRows(rawRecords, fileName)
+          const model = buildImportPreview(payload, {
+            existingClientNames: buildExistingNames(),
+            sourceType: 'csv',
+          })
+          setImportPreviewState({ model, csvRows: rawRecords })
+          // setIsImportandoClientes(false) is called in confirm/cancel handlers
+          return
+        }
 
-          if (parsed) {
-            const rawList = Array.isArray(parsed)
-              ? parsed
-              : parsed && typeof parsed === 'object' && Array.isArray((parsed as { clientes?: unknown }).clientes)
-              ? ((parsed as { clientes?: unknown }).clientes as unknown[])
-              : null
-
-            if (!rawList || rawList.length === 0) {
-              window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
-              setIsImportandoClientes(false)
-              return
-            }
-
+        // ── JSON path ─────────────────────────────────────────────────────────
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(conteudo)
+        } catch {
+          // Try treating it as CSV as fallback
+          const fallback = parseClientesCsv(conteudo)
+          if (fallback.length > 0) {
             const existentes = carregarClientesSalvos()
             const existingIds = new Set(existentes.map((r) => r.id))
-            const { registros: importados } = normalizeClienteRegistros(rawList, { existingIds })
-
+            const { registros: importados } = normalizeClienteRegistros(fallback, { existingIds })
             if (importados.length === 0) {
               window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
             } else {
@@ -15078,11 +15229,52 @@ export default function App() {
             setIsImportandoClientes(false)
             return
           }
+          throw new Error('invalid-json')
         }
 
-        if (csvContent !== null) {
-          applyImportedCsv(csvContent, fileName)
+        if (parsed) {
+          const rawList = Array.isArray(parsed)
+            ? parsed
+            : parsed && typeof parsed === 'object' && Array.isArray((parsed as { clientes?: unknown }).clientes)
+            ? ((parsed as { clientes?: unknown }).clientes as unknown[])
+            : null
+
+          if (!rawList || rawList.length === 0) {
+            window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
+            setIsImportandoClientes(false)
+            return
+          }
+
+          const existentes = carregarClientesSalvos()
+          const existingIds = new Set(existentes.map((r) => r.id))
+          const { registros: importados } = normalizeClienteRegistros(rawList, { existingIds })
+
+          if (importados.length === 0) {
+            window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
+          } else {
+            const combinados = [...importados, ...existentes].sort((a, b) =>
+              a.atualizadoEm < b.atualizadoEm ? 1 : -1,
+            )
+            try {
+              window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+            } catch {
+              window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
+              setIsImportandoClientes(false)
+              return
+            }
+            setClientesSalvos((prev) => {
+              const prevIds = new Set(prev.map((r) => r.id))
+              const novos = importados.filter((r) => !prevIds.has(r.id))
+              if (novos.length === 0) return prev
+              return [...novos, ...prev].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+            })
+            void migrateLocalStorageToServer()
+            adicionarNotificacao(`${importados.length} cliente(s) importado(s) de "${fileName}".`, 'success')
+          }
+          setIsImportandoClientes(false)
+          return
         }
+
         setIsImportandoClientes(false)
       } catch (error) {
         if ((error as Error).message === 'invalid-json') {
@@ -15096,7 +15288,6 @@ export default function App() {
     },
     [
       adicionarNotificacao,
-      applyImportedCsv,
       carregarClientesSalvos,
       setClientesSalvos,
     ],
@@ -28792,7 +28983,7 @@ export default function App() {
       <input
         ref={clientesImportInputRef}
         type="file"
-        accept=".json,.csv,.xlsx"
+        accept=".json,.csv,.xlsx,.xls"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
       />
@@ -28806,7 +28997,7 @@ export default function App() {
 
       {importPreviewState ? (
         <ImportPreviewModal
-          state={importPreviewState}
+          model={importPreviewState.model}
           onConfirm={handleConfirmImportPreview}
           onClose={handleCancelImportPreview}
         />
