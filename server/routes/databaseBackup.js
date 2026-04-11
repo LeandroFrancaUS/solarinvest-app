@@ -427,6 +427,15 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
 //
 // Returns: { ok, report: { clientsInserted, clientsSkipped, failures: [] } }
 
+/**
+ * Maps a NormalizedImportRow (from the preview-based import flow) to the flat
+ * client object shape expected by upsertClient().
+ *
+ * @param {Record<string, unknown>} row - A NormalizedImportRow or ImportPreviewRow.data object
+ *   with fields: nome, documento, cidade, uf, telefone, email, consumoKwh.
+ * @returns {{ name, document, city, state, phone, email, metadata }|null}
+ *   Returns null when the row has no usable name.
+ */
 function mapNormalizedRowToClient(row) {
   if (!row || typeof row !== 'object') return null
   const name = String(row.nome ?? row.name ?? '').trim()

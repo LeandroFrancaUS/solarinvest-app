@@ -19,6 +19,10 @@ import {
 } from './repository.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
 
+// Postgres error codes for schema-related failures.
+const PG_ERROR_UNDEFINED_TABLE = '42P01'
+const PG_ERROR_UNDEFINED_COLUMN = '42703'
+
 function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
 }
@@ -209,7 +213,7 @@ export async function handleClientsRequest(req, res, ctx) {
       }
       // Schema errors (42P01 = undefined table, 42703 = undefined column).
       // Try a simpler fallback query that does not rely on optional migrations.
-      const isSchemaError = err?.code === '42P01' || err?.code === '42703'
+      const isSchemaError = err?.code === PG_ERROR_UNDEFINED_TABLE || err?.code === PG_ERROR_UNDEFINED_COLUMN
       console.error('[clients][GET] list failed', {
         userId: actor?.userId ?? null,
         role: actorRole(actor) ?? null,
