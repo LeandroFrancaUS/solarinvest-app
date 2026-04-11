@@ -4217,7 +4217,7 @@ function ImportPreviewModal({ model, onConfirm, onClose }: ImportPreviewModalPro
       invalid: { label: 'Inválido', bg: '#fee2e2', color: '#991b1b' },
       update: { label: 'Atualizar', bg: '#dbeafe', color: '#1e40af' },
     }
-    const s = map[status] ?? map.new
+    const s = map[status] ?? { label: status, bg: '#f1f5f9', color: '#475569' }
     return (
       <span style={{ background: s.bg, color: s.color, padding: '1px 6px', borderRadius: 4, fontSize: '0.7rem', fontWeight: 600 }}>
         {s.label}
@@ -15032,6 +15032,7 @@ export default function App() {
   /** Called when user confirms the preview modal. */
   const handleConfirmImportPreview = useCallback(
     (selectedClients: NormalizedImportRow[], _selectedProposals: NormalizedImportRow[]) => {
+      // _selectedProposals: proposal import is a future feature; ignored for now
       const fileName = importPreviewState?.model.fileName ?? ''
       setImportPreviewState(null)
       setIsImportandoClientes(false)
@@ -15110,14 +15111,15 @@ export default function App() {
 
       const matrixToRawRecords = (rows: string[][]): Record<string, unknown>[] => {
         if (rows.length < 2) return []
-        const headers = rows[0]
-        return rows.slice(1)
+        const [headerRow, ...dataRows] = rows
+        const headers: string[] = headerRow ?? []
+        return dataRows
           .map((row) => {
             const obj: Record<string, unknown> = {}
-            headers.forEach((h, i) => { obj[h] = row[i] ?? '' })
+            headers.forEach((h, i) => { obj[h] = row[i] !== '' ? row[i] : undefined })
             return obj
           })
-          .filter((obj) => Object.values(obj).some((v) => v !== ''))
+          .filter((obj) => Object.values(obj).some((v) => v !== '' && v !== undefined))
       }
 
       const csvToRawRecords = (content: string): Record<string, unknown>[] => {
@@ -15126,17 +15128,18 @@ export default function App() {
           .map((l) => l.trimEnd())
           .filter((l) => l.trim().length > 0)
         if (lines.length < 2) return []
-        const delimiter = detectCsvDelimiter(lines[0])
-        const headers = parseCsvLine(lines[0], delimiter)
+        const firstLine = lines[0] ?? ''
+        const delimiter = detectCsvDelimiter(firstLine)
+        const headers = parseCsvLine(firstLine, delimiter)
         return lines
           .slice(1)
           .map((line) => {
             const values = parseCsvLine(line, delimiter)
             const obj: Record<string, unknown> = {}
-            headers.forEach((h, i) => { obj[h] = values[i]?.trim() ?? '' })
+            headers.forEach((h, i) => { const v = values[i]?.trim() ?? ''; obj[h] = v !== '' ? v : undefined })
             return obj
           })
-          .filter((obj) => Object.values(obj).some((v) => v !== ''))
+          .filter((obj) => Object.values(obj).some((v) => v !== '' && v !== undefined))
       }
 
       try {

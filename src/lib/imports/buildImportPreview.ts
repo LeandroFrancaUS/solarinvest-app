@@ -146,7 +146,7 @@ export function buildImportPreview(
   return {
     fileName: payload.sourceFileName,
     sourceType,
-    sheetName,
+    ...(sheetName !== undefined && { sheetName }),
     totalRaw,
     clients: clientRows,
     proposals: proposalRows,

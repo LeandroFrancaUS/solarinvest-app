@@ -15,7 +15,7 @@ export type NormalizedImportRow = {
   uf?: string
   telefone?: string
   email?: string
-  consumoKwh?: number | null
+  consumoKwh?: number
   raw: Record<string, unknown>
   entityType: 'client' | 'proposal' | 'unknown'
 }
@@ -39,7 +39,7 @@ export const FIELD_ALIASES: Record<string, string[]> = {
   email: ['email', 'e_mail', 'client_email'],
   consumoKwh: ['consumo', 'consumo_kwh', 'consumo_kwh_mes', 'consumo_kwh_month', 'consumption_kwh_month', 'kwh', 'kwhmes'],
   entityType: ['tipo', 'tipo_registro', 'entity', 'entidade', 'entity_type'],
-}
+} as const
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -74,13 +74,17 @@ function toString(v: unknown): string {
   return String(v).trim()
 }
 
-function parseConsumoKwh(v: unknown): number | null {
-  if (v == null || v === '') return null
+function parseConsumoKwh(v: unknown): number | undefined {
+  if (v == null || v === '') return undefined
   const s = String(v).trim().replace(/\s/g, '')
   // Handle Brazilian decimal separator (comma)
   const normalised = s.replace(/\.(?=\d{3}(?:[,.]|$))/g, '').replace(',', '.')
   const n = parseFloat(normalised)
-  return Number.isFinite(n) ? n : null
+  return Number.isFinite(n) ? n : undefined
+}
+
+function toOptionalString(v: string): string | undefined {
+  return v || undefined
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
@@ -101,17 +105,26 @@ export function normalizeImportRows(
       normalisedRow[normalizeHeaderKey(key)] = rawRow[key]
     }
 
-    const nome = toString(pickAliasedValue(normalisedRow, FIELD_ALIASES.nome))
-    const documento = toString(pickAliasedValue(normalisedRow, FIELD_ALIASES.documento)) || undefined
-    const cidade = toString(pickAliasedValue(normalisedRow, FIELD_ALIASES.cidade)) || undefined
-    const uf = toString(pickAliasedValue(normalisedRow, FIELD_ALIASES.uf)) || undefined
-    const telefone = toString(pickAliasedValue(normalisedRow, FIELD_ALIASES.telefone)) || undefined
-    const email = toString(pickAliasedValue(normalisedRow, FIELD_ALIASES.email)) || undefined
-    const consumoKwh = parseConsumoKwh(pickAliasedValue(normalisedRow, FIELD_ALIASES.consumoKwh))
-    const entityTypeRaw = toString(pickAliasedValue(normalisedRow, FIELD_ALIASES.entityType)).toLowerCase()
+    const nomeAliases = FIELD_ALIASES['nome'] ?? []
+    const documentoAliases = FIELD_ALIASES['documento'] ?? []
+    const cidadeAliases = FIELD_ALIASES['cidade'] ?? []
+    const ufAliases = FIELD_ALIASES['uf'] ?? []
+    const telefoneAliases = FIELD_ALIASES['telefone'] ?? []
+    const emailAliases = FIELD_ALIASES['email'] ?? []
+    const consumoAliases = FIELD_ALIASES['consumoKwh'] ?? []
+    const entityTypeAliases = FIELD_ALIASES['entityType'] ?? []
+
+    const nome = toString(pickAliasedValue(normalisedRow, nomeAliases))
+    const documento = toOptionalString(toString(pickAliasedValue(normalisedRow, documentoAliases)))
+    const cidade = toOptionalString(toString(pickAliasedValue(normalisedRow, cidadeAliases)))
+    const uf = toOptionalString(toString(pickAliasedValue(normalisedRow, ufAliases)))
+    const telefone = toOptionalString(toString(pickAliasedValue(normalisedRow, telefoneAliases)))
+    const email = toOptionalString(toString(pickAliasedValue(normalisedRow, emailAliases)))
+    const consumoKwh = parseConsumoKwh(pickAliasedValue(normalisedRow, consumoAliases))
+    const entityTypeRaw = toString(pickAliasedValue(normalisedRow, entityTypeAliases)).toLowerCase()
 
     if (!nome) {
-      warnings.push(`Linha ${idx + 2}: sem valor no campo "nome" — linha ignorada.`)
+      warnings.push(`Linha ${idx + 2}: campo "nome" está vazio — a linha será marcada como inválida na pré-visualização.`)
     }
 
     let entityType: 'client' | 'proposal' | 'unknown' = 'client'
@@ -128,12 +141,12 @@ export function normalizeImportRows(
     const row: NormalizedImportRow = {
       rowIndex: idx,
       nome,
-      documento,
-      cidade,
-      uf,
-      telefone,
-      email,
-      consumoKwh: consumoKwh ?? undefined,
+      ...(documento !== undefined && { documento }),
+      ...(cidade !== undefined && { cidade }),
+      ...(uf !== undefined && { uf }),
+      ...(telefone !== undefined && { telefone }),
+      ...(email !== undefined && { email }),
+      ...(consumoKwh !== undefined && { consumoKwh }),
       raw: rawRow,
       entityType,
     }
@@ -149,3 +162,4 @@ export function normalizeImportRows(
 
   return { clients, proposals, unknown, sourceFileName, warnings }
 }
+

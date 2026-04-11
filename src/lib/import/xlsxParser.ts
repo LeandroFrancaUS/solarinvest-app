@@ -7,7 +7,8 @@
  *
  * Supports:
  *  - .xlsx  (Open XML / ZIP-based, Office 2007+)
- *  - .xls   not supported (legacy binary BIFF format; see note below)
+ *  - .xls   attempted as OOXML (many modern .xls files are actually OOXML);
+ *            legacy binary BIFF format will throw a parse error
  *
  * Note on .xls: The legacy Binary Interchange File Format (BIFF) is a closed,
  * undocumented binary format.  Parsing it requires a dedicated library (e.g.
