@@ -3,6 +3,7 @@
 
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
+import { ensureOperationalSchema } from '../database/ensureOperationalSchema.js'
 import { validateCreateProposal, validateUpdateProposal } from './validators.js'
 import {
   createProposal,
@@ -26,11 +27,16 @@ function sendError(sendJson, statusCode, code, message, details = {}) {
   sendJson(statusCode, { error: { code, message, details } })
 }
 
-function getDb(sendJson) {
+async function getDb(sendJson) {
   const db = getDatabaseClient()
   if (!db) {
     sendJson(503, { error: { code: 'SERVICE_UNAVAILABLE', message: 'Database not configured' } })
     return null
+  }
+  try {
+    await ensureOperationalSchema(db.sql)
+  } catch (error) {
+    console.warn('[proposals] schema ensure skipped:', error?.message ?? error)
   }
   return db
 }
@@ -71,7 +77,7 @@ export async function handleProposalsRequest(req, res, ctx) {
 
   const sendJson = (status, payload) => rawSendJson(res, status, payload)
 
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   const actor = await resolveAndAuth(req, sendJson)
@@ -168,7 +174,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
     return
   }
 
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   const actor = await resolveAndAuth(req, sendJson)
