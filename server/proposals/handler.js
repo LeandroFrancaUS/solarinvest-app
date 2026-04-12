@@ -3,6 +3,7 @@
 
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
+import { getCanonicalDatabaseDiagnostics } from '../database/connection.js'
 import { validateCreateProposal, validateUpdateProposal } from './validators.js'
 import {
   createProposal,
@@ -33,6 +34,19 @@ function getDb(sendJson) {
     return null
   }
   return db
+}
+
+
+function logRoute(route, extra = {}) {
+  const diagnostics = getCanonicalDatabaseDiagnostics()
+  console.info('[db-route]', {
+    route,
+    dbSource: diagnostics.source,
+    dbHost: diagnostics.host,
+    dbName: diagnostics.database,
+    schema: diagnostics.schema,
+    ...extra,
+  })
 }
 
 function sqlForActor(db, actor) {
@@ -91,12 +105,14 @@ export async function handleProposalsRequest(req, res, ctx) {
     try {
       // RLS (via userSql) is the authoritative access gate.
       // No ownerUserId/officeUserId filters needed here — the DB enforces them.
+      logRoute('/api/proposals', { method: 'GET', actorUserId: actor.userId })
       const result = await listProposals(userSql, {
         page,
         limit,
         proposal_type,
         status,
       })
+      logRoute('/api/proposals', { method: 'GET', actorUserId: actor.userId, success: true, count: result.data.length })
       sendJson(200, result)
     } catch (err) {
       console.error('[proposals] listProposals error:', err)
@@ -127,6 +143,7 @@ export async function handleProposalsRequest(req, res, ctx) {
     }
 
     try {
+      logRoute('/api/proposals', { method: 'POST', actorUserId: actor.userId })
       const proposal = await createProposal(userSql, actor.userId, {
         ...validation.data,
         created_by_user_id: actor.userId,
@@ -144,6 +161,7 @@ export async function handleProposalsRequest(req, res, ctx) {
         proposal
       )
 
+      logRoute('/api/proposals', { method: 'POST', actorUserId: actor.userId, success: true, proposalId: proposal.id })
       sendJson(201, { data: proposal })
     } catch (err) {
       console.error('[proposals] createProposal error:', err)
@@ -180,6 +198,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
   // Fetch the proposal first (needed for permission checks on all methods)
   let proposal
   try {
+    logRoute('/api/proposals/:id', { method: method, actorUserId: actor.userId, proposalId })
     proposal = await getProposalById(userSql, proposalId)
   } catch (err) {
     console.error('[proposals] getProposalById error:', err)
@@ -198,6 +217,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
       sendError(sendJson, 403, 'FORBIDDEN', 'You do not have permission to read this proposal')
       return
     }
+    logRoute('/api/proposals/:id', { method: 'GET', actorUserId: actor.userId, proposalId, success: true })
     sendJson(200, { data: proposal })
     return
   }
@@ -244,6 +264,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
         updated
       )
 
+      logRoute('/api/proposals/:id', { method: 'PATCH', actorUserId: actor.userId, proposalId, success: true })
       sendJson(200, { data: updated })
     } catch (err) {
       console.error('[proposals] updateProposal error:', err)
@@ -277,6 +298,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
         null
       )
 
+      logRoute('/api/proposals/:id', { method: 'DELETE', actorUserId: actor.userId, proposalId, success: true })
       sendNoContent(res)
     } catch (err) {
       console.error('[proposals] softDeleteProposal error:', err)

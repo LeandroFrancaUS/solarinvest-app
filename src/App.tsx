@@ -5138,6 +5138,7 @@ export default function App() {
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
+  const [proposalsSyncState, setProposalsSyncState] = useState<'synced' | 'pending' | 'failed' | 'local-only'>('pending')
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [orcamentoVisualizado, setOrcamentoVisualizado] = useState<PrintableProposalProps | null>(null)
   const [orcamentoVisualizadoInfo, setOrcamentoVisualizadoInfo] = useState<
@@ -5824,6 +5825,7 @@ export default function App() {
     cloneClienteDados(CLIENTE_INICIAL),
   )
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
+  const [clientsSyncState, setClientsSyncState] = useState<'synced' | 'pending' | 'failed' | 'local-only'>('pending')
   const [allConsultores, setAllConsultores] = useState<string[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
@@ -8973,12 +8975,12 @@ export default function App() {
     const statusMap = {
       OK: { tone: 'ok', label: 'Dentro do limite', message: 'Dentro do limite do padrão informado.' },
       WARNING: {
-        tone: 'warning',
+        tone: 'error',
         label: 'Regra provisória',
         message: 'Regra provisória: valide com a distribuidora antes do envio.',
       },
       FORA_DA_NORMA: {
-        tone: 'warning',
+        tone: 'error',
         label: 'Acima do limite',
         message: 'A potência informada está acima do limite do padrão atual.',
       },
@@ -12226,8 +12228,11 @@ export default function App() {
       }
       // Cache fresh Neon data in localStorage for offline fallback
       try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
+      setClientsSyncState('synced')
       return allRegistros
     } catch (error) {
+      setClientsSyncState('local-only')
+      adicionarNotificacao('Clientes em modo local temporário: backend indisponível / sem sincronização com o banco.', 'error')
       console.warn('[clients] Falha ao carregar clientes via API; fallback para armazenamento local.', error)
       // Fall through to storage-based loading
     }
@@ -12281,7 +12286,7 @@ export default function App() {
     }
 
     return carregarClientesSalvos()
-  }, [carregarClientesSalvos, getUltimaAtualizacao, parseClientesSalvos])
+  }, [adicionarNotificacao, carregarClientesSalvos, getUltimaAtualizacao, parseClientesSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -14604,6 +14609,7 @@ export default function App() {
     }
   }, [
     adicionarNotificacao,
+    carregarClientesPrioritarios,
     buildClientesFileName,
     carregarClientesSalvos,
     downloadClientesArquivo,
@@ -15146,6 +15152,7 @@ export default function App() {
       activeTab: tab,
       settingsTab,
       cliente: cloneClienteDados(clienteFonte), // Use ref instead of closure
+      carregarClientesPrioritarios,
       clienteEmEdicaoId,
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
@@ -15416,9 +15423,17 @@ export default function App() {
           : await upsertClientByDocument(upsertPayload)
         neonServerId = serverRow.id
         syncedToBackend = true
+        setClientsSyncState('synced')
       }
     } catch (error) {
+      setClientsSyncState('failed')
       console.warn('[ClienteSave] Neon save failed; saving locally as fallback:', error)
+    }
+
+    if (online && !syncedToBackend) {
+      console.error('[clients][mutation] failed', { operation: estaEditando ? 'update' : 'create', reason: 'backend_not_confirmed' })
+      adicionarNotificacao('Falha ao salvar no servidor. Alteração não confirmada no banco.', 'error')
+      return false
     }
 
     let registroSalvo: ClienteRegistro | null = null
@@ -15608,8 +15623,10 @@ export default function App() {
     } else {
       if (erroSincronizacao instanceof OneDriveIntegrationMissingError) {
         adicionarNotificacao(
-          'Cliente salvo localmente. Configure a integração com o OneDrive para sincronizar automaticamente.',
-          'info',
+          syncedToBackend
+            ? 'Cliente salvo. Configure a integração com o OneDrive para sincronizar automaticamente.'
+            : 'Cliente salvo apenas localmente (não sincronizado com o banco).',
+          syncedToBackend ? 'info' : 'error',
         )
       } else {
         const mensagemErro =
@@ -15623,15 +15640,27 @@ export default function App() {
       }
     }
 
+    if (syncedToBackend) {
+      try {
+        const refreshed = await carregarClientesPrioritarios()
+        setClientesSalvos(refreshed)
+      } catch (error) {
+        console.error('[clients][refresh-safe] failed', error)
+        setClientsSyncState('failed')
+      }
+    }
+
     return true
   }, [
     adicionarNotificacao,
+    carregarClientesPrioritarios,
     cliente,
     clienteEmEdicaoId,
     getCurrentSnapshot,
     isOneDriveIntegrationAvailable,
     persistClienteRegistroToOneDrive,
     scheduleMarkStateAsSaved,
+    setClientesSalvos,
     setOneDriveIntegrationAvailable,
     setClienteEmEdicaoId,
     updateClientServerIdMap,
@@ -15773,10 +15802,14 @@ export default function App() {
         clientServerIdMapRef.current[registro.id] ??
         (CLIENTE_ID_PATTERN.test(registro.id) ? null : registro.id)
       if (isConnectivityOnline() && serverIdCandidate) {
+        setClientsSyncState('pending')
         try {
           await deleteClientById(serverIdCandidate)
+          setClientsSyncState('synced')
         } catch (error) {
           console.error('Erro ao excluir cliente no backend.', error)
+          console.error('[clients][mutation] failed', { operation: 'delete', error })
+          setClientsSyncState('failed')
           window.alert('Não foi possível excluir o cliente no servidor. Tente novamente.')
           return
         }
@@ -15824,13 +15857,25 @@ export default function App() {
       }
 
       removeClientServerIdMapEntry(registro.id)
+
+      if (isConnectivityOnline() && serverIdCandidate) {
+        try {
+          const refreshed = await carregarClientesPrioritarios()
+          setClientesSalvos(refreshed)
+        } catch (error) {
+          console.error('[clients][refresh-safe] failed', error)
+          setClientsSyncState('failed')
+        }
+      }
     },
     [
+      carregarClientesPrioritarios,
       clienteEmEdicaoId,
       removeClientServerIdMapEntry,
       requestConfirmDialog,
       setClienteEmEdicaoId,
       setClienteMensagens,
+      setClientesSalvos,
       setClienteSync,
     ],
   )
@@ -16114,8 +16159,11 @@ export default function App() {
       }
       // Cache fresh Neon data in localStorage for offline fallback
       try { window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
+      setProposalsSyncState('synced')
       return allRegistros
     } catch (error) {
+      setProposalsSyncState('local-only')
+      adicionarNotificacao('Propostas em modo local temporário: backend indisponível / sem sincronização com o banco.', 'error')
       console.warn('[proposals] Falha ao carregar propostas via API; fallback para armazenamento local.', error)
       // Fall through to storage-based loading
     }
@@ -16161,7 +16209,7 @@ export default function App() {
 
     const fallbackRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
     return parseOrcamentosSalvos(fallbackRaw)
-  }, [carregarOrcamentosSalvos, parseOrcamentosSalvos])
+  }, [adicionarNotificacao, carregarOrcamentosSalvos, parseOrcamentosSalvos])
 
   useEffect(() => {
     let cancelado = false
@@ -16987,10 +17035,13 @@ export default function App() {
 
       const serverId = proposalServerIdMapRef.current[id]
       if (isConnectivityOnline() && serverId) {
+        setProposalsSyncState('pending')
         try {
           await deleteProposal(serverId)
+          setProposalsSyncState('synced')
         } catch (error) {
           console.error('Erro ao excluir orçamento no backend.', error)
+          setProposalsSyncState('failed')
           window.alert('Não foi possível excluir o orçamento no servidor. Tente novamente.')
           return
         }
@@ -17870,7 +17921,7 @@ export default function App() {
         if (error instanceof OneDriveIntegrationMissingError) {
           adicionarNotificacao(
             'Integração com o OneDrive indisponível. Configure o conector para salvar contratos automaticamente.',
-            'warning',
+            'error',
           )
         } else {
           console.error('Erro ao salvar contrato no OneDrive.', error)
@@ -18038,7 +18089,7 @@ export default function App() {
         return
       }
       popupWarnings.mostrado = true
-      adicionarNotificacao('Não foi possível abrir nova aba para o contrato. Verifique o bloqueio de pop-ups.', 'warning')
+      adicionarNotificacao('Não foi possível abrir nova aba para o contrato. Verifique o bloqueio de pop-ups.', 'error')
     }
 
     const renderizarPreviewNaJanela = (contratos: Array<{ templateLabel: string; url: string }>) => {
@@ -18331,7 +18382,7 @@ export default function App() {
         if (!layoutHtml) {
           adicionarNotificacao(
             'Não foi possível preparar a proposta comercial. O pacote será gerado sem o PDF da proposta.',
-            'warning',
+            'error',
           )
         } else {
           propostaHtml = buildProposalPdfDocument(
@@ -18343,7 +18394,7 @@ export default function App() {
         console.error('Erro ao preparar a proposta comercial para anexar ao contrato.', error)
         adicionarNotificacao(
           'Não foi possível preparar a proposta comercial. O pacote será gerado sem o PDF da proposta.',
-          'warning',
+          'error',
         )
       }
 
@@ -18534,6 +18585,7 @@ export default function App() {
     salvarOrcamentoLocalmente,
     salvandoPropostaLeasing,
     scheduleMarkStateAsSaved,
+    setClientesSalvos,
     switchBudgetId,
     validatePropostaLeasingMinimal,
     vendaActions,
@@ -18666,6 +18718,7 @@ export default function App() {
     atualizarOrcamentoAtivo,
     setProposalPdfIntegrationAvailable,
     scheduleMarkStateAsSaved,
+    setClientesSalvos,
     switchBudgetId,
     validatePropostaLeasingMinimal,
   ])
@@ -19000,6 +19053,7 @@ export default function App() {
     applyTarifasAutomaticas,
     resetRetorno,
     scheduleMarkStateAsSaved,
+    setClientesSalvos,
     setDistribuidoraTarifa,
     setKcKwhMes,
     leasingActions,
@@ -28672,6 +28726,12 @@ export default function App() {
         />
       ) : null}
       {renderPrecheckModal()}
+
+      {(clientsSyncState === 'local-only' || clientsSyncState === 'failed' || proposalsSyncState === 'local-only' || proposalsSyncState === 'failed') ? (
+        <div className="sync-warning-banner" role="status" aria-live="polite">
+          ⚠️ Dados em modo local temporário. A sincronização com o banco (Neon) está indisponível no momento.
+        </div>
+      ) : null}
 
         {notificacoes.length > 0 ? (
           <div className="toast-stack" role="region" aria-live="polite" aria-label="Notificações">

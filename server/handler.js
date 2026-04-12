@@ -628,9 +628,10 @@ export default async function handler(req, res) {
     // GET /api/clients/:id — get client
     // GET /api/clients/:id/proposals — get client's proposals
     // PUT /api/clients/:id — update client
+    // DELETE /api/clients/:id — soft delete client
     const clientByIdMatch = pathname.match(/^\/api\/clients\/(\d+)(\/proposals)?$/)
     if (clientByIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,OPTIONS'); sendNoContent(res); return }
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,DELETE,OPTIONS'); sendNoContent(res); return }
       const clientId = clientByIdMatch[1]
       const subpath = clientByIdMatch[2]?.slice(1) ?? null  // 'proposals' or null
       const clientsCtx = { method, clientId, subpath, readJsonBody, sendJson, sendNoContent }
