@@ -11,6 +11,8 @@
 
 'use strict'
 
+import { getCanonicalDatabaseConnection, getCanonicalDirectDatabaseConnection } from '../database/connection.js'
+
 /**
  * Returns the primary pooled database connection string.
  *
@@ -23,13 +25,8 @@
  * Returns '' when none are set (callers should gate on this).
  */
 export function getDatabaseUrl() {
-  return (
-    process.env.DATABASE_URL ||
-    process.env.POSTGRES_URL ||
-    process.env.NEON_DATABASE_URL ||
-    process.env.PGURI ||
-    ''
-  )
+  const { connectionString } = getCanonicalDatabaseConnection()
+  return connectionString || process.env.POSTGRES_URL || ''
 }
 
 /**
@@ -43,12 +40,8 @@ export function getDatabaseUrl() {
  *   NEON_DATABASE_URL_UNPOOLED
  */
 export function getDatabaseUrlUnpooled() {
-  return (
-    process.env.DATABASE_URL_UNPOOLED ||
-    process.env.POSTGRES_URL_NON_POOLING ||
-    process.env.NEON_DATABASE_URL_UNPOOLED ||
-    ''
-  )
+  const { connectionString } = getCanonicalDirectDatabaseConnection()
+  return connectionString || process.env.POSTGRES_URL_NON_POOLING || ''
 }
 
 /**

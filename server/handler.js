@@ -278,7 +278,28 @@ export default async function handler(req, res) {
     const method = req.method?.toUpperCase() ?? 'GET'
 
     if (pathname === '/health' || pathname === '/api/health') {
-      sendJson(res, 200, { status: 'ok' })
+      if (!databaseClient || !databaseConfig.connectionString) {
+        sendServerError(res, 503, {
+          ok: false,
+          db: false,
+          error: 'DB_NOT_CONFIGURED',
+        }, requestId, vercelId)
+        return
+      }
+
+      try {
+        await databaseClient.sql`SELECT 1 AS ok`
+        sendJson(res, 200, { ok: true, db: true })
+      } catch (error) {
+        console.error('[api/health] failed', {
+          message: error instanceof Error ? error.message : String(error),
+        })
+        sendServerError(res, 500, {
+          ok: false,
+          db: false,
+          error: 'DB_HEALTHCHECK_FAILED',
+        }, requestId, vercelId)
+      }
       return
     }
 
@@ -628,9 +649,10 @@ export default async function handler(req, res) {
     // GET /api/clients/:id — get client
     // GET /api/clients/:id/proposals — get client's proposals
     // PUT /api/clients/:id — update client
+    // DELETE /api/clients/:id — soft delete client
     const clientByIdMatch = pathname.match(/^\/api\/clients\/(\d+)(\/proposals)?$/)
     if (clientByIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,OPTIONS'); sendNoContent(res); return }
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,DELETE,OPTIONS'); sendNoContent(res); return }
       const clientId = clientByIdMatch[1]
       const subpath = clientByIdMatch[2]?.slice(1) ?? null  // 'proposals' or null
       const clientsCtx = { method, clientId, subpath, readJsonBody, sendJson, sendNoContent }
