@@ -61,6 +61,10 @@ import {
 } from './routes/authReconcile.js'
 import { handleRbacInspectRequest } from './routes/rbacInspect.js'
 import { handleConsultantsListRequest } from './routes/consultants.js'
+import {
+  handleDatabaseBackupExportRequest,
+  handleDatabaseBackupImportRequest,
+} from './routes/databaseBackup.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -595,6 +599,26 @@ export default async function handler(req, res) {
     // GET /api/consultants — list all consultant profiles (privileged users only)
     if (pathname === '/api/consultants' && method === 'GET') {
       await handleConsultantsListRequest(req, res, { sendJson })
+      return
+    }
+
+    // POST /api/admin/database-backup — secure DB snapshot export for admin/office
+    if (pathname === '/api/admin/database-backup') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      const body = await readJsonBody(req)
+      await handleDatabaseBackupExportRequest(req, res, { sendJson, body })
+      return
+    }
+
+    // POST /api/admin/database-backup/import — restore selected backup records
+    if (pathname === '/api/admin/database-backup/import') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      const body = await readJsonBody(req)
+      await handleDatabaseBackupImportRequest(req, res, { sendJson, body })
       return
     }
 
