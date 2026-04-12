@@ -344,10 +344,27 @@ export async function listClients(sql, filter = {}) {
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `
 
-    ;[countResult, dataResult] = await Promise.all([
-      sql(basicCountQuery, params),
-      sql(basicDataQuery, [...params, limitNum, offset]),
-    ])
+    try {
+      ;[countResult, dataResult] = await Promise.all([
+        sql(basicCountQuery, params),
+        sql(basicDataQuery, [...params, limitNum, offset]),
+      ])
+    } catch (fallbackError) {
+      // Both the rich query and the stripped-down fallback failed.
+      // Log all details for server-side diagnosis and return an empty result
+      // rather than surfacing a 500 — the frontend can use its local cache
+      // while the DB schema is repaired.
+      console.error('[clients][list] fallback query also failed — returning empty result', {
+        primaryError: error instanceof Error ? error.message : String(error),
+        fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+        fallbackStack: fallbackError instanceof Error ? fallbackError.stack : undefined,
+      })
+      return {
+        data: [],
+        meta: { page: pageNum, limit: limitNum, total: 0, totalPages: 0 },
+        _fallbackWarning: 'DB schema mismatch — results may be incomplete',
+      }
+    }
   }
 
   const total = parseInt(countResult[0]?.count ?? '0', 10)

@@ -64,10 +64,18 @@ function requireClientAuth(actor) {
 }
 
 function handleAuthError(sendJson, err) {
-  const status = err?.statusCode ?? 500
+  const status = err?.statusCode ?? null
   if (status === 401) return sendError(sendJson, 401, 'UNAUTHENTICATED', err.message || 'Login required')
   if (status === 403) return sendError(sendJson, 403, 'FORBIDDEN', err.message || 'Access forbidden')
-  return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Unexpected authentication error')
+  // Unexpected error from resolveActor (e.g. DB unreachable during auth lookup).
+  // Log the full error so it surfaces in server/Vercel logs for diagnosis.
+  console.error('[api/clients][auth] unexpected error in resolveActor', {
+    message: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined,
+  })
+  // Return 503 (service unavailable) rather than 500: the DB being unreachable
+  // during the auth phase is a transient infrastructure issue, not a server bug.
+  return sendError(sendJson, 503, 'AUTH_SERVICE_UNAVAILABLE', 'Service temporarily unavailable')
 }
 
 export async function handleUpsertClientByCpf(req, res, ctx) {

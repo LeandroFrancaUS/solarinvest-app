@@ -51,6 +51,7 @@ const trustedOrigins = new Set(
 
 // Defaults if none configured
 trustedOrigins.add('https://app.solarinvest.app')
+trustedOrigins.add('https://app.solarinvest.info')
 trustedOrigins.add('http://localhost:5173')
 trustedOrigins.add('http://127.0.0.1:5173')
 
