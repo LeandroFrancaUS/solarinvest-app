@@ -2,6 +2,7 @@
 // Handles /api/clients routes with CPF deduplication and RBAC.
 
 import { getDatabaseClient } from '../database/neonClient.js'
+import { getCanonicalDatabaseDiagnostics } from '../database/connection.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import {
   normalizeCpfServer,
@@ -12,6 +13,7 @@ import {
   findClientByOfflineOriginId,
   createClient,
   updateClient,
+  softDeleteClient,
   listClients,
   getClientProposals,
   appendClientAuditLog,
@@ -20,6 +22,18 @@ import { resolveActor, actorRole } from '../proposals/permissions.js'
 
 function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
+}
+
+function logRoute(route, extra = {}) {
+  const diagnostics = getCanonicalDatabaseDiagnostics()
+  console.info('[db-route]', {
+    route,
+    dbSource: diagnostics.source,
+    dbHost: diagnostics.host,
+    dbName: diagnostics.database,
+    schema: diagnostics.schema,
+    ...extra,
+  })
 }
 
 function getDb(sendJson) {
@@ -32,24 +46,30 @@ function getDb(sendJson) {
 }
 
 function sqlForActor(db, actor) {
-  // Always set RLS context (both user ID and role) for every authenticated request,
-  // including admins. The PostgreSQL RLS policies are fail-closed: when no session
-  // context is set, can_access_owner() returns false for everyone. Setting role_admin
-  // lets the DB grant admins full access through the policy logic rather than
-  // bypassing it entirely.
   return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
 }
 
-/**
- * POST /api/clients/upsert-by-cpf
- * Upsert a client by CPF or CNPJ (deduplication). Returns existing client if document matches.
- * Also handles idempotency via offline_origin_id.
- *
- * Document auto-detection:
- *   - 11 digits → CPF
- *   - 14 digits → CNPJ
- * Accepts: cpf_raw, cnpj_raw, document (any of these; auto-detected by digit count).
- */
+
+function requireClientAuth(actor) {
+  if (!actor?.userId) {
+    const err = new Error('Login required')
+    err.statusCode = 401
+    throw err
+  }
+  if (!actor?.hasAnyRole) {
+    const err = new Error('Access forbidden: no recognized role assigned')
+    err.statusCode = 403
+    throw err
+  }
+}
+
+function handleAuthError(sendJson, err) {
+  const status = err?.statusCode ?? 500
+  if (status === 401) return sendError(sendJson, 401, 'UNAUTHENTICATED', err.message || 'Login required')
+  if (status === 403) return sendError(sendJson, 403, 'FORBIDDEN', err.message || 'Access forbidden')
+  return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Unexpected authentication error')
+}
+
 export async function handleUpsertClientByCpf(req, res, ctx) {
   const { readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
@@ -59,10 +79,10 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
   let actor
   try {
     actor = await resolveActor(req)
-    if (!actor?.userId) return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
+    requireClientAuth(actor)
     if (actor.isFinanceiro && !actor.isAdmin) return sendError(sendJson, 403, 'FORBIDDEN', 'Read-only role')
-  } catch {
-    return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
+  } catch (err) {
+    return handleAuthError(sendJson, err)
   }
 
   let body
@@ -77,22 +97,20 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
   }
 
   const offlineOriginId = body.offline_origin_id ?? null
-
-  // Auto-detect document type from whichever field is provided
   const rawDocument = body.cpf_raw ?? body.cnpj_raw ?? body.document ?? null
   const { type: docType, normalized: docNormalized } = normalizeDocumentServer(rawDocument)
 
   const cpfNormalized = docType === 'cpf' ? normalizeCpfServer(rawDocument) : null
   const cnpjNormalized = docType === 'cnpj' ? normalizeCnpjServer(rawDocument) : null
 
-  // Determine identity status based on document type and presence
   let identityStatus = 'pending_cpf'
   if (docNormalized && docType === 'cpf') identityStatus = 'confirmed'
   else if (docNormalized && docType === 'cnpj') identityStatus = 'confirmed'
   else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
 
   try {
-    // Idempotency: if we already created this offline entity, return it
+    logRoute('/api/clients/upsert-by-cpf', { method: 'POST', actorUserId: actor.userId })
+
     if (offlineOriginId) {
       const existing = await findClientByOfflineOriginId(db.sql, offlineOriginId)
       if (existing) {
@@ -100,7 +118,6 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
       }
     }
 
-    // Document deduplication: CPF first, then CNPJ
     if (cpfNormalized) {
       const existing = await findClientByCpf(db.sql, cpfNormalized)
       if (existing) {
@@ -108,7 +125,7 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
           db.sql, existing.id, actor.userId, actor.email ?? null,
           'proposal_linked', null,
           { offline_origin_id: offlineOriginId, linked_by: actor.userId },
-          'CPF deduplication — existing client reused', null
+          'CPF deduplication — existing client reused', null,
         )
         return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
       }
@@ -121,13 +138,12 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
           db.sql, existing.id, actor.userId, actor.email ?? null,
           'proposal_linked', null,
           { offline_origin_id: offlineOriginId, linked_by: actor.userId },
-          'CNPJ deduplication — existing client reused', null
+          'CNPJ deduplication — existing client reused', null,
         )
         return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
       }
     }
 
-    // Create new client
     const newClient = await createClient(db.sql, {
       name: body.name.trim(),
       cpf_normalized: cpfNormalized,
@@ -154,9 +170,10 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     await appendClientAuditLog(
       db.sql, newClient.id, actor.userId, actor.email ?? null,
       'created', null, newClient,
-      offlineOriginId ? 'offline_sync' : null, null
+      offlineOriginId ? 'offline_sync' : null, null,
     )
 
+    logRoute('/api/clients/upsert-by-cpf', { method: 'POST', actorUserId: actor.userId, success: true, clientId: newClient.id })
     return sendJson(201, { data: newClient, deduplicated: false, idempotent: false })
   } catch (err) {
     console.error('[clients] upsert-by-cpf error:', err)
@@ -164,10 +181,6 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
   }
 }
 
-/**
- * GET /api/clients — list with filters
- * POST /api/clients — create client
- */
 export async function handleClientsRequest(req, res, ctx) {
   const { method, readJsonBody, sendJson: rawSendJson, requestUrl } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
@@ -177,16 +190,16 @@ export async function handleClientsRequest(req, res, ctx) {
   let actor
   try {
     actor = await resolveActor(req)
-    if (!actor?.userId) return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
-  } catch {
-    return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
+    requireClientAuth(actor)
+  } catch (err) {
+    return handleAuthError(sendJson, err)
   }
 
   if (method === 'GET') {
     const q = requestUrl.searchParams
-    // RLS (via userSql + role context) enforces access — no ownerUserId/officeUserId needed.
-    const userSql = sqlForActor(db, actor)
     try {
+      const userSql = sqlForActor(db, actor)
+      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, page: q.get('page') ?? 1, limit: q.get('limit') ?? 20 })
       const result = await listClients(userSql, {
         createdByUserId: q.get('created_by') ?? null,
         city: q.get('city') ?? null,
@@ -198,10 +211,14 @@ export async function handleClientsRequest(req, res, ctx) {
         sortBy: q.get('sort_by') ?? 'updated_at',
         sortDir: q.get('sort_dir') ?? 'DESC',
       })
+      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: result.data.length })
       return sendJson(200, result)
     } catch (err) {
-      console.error('[clients] list error:', err)
-      return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to list clients')
+      console.error('[api/clients][GET] failed', {
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      })
+      return sendError(sendJson, 500, 'CLIENTS_LIST_FAILED', 'Falha ao carregar clientes do banco.')
     }
   }
 
@@ -214,6 +231,7 @@ export async function handleClientsRequest(req, res, ctx) {
     if (!body.name) return sendError(sendJson, 422, 'VALIDATION_ERROR', 'Field name is required')
 
     try {
+      logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId })
       const rawDoc = body.cpf_raw ?? body.cnpj_raw ?? body.document ?? null
       const { type: docType, normalized: docNormalized } = normalizeDocumentServer(rawDoc)
       const cpfNormalized = docType === 'cpf' ? normalizeCpfServer(rawDoc) : null
@@ -222,7 +240,6 @@ export async function handleClientsRequest(req, res, ctx) {
       if (docNormalized && docType === 'cpf') identityStatus = 'confirmed'
       else if (docNormalized && docType === 'cnpj') identityStatus = 'confirmed'
       else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
-      // RLS enforces write permission; app layer also guards via isFinanceiro check above.
       const userSql = sqlForActor(db, actor)
       const client = await createClient(userSql, {
         ...body,
@@ -236,6 +253,7 @@ export async function handleClientsRequest(req, res, ctx) {
         origin: 'online',
       })
       await appendClientAuditLog(db.sql, client.id, actor.userId, actor.email ?? null, 'created', null, client)
+      logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId, success: true, clientId: client.id })
       return sendJson(201, { data: client })
     } catch (err) {
       console.error('[clients] create error:', err)
@@ -246,11 +264,6 @@ export async function handleClientsRequest(req, res, ctx) {
   sendError(sendJson, 405, 'METHOD_NOT_ALLOWED', `Method ${method} not allowed`)
 }
 
-/**
- * GET /api/clients/:id
- * GET /api/clients/:id/proposals
- * PUT /api/clients/:id
- */
 export async function handleClientByIdRequest(req, res, ctx) {
   const { method, clientId, subpath, readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
@@ -260,16 +273,17 @@ export async function handleClientByIdRequest(req, res, ctx) {
   let actor
   try {
     actor = await resolveActor(req)
-    if (!actor?.userId) return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
-  } catch {
-    return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
+    requireClientAuth(actor)
+  } catch (err) {
+    return handleAuthError(sendJson, err)
   }
 
-  // GET /api/clients/:id/proposals
   if (method === 'GET' && subpath === 'proposals') {
-    const userSql = sqlForActor(db, actor)
     try {
+      const userSql = sqlForActor(db, actor)
+      logRoute('/api/clients/:id/proposals', { method: 'GET', actorUserId: actor.userId, clientId })
       const proposals = await getClientProposals(userSql, clientId)
+      logRoute('/api/clients/:id/proposals', { method: 'GET', actorUserId: actor.userId, clientId, success: true, count: proposals.length })
       return sendJson(200, { data: proposals })
     } catch (err) {
       console.error('[clients] get proposals error:', err)
@@ -285,11 +299,11 @@ export async function handleClientByIdRequest(req, res, ctx) {
     try { body = await readJsonBody(req) } catch { return sendError(sendJson, 400, 'VALIDATION_ERROR', 'Invalid JSON') }
 
     try {
+      logRoute('/api/clients/:id', { method: 'PUT', actorUserId: actor.userId, clientId })
       const rawDoc = body.cpf_raw ?? body.cnpj_raw ?? null
-      const { type: docType, normalized: _docNormalized } = normalizeDocumentServer(rawDoc)
+      const { type: docType } = normalizeDocumentServer(rawDoc)
       const cpfNormalized = (body.cpf_raw != null || docType === 'cpf') ? normalizeCpfServer(body.cpf_raw ?? rawDoc) : undefined
       const cnpjNormalized = (body.cnpj_raw != null || docType === 'cnpj') ? normalizeCnpjServer(body.cnpj_raw ?? rawDoc) : undefined
-      // RLS enforces write permission; app layer also guards via isFinanceiro check above.
       const userSql = sqlForActor(db, actor)
       const updated = await updateClient(userSql, clientId, {
         ...body,
@@ -299,10 +313,35 @@ export async function handleClientByIdRequest(req, res, ctx) {
       })
       if (!updated) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
       await appendClientAuditLog(db.sql, updated.id, actor.userId, actor.email ?? null, 'updated', null, updated)
+      logRoute('/api/clients/:id', { method: 'PUT', actorUserId: actor.userId, clientId, success: true })
       return sendJson(200, { data: updated })
     } catch (err) {
       console.error('[clients] update error:', err)
       return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to update client')
+    }
+  }
+
+  if (method === 'DELETE') {
+    if (actor.isFinanceiro && !actor.isAdmin) {
+      return sendError(sendJson, 403, 'FORBIDDEN', 'Read-only role')
+    }
+
+    try {
+      logRoute('/api/clients/:id', { method: 'DELETE', actorUserId: actor.userId, clientId })
+      console.info('[api/clients][DELETE] start', { id: clientId })
+      const userSql = sqlForActor(db, actor)
+      const deleted = await softDeleteClient(userSql, clientId, actor.userId)
+      if (!deleted) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
+      await appendClientAuditLog(db.sql, clientId, actor.userId, actor.email ?? null, 'deleted', null, null)
+      console.info('[client-delete][db]', { id: clientId, deletedRows: 1 })
+      return sendJson(200, { deletedId: String(clientId) })
+    } catch (err) {
+      console.error('[api/clients][DELETE] failed', {
+        id: clientId,
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      })
+      return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to delete client')
     }
   }
 

@@ -174,6 +174,21 @@ export async function updateClient(sql, clientId, data) {
   return rows[0] ?? null
 }
 
+
+/**
+ * Soft-delete a client by setting deleted_at.
+ */
+export async function softDeleteClient(sql, clientId, actorUserId) {
+  const rows = await sql`
+    UPDATE clients
+    SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
+    WHERE id = ${clientId}
+      AND deleted_at IS NULL
+    RETURNING id
+  `
+  return rows[0] ?? null
+}
+
 /**
  * List clients with filters.
  * Uses parameterized queries for all user-supplied values.
@@ -251,10 +266,40 @@ export async function listClients(sql, filter = {}) {
     LIMIT $${params.length + 1} OFFSET $${params.length + 2}
   `
 
-  const [countResult, dataResult] = await Promise.all([
-    sql(countQuery, params),
-    sql(dataQuery, [...params, limitNum, offset]),
-  ])
+  let countResult
+  let dataResult
+
+  try {
+    [countResult, dataResult] = await Promise.all([
+      sql(countQuery, params),
+      sql(dataQuery, [...params, limitNum, offset]),
+    ])
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const missingOptionalJoin = message.includes('app_user_profiles') || message.includes('proposals')
+    if (!missingOptionalJoin) {
+      throw error
+    }
+
+    console.warn('[clients][list] optional joins unavailable, falling back to base clients query', { message })
+
+    const basicCountQuery = `SELECT COUNT(*) FROM clients c ${where}`
+    const basicDataQuery = `
+      SELECT c.*,
+        NULL::text AS owner_display_name,
+        NULL::text AS owner_email,
+        0::int AS proposal_count
+      FROM clients c
+      ${where}
+      ORDER BY c.${safeSort} ${safeSortDir}
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `
+
+    ;[countResult, dataResult] = await Promise.all([
+      sql(basicCountQuery, params),
+      sql(basicDataQuery, [...params, limitNum, offset]),
+    ])
+  }
 
   const total = parseInt(countResult[0]?.count ?? '0', 10)
   return {
