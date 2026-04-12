@@ -274,6 +274,7 @@ import { useStackRbac } from './lib/auth/rbac'
 import { useAuthSession } from './auth/auth-session'
 import {
   createProposal,
+  deleteProposal,
   type CreateProposalInput,
   listProposals as listProposalsFromApi,
   type ProposalRow,
@@ -282,6 +283,7 @@ import {
   updateProposal,
 } from './lib/api/proposalsApi'
 import {
+  deleteClientById,
   listClients as listClientsFromApi,
   listConsultants as listConsultantsFromApi,
   type ClientRow,
@@ -5915,6 +5917,23 @@ export default function App() {
     }
   }, [])
 
+  const removeProposalServerIdMapEntry = useCallback((budgetId: string) => {
+    if (typeof window === 'undefined' || !budgetId) {
+      return
+    }
+    if (!(budgetId in proposalServerIdMapRef.current)) {
+      return
+    }
+    const next = { ...proposalServerIdMapRef.current }
+    delete next[budgetId]
+    proposalServerIdMapRef.current = next
+    try {
+      window.localStorage.setItem(PROPOSAL_SERVER_ID_MAP_STORAGE_KEY, JSON.stringify(next))
+    } catch (error) {
+      console.warn('[AutoSave] Failed to remove proposal server-id map entry:', error)
+    }
+  }, [])
+
   const updateClientServerIdMap = useCallback((localClientId: string, serverId: string) => {
     if (typeof window === 'undefined' || !localClientId || !serverId) {
       return
@@ -5930,6 +5949,23 @@ export default function App() {
       )
     } catch (error) {
       console.warn('[ClienteAutoSave] Failed to persist client server-id map:', error)
+    }
+  }, [])
+
+  const removeClientServerIdMapEntry = useCallback((localClientId: string) => {
+    if (typeof window === 'undefined' || !localClientId) {
+      return
+    }
+    if (!(localClientId in clientServerIdMapRef.current)) {
+      return
+    }
+    const next = { ...clientServerIdMapRef.current }
+    delete next[localClientId]
+    clientServerIdMapRef.current = next
+    try {
+      window.localStorage.setItem(CLIENT_SERVER_ID_MAP_STORAGE_KEY, JSON.stringify(next))
+    } catch (error) {
+      console.warn('[ClienteAutoSave] Failed to remove client server-id map entry:', error)
     }
   }, [])
 
@@ -12157,14 +12193,36 @@ export default function App() {
     // access control (admin/financeiro → all; office → own + comercial; comercial → own).
     try {
       const allRegistros: ClienteRegistro[] = []
+      const clientMapUpdates: Record<string, string> = {}
       let page = 1
       const limit = 100
       const MAX_PAGES = 50 // safety cap: up to 5,000 records
       for (;;) {
         const result = await listClientsFromApi({ page, limit })
-        allRegistros.push(...result.data.map(serverClientToRegistro))
+        allRegistros.push(
+          ...result.data.map((row) => {
+            if (row.id) {
+              clientMapUpdates[row.id] = row.id
+            }
+            return serverClientToRegistro(row)
+          }),
+        )
         if (page >= result.meta.totalPages || result.data.length === 0 || page >= MAX_PAGES) break
         page++
+      }
+      if (Object.keys(clientMapUpdates).length > 0) {
+        clientServerIdMapRef.current = {
+          ...clientServerIdMapRef.current,
+          ...clientMapUpdates,
+        }
+        try {
+          window.localStorage.setItem(
+            CLIENT_SERVER_ID_MAP_STORAGE_KEY,
+            JSON.stringify(clientServerIdMapRef.current),
+          )
+        } catch (error) {
+          console.warn('[clients] Failed to persist client server-id map after API load:', error)
+        }
       }
       // Cache fresh Neon data in localStorage for offline fallback
       try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
@@ -15711,6 +15769,19 @@ export default function App() {
         return
       }
 
+      const serverIdCandidate =
+        clientServerIdMapRef.current[registro.id] ??
+        (CLIENTE_ID_PATTERN.test(registro.id) ? null : registro.id)
+      if (isConnectivityOnline() && serverIdCandidate) {
+        try {
+          await deleteClientById(serverIdCandidate)
+        } catch (error) {
+          console.error('Erro ao excluir cliente no backend.', error)
+          window.alert('Não foi possível excluir o cliente no servidor. Tente novamente.')
+          return
+        }
+      }
+
       let removeuEdicaoAtual = false
       let houveErro = false
 
@@ -15751,8 +15822,17 @@ export default function App() {
         lastSavedClienteRef.current = null
         setClienteEmEdicaoId(null)
       }
+
+      removeClientServerIdMapEntry(registro.id)
     },
-    [clienteEmEdicaoId, requestConfirmDialog, setClienteEmEdicaoId, setClienteMensagens, setClienteSync],
+    [
+      clienteEmEdicaoId,
+      removeClientServerIdMapEntry,
+      requestConfirmDialog,
+      setClienteEmEdicaoId,
+      setClienteMensagens,
+      setClienteSync,
+    ],
   )
 
   const parseOrcamentosSalvos = useCallback(
@@ -16000,14 +16080,37 @@ export default function App() {
     // access control (admin/financeiro → all; office → own + comercial; comercial → own).
     try {
       const allRegistros: OrcamentoSalvo[] = []
+      const proposalMapUpdates: Record<string, string> = {}
       let page = 1
       const limit = 100
       const MAX_PAGES = 50 // safety cap: up to 5,000 records
       for (;;) {
         const result = await listProposalsFromApi({ page, limit })
-        allRegistros.push(...result.data.map(serverProposalToOrcamento))
+        allRegistros.push(
+          ...result.data.map((row) => {
+            const mapped = serverProposalToOrcamento(row)
+            if (mapped.id && row.id) {
+              proposalMapUpdates[mapped.id] = row.id
+            }
+            return mapped
+          }),
+        )
         if (page >= result.pagination.pages || result.data.length === 0 || page >= MAX_PAGES) break
         page++
+      }
+      if (Object.keys(proposalMapUpdates).length > 0) {
+        proposalServerIdMapRef.current = {
+          ...proposalServerIdMapRef.current,
+          ...proposalMapUpdates,
+        }
+        try {
+          window.localStorage.setItem(
+            PROPOSAL_SERVER_ID_MAP_STORAGE_KEY,
+            JSON.stringify(proposalServerIdMapRef.current),
+          )
+        } catch (error) {
+          console.warn('[proposals] Failed to persist proposal server-id map after API load:', error)
+        }
       }
       // Cache fresh Neon data in localStorage for offline fallback
       try { window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
@@ -16877,9 +16980,20 @@ export default function App() {
   }, [])
 
   const removerOrcamentoSalvo = useCallback(
-    (id: string) => {
+    async (id: string) => {
       if (typeof window === 'undefined') {
         return
+      }
+
+      const serverId = proposalServerIdMapRef.current[id]
+      if (isConnectivityOnline() && serverId) {
+        try {
+          await deleteProposal(serverId)
+        } catch (error) {
+          console.error('Erro ao excluir orçamento no backend.', error)
+          window.alert('Não foi possível excluir o orçamento no servidor. Tente novamente.')
+          return
+        }
       }
 
       setOrcamentosSalvos((prevRegistros) => {
@@ -16894,8 +17008,10 @@ export default function App() {
           return prevRegistros
         }
       })
+
+      removeProposalServerIdMapEntry(id)
     },
-    [setOrcamentosSalvos],
+    [removeProposalServerIdMapEntry, setOrcamentosSalvos],
   )
 
   const handleAbrirUploadImagens = useCallback(() => {
@@ -20070,7 +20186,7 @@ export default function App() {
         return
       }
 
-      removerOrcamentoSalvo(registro.id)
+      await removerOrcamentoSalvo(registro.id)
     },
     [removerOrcamentoSalvo, requestConfirmDialog],
   )

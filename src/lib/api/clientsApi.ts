@@ -164,6 +164,12 @@ export async function updateClientById(id: string, input: UpdateClientInput): Pr
   return result.data
 }
 
+export async function deleteClientById(id: string): Promise<void> {
+  await apiFetch<void>(`/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
+
 /**
  * List clients with optional filters. The server enforces RBAC:
  *   admin/financeiro → all clients
