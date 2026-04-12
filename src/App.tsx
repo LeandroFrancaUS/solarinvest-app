@@ -1128,6 +1128,12 @@ type CorresponsavelErrors = {
 
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
+/**
+ * Persists client IDs that have been confirmed deleted so that a stale
+ * localStorage snapshot cannot resurrect them after a page refresh.
+ * Stored as a JSON array of ID strings in localStorage.
+ */
+const CLIENTS_DELETED_TOMBSTONES_KEY = 'solarinvest-clientes-deletados-v1'
 
 /**
  * Maps a server-side ClientRow (from /api/clients) to the local ClienteRegistro format.
@@ -5837,6 +5843,23 @@ export default function App() {
   const clientServerIdMapRef = useRef<Record<string, string>>({})
   const proposalServerAutoSaveInFlightRef = useRef(false)
   const clientServerAutoSaveInFlightRef = useRef(false)
+  /**
+   * In-memory tombstone set, pre-populated from localStorage on first render.
+   * Any client ID in this set will be filtered out of ALL loaded client lists,
+   * including localStorage fallback, preventing resurrection after page refresh.
+   */
+  const deletedClientKeysRef = useRef<Set<string>>(
+    (() => {
+      if (typeof window === 'undefined') return new Set<string>()
+      try {
+        const raw = window.localStorage.getItem(CLIENTS_DELETED_TOMBSTONES_KEY)
+        const parsed: unknown = raw ? JSON.parse(raw) : null
+        return new Set<string>(Array.isArray(parsed) ? (parsed as string[]) : [])
+      } catch {
+        return new Set<string>()
+      }
+    })(),
+  )
   const isHydratingRef = useRef(false)
   const [isHydrating, setIsHydrating] = useState(false)
   const isApplyingCepRef = useRef(false)
@@ -5969,6 +5992,19 @@ export default function App() {
       window.localStorage.setItem(CLIENT_SERVER_ID_MAP_STORAGE_KEY, JSON.stringify(next))
     } catch (error) {
       console.warn('[ClienteAutoSave] Failed to remove client server-id map entry:', error)
+    }
+  }, [])
+
+  /**
+   * Persists the current tombstone set so that deleted client IDs survive a
+   * page refresh and can be applied to any secondary (localStorage/fallback) source.
+   */
+  const persistClientTombstones = useCallback((keys: Set<string>) => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(CLIENTS_DELETED_TOMBSTONES_KEY, JSON.stringify(Array.from(keys)))
+    } catch {
+      // Non-critical: tombstones are best-effort. The in-memory ref still guards the current session.
     }
   }, [])
 
@@ -12192,6 +12228,15 @@ export default function App() {
       return []
     }
 
+    // Helper: filter out any client whose ID is in the persistent tombstone set.
+    // This must be applied to EVERY source (API, OneDrive, localStorage) so that
+    // a confirmed deletion is never undone by a stale secondary cache.
+    const applyTombstones = (list: ClienteRegistro[]): ClienteRegistro[] => {
+      const tombstones = deletedClientKeysRef.current
+      if (tombstones.size === 0) return list
+      return list.filter((r) => !tombstones.has(r.id))
+    }
+
     // All authenticated users: try Neon DB first. PostgreSQL RLS enforces per-role
     // access control (admin/financeiro → all; office → own + comercial; comercial → own).
     try {
@@ -12227,10 +12272,11 @@ export default function App() {
           console.warn('[clients] Failed to persist client server-id map after API load:', error)
         }
       }
-      // Cache fresh Neon data in localStorage for offline fallback
-      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
+      const filtered = applyTombstones(allRegistros)
+      // Cache fresh Neon data in localStorage for offline fallback (tombstones already applied)
+      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(filtered)) } catch {}
       setClientsSyncState('synced')
-      return allRegistros
+      return filtered
     } catch (error) {
       setClientsSyncState('local-only')
       adicionarNotificacao('Clientes em modo local temporário: backend indisponível / sem sincronização com o banco.', 'error')
@@ -12246,8 +12292,9 @@ export default function App() {
             ? oneDrivePayload
             : JSON.stringify(oneDrivePayload)
         const registros = parseClientesSalvos(raw)
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
-        return registros
+        const filtered = applyTombstones(registros)
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(filtered))
+        return filtered
       }
     } catch (error) {
       if (error instanceof OneDriveIntegrationMissingError) {
@@ -12257,7 +12304,7 @@ export default function App() {
       }
     }
 
-    return carregarClientesSalvos()
+    return applyTombstones(carregarClientesSalvos())
   }, [adicionarNotificacao, carregarClientesSalvos, parseClientesSalvos])
 
   useEffect(() => {
@@ -15799,6 +15846,12 @@ export default function App() {
         }
       }
 
+      // Persist tombstones BEFORE updating React state so that any concurrent
+      // load (e.g. background refresh) also sees the deleted IDs.
+      deletedClientKeysRef.current.add(registro.id)
+      if (serverIdCandidate) deletedClientKeysRef.current.add(serverIdCandidate)
+      persistClientTombstones(deletedClientKeysRef.current)
+
       let removeuEdicaoAtual = false
       let houveErro = false
 
@@ -15859,6 +15912,7 @@ export default function App() {
     [
       carregarClientesPrioritarios,
       clienteEmEdicaoId,
+      persistClientTombstones,
       removeClientServerIdMapEntry,
       requestConfirmDialog,
       setClienteEmEdicaoId,
