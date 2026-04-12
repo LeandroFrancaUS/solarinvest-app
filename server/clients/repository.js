@@ -285,7 +285,8 @@ export async function listClients(sql, filter = {}) {
   // Fallback WHERE omits merged_into_client_id (may be absent on older DB schemas).
   // The params array ($1, $2, …) stays the same — only the structural NULL check
   // is dropped.  LIMIT/OFFSET placeholders shift to match params.length.
-  const fallbackConditions = conditions.filter(c => !c.includes('merged_into_client_id'))
+  const MERGED_INTO_CONDITION = 'c.merged_into_client_id IS NULL'
+  const fallbackConditions = conditions.filter(c => c !== MERGED_INTO_CONDITION)
   const fallbackWhere = fallbackConditions.length ? `WHERE ${fallbackConditions.join(' AND ')}` : ''
 
   try {
