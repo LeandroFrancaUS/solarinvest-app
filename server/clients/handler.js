@@ -26,14 +26,16 @@ function sendError(sendJson, statusCode, code, message) {
 
 function logRoute(route, extra = {}) {
   const diagnostics = getCanonicalDatabaseDiagnostics()
-  console.info('[db-route]', {
+  const payload = {
     route,
     dbSource: diagnostics.source,
     dbHost: diagnostics.host,
     dbName: diagnostics.database,
     schema: diagnostics.schema,
     ...extra,
-  })
+  }
+  console.info('[db-route]', payload)
+  console.info('[db-runtime]', payload)
 }
 
 function getDb(sendJson) {

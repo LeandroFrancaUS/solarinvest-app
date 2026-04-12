@@ -41,12 +41,12 @@ async function verifyConnectivity(): Promise<void> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), HEALTHCHECK_TIMEOUT_MS)
     const response = await fetch(HEALTHCHECK_URL, {
-      method: 'HEAD',
+      method: 'GET',
       cache: 'no-store',
       signal: controller.signal,
     })
     clearTimeout(timeoutId)
-    if (response.ok) {
+    if (response.ok || response.status === 401 || response.status === 403) {
       setState('online_verified')
     } else {
       setState('online_unverified')
