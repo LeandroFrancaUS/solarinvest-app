@@ -283,7 +283,9 @@ import {
   updateProposal,
 } from './lib/api/proposalsApi'
 import {
+  ClientsApiError,
   deleteClientById,
+  isClientNotFoundError,
   listClients as listClientsFromApi,
   listConsultants as listConsultantsFromApi,
   type ClientRow,
@@ -4670,6 +4672,13 @@ export default function App() {
   // admin status: the bootstrap admin always has role='admin' in the DB, even
   // before the Stack Auth native permission 'role_admin' is granted.
   const { me, authState: meAuthState } = useAuthSession(user ? getAccessToken : null)
+  useEffect(() => {
+    console.info('[auth][bootstrap]', {
+      authState: meAuthState,
+      source: me?.authSource ?? null,
+      hasToken: Boolean(user),
+    })
+  }, [me?.authSource, meAuthState, user])
 
   // Fetch and cache the full authorization snapshot from /api/authz/me.
   // The snapshot is reused for offline mode and provides capability-level RBAC.
@@ -4702,6 +4711,11 @@ export default function App() {
   // Keep the redirect guard from firing until BOTH sources have resolved so we
   // don't prematurely redirect the admin away from protected pages.
   const isRbacLoading = isStackPermLoading || meAuthState === 'loading'
+  const showAdminDiagnostics = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    const params = new URLSearchParams(window.location.search)
+    return params.get('adminDiag') === '1'
+  }, [])
 
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -5137,6 +5151,7 @@ export default function App() {
     mediaQuery.addEventListener('change', handleChange)
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
+  type ClientsSyncState = 'online-db' | 'reconciling' | 'degraded-api' | 'local-fallback'
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [proposalsSyncState, setProposalsSyncState] = useState<'synced' | 'pending' | 'failed' | 'local-only'>('pending')
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
@@ -5825,13 +5840,17 @@ export default function App() {
     cloneClienteDados(CLIENTE_INICIAL),
   )
   const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
-  const [clientsSyncState, setClientsSyncState] = useState<'synced' | 'pending' | 'failed' | 'local-only'>('pending')
+  const [clientsSyncState, setClientsSyncState] = useState<ClientsSyncState>('reconciling')
+  const [clientsLastLoadError, setClientsLastLoadError] = useState<string | null>(null)
+  const [clientsLastDeleteError, setClientsLastDeleteError] = useState<string | null>(null)
   const [allConsultores, setAllConsultores] = useState<string[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const clientAutoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const deletingClientIdsRef = useRef<Set<string>>(new Set())
+  const deletedClientKeysRef = useRef<Set<string>>(new Set())
   const proposalServerIdMapRef = useRef<Record<string, string>>({})
   const clientServerIdMapRef = useRef<Record<string, string>>({})
   const proposalServerAutoSaveInFlightRef = useRef(false)
@@ -12186,10 +12205,20 @@ export default function App() {
     return parseClientesSalvos(window.localStorage.getItem(CLIENTES_STORAGE_KEY))
   }, [parseClientesSalvos])
 
+  const getClientStableKey = useCallback((registro: ClienteRegistro): string => {
+    const mapped = clientServerIdMapRef.current[registro.id]
+    return String(mapped ?? registro.id ?? '')
+  }, [])
+
   const carregarClientesPrioritarios = useCallback(async (): Promise<ClienteRegistro[]> => {
     if (typeof window === 'undefined') {
       return []
     }
+    if (meAuthState !== 'authenticated') {
+      console.info('[clients][load] skipped', { authState: meAuthState })
+      return carregarClientesSalvos()
+    }
+    console.info('[clients][load] start', { authenticated: true, syncState: clientsSyncState })
 
     // All authenticated users: try Neon DB first. PostgreSQL RLS enforces per-role
     // access control (admin/financeiro → all; office → own + comercial; comercial → own).
@@ -12212,6 +12241,7 @@ export default function App() {
         if (page >= result.meta.totalPages || result.data.length === 0 || page >= MAX_PAGES) break
         page++
       }
+      const filteredRegistros = allRegistros.filter((registro) => !deletedClientKeysRef.current.has(getClientStableKey(registro)))
       if (Object.keys(clientMapUpdates).length > 0) {
         clientServerIdMapRef.current = {
           ...clientServerIdMapRef.current,
@@ -12227,13 +12257,22 @@ export default function App() {
         }
       }
       // Cache fresh Neon data in localStorage for offline fallback
-      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
-      setClientsSyncState('synced')
-      return allRegistros
+      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(filteredRegistros)) } catch {}
+      setClientsSyncState('online-db')
+      setClientsLastLoadError(null)
+      console.info('[clients][load] success', { count: filteredRegistros.length })
+      return filteredRegistros
     } catch (error) {
-      setClientsSyncState('local-only')
-      adicionarNotificacao('Clientes em modo local temporário: backend indisponível / sem sincronização com o banco.', 'error')
-      console.warn('[clients] Falha ao carregar clientes via API; fallback para armazenamento local.', error)
+      const localFallback = !(error instanceof ClientsApiError)
+      setClientsSyncState(localFallback ? 'local-fallback' : 'degraded-api')
+      setClientsLastLoadError(error instanceof Error ? error.message : String(error))
+      adicionarNotificacao(
+        localFallback
+          ? 'Clientes em modo local temporário: backend indisponível no momento.'
+          : 'Falha ao recarregar a lista de clientes do banco. Alterações confirmadas podem demorar para aparecer.',
+        localFallback ? 'error' : 'warning',
+      )
+      console.error('[clients][load] failed', { message: error instanceof Error ? error.message : String(error) })
       // Fall through to storage-based loading
     }
 
@@ -12246,7 +12285,7 @@ export default function App() {
             : JSON.stringify(oneDrivePayload)
         const registros = parseClientesSalvos(raw)
         window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
-        return registros
+        return registros.filter((registro) => !deletedClientKeysRef.current.has(getClientStableKey(registro)))
       }
     } catch (error) {
       if (error instanceof OneDriveIntegrationMissingError) {
@@ -12256,10 +12295,13 @@ export default function App() {
       }
     }
 
-    return carregarClientesSalvos()
-  }, [adicionarNotificacao, carregarClientesSalvos, parseClientesSalvos])
+    return carregarClientesSalvos().filter((registro) => !deletedClientKeysRef.current.has(getClientStableKey(registro)))
+  }, [adicionarNotificacao, carregarClientesSalvos, getClientStableKey, meAuthState, parseClientesSalvos])
 
   useEffect(() => {
+    if (meAuthState !== 'authenticated') {
+      return
+    }
     let cancelado = false
     const carregar = async () => {
       const registros = await carregarClientesPrioritarios()
@@ -12286,7 +12328,7 @@ export default function App() {
   // authSyncKey increments when Stack Auth token becomes available, ensuring
   // this effect re-runs on new devices where auth resolves after initial mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carregarClientesPrioritarios, authSyncKey])
+  }, [carregarClientesPrioritarios, authSyncKey, meAuthState])
 
   // Fetch all registered consultants for privileged users so the client
   // management page can populate its consultant filter dropdown.
@@ -15393,10 +15435,10 @@ export default function App() {
           : await upsertClientByDocument(upsertPayload)
         neonServerId = serverRow.id
         syncedToBackend = true
-        setClientsSyncState('synced')
+        setClientsSyncState('online-db')
       }
     } catch (error) {
-      setClientsSyncState('failed')
+      setClientsSyncState('degraded-api')
       console.warn('[ClienteSave] Neon save failed; saving locally as fallback:', error)
     }
 
@@ -15604,7 +15646,7 @@ export default function App() {
         setClientesSalvos(refreshed)
       } catch (error) {
         console.error('[clients][refresh-safe] failed', error)
-        setClientsSyncState('failed')
+        setClientsSyncState('degraded-api')
       }
     }
 
@@ -15639,6 +15681,9 @@ export default function App() {
 
       clientAutoSaveTimeoutRef.current = setTimeout(async () => {
         if (isHydratingRef.current || !clienteEmEdicaoId) {
+          return
+        }
+        if (deletingClientIdsRef.current.has(clienteEmEdicaoId)) {
           return
         }
         if (!isConnectivityOnline()) {
@@ -15755,21 +15800,39 @@ export default function App() {
       if (!confirmado) {
         return
       }
+      deletingClientIdsRef.current.add(registro.id)
+      const targetKey = getClientStableKey(registro)
+      deletedClientKeysRef.current.add(targetKey)
+      if (clientAutoSaveTimeoutRef.current) {
+        clearTimeout(clientAutoSaveTimeoutRef.current)
+      }
+      console.info('[clients][delete] start', { id: registro.id })
 
       const serverIdCandidate =
         clientServerIdMapRef.current[registro.id] ??
         (CLIENTE_ID_PATTERN.test(registro.id) ? null : registro.id)
       if (isConnectivityOnline() && serverIdCandidate) {
-        setClientsSyncState('pending')
+        setClientsSyncState('reconciling')
         try {
           await deleteClientById(serverIdCandidate)
-          setClientsSyncState('synced')
+          setClientsSyncState('online-db')
+          setClientsLastDeleteError(null)
+          console.info('[clients][delete] success', { id: serverIdCandidate })
         } catch (error) {
-          console.error('Erro ao excluir cliente no backend.', error)
-          console.error('[clients][mutation] failed', { operation: 'delete', error })
-          setClientsSyncState('failed')
-          window.alert('Não foi possível excluir o cliente no servidor. Tente novamente.')
-          return
+          if (!isClientNotFoundError(error)) {
+            console.error('Erro ao excluir cliente no backend.', error)
+            console.error('[clients][mutation] failed', { operation: 'delete', error })
+            setClientsSyncState('degraded-api')
+            setClientsLastDeleteError(error instanceof Error ? error.message : String(error))
+            console.error('[clients][delete] failed', {
+              id: serverIdCandidate,
+              message: error instanceof Error ? error.message : String(error),
+            })
+            window.alert('Não foi possível excluir o cliente no servidor. Tente novamente.')
+            deletingClientIdsRef.current.delete(registro.id)
+            return
+          }
+          console.info('[clients] cliente já inexistente no backend; UI reconciliada', { id: serverIdCandidate })
         }
       }
 
@@ -15821,14 +15884,16 @@ export default function App() {
           const refreshed = await carregarClientesPrioritarios()
           setClientesSalvos(refreshed)
         } catch (error) {
-          console.error('[clients][refresh-safe] failed', error)
-          setClientsSyncState('failed')
+          console.warn('[clients][refresh-safe] failed; preserving optimistic state', error)
+          setClientsSyncState('degraded-api')
         }
       }
+      deletingClientIdsRef.current.delete(registro.id)
     },
     [
       carregarClientesPrioritarios,
       clienteEmEdicaoId,
+      getClientStableKey,
       removeClientServerIdMapEntry,
       requestConfirmDialog,
       setClienteEmEdicaoId,
@@ -28684,9 +28749,46 @@ export default function App() {
       ) : null}
       {renderPrecheckModal()}
 
-      {(clientsSyncState === 'local-only' || clientsSyncState === 'failed' || proposalsSyncState === 'local-only' || proposalsSyncState === 'failed') ? (
+      {(clientsSyncState === 'local-fallback' || clientsSyncState === 'degraded-api' || proposalsSyncState === 'local-only' || proposalsSyncState === 'failed') ? (
         <div className="sync-warning-banner" role="status" aria-live="polite">
-          ⚠️ Dados em modo local temporário. A sincronização com o banco (Neon) está indisponível no momento.
+          {clientsSyncState === 'degraded-api'
+            ? '⚠️ Clientes atualizados, mas a recarga completa da lista falhou no momento.'
+            : '⚠️ Dados em modo local temporário. A sincronização com o banco (Neon) está indisponível no momento.'}
+        </div>
+      ) : null}
+      {showAdminDiagnostics && isAdmin ? (
+        <div
+          style={{
+            position: 'fixed',
+            right: 12,
+            bottom: 12,
+            zIndex: 9999,
+            maxWidth: 360,
+            background: '#111827',
+            color: '#f9fafb',
+            fontSize: 12,
+            padding: 12,
+            borderRadius: 8,
+            opacity: 0.95,
+          }}
+        >
+          <strong>Admin diagnostics</strong>
+          <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0 0' }}>
+            {JSON.stringify({
+              authState: meAuthState,
+              authSource: me?.authSource ?? null,
+              meAuthenticated: me?.authenticated ?? null,
+              meAuthorized: me?.authorized ?? null,
+              clientsSyncState,
+              proposalsSyncState,
+              dbSource: null,
+              dbHost: null,
+              dbName: null,
+              dbSchema: null,
+              clientsLastLoadError,
+              clientsLastDeleteError,
+            }, null, 2)}
+          </pre>
         </div>
       ) : null}
 
