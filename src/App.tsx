@@ -284,6 +284,7 @@ import {
 } from './lib/api/proposalsApi'
 import {
   deleteClientById,
+  isClientNotFoundError,
   listClients as listClientsFromApi,
   listConsultants as listConsultantsFromApi,
   type ClientRow,
@@ -15122,7 +15123,6 @@ export default function App() {
       activeTab: tab,
       settingsTab,
       cliente: cloneClienteDados(clienteFonte), // Use ref instead of closure
-      carregarClientesPrioritarios,
       clienteEmEdicaoId,
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
@@ -15638,7 +15638,11 @@ export default function App() {
       }
 
       clientAutoSaveTimeoutRef.current = setTimeout(async () => {
-        if (isHydratingRef.current || !clienteEmEdicaoId) {
+        // Use the ref (not the closure variable) to catch the case where
+        // clienteEmEdicaoId was set to null after this timer was scheduled
+        // but before it fires (e.g. the client was deleted during the delay).
+        const editingId = clienteEmEdicaoIdRef.current
+        if (isHydratingRef.current || !editingId) {
           return
         }
         if (!isConnectivityOnline()) {
@@ -15685,13 +15689,20 @@ export default function App() {
 
         clientServerAutoSaveInFlightRef.current = true
         try {
-          const knownServerId = clientServerIdMapRef.current[clienteEmEdicaoId]
+          const knownServerId = clientServerIdMapRef.current[editingId]
           const serverRow = knownServerId
             ? await updateClientById(knownServerId, payload as UpdateClientInput)
             : await upsertClientByDocument(payload)
-          updateClientServerIdMap(clienteEmEdicaoId, serverRow.id)
+          updateClientServerIdMap(editingId, serverRow.id)
           await clearFormDraft()
         } catch (error) {
+          // If the backend says the client no longer exists, the autosave target
+          // was deleted (possibly by another session). Treat as reconciled — do
+          // NOT fall back to a local draft that would re-introduce the record.
+          if (isClientNotFoundError(error)) {
+            console.info('[ClienteAutoSave] skipped: client no longer exists on backend', { editingId })
+            return
+          }
           console.warn('[ClienteAutoSave] Failed to auto-save cliente to backend:', error)
           try {
             const snapshotFallback = getCurrentSnapshot()
@@ -15756,6 +15767,13 @@ export default function App() {
         return
       }
 
+      // Cancel any pending autosave for this client immediately so the timer
+      // cannot fire a PUT request for a client we are about to delete.
+      if (clientAutoSaveTimeoutRef.current) {
+        clearTimeout(clientAutoSaveTimeoutRef.current)
+        clientAutoSaveTimeoutRef.current = null
+      }
+
       const serverIdCandidate =
         clientServerIdMapRef.current[registro.id] ??
         (CLIENTE_ID_PATTERN.test(registro.id) ? null : registro.id)
@@ -15765,11 +15783,19 @@ export default function App() {
           await deleteClientById(serverIdCandidate)
           setClientsSyncState('synced')
         } catch (error) {
-          console.error('Erro ao excluir cliente no backend.', error)
-          console.error('[clients][mutation] failed', { operation: 'delete', error })
-          setClientsSyncState('failed')
-          window.alert('Não foi possível excluir o cliente no servidor. Tente novamente.')
-          return
+          // 404 means the client is already absent from the backend — treat this
+          // as a reconciled state (not a failure) and continue removing it from the UI.
+          if (isClientNotFoundError(error)) {
+            console.info('[delete-client] already absent on backend; treating as reconciled', {
+              clientId: serverIdCandidate,
+            })
+            setClientsSyncState('synced')
+          } else {
+            console.error('[clients][mutation] failed', { operation: 'delete', error })
+            setClientsSyncState('failed')
+            window.alert('Não foi possível excluir o cliente no servidor. Tente novamente.')
+            return
+          }
         }
       }
 
@@ -15819,10 +15845,17 @@ export default function App() {
       if (isConnectivityOnline() && serverIdCandidate) {
         try {
           const refreshed = await carregarClientesPrioritarios()
-          setClientesSalvos(refreshed)
+          // Only update state with items that were NOT optimistically deleted.
+          // This prevents a slow/stale refresh from resurrecting the deleted client.
+          setClientesSalvos((prev) => {
+            const deletedIds = new Set(prev.map((c) => c.id).filter((id) => !refreshed.some((r) => r.id === id)))
+            deletedIds.add(registro.id)
+            return refreshed.filter((c) => !deletedIds.has(c.id))
+          })
         } catch (error) {
-          console.error('[clients][refresh-safe] failed', error)
-          setClientsSyncState('failed')
+          console.warn('[clients][refresh-safe] failed; preserving optimistic deletion', error)
+          // Do NOT call setClientsSyncState('failed') here — the delete itself
+          // succeeded. A refresh failure is not a sync failure.
         }
       }
     },

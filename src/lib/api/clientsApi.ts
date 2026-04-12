@@ -97,6 +97,22 @@ export class ClientsApiError extends Error {
   }
 }
 
+/**
+ * Returns true when a backend response indicates the client no longer exists.
+ * Used to treat DELETE 404 / PUT 404 as a reconciled state rather than an error.
+ */
+export function isClientNotFoundError(error: unknown): boolean {
+  if (error instanceof ClientsApiError) {
+    return error.status === 404 || error.code === 'NOT_FOUND'
+  }
+  const msg = error instanceof Error ? error.message : String(error)
+  return (
+    msg.includes('Client not found') ||
+    msg.includes('NOT_FOUND') ||
+    msg.includes('404')
+  )
+}
+
 async function parseErrorResponse(res: Response): Promise<ClientsApiError> {
   let code = 'INTERNAL_ERROR'
   let message = `HTTP ${res.status}`
