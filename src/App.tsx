@@ -5855,7 +5855,8 @@ export default function App() {
         const raw = window.localStorage.getItem(CLIENTS_DELETED_TOMBSTONES_KEY)
         const parsed: unknown = raw ? JSON.parse(raw) : null
         return new Set<string>(Array.isArray(parsed) ? (parsed as string[]) : [])
-      } catch {
+      } catch (e) {
+        console.warn('[clients][tombstones] Failed to restore deleted-client tombstones from localStorage:', e)
         return new Set<string>()
       }
     })(),
@@ -15898,10 +15899,9 @@ export default function App() {
       if (isConnectivityOnline() && serverIdCandidate) {
         try {
           const refreshed = await carregarClientesPrioritarios()
-          // Only update state with items that were NOT optimistically deleted.
-          // This prevents a slow/stale refresh from resurrecting the deleted client.
-          const excludeIds = new Set([registro.id])
-          setClientesSalvos(refreshed.filter((c) => !excludeIds.has(c.id)))
+          // carregarClientesPrioritarios already applies the tombstone filter, so
+          // the deleted client is excluded from refreshed regardless of the API state.
+          setClientesSalvos(refreshed)
         } catch (error) {
           console.warn('[clients][refresh-safe] failed; preserving optimistic deletion', error)
           // Do NOT call setClientsSyncState('failed') here — the delete itself
