@@ -162,7 +162,7 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
       created_by_user_id: actor.userId,
       owner_user_id: actor.userId,
       identity_status: identityStatus,
-      origin: offlineOriginId ? 'offline_sync' : 'online',
+      origin: offlineOriginId ? 'offline' : 'online',
       offline_origin_id: offlineOriginId,
       metadata: body.metadata ?? null,
     })
@@ -170,7 +170,7 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     await appendClientAuditLog(
       db.sql, newClient.id, actor.userId, actor.email ?? null,
       'created', null, newClient,
-      offlineOriginId ? 'offline_sync' : null, null,
+      offlineOriginId ? 'Offline sync migration' : null, null,
     )
 
     logRoute('/api/clients/upsert-by-cpf', { method: 'POST', actorUserId: actor.userId, success: true, clientId: newClient.id })

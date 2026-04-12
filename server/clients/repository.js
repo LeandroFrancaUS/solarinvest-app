@@ -269,28 +269,50 @@ export async function listClients(sql, filter = {}) {
   let countResult
   let dataResult
 
+  // Helper: detect structural DB errors that should trigger the basic fallback
+  // rather than bubble up as 500.  Covers missing optional tables/columns.
+  function isStructuralError(err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return (
+      msg.includes('app_user_profiles') ||
+      msg.includes('proposals') ||
+      msg.includes('merged_into_client_id') ||
+      /relation ".+" does not exist/.test(msg) ||
+      /column ".+" does not exist/.test(msg)
+    )
+  }
+
+  // Fallback WHERE omits merged_into_client_id (may be absent on older DB schemas).
+  // The params array ($1, $2, …) stays the same — only the structural NULL check
+  // is dropped.  LIMIT/OFFSET placeholders shift to match params.length.
+  const fallbackConditions = conditions.filter(c => !c.includes('merged_into_client_id'))
+  const fallbackWhere = fallbackConditions.length ? `WHERE ${fallbackConditions.join(' AND ')}` : ''
+
   try {
-    [countResult, dataResult] = await Promise.all([
+    ;[countResult, dataResult] = await Promise.all([
       sql(countQuery, params),
       sql(dataQuery, [...params, limitNum, offset]),
     ])
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    const missingOptionalJoin = message.includes('app_user_profiles') || message.includes('proposals')
-    if (!missingOptionalJoin) {
+    console.error('[clients][list] primary query failed', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
+    if (!isStructuralError(error)) {
       throw error
     }
 
-    console.warn('[clients][list] optional joins unavailable, falling back to base clients query', { message })
+    console.warn('[clients][list] optional joins/columns unavailable, falling back to base clients query')
 
-    const basicCountQuery = `SELECT COUNT(*) FROM clients c ${where}`
+    const basicCountQuery = `SELECT COUNT(*) FROM clients c ${fallbackWhere}`
     const basicDataQuery = `
       SELECT c.*,
         NULL::text AS owner_display_name,
         NULL::text AS owner_email,
         0::int AS proposal_count
       FROM clients c
-      ${where}
+      ${fallbackWhere}
       ORDER BY c.${safeSort} ${safeSortDir}
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `
