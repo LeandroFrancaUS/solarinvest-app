@@ -175,6 +175,19 @@ export async function updateClient(sql, clientId, data) {
 }
 
 /**
+ * Hard delete a client row.
+ */
+export async function deleteClient(sql, clientId) {
+  const rows = await sql`
+    DELETE FROM clients
+    WHERE id = ${clientId}
+      AND deleted_at IS NULL
+    RETURNING *
+  `
+  return rows[0] ?? null
+}
+
+/**
  * List clients with filters.
  * Uses parameterized queries for all user-supplied values.
  * Sort column is validated against an allowlist to prevent SQL injection.
@@ -251,20 +264,39 @@ export async function listClients(sql, filter = {}) {
     LIMIT $${params.length + 1} OFFSET $${params.length + 2}
   `
 
-  const [countResult, dataResult] = await Promise.all([
-    sql(countQuery, params),
-    sql(dataQuery, [...params, limitNum, offset]),
-  ])
+  try {
+    const [countResult, dataResult] = await Promise.all([
+      sql(countQuery, params),
+      sql(dataQuery, [...params, limitNum, offset]),
+    ])
 
-  const total = parseInt(countResult[0]?.count ?? '0', 10)
-  return {
-    data: dataResult,
-    meta: {
-      page: pageNum,
-      limit: limitNum,
-      total,
-      totalPages: Math.ceil(total / limitNum),
-    },
+    const total = parseInt(countResult[0]?.count ?? '0', 10)
+    return {
+      data: dataResult,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    }
+  } catch (error) {
+    console.warn('[clients] listClients primary query failed, using fallback:', error?.message)
+    const fallbackRows = await sql(
+      `SELECT * FROM clients ORDER BY updated_at DESC LIMIT $1 OFFSET $2`,
+      [limitNum, offset],
+    )
+    const fallbackCountRows = await sql(`SELECT COUNT(*)::int AS total FROM clients`, [])
+    const total = Number(fallbackCountRows[0]?.total ?? 0)
+    return {
+      data: fallbackRows,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    }
   }
 }
 

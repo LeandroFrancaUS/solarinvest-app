@@ -3,6 +3,7 @@
 
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
+import { ensureOperationalSchema } from '../database/ensureOperationalSchema.js'
 import {
   normalizeCpfServer,
   normalizeCnpjServer,
@@ -12,6 +13,7 @@ import {
   findClientByOfflineOriginId,
   createClient,
   updateClient,
+  deleteClient,
   listClients,
   getClientProposals,
   appendClientAuditLog,
@@ -22,11 +24,18 @@ function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
 }
 
-function getDb(sendJson) {
+async function getDb(sendJson) {
   const db = getDatabaseClient()
   if (!db) {
     sendJson(503, { error: { code: 'SERVICE_UNAVAILABLE', message: 'Database not configured' } })
     return null
+  }
+  try {
+    await ensureOperationalSchema(db.sql)
+  } catch (error) {
+    // Do not hard-fail requests when self-healing is unavailable (e.g. limited DB permissions).
+    // Continue with existing schema and let repository fallbacks handle query differences.
+    console.warn('[clients] schema ensure skipped:', error?.message ?? error)
   }
   return db
 }
@@ -38,6 +47,25 @@ function sqlForActor(db, actor) {
   // lets the DB grant admins full access through the policy logic rather than
   // bypassing it entirely.
   return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+}
+
+function resolveUserSqlOrSendError(db, actor, sendJson) {
+  try {
+    return sqlForActor(db, actor)
+  } catch (error) {
+    const statusCode = Number(error?.statusCode ?? 500)
+    if (statusCode === 401) {
+      sendError(sendJson, 401, 'UNAUTHENTICATED', 'Login required')
+      return null
+    }
+    if (statusCode === 403) {
+      sendError(sendJson, 403, 'FORBIDDEN', 'User has no RBAC role configured')
+      return null
+    }
+    console.error('[clients] failed to initialize user SQL context:', error)
+    sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to initialize user context')
+    return null
+  }
 }
 
 /**
@@ -53,7 +81,7 @@ function sqlForActor(db, actor) {
 export async function handleUpsertClientByCpf(req, res, ctx) {
   const { readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -171,7 +199,7 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
 export async function handleClientsRequest(req, res, ctx) {
   const { method, readJsonBody, sendJson: rawSendJson, requestUrl } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -185,7 +213,8 @@ export async function handleClientsRequest(req, res, ctx) {
   if (method === 'GET') {
     const q = requestUrl.searchParams
     // RLS (via userSql + role context) enforces access — no ownerUserId/officeUserId needed.
-    const userSql = sqlForActor(db, actor)
+    const userSql = resolveUserSqlOrSendError(db, actor, sendJson)
+    if (!userSql) return
     try {
       const result = await listClients(userSql, {
         createdByUserId: q.get('created_by') ?? null,
@@ -223,7 +252,8 @@ export async function handleClientsRequest(req, res, ctx) {
       else if (docNormalized && docType === 'cnpj') identityStatus = 'confirmed'
       else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
       // RLS enforces write permission; app layer also guards via isFinanceiro check above.
-      const userSql = sqlForActor(db, actor)
+      const userSql = resolveUserSqlOrSendError(db, actor, sendJson)
+      if (!userSql) return
       const client = await createClient(userSql, {
         ...body,
         cpf_normalized: cpfNormalized,
@@ -250,11 +280,12 @@ export async function handleClientsRequest(req, res, ctx) {
  * GET /api/clients/:id
  * GET /api/clients/:id/proposals
  * PUT /api/clients/:id
+ * DELETE /api/clients/:id
  */
 export async function handleClientByIdRequest(req, res, ctx) {
   const { method, clientId, subpath, readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -267,13 +298,43 @@ export async function handleClientByIdRequest(req, res, ctx) {
 
   // GET /api/clients/:id/proposals
   if (method === 'GET' && subpath === 'proposals') {
-    const userSql = sqlForActor(db, actor)
+    const userSql = resolveUserSqlOrSendError(db, actor, sendJson)
+    if (!userSql) return
     try {
       const proposals = await getClientProposals(userSql, clientId)
       return sendJson(200, { data: proposals })
     } catch (err) {
       console.error('[clients] get proposals error:', err)
       return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to get proposals')
+    }
+  }
+
+  if (method === 'DELETE' && !subpath) {
+    console.info('[client-delete] request received', {
+      method,
+      id: clientId ?? null,
+      hasAuthHeader: !!req.headers?.authorization,
+      hasStackToken: !!req.headers?.['x-stack-access-token'],
+    })
+
+    if (actor.isFinanceiro && !actor.isAdmin) {
+      return sendError(sendJson, 403, 'FORBIDDEN', 'Read-only role')
+    }
+
+    try {
+      const userSql = resolveUserSqlOrSendError(db, actor, sendJson)
+      if (!userSql) return
+      const deleted = await deleteClient(userSql, clientId)
+      if (!deleted) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
+      return sendJson(200, { ok: true, deletedId: String(deleted.id) })
+    } catch (error) {
+      console.error('[client-delete] failed', {
+        method,
+        id: clientId ?? null,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      })
+      return sendError(sendJson, 500, 'CLIENT_DELETE_FAILED', 'Falha ao remover cliente.')
     }
   }
 
@@ -290,7 +351,8 @@ export async function handleClientByIdRequest(req, res, ctx) {
       const cpfNormalized = (body.cpf_raw != null || docType === 'cpf') ? normalizeCpfServer(body.cpf_raw ?? rawDoc) : undefined
       const cnpjNormalized = (body.cnpj_raw != null || docType === 'cnpj') ? normalizeCnpjServer(body.cnpj_raw ?? rawDoc) : undefined
       // RLS enforces write permission; app layer also guards via isFinanceiro check above.
-      const userSql = sqlForActor(db, actor)
+      const userSql = resolveUserSqlOrSendError(db, actor, sendJson)
+      if (!userSql) return
       const updated = await updateClient(userSql, clientId, {
         ...body,
         cpf_normalized: cpfNormalized,

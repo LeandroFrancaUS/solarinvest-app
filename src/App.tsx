@@ -38,6 +38,7 @@ import { getTarifaCheia } from './utils/tarifaAneel'
 import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { resolveApiUrl } from './utils/apiUrl'
+import { parseBackupFileToPayload, type BackupPreview } from './utils/backupImportEngine'
 import {
   persistClienteRegistroToOneDrive,
   persistContratoToOneDrive,
@@ -275,6 +276,7 @@ import { useAuthSession } from './auth/auth-session'
 import {
   createProposal,
   type CreateProposalInput,
+  deleteProposal,
   listProposals as listProposalsFromApi,
   type ProposalRow,
   setProposalsTokenProvider,
@@ -285,6 +287,7 @@ import {
   listClients as listClientsFromApi,
   listConsultants as listConsultantsFromApi,
   type ClientRow,
+  deleteClientById,
   setClientsTokenProvider,
   upsertClientByDocument,
   updateClientById,
@@ -301,6 +304,7 @@ import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
+import { BACKUP_EXPORT_ENDPOINT, BACKUP_IMPORT_ENDPOINT } from './lib/backup/endpoints'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -1174,6 +1178,10 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   }
 }
 
+function getClientStableKey(client: { id?: string | number | null; localId?: string | null }): string {
+  return String(client.id ?? client.localId ?? '')
+}
+
 /**
  * Maps a server-side ProposalRow (from /api/proposals) to the local OrcamentoSalvo format.
  *
@@ -1216,6 +1224,20 @@ function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
     dados,
     snapshot: snapshot ?? undefined,
   }
+}
+
+function getProposalStableKey(proposal: { id?: string | number | null; localId?: string | null }): string {
+  return String(proposal.id ?? proposal.localId ?? '')
+}
+
+function isNotFoundDeleteError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  return (
+    message.includes('Client not found') ||
+    message.includes('Proposal not found') ||
+    message.includes('NOT_FOUND') ||
+    message.includes('404')
+  )
 }
 const PROPOSAL_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-proposal-server-id-map'
 const CLIENT_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-client-server-id-map'
@@ -3074,7 +3096,10 @@ type ClientesPanelProps = {
   onExportarCsv: () => void
   onExportarJson: () => void
   onImportar: () => void
+  onBackupCliente: () => void
   isImportando: boolean
+  isGerandoBackupBanco?: boolean
+  canBackupBanco?: boolean
   /** When true, shows the "Consultor" column and cross-user description */
   isPrivilegedUser?: boolean
   /** All registered consultant names for the filter dropdown (privileged users only) */
@@ -3224,7 +3249,10 @@ function ClientesPanel({
   onExportarCsv,
   onExportarJson,
   onImportar,
+  onBackupCliente,
   isImportando,
+  isGerandoBackupBanco = false,
+  canBackupBanco = false,
   isPrivilegedUser = false,
   allConsultores = [],
 }: ClientesPanelProps) {
@@ -3317,17 +3345,31 @@ function ClientesPanel({
                 <span aria-hidden="true">📄</span>
                 <span>Exportar CSV</span>
               </button>
-              <button
-                type="button"
-                className="ghost with-icon"
-                onClick={onImportar}
-                disabled={isImportando}
-                aria-busy={isImportando}
-                title="Importar clientes a partir de um arquivo JSON ou CSV"
-              >
-                <span aria-hidden="true">⬇️</span>
-                <span>{isImportando ? 'Importando…' : 'Importar'}</span>
-              </button>
+              {canBackupBanco ? (
+                <button
+                  type="button"
+                  className="ghost with-icon"
+                  onClick={onBackupCliente}
+                  disabled={isGerandoBackupBanco}
+                  aria-busy={isGerandoBackupBanco}
+                  title="Backup completo de clientes e propostas (baixar ou carregar)"
+                >
+                  <span aria-hidden="true">🗄️</span>
+                  <span>{isGerandoBackupBanco ? 'Processando backup…' : 'Backup de cliente'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ghost with-icon"
+                  onClick={onImportar}
+                  disabled={isImportando}
+                  aria-busy={isImportando}
+                  title="Importar clientes a partir de um arquivo JSON ou CSV"
+                >
+                  <span aria-hidden="true">⬇️</span>
+                  <span>{isImportando ? 'Importando…' : 'Importar'}</span>
+                </button>
+              )}
             </div>
           </div>
           <Field
@@ -5089,6 +5131,16 @@ export default function App() {
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
+  const orcamentosSalvosRef = useRef<OrcamentoSalvo[]>([])
+  const clientesSalvosRef = useRef<ClienteRegistro[]>([])
+  const pendingMutationRef = useRef({
+    deletedClientKeys: new Set<string>(),
+    addedClientKeys: new Set<string>(),
+    deletedProposalKeys: new Set<string>(),
+    addedProposalKeys: new Set<string>(),
+  })
+  const [clientsCacheDirty, setClientsCacheDirty] = useState(false)
+  const [proposalsCacheDirty, setProposalsCacheDirty] = useState(false)
   const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
   const [orcamentoVisualizado, setOrcamentoVisualizado] = useState<PrintableProposalProps | null>(null)
   const [orcamentoVisualizadoInfo, setOrcamentoVisualizadoInfo] = useState<
@@ -5868,6 +5920,25 @@ export default function App() {
     }
   }, [])
 
+  const removeProposalServerIdMap = useCallback((budgetId: string) => {
+    if (typeof window === 'undefined' || !budgetId) {
+      return
+    }
+    if (!(budgetId in proposalServerIdMapRef.current)) {
+      return
+    }
+    const { [budgetId]: _removed, ...next } = proposalServerIdMapRef.current
+    proposalServerIdMapRef.current = next
+    try {
+      window.localStorage.setItem(
+        PROPOSAL_SERVER_ID_MAP_STORAGE_KEY,
+        JSON.stringify(proposalServerIdMapRef.current),
+      )
+    } catch (error) {
+      console.warn('[AutoSave] Failed to persist proposal server-id map after delete:', error)
+    }
+  }, [])
+
   const updateClientServerIdMap = useCallback((localClientId: string, serverId: string) => {
     if (typeof window === 'undefined' || !localClientId || !serverId) {
       return
@@ -5885,6 +5956,26 @@ export default function App() {
       console.warn('[ClienteAutoSave] Failed to persist client server-id map:', error)
     }
   }, [])
+
+  const removeClientServerIdMap = useCallback((localClientId: string) => {
+    if (typeof window === 'undefined' || !localClientId) {
+      return
+    }
+    if (!(localClientId in clientServerIdMapRef.current)) {
+      return
+    }
+    const { [localClientId]: _removed, ...next } = clientServerIdMapRef.current
+    clientServerIdMapRef.current = next
+    try {
+      window.localStorage.setItem(
+        CLIENT_SERVER_ID_MAP_STORAGE_KEY,
+        JSON.stringify(clientServerIdMapRef.current),
+      )
+    } catch (error) {
+      console.warn('[ClienteAutoSave] Failed to persist client server-id map after delete:', error)
+    }
+  }, [])
+
 
   const setClienteSync = useCallback(
     (next: ClienteDados) => {
@@ -5913,6 +6004,14 @@ export default function App() {
   const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
   const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
+
+  useEffect(() => {
+    clientesSalvosRef.current = clientesSalvos
+  }, [clientesSalvos])
+
+  useEffect(() => {
+    orcamentosSalvosRef.current = orcamentosSalvos
+  }, [orcamentosSalvos])
   const leasingContrato = useLeasingStore((state) => state.contrato)
   const leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
   const corresponsavelAtivo = useMemo(() => {
@@ -6519,7 +6618,18 @@ export default function App() {
     useState<LeasingCorresponsavel>(createEmptyCorresponsavel)
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
+  const [isGerandoBackupBanco, setIsGerandoBackupBanco] = useState(false)
+  const [isBackupClienteModalOpen, setIsBackupClienteModalOpen] = useState(false)
+  const [backupDestinoSelecionado, setBackupDestinoSelecionado] = useState<'local' | 'cloud' | 'platform'>('local')
+  const [backupPreview, setBackupPreview] = useState<BackupPreview | null>(null)
+  const [backupPayloadPendente, setBackupPayloadPendente] = useState<unknown>(null)
+  const [backupImportTab, setBackupImportTab] = useState<'summary' | 'clients' | 'proposals'>('summary')
+  const [backupImportSelection, setBackupImportSelection] = useState<{ clients: boolean[]; proposals: boolean[] }>({
+    clients: [],
+    proposals: [],
+  })
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
+  const backupImportInputRef = useRef<HTMLInputElement | null>(null)
   const fecharClientesPainel = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)
   }, [setActivePage])
@@ -12099,6 +12209,19 @@ export default function App() {
     return parseClientesSalvos(window.localStorage.getItem(CLIENTES_STORAGE_KEY))
   }, [parseClientesSalvos])
 
+  const reconcileLoadedClients = useCallback((loaded: ClienteRegistro[]): ClienteRegistro[] => {
+    const pending = pendingMutationRef.current
+    const filtered = loaded.filter(
+      (item) => !pending.deletedClientKeys.has(getClientStableKey({ id: item.id })),
+    )
+    const loadedKeys = new Set(filtered.map((item) => getClientStableKey({ id: item.id })))
+    const optimisticAdds = clientesSalvosRef.current.filter((item) => {
+      const key = getClientStableKey({ id: item.id })
+      return pending.addedClientKeys.has(key) && !pending.deletedClientKeys.has(key) && !loadedKeys.has(key)
+    })
+    return [...optimisticAdds, ...filtered]
+  }, [])
+
   const carregarClientesPrioritarios = useCallback(async (): Promise<ClienteRegistro[]> => {
     if (typeof window === 'undefined') {
       return []
@@ -12119,7 +12242,7 @@ export default function App() {
       }
       // Cache fresh Neon data in localStorage for offline fallback
       try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
-      return allRegistros
+      return reconcileLoadedClients(allRegistros)
     } catch (error) {
       console.warn('[clients] Falha ao carregar clientes via API; fallback para armazenamento local.', error)
       // Fall through to storage-based loading
@@ -12131,7 +12254,7 @@ export default function App() {
       if (remotoRaw === null) {
         if (registrosLocais.length > 0) {
           await persistRemoteStorageEntry(CLIENTES_STORAGE_KEY, JSON.stringify(registrosLocais))
-          return registrosLocais
+          return reconcileLoadedClients(registrosLocais)
         }
 
         window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
@@ -12144,11 +12267,11 @@ export default function App() {
 
         if (ultimaAtualizacaoLocal && ultimaAtualizacaoLocal > ultimaAtualizacaoRemota) {
           await persistRemoteStorageEntry(CLIENTES_STORAGE_KEY, JSON.stringify(registrosLocais))
-          return registrosLocais
+          return reconcileLoadedClients(registrosLocais)
         }
 
         window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosRemotos))
-        return registrosRemotos
+        return reconcileLoadedClients(registrosRemotos)
       }
     } catch (error) {
       console.warn('Não foi possível carregar clientes do armazenamento remoto.', error)
@@ -12163,7 +12286,7 @@ export default function App() {
             : JSON.stringify(oneDrivePayload)
         const registros = parseClientesSalvos(raw)
         window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
-        return registros
+        return reconcileLoadedClients(registros)
       }
     } catch (error) {
       if (error instanceof OneDriveIntegrationMissingError) {
@@ -12173,8 +12296,8 @@ export default function App() {
       }
     }
 
-    return carregarClientesSalvos()
-  }, [carregarClientesSalvos, getUltimaAtualizacao, parseClientesSalvos])
+    return reconcileLoadedClients(carregarClientesSalvos())
+  }, [carregarClientesSalvos, getUltimaAtualizacao, parseClientesSalvos, reconcileLoadedClients])
 
   useEffect(() => {
     let cancelado = false
@@ -14548,6 +14671,201 @@ export default function App() {
     }
   }, [clientesImportInputRef, isImportandoClientes])
 
+  const handleBackupUploadArquivo = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = event.target.files?.[0]
+    event.target.value = ''
+    if (!arquivo || typeof window === 'undefined') return
+
+    try {
+      const parsed = await parseBackupFileToPayload(arquivo)
+      setBackupPayloadPendente(parsed.payload)
+      setBackupPreview(parsed.preview)
+      const clients = parsed.payload?.data?.clients ?? []
+      const proposals = parsed.payload?.data?.proposals ?? []
+      setBackupImportSelection({
+        clients: clients.map((item) => Boolean((item as { name?: string }).name)),
+        proposals: proposals.map((item) => Boolean((item as { proposal_type?: string }).proposal_type)),
+      })
+      setBackupImportTab('summary')
+    } catch (error) {
+      console.error('Erro ao preparar backup para importação.', error)
+      window.alert('Formato inválido. Use .xlsx, .xlxs, .xlx, .xls, .csv ou .json.')
+    }
+  }, [])
+
+  const handleConfirmarImportacaoBackup = useCallback(async () => {
+    if (!backupPayloadPendente) return
+    setIsGerandoBackupBanco(true)
+    try {
+      const token = await getAccessToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+        headers['x-stack-access-token'] = token
+      }
+      const clients = (
+        backupPayloadPendente as { data?: { clients?: Array<Record<string, unknown>> } } | null
+      )?.data?.clients ?? []
+      const proposals = (
+        backupPayloadPendente as { data?: { proposals?: Array<Record<string, unknown>> } } | null
+      )?.data?.proposals ?? []
+
+      const response = await fetch(resolveApiUrl(BACKUP_IMPORT_ENDPOINT), {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          meta: {
+            sourceType: backupPreview?.sourceFormat ?? 'json',
+          },
+          selection: {
+            clients: clients.map((item, index) => ({
+              sourceRowIndex: index + 1,
+              selected: Boolean(backupImportSelection.clients[index]),
+              data: item,
+            })),
+            proposals: proposals.map((item, index) => ({
+              sourceRowIndex: index + 1,
+              selected: Boolean(backupImportSelection.proposals[index]),
+              data: item,
+            })),
+          },
+        }),
+      })
+      const responseContentType = response.headers.get('content-type') ?? ''
+      const payload = responseContentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : await response.text().catch(() => '')
+
+      if (!response.ok || !payload || (typeof payload === 'object' && !payload.ok)) {
+        const message =
+          typeof payload === 'string'
+            ? payload
+            : payload?.message ?? payload?.error ?? 'Falha ao importar backup.'
+        console.error('[backup-import][response-error]', payload)
+        throw new Error(message)
+      }
+      const parsedPayload = payload as { importedClients?: number; importedProposals?: number }
+      adicionarNotificacao(
+        `Backup carregado com sucesso (${parsedPayload.importedClients ?? 0} clientes e ${parsedPayload.importedProposals ?? 0} propostas).`,
+        'success',
+      )
+      // Local UI immediate refresh fallback: if API list fails, still surface imported clients.
+      const importedClientsRaw = (
+        backupPayloadPendente as { data?: { clients?: Array<Record<string, unknown>> } } | null
+      )?.data?.clients ?? []
+      if (importedClientsRaw.length > 0) {
+        const existingIds = new Set(carregarClientesSalvos().map((registro) => registro.id))
+        const localRecordsSeed = importedClientsRaw.map((item) => ({
+          id: (typeof item.id === 'string' && item.id.trim()) ? item.id : undefined,
+          dados: {
+            nome: typeof item.name === 'string' ? item.name : '',
+            documento: typeof item.document === 'string' ? item.document : '',
+            email: typeof item.email === 'string' ? item.email : '',
+            telefone: typeof item.phone === 'string' ? item.phone : '',
+            cidade: typeof item.city === 'string' ? item.city : '',
+            uf: typeof item.state === 'string' ? item.state : '',
+            endereco: typeof item.address === 'string' ? item.address : '',
+            uc: typeof item.uc === 'string' ? item.uc : '',
+            distribuidora: typeof item.distribuidora === 'string' ? item.distribuidora : '',
+          },
+          atualizadoEm: new Date().toISOString(),
+          criadoEm: new Date().toISOString(),
+        }))
+        const { registros: importedLocal } = normalizeClienteRegistros(localRecordsSeed, { existingIds })
+        const mergedLocal = [...importedLocal, ...carregarClientesSalvos()].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
+        setClientesSalvos(mergedLocal)
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(mergedLocal))
+        }
+      }
+      const atualizados = await carregarClientesPrioritarios()
+      setClientesSalvos(atualizados)
+      setBackupPreview(null)
+      setBackupPayloadPendente(null)
+    } catch (error) {
+      console.error('Erro ao importar backup.', error)
+      window.alert('Não foi possível importar o backup selecionado. Verifique o arquivo e tente novamente.')
+    } finally {
+      setIsGerandoBackupBanco(false)
+    }
+  }, [adicionarNotificacao, backupImportSelection.clients, backupImportSelection.proposals, backupPayloadPendente, backupPreview?.sourceFormat, carregarClientesPrioritarios, getAccessToken, setClientesSalvos])
+
+  const handleExecutarDownloadBackup = useCallback(async (destinoApi: 'local' | 'cloud' | 'platform') => {
+    if (typeof window === 'undefined' || isGerandoBackupBanco) return
+    setIsGerandoBackupBanco(true)
+
+    try {
+      const token = await getAccessToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+        headers['x-stack-access-token'] = token
+      }
+      const response = await fetch(resolveApiUrl(BACKUP_EXPORT_ENDPOINT), {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ action: 'export', destination: destinoApi }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean
+            error?: string
+            fileName?: string
+            payload?: unknown
+            platformSaved?: boolean
+            checksumSha256?: string
+          }
+        | null
+
+      if (!response.ok || !payload?.ok || !payload.payload) {
+        throw new Error(payload?.error ?? 'Falha ao gerar backup.')
+      }
+
+      const json = JSON.stringify(payload.payload, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const fileName = payload.fileName ?? buildClientesFileName('json')
+
+      if (destinoApi === 'local' || destinoApi === 'cloud') {
+        downloadClientesArquivo(blob, fileName)
+      }
+
+      if (destinoApi === 'cloud') {
+        const file = new File([blob], fileName, { type: 'application/json' })
+        if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+          await navigator.share({
+            title: 'Backup SolarInvest',
+            text: 'Backup do banco de dados SolarInvest',
+            files: [file],
+          })
+        } else {
+          window.alert('Web Share indisponível neste dispositivo. O arquivo foi baixado localmente.')
+        }
+      }
+
+      const destinoLabel =
+        destinoApi === 'platform' ? 'plataforma' : destinoApi === 'cloud' ? 'nuvem' : 'dispositivo local'
+      const checksumTexto = payload.checksumSha256 ? ` (checksum: ${payload.checksumSha256.slice(0, 12)}...)` : ''
+      adicionarNotificacao(`Backup gerado com sucesso para ${destinoLabel}${checksumTexto}.`, 'success')
+
+      if (payload.platformSaved) {
+        adicionarNotificacao('Cópia adicional registrada na plataforma (Neon).', 'success')
+      }
+    } catch (error) {
+      console.error('Erro ao gerar backup do banco.', error)
+      window.alert('Não foi possível gerar o backup do banco. Tente novamente.')
+    } finally {
+      setIsGerandoBackupBanco(false)
+    }
+  }, [adicionarNotificacao, buildClientesFileName, downloadClientesArquivo, getAccessToken, isGerandoBackupBanco])
+
+  const handleBackupBancoDados = useCallback(() => {
+    if (isGerandoBackupBanco) return
+    setIsBackupClienteModalOpen(true)
+  }, [isGerandoBackupBanco])
+
   const handleClientesImportarArquivo = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const arquivo = event.target.files?.[0]
@@ -14560,36 +14878,8 @@ export default function App() {
       setIsImportandoClientes(true)
 
       try {
-        const conteudo = await arquivo.text()
-        let lista: unknown[] | null = null
-        const isCsvFile =
-          arquivo.name.toLowerCase().endsWith('.csv') ||
-          arquivo.type.toLowerCase().includes('csv')
-
-        if (isCsvFile) {
-          lista = parseClientesCsv(conteudo)
-        } else {
-          let parsed: unknown
-          try {
-            parsed = JSON.parse(conteudo)
-          } catch (error) {
-            const fallbackCsv = parseClientesCsv(conteudo)
-            if (fallbackCsv.length > 0) {
-              lista = fallbackCsv
-            } else {
-              throw new Error('invalid-json')
-            }
-            parsed = null
-          }
-
-          if (parsed) {
-            lista = Array.isArray(parsed)
-              ? parsed
-              : parsed && typeof parsed === 'object' && Array.isArray((parsed as { clientes?: unknown }).clientes)
-              ? ((parsed as { clientes?: unknown }).clientes as unknown[])
-              : null
-          }
-        }
+        const parsed = await parseBackupFileToPayload(arquivo)
+        const lista = parsed.payload.data.clients as unknown[]
 
         if (!lista || lista.length === 0) {
           window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
@@ -14620,8 +14910,10 @@ export default function App() {
         setClientesSalvos(combinados)
         adicionarNotificacao('Clientes importados com sucesso.', 'success')
       } catch (error) {
-        if ((error as Error).message === 'invalid-json') {
-          window.alert('O arquivo selecionado está em um formato inválido (JSON ou CSV).')
+        if (error instanceof SyntaxError) {
+          window.alert('O arquivo selecionado está em um formato inválido (JSON, CSV, XLSX ou XLS).')
+        } else if (error instanceof Error && error.message) {
+          window.alert(error.message)
         } else {
           console.error('Erro ao importar clientes salvos.', error)
           window.alert('Não foi possível importar os clientes. Verifique o arquivo e tente novamente.')
@@ -15254,9 +15546,10 @@ export default function App() {
 
       try {
         window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ordenados))
+        setClientsCacheDirty(false)
       } catch (error) {
         console.error('Erro ao salvar cliente localmente.', error)
-        window.alert('Não foi possível salvar o cliente. Tente novamente.')
+        setClientsCacheDirty(true)
         houveErro = true
         return prevRegistros
       }
@@ -15272,6 +15565,12 @@ export default function App() {
     }
 
     const registroConfirmado: ClienteRegistro = salvo
+    pendingMutationRef.current.addedClientKeys.add(
+      getClientStableKey({ id: registroConfirmado.id }),
+    )
+    pendingMutationRef.current.deletedClientKeys.delete(
+      getClientStableKey({ id: registroConfirmado.id }),
+    )
 
     // Update server ID map now that we have the local ID (from state) and Neon ID.
     if (syncedToBackend && neonServerId) {
@@ -15520,39 +15819,62 @@ export default function App() {
         return
       }
 
+      const knownServerId = clientServerIdMapRef.current[registro.id] ?? null
+      const candidateServerId = knownServerId ?? registro.id
+      const hasServerIdCandidate = /^\d+$/.test(candidateServerId)
+      const targetKey = getClientStableKey({ id: registro.id })
+
+      console.info('[delete-client] attempting', {
+        localId: registro.id,
+        serverId: hasServerIdCandidate ? candidateServerId : null,
+      })
+
       let removeuEdicaoAtual = false
-      let houveErro = false
-
+      pendingMutationRef.current.deletedClientKeys.add(targetKey)
+      pendingMutationRef.current.addedClientKeys.delete(targetKey)
       setClientesSalvos((prevRegistros) => {
-        const registrosAtualizados = prevRegistros.filter((item) => item.id !== registro.id)
-        if (registrosAtualizados.length === prevRegistros.length) {
-          return prevRegistros
-        }
-
-        try {
-          if (registrosAtualizados.length > 0) {
-            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosAtualizados))
-          } else {
-            window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
-          }
-        } catch (error) {
-          console.error('Erro ao excluir cliente salvo.', error)
-          window.alert('Não foi possível atualizar os clientes salvos. Tente novamente.')
-          houveErro = true
-          return prevRegistros
-        }
-
+        const registrosAtualizados = prevRegistros.filter(
+          (item) => getClientStableKey({ id: item.id }) !== targetKey,
+        )
         if (clienteEmEdicaoId === registro.id) {
           removeuEdicaoAtual = true
         }
-
         return registrosAtualizados
       })
 
-      if (houveErro) {
-        return
+      if (hasServerIdCandidate) {
+        try {
+          await deleteClientById(candidateServerId)
+        } catch (error) {
+          if (!isNotFoundDeleteError(error)) {
+            console.error('[delete-client] failed', error)
+            const message =
+              error instanceof Error && error.message
+                ? error.message
+                : 'Não foi possível remover cliente no banco de dados.'
+            window.alert(message)
+            return
+          }
+          console.info('[delete-client] already removed on backend; reconciling local UI')
+        }
       }
 
+      try {
+        const registrosAtualizados = carregarClientesSalvos().filter(
+          (item) => getClientStableKey({ id: item.id }) !== targetKey,
+        )
+        if (registrosAtualizados.length > 0) {
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+        } else {
+          window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
+        }
+        setClientsCacheDirty(false)
+      } catch (error) {
+        console.error('[delete-client][fallback-persist] failed', error)
+        setClientsCacheDirty(true)
+      }
+
+      removeClientServerIdMap(registro.id)
       if (removeuEdicaoAtual) {
         setClienteSync(cloneClienteDados(CLIENTE_INICIAL))
         setClienteMensagens({})
@@ -15561,7 +15883,16 @@ export default function App() {
         setClienteEmEdicaoId(null)
       }
     },
-    [clienteEmEdicaoId, requestConfirmDialog, setClienteEmEdicaoId, setClienteMensagens, setClienteSync],
+    [
+      carregarClientesSalvos,
+      clienteEmEdicaoId,
+      removeClientServerIdMap,
+      requestConfirmDialog,
+      setClientsCacheDirty,
+      setClienteEmEdicaoId,
+      setClienteMensagens,
+      setClienteSync,
+    ],
   )
 
   const parseOrcamentosSalvos = useCallback(
@@ -15800,6 +16131,19 @@ export default function App() {
     [parseOrcamentosSalvos],
   )
 
+  const reconcileLoadedProposals = useCallback((loaded: OrcamentoSalvo[]): OrcamentoSalvo[] => {
+    const pending = pendingMutationRef.current
+    const filtered = loaded.filter(
+      (item) => !pending.deletedProposalKeys.has(getProposalStableKey({ id: item.id })),
+    )
+    const loadedKeys = new Set(filtered.map((item) => getProposalStableKey({ id: item.id })))
+    const optimisticAdds = orcamentosSalvosRef.current.filter((item) => {
+      const key = getProposalStableKey({ id: item.id })
+      return pending.addedProposalKeys.has(key) && !pending.deletedProposalKeys.has(key) && !loadedKeys.has(key)
+    })
+    return [...optimisticAdds, ...filtered]
+  }, [])
+
   const carregarOrcamentosPrioritarios = useCallback(async (): Promise<OrcamentoSalvo[]> => {
     if (typeof window === 'undefined') {
       return []
@@ -15820,7 +16164,7 @@ export default function App() {
       }
       // Cache fresh Neon data in localStorage for offline fallback
       try { window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
-      return allRegistros
+      return reconcileLoadedProposals(allRegistros)
     } catch (error) {
       console.warn('[proposals] Falha ao carregar propostas via API; fallback para armazenamento local.', error)
       // Fall through to storage-based loading
@@ -15838,13 +16182,13 @@ export default function App() {
         const registrosLocais = carregarOrcamentosSalvos()
         if (registrosLocais.length > 0) {
           await persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(registrosLocais))
-          return registrosLocais
+          return reconcileLoadedProposals(registrosLocais)
         }
         window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
         return []
       }
       window.localStorage.setItem(BUDGETS_STORAGE_KEY, remoto)
-      return parseOrcamentosSalvos(remoto)
+      return reconcileLoadedProposals(parseOrcamentosSalvos(remoto))
     }
 
     try {
@@ -15855,7 +16199,7 @@ export default function App() {
             ? oneDrivePayload
             : JSON.stringify(oneDrivePayload)
         window.localStorage.setItem(BUDGETS_STORAGE_KEY, raw)
-        return parseOrcamentosSalvos(raw)
+        return reconcileLoadedProposals(parseOrcamentosSalvos(raw))
       }
     } catch (error) {
       if (error instanceof OneDriveIntegrationMissingError) {
@@ -15866,8 +16210,26 @@ export default function App() {
     }
 
     const fallbackRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
-    return parseOrcamentosSalvos(fallbackRaw)
-  }, [carregarOrcamentosSalvos, parseOrcamentosSalvos])
+    return reconcileLoadedProposals(parseOrcamentosSalvos(fallbackRaw))
+  }, [carregarOrcamentosSalvos, parseOrcamentosSalvos, reconcileLoadedProposals])
+
+  const refreshClientsSafe = useCallback(async () => {
+    try {
+      const loaded = await carregarClientesPrioritarios()
+      setClientesSalvos(reconcileLoadedClients(loaded))
+    } catch (error) {
+      console.error('[clients][refresh-safe] failed', error)
+    }
+  }, [carregarClientesPrioritarios, reconcileLoadedClients])
+
+  const refreshProposalsSafe = useCallback(async () => {
+    try {
+      const loaded = await carregarOrcamentosPrioritarios()
+      setOrcamentosSalvos(reconcileLoadedProposals(loaded))
+    } catch (error) {
+      console.error('[proposals][refresh-safe] failed', error)
+    }
+  }, [carregarOrcamentosPrioritarios, reconcileLoadedProposals])
 
   useEffect(() => {
     let cancelado = false
@@ -16110,6 +16472,46 @@ export default function App() {
     }, IDLE_SYNC_INTERVAL_MS)
     return () => clearInterval(timer)
   }, [carregarClientesPrioritarios, carregarOrcamentosPrioritarios])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const retryDirtyCaches = async () => {
+      if (!isConnectivityOnline()) {
+        return
+      }
+      if (clientsCacheDirty) {
+        try {
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(clientesSalvosRef.current))
+          setClientsCacheDirty(false)
+        } catch (error) {
+          console.warn('[clients][dirty-cache-retry] failed', error)
+        }
+      }
+      if (proposalsCacheDirty) {
+        try {
+          const { persisted } = persistBudgetsToLocalStorage(orcamentosSalvosRef.current)
+          setOrcamentosSalvos(persisted)
+          setProposalsCacheDirty(false)
+        } catch (error) {
+          console.warn('[proposals][dirty-cache-retry] failed', error)
+        }
+      }
+    }
+
+    const onFocus = () => {
+      void retryDirtyCaches()
+    }
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('online', onFocus)
+    void retryDirtyCaches()
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('online', onFocus)
+    }
+  }, [clientsCacheDirty, proposalsCacheDirty])
 
   const aplicarSnapshot = (
     snapshotEntrada: OrcamentoSnapshotData,
@@ -16508,6 +16910,13 @@ export default function App() {
           ]
           const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
           setOrcamentosSalvos(persisted)
+          setProposalsCacheDirty(false)
+          pendingMutationRef.current.addedProposalKeys.add(
+            getProposalStableKey({ id: registroAtualizado.id }),
+          )
+          pendingMutationRef.current.deletedProposalKeys.delete(
+            getProposalStableKey({ id: registroAtualizado.id }),
+          )
           alertPrunedBudgets(pruned)
           void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
           void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
@@ -16561,6 +16970,13 @@ export default function App() {
         const registrosAtualizados = [registro, ...registrosExistentes]
         const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
         setOrcamentosSalvos(persisted)
+        setProposalsCacheDirty(false)
+        pendingMutationRef.current.addedProposalKeys.add(
+          getProposalStableKey({ id: registro.id }),
+        )
+        pendingMutationRef.current.deletedProposalKeys.delete(
+          getProposalStableKey({ id: registro.id }),
+        )
         alertPrunedBudgets(pruned)
         void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
         void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
@@ -16580,6 +16996,7 @@ export default function App() {
         return persisted.find((item) => item.id === registro.id) ?? registro
       } catch (error) {
         console.error('Erro ao salvar orçamento localmente.', error)
+        setProposalsCacheDirty(true)
         window.alert('Não foi possível salvar o orçamento. Tente novamente.')
         return null
       }
@@ -16686,25 +17103,61 @@ export default function App() {
   }, [])
 
   const removerOrcamentoSalvo = useCallback(
-    (id: string) => {
+    async (id: string) => {
       if (typeof window === 'undefined') {
         return
       }
 
-      setOrcamentosSalvos((prevRegistros) => {
-        const registrosAtualizados = prevRegistros.filter((registro) => registro.id !== id)
+      const targetKey = getProposalStableKey({ id })
+      const knownServerId = proposalServerIdMapRef.current[id] ?? null
+      const candidateServerId = knownServerId ?? id
+      const hasServerIdCandidate = /^\d+$/.test(candidateServerId)
 
+      pendingMutationRef.current.deletedProposalKeys.add(targetKey)
+      pendingMutationRef.current.addedProposalKeys.delete(targetKey)
+      setOrcamentosSalvos((prevRegistros) =>
+        prevRegistros.filter((registro) => getProposalStableKey({ id: registro.id }) !== targetKey),
+      )
+
+      if (hasServerIdCandidate) {
         try {
-          const { persisted } = persistBudgetsToLocalStorage(registrosAtualizados)
-          return persisted
+          await deleteProposal(candidateServerId)
         } catch (error) {
-          console.error('Erro ao atualizar os orçamentos salvos.', error)
-          window.alert('Não foi possível atualizar os orçamentos salvos. Tente novamente.')
-          return prevRegistros
+          if (!isNotFoundDeleteError(error)) {
+            console.error('[delete-proposal] failed', error)
+            const message =
+              error instanceof Error && error.message
+                ? error.message
+                : 'Não foi possível remover o orçamento no banco de dados.'
+            window.alert(message)
+            return
+          }
+          console.info('[delete-proposal] already removed on backend; reconciling local UI')
         }
-      })
+      }
+
+      try {
+        const registrosAtualizados = carregarOrcamentosSalvos().filter(
+          (registro) => getProposalStableKey({ id: registro.id }) !== targetKey,
+        )
+        const { persisted } = persistBudgetsToLocalStorage(registrosAtualizados)
+        setOrcamentosSalvos(persisted)
+        setProposalsCacheDirty(false)
+      } catch (error) {
+        console.error('[delete-proposal][fallback-persist] failed', error)
+        setProposalsCacheDirty(true)
+      }
+
+      removeProposalServerIdMap(id)
+      await Promise.allSettled([refreshClientsSafe(), refreshProposalsSafe()])
     },
-    [setOrcamentosSalvos],
+    [
+      carregarOrcamentosSalvos,
+      refreshClientsSafe,
+      refreshProposalsSafe,
+      removeProposalServerIdMap,
+      setOrcamentosSalvos,
+    ],
   )
 
   const handleAbrirUploadImagens = useCallback(() => {
@@ -19879,7 +20332,7 @@ export default function App() {
         return
       }
 
-      removerOrcamentoSalvo(registro.id)
+      await removerOrcamentoSalvo(registro.id)
     },
     [removerOrcamentoSalvo, requestConfirmDialog],
   )
@@ -27401,7 +27854,10 @@ export default function App() {
       onExportarCsv={handleExportarClientesCsv}
       onExportarJson={handleExportarClientesJson}
       onImportar={handleClientesImportarClick}
+      onBackupCliente={handleBackupBancoDados}
       isImportando={isImportandoClientes}
+      isGerandoBackupBanco={isGerandoBackupBanco}
+      canBackupBanco={isAdmin || isOffice}
       isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
       allConsultores={allConsultores}
     />
@@ -28277,13 +28733,207 @@ export default function App() {
           onClose={handleFecharCorresponsavelModal}
         />
       ) : null}
+      {isBackupClienteModalOpen ? (
+        <div className="modal" role="dialog" aria-modal="true" aria-label="Backup de cliente">
+          <div className="modal-backdrop modal-backdrop--opaque" onClick={() => setIsBackupClienteModalOpen(false)} />
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Backup de cliente</h3>
+              <button type="button" className="ghost" onClick={() => setIsBackupClienteModalOpen(false)}>
+                Fechar
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Escolha se deseja baixar um backup completo ou carregar um arquivo de backup.</p>
+              <Field label="Destino do download">
+                <select
+                  value={backupDestinoSelecionado}
+                  onChange={(event) => {
+                    const value = event.target.value as 'local' | 'cloud' | 'platform'
+                    setBackupDestinoSelecionado(value)
+                  }}
+                >
+                  <option value="local">Local (download)</option>
+                  <option value="cloud">Nuvem (share)</option>
+                  <option value="platform">Plataforma (Neon)</option>
+                </select>
+              </Field>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => {
+                    setIsBackupClienteModalOpen(false)
+                    void handleExecutarDownloadBackup(backupDestinoSelecionado)
+                  }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Exportar backup
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setIsBackupClienteModalOpen(false)
+                    backupImportInputRef.current?.click()
+                  }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Importar backup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {backupPreview ? (
+        <div className="modal" role="dialog" aria-modal="true" aria-label="Pré-visualização de importação">
+          <div className="modal-backdrop modal-backdrop--opaque" onClick={() => setBackupPreview(null)} />
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Pré-visualização de importação</h3>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <button type="button" className={backupImportTab === 'summary' ? 'primary' : 'ghost'} onClick={() => setBackupImportTab('summary')}>Resumo</button>
+                <button type="button" className={backupImportTab === 'clients' ? 'primary' : 'ghost'} onClick={() => setBackupImportTab('clients')}>Clientes</button>
+                <button type="button" className={backupImportTab === 'proposals' ? 'primary' : 'ghost'} onClick={() => setBackupImportTab('proposals')}>Propostas</button>
+              </div>
+              <p>
+                Formato: <strong>{backupPreview.sourceFormat.toUpperCase()}</strong> •
+                Linhas: <strong>{backupPreview.totalRows}</strong> •
+                Clientes: <strong>{backupPreview.clients}</strong> •
+                Propostas: <strong>{backupPreview.proposals}</strong>
+                {backupPreview.discardedRows ? (
+                  <>
+                    {' '}• Descartadas: <strong>{backupPreview.discardedRows}</strong>
+                  </>
+                ) : null}
+              </p>
+              {backupPreview.discardedReasons?.length ? (
+                <p style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  Motivos de descarte: {backupPreview.discardedReasons.join(', ')}
+                </p>
+              ) : null}
+              {backupImportTab === 'summary' ? (
+                <div style={{ maxHeight: '220px', overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.5rem' }}>
+                  <pre style={{ margin: 0, fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}>
+                    {JSON.stringify(backupPreview.sample, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+              {backupImportTab === 'clients' ? (
+                <div style={{ maxHeight: '220px', overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.5rem' }}>
+                  {(((backupPayloadPendente as { data?: { clients?: Array<Record<string, unknown>> } } | null)?.data?.clients) ?? []).map((row, index) => {
+                    const nome = typeof row.name === 'string' ? row.name : ''
+                    const documento = typeof row.document === 'string' ? row.document : ''
+                    const valido = Boolean(nome)
+                    return (
+                      <label key={`backup-client-${index}`} style={{ display: 'grid', gridTemplateColumns: '24px 80px 1fr 1fr', gap: '0.5rem', alignItems: 'center', fontSize: '0.75rem', marginBottom: '0.25rem', opacity: valido ? 1 : 0.6 }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(backupImportSelection.clients[index])}
+                          disabled={!valido || isGerandoBackupBanco}
+                          onChange={(event) => {
+                            const checked = event.target.checked
+                            setBackupImportSelection((prev) => {
+                              const next = [...prev.clients]
+                              next[index] = checked
+                              return { ...prev, clients: next }
+                            })
+                          }}
+                        />
+                        <span>{valido ? 'válido' : 'inválido'}</span>
+                        <span>{nome || 'Sem nome'}</span>
+                        <span>{documento || '—'}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              ) : null}
+              {backupImportTab === 'proposals' ? (
+                <div style={{ maxHeight: '220px', overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.5rem' }}>
+                  {(((backupPayloadPendente as { data?: { proposals?: Array<Record<string, unknown>> } } | null)?.data?.proposals) ?? []).map((row, index) => {
+                    const tipo = typeof row.proposal_type === 'string' ? row.proposal_type : ''
+                    const codigo = typeof row.proposal_code === 'string' ? row.proposal_code : ''
+                    const valido = Boolean(tipo)
+                    return (
+                      <label key={`backup-proposal-${index}`} style={{ display: 'grid', gridTemplateColumns: '24px 80px 1fr 1fr', gap: '0.5rem', alignItems: 'center', fontSize: '0.75rem', marginBottom: '0.25rem', opacity: valido ? 1 : 0.6 }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(backupImportSelection.proposals[index])}
+                          disabled={!valido || isGerandoBackupBanco}
+                          onChange={(event) => {
+                            const checked = event.target.checked
+                            setBackupImportSelection((prev) => {
+                              const next = [...prev.proposals]
+                              next[index] = checked
+                              return { ...prev, proposals: next }
+                            })
+                          }}
+                        />
+                        <span>{valido ? 'válido' : 'inválido'}</span>
+                        <span>{tipo || 'Sem tipo'}</span>
+                        <span>{codigo || '—'}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              ) : null}
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => { void handleConfirmarImportacaoBackup() }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Importar selecionados
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    const clients = (((backupPayloadPendente as { data?: { clients?: Array<Record<string, unknown>> } } | null)?.data?.clients) ?? [])
+                    const proposals = (((backupPayloadPendente as { data?: { proposals?: Array<Record<string, unknown>> } } | null)?.data?.proposals) ?? [])
+                    setBackupImportSelection({
+                      clients: clients.map((row) => Boolean(typeof row.name === 'string' && row.name.trim())),
+                      proposals: proposals.map((row) => Boolean(typeof row.proposal_type === 'string' && row.proposal_type.trim())),
+                    })
+                  }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Importar todos os válidos
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setBackupPreview(null)
+                    setBackupPayloadPendente(null)
+                  }}
+                  disabled={isGerandoBackupBanco}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <input
         ref={clientesImportInputRef}
         type="file"
-        accept="application/json,text/csv,.csv"
+        accept=".json,.csv,.xlsx,.xls,application/json,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         style={{ display: 'none' }}
         onChange={handleClientesImportarArquivo}
+      />
+      <input
+        ref={backupImportInputRef}
+        type="file"
+        accept=".xlsx,.xlxs,.xlx,.xls,.csv,.json,application/json,text/csv"
+        style={{ display: 'none' }}
+        onChange={handleBackupUploadArquivo}
       />
 
       {isLeasingContractsModalOpen ? (

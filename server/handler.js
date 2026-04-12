@@ -61,6 +61,10 @@ import {
 } from './routes/authReconcile.js'
 import { handleRbacInspectRequest } from './routes/rbacInspect.js'
 import { handleConsultantsListRequest } from './routes/consultants.js'
+import {
+  handleDatabaseBackupExportRequest,
+  handleDatabaseBackupImportRequest,
+} from './routes/databaseBackup.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -598,6 +602,26 @@ export default async function handler(req, res) {
       return
     }
 
+    // POST /api/admin/database-backup — secure DB snapshot export for admin/office
+    if (pathname === '/api/admin/database-backup') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      const body = await readJsonBody(req)
+      await handleDatabaseBackupExportRequest(req, res, { sendJson, body })
+      return
+    }
+
+    // POST /api/admin/database-backup/import — restore selected backup records
+    if (pathname === '/api/admin/database-backup/import') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      const body = await readJsonBody(req)
+      await handleDatabaseBackupImportRequest(req, res, { sendJson, body })
+      return
+    }
+
     // POST /api/clients/upsert-by-cpf — offline-first client upsert
     if (pathname === '/api/clients/upsert-by-cpf' && method === 'POST') {
       const clientsCtx = { method, readJsonBody, sendJson, sendNoContent }
@@ -617,9 +641,10 @@ export default async function handler(req, res) {
     // GET /api/clients/:id — get client
     // GET /api/clients/:id/proposals — get client's proposals
     // PUT /api/clients/:id — update client
-    const clientByIdMatch = pathname.match(/^\/api\/clients\/(\d+)(\/proposals)?$/)
+    // DELETE /api/clients/:id — hard delete client
+    const clientByIdMatch = pathname.match(/^\/api\/clients\/([^/]+)(\/proposals)?$/)
     if (clientByIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,OPTIONS'); sendNoContent(res); return }
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,DELETE,OPTIONS'); sendNoContent(res); return }
       const clientId = clientByIdMatch[1]
       const subpath = clientByIdMatch[2]?.slice(1) ?? null  // 'proposals' or null
       const clientsCtx = { method, clientId, subpath, readJsonBody, sendJson, sendNoContent }
