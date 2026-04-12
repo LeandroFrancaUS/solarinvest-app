@@ -15847,11 +15847,8 @@ export default function App() {
           const refreshed = await carregarClientesPrioritarios()
           // Only update state with items that were NOT optimistically deleted.
           // This prevents a slow/stale refresh from resurrecting the deleted client.
-          setClientesSalvos((prev) => {
-            const deletedIds = new Set(prev.map((c) => c.id).filter((id) => !refreshed.some((r) => r.id === id)))
-            deletedIds.add(registro.id)
-            return refreshed.filter((c) => !deletedIds.has(c.id))
-          })
+          const excludeIds = new Set([registro.id])
+          setClientesSalvos(refreshed.filter((c) => !excludeIds.has(c.id)))
         } catch (error) {
           console.warn('[clients][refresh-safe] failed; preserving optimistic deletion', error)
           // Do NOT call setClientsSyncState('failed') here — the delete itself
