@@ -26,14 +26,16 @@ function sendError(sendJson, statusCode, code, message) {
 
 function logRoute(route, extra = {}) {
   const diagnostics = getCanonicalDatabaseDiagnostics()
-  console.info('[db-route]', {
+  const payload = {
     route,
     dbSource: diagnostics.source,
     dbHost: diagnostics.host,
     dbName: diagnostics.database,
     schema: diagnostics.schema,
     ...extra,
-  })
+  }
+  console.info('[db-route]', payload)
+  console.info('[db-runtime]', payload)
 }
 
 function getDb(sendJson) {
@@ -197,17 +199,30 @@ export async function handleClientsRequest(req, res, ctx) {
 
   if (method === 'GET') {
     const q = requestUrl.searchParams
+    const page = q.get('page') ?? 1
+    const limit = q.get('limit') ?? 20
+    console.info('[api/clients][GET] start', {
+      page,
+      limit,
+      userId: actor?.userId ?? null,
+      email: actor?.email ?? null,
+    })
+    console.info('[api/clients][GET] db-config', {
+      hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+      hasUnpooledUrl: Boolean(process.env.DATABASE_URL_UNPOOLED || process.env.NEON_DATABASE_URL_UNPOOLED),
+      nodeEnv: process.env.NODE_ENV ?? null,
+    })
     try {
       const userSql = sqlForActor(db, actor)
-      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, page: q.get('page') ?? 1, limit: q.get('limit') ?? 20 })
+      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, page, limit })
       const result = await listClients(userSql, {
         createdByUserId: q.get('created_by') ?? null,
         city: q.get('city') ?? null,
         state: q.get('uf') ?? null,
         identityStatus: q.get('identity_status') ?? null,
         search: q.get('search') ?? null,
-        page: q.get('page') ?? 1,
-        limit: q.get('limit') ?? 20,
+        page,
+        limit,
         sortBy: q.get('sort_by') ?? 'updated_at',
         sortDir: q.get('sort_dir') ?? 'DESC',
       })
@@ -217,6 +232,10 @@ export async function handleClientsRequest(req, res, ctx) {
       console.error('[api/clients][GET] failed', {
         message: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
+        code: err?.code ?? null,
+        detail: err?.detail ?? null,
+        hint: err?.hint ?? null,
+        name: err?.name ?? null,
       })
       return sendError(sendJson, 500, 'CLIENTS_LIST_FAILED', 'Falha ao carregar clientes do banco.')
     }
@@ -331,10 +350,17 @@ export async function handleClientByIdRequest(req, res, ctx) {
       console.info('[api/clients][DELETE] start', { id: clientId })
       const userSql = sqlForActor(db, actor)
       const deleted = await softDeleteClient(userSql, clientId, actor.userId)
-      if (!deleted) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
+      if (!deleted) {
+        console.info('[api/clients][DELETE] already-absent', { id: clientId })
+        res.statusCode = 204
+        res.end()
+        return
+      }
       await appendClientAuditLog(db.sql, clientId, actor.userId, actor.email ?? null, 'deleted', null, null)
       console.info('[client-delete][db]', { id: clientId, deletedRows: 1 })
-      return sendJson(200, { deletedId: String(clientId) })
+      res.statusCode = 204
+      res.end()
+      return
     } catch (err) {
       console.error('[api/clients][DELETE] failed', {
         id: clientId,
