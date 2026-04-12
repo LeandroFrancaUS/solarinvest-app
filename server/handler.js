@@ -257,6 +257,14 @@ if (databaseConfig.connectionString && databaseClient) {
   storageService.ensureInitialized().catch(() => {
     // log já existe no seu arquivo original; aqui pode manter simples
   })
+
+  // Self-healing schema patch: ensure updated_by_user_id exists on clients.
+  // Migration 0020 adds this column; this fires once per cold-start so that
+  // the column is available even if the migration hasn't been applied manually.
+  // ALTER TABLE … ADD COLUMN IF NOT EXISTS is idempotent: PostgreSQL skips it
+  // in ~1 ms when the column already exists, so the overhead is negligible.
+  databaseClient.sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS updated_by_user_id TEXT`
+    .catch(err => console.warn('[db][startup] clients schema patch failed (non-fatal):', err?.message))
 }
 
 // ✅ ESTE É O HANDLER serverless

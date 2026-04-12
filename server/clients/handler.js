@@ -214,6 +214,9 @@ export async function handleClientsRequest(req, res, ctx) {
       logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: result.data.length })
       return sendJson(200, result)
     } catch (err) {
+      const httpStatus = err?.statusCode ?? null
+      if (httpStatus === 401) return sendError(sendJson, 401, 'UNAUTHENTICATED', 'Authentication required')
+      if (httpStatus === 403) return sendError(sendJson, 403, 'FORBIDDEN', 'Access forbidden')
       console.error('[api/clients][GET] failed', {
         message: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,

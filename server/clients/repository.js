@@ -177,16 +177,40 @@ export async function updateClient(sql, clientId, data) {
 
 /**
  * Soft-delete a client by setting deleted_at.
+ *
+ * Self-healing: attempts the full UPDATE including updated_by_user_id.
+ * If the column does not yet exist in the DB (migration 0020 pending),
+ * it retries with a minimal UPDATE so that deletes never fail due to a
+ * missing optional column.  The audit log already records the actor.
  */
 export async function softDeleteClient(sql, clientId, actorUserId) {
-  const rows = await sql`
-    UPDATE clients
-    SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
-    WHERE id = ${clientId}
-      AND deleted_at IS NULL
-    RETURNING id
-  `
-  return rows[0] ?? null
+  try {
+    const rows = await sql`
+      UPDATE clients
+      SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
+      WHERE id = ${clientId}
+        AND deleted_at IS NULL
+      RETURNING id
+    `
+    return rows[0] ?? null
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    // Re-throw anything that is not specifically about updated_by_user_id missing.
+    // Match the exact PostgreSQL error phrase (column "updated_by_user_id" does not exist).
+    if (!msg.includes('"updated_by_user_id"') && !msg.includes("'updated_by_user_id'")) throw err
+
+    // Column not yet created (migration 0020 pending) — retry without it.
+    // The actor is still recorded in client_audit_log by the caller.
+    console.warn('[clients][softDelete] updated_by_user_id column not found, retrying without it', { clientId })
+    const rows = await sql`
+      UPDATE clients
+      SET deleted_at = now(), updated_at = now()
+      WHERE id = ${clientId}
+        AND deleted_at IS NULL
+      RETURNING id
+    `
+    return rows[0] ?? null
+  }
 }
 
 /**
@@ -253,7 +277,7 @@ export async function listClients(sql, filter = {}) {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
   // safeSort and safeSortDir are validated against allowlists above — safe to interpolate
-  const countQuery = `SELECT COUNT(*) FROM clients c ${joinClause} ${where}`
+  const countQuery = `SELECT COUNT(*) AS count FROM clients c ${joinClause} ${where}`
   const dataQuery = `
     SELECT c.*,
       up.display_name AS owner_display_name,
@@ -277,8 +301,10 @@ export async function listClients(sql, filter = {}) {
       msg.includes('app_user_profiles') ||
       msg.includes('proposals') ||
       msg.includes('merged_into_client_id') ||
-      /relation ".+" does not exist/.test(msg) ||
-      /column ".+" does not exist/.test(msg)
+      // PostgreSQL wraps identifiers in double quotes in error messages,
+      // e.g. 'relation "foo" does not exist' or 'column "bar" does not exist'.
+      /relation "[^"]+" does not exist/.test(msg) ||
+      /column "[^"]+" does not exist/.test(msg)
     )
   }
 
@@ -306,7 +332,7 @@ export async function listClients(sql, filter = {}) {
 
     console.warn('[clients][list] optional joins/columns unavailable, falling back to base clients query')
 
-    const basicCountQuery = `SELECT COUNT(*) FROM clients c ${fallbackWhere}`
+    const basicCountQuery = `SELECT COUNT(*) AS count FROM clients c ${fallbackWhere}`
     const basicDataQuery = `
       SELECT c.*,
         NULL::text AS owner_display_name,
