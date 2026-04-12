@@ -174,6 +174,21 @@ export async function updateClient(sql, clientId, data) {
   return rows[0] ?? null
 }
 
+
+/**
+ * Soft-delete a client by setting deleted_at.
+ */
+export async function softDeleteClient(sql, clientId, actorUserId) {
+  const rows = await sql`
+    UPDATE clients
+    SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
+    WHERE id = ${clientId}
+      AND deleted_at IS NULL
+    RETURNING id
+  `
+  return rows[0] ?? null
+}
+
 /**
  * List clients with filters.
  * Uses parameterized queries for all user-supplied values.

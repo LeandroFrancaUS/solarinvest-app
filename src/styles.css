@@ -8795,3 +8795,13 @@ i:hover {
     --proposal-action-padding-x-expanded: 18px;
   }
 }
+
+.sync-warning-banner {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff6e5;
+  border: 1px solid #f2c078;
+  color: #8a5a00;
+  font-size: 0.92rem;
+}
