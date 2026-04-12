@@ -5,6 +5,12 @@ const pool = getPgPool()
 
 export default async function handler(req, res) {
   try {
+    console.info('[client-delete] request received', {
+      method: req.method,
+      id: req.query?.id ?? null,
+      hasAuthHeader: !!req.headers?.authorization,
+      hasStackToken: !!req.headers?.['x-stack-access-token'],
+    })
     const user = await verifyRequest(req)
     const userId = user?.id || null
     if (!userId) {
@@ -94,7 +100,12 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'GET, PUT, DELETE')
     res.status(405).end('Method Not Allowed')
   } catch (error) {
-    console.error('/api/clients/[id] error', error)
+    console.error('[client-delete] failed', {
+      method: req.method,
+      id: req.query?.id ?? null,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     res.status(error.status || 500).json({ error: error.message || 'Internal server error' })
   }
 }

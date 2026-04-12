@@ -101,12 +101,13 @@ async function parseErrorResponse(res: Response): Promise<ClientsApiError> {
   let code = 'INTERNAL_ERROR'
   let message = `HTTP ${res.status}`
   try {
-    const body = (await res.json()) as { error?: { code?: string; message?: string } | string }
+    const body = (await res.json()) as { error?: { code?: string; message?: string } | string; message?: string }
     if (typeof body?.error === 'string') {
-      message = body.error
+      code = body.error
+      message = body.message ?? body.error
     } else {
       code = body?.error?.code ?? code
-      message = body?.error?.message ?? message
+      message = body?.error?.message ?? body?.message ?? message
     }
   } catch {
     // ignore parse errors
@@ -162,6 +163,12 @@ export async function updateClientById(id: string, input: UpdateClientInput): Pr
     body: JSON.stringify(input),
   })
   return result.data
+}
+
+export async function deleteClientById(id: string): Promise<{ deletedId: string }> {
+  return apiFetch<{ deletedId: string }>(`/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
 }
 
 /**
