@@ -133,6 +133,21 @@ async function ensureSchemaAndBootstrapData() {
            updated_at    = now()
        WHERE access_status = 'pending'`
     )
+
+    // Bulk self-heal: fix ALL approved rows where can_access_app or is_active are
+    // still false due to schema defaults or direct-SQL edits.
+    // Affects ALL users — important when the problem is widespread.
+    // The authorized flag in authMe.js requires can_access_app AND is_active to
+    // both be true for an approved row; without this heal every such user sees
+    // "Acesso pendente" even though their account is legitimately approved.
+    await query(
+      `UPDATE public.app_user_access
+       SET can_access_app = true,
+           is_active      = true,
+           updated_at     = now()
+       WHERE access_status = 'approved'
+         AND (can_access_app = false OR is_active = false)`
+    )
     console.info('[auth/init] schema + bootstrap self-heal OK')
   } catch (err) {
     _initAttempted = false   // allow retry on next request
@@ -528,6 +543,40 @@ export async function getCurrentAppUser(req) {
       console.info('[auth/user] auto-approved pending row for Stack Auth user — userId:', authProviderUserId)
     } catch (err) {
       console.warn('[auth/user] auto-approve pending row error:', err?.message)
+    }
+  }
+
+  // 4c) Self-heal inconsistent "approved" rows where can_access_app or is_active
+  //     are still false.  This can happen when:
+  //     - The row was inserted or updated via direct SQL with only access_status
+  //       set to 'approved' without also setting can_access_app / is_active.
+  //     - The schema default (can_access_app = false) was not overridden by the
+  //       approval flow (e.g. a legacy bootstrap path).
+  //     Without this heal the authorized flag in authMe.js evaluates to false
+  //     even though the status is 'approved', causing the "Acesso pendente"
+  //     screen to be shown to a legitimately approved user.
+  if (
+    record &&
+    record.access_status === 'approved' &&
+    (!record.can_access_app || !record.is_active)
+  ) {
+    try {
+      await query(
+        `UPDATE public.app_user_access
+         SET can_access_app = true,
+             is_active      = true,
+             updated_at     = now()
+         WHERE id = $1
+           AND access_status = 'approved'
+           AND (can_access_app = false OR is_active = false)`,
+        [record.id]
+      )
+      record = { ...record, can_access_app: true, is_active: true }
+      console.info(
+        '[auth/user] self-healed approved row (can_access_app/is_active were false) — userId:', authProviderUserId
+      )
+    } catch (err) {
+      console.warn('[auth/user] self-heal approved row error:', err?.message)
     }
   }
 
