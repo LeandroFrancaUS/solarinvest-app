@@ -1,7 +1,7 @@
 // server/clients/handler.js
 // Handles /api/clients routes with CPF deduplication and RBAC.
 
-import { getDatabaseClient, getRoleSpecificClient } from '../database/neonClient.js'
+import { getDatabaseClient } from '../database/neonClient.js'
 import { getCanonicalDatabaseDiagnostics } from '../database/connection.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import {
@@ -48,17 +48,10 @@ function getDb(sendJson) {
 }
 
 function sqlForActor(db, actor) {
-  // When a role-specific database client is configured (e.g. DATABASE_URL_ROLE_ADMIN),
-  // connect directly as that PostgreSQL role.  Migration 0023 adds a current_user
-  // fast-path in can_access_owner() / can_write_owner() so no set_config transaction
-  // wrapper is needed — the connection role itself satisfies the RLS policies.
-  const roleClient = getRoleSpecificClient(actorRole(actor))
-  if (roleClient) {
-    return roleClient.sql
-  }
-
-  // Default path: neondb_owner connection + set_config in a transaction to inject
-  // app.current_user_id and app.current_user_role into the PostgreSQL session.
+  // Inject app.current_user_id and app.current_user_role into the PostgreSQL
+  // session via a single sql.transaction() batch.  The main DB client prefers
+  // DATABASE_URL_UNPOOLED (direct connection) where sql.transaction() works
+  // reliably.  All access control is enforced by RLS policies in the DB.
   return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
 }
 
